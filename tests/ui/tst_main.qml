@@ -66,6 +66,8 @@ TestCase {
     }
 
     function test_primaryChromeIsAccessibleFromKeyboard() {
+        window.requestActivate()
+        tryVerify(function() { return window.active })
         const newTabButton = findChild(window.contentItem, "newTabButton")
         const addressButton = findChild(window.contentItem, "addressButton")
         const collapseButton = findChild(window.contentItem, "collapseButton")
@@ -131,5 +133,59 @@ TestCase {
             return engineLoader.item !== null
                 && engineLoader.item.profilePath === browser.activeProfilePath
         })
+    }
+
+    function test_privateWindowUsesTemporaryIdentityAndDistinctChrome() {
+        compare(windowManager.privateWindowCount, 0)
+        windowManager.openPrivateWindow()
+        tryCompare(windowManager, "privateWindowCount", 1)
+
+        const privateBrowser = findChild(window, "privateBrowserWindow")
+        verify(privateBrowser !== null)
+        verify(privateBrowser.visible)
+        verify(Boolean(privateBrowser.flags & Qt.FramelessWindowHint))
+        compare(privateBrowser.colors.accent, privateBrowser.colors.privateAccent)
+
+        const spaceSelector = findChild(privateBrowser.contentItem, "spaceSelector")
+        const pinButton = findChild(privateBrowser.contentItem, "pinButton")
+        const privateEngine = findChild(privateBrowser.contentItem, "engineLoader")
+        const privateIndicator = findChild(privateBrowser.contentItem, "privateIndicator")
+        verify(spaceSelector !== null)
+        verify(pinButton !== null)
+        verify(privateEngine !== null)
+        verify(privateIndicator !== null)
+        verify(!spaceSelector.visible)
+        verify(!pinButton.visible)
+        verify(privateIndicator.visible)
+        compare(privateEngine.item.profilePath, windowManager.privateProfilePath)
+        compare(privateEngine.item.browserProfile, window.privateProfileHost.profile)
+
+        privateBrowser.windowBrowser.closeActiveTab()
+        tryCompare(windowManager, "privateWindowCount", 0)
+    }
+
+    function test_newWindowRequestsRouteToTabsOrAuxiliaryWindows() {
+        const engineLoader = findChild(window.contentItem, "engineLoader")
+        verify(engineLoader !== null)
+        const previousTabCount = browser.tabs.rowCount()
+
+        engineLoader.item.simulateNewWindowRequest("https://example.com/tab", false)
+        tryVerify(function() { return browser.tabs.rowCount() === previousTabCount + 1 })
+        compare(browser.activeUrl.toString(), "https://example.com/tab")
+
+        engineLoader.item.simulateNewWindowRequest("https://example.com/dialog", true)
+        const auxiliary = findChild(window, "auxiliaryWindow")
+        tryVerify(function() { return auxiliary !== null && auxiliary.visible })
+        verify(!Boolean(auxiliary.flags & Qt.FramelessWindowHint))
+
+        const auxiliaryEngine = findChild(auxiliary.contentItem, "auxiliaryEngineLoader")
+        verify(auxiliaryEngine !== null)
+        tryVerify(function() { return auxiliaryEngine.item !== null })
+        compare(auxiliaryEngine.item.sharedProfile, engineLoader.item.browserProfile)
+        compare(auxiliaryEngine.item.currentUrl.toString(), "https://example.com/dialog")
+        auxiliaryEngine.item.simulateWindowCloseRequest()
+        tryVerify(function() { return !auxiliary.visible })
+        window.requestActivate()
+        tryVerify(function() { return window.active })
     }
 }

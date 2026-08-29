@@ -6,9 +6,16 @@
 namespace tanto {
 
 BrowserController::BrowserController(QString dataRoot, QString engineName, QObject *parent)
+    : BrowserController(std::move(dataRoot), std::move(engineName), false, parent)
+{
+}
+
+BrowserController::BrowserController(QString dataRoot, QString engineName,
+    bool privateBrowsing, QObject *parent)
     : QObject(parent)
     , m_store(std::move(dataRoot))
     , m_engineName(std::move(engineName))
+    , m_privateBrowsing(privateBrowsing)
 {
     initialize();
 }
@@ -52,6 +59,9 @@ QString BrowserController::activeTitle() const
 
 QString BrowserController::activeProfilePath() const
 {
+    if (m_privateBrowsing) {
+        return {};
+    }
     return m_store.engineProfilePath(m_activeSpaceId, m_engineName);
 }
 
@@ -71,6 +81,11 @@ QString BrowserController::activeRendererFailureReason() const
 {
     const auto *tab = m_tabs.find(m_activeTabId);
     return tab ? tab->rendererFailureReason : QString{};
+}
+
+bool BrowserController::privateBrowsing() const
+{
+    return m_privateBrowsing;
 }
 
 bool BrowserController::ready() const
@@ -93,6 +108,9 @@ void BrowserController::activateTab(const QString &tabId)
 
 QString BrowserController::createSpace(const QString &name)
 {
+    if (m_privateBrowsing) {
+        return {};
+    }
     const auto normalizedName = name.trimmed();
     if (normalizedName.isEmpty()) {
         return {};
@@ -114,6 +132,9 @@ QString BrowserController::createSpace(const QString &name)
 
 bool BrowserController::switchSpace(const QString &spaceId)
 {
+    if (m_privateBrowsing) {
+        return false;
+    }
     if (spaceId == m_activeSpaceId) {
         return true;
     }
@@ -154,6 +175,9 @@ bool BrowserController::switchSpace(const QString &spaceId)
 
 bool BrowserController::renameSpace(const QString &spaceId, const QString &name)
 {
+    if (m_privateBrowsing) {
+        return false;
+    }
     const auto normalizedName = name.trimmed();
     if (normalizedName.isEmpty()) {
         return false;
@@ -182,6 +206,9 @@ bool BrowserController::renameSpace(const QString &spaceId, const QString &name)
 
 bool BrowserController::deleteSpace(const QString &spaceId, const QString &confirmationName)
 {
+    if (m_privateBrowsing) {
+        return false;
+    }
     if (m_spaces.items().size() <= 1) {
         return false;
     }
@@ -233,6 +260,9 @@ bool BrowserController::deleteSpace(const QString &spaceId, const QString &confi
 bool BrowserController::requestTabMoveToSpace(const QString &tabId,
     const QString &destinationSpaceId, bool hasEditedFormState)
 {
+    if (m_privateBrowsing) {
+        return false;
+    }
     if (!m_tabs.find(tabId) || destinationSpaceId == m_activeSpaceId) {
         return false;
     }
@@ -251,6 +281,9 @@ bool BrowserController::requestTabMoveToSpace(const QString &tabId,
 bool BrowserController::confirmTabMoveToSpace(const QString &tabId,
     const QString &destinationSpaceId)
 {
+    if (m_privateBrowsing) {
+        return false;
+    }
     const auto *sourceTab = m_tabs.find(tabId);
     if (!sourceTab || destinationSpaceId == m_activeSpaceId) {
         return false;
@@ -343,6 +376,10 @@ void BrowserController::closeActiveTab()
     }
 
     if (m_tabs.rowCount() == 1) {
+        if (m_privateBrowsing) {
+            emit closeWindowRequested();
+            return;
+        }
         active->url = QUrl(QStringLiteral("about:blank"));
         active->title = QStringLiteral("New tab");
         active->loading = false;
@@ -392,6 +429,9 @@ void BrowserController::reopenClosedTab()
 
 void BrowserController::toggleActivePinned()
 {
+    if (m_privateBrowsing) {
+        return;
+    }
     auto *tab = m_tabs.find(m_activeTabId);
     if (!tab) {
         return;
@@ -475,6 +515,13 @@ void BrowserController::requestReload()
 
 void BrowserController::initialize()
 {
+    if (m_privateBrowsing) {
+        auto tab = makeBlankTab({});
+        m_activeTabId = tab.id;
+        m_tabs.reset({tab});
+        m_ready = true;
+        return;
+    }
     if (!m_store.open(&m_errorMessage)) {
         return;
     }
@@ -531,6 +578,9 @@ void BrowserController::ensureActiveTab()
 
 bool BrowserController::persistTabs()
 {
+    if (m_privateBrowsing) {
+        return true;
+    }
     return m_store.saveTabs(m_activeSpaceId, m_tabs.items(), m_activeTabId);
 }
 

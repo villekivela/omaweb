@@ -4,6 +4,7 @@ import QtQuick.Layouts
 
 ApplicationWindow {
     id: window
+    objectName: privateWindow ? "privateBrowserWindow" : "mainBrowserWindow"
 
     width: 1360
     height: 860
@@ -12,14 +13,29 @@ ApplicationWindow {
     visible: true
     color: "transparent"
     flags: Qt.Window | Qt.FramelessWindowHint
-    title: browser.activeTitle + " — Tanto"
+    title: window.privateWindow ? "Private — Tanto" : window.windowBrowser.activeTitle + " — Tanto"
 
-    property var colors: theme.palette
+    property var windowBrowser: browser
+    property bool privateWindow: false
+    property string profilePathOverride: ""
+    property var sharedEngineProfile: null
+    property var colors: privateWindow ? privatePalette(theme.palette) : theme.palette
     property bool sidebarCollapsed: false
     property bool omnibarOpen: false
     property bool newTabIntent: false
     property string pendingMoveTabId: ""
     property string pendingMoveSpaceId: ""
+    property var privateProfileHost: null
+
+    function privatePalette(source) {
+        const palette = Object.assign({}, source)
+        palette.window = source.privateWindow
+        palette.sidebar = source.privateSidebar
+        palette.surface = source.privateSurface
+        palette.surfaceHover = source.privateSurfaceHover
+        palette.accent = source.privateAccent
+        return palette
+    }
 
     FontLoader {
         id: materialSymbols
@@ -29,7 +45,7 @@ ApplicationWindow {
 
     function openOmnibar(forNewTab) {
         newTabIntent = forNewTab
-        omnibarInput.text = forNewTab ? "" : browser.activeUrl.toString()
+        omnibarInput.text = forNewTab ? "" : window.windowBrowser.activeUrl.toString()
         omnibarOpen = true
         Qt.callLater(function() {
             omnibarInput.forceActiveFocus()
@@ -55,12 +71,17 @@ ApplicationWindow {
 
     Shortcut {
         sequence: Qt.platform.os === "osx" ? "Meta+W" : "Ctrl+W"
-        onActivated: browser.closeActiveTab()
+        onActivated: window.windowBrowser.closeActiveTab()
     }
 
     Shortcut {
         sequence: Qt.platform.os === "osx" ? "Meta+Shift+T" : "Ctrl+Shift+T"
-        onActivated: browser.reopenClosedTab()
+        onActivated: window.windowBrowser.reopenClosedTab()
+    }
+
+    Shortcut {
+        sequence: Qt.platform.os === "osx" ? "Meta+Shift+N" : "Ctrl+Shift+N"
+        onActivated: windowManager.openPrivateWindow()
     }
 
     Shortcut {
@@ -129,7 +150,7 @@ ApplicationWindow {
                             foreground: window.colors.text
                             hoverBackground: window.colors.surfaceHover
                             enabled: engineLoader.item ? engineLoader.item.canGoBack : false
-                            onClicked: browser.requestBack()
+                            onClicked: window.windowBrowser.requestBack()
                         }
 
                         ChromeButton {
@@ -141,7 +162,7 @@ ApplicationWindow {
                             foreground: window.colors.text
                             hoverBackground: window.colors.surfaceHover
                             enabled: engineLoader.item ? engineLoader.item.canGoForward : false
-                            onClicked: browser.requestForward()
+                            onClicked: window.windowBrowser.requestForward()
                         }
 
                         ChromeButton {
@@ -152,18 +173,19 @@ ApplicationWindow {
                             fontFamily: materialSymbols.name
                             foreground: window.colors.text
                             hoverBackground: window.colors.surfaceHover
-                            onClicked: browser.requestReload()
+                            onClicked: window.windowBrowser.requestReload()
                         }
 
                         ChromeButton {
                             objectName: "pinButton"
                             Layout.fillWidth: true
-                            label: browser.activeTabPinned ? "bookmark" : "bookmark_border"
-                            accessibleName: browser.activeTabPinned ? "Unpin tab" : "Pin tab"
+                            label: window.windowBrowser.activeTabPinned ? "bookmark" : "bookmark_border"
+                            accessibleName: window.windowBrowser.activeTabPinned ? "Unpin tab" : "Pin tab"
                             fontFamily: materialSymbols.name
-                            foreground: browser.activeTabPinned ? window.colors.accent : window.colors.text
+                            foreground: window.windowBrowser.activeTabPinned ? window.colors.accent : window.colors.text
                             hoverBackground: window.colors.surfaceHover
-                            onClicked: browser.toggleActivePinned()
+                            onClicked: window.windowBrowser.toggleActivePinned()
+                            visible: !window.privateWindow
                         }
 
                         ChromeButton {
@@ -175,6 +197,7 @@ ApplicationWindow {
                             foreground: window.colors.text
                             hoverBackground: window.colors.surfaceHover
                             onClicked: moveTabDialog.open()
+                            visible: !window.privateWindow
                         }
                     }
 
@@ -207,10 +230,10 @@ ApplicationWindow {
                             anchors.rightMargin: 12
                             anchors.verticalCenter: parent.verticalCenter
                             visible: !window.sidebarCollapsed
-                            text: browser.activeUrl.toString() === "about:blank"
+                            text: window.windowBrowser.activeUrl.toString() === "about:blank"
                                 ? "Search or enter address"
-                                : browser.activeUrl.toString()
-                            color: browser.activeUrl.toString() === "about:blank"
+                                : window.windowBrowser.activeUrl.toString()
+                            color: window.windowBrowser.activeUrl.toString() === "about:blank"
                                 ? window.colors.mutedText
                                 : window.colors.text
                             elide: Text.ElideMiddle
@@ -242,11 +265,12 @@ ApplicationWindow {
                         objectName: "pinnedGrid"
                         Layout.fillWidth: true
                         columns: window.sidebarCollapsed ? 1 : 4
+                        visible: !window.privateWindow
                         columnSpacing: 6
                         rowSpacing: 6
 
                         Repeater {
-                            model: browser.tabs
+                            model: window.windowBrowser.tabs
 
                             PinnedTabDelegate {
                                 width: window.sidebarCollapsed
@@ -256,7 +280,7 @@ ApplicationWindow {
                                 height: visible ? (window.sidebarCollapsed ? 38 : 54) : 0
                                 colors: window.colors
                                 iconFontFamily: materialSymbols.name
-                                onActivated: function(id) { browser.activateTab(id) }
+                                onActivated: function(id) { window.windowBrowser.activateTab(id) }
                             }
                         }
                     }
@@ -272,13 +296,13 @@ ApplicationWindow {
                             objectName: "spaceSelector"
                             Layout.fillWidth: true
                             Layout.fillHeight: true
-                            visible: !window.sidebarCollapsed
-                            model: browser.spaces
+                            visible: !window.sidebarCollapsed && !window.privateWindow
+                            model: window.windowBrowser.spaces
                             textRole: "spaceName"
                             valueRole: "spaceId"
-                            displayText: browser.activeSpaceName
+                            displayText: window.windowBrowser.activeSpaceName
                             Accessible.name: "Active Space"
-                            onActivated: browser.switchSpace(currentValue)
+                            onActivated: window.windowBrowser.switchSpace(currentValue)
                         }
 
                         ChromeButton {
@@ -286,7 +310,7 @@ ApplicationWindow {
                             objectName: "manageSpacesButton"
                             Layout.preferredWidth: 32
                             Layout.fillHeight: true
-                            visible: !window.sidebarCollapsed
+                            visible: !window.sidebarCollapsed && !window.privateWindow
                             label: "more_horiz"
                             accessibleName: "Manage Spaces"
                             fontFamily: materialSymbols.name
@@ -302,14 +326,24 @@ ApplicationWindow {
                                     onTriggered: newSpaceDialog.open()
                                 }
                                 MenuItem {
-                                    text: "Rename " + browser.activeSpaceName
+                                    text: "Rename " + window.windowBrowser.activeSpaceName
                                     onTriggered: renameSpaceDialog.open()
                                 }
                                 MenuItem {
-                                    text: "Delete " + browser.activeSpaceName
+                                    text: "Delete " + window.windowBrowser.activeSpaceName
                                     onTriggered: deleteSpaceDialog.open()
                                 }
                             }
+                        }
+
+                        Label {
+                            Layout.fillWidth: true
+                            visible: !window.sidebarCollapsed && window.privateWindow
+                            text: "Private"
+                            color: window.colors.privateAccent
+                            font.pixelSize: 13
+                            font.weight: Font.DemiBold
+                            Accessible.role: Accessible.Heading
                         }
                     }
 
@@ -329,14 +363,14 @@ ApplicationWindow {
                             spacing: 3
 
                             Repeater {
-                                model: browser.tabs
+                                model: window.windowBrowser.tabs
 
                                 TabDelegate {
                                     width: parent.width
                                     visible: !pinned
                                     height: visible ? 40 : 0
                                     colors: window.colors
-                                    onActivated: function(id) { browser.activateTab(id) }
+                                    onActivated: function(id) { window.windowBrowser.activateTab(id) }
                                 }
                             }
                         }
@@ -423,8 +457,11 @@ ApplicationWindow {
 
                     function loadActiveSpace() {
                         setSource(engineViewSource, {
-                            "profilePath": browser.activeProfilePath,
-                            "currentUrl": browser.activeUrl
+                            "profilePath": window.profilePathOverride.length > 0
+                                ? window.profilePathOverride
+                                : window.windowBrowser.activeProfilePath,
+                            "currentUrl": window.windowBrowser.activeUrl,
+                            "sharedProfile": window.sharedEngineProfile
                         })
                     }
 
@@ -438,7 +475,9 @@ ApplicationWindow {
                 Binding {
                     target: engineLoader.item
                     property: "profilePath"
-                    value: browser.activeProfilePath
+                    value: window.profilePathOverride.length > 0
+                        ? window.profilePathOverride
+                        : window.windowBrowser.activeProfilePath
                     when: engineLoader.item !== null
                 }
 
@@ -447,24 +486,40 @@ ApplicationWindow {
                     ignoreUnknownSignals: true
 
                     function onCurrentUrlChanged() {
-                        browser.updateActiveTab(engineLoader.item.currentUrl, engineLoader.item.pageTitle)
+                        window.windowBrowser.updateActiveTab(engineLoader.item.currentUrl, engineLoader.item.pageTitle)
                     }
 
                     function onPageTitleChanged() {
-                        browser.updateActiveTab(engineLoader.item.currentUrl, engineLoader.item.pageTitle)
+                        window.windowBrowser.updateActiveTab(engineLoader.item.currentUrl, engineLoader.item.pageTitle)
                     }
 
                     function onLoadingChanged() {
-                        browser.setActiveLoading(engineLoader.item.loading)
+                        window.windowBrowser.setActiveLoading(engineLoader.item.loading)
                     }
 
                     function onRendererFailed(reason) {
-                        browser.reportRendererFailure(reason)
+                        window.windowBrowser.reportRendererFailure(reason)
+                    }
+
+                    function onAuxiliaryWindowRequested(request, requestedUrl) {
+                        auxiliaryWindowComponent.createObject(window, {
+                            "openerEngine": engineLoader.item,
+                            "request": request,
+                            "requestedUrl": requestedUrl
+                        })
+                    }
+
+                    function onNewTabRequested(request, requestedUrl) {
+                        const destination = requestedUrl.toString().length > 0
+                            ? requestedUrl.toString()
+                            : "about:blank"
+                        window.windowBrowser.openInput(destination, true)
+                        if (request) engineLoader.item.acceptNewWindowRequest(request)
                     }
                 }
 
                 Connections {
-                    target: browser
+                    target: window.windowBrowser
 
                     function onTabMoveConfirmationRequested(tabId, destinationSpaceId) {
                         window.pendingMoveTabId = tabId
@@ -477,13 +532,13 @@ ApplicationWindow {
                     }
 
                     function onSpaceRestored(spaceId) {
-                        if (spaceId === browser.activeSpaceId)
+                        if (spaceId === window.windowBrowser.activeSpaceId)
                             Qt.callLater(function() { engineLoader.loadActiveSpace() })
                     }
 
                     function onActiveTabChanged() {
-                        if (engineLoader.item && engineLoader.item.currentUrl !== browser.activeUrl) {
-                            engineLoader.item.currentUrl = browser.activeUrl
+                        if (engineLoader.item && engineLoader.item.currentUrl !== window.windowBrowser.activeUrl) {
+                            engineLoader.item.currentUrl = window.windowBrowser.activeUrl
                         }
                     }
 
@@ -498,11 +553,15 @@ ApplicationWindow {
                     function onReloadRequested() {
                         if (engineLoader.item) engineLoader.item.reloadPage()
                     }
+
+                    function onCloseWindowRequested() {
+                        if (window.privateWindow) window.close()
+                    }
                 }
 
                 Rectangle {
                     anchors.fill: parent
-                    visible: browser.activeRendererFailed
+                    visible: window.windowBrowser.activeRendererFailed
                     color: window.colors.window
                     z: 10
 
@@ -521,7 +580,7 @@ ApplicationWindow {
 
                         Text {
                             Layout.alignment: Qt.AlignHCenter
-                            text: browser.activeRendererFailureReason
+                            text: window.windowBrowser.activeRendererFailureReason
                             color: window.colors.mutedText
                             font.pixelSize: 13
                         }
@@ -535,12 +594,59 @@ ApplicationWindow {
                             foreground: window.colors.text
                             background: window.colors.surface
                             hoverBackground: window.colors.surfaceHover
-                            onClicked: browser.recoverActiveTab()
+                            onClicked: window.windowBrowser.recoverActiveTab()
                         }
                     }
                 }
             }
         }
+    }
+
+    Component {
+        id: auxiliaryWindowComponent
+
+        AuxiliaryWindow {
+            engineSource: engineViewSource
+        }
+    }
+
+    Connections {
+        target: windowManager
+
+        function onPrivateWindowRequested(controller, profilePath) {
+            if (window.privateWindow) return
+            if (!window.privateProfileHost) {
+                const profileComponent = Qt.createComponent(engineProfileSource)
+                window.privateProfileHost = profileComponent.createObject(window, {
+                    "profilePath": profilePath,
+                    "downloadDirectory": windowManager.privateDownloadDirectory,
+                    "acceptDownloads": windowManager.acceptPrivateDownloads
+                })
+            }
+            const component = Qt.createComponent(Qt.resolvedUrl("Main.qml"))
+            component.createObject(window, {
+                "windowBrowser": controller,
+                "privateWindow": true,
+                "profilePathOverride": profilePath,
+                "sharedEngineProfile": window.privateProfileHost.profile
+            })
+        }
+
+        function onPrivateSessionEnding() {
+            if (window.privateWindow || windowManager.privateWindowCount > 0
+                    || !window.privateProfileHost) return
+            window.privateProfileHost.destroy()
+            window.privateProfileHost = null
+        }
+    }
+
+    onClosing: function(close) {
+        if (!window.privateWindow || !window.windowBrowser) return
+        const controller = window.windowBrowser
+        Qt.callLater(function() {
+            window.destroy()
+            windowManager.releasePrivateWindow(controller)
+        })
     }
 
     Dialog {
@@ -555,8 +661,8 @@ ApplicationWindow {
             newSpaceName.forceActiveFocus()
         }
         onAccepted: {
-            const spaceId = browser.createSpace(newSpaceName.text)
-            if (spaceId.length > 0) browser.switchSpace(spaceId)
+            const spaceId = window.windowBrowser.createSpace(newSpaceName.text)
+            if (spaceId.length > 0) window.windowBrowser.switchSpace(spaceId)
         }
 
         TextField {
@@ -576,11 +682,11 @@ ApplicationWindow {
         title: "Rename Space"
         standardButtons: Dialog.Ok | Dialog.Cancel
         onOpened: {
-            renamedSpaceName.text = browser.activeSpaceName
+            renamedSpaceName.text = window.windowBrowser.activeSpaceName
             renamedSpaceName.forceActiveFocus()
             renamedSpaceName.selectAll()
         }
-        onAccepted: browser.renameSpace(browser.activeSpaceId, renamedSpaceName.text)
+        onAccepted: window.windowBrowser.renameSpace(window.windowBrowser.activeSpaceId, renamedSpaceName.text)
 
         TextField {
             id: renamedSpaceName
@@ -595,14 +701,14 @@ ApplicationWindow {
         objectName: "deleteSpaceDialog"
         anchors.centerIn: parent
         modal: true
-        title: "Delete " + browser.activeSpaceName
+        title: "Delete " + window.windowBrowser.activeSpaceName
         standardButtons: Dialog.Ok | Dialog.Cancel
         onOpened: {
             deleteSpaceConfirmation.text = ""
             deleteSpaceConfirmation.forceActiveFocus()
         }
-        onAccepted: browser.deleteSpace(
-            browser.activeSpaceId, deleteSpaceConfirmation.text)
+        onAccepted: window.windowBrowser.deleteSpace(
+            window.windowBrowser.activeSpaceId, deleteSpaceConfirmation.text)
 
         ColumnLayout {
             width: 320
@@ -611,7 +717,7 @@ ApplicationWindow {
             Label {
                 Layout.fillWidth: true
                 wrapMode: Text.WordWrap
-                text: "Type " + browser.activeSpaceName
+                text: "Type " + window.windowBrowser.activeSpaceName
                     + " to delete its tabs, session, and engine data."
             }
 
@@ -637,24 +743,24 @@ ApplicationWindow {
             spacing: 8
 
             Repeater {
-                model: browser.spaces
+                model: window.windowBrowser.spaces
 
                 Button {
                     Layout.fillWidth: true
-                    visible: spaceId !== browser.activeSpaceId
+                    visible: spaceId !== window.windowBrowser.activeSpaceId
                     text: spaceName
                     Accessible.name: "Move tab to " + spaceName
                     onClicked: {
-                        const tabId = browser.activeTabId
+                        const tabId = window.windowBrowser.activeTabId
                         const destinationSpaceId = spaceId
                         moveTabDialog.close()
                         if (engineLoader.item) {
                             engineLoader.item.checkForEditedFormState(function(hasEditedFormState) {
-                                browser.requestTabMoveToSpace(
+                                window.windowBrowser.requestTabMoveToSpace(
                                     tabId, destinationSpaceId, hasEditedFormState)
                             })
                         } else {
-                            browser.requestTabMoveToSpace(tabId, destinationSpaceId, true)
+                            window.windowBrowser.requestTabMoveToSpace(tabId, destinationSpaceId, true)
                         }
                     }
                 }
@@ -669,7 +775,7 @@ ApplicationWindow {
         modal: true
         title: "Discard edited form state?"
         standardButtons: Dialog.Ok | Dialog.Cancel
-        onAccepted: browser.confirmTabMoveToSpace(
+        onAccepted: window.windowBrowser.confirmTabMoveToSpace(
             window.pendingMoveTabId, window.pendingMoveSpaceId)
 
         Label {
@@ -714,7 +820,7 @@ ApplicationWindow {
 
                 onAccepted: {
                     if (text.trim().length === 0) return
-                    browser.openInput(text, window.newTabIntent)
+                    window.windowBrowser.openInput(text, window.newTabIntent)
                     window.closeOmnibar()
                 }
 
@@ -724,6 +830,17 @@ ApplicationWindow {
                 }
             }
         }
+    }
+
+    Rectangle {
+        objectName: "privateIndicator"
+        anchors.top: parent.top
+        anchors.left: parent.left
+        anchors.right: parent.right
+        height: 4
+        visible: window.privateWindow
+        color: window.colors.privateAccent
+        z: 90
     }
 
     MouseArea {

@@ -40,6 +40,8 @@ add_library(tanto-core STATIC
     src/core/SpaceListModel.h
     src/core/TabListModel.cpp
     src/core/TabListModel.h
+    src/core/WindowManager.cpp
+    src/core/WindowManager.h
 )
 target_include_directories(tanto-core PUBLIC src/core)
 target_link_libraries(tanto-core PUBLIC Qt6::Core Qt6::Sql)
@@ -50,7 +52,7 @@ add_library(tanto-ui STATIC
     src/ui/ThemeController.h
 )
 target_include_directories(tanto-ui PUBLIC src/ui)
-target_link_libraries(tanto-ui PUBLIC Qt6::Core)
+target_link_libraries(tanto-ui PUBLIC Qt6::Core Qt6::Gui)
 tanto_strict_target(tanto-ui)
 
 add_library(tanto-engine-api STATIC
@@ -76,12 +78,13 @@ target_link_libraries(tanto-platform INTERFACE Qt6::Gui Qt6::Quick)
 
 set(tanto_ui_files
     src/ui/Main.qml
+    src/ui/AuxiliaryWindow.qml
     src/ui/ChromeButton.qml
     src/ui/PinnedTabDelegate.qml
     src/ui/TabDelegate.qml
 )
 
-function(tanto_configure_qml target engine_view engine_directory)
+function(tanto_configure_qml target engine_view engine_profile engine_directory)
     target_compile_definitions(${target} PRIVATE
         TANTO_VERSION="${PROJECT_VERSION}"
         TANTO_UI_DIRECTORY="${CMAKE_CURRENT_SOURCE_DIR}/src/ui"
@@ -91,11 +94,13 @@ function(tanto_configure_qml target engine_view engine_directory)
         target_compile_definitions(${target} PRIVATE
             TANTO_MAIN_QML_URL="file://${CMAKE_CURRENT_SOURCE_DIR}/src/ui/Main.qml"
             TANTO_ENGINE_VIEW_URL="file://${CMAKE_CURRENT_SOURCE_DIR}/${engine_view}"
+            TANTO_ENGINE_PROFILE_URL="file://${CMAKE_CURRENT_SOURCE_DIR}/${engine_profile}"
             TANTO_THEME_PATH="${CMAKE_CURRENT_SOURCE_DIR}/assets/themes/default.json"
             TANTO_ICON_FONT_URL="file://${CMAKE_CURRENT_SOURCE_DIR}/assets/fonts/material-symbols-rounded.ttf"
         )
     else()
         set_source_files_properties("${engine_view}" PROPERTIES QT_RESOURCE_ALIAS "EngineView.qml")
+        set_source_files_properties("${engine_profile}" PROPERTIES QT_RESOURCE_ALIAS "EngineProfile.qml")
         qt_add_resources(${target} "tanto_ui"
             PREFIX "/tanto/ui"
             BASE "${CMAKE_CURRENT_SOURCE_DIR}/src/ui"
@@ -105,6 +110,7 @@ function(tanto_configure_qml target engine_view engine_directory)
             PREFIX "/tanto/engine"
             BASE "${CMAKE_CURRENT_SOURCE_DIR}/${engine_directory}"
             FILES "${engine_view}"
+                "${engine_profile}"
         )
         qt_add_resources(${target} "tanto_theme"
             PREFIX "/tanto/themes"
@@ -119,6 +125,7 @@ function(tanto_configure_qml target engine_view engine_directory)
         target_compile_definitions(${target} PRIVATE
             TANTO_MAIN_QML_URL="qrc:/tanto/ui/Main.qml"
             TANTO_ENGINE_VIEW_URL="qrc:/tanto/engine/EngineView.qml"
+            TANTO_ENGINE_PROFILE_URL="qrc:/tanto/engine/EngineProfile.qml"
             TANTO_THEME_PATH=":/tanto/themes/default.json"
             TANTO_ICON_FONT_URL="qrc:/tanto/fonts/material-symbols-rounded.ttf"
         )
@@ -136,7 +143,8 @@ if(TANTO_BUILD_BROWSER)
         Qt6::Qml
         Qt6::Quick
     )
-    tanto_configure_qml(tanto "src/engine/qt/EngineView.qml" "src/engine/qt")
+    tanto_configure_qml(tanto "src/engine/qt/EngineView.qml"
+        "src/engine/qt/EngineProfile.qml" "src/engine/qt")
     tanto_strict_target(tanto)
 
     set_target_properties(tanto PROPERTIES
@@ -159,7 +167,8 @@ if(TANTO_BUILD_UI_LAB)
         Qt6::Qml
         Qt6::Quick
     )
-    tanto_configure_qml(tanto-ui-lab "src/ui-lab/MockEngineView.qml" "src/ui-lab")
+    tanto_configure_qml(tanto-ui-lab "src/ui-lab/MockEngineView.qml"
+        "src/ui-lab/MockEngineProfile.qml" "src/ui-lab")
     tanto_strict_target(tanto-ui-lab)
     set_target_properties(tanto-ui-lab PROPERTIES
         MACOSX_BUNDLE_BUNDLE_NAME "Tanto UI Lab"
@@ -179,6 +188,11 @@ if(BUILD_TESTING)
     tanto_strict_target(tanto-core-tests)
     add_test(NAME tanto-core COMMAND tanto-core-tests)
 
+    qt_add_executable(tanto-theme-tests tests/ui/tst_themecontroller.cpp)
+    target_link_libraries(tanto-theme-tests PRIVATE tanto-ui Qt6::Test)
+    tanto_strict_target(tanto-theme-tests)
+    add_test(NAME tanto-theme COMMAND tanto-theme-tests)
+
     qt_add_executable(tanto-qml-smoke src/ui-lab/main.cpp)
     target_link_libraries(tanto-qml-smoke PRIVATE
         tanto-core
@@ -189,7 +203,8 @@ if(BUILD_TESTING)
         Qt6::Qml
         Qt6::Quick
     )
-    tanto_configure_qml(tanto-qml-smoke "src/ui-lab/MockEngineView.qml" "src/ui-lab")
+    tanto_configure_qml(tanto-qml-smoke "src/ui-lab/MockEngineView.qml"
+        "src/ui-lab/MockEngineProfile.qml" "src/ui-lab")
     tanto_strict_target(tanto-qml-smoke)
     add_test(NAME tanto-qml-load COMMAND tanto-qml-smoke --validate-qml)
     set_tests_properties(tanto-qml-load PROPERTIES
@@ -209,6 +224,7 @@ if(BUILD_TESTING)
         target_compile_definitions(tanto-ui-tests PRIVATE
             QUICK_TEST_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/ui"
             TANTO_MOCK_ENGINE_VIEW_URL="file://${CMAKE_CURRENT_SOURCE_DIR}/src/ui-lab/MockEngineView.qml"
+            TANTO_MOCK_ENGINE_PROFILE_URL="file://${CMAKE_CURRENT_SOURCE_DIR}/src/ui-lab/MockEngineProfile.qml"
             TANTO_THEME_PATH="${CMAKE_CURRENT_SOURCE_DIR}/assets/themes/default.json"
             TANTO_ICON_FONT_URL="file://${CMAKE_CURRENT_SOURCE_DIR}/assets/fonts/material-symbols-rounded.ttf"
             TANTO_UI_DIRECTORY="${CMAKE_CURRENT_SOURCE_DIR}/src/ui"
@@ -234,6 +250,7 @@ if(BUILD_TESTING)
         target_compile_definitions(tanto-qt-engine-contract-tests PRIVATE
             TANTO_MOCK_ENGINE_VIEW_PATH="${CMAKE_CURRENT_SOURCE_DIR}/src/ui-lab/MockEngineView.qml"
             TANTO_QT_ENGINE_VIEW_PATH="${CMAKE_CURRENT_SOURCE_DIR}/src/engine/qt/EngineView.qml"
+            TANTO_QT_ENGINE_PROFILE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/src/engine/qt/EngineProfile.qml"
         )
         tanto_strict_target(tanto-qt-engine-contract-tests)
         add_test(NAME tanto-qt-engine-contract COMMAND tanto-qt-engine-contract-tests)

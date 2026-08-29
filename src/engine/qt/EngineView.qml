@@ -10,6 +10,8 @@ Item {
     property alias canGoBack: webView.canGoBack
     property alias canGoForward: webView.canGoForward
     property string profilePath: ""
+    property var sharedProfile: null
+    readonly property var browserProfile: webView.profile
     readonly property bool pageHasFocus: webView.activeFocus
     readonly property int capabilities: 67
     property var editedStateScript: {
@@ -27,6 +29,9 @@ Item {
     }
 
     signal rendererFailed(string reason)
+    signal newTabRequested(var request, url requestedUrl)
+    signal auxiliaryWindowRequested(var request, url requestedUrl)
+    signal windowCloseRequested()
 
     function goBack() { webView.goBack() }
     function goForward() { webView.goForward() }
@@ -47,6 +52,12 @@ Item {
             + "})()",
             callback)
     }
+    function acceptNewWindowRequest(request) {
+        if (request) request.openIn(webView)
+    }
+    function isAuxiliaryDestination(destination) {
+        return destination === WebEngineNewWindowRequest.InNewDialog
+    }
 
     WebEngineProfile {
         id: spaceProfile
@@ -61,7 +72,7 @@ Item {
         id: webView
         objectName: "qtWebView"
         anchors.fill: parent
-        profile: spaceProfile
+        profile: root.sharedProfile ? root.sharedProfile : spaceProfile
         backgroundColor: "white"
         focus: true
         userScripts.collection: [root.editedStateScript]
@@ -69,5 +80,14 @@ Item {
         onRenderProcessTerminated: function(terminationStatus, exitCode) {
             root.rendererFailed("Renderer stopped with exit code " + exitCode)
         }
+
+        onNewWindowRequested: function(request) {
+            if (root.isAuxiliaryDestination(request.destination))
+                root.auxiliaryWindowRequested(request, request.requestedUrl)
+            else
+                root.newTabRequested(request, request.requestedUrl)
+        }
+
+        onWindowCloseRequested: root.windowCloseRequested()
     }
 }

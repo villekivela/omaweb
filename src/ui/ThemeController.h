@@ -21,6 +21,7 @@ signals:
 
 private:
     QVariantMap fallbackPalette() const;
+    QVariantMap normalizedPalette(QVariantMap palette) const;
     void refreshWatchPaths();
 
     QString m_themePath;

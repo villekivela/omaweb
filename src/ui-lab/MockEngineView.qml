@@ -9,10 +9,15 @@ Rectangle {
     property bool canGoBack: false
     property bool canGoForward: false
     property string profilePath: ""
+    property var sharedProfile: null
+    readonly property var browserProfile: root.sharedProfile ? root.sharedProfile : root
     readonly property bool pageHasFocus: root.activeFocus
     readonly property int capabilities: 65
 
     signal rendererFailed(string reason)
+    signal newTabRequested(var request, url requestedUrl)
+    signal auxiliaryWindowRequested(var request, url requestedUrl)
+    signal windowCloseRequested()
 
     color: "#f4f2ed"
 
@@ -24,9 +29,19 @@ Rectangle {
         settle.restart()
     }
     function checkForEditedFormState(callback) { callback(false) }
+    function acceptNewWindowRequest(request) {
+        if (request && request.requestedUrl) currentUrl = request.requestedUrl
+    }
     function simulateRendererFailure() {
         rendererFailed("Renderer exited unexpectedly")
     }
+    function simulateNewWindowRequest(requestedUrl, auxiliary) {
+        if (auxiliary)
+            auxiliaryWindowRequested(null, requestedUrl)
+        else
+            newTabRequested(null, requestedUrl)
+    }
+    function simulateWindowCloseRequest() { windowCloseRequested() }
 
     Timer {
         id: settle

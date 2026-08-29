@@ -22,11 +22,14 @@ class BrowserController final : public QObject {
     Q_PROPERTY(bool activeTabPinned READ activeTabPinned NOTIFY activeTabChanged)
     Q_PROPERTY(bool activeRendererFailed READ activeRendererFailed NOTIFY activeTabChanged)
     Q_PROPERTY(QString activeRendererFailureReason READ activeRendererFailureReason NOTIFY activeTabChanged)
+    Q_PROPERTY(bool privateBrowsing READ privateBrowsing CONSTANT)
     Q_PROPERTY(bool ready READ ready CONSTANT)
     Q_PROPERTY(QString errorMessage READ errorMessage CONSTANT)
 
 public:
     BrowserController(QString dataRoot, QString engineName, QObject *parent = nullptr);
+    BrowserController(QString dataRoot, QString engineName, bool privateBrowsing,
+        QObject *parent = nullptr);
 
     QAbstractItemModel *spaces();
     QAbstractItemModel *tabs();
@@ -39,6 +42,7 @@ public:
     bool activeTabPinned() const;
     bool activeRendererFailed() const;
     QString activeRendererFailureReason() const;
+    bool privateBrowsing() const;
     bool ready() const;
     QString errorMessage() const;
 
@@ -71,6 +75,7 @@ signals:
     void backRequested();
     void forwardRequested();
     void reloadRequested();
+    void closeWindowRequested();
 
 private:
     struct ClosedTab {
@@ -96,6 +101,7 @@ private:
     QString m_errorMessage;
     ClosedTab m_closedTab;
     bool m_ready = false;
+    bool m_privateBrowsing = false;
 };
 
 } // namespace tanto

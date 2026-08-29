@@ -19,6 +19,8 @@ QStringList validateEngineViewContract(const QObject &adapter)
         {"canGoBack", QMetaType::Bool},
         {"canGoForward", QMetaType::Bool},
         {"profilePath", QMetaType::QString},
+        {"sharedProfile", QMetaType::QVariant},
+        {"browserProfile", QMetaType::QVariant},
         {"pageHasFocus", QMetaType::Bool},
         {"capabilities", QMetaType::Int},
     };
@@ -26,6 +28,7 @@ QStringList validateEngineViewContract(const QObject &adapter)
         const char *name;
         bool signal;
         int parameterCount;
+        QMetaType::Type firstParameterType = QMetaType::UnknownType;
     };
     static constexpr RequiredMethod requiredMethods[] = {
         {"goBack", false, 0},
@@ -33,7 +36,11 @@ QStringList validateEngineViewContract(const QObject &adapter)
         {"reloadPage", false, 0},
         {"focusPage", false, 0},
         {"checkForEditedFormState", false, 1},
-        {"rendererFailed", true, 1},
+        {"acceptNewWindowRequest", false, 1},
+        {"rendererFailed", true, 1, QMetaType::QString},
+        {"newTabRequested", true, 2},
+        {"auxiliaryWindowRequested", true, 2},
+        {"windowCloseRequested", true, 0},
     };
 
     QStringList missing;
@@ -63,7 +70,8 @@ QStringList validateEngineViewContract(const QObject &adapter)
             const auto hasExpectedSignature = required.signal
                 ? method.methodType() == QMetaMethod::Signal
                     && method.parameterCount() == required.parameterCount
-                    && method.parameterMetaType(0).id() == QMetaType::QString
+                    && (required.firstParameterType == QMetaType::UnknownType
+                        || method.parameterMetaType(0).id() == required.firstParameterType)
                 : method.methodType() != QMetaMethod::Signal
                     && method.parameterCount() == required.parameterCount;
             if (hasExpectedSignature) {

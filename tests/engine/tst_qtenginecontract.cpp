@@ -12,6 +12,7 @@
 #include <QTest>
 #include <QTemporaryDir>
 #include <QtWebEngineQuick/qtwebenginequickglobal.h>
+#include <QtWebEngineCore/QWebEngineNewWindowRequest>
 
 #include <memory>
 
@@ -25,8 +26,11 @@ private slots:
     void adaptersExposeSharedContract_data();
     void adaptersExposeSharedContract();
     void mockReportsLifecycleEvents();
+    void mockReportsNewWindowPurpose();
     void qtAdapterPropagatesPageState();
     void qtProfilesIsolateSiteStorage();
+    void qtPrivateWindowsShareOneProfile();
+    void qtRoutesOnlyDialogDestinationsToAuxiliaryWindows();
 };
 
 void QtEngineContractTest::adaptersExposeSharedContract_data()
@@ -65,6 +69,23 @@ void QtEngineContractTest::mockReportsLifecycleEvents()
     QVERIFY(QMetaObject::invokeMethod(adapter.get(), "reloadPage"));
     QVERIFY(adapter->property("loading").toBool());
     QTRY_VERIFY(!adapter->property("loading").toBool());
+}
+
+void QtEngineContractTest::mockReportsNewWindowPurpose()
+{
+    QQmlEngine engine;
+    QQmlComponent component(&engine, QUrl::fromLocalFile(
+        QStringLiteral(TANTO_MOCK_ENGINE_VIEW_PATH)));
+    const std::unique_ptr<QObject> adapter(component.create());
+    QVERIFY2(adapter, qPrintable(component.errorString()));
+
+    QSignalSpy requestSpy(adapter.get(), SIGNAL(auxiliaryWindowRequested(QVariant,QUrl)));
+    QVERIFY(requestSpy.isValid());
+    QVERIFY(QMetaObject::invokeMethod(adapter.get(), "simulateNewWindowRequest",
+        Q_ARG(QVariant, QVariant::fromValue(QUrl(QStringLiteral("https://example.com/popup")))),
+        Q_ARG(QVariant, QVariant::fromValue(true))));
+    QCOMPARE(requestSpy.count(), 1);
+    QCOMPARE(requestSpy.first().at(1).toUrl(), QUrl(QStringLiteral("https://example.com/popup")));
 }
 
 void QtEngineContractTest::qtAdapterPropagatesPageState()
@@ -174,6 +195,79 @@ void QtEngineContractTest::qtProfilesIsolateSiteStorage()
     QTRY_COMPARE(work->property("pageTitle").toString(), QStringLiteral("work"));
     QVERIFY(personal->setProperty("currentUrl", readUrl));
     QTRY_COMPARE(personal->property("pageTitle").toString(), QStringLiteral("personal"));
+}
+
+void QtEngineContractTest::qtPrivateWindowsShareOneProfile()
+{
+    QTemporaryDir root;
+    QFile page(root.filePath(QStringLiteral("private-storage.html")));
+    QVERIFY(page.open(QIODevice::WriteOnly));
+    page.write(R"HTML(<!doctype html><title>loading</title><script>
+        const value = new URLSearchParams(location.search).get('value');
+        if (value) localStorage.setItem('private-login', value);
+        document.title = localStorage.getItem('private-login') || 'none';
+    </script>)HTML");
+    page.close();
+
+    QQmlEngine engine;
+    QQmlComponent profileComponent(&engine, QUrl::fromLocalFile(
+        QStringLiteral(TANTO_QT_ENGINE_PROFILE_PATH)));
+    const std::unique_ptr<QObject> profileHost(profileComponent.createWithInitialProperties({
+        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("private"))},
+    }));
+    QVERIFY2(profileHost, qPrintable(profileComponent.errorString()));
+    const auto sharedProfile = profileHost->property("profile");
+    QVERIFY(sharedProfile.isValid());
+
+    QQmlComponent viewComponent(&engine, QUrl::fromLocalFile(
+        QStringLiteral(TANTO_QT_ENGINE_VIEW_PATH)));
+    const std::unique_ptr<QObject> first(viewComponent.createWithInitialProperties({
+        {QStringLiteral("sharedProfile"), sharedProfile},
+    }));
+    const std::unique_ptr<QObject> second(viewComponent.createWithInitialProperties({
+        {QStringLiteral("sharedProfile"), sharedProfile},
+    }));
+    QVERIFY2(first, qPrintable(viewComponent.errorString()));
+    QVERIFY2(second, qPrintable(viewComponent.errorString()));
+    QCOMPARE(first->property("browserProfile"), second->property("browserProfile"));
+
+    QQuickWindow firstWindow;
+    QQuickWindow secondWindow;
+    qobject_cast<QQuickItem *>(first.get())->setParentItem(firstWindow.contentItem());
+    qobject_cast<QQuickItem *>(second.get())->setParentItem(secondWindow.contentItem());
+    firstWindow.show();
+    secondWindow.show();
+
+    auto loginUrl = QUrl::fromLocalFile(page.fileName());
+    loginUrl.setQuery(QStringLiteral("value=private"));
+    QVERIFY(first->setProperty("currentUrl", loginUrl));
+    QTRY_COMPARE(first->property("pageTitle").toString(), QStringLiteral("private"));
+
+    const auto readUrl = QUrl::fromLocalFile(page.fileName());
+    QVERIFY(second->setProperty("currentUrl", readUrl));
+    QTRY_COMPARE(second->property("pageTitle").toString(), QStringLiteral("private"));
+}
+
+void QtEngineContractTest::qtRoutesOnlyDialogDestinationsToAuxiliaryWindows()
+{
+    QQmlEngine engine;
+    QQmlComponent component(&engine, QUrl::fromLocalFile(
+        QStringLiteral(TANTO_QT_ENGINE_VIEW_PATH)));
+    const std::unique_ptr<QObject> adapter(component.create());
+    QVERIFY2(adapter, qPrintable(component.errorString()));
+
+    const auto routesToAuxiliary = [&adapter](QWebEngineNewWindowRequest::DestinationType type) {
+        QVariant result;
+        const auto destination = QVariant::fromValue(static_cast<int>(type));
+        const auto invoked = QMetaObject::invokeMethod(adapter.get(), "isAuxiliaryDestination",
+            Q_RETURN_ARG(QVariant, result), Q_ARG(QVariant, destination));
+        return invoked && result.toBool();
+    };
+
+    QVERIFY(!routesToAuxiliary(QWebEngineNewWindowRequest::InNewWindow));
+    QVERIFY(!routesToAuxiliary(QWebEngineNewWindowRequest::InNewTab));
+    QVERIFY(routesToAuxiliary(QWebEngineNewWindowRequest::InNewDialog));
+    QVERIFY(!routesToAuxiliary(QWebEngineNewWindowRequest::InNewBackgroundTab));
 }
 
 int main(int argc, char *argv[])

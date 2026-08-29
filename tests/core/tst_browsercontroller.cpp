@@ -1,5 +1,6 @@
 #include "BrowserController.h"
 #include "TabListModel.h"
+#include "WindowManager.h"
 
 #include <QAbstractItemModel>
 #include <QFile>
@@ -10,6 +11,7 @@
 
 using tanto::BrowserController;
 using tanto::TabListModel;
+using tanto::WindowManager;
 
 class BrowserControllerTest final : public QObject {
     Q_OBJECT
@@ -28,6 +30,7 @@ private slots:
     void persistsTabsAndPins();
     void keepsFinalTabAsBlankTab();
     void keepsRendererFailureOnAffectedTab();
+    void sharesPrivateIdentityUntilLastWindowCloses();
 };
 
 void BrowserControllerTest::createsPersonalSpaceAndBlankTab()
@@ -265,6 +268,45 @@ void BrowserControllerTest::keepsRendererFailureOnAffectedTab()
     controller.recoverActiveTab();
     QVERIFY(!controller.activeRendererFailed());
     QCOMPARE(reloadSpy.count(), 1);
+}
+
+void BrowserControllerTest::sharesPrivateIdentityUntilLastWindowCloses()
+{
+    WindowManager manager(QStringLiteral("test"));
+    auto *first = manager.createPrivateWindow();
+    auto *second = manager.createPrivateWindow();
+
+    QVERIFY(first);
+    QVERIFY(second);
+    QCOMPARE(manager.privateWindowCount(), 2);
+    const auto sharedProfilePath = manager.privateProfilePath();
+    QVERIFY(!sharedProfilePath.isEmpty());
+    QVERIFY(QFileInfo::exists(sharedProfilePath));
+    QCOMPARE(first->spaces()->rowCount(), 0);
+    QCOMPARE(second->spaces()->rowCount(), 0);
+    QVERIFY(first->activeSpaceId().isEmpty());
+    QVERIFY(first->activeProfilePath().isEmpty());
+    QVERIFY(manager.acceptPrivateDownloads());
+    QVERIFY(!manager.recordPrivateDownloads());
+    QVERIFY(!manager.privateDownloadDirectory().isEmpty());
+
+    QSignalSpy closeSpy(first, &BrowserController::closeWindowRequested);
+    first->closeActiveTab();
+    QCOMPARE(closeSpy.count(), 1);
+
+    manager.releasePrivateWindow(first);
+    QCOMPARE(manager.privateWindowCount(), 1);
+    QVERIFY(QFileInfo::exists(sharedProfilePath));
+
+    manager.releasePrivateWindow(second);
+    QCOMPARE(manager.privateWindowCount(), 0);
+    QTRY_VERIFY(!QFileInfo::exists(sharedProfilePath));
+
+    auto *fresh = manager.createPrivateWindow();
+    QVERIFY(fresh);
+    QVERIFY(manager.privateProfilePath() != sharedProfilePath);
+    QCOMPARE(fresh->activeUrl(), QUrl(QStringLiteral("about:blank")));
+    manager.releasePrivateWindow(fresh);
 }
 
 QTEST_GUILESS_MAIN(BrowserControllerTest)

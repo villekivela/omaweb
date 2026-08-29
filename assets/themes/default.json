@@ -10,6 +10,10 @@
   "accent": "#9b87ff",
   "border": "#4a4658",
   "privateAccent": "#dc6bce",
+  "privateWindow": "#481d50",
+  "privateSidebar": "#d95b2456",
+  "privateSurface": "#5a3158",
+  "privateSurfaceHover": "#70406c",
   "opacity": {
     "sidebar": 0.85,
     "overlay": 0.96,

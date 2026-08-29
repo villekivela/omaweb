@@ -1,5 +1,6 @@
 #include "BrowserController.h"
 #include "ThemeController.h"
+#include "WindowManager.h"
 
 #include <QCoreApplication>
 #include <QDir>
@@ -77,12 +78,16 @@ int main(int argc, char *argv[])
 
     tanto::BrowserController browser(dataRoot(), QStringLiteral("qt"));
     tanto::ThemeController theme(themePath());
+    tanto::WindowManager windowManager(QStringLiteral("qt"));
 
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty(QStringLiteral("browser"), &browser);
     engine.rootContext()->setContextProperty(QStringLiteral("theme"), &theme);
+    engine.rootContext()->setContextProperty(QStringLiteral("windowManager"), &windowManager);
     engine.rootContext()->setContextProperty(
         QStringLiteral("engineViewSource"), QUrl(QStringLiteral(TANTO_ENGINE_VIEW_URL)));
+    engine.rootContext()->setContextProperty(
+        QStringLiteral("engineProfileSource"), QUrl(QStringLiteral(TANTO_ENGINE_PROFILE_URL)));
     engine.rootContext()->setContextProperty(
         QStringLiteral("iconFontSource"), QUrl(QStringLiteral(TANTO_ICON_FONT_URL)));
     engine.addImportPath(QStringLiteral(TANTO_UI_DIRECTORY));
