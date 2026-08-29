@@ -1,0 +1,110 @@
+{
+  "version": 8,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 30,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "environment": {
+        "CCACHE_DIR": "${sourceDir}/.cache/ccache"
+      },
+      "cacheVariables": {
+        "CMAKE_CXX_COMPILER_LAUNCHER": "ccache",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": true
+      }
+    },
+    {
+      "name": "dev",
+      "inherits": "base",
+      "displayName": "Qt development build",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "TANTO_BUILD_BROWSER": true,
+        "TANTO_BUILD_UI_LAB": true,
+        "TANTO_SOURCE_QML": true
+      }
+    },
+    {
+      "name": "ui",
+      "inherits": "base",
+      "displayName": "Engine-free UI lab",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "TANTO_BUILD_BROWSER": false,
+        "TANTO_BUILD_UI_LAB": true,
+        "TANTO_SOURCE_QML": true
+      }
+    },
+    {
+      "name": "asan",
+      "inherits": "dev",
+      "displayName": "Address and undefined behavior sanitizers",
+      "cacheVariables": {
+        "CMAKE_CXX_FLAGS": "-fsanitize=address,undefined -fno-omit-frame-pointer",
+        "CMAKE_EXE_LINKER_FLAGS": "-fsanitize=address,undefined"
+      }
+    },
+    {
+      "name": "release",
+      "inherits": "base",
+      "displayName": "Release build",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "TANTO_BUILD_BROWSER": true,
+        "TANTO_BUILD_UI_LAB": false,
+        "TANTO_SOURCE_QML": false
+      }
+    },
+    {
+      "name": "ci",
+      "inherits": "dev",
+      "displayName": "Continuous integration",
+      "cacheVariables": {
+        "CMAKE_COMPILE_WARNING_AS_ERROR": true
+      }
+    },
+    {
+      "name": "ladybird",
+      "inherits": "base",
+      "displayName": "Ladybird adapter placeholder",
+      "binaryDir": "${sourceDir}/build/ladybird",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "TANTO_BUILD_BROWSER": false,
+        "TANTO_BUILD_UI_LAB": true,
+        "TANTO_SOURCE_QML": true
+      }
+    }
+  ],
+  "buildPresets": [
+    { "name": "dev", "configurePreset": "dev" },
+    { "name": "ui", "configurePreset": "ui" },
+    { "name": "asan", "configurePreset": "asan" },
+    { "name": "release", "configurePreset": "release" },
+    { "name": "ci", "configurePreset": "ci" },
+    { "name": "ladybird", "configurePreset": "ladybird" }
+  ],
+  "testPresets": [
+    {
+      "name": "dev",
+      "configurePreset": "dev",
+      "output": { "outputOnFailure": true }
+    },
+    {
+      "name": "ui",
+      "configurePreset": "ui",
+      "output": { "outputOnFailure": true }
+    },
+    {
+      "name": "ci",
+      "configurePreset": "ci",
+      "output": { "outputOnFailure": true }
+    }
+  ]
+}

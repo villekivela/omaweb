@@ -1,0 +1,246 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Product Requirements Document - Tanto</title>
+    <style>
+        :root {
+            --bg-color: #f4f7f9;
+            --text-color: #2b3a42;
+            --header-bg: #1a252c;
+            --header-text: #ffffff;
+            --accent-color: #00adb5;
+            --subtitle-color: #a3b8c7;
+            --border-color: #d1d9e0;
+            --table-border: #e1e6eb;
+            --table-header-bg: #f8fafc;
+            --code-bg: #e2e8f0;
+            --callout-bg: #ffffff;
+        }
+
+        *, *::before, *::after {
+            box-sizing: border-box;
+        }
+        
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            color: var(--text-color);
+            background-color: var(--bg-color);
+            line-height: 1.6;
+            font-size: 16px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: #ffffff;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            min-height: 100vh;
+        }
+        
+        .header-banner {
+            background-color: var(--header-bg);
+            color: var(--header-text);
+            padding: 40px 40px 30px 40px;
+            border-bottom: 4px solid var(--accent-color);
+        }
+        
+        .content {
+            padding: 40px;
+        }
+
+        h1 {
+            margin: 0 0 10px 0;
+            font-size: 32px;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+        }
+        
+        .subtitle {
+            font-size: 18px;
+            color: var(--subtitle-color);
+            margin: 0;
+            font-weight: 400;
+        }
+        
+        h2 {
+            font-size: 24px;
+            color: var(--header-bg);
+            margin-top: 40px;
+            margin-bottom: 16px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        h3 {
+            font-size: 18px;
+            color: var(--accent-color);
+            margin-top: 30px;
+            margin-bottom: 12px;
+        }
+        
+        p {
+            margin: 0 0 16px 0;
+        }
+        
+        ul {
+            margin: 0 0 20px 0;
+            padding-left: 24px;
+        }
+        
+        li {
+            margin-bottom: 8px;
+        }
+        
+        .callout {
+            background-color: var(--callout-bg);
+            border-left: 4px solid var(--accent-color);
+            padding: 16px 20px;
+            margin: 24px 0;
+            border-radius: 0 4px 4px 0;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+        }
+        
+        .callout-title {
+            font-weight: bold;
+            color: var(--header-bg);
+            margin-bottom: 8px;
+            font-size: 15px;
+        }
+        
+        .tech-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 24px 0;
+            background-color: #ffffff;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+        
+        .tech-table th, .tech-table td {
+            padding: 12px 16px;
+            text-align: left;
+            border: 1px solid var(--table-border);
+        }
+        
+        .tech-table th {
+            background-color: var(--table-header-bg);
+            font-weight: 600;
+            color: #334155;
+        }
+        
+        .code-inline {
+            font-family: "Courier New", Courier, monospace;
+            background-color: var(--code-bg);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.9em;
+        }
+
+        @media (max-width: 600px) {
+            .content, .header-banner {
+                padding: 20px;
+            }
+            h1 { font-size: 28px; }
+            h2 { font-size: 20px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header-banner">
+            <h1>Product Requirements Document</h1>
+            <p class="subtitle">Tanto: Modular Cross-Platform Web Browser</p>
+        </div>
+
+        <div class="content">
+            <h2>1. Executive Summary</h2>
+            <p>
+                Tanto is a next-generation, cross-platform web browser engineered with a highly modular architecture. The core objective is to deliver a fast, keyboard-centric browsing experience featuring Vim-inspired workflows and an integrated side terminal, heavily optimized for Linux environments while supporting native development on macOS.
+            </p>
+            <p>
+                To ensure future-proofing and development stability, the browser will decouple its UI layer from the underlying rendering engine. It will utilize a QML-based frontend that seamlessly swaps between a bleeding-edge Ladybird backend and a stable QtWebEngine fallback at runtime.
+            </p>
+
+            <h2>2. System Architecture</h2>
+            <p>
+                The application is divided into three distinct layers: the UI Presentation Layer, the Abstraction/Adapter Layer, and the Engine Backend.
+            </p>
+            
+            <h3>2.1 UI Presentation Layer (Qt/QML)</h3>
+            <p>
+                The entire user interface will be built using declarative QML. This provides hardware-accelerated rendering and simplifies the implementation of complex, dynamic layouts such as the integrated side terminal and fluid tab management.
+            </p>
+
+            <h3>2.2 The Engine Abstraction Layer</h3>
+            <p>
+                To support multiple rendering backends without code duplication, the QML layer will utilize a generic <span class="code-inline">BrowserTab</span> component. This component will implement a QML <span class="code-inline">Loader</span> that dynamically instantiates the correct engine backend based on a configuration flag.
+            </p>
+
+            <h3>2.3 Engine Backends</h3>
+            <table class="tech-table">
+                <thead>
+                    <tr>
+                        <th>Backend</th>
+                        <th>Integration Method</th>
+                        <th>Primary Use Case</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>QtWebEngine</strong></td>
+                        <td>Native QML <span class="code-inline">WebEngineView</span></td>
+                        <td>Initial UI development, fallback stability, and reliable testing.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Ladybird</strong></td>
+                        <td>CMake <span class="code-inline">FetchContent</span> + <span class="code-inline">LibWebView</span></td>
+                        <td>Target experimental engine, isolated as a build-time dependency.</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h2>3. Theming & Customization Engine</h2>
+            <p>
+                A core requirement of Tanto is advanced, runtime UI adaptability. The browser must not rely on static CSS or hardcoded themes; instead, it must react instantaneously to system-level theming tools.
+            </p>
+
+            <div class="callout">
+                <div class="callout-title">Runtime Theming & Omarchy Integration</div>
+                <p style="margin-bottom:0;">
+                    The UI must expose an IPC/D-Bus interface that listens for external style injections. When a system tool (e.g., Omarchy, Pywal, or custom theme managers) dispatches a new color palette, the C++ backend will intercept the payload and emit a QML signal. All QML color properties will be bound to a global <span class="code-inline">ThemeContext</span> object, allowing the entire browser interface to repaint with the new palette instantly without requiring an application restart.
+                </p>
+            </div>
+
+            <h2>4. Core Functional Requirements</h2>
+            <ul>
+                <li><strong>Dual-Engine Support:</strong> The user or developer must be able to switch between the Ladybird and QtWebEngine backends without changing the core application code.</li>
+                <li><strong>Ladybird Blackbox Integration:</strong> Ladybird must not be hard-forked. It will be pulled via CMake <span class="code-inline">FetchContent</span>. The integration layer will bridge <span class="code-inline">WebView::ViewImplementation</span> to a <span class="code-inline">QQuickPaintedItem</span> for QML rendering.</li>
+                <li><strong>Vim-Inspired Navigation:</strong> Deep integration of Vim-style keybindings for scrolling, tab switching, and link hinting, handled at the QML level before reaching the engine layer.</li>
+                <li><strong>Integrated Side Terminal:</strong> A native terminal emulator panel built alongside the web view, catering to developer-centric workflows.</li>
+                <li><strong>Cross-Platform Build System:</strong> The CMake configuration must gracefully handle macOS AppKit dependencies during development while optimizing for Wayland/X11 on the Linux deployment target.</li>
+            </ul>
+
+            <h2>5. Implementation Phases</h2>
+            
+            <h3>Phase 1: Foundation & Fallback</h3>
+            <p>
+                Establish the CMake project structure and build the foundational QML interface. Implement the <span class="code-inline">BrowserTab</span> abstraction layer and connect it exclusively to QtWebEngine. Develop the IPC listener for dynamic theming (Omarchy compatibility).
+            </p>
+
+            <h3>Phase 2: Ladybird Bridge</h3>
+            <p>
+                Integrate Ladybird via <span class="code-inline">FetchContent</span>. Develop the C++ <span class="code-inline">LadybirdQmlItem</span> wrapper that implements <span class="code-inline">LibWebView</span> interfaces. Wire the Ladybird shared memory bitmap into the QML painted item and route basic input events (mouse, keyboard).
+            </p>
+
+            <h3>Phase 3: Workflow & Polish</h3>
+            <p>
+                Implement the Vim-inspired keyboard handling and the integrated side terminal. Refine the dynamic theming system to ensure all UI elements (tabs, URL bar, terminal) correctly inherit injected color palettes at runtime.
+            </p>
+        </div>
+    </div>
+</body>
+</html>
