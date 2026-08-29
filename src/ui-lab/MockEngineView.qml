@@ -19,7 +19,14 @@ Rectangle {
     property var keyboardNavigationConfiguration: ({})
     property string keyboardNavigationScriptSource: ""
     readonly property bool pageHasFocus: root.activeFocus
-    readonly property int capabilities: 89
+    readonly property int navigationCapability: 1 << 0
+    readonly property int contentBlockingCapability: 1 << 3
+    readonly property int keyboardPageCommandsCapability: 1 << 4
+    readonly property int rendererRecoveryCapability: 1 << 6
+    readonly property int capabilities: navigationCapability
+        | contentBlockingCapability
+        | keyboardPageCommandsCapability
+        | rendererRecoveryCapability
 
     signal rendererFailed(string reason)
     signal newTabRequested(var request, url requestedUrl)

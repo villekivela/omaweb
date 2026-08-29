@@ -16,7 +16,16 @@ Item {
     property var engineContentBlocker: null
     readonly property var browserProfile: webView.profile
     readonly property bool pageHasFocus: webView.activeFocus
-    readonly property int capabilities: 91
+    readonly property int navigationCapability: 1 << 0
+    readonly property int persistentProfilesCapability: 1 << 1
+    readonly property int contentBlockingCapability: 1 << 3
+    readonly property int keyboardPageCommandsCapability: 1 << 4
+    readonly property int rendererRecoveryCapability: 1 << 6
+    readonly property int capabilities: navigationCapability
+        | persistentProfilesCapability
+        | contentBlockingCapability
+        | keyboardPageCommandsCapability
+        | rendererRecoveryCapability
     property int blockedRequestCount: 0
     property var keyboardNavigationConfiguration: ({})
     property string keyboardNavigationScriptSource: ""
