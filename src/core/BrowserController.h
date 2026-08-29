@@ -43,6 +43,13 @@ public:
     QString errorMessage() const;
 
     Q_INVOKABLE void activateTab(const QString &tabId);
+    Q_INVOKABLE QString createSpace(const QString &name);
+    Q_INVOKABLE bool switchSpace(const QString &spaceId);
+    Q_INVOKABLE bool renameSpace(const QString &spaceId, const QString &name);
+    Q_INVOKABLE bool deleteSpace(const QString &spaceId, const QString &confirmationName);
+    Q_INVOKABLE bool requestTabMoveToSpace(const QString &tabId, const QString &destinationSpaceId,
+        bool hasEditedFormState);
+    Q_INVOKABLE bool confirmTabMoveToSpace(const QString &tabId, const QString &destinationSpaceId);
     Q_INVOKABLE void openInput(const QString &input, bool inNewTab);
     Q_INVOKABLE void closeActiveTab();
     Q_INVOKABLE void reopenClosedTab();
@@ -58,6 +65,9 @@ public:
 signals:
     void activeSpaceChanged();
     void activeTabChanged();
+    void spaceSuspended(const QString &spaceId);
+    void spaceRestored(const QString &spaceId);
+    void tabMoveConfirmationRequested(const QString &tabId, const QString &destinationSpaceId);
     void backRequested();
     void forwardRequested();
     void reloadRequested();
@@ -71,8 +81,9 @@ private:
     void initialize();
     void ensureDefaultSpace();
     void ensureActiveTab();
-    void persistTabs();
+    bool persistTabs();
     void setActiveTab(const QString &tabId);
+    static TabState makeBlankTab(const QString &spaceId);
     static QUrl resolveInput(const QString &input);
 
     SessionStore m_store;

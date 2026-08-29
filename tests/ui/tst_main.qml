@@ -71,10 +71,18 @@ TestCase {
         const collapseButton = findChild(window.contentItem, "collapseButton")
         const reloadButton = findChild(window.contentItem, "reloadButton")
         const pinButton = findChild(window.contentItem, "pinButton")
+        const moveTabButton = findChild(window.contentItem, "moveTabButton")
+        const manageSpacesButton = findChild(window.contentItem, "manageSpacesButton")
+        const materialSymbolsFont = findChild(window, "materialSymbolsFont")
 
         compare(newTabButton.accessibleName, "New tab")
         compare(addressButton.accessibleName, "Search or enter address")
         compare(collapseButton.accessibleName, "Collapse sidebar")
+        compare(moveTabButton.label, "drive_file_move")
+        compare(manageSpacesButton.label, "more_horiz")
+        verify(iconFontSource.toString().endsWith("/material-symbols-rounded.ttf"))
+        verify(materialSymbolsFont !== null)
+        tryCompare(materialSymbolsFont, "status", FontLoader.Ready)
         verify(newTabButton.activeFocusOnTab)
         verify(addressButton.activeFocusOnTab)
         verify(collapseButton.activeFocusOnTab)
@@ -83,6 +91,8 @@ TestCase {
         compare(window.activeFocusItem.objectName, "reloadButton")
         keyClick(Qt.Key_Tab)
         compare(window.activeFocusItem.objectName, "pinButton")
+        keyClick(Qt.Key_Tab)
+        compare(window.activeFocusItem.objectName, "moveTabButton")
         keyClick(Qt.Key_Tab)
         compare(window.activeFocusItem.objectName, "addressButton")
 
@@ -98,5 +108,28 @@ TestCase {
         compare(window.activeFocusItem.objectName, "collapseButton")
         keyClick(Qt.Key_Backtab)
         compare(window.activeFocusItem.objectName, "newTabButton")
+    }
+
+    function test_spaceSwitchRecreatesEngineView() {
+        const engineLoader = findChild(window.contentItem, "engineLoader")
+        verify(engineLoader !== null)
+        verify(engineLoader.item !== null)
+        const personalSpaceId = browser.activeSpaceId
+        const previousEngineView = engineLoader.item
+        const workSpaceId = browser.createSpace("Work")
+
+        verify(browser.switchSpace(workSpaceId))
+        tryVerify(function() {
+            return engineLoader.item !== null
+                && engineLoader.item !== previousEngineView
+                && engineLoader.item.profilePath === browser.activeProfilePath
+        })
+
+        verify(browser.deleteSpace(workSpaceId, ""))
+        compare(browser.activeSpaceId, personalSpaceId)
+        tryVerify(function() {
+            return engineLoader.item !== null
+                && engineLoader.item.profilePath === browser.activeProfilePath
+        })
     }
 }

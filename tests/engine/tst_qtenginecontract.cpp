@@ -2,6 +2,7 @@
 #include "EngineViewContract.h"
 
 #include <QGuiApplication>
+#include <QFile>
 #include <QMetaMethod>
 #include <QQmlComponent>
 #include <QQmlEngine>
@@ -9,6 +10,7 @@
 #include <QQuickWindow>
 #include <QSignalSpy>
 #include <QTest>
+#include <QTemporaryDir>
 #include <QtWebEngineQuick/qtwebenginequickglobal.h>
 
 #include <memory>
@@ -24,6 +26,7 @@ private slots:
     void adaptersExposeSharedContract();
     void mockReportsLifecycleEvents();
     void qtAdapterPropagatesPageState();
+    void qtProfilesIsolateSiteStorage();
 };
 
 void QtEngineContractTest::adaptersExposeSharedContract_data()
@@ -123,6 +126,54 @@ void QtEngineContractTest::qtAdapterPropagatesPageState()
         QGenericArgument("int", &exitCode)));
     QCOMPARE(failureSpy.count(), 1);
     QVERIFY(failureSpy.takeFirst().first().toString().contains(QString::number(exitCode)));
+}
+
+void QtEngineContractTest::qtProfilesIsolateSiteStorage()
+{
+    QTemporaryDir root;
+    QFile page(root.filePath(QStringLiteral("storage.html")));
+    QVERIFY(page.open(QIODevice::WriteOnly));
+    page.write(R"HTML(<!doctype html><title>loading</title><script>
+        const value = new URLSearchParams(location.search).get('value');
+        if (value) localStorage.setItem('login', value);
+        document.title = localStorage.getItem('login') || 'none';
+    </script>)HTML");
+    page.close();
+
+    QQmlEngine engine;
+    QQmlComponent component(&engine, QUrl::fromLocalFile(
+        QStringLiteral(TANTO_QT_ENGINE_VIEW_PATH)));
+    const std::unique_ptr<QObject> personal(component.createWithInitialProperties({
+        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("personal"))},
+    }));
+    const std::unique_ptr<QObject> work(component.createWithInitialProperties({
+        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("work"))},
+    }));
+    QVERIFY2(personal, qPrintable(component.errorString()));
+    QVERIFY2(work, qPrintable(component.errorString()));
+
+    QQuickWindow personalWindow;
+    QQuickWindow workWindow;
+    qobject_cast<QQuickItem *>(personal.get())->setParentItem(personalWindow.contentItem());
+    qobject_cast<QQuickItem *>(work.get())->setParentItem(workWindow.contentItem());
+    personalWindow.show();
+    workWindow.show();
+
+    auto personalUrl = QUrl::fromLocalFile(page.fileName());
+    personalUrl.setQuery(QStringLiteral("value=personal"));
+    QVERIFY(personal->setProperty("currentUrl", personalUrl));
+    QTRY_COMPARE(personal->property("pageTitle").toString(), QStringLiteral("personal"));
+
+    const auto readUrl = QUrl::fromLocalFile(page.fileName());
+    QVERIFY(work->setProperty("currentUrl", readUrl));
+    QTRY_COMPARE(work->property("pageTitle").toString(), QStringLiteral("none"));
+
+    auto workUrl = readUrl;
+    workUrl.setQuery(QStringLiteral("value=work"));
+    QVERIFY(work->setProperty("currentUrl", workUrl));
+    QTRY_COMPARE(work->property("pageTitle").toString(), QStringLiteral("work"));
+    QVERIFY(personal->setProperty("currentUrl", readUrl));
+    QTRY_COMPARE(personal->property("pageTitle").toString(), QStringLiteral("personal"));
 }
 
 int main(int argc, char *argv[])

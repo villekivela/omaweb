@@ -91,6 +91,218 @@ void BrowserController::activateTab(const QString &tabId)
     setActiveTab(tabId);
 }
 
+QString BrowserController::createSpace(const QString &name)
+{
+    const auto normalizedName = name.trimmed();
+    if (normalizedName.isEmpty()) {
+        return {};
+    }
+
+    SpaceState space;
+    space.id = QUuid::createUuid().toString(QUuid::WithoutBraces);
+    space.name = normalizedName;
+    space.color = QStringLiteral("#7c6cff");
+    if (!m_store.saveSpace(space)) {
+        return {};
+    }
+
+    auto spaces = m_spaces.items();
+    spaces.append(space);
+    m_spaces.reset(std::move(spaces));
+    return space.id;
+}
+
+bool BrowserController::switchSpace(const QString &spaceId)
+{
+    if (spaceId == m_activeSpaceId) {
+        return true;
+    }
+
+    const SpaceState *destination = nullptr;
+    for (const auto &space : m_spaces.items()) {
+        if (space.id == spaceId) {
+            destination = &space;
+            break;
+        }
+    }
+    if (!destination) {
+        return false;
+    }
+
+    if (!persistTabs()) {
+        return false;
+    }
+    emit spaceSuspended(m_activeSpaceId);
+    if (!m_store.setActiveSpace(spaceId)) {
+        emit spaceRestored(m_activeSpaceId);
+        return false;
+    }
+    m_activeSpaceId = destination->id;
+    m_activeSpaceName = destination->name;
+    auto spaces = m_spaces.items();
+    for (auto &space : spaces) {
+        space.active = space.id == spaceId;
+    }
+    m_spaces.reset(std::move(spaces));
+    m_closedTab = {};
+    ensureActiveTab();
+    emit spaceRestored(m_activeSpaceId);
+    emit activeSpaceChanged();
+    emit activeTabChanged();
+    return true;
+}
+
+bool BrowserController::renameSpace(const QString &spaceId, const QString &name)
+{
+    const auto normalizedName = name.trimmed();
+    if (normalizedName.isEmpty()) {
+        return false;
+    }
+
+    auto spaces = m_spaces.items();
+    for (auto &space : spaces) {
+        if (space.id != spaceId) {
+            continue;
+        }
+        space.name = normalizedName;
+        if (!m_store.saveSpace(space)) {
+            return false;
+        }
+        if (space.active) {
+            m_activeSpaceName = normalizedName;
+        }
+        m_spaces.reset(std::move(spaces));
+        if (spaceId == m_activeSpaceId) {
+            emit activeSpaceChanged();
+        }
+        return true;
+    }
+    return false;
+}
+
+bool BrowserController::deleteSpace(const QString &spaceId, const QString &confirmationName)
+{
+    if (m_spaces.items().size() <= 1) {
+        return false;
+    }
+
+    const SpaceState *target = nullptr;
+    QString replacementId;
+    QString replacementName;
+    for (const auto &space : m_spaces.items()) {
+        if (space.id == spaceId) {
+            target = &space;
+        } else if (replacementId.isEmpty()) {
+            replacementId = space.id;
+            replacementName = space.name;
+        }
+    }
+    if (!target) {
+        return false;
+    }
+    if (m_store.spaceHasSavedContent(spaceId) && confirmationName != target->name) {
+        return false;
+    }
+
+    const auto deletingActiveSpace = spaceId == m_activeSpaceId;
+    if (deletingActiveSpace && !persistTabs()) {
+        return false;
+    }
+    if (deletingActiveSpace) {
+        emit spaceSuspended(spaceId);
+    }
+    if (!m_store.deleteSpace(spaceId, deletingActiveSpace ? replacementId : QString{})) {
+        if (deletingActiveSpace) {
+            emit spaceRestored(spaceId);
+        }
+        return false;
+    }
+    m_spaces.reset(m_store.loadSpaces());
+    if (deletingActiveSpace) {
+        m_activeSpaceId = replacementId;
+        m_activeSpaceName = replacementName;
+        m_closedTab = {};
+        ensureActiveTab();
+        emit spaceRestored(m_activeSpaceId);
+        emit activeSpaceChanged();
+        emit activeTabChanged();
+    }
+    return true;
+}
+
+bool BrowserController::requestTabMoveToSpace(const QString &tabId,
+    const QString &destinationSpaceId, bool hasEditedFormState)
+{
+    if (!m_tabs.find(tabId) || destinationSpaceId == m_activeSpaceId) {
+        return false;
+    }
+    for (const auto &space : m_spaces.items()) {
+        if (space.id == destinationSpaceId) {
+            if (hasEditedFormState) {
+                emit tabMoveConfirmationRequested(tabId, destinationSpaceId);
+                return true;
+            }
+            return confirmTabMoveToSpace(tabId, destinationSpaceId);
+        }
+    }
+    return false;
+}
+
+bool BrowserController::confirmTabMoveToSpace(const QString &tabId,
+    const QString &destinationSpaceId)
+{
+    const auto *sourceTab = m_tabs.find(tabId);
+    if (!sourceTab || destinationSpaceId == m_activeSpaceId) {
+        return false;
+    }
+    bool destinationExists = false;
+    for (const auto &space : m_spaces.items()) {
+        destinationExists = destinationExists || space.id == destinationSpaceId;
+    }
+    if (!destinationExists) {
+        return false;
+    }
+
+    auto sourceTabs = m_tabs.items();
+    TabState movedTab = *sourceTab;
+    sourceTabs.removeIf([&tabId](const TabState &tab) { return tab.id == tabId; });
+    QString sourceActiveTabId = m_activeTabId;
+    if (sourceTabs.isEmpty()) {
+        auto blankTab = makeBlankTab(m_activeSpaceId);
+        sourceActiveTabId = blankTab.id;
+        sourceTabs.append(blankTab);
+    } else if (tabId == m_activeTabId) {
+        sourceActiveTabId = sourceTabs.first().id;
+    }
+
+    auto destinationTabs = m_store.loadTabs(destinationSpaceId);
+    QString destinationActiveTabId;
+    for (const auto &tab : destinationTabs) {
+        if (tab.active) {
+            destinationActiveTabId = tab.id;
+            break;
+        }
+    }
+    movedTab.spaceId = destinationSpaceId;
+    movedTab.active = destinationTabs.isEmpty();
+    movedTab.loading = false;
+    movedTab.rendererFailureReason.clear();
+    destinationTabs.append(movedTab);
+    if (destinationActiveTabId.isEmpty()) {
+        destinationActiveTabId = movedTab.id;
+    }
+
+    if (!m_store.saveSpaceMove(m_activeSpaceId, sourceTabs, sourceActiveTabId,
+            destinationSpaceId, destinationTabs, destinationActiveTabId)) {
+        return false;
+    }
+
+    m_activeTabId = sourceActiveTabId;
+    m_tabs.reset(std::move(sourceTabs));
+    emit activeTabChanged();
+    return true;
+}
+
 void BrowserController::openInput(const QString &input, bool inNewTab)
 {
     const auto url = resolveInput(input);
@@ -300,12 +512,7 @@ void BrowserController::ensureActiveTab()
 {
     auto tabs = m_store.loadTabs(m_activeSpaceId);
     if (tabs.isEmpty()) {
-        TabState tab;
-        tab.id = QUuid::createUuid().toString(QUuid::WithoutBraces);
-        tab.spaceId = m_activeSpaceId;
-        tab.url = QUrl(QStringLiteral("about:blank"));
-        tab.title = QStringLiteral("New tab");
-        tab.active = true;
+        auto tab = makeBlankTab(m_activeSpaceId);
         tabs.append(tab);
         m_store.saveTab(tab, 0);
     }
@@ -322,9 +529,9 @@ void BrowserController::ensureActiveTab()
     persistTabs();
 }
 
-void BrowserController::persistTabs()
+bool BrowserController::persistTabs()
 {
-    m_store.saveTabs(m_activeSpaceId, m_tabs.items(), m_activeTabId);
+    return m_store.saveTabs(m_activeSpaceId, m_tabs.items(), m_activeTabId);
 }
 
 void BrowserController::setActiveTab(const QString &tabId)
@@ -364,6 +571,17 @@ QUrl BrowserController::resolveInput(const QString &input)
     query.addQueryItem(QStringLiteral("q"), value);
     search.setQuery(query);
     return search;
+}
+
+TabState BrowserController::makeBlankTab(const QString &spaceId)
+{
+    TabState tab;
+    tab.id = QUuid::createUuid().toString(QUuid::WithoutBraces);
+    tab.spaceId = spaceId;
+    tab.url = QUrl(QStringLiteral("about:blank"));
+    tab.title = QStringLiteral("New tab");
+    tab.active = true;
+    return tab;
 }
 
 } // namespace tanto

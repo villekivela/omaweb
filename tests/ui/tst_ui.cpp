@@ -22,7 +22,8 @@ public slots:
         engine->rootContext()->setContextProperty(QStringLiteral("theme"), m_theme.get());
         engine->rootContext()->setContextProperty(
             QStringLiteral("engineViewSource"), QUrl(QStringLiteral(TANTO_MOCK_ENGINE_VIEW_URL)));
-        engine->rootContext()->setContextProperty(QStringLiteral("iconFontSource"), QUrl{});
+        engine->rootContext()->setContextProperty(
+            QStringLiteral("iconFontSource"), QUrl(QStringLiteral(TANTO_ICON_FONT_URL)));
         engine->addImportPath(QStringLiteral(TANTO_UI_DIRECTORY));
     }
 

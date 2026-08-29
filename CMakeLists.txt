@@ -92,7 +92,7 @@ function(tanto_configure_qml target engine_view engine_directory)
             TANTO_MAIN_QML_URL="file://${CMAKE_CURRENT_SOURCE_DIR}/src/ui/Main.qml"
             TANTO_ENGINE_VIEW_URL="file://${CMAKE_CURRENT_SOURCE_DIR}/${engine_view}"
             TANTO_THEME_PATH="${CMAKE_CURRENT_SOURCE_DIR}/assets/themes/default.json"
-            TANTO_ICON_FONT_URL="file://${CMAKE_CURRENT_SOURCE_DIR}/assets/fonts/material-symbols-rounded-subset.ttf"
+            TANTO_ICON_FONT_URL="file://${CMAKE_CURRENT_SOURCE_DIR}/assets/fonts/material-symbols-rounded.ttf"
         )
     else()
         set_source_files_properties("${engine_view}" PROPERTIES QT_RESOURCE_ALIAS "EngineView.qml")
@@ -114,13 +114,13 @@ function(tanto_configure_qml target engine_view engine_directory)
         qt_add_resources(${target} "tanto_fonts"
             PREFIX "/tanto/fonts"
             BASE "${CMAKE_CURRENT_SOURCE_DIR}/assets/fonts"
-            FILES assets/fonts/material-symbols-rounded-subset.ttf
+            FILES assets/fonts/material-symbols-rounded.ttf
         )
         target_compile_definitions(${target} PRIVATE
             TANTO_MAIN_QML_URL="qrc:/tanto/ui/Main.qml"
             TANTO_ENGINE_VIEW_URL="qrc:/tanto/engine/EngineView.qml"
             TANTO_THEME_PATH=":/tanto/themes/default.json"
-            TANTO_ICON_FONT_URL="qrc:/tanto/fonts/material-symbols-rounded-subset.ttf"
+            TANTO_ICON_FONT_URL="qrc:/tanto/fonts/material-symbols-rounded.ttf"
         )
     endif()
 endfunction()
@@ -210,6 +210,7 @@ if(BUILD_TESTING)
             QUICK_TEST_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/ui"
             TANTO_MOCK_ENGINE_VIEW_URL="file://${CMAKE_CURRENT_SOURCE_DIR}/src/ui-lab/MockEngineView.qml"
             TANTO_THEME_PATH="${CMAKE_CURRENT_SOURCE_DIR}/assets/themes/default.json"
+            TANTO_ICON_FONT_URL="file://${CMAKE_CURRENT_SOURCE_DIR}/assets/fonts/material-symbols-rounded.ttf"
             TANTO_UI_DIRECTORY="${CMAKE_CURRENT_SOURCE_DIR}/src/ui"
         )
         tanto_strict_target(tanto-ui-tests)
@@ -255,7 +256,7 @@ if(TANTO_BUILD_UI_PROTOTYPE)
     )
     target_compile_definitions(tanto-ui-prototype PRIVATE
         TANTO_THEME_PATH="${CMAKE_CURRENT_SOURCE_DIR}/assets/themes/default.json"
-        TANTO_ICON_FONT_URL="file://${CMAKE_CURRENT_SOURCE_DIR}/assets/fonts/material-symbols-rounded-subset.ttf"
+        TANTO_ICON_FONT_URL="file://${CMAKE_CURRENT_SOURCE_DIR}/assets/fonts/material-symbols-rounded.ttf"
         TANTO_PROTOTYPE_SHELL_URL="file://${CMAKE_CURRENT_SOURCE_DIR}/src/ui-lab/prototype/PrototypeShell.qml"
     )
     tanto_strict_target(tanto-ui-prototype)

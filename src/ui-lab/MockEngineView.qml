@@ -23,6 +23,7 @@ Rectangle {
         loading = true
         settle.restart()
     }
+    function checkForEditedFormState(callback) { callback(false) }
     function simulateRendererFailure() {
         rendererFailed("Renderer exited unexpectedly")
     }

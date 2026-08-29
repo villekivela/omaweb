@@ -18,9 +18,12 @@ ApplicationWindow {
     property bool sidebarCollapsed: false
     property bool omnibarOpen: false
     property bool newTabIntent: false
+    property string pendingMoveTabId: ""
+    property string pendingMoveSpaceId: ""
 
     FontLoader {
         id: materialSymbols
+        objectName: "materialSymbolsFont"
         source: iconFontSource
     }
 
@@ -162,6 +165,17 @@ ApplicationWindow {
                             hoverBackground: window.colors.surfaceHover
                             onClicked: browser.toggleActivePinned()
                         }
+
+                        ChromeButton {
+                            objectName: "moveTabButton"
+                            Layout.fillWidth: true
+                            label: "drive_file_move"
+                            accessibleName: "Move tab to Space"
+                            fontFamily: materialSymbols.name
+                            foreground: window.colors.text
+                            hoverBackground: window.colors.surfaceHover
+                            onClicked: moveTabDialog.open()
+                        }
                     }
 
                     Rectangle {
@@ -247,31 +261,55 @@ ApplicationWindow {
                         }
                     }
 
-                    Item {
+                    RowLayout {
                         objectName: "spaceHeading"
                         Layout.fillWidth: true
                         Layout.preferredHeight: window.sidebarCollapsed ? 16 : 34
+                        spacing: 4
 
-                        Rectangle {
-                            width: 8
-                            height: 8
-                            radius: 4
-                            anchors.left: parent.left
-                            anchors.verticalCenter: parent.verticalCenter
-                            color: window.colors.accent
+                        ComboBox {
+                            id: spaceSelector
+                            objectName: "spaceSelector"
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+                            visible: !window.sidebarCollapsed
+                            model: browser.spaces
+                            textRole: "spaceName"
+                            valueRole: "spaceId"
+                            displayText: browser.activeSpaceName
+                            Accessible.name: "Active Space"
+                            onActivated: browser.switchSpace(currentValue)
                         }
 
-                        Text {
-                            anchors.left: parent.left
-                            anchors.leftMargin: 16
-                            anchors.right: parent.right
-                            anchors.verticalCenter: parent.verticalCenter
+                        ChromeButton {
+                            id: manageSpacesButton
+                            objectName: "manageSpacesButton"
+                            Layout.preferredWidth: 32
+                            Layout.fillHeight: true
                             visible: !window.sidebarCollapsed
-                            text: browser.activeSpaceName
-                            color: window.colors.text
-                            font.pixelSize: 14
-                            font.weight: Font.DemiBold
-                            elide: Text.ElideRight
+                            label: "more_horiz"
+                            accessibleName: "Manage Spaces"
+                            fontFamily: materialSymbols.name
+                            foreground: window.colors.mutedText
+                            hoverBackground: window.colors.surfaceHover
+                            onClicked: spacesMenu.popup()
+
+                            Menu {
+                                id: spacesMenu
+
+                                MenuItem {
+                                    text: "New Space"
+                                    onTriggered: newSpaceDialog.open()
+                                }
+                                MenuItem {
+                                    text: "Rename " + browser.activeSpaceName
+                                    onTriggered: renameSpaceDialog.open()
+                                }
+                                MenuItem {
+                                    text: "Delete " + browser.activeSpaceName
+                                    onTriggered: deleteSpaceDialog.open()
+                                }
+                            }
                         }
                     }
 
@@ -379,13 +417,20 @@ ApplicationWindow {
 
                 Loader {
                     id: engineLoader
+                    objectName: "engineLoader"
                     anchors.fill: parent
-                    source: engineViewSource
                     focus: true
 
+                    function loadActiveSpace() {
+                        setSource(engineViewSource, {
+                            "profilePath": browser.activeProfilePath,
+                            "currentUrl": browser.activeUrl
+                        })
+                    }
+
+                    Component.onCompleted: loadActiveSpace()
+
                     onLoaded: {
-                        item.profilePath = browser.activeProfilePath
-                        item.currentUrl = browser.activeUrl
                         item.focusPage()
                     }
                 }
@@ -420,6 +465,21 @@ ApplicationWindow {
 
                 Connections {
                     target: browser
+
+                    function onTabMoveConfirmationRequested(tabId, destinationSpaceId) {
+                        window.pendingMoveTabId = tabId
+                        window.pendingMoveSpaceId = destinationSpaceId
+                        confirmTabMoveDialog.open()
+                    }
+
+                    function onSpaceSuspended(spaceId) {
+                        engineLoader.source = ""
+                    }
+
+                    function onSpaceRestored(spaceId) {
+                        if (spaceId === browser.activeSpaceId)
+                            Qt.callLater(function() { engineLoader.loadActiveSpace() })
+                    }
 
                     function onActiveTabChanged() {
                         if (engineLoader.item && engineLoader.item.currentUrl !== browser.activeUrl) {
@@ -480,6 +540,142 @@ ApplicationWindow {
                     }
                 }
             }
+        }
+    }
+
+    Dialog {
+        id: newSpaceDialog
+        objectName: "newSpaceDialog"
+        anchors.centerIn: parent
+        modal: true
+        title: "New Space"
+        standardButtons: Dialog.Ok | Dialog.Cancel
+        onOpened: {
+            newSpaceName.text = ""
+            newSpaceName.forceActiveFocus()
+        }
+        onAccepted: {
+            const spaceId = browser.createSpace(newSpaceName.text)
+            if (spaceId.length > 0) browser.switchSpace(spaceId)
+        }
+
+        TextField {
+            id: newSpaceName
+            objectName: "newSpaceName"
+            width: 280
+            placeholderText: "Space name"
+            Accessible.name: "New Space name"
+        }
+    }
+
+    Dialog {
+        id: renameSpaceDialog
+        objectName: "renameSpaceDialog"
+        anchors.centerIn: parent
+        modal: true
+        title: "Rename Space"
+        standardButtons: Dialog.Ok | Dialog.Cancel
+        onOpened: {
+            renamedSpaceName.text = browser.activeSpaceName
+            renamedSpaceName.forceActiveFocus()
+            renamedSpaceName.selectAll()
+        }
+        onAccepted: browser.renameSpace(browser.activeSpaceId, renamedSpaceName.text)
+
+        TextField {
+            id: renamedSpaceName
+            objectName: "renamedSpaceName"
+            width: 280
+            Accessible.name: "Renamed Space name"
+        }
+    }
+
+    Dialog {
+        id: deleteSpaceDialog
+        objectName: "deleteSpaceDialog"
+        anchors.centerIn: parent
+        modal: true
+        title: "Delete " + browser.activeSpaceName
+        standardButtons: Dialog.Ok | Dialog.Cancel
+        onOpened: {
+            deleteSpaceConfirmation.text = ""
+            deleteSpaceConfirmation.forceActiveFocus()
+        }
+        onAccepted: browser.deleteSpace(
+            browser.activeSpaceId, deleteSpaceConfirmation.text)
+
+        ColumnLayout {
+            width: 320
+            spacing: 10
+
+            Label {
+                Layout.fillWidth: true
+                wrapMode: Text.WordWrap
+                text: "Type " + browser.activeSpaceName
+                    + " to delete its tabs, session, and engine data."
+            }
+
+            TextField {
+                id: deleteSpaceConfirmation
+                objectName: "deleteSpaceConfirmation"
+                Layout.fillWidth: true
+                Accessible.name: "Space deletion confirmation"
+            }
+        }
+    }
+
+    Dialog {
+        id: moveTabDialog
+        objectName: "moveTabDialog"
+        anchors.centerIn: parent
+        modal: true
+        title: "Choose destination Space"
+        standardButtons: Dialog.Cancel
+
+        ColumnLayout {
+            width: 340
+            spacing: 8
+
+            Repeater {
+                model: browser.spaces
+
+                Button {
+                    Layout.fillWidth: true
+                    visible: spaceId !== browser.activeSpaceId
+                    text: spaceName
+                    Accessible.name: "Move tab to " + spaceName
+                    onClicked: {
+                        const tabId = browser.activeTabId
+                        const destinationSpaceId = spaceId
+                        moveTabDialog.close()
+                        if (engineLoader.item) {
+                            engineLoader.item.checkForEditedFormState(function(hasEditedFormState) {
+                                browser.requestTabMoveToSpace(
+                                    tabId, destinationSpaceId, hasEditedFormState)
+                            })
+                        } else {
+                            browser.requestTabMoveToSpace(tabId, destinationSpaceId, true)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    Dialog {
+        id: confirmTabMoveDialog
+        objectName: "confirmTabMoveDialog"
+        anchors.centerIn: parent
+        modal: true
+        title: "Discard edited form state?"
+        standardButtons: Dialog.Ok | Dialog.Cancel
+        onAccepted: browser.confirmTabMoveToSpace(
+            window.pendingMoveTabId, window.pendingMoveSpaceId)
+
+        Label {
+            width: 340
+            wrapMode: Text.WordWrap
+            text: "This page has edited form state. Moving it will reload the page under the destination identity and discard those edits."
         }
     }
 

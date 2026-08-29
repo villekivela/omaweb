@@ -25,13 +25,15 @@ QStringList validateEngineViewContract(const QObject &adapter)
     struct RequiredMethod {
         const char *name;
         bool signal;
+        int parameterCount;
     };
     static constexpr RequiredMethod requiredMethods[] = {
-        {"goBack", false},
-        {"goForward", false},
-        {"reloadPage", false},
-        {"focusPage", false},
-        {"rendererFailed", true},
+        {"goBack", false, 0},
+        {"goForward", false, 0},
+        {"reloadPage", false, 0},
+        {"focusPage", false, 0},
+        {"checkForEditedFormState", false, 1},
+        {"rendererFailed", true, 1},
     };
 
     QStringList missing;
@@ -60,9 +62,10 @@ QStringList validateEngineViewContract(const QObject &adapter)
             }
             const auto hasExpectedSignature = required.signal
                 ? method.methodType() == QMetaMethod::Signal
-                    && method.parameterCount() == 1
+                    && method.parameterCount() == required.parameterCount
                     && method.parameterMetaType(0).id() == QMetaType::QString
-                : method.methodType() != QMetaMethod::Signal && method.parameterCount() == 0;
+                : method.methodType() != QMetaMethod::Signal
+                    && method.parameterCount() == required.parameterCount;
             if (hasExpectedSignature) {
                 found = true;
                 break;
