@@ -520,7 +520,8 @@ ApplicationWindow {
                             "contentBlocker": contentBlocker,
                             "engineContentBlocker": engineContentBlocker,
                             "keyboardNavigationConfiguration": keyboardNavigation.configurationForUrl(
-                                window.windowBrowser.activeUrl)
+                                window.windowBrowser.activeUrl),
+                            "keyboardNavigationScriptSource": keyboardNavigation.pageScript
                         })
                     }
 

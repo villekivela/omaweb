@@ -17,6 +17,7 @@ Rectangle {
     readonly property int blockedRequestCount: contentBlocker
         ? contentBlocker.blockedRequestCount(currentUrl) : 0
     property var keyboardNavigationConfiguration: ({})
+    property string keyboardNavigationScriptSource: ""
     readonly property bool pageHasFocus: root.activeFocus
     readonly property int capabilities: 89
 

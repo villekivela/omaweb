@@ -12,14 +12,18 @@ class KeyboardNavigation final : public QObject {
     Q_PROPERTY(bool valid READ valid NOTIFY configurationChanged)
     Q_PROPERTY(QVariantMap bindings READ bindings NOTIFY configurationChanged)
     Q_PROPERTY(QString errorMessage READ errorMessage NOTIFY configurationChanged)
+    Q_PROPERTY(QString pageScript READ pageScript CONSTANT)
 
 public:
     explicit KeyboardNavigation(QString configurationPath, QObject *parent = nullptr);
+    KeyboardNavigation(QString configurationPath, QString pageScriptPath,
+        QObject *parent = nullptr);
 
     bool enabled() const;
     bool valid() const;
     QVariantMap bindings() const;
     QString errorMessage() const;
+    QString pageScript() const;
 
     Q_INVOKABLE bool setEnabled(bool enabled);
     Q_INVOKABLE QVariantMap configurationForUrl(const QUrl &url) const;
@@ -41,6 +45,7 @@ private:
     QVariantMap m_bindings;
     QHash<QString, SiteRule> m_siteRules;
     QString m_errorMessage;
+    QString m_pageScript;
     bool m_enabled = false;
     bool m_valid = false;
 };

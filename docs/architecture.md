@@ -33,7 +33,7 @@ Request matching uses an immutable in-memory snapshot. Subscription updates comp
 
 ## Keyboard navigation
 
-Core loads and validates the versioned keybinding and site-passthrough policy. Engine adapters receive the resolved configuration for the active URL through the shared engine-view contract. The Qt adapter injects the page command handler at document readiness; the UI-lab mock exposes the same contract for shared UI tests and for the Ladybird adapter to implement.
+Core loads and validates the versioned keybinding and site-passthrough policy. Engine adapters receive the resolved configuration for the active URL and the shared page-command script through the engine-view contract. The Qt adapter injects that script at document readiness; the UI-lab mock accepts the same inputs, and the Ladybird adapter must inject the same script when ticket #7 adds it.
 
 Page commands ignore editable controls, IME composition, and unbound keys. Link hints use DOM accessibility labels, CSS lengths that follow page zoom, and system-color keywords that remain visible in forced-color modes.
 

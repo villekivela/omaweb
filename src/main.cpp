@@ -97,7 +97,8 @@ int main(int argc, char *argv[])
 
     tanto::BrowserController browser(dataRoot(), QStringLiteral("qt"));
     tanto::ContentBlocker contentBlocker(dataRoot());
-    tanto::KeyboardNavigation keyboardNavigation(keybindingsPath());
+    tanto::KeyboardNavigation keyboardNavigation(
+        keybindingsPath(), QStringLiteral(TANTO_KEYBOARD_NAVIGATION_SCRIPT_PATH));
     tanto::QtContentBlocker engineContentBlocker(&contentBlocker);
     tanto::ThemeController theme(themePath());
     tanto::WindowManager windowManager(QStringLiteral("qt"));

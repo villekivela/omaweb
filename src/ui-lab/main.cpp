@@ -29,7 +29,8 @@ int main(int argc, char *argv[])
     tanto::ContentBlocker contentBlocker(dataRoot.path());
     const auto keybindingsPath = dataRoot.filePath(QStringLiteral("keybindings.json"));
     QFile::copy(QStringLiteral(TANTO_DEFAULT_KEYBINDINGS_PATH), keybindingsPath);
-    tanto::KeyboardNavigation keyboardNavigation(keybindingsPath);
+    tanto::KeyboardNavigation keyboardNavigation(
+        keybindingsPath, QStringLiteral(TANTO_KEYBOARD_NAVIGATION_SCRIPT_PATH));
     tanto::ThemeController theme(QStringLiteral(TANTO_THEME_PATH));
     tanto::WindowManager windowManager(QStringLiteral("mock"));
 

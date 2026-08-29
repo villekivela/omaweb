@@ -158,6 +158,7 @@ function(tanto_configure_qml target engine_view engine_profile engine_directory)
             TANTO_THEME_PATH="${CMAKE_CURRENT_SOURCE_DIR}/assets/themes/default.json"
             TANTO_ICON_FONT_URL="file://${CMAKE_CURRENT_SOURCE_DIR}/assets/fonts/material-symbols-rounded.ttf"
             TANTO_DEFAULT_KEYBINDINGS_PATH="${CMAKE_CURRENT_SOURCE_DIR}/assets/keybindings/default.json"
+            TANTO_KEYBOARD_NAVIGATION_SCRIPT_PATH="${CMAKE_CURRENT_SOURCE_DIR}/src/engine/api/keyboard-navigation.js"
         )
     else()
         set_source_files_properties("${engine_view}" PROPERTIES QT_RESOURCE_ALIAS "EngineView.qml")
@@ -188,6 +189,11 @@ function(tanto_configure_qml target engine_view engine_profile engine_directory)
             BASE "${CMAKE_CURRENT_SOURCE_DIR}/assets/keybindings"
             FILES assets/keybindings/default.json
         )
+        qt_add_resources(${target} "tanto_keyboard_navigation_script"
+            PREFIX "/tanto/engine-api"
+            BASE "${CMAKE_CURRENT_SOURCE_DIR}/src/engine/api"
+            FILES src/engine/api/keyboard-navigation.js
+        )
         target_compile_definitions(${target} PRIVATE
             TANTO_MAIN_QML_URL="qrc:/tanto/ui/Main.qml"
             TANTO_ENGINE_VIEW_URL="qrc:/tanto/engine/EngineView.qml"
@@ -195,6 +201,7 @@ function(tanto_configure_qml target engine_view engine_profile engine_directory)
             TANTO_THEME_PATH=":/tanto/themes/default.json"
             TANTO_ICON_FONT_URL="qrc:/tanto/fonts/material-symbols-rounded.ttf"
             TANTO_DEFAULT_KEYBINDINGS_PATH=":/tanto/keybindings/default.json"
+            TANTO_KEYBOARD_NAVIGATION_SCRIPT_PATH=":/tanto/engine-api/keyboard-navigation.js"
         )
     endif()
 endfunction()
@@ -367,6 +374,7 @@ if(BUILD_TESTING)
             TANTO_MOCK_ENGINE_VIEW_PATH="${CMAKE_CURRENT_SOURCE_DIR}/src/ui-lab/MockEngineView.qml"
             TANTO_QT_ENGINE_VIEW_PATH="${CMAKE_CURRENT_SOURCE_DIR}/src/engine/qt/EngineView.qml"
             TANTO_QT_ENGINE_PROFILE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/src/engine/qt/EngineProfile.qml"
+            TANTO_KEYBOARD_NAVIGATION_SCRIPT_PATH="${CMAKE_CURRENT_SOURCE_DIR}/src/engine/api/keyboard-navigation.js"
         )
         tanto_strict_target(tanto-qt-engine-contract-tests)
         add_test(NAME tanto-qt-engine-contract COMMAND tanto-qt-engine-contract-tests)

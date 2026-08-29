@@ -19,6 +19,15 @@
 using tanto::validateEngineViewContract;
 using tanto::EngineCapabilities;
 
+static QString keyboardNavigationPageScript()
+{
+    QFile file(QStringLiteral(TANTO_KEYBOARD_NAVIGATION_SCRIPT_PATH));
+    if (!file.open(QIODevice::ReadOnly)) {
+        return {};
+    }
+    return QString::fromUtf8(file.readAll());
+}
+
 class QtEngineContractTest final : public QObject {
     Q_OBJECT
 
@@ -120,6 +129,8 @@ void QtEngineContractTest::adaptersExposeKeyboardNavigationCommands()
     QVERIFY(QMetaObject::invokeMethod(adapter.get(), "configureKeyboardNavigation",
         Q_ARG(QVariant, configuration)));
     QCOMPARE(adapter->property("keyboardNavigationConfiguration").toMap(), configuration);
+    QVERIFY(adapter->setProperty("keyboardNavigationScriptSource",
+        keyboardNavigationPageScript()));
     QVERIFY(adapter->property("capabilities").toInt()
         & EngineCapabilities::KeyboardPageCommands);
 }
@@ -372,7 +383,7 @@ void QtEngineContractTest::qtKeyboardNavigationHonorsInputContracts_data()
                 setTimeout(() => {
                     dispatchEvent(new KeyboardEvent('keydown', { key: 'g', bubbles: true, cancelable: true }));
                     dispatchEvent(new KeyboardEvent('keydown', { key: 'g', bubbles: true, cancelable: true }));
-                }, 300);
+                }, 1000);
             </script>)HTML")
         << int(Qt::Key_unknown) << QStringLiteral("top") << false << QStringList{};
     QTest::newRow("G scrolls to the bottom")
@@ -397,7 +408,8 @@ void QtEngineContractTest::qtKeyboardNavigationHonorsInputContracts_data()
                     const hint = overlay && overlay.querySelector('span');
                     if (overlay && overlay.getAttribute('role') === 'status'
                             && overlay.getAttribute('aria-live') === 'polite'
-                            && hint && hint.getAttribute('aria-label').includes('Read documentation')
+                            && hint && hint.getAttribute('role') === 'note'
+                            && hint.getAttribute('aria-label').includes('Read documentation')
                             && parseFloat(getComputedStyle(hint).fontSize) >= 12
                             && hint.style.forcedColorAdjust === 'auto') document.title = 'accessible';
                 }).observe(document.documentElement, { childList: true, subtree: true });
@@ -406,6 +418,27 @@ void QtEngineContractTest::qtKeyboardNavigationHonorsInputContracts_data()
                 })), 300);
             </script>)HTML")
         << int(Qt::Key_unknown) << QStringLiteral("accessible") << false << QStringList{};
+    QTest::newRow("Shift+F selects only background-capable targets")
+        << QByteArray(R"HTML(<!doctype html><title>ready</title>
+            <button aria-label="Not a link">Button</button>
+            <a href="https://example.com/from-hint" aria-label="Open target">Target</a>
+            <script>
+                addEventListener('click', event => {
+                    if (event.target.matches('a[href]') && event.metaKey && event.ctrlKey) {
+                        event.preventDefault();
+                        document.title = 'background';
+                    }
+                }, true);
+                setTimeout(() => {
+                    dispatchEvent(new KeyboardEvent('keydown', {
+                        key: 'F', shiftKey: true, bubbles: true, cancelable: true
+                    }));
+                    setTimeout(() => dispatchEvent(new KeyboardEvent('keydown', {
+                        key: 'a', bubbles: true, cancelable: true
+                    })), 100);
+                }, 1000);
+            </script>)HTML")
+        << int(Qt::Key_unknown) << QStringLiteral("background") << false << QStringList{};
     QTest::newRow("per-key passthrough keeps site shortcuts")
         << QByteArray(R"HTML(<!doctype html><title>ready</title><script>
             addEventListener('keydown', event => document.title =
@@ -452,6 +485,7 @@ void QtEngineContractTest::qtKeyboardNavigationHonorsInputContracts()
             {QStringLiteral("gg"), QStringLiteral("scroll-top")},
             {QStringLiteral("G"), QStringLiteral("scroll-bottom")},
             {QStringLiteral("f"), QStringLiteral("open-link")},
+            {QStringLiteral("Shift+F"), QStringLiteral("open-link-background")},
         }},
         {QStringLiteral("passthroughAll"), passthroughAll},
         {QStringLiteral("passthroughKeys"), passthroughKeys},
@@ -459,6 +493,7 @@ void QtEngineContractTest::qtKeyboardNavigationHonorsInputContracts()
     const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
         {QStringLiteral("currentUrl"), QUrl::fromLocalFile(page.fileName())},
         {QStringLiteral("keyboardNavigationConfiguration"), configuration},
+        {QStringLiteral("keyboardNavigationScriptSource"), keyboardNavigationPageScript()},
     }));
     QVERIFY2(adapter, qPrintable(component.errorString()));
 
@@ -485,6 +520,7 @@ void QtEngineContractTest::qtKeyboardNavigationHonorsInputContracts()
     }
     QTRY_COMPARE_WITH_TIMEOUT(adapter->property("pageTitle").toString(), expectedTitle, 15000);
 }
+
 
 int main(int argc, char *argv[])
 {

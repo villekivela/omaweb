@@ -25,9 +25,21 @@ const QSet<QString> supportedCommands = {
 } // namespace
 
 KeyboardNavigation::KeyboardNavigation(QString configurationPath, QObject *parent)
+    : KeyboardNavigation(std::move(configurationPath), {}, parent)
+{
+}
+
+KeyboardNavigation::KeyboardNavigation(QString configurationPath, QString pageScriptPath,
+    QObject *parent)
     : QObject(parent)
     , m_configurationPath(std::move(configurationPath))
 {
+    if (!pageScriptPath.isEmpty()) {
+        QFile script(pageScriptPath);
+        if (script.open(QIODevice::ReadOnly)) {
+            m_pageScript = QString::fromUtf8(script.readAll());
+        }
+    }
     load();
 }
 
@@ -49,6 +61,11 @@ QVariantMap KeyboardNavigation::bindings() const
 QString KeyboardNavigation::errorMessage() const
 {
     return m_errorMessage;
+}
+
+QString KeyboardNavigation::pageScript() const
+{
+    return m_pageScript;
 }
 
 bool KeyboardNavigation::setEnabled(bool enabled)

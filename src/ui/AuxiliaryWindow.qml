@@ -39,6 +39,7 @@ ApplicationWindow {
             "engineContentBlocker": auxiliary.engineContentBlocker,
             "keyboardNavigationConfiguration": keyboardNavigation.configurationForUrl(
                 auxiliary.requestedUrl),
+            "keyboardNavigationScriptSource": keyboardNavigation.pageScript,
             "currentUrl": auxiliary.request ? "about:blank" : auxiliary.requestedUrl
         })
 
