@@ -133,8 +133,18 @@ if(TANTO_BUILD_BROWSER)
     tanto_strict_target(tanto-engine-qt)
 endif()
 
-add_library(tanto-platform INTERFACE)
-target_link_libraries(tanto-platform INTERFACE Qt6::Gui Qt6::Quick)
+add_library(tanto-platform STATIC src/platform/WindowChrome.h)
+target_include_directories(tanto-platform PUBLIC src/platform)
+target_link_libraries(tanto-platform PUBLIC Qt6::Gui Qt6::Quick)
+if(APPLE)
+    enable_language(OBJCXX)
+    find_library(TANTO_APPKIT_FRAMEWORK AppKit REQUIRED)
+    target_sources(tanto-platform PRIVATE src/platform/MacWindowChrome.mm)
+    target_link_libraries(tanto-platform PRIVATE ${TANTO_APPKIT_FRAMEWORK})
+else()
+    target_sources(tanto-platform PRIVATE src/platform/WindowChrome.cpp)
+endif()
+tanto_strict_target(tanto-platform)
 
 set(tanto_ui_files
     src/ui/Main.qml
@@ -314,6 +324,18 @@ if(BUILD_TESTING)
     target_link_libraries(tanto-theme-tests PRIVATE tanto-ui Qt6::Test)
     tanto_strict_target(tanto-theme-tests)
     add_test(NAME tanto-theme COMMAND tanto-theme-tests)
+
+    if(APPLE)
+        qt_add_executable(tanto-window-chrome-tests tests/platform/tst_windowchrome.mm)
+        target_link_libraries(tanto-window-chrome-tests PRIVATE
+            tanto-platform
+            Qt6::Quick
+            Qt6::Test
+            ${TANTO_APPKIT_FRAMEWORK}
+        )
+        tanto_strict_target(tanto-window-chrome-tests)
+        add_test(NAME tanto-window-chrome COMMAND tanto-window-chrome-tests)
+    endif()
 
     qt_add_executable(tanto-qml-smoke src/ui-lab/main.cpp)
     target_link_libraries(tanto-qml-smoke PRIVATE

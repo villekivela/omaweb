@@ -10,9 +10,12 @@ ApplicationWindow {
     height: 860
     minimumWidth: 840
     minimumHeight: 560
-    visible: true
     color: "transparent"
-    flags: Qt.Window | Qt.FramelessWindowHint
+    flags: Qt.platform.os === "osx"
+        ? Qt.Window | Qt.ExpandedClientAreaHint | Qt.NoTitleBarBackgroundHint
+        : Qt.Window | Qt.FramelessWindowHint
+    topPadding: 0
+    visible: true
     title: window.privateWindow ? "Private — Tanto" : window.windowBrowser.activeTitle + " — Tanto"
 
     property var windowBrowser: browser

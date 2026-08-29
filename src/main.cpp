@@ -3,6 +3,7 @@
 #include "KeyboardNavigation.h"
 #include "QtContentBlocker.h"
 #include "ThemeController.h"
+#include "WindowChrome.h"
 #include "WindowManager.h"
 
 #include <QCoreApplication>
@@ -91,6 +92,7 @@ int main(int argc, char *argv[])
 
     QtWebEngineQuick::initialize();
     QGuiApplication application(argc, argv);
+    tanto::installWindowChrome(&application);
     QCoreApplication::setOrganizationName(QStringLiteral("Tanto"));
     QCoreApplication::setApplicationName(QStringLiteral("Tanto"));
     QCoreApplication::setApplicationVersion(QStringLiteral(TANTO_VERSION));

@@ -14,7 +14,10 @@ ApplicationWindow {
     minimumHeight: 560
     visible: true
     color: "transparent"
-    flags: Qt.Window | Qt.FramelessWindowHint
+    flags: Qt.platform.os === "osx"
+        ? Qt.Window | Qt.ExpandedClientAreaHint | Qt.NoTitleBarBackgroundHint
+        : Qt.Window | Qt.FramelessWindowHint
+    topPadding: 0
     title: browser.activeTitle + " — Tanto prototype"
 
     property var colors: theme.palette

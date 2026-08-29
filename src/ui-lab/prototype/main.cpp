@@ -5,6 +5,7 @@
 // to a temporary directory and is discarded on exit.
 #include "BrowserController.h"
 #include "ThemeController.h"
+#include "WindowChrome.h"
 
 #include <QCoreApplication>
 #include <QGuiApplication>
@@ -69,6 +70,7 @@ void seedTabs(tanto::BrowserController &browser)
 int main(int argc, char *argv[])
 {
     QGuiApplication application(argc, argv);
+    tanto::installWindowChrome(&application);
     QCoreApplication::setOrganizationName(QStringLiteral("Tanto"));
     QCoreApplication::setApplicationName(QStringLiteral("Tanto UI Prototype"));
 

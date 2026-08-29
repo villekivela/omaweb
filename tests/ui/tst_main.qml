@@ -25,6 +25,22 @@ TestCase {
         window.destroy()
     }
 
+    function verifyApplicationWindowFlags(applicationWindow) {
+        verify(Boolean(applicationWindow.flags & Qt.Window))
+        if (Qt.platform.os === "osx") {
+            verify(!Boolean(applicationWindow.flags & Qt.FramelessWindowHint))
+            verify(Boolean(applicationWindow.flags & Qt.ExpandedClientAreaHint))
+            verify(Boolean(applicationWindow.flags & Qt.NoTitleBarBackgroundHint))
+            compare(applicationWindow.topPadding, 0)
+        } else {
+            verify(Boolean(applicationWindow.flags & Qt.FramelessWindowHint))
+        }
+    }
+
+    function test_applicationWindowUsesPlatformAppropriateFrame() {
+        verifyApplicationWindowFlags(window)
+    }
+
     function test_newTabWaitsForCommittedDestination() {
         const previousTabId = browser.activeTabId
         const newTabButton = findChild(window.contentItem, "newTabButton")
@@ -167,7 +183,7 @@ TestCase {
         const privateBrowser = findChild(window, "privateBrowserWindow")
         verify(privateBrowser !== null)
         verify(privateBrowser.visible)
-        verify(Boolean(privateBrowser.flags & Qt.FramelessWindowHint))
+        verifyApplicationWindowFlags(privateBrowser)
         compare(privateBrowser.colors.accent, privateBrowser.colors.privateAccent)
 
         const spaceSelector = findChild(privateBrowser.contentItem, "spaceSelector")
