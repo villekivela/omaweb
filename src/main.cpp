@@ -1,4 +1,6 @@
 #include "BrowserController.h"
+#include "ContentBlocker.h"
+#include "QtContentBlocker.h"
 #include "ThemeController.h"
 #include "WindowManager.h"
 
@@ -77,11 +79,16 @@ int main(int argc, char *argv[])
     QCoreApplication::setApplicationVersion(QStringLiteral(TANTO_VERSION));
 
     tanto::BrowserController browser(dataRoot(), QStringLiteral("qt"));
+    tanto::ContentBlocker contentBlocker(dataRoot());
+    tanto::QtContentBlocker engineContentBlocker(&contentBlocker);
     tanto::ThemeController theme(themePath());
     tanto::WindowManager windowManager(QStringLiteral("qt"));
 
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty(QStringLiteral("browser"), &browser);
+    engine.rootContext()->setContextProperty(QStringLiteral("contentBlocker"), &contentBlocker);
+    engine.rootContext()->setContextProperty(
+        QStringLiteral("engineContentBlocker"), &engineContentBlocker);
     engine.rootContext()->setContextProperty(QStringLiteral("theme"), &theme);
     engine.rootContext()->setContextProperty(QStringLiteral("windowManager"), &windowManager);
     engine.rootContext()->setContextProperty(

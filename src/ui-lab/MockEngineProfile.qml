@@ -2,6 +2,7 @@ import QtQuick
 
 QtObject {
     property string profilePath: ""
+    property var engineContentBlocker: null
     property string downloadDirectory: ""
     property bool acceptDownloads: false
     property bool privateBrowsing: true

@@ -23,6 +23,8 @@ QStringList validateEngineViewContract(const QObject &adapter)
         {"browserProfile", QMetaType::QVariant},
         {"pageHasFocus", QMetaType::Bool},
         {"capabilities", QMetaType::Int},
+        {"contentBlocker", QMetaType::QVariant},
+        {"blockedRequestCount", QMetaType::Int},
     };
     struct RequiredMethod {
         const char *name;

@@ -20,12 +20,20 @@ jobs:
         run: brew install cmake ninja ccache qtwebengine
       - name: Locate Qt
         run: echo "CMAKE_PREFIX_PATH=$(brew --prefix qt)" >> "$GITHUB_ENV"
+      - name: Bootstrap content blocker
+        run: scripts/bootstrap_content_blocker.sh
       - name: Configure
         run: cmake --preset ci
       - name: Build
         run: cmake --build --preset ci
       - name: Test
         run: ctest --preset ci
+      - name: Publish content-blocking compatibility
+        run: |
+          echo '### Content-blocking compatibility' >> "$GITHUB_STEP_SUMMARY"
+          echo '```json' >> "$GITHUB_STEP_SUMMARY"
+          cat build/ci/content-blocking-compatibility.json >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
       - name: Configure release resources
         run: cmake --preset release
       - name: Build release
@@ -44,9 +52,17 @@ jobs:
       - name: Install toolchain
         run: pacman -Syu --noconfirm git cmake ninja clang ccache qt6-base qt6-declarative qt6-webengine
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Bootstrap content blocker
+        run: scripts/bootstrap_content_blocker.sh
       - name: Configure
         run: cmake --preset ci
       - name: Build
         run: cmake --build --preset ci
       - name: Test
         run: ctest --preset ci
+      - name: Publish content-blocking compatibility
+        run: |
+          echo '### Content-blocking compatibility' >> "$GITHUB_STEP_SUMMARY"
+          echo '```json' >> "$GITHUB_STEP_SUMMARY"
+          cat build/ci/content-blocking-compatibility.json >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"

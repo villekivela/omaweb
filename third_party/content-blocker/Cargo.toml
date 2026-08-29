@@ -1,0 +1,17 @@
+[package]
+name = "tanto-content-blocker"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+adblock = "=0.12.5"
+serde_json = "1.0"
+
+[profile.release]
+lto = "thin"
+strip = "symbols"
+

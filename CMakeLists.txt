@@ -9,14 +9,43 @@ option(TANTO_BUILD_UI_LAB "Build the engine-free QML UI runner" ON)
 option(TANTO_BUILD_UI_PROTOTYPE "Build the throwaway chrome-design prototype (src/ui-lab/prototype)" OFF)
 option(TANTO_SOURCE_QML "Load QML from the source tree for fast iteration" ON)
 
+set(TANTO_CONTENT_BLOCKER_CACHE "${CMAKE_CURRENT_SOURCE_DIR}/.cache/content-blocker/release"
+    CACHE PATH "Directory containing the bootstrapped content-blocker shared library")
+if(APPLE)
+    set(tanto_content_blocker_library
+        "${TANTO_CONTENT_BLOCKER_CACHE}/libtanto_content_blocker.dylib")
+elseif(UNIX)
+    set(tanto_content_blocker_library
+        "${TANTO_CONTENT_BLOCKER_CACHE}/libtanto_content_blocker.so")
+else()
+    message(FATAL_ERROR "The content-blocker bootstrap currently supports macOS and Linux")
+endif()
+if(NOT EXISTS "${tanto_content_blocker_library}")
+    message(FATAL_ERROR
+        "Missing bootstrapped content blocker. Run scripts/bootstrap_content_blocker.sh")
+endif()
+if(NOT EXISTS "${tanto_content_blocker_library}.sha256")
+    message(FATAL_ERROR "Missing checksum for the bootstrapped content blocker")
+endif()
+file(STRINGS "${tanto_content_blocker_library}.sha256" tanto_content_blocker_checksum_line
+    LIMIT_COUNT 1)
+string(REGEX MATCH "^[0-9a-fA-F]+" tanto_content_blocker_expected_checksum
+    "${tanto_content_blocker_checksum_line}")
+file(SHA256 "${tanto_content_blocker_library}" tanto_content_blocker_actual_checksum)
+if(NOT tanto_content_blocker_expected_checksum STREQUAL tanto_content_blocker_actual_checksum)
+    message(FATAL_ERROR "The bootstrapped content-blocker checksum does not match")
+endif()
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/third_party/content-blocker/LADYBIRD_REVISION"
+    tanto_ladybird_revision LIMIT_COUNT 1)
+
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-set(tanto_qt_components Core Gui Qml Quick Sql)
+set(tanto_qt_components Concurrent Core Gui Network Qml Quick Sql)
 if(TANTO_BUILD_BROWSER)
-    list(APPEND tanto_qt_components WebEngineQuick)
+    list(APPEND tanto_qt_components WebEngineCore WebEngineQuick)
 endif()
 if(BUILD_TESTING)
     list(APPEND tanto_qt_components Test QuickTest)
@@ -25,13 +54,34 @@ endif()
 find_package(Qt6 6.11 REQUIRED COMPONENTS ${tanto_qt_components})
 qt_standard_project_setup(REQUIRES 6.11)
 
+add_library(tanto-adblock-rust SHARED IMPORTED GLOBAL)
+set_target_properties(tanto-adblock-rust PROPERTIES
+    IMPORTED_LOCATION "${tanto_content_blocker_library}"
+)
+
+add_library(tanto-content-blocking STATIC
+    src/content-blocking/ContentMatcher.cpp
+    src/content-blocking/ContentMatcher.h
+    src/content-blocking/tanto_blocker.h
+)
+target_include_directories(tanto-content-blocking PUBLIC src/content-blocking)
+target_link_libraries(tanto-content-blocking PUBLIC
+    Qt6::Core
+    Qt6::Network
+    PRIVATE Qt6::Concurrent tanto-adblock-rust
+)
+
 function(tanto_strict_target target)
     target_compile_options(${target} PRIVATE
         $<$<CXX_COMPILER_ID:AppleClang,Clang,GNU>:-Wall;-Wextra;-Wpedantic>
     )
 endfunction()
 
+tanto_strict_target(tanto-content-blocking)
+
 add_library(tanto-core STATIC
+    src/content-blocking/ContentBlocker.cpp
+    src/content-blocking/ContentBlocker.h
     src/core/BrowserController.cpp
     src/core/BrowserController.h
     src/core/SessionStore.cpp
@@ -43,8 +93,9 @@ add_library(tanto-core STATIC
     src/core/WindowManager.cpp
     src/core/WindowManager.h
 )
-target_include_directories(tanto-core PUBLIC src/core)
-target_link_libraries(tanto-core PUBLIC Qt6::Core Qt6::Sql)
+target_include_directories(tanto-core PUBLIC src/core src/content-blocking)
+target_link_libraries(tanto-core PUBLIC Qt6::Core Qt6::Network Qt6::Sql
+    PRIVATE Qt6::Concurrent tanto-content-blocking)
 tanto_strict_target(tanto-core)
 
 add_library(tanto-ui STATIC
@@ -65,12 +116,19 @@ target_link_libraries(tanto-engine-api PUBLIC Qt6::Core)
 tanto_strict_target(tanto-engine-api)
 
 if(TANTO_BUILD_BROWSER)
-    add_library(tanto-engine-qt INTERFACE)
-    target_sources(tanto-engine-qt INTERFACE src/engine/qt/EngineView.qml)
-    target_link_libraries(tanto-engine-qt INTERFACE
+    add_library(tanto-engine-qt STATIC
+        src/engine/qt/QtContentBlocker.cpp
+        src/engine/qt/QtContentBlocker.h
+    )
+    target_sources(tanto-engine-qt PUBLIC src/engine/qt/EngineView.qml)
+    target_include_directories(tanto-engine-qt PUBLIC src/engine/qt)
+    target_link_libraries(tanto-engine-qt PUBLIC
+        tanto-core
         tanto-engine-api
+        Qt6::WebEngineCore
         Qt6::WebEngineQuick
     )
+    tanto_strict_target(tanto-engine-qt)
 endif()
 
 add_library(tanto-platform INTERFACE)
@@ -160,6 +218,7 @@ if(TANTO_BUILD_UI_LAB)
     qt_add_executable(tanto-ui-lab MACOSX_BUNDLE src/ui-lab/main.cpp)
     target_link_libraries(tanto-ui-lab PRIVATE
         tanto-core
+        tanto-content-blocking
         tanto-ui
         tanto-engine-api
         tanto-platform
@@ -188,6 +247,45 @@ if(BUILD_TESTING)
     tanto_strict_target(tanto-core-tests)
     add_test(NAME tanto-core COMMAND tanto-core-tests)
 
+    qt_add_executable(tanto-content-blocker-tests
+        tests/content-blocking/tst_contentmatcher.cpp
+    )
+    target_link_libraries(tanto-content-blocker-tests PRIVATE
+        tanto-content-blocking
+        Qt6::Test
+    )
+    target_compile_definitions(tanto-content-blocker-tests PRIVATE
+        TANTO_CONTENT_BLOCKER_FIXTURES="${CMAKE_CURRENT_SOURCE_DIR}/tests/content-blocking/fixtures.json"
+    )
+    tanto_strict_target(tanto-content-blocker-tests)
+    add_test(NAME tanto-content-blocker COMMAND tanto-content-blocker-tests)
+
+    qt_add_executable(tanto-content-blocker-service-tests
+        tests/content-blocking/tst_contentblocker.cpp
+    )
+    target_link_libraries(tanto-content-blocker-service-tests PRIVATE
+        tanto-core
+        Qt6::Test
+    )
+    tanto_strict_target(tanto-content-blocker-service-tests)
+    add_test(NAME tanto-content-blocker-service COMMAND tanto-content-blocker-service-tests)
+
+    if(TANTO_BUILD_BROWSER)
+        qt_add_executable(tanto-content-blocker-report
+            tests/content-blocking/content_blocking_report.cpp
+        )
+        target_link_libraries(tanto-content-blocker-report PRIVATE tanto-engine-qt)
+        target_compile_definitions(tanto-content-blocker-report PRIVATE
+            TANTO_CONTENT_BLOCKER_FIXTURES="${CMAKE_CURRENT_SOURCE_DIR}/tests/content-blocking/fixtures.json"
+            TANTO_LADYBIRD_REVISION="${tanto_ladybird_revision}"
+        )
+        tanto_strict_target(tanto-content-blocker-report)
+        add_test(NAME tanto-content-blocker-report
+            COMMAND tanto-content-blocker-report
+                "${CMAKE_CURRENT_BINARY_DIR}/content-blocking-compatibility.json"
+        )
+    endif()
+
     qt_add_executable(tanto-theme-tests tests/ui/tst_themecontroller.cpp)
     target_link_libraries(tanto-theme-tests PRIVATE tanto-ui Qt6::Test)
     tanto_strict_target(tanto-theme-tests)
@@ -196,6 +294,7 @@ if(BUILD_TESTING)
     qt_add_executable(tanto-qml-smoke src/ui-lab/main.cpp)
     target_link_libraries(tanto-qml-smoke PRIVATE
         tanto-core
+        tanto-content-blocking
         tanto-ui
         tanto-engine-api
         tanto-platform
@@ -215,6 +314,7 @@ if(BUILD_TESTING)
         qt_add_executable(tanto-ui-tests tests/ui/tst_ui.cpp)
         target_link_libraries(tanto-ui-tests PRIVATE
             tanto-core
+            tanto-content-blocking
             tanto-ui
             Qt6::Gui
             Qt6::Qml

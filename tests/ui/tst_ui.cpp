@@ -1,4 +1,5 @@
 #include "BrowserController.h"
+#include "ContentBlocker.h"
 #include "ThemeController.h"
 #include "WindowManager.h"
 
@@ -18,9 +19,14 @@ public slots:
         m_dataRoot = std::make_unique<QTemporaryDir>();
         m_browser = std::make_unique<tanto::BrowserController>(
             m_dataRoot->path(), QStringLiteral("mock"));
+        m_contentBlocker = std::make_unique<tanto::ContentBlocker>(m_dataRoot->path());
         m_theme = std::make_unique<tanto::ThemeController>(QStringLiteral(TANTO_THEME_PATH));
         m_windowManager = std::make_unique<tanto::WindowManager>(QStringLiteral("mock"));
         engine->rootContext()->setContextProperty(QStringLiteral("browser"), m_browser.get());
+        engine->rootContext()->setContextProperty(
+            QStringLiteral("contentBlocker"), m_contentBlocker.get());
+        engine->rootContext()->setContextProperty(
+            QStringLiteral("engineContentBlocker"), QVariant::fromValue<QObject *>(nullptr));
         engine->rootContext()->setContextProperty(QStringLiteral("theme"), m_theme.get());
         engine->rootContext()->setContextProperty(
             QStringLiteral("windowManager"), m_windowManager.get());
@@ -38,12 +44,14 @@ public slots:
         m_theme.reset();
         m_windowManager.reset();
         m_browser.reset();
+        m_contentBlocker.reset();
         m_dataRoot.reset();
     }
 
 private:
     std::unique_ptr<QTemporaryDir> m_dataRoot;
     std::unique_ptr<tanto::BrowserController> m_browser;
+    std::unique_ptr<tanto::ContentBlocker> m_contentBlocker;
     std::unique_ptr<tanto::ThemeController> m_theme;
     std::unique_ptr<tanto::WindowManager> m_windowManager;
 };

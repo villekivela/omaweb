@@ -10,6 +10,8 @@ ApplicationWindow {
     required property var request
     required property url requestedUrl
     required property var permissionController
+    required property var contentBlocker
+    required property var engineContentBlocker
     signal sitePermissionRequested(var responder, string requestId, string origin, string permission)
 
     width: 720
@@ -33,6 +35,8 @@ ApplicationWindow {
             "profilePath": auxiliary.openerEngine.profilePath,
             "sharedProfile": auxiliary.openerEngine.browserProfile,
             "permissionController": auxiliary.permissionController,
+            "contentBlocker": auxiliary.contentBlocker,
+            "engineContentBlocker": auxiliary.engineContentBlocker,
             "currentUrl": auxiliary.request ? "about:blank" : auxiliary.requestedUrl
         })
 

@@ -5,6 +5,7 @@ QtObject {
     id: root
 
     property string profilePath: ""
+    property var engineContentBlocker: null
     property string downloadDirectory: ""
     property bool acceptDownloads: false
     property bool privateBrowsing: true
@@ -95,5 +96,10 @@ QtObject {
             })
             download.accept()
         }
+    }
+
+    Component.onCompleted: {
+        if (root.engineContentBlocker)
+            root.engineContentBlocker.attachToProfile(root.profile)
     }
 }

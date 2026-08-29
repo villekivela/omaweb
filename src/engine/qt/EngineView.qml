@@ -12,9 +12,12 @@ Item {
     property string profilePath: ""
     property var sharedProfile: null
     property var permissionController: null
+    property var contentBlocker: null
+    property var engineContentBlocker: null
     readonly property var browserProfile: webView.profile
     readonly property bool pageHasFocus: webView.activeFocus
-    readonly property int capabilities: 67
+    readonly property int capabilities: 75
+    property int blockedRequestCount: 0
     property var editedStateScript: {
         const script = WebEngine.script()
         script.name = "Tanto edited form state"
@@ -49,6 +52,15 @@ Item {
     function goForward() { webView.goForward() }
     function focusPage() { webView.forceActiveFocus() }
     function reloadPage() { webView.reload() }
+    function applyCosmeticRules() {
+        if (!contentBlocker || loading) return
+        const css = contentBlocker.cosmeticStyleSheet(currentUrl)
+        webView.runJavaScript(
+            "(() => { let style = document.getElementById('__tanto_content_blocking');"
+            + "if (!style) { style = document.createElement('style');"
+            + "style.id = '__tanto_content_blocking'; document.documentElement.append(style); }"
+            + "style.textContent = " + JSON.stringify(css) + "; })()")
+    }
     function checkForEditedFormState(callback) {
         webView.runJavaScript(
             "(() => {"
@@ -80,6 +92,28 @@ Item {
         httpCacheType: WebEngineProfile.DiskHttpCache
     }
 
+    Component.onCompleted: {
+        if (!root.sharedProfile && root.engineContentBlocker)
+            root.engineContentBlocker.attachToProfile(spaceProfile)
+        if (root.contentBlocker)
+            root.blockedRequestCount = root.contentBlocker.blockedRequestCount(root.currentUrl)
+    }
+
+    Connections {
+        target: root.contentBlocker
+        ignoreUnknownSignals: true
+
+        function refresh() {
+            root.blockedRequestCount = root.contentBlocker
+                ? root.contentBlocker.blockedRequestCount(root.currentUrl) : 0
+            root.applyCosmeticRules()
+        }
+
+        function onBlockedRequestCountChanged(siteUrl) { refresh() }
+        function onConfigurationChanged() { refresh() }
+        function onRulesChanged() { refresh() }
+    }
+
     WebEngineView {
         id: webView
         objectName: "qtWebView"
@@ -92,6 +126,8 @@ Item {
         onRenderProcessTerminated: function(terminationStatus, exitCode) {
             root.rendererFailed("Renderer stopped with exit code " + exitCode)
         }
+
+        onLoadingChanged: root.applyCosmeticRules()
 
         onNewWindowRequested: function(request) {
             if (root.isAuxiliaryDestination(request.destination))

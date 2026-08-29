@@ -29,6 +29,8 @@ ApplicationWindow {
     property var spaceProfileHost: null
     property var omnibarSuggestions: []
     property var visibleDownloads: []
+    property var visibleSubscriptions: []
+    property int visibleBlockedRequestCount: 0
     property var pendingPermissionRequest: null
     property string pendingPermissionOrigin: ""
     property string pendingPermissionType: ""
@@ -71,7 +73,8 @@ ApplicationWindow {
             "downloadDirectory": window.windowBrowser.downloadDirectory,
             "acceptDownloads": window.windowBrowser.acceptDownloads,
             "privateBrowsing": false,
-            "downloadNamespace": window.windowBrowser.activeSpaceId
+            "downloadNamespace": window.windowBrowser.activeSpaceId,
+            "engineContentBlocker": engineContentBlocker
         })
         window.spaceProfileHost.downloadStarted.connect(window.handleDownloadStarted)
         window.spaceProfileHost.downloadUpdated.connect(window.handleDownloadUpdated)
@@ -513,7 +516,9 @@ ApplicationWindow {
                             "sharedProfile": window.privateWindow
                                 ? window.sharedEngineProfile
                                 : (window.spaceProfileHost ? window.spaceProfileHost.profile : null),
-                            "permissionController": window.windowBrowser
+                            "permissionController": window.windowBrowser,
+                            "contentBlocker": contentBlocker,
+                            "engineContentBlocker": engineContentBlocker
                         })
                     }
 
@@ -699,6 +704,8 @@ ApplicationWindow {
         AuxiliaryWindow {
             engineSource: engineViewSource
             permissionController: window.windowBrowser
+            contentBlocker: contentBlocker
+            engineContentBlocker: engineContentBlocker
             onSitePermissionRequested: function(responder, requestId, origin, permission) {
                 window.pendingPermissionRequest = requestId
                 window.pendingPermissionResponder = responder
@@ -720,7 +727,8 @@ ApplicationWindow {
                     "profilePath": profilePath,
                     "downloadDirectory": windowManager.privateDownloadDirectory,
                     "acceptDownloads": windowManager.acceptPrivateDownloads,
-                    "privateBrowsing": true
+                    "privateBrowsing": true,
+                    "engineContentBlocker": engineContentBlocker
                 })
             }
             const component = Qt.createComponent(Qt.resolvedUrl("Main.qml"))
@@ -738,6 +746,20 @@ ApplicationWindow {
             window.privateProfileHost.retire()
             window.privateProfileHost = null
         }
+    }
+
+    Connections {
+        target: contentBlocker
+
+        function refreshContentBlockingState() {
+            window.visibleSubscriptions = contentBlocker.subscriptions
+            window.visibleBlockedRequestCount = contentBlocker.blockedRequestCount(
+                window.windowBrowser.activeUrl)
+        }
+
+        function onSubscriptionsChanged() { refreshContentBlockingState() }
+        function onBlockedRequestCountChanged(siteUrl) { refreshContentBlockingState() }
+        function onRulesChanged() { refreshContentBlockingState() }
     }
 
     onClosing: function(close) {
@@ -836,13 +858,25 @@ ApplicationWindow {
         objectName: "settingsDialog"
         anchors.centerIn: parent
         modal: true
-        title: "Browsing settings and downloads"
+        title: "Content blocking and downloads"
         standardButtons: Dialog.Close
-        onOpened: window.visibleDownloads = window.windowBrowser.downloadHistory()
+        onOpened: {
+            window.visibleDownloads = window.windowBrowser.downloadHistory()
+            window.visibleSubscriptions = contentBlocker.subscriptions
+            window.visibleBlockedRequestCount = contentBlocker.blockedRequestCount(
+                window.windowBrowser.activeUrl)
+            userRulesInput.text = contentBlocker.userRules
+        }
 
-        ColumnLayout {
-            width: 480
-            spacing: 10
+        ScrollView {
+            id: settingsScroll
+            width: 500
+            height: Math.min(620, window.height - 100)
+            contentWidth: availableWidth
+
+            ColumnLayout {
+                width: settingsScroll.availableWidth
+                spacing: 10
 
             Label {
                 objectName: "remoteSuggestionsStatus"
@@ -852,7 +886,97 @@ ApplicationWindow {
                 objectName: "automaticRequestsStatus"
                 Layout.fillWidth: true
                 wrapMode: Text.WordWrap
-                text: "Tanto makes no automatic network requests in this build. Page loads, searches, and downloads happen only after user action."
+                text: "Enabled filter-list subscriptions make automatic network requests to their displayed update address when Tanto starts. Remote search suggestions remain off."
+            }
+            Label {
+                text: "Content blocking"
+                font.weight: Font.DemiBold
+            }
+            Label {
+                objectName: "blockedRequestCount"
+                text: window.visibleBlockedRequestCount + " requests blocked for this site"
+            }
+            CheckBox {
+                objectName: "siteBlockingEnabled"
+                text: "Enable for " + window.windowBrowser.activeUrl.host
+                checked: contentBlocker.siteEnabled(window.windowBrowser.activeUrl)
+                onClicked: contentBlocker.setSiteEnabled(
+                    window.windowBrowser.activeUrl, checked)
+            }
+            TextArea {
+                id: userRulesInput
+                objectName: "userRulesInput"
+                Layout.fillWidth: true
+                Layout.preferredHeight: 90
+                placeholderText: "One user rule per line"
+                wrapMode: TextEdit.NoWrap
+            }
+            Button {
+                text: contentBlocker.compiling ? "Compiling rules..." : "Save user rules"
+                enabled: !contentBlocker.compiling
+                onClicked: contentBlocker.userRules = userRulesInput.text
+            }
+            Label {
+                Layout.fillWidth: true
+                wrapMode: Text.WordWrap
+                text: "Supported: network rules and plain CSS cosmetic rules. "
+                    + "Scriptlets, procedural selectors, response rewriting, HTML filtering, "
+                    + "dynamic rules, CNAME uncloaking, redirects, and resource replacement are unsupported."
+            }
+            Label {
+                Layout.fillWidth: true
+                wrapMode: Text.WordWrap
+                visible: contentBlocker.compilationReport.unsupported !== undefined
+                    && Object.keys(contentBlocker.compilationReport.unsupported).length > 0
+                text: "Unsupported rules in active lists: "
+                    + JSON.stringify(contentBlocker.compilationReport.unsupported)
+            }
+            ListView {
+                Layout.fillWidth: true
+                Layout.preferredHeight: Math.min(150, contentHeight)
+                model: window.visibleSubscriptions
+                visible: count > 0
+
+                delegate: Column {
+                    required property var modelData
+                    width: ListView.view.width
+                    spacing: 2
+
+                    RowLayout {
+                        width: parent.width
+                        CheckBox {
+                            checked: modelData.enabled
+                            text: modelData.title
+                            onClicked: contentBlocker.setSubscriptionEnabled(
+                                modelData.id, checked)
+                        }
+                        Label { text: modelData.updateStatus }
+                    }
+                    Label {
+                        width: parent.width
+                        text: "Source: " + modelData.source + " · License: " + modelData.license
+                        elide: Text.ElideMiddle
+                    }
+                    Label {
+                        width: parent.width
+                        text: "Updates: " + modelData.updateAddress
+                        elide: Text.ElideMiddle
+                    }
+                }
+            }
+            GridLayout {
+                columns: 2
+                Layout.fillWidth: true
+
+                TextField { id: subscriptionTitle; placeholderText: "List name" }
+                TextField { id: subscriptionLicense; placeholderText: "License" }
+                TextField { id: subscriptionSource; placeholderText: "Source page" }
+                TextField { id: subscriptionUpdate; placeholderText: "Update address" }
+            }
+            Button {
+                text: "Add subscription"
+                onClicked: contentBlocker.addSubscription(subscriptionTitle.text,
+                    subscriptionSource.text, subscriptionLicense.text, subscriptionUpdate.text)
             }
             Label {
                 text: "Download history"
@@ -876,6 +1000,7 @@ ApplicationWindow {
                 visible: window.visibleDownloads.length === 0
                 text: "No recorded downloads"
                 color: window.colors.mutedText
+            }
             }
         }
     }

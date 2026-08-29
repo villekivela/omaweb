@@ -31,6 +31,18 @@ On Linux, the executable is `./build/ui/tanto-ui-lab`. Development presets load 
 
 The `ladybird` preset is deliberately separate. Do not add Ladybird, Qt source builds, or Rust compilation to `dev`.
 
+Before the first configure, build the pinned Content-blocking library into the disposable local
+cache:
+
+```sh
+scripts/bootstrap_content_blocker.sh
+```
+
+The script uses `third_party/content-blocker/Cargo.lock`, records the shared library checksum, and
+pins `adblock` 0.12.5 to Ladybird revision
+`e5a41dfb6930fe5471c2c203d2dc32a1a782e816`. CMake verifies the cached artifact but never invokes
+Cargo. Run the bootstrap again only after changing the Rust wrapper, its manifest, or its lockfile.
+
 ## Security rules
 
 Never use Chromium's `--no-sandbox`, `--single-process`, in-process network-service flags, or `QTWEBENGINE_DISABLE_SANDBOX` in project scripts. Fix the host configuration or packaging instead.

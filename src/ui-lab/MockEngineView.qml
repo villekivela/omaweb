@@ -10,10 +10,14 @@ Rectangle {
     property bool canGoForward: false
     property string profilePath: ""
     property var sharedProfile: null
+    property var contentBlocker: null
+    property var engineContentBlocker: null
     property var permissionController: null
     readonly property var browserProfile: root.sharedProfile ? root.sharedProfile : root
+    readonly property int blockedRequestCount: contentBlocker
+        ? contentBlocker.blockedRequestCount(currentUrl) : 0
     readonly property bool pageHasFocus: root.activeFocus
-    readonly property int capabilities: 65
+    readonly property int capabilities: 73
 
     signal rendererFailed(string reason)
     signal newTabRequested(var request, url requestedUrl)

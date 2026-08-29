@@ -1,0 +1,33 @@
+{
+  "rules": [
+    "||ads.example^",
+    "/ads/banner.js$script",
+    "@@||ads.example/allowed.js$script",
+    "||cdn.example.com^$image,third-party",
+    "||first-party.example^$image,first-party",
+    "||styles.example^$stylesheet",
+    "||metrics.example^$script,domain=site.example",
+    "site.example##.sponsor",
+    "site.example#@#.kept",
+    "##.generic-ad",
+    "site.example#@#.generic-ad"
+  ],
+  "network": [
+    {"name": "hostname rule", "url": "https://ads.example/banner.js", "source": "https://site.example/", "type": "script", "blocked": true},
+    {"name": "URL rule", "url": "https://assets.example/ads/banner.js", "source": "https://site.example/", "type": "script", "blocked": true},
+    {"name": "exception", "url": "https://ads.example/allowed.js", "source": "https://site.example/", "type": "script", "blocked": false},
+    {"name": "third-party rule", "url": "https://cdn.example.com/photo.jpg", "source": "https://site.other.com/", "type": "image", "blocked": true},
+    {"name": "third-party rule excludes same-site requests", "url": "https://cdn.example.com/photo.jpg", "source": "https://site.example.com/", "type": "image", "blocked": false},
+    {"name": "wrong resource type", "url": "https://cdn.example.com/app.js", "source": "https://site.other.com/", "type": "script", "blocked": false},
+    {"name": "first-party rule", "url": "https://cdn.first-party.example/photo.jpg", "source": "https://site.first-party.example/", "type": "image", "blocked": true},
+    {"name": "first-party rule excludes third parties", "url": "https://first-party.example/photo.jpg", "source": "https://other.example/", "type": "image", "blocked": false},
+    {"name": "stylesheet resource type", "url": "https://styles.example/site.css", "source": "https://site.example/", "type": "stylesheet", "blocked": true},
+    {"name": "domain restriction", "url": "https://metrics.example/pixel.js", "source": "https://site.example/", "type": "script", "blocked": true},
+    {"name": "domain restriction excludes other sites", "url": "https://metrics.example/pixel.js", "source": "https://other.example/", "type": "script", "blocked": false}
+  ],
+  "cosmetic": [
+    {"name": "site selector", "url": "https://site.example/", "contains": ".sponsor", "hidden": true},
+    {"name": "generic exception", "url": "https://site.example/", "contains": ".generic-ad", "hidden": false},
+    {"name": "generic selector", "url": "https://other.example/", "contains": ".generic-ad", "hidden": true}
+  ]
+}

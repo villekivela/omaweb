@@ -51,6 +51,7 @@ void QtEngineContractTest::adaptersExposeSharedContract()
     QCOMPARE(validateEngineViewContract(*adapter), QStringList{});
     const auto capabilities = adapter->property("capabilities").toInt();
     QVERIFY(capabilities & EngineCapabilities::Navigation);
+    QVERIFY(capabilities & EngineCapabilities::ContentBlocking);
     QVERIFY(capabilities & EngineCapabilities::RendererRecovery);
 }
 
