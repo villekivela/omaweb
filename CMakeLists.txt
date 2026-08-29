@@ -141,6 +141,7 @@ set(tanto_ui_files
     src/ui/AuxiliaryWindow.qml
     src/ui/ChromeButton.qml
     src/ui/PinnedTabDelegate.qml
+    src/ui/TabEngineHost.qml
     src/ui/TabDelegate.qml
 )
 

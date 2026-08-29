@@ -95,7 +95,7 @@ ApplicationWindow {
     function closeOmnibar() {
         omnibarOpen = false
         newTabIntent = false
-        if (engineLoader.item) engineLoader.item.focusPage()
+        engineLoader.focusPage()
     }
 
     Shortcut {
@@ -500,96 +500,55 @@ ApplicationWindow {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
 
-                Loader {
+                TabEngineHost {
                     id: engineLoader
-                    objectName: "engineLoader"
                     anchors.fill: parent
                     focus: true
-
-                    function loadActiveSpace() {
-                        window.createSpaceProfile()
-                        setSource(engineViewSource, {
-                            "profilePath": window.profilePathOverride.length > 0
-                                ? window.profilePathOverride
-                                : window.windowBrowser.activeProfilePath,
-                            "currentUrl": window.windowBrowser.activeUrl,
-                            "sharedProfile": window.privateWindow
-                                ? window.sharedEngineProfile
-                                : (window.spaceProfileHost ? window.spaceProfileHost.profile : null),
-                            "permissionController": window.windowBrowser,
-                            "contentBlocker": contentBlocker,
-                            "engineContentBlocker": engineContentBlocker,
-                            "keyboardNavigationConfiguration": keyboardNavigation.configurationForUrl(
-                                window.windowBrowser.activeUrl),
-                            "keyboardNavigationScriptSource": keyboardNavigation.pageScript
-                        })
-                    }
-
-                    Component.onCompleted: loadActiveSpace()
-
-                    onLoaded: {
-                        item.focusPage()
-                    }
-                }
-
-                Binding {
-                    target: engineLoader.item
-                    property: "profilePath"
-                    value: window.profilePathOverride.length > 0
+                    browserController: window.windowBrowser
+                    engineSource: engineViewSource
+                    profilePath: window.profilePathOverride.length > 0
                         ? window.profilePathOverride
                         : window.windowBrowser.activeProfilePath
-                    when: engineLoader.item !== null
-                }
+                    sharedProfile: window.privateWindow
+                        ? window.sharedEngineProfile
+                        : (window.spaceProfileHost ? window.spaceProfileHost.profile : null)
+                    permissionController: window.windowBrowser
+                    blocker: contentBlocker
+                    engineBlocker: engineContentBlocker
+                    keyboardManager: keyboardNavigation
 
-                Connections {
-                    target: engineLoader.item
-                    ignoreUnknownSignals: true
-
-                    function onCurrentUrlChanged() {
-                        window.windowBrowser.updateActiveTab(engineLoader.item.currentUrl, engineLoader.item.pageTitle)
-                        engineLoader.item.configureKeyboardNavigation(
-                            keyboardNavigation.configurationForUrl(engineLoader.item.currentUrl))
-                    }
-
-                    function onPageTitleChanged() {
-                        window.windowBrowser.updateActiveTab(engineLoader.item.currentUrl, engineLoader.item.pageTitle)
-                    }
-
-                    function onLoadingChanged() {
-                        window.windowBrowser.setActiveLoading(engineLoader.item.loading)
-                        if (!engineLoader.item.loading) {
-                            window.windowBrowser.recordVisit(
-                                engineLoader.item.currentUrl, engineLoader.item.pageTitle)
-                        }
-                    }
-
-                    function onRendererFailed(reason) {
-                        window.windowBrowser.reportRendererFailure(reason)
-                    }
-
-                    function onAuxiliaryWindowRequested(request, requestedUrl) {
+                    onAuxiliaryWindowRequested: function(engine, request, requestedUrl) {
                         auxiliaryWindowComponent.createObject(window, {
-                            "openerEngine": engineLoader.item,
+                            "openerEngine": engine,
                             "request": request,
                             "requestedUrl": requestedUrl
                         })
                     }
 
-                    function onNewTabRequested(request, requestedUrl) {
+                    onNewTabRequested: function(engine, request, requestedUrl) {
                         const destination = requestedUrl.toString().length > 0
                             ? requestedUrl.toString()
                             : "about:blank"
-                        window.windowBrowser.openInput(destination, true)
-                        if (request) engineLoader.item.acceptNewWindowRequest(request)
+                        window.windowBrowser.openInput(request ? "about:blank" : destination, true)
+                        if (request) {
+                            if (engineLoader.item) {
+                                engineLoader.item.acceptNewWindowRequest(request)
+                            } else {
+                                Qt.callLater(function() {
+                                    if (engineLoader.item)
+                                        engineLoader.item.acceptNewWindowRequest(request)
+                                })
+                            }
+                        }
                     }
 
-                    function onBackgroundTabRequested(requestedUrl) {
+                    onBackgroundTabRequested: function(requestedUrl) {
                         window.windowBrowser.openInputInBackground(requestedUrl)
                     }
 
-                    function onSitePermissionRequested(requestId, origin, permission) {
+                    onSitePermissionRequested: function(engine, requestId, origin, permission) {
                         window.pendingPermissionRequest = requestId
-                        window.pendingPermissionResponder = engineLoader.item
+                        window.pendingPermissionResponder = engine
                         window.pendingPermissionOrigin = origin
                         window.pendingPermissionType = permission
                         permissionDialog.open()
@@ -606,7 +565,7 @@ ApplicationWindow {
                     }
 
                     function onSpaceSuspended(spaceId) {
-                        engineLoader.source = ""
+                        engineLoader.suspend()
                         if (window.spaceProfileHost) {
                             window.spaceProfileHost.retire()
                             window.spaceProfileHost = null
@@ -614,39 +573,16 @@ ApplicationWindow {
                     }
 
                     function onSpaceRestored(spaceId) {
-                        if (spaceId === window.windowBrowser.activeSpaceId)
-                            Qt.callLater(function() { engineLoader.loadActiveSpace() })
-                    }
-
-                    function onActiveTabChanged() {
-                        if (engineLoader.item && engineLoader.item.currentUrl !== window.windowBrowser.activeUrl) {
-                            engineLoader.item.currentUrl = window.windowBrowser.activeUrl
+                        if (spaceId === window.windowBrowser.activeSpaceId) {
+                            Qt.callLater(function() {
+                                window.createSpaceProfile()
+                                engineLoader.resume()
+                            })
                         }
-                    }
-
-                    function onBackRequested() {
-                        if (engineLoader.item) engineLoader.item.goBack()
-                    }
-
-                    function onForwardRequested() {
-                        if (engineLoader.item) engineLoader.item.goForward()
-                    }
-
-                    function onReloadRequested() {
-                        if (engineLoader.item) engineLoader.item.reloadPage()
                     }
 
                     function onCloseWindowRequested() {
                         if (window.privateWindow) window.close()
-                    }
-                }
-
-                Connections {
-                    target: keyboardNavigation
-
-                    function onConfigurationChanged() {
-                        if (engineLoader.item) engineLoader.item.configureKeyboardNavigation(
-                            keyboardNavigation.configurationForUrl(engineLoader.item.currentUrl))
                     }
                 }
 
@@ -778,6 +714,11 @@ ApplicationWindow {
         function onSubscriptionsChanged() { refreshContentBlockingState() }
         function onBlockedRequestCountChanged(siteUrl) { refreshContentBlockingState() }
         function onRulesChanged() { refreshContentBlockingState() }
+    }
+
+    Component.onCompleted: {
+        window.createSpaceProfile()
+        engineLoader.resume()
     }
 
     onClosing: function(close) {
@@ -1113,14 +1054,10 @@ ApplicationWindow {
                         const tabId = window.windowBrowser.activeTabId
                         const destinationSpaceId = spaceId
                         moveTabDialog.close()
-                        if (engineLoader.item) {
-                            engineLoader.item.checkForEditedFormState(function(hasEditedFormState) {
-                                window.windowBrowser.requestTabMoveToSpace(
-                                    tabId, destinationSpaceId, hasEditedFormState)
-                            })
-                        } else {
-                            window.windowBrowser.requestTabMoveToSpace(tabId, destinationSpaceId, true)
-                        }
+                        engineLoader.checkForEditedFormState(function(hasEditedFormState) {
+                            window.windowBrowser.requestTabMoveToSpace(
+                                tabId, destinationSpaceId, hasEditedFormState)
+                        })
                     }
                 }
             }

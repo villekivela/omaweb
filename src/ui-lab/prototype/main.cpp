@@ -45,7 +45,8 @@ void seedTabs(tanto::BrowserController &browser)
     for (const auto &seed : seeds) {
         const auto address = QString::fromUtf8(seed.address);
         browser.openInput(address, true);
-        browser.updateActiveTab(browser.activeUrl(), QString::fromUtf8(seed.title));
+        browser.updateTab(
+            browser.activeTabId(), browser.activeUrl(), QString::fromUtf8(seed.title));
         if (seed.pinned) {
             browser.toggleActivePinned();
         }

@@ -77,9 +77,9 @@ public:
     Q_INVOKABLE void closeActiveTab();
     Q_INVOKABLE void reopenClosedTab();
     Q_INVOKABLE void toggleActivePinned();
-    Q_INVOKABLE void updateActiveTab(const QUrl &url, const QString &title);
-    Q_INVOKABLE void setActiveLoading(bool loading);
-    Q_INVOKABLE void reportRendererFailure(const QString &reason);
+    Q_INVOKABLE void updateTab(const QString &tabId, const QUrl &url, const QString &title);
+    Q_INVOKABLE void setTabLoading(const QString &tabId, bool loading);
+    Q_INVOKABLE void reportTabRendererFailure(const QString &tabId, const QString &reason);
     Q_INVOKABLE void recoverActiveTab();
     Q_INVOKABLE void requestBack();
     Q_INVOKABLE void requestForward();

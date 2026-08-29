@@ -8,6 +8,7 @@ Rectangle {
     property bool loading: false
     property bool canGoBack: false
     property bool canGoForward: false
+    property string pageLocalState: ""
     property string profilePath: ""
     property var sharedProfile: null
     property var contentBlocker: null
@@ -36,6 +37,8 @@ Rectangle {
     signal sitePermissionRequested(string requestId, string origin, string permission)
     function respondToPermission(requestId, decision) {}
 
+    onCurrentUrlChanged: pageLocalState = ""
+
     color: "#f4f2ed"
 
     function goBack() {}
@@ -56,10 +59,11 @@ Rectangle {
         rendererFailed("Renderer exited unexpectedly")
     }
     function simulateNewWindowRequest(requestedUrl, auxiliary) {
+        const request = {"requestedUrl": requestedUrl}
         if (auxiliary)
-            auxiliaryWindowRequested(null, requestedUrl)
+            auxiliaryWindowRequested(request, requestedUrl)
         else
-            newTabRequested(null, requestedUrl)
+            newTabRequested(request, requestedUrl)
     }
     function simulateBackgroundTabRequest(requestedUrl) {
         backgroundTabRequested(requestedUrl)

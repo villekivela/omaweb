@@ -477,9 +477,9 @@ void BrowserController::toggleActivePinned()
     emit activeTabChanged();
 }
 
-void BrowserController::updateActiveTab(const QUrl &url, const QString &title)
+void BrowserController::updateTab(const QString &tabId, const QUrl &url, const QString &title)
 {
-    auto *tab = m_tabs.find(m_activeTabId);
+    auto *tab = m_tabs.find(tabId);
     if (!tab) {
         return;
     }
@@ -495,12 +495,14 @@ void BrowserController::updateActiveTab(const QUrl &url, const QString &title)
     tab->title = normalizedTitle;
     m_tabs.notifyChanged(tab->id, {TabListModel::UrlRole, TabListModel::TitleRole});
     persistTabs();
-    emit activeTabChanged();
+    if (tabId == m_activeTabId) {
+        emit activeTabChanged();
+    }
 }
 
-void BrowserController::setActiveLoading(bool loading)
+void BrowserController::setTabLoading(const QString &tabId, bool loading)
 {
-    auto *tab = m_tabs.find(m_activeTabId);
+    auto *tab = m_tabs.find(tabId);
     if (!tab || tab->loading == loading) {
         return;
     }
@@ -508,9 +510,9 @@ void BrowserController::setActiveLoading(bool loading)
     m_tabs.notifyChanged(tab->id, {TabListModel::LoadingRole});
 }
 
-void BrowserController::reportRendererFailure(const QString &reason)
+void BrowserController::reportTabRendererFailure(const QString &tabId, const QString &reason)
 {
-    auto *tab = m_tabs.find(m_activeTabId);
+    auto *tab = m_tabs.find(tabId);
     if (!tab) {
         return;
     }
@@ -519,7 +521,9 @@ void BrowserController::reportRendererFailure(const QString &reason)
         ? QStringLiteral("The page renderer stopped unexpectedly.")
         : reason;
     m_tabs.notifyChanged(tab->id, {TabListModel::LoadingRole});
-    emit activeTabChanged();
+    if (tabId == m_activeTabId) {
+        emit activeTabChanged();
+    }
 }
 
 void BrowserController::recoverActiveTab()

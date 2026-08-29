@@ -309,7 +309,8 @@ void BrowserControllerTest::keepsRendererFailureOnAffectedTab()
     BrowserController controller(root.path(), QStringLiteral("test"));
     const auto failedTabId = controller.activeTabId();
 
-    controller.reportRendererFailure(QStringLiteral("Renderer exited unexpectedly"));
+    controller.reportTabRendererFailure(
+        failedTabId, QStringLiteral("Renderer exited unexpectedly"));
     QVERIFY(controller.activeRendererFailed());
     QCOMPARE(controller.activeRendererFailureReason(), QStringLiteral("Renderer exited unexpectedly"));
 

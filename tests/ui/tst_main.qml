@@ -65,6 +65,24 @@ TestCase {
         browser.toggleActivePinned()
     }
 
+    function test_switchingTabsPreservesPageLocalState() {
+        const engineHost = findChild(window.contentItem, "engineLoader")
+        verify(engineHost !== null)
+        verify(engineHost.item !== null)
+
+        const firstTabId = browser.activeTabId
+        engineHost.item.pageLocalState = "edited form value"
+
+        browser.openInput("https://second.example", true)
+        tryVerify(function() {
+            return engineHost.item !== null
+                && engineHost.item.currentUrl.toString() === "https://second.example"
+        })
+
+        browser.activateTab(firstTabId)
+        tryCompare(engineHost.item, "pageLocalState", "edited form value")
+    }
+
     function test_primaryChromeIsAccessibleFromKeyboard() {
         window.requestActivate()
         tryVerify(function() { return window.active })
