@@ -6,6 +6,8 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QSignalSpy>
+#include <QSqlDatabase>
+#include <QSqlQuery>
 #include <QTemporaryDir>
 #include <QTest>
 
@@ -25,6 +27,7 @@ private slots:
     void suspendsInactiveSpaceAndRestoresItsTabs();
     void warnsBeforeMovingEditedTabBetweenSpaces();
     void restoresEverySpaceAfterRestart();
+    void migratesLegacyGlobalTabsWithoutLockingSchema();
     void separatesEngineStorageBySpaceAndEngine();
     void createsTabOnlyAfterCommittedInput();
     void opensKeyboardHintTargetsInBackground();
@@ -224,6 +227,41 @@ void BrowserControllerTest::separatesEngineStorageBySpaceAndEngine()
     QCOMPARE(ladybirdController.activeSpaceId(), workSpaceId);
     QVERIFY(ladybirdController.activeProfilePath() != workQtPath);
     QVERIFY(ladybirdController.activeProfilePath().endsWith(QStringLiteral("/engines/ladybird")));
+}
+
+void BrowserControllerTest::migratesLegacyGlobalTabsWithoutLockingSchema()
+{
+    QTemporaryDir root;
+    const auto connectionName = QStringLiteral("legacy-session-fixture");
+    {
+        auto database = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), connectionName);
+        database.setDatabaseName(root.filePath(QStringLiteral("state.sqlite")));
+        QVERIFY(database.open());
+        QSqlQuery query(database);
+        QVERIFY(query.exec(QStringLiteral(
+            "CREATE TABLE spaces (id TEXT PRIMARY KEY, name TEXT NOT NULL, "
+            "color TEXT NOT NULL, active INTEGER NOT NULL DEFAULT 0, "
+            "position INTEGER NOT NULL DEFAULT 0)")));
+        QVERIFY(query.exec(QStringLiteral(
+            "CREATE TABLE tabs (id TEXT PRIMARY KEY, space_id TEXT NOT NULL, "
+            "url TEXT NOT NULL, title TEXT NOT NULL, pinned INTEGER NOT NULL DEFAULT 0, "
+            "active INTEGER NOT NULL DEFAULT 0, position INTEGER NOT NULL DEFAULT 0)")));
+        QVERIFY(query.exec(QStringLiteral(
+            "INSERT INTO spaces(id, name, color, active, position) "
+            "VALUES('personal', 'Personal', '#7c6cff', 1, 0)")));
+        QVERIFY(query.exec(QStringLiteral(
+            "INSERT INTO tabs(id, space_id, url, title, pinned, active, position) "
+            "VALUES('legacy-tab', 'personal', 'https://example.com', 'Example', 0, 1, 0)")));
+        query.finish();
+        database.close();
+    }
+    QSqlDatabase::removeDatabase(connectionName);
+
+    BrowserController controller(root.path(), QStringLiteral("test"));
+
+    QVERIFY2(controller.ready(), qPrintable(controller.errorMessage()));
+    QCOMPARE(controller.tabs()->rowCount(), 1);
+    QCOMPARE(controller.activeUrl(), QUrl(QStringLiteral("https://example.com")));
 }
 
 void BrowserControllerTest::createsTabOnlyAfterCommittedInput()

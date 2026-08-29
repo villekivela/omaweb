@@ -504,6 +504,7 @@ bool SessionStore::migrateLegacyTabs(QString *errorMessage)
         || !tableQuery.next() || tableQuery.value(0).toInt() == 0) {
         return true;
     }
+    tableQuery.finish();
 
     QSqlQuery recordMigration(m_database);
     recordMigration.prepare(QStringLiteral(
