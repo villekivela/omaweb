@@ -9,6 +9,16 @@ permissions:
   contents: read
 
 jobs:
+  commit-messages:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Check commit messages
+        run: scripts/check_commit_messages.sh
+
   macos:
     runs-on: macos-15
     timeout-minutes: 30
