@@ -47,6 +47,31 @@ Cargo. Run the bootstrap again only after changing the Rust wrapper, its manifes
 
 Never use Chromium's `--no-sandbox`, `--single-process`, in-process network-service flags, or `QTWEBENGINE_DISABLE_SANDBOX` in project scripts. Fix the host configuration or packaging instead.
 
+## Keyboard navigation configuration
+
+Tanto copies `assets/keybindings/default.json` to `settings/keybindings.json` under the application data directory on first launch. Set `TANTO_KEYBINDINGS_FILE` to load another file during development. The version 1 format maps key sequences to the six supported commands and may give a site selected keys or the whole page:
+
+```json
+{
+  "version": 1,
+  "enabled": false,
+  "bindings": {
+    "j": "scroll-down",
+    "k": "scroll-up",
+    "gg": "scroll-top",
+    "G": "scroll-bottom",
+    "f": "open-link",
+    "Shift+F": "open-link-background"
+  },
+  "passthrough": {
+    "youtube.com": { "keys": ["k"] },
+    "editor.example": { "all": true }
+  }
+}
+```
+
+Site rules match the named host and its subdomains. Tanto rejects unknown schema versions and command names instead of loading part of the file.
+
 ## Performance
 
 Build and startup budgets are recorded in [ADR 0007](adr/0007-keep-dependencies-out-of-the-fast-build.md). Run `scripts/benchmark_build.sh dev` to measure configure, clean build, incremental C++ rebuild, and a no-op build with the same preset. Record launch time separately when updating the baseline.

@@ -388,6 +388,21 @@ void BrowserController::openInput(const QString &input, bool inNewTab)
     emit activeTabChanged();
 }
 
+void BrowserController::openInputInBackground(const QUrl &url)
+{
+    if (!url.isValid() || url.isEmpty()) {
+        return;
+    }
+    TabState tab;
+    tab.id = QUuid::createUuid().toString(QUuid::WithoutBraces);
+    tab.spaceId = m_activeSpaceId;
+    tab.url = url;
+    tab.title = url.host().isEmpty() ? url.toDisplayString() : url.host();
+    tab.active = false;
+    m_tabs.append(tab);
+    persistTabs();
+}
+
 void BrowserController::closeActiveTab()
 {
     auto *active = m_tabs.find(m_activeTabId);

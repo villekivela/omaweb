@@ -174,9 +174,14 @@ TestCase {
         const engineLoader = findChild(window.contentItem, "engineLoader")
         verify(engineLoader !== null)
         const previousTabCount = browser.tabs.rowCount()
+        const previousActiveTabId = browser.activeTabId
+
+        engineLoader.item.simulateBackgroundTabRequest("https://example.com/background")
+        tryVerify(function() { return browser.tabs.rowCount() === previousTabCount + 1 })
+        compare(browser.activeTabId, previousActiveTabId)
 
         engineLoader.item.simulateNewWindowRequest("https://example.com/tab", false)
-        tryVerify(function() { return browser.tabs.rowCount() === previousTabCount + 1 })
+        tryVerify(function() { return browser.tabs.rowCount() === previousTabCount + 2 })
         compare(browser.activeUrl.toString(), "https://example.com/tab")
 
         engineLoader.item.simulateNewWindowRequest("https://example.com/dialog", true)
@@ -221,10 +226,17 @@ TestCase {
         const settingsButton = findChild(window.contentItem, "settingsButton")
         const remoteSuggestionsStatus = findChild(window.contentItem, "remoteSuggestionsStatus")
         const automaticRequestsStatus = findChild(window.contentItem, "automaticRequestsStatus")
+        const keyboardNavigationEnabled = findChild(
+            window.contentItem, "keyboardNavigationEnabled")
         verify(settingsButton !== null)
         verify(remoteSuggestionsStatus !== null)
         verify(automaticRequestsStatus !== null)
+        verify(keyboardNavigationEnabled !== null)
         compare(remoteSuggestionsStatus.text, "Remote search suggestions: Off")
         verify(automaticRequestsStatus.text.indexOf("automatic network requests") >= 0)
+        compare(keyboardNavigationEnabled.checked, false)
+        keyboardNavigationEnabled.click()
+        compare(keyboardNavigation.enabled, true)
+        keyboardNavigationEnabled.click()
     }
 }

@@ -16,13 +16,15 @@ Rectangle {
     readonly property var browserProfile: root.sharedProfile ? root.sharedProfile : root
     readonly property int blockedRequestCount: contentBlocker
         ? contentBlocker.blockedRequestCount(currentUrl) : 0
+    property var keyboardNavigationConfiguration: ({})
     readonly property bool pageHasFocus: root.activeFocus
-    readonly property int capabilities: 73
+    readonly property int capabilities: 89
 
     signal rendererFailed(string reason)
     signal newTabRequested(var request, url requestedUrl)
     signal auxiliaryWindowRequested(var request, url requestedUrl)
     signal windowCloseRequested()
+    signal backgroundTabRequested(url requestedUrl)
     signal sitePermissionRequested(string requestId, string origin, string permission)
     function respondToPermission(requestId, decision) {}
 
@@ -34,6 +36,9 @@ Rectangle {
     function reloadPage() {
         loading = true
         settle.restart()
+    }
+    function configureKeyboardNavigation(configuration) {
+        keyboardNavigationConfiguration = configuration
     }
     function checkForEditedFormState(callback) { callback(false) }
     function acceptNewWindowRequest(request) {
@@ -47,6 +52,9 @@ Rectangle {
             auxiliaryWindowRequested(null, requestedUrl)
         else
             newTabRequested(null, requestedUrl)
+    }
+    function simulateBackgroundTabRequest(requestedUrl) {
+        backgroundTabRequested(requestedUrl)
     }
     function simulateWindowCloseRequest() { windowCloseRequested() }
 

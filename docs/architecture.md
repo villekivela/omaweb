@@ -31,6 +31,12 @@ The Qt adapter calls a separately built `adblock-rust` shared library through a 
 
 Request matching uses an immutable in-memory snapshot. Subscription updates compile off the request path and atomically replace the active matcher.
 
+## Keyboard navigation
+
+Core loads and validates the versioned keybinding and site-passthrough policy. Engine adapters receive the resolved configuration for the active URL through the shared engine-view contract. The Qt adapter injects the page command handler at document readiness; the UI-lab mock exposes the same contract for shared UI tests and for the Ladybird adapter to implement.
+
+Page commands ignore editable controls, IME composition, and unbound keys. Link hints use DOM accessibility labels, CSS lengths that follow page zoom, and system-color keywords that remain visible in forced-color modes.
+
 ## Window composition
 
 Main and Private windows are frameless and expose explicit system-move and resize regions. Tanto does not draw visible window controls. Platform-native menus and keyboard commands retain minimize, close, and quit behavior.

@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "enabled": false,
+  "bindings": {
+    "j": "scroll-down",
+    "k": "scroll-up",
+    "gg": "scroll-top",
+    "G": "scroll-bottom",
+    "f": "open-link",
+    "Shift+F": "open-link-background"
+  },
+  "passthrough": {
+    "youtube.com": {
+      "keys": ["k"]
+    }
+  }
+}

@@ -84,6 +84,8 @@ add_library(tanto-core STATIC
     src/content-blocking/ContentBlocker.h
     src/core/BrowserController.cpp
     src/core/BrowserController.h
+    src/core/KeyboardNavigation.cpp
+    src/core/KeyboardNavigation.h
     src/core/SessionStore.cpp
     src/core/SessionStore.h
     src/core/SpaceListModel.cpp
@@ -155,6 +157,7 @@ function(tanto_configure_qml target engine_view engine_profile engine_directory)
             TANTO_ENGINE_PROFILE_URL="file://${CMAKE_CURRENT_SOURCE_DIR}/${engine_profile}"
             TANTO_THEME_PATH="${CMAKE_CURRENT_SOURCE_DIR}/assets/themes/default.json"
             TANTO_ICON_FONT_URL="file://${CMAKE_CURRENT_SOURCE_DIR}/assets/fonts/material-symbols-rounded.ttf"
+            TANTO_DEFAULT_KEYBINDINGS_PATH="${CMAKE_CURRENT_SOURCE_DIR}/assets/keybindings/default.json"
         )
     else()
         set_source_files_properties("${engine_view}" PROPERTIES QT_RESOURCE_ALIAS "EngineView.qml")
@@ -180,12 +183,18 @@ function(tanto_configure_qml target engine_view engine_profile engine_directory)
             BASE "${CMAKE_CURRENT_SOURCE_DIR}/assets/fonts"
             FILES assets/fonts/material-symbols-rounded.ttf
         )
+        qt_add_resources(${target} "tanto_keybindings"
+            PREFIX "/tanto/keybindings"
+            BASE "${CMAKE_CURRENT_SOURCE_DIR}/assets/keybindings"
+            FILES assets/keybindings/default.json
+        )
         target_compile_definitions(${target} PRIVATE
             TANTO_MAIN_QML_URL="qrc:/tanto/ui/Main.qml"
             TANTO_ENGINE_VIEW_URL="qrc:/tanto/engine/EngineView.qml"
             TANTO_ENGINE_PROFILE_URL="qrc:/tanto/engine/EngineProfile.qml"
             TANTO_THEME_PATH=":/tanto/themes/default.json"
             TANTO_ICON_FONT_URL="qrc:/tanto/fonts/material-symbols-rounded.ttf"
+            TANTO_DEFAULT_KEYBINDINGS_PATH=":/tanto/keybindings/default.json"
         )
     endif()
 endfunction()
@@ -246,6 +255,13 @@ if(BUILD_TESTING)
     target_link_libraries(tanto-core-tests PRIVATE tanto-core Qt6::Test)
     tanto_strict_target(tanto-core-tests)
     add_test(NAME tanto-core COMMAND tanto-core-tests)
+
+    qt_add_executable(tanto-keyboard-navigation-tests
+        tests/core/tst_keyboardnavigation.cpp
+    )
+    target_link_libraries(tanto-keyboard-navigation-tests PRIVATE tanto-core Qt6::Test)
+    tanto_strict_target(tanto-keyboard-navigation-tests)
+    add_test(NAME tanto-keyboard-navigation COMMAND tanto-keyboard-navigation-tests)
 
     qt_add_executable(tanto-content-blocker-tests
         tests/content-blocking/tst_contentmatcher.cpp

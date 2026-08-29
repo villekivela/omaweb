@@ -73,6 +73,7 @@ public:
         bool hasEditedFormState);
     Q_INVOKABLE bool confirmTabMoveToSpace(const QString &tabId, const QString &destinationSpaceId);
     Q_INVOKABLE void openInput(const QString &input, bool inNewTab);
+    Q_INVOKABLE void openInputInBackground(const QUrl &url);
     Q_INVOKABLE void closeActiveTab();
     Q_INVOKABLE void reopenClosedTab();
     Q_INVOKABLE void toggleActivePinned();

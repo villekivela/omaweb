@@ -1,10 +1,12 @@
 #include "BrowserController.h"
 #include "ContentBlocker.h"
+#include "KeyboardNavigation.h"
 #include "ThemeController.h"
 #include "WindowManager.h"
 
 #include <QCoreApplication>
 #include <QDir>
+#include <QFile>
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
@@ -25,12 +27,17 @@ int main(int argc, char *argv[])
 
     tanto::BrowserController browser(dataRoot.path(), QStringLiteral("mock"));
     tanto::ContentBlocker contentBlocker(dataRoot.path());
+    const auto keybindingsPath = dataRoot.filePath(QStringLiteral("keybindings.json"));
+    QFile::copy(QStringLiteral(TANTO_DEFAULT_KEYBINDINGS_PATH), keybindingsPath);
+    tanto::KeyboardNavigation keyboardNavigation(keybindingsPath);
     tanto::ThemeController theme(QStringLiteral(TANTO_THEME_PATH));
     tanto::WindowManager windowManager(QStringLiteral("mock"));
 
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty(QStringLiteral("browser"), &browser);
     engine.rootContext()->setContextProperty(QStringLiteral("contentBlocker"), &contentBlocker);
+    engine.rootContext()->setContextProperty(
+        QStringLiteral("keyboardNavigation"), &keyboardNavigation);
     engine.rootContext()->setContextProperty(
         QStringLiteral("engineContentBlocker"), QVariant::fromValue<QObject *>(nullptr));
     engine.rootContext()->setContextProperty(QStringLiteral("theme"), &theme);

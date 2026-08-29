@@ -518,7 +518,9 @@ ApplicationWindow {
                                 : (window.spaceProfileHost ? window.spaceProfileHost.profile : null),
                             "permissionController": window.windowBrowser,
                             "contentBlocker": contentBlocker,
-                            "engineContentBlocker": engineContentBlocker
+                            "engineContentBlocker": engineContentBlocker,
+                            "keyboardNavigationConfiguration": keyboardNavigation.configurationForUrl(
+                                window.windowBrowser.activeUrl)
                         })
                     }
 
@@ -544,6 +546,8 @@ ApplicationWindow {
 
                     function onCurrentUrlChanged() {
                         window.windowBrowser.updateActiveTab(engineLoader.item.currentUrl, engineLoader.item.pageTitle)
+                        engineLoader.item.configureKeyboardNavigation(
+                            keyboardNavigation.configurationForUrl(engineLoader.item.currentUrl))
                     }
 
                     function onPageTitleChanged() {
@@ -576,6 +580,10 @@ ApplicationWindow {
                             : "about:blank"
                         window.windowBrowser.openInput(destination, true)
                         if (request) engineLoader.item.acceptNewWindowRequest(request)
+                    }
+
+                    function onBackgroundTabRequested(requestedUrl) {
+                        window.windowBrowser.openInputInBackground(requestedUrl)
                     }
 
                     function onSitePermissionRequested(requestId, origin, permission) {
@@ -629,6 +637,15 @@ ApplicationWindow {
 
                     function onCloseWindowRequested() {
                         if (window.privateWindow) window.close()
+                    }
+                }
+
+                Connections {
+                    target: keyboardNavigation
+
+                    function onConfigurationChanged() {
+                        if (engineLoader.item) engineLoader.item.configureKeyboardNavigation(
+                            keyboardNavigation.configurationForUrl(engineLoader.item.currentUrl))
                     }
                 }
 
@@ -858,7 +875,7 @@ ApplicationWindow {
         objectName: "settingsDialog"
         anchors.centerIn: parent
         modal: true
-        title: "Content blocking and downloads"
+        title: "Browser settings"
         standardButtons: Dialog.Close
         onOpened: {
             window.visibleDownloads = window.windowBrowser.downloadHistory()
@@ -887,6 +904,16 @@ ApplicationWindow {
                 Layout.fillWidth: true
                 wrapMode: Text.WordWrap
                 text: "Enabled filter-list subscriptions make automatic network requests to their displayed update address when Tanto starts. Remote search suggestions remain off."
+            }
+            Label {
+                text: "Keyboard navigation"
+                font.weight: Font.DemiBold
+            }
+            CheckBox {
+                objectName: "keyboardNavigationEnabled"
+                text: "Enable Keyboard navigation"
+                checked: keyboardNavigation.enabled
+                onClicked: keyboardNavigation.setEnabled(checked)
             }
             Label {
                 text: "Content blocking"

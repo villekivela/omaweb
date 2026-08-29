@@ -1,5 +1,6 @@
 #include "BrowserController.h"
 #include "ContentBlocker.h"
+#include "KeyboardNavigation.h"
 #include "QtContentBlocker.h"
 #include "ThemeController.h"
 #include "WindowManager.h"
@@ -7,6 +8,7 @@
 #include <QCoreApplication>
 #include <QDir>
 #include <QFileInfo>
+#include <QFile>
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
@@ -59,6 +61,21 @@ QString themePath()
     return QStringLiteral(TANTO_THEME_PATH);
 }
 
+QString keybindingsPath()
+{
+    const auto override = qEnvironmentVariable("TANTO_KEYBINDINGS_FILE");
+    if (!override.isEmpty()) {
+        return override;
+    }
+    const auto settingsDirectory = QDir(dataRoot()).filePath(QStringLiteral("settings"));
+    QDir().mkpath(settingsDirectory);
+    const auto path = QDir(settingsDirectory).filePath(QStringLiteral("keybindings.json"));
+    if (!QFileInfo::exists(path)) {
+        QFile::copy(QStringLiteral(TANTO_DEFAULT_KEYBINDINGS_PATH), path);
+    }
+    return path;
+}
+
 } // namespace
 
 int main(int argc, char *argv[])
@@ -80,6 +97,7 @@ int main(int argc, char *argv[])
 
     tanto::BrowserController browser(dataRoot(), QStringLiteral("qt"));
     tanto::ContentBlocker contentBlocker(dataRoot());
+    tanto::KeyboardNavigation keyboardNavigation(keybindingsPath());
     tanto::QtContentBlocker engineContentBlocker(&contentBlocker);
     tanto::ThemeController theme(themePath());
     tanto::WindowManager windowManager(QStringLiteral("qt"));
@@ -87,6 +105,8 @@ int main(int argc, char *argv[])
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty(QStringLiteral("browser"), &browser);
     engine.rootContext()->setContextProperty(QStringLiteral("contentBlocker"), &contentBlocker);
+    engine.rootContext()->setContextProperty(
+        QStringLiteral("keyboardNavigation"), &keyboardNavigation);
     engine.rootContext()->setContextProperty(
         QStringLiteral("engineContentBlocker"), &engineContentBlocker);
     engine.rootContext()->setContextProperty(QStringLiteral("theme"), &theme);

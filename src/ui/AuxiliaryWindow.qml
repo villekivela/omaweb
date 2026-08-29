@@ -37,6 +37,8 @@ ApplicationWindow {
             "permissionController": auxiliary.permissionController,
             "contentBlocker": auxiliary.contentBlocker,
             "engineContentBlocker": auxiliary.engineContentBlocker,
+            "keyboardNavigationConfiguration": keyboardNavigation.configurationForUrl(
+                auxiliary.requestedUrl),
             "currentUrl": auxiliary.request ? "about:blank" : auxiliary.requestedUrl
         })
 

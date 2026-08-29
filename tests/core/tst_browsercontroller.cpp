@@ -27,6 +27,7 @@ private slots:
     void restoresEverySpaceAfterRestart();
     void separatesEngineStorageBySpaceAndEngine();
     void createsTabOnlyAfterCommittedInput();
+    void opensKeyboardHintTargetsInBackground();
     void persistsTabsAndPins();
     void keepsFinalTabAsBlankTab();
     void keepsRendererFailureOnAffectedTab();
@@ -67,6 +68,19 @@ void BrowserControllerTest::createsAndSwitchesSpaces()
 
     QVERIFY(controller.switchSpace(personalSpaceId));
     QCOMPARE(controller.activeUrl(), QUrl(QStringLiteral("https://personal.example")));
+}
+
+void BrowserControllerTest::opensKeyboardHintTargetsInBackground()
+{
+    QTemporaryDir root;
+    BrowserController controller(root.path(), QStringLiteral("test"));
+    const auto activeTabId = controller.activeTabId();
+
+    controller.openInputInBackground(QUrl(QStringLiteral("https://example.com/hint")));
+
+    QCOMPARE(controller.tabs()->rowCount(), 2);
+    QCOMPARE(controller.activeTabId(), activeTabId);
+    QCOMPARE(controller.activeUrl(), QUrl(QStringLiteral("about:blank")));
 }
 
 void BrowserControllerTest::renamesSpacePersistently()

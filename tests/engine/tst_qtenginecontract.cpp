@@ -27,10 +27,14 @@ private slots:
     void adaptersExposeSharedContract();
     void mockReportsLifecycleEvents();
     void mockReportsNewWindowPurpose();
+    void adaptersExposeKeyboardNavigationCommands_data();
+    void adaptersExposeKeyboardNavigationCommands();
     void qtAdapterPropagatesPageState();
     void qtProfilesIsolateSiteStorage();
     void qtPrivateWindowsShareOneProfile();
     void qtRoutesOnlyDialogDestinationsToAuxiliaryWindows();
+    void qtKeyboardNavigationHonorsInputContracts_data();
+    void qtKeyboardNavigationHonorsInputContracts();
 };
 
 void QtEngineContractTest::adaptersExposeSharedContract_data()
@@ -48,7 +52,8 @@ void QtEngineContractTest::adaptersExposeSharedContract()
     QVERIFY2(component.isReady(), qPrintable(component.errorString()));
     const std::unique_ptr<QObject> adapter(component.create());
     QVERIFY2(adapter, qPrintable(component.errorString()));
-    QCOMPARE(validateEngineViewContract(*adapter), QStringList{});
+    const auto missingContract = validateEngineViewContract(*adapter);
+    QVERIFY2(missingContract.isEmpty(), qPrintable(missingContract.join(QStringLiteral("; "))));
     const auto capabilities = adapter->property("capabilities").toInt();
     QVERIFY(capabilities & EngineCapabilities::Navigation);
     QVERIFY(capabilities & EngineCapabilities::ContentBlocking);
@@ -89,6 +94,36 @@ void QtEngineContractTest::mockReportsNewWindowPurpose()
     QCOMPARE(requestSpy.first().at(1).toUrl(), QUrl(QStringLiteral("https://example.com/popup")));
 }
 
+void QtEngineContractTest::adaptersExposeKeyboardNavigationCommands_data()
+{
+    adaptersExposeSharedContract_data();
+}
+
+void QtEngineContractTest::adaptersExposeKeyboardNavigationCommands()
+{
+    QFETCH(QString, path);
+    QQmlEngine engine;
+    QQmlComponent component(&engine, QUrl::fromLocalFile(path));
+    const std::unique_ptr<QObject> adapter(component.create());
+    QVERIFY2(adapter, qPrintable(component.errorString()));
+
+    const QVariantMap configuration = {
+        {QStringLiteral("version"), 1},
+        {QStringLiteral("enabled"), true},
+        {QStringLiteral("bindings"), QVariantMap{
+            {QStringLiteral("j"), QStringLiteral("scroll-down")},
+            {QStringLiteral("f"), QStringLiteral("open-link")},
+        }},
+        {QStringLiteral("passthroughAll"), false},
+        {QStringLiteral("passthroughKeys"), QStringList{}},
+    };
+    QVERIFY(QMetaObject::invokeMethod(adapter.get(), "configureKeyboardNavigation",
+        Q_ARG(QVariant, configuration)));
+    QCOMPARE(adapter->property("keyboardNavigationConfiguration").toMap(), configuration);
+    QVERIFY(adapter->property("capabilities").toInt()
+        & EngineCapabilities::KeyboardPageCommands);
+}
+
 void QtEngineContractTest::qtAdapterPropagatesPageState()
 {
     QQmlEngine engine;
@@ -100,6 +135,7 @@ void QtEngineContractTest::qtAdapterPropagatesPageState()
     auto *view = qobject_cast<QQuickItem *>(adapter.get());
     QVERIFY(view);
     QQuickWindow window;
+    window.resize(640, 480);
     view->setParentItem(window.contentItem());
     view->setSize(QSizeF(640, 480));
     window.show();
@@ -269,6 +305,185 @@ void QtEngineContractTest::qtRoutesOnlyDialogDestinationsToAuxiliaryWindows()
     QVERIFY(!routesToAuxiliary(QWebEngineNewWindowRequest::InNewTab));
     QVERIFY(routesToAuxiliary(QWebEngineNewWindowRequest::InNewDialog));
     QVERIFY(!routesToAuxiliary(QWebEngineNewWindowRequest::InNewBackgroundTab));
+}
+
+void QtEngineContractTest::qtKeyboardNavigationHonorsInputContracts_data()
+{
+    QTest::addColumn<QByteArray>("html");
+    QTest::addColumn<int>("key");
+    QTest::addColumn<QString>("expectedTitle");
+    QTest::addColumn<bool>("passthroughAll");
+    QTest::addColumn<QStringList>("passthroughKeys");
+
+    QTest::newRow("editable controls receive typing")
+        << QByteArray(R"HTML(<!doctype html><title>ready</title>
+            <input autofocus aria-label="Editor">
+            <script>document.querySelector('input').addEventListener('input',
+                event => document.title = event.target.value);</script>)HTML")
+        << int(Qt::Key_J) << QStringLiteral("j") << false << QStringList{};
+    QTest::newRow("IME composition passes through")
+        << QByteArray(R"HTML(<!doctype html><title>ready</title><script>
+            addEventListener('keydown', event => setTimeout(() =>
+                document.title = event.defaultPrevented ? 'blocked' : 'composing-passed'));
+            setTimeout(() => dispatchEvent(new KeyboardEvent('keydown', {
+                key: 'j', isComposing: true, bubbles: true, cancelable: true
+            })), 250);
+        </script>)HTML")
+        << int(Qt::Key_unknown) << QStringLiteral("composing-passed") << false << QStringList{};
+    QTest::newRow("non-English keys pass through")
+        << QByteArray(R"HTML(<!doctype html><title>ready</title><script>
+            addEventListener('keydown', event => setTimeout(() =>
+                document.title = event.defaultPrevented ? 'blocked' : event.key));
+            setTimeout(() => dispatchEvent(new KeyboardEvent('keydown', {
+                key: 'å', bubbles: true, cancelable: true
+            })), 250);
+        </script>)HTML")
+        << int(Qt::Key_unknown) << QString::fromUtf8("å") << false << QStringList{};
+    QTest::newRow("j scrolls down")
+        << QByteArray(R"HTML(<!doctype html><title>ready</title>
+            <div style="height:3000px"></div><script>
+                addEventListener('scroll', () => {
+                    if (scrollY > 0) document.title = 'down';
+                });
+                setTimeout(() => dispatchEvent(new KeyboardEvent('keydown', {
+                    key: 'j', bubbles: true, cancelable: true
+                })), 300);
+            </script>)HTML")
+        << int(Qt::Key_unknown) << QStringLiteral("down") << false << QStringList{};
+    QTest::newRow("k scrolls up")
+        << QByteArray(R"HTML(<!doctype html><title>loading</title>
+            <div style="height:3000px"></div><script>
+                scrollTo(0, 600); document.title = 'ready';
+                addEventListener('scroll', () => {
+                    if (scrollY < 550) document.title = 'up';
+                });
+                setTimeout(() => dispatchEvent(new KeyboardEvent('keydown', {
+                    key: 'k', bubbles: true, cancelable: true
+                })), 300);
+            </script>)HTML")
+        << int(Qt::Key_unknown) << QStringLiteral("up") << false << QStringList{};
+    QTest::newRow("gg scrolls to the top")
+        << QByteArray(R"HTML(<!doctype html><title>loading</title>
+            <div style="height:3000px"></div><script>
+                scrollTo(0, 600); document.title = 'ready';
+                addEventListener('scroll', () => {
+                    if (scrollY === 0) document.title = 'top';
+                });
+                setTimeout(() => {
+                    dispatchEvent(new KeyboardEvent('keydown', { key: 'g', bubbles: true, cancelable: true }));
+                    dispatchEvent(new KeyboardEvent('keydown', { key: 'g', bubbles: true, cancelable: true }));
+                }, 300);
+            </script>)HTML")
+        << int(Qt::Key_unknown) << QStringLiteral("top") << false << QStringList{};
+    QTest::newRow("G scrolls to the bottom")
+        << QByteArray(R"HTML(<!doctype html><title>ready</title>
+            <div style="height:3000px"></div><script>
+                addEventListener('scroll', () => {
+                    if (scrollY + innerHeight >= document.documentElement.scrollHeight - 1)
+                        document.title = 'bottom';
+                });
+                setTimeout(() => dispatchEvent(new KeyboardEvent('keydown', {
+                    key: 'G', shiftKey: true, bubbles: true, cancelable: true
+                })), 300);
+            </script>)HTML")
+        << int(Qt::Key_unknown) << QStringLiteral("bottom") << false << QStringList{};
+    QTest::newRow("link hints expose readable screen-reader text")
+        << QByteArray(R"HTML(<!doctype html><title>ready</title>
+            <a href="#target" aria-label="Read documentation">Docs</a>
+            <script>
+                document.documentElement.style.zoom = '175%';
+                new MutationObserver(() => {
+                    const overlay = document.getElementById('__tanto_link_hints');
+                    const hint = overlay && overlay.querySelector('span');
+                    if (overlay && overlay.getAttribute('role') === 'status'
+                            && overlay.getAttribute('aria-live') === 'polite'
+                            && hint && hint.getAttribute('aria-label').includes('Read documentation')
+                            && parseFloat(getComputedStyle(hint).fontSize) >= 12
+                            && hint.style.forcedColorAdjust === 'auto') document.title = 'accessible';
+                }).observe(document.documentElement, { childList: true, subtree: true });
+                setTimeout(() => dispatchEvent(new KeyboardEvent('keydown', {
+                    key: 'f', bubbles: true, cancelable: true
+                })), 300);
+            </script>)HTML")
+        << int(Qt::Key_unknown) << QStringLiteral("accessible") << false << QStringList{};
+    QTest::newRow("per-key passthrough keeps site shortcuts")
+        << QByteArray(R"HTML(<!doctype html><title>ready</title><script>
+            addEventListener('keydown', event => document.title =
+                event.defaultPrevented ? 'blocked' : 'site-key');
+            setTimeout(() => dispatchEvent(new KeyboardEvent('keydown', {
+                key: 'k', bubbles: true, cancelable: true
+            })), 300);
+        </script>)HTML")
+        << int(Qt::Key_unknown) << QStringLiteral("site-key") << false
+        << QStringList{QStringLiteral("k")};
+    QTest::newRow("all-page passthrough keeps site shortcuts")
+        << QByteArray(R"HTML(<!doctype html><title>ready</title><script>
+            addEventListener('keydown', event => document.title =
+                event.defaultPrevented ? 'blocked' : 'site-page');
+            setTimeout(() => dispatchEvent(new KeyboardEvent('keydown', {
+                key: 'j', bubbles: true, cancelable: true
+            })), 300);
+        </script>)HTML")
+        << int(Qt::Key_unknown) << QStringLiteral("site-page") << true << QStringList{};
+}
+
+void QtEngineContractTest::qtKeyboardNavigationHonorsInputContracts()
+{
+    QFETCH(QByteArray, html);
+    QFETCH(int, key);
+    QFETCH(QString, expectedTitle);
+    QFETCH(bool, passthroughAll);
+    QFETCH(QStringList, passthroughKeys);
+    QTemporaryDir root;
+    QFile page(root.filePath(QStringLiteral("keyboard.html")));
+    QVERIFY(page.open(QIODevice::WriteOnly));
+    QCOMPARE(page.write(html), html.size());
+    page.close();
+
+    QQmlEngine engine;
+    QQmlComponent component(&engine, QUrl::fromLocalFile(
+        QStringLiteral(TANTO_QT_ENGINE_VIEW_PATH)));
+    const QVariantMap configuration = {
+        {QStringLiteral("version"), 1},
+        {QStringLiteral("enabled"), true},
+        {QStringLiteral("bindings"), QVariantMap{
+            {QStringLiteral("j"), QStringLiteral("scroll-down")},
+            {QStringLiteral("k"), QStringLiteral("scroll-up")},
+            {QStringLiteral("gg"), QStringLiteral("scroll-top")},
+            {QStringLiteral("G"), QStringLiteral("scroll-bottom")},
+            {QStringLiteral("f"), QStringLiteral("open-link")},
+        }},
+        {QStringLiteral("passthroughAll"), passthroughAll},
+        {QStringLiteral("passthroughKeys"), passthroughKeys},
+    };
+    const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
+        {QStringLiteral("currentUrl"), QUrl::fromLocalFile(page.fileName())},
+        {QStringLiteral("keyboardNavigationConfiguration"), configuration},
+    }));
+    QVERIFY2(adapter, qPrintable(component.errorString()));
+
+    auto *view = qobject_cast<QQuickItem *>(adapter.get());
+    QVERIFY(view);
+    QQuickWindow window;
+    window.resize(640, 480);
+    view->setParentItem(window.contentItem());
+    view->setSize(QSizeF(640, 480));
+    window.show();
+    window.requestActivate();
+    QVERIFY(QMetaObject::invokeMethod(adapter.get(), "focusPage"));
+    QTRY_VERIFY(adapter->property("pageHasFocus").toBool());
+    QTRY_COMPARE(adapter->property("pageTitle").toString(), QStringLiteral("ready"));
+    QVERIFY(QMetaObject::invokeMethod(adapter.get(), "configureKeyboardNavigation",
+        Q_ARG(QVariant, configuration)));
+    QTest::qWait(50);
+
+    if (key != Qt::Key_unknown) {
+        if (expectedTitle == QStringLiteral("j")) {
+            QTest::mouseClick(&window, Qt::LeftButton, Qt::NoModifier, QPoint(40, 15));
+        }
+        QTest::keyClick(&window, static_cast<Qt::Key>(key));
+    }
+    QTRY_COMPARE_WITH_TIMEOUT(adapter->property("pageTitle").toString(), expectedTitle, 15000);
 }
 
 int main(int argc, char *argv[])

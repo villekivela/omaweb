@@ -25,6 +25,7 @@ QStringList validateEngineViewContract(const QObject &adapter)
         {"capabilities", QMetaType::Int},
         {"contentBlocker", QMetaType::QVariant},
         {"blockedRequestCount", QMetaType::Int},
+        {"keyboardNavigationConfiguration", QMetaType::QVariant},
     };
     struct RequiredMethod {
         const char *name;
@@ -39,10 +40,12 @@ QStringList validateEngineViewContract(const QObject &adapter)
         {"focusPage", false, 0},
         {"checkForEditedFormState", false, 1},
         {"acceptNewWindowRequest", false, 1},
+        {"configureKeyboardNavigation", false, 1},
         {"rendererFailed", true, 1, QMetaType::QString},
         {"newTabRequested", true, 2},
         {"auxiliaryWindowRequested", true, 2},
         {"windowCloseRequested", true, 0},
+        {"backgroundTabRequested", true, 1, QMetaType::QUrl},
     };
 
     QStringList missing;
