@@ -15,7 +15,8 @@ public slots:
     void qmlEngineAvailable(QQmlEngine *engine)
     {
         m_dataRoot = std::make_unique<QTemporaryDir>();
-        m_browser = std::make_unique<tanto::BrowserController>(m_dataRoot->path());
+        m_browser = std::make_unique<tanto::BrowserController>(
+            m_dataRoot->path(), QStringLiteral("mock"));
         m_theme = std::make_unique<tanto::ThemeController>(QStringLiteral(TANTO_THEME_PATH));
         engine->rootContext()->setContextProperty(QStringLiteral("browser"), m_browser.get());
         engine->rootContext()->setContextProperty(QStringLiteral("theme"), m_theme.get());

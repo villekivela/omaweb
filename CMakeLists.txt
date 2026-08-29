@@ -45,21 +45,31 @@ target_include_directories(tanto-core PUBLIC src/core)
 target_link_libraries(tanto-core PUBLIC Qt6::Core Qt6::Sql)
 tanto_strict_target(tanto-core)
 
-add_library(tanto-ui-support STATIC
+add_library(tanto-ui STATIC
     src/ui/ThemeController.cpp
     src/ui/ThemeController.h
 )
-target_include_directories(tanto-ui-support PUBLIC src/ui)
-target_link_libraries(tanto-ui-support PUBLIC Qt6::Core)
-tanto_strict_target(tanto-ui-support)
+target_include_directories(tanto-ui PUBLIC src/ui)
+target_link_libraries(tanto-ui PUBLIC Qt6::Core)
+tanto_strict_target(tanto-ui)
 
 add_library(tanto-engine-api STATIC
+    src/engine/api/EngineCapabilities.h
     src/engine/api/EngineViewContract.cpp
     src/engine/api/EngineViewContract.h
 )
 target_include_directories(tanto-engine-api PUBLIC src/engine/api)
 target_link_libraries(tanto-engine-api PUBLIC Qt6::Core)
 tanto_strict_target(tanto-engine-api)
+
+if(TANTO_BUILD_BROWSER)
+    add_library(tanto-engine-qt INTERFACE)
+    target_sources(tanto-engine-qt INTERFACE src/engine/qt/EngineView.qml)
+    target_link_libraries(tanto-engine-qt INTERFACE
+        tanto-engine-api
+        Qt6::WebEngineQuick
+    )
+endif()
 
 add_library(tanto-platform INTERFACE)
 target_link_libraries(tanto-platform INTERFACE Qt6::Gui Qt6::Quick)
@@ -119,13 +129,12 @@ if(TANTO_BUILD_BROWSER)
     qt_add_executable(tanto MACOSX_BUNDLE src/main.cpp)
     target_link_libraries(tanto PRIVATE
         tanto-core
-        tanto-ui-support
-        tanto-engine-api
+        tanto-ui
+        tanto-engine-qt
         tanto-platform
         Qt6::Gui
         Qt6::Qml
         Qt6::Quick
-        Qt6::WebEngineQuick
     )
     tanto_configure_qml(tanto "src/engine/qt/EngineView.qml" "src/engine/qt")
     tanto_strict_target(tanto)
@@ -143,7 +152,7 @@ if(TANTO_BUILD_UI_LAB)
     qt_add_executable(tanto-ui-lab MACOSX_BUNDLE src/ui-lab/main.cpp)
     target_link_libraries(tanto-ui-lab PRIVATE
         tanto-core
-        tanto-ui-support
+        tanto-ui
         tanto-engine-api
         tanto-platform
         Qt6::Gui
@@ -173,7 +182,7 @@ if(BUILD_TESTING)
     qt_add_executable(tanto-qml-smoke src/ui-lab/main.cpp)
     target_link_libraries(tanto-qml-smoke PRIVATE
         tanto-core
-        tanto-ui-support
+        tanto-ui
         tanto-engine-api
         tanto-platform
         Qt6::Gui
@@ -191,7 +200,7 @@ if(BUILD_TESTING)
         qt_add_executable(tanto-ui-tests tests/ui/tst_ui.cpp)
         target_link_libraries(tanto-ui-tests PRIVATE
             tanto-core
-            tanto-ui-support
+            tanto-ui
             Qt6::Gui
             Qt6::Qml
             Qt6::Quick
@@ -215,12 +224,11 @@ if(BUILD_TESTING)
             tests/engine/tst_qtenginecontract.cpp
         )
         target_link_libraries(tanto-qt-engine-contract-tests PRIVATE
-            tanto-engine-api
+            tanto-engine-qt
             Qt6::Gui
             Qt6::Qml
             Qt6::Quick
             Qt6::Test
-            Qt6::WebEngineQuick
         )
         target_compile_definitions(tanto-qt-engine-contract-tests PRIVATE
             TANTO_MOCK_ENGINE_VIEW_PATH="${CMAKE_CURRENT_SOURCE_DIR}/src/ui-lab/MockEngineView.qml"
@@ -239,7 +247,7 @@ if(TANTO_BUILD_UI_PROTOTYPE)
     qt_add_executable(tanto-ui-prototype MACOSX_BUNDLE src/ui-lab/prototype/main.cpp)
     target_link_libraries(tanto-ui-prototype PRIVATE
         tanto-core
-        tanto-ui-support
+        tanto-ui
         tanto-platform
         Qt6::Gui
         Qt6::Qml

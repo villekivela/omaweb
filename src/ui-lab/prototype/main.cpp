@@ -77,7 +77,7 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    tanto::BrowserController browser(dataRoot.path());
+    tanto::BrowserController browser(dataRoot.path(), QStringLiteral("mock"));
     if (!browser.ready()) {
         qCritical("%s", qPrintable(browser.errorMessage()));
         return 1;

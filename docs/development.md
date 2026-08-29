@@ -39,11 +39,11 @@ Never use Chromium's `--no-sandbox`, `--single-process`, in-process network-serv
 
 Build and startup budgets are recorded in [ADR 0007](adr/0007-keep-dependencies-out-of-the-fast-build.md). Run `scripts/benchmark_build.sh dev` to measure configure, clean build, incremental C++ rebuild, and a no-op build with the same preset. Record launch time separately when updating the baseline.
 
-Baseline measured on the initial macOS development machine on 2026-08-28:
+Baseline measured on the initial macOS development machine on 2026-08-29:
 
-- Fresh configure: 1.40 seconds
-- Clean uncached development build, including the browser, UI lab, and tests: 3.10 seconds
-- Incremental C++ rebuild and relink after changing `ThemeController.cpp`: 0.21 seconds
-- Build check after a QML-only edit: 0.01 seconds, with no compile or link work
+- Fresh configure: 1.613 seconds
+- Clean development build using the project-local ccache, including the browser, UI lab, and tests: 3.340 seconds
+- Incremental C++ rebuild and relink after changing `ThemeController.cpp`: 0.252 seconds
+- No-op build check: 0.020 seconds, with no compile or link work
 
 These timings exclude application launch and prebuilt Qt installation. Re-run `scripts/benchmark_build.sh` after changing target boundaries or build settings.

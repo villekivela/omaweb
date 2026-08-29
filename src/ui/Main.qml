@@ -467,6 +467,7 @@ ApplicationWindow {
                         }
 
                         ChromeButton {
+                            objectName: "recoverButton"
                             Layout.alignment: Qt.AlignHCenter
                             implicitWidth: 96
                             label: "Reload"
@@ -496,9 +497,7 @@ ApplicationWindow {
         Rectangle {
             width: Math.min(720, parent.width - 80)
             height: 70
-            anchors.horizontalCenter: parent.horizontalCenter
-            anchors.top: parent.top
-            anchors.topMargin: Math.max(90, parent.height * 0.18)
+            anchors.centerIn: parent
             radius: 16
             color: window.colors.overlay
             border.width: 1

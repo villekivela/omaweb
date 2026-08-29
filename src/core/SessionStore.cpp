@@ -117,35 +117,28 @@ bool SessionStore::saveTab(const TabState &tab, int position)
     return query.exec();
 }
 
-bool SessionStore::removeTab(const QString &id)
-{
-    QSqlQuery query(m_database);
-    query.prepare(QStringLiteral("DELETE FROM tabs WHERE id = ?"));
-    query.addBindValue(id);
-    return query.exec();
-}
-
-bool SessionStore::setActiveTab(const QString &spaceId, const QString &tabId)
+bool SessionStore::saveTabs(const QString &spaceId, const QVector<TabState> &tabs,
+    const QString &activeTabId)
 {
     if (!m_database.transaction()) {
         return false;
     }
 
-    QSqlQuery clear(m_database);
-    clear.prepare(QStringLiteral("UPDATE tabs SET active = 0 WHERE space_id = ?"));
-    clear.addBindValue(spaceId);
-    if (!clear.exec()) {
+    QSqlQuery removeExisting(m_database);
+    removeExisting.prepare(QStringLiteral("DELETE FROM tabs WHERE space_id = ?"));
+    removeExisting.addBindValue(spaceId);
+    if (!removeExisting.exec()) {
         m_database.rollback();
         return false;
     }
 
-    QSqlQuery set(m_database);
-    set.prepare(QStringLiteral("UPDATE tabs SET active = 1 WHERE id = ? AND space_id = ?"));
-    set.addBindValue(tabId);
-    set.addBindValue(spaceId);
-    if (!set.exec()) {
-        m_database.rollback();
-        return false;
+    for (qsizetype index = 0; index < tabs.size(); ++index) {
+        auto tab = tabs.at(index);
+        tab.active = tab.id == activeTabId;
+        if (!saveTab(tab, static_cast<int>(index))) {
+            m_database.rollback();
+            return false;
+        }
     }
 
     return m_database.commit();

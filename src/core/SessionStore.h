@@ -20,8 +20,8 @@ public:
     QVector<TabState> loadTabs(const QString &spaceId) const;
     bool saveSpace(const SpaceState &space);
     bool saveTab(const TabState &tab, int position);
-    bool removeTab(const QString &id);
-    bool setActiveTab(const QString &spaceId, const QString &tabId);
+    bool saveTabs(const QString &spaceId, const QVector<TabState> &tabs,
+        const QString &activeTabId);
 
     QString dataRoot() const;
     QString engineProfilePath(const QString &spaceId, const QString &engineName) const;

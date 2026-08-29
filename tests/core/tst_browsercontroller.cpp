@@ -23,7 +23,7 @@ private slots:
 void BrowserControllerTest::createsPersonalSpaceAndBlankTab()
 {
     QTemporaryDir root;
-    BrowserController controller(root.path());
+    BrowserController controller(root.path(), QStringLiteral("test"));
 
     QVERIFY(controller.ready());
     QCOMPARE(controller.activeSpaceName(), QStringLiteral("Personal"));
@@ -35,7 +35,7 @@ void BrowserControllerTest::createsPersonalSpaceAndBlankTab()
 void BrowserControllerTest::createsTabOnlyAfterCommittedInput()
 {
     QTemporaryDir root;
-    BrowserController controller(root.path());
+    BrowserController controller(root.path(), QStringLiteral("test"));
 
     QCOMPARE(controller.tabs()->rowCount(), 1);
     controller.openInput(QStringLiteral("tanto browser"), true);
@@ -48,14 +48,14 @@ void BrowserControllerTest::persistsTabsAndPins()
     QTemporaryDir root;
     QString activeId;
     {
-        BrowserController controller(root.path());
+        BrowserController controller(root.path(), QStringLiteral("test"));
         controller.openInput(QStringLiteral("https://example.com"), false);
         controller.toggleActivePinned();
         activeId = controller.activeTabId();
         QVERIFY(controller.activeTabPinned());
     }
 
-    BrowserController restored(root.path());
+    BrowserController restored(root.path(), QStringLiteral("test"));
     QCOMPARE(restored.activeTabId(), activeId);
     QCOMPARE(restored.activeUrl(), QUrl(QStringLiteral("https://example.com")));
     QVERIFY(restored.activeTabPinned());
@@ -64,7 +64,7 @@ void BrowserControllerTest::persistsTabsAndPins()
 void BrowserControllerTest::keepsFinalTabAsBlankTab()
 {
     QTemporaryDir root;
-    BrowserController controller(root.path());
+    BrowserController controller(root.path(), QStringLiteral("test"));
     controller.openInput(QStringLiteral("https://example.com"), false);
     controller.closeActiveTab();
     QCOMPARE(controller.tabs()->rowCount(), 1);
@@ -74,7 +74,7 @@ void BrowserControllerTest::keepsFinalTabAsBlankTab()
 void BrowserControllerTest::keepsRendererFailureOnAffectedTab()
 {
     QTemporaryDir root;
-    BrowserController controller(root.path());
+    BrowserController controller(root.path(), QStringLiteral("test"));
     const auto failedTabId = controller.activeTabId();
 
     controller.reportRendererFailure(QStringLiteral("Renderer exited unexpectedly"));

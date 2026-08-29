@@ -7,23 +7,29 @@ repository_root="$(cd "$script_directory/.." && pwd)"
 
 cd "$repository_root"
 
-start_seconds=$SECONDS
-cmake --preset "$preset"
-configure_seconds=$((SECONDS - start_seconds))
+measure_seconds() {
+    local timing_file
+    timing_file="$(mktemp)"
+    TIMEFORMAT='%3R'
+    { time "$@"; } 2>"$timing_file"
+    sed '$d' "$timing_file" >&2
+    measured_seconds="$(tail -n 1 "$timing_file")"
+    rm "$timing_file"
+}
+
+measure_seconds cmake --preset "$preset"
+configure_seconds="$measured_seconds"
 
 cmake --build --preset "$preset" --target clean
-start_seconds=$SECONDS
-cmake --build --preset "$preset"
-clean_build_seconds=$((SECONDS - start_seconds))
+measure_seconds cmake --build --preset "$preset"
+clean_build_seconds="$measured_seconds"
 
 cmake -E touch src/ui/ThemeController.cpp
-start_seconds=$SECONDS
-cmake --build --preset "$preset"
-incremental_cpp_seconds=$((SECONDS - start_seconds))
+measure_seconds cmake --build --preset "$preset"
+incremental_cpp_seconds="$measured_seconds"
 
-start_seconds=$SECONDS
-cmake --build --preset "$preset"
-no_op_build_seconds=$((SECONDS - start_seconds))
+measure_seconds cmake --build --preset "$preset"
+no_op_build_seconds="$measured_seconds"
 
 echo "configure_seconds=$configure_seconds"
 echo "clean_build_seconds=$clean_build_seconds"

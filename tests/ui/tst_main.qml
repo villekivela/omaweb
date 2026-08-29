@@ -60,6 +60,8 @@ TestCase {
         const newTabButton = findChild(window.contentItem, "newTabButton")
         const addressButton = findChild(window.contentItem, "addressButton")
         const collapseButton = findChild(window.contentItem, "collapseButton")
+        const reloadButton = findChild(window.contentItem, "reloadButton")
+        const pinButton = findChild(window.contentItem, "pinButton")
 
         compare(newTabButton.accessibleName, "New tab")
         compare(addressButton.accessibleName, "Search or enter address")
@@ -67,5 +69,25 @@ TestCase {
         verify(newTabButton.activeFocusOnTab)
         verify(addressButton.activeFocusOnTab)
         verify(collapseButton.activeFocusOnTab)
+
+        reloadButton.forceActiveFocus()
+        compare(window.activeFocusItem.objectName, "reloadButton")
+        keyClick(Qt.Key_Tab)
+        compare(window.activeFocusItem.objectName, "pinButton")
+        keyClick(Qt.Key_Tab)
+        compare(window.activeFocusItem.objectName, "addressButton")
+
+        let visitedTab = false
+        for (let step = 0; step < 8 && window.activeFocusItem.objectName !== "newTabButton"; ++step) {
+            keyClick(Qt.Key_Tab)
+            if (window.activeFocusItem.objectName.indexOf("tab-") === 0)
+                visitedTab = true
+        }
+        verify(visitedTab)
+        compare(window.activeFocusItem.objectName, "newTabButton")
+        keyClick(Qt.Key_Tab)
+        compare(window.activeFocusItem.objectName, "collapseButton")
+        keyClick(Qt.Key_Backtab)
+        compare(window.activeFocusItem.objectName, "newTabButton")
     }
 }

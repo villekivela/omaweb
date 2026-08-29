@@ -2,6 +2,7 @@ import QtQuick
 
 Rectangle {
     id: root
+    objectName: "tab-" + tabId
 
     required property string tabId
     required property string tabTitle

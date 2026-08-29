@@ -10,6 +10,7 @@ Rectangle {
     property bool canGoForward: false
     property string profilePath: ""
     readonly property bool pageHasFocus: root.activeFocus
+    readonly property int capabilities: 65
 
     signal rendererFailed(string reason)
 

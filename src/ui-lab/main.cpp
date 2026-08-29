@@ -21,7 +21,7 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    tanto::BrowserController browser(dataRoot.path());
+    tanto::BrowserController browser(dataRoot.path(), QStringLiteral("mock"));
     tanto::ThemeController theme(QStringLiteral(TANTO_THEME_PATH));
 
     QQmlApplicationEngine engine;

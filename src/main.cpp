@@ -75,7 +75,7 @@ int main(int argc, char *argv[])
     QCoreApplication::setApplicationName(QStringLiteral("Tanto"));
     QCoreApplication::setApplicationVersion(QStringLiteral(TANTO_VERSION));
 
-    tanto::BrowserController browser(dataRoot());
+    tanto::BrowserController browser(dataRoot(), QStringLiteral("qt"));
     tanto::ThemeController theme(themePath());
 
     QQmlApplicationEngine engine;

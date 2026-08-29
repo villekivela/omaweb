@@ -26,7 +26,7 @@ class BrowserController final : public QObject {
     Q_PROPERTY(QString errorMessage READ errorMessage CONSTANT)
 
 public:
-    explicit BrowserController(QString dataRoot, QObject *parent = nullptr);
+    BrowserController(QString dataRoot, QString engineName, QObject *parent = nullptr);
 
     QAbstractItemModel *spaces();
     QAbstractItemModel *tabs();
@@ -81,6 +81,7 @@ private:
     QString m_activeSpaceId;
     QString m_activeSpaceName;
     QString m_activeTabId;
+    QString m_engineName;
     QString m_errorMessage;
     ClosedTab m_closedTab;
     bool m_ready = false;

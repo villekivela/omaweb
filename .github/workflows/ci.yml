@@ -26,14 +26,23 @@ jobs:
         run: cmake --build --preset ci
       - name: Test
         run: ctest --preset ci
+      - name: Configure release resources
+        run: cmake --preset release
+      - name: Build release
+        run: cmake --build --preset release
+      - name: Verify embedded QML
+        run: ctest --preset release -R '^(tanto-shared-qml-boundary|tanto-qml-load)$'
 
   arch-linux:
     runs-on: ubuntu-latest
     container: archlinux:base-devel
     timeout-minutes: 30
+    env:
+      CC: clang
+      CXX: clang++
     steps:
       - name: Install toolchain
-        run: pacman -Syu --noconfirm git cmake ninja ccache qt6-base qt6-declarative qt6-webengine
+        run: pacman -Syu --noconfirm git cmake ninja clang ccache qt6-base qt6-declarative qt6-webengine
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
       - name: Configure
         run: cmake --preset ci

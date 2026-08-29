@@ -5,9 +5,10 @@
 
 namespace tanto {
 
-BrowserController::BrowserController(QString dataRoot, QObject *parent)
+BrowserController::BrowserController(QString dataRoot, QString engineName, QObject *parent)
     : QObject(parent)
     , m_store(std::move(dataRoot))
+    , m_engineName(std::move(engineName))
 {
     initialize();
 }
@@ -51,7 +52,7 @@ QString BrowserController::activeTitle() const
 
 QString BrowserController::activeProfilePath() const
 {
-    return m_store.engineProfilePath(m_activeSpaceId, QStringLiteral("qt"));
+    return m_store.engineProfilePath(m_activeSpaceId, m_engineName);
 }
 
 bool BrowserController::activeTabPinned() const
@@ -155,7 +156,6 @@ void BrowserController::closeActiveTab()
         break;
     }
 
-    m_store.removeTab(m_activeTabId);
     m_tabs.remove(m_activeTabId);
     setActiveTab(nextId);
 }
@@ -319,16 +319,12 @@ void BrowserController::ensureActiveTab()
     }
     m_activeTabId = active->id;
     m_tabs.reset(std::move(tabs));
-    m_store.setActiveTab(m_activeSpaceId, m_activeTabId);
+    persistTabs();
 }
 
 void BrowserController::persistTabs()
 {
-    const auto &tabs = m_tabs.items();
-    for (qsizetype index = 0; index < tabs.size(); ++index) {
-        m_store.saveTab(tabs.at(index), static_cast<int>(index));
-    }
-    m_store.setActiveTab(m_activeSpaceId, m_activeTabId);
+    m_store.saveTabs(m_activeSpaceId, m_tabs.items(), m_activeTabId);
 }
 
 void BrowserController::setActiveTab(const QString &tabId)

@@ -11,6 +11,7 @@ Item {
     property alias canGoForward: webView.canGoForward
     property string profilePath: ""
     readonly property bool pageHasFocus: webView.activeFocus
+    readonly property int capabilities: 67
 
     signal rendererFailed(string reason)
 
