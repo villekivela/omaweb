@@ -54,6 +54,15 @@ TestCase {
         verify(engineViewport !== null)
         verify(pinnedGrid.y < spaceHeading.y)
         compare(engineViewport.height, window.height)
+
+        browser.toggleActivePinned()
+        const pinnedDelegate = findChild(
+            window.contentItem, "pinned-tab-" + browser.activeTabId)
+        verify(pinnedDelegate !== null)
+        tryVerify(function() { return pinnedDelegate.visible })
+        verify(pinnedDelegate.width < 80)
+        verify(pinnedGrid.y < spaceHeading.y)
+        browser.toggleActivePinned()
     }
 
     function test_primaryChromeIsAccessibleFromKeyboard() {

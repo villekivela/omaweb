@@ -31,6 +31,7 @@ Item {
 
     WebEngineView {
         id: webView
+        objectName: "qtWebView"
         anchors.fill: parent
         profile: spaceProfile
         backgroundColor: "white"

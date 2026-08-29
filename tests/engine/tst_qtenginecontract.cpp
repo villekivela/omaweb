@@ -2,6 +2,7 @@
 #include "EngineViewContract.h"
 
 #include <QGuiApplication>
+#include <QMetaMethod>
 #include <QQmlComponent>
 #include <QQmlEngine>
 #include <QQuickItem>
@@ -93,10 +94,35 @@ void QtEngineContractTest::qtAdapterPropagatesPageState()
     QTRY_VERIFY(adapter->property("canGoBack").toBool());
     QVERIFY(QMetaObject::invokeMethod(adapter.get(), "goBack"));
     QTRY_COMPARE(adapter->property("pageTitle").toString(), QStringLiteral("First page"));
+    QVERIFY(QMetaObject::invokeMethod(adapter.get(), "goForward"));
+    QTRY_COMPARE(adapter->property("pageTitle").toString(), QStringLiteral("Second page"));
+
+    loadingSpy.clear();
+    QVERIFY(QMetaObject::invokeMethod(adapter.get(), "reloadPage"));
+    QTRY_VERIFY(loadingSpy.count() > 0);
+    QTRY_VERIFY(!adapter->property("loading").toBool());
     QVERIFY(loadingSpy.count() > 0);
 
     QSignalSpy failureSpy(adapter.get(), SIGNAL(rendererFailed(QString)));
     QVERIFY(failureSpy.isValid());
+    auto *webView = adapter->findChild<QObject *>(QStringLiteral("qtWebView"));
+    QVERIFY(webView);
+    QMetaMethod terminationSignal;
+    for (int index = 0; index < webView->metaObject()->methodCount(); ++index) {
+        const auto method = webView->metaObject()->method(index);
+        if (method.name() == "renderProcessTerminated") {
+            terminationSignal = method;
+            break;
+        }
+    }
+    QVERIFY(terminationSignal.isValid());
+    int terminationStatus = 0;
+    const int exitCode = 17;
+    QVERIFY(terminationSignal.invoke(webView, Qt::DirectConnection,
+        QGenericArgument(terminationSignal.parameterMetaType(0).name(), &terminationStatus),
+        QGenericArgument("int", &exitCode)));
+    QCOMPARE(failureSpy.count(), 1);
+    QVERIFY(failureSpy.takeFirst().first().toString().contains(QString::number(exitCode)));
 }
 
 int main(int argc, char *argv[])
