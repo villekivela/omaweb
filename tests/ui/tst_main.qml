@@ -75,9 +75,11 @@ TestCase {
         const pinButton = findChild(window.contentItem, "pinButton")
         const moveTabButton = findChild(window.contentItem, "moveTabButton")
         const manageSpacesButton = findChild(window.contentItem, "manageSpacesButton")
+        const settingsButton = findChild(window.contentItem, "settingsButton")
         const materialSymbolsFont = findChild(window, "materialSymbolsFont")
 
         compare(newTabButton.accessibleName, "New tab")
+        compare(settingsButton.accessibleName, "Browsing settings and downloads")
         compare(addressButton.accessibleName, "Search or enter address")
         compare(collapseButton.accessibleName, "Collapse sidebar")
         compare(moveTabButton.label, "drive_file_move")
@@ -107,7 +109,11 @@ TestCase {
         verify(visitedTab)
         compare(window.activeFocusItem.objectName, "newTabButton")
         keyClick(Qt.Key_Tab)
+        compare(window.activeFocusItem.objectName, "settingsButton")
+        keyClick(Qt.Key_Tab)
         compare(window.activeFocusItem.objectName, "collapseButton")
+        keyClick(Qt.Key_Backtab)
+        compare(window.activeFocusItem.objectName, "settingsButton")
         keyClick(Qt.Key_Backtab)
         compare(window.activeFocusItem.objectName, "newTabButton")
     }
@@ -187,5 +193,38 @@ TestCase {
         tryVerify(function() { return !auxiliary.visible })
         window.requestActivate()
         tryVerify(function() { return window.active })
+    }
+
+    function test_omnibarShowsOnlyActiveSpaceHistory() {
+        const personalSpaceId = browser.activeSpaceId
+        browser.recordVisit("https://personal.example/docs", "Personal docs")
+        window.openOmnibar(true)
+        const input = findChild(window.contentItem, "omnibarInput")
+        const suggestions = findChild(window.contentItem, "historySuggestionList")
+        verify(input !== null)
+        verify(suggestions !== null)
+        input.text = "docs"
+        tryCompare(suggestions, "count", 1)
+
+        window.closeOmnibar()
+        const workSpaceId = browser.createSpace("History Work")
+        verify(browser.switchSpace(workSpaceId))
+        window.openOmnibar(true)
+        input.text = "docs"
+        tryCompare(suggestions, "count", 0)
+        window.closeOmnibar()
+        verify(browser.switchSpace(personalSpaceId))
+        verify(browser.deleteSpace(workSpaceId, ""))
+    }
+
+    function test_settingsExposeNetworkAndDownloadPolicy() {
+        const settingsButton = findChild(window.contentItem, "settingsButton")
+        const remoteSuggestionsStatus = findChild(window.contentItem, "remoteSuggestionsStatus")
+        const automaticRequestsStatus = findChild(window.contentItem, "automaticRequestsStatus")
+        verify(settingsButton !== null)
+        verify(remoteSuggestionsStatus !== null)
+        verify(automaticRequestsStatus !== null)
+        compare(remoteSuggestionsStatus.text, "Remote search suggestions: Off")
+        verify(automaticRequestsStatus.text.indexOf("automatic network requests") >= 0)
     }
 }

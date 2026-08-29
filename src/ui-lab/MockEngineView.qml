@@ -10,6 +10,7 @@ Rectangle {
     property bool canGoForward: false
     property string profilePath: ""
     property var sharedProfile: null
+    property var permissionController: null
     readonly property var browserProfile: root.sharedProfile ? root.sharedProfile : root
     readonly property bool pageHasFocus: root.activeFocus
     readonly property int capabilities: 65
@@ -18,6 +19,8 @@ Rectangle {
     signal newTabRequested(var request, url requestedUrl)
     signal auxiliaryWindowRequested(var request, url requestedUrl)
     signal windowCloseRequested()
+    signal sitePermissionRequested(string requestId, string origin, string permission)
+    function respondToPermission(requestId, decision) {}
 
     color: "#f4f2ed"
 

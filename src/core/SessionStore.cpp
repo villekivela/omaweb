@@ -4,6 +4,7 @@
 #include <QDirIterator>
 #include <QSqlError>
 #include <QSqlQuery>
+#include <QDateTime>
 #include <QUuid>
 
 namespace tanto {
@@ -312,6 +313,130 @@ bool SessionStore::saveSpaceMove(const QString &sourceSpaceId,
     return saved;
 }
 
+bool SessionStore::recordVisit(const QString &spaceId, const QUrl &url, const QString &title)
+{
+    QSqlQuery query(spaceDatabase(spaceId));
+    query.prepare(QStringLiteral(
+        "INSERT INTO history(url, title, visited_at) VALUES(?, ?, ?)"));
+    query.addBindValue(url.toString());
+    query.addBindValue(title);
+    query.addBindValue(QDateTime::currentMSecsSinceEpoch());
+    return query.exec();
+}
+
+QVariantList SessionStore::historySuggestions(const QString &spaceId,
+    const QString &text, int limit) const
+{
+    QVariantList suggestions;
+    QSqlQuery query(spaceDatabase(spaceId));
+    const auto pattern = QStringLiteral("%%1%").arg(text);
+    query.prepare(QStringLiteral(
+        "SELECT url, MAX(title), MAX(visited_at) FROM history "
+        "WHERE ? = '' OR url LIKE ? OR title LIKE ? "
+        "GROUP BY url ORDER BY MAX(visited_at) DESC LIMIT ?"));
+    query.addBindValue(text);
+    query.addBindValue(pattern);
+    query.addBindValue(pattern);
+    query.addBindValue(limit);
+    if (!query.exec()) {
+        return suggestions;
+    }
+    while (query.next()) {
+        QVariantMap item;
+        item.insert(QStringLiteral("url"), query.value(0).toUrl());
+        item.insert(QStringLiteral("title"), query.value(1).toString());
+        item.insert(QStringLiteral("visitedAt"), query.value(2).toLongLong());
+        suggestions.append(item);
+    }
+    return suggestions;
+}
+
+int SessionStore::permissionDecision(const QString &spaceId, const QString &origin,
+    const QString &permission) const
+{
+    QSqlQuery query(spaceDatabase(spaceId));
+    query.prepare(QStringLiteral(
+        "SELECT decision FROM site_permissions WHERE origin = ? AND permission = ?"));
+    query.addBindValue(origin);
+    query.addBindValue(permission);
+    if (!query.exec() || !query.next()) {
+        return 0;
+    }
+    return query.value(0).toInt();
+}
+
+bool SessionStore::savePermissionDecision(const QString &spaceId, const QString &origin,
+    const QString &permission, int decision)
+{
+    QSqlQuery query(spaceDatabase(spaceId));
+    query.prepare(QStringLiteral(
+        "INSERT INTO site_permissions(origin, permission, decision) VALUES(?, ?, ?) "
+        "ON CONFLICT(origin, permission) DO UPDATE SET decision = excluded.decision"));
+    query.addBindValue(origin);
+    query.addBindValue(permission);
+    query.addBindValue(decision);
+    return query.exec();
+}
+
+bool SessionStore::recordDownload(const QString &id, const QUrl &url, const QString &path,
+    const QString &state, qint64 receivedBytes, qint64 totalBytes)
+{
+    QSqlQuery query(m_database);
+    query.prepare(QStringLiteral(
+        "INSERT INTO downloads(id, url, path, state, received_bytes, total_bytes, error, created_at) "
+        "VALUES(?, ?, ?, ?, ?, ?, '', ?) "
+        "ON CONFLICT(id) DO UPDATE SET url = excluded.url, path = excluded.path, "
+        "state = excluded.state, received_bytes = excluded.received_bytes, "
+        "total_bytes = excluded.total_bytes"));
+    query.addBindValue(id);
+    query.addBindValue(url.toString());
+    query.addBindValue(path);
+    query.addBindValue(state);
+    query.addBindValue(receivedBytes);
+    query.addBindValue(totalBytes);
+    query.addBindValue(QDateTime::currentMSecsSinceEpoch());
+    return query.exec();
+}
+
+bool SessionStore::updateDownload(const QString &id, const QString &state,
+    qint64 receivedBytes, qint64 totalBytes, const QString &error)
+{
+    QSqlQuery query(m_database);
+    query.prepare(QStringLiteral(
+        "UPDATE downloads SET state = ?, received_bytes = ?, total_bytes = ?, error = ? "
+        "WHERE id = ?"));
+    query.addBindValue(state);
+    query.addBindValue(receivedBytes);
+    query.addBindValue(totalBytes);
+    query.addBindValue(error.isNull() ? QStringLiteral("") : error);
+    query.addBindValue(id);
+    return query.exec();
+}
+
+QVariantList SessionStore::downloadHistory() const
+{
+    QVariantList downloads;
+    QSqlQuery query(m_database);
+    if (!query.exec(QStringLiteral(
+            "SELECT id, url, path, state, received_bytes, total_bytes, error, created_at "
+            "FROM downloads ORDER BY created_at DESC"))) {
+        return downloads;
+    }
+    while (query.next()) {
+        QVariantMap item;
+        item.insert(QStringLiteral("id"), query.value(0).toString());
+        item.insert(QStringLiteral("url"), query.value(1).toUrl());
+        item.insert(QStringLiteral("path"), query.value(2).toString());
+        item.insert(QStringLiteral("state"), query.value(3).toString());
+        item.insert(QStringLiteral("receivedBytes"), query.value(4).toLongLong());
+        item.insert(QStringLiteral("totalBytes"), query.value(5).toLongLong());
+        item.insert(QStringLiteral("error"), query.value(6).toString());
+        item.insert(QStringLiteral("createdAt"), query.value(7).toLongLong());
+        downloads.append(item);
+    }
+    return downloads;
+}
+
 QString SessionStore::dataRoot() const
 {
     return m_dataRoot;
@@ -341,6 +466,16 @@ bool SessionStore::executeSchema(QString *errorMessage)
         CREATE TABLE IF NOT EXISTS schema_migrations (
             name TEXT PRIMARY KEY,
             state TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS downloads (
+            id TEXT PRIMARY KEY,
+            url TEXT NOT NULL,
+            path TEXT NOT NULL,
+            state TEXT NOT NULL,
+            received_bytes INTEGER NOT NULL DEFAULT 0,
+            total_bytes INTEGER NOT NULL DEFAULT -1,
+            error TEXT NOT NULL DEFAULT '',
+            created_at INTEGER NOT NULL
         );
     )SQL";
 

@@ -2,6 +2,7 @@
 
 #include <QUrlQuery>
 #include <QUuid>
+#include <QStandardPaths>
 
 namespace tanto {
 
@@ -12,10 +13,19 @@ BrowserController::BrowserController(QString dataRoot, QString engineName, QObje
 
 BrowserController::BrowserController(QString dataRoot, QString engineName,
     bool privateBrowsing, QObject *parent)
+    : BrowserController(std::move(dataRoot), std::move(engineName), privateBrowsing,
+        QSharedPointer<QHash<QString, int>>::create(), parent)
+{
+}
+
+BrowserController::BrowserController(QString dataRoot, QString engineName,
+    bool privateBrowsing, QSharedPointer<QHash<QString, int>> sessionPermissionDecisions,
+    QObject *parent)
     : QObject(parent)
     , m_store(std::move(dataRoot))
     , m_engineName(std::move(engineName))
     , m_privateBrowsing(privateBrowsing)
+    , m_sessionPermissionDecisions(std::move(sessionPermissionDecisions))
 {
     initialize();
 }
@@ -96,6 +106,16 @@ bool BrowserController::ready() const
 QString BrowserController::errorMessage() const
 {
     return m_errorMessage;
+}
+
+QString BrowserController::downloadDirectory() const
+{
+    return QStandardPaths::writableLocation(QStandardPaths::DownloadLocation);
+}
+
+bool BrowserController::acceptDownloads() const
+{
+    return true;
 }
 
 void BrowserController::activateTab(const QString &tabId)
@@ -513,6 +533,88 @@ void BrowserController::requestReload()
     emit reloadRequested();
 }
 
+void BrowserController::recordVisit(const QUrl &url, const QString &title)
+{
+    if (m_privateBrowsing || url.scheme() == QStringLiteral("about")
+        || normalizedOrigin(url).isEmpty()) {
+        return;
+    }
+    m_store.recordVisit(m_activeSpaceId, url,
+        title.isEmpty() ? url.host() : title);
+}
+
+QVariantList BrowserController::historySuggestions(const QString &query, int limit) const
+{
+    if (m_privateBrowsing || limit <= 0) {
+        return {};
+    }
+    return m_store.historySuggestions(m_activeSpaceId, query.trimmed(), limit);
+}
+
+int BrowserController::permissionDecision(const QUrl &url, const QString &permission)
+{
+    const auto origin = normalizedOrigin(url);
+    const auto normalizedPermission = permission.trimmed().toLower();
+    if (origin.isEmpty() || normalizedPermission.isEmpty()) {
+        return Ask;
+    }
+    const auto key = sessionPermissionKey(origin, normalizedPermission);
+    const auto sessionDecision = m_sessionPermissionDecisions->take(key);
+    if (sessionDecision != Ask) {
+        return sessionDecision;
+    }
+    if (m_privateBrowsing) {
+        return Ask;
+    }
+    return m_store.permissionDecision(m_activeSpaceId, origin, normalizedPermission);
+}
+
+bool BrowserController::setPermissionDecision(const QUrl &url, const QString &permission,
+    int decision)
+{
+    const auto origin = normalizedOrigin(url);
+    const auto normalizedPermission = permission.trimmed().toLower();
+    if (origin.isEmpty() || normalizedPermission.isEmpty()
+        || decision < AllowOnce || decision > Block) {
+        return false;
+    }
+    if (decision == AllowOnce || m_privateBrowsing) {
+        m_sessionPermissionDecisions->insert(
+            sessionPermissionKey(origin, normalizedPermission), decision);
+        return true;
+    }
+    return m_store.savePermissionDecision(
+        m_activeSpaceId, origin, normalizedPermission, decision);
+}
+
+QString BrowserController::recordDownload(const QString &runtimeId, const QUrl &url,
+    const QString &path, const QString &state, qint64 receivedBytes, qint64 totalBytes)
+{
+    if (m_privateBrowsing || runtimeId.isEmpty() || !url.isValid()) {
+        return {};
+    }
+    const auto recordId = QUuid::createUuid().toString(QUuid::WithoutBraces);
+    return m_store.recordDownload(recordId, url, path, state, receivedBytes, totalBytes)
+        ? recordId : QString{};
+}
+
+bool BrowserController::updateDownload(const QString &id, const QString &state,
+    qint64 receivedBytes, qint64 totalBytes, const QString &error)
+{
+    if (m_privateBrowsing) {
+        return false;
+    }
+    return m_store.updateDownload(id, state, receivedBytes, totalBytes, error);
+}
+
+QVariantList BrowserController::downloadHistory() const
+{
+    if (m_privateBrowsing) {
+        return {};
+    }
+    return m_store.downloadHistory();
+}
+
 void BrowserController::initialize()
 {
     if (m_privateBrowsing) {
@@ -621,6 +723,30 @@ QUrl BrowserController::resolveInput(const QString &input)
     query.addQueryItem(QStringLiteral("q"), value);
     search.setQuery(query);
     return search;
+}
+
+QString BrowserController::normalizedOrigin(const QUrl &url)
+{
+    const auto scheme = url.scheme().toLower();
+    if ((scheme != QStringLiteral("http") && scheme != QStringLiteral("https"))
+        || url.host().isEmpty()) {
+        return {};
+    }
+    QUrl origin;
+    origin.setScheme(scheme);
+    origin.setHost(url.host().toLower());
+    const auto port = url.port(-1);
+    const auto defaultPort = scheme == QStringLiteral("https") ? 443 : 80;
+    if (port != -1 && port != defaultPort) {
+        origin.setPort(port);
+    }
+    return origin.toString(QUrl::FullyEncoded);
+}
+
+QString BrowserController::sessionPermissionKey(const QString &origin,
+    const QString &permission) const
+{
+    return m_activeSpaceId + QChar(0x1f) + origin + QChar(0x1f) + permission;
 }
 
 TabState BrowserController::makeBlankTab(const QString &spaceId)

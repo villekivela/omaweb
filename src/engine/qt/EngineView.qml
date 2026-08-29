@@ -11,6 +11,7 @@ Item {
     property alias canGoForward: webView.canGoForward
     property string profilePath: ""
     property var sharedProfile: null
+    property var permissionController: null
     readonly property var browserProfile: webView.profile
     readonly property bool pageHasFocus: webView.activeFocus
     readonly property int capabilities: 67
@@ -32,6 +33,17 @@ Item {
     signal newTabRequested(var request, url requestedUrl)
     signal auxiliaryWindowRequested(var request, url requestedUrl)
     signal windowCloseRequested()
+    signal sitePermissionRequested(string requestId, string origin, string permission)
+    property var pendingPermissions: ({})
+    property int nextPermissionRequestId: 0
+
+    function respondToPermission(requestId, decision) {
+        const request = pendingPermissions[requestId]
+        if (!request) return
+        delete pendingPermissions[requestId]
+        if (decision === 1 || decision === 2) request.grant()
+        else request.deny()
+    }
 
     function goBack() { webView.goBack() }
     function goForward() { webView.goForward() }
@@ -89,5 +101,21 @@ Item {
         }
 
         onWindowCloseRequested: root.windowCloseRequested()
+
+        onPermissionRequested: function(request) {
+            const permission = String(request.permissionType)
+            const decision = root.permissionController
+                ? root.permissionController.permissionDecision(request.origin, permission)
+                : 0
+            if (decision === 1 || decision === 2)
+                request.grant()
+            else if (decision === 3)
+                request.deny()
+            else {
+                const requestId = String(++root.nextPermissionRequestId)
+                root.pendingPermissions[requestId] = request
+                root.sitePermissionRequested(requestId, request.origin.toString(), permission)
+            }
+        }
     }
 }

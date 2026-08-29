@@ -5,6 +5,8 @@
 
 #include <QHash>
 #include <QSqlDatabase>
+#include <QUrl>
+#include <QVariantList>
 
 namespace tanto {
 
@@ -29,6 +31,17 @@ public:
     bool saveSpaceMove(const QString &sourceSpaceId, const QVector<TabState> &sourceTabs,
         const QString &sourceActiveTabId, const QString &destinationSpaceId,
         const QVector<TabState> &destinationTabs, const QString &destinationActiveTabId);
+    bool recordVisit(const QString &spaceId, const QUrl &url, const QString &title);
+    QVariantList historySuggestions(const QString &spaceId, const QString &query, int limit) const;
+    int permissionDecision(const QString &spaceId, const QString &origin,
+        const QString &permission) const;
+    bool savePermissionDecision(const QString &spaceId, const QString &origin,
+        const QString &permission, int decision);
+    bool recordDownload(const QString &id, const QUrl &url, const QString &path,
+        const QString &state, qint64 receivedBytes, qint64 totalBytes);
+    bool updateDownload(const QString &id, const QString &state,
+        qint64 receivedBytes, qint64 totalBytes, const QString &error);
+    QVariantList downloadHistory() const;
 
     QString dataRoot() const;
     QString engineProfilePath(const QString &spaceId, const QString &engineName) const;

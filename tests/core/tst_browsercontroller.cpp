@@ -31,6 +31,9 @@ private slots:
     void keepsFinalTabAsBlankTab();
     void keepsRendererFailureOnAffectedTab();
     void sharesPrivateIdentityUntilLastWindowCloses();
+    void keepsHistorySuggestionsInsideActiveSpace();
+    void scopesPermissionDecisionsToOriginSpaceAndLifetime();
+    void persistsOnlyNonPrivateDownloadHistory();
 };
 
 void BrowserControllerTest::createsPersonalSpaceAndBlankTab()
@@ -289,6 +292,13 @@ void BrowserControllerTest::sharesPrivateIdentityUntilLastWindowCloses()
     QVERIFY(manager.acceptPrivateDownloads());
     QVERIFY(!manager.recordPrivateDownloads());
     QVERIFY(!manager.privateDownloadDirectory().isEmpty());
+    QVERIFY(first->setPermissionDecision(QUrl(QStringLiteral("https://camera.example")),
+        QStringLiteral("camera"), BrowserController::AllowOnce));
+    QCOMPARE(second->permissionDecision(QUrl(QStringLiteral("https://camera.example/path")),
+                 QStringLiteral("camera")),
+        BrowserController::AllowOnce);
+    QCOMPARE(second->permissionDecision(QUrl(QStringLiteral("https://camera.example/path")),
+                 QStringLiteral("camera")), BrowserController::Ask);
 
     QSignalSpy closeSpy(first, &BrowserController::closeWindowRequested);
     first->closeActiveTab();
@@ -306,7 +316,109 @@ void BrowserControllerTest::sharesPrivateIdentityUntilLastWindowCloses()
     QVERIFY(fresh);
     QVERIFY(manager.privateProfilePath() != sharedProfilePath);
     QCOMPARE(fresh->activeUrl(), QUrl(QStringLiteral("about:blank")));
+    QCOMPARE(fresh->permissionDecision(QUrl(QStringLiteral("https://camera.example")),
+                 QStringLiteral("camera")),
+        BrowserController::Ask);
     manager.releasePrivateWindow(fresh);
+}
+
+void BrowserControllerTest::keepsHistorySuggestionsInsideActiveSpace()
+{
+    QTemporaryDir root;
+    BrowserController controller(root.path(), QStringLiteral("test"));
+    const auto personalSpaceId = controller.activeSpaceId();
+    controller.recordVisit(QUrl(QStringLiteral("https://docs.example/personal")),
+        QStringLiteral("Personal documentation"));
+    const auto workSpaceId = controller.createSpace(QStringLiteral("Work"));
+    QVERIFY(controller.switchSpace(workSpaceId));
+    controller.recordVisit(QUrl(QStringLiteral("https://docs.example/work")),
+        QStringLiteral("Work documentation"));
+
+    const auto workSuggestions = controller.historySuggestions(QStringLiteral("docs"));
+    QCOMPARE(workSuggestions.size(), 1);
+    QCOMPARE(workSuggestions.first().toMap().value(QStringLiteral("url")).toUrl(),
+        QUrl(QStringLiteral("https://docs.example/work")));
+
+    QVERIFY(controller.switchSpace(personalSpaceId));
+    const auto personalSuggestions = controller.historySuggestions(QStringLiteral("documentation"));
+    QCOMPARE(personalSuggestions.size(), 1);
+    QCOMPARE(personalSuggestions.first().toMap().value(QStringLiteral("url")).toUrl(),
+        QUrl(QStringLiteral("https://docs.example/personal")));
+}
+
+void BrowserControllerTest::scopesPermissionDecisionsToOriginSpaceAndLifetime()
+{
+    QTemporaryDir root;
+    QString personalSpaceId;
+    QString workSpaceId;
+    {
+        BrowserController controller(root.path(), QStringLiteral("test"));
+        personalSpaceId = controller.activeSpaceId();
+        QVERIFY(controller.setPermissionDecision(
+            QUrl(QStringLiteral("https://EXAMPLE.com/path?ignored=1")),
+            QStringLiteral("geolocation"), BrowserController::AllowPersistently));
+        QCOMPARE(controller.permissionDecision(
+                     QUrl(QStringLiteral("https://example.com/another")),
+                     QStringLiteral("geolocation")),
+            BrowserController::AllowPersistently);
+        QCOMPARE(controller.permissionDecision(
+                     QUrl(QStringLiteral("https://example.com:443/default-port")),
+                     QStringLiteral("geolocation")),
+            BrowserController::AllowPersistently);
+        QCOMPARE(controller.permissionDecision(
+                     QUrl(QStringLiteral("https://sub.example.com")),
+                     QStringLiteral("geolocation")),
+            BrowserController::Ask);
+        QCOMPARE(controller.permissionDecision(
+                     QUrl(QStringLiteral("https://example.com:444")),
+                     QStringLiteral("geolocation")),
+            BrowserController::Ask);
+
+        QVERIFY(controller.setPermissionDecision(QUrl(QStringLiteral("https://once.example")),
+            QStringLiteral("notifications"), BrowserController::AllowOnce));
+        workSpaceId = controller.createSpace(QStringLiteral("Work"));
+        QVERIFY(controller.switchSpace(workSpaceId));
+        QCOMPARE(controller.permissionDecision(QUrl(QStringLiteral("https://example.com")),
+                     QStringLiteral("geolocation")),
+            BrowserController::Ask);
+    }
+
+    BrowserController restored(root.path(), QStringLiteral("test"));
+    QVERIFY(restored.switchSpace(personalSpaceId));
+    QCOMPARE(restored.permissionDecision(QUrl(QStringLiteral("https://example.com")),
+                 QStringLiteral("geolocation")),
+        BrowserController::AllowPersistently);
+    QCOMPARE(restored.permissionDecision(QUrl(QStringLiteral("https://once.example")),
+                 QStringLiteral("notifications")),
+        BrowserController::Ask);
+}
+
+void BrowserControllerTest::persistsOnlyNonPrivateDownloadHistory()
+{
+    QTemporaryDir root;
+    {
+        BrowserController controller(root.path(), QStringLiteral("test"));
+        const auto downloadId = controller.recordDownload(QStringLiteral("runtime-1"),
+            QUrl(QStringLiteral("https://files.example/archive.zip")),
+            QStringLiteral("/Downloads/archive.zip"), QStringLiteral("in-progress"), 12, 100);
+        QVERIFY(!downloadId.isEmpty());
+        controller.closeActiveTab();
+        QVERIFY(controller.updateDownload(
+            downloadId, QStringLiteral("completed"), 100, 100, {}));
+
+        BrowserController privateController(root.path(), QStringLiteral("test"), true);
+        QVERIFY(privateController.recordDownload(QStringLiteral("private-download"),
+            QUrl(QStringLiteral("https://files.example/private.zip")),
+            QStringLiteral("/Downloads/private.zip"), QStringLiteral("completed"), 5, 5).isEmpty());
+    }
+
+    BrowserController restored(root.path(), QStringLiteral("test"));
+    const auto downloads = restored.downloadHistory();
+    QCOMPARE(downloads.size(), 1);
+    const auto record = downloads.first().toMap();
+    QVERIFY(!record.value(QStringLiteral("id")).toString().isEmpty());
+    QCOMPARE(record.value(QStringLiteral("state")).toString(), QStringLiteral("completed"));
+    QCOMPARE(record.value(QStringLiteral("receivedBytes")).toLongLong(), 100);
 }
 
 QTEST_GUILESS_MAIN(BrowserControllerTest)

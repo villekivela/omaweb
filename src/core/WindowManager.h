@@ -2,6 +2,8 @@
 
 #include <QObject>
 #include <QSet>
+#include <QHash>
+#include <QSharedPointer>
 
 #include <memory>
 
@@ -44,6 +46,7 @@ private:
     QString m_engineName;
     std::unique_ptr<QTemporaryDir> m_privateRoot;
     QSet<BrowserController *> m_privateWindows;
+    QSharedPointer<QHash<QString, int>> m_privatePermissionDecisions;
 };
 
 } // namespace tanto

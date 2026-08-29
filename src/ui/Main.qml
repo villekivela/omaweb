@@ -26,6 +26,14 @@ ApplicationWindow {
     property string pendingMoveTabId: ""
     property string pendingMoveSpaceId: ""
     property var privateProfileHost: null
+    property var spaceProfileHost: null
+    property var omnibarSuggestions: []
+    property var visibleDownloads: []
+    property var pendingPermissionRequest: null
+    property string pendingPermissionOrigin: ""
+    property string pendingPermissionType: ""
+    property var pendingPermissionResponder: null
+    property var downloadRecordIds: ({})
 
     function privatePalette(source) {
         const palette = Object.assign({}, source)
@@ -47,10 +55,38 @@ ApplicationWindow {
         newTabIntent = forNewTab
         omnibarInput.text = forNewTab ? "" : window.windowBrowser.activeUrl.toString()
         omnibarOpen = true
+        omnibarSuggestions = window.privateWindow
+            ? [] : window.windowBrowser.historySuggestions(omnibarInput.text)
         Qt.callLater(function() {
             omnibarInput.forceActiveFocus()
             omnibarInput.selectAll()
         })
+    }
+
+    function createSpaceProfile() {
+        if (window.privateWindow || window.spaceProfileHost) return
+        const component = Qt.createComponent(engineProfileSource)
+        window.spaceProfileHost = component.createObject(window, {
+            "profilePath": window.windowBrowser.activeProfilePath,
+            "downloadDirectory": window.windowBrowser.downloadDirectory,
+            "acceptDownloads": window.windowBrowser.acceptDownloads,
+            "privateBrowsing": false,
+            "downloadNamespace": window.windowBrowser.activeSpaceId
+        })
+        window.spaceProfileHost.downloadStarted.connect(window.handleDownloadStarted)
+        window.spaceProfileHost.downloadUpdated.connect(window.handleDownloadUpdated)
+    }
+
+    function handleDownloadStarted(runtimeId, sourceUrl, path, state, receivedBytes, totalBytes) {
+        const recordId = window.windowBrowser.recordDownload(runtimeId, sourceUrl, path,
+            state, receivedBytes, totalBytes)
+        if (recordId.length > 0) window.downloadRecordIds[runtimeId] = recordId
+    }
+
+    function handleDownloadUpdated(runtimeId, state, receivedBytes, totalBytes, error) {
+        const recordId = window.downloadRecordIds[runtimeId]
+        if (recordId) window.windowBrowser.updateDownload(recordId, state,
+            receivedBytes, totalBytes, error)
     }
 
     function closeOmnibar() {
@@ -431,6 +467,18 @@ ApplicationWindow {
                         }
                     }
 
+
+                    ChromeButton {
+                        objectName: "settingsButton"
+                        Layout.alignment: Qt.AlignHCenter
+                        label: "settings"
+                        accessibleName: "Browsing settings and downloads"
+                        fontFamily: materialSymbols.name
+                        foreground: window.colors.mutedText
+                        hoverBackground: window.colors.surfaceHover
+                        onClicked: settingsDialog.open()
+                    }
+
                     ChromeButton {
                         objectName: "collapseButton"
                         Layout.alignment: Qt.AlignHCenter
@@ -456,12 +504,16 @@ ApplicationWindow {
                     focus: true
 
                     function loadActiveSpace() {
+                        window.createSpaceProfile()
                         setSource(engineViewSource, {
                             "profilePath": window.profilePathOverride.length > 0
                                 ? window.profilePathOverride
                                 : window.windowBrowser.activeProfilePath,
                             "currentUrl": window.windowBrowser.activeUrl,
-                            "sharedProfile": window.sharedEngineProfile
+                            "sharedProfile": window.privateWindow
+                                ? window.sharedEngineProfile
+                                : (window.spaceProfileHost ? window.spaceProfileHost.profile : null),
+                            "permissionController": window.windowBrowser
                         })
                     }
 
@@ -495,6 +547,10 @@ ApplicationWindow {
 
                     function onLoadingChanged() {
                         window.windowBrowser.setActiveLoading(engineLoader.item.loading)
+                        if (!engineLoader.item.loading) {
+                            window.windowBrowser.recordVisit(
+                                engineLoader.item.currentUrl, engineLoader.item.pageTitle)
+                        }
                     }
 
                     function onRendererFailed(reason) {
@@ -516,6 +572,14 @@ ApplicationWindow {
                         window.windowBrowser.openInput(destination, true)
                         if (request) engineLoader.item.acceptNewWindowRequest(request)
                     }
+
+                    function onSitePermissionRequested(requestId, origin, permission) {
+                        window.pendingPermissionRequest = requestId
+                        window.pendingPermissionResponder = engineLoader.item
+                        window.pendingPermissionOrigin = origin
+                        window.pendingPermissionType = permission
+                        permissionDialog.open()
+                    }
                 }
 
                 Connections {
@@ -529,6 +593,10 @@ ApplicationWindow {
 
                     function onSpaceSuspended(spaceId) {
                         engineLoader.source = ""
+                        if (window.spaceProfileHost) {
+                            window.spaceProfileHost.retire()
+                            window.spaceProfileHost = null
+                        }
                     }
 
                     function onSpaceRestored(spaceId) {
@@ -598,6 +666,29 @@ ApplicationWindow {
                         }
                     }
                 }
+
+
+                Rectangle {
+                    objectName: "browserErrorBanner"
+                    anchors.top: parent.top
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    width: Math.min(620, parent.width - 40)
+                    height: window.windowBrowser.errorMessage.length > 0 ? 52 : 0
+                    visible: height > 0
+                    radius: 10
+                    color: window.colors.surface
+                    border.width: 1
+                    border.color: window.colors.border
+                    z: 20
+
+                    Text {
+                        anchors.fill: parent
+                        anchors.margins: 12
+                        text: window.windowBrowser.errorMessage
+                        color: window.colors.text
+                        wrapMode: Text.WordWrap
+                    }
+                }
             }
         }
     }
@@ -607,6 +698,14 @@ ApplicationWindow {
 
         AuxiliaryWindow {
             engineSource: engineViewSource
+            permissionController: window.windowBrowser
+            onSitePermissionRequested: function(responder, requestId, origin, permission) {
+                window.pendingPermissionRequest = requestId
+                window.pendingPermissionResponder = responder
+                window.pendingPermissionOrigin = origin
+                window.pendingPermissionType = permission
+                permissionDialog.open()
+            }
         }
     }
 
@@ -620,7 +719,8 @@ ApplicationWindow {
                 window.privateProfileHost = profileComponent.createObject(window, {
                     "profilePath": profilePath,
                     "downloadDirectory": windowManager.privateDownloadDirectory,
-                    "acceptDownloads": windowManager.acceptPrivateDownloads
+                    "acceptDownloads": windowManager.acceptPrivateDownloads,
+                    "privateBrowsing": true
                 })
             }
             const component = Qt.createComponent(Qt.resolvedUrl("Main.qml"))
@@ -635,7 +735,7 @@ ApplicationWindow {
         function onPrivateSessionEnding() {
             if (window.privateWindow || windowManager.privateWindowCount > 0
                     || !window.privateProfileHost) return
-            window.privateProfileHost.destroy()
+            window.privateProfileHost.retire()
             window.privateProfileHost = null
         }
     }
@@ -671,6 +771,112 @@ ApplicationWindow {
             width: 280
             placeholderText: "Space name"
             Accessible.name: "New Space name"
+        }
+    }
+
+
+    Dialog {
+        id: permissionDialog
+        objectName: "permissionDialog"
+        anchors.centerIn: parent
+        modal: true
+        title: "Site permission"
+        standardButtons: Dialog.NoButton
+
+        ColumnLayout {
+            width: 380
+            spacing: 10
+
+            Label {
+                Layout.fillWidth: true
+                wrapMode: Text.WordWrap
+                text: window.pendingPermissionOrigin + " requested a protected browser capability."
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+
+                Button {
+                    text: "Allow once"
+                    onClicked: {
+                        window.windowBrowser.setPermissionDecision(window.pendingPermissionOrigin,
+                            window.pendingPermissionType, 1)
+                        if (window.pendingPermissionResponder) window.pendingPermissionResponder.respondToPermission(
+                            window.pendingPermissionRequest, 1)
+                        permissionDialog.close()
+                    }
+                }
+                Button {
+                    text: "Always allow"
+                    enabled: !window.privateWindow
+                    onClicked: {
+                        window.windowBrowser.setPermissionDecision(window.pendingPermissionOrigin,
+                            window.pendingPermissionType, 2)
+                        if (window.pendingPermissionResponder) window.pendingPermissionResponder.respondToPermission(
+                            window.pendingPermissionRequest, 2)
+                        permissionDialog.close()
+                    }
+                }
+                Button {
+                    text: "Block"
+                    onClicked: {
+                        window.windowBrowser.setPermissionDecision(window.pendingPermissionOrigin,
+                            window.pendingPermissionType, 3)
+                        if (window.pendingPermissionResponder) window.pendingPermissionResponder.respondToPermission(
+                            window.pendingPermissionRequest, 3)
+                        permissionDialog.close()
+                    }
+                }
+            }
+        }
+    }
+
+    Dialog {
+        id: settingsDialog
+        objectName: "settingsDialog"
+        anchors.centerIn: parent
+        modal: true
+        title: "Browsing settings and downloads"
+        standardButtons: Dialog.Close
+        onOpened: window.visibleDownloads = window.windowBrowser.downloadHistory()
+
+        ColumnLayout {
+            width: 480
+            spacing: 10
+
+            Label {
+                objectName: "remoteSuggestionsStatus"
+                text: "Remote search suggestions: Off"
+            }
+            Label {
+                objectName: "automaticRequestsStatus"
+                Layout.fillWidth: true
+                wrapMode: Text.WordWrap
+                text: "Tanto makes no automatic network requests in this build. Page loads, searches, and downloads happen only after user action."
+            }
+            Label {
+                text: "Download history"
+                font.weight: Font.DemiBold
+            }
+            ListView {
+                Layout.fillWidth: true
+                Layout.preferredHeight: Math.min(180, contentHeight)
+                model: window.visibleDownloads
+                visible: count > 0
+
+                delegate: Label {
+                    required property var modelData
+                    width: ListView.view.width
+                    text: modelData.path + " · " + modelData.state
+                        + (modelData.error.length > 0 ? " · " + modelData.error : "")
+                    elide: Text.ElideMiddle
+                }
+            }
+            Label {
+                visible: window.visibleDownloads.length === 0
+                text: "No recorded downloads"
+                color: window.colors.mutedText
+            }
         }
     }
 
@@ -798,7 +1004,7 @@ ApplicationWindow {
 
         Rectangle {
             width: Math.min(720, parent.width - 80)
-            height: 70
+            height: 70 + Math.min(280, historySuggestionList.contentHeight)
             anchors.centerIn: parent
             radius: 16
             color: window.colors.overlay
@@ -808,7 +1014,10 @@ ApplicationWindow {
             TextField {
                 id: omnibarInput
                 objectName: "omnibarInput"
-                anchors.fill: parent
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.top: parent.top
+                height: 70
                 anchors.margins: 12
                 background: null
                 color: window.colors.text
@@ -817,6 +1026,11 @@ ApplicationWindow {
                 font.pixelSize: 19
                 selectByMouse: true
                 Accessible.name: "Omnibar"
+
+                onTextChanged: {
+                    window.omnibarSuggestions = window.privateWindow
+                        ? [] : window.windowBrowser.historySuggestions(text)
+                }
 
                 onAccepted: {
                     if (text.trim().length === 0) return
@@ -827,6 +1041,30 @@ ApplicationWindow {
                 Keys.onEscapePressed: function(event) {
                     window.closeOmnibar()
                     event.accepted = true
+                }
+            }
+
+            ListView {
+                id: historySuggestionList
+                objectName: "historySuggestionList"
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.top: omnibarInput.bottom
+                anchors.bottom: parent.bottom
+                anchors.margins: 12
+                clip: true
+                model: window.omnibarSuggestions
+
+                delegate: ItemDelegate {
+                    required property var modelData
+                    width: ListView.view.width
+                    height: 52
+                    text: modelData.title + "\n" + modelData.url
+                    Accessible.name: "Open history result " + modelData.title
+                    onClicked: {
+                        window.windowBrowser.openInput(modelData.url.toString(), window.newTabIntent)
+                        window.closeOmnibar()
+                    }
                 }
             }
         }

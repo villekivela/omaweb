@@ -23,7 +23,8 @@ BrowserController *WindowManager::createPrivateWindow()
         return nullptr;
     }
 
-    auto *controller = new BrowserController({}, m_engineName, true, this);
+    auto *controller = new BrowserController({}, m_engineName, true,
+        m_privatePermissionDecisions, this);
     if (!controller->ready()) {
         controller->deleteLater();
         return nullptr;
@@ -57,6 +58,7 @@ void WindowManager::releasePrivateWindow(QObject *controller)
                 return;
             }
             m_privateRoot.reset();
+            m_privatePermissionDecisions.reset();
             emit privateSessionChanged();
         });
     }
@@ -106,6 +108,7 @@ bool WindowManager::ensurePrivateSession()
     }
 
     m_privateRoot = std::move(root);
+    m_privatePermissionDecisions = QSharedPointer<QHash<QString, int>>::create();
     emit privateSessionChanged();
     return true;
 }

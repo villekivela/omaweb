@@ -8,7 +8,7 @@ The default build uses QtWebEngine. Ladybird is the target engine, but it stays 
 
 The repository contains the first vertical slice: one frameless window, an isolated Personal Space, vertical tabs, pinned tabs, a centered Omnibar, session persistence, transparent chrome, and an engine-free UI lab.
 
-See [product requirements](docs/product/requirements.md), [architecture](docs/architecture.md), and [development instructions](docs/development.md).
+See [product requirements](docs/product/requirements.md), [architecture](docs/architecture.md), [development instructions](docs/development.md), and the [automatic network-request policy](docs/network-requests.md).
 
 ## Build
 

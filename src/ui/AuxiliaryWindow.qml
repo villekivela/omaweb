@@ -9,6 +9,8 @@ ApplicationWindow {
     required property var openerEngine
     required property var request
     required property url requestedUrl
+    required property var permissionController
+    signal sitePermissionRequested(var responder, string requestId, string origin, string permission)
 
     width: 720
     height: 640
@@ -30,6 +32,7 @@ ApplicationWindow {
         Component.onCompleted: setSource(auxiliary.engineSource, {
             "profilePath": auxiliary.openerEngine.profilePath,
             "sharedProfile": auxiliary.openerEngine.browserProfile,
+            "permissionController": auxiliary.permissionController,
             "currentUrl": auxiliary.request ? "about:blank" : auxiliary.requestedUrl
         })
 
@@ -44,5 +47,8 @@ ApplicationWindow {
         ignoreUnknownSignals: true
 
         function onWindowCloseRequested() { auxiliary.close() }
+        function onSitePermissionRequested(requestId, origin, permission) {
+            auxiliary.sitePermissionRequested(engineLoader.item, requestId, origin, permission)
+        }
     }
 }

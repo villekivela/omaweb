@@ -5,7 +5,10 @@
 #include "TabListModel.h"
 
 #include <QObject>
+#include <QHash>
+#include <QSharedPointer>
 #include <QUrl>
+#include <QVariantList>
 
 namespace tanto {
 
@@ -25,10 +28,23 @@ class BrowserController final : public QObject {
     Q_PROPERTY(bool privateBrowsing READ privateBrowsing CONSTANT)
     Q_PROPERTY(bool ready READ ready CONSTANT)
     Q_PROPERTY(QString errorMessage READ errorMessage CONSTANT)
+    Q_PROPERTY(QString downloadDirectory READ downloadDirectory CONSTANT)
+    Q_PROPERTY(bool acceptDownloads READ acceptDownloads CONSTANT)
 
 public:
+    enum PermissionDecision {
+        Ask = 0,
+        AllowOnce = 1,
+        AllowPersistently = 2,
+        Block = 3,
+    };
+    Q_ENUM(PermissionDecision)
+
     BrowserController(QString dataRoot, QString engineName, QObject *parent = nullptr);
     BrowserController(QString dataRoot, QString engineName, bool privateBrowsing,
+        QObject *parent = nullptr);
+    BrowserController(QString dataRoot, QString engineName, bool privateBrowsing,
+        QSharedPointer<QHash<QString, int>> sessionPermissionDecisions,
         QObject *parent = nullptr);
 
     QAbstractItemModel *spaces();
@@ -45,6 +61,8 @@ public:
     bool privateBrowsing() const;
     bool ready() const;
     QString errorMessage() const;
+    QString downloadDirectory() const;
+    bool acceptDownloads() const;
 
     Q_INVOKABLE void activateTab(const QString &tabId);
     Q_INVOKABLE QString createSpace(const QString &name);
@@ -65,6 +83,16 @@ public:
     Q_INVOKABLE void requestBack();
     Q_INVOKABLE void requestForward();
     Q_INVOKABLE void requestReload();
+    Q_INVOKABLE void recordVisit(const QUrl &url, const QString &title);
+    Q_INVOKABLE QVariantList historySuggestions(const QString &query, int limit = 8) const;
+    Q_INVOKABLE int permissionDecision(const QUrl &url, const QString &permission);
+    Q_INVOKABLE bool setPermissionDecision(const QUrl &url, const QString &permission,
+        int decision);
+    Q_INVOKABLE QString recordDownload(const QString &runtimeId, const QUrl &url, const QString &path,
+        const QString &state, qint64 receivedBytes, qint64 totalBytes);
+    Q_INVOKABLE bool updateDownload(const QString &id, const QString &state,
+        qint64 receivedBytes, qint64 totalBytes, const QString &error);
+    Q_INVOKABLE QVariantList downloadHistory() const;
 
 signals:
     void activeSpaceChanged();
@@ -90,6 +118,8 @@ private:
     void setActiveTab(const QString &tabId);
     static TabState makeBlankTab(const QString &spaceId);
     static QUrl resolveInput(const QString &input);
+    static QString normalizedOrigin(const QUrl &url);
+    QString sessionPermissionKey(const QString &origin, const QString &permission) const;
 
     SessionStore m_store;
     SpaceListModel m_spaces;
@@ -102,6 +132,7 @@ private:
     ClosedTab m_closedTab;
     bool m_ready = false;
     bool m_privateBrowsing = false;
+    QSharedPointer<QHash<QString, int>> m_sessionPermissionDecisions;
 };
 
 } // namespace tanto
