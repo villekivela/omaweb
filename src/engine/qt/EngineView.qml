@@ -144,6 +144,9 @@ Item {
         script.worldId = WebEngineScript.MainWorld
         script.runsOnSubFrames = false
         script.sourceCode = root.keyboardNavigationScriptSource
+            + "\nglobalThis.__tantoKeyboardNavigation && "
+            + "globalThis.__tantoKeyboardNavigation.configure("
+            + JSON.stringify(root.keyboardNavigationConfiguration) + ");"
         return script
     }
 

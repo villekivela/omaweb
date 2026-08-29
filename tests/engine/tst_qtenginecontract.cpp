@@ -421,22 +421,28 @@ void QtEngineContractTest::qtKeyboardNavigationHonorsInputContracts_data()
     QTest::newRow("Shift+F selects only background-capable targets")
         << QByteArray(R"HTML(<!doctype html><title>ready</title>
             <button aria-label="Not a link">Button</button>
-            <a href="https://example.com/from-hint" aria-label="Open target">Target</a>
+            <a href="#target" aria-label="Open target">Target</a>
             <script>
                 addEventListener('click', event => {
-                    if (event.target.matches('a[href]') && event.metaKey && event.ctrlKey) {
+                    if (event.target.matches('a[href]')) {
                         event.preventDefault();
-                        document.title = 'background';
+                        document.title = event.metaKey && event.ctrlKey
+                            ? 'background' : 'wrong-activation';
                     }
                 }, true);
-                setTimeout(() => {
+                const activateBackgroundHint = () => {
                     dispatchEvent(new KeyboardEvent('keydown', {
                         key: 'F', shiftKey: true, bubbles: true, cancelable: true
                     }));
-                    setTimeout(() => dispatchEvent(new KeyboardEvent('keydown', {
+                    if (!document.getElementById('__tanto_link_hints')) {
+                        setTimeout(activateBackgroundHint, 100);
+                        return;
+                    }
+                    dispatchEvent(new KeyboardEvent('keydown', {
                         key: 'a', bubbles: true, cancelable: true
-                    })), 100);
-                }, 1000);
+                    }));
+                };
+                activateBackgroundHint();
             </script>)HTML")
         << int(Qt::Key_unknown) << QStringLiteral("background") << false << QStringList{};
     QTest::newRow("per-key passthrough keeps site shortcuts")
