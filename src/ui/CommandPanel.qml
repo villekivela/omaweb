@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Effects
 
 Item {
     id: root
@@ -13,6 +14,12 @@ Item {
     property bool newTabIntent: false
     property string presetText: ""
     property var suggestions: []
+
+    // The item to sample for the blur. It must not be an ancestor of this
+    // panel, or the effect source would feed on its own output.
+    property Item backdropSource: null
+
+    readonly property bool blurActive: backdropSource !== null && backdropSource.visible
 
     property var results: []
     property int selected: 0
@@ -94,10 +101,60 @@ Item {
         anchors.topMargin: Math.max(80, parent.height * 0.14)
         height: header.height + body.height + footer.height
         radius: 3
-        color: root.colors.overlay
+        // With a backdrop the tint goes on top of the blur instead, so the
+        // panel itself stays clear.
+        color: root.blurActive ? "transparent" : root.colors.overlay
         border.width: 1
         border.color: root.colors.accent
         clip: true
+
+        ShaderEffectSource {
+            id: backdropTexture
+            visible: false
+            live: true
+            hideSource: false
+            recursive: false
+            sourceItem: root.blurActive ? root.backdropSource : null
+            // Only the slice of the window the panel covers, in the source's
+            // coordinates. The source fills the same area as this overlay, so
+            // the panel's own position is that mapping.
+            sourceRect: root.blurActive
+                ? Qt.rect(panel.x, panel.y, panel.width, panel.height)
+                : Qt.rect(0, 0, 0, 0)
+            width: Math.max(1, panel.width)
+            height: Math.max(1, panel.height)
+            textureSize: Qt.size(Math.max(1, Math.round(panel.width / 2)),
+                                 Math.max(1, Math.round(panel.height / 2)))
+        }
+
+        MultiEffect {
+            anchors.fill: parent
+            anchors.margins: panel.border.width
+            visible: root.blurActive
+            source: backdropTexture
+            blurEnabled: true
+            blur: 1
+            blurMax: 48
+            // Keeps the blur inside the panel's rounded corners rather than
+            // squaring them off under the border.
+            maskEnabled: true
+            maskSource: ShaderEffectSource {
+                sourceItem: Rectangle {
+                    width: Math.max(1, panel.width - 2 * panel.border.width)
+                    height: Math.max(1, panel.height - 2 * panel.border.width)
+                    radius: panel.radius
+                    color: "black"
+                }
+            }
+        }
+
+        Rectangle {
+            anchors.fill: parent
+            anchors.margins: panel.border.width
+            visible: root.blurActive
+            radius: panel.radius
+            color: root.colors.overlay
+        }
 
         Item {
             id: header
@@ -127,6 +184,10 @@ Item {
                 anchors.verticalCenter: parent.verticalCenter
                 height: 40
                 background: null
+                // TextInput aligns to the top by default, which would drop the
+                // text off the prompt icon's centre line.
+                padding: 0
+                verticalAlignment: TextInput.AlignVCenter
                 color: root.colors.text
                 placeholderText: root.commandMode
                     ? "search every action"

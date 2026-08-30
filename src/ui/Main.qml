@@ -902,6 +902,9 @@ ApplicationWindow {
         colors: window.colors
         typography: typography
         commands: browserCommands
+        // The window content behind the overlay, not the overlay's own parent,
+        // so the blur never samples itself.
+        backdropSource: shell
         open: window.omnibarOpen
         suggestions: window.omnibarSuggestions
 
