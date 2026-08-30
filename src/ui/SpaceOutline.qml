@@ -14,13 +14,6 @@ Rectangle {
     property int blockedRequestCount: 0
     property bool statusOpen: false
 
-    // Re-read when the active Space changes: creating or deleting one moves it.
-    readonly property int spaceCount: {
-        if (!browser) return 0
-        browser.activeSpaceId
-        return browser.spaces.rowCount()
-    }
-
     // An empty pinned section takes no room at all.
     property int pinnedCount: browser ? browser.pinnedTabs.rowCount() : 0
 
@@ -66,7 +59,7 @@ Rectangle {
         Item {
             objectName: "spaceHeading"
             width: parent.width
-            height: 44
+            height: 32
             Accessible.role: Accessible.Heading
             Accessible.name: root.privateWindow || !root.browser ? "Private" : root.browser.activeSpaceName
 
@@ -75,17 +68,53 @@ Rectangle {
                 onActiveChanged: if (active) root.windowMoveRequested()
             }
 
-            // The name alone identifies the Space. Isolation is what every
-            // Space is rather than something one of them has, and the tab count
-            // is already the length of the list underneath it.
-            Text {
-                id: spaceName
+            // Every Space is one letter, the active one lit. The heading is the
+            // switcher: spelling the active name out again would say what the
+            // lit letter already says, and cost the row that holds the rest.
+            Row {
+                objectName: "spaceSwitcher"
                 anchors.left: parent.left
                 anchors.right: spacesButton.left
                 anchors.rightMargin: 8
                 anchors.verticalCenter: parent.verticalCenter
-                text: root.privateWindow || !root.browser ? "Private" : root.browser.activeSpaceName
-                color: root.privateWindow ? root.colors.privateAccent : root.colors.text
+                height: 28
+                visible: !root.privateWindow
+                spacing: 5
+
+                Repeater {
+                    model: root.browser ? root.browser.spaces : null
+
+                    ChromeButton {
+                        required property string spaceId
+                        required property string spaceName
+                        required property string spaceColor
+                        required property bool active
+
+                        objectName: "space-" + spaceId
+                        width: 30
+                        height: 28
+                        label: spaceName.length > 0 ? spaceName.charAt(0).toUpperCase() : "·"
+                        accessibleName: active
+                            ? "Current Space: " + spaceName
+                            : "Switch to " + spaceName
+                        foreground: active
+                            ? (spaceColor.length > 0 ? spaceColor : root.colors.text)
+                            : root.colors.mutedText
+                        background: active ? root.colors.surface : "transparent"
+                        hoverBackground: root.colors.surfaceHover
+                        onClicked: root.spaceActivated(spaceId)
+                    }
+                }
+            }
+
+            Text {
+                anchors.left: parent.left
+                anchors.right: spacesButton.left
+                anchors.rightMargin: 8
+                anchors.verticalCenter: parent.verticalCenter
+                visible: root.privateWindow || !root.browser
+                text: "Private"
+                color: root.colors.privateAccent
                 font.family: root.typography.family
                 font.pixelSize: root.typography.headingSize
                 font.letterSpacing: 1.4
@@ -107,34 +136,6 @@ Rectangle {
                 foreground: root.colors.mutedText
                 hoverBackground: root.colors.surfaceHover
                 onClicked: root.spacesMenuRequested()
-            }
-        }
-
-        Row {
-            objectName: "spaceSwitcher"
-            width: parent.width
-            visible: !root.privateWindow && root.spaceCount > 1
-            spacing: 5
-
-            Repeater {
-                model: root.browser ? root.browser.spaces : null
-
-                ChromeButton {
-                    required property string spaceId
-                    required property string spaceName
-                    required property string spaceColor
-                    required property bool active
-
-                    objectName: "space-" + spaceId
-                    visible: !active
-                    width: visible ? 30 : 0
-                    height: 28
-                    label: spaceName.length > 0 ? spaceName.charAt(0).toUpperCase() : "·"
-                    accessibleName: "Switch to " + spaceName
-                    foreground: spaceColor.length > 0 ? spaceColor : root.colors.text
-                    hoverBackground: root.colors.surfaceHover
-                    onClicked: root.spaceActivated(spaceId)
-                }
             }
         }
 
