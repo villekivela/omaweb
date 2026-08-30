@@ -357,18 +357,6 @@ ApplicationWindow {
                     onCommandPanelRequested: window.openCommandPanel()
                 }
 
-                Rectangle {
-                    objectName: "spaceEdge"
-                    anchors.left: parent.left
-                    anchors.top: parent.top
-                    anchors.bottom: parent.bottom
-                    width: 3
-                    visible: window.sidebarCollapsed
-                    color: window.privateWindow ? window.colors.privateAccent : window.colors.accent
-                    opacity: 0.8
-                    z: 6
-                }
-
                 Connections {
                     target: window.windowBrowser
 

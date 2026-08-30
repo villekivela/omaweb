@@ -101,18 +101,14 @@ TestCase {
         const sidebar = findChild(window.contentItem, "sidebar")
         const engineViewport = findChild(window.contentItem, "engineViewport")
         const navigationCluster = findChild(window.contentItem, "navigationCluster")
-        const spaceEdge = findChild(window.contentItem, "spaceEdge")
         verify(sidebar !== null)
-        verify(spaceEdge !== null)
         verify(sidebar.visible)
-        verify(!spaceEdge.visible)
 
         const expandedViewport = engineViewport.width
         window.sidebarCollapsed = true
         tryVerify(function() { return !sidebar.visible })
         tryVerify(function() { return engineViewport.width > expandedViewport })
         verify(navigationCluster.visible)
-        verify(spaceEdge.visible)
 
         window.sidebarCollapsed = false
         tryVerify(function() { return sidebar.visible })

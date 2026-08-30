@@ -75,22 +75,15 @@ Rectangle {
                 onActiveChanged: if (active) root.windowMoveRequested()
             }
 
-            Rectangle {
-                id: spaceBar
-                width: 2
-                height: 36
-                anchors.left: parent.left
-                anchors.verticalCenter: parent.verticalCenter
-                color: root.privateWindow ? root.colors.privateAccent : root.colors.accent
-            }
-
+            // The name alone identifies the Space. Isolation is what every
+            // Space is rather than something one of them has, and the tab count
+            // is already the length of the list underneath it.
             Text {
                 id: spaceName
-                anchors.left: spaceBar.right
-                anchors.leftMargin: 10
+                anchors.left: parent.left
                 anchors.right: spacesButton.left
                 anchors.rightMargin: 8
-                anchors.top: parent.top
+                anchors.verticalCenter: parent.verticalCenter
                 text: root.privateWindow || !root.browser ? "Private" : root.browser.activeSpaceName
                 color: root.privateWindow ? root.colors.privateAccent : root.colors.text
                 font.family: root.typography.family
@@ -98,22 +91,6 @@ Rectangle {
                 font.letterSpacing: 1.4
                 font.capitalization: Font.AllUppercase
                 elide: Text.ElideRight
-            }
-
-            Text {
-                anchors.left: spaceBar.right
-                anchors.leftMargin: 10
-                anchors.right: spacesButton.left
-                anchors.rightMargin: 8
-                anchors.top: spaceName.bottom
-                anchors.topMargin: 4
-                text: root.privateWindow
-                    ? "temporary identity"
-                    : (root.browser ? root.browser.tabs.rowCount() : 0) + " tabs · isolated identity"
-                color: root.colors.mutedText
-                elide: Text.ElideRight
-                font.family: root.typography.family
-                font.pixelSize: root.typography.smallSize
             }
 
             ChromeButton {
