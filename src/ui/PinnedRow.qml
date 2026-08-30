@@ -1,8 +1,8 @@
 import QtQuick
 
-Rectangle {
+Item {
     id: root
-    objectName: "tab-" + tabId
+    objectName: "pinned-" + tabId
 
     required property string tabId
     required property string tabTitle
@@ -11,16 +11,14 @@ Rectangle {
     required property bool active
     required property bool loading
     property var colors
+    property var typography
 
     signal activated(string tabId)
 
-    width: ListView.view ? ListView.view.width : 200
-    height: 40
-    radius: 9
-    color: active ? colors.surface : (mouse.containsMouse ? colors.surfaceHover : "transparent")
+    height: 28  // SpaceOutline sizes the pinned section from this
     activeFocusOnTab: true
     Accessible.role: Accessible.PageTab
-    Accessible.name: tabTitle
+    Accessible.name: "Pinned: " + tabTitle
     Accessible.onPressAction: root.activated(root.tabId)
 
     Keys.onPressed: function(event) {
@@ -31,35 +29,39 @@ Rectangle {
     }
 
     Rectangle {
-        width: 3
-        height: 18
+        anchors.fill: parent
         radius: 2
+        color: root.active
+            ? root.colors.surface
+            : (mouse.containsMouse ? root.colors.surfaceHover : "transparent")
+        border.width: root.activeFocus ? 1 : 0
+        border.color: root.colors.accent
+    }
+
+    SiteTile {
+        id: tile
+        implicitWidth: 18
+        implicitHeight: 18
         anchors.left: parent.left
-        anchors.leftMargin: 3
+        anchors.leftMargin: 6
         anchors.verticalCenter: parent.verticalCenter
-        color: root.active ? root.colors.accent : "transparent"
+        colors: root.colors
+        typography: root.typography
+        siteUrl: root.tabUrl
+        highlighted: root.active
     }
 
     Text {
-        anchors.left: parent.left
-        anchors.leftMargin: 14
-        anchors.right: status.left
+        anchors.left: tile.right
+        anchors.leftMargin: 9
+        anchors.right: parent.right
         anchors.rightMargin: 8
         anchors.verticalCenter: parent.verticalCenter
-        text: root.tabTitle.length > 0 ? root.tabTitle : root.tabUrl.toString()
-        color: root.colors.text
+        text: root.tabTitle.length > 0 ? root.tabTitle : tile.host
+        color: root.active ? root.colors.text : root.colors.mutedText
         elide: Text.ElideRight
-        font.pixelSize: 13
-    }
-
-    Text {
-        id: status
-        anchors.right: parent.right
-        anchors.rightMargin: 10
-        anchors.verticalCenter: parent.verticalCenter
-        text: root.loading ? "·" : ""
-        color: root.colors.mutedText
-        font.pixelSize: 11
+        font.family: root.typography.family
+        font.pixelSize: root.typography.size
     }
 
     MouseArea {

@@ -6,7 +6,6 @@ include(CTest)
 
 option(TANTO_BUILD_BROWSER "Build the QtWebEngine application" ON)
 option(TANTO_BUILD_UI_LAB "Build the engine-free QML UI runner" ON)
-option(TANTO_BUILD_UI_PROTOTYPE "Build the throwaway chrome-design prototype (src/ui-lab/prototype)" OFF)
 option(TANTO_SOURCE_QML "Load QML from the source tree for fast iteration" ON)
 
 set(TANTO_CONTENT_BLOCKER_CACHE "${CMAKE_CURRENT_SOURCE_DIR}/.cache/content-blocker/release"
@@ -139,8 +138,10 @@ target_link_libraries(tanto-platform PUBLIC Qt6::Gui Qt6::Quick)
 if(APPLE)
     enable_language(OBJCXX)
     find_library(TANTO_APPKIT_FRAMEWORK AppKit REQUIRED)
+    find_library(TANTO_QUARTZCORE_FRAMEWORK QuartzCore REQUIRED)
     target_sources(tanto-platform PRIVATE src/platform/MacWindowChrome.mm)
-    target_link_libraries(tanto-platform PRIVATE ${TANTO_APPKIT_FRAMEWORK})
+    target_link_libraries(tanto-platform
+        PRIVATE ${TANTO_APPKIT_FRAMEWORK} ${TANTO_QUARTZCORE_FRAMEWORK})
 else()
     target_sources(tanto-platform PRIVATE src/platform/WindowChrome.cpp)
 endif()
@@ -149,10 +150,19 @@ tanto_strict_target(tanto-platform)
 set(tanto_ui_files
     src/ui/Main.qml
     src/ui/AuxiliaryWindow.qml
+    src/ui/BrowserCommands.qml
     src/ui/ChromeButton.qml
-    src/ui/PinnedTabDelegate.qml
+    src/ui/CommandPanel.qml
+    src/ui/KeyHint.qml
+    src/ui/KeyMap.qml
+    src/ui/NavigationCluster.qml
+    src/ui/PinnedRow.qml
+    src/ui/SectionLabel.qml
+    src/ui/SiteTile.qml
+    src/ui/SpaceOutline.qml
     src/ui/TabEngineHost.qml
-    src/ui/TabDelegate.qml
+    src/ui/TabRow.qml
+    src/ui/Typography.qml
 )
 
 function(tanto_configure_qml target engine_view engine_profile engine_directory)
@@ -368,6 +378,7 @@ if(BUILD_TESTING)
             Qt6::QuickTest
         )
         target_compile_definitions(tanto-ui-tests PRIVATE
+            TANTO_DEFAULT_KEYBINDINGS_PATH="${CMAKE_CURRENT_SOURCE_DIR}/assets/keybindings/default.json"
             QUICK_TEST_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/ui"
             TANTO_MOCK_ENGINE_VIEW_URL="file://${CMAKE_CURRENT_SOURCE_DIR}/src/ui-lab/MockEngineView.qml"
             TANTO_MOCK_ENGINE_PROFILE_URL="file://${CMAKE_CURRENT_SOURCE_DIR}/src/ui-lab/MockEngineProfile.qml"
@@ -405,27 +416,4 @@ if(BUILD_TESTING)
             ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
         )
     endif()
-endif()
-
-# THROWAWAY: chrome-design prototype. Off by default; see src/ui-lab/prototype/README.md.
-if(TANTO_BUILD_UI_PROTOTYPE)
-    qt_add_executable(tanto-ui-prototype MACOSX_BUNDLE src/ui-lab/prototype/main.cpp)
-    target_link_libraries(tanto-ui-prototype PRIVATE
-        tanto-core
-        tanto-ui
-        tanto-platform
-        Qt6::Gui
-        Qt6::Qml
-        Qt6::Quick
-    )
-    target_compile_definitions(tanto-ui-prototype PRIVATE
-        TANTO_THEME_PATH="${CMAKE_CURRENT_SOURCE_DIR}/assets/themes/default.json"
-        TANTO_ICON_FONT_URL="file://${CMAKE_CURRENT_SOURCE_DIR}/assets/fonts/material-symbols-rounded.ttf"
-        TANTO_PROTOTYPE_SHELL_URL="file://${CMAKE_CURRENT_SOURCE_DIR}/src/ui-lab/prototype/PrototypeShell.qml"
-    )
-    tanto_strict_target(tanto-ui-prototype)
-    set_target_properties(tanto-ui-prototype PROPERTIES
-        MACOSX_BUNDLE_BUNDLE_NAME "Tanto UI Prototype"
-        MACOSX_BUNDLE_GUI_IDENTIFIER "dev.tanto.browser.ui-prototype"
-    )
 endif()

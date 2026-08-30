@@ -19,6 +19,9 @@ ApplicationWindow {
     title: window.privateWindow ? "Private — Tanto" : window.windowBrowser.activeTitle + " — Tanto"
 
     property var windowBrowser: browser
+    // The native backdrop reads this to mask its blur to the same rounded rect,
+    // so the shell and the platform chrome cannot drift apart.
+    property real cornerRadius: 14
     property bool privateWindow: false
     property string profilePathOverride: ""
     property var sharedEngineProfile: null
@@ -43,7 +46,9 @@ ApplicationWindow {
     function privatePalette(source) {
         const palette = Object.assign({}, source)
         palette.window = source.privateWindow
+        palette.windowOpaque = source.privateWindowOpaque
         palette.sidebar = source.privateSidebar
+        palette.sidebarOpaque = source.privateSidebarOpaque
         palette.surface = source.privateSurface
         palette.surfaceHover = source.privateSurfaceHover
         palette.accent = source.privateAccent
@@ -56,16 +61,93 @@ ApplicationWindow {
         source: iconFontSource
     }
 
+    Typography {
+        id: typography
+        palette: window.colors
+    }
+
+    KeyMap {
+        id: keymap
+        configuration: keyboardNavigation
+    }
+
+    readonly property var commands: browserCommands
+
+    BrowserCommands {
+        id: browserCommands
+        window: window
+        browser: window.windowBrowser
+        keymap: keymap
+    }
+
+    function openCommandPanel() {
+        commandPanel.beginCommand()
+        omnibarOpen = true
+    }
+
+    function requestMoveTab() {
+        if (!privateWindow) moveTabDialog.open()
+    }
+
+    function requestNewSpace() {
+        if (!privateWindow) newSpaceDialog.open()
+    }
+
+    function requestSettings() {
+        settingsDialog.open()
+    }
+
+    function stepTab(delta) {
+        const tabs = window.windowBrowser.tabs
+        const count = tabs.rowCount()
+        if (count === 0) return
+        let current = 0
+        for (let row = 0; row < count; ++row) {
+            if (tabs.data(tabs.index(row, 0), Qt.UserRole + 6)) {
+                current = row
+                break
+            }
+        }
+        const next = (current + delta + count) % count
+        window.windowBrowser.activateTab(tabs.data(tabs.index(next, 0), Qt.UserRole + 1))
+    }
+
+    function activateTabAt(position) {
+        const tabs = window.windowBrowser.tabs
+        if (position < 0 || position >= tabs.rowCount()) return
+        window.windowBrowser.activateTab(tabs.data(tabs.index(position, 0), Qt.UserRole + 1))
+    }
+
+    function stepSpace(delta) {
+        if (privateWindow) return
+        const spaces = window.windowBrowser.spaces
+        const count = spaces.rowCount()
+        if (count === 0) return
+        let current = 0
+        for (let row = 0; row < count; ++row) {
+            if (spaces.data(spaces.index(row, 0), Qt.UserRole + 4)) {
+                current = row
+                break
+            }
+        }
+        const next = (current + delta + count) % count
+        window.windowBrowser.switchSpace(spaces.data(spaces.index(next, 0), Qt.UserRole + 1))
+    }
+
+    function activateSpaceAt(position) {
+        if (privateWindow) return
+        const spaces = window.windowBrowser.spaces
+        if (position < 0 || position >= spaces.rowCount()) return
+        window.windowBrowser.switchSpace(spaces.data(spaces.index(position, 0), Qt.UserRole + 1))
+    }
+
     function openOmnibar(forNewTab) {
         newTabIntent = forNewTab
-        omnibarInput.text = forNewTab ? "" : window.windowBrowser.activeUrl.toString()
-        omnibarOpen = true
+        const preset = forNewTab ? "" : window.windowBrowser.activeUrl.toString()
         omnibarSuggestions = window.privateWindow
-            ? [] : window.windowBrowser.historySuggestions(omnibarInput.text)
-        Qt.callLater(function() {
-            omnibarInput.forceActiveFocus()
-            omnibarInput.selectAll()
-        })
+            ? [] : window.windowBrowser.historySuggestions(preset)
+        commandPanel.beginAddress(preset, forNewTab)
+        omnibarOpen = true
     }
 
     function createSpaceProfile() {
@@ -101,40 +183,31 @@ ApplicationWindow {
         engineLoader.focusPage()
     }
 
-    Shortcut {
-        sequence: Qt.platform.os === "osx" ? "Meta+L" : "Ctrl+L"
-        onActivated: window.openOmnibar(false)
-    }
+    // Every binding — chord, single key, or sequence — comes from the keyboard
+    // configuration, so rebinding is editing assets/keybindings/default.json.
+    // Chords are always live. Single keys follow the Keyboard navigation
+    // setting, because only they can be confused with typing on a page.
+    Repeater {
+        model: Object.keys(keymap.browserBindings)
 
-    Shortcut {
-        sequence: Qt.platform.os === "osx" ? "Meta+T" : "Ctrl+T"
-        onActivated: window.openOmnibar(true)
-    }
+        Item {
+            required property string modelData
 
-    Shortcut {
-        sequence: Qt.platform.os === "osx" ? "Meta+W" : "Ctrl+W"
-        onActivated: window.windowBrowser.closeActiveTab()
-    }
-
-    Shortcut {
-        sequence: Qt.platform.os === "osx" ? "Meta+Shift+T" : "Ctrl+Shift+T"
-        onActivated: window.windowBrowser.reopenClosedTab()
-    }
-
-    Shortcut {
-        sequence: Qt.platform.os === "osx" ? "Meta+Shift+N" : "Ctrl+Shift+N"
-        onActivated: windowManager.openPrivateWindow()
-    }
-
-    Shortcut {
-        sequence: Qt.platform.os === "osx" ? "Meta+M" : "Ctrl+M"
-        onActivated: window.showMinimized()
+            Shortcut {
+                sequence: keymap.keySequence(modelData)
+                enabled: keymap.isChord(modelData) || keymap.pageCommandsEnabled
+                context: Qt.WindowShortcut
+                onActivated: browserCommands.run(
+                    keymap.commandFor(modelData),
+                    parseInt(modelData.slice(-1), 10) - 1)
+            }
+        }
     }
 
     Rectangle {
         id: shell
         anchors.fill: parent
-        radius: 14
+        radius: window.cornerRadius
         color: window.colors.window
         border.width: 1
         border.color: window.colors.border
@@ -144,356 +217,50 @@ ApplicationWindow {
             anchors.fill: parent
             spacing: 0
 
-            Rectangle {
+            SpaceOutline {
                 id: sidebar
+                objectName: "sidebar"
                 Layout.fillHeight: true
-                Layout.preferredWidth: window.sidebarCollapsed ? 58 : 238
-                color: window.colors.sidebar
+                Layout.preferredWidth: window.sidebarCollapsed ? 0 : 292
+                visible: Layout.preferredWidth > 0
+                colors: window.colors
+                typography: typography
+                iconFontFamily: materialSymbols.name
+                browser: window.windowBrowser
+                privateWindow: window.privateWindow
+                collapsed: window.sidebarCollapsed
+                blockedRequestCount: window.visibleBlockedRequestCount
 
                 Behavior on Layout.preferredWidth {
                     NumberAnimation { duration: 120; easing.type: Easing.OutCubic }
                 }
 
-                ColumnLayout {
-                    anchors.fill: parent
-                    anchors.margins: 10
-                    spacing: 8
+                onAddressRequested: window.openOmnibar(false)
+                onNewTabRequested: window.openOmnibar(true)
+                onTabActivated: function(tabId) { window.windowBrowser.activateTab(tabId) }
+                onSpaceActivated: function(spaceId) { window.windowBrowser.switchSpace(spaceId) }
+                onSpacesMenuRequested: spacesMenu.popup()
+                onSettingsRequested: settingsDialog.open()
+                onWindowMoveRequested: window.startSystemMove()
 
-                    Item {
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: 28
+                Menu {
+                    id: spacesMenu
 
-                        Text {
-                            anchors.left: parent.left
-                            anchors.verticalCenter: parent.verticalCenter
-                            visible: !window.sidebarCollapsed
-                            text: "Tanto"
-                            color: window.colors.text
-                            font.pixelSize: 13
-                            font.weight: Font.DemiBold
-                        }
-
-                        DragHandler {
-                            target: null
-                            onActiveChanged: if (active) window.startSystemMove()
-                        }
+                    MenuItem {
+                        text: "New Space"
+                        onTriggered: newSpaceDialog.open()
                     }
-
-                    RowLayout {
-                        Layout.fillWidth: true
-                        spacing: 4
-
-                        ChromeButton {
-                            objectName: "backButton"
-                            Layout.fillWidth: true
-                            label: "arrow_back"
-                            accessibleName: "Back"
-                            fontFamily: materialSymbols.name
-                            foreground: window.colors.text
-                            hoverBackground: window.colors.surfaceHover
-                            enabled: engineLoader.item ? engineLoader.item.canGoBack : false
-                            onClicked: window.windowBrowser.requestBack()
-                        }
-
-                        ChromeButton {
-                            objectName: "forwardButton"
-                            Layout.fillWidth: true
-                            label: "arrow_forward"
-                            accessibleName: "Forward"
-                            fontFamily: materialSymbols.name
-                            foreground: window.colors.text
-                            hoverBackground: window.colors.surfaceHover
-                            enabled: engineLoader.item ? engineLoader.item.canGoForward : false
-                            onClicked: window.windowBrowser.requestForward()
-                        }
-
-                        ChromeButton {
-                            objectName: "reloadButton"
-                            Layout.fillWidth: true
-                            label: "refresh"
-                            accessibleName: "Reload"
-                            fontFamily: materialSymbols.name
-                            foreground: window.colors.text
-                            hoverBackground: window.colors.surfaceHover
-                            onClicked: window.windowBrowser.requestReload()
-                        }
-
-                        ChromeButton {
-                            objectName: "pinButton"
-                            Layout.fillWidth: true
-                            label: window.windowBrowser.activeTabPinned ? "bookmark" : "bookmark_border"
-                            accessibleName: window.windowBrowser.activeTabPinned ? "Unpin tab" : "Pin tab"
-                            fontFamily: materialSymbols.name
-                            foreground: window.windowBrowser.activeTabPinned ? window.colors.accent : window.colors.text
-                            hoverBackground: window.colors.surfaceHover
-                            onClicked: window.windowBrowser.toggleActivePinned()
-                            visible: !window.privateWindow
-                        }
-
-                        ChromeButton {
-                            objectName: "moveTabButton"
-                            Layout.fillWidth: true
-                            label: "drive_file_move"
-                            accessibleName: "Move tab to Space"
-                            fontFamily: materialSymbols.name
-                            foreground: window.colors.text
-                            hoverBackground: window.colors.surfaceHover
-                            onClicked: moveTabDialog.open()
-                            visible: !window.privateWindow
-                        }
+                    MenuItem {
+                        text: "Rename " + window.windowBrowser.activeSpaceName
+                        onTriggered: renameSpaceDialog.open()
                     }
-
-                    Rectangle {
-                        id: addressButton
-                        objectName: "addressButton"
-                        property string accessibleName: "Search or enter address"
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: 38
-                        radius: 10
-                        color: sidebarAddressMouse.containsMouse
-                            ? window.colors.surfaceHover
-                            : window.colors.surface
-                        activeFocusOnTab: true
-                        Accessible.role: Accessible.Button
-                        Accessible.name: addressButton.accessibleName
-                        Accessible.onPressAction: window.openOmnibar(false)
-
-                        Keys.onPressed: function(event) {
-                            if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Space) {
-                                window.openOmnibar(false)
-                                event.accepted = true
-                            }
-                        }
-
-                        Text {
-                            anchors.left: parent.left
-                            anchors.leftMargin: 12
-                            anchors.right: parent.right
-                            anchors.rightMargin: 12
-                            anchors.verticalCenter: parent.verticalCenter
-                            visible: !window.sidebarCollapsed
-                            text: window.windowBrowser.activeUrl.toString() === "about:blank"
-                                ? "Search or enter address"
-                                : window.windowBrowser.activeUrl.toString()
-                            color: window.windowBrowser.activeUrl.toString() === "about:blank"
-                                ? window.colors.mutedText
-                                : window.colors.text
-                            elide: Text.ElideMiddle
-                            font.pixelSize: 13
-                        }
-
-                        Text {
-                            anchors.centerIn: parent
-                            visible: window.sidebarCollapsed
-                            text: "search"
-                            color: window.colors.text
-                            font.family: materialSymbols.name
-                            font.pixelSize: 20
-                        }
-
-                        MouseArea {
-                            id: sidebarAddressMouse
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape: Qt.IBeamCursor
-                            onClicked: {
-                                addressButton.forceActiveFocus()
-                                window.openOmnibar(false)
-                            }
-                        }
+                    MenuItem {
+                        text: "Delete " + window.windowBrowser.activeSpaceName
+                        onTriggered: deleteSpaceDialog.open()
                     }
-
-                    Grid {
-                        objectName: "pinnedGrid"
-                        Layout.fillWidth: true
-                        columns: window.sidebarCollapsed ? 1 : 4
-                        visible: !window.privateWindow
-                        columnSpacing: 6
-                        rowSpacing: 6
-
-                        Repeater {
-                            model: window.windowBrowser.tabs
-
-                            PinnedTabDelegate {
-                                width: window.sidebarCollapsed
-                                    ? 38
-                                    : (sidebar.width - 20 - 18) / 4
-                                visible: pinned
-                                height: visible ? (window.sidebarCollapsed ? 38 : 54) : 0
-                                colors: window.colors
-                                iconFontFamily: materialSymbols.name
-                                onActivated: function(id) { window.windowBrowser.activateTab(id) }
-                            }
-                        }
-                    }
-
-                    RowLayout {
-                        objectName: "spaceHeading"
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: window.sidebarCollapsed ? 16 : 34
-                        spacing: 4
-
-                        ComboBox {
-                            id: spaceSelector
-                            objectName: "spaceSelector"
-                            Layout.fillWidth: true
-                            Layout.fillHeight: true
-                            visible: !window.sidebarCollapsed && !window.privateWindow
-                            model: window.windowBrowser.spaces
-                            textRole: "spaceName"
-                            valueRole: "spaceId"
-                            displayText: window.windowBrowser.activeSpaceName
-                            Accessible.name: "Active Space"
-                            onActivated: window.windowBrowser.switchSpace(currentValue)
-                        }
-
-                        ChromeButton {
-                            id: manageSpacesButton
-                            objectName: "manageSpacesButton"
-                            Layout.preferredWidth: 32
-                            Layout.fillHeight: true
-                            visible: !window.sidebarCollapsed && !window.privateWindow
-                            label: "more_horiz"
-                            accessibleName: "Manage Spaces"
-                            fontFamily: materialSymbols.name
-                            foreground: window.colors.mutedText
-                            hoverBackground: window.colors.surfaceHover
-                            onClicked: spacesMenu.popup()
-
-                            Menu {
-                                id: spacesMenu
-
-                                MenuItem {
-                                    text: "New Space"
-                                    onTriggered: newSpaceDialog.open()
-                                }
-                                MenuItem {
-                                    text: "Rename " + window.windowBrowser.activeSpaceName
-                                    onTriggered: renameSpaceDialog.open()
-                                }
-                                MenuItem {
-                                    text: "Delete " + window.windowBrowser.activeSpaceName
-                                    onTriggered: deleteSpaceDialog.open()
-                                }
-                            }
-                        }
-
-                        Label {
-                            Layout.fillWidth: true
-                            visible: !window.sidebarCollapsed && window.privateWindow
-                            text: "Private"
-                            color: window.colors.privateAccent
-                            font.pixelSize: 13
-                            font.weight: Font.DemiBold
-                            Accessible.role: Accessible.Heading
-                        }
-                    }
-
-                    Rectangle {
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: 1
-                        color: window.colors.border
-                    }
-
-                    ScrollView {
-                        Layout.fillWidth: true
-                        Layout.fillHeight: true
-                        clip: true
-
-                        Column {
-                            width: parent.width
-                            spacing: 3
-
-                            Repeater {
-                                model: window.windowBrowser.tabs
-
-                                TabDelegate {
-                                    width: parent.width
-                                    visible: !pinned
-                                    height: visible ? 40 : 0
-                                    colors: window.colors
-                                    onActivated: function(id) { window.windowBrowser.activateTab(id) }
-                                }
-                            }
-                        }
-                    }
-
-                    Rectangle {
-                        id: newTabButton
-                        objectName: "newTabButton"
-                        property string accessibleName: "New tab"
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: 34
-                        radius: 9
-                        color: newTabMouse.containsMouse ? window.colors.surfaceHover : window.colors.surface
-                        activeFocusOnTab: true
-                        Accessible.role: Accessible.Button
-                        Accessible.name: newTabButton.accessibleName
-                        Accessible.onPressAction: window.openOmnibar(true)
-
-                        Keys.onPressed: function(event) {
-                            if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Space) {
-                                window.openOmnibar(true)
-                                event.accepted = true
-                            }
-                        }
-
-                        Text {
-                            anchors.left: parent.left
-                            anchors.leftMargin: window.sidebarCollapsed ? 0 : 10
-                            anchors.verticalCenter: parent.verticalCenter
-                            width: window.sidebarCollapsed ? parent.width : 20
-                            horizontalAlignment: Text.AlignHCenter
-                            text: "add"
-                            color: window.colors.text
-                            font.family: materialSymbols.name
-                            font.pixelSize: 19
-                        }
-
-                        Text {
-                            anchors.left: parent.left
-                            anchors.leftMargin: 34
-                            anchors.verticalCenter: parent.verticalCenter
-                            visible: !window.sidebarCollapsed
-                            text: "New tab"
-                            color: window.colors.text
-                            font.pixelSize: 13
-                            font.weight: Font.DemiBold
-                        }
-
-                        MouseArea {
-                            id: newTabMouse
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: {
-                                newTabButton.forceActiveFocus()
-                                window.openOmnibar(true)
-                            }
-                        }
-                    }
-
-
-                    ChromeButton {
-                        objectName: "settingsButton"
-                        Layout.alignment: Qt.AlignHCenter
-                        label: "settings"
-                        accessibleName: "Browsing settings and downloads"
-                        fontFamily: materialSymbols.name
-                        foreground: window.colors.mutedText
-                        hoverBackground: window.colors.surfaceHover
-                        onClicked: settingsDialog.open()
-                    }
-
-                    ChromeButton {
-                        objectName: "collapseButton"
-                        Layout.alignment: Qt.AlignHCenter
-                        label: window.sidebarCollapsed ? "chevron_right" : "chevron_left"
-                        accessibleName: window.sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"
-                        fontFamily: materialSymbols.name
-                        foreground: window.colors.mutedText
-                        hoverBackground: window.colors.surfaceHover
-                        onClicked: window.sidebarCollapsed = !window.sidebarCollapsed
+                    MenuItem {
+                        text: "Move this tab to a Space"
+                        onTriggered: moveTabDialog.open()
                     }
                 }
             }
@@ -502,6 +269,15 @@ ApplicationWindow {
                 objectName: "engineViewport"
                 Layout.fillWidth: true
                 Layout.fillHeight: true
+
+                // The shell around it is translucent by theme; a webpage viewport
+                // never is, so it gets its own opaque backing rather than
+                // inheriting whatever the desktop is showing.
+                Rectangle {
+                    objectName: "engineBacking"
+                    anchors.fill: parent
+                    color: window.colors.windowOpaque
+                }
 
                 TabEngineHost {
                     id: engineLoader
@@ -558,6 +334,38 @@ ApplicationWindow {
                     }
                 }
 
+                NavigationCluster {
+                    anchors.left: parent.left
+                    anchors.leftMargin: 16
+                    anchors.bottom: parent.bottom
+                    anchors.bottomMargin: 20
+                    z: 5
+                    colors: window.colors
+                    typography: typography
+                    iconFontFamily: materialSymbols.name
+                    canGoBack: engineLoader.item ? engineLoader.item.canGoBack : false
+                    canGoForward: engineLoader.item ? engineLoader.item.canGoForward : false
+                    sidebarCollapsed: window.sidebarCollapsed
+
+                    onBackRequested: window.windowBrowser.requestBack()
+                    onForwardRequested: window.windowBrowser.requestForward()
+                    onReloadRequested: window.windowBrowser.requestReload()
+                    onSidebarToggled: window.sidebarCollapsed = !window.sidebarCollapsed
+                    onCommandPanelRequested: window.openCommandPanel()
+                }
+
+                Rectangle {
+                    objectName: "spaceEdge"
+                    anchors.left: parent.left
+                    anchors.top: parent.top
+                    anchors.bottom: parent.bottom
+                    width: 3
+                    visible: window.sidebarCollapsed
+                    color: window.privateWindow ? window.colors.privateAccent : window.colors.accent
+                    opacity: 0.8
+                    z: 6
+                }
+
                 Connections {
                     target: window.windowBrowser
 
@@ -592,7 +400,7 @@ ApplicationWindow {
                 Rectangle {
                     anchors.fill: parent
                     visible: window.windowBrowser.activeRendererFailed
-                    color: window.colors.window
+                    color: window.colors.windowOpaque
                     z: 10
 
                     ColumnLayout {
@@ -1084,82 +892,25 @@ ApplicationWindow {
         }
     }
 
-    Rectangle {
+    CommandPanel {
+        id: commandPanel
         anchors.fill: parent
-        visible: window.omnibarOpen
-        color: "#66000000"
         z: 50
+        colors: window.colors
+        typography: typography
+        commands: browserCommands
+        open: window.omnibarOpen
+        suggestions: window.omnibarSuggestions
 
-        MouseArea {
-            anchors.fill: parent
-            onClicked: window.closeOmnibar()
+        onDismissed: window.closeOmnibar()
+        onQueryChanged: function(text) {
+            if (commandPanel.commandMode) return
+            window.omnibarSuggestions = window.privateWindow
+                ? [] : window.windowBrowser.historySuggestions(text)
         }
-
-        Rectangle {
-            width: Math.min(720, parent.width - 80)
-            height: 70 + Math.min(280, historySuggestionList.contentHeight)
-            anchors.centerIn: parent
-            radius: 16
-            color: window.colors.overlay
-            border.width: 1
-            border.color: window.colors.border
-
-            TextField {
-                id: omnibarInput
-                objectName: "omnibarInput"
-                anchors.left: parent.left
-                anchors.right: parent.right
-                anchors.top: parent.top
-                height: 70
-                anchors.margins: 12
-                background: null
-                color: window.colors.text
-                placeholderText: window.newTabIntent ? "Open in new tab" : "Search or enter address"
-                placeholderTextColor: window.colors.mutedText
-                font.pixelSize: 19
-                selectByMouse: true
-                Accessible.name: "Omnibar"
-
-                onTextChanged: {
-                    window.omnibarSuggestions = window.privateWindow
-                        ? [] : window.windowBrowser.historySuggestions(text)
-                }
-
-                onAccepted: {
-                    if (text.trim().length === 0) return
-                    window.windowBrowser.openInput(text, window.newTabIntent)
-                    window.closeOmnibar()
-                }
-
-                Keys.onEscapePressed: function(event) {
-                    window.closeOmnibar()
-                    event.accepted = true
-                }
-            }
-
-            ListView {
-                id: historySuggestionList
-                objectName: "historySuggestionList"
-                anchors.left: parent.left
-                anchors.right: parent.right
-                anchors.top: omnibarInput.bottom
-                anchors.bottom: parent.bottom
-                anchors.margins: 12
-                clip: true
-                model: window.omnibarSuggestions
-
-                delegate: ItemDelegate {
-                    required property var modelData
-                    width: ListView.view.width
-                    height: 52
-                    text: modelData.title + "\n" + modelData.url
-                    Accessible.name: "Open history result " + modelData.title
-                    onClicked: {
-                        window.windowBrowser.openInput(modelData.url.toString(), window.newTabIntent)
-                        window.closeOmnibar()
-                    }
-                }
-            }
+        onCommitted: function(text) {
+            window.windowBrowser.openInput(text, window.newTabIntent)
+            window.closeOmnibar()
         }
     }
 

@@ -11,6 +11,7 @@ class KeyboardNavigation final : public QObject {
     Q_PROPERTY(bool enabled READ enabled WRITE setEnabled NOTIFY configurationChanged)
     Q_PROPERTY(bool valid READ valid NOTIFY configurationChanged)
     Q_PROPERTY(QVariantMap bindings READ bindings NOTIFY configurationChanged)
+    Q_PROPERTY(QVariantMap browserBindings READ browserBindings NOTIFY configurationChanged)
     Q_PROPERTY(QString errorMessage READ errorMessage NOTIFY configurationChanged)
     Q_PROPERTY(QString pageScript READ pageScript CONSTANT)
 
@@ -22,6 +23,7 @@ public:
     bool enabled() const;
     bool valid() const;
     QVariantMap bindings() const;
+    QVariantMap browserBindings() const;
     QString errorMessage() const;
     QString pageScript() const;
 
@@ -43,6 +45,7 @@ private:
 
     QString m_configurationPath;
     QVariantMap m_bindings;
+    QVariantMap m_browserBindings;
     QHash<QString, SiteRule> m_siteRules;
     QString m_errorMessage;
     QString m_pageScript;

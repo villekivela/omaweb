@@ -6,6 +6,8 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 
+#include <algorithm>
+
 namespace tanto {
 
 ThemeController::ThemeController(QString themePath, QObject *parent)
@@ -34,7 +36,7 @@ void ThemeController::reload()
 {
     QFile file(m_themePath);
     if (!file.open(QIODevice::ReadOnly)) {
-        const auto fallback = fallbackPalette();
+        const auto fallback = normalizedPalette(fallbackPalette());
         if (m_palette != fallback) {
             m_palette = fallback;
             emit paletteChanged();
@@ -57,8 +59,8 @@ QVariantMap ThemeController::fallbackPalette() const
 {
     return {
         {QStringLiteral("window"), QStringLiteral("#16151d")},
-        {QStringLiteral("sidebar"), QStringLiteral("#d91d1b29")},
-        {QStringLiteral("overlay"), QStringLiteral("#f5282634")},
+        {QStringLiteral("sidebar"), QStringLiteral("#1d1b29")},
+        {QStringLiteral("overlay"), QStringLiteral("#282634")},
         {QStringLiteral("surface"), QStringLiteral("#302e3d")},
         {QStringLiteral("surfaceHover"), QStringLiteral("#3d394e")},
         {QStringLiteral("text"), QStringLiteral("#f3f1fa")},
@@ -67,9 +69,19 @@ QVariantMap ThemeController::fallbackPalette() const
         {QStringLiteral("border"), QStringLiteral("#4a4658")},
         {QStringLiteral("privateAccent"), QStringLiteral("#dc6bce")},
         {QStringLiteral("privateWindow"), QStringLiteral("#481d50")},
-        {QStringLiteral("privateSidebar"), QStringLiteral("#d95b2456")},
+        {QStringLiteral("privateSidebar"), QStringLiteral("#5b2456")},
         {QStringLiteral("privateSurface"), QStringLiteral("#5a3158")},
         {QStringLiteral("privateSurfaceHover"), QStringLiteral("#70406c")},
+        {QStringLiteral("opacity"), defaultOpacity()},
+    };
+}
+
+QVariantMap ThemeController::defaultOpacity()
+{
+    return {
+        {QStringLiteral("sidebar"), 0.85},
+        {QStringLiteral("overlay"), 0.96},
+        {QStringLiteral("window"), 0.0},
     };
 }
 
@@ -115,6 +127,43 @@ QVariantMap ThemeController::normalizedPalette(QVariantMap palette) const
 
     enforceDifference(QStringLiteral("window"), QStringLiteral("privateWindow"));
     enforceDifference(QStringLiteral("accent"), QStringLiteral("privateAccent"));
+
+    // Semantic opacity is the single source of truth for how much of the desktop
+    // shows through a Tanto-owned surface, so a theme that also bakes alpha into
+    // the colour itself does not get to multiply the two. The opaque variants stay
+    // available for the places that must hide whatever is behind them.
+    auto opacity = defaultOpacity();
+    const auto themeOpacity = palette.value(QStringLiteral("opacity")).toMap();
+    for (auto it = themeOpacity.cbegin(); it != themeOpacity.cend(); ++it) {
+        if (!opacity.contains(it.key())) {
+            continue;
+        }
+        auto valid = false;
+        const auto value = it.value().toDouble(&valid);
+        if (valid) {
+            opacity.insert(it.key(), std::clamp(value, 0.0, 1.0));
+        }
+    }
+    palette.insert(QStringLiteral("opacity"), opacity);
+
+    const auto withOpacity = [&palette](const QString &key, double alpha) {
+        QColor color(palette.value(key).toString());
+        if (!color.isValid()) {
+            return;
+        }
+        palette.insert(key + QStringLiteral("Opaque"), color.name(QColor::HexRgb));
+        color.setAlphaF(alpha);
+        palette.insert(key, color.name(QColor::HexArgb));
+    };
+
+    const auto windowAlpha = opacity.value(QStringLiteral("window")).toDouble();
+    const auto sidebarAlpha = opacity.value(QStringLiteral("sidebar")).toDouble();
+    const auto overlayAlpha = opacity.value(QStringLiteral("overlay")).toDouble();
+    withOpacity(QStringLiteral("window"), windowAlpha);
+    withOpacity(QStringLiteral("privateWindow"), windowAlpha);
+    withOpacity(QStringLiteral("sidebar"), sidebarAlpha);
+    withOpacity(QStringLiteral("privateSidebar"), sidebarAlpha);
+    withOpacity(QStringLiteral("overlay"), overlayAlpha);
     return palette;
 }
 

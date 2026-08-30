@@ -61,24 +61,61 @@ TestCase {
         compare(browser.activeUrl.toString(), "https://example.com")
     }
 
-    function test_layoutKeepsChromeInSidebar() {
-        const pinnedGrid = findChild(window.contentItem, "pinnedGrid")
+    function test_layoutKeepsChromeOutOfThePagesWay() {
+        const settledSidebar = findChild(window.contentItem, "sidebar")
+        window.sidebarCollapsed = false
+        tryVerify(function() { return settledSidebar.visible && settledSidebar.width > 200 })
+
         const spaceHeading = findChild(window.contentItem, "spaceHeading")
         const engineViewport = findChild(window.contentItem, "engineViewport")
-        verify(pinnedGrid !== null)
+        const navigationCluster = findChild(window.contentItem, "navigationCluster")
         verify(spaceHeading !== null)
         verify(engineViewport !== null)
-        verify(pinnedGrid.y < spaceHeading.y)
+        verify(navigationCluster !== null)
         compare(engineViewport.height, window.height)
 
+        // Navigation floats over the page instead of taking a band above it.
+        verify(navigationCluster.height < engineViewport.height / 4)
+        verify(navigationCluster.y > engineViewport.height / 2)
+
+        // The Space heading opens the outline; pinned rows sit above the tabs.
         browser.toggleActivePinned()
-        const pinnedDelegate = findChild(
-            window.contentItem, "pinned-tab-" + browser.activeTabId)
-        verify(pinnedDelegate !== null)
-        tryVerify(function() { return pinnedDelegate.visible })
-        verify(pinnedDelegate.width < 80)
-        verify(pinnedGrid.y < spaceHeading.y)
+        const pinnedRow = findChild(window.contentItem, "pinned-" + browser.activeTabId)
+        verify(pinnedRow !== null)
+        tryVerify(function() { return pinnedRow.visible && pinnedRow.height > 0 })
+
+        const sidebar = findChild(window.contentItem, "sidebar")
+        const headingTop = spaceHeading.mapToItem(sidebar, 0, 0).y
+        tryVerify(function() {
+            return pinnedRow.mapToItem(sidebar, 0, 0).y > headingTop
+        })
+
+        const tabRow = findChild(window.contentItem, "tab-" + browser.activeTabId)
+        if (tabRow !== null && tabRow.visible) {
+            verify(pinnedRow.mapToItem(sidebar, 0, 0).y < tabRow.mapToItem(sidebar, 0, 0).y)
+        }
         browser.toggleActivePinned()
+    }
+
+    function test_collapsingTheSidebarLeavesOnlyTheFloatingControls() {
+        const sidebar = findChild(window.contentItem, "sidebar")
+        const engineViewport = findChild(window.contentItem, "engineViewport")
+        const navigationCluster = findChild(window.contentItem, "navigationCluster")
+        const spaceEdge = findChild(window.contentItem, "spaceEdge")
+        verify(sidebar !== null)
+        verify(spaceEdge !== null)
+        verify(sidebar.visible)
+        verify(!spaceEdge.visible)
+
+        const expandedViewport = engineViewport.width
+        window.sidebarCollapsed = true
+        tryVerify(function() { return !sidebar.visible })
+        tryVerify(function() { return engineViewport.width > expandedViewport })
+        verify(navigationCluster.visible)
+        verify(spaceEdge.visible)
+
+        window.sidebarCollapsed = false
+        tryVerify(function() { return sidebar.visible })
     }
 
     function test_switchingTabsPreservesPageLocalState() {
@@ -106,8 +143,7 @@ TestCase {
         const addressButton = findChild(window.contentItem, "addressButton")
         const collapseButton = findChild(window.contentItem, "collapseButton")
         const reloadButton = findChild(window.contentItem, "reloadButton")
-        const pinButton = findChild(window.contentItem, "pinButton")
-        const moveTabButton = findChild(window.contentItem, "moveTabButton")
+        const commandPanelButton = findChild(window.contentItem, "commandPanelButton")
         const manageSpacesButton = findChild(window.contentItem, "manageSpacesButton")
         const settingsButton = findChild(window.contentItem, "settingsButton")
         const materialSymbolsFont = findChild(window, "materialSymbolsFont")
@@ -115,8 +151,8 @@ TestCase {
         compare(newTabButton.accessibleName, "New tab")
         compare(settingsButton.accessibleName, "Browsing settings and downloads")
         compare(addressButton.accessibleName, "Search or enter address")
-        compare(collapseButton.accessibleName, "Collapse sidebar")
-        compare(moveTabButton.label, "drive_file_move")
+        compare(collapseButton.accessibleName, "Hide sidebar")
+        compare(commandPanelButton.accessibleName, "Command panel")
         compare(manageSpacesButton.label, "more_horiz")
         verify(iconFontSource.toString().endsWith("/material-symbols-rounded.ttf"))
         verify(materialSymbolsFont !== null)
@@ -125,17 +161,11 @@ TestCase {
         verify(addressButton.activeFocusOnTab)
         verify(collapseButton.activeFocusOnTab)
 
-        reloadButton.forceActiveFocus()
-        compare(window.activeFocusItem.objectName, "reloadButton")
-        keyClick(Qt.Key_Tab)
-        compare(window.activeFocusItem.objectName, "pinButton")
-        keyClick(Qt.Key_Tab)
-        compare(window.activeFocusItem.objectName, "moveTabButton")
-        keyClick(Qt.Key_Tab)
+        addressButton.forceActiveFocus()
         compare(window.activeFocusItem.objectName, "addressButton")
 
         let visitedTab = false
-        for (let step = 0; step < 8 && window.activeFocusItem.objectName !== "newTabButton"; ++step) {
+        for (let step = 0; step < 10 && window.activeFocusItem.objectName !== "newTabButton"; ++step) {
             keyClick(Qt.Key_Tab)
             if (window.activeFocusItem.objectName.indexOf("tab-") === 0)
                 visitedTab = true
@@ -144,12 +174,46 @@ TestCase {
         compare(window.activeFocusItem.objectName, "newTabButton")
         keyClick(Qt.Key_Tab)
         compare(window.activeFocusItem.objectName, "settingsButton")
-        keyClick(Qt.Key_Tab)
-        compare(window.activeFocusItem.objectName, "collapseButton")
-        keyClick(Qt.Key_Backtab)
-        compare(window.activeFocusItem.objectName, "settingsButton")
         keyClick(Qt.Key_Backtab)
         compare(window.activeFocusItem.objectName, "newTabButton")
+    }
+
+    function test_everyBrowserCommandIsBoundAndSearchable() {
+        const bindings = keyboardNavigation.browserBindings
+        verify(Object.keys(bindings).length > 0)
+
+        // The panel is the keymap: every action it lists carries its keys, and
+        // every configured command is reachable from it.
+        const actions = window.commands.actions()
+        const listed = {}
+        for (let index = 0; index < actions.length; ++index) {
+            listed[actions[index].command] = actions[index]
+        }
+        for (const binding in bindings) {
+            const command = bindings[binding]
+            verify(listed[command] !== undefined)
+            verify(listed[command].keys.length > 0)
+        }
+
+        const matches = window.commands.search("reopen")
+        verify(matches.length > 0)
+        compare(matches[0].command, "reopen-tab")
+    }
+
+    function test_tabCommandsWalkTheModelInOrder() {
+        const start = browser.activeTabId
+        const count = browser.tabs.rowCount()
+        verify(count > 1)
+
+        window.stepTab(1)
+        verify(browser.activeTabId !== start)
+        window.stepTab(-1)
+        tryCompare(browser, "activeTabId", start)
+
+        for (let step = 0; step < count; ++step) {
+            window.stepTab(1)
+        }
+        tryCompare(browser, "activeTabId", start)
     }
 
     function test_spaceSwitchRecreatesEngineView() {
@@ -186,16 +250,19 @@ TestCase {
         verifyApplicationWindowFlags(privateBrowser)
         compare(privateBrowser.colors.accent, privateBrowser.colors.privateAccent)
 
-        const spaceSelector = findChild(privateBrowser.contentItem, "spaceSelector")
-        const pinButton = findChild(privateBrowser.contentItem, "pinButton")
+        const spaceSwitcher = findChild(privateBrowser.contentItem, "spaceSwitcher")
+        const pinnedList = findChild(privateBrowser.contentItem, "pinnedList")
+        const manageSpacesButton = findChild(privateBrowser.contentItem, "manageSpacesButton")
         const privateEngine = findChild(privateBrowser.contentItem, "engineLoader")
         const privateIndicator = findChild(privateBrowser.contentItem, "privateIndicator")
-        verify(spaceSelector !== null)
-        verify(pinButton !== null)
+        verify(spaceSwitcher !== null)
+        verify(pinnedList !== null)
+        verify(manageSpacesButton !== null)
         verify(privateEngine !== null)
         verify(privateIndicator !== null)
-        verify(!spaceSelector.visible)
-        verify(!pinButton.visible)
+        verify(!spaceSwitcher.visible)
+        verify(!pinnedList.visible)
+        verify(!manageSpacesButton.visible)
         verify(privateIndicator.visible)
         compare(privateEngine.item.profilePath, windowManager.privateProfilePath)
         compare(privateEngine.item.browserProfile, window.privateProfileHost.profile)
@@ -268,9 +335,11 @@ TestCase {
         verify(keyboardNavigationEnabled !== null)
         compare(remoteSuggestionsStatus.text, "Remote search suggestions: Off")
         verify(automaticRequestsStatus.text.indexOf("automatic network requests") >= 0)
-        compare(keyboardNavigationEnabled.checked, false)
+        // A keyboard-driven browser ships with its keymap live.
+        compare(keyboardNavigationEnabled.checked, true)
+        keyboardNavigationEnabled.click()
+        compare(keyboardNavigation.enabled, false)
         keyboardNavigationEnabled.click()
         compare(keyboardNavigation.enabled, true)
-        keyboardNavigationEnabled.click()
     }
 }

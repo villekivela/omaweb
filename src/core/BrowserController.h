@@ -7,6 +7,7 @@
 #include <QObject>
 #include <QHash>
 #include <QSharedPointer>
+#include <QSortFilterProxyModel>
 #include <QUrl>
 #include <QVariantList>
 
@@ -16,6 +17,8 @@ class BrowserController final : public QObject {
     Q_OBJECT
     Q_PROPERTY(QAbstractItemModel *spaces READ spaces CONSTANT)
     Q_PROPERTY(QAbstractItemModel *tabs READ tabs CONSTANT)
+    Q_PROPERTY(QAbstractItemModel *pinnedTabs READ pinnedTabs CONSTANT)
+    Q_PROPERTY(QAbstractItemModel *unpinnedTabs READ unpinnedTabs CONSTANT)
     Q_PROPERTY(QString activeSpaceId READ activeSpaceId NOTIFY activeSpaceChanged)
     Q_PROPERTY(QString activeSpaceName READ activeSpaceName NOTIFY activeSpaceChanged)
     Q_PROPERTY(QString activeTabId READ activeTabId NOTIFY activeTabChanged)
@@ -49,6 +52,8 @@ public:
 
     QAbstractItemModel *spaces();
     QAbstractItemModel *tabs();
+    QAbstractItemModel *pinnedTabs();
+    QAbstractItemModel *unpinnedTabs();
     QString activeSpaceId() const;
     QString activeSpaceName() const;
     QString activeTabId() const;
@@ -125,6 +130,8 @@ private:
     SessionStore m_store;
     SpaceListModel m_spaces;
     TabListModel m_tabs;
+    QSortFilterProxyModel m_pinnedTabs;
+    QSortFilterProxyModel m_unpinnedTabs;
     QString m_activeSpaceId;
     QString m_activeSpaceName;
     QString m_activeTabId;

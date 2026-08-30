@@ -23,11 +23,9 @@ public slots:
             m_dataRoot->path(), QStringLiteral("mock"));
         m_contentBlocker = std::make_unique<tanto::ContentBlocker>(m_dataRoot->path());
         const auto keybindingsPath = m_dataRoot->filePath(QStringLiteral("keybindings.json"));
-        QFile keybindings(keybindingsPath);
-        if (keybindings.open(QIODevice::WriteOnly)) {
-            keybindings.write(R"JSON({"version":1,"enabled":false,"bindings":{"j":"scroll-down"},"passthrough":{}})JSON");
-        }
-        keybindings.close();
+        QFile::copy(QStringLiteral(TANTO_DEFAULT_KEYBINDINGS_PATH), keybindingsPath);
+        QFile::setPermissions(keybindingsPath,
+            QFileDevice::ReadOwner | QFileDevice::WriteOwner);
         m_keyboardNavigation = std::make_unique<tanto::KeyboardNavigation>(keybindingsPath);
         m_theme = std::make_unique<tanto::ThemeController>(QStringLiteral(TANTO_THEME_PATH));
         m_windowManager = std::make_unique<tanto::WindowManager>(QStringLiteral("mock"));

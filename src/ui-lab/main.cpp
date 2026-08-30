@@ -12,6 +12,7 @@
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 #include <QTemporaryDir>
+#include <QQuickWindow>
 #include <QTimer>
 
 int main(int argc, char *argv[])
@@ -56,6 +57,25 @@ int main(int argc, char *argv[])
     QObject::connect(&engine, &QQmlApplicationEngine::objectCreationFailed,
         &application, [] { QCoreApplication::exit(1); }, Qt::QueuedConnection);
     engine.load(QUrl(QStringLiteral(TANTO_MAIN_QML_URL)));
+
+    const auto arguments = application.arguments();
+    const auto captureIndex = arguments.indexOf(QStringLiteral("--capture"));
+    if (captureIndex >= 0 && captureIndex + 1 < arguments.size()) {
+        const auto capturePath = arguments.at(captureIndex + 1);
+        QTimer::singleShot(700, &application, [&engine, capturePath] {
+            if (engine.rootObjects().isEmpty()) {
+                QCoreApplication::exit(1);
+                return;
+            }
+            auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().constFirst());
+            if (!window || !window->grabWindow().save(capturePath)) {
+                qCritical("Could not capture %s", qPrintable(capturePath));
+                QCoreApplication::exit(1);
+                return;
+            }
+            QCoreApplication::quit();
+        });
+    }
 
     if (application.arguments().contains(QStringLiteral("--validate-qml"))) {
         if (engine.rootObjects().isEmpty()) {

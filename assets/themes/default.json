@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
   "window": "#16151d",
-  "sidebar": "#d91d1b29",
-  "overlay": "#f5282634",
+  "sidebar": "#1d1b29",
+  "overlay": "#282634",
   "surface": "#302e3d",
   "surfaceHover": "#3d394e",
   "text": "#f3f1fa",
@@ -11,9 +11,22 @@
   "border": "#4a4658",
   "privateAccent": "#dc6bce",
   "privateWindow": "#481d50",
-  "privateSidebar": "#d95b2456",
+  "privateSidebar": "#5b2456",
   "privateSurface": "#5a3158",
   "privateSurfaceHover": "#70406c",
+  "tint": {
+    "saturation": 0.34,
+    "lightness": 0.66
+  },
+  "font": {
+    "families": ["JetBrains Mono", "SF Mono", "Menlo", "DejaVu Sans Mono", "monospace"],
+    "size": 12,
+    "smallSize": 10,
+    "headingSize": 15,
+    "labelSize": 9,
+    "labelSpacing": 1.8,
+    "iconSize": 17
+  },
   "opacity": {
     "sidebar": 0.85,
     "overlay": 0.96,

@@ -18,21 +18,32 @@ QtWebEngine is the development engine. Ladybird is the target engine. They ship 
 
 ## Interface
 
-- The vertical sidebar contains navigation controls, the current-address trigger, pinned tabs in a compact icon grid, the Space switcher and heading, ordinary tabs, security and permission status, content-blocking status, and the new-tab action.
-- Browser chrome does not occupy a toolbar above the webpage. The webpage uses the full height beside the sidebar.
+- The vertical sidebar is an outline of the active Space, read top to bottom: the Space heading, the other Spaces, the current-address trigger, pinned tabs as named rows, and ordinary tabs as two-line rows carrying the host. The new-tab action and settings close it.
+- Tabs never show site artwork. Every tab carries a uniform tile with a two-character host code, tinted by hue derived from the host and by saturation and lightness taken from the theme, so a full sidebar stays one palette.
+- Browser chrome does not occupy a toolbar above the webpage. Navigation controls, the sidebar toggle and the command-panel trigger float over the bottom-left of the page instead of taking a band from it. The webpage uses the full height beside the sidebar.
+- `Primary+B` hides the sidebar entirely. In that chromeless state the page keeps the whole window, the floating controls remain, and a stripe in the Space colour along the window's leading edge keeps the browsing identity visible.
+- Security state and the blocked-request count ride inline in the address trigger, and open a status panel.
 - Clicking the sidebar's current-address trigger or pressing `Primary+L` opens a centered Omnibar for the current tab.
 - `Primary+T` opens the Omnibar with a new-tab intent. Tanto creates the tab only after the user commits a destination.
 - The Omnibar searches addresses, the active Space's local history, open tabs, Spaces, and browser commands. Remote search suggestions are off by default.
-- Themes reload at runtime from versioned JSON. Semantic opacity values control transparent surfaces. Native blur falls back to alpha transparency and then an opaque color.
+- `Primary+K` opens the same panel in command mode: every action Tanto can perform is fuzzy-searchable there, and each result shows the keys that invoke it, so the panel is also how the keymap is learned. An action that cannot be reached from the panel is a defect.
+- Themes reload at runtime from versioned JSON. A theme defines type as well as colour: font families, sizes and label spacing, and the tinting of tab tiles. Semantic opacity values control transparent surfaces. Native blur falls back to alpha transparency and then an opaque color.
 - Private windows must remain visually distinct. Reduced-motion, increased-contrast, and reduced-transparency system settings override themes.
-
-`Primary` means `Cmd` on macOS and `Ctrl` on Linux.
 
 ## Keyboard navigation
 
 Keyboard navigation is a built-in setting, not a Web extension. Native commands control browser chrome. An engine adapter injects a small page script for scrolling, link hints, and page commands.
 
-The feature has no persistent Normal or Insert state. Editable controls receive typing. Sites may bypass selected conflicting keys or all page-level keys. Bindings live in versioned JSON.
+Every binding lives in one versioned JSON file, so rebinding, sharing, or backing up a keymap is editing or copying that file. It holds two maps: `bindings` for page commands the injected script performs, and `browser` for commands Tanto performs itself. Chords stay live at all times; single-key browser commands follow the Keyboard navigation setting, because only they can be confused with typing on a page. Editable controls receive typing regardless.
+
+The feature has no persistent Normal or Insert state. Sites may bypass selected conflicting keys or all page-level keys.
+
+The default browser commands include:
+
+- `H` and `L` for history, `r` to reload, `o` to open an address.
+- `gt` and `gT` to move between tabs, `1`–`9` to jump to one, `x` to close, `u` to reopen, `t` for a new tab, `p` to pin.
+- `gs` for the next Space and `Primary+1`–`Primary+9` for a specific one.
+- `Primary+B` to hide the sidebar and `Primary+K` or `:` for the command panel.
 
 The default page commands include:
 

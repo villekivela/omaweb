@@ -22,6 +22,31 @@ const QSet<QString> supportedCommands = {
     QStringLiteral("open-link-background"),
 };
 
+// Commands Tanto itself performs. The page never sees these, so they may be
+// bound to chords as well as to single keys.
+const QSet<QString> supportedBrowserCommands = {
+    QStringLiteral("back"),
+    QStringLiteral("forward"),
+    QStringLiteral("reload"),
+    QStringLiteral("open-address"),
+    QStringLiteral("command-panel"),
+    QStringLiteral("new-tab"),
+    QStringLiteral("close-tab"),
+    QStringLiteral("reopen-tab"),
+    QStringLiteral("next-tab"),
+    QStringLiteral("previous-tab"),
+    QStringLiteral("select-tab"),
+    QStringLiteral("pin-tab"),
+    QStringLiteral("move-tab"),
+    QStringLiteral("next-space"),
+    QStringLiteral("select-space"),
+    QStringLiteral("new-space"),
+    QStringLiteral("toggle-sidebar"),
+    QStringLiteral("settings"),
+    QStringLiteral("private-window"),
+    QStringLiteral("minimize-window"),
+};
+
 } // namespace
 
 KeyboardNavigation::KeyboardNavigation(QString configurationPath, QObject *parent)
@@ -56,6 +81,11 @@ bool KeyboardNavigation::valid() const
 QVariantMap KeyboardNavigation::bindings() const
 {
     return m_bindings;
+}
+
+QVariantMap KeyboardNavigation::browserBindings() const
+{
+    return m_browserBindings;
 }
 
 QString KeyboardNavigation::errorMessage() const
@@ -144,6 +174,17 @@ bool KeyboardNavigation::load()
         parsedBindings.insert(it.key(), command);
     }
 
+    QVariantMap parsedBrowserBindings;
+    const auto browser = root.value(QStringLiteral("browser")).toObject();
+    for (auto it = browser.begin(); it != browser.end(); ++it) {
+        const auto command = it.value().toString();
+        if (it.key().isEmpty() || !supportedBrowserCommands.contains(command)) {
+            m_errorMessage = QStringLiteral("Unsupported browser binding: %1").arg(it.key());
+            return false;
+        }
+        parsedBrowserBindings.insert(it.key(), command);
+    }
+
     QHash<QString, SiteRule> parsedRules;
     const auto passthrough = root.value(QStringLiteral("passthrough")).toObject();
     for (auto it = passthrough.begin(); it != passthrough.end(); ++it) {
@@ -167,6 +208,7 @@ bool KeyboardNavigation::load()
     }
 
     m_bindings = std::move(parsedBindings);
+    m_browserBindings = std::move(parsedBrowserBindings);
     m_siteRules = std::move(parsedRules);
     m_enabled = root.value(QStringLiteral("enabled")).toBool(false);
     m_valid = true;

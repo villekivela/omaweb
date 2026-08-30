@@ -1,5 +1,6 @@
 #include "BrowserController.h"
 
+#include <QRegularExpression>
 #include <QUrlQuery>
 #include <QUuid>
 #include <QStandardPaths>
@@ -27,6 +28,12 @@ BrowserController::BrowserController(QString dataRoot, QString engineName,
     , m_privateBrowsing(privateBrowsing)
     , m_sessionPermissionDecisions(std::move(sessionPermissionDecisions))
 {
+    m_pinnedTabs.setSourceModel(&m_tabs);
+    m_pinnedTabs.setFilterRole(TabListModel::PinnedRole);
+    m_pinnedTabs.setFilterRegularExpression(QRegularExpression(QStringLiteral("^true$")));
+    m_unpinnedTabs.setSourceModel(&m_tabs);
+    m_unpinnedTabs.setFilterRole(TabListModel::PinnedRole);
+    m_unpinnedTabs.setFilterRegularExpression(QRegularExpression(QStringLiteral("^false$")));
     initialize();
 }
 
@@ -38,6 +45,19 @@ QAbstractItemModel *BrowserController::spaces()
 QAbstractItemModel *BrowserController::tabs()
 {
     return &m_tabs;
+}
+
+// The sidebar renders pinned and ordinary tabs as two lists rather than hiding
+// rows: a positioner does not reliably re-place children whose visibility
+// changes, so filtering belongs in the model.
+QAbstractItemModel *BrowserController::pinnedTabs()
+{
+    return &m_pinnedTabs;
+}
+
+QAbstractItemModel *BrowserController::unpinnedTabs()
+{
+    return &m_unpinnedTabs;
 }
 
 QString BrowserController::activeSpaceId() const

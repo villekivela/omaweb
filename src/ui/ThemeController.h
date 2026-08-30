@@ -20,6 +20,7 @@ signals:
     void paletteChanged();
 
 private:
+    static QVariantMap defaultOpacity();
     QVariantMap fallbackPalette() const;
     QVariantMap normalizedPalette(QVariantMap palette) const;
     void refreshWatchPaths();
