@@ -49,11 +49,31 @@ QString dataRoot()
     return QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
 }
 
+// User-editable configuration lives beside every other tool's, under
+// XDG_CONFIG_HOME (~/.config/tanto), rather than in the application data
+// directory that holds profiles, caches and blocklists.
+QString configRoot()
+{
+    const auto override = qEnvironmentVariable("TANTO_CONFIG_ROOT");
+    if (!override.isEmpty()) {
+        return override;
+    }
+    const auto xdg = qEnvironmentVariable("XDG_CONFIG_HOME");
+    const auto base = xdg.isEmpty() ? QDir::home().filePath(QStringLiteral(".config")) : xdg;
+    return QDir(base).filePath(QStringLiteral("tanto"));
+}
+
 QString themePath()
 {
     const auto override = qEnvironmentVariable("TANTO_THEME_FILE");
     if (!override.isEmpty()) {
         return override;
+    }
+    // A theme the user dropped in their own config directory outranks a
+    // desktop-managed one; both outrank the built-in.
+    const auto configured = QDir(configRoot()).filePath(QStringLiteral("theme.json"));
+    if (QFileInfo::exists(configured)) {
+        return configured;
     }
 #if defined(Q_OS_LINUX)
     const auto omarchyTheme = QDir::home().filePath(
@@ -111,10 +131,18 @@ QString keybindingsPath()
     if (!override.isEmpty()) {
         return override;
     }
-    const auto settingsDirectory = QDir(dataRoot()).filePath(QStringLiteral("settings"));
-    QDir().mkpath(settingsDirectory);
-    const auto path = QDir(settingsDirectory).filePath(QStringLiteral("keybindings.json"));
+    const auto directory = configRoot();
+    QDir().mkpath(directory);
+    const auto path = QDir(directory).filePath(QStringLiteral("keybindings.json"));
     if (!QFileInfo::exists(path)) {
+        // Earlier versions kept the file under the data directory. Carry an
+        // existing one over so a user's edited bindings survive the move.
+        const auto legacy = QDir(QDir(dataRoot()).filePath(QStringLiteral("settings")))
+            .filePath(QStringLiteral("keybindings.json"));
+        if (QFileInfo::exists(legacy) && QFile::rename(legacy, path)) {
+            adoptNewDefaultSections(path);
+            return path;
+        }
         QFile::copy(QStringLiteral(TANTO_DEFAULT_KEYBINDINGS_PATH), path);
         return path;
     }

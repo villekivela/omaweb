@@ -20,4 +20,6 @@ ctest --preset dev
 
 On macOS, run `./build/dev/tanto.app/Contents/MacOS/tanto`. On Linux, run `./build/dev/tanto`. Use the `ui` preset for interface work without QtWebEngine.
 
+Configuration lives in `$XDG_CONFIG_HOME/tanto`, or `~/.config/tanto` when that is unset: `keybindings.json`, and a `theme.json` if you want one.
+
 Tanto-owned code is licensed under MPL 2.0. Third-party engines and data retain their own licenses.

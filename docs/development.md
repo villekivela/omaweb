@@ -50,9 +50,13 @@ Cargo. Run the bootstrap again only after changing the Rust wrapper, its manifes
 
 Never use Chromium's `--no-sandbox`, `--single-process`, in-process network-service flags, or `QTWEBENGINE_DISABLE_SANDBOX` in project scripts. Fix the host configuration or packaging instead.
 
+## Theme
+
+Tanto reads `theme.json` from the configuration directory when one is present, falling back to the desktop-managed theme (Omarchy, on Linux) and then the built-in palette. `TANTO_THEME_FILE` overrides all three.
+
 ## Keyboard navigation configuration
 
-Tanto copies `assets/keybindings/default.json` to `settings/keybindings.json` under the application data directory on first launch. Set `TANTO_KEYBINDINGS_FILE` to load another file during development. The version 1 format maps key sequences to the six supported commands and may give a site selected keys or the whole page:
+Tanto copies `assets/keybindings/default.json` to `keybindings.json` in the configuration directory on first launch — `$XDG_CONFIG_HOME/tanto`, or `~/.config/tanto` when that is unset. A file left by an earlier version under the application data directory is moved there. Set `TANTO_CONFIG_ROOT` to relocate the whole directory, or `TANTO_KEYBINDINGS_FILE` to load one specific file during development. The version 1 format maps key sequences to the six supported commands and may give a site selected keys or the whole page:
 
 ```json
 {
