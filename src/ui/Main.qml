@@ -343,6 +343,9 @@ ApplicationWindow {
                     colors: window.colors
                     typography: typography
                     iconFontFamily: materialSymbols.name
+                    // The page behind the strip, not the viewport that owns
+                    // both, so the blur never samples itself.
+                    backdropSource: engineLoader
                     canGoBack: engineLoader.item ? engineLoader.item.canGoBack : false
                     canGoForward: engineLoader.item ? engineLoader.item.canGoForward : false
                     sidebarCollapsed: window.sidebarCollapsed
