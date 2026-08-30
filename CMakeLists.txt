@@ -156,7 +156,6 @@ set(tanto_ui_files
     src/ui/KeyHint.qml
     src/ui/KeyMap.qml
     src/ui/NavigationCluster.qml
-    src/ui/PinnedRow.qml
     src/ui/SectionLabel.qml
     src/ui/SiteTile.qml
     src/ui/SpaceOutline.qml

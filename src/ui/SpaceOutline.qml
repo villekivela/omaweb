@@ -257,7 +257,7 @@ Rectangle {
             Repeater {
                 model: root.browser ? root.browser.pinnedTabs : null
 
-                PinnedRow {
+                TabRow {
                     width: parent.width
                     colors: root.colors
                     typography: root.typography
@@ -287,7 +287,7 @@ Rectangle {
 
         Column {
             width: tabScroll.availableWidth
-            spacing: 1
+            spacing: 0
 
             Repeater {
                 model: root.browser ? root.browser.unpinnedTabs : null

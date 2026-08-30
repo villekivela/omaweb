@@ -2,7 +2,7 @@ import QtQuick
 
 Item {
     id: root
-    objectName: "tab-" + tabId
+    objectName: (pinned ? "pinned-" : "tab-") + tabId
 
     required property string tabId
     required property string tabTitle
@@ -15,10 +15,10 @@ Item {
 
     signal activated(string tabId)
 
-    height: 42
+    height: 28
     activeFocusOnTab: true
     Accessible.role: Accessible.PageTab
-    Accessible.name: tabTitle
+    Accessible.name: pinned ? "Pinned: " + tabTitle : tabTitle
     Accessible.onPressAction: root.activated(root.tabId)
 
     Keys.onPressed: function(event) {
@@ -38,17 +38,12 @@ Item {
         border.color: root.colors.accent
     }
 
-    Rectangle {
-        width: 2
-        height: parent.height
-        anchors.left: parent.left
-        color: root.active ? root.colors.accent : "transparent"
-    }
-
     SiteTile {
         id: tile
+        implicitWidth: 18
+        implicitHeight: 18
         anchors.left: parent.left
-        anchors.leftMargin: 10
+        anchors.leftMargin: 6
         anchors.verticalCenter: parent.verticalCenter
         colors: root.colors
         typography: root.typography
@@ -56,34 +51,19 @@ Item {
         highlighted: root.active
     }
 
+    // The title names the page; its address is already in the address button
+    // whenever the tab is the active one, and reading it twice crowds the row.
     Text {
-        id: title
         anchors.left: tile.right
         anchors.leftMargin: 9
         anchors.right: parent.right
-        anchors.rightMargin: 10
-        anchors.top: parent.top
-        anchors.topMargin: 5
+        anchors.rightMargin: 8
+        anchors.verticalCenter: parent.verticalCenter
         text: root.tabTitle.length > 0 ? root.tabTitle : tile.host
         color: root.active ? root.colors.text : root.colors.mutedText
         elide: Text.ElideRight
         font.family: root.typography.family
         font.pixelSize: root.typography.size
-    }
-
-    Text {
-        anchors.left: tile.right
-        anchors.leftMargin: 9
-        anchors.right: parent.right
-        anchors.rightMargin: 10
-        anchors.top: title.bottom
-        anchors.topMargin: 2
-        text: root.loading ? "loading…" : tile.host
-        color: root.colors.mutedText
-        opacity: 0.85
-        elide: Text.ElideRight
-        font.family: root.typography.family
-        font.pixelSize: root.typography.smallSize
     }
 
     MouseArea {
