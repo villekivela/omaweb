@@ -511,13 +511,33 @@ void BrowserController::updateTab(const QString &tabId, const QUrl &url, const Q
         return;
     }
 
+    // Artwork from the previous site would mislabel the tab until the new page
+    // reports its own, so a move to another host drops it.
+    const auto changedHost = tab->url.host() != url.host();
     tab->url = url;
     tab->title = normalizedTitle;
-    m_tabs.notifyChanged(tab->id, {TabListModel::UrlRole, TabListModel::TitleRole});
+    if (changedHost) {
+        tab->iconUrl.clear();
+    }
+    m_tabs.notifyChanged(tab->id, changedHost
+        ? QList<int>{TabListModel::UrlRole, TabListModel::TitleRole, TabListModel::IconUrlRole}
+        : QList<int>{TabListModel::UrlRole, TabListModel::TitleRole});
     persistTabs();
     if (tabId == m_activeTabId) {
         emit activeTabChanged();
     }
+}
+
+// Site artwork belongs to the loaded page, not to the saved session: a
+// restored tab shows its lettered tile until the page hands one back.
+void BrowserController::setTabIcon(const QString &tabId, const QUrl &iconUrl)
+{
+    auto *tab = m_tabs.find(tabId);
+    if (!tab || tab->iconUrl == iconUrl) {
+        return;
+    }
+    tab->iconUrl = iconUrl;
+    m_tabs.notifyChanged(tab->id, {TabListModel::IconUrlRole});
 }
 
 void BrowserController::setTabLoading(const QString &tabId, bool loading)

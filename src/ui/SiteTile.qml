@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Effects
 
 Rectangle {
     id: root
@@ -6,6 +7,7 @@ Rectangle {
     property var colors
     property var typography
     property url siteUrl
+    property url iconUrl
     property bool highlighted: false
 
     readonly property string host: {
@@ -33,14 +35,47 @@ Rectangle {
             1)
     }
 
+    readonly property bool showsArtwork: artwork.status === Image.Ready
+
     implicitWidth: 20
     implicitHeight: 20
     radius: 2
-    color: highlighted ? tint : Qt.rgba(tint.r, tint.g, tint.b, 0.18)
+    // The chip is the stand-in for missing artwork. Real artwork needs no
+    // plate behind it: tinted, its own shape already reads against the sidebar.
+    color: showsArtwork
+        ? "transparent"
+        : (highlighted ? tint : Qt.rgba(tint.r, tint.g, tint.b, 0.18))
     Accessible.ignored: true
+
+    Image {
+        id: artwork
+        anchors.centerIn: parent
+        width: parent.width
+        height: width
+        source: root.iconUrl
+        sourceSize.width: 32
+        sourceSize.height: 32
+        fillMode: Image.PreserveAspectFit
+        asynchronous: true
+        smooth: true
+        visible: false
+    }
+
+    // Site artwork arrives in whatever colours the site chose. Recolouring it
+    // to the tile's hue keeps the shape, which is what identifies the site,
+    // and drops the brand colour, which would break the sidebar's palette.
+    MultiEffect {
+        anchors.fill: artwork
+        source: artwork
+        visible: root.showsArtwork
+        saturation: -1.0
+        colorization: 1.0
+        colorizationColor: root.tint
+    }
 
     Text {
         anchors.centerIn: parent
+        visible: !root.showsArtwork
         text: root.code
         color: root.highlighted ? root.colors.windowOpaque : root.tint
         font.family: root.typography.family

@@ -11,6 +11,7 @@ struct TabState {
     QString spaceId;
     QUrl url;
     QString title;
+    QUrl iconUrl;
     bool pinned = false;
     bool active = false;
     bool loading = false;
@@ -26,6 +27,7 @@ public:
         SpaceIdRole,
         UrlRole,
         TitleRole,
+        IconUrlRole,
         PinnedRole,
         ActiveRole,
         LoadingRole,

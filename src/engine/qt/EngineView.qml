@@ -6,6 +6,7 @@ Item {
 
     property alias currentUrl: webView.url
     property alias pageTitle: webView.title
+    property alias pageIconUrl: webView.icon
     property alias loading: webView.loading
     property alias canGoBack: webView.canGoBack
     property alias canGoForward: webView.canGoForward

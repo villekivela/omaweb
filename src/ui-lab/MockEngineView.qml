@@ -5,6 +5,7 @@ Rectangle {
 
     property url currentUrl: "about:blank"
     property string pageTitle: currentUrl.toString() === "about:blank" ? "New tab" : currentUrl.toString()
+    property url pageIconUrl: ""
     property bool loading: false
     property bool canGoBack: false
     property bool canGoForward: false

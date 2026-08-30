@@ -28,6 +28,8 @@ QVariant TabListModel::data(const QModelIndex &index, int role) const
         return tab.url;
     case TitleRole:
         return tab.title;
+    case IconUrlRole:
+        return tab.iconUrl;
     case PinnedRole:
         return tab.pinned;
     case ActiveRole:
@@ -46,6 +48,7 @@ QHash<int, QByteArray> TabListModel::roleNames() const
         {SpaceIdRole, "spaceId"},
         {UrlRole, "tabUrl"},
         {TitleRole, "tabTitle"},
+        {IconUrlRole, "tabIconUrl"},
         {PinnedRole, "pinned"},
         {ActiveRole, "active"},
         {LoadingRole, "loading"},

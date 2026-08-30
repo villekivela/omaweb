@@ -124,6 +124,11 @@ Item {
                         root.keyboardManager.configurationForUrl(engineLoader.item.currentUrl))
                 }
 
+                function onPageIconUrlChanged() {
+                    root.browserController.setTabIcon(
+                        tabSlot.tabId, engineLoader.item.pageIconUrl)
+                }
+
                 function onPageTitleChanged() {
                     root.browserController.updateTab(
                         tabSlot.tabId, engineLoader.item.currentUrl, engineLoader.item.pageTitle)

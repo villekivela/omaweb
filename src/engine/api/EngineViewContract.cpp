@@ -15,6 +15,7 @@ QStringList validateEngineViewContract(const QObject &adapter)
     static constexpr RequiredProperty requiredProperties[] = {
         {"currentUrl", QMetaType::QUrl},
         {"pageTitle", QMetaType::QString},
+        {"pageIconUrl", QMetaType::QUrl},
         {"loading", QMetaType::Bool},
         {"canGoBack", QMetaType::Bool},
         {"canGoForward", QMetaType::Bool},

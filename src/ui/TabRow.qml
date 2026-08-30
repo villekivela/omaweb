@@ -7,6 +7,7 @@ Item {
     required property string tabId
     required property string tabTitle
     required property url tabUrl
+    required property url tabIconUrl
     required property bool pinned
     required property bool active
     required property bool loading
@@ -48,6 +49,7 @@ Item {
         colors: root.colors
         typography: root.typography
         siteUrl: root.tabUrl
+        iconUrl: root.tabIconUrl
         highlighted: root.active
     }
 
