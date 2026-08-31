@@ -276,6 +276,8 @@ ApplicationWindow {
                     window.spacesMenuY = anchorY
                     window.spacesMenuOpen = true
                 }
+                onSettingsRequested: window.requestSettings()
+                onWindowMoveRequested: window.startSystemMove()
             }
 
             Item {

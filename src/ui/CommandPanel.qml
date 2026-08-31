@@ -55,18 +55,30 @@ Item {
 
     function refresh() {
         results = commandMode ? commands.search(input.text) : []
-        selected = 0
+        selected = commandMode ? 0 : -1
     }
 
+    // In address mode the typed text is itself a destination, so it is the
+    // selection at -1: the list is what you step into, not what you start in.
     function step(delta) {
-        if (results.length === 0) {
+        if (commandMode) {
+            if (results.length === 0) return
+            selected = (selected + delta + results.length) % results.length
             return
         }
-        selected = (selected + delta + results.length) % results.length
+        if (suggestions.length === 0) return
+        const next = selected + delta
+        selected = next < -1
+            ? suggestions.length - 1
+            : (next >= suggestions.length ? -1 : next)
     }
 
     function accept() {
         if (!commandMode) {
+            if (selected >= 0 && selected < suggestions.length) {
+                root.committed(suggestions[selected].url.toString())
+                return
+            }
             if (input.text.trim().length > 0) {
                 root.committed(input.text)
             }
@@ -99,7 +111,7 @@ Item {
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.top: parent.top
         anchors.topMargin: Math.max(80, parent.height * 0.14)
-        height: header.height + body.height + footer.height
+        height: header.height + body.height + footer.height + 2 * border.width
         radius: 3
         // With a backdrop the tint goes on top of the blur instead, so the
         // panel itself stays clear.
@@ -156,11 +168,14 @@ Item {
             color: root.colors.overlay
         }
 
+        // Every band stops at the border: a rule that ran the full width would
+        // cut across the panel's own edge and square off its corners.
         Item {
             id: header
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.top: parent.top
+            anchors.margins: panel.border.width
             height: 62
 
             Text {
@@ -244,6 +259,8 @@ Item {
             id: body
             anchors.left: parent.left
             anchors.right: parent.right
+            anchors.leftMargin: panel.border.width
+            anchors.rightMargin: panel.border.width
             anchors.top: header.bottom
             height: root.commandMode
                 ? Math.min(commandList.contentHeight, 336) + 8
@@ -340,6 +357,8 @@ Item {
                 visible: !root.commandMode && root.suggestions.length > 0
                 clip: true
                 model: root.suggestions
+                currentIndex: root.selected
+                highlightMoveDuration: 0
                 boundsBehavior: Flickable.StopAtBounds
 
                 delegate: Item {
@@ -353,7 +372,15 @@ Item {
 
                     Rectangle {
                         anchors.fill: parent
-                        color: suggestionMouse.containsMouse ? root.colors.surface : "transparent"
+                        color: index === root.selected || suggestionMouse.containsMouse
+                            ? root.colors.surface : "transparent"
+                    }
+
+                    Rectangle {
+                        width: 2
+                        height: parent.height
+                        anchors.left: parent.left
+                        color: index === root.selected ? root.colors.accent : "transparent"
                     }
 
                     Text {
@@ -363,7 +390,7 @@ Item {
                         anchors.rightMargin: 14
                         anchors.verticalCenter: parent.verticalCenter
                         text: modelData.title + "  ·  " + modelData.url
-                        color: root.colors.mutedText
+                        color: index === root.selected ? root.colors.text : root.colors.mutedText
                         elide: Text.ElideMiddle
                         font.family: root.typography.family
                         font.pixelSize: root.typography.size
@@ -374,6 +401,7 @@ Item {
                         anchors.fill: parent
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
+                        onEntered: root.selected = index
                         onClicked: root.committed(modelData.url.toString())
                     }
                 }
@@ -385,6 +413,7 @@ Item {
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.bottom: parent.bottom
+            anchors.margins: panel.border.width
             height: 26
 
             Rectangle {

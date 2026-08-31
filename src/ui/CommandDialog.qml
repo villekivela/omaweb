@@ -91,7 +91,7 @@ Item {
         id: panel
         objectName: "commandDialogPanel"
         width: Math.min(660, parent.width - 96)
-        height: head.height + body.height + foot.height
+        height: head.height + body.height + foot.height + 2 * border.width
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.top: parent.top
         anchors.topMargin: Math.max(80, parent.height * 0.14)
@@ -101,11 +101,14 @@ Item {
         border.color: root.edge
         clip: true
 
+        // The rows and rules stop at the border rather than running under it,
+        // where a highlighted row would paint over the panel's own edge.
         Item {
             id: head
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.top: parent.top
+            anchors.margins: panel.border.width
             height: 38
 
             SectionLabel {
@@ -141,6 +144,8 @@ Item {
             id: body
             anchors.left: parent.left
             anchors.right: parent.right
+            anchors.leftMargin: panel.border.width
+            anchors.rightMargin: panel.border.width
             anchors.top: head.bottom
             height: implicitHeight
             spacing: 0
@@ -277,6 +282,8 @@ Item {
             id: foot
             anchors.left: parent.left
             anchors.right: parent.right
+            anchors.leftMargin: panel.border.width
+            anchors.rightMargin: panel.border.width
             anchors.top: body.bottom
             height: root.confirmHint.length > 0 ? 34 : 8
 

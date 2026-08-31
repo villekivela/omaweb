@@ -57,7 +57,7 @@ Item {
         id: panel
         objectName: "chromeMenuPanel"
         width: 232
-        height: rows.implicitHeight + 8
+        height: rows.implicitHeight + 8 + 2 * border.width
         // Kept inside the window: a menu near the bottom rises instead of
         // hanging off the edge where its last row would be unreachable.
         x: Math.max(8, Math.min(root.anchorX - width, root.width - width - 8))
@@ -69,12 +69,15 @@ Item {
         border.width: 1
         border.color: root.colors.accent
 
+        // A highlighted row stops at the border instead of painting over it.
         Column {
             id: rows
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.top: parent.top
-            anchors.topMargin: 4
+            anchors.leftMargin: parent.border.width
+            anchors.rightMargin: parent.border.width
+            anchors.topMargin: 4 + parent.border.width
             spacing: 0
 
             Repeater {

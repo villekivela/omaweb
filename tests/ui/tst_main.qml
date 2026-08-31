@@ -308,6 +308,18 @@ TestCase {
         input.text = "docs"
         tryCompare(suggestions, "count", 1)
 
+        // The typed text is the selection until the user steps into the list,
+        // so the first Down lands on the first suggestion and Up leaves again.
+        const panel = findChild(window.contentItem, "commandPanel")
+        verify(panel !== null)
+        compare(panel.selected, -1)
+        panel.step(1)
+        compare(panel.selected, 0)
+        panel.step(1)
+        compare(panel.selected, -1)
+        panel.step(-1)
+        compare(panel.selected, 0)
+
         window.closeOmnibar()
         const workSpaceId = browser.createSpace("History Work")
         verify(browser.switchSpace(workSpaceId))
@@ -317,6 +329,22 @@ TestCase {
         window.closeOmnibar()
         verify(browser.switchSpace(personalSpaceId))
         verify(browser.deleteSpace(workSpaceId, ""))
+    }
+
+    function test_theSidebarOpensAndClosesSettings() {
+        const settingsButton = findChild(window.contentItem, "settingsButton")
+        const settingsSurface = findChild(window.contentItem, "settingsSurface")
+        verify(settingsButton !== null)
+        verify(settingsSurface !== null)
+        verify(!settingsSurface.visible)
+
+        settingsButton.clicked()
+        tryVerify(function() { return settingsSurface.visible })
+
+        const closeButton = findChild(window.contentItem, "closeSettingsButton")
+        verify(closeButton !== null)
+        closeButton.clicked()
+        tryVerify(function() { return !settingsSurface.visible })
     }
 
     function test_settingsExposeNetworkAndDownloadPolicy() {
