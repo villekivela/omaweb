@@ -27,10 +27,12 @@ public:
         SpaceIdRole,
         UrlRole,
         TitleRole,
-        IconUrlRole,
         PinnedRole,
         ActiveRole,
         LoadingRole,
+        // QML reads these positionally as Qt.UserRole + n, so new roles go on
+        // the end. Inserting one renumbers every role after it.
+        IconUrlRole,
     };
     Q_ENUM(Role)
 
