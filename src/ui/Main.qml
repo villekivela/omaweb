@@ -616,6 +616,7 @@ ApplicationWindow {
             defaultWidth: window.sidebarDefaultWidth
 
             onWidthRequested: function(width) { window.setSidebarWidth(width) }
+            onPageFocusRequested: window.focusPage()
         }
     }
 

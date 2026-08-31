@@ -210,6 +210,19 @@ TestCase {
         window.commands.run("focus-page", -1)
         tryVerify(function() { return engineHost.item.activeFocus })
 
+        // The resize handle reads as part of the sidebar, so it leaves like
+        // the rest of it. Every control in there answers to the same key.
+        const controls = ["addressButton", "newTabButton", "settingsButton",
+            "manageSpacesButton", "sidebarResizer", "tab-" + browser.activeTabId]
+        for (let index = 0; index < controls.length; ++index) {
+            const control = findChild(window.contentItem, controls[index])
+            verify(control !== null)
+            control.forceActiveFocus()
+            compare(window.activeFocusItem.objectName, controls[index])
+            keyClick(Qt.Key_Escape)
+            tryVerify(function() { return engineHost.item.activeFocus })
+        }
+
         // Asking a hidden outline for the keyboard shows it first.
         window.sidebarCollapsed = true
         window.commands.run("focus-sidebar", -1)

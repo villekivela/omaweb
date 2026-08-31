@@ -17,6 +17,9 @@ Item {
     property bool dragging: false
 
     signal widthRequested(real width)
+    // The handle reads as part of the sidebar, so it leaves like the rest of
+    // it: Escape hands the keyboard back to the page.
+    signal pageFocusRequested()
 
     width: 10
     activeFocusOnTab: enabled
@@ -47,6 +50,9 @@ Item {
         case Qt.Key_Enter:
         case Qt.Key_Space:
             root.request(root.defaultWidth)
+            break
+        case Qt.Key_Escape:
+            root.pageFocusRequested()
             break
         default:
             return
