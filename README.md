@@ -1,16 +1,41 @@
 # Tanto
 
-Tanto is a keyboard-driven browser for developers. It runs on macOS during development and targets Linux with first-class Wayland support.
+Tanto is a keyboard-driven browser for developers. It is developed on macOS and
+aims to become a Linux daily driver with first-class Wayland support.
 
-The default build uses QtWebEngine. Ladybird is the target engine, but it stays in a separate pinned build until its embedding and security contracts are mature enough for daily use.
+The window has no title bar. Tabs run down a sidebar, addresses and commands
+open in a centered Omnibar, and every action is reachable from the keyboard.
+Browsing is split into Spaces, each with its own logins, cookies, history,
+permissions, and tabs. Content blocking is built in rather than an extension.
+There is no telemetry, no account, and no sync.
 
-## Current status
+QtWebEngine is the engine Tanto is built against today. Ladybird is the engine
+it is built *for*, and it stays in a separate pinned build until its embedding
+and security contracts hold up for daily use.
 
-The repository contains the first vertical slice: one frameless window, an isolated Personal Space, vertical tabs, pinned tabs, a centered Omnibar, session persistence, transparent chrome, and an engine-free UI lab.
+## Status
 
-See [product requirements](docs/product/requirements.md), [architecture](docs/architecture.md), [development instructions](docs/development.md), and the [automatic network-request policy](docs/network-requests.md).
+Pre-alpha, and not a browser to keep your banking session in yet.
+
+The vertical slice runs: frameless window, Spaces with vertical and pinned
+tabs, the Omnibar and command panel, keyboard navigation with link hints,
+content blocking, session persistence, live themes, and an engine-free UI lab.
+[docs/roadmap.md](docs/roadmap.md) tracks what each milestone still owes.
 
 ## Build
+
+Prerequisites are Qt 6.11, CMake 3.30, Ninja, Clang with C++23, and ccache.
+[docs/development.md](docs/development.md) has the versions and the macOS Qt
+notes.
+
+Build the pinned content blocker once before the first configure. CMake checks
+its checksum but never runs Cargo:
+
+```sh
+scripts/bootstrap_content_blocker.sh
+```
+
+Then:
 
 ```sh
 cmake --preset dev
@@ -18,8 +43,55 @@ cmake --build --preset dev
 ctest --preset dev
 ```
 
-On macOS, run `./build/dev/tanto.app/Contents/MacOS/tanto`. On Linux, run `./build/dev/tanto`. Use the `ui` preset for interface work without QtWebEngine.
+The binary is `./build/dev/tanto.app/Contents/MacOS/tanto` on macOS and
+`./build/dev/tanto` on Linux.
 
-Configuration lives in `$XDG_CONFIG_HOME/tanto`, or `~/.config/tanto` when that is unset: `keybindings.json`, and a `theme.json` if you want one. `scripts/import_terminal_theme.py` writes that theme from your terminal's colours.
+QML, themes, and the icon font load from the source tree in development
+builds, so editing them costs a restart and no compile. For interface work
+without QtWebEngine, use the `ui` preset and run `tanto-ui-lab`, which draws
+the same QML against fake browser state. `--capture <path>` renders one frame
+to a PNG, which works headlessly. The other presets are `asan`, `release`,
+`ci`, and `ladybird`; the Ladybird one is deliberately outside the default
+build graph.
 
-Tanto-owned code is licensed under MPL 2.0. Third-party engines and data retain their own licenses.
+## Configuration
+
+Files live in `$XDG_CONFIG_HOME/tanto`, or `~/.config/tanto` when that is
+unset:
+
+- `keybindings.json` holds both maps, `bindings` for page commands and
+  `browser` for commands Tanto runs itself. Tanto writes the defaults there on
+  first launch. Rebinding is editing that file; sharing a keymap is copying it.
+- `theme.json` is optional. Without one, Tanto follows the desktop theme
+  (Omarchy on Linux) and then its built-in palette. `TANTO_THEME_FILE`
+  overrides both.
+
+`scripts/import_terminal_theme.py` writes `theme.json` from the colours of the
+terminal you run it in. It reads Ghostty, iTerm2, kitty, Alacritty, and
+Terminal.app. A running Tanto is watching the file, so the window repaints
+without a restart.
+
+## Repository
+
+- `src/core` owns Spaces, tabs, sessions, commands, and persistence.
+- `src/ui` is the shared QML chrome; `src/ui-lab` runs it without an engine.
+- `src/engine` holds the engine contract and the Qt adapter behind it.
+- `src/content-blocking` wraps the Rust matcher; `src/platform` holds the
+  macOS and Linux window integrations.
+- `third_party/omarchy-shell` is a vendored, pinned copy of the Omarchy
+  shell's QML kit. Those files are never edited locally; `ctest` fails if they
+  are.
+- `docs/adr` records the decisions behind all of this. Start with
+  [architecture.md](docs/architecture.md) and
+  [product/requirements.md](docs/product/requirements.md).
+
+## Privacy
+
+Every network request Tanto makes on its own is listed in
+[docs/network-requests.md](docs/network-requests.md). Engine sandboxes stay
+enabled in every build, and no script may pass a flag that disables them.
+
+## License
+
+Tanto's own code is under MPL 2.0. Third-party engines and data keep their own
+licenses; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
