@@ -11,6 +11,17 @@
     const editable = target => target && (target.isContentEditable
         || (typeof target.closest === 'function'
             && target.closest('input, textarea, select, [contenteditable="true"]')));
+    // A hinted field wants the keyboard, not a click: a synthetic click never
+    // moves focus, so the reader would land on a field they cannot type in.
+    const typeableInput = new Set(['text', 'search', 'url', 'email', 'tel', 'password',
+        'number', 'date', 'datetime-local', 'month', 'week', 'time']);
+    const field = target => {
+        if (target.tagName === 'TEXTAREA' || target.tagName === 'SELECT') return true;
+        if (target.tagName === 'INPUT') {
+            return typeableInput.has(String(target.type || 'text').toLowerCase());
+        }
+        return target.isContentEditable === true;
+    };
     const visible = element => {
         const style = getComputedStyle(element);
         const rect = element.getBoundingClientRect();
@@ -123,8 +134,14 @@
     const activateHint = entry => {
         const target = entry.target;
         const background = state.hintMode === 'open-link-background';
+        const takesFocus = !background && field(target);
+        // Hint mode borrowed the focus and gives it back on the way out, which
+        // would take it straight off the field again. The field keeps it.
+        if (takesFocus) state.previousFocus = null;
         clearHints();
-        if (background) {
+        if (takesFocus) {
+            target.focus({ preventScroll: true });
+        } else if (background) {
             target.dispatchEvent(new MouseEvent('click', {
                 bubbles: true, cancelable: true, view: window,
                 button: 0, ctrlKey: true, metaKey: true
