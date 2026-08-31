@@ -28,6 +28,11 @@ public:
     QString pageScript() const;
 
     Q_INVOKABLE bool setEnabled(bool enabled);
+
+    // Carries a configuration file written by an earlier version forward onto
+    // the shipped defaults. Owned here rather than by the startup path,
+    // because this class already owns what the file means.
+    static bool adoptDefaults(const QString &configurationPath, const QString &defaultsPath);
     Q_INVOKABLE QVariantMap configurationForUrl(const QUrl &url) const;
 
 signals:

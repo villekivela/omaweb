@@ -11,11 +11,8 @@
 #include <QFileInfo>
 #include <QFile>
 #include <QGuiApplication>
-#include <QJsonDocument>
-#include <QJsonObject>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
-#include <QSaveFile>
 #include <QStandardPaths>
 #include <QTimer>
 #include <QtWebEngineQuick/qtwebenginequickglobal.h>
@@ -85,46 +82,6 @@ QString themePath()
     return QStringLiteral(TANTO_THEME_PATH);
 }
 
-QJsonObject readJsonObject(const QString &path)
-{
-    QFile file(path);
-    if (!file.open(QIODevice::ReadOnly)) {
-        return {};
-    }
-    return QJsonDocument::fromJson(file.readAll()).object();
-}
-
-// A settings file written by an earlier version has no entry for a section
-// added since — "browser", say — and a missing section reads as "no bindings",
-// which silently disables every shortcut in it. Sections the user already has
-// are left exactly as they are, so this only ever adds what an upgrade
-// introduced; it never resurrects a binding the user removed.
-void adoptNewDefaultSections(const QString &path)
-{
-    const auto defaults = readJsonObject(QStringLiteral(TANTO_DEFAULT_KEYBINDINGS_PATH));
-    auto settings = readJsonObject(path);
-    if (defaults.isEmpty() || settings.isEmpty()) {
-        return;
-    }
-    auto adopted = false;
-    for (auto it = defaults.begin(); it != defaults.end(); ++it) {
-        if (settings.contains(it.key())) {
-            continue;
-        }
-        settings.insert(it.key(), it.value());
-        adopted = true;
-    }
-    if (!adopted) {
-        return;
-    }
-    QSaveFile destination(path);
-    if (!destination.open(QIODevice::WriteOnly)) {
-        return;
-    }
-    destination.write(QJsonDocument(settings).toJson(QJsonDocument::Indented));
-    destination.commit();
-}
-
 QString keybindingsPath()
 {
     const auto override = qEnvironmentVariable("TANTO_KEYBINDINGS_FILE");
@@ -140,13 +97,15 @@ QString keybindingsPath()
         const auto legacy = QDir(QDir(dataRoot()).filePath(QStringLiteral("settings")))
             .filePath(QStringLiteral("keybindings.json"));
         if (QFileInfo::exists(legacy) && QFile::rename(legacy, path)) {
-            adoptNewDefaultSections(path);
+            tanto::KeyboardNavigation::adoptDefaults(path,
+                QStringLiteral(TANTO_DEFAULT_KEYBINDINGS_PATH));
             return path;
         }
         QFile::copy(QStringLiteral(TANTO_DEFAULT_KEYBINDINGS_PATH), path);
         return path;
     }
-    adoptNewDefaultSections(path);
+    tanto::KeyboardNavigation::adoptDefaults(path,
+        QStringLiteral(TANTO_DEFAULT_KEYBINDINGS_PATH));
     return path;
 }
 

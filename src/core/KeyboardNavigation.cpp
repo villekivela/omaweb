@@ -13,6 +13,28 @@ namespace {
 
 constexpr int supportedVersion = 1;
 
+// Every default binding this file has already been offered, so a binding the
+// user deleted is never handed back to them while a binding a later version
+// introduces still arrives. It travels inside the configuration file, because
+// the file is what a user copies to another machine.
+const auto adoptedDefaultsKey = QStringLiteral("adoptedDefaults");
+
+// The two maps that hold bindings. Other sections — "passthrough" — are site
+// rules, and are only ever adopted whole.
+const QStringList bindingSections = {
+    QStringLiteral("bindings"),
+    QStringLiteral("browser"),
+};
+
+QJsonObject readJsonObject(const QString &path)
+{
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly)) {
+        return {};
+    }
+    return QJsonDocument::fromJson(file.readAll()).object();
+}
+
 const QSet<QString> supportedCommands = {
     QStringLiteral("scroll-down"),
     QStringLiteral("scroll-up"),
@@ -219,6 +241,96 @@ bool KeyboardNavigation::load()
     m_valid = true;
     m_errorMessage.clear();
     return true;
+}
+
+// A file written before a section existed — "browser", say — reads as "no
+// bindings", which silently disables every shortcut in it; a file written
+// before a binding existed simply never sees it. Both are upgrades, and both
+// are handled here. Sections and bindings the user already has are left
+// exactly as they are.
+//
+// The ledger is what separates "new in this release" from "the user deleted
+// this". The first run after it arrives has nothing to go on but the file
+// itself, so it offers every default that file lacks — once — and records the
+// whole of the current defaults. From then on a deletion sticks.
+bool KeyboardNavigation::adoptDefaults(const QString &configurationPath,
+    const QString &defaultsPath)
+{
+    const auto defaults = readJsonObject(defaultsPath);
+    auto settings = readJsonObject(configurationPath);
+    if (defaults.isEmpty() || settings.isEmpty()) {
+        return false;
+    }
+
+    const auto hadLedger = settings.contains(adoptedDefaultsKey);
+    const auto ledger = settings.value(adoptedDefaultsKey).toObject();
+    auto adopted = false;
+
+    for (auto it = defaults.begin(); it != defaults.end(); ++it) {
+        if (settings.contains(it.key())) {
+            continue;
+        }
+        settings.insert(it.key(), it.value());
+        adopted = true;
+    }
+
+    auto nextLedger = ledger;
+    auto ledgerChanged = !hadLedger;
+    for (const auto &section : bindingSections) {
+        const auto defaultBindings = defaults.value(section).toObject();
+        if (defaultBindings.isEmpty()) {
+            continue;
+        }
+        auto bindings = settings.value(section).toObject();
+
+        QSet<QString> offered;
+        const auto recorded = ledger.value(section).toArray();
+        for (const auto &entry : recorded) {
+            offered.insert(entry.toString());
+        }
+        if (!hadLedger) {
+            for (auto it = bindings.begin(); it != bindings.end(); ++it) {
+                offered.insert(it.key());
+            }
+        }
+
+        for (auto it = defaultBindings.begin(); it != defaultBindings.end(); ++it) {
+            if (offered.contains(it.key()) || bindings.contains(it.key())) {
+                continue;
+            }
+            bindings.insert(it.key(), it.value());
+            adopted = true;
+        }
+        settings.insert(section, bindings);
+
+        // The ledger holds every default this file has been offered, whether
+        // it took it or already had it, so the same key is never offered twice.
+        QSet<QString> record;
+        for (const auto &entry : recorded) {
+            record.insert(entry.toString());
+        }
+        for (auto it = defaultBindings.begin(); it != defaultBindings.end(); ++it) {
+            record.insert(it.key());
+        }
+        auto names = QStringList(record.begin(), record.end());
+        names.sort();
+        if (names.size() != recorded.size()) {
+            ledgerChanged = true;
+        }
+        nextLedger.insert(section, QJsonArray::fromStringList(names));
+    }
+
+    if (!adopted && !ledgerChanged) {
+        return false;
+    }
+    settings.insert(adoptedDefaultsKey, nextLedger);
+
+    QSaveFile destination(configurationPath);
+    if (!destination.open(QIODevice::WriteOnly)) {
+        return false;
+    }
+    destination.write(QJsonDocument(settings).toJson(QJsonDocument::Indented));
+    return destination.commit();
 }
 
 bool KeyboardNavigation::save() const

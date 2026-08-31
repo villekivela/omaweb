@@ -1,6 +1,8 @@
 #include "KeyboardNavigation.h"
 
 #include <QFile>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QTest>
@@ -15,6 +17,7 @@ private slots:
     void resolvesSitePassthroughForHostsAndSubdomains();
     void rejectsUnsupportedVersionsAndCommands();
     void persistsTheEnabledSetting();
+    void adoptsNewDefaultsOnceWithoutResurrectingRemovedBindings();
 };
 
 static QString writeConfiguration(const QString &directory, const QByteArray &contents)
@@ -117,6 +120,104 @@ void KeyboardNavigationTest::persistsTheEnabledSetting()
 
     KeyboardNavigation restored(path);
     QVERIFY(restored.enabled());
+}
+
+static const QByteArray defaultConfiguration = R"JSON({
+    "version": 1,
+    "enabled": true,
+    "bindings": {
+        "j": "scroll-down",
+        "k": "scroll-up"
+    },
+    "browser": {
+        "Primary+L": "open-address",
+        "Primary+B": "toggle-sidebar"
+    },
+    "passthrough": {}
+})JSON";
+
+static QJsonObject readConfiguration(const QString &path)
+{
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly)) {
+        return {};
+    }
+    return QJsonDocument::fromJson(file.readAll()).object();
+}
+
+void KeyboardNavigationTest::adoptsNewDefaultsOnceWithoutResurrectingRemovedBindings()
+{
+    QTemporaryDir root;
+    const auto defaults = root.path() + QStringLiteral("/default.json");
+    {
+        QFile file(defaults);
+        QVERIFY(file.open(QIODevice::WriteOnly));
+        QCOMPARE(file.write(defaultConfiguration), defaultConfiguration.size());
+    }
+
+    // A file written before the "browser" section existed, missing one of the
+    // page bindings the shipped defaults carry.
+    const auto path = writeConfiguration(root.path(), R"JSON({
+        "version": 1,
+        "enabled": true,
+        "bindings": {
+            "j": "scroll-down"
+        },
+        "passthrough": {}
+    })JSON");
+
+    QVERIFY(KeyboardNavigation::adoptDefaults(path, defaults));
+    auto settings = readConfiguration(path);
+    // A whole missing section arrives, and so does a binding inside a section
+    // the file already had.
+    QCOMPARE(settings.value(QStringLiteral("browser")).toObject().size(), 2);
+    QCOMPARE(settings.value(QStringLiteral("bindings")).toObject()
+                 .value(QStringLiteral("k")).toString(),
+        QStringLiteral("scroll-up"));
+
+    // Nothing left to adopt, so nothing is rewritten.
+    QVERIFY(!KeyboardNavigation::adoptDefaults(path, defaults));
+
+    // A binding the user deletes stays deleted: the ledger remembers that this
+    // file was already offered it.
+    settings = readConfiguration(path);
+    auto bindings = settings.value(QStringLiteral("bindings")).toObject();
+    bindings.remove(QStringLiteral("k"));
+    settings.insert(QStringLiteral("bindings"), bindings);
+    auto browser = settings.value(QStringLiteral("browser")).toObject();
+    browser.remove(QStringLiteral("Primary+B"));
+    settings.insert(QStringLiteral("browser"), browser);
+    QVERIFY(writeConfiguration(root.path(),
+        QJsonDocument(settings).toJson(QJsonDocument::Indented)).size() > 0);
+
+    QVERIFY(!KeyboardNavigation::adoptDefaults(path, defaults));
+    settings = readConfiguration(path);
+    QVERIFY(!settings.value(QStringLiteral("bindings")).toObject()
+                 .contains(QStringLiteral("k")));
+    QVERIFY(!settings.value(QStringLiteral("browser")).toObject()
+                 .contains(QStringLiteral("Primary+B")));
+
+    // A binding a later release introduces still arrives.
+    auto laterDefaults = readConfiguration(defaults);
+    browser = laterDefaults.value(QStringLiteral("browser")).toObject();
+    browser.insert(QStringLiteral("Primary+E"), QStringLiteral("focus-sidebar"));
+    laterDefaults.insert(QStringLiteral("browser"), browser);
+    {
+        QFile file(defaults);
+        QVERIFY(file.open(QIODevice::WriteOnly));
+        file.write(QJsonDocument(laterDefaults).toJson(QJsonDocument::Indented));
+    }
+
+    QVERIFY(KeyboardNavigation::adoptDefaults(path, defaults));
+    settings = readConfiguration(path);
+    browser = settings.value(QStringLiteral("browser")).toObject();
+    QCOMPARE(browser.value(QStringLiteral("Primary+E")).toString(),
+        QStringLiteral("focus-sidebar"));
+    QVERIFY(!browser.contains(QStringLiteral("Primary+B")));
+
+    // The file still loads, ledger and all.
+    KeyboardNavigation navigation(path);
+    QVERIFY(navigation.valid());
 }
 
 QTEST_GUILESS_MAIN(KeyboardNavigationTest)
