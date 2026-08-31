@@ -356,6 +356,38 @@ TestCase {
         tryCompare(engineLoader, "item", personalEngineView)
     }
 
+    // Site artwork is page state, not session state, so the Space switch that
+    // reloads a Space's tabs from its store drops it. The page itself is kept
+    // alive across the switch and will never report its icon again, so coming
+    // back has to find the icon the reader already watched load.
+    function test_spaceSwitchKeepsTheIconsItsPagesAlreadyReported() {
+        const engineLoader = findChild(window.contentItem, "engineLoader")
+        verify(engineLoader !== null)
+        tryVerify(function() { return engineLoader.item !== null })
+
+        const personalSpaceId = browser.activeSpaceId
+        const tabId = browser.activeTabId
+        const iconUrl = "https://one.example/favicon.ico"
+        const personalEngineView = engineLoader.item
+        const tabShowsIcon = function() {
+            const row = findChild(window.contentItem, "tab-" + tabId)
+            return row !== null && String(row.tabIconUrl) === iconUrl
+        }
+
+        personalEngineView.pageIconUrl = iconUrl
+        tryVerify(tabShowsIcon)
+
+        const workSpaceId = browser.createSpace("Work")
+        verify(browser.switchSpace(workSpaceId))
+        tryVerify(function() {
+            return engineLoader.item !== null && engineLoader.item !== personalEngineView
+        })
+
+        verify(browser.switchSpace(personalSpaceId))
+        tryCompare(engineLoader, "item", personalEngineView)
+        tryVerify(tabShowsIcon)
+    }
+
     function test_privateWindowUsesTemporaryIdentityAndDistinctChrome() {
         compare(windowManager.privateWindowCount, 0)
         windowManager.openPrivateWindow()

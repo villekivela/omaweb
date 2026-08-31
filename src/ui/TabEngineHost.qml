@@ -126,6 +126,21 @@ Item {
                 showEngine()
             }
 
+            // Site artwork belongs to the loaded page rather than to the saved
+            // session, so the core drops it when a Space switch reloads the
+            // Space's tabs from its store. A page kept alive across that switch
+            // has already reported its icon and has no reason to report it
+            // again, which would leave the tab wearing its lettered tile for a
+            // site whose artwork is still in memory. So a retained engine hands
+            // its icon back on the way in. Not only the tab the returning Space
+            // shows: a background tab keeps its engine too, and does not
+            // reattach until it is next selected.
+            function restoreReportedIcon() {
+                const retained = root.engines[tabId]
+                if (!retained || String(retained.pageIconUrl).length === 0) return
+                root.browserController.setTabIcon(tabId, retained.pageIconUrl)
+            }
+
             onTabUrlChanged: {
                 if (engine && engine.currentUrl !== tabUrl) engine.currentUrl = tabUrl
             }
@@ -139,7 +154,10 @@ Item {
                 }
             }
 
-            Component.onCompleted: loadEngine()
+            Component.onCompleted: {
+                restoreReportedIcon()
+                loadEngine()
+            }
 
             // The engine survives a Space switch and goes away with its tab.
             Component.onDestruction: {
@@ -158,6 +176,7 @@ Item {
                     if (root.suspended) {
                         if (tabSlot.engine) tabSlot.engine.visible = false
                     } else {
+                        tabSlot.restoreReportedIcon()
                         tabSlot.loadEngine()
                     }
                 }
