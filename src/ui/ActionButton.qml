@@ -1,17 +1,8 @@
 import QtQuick
-import qs.Ui as Omarchy
 
-// One button shape for the whole shell, now drawn by the Omarchy kit's
-// `Button` (third_party/omarchy-shell). This file is the adapter: call sites
-// keep Tanto's vocabulary — a palette and a typography block passed down, a
-// `primary` answer, a `destructive` one — and Tanto keeps the accessibility
-// annotations the kit does not carry.
-//
-// Emphasis follows the kit rather than Tanto's old filled rectangle: the
-// primary answer is bold, tinted, and bordered in the accent instead of being
-// a solid accent block. Colors stay per-instance so ThemeController remains
-// the single source of truth for the palette.
-Omarchy.Button {
+// One button shape for the whole shell: filled when it is the answer the
+// surface expects, outlined when it is one of the alternatives.
+Rectangle {
     id: root
 
     property var colors
@@ -21,19 +12,49 @@ Omarchy.Button {
     property bool destructive: false
     property string accessibleName: label
 
+    signal clicked()
+
     readonly property color edge: destructive ? colors.privateAccent : colors.accent
 
-    text: label
-    focusable: true
-    bordered: true
-    selected: primary
-    foreground: colors.text
-    accent: edge
-    fontFamily: typography.family
-    fontSize: typography.size
+    implicitWidth: text.implicitWidth + 24
+    implicitHeight: 30
+    radius: 2
     opacity: enabled ? 1.0 : 0.4
-
+    color: primary
+        ? edge
+        : (mouse.containsMouse && enabled ? colors.surfaceHover : "transparent")
+    border.width: primary ? 0 : 1
+    border.color: root.activeFocus ? edge : colors.border
+    activeFocusOnTab: enabled
     Accessible.role: Accessible.Button
     Accessible.name: accessibleName
     Accessible.onPressAction: root.clicked()
+
+    Keys.onPressed: function(event) {
+        if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Space) {
+            root.clicked()
+            event.accepted = true
+        }
+    }
+
+    Text {
+        id: text
+        anchors.centerIn: parent
+        text: root.label
+        color: root.primary ? root.colors.windowOpaque : root.colors.text
+        font.family: root.typography.family
+        font.pixelSize: root.typography.size
+    }
+
+    MouseArea {
+        id: mouse
+        anchors.fill: parent
+        enabled: root.enabled
+        hoverEnabled: true
+        cursorShape: Qt.PointingHandCursor
+        onClicked: {
+            root.forceActiveFocus()
+            root.clicked()
+        }
+    }
 }
