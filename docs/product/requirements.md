@@ -45,7 +45,7 @@ The default browser commands include:
 - `H` and `L` for history, `r` to reload, `o` to open an address.
 - `gt` and `gT` to move between tabs, `1`–`9` to jump to one, `x` to close, `u` to reopen, `t` for a new tab, `p` to pin.
 - `gs` for the next Space and `Primary+1`–`Primary+9` for a specific one.
-- `Primary+B` to hide the sidebar, `Primary+E` to focus it, and `Primary+K` or `:` for the command panel.
+- `Primary+B` to hide the sidebar, `Primary+E` to focus it, `Primary+,` for settings, and `Primary+K` or `:` for the command panel.
 
 The default page commands include:
 

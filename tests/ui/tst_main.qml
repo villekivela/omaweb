@@ -617,6 +617,21 @@ TestCase {
         tryVerify(function() { return !settingsSurface.visible })
     }
 
+    function test_theKeymapOpensSettings() {
+        const settingsSurface = findChild(window.contentItem, "settingsSurface")
+        verify(settingsSurface !== null)
+        verify(!settingsSurface.visible)
+        compare(keyboardNavigation.browserBindings["Primary+,"], "settings")
+
+        window.requestActivate()
+        tryVerify(function() { return window.active })
+        keyClick(Qt.Key_Comma, Qt.ControlModifier)
+        tryVerify(function() { return settingsSurface.visible })
+
+        findChild(window.contentItem, "closeSettingsButton").clicked()
+        tryVerify(function() { return !settingsSurface.visible })
+    }
+
     function test_settingsExposeNetworkAndDownloadPolicy() {
         const settingsButton = findChild(window.contentItem, "settingsButton")
         const remoteSuggestionsStatus = findChild(window.contentItem, "remoteSuggestionsStatus")

@@ -24,6 +24,7 @@
     "Primary+Shift+B": "reset-sidebar",
     "Primary+E": "focus-sidebar",
     "Primary+Shift+E": "focus-page",
+    "Primary+,": "settings",
     "Primary+M": "minimize-window",
     "Primary+[": "back",
     "Primary+]": "forward",
