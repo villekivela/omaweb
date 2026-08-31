@@ -36,7 +36,7 @@ QtWebEngine is the development engine. Ladybird is the target engine. They ship 
 
 Keyboard navigation is a built-in setting, not a Web extension. Native commands control browser chrome. An engine adapter injects a small page script for scrolling, link hints, and page commands.
 
-Every binding lives in one versioned JSON file, so rebinding, sharing, or backing up a keymap is editing or copying that file. It holds two maps: `bindings` for page commands the injected script performs, and `browser` for commands Tanto performs itself. Chords stay live at all times; single-key browser commands follow the Keyboard navigation setting, because only they can be confused with typing on a page. Editable controls receive typing regardless.
+Every binding lives in one versioned JSON file, so rebinding, sharing, or backing up a keymap is editing or copying that file. It holds two maps: `bindings` for page commands the injected script performs, and `browser` for commands Tanto performs itself. Chords stay live at all times; single-key browser commands follow the Keyboard navigation setting, because only they can be confused with typing on a page. Editable controls receive typing regardless, and `Escape` leaves a focused field so the bindings come back, except where the site has asked to keep the key.
 
 The feature has no persistent Normal or Insert state. Sites may bypass selected conflicting keys or all page-level keys.
 

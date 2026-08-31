@@ -192,9 +192,23 @@
             else if (!matches.length) clearHints();
             return;
         }
-        if (event.ctrlKey || event.metaKey || event.altKey || editable(event.target)) return;
         const key = keyName(event);
-        if (state.config.passthroughAll || state.config.passthroughKeys.includes(key)) return;
+        const passthrough = state.config.passthroughAll
+            || state.config.passthroughKeys.includes(key);
+        // A focused field swallows every binding, so the reader needs a way
+        // out: Escape blurs it and hands the keyboard back to the page. A site
+        // that asked for passthrough keeps Escape for itself.
+        if (editable(event.target)) {
+            if (event.key !== 'Escape' || passthrough) return;
+            if (event.ctrlKey || event.metaKey || event.altKey) return;
+            const focused = document.activeElement;
+            if (typeof focused?.blur !== 'function') return;
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            focused.blur();
+            return;
+        }
+        if (event.ctrlKey || event.metaKey || event.altKey || passthrough) return;
         const bindings = state.config.bindings || {};
         if (state.prefix) {
             const sequence = state.prefix + key;
