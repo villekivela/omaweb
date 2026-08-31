@@ -466,9 +466,13 @@ void QtEngineContractTest::qtKeyboardNavigationHonorsInputContracts_data()
                     const hint = document.querySelector('#__tanto_link_hints > span');
                     if (!hint) return;
                     const style = getComputedStyle(hint);
+                    // The hint is the sidebar's site chip: a surface plate,
+                    // and the code itself in the accent the border wears.
                     if (style.backgroundColor === 'rgb(18, 52, 86)'
                             && style.borderColor === 'rgb(101, 67, 33)'
-                            && style.color === 'rgb(238, 238, 238)'
+                            && style.color === 'rgb(101, 67, 33)'
+                            && style.borderRadius === '2px'
+                            && style.fontWeight === '600'
                             && style.fontFamily.includes('Courier')
                             && style.fontSize === '17px') document.title = 'themed';
                 }).observe(document.documentElement, { childList: true, subtree: true });
