@@ -261,6 +261,33 @@ TestCase {
         window.commands.run("focus-page", -1)
     }
 
+    function test_pageHintsReceiveTheActiveThemeAndFont() {
+        const engineHost = findChild(window.contentItem, "engineLoader")
+        verify(engineHost !== null)
+        tryVerify(function() { return engineHost.item !== null })
+
+        const hintTheme = engineHost.item.keyboardNavigationConfiguration.hintTheme
+        compare(String(hintTheme.surface), String(window.colors.surface))
+        compare(String(hintTheme.text), String(window.colors.text))
+        compare(String(hintTheme.accent), String(window.colors.accent))
+        compare(hintTheme.font.family, window.colors.font.family)
+        compare(hintTheme.font.size, window.colors.font.size)
+    }
+
+    function test_pageReceivesGgDespiteBrowserSequences() {
+        const engineHost = findChild(window.contentItem, "engineLoader")
+        verify(engineHost !== null)
+        tryVerify(function() { return engineHost.item !== null })
+        window.commands.run("focus-page", -1)
+        tryVerify(function() { return engineHost.item.activeFocus })
+        engineHost.item.keyboardInput = ""
+
+        keyClick(Qt.Key_G)
+        keyClick(Qt.Key_G)
+
+        compare(engineHost.item.keyboardInput, "gg")
+    }
+
     function test_switchingTabsPreservesPageLocalState() {
         const engineHost = findChild(window.contentItem, "engineLoader")
         verify(engineHost !== null)
@@ -319,6 +346,12 @@ TestCase {
     function test_everyBrowserCommandIsBoundAndSearchable() {
         const bindings = keyboardNavigation.browserBindings
         verify(Object.keys(bindings).length > 0)
+        compare(bindings.J, "next-tab")
+        compare(bindings.K, "previous-tab")
+        compare(bindings.X, "reopen-tab")
+        compare(bindings.u, undefined)
+        compare(keyboardNavigation.bindings.d, "scroll-half-page-down")
+        compare(keyboardNavigation.bindings.u, "scroll-half-page-up")
 
         // The panel is the keymap: every action it lists carries its keys, and
         // every configured command is reachable from it.

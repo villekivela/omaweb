@@ -72,6 +72,8 @@ QtObject {
     readonly property var pageDescriptions: ({
         "scroll-down": "Scroll down",
         "scroll-up": "Scroll up",
+        "scroll-half-page-down": "Scroll down half a page",
+        "scroll-half-page-up": "Scroll up half a page",
         "scroll-top": "Top of page",
         "scroll-bottom": "Bottom of page",
         "open-link": "Follow link hint",

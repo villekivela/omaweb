@@ -38,6 +38,8 @@ QJsonObject readJsonObject(const QString &path)
 const QSet<QString> supportedCommands = {
     QStringLiteral("scroll-down"),
     QStringLiteral("scroll-up"),
+    QStringLiteral("scroll-half-page-down"),
+    QStringLiteral("scroll-half-page-up"),
     QStringLiteral("scroll-top"),
     QStringLiteral("scroll-bottom"),
     QStringLiteral("open-link"),
@@ -265,6 +267,31 @@ bool KeyboardNavigation::adoptDefaults(const QString &configurationPath,
     const auto hadLedger = settings.contains(adoptedDefaultsKey);
     const auto ledger = settings.value(adoptedDefaultsKey).toObject();
     auto adopted = false;
+
+    // Retired browser defaults must leave upgraded files. `u` now scrolls the
+    // page, while the old `g` sequences prevent the page from ever receiving
+    // the first key of `gg`. Remove only unchanged former defaults. Any other
+    // command on these keys is a user choice and stays put.
+    auto browser = settings.value(QStringLiteral("browser")).toObject();
+    const auto defaultBrowser = defaults.value(QStringLiteral("browser")).toObject();
+    const QHash<QString, QString> retiredBrowserDefaults = {
+        {QStringLiteral("u"), QStringLiteral("reopen-tab")},
+        {QStringLiteral("gt"), QStringLiteral("next-tab")},
+        {QStringLiteral("gT"), QStringLiteral("previous-tab")},
+        {QStringLiteral("gs"), QStringLiteral("next-space")},
+        {QStringLiteral("gn"), QStringLiteral("new-space")},
+    };
+    for (auto it = retiredBrowserDefaults.cbegin();
+         it != retiredBrowserDefaults.cend(); ++it) {
+        if (!defaultBrowser.contains(it.key())
+            && browser.value(it.key()).toString() == it.value()) {
+            browser.remove(it.key());
+            adopted = true;
+        }
+    }
+    if (adopted) {
+        settings.insert(QStringLiteral("browser"), browser);
+    }
 
     for (auto it = defaults.begin(); it != defaults.end(); ++it) {
         if (settings.contains(it.key())) {

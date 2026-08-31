@@ -12,10 +12,13 @@ Item {
     required property var blocker
     required property var engineBlocker
     required property var keyboardManager
+    property var hintTheme: ({})
     property color pageBackgroundColor: "#16151d"
     property string spaceId: ""
 
     readonly property alias item: root.activeEngine
+    readonly property bool hintModeActive: root.activeEngine
+        ? root.activeEngine.keyboardNavigationHintModeActive : false
     property var activeEngine: null
     property bool suspended: true
 
@@ -23,6 +26,12 @@ Item {
     signal newTabRequested(var engine, var request, url requestedUrl)
     signal backgroundTabRequested(url requestedUrl)
     signal sitePermissionRequested(var engine, string requestId, string origin, string permission)
+
+    function keyboardConfiguration(url) {
+        const configuration = Object.assign({}, root.keyboardManager.configurationForUrl(url))
+        configuration.hintTheme = root.hintTheme
+        return configuration
+    }
 
     // Engines belong to the host, not to the tab row that shows them.
     // Switching Space replaces the whole tab model, so a delegate-owned engine
@@ -66,7 +75,7 @@ Item {
             "permissionController": root.permissionController,
             "contentBlocker": root.blocker,
             "engineContentBlocker": root.engineBlocker,
-            "keyboardNavigationConfiguration": root.keyboardManager.configurationForUrl(tabUrl),
+            "keyboardNavigationConfiguration": root.keyboardConfiguration(tabUrl),
             "keyboardNavigationScriptSource": root.keyboardManager.pageScript,
             "pageBackgroundColor": root.pageBackgroundColor,
             "visible": false
@@ -190,7 +199,7 @@ Item {
                     root.browserController.updateTab(
                         tabSlot.tabId, tabSlot.engine.currentUrl, tabSlot.engine.pageTitle)
                     tabSlot.engine.configureKeyboardNavigation(
-                        root.keyboardManager.configurationForUrl(tabSlot.engine.currentUrl))
+                        root.keyboardConfiguration(tabSlot.engine.currentUrl))
                 }
 
                 function onPageIconUrlChanged() {
@@ -256,8 +265,15 @@ Item {
         function onConfigurationChanged() {
             if (root.activeEngine) {
                 root.activeEngine.configureKeyboardNavigation(
-                    root.keyboardManager.configurationForUrl(root.activeEngine.currentUrl))
+                    root.keyboardConfiguration(root.activeEngine.currentUrl))
             }
+        }
+    }
+
+    onHintThemeChanged: {
+        for (const tabId in root.engines) {
+            const engine = root.engines[tabId]
+            engine.configureKeyboardNavigation(root.keyboardConfiguration(engine.currentUrl))
         }
     }
 }

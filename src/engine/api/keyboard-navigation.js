@@ -2,8 +2,10 @@
     if (globalThis.__tantoKeyboardNavigation) return;
     const state = {
         config: { enabled: false, bindings: {}, passthroughAll: false, passthroughKeys: [] },
-        prefix: '', prefixTimer: 0, hintInput: '', hints: [], hintMode: ''
+        prefix: '', prefixTimer: 0, hintInput: '', hints: [], hintMode: '',
+        hintFocus: null, previousFocus: null
     };
+    const hintAlphabet = 'sadfjklewcmpgh';
     const keyName = event => event.shiftKey && event.key.toLowerCase() === 'f'
         ? 'Shift+F' : event.key;
     const editable = target => target && (target.isContentEditable
@@ -17,20 +19,28 @@
             && rect.bottom >= 0 && rect.right >= 0
             && rect.top <= innerHeight && rect.left <= innerWidth;
     };
-    const labelFor = index => {
-        const alphabet = 'asdfghjklqwertyuiopzxcvbnm';
-        let label = '';
-        do {
-            label = alphabet[index % alphabet.length] + label;
-            index = Math.floor(index / alphabet.length) - 1;
-        } while (index >= 0);
-        return label;
+    // Breadth-first allocation permits short and long hints on the same page
+    // without making a complete hint the prefix of another one.
+    const labelsFor = count => {
+        let labels = [''];
+        let offset = 0;
+        while (labels.length - offset < count || labels.length === 1) {
+            const suffix = labels[offset++];
+            for (const character of hintAlphabet) labels.push(character + suffix);
+        }
+        return labels.slice(offset, offset + count).sort()
+            .map(label => [...label].reverse().join(''));
     };
     const clearHints = () => {
+        const wasActive = Boolean(state.hintMode);
         document.getElementById('__tanto_link_hints')?.remove();
+        if (state.previousFocus?.isConnected) state.previousFocus.focus({ preventScroll: true });
         state.hints = [];
         state.hintInput = '';
         state.hintMode = '';
+        state.hintFocus = null;
+        state.previousFocus = null;
+        if (wasActive) console.debug('__tanto_keyboard_hint_mode__:0');
     };
     const clearPrefix = () => {
         state.prefix = '';
@@ -62,26 +72,49 @@
         overlay.setAttribute('role', 'status');
         overlay.setAttribute('aria-live', 'polite');
         overlay.setAttribute('aria-label', candidates.length + ' link hints available');
-        const rootStyle = getComputedStyle(document.documentElement);
+        const theme = state.config.hintTheme || {};
+        const font = theme.font || {};
+        const fontFamily = font.family || (font.families && font.families[0]) || 'system-ui';
+        const fontSize = Math.max(12, Number(font.size) || 12);
         overlay.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:2147483647;'
-            + 'color:' + rootStyle.color + ';font:700 max(12px,.8rem) system-ui,sans-serif;';
+            + 'color:' + (theme.text || 'CanvasText') + ';font-family:' + JSON.stringify(fontFamily)
+            + ',monospace;font-size:' + fontSize + 'px;font-weight:700;';
+        const focus = document.createElement('input');
+        focus.id = '__tanto_link_hint_input';
+        focus.type = 'text';
+        focus.tabIndex = -1;
+        focus.setAttribute('aria-label', 'Type a link hint');
+        focus.setAttribute('autocomplete', 'off');
+        focus.style.cssText = 'position:fixed;left:-2px;top:-2px;width:1px;height:1px;'
+            + 'opacity:.001;pointer-events:none;';
+        overlay.append(focus);
+        const labels = labelsFor(candidates.length);
         state.hints = candidates.map((target, index) => {
-            const label = labelFor(index);
+            const label = labels[index];
             const rect = target.getBoundingClientRect();
             const hint = document.createElement('span');
-            hint.textContent = label;
             hint.setAttribute('role', 'note');
             hint.setAttribute('aria-label', 'Link hint ' + label + ' for '
                 + (target.getAttribute('aria-label') || target.textContent || target.href || 'target').trim());
             hint.style.cssText = 'position:absolute;left:' + Math.max(0, rect.left) + 'px;top:'
-                + Math.max(0, rect.top) + 'px;padding:.15em .35em;border:2px solid ButtonText;'
-                + 'border-radius:.25em;background:ButtonFace;color:ButtonText;line-height:1.2;'
+                + Math.max(0, rect.top) + 'px;padding:1px 4px;border:1px solid '
+                + (theme.accent || 'Highlight') + ';border-radius:3px;background:'
+                + (theme.surface || 'Canvas') + ';color:' + (theme.text || 'CanvasText') + ';line-height:1.2;'
                 + 'forced-color-adjust:auto;box-shadow:0 1px 3px #0008;';
+            for (const character of label.toUpperCase()) {
+                const part = document.createElement('span');
+                part.textContent = character;
+                hint.append(part);
+            }
             overlay.append(hint);
             return { label, target, hint };
         });
         document.documentElement.append(overlay);
         state.hintMode = command;
+        console.debug('__tanto_keyboard_hint_mode__:1');
+        state.previousFocus = document.activeElement;
+        state.hintFocus = focus;
+        focus.focus({ preventScroll: true });
     };
     const activateHint = entry => {
         const target = entry.target;
@@ -99,33 +132,48 @@
     const execute = command => {
         const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
         const behavior = reduced ? 'instant' : 'smooth';
-        if (command === 'scroll-down') scrollBy({ top: Math.max(48, innerHeight * .5), behavior });
-        else if (command === 'scroll-up') scrollBy({ top: -Math.max(48, innerHeight * .5), behavior });
+        if (command === 'scroll-down') scrollBy({ top: 60, behavior });
+        else if (command === 'scroll-up') scrollBy({ top: -60, behavior });
+        else if (command === 'scroll-half-page-down') scrollBy({ top: innerHeight * .5, behavior });
+        else if (command === 'scroll-half-page-up') scrollBy({ top: -innerHeight * .5, behavior });
         else if (command === 'scroll-top') scrollTo({ top: 0, behavior });
         else if (command === 'scroll-bottom') scrollTo({ top: document.documentElement.scrollHeight, behavior });
         else if (command === 'open-link' || command === 'open-link-background') showHints(command);
     };
     addEventListener('keydown', event => {
-        if (!state.config.enabled || event.defaultPrevented || event.isComposing
-                || event.ctrlKey || event.metaKey || event.altKey || editable(event.target)) return;
-        const key = keyName(event);
-        if (state.config.passthroughAll || state.config.passthroughKeys.includes(key)) return;
+        if (!state.config.enabled || event.defaultPrevented || event.isComposing) return;
         if (state.hintMode) {
             if (event.key === 'Escape') {
                 event.preventDefault();
+                event.stopImmediatePropagation();
                 clearHints();
                 return;
             }
-            if (event.key.length !== 1) return;
-            event.preventDefault();
-            event.stopImmediatePropagation();
-            state.hintInput += event.key.toLowerCase();
+            if (event.key === 'Backspace') {
+                event.preventDefault();
+                event.stopImmediatePropagation();
+                state.hintInput = state.hintInput.slice(0, -1);
+            } else {
+                if (event.ctrlKey || event.metaKey || event.altKey || event.key.length !== 1) return;
+                event.preventDefault();
+                event.stopImmediatePropagation();
+                state.hintInput += event.key.toLowerCase();
+            }
             const matches = state.hints.filter(item => item.label.startsWith(state.hintInput));
-            state.hints.forEach(item => item.hint.style.opacity = matches.includes(item) ? '1' : '.25');
+            state.hints.forEach(item => {
+                item.hint.style.display = matches.includes(item) ? '' : 'none';
+                Array.from(item.hint.children).forEach((part, index) => {
+                    part.style.color = index < state.hintInput.length
+                        ? (state.config.hintTheme?.mutedText || 'GrayText') : '';
+                });
+            });
             if (matches.length === 1 && matches[0].label === state.hintInput) activateHint(matches[0]);
             else if (!matches.length) clearHints();
             return;
         }
+        if (event.ctrlKey || event.metaKey || event.altKey || editable(event.target)) return;
+        const key = keyName(event);
+        if (state.config.passthroughAll || state.config.passthroughKeys.includes(key)) return;
         const bindings = state.config.bindings || {};
         if (state.prefix) {
             const sequence = state.prefix + key;

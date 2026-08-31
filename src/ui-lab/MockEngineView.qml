@@ -20,6 +20,8 @@ Rectangle {
         ? contentBlocker.blockedRequestCount(currentUrl) : 0
     property var keyboardNavigationConfiguration: ({})
     property string keyboardNavigationScriptSource: ""
+    property bool keyboardNavigationHintModeActive: false
+    property string keyboardInput: ""
     property color pageBackgroundColor: "#16151d"
     readonly property bool pageHasFocus: root.activeFocus
     readonly property int navigationCapability: 1 << 0
@@ -42,6 +44,10 @@ Rectangle {
     onCurrentUrlChanged: pageLocalState = ""
 
     color: root.pageBackgroundColor
+
+    Keys.onPressed: function(event) {
+        if (event.text.length > 0) root.keyboardInput += event.text.toLowerCase()
+    }
 
     function goBack() {}
     function goForward() {}

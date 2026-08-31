@@ -18,6 +18,7 @@ private slots:
     void rejectsUnsupportedVersionsAndCommands();
     void persistsTheEnabledSetting();
     void adoptsNewDefaultsOnceWithoutResurrectingRemovedBindings();
+    void replacesRetiredDefaultWithoutChangingCustomBindings();
 };
 
 static QString writeConfiguration(const QString &directory, const QByteArray &contents)
@@ -218,6 +219,58 @@ void KeyboardNavigationTest::adoptsNewDefaultsOnceWithoutResurrectingRemovedBind
     // The file still loads, ledger and all.
     KeyboardNavigation navigation(path);
     QVERIFY(navigation.valid());
+}
+
+void KeyboardNavigationTest::replacesRetiredDefaultWithoutChangingCustomBindings()
+{
+    QTemporaryDir root;
+    const auto defaults = root.path() + QStringLiteral("/defaults.json");
+    QFile defaultsFile(defaults);
+    QVERIFY(defaultsFile.open(QIODevice::WriteOnly));
+    const QByteArray currentDefaults = R"JSON({
+        "version": 1,
+        "enabled": true,
+        "bindings": { "u": "scroll-half-page-up" },
+        "browser": {
+            "X": "reopen-tab",
+            "J": "next-tab",
+            "K": "previous-tab"
+        },
+        "passthrough": {}
+    })JSON";
+    QCOMPARE(defaultsFile.write(currentDefaults), currentDefaults.size());
+    defaultsFile.close();
+
+    const auto path = writeConfiguration(root.path(), R"JSON({
+        "version": 1,
+        "enabled": true,
+        "bindings": { "j": "scroll-down" },
+        "browser": {
+            "u": "reopen-tab",
+            "gt": "next-tab",
+            "gT": "previous-tab",
+            "gs": "next-space",
+            "gn": "new-space",
+            "q": "close-tab"
+        },
+        "passthrough": {}
+    })JSON");
+
+    QVERIFY(KeyboardNavigation::adoptDefaults(path, defaults));
+    const auto settings = readConfiguration(path);
+    const auto pageBindings = settings.value(QStringLiteral("bindings")).toObject();
+    const auto browserBindings = settings.value(QStringLiteral("browser")).toObject();
+    QCOMPARE(pageBindings.value(QStringLiteral("u")).toString(),
+        QStringLiteral("scroll-half-page-up"));
+    QVERIFY(!browserBindings.contains(QStringLiteral("u")));
+    QVERIFY(!browserBindings.contains(QStringLiteral("gt")));
+    QVERIFY(!browserBindings.contains(QStringLiteral("gT")));
+    QVERIFY(!browserBindings.contains(QStringLiteral("gs")));
+    QVERIFY(!browserBindings.contains(QStringLiteral("gn")));
+    QCOMPARE(browserBindings.value(QStringLiteral("X")).toString(),
+        QStringLiteral("reopen-tab"));
+    QCOMPARE(browserBindings.value(QStringLiteral("q")).toString(),
+        QStringLiteral("close-tab"));
 }
 
 QTEST_GUILESS_MAIN(KeyboardNavigationTest)

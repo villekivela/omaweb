@@ -27,6 +27,7 @@ QStringList validateEngineViewContract(const QObject &adapter)
         {"contentBlocker", QMetaType::QVariant},
         {"blockedRequestCount", QMetaType::Int},
         {"keyboardNavigationConfiguration", QMetaType::QVariant},
+        {"keyboardNavigationHintModeActive", QMetaType::Bool},
         {"keyboardNavigationScriptSource", QMetaType::QString},
     };
     struct RequiredMethod {

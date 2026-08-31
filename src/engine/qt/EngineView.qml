@@ -31,6 +31,7 @@ Item {
     property color pageBackgroundColor: "#16151d"
     property var keyboardNavigationConfiguration: ({})
     property string keyboardNavigationScriptSource: ""
+    property bool keyboardNavigationHintModeActive: false
     property var editedStateScript: {
         const script = WebEngine.script()
         script.name = "Tanto edited form state"
@@ -67,6 +68,7 @@ Item {
     function focusPage() { webView.forceActiveFocus() }
     function reloadPage() { webView.reload() }
     function configureKeyboardNavigation(configuration) {
+        keyboardNavigationHintModeActive = false
         keyboardNavigationConfiguration = configuration
         applyKeyboardNavigationConfiguration()
     }
@@ -222,6 +224,13 @@ Item {
         }
 
         onWindowCloseRequested: root.windowCloseRequested()
+
+        onJavaScriptConsoleMessage: function(level, message, lineNumber, sourceId) {
+            if (message === "__tanto_keyboard_hint_mode__:1")
+                root.keyboardNavigationHintModeActive = true
+            else if (message === "__tanto_keyboard_hint_mode__:0")
+                root.keyboardNavigationHintModeActive = false
+        }
 
         onPermissionRequested: function(request) {
             const permission = String(request.permissionType)

@@ -317,7 +317,8 @@ ApplicationWindow {
 
             Shortcut {
                 sequence: keymap.keySequence(modelData)
-                enabled: keymap.isChord(modelData) || keymap.pageCommandsEnabled
+                enabled: keymap.isChord(modelData)
+                    || (keymap.pageCommandsEnabled && !engineLoader.hintModeActive)
                 context: Qt.WindowShortcut
                 onActivated: browserCommands.run(
                     keymap.commandFor(modelData),
@@ -405,6 +406,7 @@ ApplicationWindow {
                     blocker: contentBlocker
                     engineBlocker: engineContentBlocker
                     keyboardManager: keyboardNavigation
+                    hintTheme: window.colors
                     // Chromium's own pre-paint colour, so a navigation never
                     // flashes a bright frame through the dark shell.
                     pageBackgroundColor: window.colors.windowOpaque

@@ -95,7 +95,7 @@ GitHub stubbed out.
 
 ## Keyboard navigation configuration
 
-Tanto copies `assets/keybindings/default.json` to `keybindings.json` in the configuration directory on first launch — `$XDG_CONFIG_HOME/tanto`, or `~/.config/tanto` when that is unset. A file left by an earlier version under the application data directory is moved there. Set `TANTO_CONFIG_ROOT` to relocate the whole directory, or `TANTO_KEYBINDINGS_FILE` to load one specific file during development. The version 1 format maps key sequences to the six supported commands and may give a site selected keys or the whole page:
+Tanto copies `assets/keybindings/default.json` to `keybindings.json` in the configuration directory on first launch — `$XDG_CONFIG_HOME/tanto`, or `~/.config/tanto` when that is unset. A file left by an earlier version under the application data directory is moved there. Set `TANTO_CONFIG_ROOT` to relocate the whole directory, or `TANTO_KEYBINDINGS_FILE` to load one specific file during development. The version 1 format maps key sequences to the supported commands and may give a site selected keys or the whole page:
 
 ```json
 {
@@ -104,6 +104,8 @@ Tanto copies `assets/keybindings/default.json` to `keybindings.json` in the conf
   "bindings": {
     "j": "scroll-down",
     "k": "scroll-up",
+    "d": "scroll-half-page-down",
+    "u": "scroll-half-page-up",
     "gg": "scroll-top",
     "G": "scroll-bottom",
     "f": "open-link",

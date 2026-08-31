@@ -37,8 +37,10 @@ ApplicationWindow {
             "permissionController": auxiliary.permissionController,
             "contentBlocker": auxiliary.contentBlocker,
             "engineContentBlocker": auxiliary.engineContentBlocker,
-            "keyboardNavigationConfiguration": keyboardNavigation.configurationForUrl(
-                auxiliary.requestedUrl),
+            "keyboardNavigationConfiguration": Object.assign({},
+                keyboardNavigation.configurationForUrl(auxiliary.requestedUrl), {
+                    "hintTheme": auxiliary.openerEngine.keyboardNavigationConfiguration.hintTheme
+                }),
             "keyboardNavigationScriptSource": keyboardNavigation.pageScript,
             "currentUrl": auxiliary.request ? "about:blank" : auxiliary.requestedUrl
         })

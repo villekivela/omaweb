@@ -5,6 +5,7 @@
 #include <QFile>
 #include <QMetaMethod>
 #include <QQmlComponent>
+#include <QQmlContext>
 #include <QQmlEngine>
 #include <QQuickItem>
 #include <QQuickWindow>
@@ -44,6 +45,7 @@ private slots:
     void qtRoutesOnlyDialogDestinationsToAuxiliaryWindows();
     void qtKeyboardNavigationHonorsInputContracts_data();
     void qtKeyboardNavigationHonorsInputContracts();
+    void qtLinkHintsOwnSingleKeyShortcuts();
 };
 
 void QtEngineContractTest::adaptersExposeSharedContract_data()
@@ -373,6 +375,32 @@ void QtEngineContractTest::qtKeyboardNavigationHonorsInputContracts_data()
                 })), 300);
             </script>)HTML")
         << int(Qt::Key_unknown) << QStringLiteral("up") << false << QStringList{};
+    QTest::newRow("d scrolls down half a page")
+        << QByteArray(R"HTML(<!doctype html><title>ready</title>
+            <div style="height:3000px"></div><script>
+                addEventListener('scroll', () => {
+                    if (scrollY >= innerHeight * .4) document.title = 'half-down';
+                });
+                setTimeout(() => dispatchEvent(new KeyboardEvent('keydown', {
+                    key: 'd', bubbles: true, cancelable: true
+                })), 300);
+            </script>)HTML")
+        << int(Qt::Key_unknown) << QStringLiteral("half-down") << false << QStringList{};
+    QTest::newRow("u scrolls up half a page")
+        << QByteArray(R"HTML(<!doctype html><title>loading</title>
+            <div style="height:3000px"></div><script>
+                addEventListener('scroll', () => {
+                    if (scrollY <= innerHeight * .6) document.title = 'half-up';
+                });
+                setTimeout(() => {
+                    scrollTo(0, innerHeight);
+                    document.title = 'ready';
+                    setTimeout(() => dispatchEvent(new KeyboardEvent('keydown', {
+                        key: 'u', bubbles: true, cancelable: true
+                    })), 300);
+                }, 300);
+            </script>)HTML")
+        << int(Qt::Key_unknown) << QStringLiteral("half-up") << false << QStringList{};
     QTest::newRow("gg scrolls to the top")
         << QByteArray(R"HTML(<!doctype html><title>loading</title>
             <div style="height:3000px"></div><script>
@@ -418,6 +446,37 @@ void QtEngineContractTest::qtKeyboardNavigationHonorsInputContracts_data()
                 })), 300);
             </script>)HTML")
         << int(Qt::Key_unknown) << QStringLiteral("accessible") << false << QStringList{};
+    QTest::newRow("link hints take editable keyboard focus")
+        << QByteArray(R"HTML(<!doctype html><title>ready</title>
+            <a href="#target">Target</a><script>
+                new MutationObserver(() => {
+                    if (document.getElementById('__tanto_link_hints')
+                            && document.activeElement.id === '__tanto_link_hint_input')
+                        document.title = 'hint-focus';
+                }).observe(document.documentElement, { childList: true, subtree: true });
+                setTimeout(() => dispatchEvent(new KeyboardEvent('keydown', {
+                    key: 'f', bubbles: true, cancelable: true
+                })), 300);
+            </script>)HTML")
+        << int(Qt::Key_unknown) << QStringLiteral("hint-focus") << false << QStringList{};
+    QTest::newRow("link hints use theme colors and font")
+        << QByteArray(R"HTML(<!doctype html><title>ready</title>
+            <a href="#target">Target</a><script>
+                new MutationObserver(() => {
+                    const hint = document.querySelector('#__tanto_link_hints > span');
+                    if (!hint) return;
+                    const style = getComputedStyle(hint);
+                    if (style.backgroundColor === 'rgb(18, 52, 86)'
+                            && style.borderColor === 'rgb(101, 67, 33)'
+                            && style.color === 'rgb(238, 238, 238)'
+                            && style.fontFamily.includes('Courier')
+                            && style.fontSize === '17px') document.title = 'themed';
+                }).observe(document.documentElement, { childList: true, subtree: true });
+                setTimeout(() => dispatchEvent(new KeyboardEvent('keydown', {
+                    key: 'f', bubbles: true, cancelable: true
+                })), 300);
+            </script>)HTML")
+        << int(Qt::Key_unknown) << QStringLiteral("themed") << false << QStringList{};
     QTest::newRow("Shift+F selects only background-capable targets")
         << QByteArray(R"HTML(<!doctype html><title>ready</title>
             <button aria-label="Not a link">Button</button>
@@ -438,13 +497,46 @@ void QtEngineContractTest::qtKeyboardNavigationHonorsInputContracts_data()
                         setTimeout(activateBackgroundHint, 100);
                         return;
                     }
+                    const hint = document.querySelector('#__tanto_link_hints > span');
                     dispatchEvent(new KeyboardEvent('keydown', {
-                        key: 'a', bubbles: true, cancelable: true
+                        key: hint.textContent.toLowerCase(), bubbles: true, cancelable: true
                     }));
                 };
                 activateBackgroundHint();
             </script>)HTML")
         << int(Qt::Key_unknown) << QStringLiteral("background") << false << QStringList{};
+    QTest::newRow("short hints remain selectable beside long hints")
+        << QByteArray(R"HTML(<!doctype html><title>ready</title>
+            <script>
+                addEventListener('click', event => {
+                    if (event.target.matches('a')) {
+                        event.preventDefault();
+                        document.title = event.target.id === 'first'
+                            ? 'short-selected' : 'wrong-hint';
+                    }
+                }, true);
+            </script>
+            <a id="first" href="#first">First</a>
+            <a href="#1">1</a><a href="#2">2</a><a href="#3">3</a>
+            <a href="#4">4</a><a href="#5">5</a><a href="#6">6</a>
+            <a href="#7">7</a><a href="#8">8</a><a href="#9">9</a>
+            <a href="#10">10</a><a href="#11">11</a><a href="#12">12</a>
+            <a href="#13">13</a><a href="#14">14</a><a href="#15">15</a>
+            <a href="#16">16</a><a href="#17">17</a><a href="#18">18</a>
+            <a href="#19">19</a><a href="#20">20</a><a href="#21">21</a>
+            <a href="#22">22</a><a href="#23">23</a><a href="#24">24</a>
+            <a href="#25">25</a><a href="#26">26</a>
+            <script>
+                setTimeout(() => {
+                    dispatchEvent(new KeyboardEvent('keydown', {
+                        key: 'f', bubbles: true, cancelable: true
+                    }));
+                    dispatchEvent(new KeyboardEvent('keydown', {
+                        key: 'a', bubbles: true, cancelable: true
+                    }));
+                }, 300);
+            </script>)HTML")
+        << int(Qt::Key_unknown) << QStringLiteral("short-selected") << false << QStringList{};
     QTest::newRow("per-key passthrough keeps site shortcuts")
         << QByteArray(R"HTML(<!doctype html><title>ready</title><script>
             addEventListener('keydown', event => document.title =
@@ -464,6 +556,80 @@ void QtEngineContractTest::qtKeyboardNavigationHonorsInputContracts_data()
             })), 300);
         </script>)HTML")
         << int(Qt::Key_unknown) << QStringLiteral("site-page") << true << QStringList{};
+}
+
+void QtEngineContractTest::qtLinkHintsOwnSingleKeyShortcuts()
+{
+    QTemporaryDir root;
+    QFile page(root.filePath(QStringLiteral("hint-shortcut.html")));
+    QVERIFY(page.open(QIODevice::WriteOnly));
+    QByteArray html("<!doctype html><title>ready</title><script>"
+        "addEventListener('click',event=>{if(event.target.matches('a')){"
+        "event.preventDefault();document.title='hint-selected';}},true);</script>");
+    for (auto index = 0; index < 26; ++index) {
+        html += "<a href='#" + QByteArray::number(index) + "'>link</a> ";
+    }
+    QCOMPARE(page.write(html), html.size());
+    page.close();
+
+    QQmlEngine engine;
+    QQmlComponent component(&engine, QUrl::fromLocalFile(
+        QStringLiteral(TANTO_QT_ENGINE_VIEW_PATH)));
+    const QVariantMap configuration = {
+        {QStringLiteral("version"), 1},
+        {QStringLiteral("enabled"), true},
+        {QStringLiteral("bindings"), QVariantMap{
+            {QStringLiteral("f"), QStringLiteral("open-link")},
+        }},
+        {QStringLiteral("passthroughAll"), false},
+        {QStringLiteral("passthroughKeys"), QStringList{}},
+    };
+    const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
+        {QStringLiteral("currentUrl"), QUrl::fromLocalFile(page.fileName())},
+        {QStringLiteral("keyboardNavigationConfiguration"), configuration},
+        {QStringLiteral("keyboardNavigationScriptSource"), keyboardNavigationPageScript()},
+    }));
+    QVERIFY2(adapter, qPrintable(component.errorString()));
+
+    auto *view = qobject_cast<QQuickItem *>(adapter.get());
+    QVERIFY(view);
+    QQuickWindow window;
+    window.resize(640, 480);
+    engine.rootContext()->setContextProperty(QStringLiteral("testedEngineView"), adapter.get());
+    QQmlComponent shortcutComponent(&engine);
+    shortcutComponent.setData(R"QML(
+        import QtQuick
+        Item {
+            id: root
+            property int activations: 0
+            Shortcut {
+                sequence: "m"
+                context: Qt.WindowShortcut
+                enabled: !testedEngineView.keyboardNavigationHintModeActive
+                onActivated: root.activations++
+            }
+        }
+    )QML", QUrl());
+    const std::unique_ptr<QObject> shortcutHost(shortcutComponent.create());
+    QVERIFY2(shortcutHost, qPrintable(shortcutComponent.errorString()));
+    auto *hostItem = qobject_cast<QQuickItem *>(shortcutHost.get());
+    QVERIFY(hostItem);
+    hostItem->setParentItem(window.contentItem());
+    hostItem->setSize(QSizeF(640, 480));
+    view->setParentItem(hostItem);
+    view->setSize(QSizeF(640, 480));
+    window.show();
+    window.requestActivate();
+    QVERIFY(QMetaObject::invokeMethod(adapter.get(), "focusPage"));
+    QTRY_VERIFY(adapter->property("pageHasFocus").toBool());
+    QTRY_COMPARE(adapter->property("pageTitle").toString(), QStringLiteral("ready"));
+
+    QTest::keyClick(&window, Qt::Key_F);
+    QTRY_VERIFY(adapter->property("keyboardNavigationHintModeActive").toBool());
+    QTest::keyClick(&window, Qt::Key_M);
+
+    QTRY_COMPARE(adapter->property("pageTitle").toString(), QStringLiteral("hint-selected"));
+    QCOMPARE(shortcutHost->property("activations").toInt(), 0);
 }
 
 void QtEngineContractTest::qtKeyboardNavigationHonorsInputContracts()
@@ -488,6 +654,8 @@ void QtEngineContractTest::qtKeyboardNavigationHonorsInputContracts()
         {QStringLiteral("bindings"), QVariantMap{
             {QStringLiteral("j"), QStringLiteral("scroll-down")},
             {QStringLiteral("k"), QStringLiteral("scroll-up")},
+            {QStringLiteral("d"), QStringLiteral("scroll-half-page-down")},
+            {QStringLiteral("u"), QStringLiteral("scroll-half-page-up")},
             {QStringLiteral("gg"), QStringLiteral("scroll-top")},
             {QStringLiteral("G"), QStringLiteral("scroll-bottom")},
             {QStringLiteral("f"), QStringLiteral("open-link")},
@@ -495,6 +663,16 @@ void QtEngineContractTest::qtKeyboardNavigationHonorsInputContracts()
         }},
         {QStringLiteral("passthroughAll"), passthroughAll},
         {QStringLiteral("passthroughKeys"), passthroughKeys},
+        {QStringLiteral("hintTheme"), QVariantMap{
+            {QStringLiteral("surface"), QStringLiteral("#123456")},
+            {QStringLiteral("text"), QStringLiteral("#eeeeee")},
+            {QStringLiteral("mutedText"), QStringLiteral("#999999")},
+            {QStringLiteral("accent"), QStringLiteral("#654321")},
+            {QStringLiteral("font"), QVariantMap{
+                {QStringLiteral("family"), QStringLiteral("Courier")},
+                {QStringLiteral("size"), 17},
+            }},
+        }},
     };
     const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
         {QStringLiteral("currentUrl"), QUrl::fromLocalFile(page.fileName())},
