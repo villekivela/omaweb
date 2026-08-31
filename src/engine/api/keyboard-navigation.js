@@ -75,10 +75,10 @@
         const theme = state.config.hintTheme || {};
         const font = theme.font || {};
         const fontFamily = font.family || (font.families && font.families[0]) || 'system-ui';
-        const fontSize = Math.max(12, Number(font.size) || 12);
+        const fontSize = Math.max(11, Number(font.size) || 12);
         overlay.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:2147483647;'
             + 'color:' + (theme.text || 'CanvasText') + ';font-family:' + JSON.stringify(fontFamily)
-            + ',monospace;font-size:' + fontSize + 'px;font-weight:700;';
+            + ',monospace;font-size:' + fontSize + 'px;font-weight:600;';
         const focus = document.createElement('input');
         focus.id = '__tanto_link_hint_input';
         focus.type = 'text';
@@ -96,11 +96,15 @@
             hint.setAttribute('role', 'note');
             hint.setAttribute('aria-label', 'Link hint ' + label + ' for '
                 + (target.getAttribute('aria-label') || target.textContent || target.href || 'target').trim());
+            // The chip is the sidebar's two-letter site chip, moved onto the
+            // page: radius 2, the code in the accent on a plain surface plate,
+            // and no drop shadow. The border is what the sidebar can do
+            // without, since a page may put anything behind the plate.
             hint.style.cssText = 'position:absolute;left:' + Math.max(0, rect.left) + 'px;top:'
                 + Math.max(0, rect.top) + 'px;padding:1px 4px;border:1px solid '
-                + (theme.accent || 'Highlight') + ';border-radius:3px;background:'
-                + (theme.surface || 'Canvas') + ';color:' + (theme.text || 'CanvasText') + ';line-height:1.2;'
-                + 'forced-color-adjust:auto;box-shadow:0 1px 3px #0008;';
+                + (theme.accent || 'Highlight') + ';border-radius:2px;background:'
+                + (theme.surface || 'Canvas') + ';color:' + (theme.accent || 'CanvasText')
+                + ';line-height:1.2;forced-color-adjust:auto;';
             for (const character of label.toUpperCase()) {
                 const part = document.createElement('span');
                 part.textContent = character;
