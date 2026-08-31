@@ -197,12 +197,16 @@ Rectangle {
                 }
             }
 
+            // The lock takes the same 18px slot a tab row gives its site chip,
+            // so the address and every tab title start on one line.
             Text {
                 id: securityGlyph
                 objectName: "securityIndicator"
                 anchors.left: parent.left
-                anchors.leftMargin: 9
+                anchors.leftMargin: 8
                 anchors.verticalCenter: parent.verticalCenter
+                width: 18
+                horizontalAlignment: Text.AlignHCenter
                 text: root.secure ? "lock" : "lock_open"
                 color: root.secure ? root.colors.text : root.colors.mutedText
                 font.family: root.iconFontFamily
@@ -221,7 +225,7 @@ Rectangle {
 
             Text {
                 anchors.left: securityGlyph.right
-                anchors.leftMargin: 8
+                anchors.leftMargin: 9
                 anchors.right: blockedCount.left
                 anchors.rightMargin: 8
                 anchors.verticalCenter: parent.verticalCenter
@@ -319,8 +323,8 @@ Rectangle {
         anchors.bottom: footer.top
         anchors.leftMargin: 16
         anchors.rightMargin: 16
-        anchors.topMargin: 6
-        anchors.bottomMargin: 8
+        anchors.topMargin: 12
+        anchors.bottomMargin: 12
         clip: true
 
         Column {
@@ -355,7 +359,7 @@ Rectangle {
         anchors.bottom: parent.bottom
         anchors.leftMargin: 16
         anchors.rightMargin: 16
-        anchors.bottomMargin: 14
+        anchors.bottomMargin: 16
         height: 30
         Accessible.role: Accessible.Heading
         Accessible.name: root.privateWindow || !root.browser ? "Private" : root.browser.activeSpaceName
