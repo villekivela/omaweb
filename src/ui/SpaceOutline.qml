@@ -25,7 +25,7 @@ Rectangle {
     signal newTabRequested()
     signal tabActivated(string tabId)
     signal spaceActivated(string spaceId)
-    signal spacesMenuRequested()
+    signal spacesMenuRequested(real anchorX, real anchorY)
     signal settingsRequested()
     signal windowMoveRequested()
 
@@ -135,7 +135,11 @@ Rectangle {
                 fontFamily: root.iconFontFamily
                 foreground: root.colors.mutedText
                 hoverBackground: root.colors.surfaceHover
-                onClicked: root.spacesMenuRequested()
+                onClicked: {
+                    const corner = spacesButton.mapToItem(null, spacesButton.width,
+                        spacesButton.height)
+                    root.spacesMenuRequested(corner.x, corner.y)
+                }
             }
         }
 

@@ -43,6 +43,9 @@ ApplicationWindow {
     property var pendingPermissionResponder: null
     property var downloadRecordIds: ({})
     property bool settingsOpen: false
+    property bool spacesMenuOpen: false
+    property real spacesMenuX: 0
+    property real spacesMenuY: 0
     property bool permissionOpen: false
     // One dialog is open at a time, so one panel serves them all and the
     // question it is asking is the only thing that changes.
@@ -268,29 +271,10 @@ ApplicationWindow {
                 onNewTabRequested: window.openOmnibar(true)
                 onTabActivated: function(tabId) { window.windowBrowser.activateTab(tabId) }
                 onSpaceActivated: function(spaceId) { window.windowBrowser.switchSpace(spaceId) }
-                onSpacesMenuRequested: spacesMenu.popup()
-                onSettingsRequested: window.requestSettings()
-                onWindowMoveRequested: window.startSystemMove()
-
-                Menu {
-                    id: spacesMenu
-
-                    MenuItem {
-                        text: "New Space"
-                        onTriggered: window.requestNewSpace()
-                    }
-                    MenuItem {
-                        text: "Rename " + window.windowBrowser.activeSpaceName
-                        onTriggered: window.dialogMode = "rename"
-                    }
-                    MenuItem {
-                        text: "Delete " + window.windowBrowser.activeSpaceName
-                        onTriggered: window.dialogMode = "delete"
-                    }
-                    MenuItem {
-                        text: "Move this tab to a Space"
-                        onTriggered: window.requestMoveTab()
-                    }
+                onSpacesMenuRequested: function(anchorX, anchorY) {
+                    window.spacesMenuX = anchorX
+                    window.spacesMenuY = anchorY
+                    window.spacesMenuOpen = true
                 }
             }
 
@@ -601,6 +585,36 @@ ApplicationWindow {
             window.destroy()
             windowManager.releasePrivateWindow(controller)
         })
+    }
+
+    ChromeMenu {
+        id: spacesMenu
+        objectName: "spacesMenu"
+        anchors.fill: parent
+        z: 55
+        colors: window.colors
+        typography: typography
+        open: window.spacesMenuOpen
+        anchorX: window.spacesMenuX
+        anchorY: window.spacesMenuY
+        items: [
+            {"label": "New Space"},
+            {"label": "Rename " + window.windowBrowser.activeSpaceName},
+            {"label": "Move this tab to a Space"},
+            {"label": "Delete " + window.windowBrowser.activeSpaceName, "destructive": true}
+        ]
+
+        onDismissed: window.spacesMenuOpen = false
+
+        onTriggered: function(index) {
+            window.spacesMenuOpen = false
+            switch (index) {
+            case 0: window.requestNewSpace(); break
+            case 1: window.dialogMode = "rename"; break
+            case 2: window.requestMoveTab(); break
+            case 3: window.dialogMode = "delete"; break
+            }
+        }
     }
 
     CommandDialog {

@@ -152,6 +152,7 @@ set(tanto_ui_files
     src/ui/AuxiliaryWindow.qml
     src/ui/BrowserCommands.qml
     src/ui/ChromeButton.qml
+    src/ui/ChromeMenu.qml
     src/ui/CommandPanel.qml
     src/ui/KeyHint.qml
     src/ui/KeyMap.qml
