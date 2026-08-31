@@ -396,6 +396,12 @@ TestCase {
     // `BrowserController::setTabIcon` states, rather than a second instance of
     // the Space-switch bug. What has to survive the move is the wiring: the
     // tab's new engine still has to reach the tab it belongs to.
+    //
+    // Losing the page is the intended cost of a move, not a gap left to close:
+    // a moved tab gives up its scroll position, form state and history along
+    // with its artwork, and arrives in its new Space as a tab to be loaded.
+    // Preserving any of that across a move is deliberately not a goal, so this
+    // test asserts the discard rather than tolerating it.
     function test_movingATabToAnotherSpaceLeavesItsPageAndIconBehind() {
         const engineLoader = findChild(window.contentItem, "engineLoader")
         verify(engineLoader !== null)
