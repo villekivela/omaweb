@@ -242,6 +242,15 @@ def write_report(path: Path, report: dict) -> None:
     path.write_text(json.dumps(report, indent=2) + "\n")
 
 
+def report_changes(report: dict) -> list[tuple[str, str]]:
+    """Every vendored file the pin is missing, as (kind, path), in one order."""
+    return sorted(
+        (kind, path)
+        for kind in ("added", "removed", "changed")
+        for path in report[kind]
+    )
+
+
 def print_report(report: dict) -> None:
     if not report["behind"]:
         print(f"Pinned at {report['branch']} head ({report['head'][:12]}). "
@@ -251,11 +260,9 @@ def print_report(report: dict) -> None:
     print(f"Pinned:      {report['pinned'][:12]}")
     print(f"{report['branch']} head: {report['head'][:12]}")
 
-    changes = [f"{kind}: {path}"
-               for kind in ("added", "removed", "changed")
-               for path in report[kind]]
-    for change in sorted(changes):
-        print(f"  {change}")
+    changes = report_changes(report)
+    for kind, path in changes:
+        print(f"  {kind}: {path}")
     if not changes:
         print("  no changes to the vendored directories")
 
@@ -350,6 +357,8 @@ def main() -> int:
     parser.add_argument("--force", action="store_true",
                         help="overwrite vendored files that were edited locally")
     arguments = parser.parse_args()
+    if arguments.report and not arguments.check_upstream:
+        parser.error("--report is only written by --check-upstream")
 
     try:
         if arguments.verify:

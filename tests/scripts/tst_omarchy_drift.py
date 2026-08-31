@@ -11,6 +11,7 @@ from __future__ import annotations
 import contextlib
 import io
 import json
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -113,7 +114,10 @@ class Recorder:
 
     def __call__(self, *arguments: str) -> str:
         self.calls.append(list(arguments))
-        return self.responses.get(" ".join(arguments[:2]), "")
+        for query, response in self.responses.items():
+            if query in " ".join(arguments):
+                return response
+        return ""
 
     def ran(self, *prefix: str) -> bool:
         return any(call[: len(prefix)] == list(prefix) for call in self.calls)
@@ -151,6 +155,15 @@ class SyncIssue(unittest.TestCase):
         self.assertFalse(gh.ran("issue", "create"))
         self.assertTrue(gh.ran("issue", "edit", "42"))
 
+    def test_a_stripped_label_still_finds_the_issue_by_its_marker(self):
+        gh = Recorder(**{"--label": "[]",
+                         "--search": json.dumps([{"number": 42}])})
+
+        self.sync(self.behind, gh)
+
+        self.assertTrue(gh.ran("issue", "edit", "42"))
+        self.assertFalse(gh.ran("issue", "create"))
+
     def test_a_caught_up_pin_closes_the_open_issue(self):
         gh = Recorder(**{"issue list": json.dumps([{"number": 42}])})
 
@@ -166,6 +179,17 @@ class SyncIssue(unittest.TestCase):
 
         self.assertFalse(gh.ran("issue", "create"))
         self.assertFalse(gh.ran("issue", "close"))
+
+
+class CommandLine(unittest.TestCase):
+    def test_report_is_rejected_by_the_modes_that_never_write_one(self):
+        result = subprocess.run(
+            [sys.executable, str(ROOT / "scripts" / "sync_omarchy_ui.py"),
+             "--verify", "--report", "drift.json"],
+            capture_output=True, text=True)
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("--report", result.stderr)
 
 
 class ReportFile(unittest.TestCase):

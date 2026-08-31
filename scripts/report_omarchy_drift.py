@@ -19,6 +19,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from sync_omarchy_ui import report_changes
+
 LABEL = "omarchy-drift"
 LABEL_COLOR = "5319e7"
 LABEL_DESCRIPTION = "The vendored Omarchy kit is behind upstream"
@@ -32,7 +34,10 @@ MARKER = "<!-- tanto:omarchy-kit-drift -->"
 
 def gh(*arguments: str) -> str:
     result = subprocess.run(["gh", *arguments], capture_output=True, text=True,
-                            check=True)
+                            check=False)
+    if result.returncode != 0:
+        # gh says why on stderr; a traceback would say only that it failed.
+        sys.exit(f"gh {' '.join(arguments[:2])} failed: {result.stderr.strip()}")
     return result.stdout
 
 
@@ -48,11 +53,10 @@ def issue_body(report: dict) -> str:
         "",
     ]
 
-    changes = [f"- {kind}: `{path}`"
-               for kind in ("added", "removed", "changed")
-               for path in report[kind]]
+    changes = report_changes(report)
     if changes:
-        lines += ["### Vendored files", "", *sorted(changes), ""]
+        lines += ["### Vendored files", "",
+                  *(f"- {kind}: `{path}`" for kind, path in changes), ""]
     else:
         lines += ["No vendored file changed — only the pin is behind.", ""]
 
@@ -71,11 +75,16 @@ def issue_body(report: dict) -> str:
 
 
 def open_issue(run) -> int | None:
-    """The number of the tracking issue, if one is open."""
-    listed = run("issue", "list", "--state", "open", "--label", LABEL,
-                 "--json", "number", "--limit", "1")
-    issues = json.loads(listed or "[]")
-    return issues[0]["number"] if issues else None
+    """The number of the tracking issue, if one is open. The label is the
+    handle; the marker in the body finds the issue again if the label is
+    dropped, so a second issue is never opened alongside the first."""
+    for query in (("--label", LABEL), ("--search", f"{MARKER} in:body")):
+        listed = run("issue", "list", "--state", "open", *query,
+                     "--json", "number", "--limit", "1")
+        issues = json.loads(listed or "[]")
+        if issues:
+            return issues[0]["number"]
+    return None
 
 
 def sync_issue(report: dict, run=gh) -> int:

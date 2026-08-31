@@ -20,6 +20,9 @@ jobs:
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
       - name: Compare the pin against upstream
+        # `tee` would otherwise report the step's status, so a script that gave
+        # up on the tree listing would pass as green.
+        shell: bash
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
