@@ -10,6 +10,7 @@ which nothing about a browser launched from the Dock ever could.
 
 import argparse
 import json
+import math
 import os
 import plistlib
 import re
@@ -25,9 +26,22 @@ TEMPLATE = REPOSITORY_ROOT / "assets" / "themes" / "default.json"
 # and yellow carry "error", "success" and "warning" in an interface, so an
 # accent picked from them would fight the meaning it already has.
 ACCENT_SLOTS = (4, 5, 6, 12, 13, 14)
+# Chroma separates a washed slot from a vivid one, and nothing finer than that:
+# two slots within a tenth of each other are equally vivid, and the earlier one
+# wins. Slot order is the terminal convention, where blue is the interactive
+# colour and magenta and cyan are decoration, so a theme keeps the colour its
+# users already read as its own.
+ACCENT_CHROMA_TIE = 0.10
 # A private window has to be unmistakable at a glance, so its accent comes from
-# the magenta and red families — and never from whatever the accent already took.
-PRIVATE_SLOTS = (13, 5, 9, 1)
+# the magenta family, and never from whatever the accent already took. Red is
+# not in the running: it carries "error" in an interface, and a maroon window
+# reads as a warning rather than as a private one.
+PRIVATE_SLOTS = (13, 5)
+# A palette whose magenta the accent already took derives the private accent
+# from the accent instead, turned towards magenta by the same angle that
+# separates the shipped default's two accents.
+PRIVATE_HUE_SHIFT = 32.0
+PRIVATE_ACCENT_GAIN = 1.2
 
 # Where each derived surface sits between the background and the foreground,
 # measured off the shipped default theme so an imported theme has the same
@@ -42,15 +56,18 @@ SURFACE_STEPS = {
 MUTED_TEXT_STEP = 0.70
 
 # The private-window ladder is the same climb taken towards the private accent
-# instead of the foreground. A straight mix lands too grey to read as a warning
-# at a glance, so the result keeps more of its chroma than the mix produces.
+# instead of the foreground, measured off the shipped default theme. A straight
+# mix lands too grey to read as private at a glance, so the result keeps a
+# little more of its chroma than the mix produces. The first step also has to
+# clear the distance ThemeController demands between a window and its private
+# counterpart, which is what keeps the two apart on a muted palette.
 PRIVATE_STEPS = {
-    "privateWindow": 0.24,
-    "privateSidebar": 0.32,
-    "privateSurface": 0.36,
-    "privateSurfaceHover": 0.50,
+    "privateWindow": 0.20,
+    "privateSidebar": 0.26,
+    "privateSurface": 0.32,
+    "privateSurfaceHover": 0.44,
 }
-PRIVATE_CHROMA_GAIN = 1.5
+PRIVATE_CHROMA_GAIN = 1.15
 
 # xterm's palette, for a terminal that leaves some slots at their built-in value
 # and so never writes them to a config file.
@@ -128,6 +145,15 @@ def chroma(rgb):
 def scale_chroma(rgb, gain):
     lightness, green_red, blue_yellow = to_oklab(rgb)
     return from_oklab((lightness, green_red * gain, blue_yellow * gain))
+
+
+def rotate_hue(rgb, degrees, gain=1.0):
+    """Turn a colour around the OKLab hue circle, keeping its lightness."""
+    lightness, green_red, blue_yellow = to_oklab(rgb)
+    angle = math.radians(degrees)
+    turned_green_red = green_red * math.cos(angle) - blue_yellow * math.sin(angle)
+    turned_blue_yellow = green_red * math.sin(angle) + blue_yellow * math.cos(angle)
+    return from_oklab((lightness, turned_green_red * gain, turned_blue_yellow * gain))
 
 
 def relative_luminance(rgb):
@@ -374,12 +400,16 @@ def derive(source):
     # too muted to clear the gate falls back to its most contrasting entry.
     candidates = [palette[index] for index in ACCENT_SLOTS]
     legible = [colour for colour in candidates if contrast(colour, window) >= 4.5]
-    accent = max(legible or candidates,
-                 key=lambda colour: chroma(colour) if legible else contrast(colour, window))
+    if legible:
+        vivid = max(chroma(colour) for colour in legible)
+        accent = next(colour for colour in legible
+                      if chroma(colour) >= vivid * (1.0 - ACCENT_CHROMA_TIE))
+    else:
+        accent = max(candidates, key=lambda colour: contrast(colour, window))
 
     private_options = [palette[index] for index in PRIVATE_SLOTS if palette[index] != accent]
     private_accent = (max(private_options, key=chroma) if private_options
-                      else scale_chroma(accent, 1.4))
+                      else rotate_hue(accent, PRIVATE_HUE_SHIFT, PRIVATE_ACCENT_GAIN))
 
     derived = {
         "window": to_hex(window),
