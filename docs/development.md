@@ -85,6 +85,14 @@ Upstream's branch moves, so a sync is deliberate: move the pin, read the diff, a
 run `ctest`. `tanto-ui` instantiates the adapted components and asserts the kit's
 tokens resolve, so an upstream API change fails there.
 
+Nothing moves the pin on its own, so the `Omarchy kit drift` workflow does the
+looking: every Monday it runs `--check-upstream --report drift.json` and hands the
+report to `scripts/report_omarchy_drift.py`, which keeps one `omarchy-drift` issue
+listing the added, removed, and changed files with a compare link, and closes it once
+the pin catches up. It never syncs — an upstream API change lands on Tanto's adapters,
+so the diff wants a reader. `ctest -R tanto-omarchy-drift` covers both halves with
+GitHub stubbed out.
+
 ## Keyboard navigation configuration
 
 Tanto copies `assets/keybindings/default.json` to `keybindings.json` in the configuration directory on first launch — `$XDG_CONFIG_HOME/tanto`, or `~/.config/tanto` when that is unset. A file left by an earlier version under the application data directory is moved there. Set `TANTO_CONFIG_ROOT` to relocate the whole directory, or `TANTO_KEYBINDINGS_FILE` to load one specific file during development. The version 1 format maps key sequences to the six supported commands and may give a site selected keys or the whole page:

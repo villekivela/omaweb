@@ -12,6 +12,7 @@ Usage:
 
     scripts/sync_omarchy_ui.py --verify              # local tree matches the manifest
     scripts/sync_omarchy_ui.py --check-upstream      # what changed on the pinned branch
+    scripts/sync_omarchy_ui.py --check-upstream --report drift.json
     scripts/sync_omarchy_ui.py --sync                # re-fetch the pinned commit
     scripts/sync_omarchy_ui.py --sync --ref <sha>    # move the pin and re-fetch
 """
@@ -203,31 +204,75 @@ def verify(manifest: dict) -> int:
     return 0
 
 
-def check_upstream(manifest: dict) -> int:
-    head = resolve_ref(BRANCH)
-    if head == manifest["ref"]:
-        print(f"Pinned at {BRANCH} head ({head[:12]}). Nothing to sync.")
-        return 0
+def drift_report(manifest: dict, head: str, upstream: dict | None) -> dict:
+    """What the pin is missing, as data. `upstream` is the tree listing at
+    `head`, or None when the pin is already there and nothing was listed."""
+    pinned = manifest["ref"]
+    tracked = manifest["files"]
+    behind = head != pinned
 
-    print(f"Pinned:      {manifest['ref'][:12]}")
-    print(f"{BRANCH} head: {head[:12]}")
+    added: list[str] = []
+    removed: list[str] = []
+    changed: list[str] = []
+    if behind:
+        upstream = upstream or {}
+        added = sorted(path for path in upstream if path not in tracked)
+        removed = sorted(path for path in tracked if path not in upstream)
+        changed = sorted(
+            path
+            for path, entry in upstream.items()
+            if path in tracked and entry["blob"] != tracked[path]["blob"]
+        )
 
-    upstream = list_upstream(head)
-    changes = [f"added: {path}" for path in upstream if path not in manifest["files"]]
-    changes += [f"removed: {path}" for path in manifest["files"] if path not in upstream]
-    changes += [
-        f"changed: {path}"
-        for path, entry in upstream.items()
-        if path in manifest["files"] and entry["blob"] != manifest["files"][path]["blob"]
-    ]
+    return {
+        "repository": REPOSITORY,
+        "branch": BRANCH,
+        "pinned": pinned,
+        "head": head,
+        "behind": behind,
+        "added": added,
+        "removed": removed,
+        "changed": changed,
+        "compare": f"https://github.com/{REPOSITORY}/compare/{pinned}...{head}",
+        "sync_command": f"scripts/sync_omarchy_ui.py --sync --ref {head}",
+    }
 
+
+def write_report(path: Path, report: dict) -> None:
+    path.write_text(json.dumps(report, indent=2) + "\n")
+
+
+def print_report(report: dict) -> None:
+    if not report["behind"]:
+        print(f"Pinned at {report['branch']} head ({report['head'][:12]}). "
+              "Nothing to sync.")
+        return
+
+    print(f"Pinned:      {report['pinned'][:12]}")
+    print(f"{report['branch']} head: {report['head'][:12]}")
+
+    changes = [f"{kind}: {path}"
+               for kind in ("added", "removed", "changed")
+               for path in report[kind]]
     for change in sorted(changes):
         print(f"  {change}")
     if not changes:
         print("  no changes to the vendored directories")
 
-    print(f"\nCompare: https://github.com/{REPOSITORY}/compare/{manifest['ref']}...{head}")
-    print(f"Sync with: scripts/sync_omarchy_ui.py --sync --ref {head}")
+    print(f"\nCompare: {report['compare']}")
+    print(f"Sync with: {report['sync_command']}")
+
+
+def check_upstream(manifest: dict, report_path: Path | None = None) -> int:
+    head = resolve_ref(BRANCH)
+    # The tree listing is a second API call, and a pin that is already at head
+    # has nothing to list.
+    upstream = list_upstream(head) if head != manifest["ref"] else None
+    report = drift_report(manifest, head, upstream)
+
+    print_report(report)
+    if report_path is not None:
+        write_report(report_path, report)
     return 0
 
 
@@ -299,6 +344,8 @@ def main() -> int:
     mode.add_argument("--check-upstream", action="store_true",
                      help="report what changed on the pinned branch since the pin")
     mode.add_argument("--sync", action="store_true", help="re-fetch the vendored files")
+    parser.add_argument("--report", type=Path,
+                        help="write the --check-upstream result to this JSON file")
     parser.add_argument("--ref", help="commit or branch to pin (default: the current pin)")
     parser.add_argument("--force", action="store_true",
                         help="overwrite vendored files that were edited locally")
@@ -308,7 +355,7 @@ def main() -> int:
         if arguments.verify:
             return verify(read_manifest())
         if arguments.check_upstream:
-            return check_upstream(read_manifest())
+            return check_upstream(read_manifest(), arguments.report)
         ref = arguments.ref or (read_manifest()["ref"] if MANIFEST_PATH.exists() else BRANCH)
         return sync(ref, arguments.force)
     except urllib.error.URLError as error:

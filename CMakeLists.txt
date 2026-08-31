@@ -340,6 +340,17 @@ if(BUILD_TESTING)
             -P ${CMAKE_CURRENT_SOURCE_DIR}/tests/cmake/check_vendored_omarchy.cmake
     )
 
+    # The drift report and the issue it turns into, with GitHub stubbed out.
+    # Python is the sync script's language, not a build dependency, so the test
+    # only exists where an interpreter is already present.
+    find_package(Python3 COMPONENTS Interpreter QUIET)
+    if(Python3_Interpreter_FOUND)
+        add_test(NAME tanto-omarchy-drift
+            COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/tests/scripts/tst_omarchy_drift.py
+        )
+    endif()
+
     qt_add_executable(tanto-core-tests tests/core/tst_browsercontroller.cpp)
     target_link_libraries(tanto-core-tests PRIVATE tanto-core Qt6::Test)
     tanto_strict_target(tanto-core-tests)

@@ -1,0 +1,34 @@
+name: Omarchy kit drift
+
+# The kit is vendored from an active upstream branch and the pin only moves when
+# someone runs the sync, so drift is invisible until someone thinks to look.
+# This looks weekly and leaves one issue behind. It never syncs: an upstream API
+# change lands on Tanto's adapters, so a human reads the diff.
+on:
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Compare the pin against upstream
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo '### Omarchy kit drift' >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          scripts/sync_omarchy_ui.py --check-upstream --report drift.json \
+            | tee -a "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+      - name: Report the drift
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: scripts/report_omarchy_drift.py drift.json

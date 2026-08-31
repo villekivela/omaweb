@@ -7,3 +7,4 @@ compile_commands.json
 *.dSYM/
 Testing/
 /third_party/content-blocker/target/
+__pycache__/
