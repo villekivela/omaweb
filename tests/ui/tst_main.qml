@@ -388,6 +388,50 @@ TestCase {
         tryVerify(tabShowsIcon)
     }
 
+    // Moving a tab to another Space is not the same as switching to one. A
+    // Space switch puts its pages aside; a move takes the tab away from the
+    // Space that held its engine, so the page is discarded and the moved tab
+    // arrives without one. It therefore shows its lettered tile until its page
+    // is loaded again and reports its own artwork — which is the contract
+    // `BrowserController::setTabIcon` states, rather than a second instance of
+    // the Space-switch bug. What has to survive the move is the wiring: the
+    // tab's new engine still has to reach the tab it belongs to.
+    function test_movingATabToAnotherSpaceLeavesItsPageAndIconBehind() {
+        const engineLoader = findChild(window.contentItem, "engineLoader")
+        verify(engineLoader !== null)
+        tryVerify(function() { return engineLoader.item !== null })
+
+        const sourceSpaceId = browser.activeSpaceId
+        const tabId = browser.activeTabId
+        const iconUrl = "https://moved.example/favicon.ico"
+        const tabIcon = function() {
+            const row = findChild(window.contentItem, "tab-" + tabId)
+            return row === null ? null : String(row.tabIconUrl)
+        }
+
+        engineLoader.item.pageIconUrl = iconUrl
+        tryVerify(function() { return tabIcon() === iconUrl })
+
+        const workSpaceId = browser.createSpace("Work")
+        verify(browser.requestTabMoveToSpace(tabId, workSpaceId, false))
+        verify(browser.switchSpace(workSpaceId))
+        compare(browser.activeTabId, tabId)
+
+        // The page did not come with the tab, so neither did its artwork.
+        verify(engineLoader.engines[tabId] === undefined)
+        tryVerify(function() { return tabIcon() === "" })
+
+        // The tab is served by a new engine, and that engine still reports to
+        // the right tab.
+        tryVerify(function() { return engineLoader.item !== null })
+        const reloadedIconUrl = "https://moved.example/reloaded.ico"
+        engineLoader.item.pageIconUrl = reloadedIconUrl
+        tryVerify(function() { return tabIcon() === reloadedIconUrl })
+
+        // Leave the suite in the Space it started in.
+        verify(browser.switchSpace(sourceSpaceId))
+    }
+
     function test_privateWindowUsesTemporaryIdentityAndDistinctChrome() {
         compare(windowManager.privateWindowCount, 0)
         windowManager.openPrivateWindow()
