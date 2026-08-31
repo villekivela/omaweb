@@ -79,11 +79,6 @@ ApplicationWindow {
         source: iconFontSource
     }
 
-    Typography {
-        id: typography
-        palette: window.colors
-    }
-
     KeyMap {
         id: keymap
         configuration: keyboardNavigation
@@ -334,7 +329,6 @@ ApplicationWindow {
                 Layout.preferredWidth: window.sidebarCollapsed ? 0 : window.sidebarWidth
                 visible: Layout.preferredWidth > 0
                 colors: window.colors
-                typography: typography
                 iconFontFamily: materialSymbols.name
                 browser: window.windowBrowser
                 privateWindow: window.privateWindow
@@ -442,7 +436,6 @@ ApplicationWindow {
                     anchors.top: parent.top
                     z: 40
                     colors: window.colors
-                    typography: typography
                     iconFontFamily: materialSymbols.name
                     open: window.permissionOpen
                     glyph: "shield_person"
@@ -466,7 +459,6 @@ ApplicationWindow {
                     anchors.fill: parent
                     z: 45
                     colors: window.colors
-                    typography: typography
                     iconFontFamily: materialSymbols.name
                     browser: window.windowBrowser
                     blocker: contentBlocker
@@ -484,7 +476,6 @@ ApplicationWindow {
                     anchors.bottomMargin: 20
                     z: 5
                     colors: window.colors
-                    typography: typography
                     iconFontFamily: materialSymbols.name
                     // The page behind the strip, not the viewport that owns
                     // both, so the blur never samples itself.
@@ -569,8 +560,8 @@ ApplicationWindow {
                             label: "Reload"
                             accessibleName: "Reload crashed page"
                             foreground: window.colors.text
+                            accent: window.colors.accent
                             background: window.colors.surface
-                            hoverBackground: window.colors.surfaceHover
                             onClicked: window.windowBrowser.recoverActiveTab()
                         }
                     }
@@ -713,7 +704,6 @@ ApplicationWindow {
         anchors.fill: parent
         z: 55
         colors: window.colors
-        typography: typography
         open: window.spacesMenuOpen
         anchorX: window.spacesMenuX
         anchorY: window.spacesMenuY
@@ -743,7 +733,6 @@ ApplicationWindow {
         anchors.fill: parent
         z: 60
         colors: window.colors
-        typography: typography
         open: window.dialogMode.length > 0
         destructive: window.dialogMode === "delete" || window.dialogMode === "confirm-move"
         inputVisible: window.dialogMode === "new" || window.dialogMode === "rename"
@@ -835,7 +824,6 @@ ApplicationWindow {
         anchors.fill: parent
         z: 50
         colors: window.colors
-        typography: typography
         commands: browserCommands
         // The window content behind the overlay, not the overlay's own parent,
         // so the blur never samples itself.

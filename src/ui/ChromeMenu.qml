@@ -1,4 +1,5 @@
 import QtQuick
+import qs.Commons
 
 // A menu hangs off the control that opened it, so it stays small and close
 // rather than taking the middle of the window the way a question does. It has
@@ -7,7 +8,6 @@ Item {
     id: root
 
     property var colors
-    property var typography
     property bool open: false
     // Scene coordinates of the opening control's bottom-right corner: the menu
     // hangs from there, so it never covers the button that summoned it.
@@ -105,8 +105,8 @@ Item {
                             ? root.colors.privateAccent
                             : root.colors.text
                         elide: Text.ElideRight
-                        font.family: root.typography.family
-                        font.pixelSize: root.typography.size
+                        font.family: Style.font.family
+                        font.pixelSize: Style.font.body
                     }
 
                     MouseArea {

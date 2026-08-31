@@ -1,13 +1,13 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Effects
+import qs.Commons
 
 Item {
     id: root
     objectName: "commandPanel"
 
     property var colors
-    property var typography
     property var commands
     property bool open: false
     property bool commandMode: false
@@ -185,7 +185,7 @@ Item {
                 anchors.verticalCenter: parent.verticalCenter
                 text: root.commandMode ? ":" : (root.newTabIntent ? "+" : ">")
                 color: root.colors.accent
-                font.family: root.typography.family
+                font.family: Style.font.family
                 font.pixelSize: 18
             }
 
@@ -208,7 +208,7 @@ Item {
                     ? "search every action"
                     : (root.newTabIntent ? "address or search — opens in a new tab" : "address or search")
                 placeholderTextColor: root.colors.mutedText
-                font.family: root.typography.family
+                font.family: Style.font.family
                 font.pixelSize: 17
                 selectByMouse: true
                 Accessible.name: placeholderText
@@ -242,7 +242,6 @@ Item {
                 anchors.rightMargin: 14
                 anchors.verticalCenter: parent.verticalCenter
                 colors: root.colors
-                typography: root.typography
                 text: root.commandMode ? "command" : (root.newTabIntent ? "new tab" : "this tab")
             }
 
@@ -307,7 +306,6 @@ Item {
                         anchors.verticalCenter: parent.verticalCenter
                         width: 92
                         colors: root.colors
-                        typography: root.typography
                         text: parent.startsGroup ? modelData.group : ""
                         elide: Text.ElideRight
                     }
@@ -323,8 +321,8 @@ Item {
                         color: modelData.enabled ? root.colors.text : root.colors.mutedText
                         opacity: modelData.enabled ? 1 : 0.6
                         elide: Text.ElideRight
-                        font.family: root.typography.family
-                        font.pixelSize: root.typography.size
+                        font.family: Style.font.family
+                        font.pixelSize: Style.font.body
                     }
 
                     Text {
@@ -335,8 +333,8 @@ Item {
                         text: modelData.keys
                         color: root.colors.mutedText
                         opacity: 0.85
-                        font.family: root.typography.family
-                        font.pixelSize: root.typography.smallSize
+                        font.family: Style.font.family
+                        font.pixelSize: Style.font.caption
                     }
 
                     MouseArea {
@@ -392,8 +390,8 @@ Item {
                         text: modelData.title + "  ·  " + modelData.url
                         color: index === root.selected ? root.colors.text : root.colors.mutedText
                         elide: Text.ElideMiddle
-                        font.family: root.typography.family
-                        font.pixelSize: root.typography.size
+                        font.family: Style.font.family
+                        font.pixelSize: Style.font.body
                     }
 
                     MouseArea {
@@ -432,19 +430,16 @@ Item {
 
                 KeyHint {
                     colors: root.colors
-                    typography: root.typography
                     text: "↑↓ SELECT"
                 }
 
                 KeyHint {
                     colors: root.colors
-                    typography: root.typography
                     text: "⏎ RUN"
                 }
 
                 KeyHint {
                     colors: root.colors
-                    typography: root.typography
                     text: "ESC CLOSE"
                 }
             }
@@ -454,7 +449,6 @@ Item {
                 anchors.rightMargin: 14
                 anchors.verticalCenter: parent.verticalCenter
                 colors: root.colors
-                typography: root.typography
                 visible: root.commandMode
                 text: root.results.length + " ACTIONS"
             }

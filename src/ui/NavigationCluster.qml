@@ -6,7 +6,6 @@ Rectangle {
     objectName: "navigationCluster"
 
     property var colors
-    property var typography
     property string iconFontFamily
     property bool canGoBack: false
     property bool canGoForward: false
@@ -101,11 +100,11 @@ Rectangle {
             objectName: "backButton"
             width: 28
             height: 26
-            label: "arrow_back"
+            icon: "arrow_back"
             accessibleName: "Back"
             fontFamily: root.iconFontFamily
             foreground: root.colors.text
-            hoverBackground: root.colors.surfaceHover
+            accent: root.colors.accent
             enabled: root.canGoBack
             onClicked: root.backRequested()
         }
@@ -114,11 +113,11 @@ Rectangle {
             objectName: "forwardButton"
             width: 28
             height: 26
-            label: "arrow_forward"
+            icon: "arrow_forward"
             accessibleName: "Forward"
             fontFamily: root.iconFontFamily
             foreground: root.colors.text
-            hoverBackground: root.colors.surfaceHover
+            accent: root.colors.accent
             enabled: root.canGoForward
             onClicked: root.forwardRequested()
         }
@@ -127,11 +126,11 @@ Rectangle {
             objectName: "reloadButton"
             width: 28
             height: 26
-            label: "refresh"
+            icon: "refresh"
             accessibleName: "Reload"
             fontFamily: root.iconFontFamily
             foreground: root.colors.text
-            hoverBackground: root.colors.surfaceHover
+            accent: root.colors.accent
             onClicked: root.reloadRequested()
         }
 
@@ -146,11 +145,11 @@ Rectangle {
             objectName: "collapseButton"
             width: 28
             height: 26
-            label: root.sidebarCollapsed ? "left_panel_open" : "left_panel_close"
+            icon: root.sidebarCollapsed ? "left_panel_open" : "left_panel_close"
             accessibleName: root.sidebarCollapsed ? "Show sidebar" : "Hide sidebar"
             fontFamily: root.iconFontFamily
             foreground: root.colors.mutedText
-            hoverBackground: root.colors.surfaceHover
+            accent: root.colors.accent
             onClicked: root.sidebarToggled()
         }
 
@@ -158,11 +157,11 @@ Rectangle {
             objectName: "commandPanelButton"
             width: 28
             height: 26
-            label: "search"
+            icon: "search"
             accessibleName: "Command panel"
             fontFamily: root.iconFontFamily
             foreground: root.colors.mutedText
-            hoverBackground: root.colors.surfaceHover
+            accent: root.colors.accent
             onClicked: root.commandPanelRequested()
         }
     }

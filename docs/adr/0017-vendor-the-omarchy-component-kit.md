@@ -30,10 +30,33 @@ and `SpeedTestOverlay`. QML in `src/ui` adapts each component to Tanto's call si
 keeping Tanto's property names and the accessibility annotations the kit does not
 carry, so adopting a component does not ripple through the surfaces that use it.
 
+The shim also pins the Qt Quick Controls style to Basic. The kit's `TextField`
+inherits Qt's `TextField` and replaces its `background`, which a native style refuses:
+on macOS the field renders as an Aqua box and only a runtime warning says so. Basic is
+what the Omarchy shell itself draws on, so pinning it is what makes the vendored
+components look like themselves. The setting is process-wide, so Tanto's own Qt Quick
+Controls surfaces — the settings `ScrollView` among them — are drawn by Basic too, which
+is the intent rather than a side effect: a browser whose chrome is its own should not
+have one scroll bar wearing the platform's clothes.
+
 `ThemeController` remains the single source of truth for the palette. Kit components
 read `qs.Commons` singletons that would otherwise resolve colours from an Omarchy
-theme on disk, so Tanto's adapters pass colour and typography per instance from the
-palette their call sites already receive. Whether Tanto later drives those singletons
-from `ThemeController` — dropping the per-instance overrides and the prop drilling
-along with them — is a separate decision, taken once more than one component is
-adapted.
+theme on disk, so Tanto's adapters pass colour per instance from the palette their
+call sites already receive. Whether Tanto later drives those singletons from
+`ThemeController` — dropping the per-instance overrides and the prop drilling along
+with them — is a separate decision.
+
+Type is not drilled the same way. Tanto had its own `Typography` object resolving a
+family and a size scale from the palette; the kit's `Style.font` is the same idea with
+a fuller scale, so `Typography` is gone and every Tanto surface reads `Style.font`
+directly. Until `ThemeController` drives `Style`, that means the type scale follows the
+kit's defaults rather than Tanto's palette — the visible cost of having one scale
+instead of two, paid deliberately.
+
+Where the kit and Tanto disagree on appearance, the kit wins: emphasis is a tinted,
+accent-bordered button rather than a filled block, a checked switch does not fill its
+track with the accent, and a section label is neither letter-spaced nor upper-cased.
+Tanto keeps its own control only where the kit has no equivalent at all — `SettingRow`,
+which carries arbitrary content beside a title and a note, and `MultilineField`, since
+the kit's `TextField` is single-line. Both are built from `qs.Commons` tokens rather
+than a second set of values, and neither forks a vendored file.

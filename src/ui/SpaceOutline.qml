@@ -1,12 +1,12 @@
 import QtQuick
 import QtQuick.Controls
+import qs.Commons
 
 Rectangle {
     id: root
     objectName: "spaceOutline"
 
     property var colors
-    property var typography
     property string iconFontFamily
     property var browser
     property bool privateWindow: false
@@ -120,8 +120,8 @@ Rectangle {
                         foreground: active
                             ? (spaceColor.length > 0 ? spaceColor : root.colors.text)
                             : root.colors.mutedText
+                        accent: root.colors.accent
                         background: active ? root.colors.surface : "transparent"
-                        hoverBackground: root.colors.surfaceHover
                         onClicked: root.spaceActivated(spaceId)
                     }
                 }
@@ -135,8 +135,8 @@ Rectangle {
                 visible: root.privateWindow || !root.browser
                 text: "Private"
                 color: root.colors.privateAccent
-                font.family: root.typography.family
-                font.pixelSize: root.typography.headingSize
+                font.family: Style.font.family
+                font.pixelSize: Style.font.heading
                 font.letterSpacing: 1.4
                 font.capitalization: Font.AllUppercase
                 elide: Text.ElideRight
@@ -150,11 +150,11 @@ Rectangle {
                 width: 28
                 height: 26
                 visible: !root.privateWindow
-                label: "more_horiz"
+                icon: "more_horiz"
                 accessibleName: "Manage Spaces"
                 fontFamily: root.iconFontFamily
                 foreground: root.colors.mutedText
-                hoverBackground: root.colors.surfaceHover
+                accent: root.colors.accent
                 onClicked: {
                     const corner = spacesButton.mapToItem(null, spacesButton.width,
                         spacesButton.height)
@@ -218,8 +218,8 @@ Rectangle {
                     : String(root.activeUrl).replace(/^[a-z]+:\/\//, "")
                 color: root.blank ? root.colors.mutedText : root.colors.text
                 elide: Text.ElideMiddle
-                font.family: root.typography.family
-                font.pixelSize: root.typography.size
+                font.family: Style.font.family
+                font.pixelSize: Style.font.body
             }
 
             Row {
@@ -243,8 +243,8 @@ Rectangle {
                     anchors.verticalCenter: parent.verticalCenter
                     text: root.blockedRequestCount
                     color: root.colors.mutedText
-                    font.family: root.typography.family
-                    font.pixelSize: root.typography.smallSize
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.caption
                 }
             }
 
@@ -267,7 +267,6 @@ Rectangle {
             objectName: "pinnedLabel"
             visible: !root.privateWindow && root.pinnedCount > 0
             colors: root.colors
-            typography: root.typography
             text: "pinned"
         }
 
@@ -285,7 +284,6 @@ Rectangle {
                 TabRow {
                     width: parent.width
                     colors: root.colors
-                    typography: root.typography
                     onActivated: function(id) { root.tabActivated(id) }
                     onActiveChanged: if (active) root.activeTabItem = this
                     Component.onCompleted: if (active) root.activeTabItem = this
@@ -295,7 +293,6 @@ Rectangle {
 
         SectionLabel {
             colors: root.colors
-            typography: root.typography
             text: "tabs"
         }
     }
@@ -322,7 +319,6 @@ Rectangle {
                 TabRow {
                     width: parent.width
                     colors: root.colors
-                    typography: root.typography
                     onActivated: function(id) { root.tabActivated(id) }
                     onActiveChanged: if (active) root.activeTabItem = this
                     Component.onCompleted: if (active) root.activeTabItem = this
@@ -372,7 +368,7 @@ Rectangle {
                 text: "add"
                 color: root.colors.mutedText
                 font.family: root.iconFontFamily
-                font.pixelSize: root.typography.iconSize
+                font.pixelSize: Style.font.iconLarge
             }
 
             Text {
@@ -381,8 +377,8 @@ Rectangle {
                 anchors.verticalCenter: parent.verticalCenter
                 text: "new tab"
                 color: root.colors.mutedText
-                font.family: root.typography.family
-                font.pixelSize: root.typography.size
+                font.family: Style.font.family
+                font.pixelSize: Style.font.body
             }
 
             MouseArea {
@@ -402,11 +398,11 @@ Rectangle {
             objectName: "settingsButton"
             width: 30
             height: 30
-            label: "settings"
+            icon: "settings"
             accessibleName: "Browsing settings and downloads"
             fontFamily: root.iconFontFamily
             foreground: root.colors.mutedText
-            hoverBackground: root.colors.surfaceHover
+            accent: root.colors.accent
             onClicked: root.settingsRequested()
         }
     }
@@ -434,7 +430,6 @@ Rectangle {
 
             SectionLabel {
                 colors: root.colors
-                typography: root.typography
                 text: "site status"
             }
 
@@ -445,8 +440,8 @@ Rectangle {
                     : "· connection is not encrypted"
                 color: root.colors.mutedText
                 wrapMode: Text.WordWrap
-                font.family: root.typography.family
-                font.pixelSize: root.typography.smallSize
+                font.family: Style.font.family
+                font.pixelSize: Style.font.caption
             }
 
             Text {
@@ -454,8 +449,8 @@ Rectangle {
                 text: "· " + root.blockedRequestCount + " requests blocked in this window"
                 color: root.colors.mutedText
                 wrapMode: Text.WordWrap
-                font.family: root.typography.family
-                font.pixelSize: root.typography.smallSize
+                font.family: Style.font.family
+                font.pixelSize: Style.font.caption
             }
         }
     }

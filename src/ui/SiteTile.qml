@@ -1,11 +1,11 @@
 import QtQuick
 import QtQuick.Effects
+import qs.Commons
 
 Rectangle {
     id: root
 
     property var colors
-    property var typography
     property url siteUrl
     property url iconUrl
     property bool highlighted: false
@@ -78,8 +78,8 @@ Rectangle {
         visible: !root.showsArtwork
         text: root.code
         color: root.highlighted ? root.colors.windowOpaque : root.tint
-        font.family: root.typography.family
-        font.pixelSize: root.typography.smallSize
+        font.family: Style.font.family
+        font.pixelSize: Style.font.caption
         font.weight: Font.DemiBold
     }
 }

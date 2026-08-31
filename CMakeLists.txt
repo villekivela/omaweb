@@ -42,7 +42,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-set(tanto_qt_components Concurrent Core Gui Network Qml Quick Sql)
+set(tanto_qt_components Concurrent Core Gui Network Qml Quick QuickControls2 Sql)
 if(TANTO_BUILD_BROWSER)
     list(APPEND tanto_qt_components WebEngineCore WebEngineQuick)
 endif()
@@ -118,7 +118,7 @@ add_library(tanto-quickshell-shim STATIC
     src/ui/quickshell-shim/QuickshellIo.h
 )
 target_include_directories(tanto-quickshell-shim PUBLIC src/ui/quickshell-shim)
-target_link_libraries(tanto-quickshell-shim PUBLIC Qt6::Core Qt6::Qml)
+target_link_libraries(tanto-quickshell-shim PUBLIC Qt6::Core Qt6::Qml Qt6::QuickControls2)
 set_target_properties(tanto-quickshell-shim PROPERTIES AUTOMOC ON)
 tanto_strict_target(tanto-quickshell-shim)
 
@@ -195,16 +195,16 @@ set(tanto_ui_files
     src/ui/CommandDialog.qml
     src/ui/PageQuestionBar.qml
     src/ui/SectionLabel.qml
+    src/ui/MultilineField.qml
     src/ui/SettingField.qml
     src/ui/SettingRow.qml
-    src/ui/SettingSwitch.qml
+    src/ui/SettingToggle.qml
     src/ui/SettingsPage.qml
     src/ui/SidebarResizer.qml
     src/ui/SiteTile.qml
     src/ui/SpaceOutline.qml
     src/ui/TabEngineHost.qml
     src/ui/TabRow.qml
-    src/ui/Typography.qml
 )
 
 function(tanto_configure_qml target engine_view engine_profile engine_directory)

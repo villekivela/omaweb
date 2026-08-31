@@ -1,4 +1,5 @@
 import QtQuick
+import qs.Commons
 
 // Tanto already has one place where it asks the user something: the Omnibar.
 // Every question about the browser itself arrives in the same shape — centred,
@@ -8,7 +9,6 @@ Item {
     id: root
 
     property var colors
-    property var typography
     property bool open: false
     property string label: ""
     property string message: ""
@@ -116,9 +116,11 @@ Item {
                 anchors.leftMargin: 16
                 anchors.verticalCenter: parent.verticalCenter
                 colors: root.colors
-                typography: root.typography
                 text: root.label
-                color: root.destructive ? root.colors.privateAccent : root.colors.mutedText
+                // The kit's header does its own muting, so a destructive
+                // dialog hands it the private accent to mute rather than a
+                // finished colour to paint.
+                foreground: root.destructive ? root.colors.privateAccent : root.colors.text
             }
 
             Text {
@@ -127,8 +129,8 @@ Item {
                 anchors.verticalCenter: parent.verticalCenter
                 text: root.cancelHint
                 color: root.colors.mutedText
-                font.family: root.typography.family
-                font.pixelSize: root.typography.smallSize
+                font.family: Style.font.family
+                font.pixelSize: Style.font.caption
             }
 
             Rectangle {
@@ -162,7 +164,7 @@ Item {
                     anchors.verticalCenter: parent.verticalCenter
                     text: "›"
                     color: root.edge
-                    font.family: root.typography.family
+                    font.family: Style.font.family
                     font.pixelSize: 20
                 }
 
@@ -179,7 +181,7 @@ Item {
                     color: root.colors.text
                     selectionColor: root.edge
                     selectedTextColor: root.colors.windowOpaque
-                    font.family: root.typography.family
+                    font.family: Style.font.family
                     font.pixelSize: 17
                     Accessible.role: Accessible.EditableText
                     Accessible.name: root.label
@@ -205,7 +207,7 @@ Item {
                     visible: field.text.length === 0
                     text: root.placeholder
                     color: root.colors.mutedText
-                    font.family: root.typography.family
+                    font.family: Style.font.family
                     font.pixelSize: 17
                 }
             }
@@ -219,8 +221,8 @@ Item {
                 text: root.message
                 color: root.colors.text
                 wrapMode: Text.WordWrap
-                font.family: root.typography.family
-                font.pixelSize: root.typography.size
+                font.family: Style.font.family
+                font.pixelSize: Style.font.body
             }
 
             Repeater {
@@ -250,8 +252,8 @@ Item {
                         anchors.verticalCenter: parent.verticalCenter
                         text: modelData.label
                         color: root.colors.text
-                        font.family: root.typography.family
-                        font.pixelSize: root.typography.size
+                        font.family: Style.font.family
+                        font.pixelSize: Style.font.body
                     }
 
                     Text {
@@ -263,8 +265,8 @@ Item {
                         text: modelData.note !== undefined ? modelData.note : ""
                         color: root.colors.mutedText
                         elide: Text.ElideRight
-                        font.family: root.typography.family
-                        font.pixelSize: root.typography.smallSize
+                        font.family: Style.font.family
+                        font.pixelSize: Style.font.caption
                     }
 
                     MouseArea {
@@ -303,8 +305,8 @@ Item {
                 visible: root.confirmHint.length > 0
                 text: root.confirmHint
                 color: root.colors.mutedText
-                font.family: root.typography.family
-                font.pixelSize: root.typography.smallSize
+                font.family: Style.font.family
+                font.pixelSize: Style.font.caption
             }
         }
     }

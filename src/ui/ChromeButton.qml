@@ -1,57 +1,36 @@
 import QtQuick
+import qs.Ui as Omarchy
 
-Item {
+// The small chrome control — the arrows in the navigation strip, the Space
+// letters in the sidebar, the settings and command-panel buttons — drawn by
+// the Omarchy kit's `Button` (third_party/omarchy-shell). This file is the
+// adapter: call sites keep Tanto's vocabulary — a `label` for a word, an
+// `icon` for a glyph — and Tanto keeps the accessibility annotations the kit
+// does not carry.
+//
+// The two slots are separate because the kit sizes them separately: a glyph
+// takes `Style.font.icon` and a word `Style.font.body`, where Tanto's own
+// button gave both one hard-coded 15px.
+//
+// The kit paints hover, focus and pressed fills itself from `foreground` and
+// `accent`, so Tanto's `hoverBackground` is gone: chrome is borderless and
+// transparent at rest and tints under the cursor like the rest of the kit.
+Omarchy.Button {
     id: root
 
     property string label: ""
-    property color foreground: "white"
-    property color background: "transparent"
-    property color hoverBackground: "#30ffffff"
-    property string fontFamily: ""
+    property string icon: ""
     property string accessibleName: ""
-    signal clicked()
 
-    implicitWidth: 34
-    implicitHeight: 32
+    text: label
+    iconText: icon
+    // A disabled control is not a keyboard stop, which is what Tanto's own
+    // `activeFocusOnTab: enabled` said before the kit took the painting over.
+    focusable: enabled
+    bordered: false
     opacity: enabled ? 1.0 : 0.35
-    activeFocusOnTab: enabled
+
     Accessible.role: Accessible.Button
     Accessible.name: accessibleName
     Accessible.onPressAction: root.clicked()
-
-    Keys.onPressed: function(event) {
-        if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Space) {
-            root.clicked()
-            event.accepted = true
-        }
-    }
-
-    Rectangle {
-        anchors.fill: parent
-        radius: 9
-        color: mouse.containsMouse && root.enabled ? root.hoverBackground : root.background
-        border.width: root.activeFocus ? 1 : 0
-        border.color: root.foreground
-    }
-
-    Text {
-        anchors.centerIn: parent
-        text: root.label
-        color: root.foreground
-        font.family: root.fontFamily
-        font.pixelSize: 15
-        font.weight: Font.DemiBold
-    }
-
-    MouseArea {
-        id: mouse
-        anchors.fill: parent
-        enabled: root.enabled
-        hoverEnabled: true
-        cursorShape: Qt.PointingHandCursor
-        onClicked: {
-            root.forceActiveFocus()
-            root.clicked()
-        }
-    }
 }

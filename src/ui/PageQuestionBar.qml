@@ -1,4 +1,5 @@
 import QtQuick
+import qs.Commons
 
 // A question about the page docks above the page, not over the middle of it.
 // The page keeps rendering and stays readable while the bar waits, because what
@@ -7,7 +8,6 @@ Item {
     id: root
 
     property var colors
-    property var typography
     property string iconFontFamily
     property bool open: false
     property string glyph: "help"
@@ -61,7 +61,7 @@ Item {
                 text: root.glyph
                 color: root.colors.accent
                 font.family: root.iconFontFamily
-                font.pixelSize: root.typography.iconSize
+                font.pixelSize: Style.font.iconLarge
             }
 
             Column {
@@ -74,8 +74,8 @@ Item {
                     text: root.message
                     color: root.colors.text
                     elide: Text.ElideRight
-                    font.family: root.typography.family
-                    font.pixelSize: root.typography.size
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.body
                 }
 
                 Text {
@@ -84,8 +84,8 @@ Item {
                     text: root.detail
                     color: root.colors.mutedText
                     elide: Text.ElideRight
-                    font.family: root.typography.family
-                    font.pixelSize: root.typography.smallSize
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.caption
                 }
             }
         }
@@ -102,7 +102,6 @@ Item {
 
                     objectName: "questionAction" + index
                     colors: root.colors
-                    typography: root.typography
                     label: modelData.label
                     primary: index === 0
                     enabled: modelData.enabled === undefined || modelData.enabled

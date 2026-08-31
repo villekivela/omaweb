@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls
+import qs.Commons
 
 // Settings is a place, not a dialog. It has outgrown a modal — filter lists, a
 // rule editor and download history in one scroll — so it takes the page area
@@ -9,7 +10,6 @@ Rectangle {
     objectName: "settingsPage"
 
     property var colors
-    property var typography
     property string iconFontFamily
     property var browser
     property var blocker
@@ -70,7 +70,7 @@ Rectangle {
             anchors.bottom: parent.bottom
             text: "Settings"
             color: root.colors.text
-            font.family: root.typography.family
+            font.family: Style.font.family
             font.pixelSize: 26
             Accessible.role: Accessible.Heading
             Accessible.name: "Settings"
@@ -82,11 +82,11 @@ Rectangle {
             anchors.bottom: parent.bottom
             width: 30
             height: 30
-            label: "close"
+            icon: "close"
             accessibleName: "Close settings"
             fontFamily: root.iconFontFamily
             foreground: root.colors.mutedText
-            hoverBackground: root.colors.surfaceHover
+            accent: root.colors.accent
             onClicked: root.closed()
         }
     }
@@ -119,8 +119,8 @@ Rectangle {
                     color: index === root.section ? root.colors.accent : root.colors.mutedText
                     topPadding: 6
                     bottomPadding: 6
-                    font.family: root.typography.family
-                    font.pixelSize: root.typography.size
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.body
                     font.capitalization: Font.Capitalize
                     activeFocusOnTab: true
                     Accessible.role: Accessible.PageTab
@@ -160,71 +160,52 @@ Rectangle {
 
                 // ---- keyboard ----------------------------------------------
 
-                SettingRow {
+                SettingToggle {
+                    objectName: "keyboardNavigationEnabled"
                     width: pane.width
                     visible: root.section === 0
                     colors: root.colors
-                    typography: root.typography
-                    separated: false
                     title: "Keyboard navigation"
                     note: "Tanto's own command layer. It gives the same commands with every "
                         + "engine, and lets sites receive the keys they need."
-
-                    SettingSwitch {
-                        objectName: "keyboardNavigationEnabled"
-                        colors: root.colors
-                        accessibleName: "Enable Keyboard navigation"
-                        checked: root.keyboard ? root.keyboard.enabled : false
-                        onClicked: if (root.keyboard) root.keyboard.setEnabled(checked)
-                    }
+                    accessibleName: "Enable Keyboard navigation"
+                    checked: root.keyboard ? root.keyboard.enabled : false
+                    onClicked: if (root.keyboard) root.keyboard.setEnabled(!checked)
                 }
 
                 // ---- content blocking --------------------------------------
 
-                SettingRow {
+                SettingToggle {
+                    objectName: "siteBlockingEnabled"
                     width: pane.width
                     visible: root.section === 1
                     colors: root.colors
-                    typography: root.typography
-                    separated: false
                     title: "Block requests on this site"
-                    note: {
-                        return root.blockedRequestCount + " requests blocked"
-                            + (root.activeHost.length > 0 ? " on " + root.activeHost : "")
-                            + " so far."
-                    }
-
-                    SettingSwitch {
-                        objectName: "siteBlockingEnabled"
-                        colors: root.colors
-                        accessibleName: "Enable content blocking for this site"
-                        checked: root.blocker && root.browser
-                            ? root.blocker.siteEnabled(root.browser.activeUrl) : false
-                        onClicked: if (root.blocker) root.blocker.setSiteEnabled(
-                            root.browser.activeUrl, checked)
-                    }
+                    note: root.blockedRequestCount + " requests blocked"
+                        + (root.activeHost.length > 0 ? " on " + root.activeHost : "")
+                        + " so far."
+                    accessibleName: "Enable content blocking for this site"
+                    checked: root.blocker && root.browser
+                        ? root.blocker.siteEnabled(root.browser.activeUrl) : false
+                    onClicked: if (root.blocker) root.blocker.setSiteEnabled(
+                        root.browser.activeUrl, !checked)
                 }
 
                 Repeater {
                     model: root.section === 1 ? root.subscriptions : []
 
-                    SettingRow {
+                    SettingToggle {
                         required property var modelData
 
                         width: pane.width
                         colors: root.colors
-                        typography: root.typography
                         title: modelData.title
                         note: modelData.updateStatus + " · " + modelData.license
                             + "\nSource " + modelData.source
                             + "\nUpdates from " + modelData.updateAddress
-
-                        SettingSwitch {
-                            colors: root.colors
-                            accessibleName: "Enable " + modelData.title
-                            checked: modelData.enabled
-                            onClicked: root.blocker.setSubscriptionEnabled(modelData.id, checked)
-                        }
+                        accessibleName: "Enable " + modelData.title
+                        checked: modelData.enabled
+                        onClicked: root.blocker.setSubscriptionEnabled(modelData.id, !checked)
                     }
                 }
 
@@ -237,7 +218,6 @@ Rectangle {
 
                     SectionLabel {
                         colors: root.colors
-                        typography: root.typography
                         text: "add a list"
                     }
 
@@ -250,7 +230,6 @@ Rectangle {
                             id: subscriptionTitle
                             width: (pane.width - 10) / 2
                             colors: root.colors
-                            typography: root.typography
                             placeholder: "list name"
                             accessibleName: "Subscription name"
                         }
@@ -259,7 +238,6 @@ Rectangle {
                             id: subscriptionLicense
                             width: (pane.width - 10) / 2
                             colors: root.colors
-                            typography: root.typography
                             placeholder: "license"
                             accessibleName: "Subscription license"
                         }
@@ -268,7 +246,6 @@ Rectangle {
                             id: subscriptionSource
                             width: (pane.width - 10) / 2
                             colors: root.colors
-                            typography: root.typography
                             placeholder: "source page"
                             accessibleName: "Subscription source page"
                         }
@@ -277,7 +254,6 @@ Rectangle {
                             id: subscriptionUpdate
                             width: (pane.width - 10) / 2
                             colors: root.colors
-                            typography: root.typography
                             placeholder: "update address"
                             accessibleName: "Subscription update address"
                         }
@@ -286,7 +262,6 @@ Rectangle {
                     ActionButton {
                         objectName: "addSubscriptionButton"
                         colors: root.colors
-                        typography: root.typography
                         label: "Add subscription"
                         onClicked: {
                             root.blocker.addSubscription(subscriptionTitle.text,
@@ -300,17 +275,14 @@ Rectangle {
 
                     SectionLabel {
                         colors: root.colors
-                        typography: root.typography
                         text: "user rules"
                     }
 
-                    SettingField {
+                    MultilineField {
                         id: userRules
                         objectName: "userRulesInput"
                         width: pane.width
                         colors: root.colors
-                        typography: root.typography
-                        multiline: true
                         placeholder: "one rule per line"
                         accessibleName: "User rules"
                     }
@@ -323,8 +295,8 @@ Rectangle {
                             + "resource replacement are not."
                         color: root.colors.mutedText
                         wrapMode: Text.WordWrap
-                        font.family: root.typography.family
-                        font.pixelSize: root.typography.smallSize
+                        font.family: Style.font.family
+                        font.pixelSize: Style.font.caption
                     }
 
                     Text {
@@ -337,14 +309,13 @@ Rectangle {
                                 ? root.blocker.compilationReport.unsupported : {})
                         color: root.colors.mutedText
                         wrapMode: Text.WordWrap
-                        font.family: root.typography.family
-                        font.pixelSize: root.typography.smallSize
+                        font.family: Style.font.family
+                        font.pixelSize: Style.font.caption
                     }
 
                     ActionButton {
                         objectName: "saveUserRulesButton"
                         colors: root.colors
-                        typography: root.typography
                         label: root.blocker && root.blocker.compiling
                             ? "Compiling…" : "Save user rules"
                         accessibleName: "Save user rules"
@@ -360,7 +331,6 @@ Rectangle {
                     width: pane.width
                     visible: root.section === 2
                     colors: root.colors
-                    typography: root.typography
                     separated: false
                     title: "Remote search suggestions"
                     note: "Typing in the Omnibar never leaves the machine. Suggestions come "
@@ -370,8 +340,8 @@ Rectangle {
                         objectName: "remoteSuggestionsStatus"
                         text: "Remote search suggestions: Off"
                         color: root.colors.mutedText
-                        font.family: root.typography.family
-                        font.pixelSize: root.typography.size
+                        font.family: Style.font.family
+                        font.pixelSize: Style.font.body
                     }
                 }
 
@@ -379,7 +349,6 @@ Rectangle {
                     width: pane.width
                     visible: root.section === 2
                     colors: root.colors
-                    typography: root.typography
                     title: "Filter-list updates"
 
                     Text {
@@ -390,8 +359,8 @@ Rectangle {
                             + "suggestions remain off."
                         color: root.colors.mutedText
                         wrapMode: Text.WordWrap
-                        font.family: root.typography.family
-                        font.pixelSize: root.typography.smallSize
+                        font.family: Style.font.family
+                        font.pixelSize: Style.font.caption
                     }
                 }
 
@@ -401,7 +370,6 @@ Rectangle {
                     width: pane.width
                     visible: root.section === 3
                     colors: root.colors
-                    typography: root.typography
                     separated: false
                     title: "Download directory"
                     note: root.browser ? root.browser.downloadDirectory : ""
@@ -410,8 +378,8 @@ Rectangle {
                         text: root.browser && root.browser.acceptDownloads
                             ? "accepting" : "blocked"
                         color: root.colors.mutedText
-                        font.family: root.typography.family
-                        font.pixelSize: root.typography.size
+                        font.family: Style.font.family
+                        font.pixelSize: Style.font.body
                     }
                 }
 
@@ -423,7 +391,6 @@ Rectangle {
 
                         width: pane.width
                         colors: root.colors
-                        typography: root.typography
                         title: modelData.path
                         note: modelData.state
                             + (modelData.error.length > 0 ? " · " + modelData.error : "")
@@ -434,7 +401,6 @@ Rectangle {
                     width: pane.width
                     visible: root.section === 3 && root.downloads.length === 0
                     colors: root.colors
-                    typography: root.typography
                     title: "No recorded downloads"
                     note: "Downloads Tanto has recorded in this Space appear here."
                 }

@@ -1,28 +1,39 @@
 import QtQuick
+import qs.Commons
 
-// One setting: what it does on the left, what it costs underneath, the control
-// on the right. The dialog it replaces had no room for the second line, which
-// is why it never said which settings reach the network.
+// One setting: what it does on the left, what it costs underneath, whatever
+// control the setting needs on the right. The dialog it replaces had no room
+// for the second line, which is why it never said which settings reach the
+// network.
+//
+// A setting that is simply on or off is the Omarchy kit's `Toggle` instead —
+// it owns its own switch and its own click. This row stays Tanto's because the
+// kit has no row that carries arbitrary content: the surfaces left here hold a
+// status line, a button, or nothing at all. It reads the kit's type scale and
+// spacing tokens so it sits in the same pane as a `Toggle` without looking
+// like a second design.
 Item {
     id: root
 
     property var colors
-    property var typography
     property string title: ""
     property string note: ""
     property bool separated: true
 
     default property alias control: holder.data
 
-    implicitHeight: 18 + titleText.implicitHeight
-        + (note.length > 0 ? 6 + noteText.implicitHeight : 0) + 18
+    readonly property int verticalPadding: Style.spacing.huge
+
+    implicitHeight: verticalPadding + titleText.implicitHeight
+        + (note.length > 0 ? Style.spacing.md + noteText.implicitHeight : 0)
+        + verticalPadding
     height: implicitHeight
 
     Rectangle {
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.top: parent.top
-        height: 1
+        height: Style.spacing.hairline
         visible: root.separated
         color: root.colors.border
         opacity: 0.5
@@ -32,36 +43,36 @@ Item {
         id: titleText
         anchors.left: parent.left
         anchors.right: holder.left
-        anchors.rightMargin: 24
+        anchors.rightMargin: Style.spacing.rowPaddingX * 2
         anchors.top: parent.top
-        anchors.topMargin: 18
+        anchors.topMargin: root.verticalPadding
         text: root.title
         color: root.colors.text
         wrapMode: Text.WordWrap
-        font.family: root.typography.family
-        font.pixelSize: 14
+        font.family: Style.font.family
+        font.pixelSize: Style.font.title
     }
 
     Text {
         id: noteText
         anchors.left: parent.left
         anchors.right: holder.left
-        anchors.rightMargin: 24
+        anchors.rightMargin: Style.spacing.rowPaddingX * 2
         anchors.top: titleText.bottom
-        anchors.topMargin: 6
+        anchors.topMargin: Style.spacing.md
         visible: root.note.length > 0
         text: root.note
         color: root.colors.mutedText
         wrapMode: Text.WordWrap
-        font.family: root.typography.family
-        font.pixelSize: root.typography.smallSize
+        font.family: Style.font.family
+        font.pixelSize: Style.font.caption
     }
 
     Item {
         id: holder
         anchors.right: parent.right
         anchors.top: parent.top
-        anchors.topMargin: 18
+        anchors.topMargin: root.verticalPadding
         width: childrenRect.width
         height: childrenRect.height
     }

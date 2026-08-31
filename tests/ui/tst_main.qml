@@ -265,7 +265,7 @@ TestCase {
         compare(addressButton.accessibleName, "Search or enter address")
         compare(collapseButton.accessibleName, "Hide sidebar")
         compare(commandPanelButton.accessibleName, "Command panel")
-        compare(manageSpacesButton.label, "more_horiz")
+        compare(manageSpacesButton.icon, "more_horiz")
         verify(iconFontSource.toString().endsWith("/material-symbols-rounded.ttf"))
         verify(materialSymbolsFont !== null)
         tryCompare(materialSymbolsFont, "status", FontLoader.Ready)
@@ -482,9 +482,20 @@ TestCase {
         verify(automaticRequestsStatus.text.indexOf("automatic network requests") >= 0)
         // A keyboard-driven browser ships with its keymap live.
         compare(keyboardNavigationEnabled.checked, true)
-        keyboardNavigationEnabled.click()
+        // The kit's Toggle is stateless about the value: it reports the click
+        // and the settings page flips the setting, which flows back through
+        // the `checked` binding. Drive it from the keyboard, since that is how
+        // this browser is meant to be reached, and on both of the kit's
+        // activation keys.
+        window.requestActivate()
+        tryVerify(function() { return window.active })
+        keyboardNavigationEnabled.forceActiveFocus()
+        verify(keyboardNavigationEnabled.activeFocus)
+        keyClick(Qt.Key_Space)
         compare(keyboardNavigation.enabled, false)
-        keyboardNavigationEnabled.click()
+        compare(keyboardNavigationEnabled.checked, false)
+        keyClick(Qt.Key_Return)
         compare(keyboardNavigation.enabled, true)
+        compare(keyboardNavigationEnabled.checked, true)
     }
 }

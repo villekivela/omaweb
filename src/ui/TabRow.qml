@@ -1,4 +1,5 @@
 import QtQuick
+import qs.Commons
 
 Item {
     id: root
@@ -12,7 +13,6 @@ Item {
     required property bool active
     required property bool loading
     property var colors
-    property var typography
 
     signal activated(string tabId)
 
@@ -47,7 +47,6 @@ Item {
         anchors.leftMargin: 6
         anchors.verticalCenter: parent.verticalCenter
         colors: root.colors
-        typography: root.typography
         siteUrl: root.tabUrl
         iconUrl: root.tabIconUrl
         highlighted: root.active
@@ -64,8 +63,8 @@ Item {
         text: root.tabTitle.length > 0 ? root.tabTitle : tile.host
         color: root.active ? root.colors.text : root.colors.mutedText
         elide: Text.ElideRight
-        font.family: root.typography.family
-        font.pixelSize: root.typography.size
+        font.family: Style.font.family
+        font.pixelSize: Style.font.body
     }
 
     MouseArea {

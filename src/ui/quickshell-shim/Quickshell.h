@@ -17,8 +17,8 @@
 namespace tanto::quickshell {
 
 // Registers the shim's types under the `Quickshell` and `Quickshell.Io` module
-// URIs. Call once per QML engine, before loading anything that imports the
-// vendored kit.
+// URIs, and picks the Qt Quick Controls style the kit needs. Call once per QML
+// engine, before loading anything that imports the vendored kit.
 void installShim();
 
 // The `Quickshell` singleton: `import Quickshell` then `Quickshell.env(...)`.

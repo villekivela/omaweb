@@ -7,6 +7,7 @@
 
 #include <QQmlContext>
 #include <QFile>
+#include <QQuickStyle>
 #include <QQmlEngine>
 #include <QTemporaryDir>
 #include <QtQuickTest/quicktest.h>
@@ -47,6 +48,11 @@ public slots:
             QUrl(QStringLiteral(TANTO_MOCK_ENGINE_PROFILE_URL)));
         engine->rootContext()->setContextProperty(
             QStringLiteral("iconFontSource"), QUrl(QStringLiteral(TANTO_ICON_FONT_URL)));
+        // The shim picks the Qt Quick Controls style the vendored kit needs; a
+        // native style refuses the kit's replaced `background` and paints its
+        // own. Reading the resolved name back is the only way QML can tell.
+        engine->rootContext()->setContextProperty(
+            QStringLiteral("controlsStyle"), QQuickStyle::name());
         engine->addImportPath(QStringLiteral(TANTO_UI_DIRECTORY));
         engine->addImportPath(QStringLiteral(TANTO_OMARCHY_IMPORT_PATH));
     }
