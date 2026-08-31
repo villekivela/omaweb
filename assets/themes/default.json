@@ -9,11 +9,11 @@
   "mutedText": "#aaa5b7",
   "accent": "#9b87ff",
   "border": "#4a4658",
-  "privateAccent": "#dc6bce",
-  "privateWindow": "#481d50",
-  "privateSidebar": "#5b2456",
-  "privateSurface": "#5a3158",
-  "privateSurfaceHover": "#70406c",
+  "privateAccent": "#c678dd",
+  "privateWindow": "#362640",
+  "privateSidebar": "#3f2c4c",
+  "privateSurface": "#4a3057",
+  "privateSurfaceHover": "#5f3b6e",
   "tint": {
     "saturation": 0.34,
     "lightness": 0.66

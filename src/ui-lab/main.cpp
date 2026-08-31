@@ -68,6 +68,11 @@ int main(int argc, char *argv[])
     engine.load(QUrl(QStringLiteral(TANTO_MAIN_QML_URL)));
 
     const auto arguments = application.arguments();
+    // Private chrome is a whole palette of its own, and the lab is where it is
+    // reviewed. Nothing else about the window changes.
+    if (arguments.contains(QStringLiteral("--private")) && !engine.rootObjects().isEmpty()) {
+        engine.rootObjects().constFirst()->setProperty("privateWindow", true);
+    }
     const auto captureIndex = arguments.indexOf(QStringLiteral("--capture"));
     if (captureIndex >= 0 && captureIndex + 1 < arguments.size()) {
         const auto capturePath = arguments.at(captureIndex + 1);

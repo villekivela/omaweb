@@ -27,7 +27,8 @@ cmake --build --preset ui
 ./build/ui/tanto-ui-lab.app/Contents/MacOS/tanto-ui-lab
 ```
 
-On Linux, the executable is `./build/ui/tanto-ui-lab`. Pass `--capture <path>` to
+On Linux, the executable is `./build/ui/tanto-ui-lab`. Pass `--private` to paint the window in the private palette, which is the only
+way to review that chrome without opening a private window. Pass `--capture <path>` to
 render one frame to a PNG and exit, which works headlessly with
 `QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software` for reviewing chrome changes
 without a desktop session. Development presets load QML, themes, and the icon font directly from the source tree. Editing those files requires an application restart but no compile or relink.

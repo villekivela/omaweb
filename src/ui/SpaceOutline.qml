@@ -399,19 +399,20 @@ Rectangle {
             }
         }
 
+        // A mask says private in the space one word took, and says it in the
+        // sidebar's own icon language rather than in shouted capitals.
         Text {
+            objectName: "privateBadge"
             anchors.left: parent.left
-            anchors.right: spacesButton.left
-            anchors.rightMargin: 8
+            anchors.leftMargin: 2
             anchors.verticalCenter: parent.verticalCenter
             visible: root.privateWindow || !root.browser
-            text: "Private"
+            text: "domino_mask"
             color: root.colors.privateAccent
-            font.family: Style.font.family
-            font.pixelSize: Style.font.heading
-            font.letterSpacing: 1.4
-            font.capitalization: Font.AllUppercase
-            elide: Text.ElideRight
+            font.family: root.iconFontFamily
+            font.pixelSize: Style.font.iconLarge
+            Accessible.role: Accessible.StaticText
+            Accessible.name: "Private window"
         }
 
         ChromeButton {

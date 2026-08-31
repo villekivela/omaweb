@@ -878,17 +878,6 @@ ApplicationWindow {
         }
     }
 
-    Rectangle {
-        objectName: "privateIndicator"
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.right: parent.right
-        height: 4
-        visible: window.privateWindow
-        color: window.colors.privateAccent
-        z: 90
-    }
-
     MouseArea {
         width: 5
         anchors.left: parent.left
