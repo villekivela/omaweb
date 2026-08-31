@@ -56,7 +56,9 @@ Tanto reads `theme.json` from the configuration directory when one is present, f
 
 `scripts/import_terminal_theme.py` derives that file from the terminal it runs in. Run it from the terminal whose colours you want — `TERM_PROGRAM` identifies that terminal exactly — and it writes `theme.json` into the configuration directory, which `ThemeController` is watching, so a running Tanto repaints without a restart. It reads Ghostty (via `ghostty +show-config`, which resolves a named theme into concrete colours), iTerm2, kitty, Alacritty, and a customised Terminal.app profile. `--print` shows the result instead of writing it, `--terminal` overrides detection, and `--force` replaces an existing theme. On a Linux desktop that already renders Tanto's template, the script refuses to write and says so: a theme in the configuration directory outranks the desktop-rendered one, so importing would freeze the palette at whatever the terminal looked like that day.
 
-The derivation takes the terminal's background, foreground and sixteen ANSI colours and builds the chrome ladder by mixing in OKLab, with the step sizes measured off the default theme. The accent is the most saturated of the blue, magenta and cyan slots that clears 4.5:1 against the background; red, green and yellow are left alone because they already mean error, success and warning. Type sizes, tint and the semantic opacities stay as the default theme sets them — a terminal's `background-opacity` is a window-wide setting and does not translate to Tanto's per-surface opacity.
+The derivation takes the terminal's background, foreground and sixteen ANSI colours and builds the chrome ladder by mixing in OKLab, with the step sizes measured off the default theme. The accent is the most saturated of the blue, magenta and cyan slots that clears 4.5:1 against the background; red, green and yellow are left alone because they already mean error, success and warning. The type base size, tint and the semantic opacities stay as the default theme sets them — a terminal's `background-opacity` is a window-wide setting and does not translate to Tanto's per-surface opacity.
+
+`theme.json`'s `font` block is `families` and `size`. `families` is a preference order and the first family the host actually has installed wins, so a theme can name a font it would like without breaking a machine that lacks it; nothing is ever handed to Qt that Qt cannot find, because a missing family costs a font-alias sweep at startup and then draws in whatever face Qt substitutes. `size` is the root the whole type scale grows from — every size the interface asks for is derived from it by the Omarchy kit, which `ThemeController` drives. See [ADR 0018](adr/0018-drive-the-kit-from-the-theme-palette.md).
 
 ## Interface components
 
@@ -65,11 +67,13 @@ Shared controls come from the Omarchy shell's QML kit, vendored under
 Qt 6, so the kit is used as-is rather than reimplemented.
 
 Vendored files are byte-for-byte copies and are never edited — `ctest` fails on any
-local change. Tanto meets the kit from two sides: `src/ui/quickshell-shim` registers
-the `Quickshell` and `Quickshell.Io` types the kit's singletons import, and the QML
+local change. Tanto meets the kit from three sides: `src/ui/quickshell-shim` registers
+the `Quickshell` and `Quickshell.Io` types the kit's singletons import, the QML
 in `src/ui` adapts components to Tanto's call sites, keeping Tanto's property names
-and its accessibility annotations. The vendor root is on the QML import path in
-source builds and lands under `qrc:/qt/qml` in resource builds.
+and its accessibility annotations, and `src/ui/KitTheme.cpp` drives the kit's
+`qs.Commons` colour and type singletons from the theme palette so they follow
+`ThemeController` rather than an Omarchy theme on disk. The vendor root is on the QML
+import path in source builds and lands under `qrc:/qt/qml` in resource builds.
 
 ```sh
 scripts/sync_omarchy_ui.py --verify          # the local tree matches the manifest

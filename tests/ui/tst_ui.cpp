@@ -1,6 +1,7 @@
 #include "BrowserController.h"
 #include "ContentBlocker.h"
 #include "KeyboardNavigation.h"
+#include "KitTheme.h"
 #include "Quickshell.h"
 #include "ThemeController.h"
 #include "WindowManager.h"
@@ -55,10 +56,12 @@ public slots:
             QStringLiteral("controlsStyle"), QQuickStyle::name());
         engine->addImportPath(QStringLiteral(TANTO_UI_DIRECTORY));
         engine->addImportPath(QStringLiteral(TANTO_OMARCHY_IMPORT_PATH));
+        m_kitTheme = std::make_unique<tanto::KitTheme>(engine, m_theme.get());
     }
 
     void cleanupTestCase()
     {
+        m_kitTheme.reset();
         m_theme.reset();
         m_windowManager.reset();
         m_browser.reset();
@@ -73,6 +76,7 @@ private:
     std::unique_ptr<tanto::ContentBlocker> m_contentBlocker;
     std::unique_ptr<tanto::KeyboardNavigation> m_keyboardNavigation;
     std::unique_ptr<tanto::ThemeController> m_theme;
+    std::unique_ptr<tanto::KitTheme> m_kitTheme;
     std::unique_ptr<tanto::WindowManager> m_windowManager;
 };
 

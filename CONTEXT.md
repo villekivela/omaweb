@@ -77,7 +77,7 @@ Tanto's built-in removal of unwanted network requests and page elements using su
 _Avoid_: Ad-blocking extension
 
 **Theme palette**:
-A complete, versioned set of visual values that defines Tanto's current appearance, including semantic opacity values for its interface surfaces. Tanto can replace the active theme palette while running.
+A complete, versioned set of visual values that defines Tanto's current appearance, including the semantic opacity values for its interface surfaces and the type family and base size they draw with. Tanto can replace the active theme palette while running.
 _Avoid_: Theme injection, color scheme
 
 **Transparent surface**:

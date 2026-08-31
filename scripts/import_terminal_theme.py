@@ -398,7 +398,7 @@ def derive(source):
 def build_theme(source):
     """Fill the shipped theme's colour keys, leaving its other sections alone.
 
-    Type sizes, tint and the semantic opacities are Tanto's own layout
+    The type base size, tint and the semantic opacities are Tanto's own layout
     decisions. A terminal's background-opacity in particular means something
     different here, where opacity is per-surface rather than per-window.
     """

@@ -100,11 +100,13 @@ target_link_libraries(tanto-core PUBLIC Qt6::Core Qt6::Network Qt6::Sql
 tanto_strict_target(tanto-core)
 
 add_library(tanto-ui STATIC
+    src/ui/KitTheme.cpp
+    src/ui/KitTheme.h
     src/ui/ThemeController.cpp
     src/ui/ThemeController.h
 )
 target_include_directories(tanto-ui PUBLIC src/ui)
-target_link_libraries(tanto-ui PUBLIC Qt6::Core Qt6::Gui)
+target_link_libraries(tanto-ui PUBLIC Qt6::Core Qt6::Gui Qt6::Qml)
 tanto_strict_target(tanto-ui)
 
 # The vendored Omarchy component kit imports Quickshell types. Tanto supplies
@@ -390,9 +392,14 @@ if(BUILD_TESTING)
     endif()
 
     qt_add_executable(tanto-theme-tests tests/ui/tst_themecontroller.cpp)
-    target_link_libraries(tanto-theme-tests PRIVATE tanto-ui Qt6::Test)
+    target_link_libraries(tanto-theme-tests PRIVATE tanto-ui Qt6::Gui Qt6::Test)
     tanto_strict_target(tanto-theme-tests)
     add_test(NAME tanto-theme COMMAND tanto-theme-tests)
+    # Resolving the theme's type family reads the host's font database, which
+    # needs a GUI application and therefore a platform plugin.
+    set_tests_properties(tanto-theme PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+    )
 
     if(APPLE)
         qt_add_executable(tanto-window-chrome-tests tests/platform/tst_windowchrome.mm)

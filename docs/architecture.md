@@ -9,7 +9,7 @@ The variants share core state, persistence, QML, themes, platform code, and engi
 ## Targets
 
 - `tanto-core` owns Spaces, tabs, sessions, commands, persistence policy, history, permissions, downloads, and errors.
-- `tanto-ui` contains shared QML and read-only UI-facing state.
+- `tanto-ui` contains shared QML and read-only UI-facing state, and drives the vendored kit's `qs.Commons` colour and type singletons from the theme palette.
 - `tanto-engine-api` defines navigation, lifecycle, input, content-blocking, accessibility, and diagnostics contracts.
 - `tanto-engine-qt` supplies the default engine view without leaking QtWebEngine imports into shared QML.
 - `tanto-engine-ladybird` is an optional build outside the default graph.

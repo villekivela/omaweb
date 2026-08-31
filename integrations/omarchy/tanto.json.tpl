@@ -19,13 +19,8 @@
     "lightness": 0.66
   },
   "font": {
-    "families": ["{{ font_family }}", "JetBrains Mono", "monospace"],
-    "size": 12,
-    "smallSize": 10,
-    "headingSize": 15,
-    "labelSize": 9,
-    "labelSpacing": 1.8,
-    "iconSize": 17
+    "families": ["{{ font_family }}", "JetBrains Mono", "DejaVu Sans Mono"],
+    "size": 12
   },
   "opacity": {
     "sidebar": 0.90,

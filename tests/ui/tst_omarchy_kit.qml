@@ -106,6 +106,50 @@ TestCase {
         verify(Style.font.family.length > 0)
     }
 
+    // The kit's Commons singletons resolve colour and type from an Omarchy
+    // theme on disk, which is not Tanto's source of truth. ThemeController is,
+    // so the palette is pushed into them (#11).
+    function test_theKitTypeComesFromTantosTheme() {
+        const font = theme.palette.font
+        compare(Style.fontFamily, font.family)
+        compare(Style.font.family, font.family)
+        compare(Style.font.resolvedFamily, font.family)
+        compare(Style.font.baseSize, font.size)
+        // Never a fontconfig alias: "monospace" does not exist on macOS, where
+        // asking for it draws the wrong face and costs a font-alias sweep at
+        // every startup.
+        verify(font.family !== "monospace")
+    }
+
+    function test_theKitPaletteComesFromTantosTheme() {
+        compare(String(Color.foreground), String(theme.palette.text))
+        // The kit paints `background` as a solid surface, so it takes the
+        // opaque window rather than the alpha the desktop shows through.
+        compare(String(Color.background), String(theme.palette.windowOpaque))
+        compare(String(Color.accent), String(theme.palette.accent))
+        compare(String(Color.muted), String(theme.palette.mutedText))
+    }
+
+    // The kit reaches for its own theme through watched files and short-lived
+    // processes, and those land after startup. A palette pushed once loses to
+    // whichever of them writes last, so the seam pushes again — which is what
+    // makes ThemeController authoritative rather than merely first.
+    function test_theKitCannotOutlastTantosPalette() {
+        Color.loadColors("foreground = \"#ff0000\"\naccent = \"#00ff00\"")
+        compare(String(Color.foreground), String(theme.palette.text))
+        compare(String(Color.accent), String(theme.palette.accent))
+
+        // A shell.toml reaching Style resets the type base size along with
+        // everything else it owns.
+        Color.loadUserShell("[font]\nbase-size = 20\n")
+        compare(Style.font.baseSize, theme.palette.font.size)
+
+        // Leave the kit as the rest of the suite expects to find it. The
+        // palette is restored by the seam; the parsed dicts are not.
+        Color.loadUserShell("")
+        Color.loadColors("")
+    }
+
     function test_actionButtonUsesTheKitAndTantoPalette() {
         const button = createTemporaryObject(actionButtonComponent, testCase)
         verify(button !== null)

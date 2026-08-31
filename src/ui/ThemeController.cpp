@@ -3,6 +3,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QColor>
+#include <QFontDatabase>
 #include <QJsonDocument>
 #include <QJsonObject>
 
@@ -72,6 +73,7 @@ QVariantMap ThemeController::fallbackPalette() const
         {QStringLiteral("privateSidebar"), QStringLiteral("#5b2456")},
         {QStringLiteral("privateSurface"), QStringLiteral("#5a3158")},
         {QStringLiteral("privateSurfaceHover"), QStringLiteral("#70406c")},
+        {QStringLiteral("font"), defaultFont()},
         {QStringLiteral("opacity"), defaultOpacity()},
     };
 }
@@ -83,6 +85,35 @@ QVariantMap ThemeController::defaultOpacity()
         {QStringLiteral("overlay"), 0.96},
         {QStringLiteral("window"), 0.0},
     };
+}
+
+QVariantMap ThemeController::defaultFont()
+{
+    // Deliberately no "monospace" tail: that is a fontconfig alias rather than
+    // a family, and the host's own fixed-pitch family is a better last resort
+    // than asking Qt to substitute for a name it cannot find.
+    return {
+        {QStringLiteral("families"),
+            QStringList{QStringLiteral("JetBrains Mono"), QStringLiteral("SF Mono"),
+                QStringLiteral("Menlo"), QStringLiteral("DejaVu Sans Mono")}},
+        {QStringLiteral("size"), 12},
+    };
+}
+
+QString ThemeController::installedFamily(const QStringList &candidates)
+{
+    for (const auto &candidate : candidates) {
+        if (QFontDatabase::hasFamily(candidate)) {
+            return candidate;
+        }
+    }
+    const auto fixed = QFontDatabase::systemFont(QFontDatabase::FixedFont).family();
+    if (QFontDatabase::hasFamily(fixed)) {
+        return fixed;
+    }
+    // A host with no fixed-pitch family is not one Tanto can be picky on.
+    const auto installed = QFontDatabase::families();
+    return installed.isEmpty() ? QString{} : installed.constFirst();
 }
 
 QVariantMap ThemeController::normalizedPalette(QVariantMap palette) const
@@ -145,6 +176,31 @@ QVariantMap ThemeController::normalizedPalette(QVariantMap palette) const
         }
     }
     palette.insert(QStringLiteral("opacity"), opacity);
+
+    // The theme names the families it prefers and the size the type scale
+    // grows from; the resolved family is what the interface actually draws
+    // with. Everything above the base size is derived from it, so this is the
+    // whole of Tanto's type contract.
+    const auto defaults = defaultFont();
+    const auto themeFont = palette.value(QStringLiteral("font")).toMap();
+    auto families = themeFont.value(QStringLiteral("families")).toStringList();
+    families.removeAll(QString{});
+    if (families.isEmpty()) {
+        families = defaults.value(QStringLiteral("families")).toStringList();
+    }
+    auto validSize = false;
+    const auto requestedSize = themeFont.value(QStringLiteral("size")).toInt(&validSize);
+    // Only a sanity floor, as the kit's own scale has: a theme that wants very
+    // large type is entitled to ship it.
+    const auto size = (validSize && requestedSize >= 1)
+        ? requestedSize
+        : defaults.value(QStringLiteral("size")).toInt();
+    palette.insert(QStringLiteral("font"),
+        QVariantMap{
+            {QStringLiteral("families"), families},
+            {QStringLiteral("family"), installedFamily(families)},
+            {QStringLiteral("size"), size},
+        });
 
     const auto withOpacity = [&palette](const QString &key, double alpha) {
         QColor color(palette.value(key).toString());

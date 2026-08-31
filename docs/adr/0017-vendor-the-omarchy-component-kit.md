@@ -21,9 +21,10 @@ sync is a review of upstream's diff instead of a merge with local patches. `ctes
 fails on a local edit, an untracked file under the vendored tree, or a hash that
 does not match the manifest, and the sync script refuses to overwrite an edited copy.
 
-Two seams carry the adaptation instead. `tanto-quickshell-shim` registers the
-`Quickshell` and `Quickshell.Io` types the kit's singletons import — an environment
-lookup, a watched file, and a short-lived process run for its output. The kit's
+Three seams carry the adaptation instead; the third, `KitTheme`, arrived with 0018.
+`tanto-quickshell-shim` registers the `Quickshell` and `Quickshell.Io` types the
+kit's singletons import — an environment lookup, a watched file, and a short-lived
+process run for its output. The kit's
 layer-shell and Hyprland surfaces stay out of scope, and so do the components that
 need them: `Panel`, `PopupCard`, `KeyboardPanel`, `MultiSelect`, `BarIconButton`,
 and `SpeedTestOverlay`. QML in `src/ui` adapts each component to Tanto's call sites,
@@ -44,14 +45,16 @@ read `qs.Commons` singletons that would otherwise resolve colours from an Omarch
 theme on disk, so Tanto's adapters pass colour per instance from the palette their
 call sites already receive. Whether Tanto later drives those singletons from
 `ThemeController` — dropping the per-instance overrides and the prop drilling along
-with them — is a separate decision.
+with them — is a separate decision. 0018 makes it: the singletons are driven, and
+the per-instance overrides stay, because a Private window's palette differs from a
+Main window's inside one engine.
 
 Type is not drilled the same way. Tanto had its own `Typography` object resolving a
 family and a size scale from the palette; the kit's `Style.font` is the same idea with
 a fuller scale, so `Typography` is gone and every Tanto surface reads `Style.font`
 directly. Until `ThemeController` drives `Style`, that means the type scale follows the
 kit's defaults rather than Tanto's palette — the visible cost of having one scale
-instead of two, paid deliberately.
+instead of two, paid deliberately. 0018 stops paying it.
 
 Where the kit and Tanto disagree on appearance, the kit wins: emphasis is a tinted,
 accent-bordered button rather than a filled block, a checked switch does not fill its

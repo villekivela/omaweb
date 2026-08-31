@@ -2,6 +2,7 @@
 
 #include <QColor>
 #include <QFile>
+#include <QFontDatabase>
 #include <QTemporaryDir>
 #include <QTest>
 
@@ -13,6 +14,9 @@ class ThemeControllerTest final : public QObject {
 private slots:
     void enforcesDistinctPrivateColors();
     void appliesSemanticOpacityToChromeSurfaces();
+    void resolvesTheFirstInstalledTypeFamily();
+    void fallsBackToAFamilyTheHostActuallyHas();
+    void keepsTheTypeBaseSizeUsable();
 };
 
 void ThemeControllerTest::enforcesDistinctPrivateColors()
@@ -71,6 +75,68 @@ void ThemeControllerTest::appliesSemanticOpacityToChromeSurfaces()
                  .value(QStringLiteral("overlay")).toDouble(), 1.0);
 }
 
-QTEST_GUILESS_MAIN(ThemeControllerTest)
+// The theme palette names the type families it prefers; only one of them is
+// installed here, and that is the one the palette has to resolve to. Handing
+// Qt a family the host does not have costs a font-alias sweep and draws in
+// whatever face Qt picks instead.
+void ThemeControllerTest::resolvesTheFirstInstalledTypeFamily()
+{
+    const auto installed = QFontDatabase::families();
+    QVERIFY(!installed.isEmpty());
+    const auto present = installed.constFirst();
+
+    QTemporaryDir root;
+    QFile theme(root.filePath(QStringLiteral("theme.json")));
+    QVERIFY(theme.open(QIODevice::WriteOnly));
+    theme.write(QStringLiteral(R"JSON({
+        "font": { "families": ["No Such Family Ships With Anything", "%1"], "size": 13 }
+    })JSON").arg(present).toUtf8());
+    theme.close();
+
+    ThemeController controller(theme.fileName());
+    const auto font = controller.palette().value(QStringLiteral("font")).toMap();
+    QCOMPARE(font.value(QStringLiteral("family")).toString(), present);
+    QCOMPARE(font.value(QStringLiteral("size")).toInt(), 13);
+}
+
+void ThemeControllerTest::fallsBackToAFamilyTheHostActuallyHas()
+{
+    QTemporaryDir root;
+    QFile theme(root.filePath(QStringLiteral("theme.json")));
+    QVERIFY(theme.open(QIODevice::WriteOnly));
+    theme.write(R"JSON({
+        "font": { "families": ["monospace", ""] }
+    })JSON");
+    theme.close();
+
+    ThemeController controller(theme.fileName());
+    const auto font = controller.palette().value(QStringLiteral("font")).toMap();
+    const auto family = font.value(QStringLiteral("family")).toString();
+    // Whatever the fallback lands on, it is a family the host has. A
+    // fontconfig alias is not: "monospace" does not exist on macOS.
+    QVERIFY(QFontDatabase::hasFamily(family));
+    QVERIFY(family != QStringLiteral("monospace"));
+    // An empty candidate is not a family, and it must not become the answer.
+    QCOMPARE(font.value(QStringLiteral("families")).toStringList(),
+        QStringList{QStringLiteral("monospace")});
+}
+
+void ThemeControllerTest::keepsTheTypeBaseSizeUsable()
+{
+    QTemporaryDir root;
+    QFile theme(root.filePath(QStringLiteral("theme.json")));
+    QVERIFY(theme.open(QIODevice::WriteOnly));
+    theme.write(R"JSON({ "font": { "size": 0 } })JSON");
+    theme.close();
+
+    ThemeController controller(theme.fileName());
+    const auto font = controller.palette().value(QStringLiteral("font")).toMap();
+    QCOMPARE(font.value(QStringLiteral("size")).toInt(), 12);
+    // A theme that says nothing about type still names a family to draw with.
+    QVERIFY(!font.value(QStringLiteral("families")).toStringList().isEmpty());
+}
+
+// QFontDatabase needs a GUI application, so this suite is no longer guiless.
+QTEST_MAIN(ThemeControllerTest)
 
 #include "tst_themecontroller.moc"

@@ -1,6 +1,7 @@
 #include "BrowserController.h"
 #include "ContentBlocker.h"
 #include "KeyboardNavigation.h"
+#include "KitTheme.h"
 #include "Quickshell.h"
 #include "ThemeController.h"
 #include "WindowChrome.h"
@@ -57,6 +58,10 @@ int main(int argc, char *argv[])
     engine.addImportPath(QStringLiteral(TANTO_UI_DIRECTORY));
     // The vendored Omarchy component kit: qs.Ui and qs.Commons.
     engine.addImportPath(QStringLiteral(TANTO_OMARCHY_IMPORT_PATH));
+    // The kit's own colour and type come from an Omarchy theme on disk. Tanto's
+    // palette is the source of truth, so it is pushed into the kit's singletons
+    // once the engine can resolve them.
+    tanto::KitTheme kitTheme(&engine, &theme);
 
     QObject::connect(&engine, &QQmlApplicationEngine::objectCreationFailed,
         &application, [] { QCoreApplication::exit(1); }, Qt::QueuedConnection);
