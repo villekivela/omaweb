@@ -42,6 +42,15 @@ ApplicationWindow {
     property string pendingMoveTabId: ""
     property string pendingMoveSpaceId: ""
     property var privateProfileHost: null
+    // The window that opened this Private window, so it can be dropped from
+    // that window's list once it closes. Empty in every other window.
+    property var opener: null
+    // A Private window is a browsing window in its own right, not a panel of
+    // the window that opened it. Declaring one under another Window would give
+    // it a transient parent, which a compositor reads as a dialog belonging to
+    // the opener and floats out of the tiling. So a Private window is created
+    // without a parent, and this list is what keeps it alive and closable.
+    readonly property var privateWindows: []
     property var spaceProfileHost: null
     readonly property var spaceProfileHosts: ({})
     property var omnibarSuggestions: []
@@ -679,12 +688,14 @@ ApplicationWindow {
                 })
             }
             const component = Qt.createComponent(Qt.resolvedUrl("Main.qml"))
-            component.createObject(window, {
+            const opened = component.createObject(null, {
                 "windowBrowser": controller,
                 "privateWindow": true,
+                "opener": window,
                 "profilePathOverride": profilePath,
                 "sharedEngineProfile": window.privateProfileHost.profile
             })
+            if (opened) window.privateWindows.push(opened)
         }
 
         function onPrivateSessionEnding() {
@@ -724,10 +735,22 @@ ApplicationWindow {
         window.restoreTabAppearance()
     }
 
+    function forgetPrivateWindow(instance) {
+        const index = window.privateWindows.indexOf(instance)
+        if (index !== -1) window.privateWindows.splice(index, 1)
+    }
+
     onClosing: function(close) {
-        if (!window.privateWindow || !window.windowBrowser) return
+        // Parentless windows outlive their opener unless they are asked not to.
+        if (!window.privateWindow) {
+            for (const openWindow of window.privateWindows.slice()) openWindow.close()
+            return
+        }
+        if (!window.windowBrowser) return
         const controller = window.windowBrowser
+        const opener = window.opener
         Qt.callLater(function() {
+            if (opener) opener.forgetPrivateWindow(window)
             window.destroy()
             windowManager.releasePrivateWindow(controller)
         })

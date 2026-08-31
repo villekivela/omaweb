@@ -510,10 +510,14 @@ TestCase {
         windowManager.openPrivateWindow()
         tryCompare(windowManager, "privateWindowCount", 1)
 
-        const privateBrowser = findChild(window, "privateBrowserWindow")
-        verify(privateBrowser !== null)
+        const privateBrowser = window.privateWindows[0]
+        verify(privateBrowser !== undefined && privateBrowser !== null)
+        compare(privateBrowser.objectName, "privateBrowserWindow")
         verify(privateBrowser.visible)
         verifyApplicationWindowFlags(privateBrowser)
+        // A window of its own: no transient parent for a tiling compositor to
+        // read as "float this next to its opener".
+        verify(!privateBrowser.transientParent)
         compare(privateBrowser.colors.accent, privateBrowser.colors.privateAccent)
 
         const spaceSwitcher = findChild(privateBrowser.contentItem, "spaceSwitcher")
@@ -540,6 +544,7 @@ TestCase {
 
         privateBrowser.windowBrowser.closeActiveTab()
         tryCompare(windowManager, "privateWindowCount", 0)
+        tryVerify(function() { return window.privateWindows.length === 0 })
     }
 
     function test_newWindowRequestsRouteToTabsOrAuxiliaryWindows() {
