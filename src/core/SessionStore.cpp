@@ -322,6 +322,34 @@ bool SessionStore::saveSpaceMove(const QString &sourceSpaceId,
     return saved;
 }
 
+// Small, window-shaped settings the interface owns — how wide a panel was left,
+// not what a Space contains. They are named rather than columned so a new one
+// costs no migration.
+QString SessionStore::preference(const QString &name, const QString &fallback) const
+{
+    QSqlQuery query(m_database);
+    query.prepare(QStringLiteral("SELECT value FROM preferences WHERE name = ?"));
+    query.addBindValue(name);
+    if (!query.exec() || !query.next()) {
+        return fallback;
+    }
+    return query.value(0).toString();
+}
+
+bool SessionStore::savePreference(const QString &name, const QString &value)
+{
+    if (name.isEmpty()) {
+        return false;
+    }
+    QSqlQuery query(m_database);
+    query.prepare(QStringLiteral(
+        "INSERT INTO preferences(name, value) VALUES(?, ?) "
+        "ON CONFLICT(name) DO UPDATE SET value = excluded.value"));
+    query.addBindValue(name);
+    query.addBindValue(value);
+    return query.exec();
+}
+
 bool SessionStore::recordVisit(const QString &spaceId, const QUrl &url, const QString &title)
 {
     QSqlQuery query(spaceDatabase(spaceId));
@@ -475,6 +503,10 @@ bool SessionStore::executeSchema(QString *errorMessage)
         CREATE TABLE IF NOT EXISTS schema_migrations (
             name TEXT PRIMARY KEY,
             state TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS preferences (
+            name TEXT PRIMARY KEY,
+            value TEXT NOT NULL
         );
         CREATE TABLE IF NOT EXISTS downloads (
             id TEXT PRIMARY KEY,

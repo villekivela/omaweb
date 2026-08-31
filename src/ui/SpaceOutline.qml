@@ -28,6 +28,26 @@ Rectangle {
     signal spacesMenuRequested(real anchorX, real anchorY)
     signal settingsRequested()
     signal windowMoveRequested()
+    signal pageFocusRequested()
+
+    // Where "focus the sidebar" lands: the row the reader is already reading,
+    // so the keyboard arrives where their attention is.
+    property var activeTabItem: null
+
+    function focusOutline() {
+        if (activeTabItem !== null && activeTabItem.visible) {
+            activeTabItem.forceActiveFocus()
+        } else {
+            addressButton.forceActiveFocus()
+        }
+    }
+
+    // Key events climb from the focused row to here, so one handler covers the
+    // whole outline: Escape is the way back to the page.
+    Keys.onEscapePressed: function(event) {
+        root.pageFocusRequested()
+        event.accepted = true
+    }
 
     color: colors.sidebar
     clip: true
@@ -267,6 +287,8 @@ Rectangle {
                     colors: root.colors
                     typography: root.typography
                     onActivated: function(id) { root.tabActivated(id) }
+                    onActiveChanged: if (active) root.activeTabItem = this
+                    Component.onCompleted: if (active) root.activeTabItem = this
                 }
             }
         }
@@ -302,6 +324,8 @@ Rectangle {
                     colors: root.colors
                     typography: root.typography
                     onActivated: function(id) { root.tabActivated(id) }
+                    onActiveChanged: if (active) root.activeTabItem = this
+                    Component.onCompleted: if (active) root.activeTabItem = this
                 }
             }
         }

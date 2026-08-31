@@ -103,6 +103,8 @@ public:
     Q_INVOKABLE bool updateDownload(const QString &id, const QString &state,
         qint64 receivedBytes, qint64 totalBytes, const QString &error);
     Q_INVOKABLE QVariantList downloadHistory() const;
+    Q_INVOKABLE QString preference(const QString &name, const QString &fallback = {}) const;
+    Q_INVOKABLE bool setPreference(const QString &name, const QString &value);
 
 signals:
     void activeSpaceChanged();

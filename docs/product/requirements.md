@@ -22,6 +22,8 @@ QtWebEngine is the development engine. Ladybird is the target engine. They ship 
 - Tabs never show site artwork. Every tab carries a uniform tile with a two-character host code, tinted by hue derived from the host and by saturation and lightness taken from the theme, so a full sidebar stays one palette.
 - Browser chrome does not occupy a toolbar above the webpage. Navigation controls, the sidebar toggle and the command-panel trigger float over the bottom-left of the page instead of taking a band from it. The webpage uses the full height beside the sidebar.
 - `Primary+B` hides the sidebar entirely. In that chromeless state the page keeps the whole window, the floating controls remain, and a stripe in the Space colour along the window's leading edge keeps the browsing identity visible.
+- The sidebar's width belongs to the reader. The seam between it and the page drags, and `Primary+Shift+]` and `Primary+Shift+[` move that same seam from the keyboard, so a resize never depends on a pointer. The width is clamped so a tab row stays readable and the page keeps at least half the window; `Primary+Shift+B` returns it to the default. It survives a restart. A Private window neither reads nor records it.
+- `Primary+E` moves the keyboard into the outline, landing on the row the reader is already reading, and `Escape` or `Primary+Shift+E` hands it back to the page. Focusing a hidden outline shows it first.
 - Security state and the blocked-request count ride inline in the address trigger, and open a status panel.
 - Clicking the sidebar's current-address trigger or pressing `Primary+L` opens a centered Omnibar for the current tab.
 - `Primary+T` opens the Omnibar with a new-tab intent. Tanto creates the tab only after the user commits a destination.
@@ -43,7 +45,7 @@ The default browser commands include:
 - `H` and `L` for history, `r` to reload, `o` to open an address.
 - `gt` and `gT` to move between tabs, `1`–`9` to jump to one, `x` to close, `u` to reopen, `t` for a new tab, `p` to pin.
 - `gs` for the next Space and `Primary+1`–`Primary+9` for a specific one.
-- `Primary+B` to hide the sidebar and `Primary+K` or `:` for the command panel.
+- `Primary+B` to hide the sidebar, `Primary+E` to focus it, and `Primary+K` or `:` for the command panel.
 
 The default page commands include:
 

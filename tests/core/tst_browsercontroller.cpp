@@ -38,6 +38,7 @@ private slots:
     void keepsHistorySuggestionsInsideActiveSpace();
     void scopesPermissionDecisionsToOriginSpaceAndLifetime();
     void persistsOnlyNonPrivateDownloadHistory();
+    void persistsInterfacePreferencesOutsidePrivateBrowsing();
 };
 
 void BrowserControllerTest::createsPersonalSpaceAndBlankTab()
@@ -472,6 +473,31 @@ void BrowserControllerTest::persistsOnlyNonPrivateDownloadHistory()
     QVERIFY(!record.value(QStringLiteral("id")).toString().isEmpty());
     QCOMPARE(record.value(QStringLiteral("state")).toString(), QStringLiteral("completed"));
     QCOMPARE(record.value(QStringLiteral("receivedBytes")).toLongLong(), 100);
+}
+
+void BrowserControllerTest::persistsInterfacePreferencesOutsidePrivateBrowsing()
+{
+    QTemporaryDir root;
+    {
+        BrowserController controller(root.path(), QStringLiteral("test"));
+        QCOMPARE(controller.preference(QStringLiteral("sidebar-width"),
+            QStringLiteral("292")), QStringLiteral("292"));
+        QVERIFY(controller.setPreference(QStringLiteral("sidebar-width"), QStringLiteral("360")));
+        QVERIFY(controller.setPreference(QStringLiteral("sidebar-width"), QStringLiteral("412")));
+    }
+
+    BrowserController restored(root.path(), QStringLiteral("test"));
+    QCOMPARE(restored.preference(QStringLiteral("sidebar-width"), QStringLiteral("292")),
+        QStringLiteral("412"));
+
+    // A Private window browses on the defaults and writes nothing back.
+    BrowserController privateController(root.path(), QStringLiteral("test"), true);
+    QCOMPARE(privateController.preference(QStringLiteral("sidebar-width"),
+        QStringLiteral("292")), QStringLiteral("292"));
+    QVERIFY(!privateController.setPreference(QStringLiteral("sidebar-width"),
+        QStringLiteral("500")));
+    QCOMPARE(restored.preference(QStringLiteral("sidebar-width"), QStringLiteral("292")),
+        QStringLiteral("412"));
 }
 
 QTEST_GUILESS_MAIN(BrowserControllerTest)

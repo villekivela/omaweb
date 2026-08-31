@@ -694,6 +694,24 @@ QVariantList BrowserController::downloadHistory() const
     return m_store.downloadHistory();
 }
 
+// A Private window has no store to read or write, so it browses on the
+// defaults and leaves nothing of itself behind.
+QString BrowserController::preference(const QString &name, const QString &fallback) const
+{
+    if (m_privateBrowsing || !m_ready) {
+        return fallback;
+    }
+    return m_store.preference(name, fallback);
+}
+
+bool BrowserController::setPreference(const QString &name, const QString &value)
+{
+    if (m_privateBrowsing || !m_ready) {
+        return false;
+    }
+    return m_store.savePreference(name, value);
+}
+
 void BrowserController::initialize()
 {
     if (m_privateBrowsing) {

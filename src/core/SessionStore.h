@@ -31,6 +31,8 @@ public:
     bool saveSpaceMove(const QString &sourceSpaceId, const QVector<TabState> &sourceTabs,
         const QString &sourceActiveTabId, const QString &destinationSpaceId,
         const QVector<TabState> &destinationTabs, const QString &destinationActiveTabId);
+    QString preference(const QString &name, const QString &fallback = {}) const;
+    bool savePreference(const QString &name, const QString &value);
     bool recordVisit(const QString &spaceId, const QUrl &url, const QString &title);
     QVariantList historySuggestions(const QString &spaceId, const QString &query, int limit) const;
     int permissionDecision(const QString &spaceId, const QString &origin,

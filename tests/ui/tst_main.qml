@@ -114,6 +114,109 @@ TestCase {
         tryVerify(function() { return sidebar.visible })
     }
 
+    function test_sidebarWidthAnswersToBothPointerAndKeyboard() {
+        window.settingsOpen = false
+        window.requestActivate()
+        tryVerify(function() { return window.active })
+        window.sidebarCollapsed = false
+        window.setSidebarWidth(window.sidebarDefaultWidth)
+        const sidebar = findChild(window.contentItem, "sidebar")
+        const resizer = findChild(window.contentItem, "sidebarResizer")
+        verify(resizer !== null)
+        tryCompare(sidebar, "width", window.sidebarDefaultWidth)
+
+        // The handle rides the seam it moves.
+        compare(Math.round(resizer.x + resizer.width / 2), Math.round(sidebar.width))
+
+        // Everything the pointer can do here, the keyboard can do too.
+        resizer.forceActiveFocus()
+        compare(window.activeFocusItem.objectName, "sidebarResizer")
+        keyClick(Qt.Key_Right)
+        compare(window.sidebarWidth, window.sidebarDefaultWidth + 16)
+        keyClick(Qt.Key_Left)
+        compare(window.sidebarWidth, window.sidebarDefaultWidth)
+        keyClick(Qt.Key_Right, Qt.ShiftModifier)
+        compare(window.sidebarWidth, window.sidebarDefaultWidth + 48)
+        keyClick(Qt.Key_Home)
+        compare(window.sidebarWidth, window.sidebarMinimumWidth)
+        keyClick(Qt.Key_End)
+        compare(window.sidebarWidth, window.sidebarMaximumWidth)
+        keyClick(Qt.Key_Space)
+        compare(window.sidebarWidth, window.sidebarDefaultWidth)
+        tryCompare(sidebar, "width", window.sidebarDefaultWidth)
+
+        // A request past either end stops at the end.
+        window.setSidebarWidth(window.sidebarMaximumWidth + 400)
+        compare(window.sidebarWidth, window.sidebarMaximumWidth)
+        window.setSidebarWidth(0)
+        compare(window.sidebarWidth, window.sidebarMinimumWidth)
+
+        window.setSidebarWidth(window.sidebarDefaultWidth)
+        window.commands.run("widen-sidebar", -1)
+        compare(window.sidebarWidth, window.sidebarDefaultWidth + 24)
+        window.commands.run("narrow-sidebar", -1)
+        compare(window.sidebarWidth, window.sidebarDefaultWidth)
+        window.commands.run("reset-sidebar", -1)
+        compare(window.sidebarWidth, window.sidebarDefaultWidth)
+
+        // Asking a hidden sidebar for more of itself brings it back.
+        window.sidebarCollapsed = true
+        window.commands.run("narrow-sidebar", -1)
+        compare(window.sidebarCollapsed, true)
+        window.commands.run("widen-sidebar", -1)
+        compare(window.sidebarCollapsed, false)
+        window.setSidebarWidth(window.sidebarDefaultWidth)
+        tryCompare(sidebar, "width", window.sidebarDefaultWidth)
+
+        // Dragging the seam moves it by the same distance the pointer travelled.
+        mousePress(resizer, resizer.width / 2, 300)
+        mouseMove(resizer, resizer.width / 2 + 60, 300)
+        compare(window.sidebarWidth, window.sidebarDefaultWidth + 60)
+        mouseRelease(resizer, resizer.width / 2, 300)
+        compare(resizer.dragging, false)
+        tryCompare(sidebar, "width", window.sidebarDefaultWidth + 60)
+
+        // The width the reader settled on outlives the session that set it.
+        window.setSidebarWidth(344)
+        tryVerify(function() { return browser.preference("sidebar-width", "") === "344" })
+        window.setSidebarWidth(window.sidebarDefaultWidth)
+        window.restoreSidebarWidth()
+        compare(window.sidebarWidth, 344)
+
+        window.setSidebarWidth(window.sidebarDefaultWidth)
+    }
+
+    function test_focusMovesBetweenTheOutlineAndThePage() {
+        window.settingsOpen = false
+        window.requestActivate()
+        tryVerify(function() { return window.active })
+        window.sidebarCollapsed = false
+        const engineHost = findChild(window.contentItem, "engineLoader")
+        verify(engineHost.item !== null)
+
+        // Focusing the outline lands on the row the reader is already reading.
+        window.commands.run("focus-sidebar", -1)
+        const landed = window.activeFocusItem.objectName
+        verify(landed === "tab-" + browser.activeTabId
+            || landed === "pinned-" + browser.activeTabId
+            || landed === "addressButton")
+
+        // Escape is the way back out of the outline.
+        keyClick(Qt.Key_Escape)
+        tryVerify(function() { return engineHost.item.activeFocus })
+
+        window.commands.run("focus-sidebar", -1)
+        verify(!engineHost.item.activeFocus)
+        window.commands.run("focus-page", -1)
+        tryVerify(function() { return engineHost.item.activeFocus })
+
+        // Asking a hidden outline for the keyboard shows it first.
+        window.sidebarCollapsed = true
+        window.commands.run("focus-sidebar", -1)
+        compare(window.sidebarCollapsed, false)
+        window.commands.run("focus-page", -1)
+    }
+
     function test_switchingTabsPreservesPageLocalState() {
         const engineHost = findChild(window.contentItem, "engineLoader")
         verify(engineHost !== null)

@@ -29,6 +29,11 @@ QtObject {
         case "select-space": window.activateSpaceAt(argument); return true
         case "new-space": window.requestNewSpace(); return true
         case "toggle-sidebar": window.sidebarCollapsed = !window.sidebarCollapsed; return true
+        case "widen-sidebar": window.nudgeSidebar(24); return true
+        case "narrow-sidebar": window.nudgeSidebar(-24); return true
+        case "reset-sidebar": window.setSidebarWidth(window.sidebarDefaultWidth); return true
+        case "focus-sidebar": window.focusSidebar(); return true
+        case "focus-page": window.focusPage(); return true
         case "settings": window.requestSettings(); return true
         case "private-window": windowManager.openPrivateWindow(); return true
         case "minimize-window": window.showMinimized(); return true
@@ -54,6 +59,11 @@ QtObject {
         "select-space": { group: "spaces", title: "Switch Space by number" },
         "new-space": { group: "spaces", title: "New Space" },
         "toggle-sidebar": { group: "interface", title: "Hide or show the sidebar" },
+        "widen-sidebar": { group: "interface", title: "Widen the sidebar" },
+        "narrow-sidebar": { group: "interface", title: "Narrow the sidebar" },
+        "reset-sidebar": { group: "interface", title: "Reset the sidebar width" },
+        "focus-sidebar": { group: "interface", title: "Focus the sidebar" },
+        "focus-page": { group: "interface", title: "Focus the page" },
         "settings": { group: "interface", title: "Settings and downloads" },
         "private-window": { group: "interface", title: "New Private window" },
         "minimize-window": { group: "interface", title: "Minimize window" }

@@ -27,6 +27,14 @@ ApplicationWindow {
     property var sharedEngineProfile: null
     property var colors: privateWindow ? privatePalette(theme.palette) : theme.palette
     property bool sidebarCollapsed: false
+    // The reader owns the sidebar's width. It is clamped rather than free: too
+    // narrow and a tab row stops being readable, too wide and the page it is
+    // an outline of loses the window.
+    readonly property real sidebarMinimumWidth: 220
+    readonly property real sidebarMaximumWidth:
+        Math.max(sidebarMinimumWidth, Math.min(560, window.width * 0.5))
+    readonly property real sidebarDefaultWidth: 292
+    property real sidebarWidth: sidebarDefaultWidth
     property bool omnibarOpen: false
     property bool newTabIntent: false
     property string pendingMoveTabId: ""
@@ -115,6 +123,55 @@ ApplicationWindow {
 
     function requestSettings() {
         window.settingsOpen = true
+    }
+
+    // The two halves of the shell, each one key away from the other: the
+    // outline of what is open, and the page itself.
+    function focusSidebar() {
+        window.sidebarCollapsed = false
+        sidebar.focusOutline()
+    }
+
+    function focusPage() {
+        engineLoader.focusPage()
+    }
+
+    function setSidebarWidth(width) {
+        window.sidebarWidth = Math.round(Math.max(window.sidebarMinimumWidth,
+            Math.min(window.sidebarMaximumWidth, width)))
+    }
+
+    // Widening is also the way back from a hidden sidebar: asking for more of
+    // something that is not there means show it.
+    function nudgeSidebar(step) {
+        if (window.sidebarCollapsed) {
+            if (step < 0) return
+            window.sidebarCollapsed = false
+        }
+        window.setSidebarWidth(window.sidebarWidth + step)
+    }
+
+    // A window narrow enough to break the clamp pulls the sidebar back in
+    // with it, so the page is never squeezed out of its own window.
+    onSidebarMaximumWidthChanged: window.setSidebarWidth(window.sidebarWidth)
+
+    // A width the reader chose outlives the session that chose it. The clamp
+    // runs on the way back in, so a saved width from a wider window or an older
+    // build still lands somewhere usable.
+    function restoreSidebarWidth() {
+        const saved = parseFloat(window.windowBrowser.preference("sidebar-width", ""))
+        if (!isNaN(saved)) window.setSidebarWidth(saved)
+    }
+
+    onSidebarWidthChanged: sidebarWidthWriter.restart()
+
+    // A drag reports every pixel it crosses. The store hears the width the
+    // hand came to rest at, not the path it took to get there.
+    Timer {
+        id: sidebarWidthWriter
+        interval: 400
+        onTriggered: window.windowBrowser.setPreference("sidebar-width",
+            String(window.sidebarWidth))
     }
 
     // 1 allow once, 2 always allow, 3 block — the decisions BrowserController
@@ -274,7 +331,7 @@ ApplicationWindow {
                 id: sidebar
                 objectName: "sidebar"
                 Layout.fillHeight: true
-                Layout.preferredWidth: window.sidebarCollapsed ? 0 : 292
+                Layout.preferredWidth: window.sidebarCollapsed ? 0 : window.sidebarWidth
                 visible: Layout.preferredWidth > 0
                 colors: window.colors
                 typography: typography
@@ -284,7 +341,10 @@ ApplicationWindow {
                 collapsed: window.sidebarCollapsed
                 blockedRequestCount: window.visibleBlockedRequestCount
 
+                // A drag is already following the pointer; easing it too
+                // would make the seam lag behind the hand holding it.
                 Behavior on Layout.preferredWidth {
+                    enabled: !sidebarResizer.dragging
                     NumberAnimation { duration: 120; easing.type: Easing.OutCubic }
                 }
 
@@ -299,6 +359,7 @@ ApplicationWindow {
                 }
                 onSettingsRequested: window.requestSettings()
                 onWindowMoveRequested: window.startSystemMove()
+                onPageFocusRequested: window.focusPage()
             }
 
             Item {
@@ -539,6 +600,23 @@ ApplicationWindow {
                 }
             }
         }
+
+        SidebarResizer {
+            id: sidebarResizer
+            objectName: "sidebarResizer"
+            visible: !window.sidebarCollapsed && !window.settingsOpen
+            enabled: visible
+            height: parent.height
+            x: sidebar.x + sidebar.width - width / 2
+            z: 6
+            colors: window.colors
+            currentWidth: window.sidebarWidth
+            minimumWidth: window.sidebarMinimumWidth
+            maximumWidth: window.sidebarMaximumWidth
+            defaultWidth: window.sidebarDefaultWidth
+
+            onWidthRequested: function(width) { window.setSidebarWidth(width) }
+        }
     }
 
     Component {
@@ -614,6 +692,9 @@ ApplicationWindow {
         window.createSpaceProfile()
         window.visibleSubscriptions = contentBlocker.subscriptions
         engineLoader.resume()
+        // Last, and on its own: how wide a panel was left is never a reason
+        // for the page not to come up.
+        window.restoreSidebarWidth()
     }
 
     onClosing: function(close) {
