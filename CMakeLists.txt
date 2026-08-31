@@ -100,13 +100,15 @@ target_link_libraries(tanto-core PUBLIC Qt6::Core Qt6::Network Qt6::Sql
 tanto_strict_target(tanto-core)
 
 add_library(tanto-ui STATIC
+    src/ui/FaviconTint.cpp
+    src/ui/FaviconTint.h
     src/ui/KitTheme.cpp
     src/ui/KitTheme.h
     src/ui/ThemeController.cpp
     src/ui/ThemeController.h
 )
 target_include_directories(tanto-ui PUBLIC src/ui)
-target_link_libraries(tanto-ui PUBLIC Qt6::Core Qt6::Gui Qt6::Qml)
+target_link_libraries(tanto-ui PUBLIC Qt6::Core Qt6::Gui Qt6::Qml Qt6::Quick)
 tanto_strict_target(tanto-ui)
 
 # The vendored Omarchy component kit imports Quickshell types. Tanto supplies
@@ -401,6 +403,14 @@ if(BUILD_TESTING)
                 "${CMAKE_CURRENT_BINARY_DIR}/content-blocking-compatibility.json"
         )
     endif()
+
+    qt_add_executable(tanto-favicon-tint-tests tests/ui/tst_favicontint.cpp)
+    target_link_libraries(tanto-favicon-tint-tests PRIVATE tanto-ui Qt6::Gui Qt6::Test)
+    tanto_strict_target(tanto-favicon-tint-tests)
+    add_test(NAME tanto-favicon-tint COMMAND tanto-favicon-tint-tests)
+    set_tests_properties(tanto-favicon-tint PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+    )
 
     qt_add_executable(tanto-theme-tests tests/ui/tst_themecontroller.cpp)
     target_link_libraries(tanto-theme-tests PRIVATE tanto-ui Qt6::Gui Qt6::Test)

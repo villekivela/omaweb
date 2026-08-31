@@ -49,6 +49,7 @@ Item {
 
     SiteTile {
         id: tile
+        objectName: "siteTile-" + root.tabId
         implicitWidth: root.pinned ? 22 : 18
         implicitHeight: root.pinned ? 22 : 18
         anchors.left: parent.left

@@ -5,7 +5,20 @@ Rectangle {
 
     property url currentUrl: "about:blank"
     property string pageTitle: currentUrl.toString() === "about:blank" ? "New tab" : currentUrl.toString()
-    property url pageIconUrl: ""
+    // The lab runs no engine and so has no icon store. Handing every host one
+    // of the drawn stand-ins is what makes the sidebar's chips reviewable
+    // without the QtWebEngine build.
+    property url pageIconUrl: {
+        if (!mockFaviconUrls || mockFaviconUrls.length === 0)
+            return ""
+        const address = String(root.currentUrl)
+        if (address.length === 0 || address.startsWith("about:"))
+            return ""
+        let hash = 0
+        for (let index = 0; index < address.length; ++index)
+            hash = (hash * 31 + address.charCodeAt(index)) % 104729
+        return mockFaviconUrls[hash % mockFaviconUrls.length]
+    }
     property bool loading: false
     property bool canGoBack: false
     property bool canGoForward: false

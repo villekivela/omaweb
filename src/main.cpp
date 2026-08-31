@@ -1,5 +1,6 @@
 #include "BrowserController.h"
 #include "ContentBlocker.h"
+#include "FaviconTint.h"
 #include "KeyboardNavigation.h"
 #include "KitTheme.h"
 #include "QtContentBlocker.h"
@@ -140,6 +141,7 @@ int main(int argc, char *argv[])
     tanto::WindowManager windowManager(QStringLiteral("qt"));
 
     tanto::quickshell::installShim();
+    tanto::registerFaviconTint();
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty(QStringLiteral("browser"), &browser);
     engine.rootContext()->setContextProperty(QStringLiteral("contentBlocker"), &contentBlocker);

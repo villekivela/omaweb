@@ -13,6 +13,8 @@ The browser sends network requests only after an explicit user or page action:
 - Accepting a download fetches the requested file.
 - Adding a Content-blocking subscription fetches its declared update address immediately.
 
+With favicon artwork turned off, a tab's two-letter tile takes its colour from the site's favicon. The icon is read from the icon store the engine already filled while loading the page, so no tile ever costs a request; a site whose icon was never loaded, or whose icon carries no colour, keeps a neutral tile.
+
 Remote search suggestions are off. Typing in the Omnibar queries only the active Space's local history and does not send the typed text over the network.
 
 Future features that add sync, remote suggestions, telemetry, or another background request must

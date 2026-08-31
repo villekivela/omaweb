@@ -1,11 +1,15 @@
 #include "BrowserController.h"
 #include "ContentBlocker.h"
+#include "FaviconTint.h"
 #include "KeyboardNavigation.h"
 #include "KitTheme.h"
 #include "Quickshell.h"
 #include "ThemeController.h"
 #include "WindowManager.h"
 
+#include <QColor>
+#include <QImage>
+#include <QPainter>
 #include <QQmlContext>
 #include <QFile>
 #include <QQuickStyle>
@@ -15,6 +19,24 @@
 
 #include <memory>
 
+namespace {
+
+// A favicon on disk for the tests that check what colour a site's chip takes.
+// A mark on a transparent plate is the shape a real favicon has.
+QUrl writeFavicon(const QString &path, const QColor &mark)
+{
+    QImage icon(32, 32, QImage::Format_ARGB32);
+    icon.fill(Qt::transparent);
+    QPainter painter(&icon);
+    painter.setPen(Qt::NoPen);
+    painter.setBrush(mark);
+    painter.drawRect(6, 6, 20, 20);
+    painter.end();
+    return icon.save(path) ? QUrl::fromLocalFile(path) : QUrl{};
+}
+
+} // namespace
+
 class UiTestSetup final : public QObject {
     Q_OBJECT
 
@@ -22,6 +44,7 @@ public slots:
     void qmlEngineAvailable(QQmlEngine *engine)
     {
         tanto::quickshell::installShim();
+        tanto::registerFaviconTint();
         m_dataRoot = std::make_unique<QTemporaryDir>();
         m_browser = std::make_unique<tanto::BrowserController>(
             m_dataRoot->path(), QStringLiteral("mock"));
@@ -49,6 +72,15 @@ public slots:
             QUrl(QStringLiteral(TANTO_MOCK_ENGINE_PROFILE_URL)));
         engine->rootContext()->setContextProperty(
             QStringLiteral("iconFontSource"), QUrl(QStringLiteral(TANTO_ICON_FONT_URL)));
+        // The mock engine reports no icon of its own here; the tests that care
+        // about artwork set one themselves.
+        engine->rootContext()->setContextProperty(
+            QStringLiteral("mockFaviconUrls"), QVariantList{});
+        engine->rootContext()->setContextProperty(QStringLiteral("colouredFaviconUrl"),
+            writeFavicon(m_dataRoot->filePath(QStringLiteral("coloured.png")),
+                QColor(0x2f, 0x5c, 0xe6)));
+        engine->rootContext()->setContextProperty(QStringLiteral("colourlessFaviconUrl"),
+            writeFavicon(m_dataRoot->filePath(QStringLiteral("colourless.png")), Qt::white));
         // The shim picks the Qt Quick Controls style the vendored kit needs; a
         // native style refuses the kit's replaced `background` and paints its
         // own. Reading the resolved name back is the only way QML can tell.

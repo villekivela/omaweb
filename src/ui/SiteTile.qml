@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Effects
+import Tanto
 import qs.Commons
 
 Rectangle {
@@ -23,21 +24,39 @@ Rectangle {
         return name.length > 0 ? name.substring(0, 2).toUpperCase() : "··"
     }
 
-    // Site identity without site artwork: the hue comes from the host, the
-    // saturation and lightness from the theme, so tabs stay one palette.
-    readonly property color tint: {
+    // The theme owns how strong a site colour may be; only the hue is the
+    // site's to choose, so every tab stays one palette.
+    readonly property real tintSaturation: colors.tint && colors.tint.saturation !== undefined
+        ? colors.tint.saturation : 0.32
+    readonly property real tintLightness: colors.tint && colors.tint.lightness !== undefined
+        ? colors.tint.lightness : 0.62
+
+    // Site identity for artwork: the hue comes from the host, which is the only
+    // thing available before the artwork itself has loaded.
+    readonly property color hostTint: {
         let hash = 0
         for (let index = 0; index < host.length; ++index) {
             hash = (hash * 31 + host.charCodeAt(index)) % 3600
         }
-        const tuning = colors.tint
-        return Qt.hsla(hash / 3600,
-            tuning && tuning.saturation !== undefined ? tuning.saturation : 0.32,
-            tuning && tuning.lightness !== undefined ? tuning.lightness : 0.62,
-            1)
+        return Qt.hsla(hash / 3600, tintSaturation, tintLightness, 1)
     }
 
+    // With artwork switched off the chip is all the site gets, so it takes the
+    // site's own colour: the hue of the favicon Tanto is not drawing. An icon
+    // with no colour to give — a white or black mark, or none at all — leaves
+    // the chip neutral rather than inventing one.
+    readonly property color chipTint: useArtwork
+        ? hostTint
+        : (faviconTint.valid ? faviconTint.color : colors.mutedText)
+
     readonly property bool showsArtwork: useArtwork && artwork.status === Image.Ready
+
+    FaviconTint {
+        id: faviconTint
+        source: root.useArtwork ? "" : root.iconUrl
+        saturation: root.tintSaturation
+        lightness: root.tintLightness
+    }
 
     implicitWidth: 20
     implicitHeight: 20
@@ -46,7 +65,7 @@ Rectangle {
     // plate behind it: tinted, its own shape already reads against the sidebar.
     color: showsArtwork
         ? "transparent"
-        : (highlighted ? tint : Qt.rgba(tint.r, tint.g, tint.b, 0.18))
+        : (highlighted ? chipTint : Qt.rgba(chipTint.r, chipTint.g, chipTint.b, 0.18))
     Accessible.ignored: true
 
     Image {
@@ -71,14 +90,14 @@ Rectangle {
         visible: root.showsArtwork && root.tintArtwork
         saturation: -1.0
         colorization: 1.0
-        colorizationColor: root.tint
+        colorizationColor: root.hostTint
     }
 
     Text {
         anchors.centerIn: parent
         visible: !root.showsArtwork
         text: root.code
-        color: root.highlighted ? root.colors.windowOpaque : root.tint
+        color: root.highlighted ? root.colors.windowOpaque : root.chipTint
         font.family: Style.font.family
         font.pixelSize: Style.font.caption
         font.weight: Font.DemiBold

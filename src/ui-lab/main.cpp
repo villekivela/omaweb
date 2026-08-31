@@ -1,5 +1,6 @@
 #include "BrowserController.h"
 #include "ContentBlocker.h"
+#include "FaviconTint.h"
 #include "KeyboardNavigation.h"
 #include "KitTheme.h"
 #include "Quickshell.h"
@@ -7,15 +8,56 @@
 #include "WindowChrome.h"
 #include "WindowManager.h"
 
+#include <QColor>
 #include <QCoreApplication>
 #include <QDir>
 #include <QFile>
+#include <QImage>
+#include <QPainter>
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 #include <QTemporaryDir>
 #include <QQuickWindow>
 #include <QTimer>
+
+namespace {
+
+// Stand-in favicons for the lab, which runs no engine and therefore has no
+// icon store of its own. The set is deliberately mixed: coloured marks to show
+// a chip taking a site's own colour, and a white one to show the neutral chip
+// an icon with no colour to give leaves behind.
+QVariantList drawMockFavicons(const QString &directory)
+{
+    static const QList<QColor> marks = {
+        QColor(0xe5, 0x4b, 0x4b),
+        QColor(0x3f, 0x8f, 0xe8),
+        QColor(0x2f, 0xb2, 0x8a),
+        QColor(0xe8, 0x9f, 0x2a),
+        QColor(0x9c, 0x5c, 0xe0),
+        QColor(0xff, 0xff, 0xff),
+    };
+    QDir().mkpath(directory);
+    QVariantList urls;
+    for (qsizetype index = 0; index < marks.size(); ++index) {
+        QImage icon(32, 32, QImage::Format_ARGB32);
+        icon.fill(Qt::transparent);
+        QPainter painter(&icon);
+        painter.setRenderHint(QPainter::Antialiasing);
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(marks.at(index));
+        painter.drawRoundedRect(QRectF(4, 4, 24, 24), 7, 7);
+        painter.end();
+        const auto path
+            = QDir(directory).filePath(QStringLiteral("favicon-%1.png").arg(index));
+        if (icon.save(path)) {
+            urls.append(QUrl::fromLocalFile(path));
+        }
+    }
+    return urls;
+}
+
+} // namespace
 
 int main(int argc, char *argv[])
 {
@@ -40,6 +82,7 @@ int main(int argc, char *argv[])
     tanto::WindowManager windowManager(QStringLiteral("mock"));
 
     tanto::quickshell::installShim();
+    tanto::registerFaviconTint();
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty(QStringLiteral("browser"), &browser);
     engine.rootContext()->setContextProperty(QStringLiteral("contentBlocker"), &contentBlocker);
@@ -55,6 +98,8 @@ int main(int argc, char *argv[])
         QStringLiteral("engineProfileSource"), QUrl(QStringLiteral(TANTO_ENGINE_PROFILE_URL)));
     engine.rootContext()->setContextProperty(
         QStringLiteral("iconFontSource"), QUrl(QStringLiteral(TANTO_ICON_FONT_URL)));
+    engine.rootContext()->setContextProperty(QStringLiteral("mockFaviconUrls"),
+        drawMockFavicons(dataRoot.filePath(QStringLiteral("favicons"))));
     engine.addImportPath(QStringLiteral(TANTO_UI_DIRECTORY));
     // The vendored Omarchy component kit: qs.Ui and qs.Commons.
     engine.addImportPath(QStringLiteral(TANTO_OMARCHY_IMPORT_PATH));

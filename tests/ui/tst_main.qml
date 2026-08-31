@@ -668,6 +668,53 @@ TestCase {
         compare(keyboardNavigationEnabled.checked, true)
     }
 
+    // A tab's chip stands in for artwork that is not being drawn, so it takes
+    // the site's own colour: the hue of the favicon, at the theme's saturation
+    // and lightness. An icon with no hue to give leaves the chip neutral
+    // instead of falling back to a colour the site never chose.
+    function test_chipTakesItsColourFromTheFaviconWhenArtworkIsOff() {
+        const engineLoader = findChild(window.contentItem, "engineLoader")
+        verify(engineLoader !== null)
+        tryVerify(function() { return engineLoader.item !== null })
+
+        const tabId = browser.activeTabId
+        const tile = findChild(window.contentItem, "siteTile-" + tabId)
+        verify(tile !== null)
+
+        const hostTint = tile.hostTint
+        engineLoader.item.pageIconUrl = colouredFaviconUrl
+        tryCompare(tile, "iconUrl", colouredFaviconUrl)
+
+        // Artwork on: the chip's colour is still the host's, because the
+        // artwork itself is what carries the site's colour.
+        compare(window.useFavicons, true)
+        compare(String(tile.chipTint), String(hostTint))
+
+        const useFavicons = findChild(window.contentItem, "useFavicons")
+        verify(useFavicons !== null)
+        useFavicons.clicked()
+        compare(window.useFavicons, false)
+
+        const blue = Qt.color("#2f5ce6")
+        tryVerify(function() { return String(tile.chipTint) !== String(hostTint) })
+        fuzzyCompare(tile.chipTint.hsvHue, blue.hsvHue, 0.03)
+        // The theme still owns how strong a chip may be.
+        fuzzyCompare(tile.chipTint.hslSaturation, tile.tintSaturation, 0.02)
+        fuzzyCompare(tile.chipTint.hslLightness, tile.tintLightness, 0.02)
+
+        // A white icon names no colour, so the chip goes neutral rather than
+        // borrowing one from the host's name.
+        engineLoader.item.pageIconUrl = colourlessFaviconUrl
+        tryCompare(tile, "iconUrl", colourlessFaviconUrl)
+        tryVerify(function() {
+            return String(tile.chipTint) === String(Qt.color(window.colors.mutedText))
+        })
+
+        useFavicons.clicked()
+        compare(window.useFavicons, true)
+        engineLoader.item.pageIconUrl = ""
+    }
+
     function test_tabArtworkSettingsAreLiveAndSaved() {
         const useFavicons = findChild(window.contentItem, "useFavicons")
         const tintFavicons = findChild(window.contentItem, "tintFavicons")

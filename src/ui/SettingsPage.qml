@@ -170,7 +170,7 @@ Rectangle {
                     visible: root.section === 0
                     colors: root.colors
                     title: "Use site favicons"
-                    note: "When off, tabs use the two-letter site fallback."
+                    note: "When off, tabs show a two-letter tile in the favicon's colour."
                     accessibleName: "Use site favicons"
                     checked: root.useFavicons
                     onClicked: root.useFaviconsToggled(!checked)
