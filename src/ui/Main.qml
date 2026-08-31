@@ -352,6 +352,8 @@ ApplicationWindow {
                 privateWindow: window.privateWindow
                 collapsed: window.sidebarCollapsed
                 blockedRequestCount: window.visibleBlockedRequestCount
+                canGoBack: engineLoader.item ? engineLoader.item.canGoBack : false
+                canGoForward: engineLoader.item ? engineLoader.item.canGoForward : false
                 useFavicons: window.useFavicons
                 tintFavicons: window.tintFavicons
 
@@ -372,6 +374,11 @@ ApplicationWindow {
                     window.spacesMenuOpen = true
                 }
                 onSettingsRequested: window.requestSettings()
+                onBackRequested: window.windowBrowser.requestBack()
+                onForwardRequested: window.windowBrowser.requestForward()
+                onReloadRequested: window.windowBrowser.requestReload()
+                onSidebarToggled: window.sidebarCollapsed = !window.sidebarCollapsed
+                onCommandPanelRequested: window.openCommandPanel()
                 onWindowMoveRequested: window.startSystemMove()
                 onPageFocusRequested: window.focusPage()
             }
@@ -493,8 +500,10 @@ ApplicationWindow {
                     onTintFaviconsToggled: function(enabled) { window.setTintFavicons(enabled) }
                 }
 
+                // The outline carries these commands while it is open; the
+                // strip is what the chromeless state has instead.
                 NavigationCluster {
-                    visible: !window.settingsOpen
+                    visible: !window.settingsOpen && window.sidebarCollapsed
                     anchors.left: parent.left
                     anchors.leftMargin: 16
                     anchors.bottom: parent.bottom

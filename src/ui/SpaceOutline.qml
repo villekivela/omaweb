@@ -15,6 +15,8 @@ Rectangle {
     property bool statusOpen: false
     property bool useFavicons: true
     property bool tintFavicons: true
+    property bool canGoBack: false
+    property bool canGoForward: false
 
     // An empty pinned section takes no room at all.
     property int pinnedCount: browser ? browser.pinnedTabs.rowCount() : 0
@@ -29,6 +31,11 @@ Rectangle {
     signal spaceActivated(string spaceId)
     signal spacesMenuRequested(real anchorX, real anchorY)
     signal settingsRequested()
+    signal backRequested()
+    signal forwardRequested()
+    signal reloadRequested()
+    signal sidebarToggled()
+    signal commandPanelRequested()
     signal windowMoveRequested()
     signal pageFocusRequested()
 
@@ -78,89 +85,92 @@ Rectangle {
         anchors.topMargin: 16
         spacing: 12
 
+        // The navigation controls hold the row the Space heading used to: the
+        // commands that act on the page open the outline, and the browsing
+        // identity closes it from the footer.
         Item {
-            objectName: "spaceHeading"
+            objectName: "sidebarNavigation"
             width: parent.width
             height: 32
-            Accessible.role: Accessible.Heading
-            Accessible.name: root.privateWindow || !root.browser ? "Private" : root.browser.activeSpaceName
 
             DragHandler {
                 target: null
                 onActiveChanged: if (active) root.windowMoveRequested()
             }
 
-            // Every Space is one letter, the active one lit. The heading is the
-            // switcher: spelling the active name out again would say what the
-            // lit letter already says, and cost the row that holds the rest.
             Row {
-                objectName: "spaceSwitcher"
+                objectName: "outlineControls"
                 anchors.left: parent.left
-                anchors.right: spacesButton.left
-                anchors.rightMargin: 8
                 anchors.verticalCenter: parent.verticalCenter
-                height: 28
-                visible: !root.privateWindow
-                spacing: 5
+                spacing: 4
 
-                Repeater {
-                    model: root.browser ? root.browser.spaces : null
+                ChromeButton {
+                    objectName: "collapseButton"
+                    width: 28
+                    height: 26
+                    icon: root.collapsed ? "left_panel_open" : "left_panel_close"
+                    accessibleName: root.collapsed ? "Show sidebar" : "Hide sidebar"
+                    fontFamily: root.iconFontFamily
+                    foreground: root.colors.mutedText
+                    accent: root.colors.accent
+                    onClicked: root.sidebarToggled()
+                }
 
-                    ChromeButton {
-                        required property string spaceId
-                        required property string spaceName
-                        required property string spaceColor
-                        required property bool active
-
-                        objectName: "space-" + spaceId
-                        width: 30
-                        height: 28
-                        label: spaceName.length > 0 ? spaceName.charAt(0).toUpperCase() : "·"
-                        accessibleName: active
-                            ? "Current Space: " + spaceName
-                            : "Switch to " + spaceName
-                        foreground: active
-                            ? (spaceColor.length > 0 ? spaceColor : root.colors.text)
-                            : root.colors.mutedText
-                        accent: root.colors.accent
-                        background: active ? root.colors.surface : "transparent"
-                        onClicked: root.spaceActivated(spaceId)
-                    }
+                ChromeButton {
+                    objectName: "commandPanelButton"
+                    width: 28
+                    height: 26
+                    icon: "search"
+                    accessibleName: "Command panel"
+                    fontFamily: root.iconFontFamily
+                    foreground: root.colors.mutedText
+                    accent: root.colors.accent
+                    onClicked: root.commandPanelRequested()
                 }
             }
 
-            Text {
-                anchors.left: parent.left
-                anchors.right: spacesButton.left
-                anchors.rightMargin: 8
-                anchors.verticalCenter: parent.verticalCenter
-                visible: root.privateWindow || !root.browser
-                text: "Private"
-                color: root.colors.privateAccent
-                font.family: Style.font.family
-                font.pixelSize: Style.font.heading
-                font.letterSpacing: 1.4
-                font.capitalization: Font.AllUppercase
-                elide: Text.ElideRight
-            }
-
-            ChromeButton {
-                id: spacesButton
-                objectName: "manageSpacesButton"
+            Row {
+                objectName: "outlineNavigation"
                 anchors.right: parent.right
                 anchors.verticalCenter: parent.verticalCenter
-                width: 28
-                height: 26
-                visible: !root.privateWindow
-                icon: "more_horiz"
-                accessibleName: "Manage Spaces"
-                fontFamily: root.iconFontFamily
-                foreground: root.colors.mutedText
-                accent: root.colors.accent
-                onClicked: {
-                    const corner = spacesButton.mapToItem(null, spacesButton.width,
-                        spacesButton.height)
-                    root.spacesMenuRequested(corner.x, corner.y)
+                spacing: 4
+
+                ChromeButton {
+                    objectName: "backButton"
+                    width: 28
+                    height: 26
+                    icon: "arrow_back"
+                    accessibleName: "Back"
+                    fontFamily: root.iconFontFamily
+                    foreground: root.colors.text
+                    accent: root.colors.accent
+                    enabled: root.canGoBack
+                    onClicked: root.backRequested()
+                }
+
+                ChromeButton {
+                    objectName: "forwardButton"
+                    width: 28
+                    height: 26
+                    icon: "arrow_forward"
+                    accessibleName: "Forward"
+                    fontFamily: root.iconFontFamily
+                    foreground: root.colors.text
+                    accent: root.colors.accent
+                    enabled: root.canGoForward
+                    onClicked: root.forwardRequested()
+                }
+
+                ChromeButton {
+                    objectName: "reloadButton"
+                    width: 28
+                    height: 26
+                    icon: "refresh"
+                    accessibleName: "Reload"
+                    fontFamily: root.iconFontFamily
+                    foreground: root.colors.text
+                    accent: root.colors.accent
+                    onClicked: root.reloadRequested()
                 }
             }
         }
@@ -335,8 +345,11 @@ Rectangle {
         }
     }
 
+    // The Space letters, the Space menu and the settings the Space carries
+    // read as one row, and it closes the outline instead of opening it.
     Item {
         id: footer
+        objectName: "spaceHeading"
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.bottom: parent.bottom
@@ -344,10 +357,89 @@ Rectangle {
         anchors.rightMargin: 16
         anchors.bottomMargin: 14
         height: 30
+        Accessible.role: Accessible.Heading
+        Accessible.name: root.privateWindow || !root.browser ? "Private" : root.browser.activeSpaceName
+
+        // Every Space is one letter, the active one lit. The row is the
+        // switcher: spelling the active name out again would say what the
+        // lit letter already says.
+        Row {
+            objectName: "spaceSwitcher"
+            anchors.left: parent.left
+            anchors.right: spacesButton.left
+            anchors.rightMargin: 8
+            anchors.verticalCenter: parent.verticalCenter
+            height: 28
+            visible: !root.privateWindow
+            spacing: 5
+
+            Repeater {
+                model: root.browser ? root.browser.spaces : null
+
+                ChromeButton {
+                    required property string spaceId
+                    required property string spaceName
+                    required property string spaceColor
+                    required property bool active
+
+                    objectName: "space-" + spaceId
+                    width: 30
+                    height: 28
+                    label: spaceName.length > 0 ? spaceName.charAt(0).toUpperCase() : "·"
+                    accessibleName: active
+                        ? "Current Space: " + spaceName
+                        : "Switch to " + spaceName
+                    foreground: active
+                        ? (spaceColor.length > 0 ? spaceColor : root.colors.text)
+                        : root.colors.mutedText
+                    accent: root.colors.accent
+                    background: active ? root.colors.surface : "transparent"
+                    onClicked: root.spaceActivated(spaceId)
+                }
+            }
+        }
+
+        Text {
+            anchors.left: parent.left
+            anchors.right: spacesButton.left
+            anchors.rightMargin: 8
+            anchors.verticalCenter: parent.verticalCenter
+            visible: root.privateWindow || !root.browser
+            text: "Private"
+            color: root.colors.privateAccent
+            font.family: Style.font.family
+            font.pixelSize: Style.font.heading
+            font.letterSpacing: 1.4
+            font.capitalization: Font.AllUppercase
+            elide: Text.ElideRight
+        }
+
+        ChromeButton {
+            id: spacesButton
+            objectName: "manageSpacesButton"
+            anchors.right: settingsButton.left
+            anchors.rightMargin: 4
+            anchors.verticalCenter: parent.verticalCenter
+            width: 28
+            height: 26
+            visible: !root.privateWindow
+            icon: "more_horiz"
+            accessibleName: "Manage Spaces"
+            fontFamily: root.iconFontFamily
+            foreground: root.colors.mutedText
+            accent: root.colors.accent
+            onClicked: {
+                const corner = spacesButton.mapToItem(null, spacesButton.width,
+                    spacesButton.height)
+                root.spacesMenuRequested(corner.x, corner.y)
+            }
+        }
+
         ChromeButton {
             id: settingsButton
             objectName: "settingsButton"
             anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
             width: 30
             height: 30
             icon: "settings"

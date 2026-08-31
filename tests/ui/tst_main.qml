@@ -91,9 +91,11 @@ TestCase {
         tryVerify(function() { return settledSidebar.visible && settledSidebar.width > 200 })
 
         const spaceHeading = findChild(window.contentItem, "spaceHeading")
+        const sidebarNavigation = findChild(window.contentItem, "sidebarNavigation")
         const engineViewport = findChild(window.contentItem, "engineViewport")
         const navigationCluster = findChild(window.contentItem, "navigationCluster")
         verify(spaceHeading !== null)
+        verify(sidebarNavigation !== null)
         verify(engineViewport !== null)
         verify(navigationCluster !== null)
         compare(engineViewport.height, window.height)
@@ -102,17 +104,21 @@ TestCase {
         verify(navigationCluster.height < engineViewport.height / 4)
         verify(navigationCluster.y > engineViewport.height / 2)
 
-        // The Space heading opens the outline; pinned rows sit above the tabs.
+        // Navigation opens the outline; pinned rows sit above the tabs.
         browser.toggleActivePinned()
         const pinnedRow = findChild(window.contentItem, "pinned-" + browser.activeTabId)
         verify(pinnedRow !== null)
         tryVerify(function() { return pinnedRow.visible && pinnedRow.height > 0 })
 
         const sidebar = findChild(window.contentItem, "sidebar")
-        const headingTop = spaceHeading.mapToItem(sidebar, 0, 0).y
+        const navigationTop = sidebarNavigation.mapToItem(sidebar, 0, 0).y
         tryVerify(function() {
-            return pinnedRow.mapToItem(sidebar, 0, 0).y > headingTop
+            return pinnedRow.mapToItem(sidebar, 0, 0).y > navigationTop
         })
+
+        // The browsing identity closes the outline, below every tab row.
+        verify(spaceHeading.mapToItem(sidebar, 0, 0).y
+            > pinnedRow.mapToItem(sidebar, 0, 0).y)
         const pinnedList = findChild(window.contentItem, "pinnedList")
         verify(pinnedList.capacity >= 3)
         verify(pinnedList.capacity <= 5)
@@ -136,6 +142,8 @@ TestCase {
         verify(sidebar.visible)
 
         const expandedViewport = engineViewport.width
+        // While the outline is open it carries the controls itself.
+        verify(!navigationCluster.visible)
         window.sidebarCollapsed = true
         tryVerify(function() { return !sidebar.visible })
         tryVerify(function() { return engineViewport.width > expandedViewport })
@@ -332,7 +340,7 @@ TestCase {
         compare(window.activeFocusItem.objectName, "addressButton")
 
         let visitedTab = false
-        for (let step = 0; step < 10 && window.activeFocusItem.objectName !== "settingsButton"; ++step) {
+        for (let step = 0; step < 20 && window.activeFocusItem.objectName !== "settingsButton"; ++step) {
             keyClick(Qt.Key_Tab)
             if (window.activeFocusItem.objectName.indexOf("tab-") === 0)
                 visitedTab = true
@@ -340,7 +348,7 @@ TestCase {
         verify(visitedTab)
         compare(window.activeFocusItem.objectName, "settingsButton")
         keyClick(Qt.Key_Backtab)
-        verify(window.activeFocusItem.objectName.indexOf("tab-") === 0)
+        compare(window.activeFocusItem.objectName, "manageSpacesButton")
     }
 
     function test_everyBrowserCommandIsBoundAndSearchable() {
