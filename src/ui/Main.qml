@@ -42,6 +42,12 @@ ApplicationWindow {
     property string pendingPermissionType: ""
     property var pendingPermissionResponder: null
     property var downloadRecordIds: ({})
+    property bool settingsOpen: false
+    property bool permissionOpen: false
+    // One dialog is open at a time, so one panel serves them all and the
+    // question it is asking is the only thing that changes.
+    property string dialogMode: ""
+    property var moveTargets: []
 
     function privatePalette(source) {
         const palette = Object.assign({}, source)
@@ -86,15 +92,38 @@ ApplicationWindow {
     }
 
     function requestMoveTab() {
-        if (!privateWindow) moveTabDialog.open()
+        if (privateWindow) return
+        const spaces = window.windowBrowser.spaces
+        const targets = []
+        for (let row = 0; row < spaces.rowCount(); ++row) {
+            const index = spaces.index(row, 0)
+            const spaceId = spaces.data(index, Qt.UserRole + 1)
+            if (spaceId === window.windowBrowser.activeSpaceId) continue
+            targets.push({"id": spaceId, "label": spaces.data(index, Qt.UserRole + 2)})
+        }
+        window.moveTargets = targets
+        window.dialogMode = targets.length > 0 ? "move" : ""
     }
 
     function requestNewSpace() {
-        if (!privateWindow) newSpaceDialog.open()
+        if (!privateWindow) window.dialogMode = "new"
     }
 
     function requestSettings() {
-        settingsDialog.open()
+        window.settingsOpen = true
+    }
+
+    // 1 allow once, 2 always allow, 3 block — the decisions BrowserController
+    // stores, in the order the bar offers them.
+    function respondToPermission(decision) {
+        window.windowBrowser.setPermissionDecision(
+            window.pendingPermissionOrigin, window.pendingPermissionType, decision)
+        if (window.pendingPermissionResponder) {
+            window.pendingPermissionResponder.respondToPermission(
+                window.pendingPermissionRequest, decision)
+        }
+        window.permissionOpen = false
+        window.pendingPermissionResponder = null
     }
 
     function stepTab(delta) {
@@ -240,7 +269,7 @@ ApplicationWindow {
                 onTabActivated: function(tabId) { window.windowBrowser.activateTab(tabId) }
                 onSpaceActivated: function(spaceId) { window.windowBrowser.switchSpace(spaceId) }
                 onSpacesMenuRequested: spacesMenu.popup()
-                onSettingsRequested: settingsDialog.open()
+                onSettingsRequested: window.requestSettings()
                 onWindowMoveRequested: window.startSystemMove()
 
                 Menu {
@@ -248,19 +277,19 @@ ApplicationWindow {
 
                     MenuItem {
                         text: "New Space"
-                        onTriggered: newSpaceDialog.open()
+                        onTriggered: window.requestNewSpace()
                     }
                     MenuItem {
                         text: "Rename " + window.windowBrowser.activeSpaceName
-                        onTriggered: renameSpaceDialog.open()
+                        onTriggered: window.dialogMode = "rename"
                     }
                     MenuItem {
                         text: "Delete " + window.windowBrowser.activeSpaceName
-                        onTriggered: deleteSpaceDialog.open()
+                        onTriggered: window.dialogMode = "delete"
                     }
                     MenuItem {
                         text: "Move this tab to a Space"
-                        onTriggered: moveTabDialog.open()
+                        onTriggered: window.requestMoveTab()
                     }
                 }
             }
@@ -330,11 +359,53 @@ ApplicationWindow {
                         window.pendingPermissionResponder = engine
                         window.pendingPermissionOrigin = origin
                         window.pendingPermissionType = permission
-                        permissionDialog.open()
+                        window.permissionOpen = true
                     }
                 }
 
+                PageQuestionBar {
+                    objectName: "sitePermissionBar"
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.top: parent.top
+                    z: 40
+                    colors: window.colors
+                    typography: typography
+                    iconFontFamily: materialSymbols.name
+                    open: window.permissionOpen
+                    glyph: "shield_person"
+                    message: window.pendingPermissionOrigin
+                        + " asked for a protected browser capability"
+                    detail: window.pendingPermissionType
+                        + " · remembered for this Space only"
+                    actions: [
+                        {"label": "Allow once"},
+                        {"label": "Always allow", "enabled": !window.privateWindow},
+                        {"label": "Block"}
+                    ]
+
+                    onActionTriggered: function(index) {
+                        window.respondToPermission(index + 1)
+                    }
+                }
+
+                SettingsPage {
+                    objectName: "settingsSurface"
+                    anchors.fill: parent
+                    z: 45
+                    colors: window.colors
+                    typography: typography
+                    iconFontFamily: materialSymbols.name
+                    browser: window.windowBrowser
+                    blocker: contentBlocker
+                    keyboard: keyboardNavigation
+                    open: window.settingsOpen
+
+                    onClosed: window.settingsOpen = false
+                }
+
                 NavigationCluster {
+                    visible: !window.settingsOpen
                     anchors.left: parent.left
                     anchors.leftMargin: 16
                     anchors.bottom: parent.bottom
@@ -363,7 +434,7 @@ ApplicationWindow {
                     function onTabMoveConfirmationRequested(tabId, destinationSpaceId) {
                         window.pendingMoveTabId = tabId
                         window.pendingMoveSpaceId = destinationSpaceId
-                        confirmTabMoveDialog.open()
+                        window.dialogMode = "confirm-move"
                     }
 
                     function onSpaceSuspended(spaceId) {
@@ -467,7 +538,7 @@ ApplicationWindow {
                 window.pendingPermissionResponder = responder
                 window.pendingPermissionOrigin = origin
                 window.pendingPermissionType = permission
-                permissionDialog.open()
+                window.permissionOpen = true
             }
         }
     }
@@ -532,354 +603,96 @@ ApplicationWindow {
         })
     }
 
-    Dialog {
-        id: newSpaceDialog
-        objectName: "newSpaceDialog"
-        anchors.centerIn: parent
-        modal: true
-        title: "New Space"
-        standardButtons: Dialog.Ok | Dialog.Cancel
-        onOpened: {
-            newSpaceName.text = ""
-            newSpaceName.forceActiveFocus()
-        }
-        onAccepted: {
-            const spaceId = window.windowBrowser.createSpace(newSpaceName.text)
-            if (spaceId.length > 0) window.windowBrowser.switchSpace(spaceId)
-        }
+    CommandDialog {
+        id: spaceDialog
+        objectName: "spaceDialog"
+        anchors.fill: parent
+        z: 60
+        colors: window.colors
+        typography: typography
+        open: window.dialogMode.length > 0
+        destructive: window.dialogMode === "delete" || window.dialogMode === "confirm-move"
+        inputVisible: window.dialogMode === "new" || window.dialogMode === "rename"
+            || window.dialogMode === "delete"
+        selectPreset: window.dialogMode === "rename"
+        presetText: window.dialogMode === "rename" ? window.windowBrowser.activeSpaceName : ""
 
-        TextField {
-            id: newSpaceName
-            objectName: "newSpaceName"
-            width: 280
-            placeholderText: "Space name"
-            Accessible.name: "New Space name"
-        }
-    }
-
-
-    Dialog {
-        id: permissionDialog
-        objectName: "permissionDialog"
-        anchors.centerIn: parent
-        modal: true
-        title: "Site permission"
-        standardButtons: Dialog.NoButton
-
-        ColumnLayout {
-            width: 380
-            spacing: 10
-
-            Label {
-                Layout.fillWidth: true
-                wrapMode: Text.WordWrap
-                text: window.pendingPermissionOrigin + " requested a protected browser capability."
+        label: {
+            switch (window.dialogMode) {
+            case "new": return "new space"
+            case "rename": return "rename space"
+            case "delete": return "delete space"
+            case "move": return "move tab to a space"
+            case "confirm-move": return "discard edited form state"
             }
-
-            RowLayout {
-                Layout.fillWidth: true
-
-                Button {
-                    text: "Allow once"
-                    onClicked: {
-                        window.windowBrowser.setPermissionDecision(window.pendingPermissionOrigin,
-                            window.pendingPermissionType, 1)
-                        if (window.pendingPermissionResponder) window.pendingPermissionResponder.respondToPermission(
-                            window.pendingPermissionRequest, 1)
-                        permissionDialog.close()
-                    }
-                }
-                Button {
-                    text: "Always allow"
-                    enabled: !window.privateWindow
-                    onClicked: {
-                        window.windowBrowser.setPermissionDecision(window.pendingPermissionOrigin,
-                            window.pendingPermissionType, 2)
-                        if (window.pendingPermissionResponder) window.pendingPermissionResponder.respondToPermission(
-                            window.pendingPermissionRequest, 2)
-                        permissionDialog.close()
-                    }
-                }
-                Button {
-                    text: "Block"
-                    onClicked: {
-                        window.windowBrowser.setPermissionDecision(window.pendingPermissionOrigin,
-                            window.pendingPermissionType, 3)
-                        if (window.pendingPermissionResponder) window.pendingPermissionResponder.respondToPermission(
-                            window.pendingPermissionRequest, 3)
-                        permissionDialog.close()
-                    }
-                }
-            }
-        }
-    }
-
-    Dialog {
-        id: settingsDialog
-        objectName: "settingsDialog"
-        anchors.centerIn: parent
-        modal: true
-        title: "Browser settings"
-        standardButtons: Dialog.Close
-        onOpened: {
-            window.visibleDownloads = window.windowBrowser.downloadHistory()
-            window.visibleSubscriptions = contentBlocker.subscriptions
-            window.visibleBlockedRequestCount = contentBlocker.blockedRequestCount(
-                window.windowBrowser.activeUrl)
-            userRulesInput.text = contentBlocker.userRules
+            return ""
         }
 
-        ScrollView {
-            id: settingsScroll
-            width: 500
-            height: Math.min(620, window.height - 100)
-            contentWidth: availableWidth
-
-            ColumnLayout {
-                width: settingsScroll.availableWidth
-                spacing: 10
-
-            Label {
-                objectName: "remoteSuggestionsStatus"
-                text: "Remote search suggestions: Off"
+        placeholder: {
+            switch (window.dialogMode) {
+            case "new": return "name the Space"
+            case "rename": return window.windowBrowser.activeSpaceName
+            case "delete": return "type " + window.windowBrowser.activeSpaceName + " to delete it"
             }
-            Label {
-                objectName: "automaticRequestsStatus"
-                Layout.fillWidth: true
-                wrapMode: Text.WordWrap
-                text: "Enabled filter-list subscriptions make automatic network requests to their displayed update address when Tanto starts. Remote search suggestions remain off."
-            }
-            Label {
-                text: "Keyboard navigation"
-                font.weight: Font.DemiBold
-            }
-            CheckBox {
-                objectName: "keyboardNavigationEnabled"
-                text: "Enable Keyboard navigation"
-                checked: keyboardNavigation.enabled
-                onClicked: keyboardNavigation.setEnabled(checked)
-            }
-            Label {
-                text: "Content blocking"
-                font.weight: Font.DemiBold
-            }
-            Label {
-                objectName: "blockedRequestCount"
-                text: window.visibleBlockedRequestCount + " requests blocked for this site"
-            }
-            CheckBox {
-                objectName: "siteBlockingEnabled"
-                text: "Enable for " + window.windowBrowser.activeUrl.host
-                checked: contentBlocker.siteEnabled(window.windowBrowser.activeUrl)
-                onClicked: contentBlocker.setSiteEnabled(
-                    window.windowBrowser.activeUrl, checked)
-            }
-            TextArea {
-                id: userRulesInput
-                objectName: "userRulesInput"
-                Layout.fillWidth: true
-                Layout.preferredHeight: 90
-                placeholderText: "One user rule per line"
-                wrapMode: TextEdit.NoWrap
-            }
-            Button {
-                text: contentBlocker.compiling ? "Compiling rules..." : "Save user rules"
-                enabled: !contentBlocker.compiling
-                onClicked: contentBlocker.userRules = userRulesInput.text
-            }
-            Label {
-                Layout.fillWidth: true
-                wrapMode: Text.WordWrap
-                text: "Supported: network rules and plain CSS cosmetic rules. "
-                    + "Scriptlets, procedural selectors, response rewriting, HTML filtering, "
-                    + "dynamic rules, CNAME uncloaking, redirects, and resource replacement are unsupported."
-            }
-            Label {
-                Layout.fillWidth: true
-                wrapMode: Text.WordWrap
-                visible: contentBlocker.compilationReport.unsupported !== undefined
-                    && Object.keys(contentBlocker.compilationReport.unsupported).length > 0
-                text: "Unsupported rules in active lists: "
-                    + JSON.stringify(contentBlocker.compilationReport.unsupported)
-            }
-            ListView {
-                Layout.fillWidth: true
-                Layout.preferredHeight: Math.min(150, contentHeight)
-                model: window.visibleSubscriptions
-                visible: count > 0
-
-                delegate: Column {
-                    required property var modelData
-                    width: ListView.view.width
-                    spacing: 2
-
-                    RowLayout {
-                        width: parent.width
-                        CheckBox {
-                            checked: modelData.enabled
-                            text: modelData.title
-                            onClicked: contentBlocker.setSubscriptionEnabled(
-                                modelData.id, checked)
-                        }
-                        Label { text: modelData.updateStatus }
-                    }
-                    Label {
-                        width: parent.width
-                        text: "Source: " + modelData.source + " · License: " + modelData.license
-                        elide: Text.ElideMiddle
-                    }
-                    Label {
-                        width: parent.width
-                        text: "Updates: " + modelData.updateAddress
-                        elide: Text.ElideMiddle
-                    }
-                }
-            }
-            GridLayout {
-                columns: 2
-                Layout.fillWidth: true
-
-                TextField { id: subscriptionTitle; placeholderText: "List name" }
-                TextField { id: subscriptionLicense; placeholderText: "License" }
-                TextField { id: subscriptionSource; placeholderText: "Source page" }
-                TextField { id: subscriptionUpdate; placeholderText: "Update address" }
-            }
-            Button {
-                text: "Add subscription"
-                onClicked: contentBlocker.addSubscription(subscriptionTitle.text,
-                    subscriptionSource.text, subscriptionLicense.text, subscriptionUpdate.text)
-            }
-            Label {
-                text: "Download history"
-                font.weight: Font.DemiBold
-            }
-            ListView {
-                Layout.fillWidth: true
-                Layout.preferredHeight: Math.min(180, contentHeight)
-                model: window.visibleDownloads
-                visible: count > 0
-
-                delegate: Label {
-                    required property var modelData
-                    width: ListView.view.width
-                    text: modelData.path + " · " + modelData.state
-                        + (modelData.error.length > 0 ? " · " + modelData.error : "")
-                    elide: Text.ElideMiddle
-                }
-            }
-            Label {
-                visible: window.visibleDownloads.length === 0
-                text: "No recorded downloads"
-                color: window.colors.mutedText
-            }
-            }
+            return ""
         }
-    }
 
-    Dialog {
-        id: renameSpaceDialog
-        objectName: "renameSpaceDialog"
-        anchors.centerIn: parent
-        modal: true
-        title: "Rename Space"
-        standardButtons: Dialog.Ok | Dialog.Cancel
-        onOpened: {
-            renamedSpaceName.text = window.windowBrowser.activeSpaceName
-            renamedSpaceName.forceActiveFocus()
-            renamedSpaceName.selectAll()
-        }
-        onAccepted: window.windowBrowser.renameSpace(window.windowBrowser.activeSpaceId, renamedSpaceName.text)
-
-        TextField {
-            id: renamedSpaceName
-            objectName: "renamedSpaceName"
-            width: 280
-            Accessible.name: "Renamed Space name"
-        }
-    }
-
-    Dialog {
-        id: deleteSpaceDialog
-        objectName: "deleteSpaceDialog"
-        anchors.centerIn: parent
-        modal: true
-        title: "Delete " + window.windowBrowser.activeSpaceName
-        standardButtons: Dialog.Ok | Dialog.Cancel
-        onOpened: {
-            deleteSpaceConfirmation.text = ""
-            deleteSpaceConfirmation.forceActiveFocus()
-        }
-        onAccepted: window.windowBrowser.deleteSpace(
-            window.windowBrowser.activeSpaceId, deleteSpaceConfirmation.text)
-
-        ColumnLayout {
-            width: 320
-            spacing: 10
-
-            Label {
-                Layout.fillWidth: true
-                wrapMode: Text.WordWrap
-                text: "Type " + window.windowBrowser.activeSpaceName
-                    + " to delete its tabs, session, and engine data."
+        message: {
+            if (window.dialogMode === "delete") {
+                return window.windowBrowser.activeSpaceName + " keeps its tabs, its session, "
+                    + "its logins and its engine data. Deleting it cannot be undone."
             }
-
-            TextField {
-                id: deleteSpaceConfirmation
-                objectName: "deleteSpaceConfirmation"
-                Layout.fillWidth: true
-                Accessible.name: "Space deletion confirmation"
+            if (window.dialogMode === "confirm-move") {
+                return "This page has edited form state. Moving it reloads the page under the "
+                    + "destination identity and discards those edits."
             }
+            return ""
         }
-    }
 
-    Dialog {
-        id: moveTabDialog
-        objectName: "moveTabDialog"
-        anchors.centerIn: parent
-        modal: true
-        title: "Choose destination Space"
-        standardButtons: Dialog.Cancel
-
-        ColumnLayout {
-            width: 340
-            spacing: 8
-
-            Repeater {
-                model: window.windowBrowser.spaces
-
-                Button {
-                    Layout.fillWidth: true
-                    visible: spaceId !== window.windowBrowser.activeSpaceId
-                    text: spaceName
-                    Accessible.name: "Move tab to " + spaceName
-                    onClicked: {
-                        const tabId = window.windowBrowser.activeTabId
-                        const destinationSpaceId = spaceId
-                        moveTabDialog.close()
-                        engineLoader.checkForEditedFormState(function(hasEditedFormState) {
-                            window.windowBrowser.requestTabMoveToSpace(
-                                tabId, destinationSpaceId, hasEditedFormState)
-                        })
-                    }
-                }
+        confirmHint: {
+            switch (window.dialogMode) {
+            case "new": return "⏎ create the Space"
+            case "rename": return "⏎ rename the Space"
+            case "delete": return "⏎ delete " + window.windowBrowser.activeSpaceName
+            case "move": return "↑↓ choose      ⏎ move the tab"
+            case "confirm-move": return "⏎ discard the edits and move"
             }
+            return ""
         }
-    }
 
-    Dialog {
-        id: confirmTabMoveDialog
-        objectName: "confirmTabMoveDialog"
-        anchors.centerIn: parent
-        modal: true
-        title: "Discard edited form state?"
-        standardButtons: Dialog.Ok | Dialog.Cancel
-        onAccepted: window.windowBrowser.confirmTabMoveToSpace(
-            window.pendingMoveTabId, window.pendingMoveSpaceId)
+        rows: window.dialogMode === "move" ? window.moveTargets : []
 
-        Label {
-            width: 340
-            wrapMode: Text.WordWrap
-            text: "This page has edited form state. Moving it will reload the page under the destination identity and discard those edits."
+        onDismissed: window.dialogMode = ""
+
+        onAccepted: function(text) {
+            switch (window.dialogMode) {
+            case "new":
+                const spaceId = window.windowBrowser.createSpace(text)
+                if (spaceId.length > 0) window.windowBrowser.switchSpace(spaceId)
+                break
+            case "rename":
+                window.windowBrowser.renameSpace(window.windowBrowser.activeSpaceId, text)
+                break
+            case "delete":
+                window.windowBrowser.deleteSpace(window.windowBrowser.activeSpaceId, text)
+                break
+            case "confirm-move":
+                window.windowBrowser.confirmTabMoveToSpace(
+                    window.pendingMoveTabId, window.pendingMoveSpaceId)
+                break
+            }
+            window.dialogMode = ""
+        }
+
+        onRowActivated: function(index) {
+            const target = window.moveTargets[index]
+            if (!target) return
+            const tabId = window.windowBrowser.activeTabId
+            window.dialogMode = ""
+            engineLoader.checkForEditedFormState(function(hasEditedFormState) {
+                window.windowBrowser.requestTabMoveToSpace(
+                    tabId, target.id, hasEditedFormState)
+            })
         }
     }
 

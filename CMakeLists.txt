@@ -156,7 +156,14 @@ set(tanto_ui_files
     src/ui/KeyHint.qml
     src/ui/KeyMap.qml
     src/ui/NavigationCluster.qml
+    src/ui/ActionButton.qml
+    src/ui/CommandDialog.qml
+    src/ui/PageQuestionBar.qml
     src/ui/SectionLabel.qml
+    src/ui/SettingField.qml
+    src/ui/SettingRow.qml
+    src/ui/SettingSwitch.qml
+    src/ui/SettingsPage.qml
     src/ui/SiteTile.qml
     src/ui/SpaceOutline.qml
     src/ui/TabEngineHost.qml
