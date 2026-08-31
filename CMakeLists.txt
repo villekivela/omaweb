@@ -37,6 +37,11 @@ endif()
 file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/third_party/content-blocker/LADYBIRD_REVISION"
     tanto_ladybird_revision LIMIT_COUNT 1)
 
+# uBlock Origin's scriptlet library. The content blocker builds scriptlets.json
+# into its own binary, so the pin belongs to the bootstrap rather than to this
+# build; the integrity test below is what keeps the copies honest.
+set(tanto_ubo_scriptlets_root "${CMAKE_CURRENT_SOURCE_DIR}/third_party/ubo-scriptlets")
+
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -338,8 +343,20 @@ if(BUILD_TESTING)
 
     add_test(NAME tanto-vendored-omarchy-ui
         COMMAND ${CMAKE_COMMAND}
-            -DTANTO_OMARCHY_ROOT=${tanto_omarchy_root}
-            -P ${CMAKE_CURRENT_SOURCE_DIR}/tests/cmake/check_vendored_omarchy.cmake
+            -DTANTO_VENDOR_ROOT=${tanto_omarchy_root}
+            -DTANTO_VENDOR_TRACKED=qs/*
+            -DTANTO_VENDOR_NAME=Omarchy\ kit
+            "-DTANTO_VENDOR_ADVICE=Adapt in src/ui, or run scripts/sync_omarchy_ui.py --sync to restore them."
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/tests/cmake/check_vendored_tree.cmake
+    )
+
+    add_test(NAME tanto-vendored-ubo-scriptlets
+        COMMAND ${CMAKE_COMMAND}
+            -DTANTO_VENDOR_ROOT=${tanto_ubo_scriptlets_root}
+            -DTANTO_VENDOR_TRACKED=src/*
+            -DTANTO_VENDOR_NAME=uBO\ scriptlets
+            "-DTANTO_VENDOR_ADVICE=Run scripts/sync_ubo_scriptlets.py --sync to restore them."
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/tests/cmake/check_vendored_tree.cmake
     )
 
     # The drift report and the issue it turns into, with GitHub stubbed out.

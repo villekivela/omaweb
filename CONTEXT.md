@@ -76,6 +76,10 @@ _Avoid_: System permission, engine permission
 Tanto's built-in removal of unwanted network requests and page elements using subscribed filter lists. Content blocking is a browser capability and does not depend on an installed extension.
 _Avoid_: Ad-blocking extension
 
+**Scriptlet**:
+A function from the vendored uBlock Origin library that a filter list's rule names and supplies arguments for, run in a page before the page's own scripts. A filter list names a Scriptlet and never supplies its code.
+_Avoid_: Injected script, user script
+
 **Theme palette**:
 A complete, versioned set of visual values that defines Tanto's current appearance, including the semantic opacity values for its interface surfaces and the type family and base size they draw with. Tanto can replace the active theme palette while running.
 _Avoid_: Theme injection, color scheme

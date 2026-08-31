@@ -71,7 +71,9 @@ A list's `$popup` rules decide which windows a page gets to open, and a window t
 
 Hiding rules written against a page's own hostname are in the document before the page's markup renders, so a hidden element never appears first. Rules written against no particular site are matched against the classes and ids the page actually carries rather than sent in full, and a site with a `$generichide` exception is not matched against them at all.
 
-Tanto does not claim full uBlock Origin compatibility. Scriptlets, procedural selectors, response rewriting, HTML filtering, dynamic rules, CNAME uncloaking, redirects, and resource replacement are outside the first contract. A subscribed list keeps the rules this contract does parse; Settings reports what each list contributed and what it skipped.
+A `##+js(...)` rule names a function from the vendored uBlock Origin scriptlet library and supplies its arguments; a list never supplies code. The named function runs in the page before the page's own scripts, because a check it neutralises has otherwise already run. A site the user turned blocking off for runs none. The scriptlets uBlock Origin gates behind trust are refused outright, as are names the bundled library does not carry, and a rule naming either is reported as unsupported rather than counted among the rules the list contributed.
+
+Tanto does not claim full uBlock Origin compatibility. Procedural selectors, response rewriting, HTML filtering, dynamic rules, CNAME uncloaking, redirects, and resource replacement are outside the first contract. A subscribed list keeps the rules this contract does parse; Settings reports what each list contributed and what it skipped.
 
 ## Non-goals for the first milestone
 

@@ -50,6 +50,7 @@ private slots:
     void qtKeyboardNavigationHonorsInputContracts();
     void qtLinkHintsOwnSingleKeyShortcuts();
     void qtHidesCosmeticRulesBeforeThePageRuns();
+    void qtRunsScriptletsBeforeThePageRuns();
     void qtRefusesTheWindowsTheListsNameAndNoOthers();
 };
 
@@ -803,6 +804,52 @@ void QtEngineContractTest::qtHidesCosmeticRulesBeforeThePageRuns()
         QStringLiteral("S--|---"), 15000);
 }
 
+
+// A `##+js(...)` rule is worth something only if its scriptlet has already run
+// when the page's own first script does: neutralising an anti-adblock check
+// after the check ran changes nothing. The page reports what it saw, so the
+// assertion is about ordering rather than about the value eventually arriving.
+void QtEngineContractTest::qtRunsScriptletsBeforeThePageRuns()
+{
+    PageServer server(R"HTML(<!doctype html><html><body>
+        <script>document.title = String(window.tantoScriptletRan);</script>
+    </body></html>)HTML");
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    tanto::ContentBlocker contentBlocker(
+        root.path(), tanto::ContentBlocker::DefaultLists::None);
+    contentBlocker.setUserRules(
+        QStringLiteral("127.0.0.1##+js(set-constant, tantoScriptletRan, true)"));
+    QTRY_VERIFY_WITH_TIMEOUT(!contentBlocker.compiling(), 5000);
+
+    QQmlEngine engine;
+    QQmlComponent component(&engine, QUrl::fromLocalFile(
+        QStringLiteral(TANTO_QT_ENGINE_VIEW_PATH)));
+    const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
+        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
+        {QStringLiteral("contentBlocker"), QVariant::fromValue<QObject *>(&contentBlocker)},
+    }));
+    QVERIFY2(adapter, qPrintable(component.errorString()));
+    QQuickWindow window;
+    qobject_cast<QQuickItem *>(adapter.get())->setParentItem(window.contentItem());
+    window.show();
+
+    const QUrl pageUrl(QStringLiteral("http://127.0.0.1:%1/page.html")
+                           .arg(server.serverPort()));
+    QVERIFY(adapter->setProperty("currentUrl", pageUrl));
+
+    QTRY_COMPARE_WITH_TIMEOUT(adapter->property("pageTitle").toString(),
+        QStringLiteral("true"), 15000);
+
+    // A scriptlet is list-named code running in the page, so a site the user
+    // turned blocking off for runs none of it.
+    contentBlocker.setSiteEnabled(pageUrl, false);
+    QVERIFY(QMetaObject::invokeMethod(adapter.get(), "reloadPage"));
+    QTRY_COMPARE_WITH_TIMEOUT(adapter->property("pageTitle").toString(),
+        QStringLiteral("undefined"), 15000);
+}
 
 // The lists' $popup rules decide which windows a page gets to open, a link
 // asking for a new tab included: that is how an ad link opens. A background

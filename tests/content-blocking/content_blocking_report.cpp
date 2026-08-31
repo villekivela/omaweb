@@ -50,6 +50,16 @@ QJsonObject runFixtures(const QJsonObject &fixtures,
         passed += actual == fixture.value(QStringLiteral("blocked")).toBool();
         ++total;
     }
+    // The scriptlet an engine injects is the same code whichever engine
+    // injects it, so these fixtures ask the engine-neutral blocker too.
+    for (const auto &value : fixtures.value(QStringLiteral("scriptlet")).toArray()) {
+        const auto fixture = value.toObject();
+        const auto actual = contentBlocker.scriptletSource(
+            QUrl(fixture.value(QStringLiteral("url")).toString()))
+                                .contains(fixture.value(QStringLiteral("contains")).toString());
+        passed += actual == fixture.value(QStringLiteral("injected")).toBool();
+        ++total;
+    }
     for (const auto &value : fixtures.value(QStringLiteral("cosmetic")).toArray()) {
         const auto fixture = value.toObject();
         const auto actual = adapter.cosmeticStyleSheet(
@@ -133,7 +143,8 @@ int main(int argc, char *argv[])
         {QStringLiteral("adblockRustVersion"), QStringLiteral("0.12.5")},
         {QStringLiteral("ladybirdRevision"), QStringLiteral(TANTO_LADYBIRD_REVISION)},
         {QStringLiteral("unsupportedRuleCategories"), QJsonArray{
-            QStringLiteral("scriptlets"),
+            QStringLiteral("scriptlets requiring trust"),
+            QStringLiteral("scriptlets this build does not carry"),
             QStringLiteral("procedural selectors"),
             QStringLiteral("response rewriting"),
             QStringLiteral("HTML filtering"),

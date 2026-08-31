@@ -15,6 +15,7 @@ bool tanto_blocker_matches(const TantoBlocker *blocker, const char *url,
 bool tanto_blocker_matches_popup(const TantoBlocker *blocker, const char *url,
     const char *opener_url);
 char *tanto_blocker_cosmetic_css(const TantoBlocker *blocker, const char *url);
+char *tanto_blocker_scriptlet_source(const TantoBlocker *blocker, const char *url);
 bool tanto_blocker_cosmetic_survey_wanted(const TantoBlocker *blocker, const char *url);
 char *tanto_blocker_generic_cosmetic_css(const TantoBlocker *blocker, const char *url,
     const char *classes, const char *ids);

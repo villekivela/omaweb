@@ -290,6 +290,15 @@ QString ContentBlocker::cosmeticStyleSheet(const QUrl &url) const
     return matcher ? matcher->cosmeticStyleSheet(url) : QString();
 }
 
+// A scriptlet is list-named code running in the page, so the per-site switch
+// has to reach it: matcherFor answers with nothing for a site the user turned
+// blocking off, and this page then runs none.
+QString ContentBlocker::scriptletSource(const QUrl &url) const
+{
+    const auto matcher = matcherFor(url);
+    return matcher ? matcher->scriptletSource(url) : QString();
+}
+
 bool ContentBlocker::cosmeticSurveyWanted(const QUrl &url) const
 {
     const auto matcher = matcherFor(url);

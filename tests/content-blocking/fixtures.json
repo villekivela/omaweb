@@ -14,6 +14,10 @@
     "###banner-ad",
     "entity.*##.entity-ad",
     "@@||nogeneric.example^$generichide",
+    "site.example##+js(set-constant, tantoScriptletRan, true)",
+    "noscriptlet.example##+js(set-constant, tantoScriptletRan, true)",
+    "noscriptlet.example#@#+js(set-constant, tantoScriptletRan, true)",
+    "site.example##+js(trusted-set-cookie, tanto, ran)",
     "||popads.example^$popup",
     "@@||popads.example/checkout$popup",
     "||windows.example^$popup,third-party",
@@ -167,6 +171,38 @@
       "url": "https://other.example/",
       "contains": ".generic-ad",
       "hidden": false
+    }
+  ],
+  "scriptlet": [
+    {
+      "name": "site scriptlet",
+      "url": "https://site.example/",
+      "contains": "tantoScriptletRan",
+      "injected": true
+    },
+    {
+      "name": "the named library function is what runs",
+      "url": "https://site.example/",
+      "contains": "setConstant(",
+      "injected": true
+    },
+    {
+      "name": "a scriptlet rule stays off other sites",
+      "url": "https://other.example/",
+      "contains": "setConstant",
+      "injected": false
+    },
+    {
+      "name": "an exception takes the scriptlet back",
+      "url": "https://noscriptlet.example/",
+      "contains": "setConstant",
+      "injected": false
+    },
+    {
+      "name": "a scriptlet uBO gates behind trust is refused",
+      "url": "https://site.example/",
+      "contains": "trustedSetCookie",
+      "injected": false
     }
   ],
   "cosmeticSurvey": [

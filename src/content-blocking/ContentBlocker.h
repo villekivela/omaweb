@@ -48,6 +48,7 @@ public:
     Q_INVOKABLE void setSiteEnabled(const QUrl &url, bool enabled);
     Q_INVOKABLE int blockedRequestCount(const QUrl &url) const;
     Q_INVOKABLE QString cosmeticStyleSheet(const QUrl &url) const;
+    Q_INVOKABLE QString scriptletSource(const QUrl &url) const;
     Q_INVOKABLE bool cosmeticSurveyWanted(const QUrl &url) const;
     Q_INVOKABLE QString genericCosmeticStyleSheet(const QUrl &url, const QStringList &classes,
         const QStringList &ids) const;

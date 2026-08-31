@@ -13,6 +13,7 @@ class ContentBlockerTest final : public QObject {
 private slots:
     void userRulesCompileOffTheCallerPath();
     void disablingASiteBypassesMatchingAndCosmetics();
+    void disablingASiteRunsNoScriptlet();
     void subscriptionsExposeRequiredProvenanceAndUpdateStatus();
     void invalidSubscriptionUpdateKeepsTheActiveRules();
     void aListKeepsTheRulesThisContractParses();
@@ -49,6 +50,21 @@ void ContentBlockerTest::disablingASiteBypassesMatchingAndCosmetics()
     QVERIFY(!blocker.shouldBlock(QUrl(QStringLiteral("https://ads.example/ad.js")),
         QUrl(QStringLiteral("https://example.com/")), QStringLiteral("script")));
     QVERIFY(blocker.cosmeticStyleSheet(QUrl(QStringLiteral("https://example.com/"))).isEmpty());
+}
+
+// A scriptlet is the one thing blocking does that runs code in the page, so
+// "blocking off here" has to mean it too.
+void ContentBlockerTest::disablingASiteRunsNoScriptlet()
+{
+    QTemporaryDir root;
+    ContentBlocker blocker(root.path(), ContentBlocker::DefaultLists::None);
+    blocker.setUserRules(QStringLiteral("example.com##+js(set-constant, adsShown, false)"));
+    QTRY_VERIFY_WITH_TIMEOUT(!blocker.compiling(), 5000);
+    const QUrl page(QStringLiteral("https://example.com/article"));
+    QVERIFY(blocker.scriptletSource(page).contains(QStringLiteral("adsShown")));
+
+    blocker.setSiteEnabled(page, false);
+    QVERIFY(blocker.scriptletSource(page).isEmpty());
 }
 
 void ContentBlockerTest::subscriptionsExposeRequiredProvenanceAndUpdateStatus()

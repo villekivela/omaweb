@@ -2,11 +2,92 @@ use adblock::{
     Engine,
     lists::{FilterSet, ParseOptions},
     request::Request,
+    resources::{InMemoryResourceStorage, Resource, ResourceImpl, ResourceStorageBackend},
 };
 use serde_json::json;
 use std::collections::{BTreeMap, BTreeSet};
 use std::ffi::{CStr, CString, c_char};
 use std::panic::{AssertUnwindSafe, catch_unwind};
+use std::sync::LazyLock;
+
+// uBlock Origin's scriptlet library, vendored and pinned under
+// third_party/ubo-scriptlets and built into the binary. A `##+js(...)` rule
+// contributes a name from this set and the arguments to call it with; no list
+// ever supplies the code that runs.
+//
+// Decoded once for the process rather than per rule set: the library is a
+// constant, while a rule set is recompiled whenever a subscription updates.
+static SCRIPTLETS: LazyLock<Library> = LazyLock::new(|| {
+    let resources: Vec<Resource> =
+        serde_json::from_str(include_str!("../../ubo-scriptlets/scriptlets.json"))
+            .expect("the vendored scriptlet library parses as resource descriptors");
+    Library::new(resources)
+});
+
+struct Library {
+    storage: InMemoryResourceStorage,
+    // Which names a rule may ask for. The engine would answer this too, but
+    // only once a page asks; a list is reported on when it compiles, so the
+    // names are kept apart from the code.
+    injectable: BTreeSet<String>,
+    // The scriptlets uBO only lets a list the user vouched for inject —
+    // `trusted-set-cookie` sets any cookie to any value. Tanto vouches for no
+    // list, so every rule set compiles without permissions and the engine
+    // refuses these. Kept apart from the unknown names so a report can say
+    // which of the two happened.
+    trust_gated: BTreeSet<String>,
+}
+
+impl Library {
+    fn new(resources: Vec<Resource>) -> Self {
+        let mut injectable = BTreeSet::new();
+        let mut trust_gated = BTreeSet::new();
+        for resource in &resources {
+            if !resource.kind.supports_scriptlet_injection() {
+                continue;
+            }
+            let destination = if resource.permission.to_bits() == 0 {
+                &mut injectable
+            } else {
+                &mut trust_gated
+            };
+            for name in std::iter::once(&resource.name).chain(resource.aliases.iter()) {
+                destination.insert(name.clone());
+            }
+        }
+        Self {
+            storage: InMemoryResourceStorage::from_resources(resources),
+            injectable,
+            trust_gated,
+        }
+    }
+
+    // A rule may leave the `.js` off the name, the way the lists usually do.
+    fn holds(names: &BTreeSet<String>, name: &str) -> bool {
+        names.contains(name) || names.contains(&format!("{name}.js"))
+    }
+
+    // Why this name will not run, or None when it will.
+    fn refusal(&self, name: &str) -> Option<&'static str> {
+        if Self::holds(&self.injectable, name) {
+            None
+        } else if Self::holds(&self.trust_gated, name) {
+            Some("scriptlets requiring trust")
+        } else {
+            Some("scriptlets this build does not carry")
+        }
+    }
+}
+
+// Lends the one decoded library to an engine. adblock-rust owns its resource
+// storage, and the alternative is handing each engine its own copy.
+struct VendoredScriptlets;
+
+impl ResourceStorageBackend for VendoredScriptlets {
+    fn get_resource(&self, name: &str) -> Option<ResourceImpl> {
+        SCRIPTLETS.storage.get_resource(name)
+    }
+}
 
 pub struct TantoBlocker {
     engine: Engine,
@@ -31,8 +112,32 @@ fn output(value: String) -> *mut c_char {
     CString::new(value).map_or(std::ptr::null_mut(), CString::into_raw)
 }
 
+// A cosmetic rule, hiding or scriptlet, and the exceptions that take either
+// back. The separators are what identify one; there is no other marker.
+fn is_cosmetic_rule(line: &str) -> bool {
+    line.contains("##") || line.contains("#@#")
+}
+
+// The scriptlet a `+js(...)` rule asks for, or None for a line that asks for
+// none. Everything after the name is that scriptlet's arguments, which may
+// contain anything at all — including the markers a procedural selector uses.
+fn scriptlet_name(line: &str) -> Option<&str> {
+    if !line.contains("##+js(") && !line.contains("#@#+js(") {
+        return None;
+    }
+    let (_, arguments) = line.split_once("+js(")?;
+    let name = arguments.split([',', ')']).next()?.trim();
+    (!name.is_empty()).then_some(name)
+}
+
 fn unsupported_category(line: &str) -> Option<&'static str> {
     let trimmed = line.trim();
+    // Asked first, and answered by the library rather than by the text: a
+    // scriptlet's arguments are opaque, so any marker further down this
+    // function could appear inside them and mean nothing.
+    if let Some(name) = scriptlet_name(trimmed) {
+        return SCRIPTLETS.refusal(name);
+    }
     const PROCEDURAL_MARKERS: [&str; 10] = [
         "#?#",
         "#$#",
@@ -45,9 +150,7 @@ fn unsupported_category(line: &str) -> Option<&'static str> {
         ":upward(",
         ":xpath(",
     ];
-    if trimmed.contains("##+js(") || trimmed.contains("#@#+js(") {
-        Some("scriptlets")
-    } else if PROCEDURAL_MARKERS
+    if PROCEDURAL_MARKERS
         .iter()
         .any(|marker| trimmed.contains(marker))
     {
@@ -62,7 +165,7 @@ fn unsupported_category(line: &str) -> Option<&'static str> {
         && !trimmed.starts_with('[')
         && trimmed.split_ascii_whitespace().count() >= 4
         && !trimmed.contains("||")
-        && !trimmed.contains("##")
+        && !is_cosmetic_rule(trimmed)
     {
         Some("dynamic rules")
     } else {
@@ -171,7 +274,8 @@ pub unsafe extern "C" fn tanto_blocker_compile(
             }
             accepted.push(rule);
         }
-        let engine = Engine::from_rules(&accepted, ParseOptions::default());
+        let mut engine = Engine::from_rules(&accepted, ParseOptions::default());
+        engine.use_resource_storage(VendoredScriptlets);
         let popup_engine = Engine::from_rules(&popups, ParseOptions::default());
         if !report.is_null() {
             let value = json!({
@@ -267,6 +371,27 @@ pub unsafe extern "C" fn tanto_blocker_cosmetic_css(
         };
         let resources = blocker.engine.url_cosmetic_resources(&url);
         output(stylesheet(resources.hide_selectors))
+    }))
+    .unwrap_or(std::ptr::null_mut())
+}
+
+#[unsafe(no_mangle)]
+/// # Safety
+/// `blocker` must be a live matcher and `url` must be a valid NUL-terminated UTF-8 string.
+///
+/// Returns the JavaScript the `##+js(...)` rules for this page ask to run: the source of each
+/// named function from the vendored library, its dependencies, and the calls with the rules'
+/// arguments. Empty when no rule names a scriptlet here, when an `#@#+js(...)` exception takes
+/// one back, or when the named resource is one uBO gates behind trust.
+pub unsafe extern "C" fn tanto_blocker_scriptlet_source(
+    blocker: *const TantoBlocker,
+    url: *const c_char,
+) -> *mut c_char {
+    catch_unwind(AssertUnwindSafe(|| {
+        let (Some(blocker), Some(url)) = (unsafe { blocker.as_ref() }, input(url)) else {
+            return std::ptr::null_mut();
+        };
+        output(blocker.engine.url_cosmetic_resources(&url).injected_script)
     }))
     .unwrap_or(std::ptr::null_mut())
 }

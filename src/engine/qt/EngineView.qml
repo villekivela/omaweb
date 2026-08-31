@@ -115,23 +115,46 @@ Item {
             + "})()"
     }
 
+    // A scriptlet is a function from the vendored uBlock Origin library that a
+    // `##+js(...)` rule names and supplies arguments for; the engine returns
+    // the library's source for it together with the call. It runs in the
+    // page's own world because that is the point — the code it neutralises is
+    // the page's — but in a scope of its own, so the names it declares are not
+    // the page's to see.
+    //
+    // `scriptletGlobals` is the one name the library expects its host to
+    // supply: uBlock Origin passes its own extension's origin, a logging
+    // channel, and a cache of the sandbox it builds. Tanto passes an empty
+    // object, which is what says "no web-accessible resources, no logging
+    // channel" — the library reads it defensively and builds the rest itself.
+    function scriptletSnippet(source) {
+        if (source.length === 0) return ""
+        return "(() => {\nconst scriptletGlobals = {};\n" + source + "\n})();\n"
+    }
+
     // Hiding rules have to be in the document before its own markup renders,
-    // or the ads they cover appear and then vanish. A stylesheet injected at
-    // document creation is the only injection point early enough, and it has
-    // to be rebuilt for each navigation because the rules depend on the host
-    // being loaded.
-    property var cosmeticScript: null
-    function installCosmeticScript(url) {
+    // or the ads they cover appear and then vanish; a scriptlet has to be
+    // there before the page's first script, or the anti-adblock check it
+    // neutralises has already run. Document creation is the only injection
+    // point early enough for either, and the script has to be rebuilt for each
+    // navigation because both depend on the host being loaded.
+    property var blockingScript: null
+    function installBlockingScript(url) {
         if (!contentBlocker) return
         const css = contentBlocker.cosmeticStyleSheet(url)
+        const scriptlets = contentBlocker.scriptletSource(url)
         const script = WebEngine.script()
-        script.name = "Tanto cosmetic filters"
+        script.name = "Tanto content blocking"
         script.injectionPoint = WebEngineScript.DocumentCreation
         script.worldId = WebEngineScript.MainWorld
         script.runsOnSubFrames = false
-        script.sourceCode = css.length > 0
-            ? root.cosmeticStyleSnippet(root.cosmeticElementId, css) : ""
-        root.cosmeticScript = script
+        // The stylesheet goes first: hiding what the page is about to render
+        // does not depend on a scriptlet, and a scriptlet that throws must not
+        // take the hiding with it.
+        script.sourceCode = (css.length > 0
+                ? root.cosmeticStyleSnippet(root.cosmeticElementId, css) + ";\n" : "")
+            + root.scriptletSnippet(scriptlets)
+        root.blockingScript = script
         webView.userScripts.collection = [
             root.editedStateScript, root.keyboardNavigationScript, script]
         // The document about to be created carries whatever this script adds
@@ -142,7 +165,10 @@ Item {
 
     // Re-application into a document that is already open, for a rule set or a
     // per-site decision that changed under it. A fresh load takes the document
-    // creation path above instead.
+    // creation path above instead. Only the stylesheet is re-applied: a
+    // scriptlet that missed the page's own scripts has nothing left to
+    // intercept, and one already run cannot be taken back, so both directions
+    // wait for the next navigation.
     function applyCosmeticRules() {
         if (!contentBlocker || loading) return
         const css = contentBlocker.cosmeticStyleSheet(currentUrl)
@@ -322,7 +348,7 @@ Item {
         onLoadingChanged: function(loadRequest) {
             root.refreshBlockedRequestCount()
             if (loadRequest.status === WebEngineView.LoadStartedStatus) {
-                root.installCosmeticScript(loadRequest.url)
+                root.installBlockingScript(loadRequest.url)
                 return
             }
             root.applyCosmeticRules()

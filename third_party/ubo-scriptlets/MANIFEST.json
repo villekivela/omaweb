@@ -1,0 +1,134 @@
+{
+  "repository": "https://github.com/gorhill/uBlock",
+  "branch": "master",
+  "ref": "976d12d048e47e58ca33cb013532c0e8b062773c",
+  "tag": "1.69.0",
+  "fetched": "2026-08-31",
+  "license": "GPL-3.0-or-later",
+  "generated": {
+    "path": "scriptlets.json",
+    "sha256": "4d27eb4955ba6a60c95d21ae9a44f2912e1785ad03d6b2b325c8e1e596dfe9e8"
+  },
+  "files": {
+    "LICENSE.txt": {
+      "blob": "5e1c8e218d28dd1ff6451be169a0670119787225",
+      "sha256": "e73d33841f942fa73aa5a63d4a6399cc39a29564db1dbca0915485842fcb236d"
+    },
+    "src/js/arglist-parser.js": {
+      "blob": "708029e2d9a51d60cce682ce6f039a330b75b2bd",
+      "sha256": "57dbdf89705f59d79bb20189c8b1c784ea4105323d0bcd07eec74e818cc8c106"
+    },
+    "src/js/jsonpath.js": {
+      "blob": "b26ead502ddd4ee22daf492b548b12cdfb4ac668",
+      "sha256": "0b980e27e1a3b633ae2e14c9501c1bf883834250d1137d2dc3099b27d5023bd0"
+    },
+    "src/js/resources/attribute.js": {
+      "blob": "6063097620be38aaf41bdfd016782ea055fc54fe",
+      "sha256": "7c183709a85c5ecdc17aca263b9feaf2f29ebe74cbbfad70d500445c2cb21e81"
+    },
+    "src/js/resources/base.js": {
+      "blob": "2c54418a777d871becb71da8b0291a7735e0b91e",
+      "sha256": "5eb0f5c20866149f99537e64959c51c466f9b43cd4fde1682ae0534a4096a4b8"
+    },
+    "src/js/resources/cookie.js": {
+      "blob": "21300bc65004163033a2da45adcbd545f8c71c2c",
+      "sha256": "bf59203cc42902ea6373cde58f3bc5336e5d7d140331be2a3db2b39e36aa610d"
+    },
+    "src/js/resources/create-html.js": {
+      "blob": "9b22976d113b172674a5890be9c923b95ad5d1f9",
+      "sha256": "511b92fae2276a2e3bf0e89fdaf42b1c12b99ce6130fc579f9d1787a3d507266"
+    },
+    "src/js/resources/href-sanitizer.js": {
+      "blob": "8b35d3fbfdd5ae6c829002c5a3de81ddfa8c5f7b",
+      "sha256": "a58fa0d59c7746ade16b246ca7778c7adf3cb21968871f72eedbe9ea969b7602"
+    },
+    "src/js/resources/json-edit.js": {
+      "blob": "e4c6a83821077477813d9eb6236d15b50647244b",
+      "sha256": "14dcc766d92561e42225ba6da91aea47f6bfae590219bec0042f9d743007dca2"
+    },
+    "src/js/resources/json-prune.js": {
+      "blob": "ec4207a2b6effa1a1377a3c968d2ac21daff486f",
+      "sha256": "2c785c980be3cb473d62d6fc182945f8c372f3af5f2ced5050280d30ee1307c4"
+    },
+    "src/js/resources/localstorage.js": {
+      "blob": "3e33ca2397a564a025840dbda97c5feb1b48b2d1",
+      "sha256": "3255c6e7abc8b8d2c3a12f833bc5e6a92147dc7d1fa8e8a45a8ff9da4aef439d"
+    },
+    "src/js/resources/noeval.js": {
+      "blob": "d66db532b0f83e70456e35757b1957bc05095a11",
+      "sha256": "0b42472114120bd586410d0bbfd912c198de1abb0b3b62d11183ff6b893e5731"
+    },
+    "src/js/resources/object-prune.js": {
+      "blob": "50256fe52828bc874c635c271d1e0a330bf8354e",
+      "sha256": "5d853e782ed1b788da7e0dc37202f92f404f84cabce20dd3409afd4662333319"
+    },
+    "src/js/resources/parse-replace.js": {
+      "blob": "604644f476a377ccd9935d70ff1267934ec2e56b",
+      "sha256": "fca20f23d68dfc906a02838330e26d1123dce48fcdaa086b37dba5c0d5b38e57"
+    },
+    "src/js/resources/prevent-addeventlistener.js": {
+      "blob": "885ebaa05cf592d4071adcca4bf58bfb64f82ba7",
+      "sha256": "6f6f604e24e2c9388bb879e1ff7226ff18a2730acdd71bbee51d9339e19a5a60"
+    },
+    "src/js/resources/prevent-dialog.js": {
+      "blob": "462870c26a1766b47fe75104a9e018e6bd9f5c57",
+      "sha256": "d8ad4370b751d3f6fdc6c030614ddeb60ae5f0b2f872fa18ea5b7af60d59219d"
+    },
+    "src/js/resources/prevent-fetch.js": {
+      "blob": "7a161ecc0a70382b7396b1913b70068195db9d41",
+      "sha256": "ec61fd28019cf050a4d24c039c7f43878aaae982feef691e9d7628db0b0c85dd"
+    },
+    "src/js/resources/prevent-innerHTML.js": {
+      "blob": "7a3aa22a29f2b21efcac28503b0f6e0d3fd78a98",
+      "sha256": "c4d6b1e1f40e532c79412125db20e83403842e39f022fd6b2c54dd136cf66adf"
+    },
+    "src/js/resources/prevent-settimeout.js": {
+      "blob": "289c4465974c1bf597ad05c5084285556d62bcbb",
+      "sha256": "4a5152c4cc9715183bc9e49c4e4e27a87f02b978de89b71c6a1586cc9cc15f95"
+    },
+    "src/js/resources/proxy-apply.js": {
+      "blob": "5fc6d7e55cb03f06fd1a5fd8019b889c5acd42d0",
+      "sha256": "e01df2ef2f903976c6a50e877c100a43f98f7a3b3a5a69fa649b30ee9849eee7"
+    },
+    "src/js/resources/replace-argument.js": {
+      "blob": "1a305389bf5ce0fa115a81dd361f2373777298e5",
+      "sha256": "ea7360b3b93e0039a41ed7c1f759caddf07bc08725dfbcade4230d14da1d537f"
+    },
+    "src/js/resources/run-at.js": {
+      "blob": "35036d2bab5f6ff463b09272f98d2670aa93dd87",
+      "sha256": "12daa1b79691095b8ba782b77122ef68923ff2dd1020f3b1b008fc33adf95a6c"
+    },
+    "src/js/resources/safe-self.js": {
+      "blob": "096f3c21d73b407548eea2f952731e83aa3bf0c4",
+      "sha256": "6ed14e95d1363ae0c89a4a5524a24ab629b0bb9c0a1bb80fbded0d274ece6936"
+    },
+    "src/js/resources/scriptlets.js": {
+      "blob": "746ac17e7ae318b94a6b492538b7622f3e0017d5",
+      "sha256": "0cf6b06cb38791bc0d48696cd5ee36a16b3f00f04ba79f48326d15522fbeec31"
+    },
+    "src/js/resources/set-constant.js": {
+      "blob": "9ee985914d5f7668b504d69bfbf1ae4d6852d89c",
+      "sha256": "2466fbc1ca45b891844eee13e54421bbd7b17241f9ed8975cb1fe459279c3af7"
+    },
+    "src/js/resources/shared.js": {
+      "blob": "01a9de718003304b52b704763d04f0eca22f83ed",
+      "sha256": "26b04fa095d81230f46ac90addf6810a01bbf096f06afd14304dfbb9001995e2"
+    },
+    "src/js/resources/spoof-css.js": {
+      "blob": "7cc7b9f95574cee0b900bc660467eb764f58d707",
+      "sha256": "dd30b098802b23ef0b46c62d9242c0af49997a6d66afac54493791d7fbcee225"
+    },
+    "src/js/resources/stack-trace.js": {
+      "blob": "c2e535847ee32d798997222a3d3d5783f9058baa",
+      "sha256": "1ae3b771cf4b99d96eb65d0d8a79894c22f97448b4e8f0ce206abd50f9dab496"
+    },
+    "src/js/resources/utils.js": {
+      "blob": "45c96ca32522a391c78bfc9b62813a6ad3f24a9b",
+      "sha256": "4664bdb30cf536046feb56d7e228a9cade92004919fa48e34d27643af816a06e"
+    },
+    "src/js/urlskip.js": {
+      "blob": "7ca8644ac06aab118a25eb99736ca27acfee8a1c",
+      "sha256": "1d71ddafee30b70137e603e32c79b5ae65af65e7b71f4b61ae65301d76216d6d"
+    }
+  }
+}

@@ -13,6 +13,10 @@ class ContentMatcherTest final : public QObject {
 private slots:
     void sharedConformanceFixtures();
     void sharedSurveyFixtures();
+    void scriptletsCallTheLibraryFunctionTheRuleNames();
+    void scriptletExceptionsSurviveTheirArgumentCount();
+    void reportsTheScriptletRulesThatWillNotRun();
+    void scriptletArgumentsAreNotReadAsSelectorSyntax();
     void sendsOnlyTheGenericRulesAPageCouldTrigger();
     void reportsUnsupportedCategories();
     void popupRulesKeepTheirOtherConditions();
@@ -48,6 +52,13 @@ void ContentMatcherTest::sharedConformanceFixtures()
             QUrl(fixture.value(QStringLiteral("opener")).toString()));
         QCOMPARE(blocked, fixture.value(QStringLiteral("blocked")).toBool());
     }
+    for (const auto &value : root.value(QStringLiteral("scriptlet")).toArray()) {
+        const auto fixture = value.toObject();
+        const auto source = compilation.matcher->scriptletSource(
+            QUrl(fixture.value(QStringLiteral("url")).toString()));
+        QCOMPARE(source.contains(fixture.value(QStringLiteral("contains")).toString()),
+            fixture.value(QStringLiteral("injected")).toBool());
+    }
     for (const auto &value : root.value(QStringLiteral("cosmetic")).toArray()) {
         const auto fixture = value.toObject();
         const auto css = compilation.matcher->cosmeticStyleSheet(
@@ -55,6 +66,38 @@ void ContentMatcherTest::sharedConformanceFixtures()
         QCOMPARE(css.contains(fixture.value(QStringLiteral("contains")).toString()),
             fixture.value(QStringLiteral("hidden")).toBool());
     }
+}
+
+// A `##+js(...)` rule names a function in the vendored library and the engine
+// returns that function's source together with the call. A list never supplies
+// the code, which is what keeps a filter list data rather than a program.
+void ContentMatcherTest::scriptletsCallTheLibraryFunctionTheRuleNames()
+{
+    const auto compilation = ContentMatcher::compile(QStringLiteral(
+        "site.example##+js(set-constant, tantoScriptletRan, true)"));
+    QVERIFY(compilation.matcher);
+    const auto source = compilation.matcher->scriptletSource(
+        QUrl(QStringLiteral("https://site.example/")));
+
+    // The dependency's source, the scriptlet's own, and the call with the
+    // rule's arguments.
+    QVERIFY(source.contains(QStringLiteral("function setConstantFn(")));
+    QVERIFY(source.contains(QStringLiteral("function setConstant(")));
+    QVERIFY(source.contains(QStringLiteral("setConstant(\"tantoScriptletRan\", \"true\")")));
+}
+
+// An exception naming the same scriptlet takes it back, and it is a cosmetic
+// rule however many arguments it spells out.
+void ContentMatcherTest::scriptletExceptionsSurviveTheirArgumentCount()
+{
+    const auto compilation = ContentMatcher::compile(QStringLiteral(
+        "site.example##+js(set-attr, div, hidden, true)\n"
+        "site.example#@#+js(set-attr, div, hidden, true)"));
+    QVERIFY(compilation.matcher);
+    QCOMPARE(compilation.report.value(QStringLiteral("acceptedRuleCount")).toInt(), 2);
+    QVERIFY(compilation.report.value(QStringLiteral("unsupported")).toObject().isEmpty());
+    QVERIFY(compilation.matcher->scriptletSource(
+        QUrl(QStringLiteral("https://site.example/"))).isEmpty());
 }
 
 // Generic rules reach a page through the survey, so the fixtures for them read
@@ -95,6 +138,43 @@ void ContentMatcherTest::sharedSurveyFixtures()
     }
 }
 
+// A rule naming a scriptlet this build cannot run is a rule that does nothing,
+// and counting it accepted would advertise a compatibility Tanto does not have.
+// The two reasons are reported apart: one is a version behind, the other is a
+// deliberate refusal.
+void ContentMatcherTest::reportsTheScriptletRulesThatWillNotRun()
+{
+    const auto compilation = ContentMatcher::compile(QStringLiteral(
+        "site.example##+js(set-constant, adsShown, false)\n"
+        "site.example##+js(trusted-set-cookie, consent, yes)\n"
+        "site.example##+js(no-such-scriptlet-anywhere, a)"));
+    QVERIFY(compilation.matcher);
+    QCOMPARE(compilation.report.value(QStringLiteral("acceptedRuleCount")).toInt(), 1);
+    const auto unsupported = compilation.report.value(QStringLiteral("unsupported")).toObject();
+    QCOMPARE(unsupported.value(QStringLiteral("scriptlets requiring trust")).toInt(), 1);
+    QCOMPARE(
+        unsupported.value(QStringLiteral("scriptlets this build does not carry")).toInt(), 1);
+    const auto source = compilation.matcher->scriptletSource(
+        QUrl(QStringLiteral("https://site.example/")));
+    QVERIFY(source.contains(QStringLiteral("adsShown")));
+    QVERIFY(!source.contains(QStringLiteral("trustedSetCookie")));
+}
+
+// A scriptlet's arguments are that scriptlet's business and may contain
+// anything, the markers a procedural selector uses included. Reading them as
+// selector syntax would throw the rule away for the shape of its arguments.
+void ContentMatcherTest::scriptletArgumentsAreNotReadAsSelectorSyntax()
+{
+    const auto compilation = ContentMatcher::compile(QStringLiteral(
+        "site.example##+js(remove-node-text, script, :has-text(ad))"));
+    QVERIFY(compilation.matcher);
+    QCOMPARE(compilation.report.value(QStringLiteral("acceptedRuleCount")).toInt(), 1);
+    QVERIFY(compilation.report.value(QStringLiteral("unsupported")).toObject().isEmpty());
+    QVERIFY(compilation.matcher->scriptletSource(
+        QUrl(QStringLiteral("https://site.example/"))).contains(
+        QStringLiteral("has-text")));
+}
+
 // The survey is what keeps a page from carrying every generic rule in the
 // lists: EasyList and EasyPrivacy together hold 13,634 of them.
 void ContentMatcherTest::sendsOnlyTheGenericRulesAPageCouldTrigger()
@@ -121,10 +201,11 @@ void ContentMatcherTest::reportsUnsupportedCategories()
         "||example.com^$redirect=noopjs\n"
         "||safe.example^"));
     QVERIFY(compilation.matcher);
-    // The popup rule counts among the accepted: it is kept and matched now.
-    QCOMPARE(compilation.report.value(QStringLiteral("acceptedRuleCount")).toInt(), 2);
+    // The popup and scriptlet rules count among the accepted: both are kept
+    // and answered for now.
+    QCOMPARE(compilation.report.value(QStringLiteral("acceptedRuleCount")).toInt(), 3);
     const auto unsupported = compilation.report.value(QStringLiteral("unsupported")).toObject();
-    QCOMPARE(unsupported.value(QStringLiteral("scriptlets")).toInt(), 1);
+    QVERIFY(!unsupported.contains(QStringLiteral("scriptlets")));
     QCOMPARE(unsupported.value(QStringLiteral("procedural selectors")).toInt(), 1);
     QVERIFY(!unsupported.contains(QStringLiteral("popup blocking")));
     QCOMPARE(unsupported.value(QStringLiteral("redirects or resource replacement")).toInt(), 1);

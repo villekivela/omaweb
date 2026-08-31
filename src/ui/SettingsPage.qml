@@ -320,10 +320,12 @@ Rectangle {
 
                     Text {
                         width: pane.width
-                        text: "Network rules and plain CSS cosmetic rules are supported. "
-                            + "Scriptlets, procedural selectors, response rewriting, HTML "
-                            + "filtering, dynamic rules, CNAME uncloaking, redirects and "
-                            + "resource replacement are not."
+                        text: "Network rules, plain CSS cosmetic rules and the scriptlets "
+                            + "in the bundled uBlock Origin library are supported; the "
+                            + "scriptlets uBlock Origin gates behind trust are refused. "
+                            + "Procedural selectors, response rewriting, HTML filtering, "
+                            + "dynamic rules, CNAME uncloaking, redirects and resource "
+                            + "replacement are not supported."
                         color: root.colors.mutedText
                         wrapMode: Text.WordWrap
                         font.family: Style.font.family

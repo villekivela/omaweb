@@ -92,6 +92,21 @@ QString ContentMatcher::cosmeticStyleSheet(const QUrl &url) const
     return result;
 }
 
+// The code the lists' `##+js(...)` rules ask for on this page: the source of
+// each named function from the vendored library, plus the calls. Nothing a list
+// wrote is in it — a rule contributes a name and its arguments.
+QString ContentMatcher::scriptletSource(const QUrl &url) const
+{
+    const auto encodedUrl = url.toString(QUrl::FullyEncoded).toUtf8();
+    auto *source = tanto_blocker_scriptlet_source(d->blocker, encodedUrl.constData());
+    if (!source) {
+        return {};
+    }
+    const auto result = QString::fromUtf8(source);
+    tanto_blocker_string_free(source);
+    return result;
+}
+
 bool ContentMatcher::cosmeticSurveyWanted(const QUrl &url) const
 {
     const auto encodedUrl = url.toString(QUrl::FullyEncoded).toUtf8();

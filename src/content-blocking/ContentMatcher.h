@@ -26,6 +26,7 @@ public:
         const QString &resourceType) const;
     bool shouldBlockPopup(const QUrl &requestUrl, const QUrl &openerUrl) const;
     QString cosmeticStyleSheet(const QUrl &url) const;
+    QString scriptletSource(const QUrl &url) const;
     bool cosmeticSurveyWanted(const QUrl &url) const;
     QString genericCosmeticStyleSheet(const QUrl &url, const QStringList &classes,
         const QStringList &ids) const;
