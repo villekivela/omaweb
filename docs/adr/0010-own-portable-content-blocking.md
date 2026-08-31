@@ -1,6 +1,6 @@
 # Own portable content blocking
 
-Tanto provides Content blocking through a shared filter-list contract rather than an engine-specific Web extension. Both engine adapters must support network-request blocking, cosmetic element hiding, user lists, automatic updates, per-site disabling, and a visible blocked-request count. Tanto publishes unsupported filter syntax and does not claim scriptlet, dynamic-filtering, or full uBlock Origin compatibility until those behaviors exist.
+Tanto provides Content blocking through a shared filter-list contract rather than an engine-specific Web extension. Both engine adapters must support network-request blocking, cosmetic element hiding, user lists, automatic updates, per-site disabling, and a visible blocked-request count. Tanto publishes unsupported filter syntax and does not claim scriptlet, popup-blocking, dynamic-filtering, or full uBlock Origin compatibility until those behaviors exist.
 
 The Qt adapter uses Brave's `adblock-rust` behind a narrow Tanto-owned C interface, pinned to the version used by the selected Ladybird revision. Ladybird uses its internal copy. Both adapters run the same fixtures for URL and hostname rules, exceptions, shared resource types, first-party and third-party rules, domain restrictions, and plain CSS cosmetic rules and exceptions. The first contract excludes scriptlets, procedural selectors, response rewriting, HTML filtering, dynamic rules, CNAME uncloaking, and redirects or resource replacement.
 

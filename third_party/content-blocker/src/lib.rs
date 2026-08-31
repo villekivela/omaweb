@@ -8,15 +8,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::ffi::{CStr, CString, c_char};
 use std::panic::{AssertUnwindSafe, catch_unwind};
 
-struct CosmeticRule {
-    domains: Vec<(String, bool)>,
-    selector: String,
-    exception: bool,
-}
-
 pub struct TantoBlocker {
     engine: Engine,
-    cosmetic_rules: Vec<CosmeticRule>,
 }
 
 fn input(value: *const c_char) -> Option<String> {
@@ -31,6 +24,15 @@ fn input(value: *const c_char) -> Option<String> {
 
 fn output(value: String) -> *mut c_char {
     CString::new(value).map_or(std::ptr::null_mut(), CString::into_raw)
+}
+
+fn has_option(line: &str, name: &str) -> bool {
+    let Some((_, options)) = line.rsplit_once('$') else {
+        return false;
+    };
+    options
+        .split(',')
+        .any(|option| option.trim_start_matches('~') == name)
 }
 
 fn unsupported_category(line: &str) -> Option<&'static str> {
@@ -49,6 +51,8 @@ fn unsupported_category(line: &str) -> Option<&'static str> {
     ];
     if trimmed.contains("##+js(") || trimmed.contains("#@#+js(") {
         Some("scriptlets")
+    } else if has_option(trimmed, "popup") {
+        Some("popup blocking")
     } else if PROCEDURAL_MARKERS
         .iter()
         .any(|marker| trimmed.contains(marker))
@@ -72,64 +76,22 @@ fn unsupported_category(line: &str) -> Option<&'static str> {
     }
 }
 
-fn parse_cosmetic(line: &str) -> Option<CosmeticRule> {
-    let (separator, exception) = if line.contains("#@#") {
-        ("#@#", true)
-    } else if line.contains("##") {
-        ("##", false)
-    } else {
-        return None;
-    };
-    let (domain_text, selector) = line.split_once(separator)?;
-    let selector = selector.trim();
-    if selector.is_empty() {
-        return None;
-    }
-    let domains = domain_text
-        .split(',')
-        .filter(|value| !value.is_empty())
-        .map(|value| {
-            let value = value.trim();
-            let excluded = value.starts_with('~');
-            (value.trim_start_matches('~').to_ascii_lowercase(), excluded)
-        })
-        .collect();
-    Some(CosmeticRule {
-        domains,
-        selector: selector.to_owned(),
-        exception,
-    })
+fn stylesheet(selectors: impl IntoIterator<Item = String>) -> String {
+    // Sorted so the same page yields the same stylesheet twice: the engine
+    // returns hash sets, and a stylesheet that reorders itself between two
+    // injections looks like a change to anything comparing them.
+    let ordered: BTreeSet<String> = selectors.into_iter().collect();
+    ordered
+        .into_iter()
+        .map(|selector| format!("{selector} {{ display: none !important; }}"))
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
-fn applies_to(rule: &CosmeticRule, host: &str) -> bool {
-    if rule.domains.is_empty() {
-        return true;
-    }
-    let matches = |domain: &str| host == domain || host.ends_with(&format!(".{domain}"));
-    if rule
-        .domains
-        .iter()
-        .any(|(domain, excluded)| *excluded && matches(domain))
-    {
-        return false;
-    }
-    let included: Vec<_> = rule
-        .domains
-        .iter()
-        .filter(|(_, excluded)| !excluded)
-        .collect();
-    included.is_empty() || included.iter().any(|(domain, _)| matches(domain))
-}
-
-fn hostname(url: &str) -> String {
-    url.split_once("://")
-        .map(|(_, rest)| rest)
-        .unwrap_or(url)
-        .split(['/', ':', '?', '#'])
-        .next()
+fn names(value: *const c_char) -> Vec<String> {
+    input(value)
+        .and_then(|value| serde_json::from_str::<Vec<String>>(&value).ok())
         .unwrap_or_default()
-        .trim_end_matches('.')
-        .to_ascii_lowercase()
 }
 
 #[unsafe(no_mangle)]
@@ -144,7 +106,6 @@ pub unsafe extern "C" fn tanto_blocker_compile(
             return std::ptr::null_mut();
         };
         let mut accepted = Vec::new();
-        let mut cosmetic_rules = Vec::new();
         let mut unsupported = BTreeMap::<&str, usize>::new();
         let mut invalid_rule_count = 0;
         for line in rules.lines() {
@@ -161,9 +122,6 @@ pub unsafe extern "C" fn tanto_blocker_compile(
                 invalid_rule_count += 1;
                 continue;
             }
-            if let Some(rule) = parse_cosmetic(line) {
-                cosmetic_rules.push(rule);
-            }
             accepted.push(line);
         }
         let engine = Engine::from_rules(&accepted, ParseOptions::default());
@@ -175,10 +133,7 @@ pub unsafe extern "C" fn tanto_blocker_compile(
             });
             unsafe { *report = output(value.to_string()) };
         }
-        Box::into_raw(Box::new(TantoBlocker {
-            engine,
-            cosmetic_rules,
-        }))
+        Box::into_raw(Box::new(TantoBlocker { engine }))
     }))
     .unwrap_or(std::ptr::null_mut())
 }
@@ -222,6 +177,9 @@ pub unsafe extern "C" fn tanto_blocker_matches(
 #[unsafe(no_mangle)]
 /// # Safety
 /// `blocker` must be a live matcher and `url` must be a valid NUL-terminated UTF-8 string.
+///
+/// Returns the stylesheet for the rules written against this page's hostname. Generic rules are
+/// not included: the page surveys its own classes and ids and asks for those separately.
 pub unsafe extern "C" fn tanto_blocker_cosmetic_css(
     blocker: *const TantoBlocker,
     url: *const c_char,
@@ -230,26 +188,58 @@ pub unsafe extern "C" fn tanto_blocker_cosmetic_css(
         let (Some(blocker), Some(url)) = (unsafe { blocker.as_ref() }, input(url)) else {
             return std::ptr::null_mut();
         };
-        let host = hostname(&url);
-        let mut hidden = BTreeSet::new();
-        let mut excepted = BTreeSet::new();
-        for rule in &blocker.cosmetic_rules {
-            if applies_to(rule, &host) {
-                if rule.exception {
-                    excepted.insert(rule.selector.as_str());
-                } else {
-                    hidden.insert(rule.selector.as_str());
-                }
-            }
+        let resources = blocker.engine.url_cosmetic_resources(&url);
+        output(stylesheet(resources.hide_selectors))
+    }))
+    .unwrap_or(std::ptr::null_mut())
+}
+
+#[unsafe(no_mangle)]
+/// # Safety
+/// `blocker` must be a live matcher and `url` must be a valid NUL-terminated UTF-8 string.
+///
+/// Reports whether this page still needs to survey its classes and ids. A `$generichide`
+/// exception turns the survey off for the whole page.
+pub unsafe extern "C" fn tanto_blocker_cosmetic_survey_wanted(
+    blocker: *const TantoBlocker,
+    url: *const c_char,
+) -> bool {
+    catch_unwind(AssertUnwindSafe(|| {
+        let (Some(blocker), Some(url)) = (unsafe { blocker.as_ref() }, input(url)) else {
+            return false;
+        };
+        !blocker.engine.url_cosmetic_resources(&url).generichide
+    }))
+    .unwrap_or(false)
+}
+
+#[unsafe(no_mangle)]
+/// # Safety
+/// `blocker` must be a live matcher. String arguments must be valid NUL-terminated UTF-8, and
+/// `classes` and `ids` must be JSON arrays of strings.
+///
+/// Returns the stylesheet for the generic rules that the classes and ids actually on the page
+/// could trigger. Shipping every generic rule instead cost a 617 KB stylesheet on every page.
+pub unsafe extern "C" fn tanto_blocker_generic_cosmetic_css(
+    blocker: *const TantoBlocker,
+    url: *const c_char,
+    classes: *const c_char,
+    ids: *const c_char,
+) -> *mut c_char {
+    catch_unwind(AssertUnwindSafe(|| {
+        let (Some(blocker), Some(url)) = (unsafe { blocker.as_ref() }, input(url)) else {
+            return std::ptr::null_mut();
+        };
+        let resources = blocker.engine.url_cosmetic_resources(&url);
+        if resources.generichide {
+            return output(String::new());
         }
-        hidden.retain(|selector| !excepted.contains(selector));
-        output(
-            hidden
-                .into_iter()
-                .map(|selector| format!("{selector} {{ display: none !important; }}"))
-                .collect::<Vec<_>>()
-                .join("\n"),
-        )
+        let selectors = blocker.engine.hidden_class_id_selectors(
+            names(classes),
+            names(ids),
+            &resources.exceptions,
+        );
+        output(stylesheet(selectors))
     }))
     .unwrap_or(std::ptr::null_mut())
 }

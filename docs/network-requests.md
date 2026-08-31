@@ -1,5 +1,8 @@
 # Automatic network requests
 
+A first run subscribes to EasyList and EasyPrivacy with both enabled, so the first startup check
+fetches both lists. Turning a subscription off in Settings stops its requests.
+
 Tanto checks enabled Content-blocking subscriptions when the browser starts. Each request goes
 only to the update address shown for that subscription. It sends a normal HTTP GET with no browsing
 history, Space identifier, Account information, or user-rule data. Disabling a subscription stops

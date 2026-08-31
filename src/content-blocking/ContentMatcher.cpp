@@ -2,6 +2,7 @@
 
 #include "tanto_blocker.h"
 
+#include <QJsonArray>
 #include <QJsonDocument>
 
 namespace tanto {
@@ -58,10 +59,44 @@ bool ContentMatcher::shouldBlock(const QUrl &requestUrl, const QUrl &sourceUrl,
         type.constData());
 }
 
+namespace {
+
+QByteArray encodedNames(const QStringList &names)
+{
+    return QJsonDocument(QJsonArray::fromStringList(names)).toJson(QJsonDocument::Compact);
+}
+
+} // namespace
+
+// The rules written against this page's hostname, plus the generic rules whose
+// selectors no class or id survey could match. Everything else generic waits
+// for genericCosmeticStyleSheet.
 QString ContentMatcher::cosmeticStyleSheet(const QUrl &url) const
 {
     const auto encodedUrl = url.toString(QUrl::FullyEncoded).toUtf8();
     auto *css = tanto_blocker_cosmetic_css(d->blocker, encodedUrl.constData());
+    if (!css) {
+        return {};
+    }
+    const auto result = QString::fromUtf8(css);
+    tanto_blocker_string_free(css);
+    return result;
+}
+
+bool ContentMatcher::cosmeticSurveyWanted(const QUrl &url) const
+{
+    const auto encodedUrl = url.toString(QUrl::FullyEncoded).toUtf8();
+    return tanto_blocker_cosmetic_survey_wanted(d->blocker, encodedUrl.constData());
+}
+
+QString ContentMatcher::genericCosmeticStyleSheet(const QUrl &url, const QStringList &classes,
+    const QStringList &ids) const
+{
+    const auto encodedUrl = url.toString(QUrl::FullyEncoded).toUtf8();
+    const auto encodedClasses = encodedNames(classes);
+    const auto encodedIds = encodedNames(ids);
+    auto *css = tanto_blocker_generic_cosmetic_css(d->blocker, encodedUrl.constData(),
+        encodedClasses.constData(), encodedIds.constData());
     if (!css) {
         return {};
     }

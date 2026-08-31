@@ -489,7 +489,9 @@ if(BUILD_TESTING)
         )
         target_link_libraries(tanto-qt-engine-contract-tests PRIVATE
             tanto-engine-qt
+            tanto-content-blocking
             Qt6::Gui
+            Qt6::Network
             Qt6::Qml
             Qt6::Quick
             Qt6::Test

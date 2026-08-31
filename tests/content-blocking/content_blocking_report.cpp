@@ -48,6 +48,30 @@ QJsonObject runFixtures(const QJsonObject &fixtures,
         passed += actual == fixture.value(QStringLiteral("hidden")).toBool();
         ++total;
     }
+    const auto stringList = [](const QJsonValue &value) {
+        QStringList result;
+        for (const auto &entry : value.toArray()) {
+            result.append(entry.toString());
+        }
+        return result;
+    };
+    for (const auto &value : fixtures.value(QStringLiteral("cosmeticSurveyWanted")).toArray()) {
+        const auto fixture = value.toObject();
+        const auto actual = adapter.cosmeticSurveyWanted(
+            QUrl(fixture.value(QStringLiteral("url")).toString()));
+        passed += actual == fixture.value(QStringLiteral("wanted")).toBool();
+        ++total;
+    }
+    for (const auto &value : fixtures.value(QStringLiteral("cosmeticSurvey")).toArray()) {
+        const auto fixture = value.toObject();
+        const auto actual = adapter.genericCosmeticStyleSheet(
+            QUrl(fixture.value(QStringLiteral("url")).toString()),
+            stringList(fixture.value(QStringLiteral("classes"))),
+            stringList(fixture.value(QStringLiteral("ids"))))
+                                .contains(fixture.value(QStringLiteral("contains")).toString());
+        passed += actual == fixture.value(QStringLiteral("hidden")).toBool();
+        ++total;
+    }
     return {
         {QStringLiteral("passed"), passed},
         {QStringLiteral("total"), total},
@@ -81,7 +105,8 @@ int main(int argc, char *argv[])
     if (!dataRoot.isValid()) {
         return 2;
     }
-    tanto::ContentBlocker contentBlocker(dataRoot.path());
+    tanto::ContentBlocker contentBlocker(
+        dataRoot.path(), tanto::ContentBlocker::DefaultLists::None);
     QEventLoop compiled;
     QObject::connect(&contentBlocker, &tanto::ContentBlocker::rulesChanged,
         &compiled, &QEventLoop::quit);
@@ -100,6 +125,7 @@ int main(int argc, char *argv[])
         {QStringLiteral("unsupportedRuleCategories"), QJsonArray{
             QStringLiteral("scriptlets"),
             QStringLiteral("procedural selectors"),
+            QStringLiteral("popup blocking"),
             QStringLiteral("response rewriting"),
             QStringLiteral("HTML filtering"),
             QStringLiteral("dynamic rules"),

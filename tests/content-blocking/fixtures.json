@@ -10,24 +10,187 @@
     "site.example##.sponsor",
     "site.example#@#.kept",
     "##.generic-ad",
-    "site.example#@#.generic-ad"
+    "site.example#@#.generic-ad",
+    "###banner-ad",
+    "entity.*##.entity-ad",
+    "@@||nogeneric.example^$generichide"
   ],
   "network": [
-    {"name": "hostname rule", "url": "https://ads.example/banner.js", "source": "https://site.example/", "type": "script", "blocked": true},
-    {"name": "URL rule", "url": "https://assets.example/ads/banner.js", "source": "https://site.example/", "type": "script", "blocked": true},
-    {"name": "exception", "url": "https://ads.example/allowed.js", "source": "https://site.example/", "type": "script", "blocked": false},
-    {"name": "third-party rule", "url": "https://cdn.example.com/photo.jpg", "source": "https://site.other.com/", "type": "image", "blocked": true},
-    {"name": "third-party rule excludes same-site requests", "url": "https://cdn.example.com/photo.jpg", "source": "https://site.example.com/", "type": "image", "blocked": false},
-    {"name": "wrong resource type", "url": "https://cdn.example.com/app.js", "source": "https://site.other.com/", "type": "script", "blocked": false},
-    {"name": "first-party rule", "url": "https://cdn.first-party.example/photo.jpg", "source": "https://site.first-party.example/", "type": "image", "blocked": true},
-    {"name": "first-party rule excludes third parties", "url": "https://first-party.example/photo.jpg", "source": "https://other.example/", "type": "image", "blocked": false},
-    {"name": "stylesheet resource type", "url": "https://styles.example/site.css", "source": "https://site.example/", "type": "stylesheet", "blocked": true},
-    {"name": "domain restriction", "url": "https://metrics.example/pixel.js", "source": "https://site.example/", "type": "script", "blocked": true},
-    {"name": "domain restriction excludes other sites", "url": "https://metrics.example/pixel.js", "source": "https://other.example/", "type": "script", "blocked": false}
+    {
+      "name": "hostname rule",
+      "url": "https://ads.example/banner.js",
+      "source": "https://site.example/",
+      "type": "script",
+      "blocked": true
+    },
+    {
+      "name": "URL rule",
+      "url": "https://assets.example/ads/banner.js",
+      "source": "https://site.example/",
+      "type": "script",
+      "blocked": true
+    },
+    {
+      "name": "exception",
+      "url": "https://ads.example/allowed.js",
+      "source": "https://site.example/",
+      "type": "script",
+      "blocked": false
+    },
+    {
+      "name": "third-party rule",
+      "url": "https://cdn.example.com/photo.jpg",
+      "source": "https://site.other.com/",
+      "type": "image",
+      "blocked": true
+    },
+    {
+      "name": "third-party rule excludes same-site requests",
+      "url": "https://cdn.example.com/photo.jpg",
+      "source": "https://site.example.com/",
+      "type": "image",
+      "blocked": false
+    },
+    {
+      "name": "wrong resource type",
+      "url": "https://cdn.example.com/app.js",
+      "source": "https://site.other.com/",
+      "type": "script",
+      "blocked": false
+    },
+    {
+      "name": "first-party rule",
+      "url": "https://cdn.first-party.example/photo.jpg",
+      "source": "https://site.first-party.example/",
+      "type": "image",
+      "blocked": true
+    },
+    {
+      "name": "first-party rule excludes third parties",
+      "url": "https://first-party.example/photo.jpg",
+      "source": "https://other.example/",
+      "type": "image",
+      "blocked": false
+    },
+    {
+      "name": "stylesheet resource type",
+      "url": "https://styles.example/site.css",
+      "source": "https://site.example/",
+      "type": "stylesheet",
+      "blocked": true
+    },
+    {
+      "name": "domain restriction",
+      "url": "https://metrics.example/pixel.js",
+      "source": "https://site.example/",
+      "type": "script",
+      "blocked": true
+    },
+    {
+      "name": "domain restriction excludes other sites",
+      "url": "https://metrics.example/pixel.js",
+      "source": "https://other.example/",
+      "type": "script",
+      "blocked": false
+    }
   ],
   "cosmetic": [
-    {"name": "site selector", "url": "https://site.example/", "contains": ".sponsor", "hidden": true},
-    {"name": "generic exception", "url": "https://site.example/", "contains": ".generic-ad", "hidden": false},
-    {"name": "generic selector", "url": "https://other.example/", "contains": ".generic-ad", "hidden": true}
+    {
+      "name": "site selector",
+      "url": "https://site.example/",
+      "contains": ".sponsor",
+      "hidden": true
+    },
+    {
+      "name": "entity domain",
+      "url": "https://entity.com/",
+      "contains": ".entity-ad",
+      "hidden": true
+    },
+    {
+      "name": "entity domain under another suffix",
+      "url": "https://entity.co.uk/",
+      "contains": ".entity-ad",
+      "hidden": true
+    },
+    {
+      "name": "entity rule stays off other sites",
+      "url": "https://other.example/",
+      "contains": ".entity-ad",
+      "hidden": false
+    },
+    {
+      "name": "generic rules wait for the survey",
+      "url": "https://other.example/",
+      "contains": ".generic-ad",
+      "hidden": false
+    }
+  ],
+  "cosmeticSurvey": [
+    {
+      "name": "generic class rule reaches a page carrying it",
+      "url": "https://other.example/",
+      "classes": [
+        "generic-ad",
+        "headline"
+      ],
+      "ids": [],
+      "contains": ".generic-ad",
+      "hidden": true
+    },
+    {
+      "name": "generic class rule stays off a page without it",
+      "url": "https://other.example/",
+      "classes": [
+        "headline"
+      ],
+      "ids": [],
+      "contains": ".generic-ad",
+      "hidden": false
+    },
+    {
+      "name": "generic id rule reaches a page carrying it",
+      "url": "https://other.example/",
+      "classes": [],
+      "ids": [
+        "banner-ad"
+      ],
+      "contains": "#banner-ad",
+      "hidden": true
+    },
+    {
+      "name": "site exception keeps a generic rule off that site",
+      "url": "https://site.example/",
+      "classes": [
+        "generic-ad"
+      ],
+      "ids": [],
+      "contains": ".generic-ad",
+      "hidden": false
+    },
+    {
+      "name": "a $generichide site is not surveyed",
+      "url": "https://nogeneric.example/",
+      "classes": [
+        "generic-ad"
+      ],
+      "ids": [
+        "banner-ad"
+      ],
+      "contains": ".generic-ad",
+      "hidden": false
+    }
+  ],
+  "cosmeticSurveyWanted": [
+    {
+      "name": "ordinary site",
+      "url": "https://other.example/",
+      "wanted": true
+    },
+    {
+      "name": "$generichide exception",
+      "url": "https://nogeneric.example/",
+      "wanted": false
+    }
   ]
 }

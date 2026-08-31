@@ -83,6 +83,66 @@ Item {
             ? root.contentBlocker.blockedRequestCount(root.currentUrl) : 0
     }
     property bool cosmeticRulesInjected: false
+    property bool genericCosmeticRulesInjected: false
+    readonly property string cosmeticElementId: "__tanto_content_blocking"
+    readonly property string genericCosmeticElementId: "__tanto_content_blocking_generic"
+
+    // A document-creation script runs before the parser has produced even an
+    // <html> element, so the stylesheet cannot simply be appended: it waits for
+    // the first element to appear, which is still before the page's own scripts
+    // run and before anything is painted. Re-application into a document that
+    // is already open takes the same path and appends immediately.
+    function cosmeticStyleSnippet(elementId, css) {
+        return "(() => {"
+            + "const id = " + JSON.stringify(elementId) + ";"
+            + "const css = " + JSON.stringify(css) + ";"
+            + "const apply = () => {"
+            + "const parent = document.head || document.documentElement;"
+            + "if (!parent) return false;"
+            + "let style = document.getElementById(id);"
+            + "if (!style) {"
+            + "style = document.createElement('style'); style.id = id;"
+            + "parent.append(style);"
+            + "}"
+            + "style.textContent = css;"
+            + "return true;"
+            + "};"
+            + "if (apply()) return;"
+            + "const observer = new MutationObserver(() => {"
+            + "if (apply()) observer.disconnect();"
+            + "});"
+            + "observer.observe(document, { childList: true, subtree: true });"
+            + "})()"
+    }
+
+    // Hiding rules have to be in the document before its own markup renders,
+    // or the ads they cover appear and then vanish. A stylesheet injected at
+    // document creation is the only injection point early enough, and it has
+    // to be rebuilt for each navigation because the rules depend on the host
+    // being loaded.
+    property var cosmeticScript: null
+    function installCosmeticScript(url) {
+        if (!contentBlocker) return
+        const css = contentBlocker.cosmeticStyleSheet(url)
+        const script = WebEngine.script()
+        script.name = "Tanto cosmetic filters"
+        script.injectionPoint = WebEngineScript.DocumentCreation
+        script.worldId = WebEngineScript.MainWorld
+        script.runsOnSubFrames = false
+        script.sourceCode = css.length > 0
+            ? root.cosmeticStyleSnippet(root.cosmeticElementId, css) : ""
+        root.cosmeticScript = script
+        webView.userScripts.collection = [
+            root.editedStateScript, root.keyboardNavigationScript, script]
+        // The document about to be created carries whatever this script adds
+        // and nothing else, so what the last one had is no longer there.
+        root.cosmeticRulesInjected = css.length > 0
+        root.genericCosmeticRulesInjected = false
+    }
+
+    // Re-application into a document that is already open, for a rule set or a
+    // per-site decision that changed under it. A fresh load takes the document
+    // creation path above instead.
     function applyCosmeticRules() {
         if (!contentBlocker || loading) return
         const css = contentBlocker.cosmeticStyleSheet(currentUrl)
@@ -90,11 +150,50 @@ Item {
         // nothing was ever added, nothing to clear either — so skip the script.
         if (css.length === 0 && !cosmeticRulesInjected) return
         cosmeticRulesInjected = css.length > 0
+        webView.runJavaScript(root.cosmeticStyleSnippet(root.cosmeticElementId, css))
+    }
+
+    // The generic rules are the ones written against no particular site, and
+    // sending all of them cost a 617 KB stylesheet on every page. The page
+    // reports the classes and ids it actually carries, and only the generic
+    // rules those could trigger come back. A site with a $generichide
+    // exception is surveyed not at all.
+    function clearGenericCosmeticRules() {
+        if (!genericCosmeticRulesInjected) return
+        root.genericCosmeticRulesInjected = false
+        webView.runJavaScript(root.cosmeticStyleSnippet(root.genericCosmeticElementId, ""))
+    }
+    function surveyGenericCosmeticRules() {
+        // Turning blocking off for a site, or a rule set that no longer hides
+        // anything here, has to take back what the last survey hid.
+        if (!contentBlocker || !contentBlocker.cosmeticSurveyWanted(currentUrl)) {
+            root.clearGenericCosmeticRules()
+            return
+        }
+        const surveyed = currentUrl
         webView.runJavaScript(
-            "(() => { let style = document.getElementById('__tanto_content_blocking');"
-            + "if (!style) { style = document.createElement('style');"
-            + "style.id = '__tanto_content_blocking'; document.documentElement.append(style); }"
-            + "style.textContent = " + JSON.stringify(css) + "; })()")
+            "(() => {"
+            + "const classes = new Set(), ids = new Set();"
+            + "for (const element of document.querySelectorAll('[class], [id]')) {"
+            + "if (element.id) ids.add(element.id);"
+            + "for (const name of element.classList) classes.add(name);"
+            + "}"
+            + "return { classes: Array.from(classes), ids: Array.from(ids) };"
+            + "})()",
+            function(survey) {
+                // The page can navigate away while the survey is in flight,
+                // and its classes say nothing about where the view landed.
+                if (!survey || !root.contentBlocker || surveyed !== root.currentUrl) return
+                const css = root.contentBlocker.genericCosmeticStyleSheet(
+                    surveyed, survey.classes, survey.ids)
+                if (css.length === 0) {
+                    root.clearGenericCosmeticRules()
+                    return
+                }
+                root.genericCosmeticRulesInjected = true
+                webView.runJavaScript(
+                    root.cosmeticStyleSnippet(root.genericCosmeticElementId, css))
+            })
     }
     function checkForEditedFormState(callback) {
         webView.runJavaScript(
@@ -171,11 +270,13 @@ Item {
         function onConfigurationChanged() {
             root.refreshBlockedRequestCount()
             root.applyCosmeticRules()
+            root.surveyGenericCosmeticRules()
         }
 
         function onRulesChanged() {
             root.refreshBlockedRequestCount()
             root.applyCosmeticRules()
+            root.surveyGenericCosmeticRules()
         }
     }
 
@@ -208,9 +309,16 @@ Item {
             root.rendererFailed("Renderer stopped with exit code " + exitCode)
         }
 
-        onLoadingChanged: {
+        onLoadingChanged: function(loadRequest) {
             root.refreshBlockedRequestCount()
+            if (loadRequest.status === WebEngineView.LoadStartedStatus) {
+                root.installCosmeticScript(loadRequest.url)
+                return
+            }
             root.applyCosmeticRules()
+            if (loadRequest.status === WebEngineView.LoadSucceededStatus) {
+                root.surveyGenericCosmeticRules()
+            }
             if (!loading) root.applyKeyboardNavigationConfiguration()
         }
 

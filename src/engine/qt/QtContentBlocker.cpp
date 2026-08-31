@@ -75,6 +75,17 @@ QString QtContentBlocker::cosmeticStyleSheet(const QUrl &url) const
     return m_contentBlocker->cosmeticStyleSheet(url);
 }
 
+bool QtContentBlocker::cosmeticSurveyWanted(const QUrl &url) const
+{
+    return m_contentBlocker->cosmeticSurveyWanted(url);
+}
+
+QString QtContentBlocker::genericCosmeticStyleSheet(const QUrl &url, const QStringList &classes,
+    const QStringList &ids) const
+{
+    return m_contentBlocker->genericCosmeticStyleSheet(url, classes, ids);
+}
+
 QtContentBlocker::~QtContentBlocker() = default;
 
 bool QtContentBlocker::attachToProfile(QObject *profileObject)

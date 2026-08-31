@@ -65,9 +65,11 @@ The default page commands include:
 
 ## Content blocking
 
-Content blocking is built in and engine-neutral. It supports subscribed lists, network and plain CSS cosmetic rules, exceptions, common resource types, first-party and third-party matching, domain restrictions, automatic updates, per-site disabling, user lists, and a visible blocked-request count.
+Content blocking is built in and engine-neutral. EasyList and EasyPrivacy are subscribed and enabled on a first run, and either can be disabled or removed. It supports subscribed lists, network and plain CSS cosmetic rules, exceptions, common resource types, first-party and third-party matching, domain restrictions, entity domains, automatic updates, per-site disabling, user lists, and a visible blocked-request count.
 
-Tanto does not claim full uBlock Origin compatibility. Scriptlets, procedural selectors, response rewriting, HTML filtering, dynamic rules, CNAME uncloaking, redirects, and resource replacement are outside the first contract.
+Hiding rules written against a page's own hostname are in the document before the page's markup renders, so a hidden element never appears first. Rules written against no particular site are matched against the classes and ids the page actually carries rather than sent in full, and a site with a `$generichide` exception is not matched against them at all.
+
+Tanto does not claim full uBlock Origin compatibility. Scriptlets, procedural selectors, response rewriting, HTML filtering, dynamic rules, popup blocking, CNAME uncloaking, redirects, and resource replacement are outside the first contract. A subscribed list keeps the rules this contract does parse; Settings reports what each list contributed and what it skipped.
 
 ## Non-goals for the first milestone
 

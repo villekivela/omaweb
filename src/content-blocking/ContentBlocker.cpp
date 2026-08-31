@@ -25,9 +25,10 @@ constexpr qint64 updateIntervalSeconds = 24 * 60 * 60;
 
 } // namespace
 
-ContentBlocker::ContentBlocker(QString dataRoot, QObject *parent)
+ContentBlocker::ContentBlocker(QString dataRoot, DefaultLists defaults, QObject *parent)
     : QObject(parent)
     , m_dataRoot(std::move(dataRoot))
+    , m_defaultLists(defaults)
 {
     std::atomic_store(&m_runtime, std::make_shared<const Runtime>());
     m_blockedCountFlush.setSingleShot(true);
@@ -196,9 +197,15 @@ void ContentBlocker::updateSubscription(const QString &id)
                     const auto invalid = validation.report
                                              .value(QStringLiteral("invalidRuleCount"))
                                              .toInt();
-                    if (!validation.matcher || accepted == 0 || invalid > 0) {
+                    // Every published list carries a handful of rules this
+                    // contract cannot parse: EasyList alone has one. Refusing
+                    // a list over those rejected EasyList and EasyPrivacy in
+                    // full and blocked nothing at all, so a list is kept for
+                    // the rules that did compile, and refused only when none
+                    // did or when the unparsable rules outnumber them.
+                    if (!validation.matcher || accepted == 0 || invalid > accepted) {
                         subscription->updateStatus = QStringLiteral(
-                            "failed: list has no usable rules or contains invalid rules");
+                            "failed: list has no usable rules");
                         save();
                         emit subscriptionsChanged();
                         return;
@@ -274,6 +281,25 @@ QString ContentBlocker::cosmeticStyleSheet(const QUrl &url) const
     return runtime->matcher->cosmeticStyleSheet(url);
 }
 
+bool ContentBlocker::cosmeticSurveyWanted(const QUrl &url) const
+{
+    const auto runtime = std::atomic_load(&m_runtime);
+    if (!runtime->matcher || runtime->disabledSites.contains(siteKey(url))) {
+        return false;
+    }
+    return runtime->matcher->cosmeticSurveyWanted(url);
+}
+
+QString ContentBlocker::genericCosmeticStyleSheet(const QUrl &url, const QStringList &classes,
+    const QStringList &ids) const
+{
+    const auto runtime = std::atomic_load(&m_runtime);
+    if (!runtime->matcher || runtime->disabledSites.contains(siteKey(url))) {
+        return {};
+    }
+    return runtime->matcher->genericCosmeticStyleSheet(url, classes, ids);
+}
+
 bool ContentBlocker::shouldBlock(const QUrl &requestUrl, const QUrl &sourceUrl,
     const QString &resourceType) const
 {
@@ -307,10 +333,37 @@ QString ContentBlocker::listPath(const QString &id) const
         QStringLiteral("content-blocking/lists/%1.txt").arg(id));
 }
 
+// A browser whose blocking stays off until the user types four fields of list
+// provenance blocks nothing for almost everyone. These two lists are the ones
+// the filter-list ecosystem is built around; docs/network-requests.md records
+// the startup requests they cost and Settings can disable either one.
+void ContentBlocker::seedDefaultSubscriptions()
+{
+    const auto seed = [this](const QString &id, const QString &title,
+                          const QString &updateAddress) {
+        Subscription subscription;
+        subscription.id = id;
+        subscription.title = title;
+        subscription.source = QUrl(QStringLiteral("https://easylist.to/"));
+        subscription.license = QStringLiteral("GPLv3 or CC BY-SA 3.0");
+        subscription.updateAddress = QUrl(updateAddress);
+        subscription.updateStatus = QStringLiteral("not updated");
+        m_subscriptions.append(std::move(subscription));
+    };
+    seed(QStringLiteral("easylist"), QStringLiteral("EasyList"),
+        QStringLiteral("https://easylist.to/easylist/easylist.txt"));
+    seed(QStringLiteral("easyprivacy"), QStringLiteral("EasyPrivacy"),
+        QStringLiteral("https://easylist.to/easylist/easyprivacy.txt"));
+    save();
+}
+
 void ContentBlocker::load()
 {
     QFile file(settingsPath());
     if (!file.open(QIODevice::ReadOnly)) {
+        if (m_defaultLists == DefaultLists::Seed) {
+            seedDefaultSubscriptions();
+        }
         return;
     }
     const auto root = QJsonDocument::fromJson(file.readAll()).object();

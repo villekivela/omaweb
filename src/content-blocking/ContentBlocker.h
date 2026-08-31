@@ -5,6 +5,7 @@
 #include <QNetworkAccessManager>
 #include <QObject>
 #include <QSet>
+#include <QStringList>
 #include <QTimer>
 #include <QUrl>
 #include <QVariantList>
@@ -23,7 +24,13 @@ class ContentBlocker final : public QObject {
     Q_PROPERTY(QVariantMap compilationReport READ compilationReport NOTIFY rulesChanged)
 
 public:
-    explicit ContentBlocker(QString dataRoot, QObject *parent = nullptr);
+    // The default lists are what makes blocking work on a first run, so they
+    // are the default. Tests and the engine-free UI lab pass None to keep a
+    // fresh data directory from reaching the network for them.
+    enum class DefaultLists { Seed, None };
+
+    explicit ContentBlocker(QString dataRoot, DefaultLists defaults = DefaultLists::Seed,
+        QObject *parent = nullptr);
 
     QString userRules() const;
     void setUserRules(const QString &rules);
@@ -41,6 +48,9 @@ public:
     Q_INVOKABLE void setSiteEnabled(const QUrl &url, bool enabled);
     Q_INVOKABLE int blockedRequestCount(const QUrl &url) const;
     Q_INVOKABLE QString cosmeticStyleSheet(const QUrl &url) const;
+    Q_INVOKABLE bool cosmeticSurveyWanted(const QUrl &url) const;
+    Q_INVOKABLE QString genericCosmeticStyleSheet(const QUrl &url, const QStringList &classes,
+        const QStringList &ids) const;
 
     bool shouldBlock(const QUrl &requestUrl, const QUrl &sourceUrl,
         const QString &resourceType) const;
@@ -72,6 +82,7 @@ private:
     QString settingsPath() const;
     QString listPath(const QString &id) const;
     void load();
+    void seedDefaultSubscriptions();
     void noteBlockedRequest(const QUrl &sourceUrl);
     void flushBlockedRequestCounts();
     void save() const;
@@ -80,6 +91,7 @@ private:
     Subscription *findSubscription(const QString &id);
 
     QString m_dataRoot;
+    DefaultLists m_defaultLists;
     QString m_userRules;
     QList<Subscription> m_subscriptions;
     QSet<QString> m_disabledSites;

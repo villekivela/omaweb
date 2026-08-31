@@ -1,3 +1,4 @@
+#include "ContentBlocker.h"
 #include "EngineCapabilities.h"
 #include "EngineViewContract.h"
 
@@ -10,6 +11,8 @@
 #include <QQuickItem>
 #include <QQuickWindow>
 #include <QSignalSpy>
+#include <QTcpServer>
+#include <QTcpSocket>
 #include <QTest>
 #include <QTemporaryDir>
 #include <QtWebEngineQuick/qtwebenginequickglobal.h>
@@ -46,6 +49,7 @@ private slots:
     void qtKeyboardNavigationHonorsInputContracts_data();
     void qtKeyboardNavigationHonorsInputContracts();
     void qtLinkHintsOwnSingleKeyShortcuts();
+    void qtHidesCosmeticRulesBeforeThePageRuns();
 };
 
 void QtEngineContractTest::adaptersExposeSharedContract_data()
@@ -707,6 +711,95 @@ void QtEngineContractTest::qtKeyboardNavigationHonorsInputContracts()
         QTest::keyClick(&window, static_cast<Qt::Key>(key));
     }
     QTRY_COMPARE_WITH_TIMEOUT(adapter->property("pageTitle").toString(), expectedTitle, 15000);
+}
+
+
+// One page served over HTTP, because cosmetic rules are written against a
+// hostname and a file:// page has none.
+namespace {
+
+class PageServer final : public QTcpServer {
+public:
+    explicit PageServer(QByteArray body)
+        : m_body(std::move(body))
+    {
+        connect(this, &QTcpServer::newConnection, this, [this] {
+            auto *socket = nextPendingConnection();
+            connect(socket, &QTcpSocket::readyRead, socket, [this, socket] {
+                socket->readAll();
+                socket->write("HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: "
+                    + QByteArray::number(m_body.size())
+                    + "\r\nConnection: close\r\n\r\n" + m_body);
+                socket->flush();
+                socket->disconnectFromHost();
+            });
+        });
+    }
+
+private:
+    QByteArray m_body;
+};
+
+} // namespace
+
+// The page reports what it can see the moment its own script runs, and again
+// once the view has settled. A hiding rule that arrives after the page's own
+// scripts is a rule the reader watched an ad flash through, so the first
+// report is as much of the contract as the second.
+void QtEngineContractTest::qtHidesCosmeticRulesBeforeThePageRuns()
+{
+    PageServer server(R"HTML(<!doctype html><html><body>
+        <div id="specific" class="local-ad">ad</div>
+        <div id="generic" class="generic-ad">ad</div>
+        <div id="article" class="story">article</div>
+        <script>
+            const hidden = id =>
+                getComputedStyle(document.getElementById(id)).display === "none";
+            const state = () => (hidden("specific") ? "S" : "-")
+                + (hidden("generic") ? "G" : "-") + (hidden("article") ? "A" : "-");
+            const first = state();
+            const report = () => {
+                document.title = first + "|" + state();
+                requestAnimationFrame(report);
+            };
+            report();
+        </script>
+    </body></html>)HTML");
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    tanto::ContentBlocker contentBlocker(
+        root.path(), tanto::ContentBlocker::DefaultLists::None);
+    contentBlocker.setUserRules(QStringLiteral("127.0.0.1##.local-ad\n##.generic-ad"));
+    QTRY_VERIFY_WITH_TIMEOUT(!contentBlocker.compiling(), 5000);
+
+    QQmlEngine engine;
+    QQmlComponent component(&engine, QUrl::fromLocalFile(
+        QStringLiteral(TANTO_QT_ENGINE_VIEW_PATH)));
+    const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
+        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
+        {QStringLiteral("contentBlocker"), QVariant::fromValue<QObject *>(&contentBlocker)},
+    }));
+    QVERIFY2(adapter, qPrintable(component.errorString()));
+    QQuickWindow window;
+    qobject_cast<QQuickItem *>(adapter.get())->setParentItem(window.contentItem());
+    window.show();
+
+    const QUrl pageUrl(QStringLiteral("http://127.0.0.1:%1/page.html")
+                           .arg(server.serverPort()));
+    QVERIFY(adapter->setProperty("currentUrl", pageUrl));
+
+    // The hostname rule is in the document before the page's own script runs;
+    // the generic rule arrives with the survey, once there is a DOM to survey.
+    QTRY_COMPARE_WITH_TIMEOUT(adapter->property("pageTitle").toString(),
+        QStringLiteral("S--|SG-"), 15000);
+
+    // Turning the site off gives both back without a reload, the surveyed
+    // rules included.
+    contentBlocker.setSiteEnabled(pageUrl, false);
+    QTRY_COMPARE_WITH_TIMEOUT(adapter->property("pageTitle").toString(),
+        QStringLiteral("S--|---"), 15000);
 }
 
 

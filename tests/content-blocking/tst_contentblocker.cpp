@@ -15,13 +15,15 @@ private slots:
     void disablingASiteBypassesMatchingAndCosmetics();
     void subscriptionsExposeRequiredProvenanceAndUpdateStatus();
     void invalidSubscriptionUpdateKeepsTheActiveRules();
+    void aListKeepsTheRulesThisContractParses();
+    void firstRunSubscribesToTheDefaultLists();
 };
 
 void ContentBlockerTest::userRulesCompileOffTheCallerPath()
 {
     QTemporaryDir root;
     QVERIFY(root.isValid());
-    ContentBlocker blocker(root.path());
+    ContentBlocker blocker(root.path(), ContentBlocker::DefaultLists::None);
     QSignalSpy compiled(&blocker, &ContentBlocker::rulesChanged);
 
     blocker.setUserRules(QStringLiteral("||ads.example^\nexample.com##.sponsor"));
@@ -37,7 +39,7 @@ void ContentBlockerTest::userRulesCompileOffTheCallerPath()
 void ContentBlockerTest::disablingASiteBypassesMatchingAndCosmetics()
 {
     QTemporaryDir root;
-    ContentBlocker blocker(root.path());
+    ContentBlocker blocker(root.path(), ContentBlocker::DefaultLists::None);
     blocker.setUserRules(QStringLiteral("||ads.example^\nexample.com##.sponsor"));
     QTRY_VERIFY_WITH_TIMEOUT(!blocker.compiling(), 5000);
 
@@ -56,7 +58,7 @@ void ContentBlockerTest::subscriptionsExposeRequiredProvenanceAndUpdateStatus()
     list.write("||tracker.example^\n");
     list.close();
 
-    ContentBlocker blocker(root.path());
+    ContentBlocker blocker(root.path(), ContentBlocker::DefaultLists::None);
     const auto id = blocker.addSubscription(QStringLiteral("Test list"),
         QUrl(QStringLiteral("https://lists.example/about")), QStringLiteral("CC0-1.0"),
         QUrl::fromLocalFile(list.fileName()));
@@ -83,7 +85,7 @@ void ContentBlockerTest::invalidSubscriptionUpdateKeepsTheActiveRules()
     list.write("||tracker.example^\n");
     list.close();
 
-    ContentBlocker blocker(root.path());
+    ContentBlocker blocker(root.path(), ContentBlocker::DefaultLists::None);
     const auto id = blocker.addSubscription(QStringLiteral("Test list"),
         QUrl(QStringLiteral("https://lists.example/about")), QStringLiteral("CC0-1.0"),
         QUrl::fromLocalFile(list.fileName()));
@@ -101,6 +103,54 @@ void ContentBlockerTest::invalidSubscriptionUpdateKeepsTheActiveRules()
         5000);
     QVERIFY(blocker.shouldBlock(QUrl(QStringLiteral("https://tracker.example/pixel")),
         QUrl(QStringLiteral("https://site.example/")), QStringLiteral("image")));
+}
+
+// A published list always carries rules outside this contract. EasyList's
+// thousands of popup rules once failed the whole list, so the browser shipped
+// with blocking that never worked.
+void ContentBlockerTest::aListKeepsTheRulesThisContractParses()
+{
+    QTemporaryDir root;
+    QFile list(root.filePath(QStringLiteral("list.txt")));
+    QVERIFY(list.open(QIODevice::WriteOnly));
+    list.write("||tracker.example^\n"
+               "&popunder=$popup\n"
+               "@@||google.com/recaptcha/$csp,subdocument\n");
+    list.close();
+
+    ContentBlocker blocker(root.path(), ContentBlocker::DefaultLists::None);
+    blocker.addSubscription(QStringLiteral("Mixed list"),
+        QUrl(QStringLiteral("https://lists.example/about")), QStringLiteral("CC0-1.0"),
+        QUrl::fromLocalFile(list.fileName()));
+    QTRY_COMPARE_WITH_TIMEOUT(blocker.subscriptions().first().toMap()
+        .value(QStringLiteral("updateStatus")).toString(), QStringLiteral("current"), 5000);
+    QVERIFY(blocker.shouldBlock(QUrl(QStringLiteral("https://tracker.example/pixel")),
+        QUrl(QStringLiteral("https://site.example/")), QStringLiteral("image")));
+    QCOMPARE(blocker.compilationReport().value(QStringLiteral("unsupported")).toMap()
+                 .value(QStringLiteral("popup blocking")).toInt(), 1);
+}
+
+void ContentBlockerTest::firstRunSubscribesToTheDefaultLists()
+{
+    QTemporaryDir root;
+    ContentBlocker blocker(root.path());
+
+    const auto subscriptions = blocker.subscriptions();
+    QCOMPARE(subscriptions.size(), 2);
+    QStringList titles;
+    for (const auto &value : subscriptions) {
+        const auto subscription = value.toMap();
+        titles.append(subscription.value(QStringLiteral("title")).toString());
+        QVERIFY(subscription.value(QStringLiteral("enabled")).toBool());
+        QVERIFY(subscription.value(QStringLiteral("updateAddress")).toUrl().isValid());
+        QVERIFY(!subscription.value(QStringLiteral("license")).toString().isEmpty());
+    }
+    QCOMPARE(titles, QStringList({QStringLiteral("EasyList"), QStringLiteral("EasyPrivacy")}));
+    QVERIFY(QFile::exists(root.filePath(QStringLiteral("content-blocking/settings.json"))));
+
+    // A second run reads the stored subscriptions rather than seeding again.
+    ContentBlocker resumed(root.path());
+    QCOMPARE(resumed.subscriptions().size(), 2);
 }
 
 QTEST_GUILESS_MAIN(ContentBlockerTest)
