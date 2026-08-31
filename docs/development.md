@@ -58,6 +58,29 @@ Tanto reads `theme.json` from the configuration directory when one is present, f
 
 The derivation takes the terminal's background, foreground and sixteen ANSI colours and builds the chrome ladder by mixing in OKLab, with the step sizes measured off the default theme. The accent is the most saturated of the blue, magenta and cyan slots that clears 4.5:1 against the background; red, green and yellow are left alone because they already mean error, success and warning. Type sizes, tint and the semantic opacities stay as the default theme sets them — a terminal's `background-opacity` is a window-wide setting and does not translate to Tanto's per-surface opacity.
 
+## Interface components
+
+Shared controls come from the Omarchy shell's QML kit, vendored under
+`third_party/omarchy-shell` and pinned by `MANIFEST.json`. Both projects are QML on
+Qt 6, so the kit is used as-is rather than reimplemented.
+
+Vendored files are byte-for-byte copies and are never edited — `ctest` fails on any
+local change. Tanto meets the kit from two sides: `src/ui/quickshell-shim` registers
+the `Quickshell` and `Quickshell.Io` types the kit's singletons import, and the QML
+in `src/ui` adapts components to Tanto's call sites, keeping Tanto's property names
+and its accessibility annotations. The vendor root is on the QML import path in
+source builds and lands under `qrc:/qt/qml` in resource builds.
+
+```sh
+scripts/sync_omarchy_ui.py --verify          # the local tree matches the manifest
+scripts/sync_omarchy_ui.py --check-upstream  # what changed on quattro since the pin
+scripts/sync_omarchy_ui.py --sync --ref <sha>
+```
+
+Upstream's branch moves, so a sync is deliberate: move the pin, read the diff, and
+run `ctest`. `tanto-ui` instantiates the adapted components and asserts the kit's
+tokens resolve, so an upstream API change fails there.
+
 ## Keyboard navigation configuration
 
 Tanto copies `assets/keybindings/default.json` to `keybindings.json` in the configuration directory on first launch — `$XDG_CONFIG_HOME/tanto`, or `~/.config/tanto` when that is unset. A file left by an earlier version under the application data directory is moved there. Set `TANTO_CONFIG_ROOT` to relocate the whole directory, or `TANTO_KEYBINDINGS_FILE` to load one specific file during development. The version 1 format maps key sequences to the six supported commands and may give a site selected keys or the whole page:

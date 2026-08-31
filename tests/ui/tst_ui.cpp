@@ -1,6 +1,7 @@
 #include "BrowserController.h"
 #include "ContentBlocker.h"
 #include "KeyboardNavigation.h"
+#include "Quickshell.h"
 #include "ThemeController.h"
 #include "WindowManager.h"
 
@@ -18,6 +19,7 @@ class UiTestSetup final : public QObject {
 public slots:
     void qmlEngineAvailable(QQmlEngine *engine)
     {
+        tanto::quickshell::installShim();
         m_dataRoot = std::make_unique<QTemporaryDir>();
         m_browser = std::make_unique<tanto::BrowserController>(
             m_dataRoot->path(), QStringLiteral("mock"));
@@ -46,6 +48,7 @@ public slots:
         engine->rootContext()->setContextProperty(
             QStringLiteral("iconFontSource"), QUrl(QStringLiteral(TANTO_ICON_FONT_URL)));
         engine->addImportPath(QStringLiteral(TANTO_UI_DIRECTORY));
+        engine->addImportPath(QStringLiteral(TANTO_OMARCHY_IMPORT_PATH));
     }
 
     void cleanupTestCase()

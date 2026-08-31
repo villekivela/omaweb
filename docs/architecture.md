@@ -13,6 +13,7 @@ The variants share core state, persistence, QML, themes, platform code, and engi
 - `tanto-engine-api` defines navigation, lifecycle, input, content-blocking, accessibility, and diagnostics contracts.
 - `tanto-engine-qt` supplies the default engine view without leaking QtWebEngine imports into shared QML.
 - `tanto-engine-ladybird` is an optional build outside the default graph.
+- `tanto-quickshell-shim` registers the `Quickshell` and `Quickshell.Io` QML types the vendored Omarchy component kit imports.
 - `tanto-platform` contains small macOS and Linux window integrations.
 - `modules/*` contains independently compiled first-party Feature modules.
 - `tanto-ui-lab` loads the shared QML against fake browser state and a mock engine.

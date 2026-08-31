@@ -107,6 +107,40 @@ target_include_directories(tanto-ui PUBLIC src/ui)
 target_link_libraries(tanto-ui PUBLIC Qt6::Core Qt6::Gui)
 tanto_strict_target(tanto-ui)
 
+# The vendored Omarchy component kit imports Quickshell types. Tanto supplies
+# the small subset the kit's shared components need instead of patching the
+# copies, so a sync stays a review of upstream's diff. See
+# third_party/omarchy-shell/README.md.
+add_library(tanto-quickshell-shim STATIC
+    src/ui/quickshell-shim/Quickshell.cpp
+    src/ui/quickshell-shim/Quickshell.h
+    src/ui/quickshell-shim/QuickshellIo.cpp
+    src/ui/quickshell-shim/QuickshellIo.h
+)
+target_include_directories(tanto-quickshell-shim PUBLIC src/ui/quickshell-shim)
+target_link_libraries(tanto-quickshell-shim PUBLIC Qt6::Core Qt6::Qml)
+set_target_properties(tanto-quickshell-shim PROPERTIES AUTOMOC ON)
+tanto_strict_target(tanto-quickshell-shim)
+
+# The manifest is the single list of vendored files: the resource build, the
+# integrity test, and scripts/sync_omarchy_ui.py all read it.
+set(tanto_omarchy_root "${CMAKE_CURRENT_SOURCE_DIR}/third_party/omarchy-shell")
+file(READ "${tanto_omarchy_root}/MANIFEST.json" tanto_omarchy_manifest)
+string(JSON tanto_omarchy_manifest_files GET "${tanto_omarchy_manifest}" files)
+string(JSON tanto_omarchy_file_count LENGTH "${tanto_omarchy_manifest_files}")
+set(tanto_omarchy_files "")
+if(tanto_omarchy_file_count GREATER 0)
+    math(EXPR tanto_omarchy_last_file "${tanto_omarchy_file_count} - 1")
+    foreach(index RANGE 0 ${tanto_omarchy_last_file})
+        string(JSON tanto_omarchy_file MEMBER "${tanto_omarchy_manifest_files}" ${index})
+        # Only the QML module tree goes into the resource; the manifest also
+        # tracks upstream's license text.
+        if(tanto_omarchy_file MATCHES "^qs/")
+            list(APPEND tanto_omarchy_files "third_party/omarchy-shell/${tanto_omarchy_file}")
+        endif()
+    endforeach()
+endif()
+
 add_library(tanto-engine-api STATIC
     src/engine/api/EngineCapabilities.h
     src/engine/api/EngineViewContract.cpp
@@ -181,6 +215,7 @@ function(tanto_configure_qml target engine_view engine_profile engine_directory)
 
     if(TANTO_SOURCE_QML)
         target_compile_definitions(${target} PRIVATE
+            TANTO_OMARCHY_IMPORT_PATH="${tanto_omarchy_root}"
             TANTO_MAIN_QML_URL="file://${CMAKE_CURRENT_SOURCE_DIR}/src/ui/Main.qml"
             TANTO_ENGINE_VIEW_URL="file://${CMAKE_CURRENT_SOURCE_DIR}/${engine_view}"
             TANTO_ENGINE_PROFILE_URL="file://${CMAKE_CURRENT_SOURCE_DIR}/${engine_profile}"
@@ -196,6 +231,13 @@ function(tanto_configure_qml target engine_view engine_profile engine_directory)
             PREFIX "/tanto/ui"
             BASE "${CMAKE_CURRENT_SOURCE_DIR}/src/ui"
             FILES ${tanto_ui_files}
+        )
+        # `/qt/qml` is already on the engine's import path, so the vendored
+        # `qs.Commons` / `qs.Ui` modules resolve from the resource unchanged.
+        qt_add_resources(${target} "tanto_omarchy_ui"
+            PREFIX "/qt/qml"
+            BASE "${tanto_omarchy_root}"
+            FILES ${tanto_omarchy_files}
         )
         qt_add_resources(${target} "tanto_engine_view"
             PREFIX "/tanto/engine"
@@ -224,6 +266,7 @@ function(tanto_configure_qml target engine_view engine_profile engine_directory)
             FILES src/engine/api/keyboard-navigation.js
         )
         target_compile_definitions(${target} PRIVATE
+            TANTO_OMARCHY_IMPORT_PATH="qrc:/qt/qml"
             TANTO_MAIN_QML_URL="qrc:/tanto/ui/Main.qml"
             TANTO_ENGINE_VIEW_URL="qrc:/tanto/engine/EngineView.qml"
             TANTO_ENGINE_PROFILE_URL="qrc:/tanto/engine/EngineProfile.qml"
@@ -240,6 +283,7 @@ if(TANTO_BUILD_BROWSER)
     target_link_libraries(tanto PRIVATE
         tanto-core
         tanto-ui
+        tanto-quickshell-shim
         tanto-engine-qt
         tanto-platform
         Qt6::Gui
@@ -265,6 +309,7 @@ if(TANTO_BUILD_UI_LAB)
         tanto-core
         tanto-content-blocking
         tanto-ui
+        tanto-quickshell-shim
         tanto-engine-api
         tanto-platform
         Qt6::Gui
@@ -285,6 +330,12 @@ if(BUILD_TESTING)
         COMMAND ${CMAKE_COMMAND}
             -DTANTO_UI_DIRECTORY=${CMAKE_CURRENT_SOURCE_DIR}/src/ui
             -P ${CMAKE_CURRENT_SOURCE_DIR}/tests/cmake/check_shared_qml.cmake
+    )
+
+    add_test(NAME tanto-vendored-omarchy-ui
+        COMMAND ${CMAKE_COMMAND}
+            -DTANTO_OMARCHY_ROOT=${tanto_omarchy_root}
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/tests/cmake/check_vendored_omarchy.cmake
     )
 
     qt_add_executable(tanto-core-tests tests/core/tst_browsercontroller.cpp)
@@ -360,6 +411,7 @@ if(BUILD_TESTING)
         tanto-core
         tanto-content-blocking
         tanto-ui
+        tanto-quickshell-shim
         tanto-engine-api
         tanto-platform
         Qt6::Gui
@@ -380,6 +432,7 @@ if(BUILD_TESTING)
             tanto-core
             tanto-content-blocking
             tanto-ui
+            tanto-quickshell-shim
             Qt6::Gui
             Qt6::Qml
             Qt6::Quick
@@ -393,6 +446,7 @@ if(BUILD_TESTING)
             TANTO_THEME_PATH="${CMAKE_CURRENT_SOURCE_DIR}/assets/themes/default.json"
             TANTO_ICON_FONT_URL="file://${CMAKE_CURRENT_SOURCE_DIR}/assets/fonts/material-symbols-rounded.ttf"
             TANTO_UI_DIRECTORY="${CMAKE_CURRENT_SOURCE_DIR}/src/ui"
+            TANTO_OMARCHY_IMPORT_PATH="${tanto_omarchy_root}"
         )
         tanto_strict_target(tanto-ui-tests)
         add_test(NAME tanto-ui COMMAND tanto-ui-tests)

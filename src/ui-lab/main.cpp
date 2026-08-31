@@ -1,6 +1,7 @@
 #include "BrowserController.h"
 #include "ContentBlocker.h"
 #include "KeyboardNavigation.h"
+#include "Quickshell.h"
 #include "ThemeController.h"
 #include "WindowChrome.h"
 #include "WindowManager.h"
@@ -37,6 +38,7 @@ int main(int argc, char *argv[])
     tanto::ThemeController theme(QStringLiteral(TANTO_THEME_PATH));
     tanto::WindowManager windowManager(QStringLiteral("mock"));
 
+    tanto::quickshell::installShim();
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty(QStringLiteral("browser"), &browser);
     engine.rootContext()->setContextProperty(QStringLiteral("contentBlocker"), &contentBlocker);
@@ -53,6 +55,8 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty(
         QStringLiteral("iconFontSource"), QUrl(QStringLiteral(TANTO_ICON_FONT_URL)));
     engine.addImportPath(QStringLiteral(TANTO_UI_DIRECTORY));
+    // The vendored Omarchy component kit: qs.Ui and qs.Commons.
+    engine.addImportPath(QStringLiteral(TANTO_OMARCHY_IMPORT_PATH));
 
     QObject::connect(&engine, &QQmlApplicationEngine::objectCreationFailed,
         &application, [] { QCoreApplication::exit(1); }, Qt::QueuedConnection);
