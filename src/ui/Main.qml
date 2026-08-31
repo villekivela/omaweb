@@ -27,6 +27,8 @@ ApplicationWindow {
     property var sharedEngineProfile: null
     property var colors: privateWindow ? privatePalette(theme.palette) : theme.palette
     property bool sidebarCollapsed: false
+    property bool useFavicons: true
+    property bool tintFavicons: true
     // The reader owns the sidebar's width. It is clamped rather than free: too
     // narrow and a tab row stops being readable, too wide and the page it is
     // an outline of loses the window.
@@ -156,6 +158,21 @@ ApplicationWindow {
     function restoreSidebarWidth() {
         const saved = parseFloat(window.windowBrowser.preference("sidebar-width", ""))
         if (!isNaN(saved)) window.setSidebarWidth(saved)
+    }
+
+    function restoreTabAppearance() {
+        window.useFavicons = window.windowBrowser.preference("use-favicons", "true") === "true"
+        window.tintFavicons = window.windowBrowser.preference("tint-favicons", "true") === "true"
+    }
+
+    function setUseFavicons(enabled) {
+        window.useFavicons = enabled
+        window.windowBrowser.setPreference("use-favicons", enabled ? "true" : "false")
+    }
+
+    function setTintFavicons(enabled) {
+        window.tintFavicons = enabled
+        window.windowBrowser.setPreference("tint-favicons", enabled ? "true" : "false")
     }
 
     onSidebarWidthChanged: sidebarWidthWriter.restart()
@@ -334,6 +351,8 @@ ApplicationWindow {
                 privateWindow: window.privateWindow
                 collapsed: window.sidebarCollapsed
                 blockedRequestCount: window.visibleBlockedRequestCount
+                useFavicons: window.useFavicons
+                tintFavicons: window.tintFavicons
 
                 // A drag is already following the pointer; easing it too
                 // would make the seam lag behind the hand holding it.
@@ -343,8 +362,8 @@ ApplicationWindow {
                 }
 
                 onAddressRequested: window.openOmnibar(false)
-                onNewTabRequested: window.openOmnibar(true)
                 onTabActivated: function(tabId) { window.windowBrowser.activateTab(tabId) }
+                onTabCloseRequested: function(tabId) { window.windowBrowser.closeTab(tabId) }
                 onSpaceActivated: function(spaceId) { window.windowBrowser.switchSpace(spaceId) }
                 onSpacesMenuRequested: function(anchorX, anchorY) {
                     window.spacesMenuX = anchorX
@@ -464,8 +483,12 @@ ApplicationWindow {
                     blocker: contentBlocker
                     keyboard: keyboardNavigation
                     open: window.settingsOpen
+                    useFavicons: window.useFavicons
+                    tintFavicons: window.tintFavicons
 
                     onClosed: window.settingsOpen = false
+                    onUseFaviconsToggled: function(enabled) { window.setUseFavicons(enabled) }
+                    onTintFaviconsToggled: function(enabled) { window.setTintFavicons(enabled) }
                 }
 
                 NavigationCluster {
@@ -687,6 +710,7 @@ ApplicationWindow {
         // Last, and on its own: how wide a panel was left is never a reason
         // for the page not to come up.
         window.restoreSidebarWidth()
+        window.restoreTabAppearance()
     }
 
     onClosing: function(close) {

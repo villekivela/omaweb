@@ -41,13 +41,14 @@ TestCase {
         verifyApplicationWindowFlags(window)
     }
 
-    function test_newTabWaitsForCommittedDestination() {
-        const previousTabId = browser.activeTabId
+    function test_sidebarHasNoNewTabButton() {
         const newTabButton = findChild(window.contentItem, "newTabButton")
-        verify(newTabButton !== null)
+        verify(newTabButton === null)
+    }
 
-        newTabButton.forceActiveFocus()
-        keyClick(Qt.Key_Return)
+    function test_newTabRequestWaitsForCommittedDestination() {
+        const previousTabId = browser.activeTabId
+        window.openOmnibar(true)
         tryCompare(window, "omnibarOpen", true)
         compare(browser.activeTabId, previousTabId)
 
@@ -59,6 +60,29 @@ TestCase {
 
         tryVerify(function() { return browser.activeTabId !== previousTabId })
         compare(browser.activeUrl.toString(), "https://example.com")
+    }
+
+    function test_regularTabShowsItsCloseButtonOnHover() {
+        const activeTabId = browser.activeTabId
+        browser.openInputInBackground("https://close-me.example")
+        const tabIndex = browser.tabs.index(browser.tabs.rowCount() - 1, 0)
+        const tabId = browser.tabs.data(tabIndex, Qt.UserRole + 1)
+        const tabRow = findChild(window.contentItem, "tab-" + tabId)
+        const closeButton = findChild(window.contentItem, "close-" + tabId)
+        const tabPointer = findChild(window.contentItem, "tabPointer-" + tabId)
+        verify(tabRow !== null)
+        verify(closeButton !== null)
+        verify(tabPointer !== null)
+        compare(closeButton.parent, tabPointer)
+        verify(closeButton.visible)
+        compare(closeButton.foreground.a, 0)
+
+        mouseMove(tabRow, tabRow.width / 2, tabRow.height / 2)
+        tryVerify(function() { return closeButton.foreground.a > 0.5 })
+        mouseClick(tabRow, tabRow.width - closeButton.width / 2 - 4, tabRow.height / 2)
+
+        tryVerify(function() { return findChild(window.contentItem, "tab-" + tabId) === null })
+        compare(browser.activeTabId, activeTabId)
     }
 
     function test_layoutKeepsChromeOutOfThePagesWay() {
@@ -89,6 +113,13 @@ TestCase {
         tryVerify(function() {
             return pinnedRow.mapToItem(sidebar, 0, 0).y > headingTop
         })
+        const pinnedList = findChild(window.contentItem, "pinnedList")
+        verify(pinnedList.capacity >= 3)
+        verify(pinnedList.capacity <= 5)
+        compare(pinnedList.columns, Math.min(pinnedList.capacity, browser.pinnedTabs.rowCount()))
+        compare(pinnedRow.x, 0)
+        compare(pinnedRow.width, pinnedList.width)
+        compare(pinnedRow.height, 44)
 
         const tabRow = findChild(window.contentItem, "tab-" + browser.activeTabId)
         if (tabRow !== null && tabRow.visible) {
@@ -212,7 +243,7 @@ TestCase {
 
         // The resize handle reads as part of the sidebar, so it leaves like
         // the rest of it. Every control in there answers to the same key.
-        const controls = ["addressButton", "newTabButton", "settingsButton",
+        const controls = ["addressButton", "settingsButton",
             "manageSpacesButton", "sidebarResizer", "tab-" + browser.activeTabId]
         for (let index = 0; index < controls.length; ++index) {
             const control = findChild(window.contentItem, controls[index])
@@ -251,7 +282,6 @@ TestCase {
     function test_primaryChromeIsAccessibleFromKeyboard() {
         window.requestActivate()
         tryVerify(function() { return window.active })
-        const newTabButton = findChild(window.contentItem, "newTabButton")
         const addressButton = findChild(window.contentItem, "addressButton")
         const collapseButton = findChild(window.contentItem, "collapseButton")
         const reloadButton = findChild(window.contentItem, "reloadButton")
@@ -260,7 +290,6 @@ TestCase {
         const settingsButton = findChild(window.contentItem, "settingsButton")
         const materialSymbolsFont = findChild(window, "materialSymbolsFont")
 
-        compare(newTabButton.accessibleName, "New tab")
         compare(settingsButton.accessibleName, "Browsing settings and downloads")
         compare(addressButton.accessibleName, "Search or enter address")
         compare(collapseButton.accessibleName, "Hide sidebar")
@@ -269,7 +298,6 @@ TestCase {
         verify(iconFontSource.toString().endsWith("/material-symbols-rounded.ttf"))
         verify(materialSymbolsFont !== null)
         tryCompare(materialSymbolsFont, "status", FontLoader.Ready)
-        verify(newTabButton.activeFocusOnTab)
         verify(addressButton.activeFocusOnTab)
         verify(collapseButton.activeFocusOnTab)
 
@@ -277,17 +305,15 @@ TestCase {
         compare(window.activeFocusItem.objectName, "addressButton")
 
         let visitedTab = false
-        for (let step = 0; step < 10 && window.activeFocusItem.objectName !== "newTabButton"; ++step) {
+        for (let step = 0; step < 10 && window.activeFocusItem.objectName !== "settingsButton"; ++step) {
             keyClick(Qt.Key_Tab)
             if (window.activeFocusItem.objectName.indexOf("tab-") === 0)
                 visitedTab = true
         }
         verify(visitedTab)
-        compare(window.activeFocusItem.objectName, "newTabButton")
-        keyClick(Qt.Key_Tab)
         compare(window.activeFocusItem.objectName, "settingsButton")
         keyClick(Qt.Key_Backtab)
-        compare(window.activeFocusItem.objectName, "newTabButton")
+        verify(window.activeFocusItem.objectName.indexOf("tab-") === 0)
     }
 
     function test_everyBrowserCommandIsBoundAndSearchable() {
@@ -579,5 +605,29 @@ TestCase {
         keyClick(Qt.Key_Return)
         compare(keyboardNavigation.enabled, true)
         compare(keyboardNavigationEnabled.checked, true)
+    }
+
+    function test_tabArtworkSettingsAreLiveAndSaved() {
+        const useFavicons = findChild(window.contentItem, "useFavicons")
+        const tintFavicons = findChild(window.contentItem, "tintFavicons")
+        verify(useFavicons !== null)
+        verify(tintFavicons !== null)
+        compare(window.useFavicons, true)
+        compare(window.tintFavicons, true)
+
+        useFavicons.clicked()
+        compare(window.useFavicons, false)
+        compare(useFavicons.checked, false)
+        compare(tintFavicons.enabled, false)
+        compare(browser.preference("use-favicons", "true"), "false")
+
+        useFavicons.clicked()
+        tintFavicons.clicked()
+        compare(window.useFavicons, true)
+        compare(window.tintFavicons, false)
+        compare(browser.preference("tint-favicons", "true"), "false")
+
+        tintFavicons.clicked()
+        compare(window.tintFavicons, true)
     }
 }

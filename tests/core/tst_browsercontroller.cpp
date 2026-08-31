@@ -31,7 +31,9 @@ private slots:
     void separatesEngineStorageBySpaceAndEngine();
     void createsTabOnlyAfterCommittedInput();
     void opensKeyboardHintTargetsInBackground();
+    void closesRequestedBackgroundTab();
     void persistsTabsAndPins();
+    void pinningMovesTabIntoPinnedBlock();
     void keepsFinalTabAsBlankTab();
     void keepsRendererFailureOnAffectedTab();
     void sharesPrivateIdentityUntilLastWindowCloses();
@@ -85,6 +87,25 @@ void BrowserControllerTest::opensKeyboardHintTargetsInBackground()
     QCOMPARE(controller.tabs()->rowCount(), 2);
     QCOMPARE(controller.activeTabId(), activeTabId);
     QCOMPARE(controller.activeUrl(), QUrl(QStringLiteral("about:blank")));
+}
+
+void BrowserControllerTest::closesRequestedBackgroundTab()
+{
+    QTemporaryDir root;
+    BrowserController controller(root.path(), QStringLiteral("test"));
+    const auto activeTabId = controller.activeTabId();
+    controller.openInputInBackground(QUrl(QStringLiteral("https://example.com/background")));
+    const auto backgroundIndex = controller.tabs()->index(1, 0);
+    const auto backgroundTabId = controller.tabs()->data(
+        backgroundIndex, TabListModel::IdRole).toString();
+
+    controller.closeTab(backgroundTabId);
+
+    QCOMPARE(controller.tabs()->rowCount(), 1);
+    QCOMPARE(controller.activeTabId(), activeTabId);
+    controller.reopenClosedTab();
+    QCOMPARE(controller.tabs()->rowCount(), 2);
+    QCOMPARE(controller.activeUrl(), QUrl(QStringLiteral("https://example.com/background")));
 }
 
 void BrowserControllerTest::renamesSpacePersistently()
@@ -292,6 +313,34 @@ void BrowserControllerTest::persistsTabsAndPins()
     QCOMPARE(restored.activeTabId(), activeId);
     QCOMPARE(restored.activeUrl(), QUrl(QStringLiteral("https://example.com")));
     QVERIFY(restored.activeTabPinned());
+}
+
+void BrowserControllerTest::pinningMovesTabIntoPinnedBlock()
+{
+    QTemporaryDir root;
+    QString newlyPinnedId;
+    {
+        BrowserController controller(root.path(), QStringLiteral("test"));
+        controller.openInput(QStringLiteral("https://first.example"), false);
+        controller.toggleActivePinned();
+        for (int index = 2; index <= 5; ++index) {
+            controller.openInput(
+                QStringLiteral("https://tab-%1.example").arg(index), true);
+        }
+        newlyPinnedId = controller.activeTabId();
+
+        QCOMPARE(controller.tabs()->data(
+            controller.tabs()->index(4, 0), TabListModel::IdRole).toString(), newlyPinnedId);
+        controller.toggleActivePinned();
+
+        QCOMPARE(controller.tabs()->data(
+            controller.tabs()->index(1, 0), TabListModel::IdRole).toString(), newlyPinnedId);
+        QCOMPARE(controller.pinnedTabs()->rowCount(), 2);
+    }
+
+    BrowserController restored(root.path(), QStringLiteral("test"));
+    QCOMPARE(restored.tabs()->data(
+        restored.tabs()->index(1, 0), TabListModel::IdRole).toString(), newlyPinnedId);
 }
 
 void BrowserControllerTest::keepsFinalTabAsBlankTab()

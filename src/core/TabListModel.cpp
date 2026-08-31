@@ -109,6 +109,28 @@ bool TabListModel::remove(const QString &id)
     return false;
 }
 
+bool TabListModel::move(const QString &id, qsizetype destinationRow)
+{
+    if (destinationRow < 0 || destinationRow >= m_tabs.size()) {
+        return false;
+    }
+    for (qsizetype sourceRow = 0; sourceRow < m_tabs.size(); ++sourceRow) {
+        if (m_tabs.at(sourceRow).id != id) {
+            continue;
+        }
+        if (sourceRow == destinationRow) {
+            return true;
+        }
+        const auto destinationChild = destinationRow > sourceRow
+            ? destinationRow + 1 : destinationRow;
+        beginMoveRows({}, sourceRow, sourceRow, {}, destinationChild);
+        m_tabs.move(sourceRow, destinationRow);
+        endMoveRows();
+        return true;
+    }
+    return false;
+}
+
 void TabListModel::notifyChanged(const QString &id, const QList<int> &roles)
 {
     for (qsizetype row = 0; row < m_tabs.size(); ++row) {

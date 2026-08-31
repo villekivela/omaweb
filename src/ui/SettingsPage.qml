@@ -19,8 +19,10 @@ Rectangle {
     property var downloads: []
     property var subscriptions: []
     property int blockedRequestCount: 0
+    property bool useFavicons: true
+    property bool tintFavicons: true
 
-    readonly property var sections: ["keyboard", "content blocking", "network", "downloads"]
+    readonly property var sections: ["tabs", "keyboard", "content blocking", "network", "downloads"]
 
     // about:blank and other opaque addresses have no host to name, and saying
     // "blocked on about" would be worse than saying nothing.
@@ -32,6 +34,8 @@ Rectangle {
     }
 
     signal closed()
+    signal useFaviconsToggled(bool enabled)
+    signal tintFaviconsToggled(bool enabled)
 
     visible: open
     color: colors.windowOpaque
@@ -158,12 +162,39 @@ Rectangle {
                 id: pane
                 width: scroll.availableWidth
 
+                // ---- tabs ---------------------------------------------------
+
+                SettingToggle {
+                    objectName: "useFavicons"
+                    width: pane.width
+                    visible: root.section === 0
+                    colors: root.colors
+                    title: "Use site favicons"
+                    note: "When off, tabs use the two-letter site fallback."
+                    accessibleName: "Use site favicons"
+                    checked: root.useFavicons
+                    onClicked: root.useFaviconsToggled(!checked)
+                }
+
+                SettingToggle {
+                    objectName: "tintFavicons"
+                    width: pane.width
+                    visible: root.section === 0
+                    colors: root.colors
+                    title: "Tint favicons"
+                    note: "Recolor site artwork to match the sidebar palette."
+                    accessibleName: "Tint favicons"
+                    enabled: root.useFavicons
+                    checked: root.tintFavicons
+                    onClicked: root.tintFaviconsToggled(!checked)
+                }
+
                 // ---- keyboard ----------------------------------------------
 
                 SettingToggle {
                     objectName: "keyboardNavigationEnabled"
                     width: pane.width
-                    visible: root.section === 0
+                    visible: root.section === 1
                     colors: root.colors
                     title: "Keyboard navigation"
                     note: "Tanto's own command layer. It gives the same commands with every "
@@ -178,7 +209,7 @@ Rectangle {
                 SettingToggle {
                     objectName: "siteBlockingEnabled"
                     width: pane.width
-                    visible: root.section === 1
+                    visible: root.section === 2
                     colors: root.colors
                     title: "Block requests on this site"
                     note: root.blockedRequestCount + " requests blocked"
@@ -192,7 +223,7 @@ Rectangle {
                 }
 
                 Repeater {
-                    model: root.section === 1 ? root.subscriptions : []
+                    model: root.section === 2 ? root.subscriptions : []
 
                     SettingToggle {
                         required property var modelData
@@ -209,11 +240,11 @@ Rectangle {
                     }
                 }
 
-                Item { width: 1; height: root.section === 1 ? 28 : 0; visible: root.section === 1 }
+                Item { width: 1; height: root.section === 2 ? 28 : 0; visible: root.section === 2 }
 
                 Column {
                     width: pane.width
-                    visible: root.section === 1
+                    visible: root.section === 2
                     spacing: 8
 
                     SectionLabel {
@@ -329,7 +360,7 @@ Rectangle {
 
                 SettingRow {
                     width: pane.width
-                    visible: root.section === 2
+                    visible: root.section === 3
                     colors: root.colors
                     separated: false
                     title: "Remote search suggestions"
@@ -347,7 +378,7 @@ Rectangle {
 
                 SettingRow {
                     width: pane.width
-                    visible: root.section === 2
+                    visible: root.section === 3
                     colors: root.colors
                     title: "Filter-list updates"
 
@@ -368,7 +399,7 @@ Rectangle {
 
                 SettingRow {
                     width: pane.width
-                    visible: root.section === 3
+                    visible: root.section === 4
                     colors: root.colors
                     separated: false
                     title: "Download directory"
@@ -384,7 +415,7 @@ Rectangle {
                 }
 
                 Repeater {
-                    model: root.section === 3 ? root.downloads : []
+                    model: root.section === 4 ? root.downloads : []
 
                     SettingRow {
                         required property var modelData
@@ -399,7 +430,7 @@ Rectangle {
 
                 SettingRow {
                     width: pane.width
-                    visible: root.section === 3 && root.downloads.length === 0
+                    visible: root.section === 4 && root.downloads.length === 0
                     colors: root.colors
                     title: "No recorded downloads"
                     note: "Downloads Tanto has recorded in this Space appear here."

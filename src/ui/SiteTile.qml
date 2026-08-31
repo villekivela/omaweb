@@ -9,6 +9,8 @@ Rectangle {
     property url siteUrl
     property url iconUrl
     property bool highlighted: false
+    property bool useArtwork: true
+    property bool tintArtwork: true
 
     readonly property string host: {
         const value = String(siteUrl).replace(/^[a-z]+:\/\//, "")
@@ -35,7 +37,7 @@ Rectangle {
             1)
     }
 
-    readonly property bool showsArtwork: artwork.status === Image.Ready
+    readonly property bool showsArtwork: useArtwork && artwork.status === Image.Ready
 
     implicitWidth: 20
     implicitHeight: 20
@@ -52,22 +54,21 @@ Rectangle {
         anchors.centerIn: parent
         width: parent.width
         height: width
-        source: root.iconUrl
+        source: root.useArtwork ? root.iconUrl : ""
         sourceSize.width: 32
         sourceSize.height: 32
         fillMode: Image.PreserveAspectFit
         asynchronous: true
         smooth: true
-        visible: false
+        visible: root.showsArtwork && !root.tintArtwork
     }
 
-    // Site artwork arrives in whatever colours the site chose. Recolouring it
-    // to the tile's hue keeps the shape, which is what identifies the site,
-    // and drops the brand colour, which would break the sidebar's palette.
+    // Tinting keeps the site's shape but brings its artwork into the sidebar
+    // palette. The setting can leave the original colours intact instead.
     MultiEffect {
         anchors.fill: artwork
         source: artwork
-        visible: root.showsArtwork
+        visible: root.showsArtwork && root.tintArtwork
         saturation: -1.0
         colorization: 1.0
         colorizationColor: root.tint

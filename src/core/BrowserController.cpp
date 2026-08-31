@@ -445,8 +445,13 @@ void BrowserController::openInputInBackground(const QUrl &url)
 
 void BrowserController::closeActiveTab()
 {
-    auto *active = m_tabs.find(m_activeTabId);
-    if (!active || active->pinned) {
+    closeTab(m_activeTabId);
+}
+
+void BrowserController::closeTab(const QString &tabId)
+{
+    auto *tab = m_tabs.find(tabId);
+    if (!tab || tab->pinned) {
         return;
     }
 
@@ -455,11 +460,11 @@ void BrowserController::closeActiveTab()
             emit closeWindowRequested();
             return;
         }
-        active->url = QUrl(QStringLiteral("about:blank"));
-        active->title = QStringLiteral("New tab");
-        active->loading = false;
-        active->rendererFailureReason.clear();
-        m_tabs.notifyChanged(active->id, {
+        tab->url = QUrl(QStringLiteral("about:blank"));
+        tab->title = QStringLiteral("New tab");
+        tab->loading = false;
+        tab->rendererFailureReason.clear();
+        m_tabs.notifyChanged(tab->id, {
             TabListModel::UrlRole,
             TabListModel::TitleRole,
             TabListModel::LoadingRole,
@@ -469,7 +474,13 @@ void BrowserController::closeActiveTab()
         return;
     }
 
-    m_closedTab = {*active, true};
+    m_closedTab = {*tab, true};
+    if (tabId != m_activeTabId) {
+        m_tabs.remove(tabId);
+        schedulePersistTabs();
+        return;
+    }
+
     const auto items = m_tabs.items();
     auto nextId = items.first().id;
     for (qsizetype index = 0; index < items.size(); ++index) {
@@ -480,7 +491,7 @@ void BrowserController::closeActiveTab()
         break;
     }
 
-    m_tabs.remove(m_activeTabId);
+    m_tabs.remove(tabId);
     setActiveTab(nextId);
 }
 
@@ -511,7 +522,18 @@ void BrowserController::toggleActivePinned()
     if (!tab) {
         return;
     }
-    tab->pinned = !tab->pinned;
+
+    qsizetype pinnedCount = 0;
+    for (const auto &item : m_tabs.items()) {
+        if (item.pinned) {
+            ++pinnedCount;
+        }
+    }
+    const bool pinned = !tab->pinned;
+    const auto destinationRow = pinned ? pinnedCount : pinnedCount - 1;
+    m_tabs.move(m_activeTabId, destinationRow);
+    tab = m_tabs.find(m_activeTabId);
+    tab->pinned = pinned;
     m_tabs.notifyChanged(tab->id, {TabListModel::PinnedRole});
     persistTabs();
     emit activeTabChanged();

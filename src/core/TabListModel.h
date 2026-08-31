@@ -48,6 +48,7 @@ public:
     void reset(QVector<TabState> tabs);
     void append(TabState tab);
     bool remove(const QString &id);
+    bool move(const QString &id, qsizetype destinationRow);
     void notifyChanged(const QString &id, const QList<int> &roles);
 
 private:

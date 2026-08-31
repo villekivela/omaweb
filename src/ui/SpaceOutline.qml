@@ -13,6 +13,8 @@ Rectangle {
     property bool collapsed: false
     property int blockedRequestCount: 0
     property bool statusOpen: false
+    property bool useFavicons: true
+    property bool tintFavicons: true
 
     // An empty pinned section takes no room at all.
     property int pinnedCount: browser ? browser.pinnedTabs.rowCount() : 0
@@ -22,8 +24,8 @@ Rectangle {
     readonly property bool blank: String(activeUrl).length === 0 || String(activeUrl) === "about:blank"
 
     signal addressRequested()
-    signal newTabRequested()
     signal tabActivated(string tabId)
+    signal tabCloseRequested(string tabId)
     signal spaceActivated(string spaceId)
     signal spacesMenuRequested(real anchorX, real anchorY)
     signal settingsRequested()
@@ -263,38 +265,40 @@ Rectangle {
             }
         }
 
-        SectionLabel {
-            objectName: "pinnedLabel"
-            visible: !root.privateWindow && root.pinnedCount > 0
-            colors: root.colors
-            text: "pinned"
-        }
-
-        Column {
+        Flow {
             id: pinnedSection
             objectName: "pinnedList"
             width: parent.width
             height: childrenRect.height
-            visible: !root.privateWindow
-            spacing: 0
+            visible: !root.privateWindow && root.pinnedCount > 0
+            readonly property int capacity: Math.max(3,
+                Math.min(5, Math.floor(width / 56)))
+            readonly property int columns: Math.min(root.pinnedCount, capacity)
+            spacing: 4
 
             Repeater {
                 model: root.browser ? root.browser.pinnedTabs : null
 
                 TabRow {
-                    width: parent.width
+                    required property int index
+                    readonly property int rowStart: Math.floor(index
+                        / pinnedSection.capacity) * pinnedSection.capacity
+                    readonly property int tabsInRow: Math.min(pinnedSection.capacity,
+                        root.pinnedCount - rowStart)
+                    width: (pinnedSection.width
+                        - pinnedSection.spacing * (tabsInRow - 1)) / tabsInRow
                     colors: root.colors
+                    iconFontFamily: root.iconFontFamily
+                    useFavicons: root.useFavicons
+                    tintFavicons: root.tintFavicons
                     onActivated: function(id) { root.tabActivated(id) }
+                    onCloseRequested: function(id) { root.tabCloseRequested(id) }
                     onActiveChanged: if (active) root.activeTabItem = this
                     Component.onCompleted: if (active) root.activeTabItem = this
                 }
             }
         }
 
-        SectionLabel {
-            colors: root.colors
-            text: "tabs"
-        }
     }
 
     ScrollView {
@@ -319,7 +323,11 @@ Rectangle {
                 TabRow {
                     width: parent.width
                     colors: root.colors
+                    iconFontFamily: root.iconFontFamily
+                    useFavicons: root.useFavicons
+                    tintFavicons: root.tintFavicons
                     onActivated: function(id) { root.tabActivated(id) }
+                    onCloseRequested: function(id) { root.tabCloseRequested(id) }
                     onActiveChanged: if (active) root.activeTabItem = this
                     Component.onCompleted: if (active) root.activeTabItem = this
                 }
@@ -327,7 +335,7 @@ Rectangle {
         }
     }
 
-    Row {
+    Item {
         id: footer
         anchors.left: parent.left
         anchors.right: parent.right
@@ -336,66 +344,10 @@ Rectangle {
         anchors.rightMargin: 16
         anchors.bottomMargin: 14
         height: 30
-        spacing: 6
-
-        Rectangle {
-            id: newTabButton
-            objectName: "newTabButton"
-            property string accessibleName: "New tab"
-            width: footer.width - settingsButton.width - footer.spacing
-            height: 30
-            radius: 2
-            color: newTabMouse.containsMouse ? root.colors.surfaceHover : "transparent"
-            border.width: newTabButton.activeFocus ? 1 : 0
-            border.color: root.colors.accent
-            activeFocusOnTab: true
-            Accessible.role: Accessible.Button
-            Accessible.name: newTabButton.accessibleName
-            Accessible.onPressAction: root.newTabRequested()
-
-            Keys.onPressed: function(event) {
-                if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Space) {
-                    root.newTabRequested()
-                    event.accepted = true
-                }
-            }
-
-            Text {
-                id: newTabGlyph
-                anchors.left: parent.left
-                anchors.leftMargin: 6
-                anchors.verticalCenter: parent.verticalCenter
-                text: "add"
-                color: root.colors.mutedText
-                font.family: root.iconFontFamily
-                font.pixelSize: Style.font.iconLarge
-            }
-
-            Text {
-                anchors.left: newTabGlyph.right
-                anchors.leftMargin: 8
-                anchors.verticalCenter: parent.verticalCenter
-                text: "new tab"
-                color: root.colors.mutedText
-                font.family: Style.font.family
-                font.pixelSize: Style.font.body
-            }
-
-            MouseArea {
-                id: newTabMouse
-                anchors.fill: parent
-                hoverEnabled: true
-                cursorShape: Qt.PointingHandCursor
-                onClicked: {
-                    newTabButton.forceActiveFocus()
-                    root.newTabRequested()
-                }
-            }
-        }
-
         ChromeButton {
             id: settingsButton
             objectName: "settingsButton"
+            anchors.right: parent.right
             width: 30
             height: 30
             icon: "settings"
