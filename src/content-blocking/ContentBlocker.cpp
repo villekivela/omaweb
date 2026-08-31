@@ -272,49 +272,71 @@ int ContentBlocker::blockedRequestCount(const QUrl &url) const
     return m_blockedCounts.value(siteKey(url));
 }
 
-QString ContentBlocker::cosmeticStyleSheet(const QUrl &url) const
+// The rules in force for one site: the compiled set, unless there is none yet
+// or the user turned blocking off here, in which case there are no rules and
+// every caller below is finished before it starts.
+std::shared_ptr<const ContentMatcher> ContentBlocker::matcherFor(const QUrl &siteUrl) const
 {
     const auto runtime = std::atomic_load(&m_runtime);
-    if (!runtime->matcher || runtime->disabledSites.contains(siteKey(url))) {
+    if (!runtime->matcher || runtime->disabledSites.contains(siteKey(siteUrl))) {
         return {};
     }
-    return runtime->matcher->cosmeticStyleSheet(url);
+    return runtime->matcher;
+}
+
+QString ContentBlocker::cosmeticStyleSheet(const QUrl &url) const
+{
+    const auto matcher = matcherFor(url);
+    return matcher ? matcher->cosmeticStyleSheet(url) : QString();
 }
 
 bool ContentBlocker::cosmeticSurveyWanted(const QUrl &url) const
 {
-    const auto runtime = std::atomic_load(&m_runtime);
-    if (!runtime->matcher || runtime->disabledSites.contains(siteKey(url))) {
-        return false;
-    }
-    return runtime->matcher->cosmeticSurveyWanted(url);
+    const auto matcher = matcherFor(url);
+    return matcher && matcher->cosmeticSurveyWanted(url);
 }
 
 QString ContentBlocker::genericCosmeticStyleSheet(const QUrl &url, const QStringList &classes,
     const QStringList &ids) const
 {
-    const auto runtime = std::atomic_load(&m_runtime);
-    if (!runtime->matcher || runtime->disabledSites.contains(siteKey(url))) {
-        return {};
-    }
-    return runtime->matcher->genericCosmeticStyleSheet(url, classes, ids);
+    const auto matcher = matcherFor(url);
+    return matcher ? matcher->genericCosmeticStyleSheet(url, classes, ids) : QString();
 }
 
 bool ContentBlocker::shouldBlock(const QUrl &requestUrl, const QUrl &sourceUrl,
     const QString &resourceType) const
 {
-    const auto runtime = std::atomic_load(&m_runtime);
-    if (!runtime->matcher || runtime->disabledSites.contains(siteKey(sourceUrl))
-        || !runtime->matcher->shouldBlock(requestUrl, sourceUrl, resourceType)) {
+    const auto matcher = matcherFor(sourceUrl);
+    if (!matcher || !matcher->shouldBlock(requestUrl, sourceUrl, resourceType)) {
         return false;
     }
+    countBlockedRequest(sourceUrl);
+    return true;
+}
+
+// A window the page never got to open is a request the page never got to
+// make, so it lands in the same count as the rest and the number keeps
+// meaning one thing.
+bool ContentBlocker::shouldBlockPopup(const QUrl &requestUrl, const QUrl &openerUrl) const
+{
+    const auto matcher = matcherFor(openerUrl);
+    if (!matcher || !matcher->shouldBlockPopup(requestUrl, openerUrl)) {
+        return false;
+    }
+    countBlockedRequest(openerUrl);
+    return true;
+}
+
+// Requests are matched on whichever thread the engine hands them to, and the
+// counts belong to this object's thread.
+void ContentBlocker::countBlockedRequest(const QUrl &sourceUrl) const
+{
     QPointer<ContentBlocker> guard(const_cast<ContentBlocker *>(this));
     QMetaObject::invokeMethod(const_cast<ContentBlocker *>(this), [guard, sourceUrl] {
         if (guard) {
             guard->noteBlockedRequest(sourceUrl);
         }
     }, Qt::QueuedConnection);
-    return true;
 }
 
 QString ContentBlocker::siteKey(const QUrl &url)

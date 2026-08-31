@@ -217,6 +217,16 @@ Item {
         return destination === WebEngineNewWindowRequest.InNewDialog
     }
 
+    // A $popup rule is written against the windows a page opens, which is most
+    // of them: a link that asks for a new tab counts, because that is how an
+    // ad link opens. A background tab does not, because it takes a middle- or
+    // ctrl-click to produce one and that is the user asking, not the page.
+    function popupRefused(destination, requestedUrl) {
+        return destination !== WebEngineNewWindowRequest.InNewBackgroundTab
+            && root.contentBlocker
+            && root.contentBlocker.shouldBlockPopup(requestedUrl, root.currentUrl)
+    }
+
     // A Chromium profile is expensive and owns the Space's cache and cookie
     // store on disk. One per Space is correct; one per tab would have every
     // view contending for the same files. The window hands its Space profile
@@ -323,6 +333,8 @@ Item {
         }
 
         onNewWindowRequested: function(request) {
+            if (root.popupRefused(request.destination, request.requestedUrl))
+                return
             if (request.destination === WebEngineNewWindowRequest.InNewBackgroundTab)
                 root.backgroundTabRequested(request.requestedUrl)
             else if (root.isAuxiliaryDestination(request.destination))

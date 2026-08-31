@@ -10,6 +10,11 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 
 pub struct TantoBlocker {
     engine: Engine,
+    // A second engine holds the list's $popup rules with that option stripped
+    // off. adblock-rust has no popup request type and rejects the option
+    // outright, so the rules are kept apart and asked about separately, at the
+    // moment a page asks for a window rather than during a page's requests.
+    popups: Engine,
 }
 
 fn input(value: *const c_char) -> Option<String> {
@@ -24,15 +29,6 @@ fn input(value: *const c_char) -> Option<String> {
 
 fn output(value: String) -> *mut c_char {
     CString::new(value).map_or(std::ptr::null_mut(), CString::into_raw)
-}
-
-fn has_option(line: &str, name: &str) -> bool {
-    let Some((_, options)) = line.rsplit_once('$') else {
-        return false;
-    };
-    options
-        .split(',')
-        .any(|option| option.trim_start_matches('~') == name)
 }
 
 fn unsupported_category(line: &str) -> Option<&'static str> {
@@ -51,8 +47,6 @@ fn unsupported_category(line: &str) -> Option<&'static str> {
     ];
     if trimmed.contains("##+js(") || trimmed.contains("#@#+js(") {
         Some("scriptlets")
-    } else if has_option(trimmed, "popup") {
-        Some("popup blocking")
     } else if PROCEDURAL_MARKERS
         .iter()
         .any(|marker| trimmed.contains(marker))
@@ -74,6 +68,39 @@ fn unsupported_category(line: &str) -> Option<&'static str> {
     } else {
         None
     }
+}
+
+// A $popup rule says nothing about the request beyond what kind of request it
+// is, so dropping the option leaves a rule that matches the same address with
+// the same domain, party, and exception conditions. What it can no longer say
+// is "popups only", which is why the result is kept apart from ordinary
+// requests. A $~popup rule says "anything but a popup", and an engine that is
+// never asked about popups sees only such requests, so that one loses the
+// option and stays where it was.
+//
+// Returns the rewritten rule and whether it is the popups-only kind, or None
+// for a line that never mentioned popups at all.
+fn split_popup_option(line: &str) -> Option<(String, bool)> {
+    let (pattern, options) = line.rsplit_once('$')?;
+    let mut kept = Vec::new();
+    let mut popups_only = None;
+    for option in options.split(',') {
+        match option {
+            "popup" => popups_only = Some(true),
+            "~popup" => popups_only = Some(false),
+            _ => kept.push(option),
+        }
+    }
+    let popups_only = popups_only?;
+    let kept = kept.join(",");
+    Some((
+        if kept.is_empty() {
+            pattern.to_owned()
+        } else {
+            format!("{pattern}${kept}")
+        },
+        popups_only,
+    ))
 }
 
 fn stylesheet(selectors: impl IntoIterator<Item = String>) -> String {
@@ -106,6 +133,8 @@ pub unsafe extern "C" fn tanto_blocker_compile(
             return std::ptr::null_mut();
         };
         let mut accepted = Vec::new();
+        let mut popups = Vec::new();
+        let mut popup_rule_count = 0;
         let mut unsupported = BTreeMap::<&str, usize>::new();
         let mut invalid_rule_count = 0;
         for line in rules.lines() {
@@ -117,23 +146,45 @@ pub unsafe extern "C" fn tanto_blocker_compile(
                 *unsupported.entry(category).or_default() += 1;
                 continue;
             }
+            let (rule, popups_only) =
+                split_popup_option(line).unwrap_or_else(|| (line.to_owned(), false));
             let mut validator = FilterSet::new(false);
-            if validator.add_filter(line, ParseOptions::default()).is_err() {
+            if validator
+                .add_filter(&rule, ParseOptions::default())
+                .is_err()
+            {
                 invalid_rule_count += 1;
                 continue;
             }
-            accepted.push(line);
+            if popups_only {
+                popup_rule_count += 1;
+                popups.push(rule);
+                continue;
+            }
+            // An allowlist rule that never says "popup" still allows the
+            // windows a page opens, the way it allows every other request the
+            // page makes. Leaving it out of the popup engine would let a list
+            // refuse the payment or login window that the same list's own
+            // exception was written to let through.
+            if rule.starts_with("@@") {
+                popups.push(rule.clone());
+            }
+            accepted.push(rule);
         }
         let engine = Engine::from_rules(&accepted, ParseOptions::default());
+        let popup_engine = Engine::from_rules(&popups, ParseOptions::default());
         if !report.is_null() {
             let value = json!({
-                "acceptedRuleCount": accepted.len(),
+                "acceptedRuleCount": accepted.len() + popup_rule_count,
                 "invalidRuleCount": invalid_rule_count,
                 "unsupported": unsupported,
             });
             unsafe { *report = output(value.to_string()) };
         }
-        Box::into_raw(Box::new(TantoBlocker { engine }))
+        Box::into_raw(Box::new(TantoBlocker {
+            engine,
+            popups: popup_engine,
+        }))
     }))
     .unwrap_or(std::ptr::null_mut())
 }
@@ -169,6 +220,32 @@ pub unsafe extern "C" fn tanto_blocker_matches(
         };
         Request::new(&url, &source_url, &resource_type)
             .map(|request| blocker.engine.check_network_request(&request).matched)
+            .unwrap_or(false)
+    }))
+    .unwrap_or(false)
+}
+
+#[unsafe(no_mangle)]
+/// # Safety
+/// `blocker` must be a live matcher. String arguments must be valid NUL-terminated UTF-8.
+///
+/// Reports whether a page opening a window for `url` is one the lists refuse. The opener is the
+/// source, which is what makes `third-party` and `domain=` mean here what they mean anywhere
+/// else. `other` is the request type because a $popup rule names no type of its own, and that is
+/// the type every rule without one accepts.
+pub unsafe extern "C" fn tanto_blocker_matches_popup(
+    blocker: *const TantoBlocker,
+    url: *const c_char,
+    opener_url: *const c_char,
+) -> bool {
+    catch_unwind(AssertUnwindSafe(|| {
+        let (Some(blocker), Some(url), Some(opener_url)) =
+            (unsafe { blocker.as_ref() }, input(url), input(opener_url))
+        else {
+            return false;
+        };
+        Request::new(&url, &opener_url, "other")
+            .map(|request| blocker.popups.check_network_request(&request).matched)
             .unwrap_or(false)
     }))
     .unwrap_or(false)

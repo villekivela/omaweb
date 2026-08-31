@@ -15,7 +15,7 @@
 namespace {
 
 QJsonObject runFixtures(const QJsonObject &fixtures,
-    const tanto::QtContentBlocker &adapter)
+    const tanto::QtContentBlocker &adapter, const tanto::ContentBlocker &contentBlocker)
 {
     const auto resourceType = [](const QString &name) {
         using Info = QWebEngineUrlRequestInfo;
@@ -37,6 +37,16 @@ QJsonObject runFixtures(const QJsonObject &fixtures,
             QUrl(fixture.value(QStringLiteral("url")).toString()),
             QUrl(fixture.value(QStringLiteral("source")).toString()),
             resourceType(fixture.value(QStringLiteral("type")).toString()));
+        passed += actual == fixture.value(QStringLiteral("blocked")).toBool();
+        ++total;
+    }
+    // A refused window never reaches an engine's request interception, so the
+    // popup fixtures ask the engine-neutral blocker rather than the adapter.
+    for (const auto &value : fixtures.value(QStringLiteral("popup")).toArray()) {
+        const auto fixture = value.toObject();
+        const auto actual = contentBlocker.shouldBlockPopup(
+            QUrl(fixture.value(QStringLiteral("url")).toString()),
+            QUrl(fixture.value(QStringLiteral("opener")).toString()));
         passed += actual == fixture.value(QStringLiteral("blocked")).toBool();
         ++total;
     }
@@ -117,7 +127,7 @@ int main(int argc, char *argv[])
         return 1;
     }
     const tanto::QtContentBlocker qtAdapter(&contentBlocker);
-    const auto result = runFixtures(fixtures, qtAdapter);
+    const auto result = runFixtures(fixtures, qtAdapter, contentBlocker);
     const auto report = QJsonObject{
         {QStringLiteral("contract"), QStringLiteral("Tanto content blocking v1")},
         {QStringLiteral("adblockRustVersion"), QStringLiteral("0.12.5")},
@@ -125,7 +135,6 @@ int main(int argc, char *argv[])
         {QStringLiteral("unsupportedRuleCategories"), QJsonArray{
             QStringLiteral("scriptlets"),
             QStringLiteral("procedural selectors"),
-            QStringLiteral("popup blocking"),
             QStringLiteral("response rewriting"),
             QStringLiteral("HTML filtering"),
             QStringLiteral("dynamic rules"),

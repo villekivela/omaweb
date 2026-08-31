@@ -52,6 +52,10 @@ public:
     Q_INVOKABLE QString genericCosmeticStyleSheet(const QUrl &url, const QStringList &classes,
         const QStringList &ids) const;
 
+    // The window a page asked for is refused from QML, where the request
+    // arrives, so unlike shouldBlock this one is invokable.
+    Q_INVOKABLE bool shouldBlockPopup(const QUrl &requestUrl, const QUrl &openerUrl) const;
+
     bool shouldBlock(const QUrl &requestUrl, const QUrl &sourceUrl,
         const QString &resourceType) const;
 
@@ -79,10 +83,12 @@ private:
     };
 
     static QString siteKey(const QUrl &url);
+    std::shared_ptr<const ContentMatcher> matcherFor(const QUrl &siteUrl) const;
     QString settingsPath() const;
     QString listPath(const QString &id) const;
     void load();
     void seedDefaultSubscriptions();
+    void countBlockedRequest(const QUrl &sourceUrl) const;
     void noteBlockedRequest(const QUrl &sourceUrl);
     void flushBlockedRequestCounts();
     void save() const;

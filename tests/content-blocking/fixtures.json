@@ -13,7 +13,11 @@
     "site.example#@#.generic-ad",
     "###banner-ad",
     "entity.*##.entity-ad",
-    "@@||nogeneric.example^$generichide"
+    "@@||nogeneric.example^$generichide",
+    "||popads.example^$popup",
+    "@@||popads.example/checkout$popup",
+    "||windows.example^$popup,third-party",
+    "@@||popads.example/pay^"
   ],
   "network": [
     {
@@ -91,6 +95,45 @@
       "url": "https://metrics.example/pixel.js",
       "source": "https://other.example/",
       "type": "script",
+      "blocked": false
+    },
+    {
+      "name": "a popup rule leaves ordinary requests alone",
+      "url": "https://popads.example/win",
+      "source": "https://site.example/article",
+      "type": "script",
+      "blocked": false
+    }
+  ],
+  "popup": [
+    {
+      "name": "popup rule",
+      "url": "https://popads.example/win",
+      "opener": "https://site.example/article",
+      "blocked": true
+    },
+    {
+      "name": "popup exception",
+      "url": "https://popads.example/checkout",
+      "opener": "https://site.example/article",
+      "blocked": false
+    },
+    {
+      "name": "third-party popup rule excludes a site's own windows",
+      "url": "https://windows.example/help",
+      "opener": "https://windows.example/article",
+      "blocked": false
+    },
+    {
+      "name": "third-party popup rule",
+      "url": "https://windows.example/help",
+      "opener": "https://site.example/article",
+      "blocked": true
+    },
+    {
+      "name": "an allowlist rule that never says popup still allows the window",
+      "url": "https://popads.example/pay",
+      "opener": "https://site.example/article",
       "blocked": false
     }
   ],

@@ -16,6 +16,7 @@ private slots:
     void subscriptionsExposeRequiredProvenanceAndUpdateStatus();
     void invalidSubscriptionUpdateKeepsTheActiveRules();
     void aListKeepsTheRulesThisContractParses();
+    void aRefusedWindowCountsAsABlockedRequest();
     void firstRunSubscribesToTheDefaultLists();
 };
 
@@ -105,9 +106,8 @@ void ContentBlockerTest::invalidSubscriptionUpdateKeepsTheActiveRules()
         QUrl(QStringLiteral("https://site.example/")), QStringLiteral("image")));
 }
 
-// A published list always carries rules outside this contract. EasyList's
-// thousands of popup rules once failed the whole list, so the browser shipped
-// with blocking that never worked.
+// A published list always carries rules outside this contract, and a list that
+// fails as a whole over them ships blocking that never works.
 void ContentBlockerTest::aListKeepsTheRulesThisContractParses()
 {
     QTemporaryDir root;
@@ -126,8 +126,29 @@ void ContentBlockerTest::aListKeepsTheRulesThisContractParses()
         .value(QStringLiteral("updateStatus")).toString(), QStringLiteral("current"), 5000);
     QVERIFY(blocker.shouldBlock(QUrl(QStringLiteral("https://tracker.example/pixel")),
         QUrl(QStringLiteral("https://site.example/")), QStringLiteral("image")));
-    QCOMPARE(blocker.compilationReport().value(QStringLiteral("unsupported")).toMap()
-                 .value(QStringLiteral("popup blocking")).toInt(), 1);
+    QVERIFY(blocker.shouldBlockPopup(QUrl(QStringLiteral("https://ads.example/?&popunder=1")),
+        QUrl(QStringLiteral("https://site.example/"))));
+}
+
+// The count means "requests this page did not get to make", and a window the
+// page never got to open is one of them.
+void ContentBlockerTest::aRefusedWindowCountsAsABlockedRequest()
+{
+    QTemporaryDir root;
+    ContentBlocker blocker(root.path(), ContentBlocker::DefaultLists::None);
+    blocker.setUserRules(QStringLiteral("||popads.example^$popup"));
+    QTRY_VERIFY_WITH_TIMEOUT(!blocker.compiling(), 5000);
+    const QUrl opener(QStringLiteral("https://site.example/article"));
+
+    QVERIFY(!blocker.shouldBlockPopup(QUrl(QStringLiteral("https://pay.example/checkout")),
+        opener));
+    QVERIFY(blocker.shouldBlockPopup(QUrl(QStringLiteral("https://popads.example/win")), opener));
+    QTRY_COMPARE_WITH_TIMEOUT(blocker.blockedRequestCount(opener), 1, 5000);
+
+    // A site the user turned blocking off for opens its windows either way.
+    blocker.setSiteEnabled(opener, false);
+    QVERIFY(!blocker.shouldBlockPopup(QUrl(QStringLiteral("https://popads.example/win")),
+        opener));
 }
 
 void ContentBlockerTest::firstRunSubscribesToTheDefaultLists()

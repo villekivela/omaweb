@@ -15,6 +15,8 @@ private slots:
     void sharedSurveyFixtures();
     void sendsOnlyTheGenericRulesAPageCouldTrigger();
     void reportsUnsupportedCategories();
+    void popupRulesKeepTheirOtherConditions();
+    void negatedPopupRulesStayOrdinaryRules();
 };
 
 void ContentMatcherTest::sharedConformanceFixtures()
@@ -37,6 +39,13 @@ void ContentMatcherTest::sharedConformanceFixtures()
             QUrl(fixture.value(QStringLiteral("url")).toString()),
             QUrl(fixture.value(QStringLiteral("source")).toString()),
             fixture.value(QStringLiteral("type")).toString());
+        QCOMPARE(blocked, fixture.value(QStringLiteral("blocked")).toBool());
+    }
+    for (const auto &value : root.value(QStringLiteral("popup")).toArray()) {
+        const auto fixture = value.toObject();
+        const auto blocked = compilation.matcher->shouldBlockPopup(
+            QUrl(fixture.value(QStringLiteral("url")).toString()),
+            QUrl(fixture.value(QStringLiteral("opener")).toString()));
         QCOMPARE(blocked, fixture.value(QStringLiteral("blocked")).toBool());
     }
     for (const auto &value : root.value(QStringLiteral("cosmetic")).toArray()) {
@@ -112,12 +121,49 @@ void ContentMatcherTest::reportsUnsupportedCategories()
         "||example.com^$redirect=noopjs\n"
         "||safe.example^"));
     QVERIFY(compilation.matcher);
-    QCOMPARE(compilation.report.value(QStringLiteral("acceptedRuleCount")).toInt(), 1);
+    // The popup rule counts among the accepted: it is kept and matched now.
+    QCOMPARE(compilation.report.value(QStringLiteral("acceptedRuleCount")).toInt(), 2);
     const auto unsupported = compilation.report.value(QStringLiteral("unsupported")).toObject();
     QCOMPARE(unsupported.value(QStringLiteral("scriptlets")).toInt(), 1);
     QCOMPARE(unsupported.value(QStringLiteral("procedural selectors")).toInt(), 1);
-    QCOMPARE(unsupported.value(QStringLiteral("popup blocking")).toInt(), 1);
+    QVERIFY(!unsupported.contains(QStringLiteral("popup blocking")));
     QCOMPARE(unsupported.value(QStringLiteral("redirects or resource replacement")).toInt(), 1);
+}
+
+// A $popup rule carries the same address, party, and domain conditions as any
+// other rule, and they have to survive the option being stripped off.
+void ContentMatcherTest::popupRulesKeepTheirOtherConditions()
+{
+    const auto compilation = ContentMatcher::compile(QStringLiteral(
+        "&popunder=$popup\n"
+        "||ads.example^$popup,domain=site.example"));
+    QVERIFY(compilation.matcher);
+    const QUrl opener(QStringLiteral("https://site.example/article"));
+
+    QVERIFY(compilation.matcher->shouldBlockPopup(
+        QUrl(QStringLiteral("https://tracker.example/go?&popunder=1")), opener));
+    QVERIFY(compilation.matcher->shouldBlockPopup(
+        QUrl(QStringLiteral("https://ads.example/win")), opener));
+    QVERIFY(!compilation.matcher->shouldBlockPopup(QUrl(QStringLiteral("https://ads.example/win")),
+        QUrl(QStringLiteral("https://elsewhere.example/article"))));
+    QVERIFY(!compilation.matcher->shouldBlockPopup(
+        QUrl(QStringLiteral("https://ads.example/win")), QUrl()));
+}
+
+// $~popup is "anything but a popup". The engine that answers for ordinary
+// requests is never asked about popups, so the option comes off and the rule
+// keeps working rather than failing to parse and taking its blocking with it.
+void ContentMatcherTest::negatedPopupRulesStayOrdinaryRules()
+{
+    const auto compilation = ContentMatcher::compile(
+        QStringLiteral("||tracker.example^$~popup"));
+    QVERIFY(compilation.matcher);
+    QCOMPARE(compilation.report.value(QStringLiteral("invalidRuleCount")).toInt(), 0);
+    QVERIFY(compilation.matcher->shouldBlock(QUrl(QStringLiteral("https://tracker.example/p")),
+        QUrl(QStringLiteral("https://site.example/")), QStringLiteral("image")));
+    QVERIFY(!compilation.matcher->shouldBlockPopup(
+        QUrl(QStringLiteral("https://tracker.example/p")),
+        QUrl(QStringLiteral("https://site.example/"))));
 }
 
 QTEST_APPLESS_MAIN(ContentMatcherTest)

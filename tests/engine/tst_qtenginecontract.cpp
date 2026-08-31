@@ -50,6 +50,7 @@ private slots:
     void qtKeyboardNavigationHonorsInputContracts();
     void qtLinkHintsOwnSingleKeyShortcuts();
     void qtHidesCosmeticRulesBeforeThePageRuns();
+    void qtRefusesTheWindowsTheListsNameAndNoOthers();
 };
 
 void QtEngineContractTest::adaptersExposeSharedContract_data()
@@ -802,6 +803,56 @@ void QtEngineContractTest::qtHidesCosmeticRulesBeforeThePageRuns()
         QStringLiteral("S--|---"), 15000);
 }
 
+
+// The lists' $popup rules decide which windows a page gets to open, a link
+// asking for a new tab included: that is how an ad link opens. A background
+// tab takes a middle- or ctrl-click, which is the user asking rather than the
+// page, and a site the user turned blocking off for opens whatever it likes.
+void QtEngineContractTest::qtRefusesTheWindowsTheListsNameAndNoOthers()
+{
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    tanto::ContentBlocker contentBlocker(
+        root.path(), tanto::ContentBlocker::DefaultLists::None);
+    contentBlocker.setUserRules(QStringLiteral("||popads.example^$popup"));
+    QTRY_VERIFY_WITH_TIMEOUT(!contentBlocker.compiling(), 5000);
+
+    QQmlEngine engine;
+    QQmlComponent component(&engine, QUrl::fromLocalFile(
+        QStringLiteral(TANTO_QT_ENGINE_VIEW_PATH)));
+    const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
+        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
+        {QStringLiteral("contentBlocker"), QVariant::fromValue<QObject *>(&contentBlocker)},
+    }));
+    QVERIFY2(adapter, qPrintable(component.errorString()));
+    const QUrl opener(QStringLiteral("https://site.example/article"));
+    QVERIFY(adapter->setProperty("currentUrl", opener));
+
+    const auto refused = [&adapter](QWebEngineNewWindowRequest::DestinationType destination,
+                             const QString &url) {
+        QVariant result;
+        const auto invoked = QMetaObject::invokeMethod(adapter.get(), "popupRefused",
+            Q_RETURN_ARG(QVariant, result),
+            Q_ARG(QVariant, QVariant::fromValue(static_cast<int>(destination))),
+            Q_ARG(QVariant, QVariant::fromValue(QUrl(url))));
+        return invoked && result.toBool();
+    };
+
+    QVERIFY(refused(QWebEngineNewWindowRequest::InNewWindow,
+        QStringLiteral("https://popads.example/win")));
+    QVERIFY(refused(QWebEngineNewWindowRequest::InNewDialog,
+        QStringLiteral("https://popads.example/win")));
+    QVERIFY(refused(QWebEngineNewWindowRequest::InNewTab,
+        QStringLiteral("https://popads.example/win")));
+    QVERIFY(!refused(QWebEngineNewWindowRequest::InNewBackgroundTab,
+        QStringLiteral("https://popads.example/win")));
+    QVERIFY(!refused(QWebEngineNewWindowRequest::InNewDialog,
+        QStringLiteral("https://pay.example/checkout")));
+
+    contentBlocker.setSiteEnabled(opener, false);
+    QVERIFY(!refused(QWebEngineNewWindowRequest::InNewWindow,
+        QStringLiteral("https://popads.example/win")));
+}
 
 int main(int argc, char *argv[])
 {

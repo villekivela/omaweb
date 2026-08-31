@@ -12,6 +12,8 @@ TantoBlocker *tanto_blocker_compile(const char *rules, char **report);
 void tanto_blocker_destroy(TantoBlocker *blocker);
 bool tanto_blocker_matches(const TantoBlocker *blocker, const char *url,
     const char *source_url, const char *resource_type);
+bool tanto_blocker_matches_popup(const TantoBlocker *blocker, const char *url,
+    const char *opener_url);
 char *tanto_blocker_cosmetic_css(const TantoBlocker *blocker, const char *url);
 bool tanto_blocker_cosmetic_survey_wanted(const TantoBlocker *blocker, const char *url);
 char *tanto_blocker_generic_cosmetic_css(const TantoBlocker *blocker, const char *url,

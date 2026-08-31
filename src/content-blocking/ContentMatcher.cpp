@@ -59,6 +59,15 @@ bool ContentMatcher::shouldBlock(const QUrl &requestUrl, const QUrl &sourceUrl,
         type.constData());
 }
 
+// The lists' $popup rules, asked about with the window's address as the
+// request and the page that asked for it as the source.
+bool ContentMatcher::shouldBlockPopup(const QUrl &requestUrl, const QUrl &openerUrl) const
+{
+    const auto request = requestUrl.toString(QUrl::FullyEncoded).toUtf8();
+    const auto opener = openerUrl.toString(QUrl::FullyEncoded).toUtf8();
+    return tanto_blocker_matches_popup(d->blocker, request.constData(), opener.constData());
+}
+
 namespace {
 
 QByteArray encodedNames(const QStringList &names)
