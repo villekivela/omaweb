@@ -212,27 +212,32 @@ TestCase {
         tryCompare(browser, "activeTabId", start)
     }
 
-    function test_spaceSwitchRecreatesEngineView() {
+    function test_spaceSwitchKeepsEachSpacesPagesLoaded() {
         const engineLoader = findChild(window.contentItem, "engineLoader")
         verify(engineLoader !== null)
         verify(engineLoader.item !== null)
         const personalSpaceId = browser.activeSpaceId
-        const previousEngineView = engineLoader.item
+        const personalEngineView = engineLoader.item
         const workSpaceId = browser.createSpace("Work")
 
         verify(browser.switchSpace(workSpaceId))
         tryVerify(function() {
             return engineLoader.item !== null
-                && engineLoader.item !== previousEngineView
+                && engineLoader.item !== personalEngineView
                 && engineLoader.item.profilePath === browser.activeProfilePath
         })
+        const workEngineView = engineLoader.item
 
+        // Coming back finds the very page that was left, not a reload of it.
+        verify(browser.switchSpace(personalSpaceId))
+        tryCompare(engineLoader, "item", personalEngineView)
+
+        // A deleted Space takes its pages with it.
+        verify(browser.switchSpace(workSpaceId))
+        tryCompare(engineLoader, "item", workEngineView)
         verify(browser.deleteSpace(workSpaceId, ""))
         compare(browser.activeSpaceId, personalSpaceId)
-        tryVerify(function() {
-            return engineLoader.item !== null
-                && engineLoader.item.profilePath === browser.activeProfilePath
-        })
+        tryCompare(engineLoader, "item", personalEngineView)
     }
 
     function test_privateWindowUsesTemporaryIdentityAndDistinctChrome() {

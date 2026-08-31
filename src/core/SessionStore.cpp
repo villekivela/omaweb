@@ -8,6 +8,11 @@
 #include <QUuid>
 
 namespace tanto {
+namespace {
+
+constexpr int retainedHistoryRows = 5000;
+
+} // namespace
 
 SessionStore::SessionStore(QString dataRoot)
     : m_dataRoot(std::move(dataRoot))
@@ -53,7 +58,10 @@ bool SessionStore::open(QString *errorMessage)
 
     QSqlQuery pragma(m_database);
     pragma.exec(QStringLiteral("PRAGMA foreign_keys = ON"));
-    pragma.exec(QStringLiteral("PRAGMA journal_mode = DELETE"));
+    // Session state is written whenever a page reports a new address or title,
+    // so writes are frequent and small. A rollback journal creates and deletes
+    // a file for each one; a write-ahead log appends instead.
+    pragma.exec(QStringLiteral("PRAGMA journal_mode = WAL"));
     pragma.exec(QStringLiteral("PRAGMA synchronous = NORMAL"));
     if (!executeSchema(errorMessage) || !migrateLegacyTabs(errorMessage)) {
         return false;
@@ -617,7 +625,7 @@ QSqlDatabase SessionStore::spaceDatabase(const QString &spaceId) const
     database.setDatabaseName(QDir(spaceRoot).filePath(QStringLiteral("browser.sqlite")));
     database.open();
     QSqlQuery pragma(database);
-    pragma.exec(QStringLiteral("PRAGMA journal_mode = DELETE"));
+    pragma.exec(QStringLiteral("PRAGMA journal_mode = WAL"));
     pragma.exec(QStringLiteral("PRAGMA synchronous = NORMAL"));
     QSqlQuery schema(database);
     schema.exec(QStringLiteral(
@@ -634,6 +642,17 @@ QSqlDatabase SessionStore::spaceDatabase(const QString &spaceId) const
         "url TEXT NOT NULL, "
         "title TEXT NOT NULL, "
         "visited_at INTEGER NOT NULL)"));
+    // The Omnibar reads history on every keystroke, ordered by recency.
+    schema.exec(QStringLiteral(
+        "CREATE INDEX IF NOT EXISTS history_visited_at ON history(visited_at DESC)"));
+    schema.exec(QStringLiteral(
+        "CREATE INDEX IF NOT EXISTS history_url ON history(url)"));
+    // One row per page load, kept forever, would make that read slower every
+    // day the browser is used. Only the recent past is ever suggested.
+    schema.exec(QStringLiteral(
+        "DELETE FROM history WHERE id NOT IN ("
+        "SELECT id FROM history ORDER BY visited_at DESC LIMIT %1)")
+            .arg(retainedHistoryRows));
     schema.exec(QStringLiteral(
         "CREATE TABLE IF NOT EXISTS site_permissions ("
         "origin TEXT NOT NULL, "

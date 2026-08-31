@@ -20,6 +20,7 @@ Rectangle {
         ? contentBlocker.blockedRequestCount(currentUrl) : 0
     property var keyboardNavigationConfiguration: ({})
     property string keyboardNavigationScriptSource: ""
+    property color pageBackgroundColor: "#16151d"
     readonly property bool pageHasFocus: root.activeFocus
     readonly property int navigationCapability: 1 << 0
     readonly property int contentBlockingCapability: 1 << 3
@@ -40,7 +41,7 @@ Rectangle {
 
     onCurrentUrlChanged: pageLocalState = ""
 
-    color: "#f4f2ed"
+    color: root.pageBackgroundColor
 
     function goBack() {}
     function goForward() {}

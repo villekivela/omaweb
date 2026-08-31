@@ -8,6 +8,7 @@
 #include <QHash>
 #include <QSharedPointer>
 #include <QSortFilterProxyModel>
+#include <QTimer>
 #include <QUrl>
 #include <QVariantList>
 
@@ -49,6 +50,8 @@ public:
     BrowserController(QString dataRoot, QString engineName, bool privateBrowsing,
         QSharedPointer<QHash<QString, int>> sessionPermissionDecisions,
         QObject *parent = nullptr);
+
+    ~BrowserController() override;
 
     QAbstractItemModel *spaces();
     QAbstractItemModel *tabs();
@@ -106,6 +109,7 @@ signals:
     void activeTabChanged();
     void spaceSuspended(const QString &spaceId);
     void spaceRestored(const QString &spaceId);
+    void spaceDiscarded(const QString &spaceId);
     void tabMoveConfirmationRequested(const QString &tabId, const QString &destinationSpaceId);
     void backRequested();
     void forwardRequested();
@@ -122,6 +126,7 @@ private:
     void ensureDefaultSpace();
     void ensureActiveTab();
     bool persistTabs();
+    void schedulePersistTabs();
     void setActiveTab(const QString &tabId);
     static TabState makeBlankTab(const QString &spaceId);
     static QUrl resolveInput(const QString &input);
@@ -129,6 +134,7 @@ private:
     QString sessionPermissionKey(const QString &origin, const QString &permission) const;
 
     SessionStore m_store;
+    QTimer m_persistTabsTimer;
     SpaceListModel m_spaces;
     TabListModel m_tabs;
     QSortFilterProxyModel m_pinnedTabs;

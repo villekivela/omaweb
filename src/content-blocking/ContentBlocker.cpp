@@ -5,6 +5,7 @@
 #include <QDateTime>
 #include <QDir>
 #include <QFile>
+#include <QFileInfo>
 #include <QFutureWatcher>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -14,17 +15,68 @@
 #include <QUuid>
 #include <QtConcurrentRun>
 
+#include <utility>
+
 namespace tanto {
+namespace {
+
+constexpr int startupUpdateDelayMilliseconds = 5000;
+constexpr qint64 updateIntervalSeconds = 24 * 60 * 60;
+
+} // namespace
 
 ContentBlocker::ContentBlocker(QString dataRoot, QObject *parent)
     : QObject(parent)
     , m_dataRoot(std::move(dataRoot))
 {
     std::atomic_store(&m_runtime, std::make_shared<const Runtime>());
+    m_blockedCountFlush.setSingleShot(true);
+    m_blockedCountFlush.setInterval(250);
+    connect(&m_blockedCountFlush, &QTimer::timeout, this,
+        &ContentBlocker::flushBlockedRequestCounts);
     load();
     recompile();
-    QMetaObject::invokeMethod(this, &ContentBlocker::updateAllSubscriptions,
-        Qt::QueuedConnection);
+    // Refreshing lists competes with the windows and pages coming up, and a
+    // list that is hours old blocks just as well as one fetched this second,
+    // so the check waits until the browser is on screen and doing nothing.
+    QTimer::singleShot(startupUpdateDelayMilliseconds, this,
+        &ContentBlocker::updateStaleSubscriptions);
+}
+
+void ContentBlocker::noteBlockedRequest(const QUrl &sourceUrl)
+{
+    ++m_blockedCounts[siteKey(sourceUrl)];
+    m_pendingBlockedSites.insert(siteKey(sourceUrl), sourceUrl);
+    if (!m_blockedCountFlush.isActive()) {
+        m_blockedCountFlush.start();
+    }
+}
+
+void ContentBlocker::flushBlockedRequestCounts()
+{
+    const auto pending = std::exchange(m_pendingBlockedSites, {});
+    for (const auto &sourceUrl : pending) {
+        emit blockedRequestCountChanged(sourceUrl);
+    }
+}
+
+// A subscription refreshed within the last day is left alone. Re-downloading
+// and recompiling every list on every launch cost a network round trip and a
+// full rule compilation for no change in what gets blocked.
+void ContentBlocker::updateStaleSubscriptions()
+{
+    const auto now = QDateTime::currentDateTimeUtc();
+    for (const auto &subscription : std::as_const(m_subscriptions)) {
+        if (!subscription.enabled) {
+            continue;
+        }
+        const auto updated = QDateTime::fromString(subscription.lastUpdated, Qt::ISODate);
+        if (updated.isValid() && updated.secsTo(now) < updateIntervalSeconds
+            && QFileInfo::exists(listPath(subscription.id))) {
+            continue;
+        }
+        updateSubscription(subscription.id);
+    }
 }
 
 QString ContentBlocker::userRules() const
@@ -226,16 +278,14 @@ bool ContentBlocker::shouldBlock(const QUrl &requestUrl, const QUrl &sourceUrl,
     const QString &resourceType) const
 {
     const auto runtime = std::atomic_load(&m_runtime);
-    const auto sourceKey = siteKey(sourceUrl);
-    if (!runtime->matcher || runtime->disabledSites.contains(sourceKey)
+    if (!runtime->matcher || runtime->disabledSites.contains(siteKey(sourceUrl))
         || !runtime->matcher->shouldBlock(requestUrl, sourceUrl, resourceType)) {
         return false;
     }
     QPointer<ContentBlocker> guard(const_cast<ContentBlocker *>(this));
-    QMetaObject::invokeMethod(const_cast<ContentBlocker *>(this), [guard, sourceUrl, sourceKey] {
+    QMetaObject::invokeMethod(const_cast<ContentBlocker *>(this), [guard, sourceUrl] {
         if (guard) {
-            ++guard->m_blockedCounts[sourceKey];
-            emit guard->blockedRequestCountChanged(sourceUrl);
+            guard->noteBlockedRequest(sourceUrl);
         }
     }, Qt::QueuedConnection);
     return true;

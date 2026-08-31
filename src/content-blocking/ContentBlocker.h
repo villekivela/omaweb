@@ -5,6 +5,7 @@
 #include <QNetworkAccessManager>
 #include <QObject>
 #include <QSet>
+#include <QTimer>
 #include <QUrl>
 #include <QVariantList>
 
@@ -35,6 +36,7 @@ public:
     Q_INVOKABLE void setSubscriptionEnabled(const QString &id, bool enabled);
     Q_INVOKABLE void updateSubscription(const QString &id);
     Q_INVOKABLE void updateAllSubscriptions();
+    Q_INVOKABLE void updateStaleSubscriptions();
     Q_INVOKABLE bool siteEnabled(const QUrl &url) const;
     Q_INVOKABLE void setSiteEnabled(const QUrl &url, bool enabled);
     Q_INVOKABLE int blockedRequestCount(const QUrl &url) const;
@@ -70,6 +72,8 @@ private:
     QString settingsPath() const;
     QString listPath(const QString &id) const;
     void load();
+    void noteBlockedRequest(const QUrl &sourceUrl);
+    void flushBlockedRequestCounts();
     void save() const;
     void recompile();
     void replaceDisabledSites();
@@ -80,7 +84,12 @@ private:
     QList<Subscription> m_subscriptions;
     QSet<QString> m_disabledSites;
     std::shared_ptr<const Runtime> m_runtime;
-    mutable QHash<QString, int> m_blockedCounts;
+    QHash<QString, int> m_blockedCounts;
+    // A busy page blocks hundreds of requests. Announcing each one separately
+    // would make every open tab re-read its counter and re-run its bindings
+    // hundreds of times over a single load, so the announcements are batched.
+    QHash<QString, QUrl> m_pendingBlockedSites;
+    QTimer m_blockedCountFlush;
     QNetworkAccessManager m_network;
     QVariantMap m_compilationReport;
     QStringList m_pendingCurrent;

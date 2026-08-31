@@ -33,6 +33,7 @@ ApplicationWindow {
     property string pendingMoveSpaceId: ""
     property var privateProfileHost: null
     property var spaceProfileHost: null
+    readonly property var spaceProfileHosts: ({})
     property var omnibarSuggestions: []
     property var visibleDownloads: []
     property var visibleSubscriptions: []
@@ -182,19 +183,39 @@ ApplicationWindow {
         omnibarOpen = true
     }
 
+    // One profile per Space, kept for as long as the Space's pages are. A
+    // profile owns the Space's cookies and cache on disk, so rebuilding it on
+    // every switch cost a full teardown and reopen of both.
     function createSpaceProfile() {
-        if (window.privateWindow || window.spaceProfileHost) return
+        if (window.privateWindow) return
+        const spaceId = window.windowBrowser.activeSpaceId
+        const existing = window.spaceProfileHosts[spaceId]
+        if (existing) {
+            window.spaceProfileHost = existing
+            return
+        }
         const component = Qt.createComponent(engineProfileSource)
-        window.spaceProfileHost = component.createObject(window, {
+        const host = component.createObject(window, {
             "profilePath": window.windowBrowser.activeProfilePath,
             "downloadDirectory": window.windowBrowser.downloadDirectory,
             "acceptDownloads": window.windowBrowser.acceptDownloads,
             "privateBrowsing": false,
-            "downloadNamespace": window.windowBrowser.activeSpaceId,
+            "downloadNamespace": spaceId,
             "engineContentBlocker": engineContentBlocker
         })
-        window.spaceProfileHost.downloadStarted.connect(window.handleDownloadStarted)
-        window.spaceProfileHost.downloadUpdated.connect(window.handleDownloadUpdated)
+        if (!host) return
+        host.downloadStarted.connect(window.handleDownloadStarted)
+        host.downloadUpdated.connect(window.handleDownloadUpdated)
+        window.spaceProfileHosts[spaceId] = host
+        window.spaceProfileHost = host
+    }
+
+    function retireSpaceProfile(spaceId) {
+        const host = window.spaceProfileHosts[spaceId]
+        if (!host) return
+        delete window.spaceProfileHosts[spaceId]
+        if (window.spaceProfileHost === host) window.spaceProfileHost = null
+        host.retire()
     }
 
     function handleDownloadStarted(runtimeId, sourceUrl, path, state, receivedBytes, totalBytes) {
@@ -310,6 +331,10 @@ ApplicationWindow {
                     blocker: contentBlocker
                     engineBlocker: engineContentBlocker
                     keyboardManager: keyboardNavigation
+                    // Chromium's own pre-paint colour, so a navigation never
+                    // flashes a bright frame through the dark shell.
+                    pageBackgroundColor: window.colors.windowOpaque
+                    spaceId: window.windowBrowser.activeSpaceId
 
                     onAuxiliaryWindowRequested: function(engine, request, requestedUrl) {
                         auxiliaryWindowComponent.createObject(window, {
@@ -423,12 +448,12 @@ ApplicationWindow {
                         window.dialogMode = "confirm-move"
                     }
 
+                    // The Space's pages and the profile they run in are put
+                    // aside, not thrown away: coming back to a Space should
+                    // find it where it was left rather than reloading every
+                    // tab from its address.
                     function onSpaceSuspended(spaceId) {
                         engineLoader.suspend()
-                        if (window.spaceProfileHost) {
-                            window.spaceProfileHost.retire()
-                            window.spaceProfileHost = null
-                        }
                     }
 
                     function onSpaceRestored(spaceId) {
@@ -438,6 +463,11 @@ ApplicationWindow {
                                 engineLoader.resume()
                             })
                         }
+                    }
+
+                    function onSpaceDiscarded(spaceId) {
+                        engineLoader.discardEnginesForSpace(spaceId)
+                        window.retireSpaceProfile(spaceId)
                     }
 
                     function onCloseWindowRequested() {
@@ -564,19 +594,25 @@ ApplicationWindow {
     Connections {
         target: contentBlocker
 
-        function refreshContentBlockingState() {
-            window.visibleSubscriptions = contentBlocker.subscriptions
+        function refreshBlockedRequestCount() {
             window.visibleBlockedRequestCount = contentBlocker.blockedRequestCount(
                 window.windowBrowser.activeUrl)
         }
 
-        function onSubscriptionsChanged() { refreshContentBlockingState() }
-        function onBlockedRequestCountChanged(siteUrl) { refreshContentBlockingState() }
-        function onRulesChanged() { refreshContentBlockingState() }
+        // Rebuilding the subscription list means copying every list's title,
+        // address and status into new values. That belongs to the settings
+        // page, not to a counter that moves on every blocked request.
+        function onSubscriptionsChanged() {
+            window.visibleSubscriptions = contentBlocker.subscriptions
+        }
+
+        function onBlockedRequestCountChanged(siteUrl) { refreshBlockedRequestCount() }
+        function onRulesChanged() { refreshBlockedRequestCount() }
     }
 
     Component.onCompleted: {
         window.createSpaceProfile()
+        window.visibleSubscriptions = contentBlocker.subscriptions
         engineLoader.resume()
     }
 

@@ -6,6 +6,11 @@
 #include <QStandardPaths>
 
 namespace tanto {
+namespace {
+
+constexpr int persistTabsDelayMilliseconds = 400;
+
+} // namespace
 
 BrowserController::BrowserController(QString dataRoot, QString engineName, QObject *parent)
     : BrowserController(std::move(dataRoot), std::move(engineName), false, parent)
@@ -34,7 +39,19 @@ BrowserController::BrowserController(QString dataRoot, QString engineName,
     m_unpinnedTabs.setSourceModel(&m_tabs);
     m_unpinnedTabs.setFilterRole(TabListModel::PinnedRole);
     m_unpinnedTabs.setFilterRegularExpression(QRegularExpression(QStringLiteral("^false$")));
+    m_persistTabsTimer.setSingleShot(true);
+    m_persistTabsTimer.setInterval(persistTabsDelayMilliseconds);
+    connect(&m_persistTabsTimer, &QTimer::timeout, this, [this] { persistTabs(); });
     initialize();
+}
+
+// A quit while a coalesced write is still pending would drop the last address
+// or title a page reported.
+BrowserController::~BrowserController()
+{
+    if (m_persistTabsTimer.isActive()) {
+        persistTabs();
+    }
 }
 
 QAbstractItemModel *BrowserController::spaces()
@@ -285,6 +302,9 @@ bool BrowserController::deleteSpace(const QString &spaceId, const QString &confi
         return false;
     }
     m_spaces.reset(m_store.loadSpaces());
+    // Nothing belonging to a deleted Space should outlive it, including the
+    // pages a window is still holding open for it.
+    emit spaceDiscarded(spaceId);
     if (deletingActiveSpace) {
         m_activeSpaceId = replacementId;
         m_activeSpaceName = replacementName;
@@ -404,7 +424,7 @@ void BrowserController::openInput(const QString &input, bool inNewTab)
         m_tabs.notifyChanged(tab->id, {TabListModel::UrlRole, TabListModel::TitleRole});
     }
 
-    persistTabs();
+    schedulePersistTabs();
     emit activeTabChanged();
 }
 
@@ -420,7 +440,7 @@ void BrowserController::openInputInBackground(const QUrl &url)
     tab.title = url.host().isEmpty() ? url.toDisplayString() : url.host();
     tab.active = false;
     m_tabs.append(tab);
-    persistTabs();
+    schedulePersistTabs();
 }
 
 void BrowserController::closeActiveTab()
@@ -444,7 +464,7 @@ void BrowserController::closeActiveTab()
             TabListModel::TitleRole,
             TabListModel::LoadingRole,
         });
-        persistTabs();
+        schedulePersistTabs();
         emit activeTabChanged();
         return;
     }
@@ -522,7 +542,7 @@ void BrowserController::updateTab(const QString &tabId, const QUrl &url, const Q
     m_tabs.notifyChanged(tab->id, changedHost
         ? QList<int>{TabListModel::UrlRole, TabListModel::TitleRole, TabListModel::IconUrlRole}
         : QList<int>{TabListModel::UrlRole, TabListModel::TitleRole});
-    persistTabs();
+    schedulePersistTabs();
     if (tabId == m_activeTabId) {
         emit activeTabChanged();
     }
@@ -739,10 +759,23 @@ void BrowserController::ensureActiveTab()
 
 bool BrowserController::persistTabs()
 {
+    m_persistTabsTimer.stop();
     if (m_privateBrowsing) {
         return true;
     }
     return m_store.saveTabs(m_activeSpaceId, m_tabs.items(), m_activeTabId);
+}
+
+// A loading page reports a new address and then several titles in quick
+// succession, and each report used to rewrite the whole Space's tab table.
+// The session only has to survive a quit, so the writes are coalesced; the
+// paths that must know the write succeeded still call persistTabs directly.
+void BrowserController::schedulePersistTabs()
+{
+    if (m_privateBrowsing) {
+        return;
+    }
+    m_persistTabsTimer.start();
 }
 
 void BrowserController::setActiveTab(const QString &tabId)
@@ -757,7 +790,7 @@ void BrowserController::setActiveTab(const QString &tabId)
         }
     }
     m_activeTabId = tabId;
-    persistTabs();
+    schedulePersistTabs();
     emit activeTabChanged();
 }
 

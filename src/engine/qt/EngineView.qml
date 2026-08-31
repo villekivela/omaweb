@@ -28,6 +28,7 @@ Item {
         | keyboardPageCommandsCapability
         | rendererRecoveryCapability
     property int blockedRequestCount: 0
+    property color pageBackgroundColor: "#16151d"
     property var keyboardNavigationConfiguration: ({})
     property string keyboardNavigationScriptSource: ""
     property var editedStateScript: {
@@ -75,9 +76,18 @@ Item {
             + "globalThis.__tantoKeyboardNavigation.configure("
             + JSON.stringify(keyboardNavigationConfiguration) + ");")
     }
+    function refreshBlockedRequestCount() {
+        root.blockedRequestCount = root.contentBlocker
+            ? root.contentBlocker.blockedRequestCount(root.currentUrl) : 0
+    }
+    property bool cosmeticRulesInjected: false
     function applyCosmeticRules() {
         if (!contentBlocker || loading) return
         const css = contentBlocker.cosmeticStyleSheet(currentUrl)
+        // With no cosmetic rules for this site there is nothing to add and, if
+        // nothing was ever added, nothing to clear either — so skip the script.
+        if (css.length === 0 && !cosmeticRulesInjected) return
+        cosmeticRulesInjected = css.length > 0
         webView.runJavaScript(
             "(() => { let style = document.getElementById('__tanto_content_blocking');"
             + "if (!style) { style = document.createElement('style');"
@@ -106,18 +116,37 @@ Item {
         return destination === WebEngineNewWindowRequest.InNewDialog
     }
 
-    WebEngineProfile {
-        id: spaceProfile
-        storageName: "tanto-space"
-        persistentStoragePath: root.profilePath
-        cachePath: root.profilePath + "/cache"
-        persistentCookiesPolicy: WebEngineProfile.ForcePersistentCookies
-        httpCacheType: WebEngineProfile.DiskHttpCache
+    // A Chromium profile is expensive and owns the Space's cache and cookie
+    // store on disk. One per Space is correct; one per tab would have every
+    // view contending for the same files. The window hands its Space profile
+    // down as sharedProfile, so this one is built only for a view opened
+    // without one, and only at the moment the view asks for it.
+    property Component ownProfileComponent: Component {
+        WebEngineProfile {
+            storageName: "tanto-space"
+            persistentStoragePath: root.profilePath
+            cachePath: root.profilePath + "/cache"
+            persistentCookiesPolicy: WebEngineProfile.ForcePersistentCookies
+            httpCacheType: WebEngineProfile.DiskHttpCache
+        }
+    }
+    // A plain object rather than a property: the view reads the profile from
+    // here while creating it, and a QML property would make that read a
+    // dependency of the write and report a binding loop.
+    readonly property var ownProfileHolder: ({ instance: null })
+
+    function resolvedProfile() {
+        if (root.sharedProfile) return root.sharedProfile
+        const holder = root.ownProfileHolder
+        if (!holder.instance) {
+            holder.instance = root.ownProfileComponent.createObject(root)
+            if (root.engineContentBlocker)
+                root.engineContentBlocker.attachToProfile(holder.instance)
+        }
+        return holder.instance
     }
 
     Component.onCompleted: {
-        if (!root.sharedProfile && root.engineContentBlocker)
-            root.engineContentBlocker.attachToProfile(spaceProfile)
         if (root.contentBlocker)
             root.blockedRequestCount = root.contentBlocker.blockedRequestCount(root.currentUrl)
         Qt.callLater(root.applyKeyboardNavigationConfiguration)
@@ -127,15 +156,25 @@ Item {
         target: root.contentBlocker
         ignoreUnknownSignals: true
 
-        function refresh() {
-            root.blockedRequestCount = root.contentBlocker
-                ? root.contentBlocker.blockedRequestCount(root.currentUrl) : 0
+        // A blocked request only moves a counter. Cosmetic rules change when
+        // the compiled rule set or a site's own decision changes, so those are
+        // the only two that re-inject a stylesheet; doing it per blocked
+        // request cost a rule lookup and a script round trip hundreds of times
+        // over a single page load, in every open tab at once.
+        function onBlockedRequestCountChanged(siteUrl) {
+            if (siteUrl.toString().length > 0 && siteUrl.host !== root.currentUrl.host) return
+            root.refreshBlockedRequestCount()
+        }
+
+        function onConfigurationChanged() {
+            root.refreshBlockedRequestCount()
             root.applyCosmeticRules()
         }
 
-        function onBlockedRequestCountChanged(siteUrl) { refresh() }
-        function onConfigurationChanged() { refresh() }
-        function onRulesChanged() { refresh() }
+        function onRulesChanged() {
+            root.refreshBlockedRequestCount()
+            root.applyCosmeticRules()
+        }
     }
 
     property var keyboardNavigationScript: {
@@ -155,8 +194,11 @@ Item {
         id: webView
         objectName: "qtWebView"
         anchors.fill: parent
-        profile: root.sharedProfile ? root.sharedProfile : spaceProfile
-        backgroundColor: "white"
+        profile: root.resolvedProfile()
+        // Chromium paints this before a page supplies its own background.
+        // Left at white it flashes a bright rectangle through dark chrome on
+        // every navigation, so it follows the theme instead.
+        backgroundColor: root.pageBackgroundColor
         focus: true
         userScripts.collection: [root.editedStateScript, root.keyboardNavigationScript]
 
@@ -165,6 +207,7 @@ Item {
         }
 
         onLoadingChanged: {
+            root.refreshBlockedRequestCount()
             root.applyCosmeticRules()
             if (!loading) root.applyKeyboardNavigationConfiguration()
         }
