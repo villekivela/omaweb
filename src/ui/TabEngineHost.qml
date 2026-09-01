@@ -260,13 +260,26 @@ Item {
                 }
             }
 
+            // An engine names no address at all between pages: the view's
+            // address is cleared as a navigation starts and named again when
+            // it commits, and a page adopted from a new-window request passes
+            // through that gap on its way to the address it was opened for. A
+            // tab whose engine is mid-navigation has not lost its page, and
+            // saying that it had would blank the tab — which now takes its
+            // engine with it, so the page a link opened would be torn down
+            // while it loaded and the Start page left standing in its place.
+            function reportPageState() {
+                if (!tabSlot.engine || String(tabSlot.engine.currentUrl).length === 0) return
+                root.browserController.updateTab(
+                    tabSlot.tabId, tabSlot.engine.currentUrl, tabSlot.engine.pageTitle)
+            }
+
             Connections {
                 target: tabSlot.engine
                 ignoreUnknownSignals: true
 
                 function onCurrentUrlChanged() {
-                    root.browserController.updateTab(
-                        tabSlot.tabId, tabSlot.engine.currentUrl, tabSlot.engine.pageTitle)
+                    tabSlot.reportPageState()
                     tabSlot.engine.configureKeyboardNavigation(
                         root.keyboardConfiguration(tabSlot.engine.currentUrl))
                 }
@@ -276,8 +289,7 @@ Item {
                 }
 
                 function onPageTitleChanged() {
-                    root.browserController.updateTab(
-                        tabSlot.tabId, tabSlot.engine.currentUrl, tabSlot.engine.pageTitle)
+                    tabSlot.reportPageState()
                 }
 
                 function onLoadingChanged() {
