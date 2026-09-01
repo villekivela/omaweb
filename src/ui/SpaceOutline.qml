@@ -289,47 +289,58 @@ Rectangle {
             }
         }
 
-        Flow {
-            id: pinnedSection
-            objectName: "pinnedList"
-            width: parent.width
-            height: childrenRect.height
-            visible: !root.privateWindow && root.pinnedCount > 0
-            readonly property int capacity: Math.max(3,
-                Math.min(5, Math.floor(width / 56)))
-            readonly property int columns: Math.min(root.pinnedCount, capacity)
-            spacing: 4
+    }
 
-            Repeater {
-                model: root.browser ? root.browser.pinnedTabs : null
+    // The section stands between the address and the tab list on anchors of
+    // its own rather than in the column above. A column leaves out a child
+    // that has no height, and never takes it back when one arrives: pinning
+    // the first tab in a Space gave the section its pins, and the column went
+    // on placing the next thing where the section was not — the pins landing
+    // over the controls at the top of the outline.
+    Flow {
+        id: pinnedSection
+        objectName: "pinnedList"
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: outline.bottom
+        anchors.leftMargin: 16
+        anchors.rightMargin: 16
+        anchors.topMargin: visible ? 12 : 0
+        height: childrenRect.height
+        visible: !root.privateWindow && root.pinnedCount > 0
+        readonly property int capacity: Math.max(3,
+            Math.min(5, Math.floor(width / 56)))
+        readonly property int columns: Math.min(root.pinnedCount, capacity)
+        spacing: 4
 
-                TabRow {
-                    required property int index
-                    readonly property int rowStart: Math.floor(index
-                        / pinnedSection.capacity) * pinnedSection.capacity
-                    readonly property int tabsInRow: Math.min(pinnedSection.capacity,
-                        root.pinnedCount - rowStart)
-                    width: (pinnedSection.width
-                        - pinnedSection.spacing * (tabsInRow - 1)) / tabsInRow
-                    colors: root.colors
-                    iconFontFamily: root.iconFontFamily
-                    useFavicons: root.useFavicons
-                    tintFavicons: root.tintFavicons
-                    onActivated: function(id) { root.tabActivated(id) }
-                    onCloseRequested: function(id) { root.tabCloseRequested(id) }
-                    onActiveChanged: if (active) root.activeTabItem = this
-                    Component.onCompleted: if (active) root.activeTabItem = this
-                }
+        Repeater {
+            model: root.browser ? root.browser.pinnedTabs : null
+
+            TabRow {
+                required property int index
+                readonly property int rowStart: Math.floor(index
+                    / pinnedSection.capacity) * pinnedSection.capacity
+                readonly property int tabsInRow: Math.min(pinnedSection.capacity,
+                    root.pinnedCount - rowStart)
+                width: (pinnedSection.width
+                    - pinnedSection.spacing * (tabsInRow - 1)) / tabsInRow
+                colors: root.colors
+                iconFontFamily: root.iconFontFamily
+                useFavicons: root.useFavicons
+                tintFavicons: root.tintFavicons
+                onActivated: function(id) { root.tabActivated(id) }
+                onCloseRequested: function(id) { root.tabCloseRequested(id) }
+                onActiveChanged: if (active) root.activeTabItem = this
+                Component.onCompleted: if (active) root.activeTabItem = this
             }
         }
-
     }
 
     ScrollView {
         id: tabScroll
         anchors.left: parent.left
         anchors.right: parent.right
-        anchors.top: outline.bottom
+        anchors.top: pinnedSection.bottom
         anchors.bottom: footer.top
         anchors.leftMargin: 16
         anchors.rightMargin: 16
