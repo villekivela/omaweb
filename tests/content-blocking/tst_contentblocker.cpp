@@ -32,8 +32,8 @@ void ContentBlockerTest::userRulesCompileOffTheCallerPath()
     QVERIFY(blocker.compiling());
     QTRY_VERIFY_WITH_TIMEOUT(!blocker.compiling(), 5000);
     QVERIFY(compiled.count() > 0);
-    QVERIFY(blocker.shouldBlock(QUrl(QStringLiteral("https://ads.example/ad.js")),
-        QUrl(QStringLiteral("https://example.com/")), QStringLiteral("script")));
+    QVERIFY(blocker.checkRequest(QUrl(QStringLiteral("https://ads.example/ad.js")),
+        QUrl(QStringLiteral("https://example.com/")), QStringLiteral("script")).blocked);
     QVERIFY(blocker.cosmeticStyleSheet(QUrl(QStringLiteral("https://example.com/")))
         .contains(QStringLiteral(".sponsor")));
 }
@@ -47,8 +47,8 @@ void ContentBlockerTest::disablingASiteBypassesMatchingAndCosmetics()
 
     blocker.setSiteEnabled(QUrl(QStringLiteral("https://example.com/page")), false);
     QVERIFY(!blocker.siteEnabled(QUrl(QStringLiteral("https://example.com/"))));
-    QVERIFY(!blocker.shouldBlock(QUrl(QStringLiteral("https://ads.example/ad.js")),
-        QUrl(QStringLiteral("https://example.com/")), QStringLiteral("script")));
+    QVERIFY(!blocker.checkRequest(QUrl(QStringLiteral("https://ads.example/ad.js")),
+        QUrl(QStringLiteral("https://example.com/")), QStringLiteral("script")).blocked);
     QVERIFY(blocker.cosmeticStyleSheet(QUrl(QStringLiteral("https://example.com/"))).isEmpty());
 }
 
@@ -90,8 +90,8 @@ void ContentBlockerTest::subscriptionsExposeRequiredProvenanceAndUpdateStatus()
     QCOMPARE(subscription.value(QStringLiteral("license")).toString(), QStringLiteral("CC0-1.0"));
     QCOMPARE(subscription.value(QStringLiteral("updateAddress")).toUrl(),
         QUrl::fromLocalFile(list.fileName()));
-    QVERIFY(blocker.shouldBlock(QUrl(QStringLiteral("https://tracker.example/pixel")),
-        QUrl(QStringLiteral("https://site.example/")), QStringLiteral("image")));
+    QVERIFY(blocker.checkRequest(QUrl(QStringLiteral("https://tracker.example/pixel")),
+        QUrl(QStringLiteral("https://site.example/")), QStringLiteral("image")).blocked);
 }
 
 void ContentBlockerTest::invalidSubscriptionUpdateKeepsTheActiveRules()
@@ -108,8 +108,8 @@ void ContentBlockerTest::invalidSubscriptionUpdateKeepsTheActiveRules()
         QUrl::fromLocalFile(list.fileName()));
     QTRY_COMPARE_WITH_TIMEOUT(blocker.subscriptions().first().toMap()
         .value(QStringLiteral("updateStatus")).toString(), QStringLiteral("current"), 5000);
-    QVERIFY(blocker.shouldBlock(QUrl(QStringLiteral("https://tracker.example/pixel")),
-        QUrl(QStringLiteral("https://site.example/")), QStringLiteral("image")));
+    QVERIFY(blocker.checkRequest(QUrl(QStringLiteral("https://tracker.example/pixel")),
+        QUrl(QStringLiteral("https://site.example/")), QStringLiteral("image")).blocked);
 
     QVERIFY(list.open(QIODevice::WriteOnly | QIODevice::Truncate));
     list.write("||broken.example^$redirect=\n");
@@ -118,8 +118,8 @@ void ContentBlockerTest::invalidSubscriptionUpdateKeepsTheActiveRules()
     QTRY_VERIFY_WITH_TIMEOUT(blocker.subscriptions().first().toMap()
         .value(QStringLiteral("updateStatus")).toString().startsWith(QStringLiteral("failed:")),
         5000);
-    QVERIFY(blocker.shouldBlock(QUrl(QStringLiteral("https://tracker.example/pixel")),
-        QUrl(QStringLiteral("https://site.example/")), QStringLiteral("image")));
+    QVERIFY(blocker.checkRequest(QUrl(QStringLiteral("https://tracker.example/pixel")),
+        QUrl(QStringLiteral("https://site.example/")), QStringLiteral("image")).blocked);
 }
 
 // A published list always carries rules outside this contract, and a list that
@@ -140,8 +140,8 @@ void ContentBlockerTest::aListKeepsTheRulesThisContractParses()
         QUrl::fromLocalFile(list.fileName()));
     QTRY_COMPARE_WITH_TIMEOUT(blocker.subscriptions().first().toMap()
         .value(QStringLiteral("updateStatus")).toString(), QStringLiteral("current"), 5000);
-    QVERIFY(blocker.shouldBlock(QUrl(QStringLiteral("https://tracker.example/pixel")),
-        QUrl(QStringLiteral("https://site.example/")), QStringLiteral("image")));
+    QVERIFY(blocker.checkRequest(QUrl(QStringLiteral("https://tracker.example/pixel")),
+        QUrl(QStringLiteral("https://site.example/")), QStringLiteral("image")).blocked);
     QVERIFY(blocker.shouldBlockPopup(QUrl(QStringLiteral("https://ads.example/?&popunder=1")),
         QUrl(QStringLiteral("https://site.example/"))));
 }

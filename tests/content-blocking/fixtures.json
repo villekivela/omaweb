@@ -21,7 +21,12 @@
     "||popads.example^$popup",
     "@@||popads.example/checkout$popup",
     "||windows.example^$popup,third-party",
-    "@@||popads.example/pay^"
+    "@@||popads.example/pay^",
+    "||analytics.example/tracker.js$script,redirect=noopjs",
+    "||beacon.example/pixel.gif$image,redirect-rule=1x1.gif",
+    "||beacon.example/pixel.gif$image,domain=blocked.example",
+    "||player.example/preroll.mp4$media,rewrite=abp-resource:blank-mp4",
+    "||campaign.example^$removeparam=utm_source"
   ],
   "network": [
     {
@@ -106,6 +111,52 @@
       "url": "https://popads.example/win",
       "source": "https://site.example/article",
       "type": "script",
+      "blocked": false
+    },
+    {
+      "name": "a redirect rule serves a substitute instead of the request",
+      "url": "https://analytics.example/tracker.js",
+      "source": "https://site.example/",
+      "type": "script",
+      "blocked": true,
+      "substitute": "noop.js"
+    },
+    {
+      "name": "a redirect-rule does not block on its own",
+      "url": "https://beacon.example/pixel.gif",
+      "source": "https://site.example/",
+      "type": "image",
+      "blocked": false
+    },
+    {
+      "name": "a redirect-rule serves its substitute once another rule blocks",
+      "url": "https://beacon.example/pixel.gif",
+      "source": "https://blocked.example/",
+      "type": "image",
+      "blocked": true,
+      "substitute": "1x1.gif"
+    },
+    {
+      "name": "an abp-resource rewrite names the same substitutes",
+      "url": "https://player.example/preroll.mp4",
+      "source": "https://site.example/",
+      "type": "media",
+      "blocked": true,
+      "substitute": "noop-1s.mp4"
+    },
+    {
+      "name": "a removeparam rule strips the parameter and sends the request",
+      "url": "https://campaign.example/article?utm_source=ads&id=7",
+      "source": "https://site.example/",
+      "type": "document",
+      "blocked": false,
+      "rewritten": "https://campaign.example/article?id=7"
+    },
+    {
+      "name": "a removeparam rule leaves an address without the parameter alone",
+      "url": "https://campaign.example/article?id=7",
+      "source": "https://site.example/",
+      "type": "document",
       "blocked": false
     }
   ],

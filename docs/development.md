@@ -94,20 +94,23 @@ the pin catches up. It never syncs — an upstream API change lands on Tanto's a
 so the diff wants a reader. `ctest -R tanto-omarchy-drift` covers both halves with
 GitHub stubbed out.
 
-## Content-blocking scriptlets
+## Content-blocking scriptlets and substitutes
 
-A `##+js(...)` filter rule names a function from uBlock Origin's scriptlet library,
+A `##+js(...)` filter rule names a function from uBlock Origin's scriptlet library and
+a `$redirect=` rule names a body from its web-accessible resources. Both sets are
 vendored under `third_party/ubo-scriptlets` and pinned by `MANIFEST.json` the same way
-the Omarchy kit is. The rule supplies a name and arguments; it never supplies code, so
-the set of code that can run in a page is the set in the repository. See
-[ADR 0025](adr/0025-run-only-vendored-scriptlets.md).
+the Omarchy kit is. A rule supplies a name and arguments; it never supplies code or a
+body, so the set of either that can reach a page is the set in the repository. See
+[ADR 0025](adr/0025-run-only-vendored-scriptlets.md) and
+[ADR 0026](adr/0026-serve-substitutes-under-a-tanto-scheme.md).
 
-`scriptlets.json` beside the copies is the same library as `adblock-rust` resource
-descriptors, which the content blocker builds into its own binary. It is generated
-rather than written: uBO's scriptlets are ES modules that register themselves at
-import, so `scripts/build_ubo_scriptlets.mjs` imports them under Node and asks. Its
-digest is pinned in the manifest too, so `ctest` fails if the generated file and the
-copies disagree. A build needs neither Node nor the network.
+`scriptlets.json` and `redirects.json` beside the copies are the same two sets as
+`adblock-rust` resource descriptors, which the content blocker builds into its own
+binary. They are generated rather than written: both sets describe themselves in
+JavaScript, so `scripts/build_ubo_scriptlets.mjs` and `scripts/build_ubo_redirects.mjs`
+import them under Node and ask. Their digests are pinned in the manifest too, so
+`ctest` fails if a generated file and the copies disagree. A build needs neither Node
+nor the network.
 
 ```sh
 scripts/sync_ubo_scriptlets.py --verify           # the local tree matches the manifest
@@ -115,7 +118,7 @@ scripts/sync_ubo_scriptlets.py --check-upstream   # what changed since the pin
 scripts/sync_ubo_scriptlets.py --sync --ref 1.70.0
 ```
 
-A sync re-fetches the copies and regenerates `scriptlets.json` from them. Read the
+A sync re-fetches the copies and regenerates both descriptor files from them. Read the
 upstream diff before taking it: this is the one dependency whose contents run inside
 the pages the browser loads. Both vendored trees share one integrity test,
 `tests/cmake/check_vendored_tree.cmake`.

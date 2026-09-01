@@ -125,6 +125,9 @@ int main(int argc, char *argv[])
         return 2;
     }
 
+    // Chromium learns its schemes before it starts, and content blocking
+    // serves its substitute resources under one of Tanto's own.
+    tanto::QtContentBlocker::registerSubstituteScheme();
     QtWebEngineQuick::initialize();
     QGuiApplication application(argc, argv);
     tanto::installWindowChrome(&application);

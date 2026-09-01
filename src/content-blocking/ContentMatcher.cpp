@@ -49,14 +49,60 @@ MatcherCompilation ContentMatcher::compile(const QString &rules)
     };
 }
 
-bool ContentMatcher::shouldBlock(const QUrl &requestUrl, const QUrl &sourceUrl,
+namespace {
+
+// The decision owns its strings until it is released, so these are copies
+// rather than a handover.
+QString decoded(const char *value)
+{
+    return value ? QString::fromUtf8(value) : QString();
+}
+
+} // namespace
+
+RequestDecision ContentMatcher::check(const QUrl &requestUrl, const QUrl &sourceUrl,
     const QString &resourceType) const
 {
     const auto request = requestUrl.toString(QUrl::FullyEncoded).toUtf8();
     const auto source = sourceUrl.toString(QUrl::FullyEncoded).toUtf8();
     const auto type = resourceType.toUtf8();
-    return tanto_blocker_matches(d->blocker, request.constData(), source.constData(),
-        type.constData());
+    TantoBlockerDecision answer{};
+    tanto_blocker_check(d->blocker, request.constData(), source.constData(), type.constData(),
+        &answer);
+    RequestDecision decision;
+    decision.blocked = answer.blocked;
+    decision.substitute = decoded(answer.substitute);
+    const auto rewritten = decoded(answer.rewritten_url);
+    if (!rewritten.isEmpty()) {
+        decision.rewrittenUrl = QUrl(rewritten);
+    }
+    tanto_blocker_decision_release(&answer);
+    return decision;
+}
+
+// The library hands a body over as a `data:` URL carrying the resource's own
+// MIME type, which is the one form both engines' resource storage already
+// speaks. Serving it means taking the two apart again.
+Substitute ContentMatcher::substitute(const QString &name)
+{
+    const auto encodedName = name.toUtf8();
+    auto *encoded = tanto_blocker_substitute(encodedName.constData());
+    if (!encoded) {
+        return {};
+    }
+    const QByteArray dataUrl(encoded);
+    tanto_blocker_string_free(encoded);
+    constexpr QByteArrayView prefix = "data:";
+    constexpr QByteArrayView separator = ";base64,";
+    const auto mark = dataUrl.indexOf(separator);
+    if (!dataUrl.startsWith(prefix) || mark < 0) {
+        return {};
+    }
+    const auto mimeType = dataUrl.mid(prefix.size(), mark - prefix.size());
+    if (mimeType.isEmpty()) {
+        return {};
+    }
+    return {mimeType, QByteArray::fromBase64(dataUrl.mid(mark + separator.size()))};
 }
 
 // The lists' $popup rules, asked about with the window's address as the

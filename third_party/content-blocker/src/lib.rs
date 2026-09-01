@@ -2,7 +2,9 @@ use adblock::{
     Engine,
     lists::{FilterSet, ParseOptions},
     request::Request,
-    resources::{InMemoryResourceStorage, Resource, ResourceImpl, ResourceStorageBackend},
+    resources::{
+        InMemoryResourceStorage, Resource, ResourceImpl, ResourceStorage, ResourceStorageBackend,
+    },
 };
 use serde_json::json;
 use std::collections::{BTreeMap, BTreeSet};
@@ -10,17 +12,25 @@ use std::ffi::{CStr, CString, c_char};
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::LazyLock;
 
-// uBlock Origin's scriptlet library, vendored and pinned under
-// third_party/ubo-scriptlets and built into the binary. A `##+js(...)` rule
-// contributes a name from this set and the arguments to call it with; no list
-// ever supplies the code that runs.
+// uBlock Origin's resource library, vendored and pinned under
+// third_party/ubo-scriptlets and built into the binary. Two sets, and a rule
+// names one of them: a `##+js(...)` rule contributes a scriptlet's name and
+// the arguments to call it with, and a `$redirect=` rule contributes the name
+// of a substitute body to serve in place of the request. No list ever supplies
+// either the code that runs or the body that is served.
 //
 // Decoded once for the process rather than per rule set: the library is a
 // constant, while a rule set is recompiled whenever a subscription updates.
-static SCRIPTLETS: LazyLock<Library> = LazyLock::new(|| {
-    let resources: Vec<Resource> =
+static LIBRARY: LazyLock<Library> = LazyLock::new(|| {
+    let mut resources: Vec<Resource> =
         serde_json::from_str(include_str!("../../ubo-scriptlets/scriptlets.json"))
             .expect("the vendored scriptlet library parses as resource descriptors");
+    resources.extend(
+        serde_json::from_str::<Vec<Resource>>(include_str!(
+            "../../ubo-scriptlets/redirects.json"
+        ))
+        .expect("the vendored redirect resources parse as resource descriptors"),
+    );
     Library::new(resources)
 });
 
@@ -36,13 +46,29 @@ struct Library {
     // refuses these. Kept apart from the unknown names so a report can say
     // which of the two happened.
     trust_gated: BTreeSet<String>,
+    // Which names a `$redirect` rule may ask for, and the body each one serves
+    // as a `data:` URL. Answered when a list compiles rather than when a page
+    // asks, for the same reason as the injectable names.
+    substitutes: BTreeMap<String, String>,
+    // The same bodies read the other way. A match reports the body it chose
+    // and never the name it came from, and the name is what Tanto serves the
+    // substitute under, so that a replaced request stays legible in a network
+    // log as the resource that replaced it. Two resources with byte-identical
+    // bodies and the same MIME type would share an entry and one of the two
+    // names; upstream carries no such pair, and the bytes served would be
+    // right either way.
+    substitute_names: BTreeMap<String, String>,
 }
 
 impl Library {
     fn new(resources: Vec<Resource>) -> Self {
         let mut injectable = BTreeSet::new();
         let mut trust_gated = BTreeSet::new();
+        let mut redirectable = Vec::new();
         for resource in &resources {
+            if resource.kind.supports_redirect() && resource.permission.to_bits() == 0 {
+                redirectable.push((resource.name.clone(), resource.aliases.clone()));
+            }
             if !resource.kind.supports_scriptlet_injection() {
                 continue;
             }
@@ -55,16 +81,47 @@ impl Library {
                 destination.insert(name.clone());
             }
         }
+        // The `data:` URL a match reports is the engine's own encoding of a
+        // body, so both directions are read back out of the storage rather
+        // than spelled a second way here.
+        let storage = InMemoryResourceStorage::from_resources(resources);
+        let bodies = ResourceStorage::from_backend(storage.clone());
+        let mut substitutes = BTreeMap::new();
+        let mut substitute_names = BTreeMap::new();
+        for (name, aliases) in redirectable {
+            let Some(body) = bodies.get_redirect_resource(&name) else {
+                continue;
+            };
+            substitute_names.insert(body.clone(), name.clone());
+            for alias in aliases {
+                substitutes.insert(alias, body.clone());
+            }
+            substitutes.insert(name, body);
+        }
         Self {
-            storage: InMemoryResourceStorage::from_resources(resources),
+            storage,
             injectable,
             trust_gated,
+            substitutes,
+            substitute_names,
         }
     }
 
     // A rule may leave the `.js` off the name, the way the lists usually do.
     fn holds(names: &BTreeSet<String>, name: &str) -> bool {
         names.contains(name) || names.contains(&format!("{name}.js"))
+    }
+
+    // The body served in place of a request a `$redirect` rule refused, or
+    // None for a name this build carries no resource for.
+    fn substitute(&self, name: &str) -> Option<&str> {
+        self.substitutes.get(name).map(String::as_str)
+    }
+
+    // The name the library serves this body under. Every body in the map came
+    // out of the library, so a match that reports one always has a name.
+    fn substitute_name(&self, body: &str) -> Option<&str> {
+        self.substitute_names.get(body).map(String::as_str)
     }
 
     // Why this name will not run, or None when it will.
@@ -81,11 +138,11 @@ impl Library {
 
 // Lends the one decoded library to an engine. adblock-rust owns its resource
 // storage, and the alternative is handing each engine its own copy.
-struct VendoredScriptlets;
+struct VendoredResources;
 
-impl ResourceStorageBackend for VendoredScriptlets {
+impl ResourceStorageBackend for VendoredResources {
     fn get_resource(&self, name: &str) -> Option<ResourceImpl> {
-        SCRIPTLETS.storage.get_resource(name)
+        LIBRARY.storage.get_resource(name)
     }
 }
 
@@ -136,7 +193,7 @@ fn unsupported_category(line: &str) -> Option<&'static str> {
     // scriptlet's arguments are opaque, so any marker further down this
     // function could appear inside them and mean nothing.
     if let Some(name) = scriptlet_name(trimmed) {
-        return SCRIPTLETS.refusal(name);
+        return LIBRARY.refusal(name);
     }
     const PROCEDURAL_MARKERS: [&str; 10] = [
         "#?#",
@@ -157,10 +214,17 @@ fn unsupported_category(line: &str) -> Option<&'static str> {
         Some("procedural selectors")
     } else if trimmed.contains("##^") || trimmed.contains("$html") {
         Some("HTML filtering")
-    } else if trimmed.contains("$replace") || trimmed.contains("$removeparam") {
+    } else if trimmed.contains("$replace") {
         Some("response rewriting")
-    } else if trimmed.contains("$redirect") || trimmed.contains("$rewrite") {
-        Some("redirects or resource replacement")
+    } else if trimmed.contains("$csp") {
+        // A `$csp` rule adds a Content-Security-Policy header to a response.
+        // A request interceptor never sees a response, so this is refused
+        // rather than counted among what a list contributed.
+        Some("content security policies")
+    } else if substituted_name(trimmed)
+        .is_some_and(|name| LIBRARY.substitute(name).is_none())
+    {
+        Some("substitutes this build does not carry")
     } else if !trimmed.starts_with('!')
         && !trimmed.starts_with('[')
         && trimmed.split_ascii_whitespace().count() >= 4
@@ -171,6 +235,60 @@ fn unsupported_category(line: &str) -> Option<&'static str> {
     } else {
         None
     }
+}
+
+// A network rule's pattern and its comma-separated option list. The last `$`
+// is the separator, because a pattern may contain one and the options may not.
+// A line whose only `$` is inside its pattern splits into an option list that
+// holds no option, which every caller below reads as "not my rule" and leaves
+// alone.
+fn options(line: &str) -> Option<(&str, &str)> {
+    line.rsplit_once('$')
+}
+
+// The substitute a `$redirect`, `$redirect-rule`, or `$rewrite` rule names, or
+// None for a rule that names none. A name may carry a `:priority` suffix,
+// which orders two rules naming different substitutes for the same request and
+// is not part of the name.
+fn substituted_name(line: &str) -> Option<&str> {
+    let (_, list) = options(line)?;
+    let value = list.split(',').find_map(|option| {
+        let (key, value) = option.split_once('=')?;
+        // An empty value names nothing. That is a malformed rule rather than a
+        // substitute this build is missing, so it is left to the validator.
+        (!value.is_empty() && matches!(key, "redirect" | "redirect-rule" | "rewrite"))
+            .then_some(value)
+    })?;
+    let Some((name, priority)) = value.rsplit_once(':') else {
+        return Some(value);
+    };
+    if priority.parse::<i32>().is_ok() {
+        Some(name)
+    } else {
+        // `abp-resource:blank-mp4` is one name with a colon in it.
+        Some(value)
+    }
+}
+
+// EasyList writes `$redirect=`; uBO and AdGuard also accept `$rewrite=` for
+// the same thing, and eight of the rules Tanto ships use it. adblock-rust
+// knows only the first spelling and rejects the option outright, which would
+// throw away the whole rule rather than the option.
+//
+// Returns the rewritten rule, or None for a line that never said `rewrite=`.
+fn normalize_rewrite_option(line: &str) -> Option<String> {
+    let (pattern, list) = options(line)?;
+    if !list.split(',').any(|option| option.starts_with("rewrite=")) {
+        return None;
+    }
+    let rewritten: Vec<String> = list
+        .split(',')
+        .map(|option| match option.strip_prefix("rewrite=") {
+            Some(value) => format!("redirect={value}"),
+            None => option.to_owned(),
+        })
+        .collect();
+    Some(format!("{pattern}${}", rewritten.join(",")))
 }
 
 // A $popup rule says nothing about the request beyond what kind of request it
@@ -184,10 +302,10 @@ fn unsupported_category(line: &str) -> Option<&'static str> {
 // Returns the rewritten rule and whether it is the popups-only kind, or None
 // for a line that never mentioned popups at all.
 fn split_popup_option(line: &str) -> Option<(String, bool)> {
-    let (pattern, options) = line.rsplit_once('$')?;
+    let (pattern, list) = options(line)?;
     let mut kept = Vec::new();
     let mut popups_only = None;
-    for option in options.split(',') {
+    for option in list.split(',') {
         match option {
             "popup" => popups_only = Some(true),
             "~popup" => popups_only = Some(false),
@@ -249,8 +367,9 @@ pub unsafe extern "C" fn tanto_blocker_compile(
                 *unsupported.entry(category).or_default() += 1;
                 continue;
             }
+            let line = normalize_rewrite_option(line).unwrap_or_else(|| line.to_owned());
             let (rule, popups_only) =
-                split_popup_option(line).unwrap_or_else(|| (line.to_owned(), false));
+                split_popup_option(&line).unwrap_or_else(|| (line.clone(), false));
             let mut validator = FilterSet::new(false);
             if validator
                 .add_filter(&rule, ParseOptions::default())
@@ -275,7 +394,7 @@ pub unsafe extern "C" fn tanto_blocker_compile(
             accepted.push(rule);
         }
         let mut engine = Engine::from_rules(&accepted, ParseOptions::default());
-        engine.use_resource_storage(VendoredScriptlets);
+        engine.use_resource_storage(VendoredResources);
         let popup_engine = Engine::from_rules(&popups, ParseOptions::default());
         if !report.is_null() {
             let value = json!({
@@ -304,29 +423,123 @@ pub unsafe extern "C" fn tanto_blocker_destroy(blocker: *mut TantoBlocker) {
     }
 }
 
+/// What the lists have to say about one request. Three answers rather than
+/// one, because they are independent: a `$redirect-rule` names a substitute
+/// that is served only when some other rule blocks, and a `$removeparam` rule
+/// strips tracking parameters off a request that is going out either way.
+#[repr(C)]
+pub struct TantoBlockerDecision {
+    /// A blocking rule matched and no exception took it back.
+    pub blocked: bool,
+    /// The name of the substitute to serve instead, or null when the request
+    /// is simply refused. Never set without `blocked`.
+    pub substitute: *mut c_char,
+    /// The request address with tracking parameters removed, or null when no
+    /// rule changed it. Never set together with `blocked`.
+    pub rewritten_url: *mut c_char,
+}
+
+impl TantoBlockerDecision {
+    // No rule was consulted: a null argument, an address the engine cannot
+    // parse, or a panic. The lists said nothing, which is not the same as
+    // their having said "allow", but it is what a caller does with it.
+    fn unanswered() -> Self {
+        Self {
+            blocked: false,
+            substitute: std::ptr::null_mut(),
+            rewritten_url: std::ptr::null_mut(),
+        }
+    }
+}
+
 #[unsafe(no_mangle)]
 /// # Safety
-/// `blocker` must be a live matcher. String arguments must be valid NUL-terminated UTF-8.
-pub unsafe extern "C" fn tanto_blocker_matches(
+/// `blocker` must be a live matcher. String arguments must be valid NUL-terminated UTF-8, and
+/// `decision` must point at writable storage for one `TantoBlockerDecision`. The strings it
+/// comes back holding belong to the caller until `tanto_blocker_decision_release` frees them.
+pub unsafe extern "C" fn tanto_blocker_check(
     blocker: *const TantoBlocker,
     url: *const c_char,
     source_url: *const c_char,
     resource_type: *const c_char,
-) -> bool {
-    catch_unwind(AssertUnwindSafe(|| {
+    decision: *mut TantoBlockerDecision,
+) {
+    if decision.is_null() {
+        return;
+    }
+    let answer = catch_unwind(AssertUnwindSafe(|| {
         let (Some(blocker), Some(url), Some(source_url), Some(resource_type)) = (
             unsafe { blocker.as_ref() },
             input(url),
             input(source_url),
             input(resource_type),
         ) else {
-            return false;
+            return TantoBlockerDecision::unanswered();
         };
-        Request::new(&url, &source_url, &resource_type)
-            .map(|request| blocker.engine.check_network_request(&request).matched)
-            .unwrap_or(false)
+        let Ok(request) = Request::new(&url, &source_url, &resource_type) else {
+            return TantoBlockerDecision::unanswered();
+        };
+        let result = blocker.engine.check_network_request(&request);
+        // A redirect does not imply a block: a `redirect-rule` names a
+        // substitute that stands in only once a separate blocking rule has
+        // matched, and `removeparam` rewrites an address the request is still
+        // going out to. Each answer is dropped where it would mean nothing, so
+        // that a caller acting on one cannot act on it at the wrong moment.
+        TantoBlockerDecision {
+            blocked: result.matched,
+            // The engine reports the body it chose rather than the name the
+            // rule asked for, and the name is what Tanto serves it under.
+            substitute: result
+                .redirect
+                .as_deref()
+                .filter(|_| result.matched)
+                .and_then(|body| LIBRARY.substitute_name(body))
+                .map_or(std::ptr::null_mut(), |name| output(name.to_owned())),
+            rewritten_url: result
+                .rewritten_url
+                .filter(|_| !result.matched)
+                .map_or(std::ptr::null_mut(), output),
+        }
     }))
-    .unwrap_or(false)
+    .unwrap_or_else(|_| TantoBlockerDecision::unanswered());
+    unsafe { decision.write(answer) };
+}
+
+#[unsafe(no_mangle)]
+/// # Safety
+/// `decision` must be null or point at a `TantoBlockerDecision` filled in by `tanto_blocker_check`
+/// whose strings have not already been freed.
+pub unsafe extern "C" fn tanto_blocker_decision_release(decision: *mut TantoBlockerDecision) {
+    let Some(decision) = (unsafe { decision.as_mut() }) else {
+        return;
+    };
+    for value in [&mut decision.substitute, &mut decision.rewritten_url] {
+        if !value.is_null() {
+            let _ = catch_unwind(AssertUnwindSafe(|| unsafe {
+                drop(CString::from_raw(*value));
+            }));
+            *value = std::ptr::null_mut();
+        }
+    }
+}
+
+#[unsafe(no_mangle)]
+/// # Safety
+/// `name` must be a valid NUL-terminated UTF-8 string.
+///
+/// Returns the substitute body this build carries under `name`, as a `data:` URL carrying the
+/// resource's own MIME type, or null for a name it carries none for. The library is a constant
+/// built into this binary, so this answers without a compiled rule set.
+pub unsafe extern "C" fn tanto_blocker_substitute(name: *const c_char) -> *mut c_char {
+    catch_unwind(AssertUnwindSafe(|| {
+        let Some(name) = input(name) else {
+            return std::ptr::null_mut();
+        };
+        LIBRARY
+            .substitute(&name)
+            .map_or(std::ptr::null_mut(), |body| output(body.to_owned()))
+    }))
+    .unwrap_or(std::ptr::null_mut())
 }
 
 #[unsafe(no_mangle)]

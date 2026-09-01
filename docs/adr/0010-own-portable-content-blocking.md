@@ -1,7 +1,9 @@
 # Own portable content blocking
 
-Scriptlets moved inside the contract in [0025](0025-run-only-vendored-scriptlets.md);
-the paragraphs below still read as though they had not. Every other exclusion stands.
+Scriptlets moved inside the contract in [0025](0025-run-only-vendored-scriptlets.md),
+and redirects and resource replacement in
+[0026](0026-serve-substitutes-under-a-tanto-scheme.md); the paragraphs below still
+read as though they had not. Every other exclusion stands.
 
 Tanto provides Content blocking through a shared filter-list contract rather than an engine-specific Web extension. Both engine adapters must support network-request blocking, cosmetic element hiding, refusing the windows a list's `$popup` rules name, user lists, automatic updates, per-site disabling, and a visible blocked-request count. Tanto publishes unsupported filter syntax and does not claim scriptlet, dynamic-filtering, or full uBlock Origin compatibility until those behaviors exist.
 

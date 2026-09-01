@@ -33,11 +33,14 @@ QJsonObject runFixtures(const QJsonObject &fixtures,
     int total = 0;
     for (const auto &value : fixtures.value(QStringLiteral("network")).toArray()) {
         const auto fixture = value.toObject();
-        const auto actual = adapter.shouldBlock(
+        const auto decision = adapter.checkRequest(
             QUrl(fixture.value(QStringLiteral("url")).toString()),
             QUrl(fixture.value(QStringLiteral("source")).toString()),
             resourceType(fixture.value(QStringLiteral("type")).toString()));
-        passed += actual == fixture.value(QStringLiteral("blocked")).toBool();
+        passed += decision.blocked == fixture.value(QStringLiteral("blocked")).toBool()
+            && decision.substitute == fixture.value(QStringLiteral("substitute")).toString()
+            && decision.rewrittenUrl
+                == QUrl(fixture.value(QStringLiteral("rewritten")).toString());
         ++total;
     }
     // A refused window never reaches an engine's request interception, so the
@@ -150,7 +153,8 @@ int main(int argc, char *argv[])
             QStringLiteral("HTML filtering"),
             QStringLiteral("dynamic rules"),
             QStringLiteral("CNAME uncloaking"),
-            QStringLiteral("redirects or resource replacement"),
+            QStringLiteral("content security policies"),
+            QStringLiteral("substitutes this build does not carry"),
         }},
         {QStringLiteral("sharedPinnedParser"), QJsonObject{
             {QStringLiteral("status"), QStringLiteral("pass")},

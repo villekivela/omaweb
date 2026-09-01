@@ -53,6 +53,8 @@ private slots:
     void qtHidesCosmeticRulesBeforeThePageRuns();
     void qtRunsScriptletsBeforeThePageRuns();
     void qtRefusesTheWindowsTheListsNameAndNoOthers();
+    void qtServesTheSubstitutesTheListsName();
+    void qtStripsTheParametersTheListsName();
     void qtAttachesBlockingToTheProfileQmlCreates();
 };
 
@@ -730,7 +732,13 @@ public:
         connect(this, &QTcpServer::newConnection, this, [this] {
             auto *socket = nextPendingConnection();
             connect(socket, &QTcpSocket::readyRead, socket, [this, socket] {
-                socket->readAll();
+                const auto request = socket->readAll();
+                // "GET /page.html?a=b HTTP/1.1" — the address as it left the
+                // browser, which is the only place a rewritten one shows up.
+                const auto fields = request.split(' ');
+                if (fields.size() > 1) {
+                    m_requested.append(QString::fromUtf8(fields.at(1)));
+                }
                 socket->write("HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: "
                     + QByteArray::number(m_body.size())
                     + "\r\nConnection: close\r\n\r\n" + m_body);
@@ -740,8 +748,11 @@ public:
         });
     }
 
+    QStringList requested() const { return m_requested; }
+
 private:
     QByteArray m_body;
+    QStringList m_requested;
 };
 
 } // namespace
@@ -853,6 +864,116 @@ void QtEngineContractTest::qtRunsScriptletsBeforeThePageRuns()
         QStringLiteral("undefined"), 15000);
 }
 
+// A page that asks for a tracker and is handed nothing waits forever, which is
+// why the lists name a substitute for some of what they refuse. The page
+// reports what it got: an image that loaded and measures one pixel came from
+// the vendored library, and one that failed to load was simply refused.
+void QtEngineContractTest::qtServesTheSubstitutesTheListsName()
+{
+    PageServer server(R"HTML(<!doctype html><html><body>
+        <script>
+            const load = (path, mark) => new Promise(resolve => {
+                const image = new Image();
+                image.onload = () => resolve(image.naturalWidth === 1 ? mark : "?");
+                image.onerror = () => resolve("-");
+                image.src = path;
+            });
+            Promise.all([
+                load("/tracker.gif", "S"),
+                load("/banner.gif", "B"),
+            ]).then(marks => { document.title = marks.join(""); });
+        </script>
+    </body></html>)HTML");
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    tanto::ContentBlocker contentBlocker(
+        root.path(), tanto::ContentBlocker::DefaultLists::None);
+    contentBlocker.setUserRules(QStringLiteral(
+        "/tracker.gif$image,redirect=1x1.gif\n"
+        "/banner.gif$image"));
+    QTRY_VERIFY_WITH_TIMEOUT(!contentBlocker.compiling(), 5000);
+    tanto::QtContentBlocker engineContentBlocker(&contentBlocker);
+
+    QQmlEngine engine;
+    QQmlComponent component(&engine, QUrl::fromLocalFile(
+        QStringLiteral(TANTO_QT_ENGINE_VIEW_PATH)));
+    const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
+        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
+        {QStringLiteral("contentBlocker"), QVariant::fromValue<QObject *>(&contentBlocker)},
+        {QStringLiteral("engineContentBlocker"),
+            QVariant::fromValue<QObject *>(&engineContentBlocker)},
+    }));
+    QVERIFY2(adapter, qPrintable(component.errorString()));
+    QQuickWindow window;
+    qobject_cast<QQuickItem *>(adapter.get())->setParentItem(window.contentItem());
+    window.show();
+
+    QVERIFY(adapter->setProperty("currentUrl", QUrl(
+        QStringLiteral("http://127.0.0.1:%1/page.html").arg(server.serverPort()))));
+
+    // The substitute stood in for the first request; the second was refused
+    // outright, because no rule named anything to put in its place.
+    QTRY_COMPARE_WITH_TIMEOUT(adapter->property("pageTitle").toString(),
+        QStringLiteral("S-"), 15000);
+
+    // Neither image reached the site: the substitute came out of the vendored
+    // library rather than off the network, and the refusal was a refusal.
+    QVERIFY(!server.requested().contains(QStringLiteral("/tracker.gif")));
+    QVERIFY(!server.requested().contains(QStringLiteral("/banner.gif")));
+}
+
+// A $removeparam rule refuses nothing. The request goes out, with the tracking
+// parameters the rule names stripped off the address the site receives, so the
+// assertion is about what arrived at the server rather than what the page saw.
+// The frame is a navigation because that, a document and an XHR are the three
+// kinds of request the option applies to when a rule names no type of its own.
+void QtEngineContractTest::qtStripsTheParametersTheListsName()
+{
+    PageServer server(R"HTML(<!doctype html><html><body>
+        <script>
+            if (window.top === window) {
+                const frame = document.createElement("iframe");
+                frame.onload = () => { document.title = "asked"; };
+                frame.src = "/frame.html?utm_source=ads&id=7";
+                document.body.appendChild(frame);
+            }
+        </script>
+    </body></html>)HTML");
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    tanto::ContentBlocker contentBlocker(
+        root.path(), tanto::ContentBlocker::DefaultLists::None);
+    contentBlocker.setUserRules(QStringLiteral("$removeparam=utm_source"));
+    QTRY_VERIFY_WITH_TIMEOUT(!contentBlocker.compiling(), 5000);
+    tanto::QtContentBlocker engineContentBlocker(&contentBlocker);
+
+    QQmlEngine engine;
+    QQmlComponent component(&engine, QUrl::fromLocalFile(
+        QStringLiteral(TANTO_QT_ENGINE_VIEW_PATH)));
+    const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
+        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
+        {QStringLiteral("contentBlocker"), QVariant::fromValue<QObject *>(&contentBlocker)},
+        {QStringLiteral("engineContentBlocker"),
+            QVariant::fromValue<QObject *>(&engineContentBlocker)},
+    }));
+    QVERIFY2(adapter, qPrintable(component.errorString()));
+    QQuickWindow window;
+    qobject_cast<QQuickItem *>(adapter.get())->setParentItem(window.contentItem());
+    window.show();
+
+    QVERIFY(adapter->setProperty("currentUrl", QUrl(
+        QStringLiteral("http://127.0.0.1:%1/page.html").arg(server.serverPort()))));
+
+    QTRY_COMPARE_WITH_TIMEOUT(adapter->property("pageTitle").toString(),
+        QStringLiteral("asked"), 15000);
+    QVERIFY2(server.requested().contains(QStringLiteral("/frame.html?id=7")),
+        qPrintable(server.requested().join(QStringLiteral(", "))));
+}
+
 // The lists' $popup rules decide which windows a page gets to open, a link
 // asking for a new tab included: that is how an ad link opens. A background
 // tab takes a middle- or ctrl-click, which is the user asking rather than the
@@ -931,6 +1052,7 @@ void QtEngineContractTest::qtAttachesBlockingToTheProfileQmlCreates()
 
 int main(int argc, char *argv[])
 {
+    tanto::QtContentBlocker::registerSubstituteScheme();
     QtWebEngineQuick::initialize();
     QGuiApplication application(argc, argv);
     QtEngineContractTest test;

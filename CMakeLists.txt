@@ -37,9 +37,10 @@ endif()
 file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/third_party/content-blocker/LADYBIRD_REVISION"
     tanto_ladybird_revision LIMIT_COUNT 1)
 
-# uBlock Origin's scriptlet library. The content blocker builds scriptlets.json
-# into its own binary, so the pin belongs to the bootstrap rather than to this
-# build; the integrity test below is what keeps the copies honest.
+# uBlock Origin's scriptlet library and substitute resources. The content
+# blocker builds their descriptor files into its own binary, so the pin belongs
+# to the bootstrap rather than to this build; the integrity test below is what
+# keeps the copies honest.
 set(tanto_ubo_scriptlets_root "${CMAKE_CURRENT_SOURCE_DIR}/third_party/ubo-scriptlets")
 
 set(CMAKE_CXX_STANDARD 23)

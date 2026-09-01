@@ -312,15 +312,21 @@ QString ContentBlocker::genericCosmeticStyleSheet(const QUrl &url, const QString
     return matcher ? matcher->genericCosmeticStyleSheet(url, classes, ids) : QString();
 }
 
-bool ContentBlocker::shouldBlock(const QUrl &requestUrl, const QUrl &sourceUrl,
+// A refused request and a replaced one are the same refusal to the page that
+// asked, so both land in the site's count. A request the lists only stripped
+// parameters off was never refused and is not counted.
+RequestDecision ContentBlocker::checkRequest(const QUrl &requestUrl, const QUrl &sourceUrl,
     const QString &resourceType) const
 {
     const auto matcher = matcherFor(sourceUrl);
-    if (!matcher || !matcher->shouldBlock(requestUrl, sourceUrl, resourceType)) {
-        return false;
+    if (!matcher) {
+        return {};
     }
-    countBlockedRequest(sourceUrl);
-    return true;
+    const auto decision = matcher->check(requestUrl, sourceUrl, resourceType);
+    if (decision.blocked) {
+        countBlockedRequest(sourceUrl);
+    }
+    return decision;
 }
 
 // A window the page never got to open is a request the page never got to

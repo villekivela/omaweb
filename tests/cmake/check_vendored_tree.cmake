@@ -8,8 +8,8 @@
 #   TANTO_VENDOR_NAME      what to call the tree in a failure
 #   TANTO_VENDOR_ADVICE    what to do about a failure
 #
-# A manifest may also carry a `generated` entry: a file built from the copies
-# and committed beside them, pinned by its own digest.
+# A manifest may also carry a `generated` list: files built from the copies and
+# committed beside them, each pinned by its own digest.
 
 file(READ "${TANTO_VENDOR_ROOT}/MANIFEST.json" manifest)
 string(JSON manifest_files GET "${manifest}" files)
@@ -44,17 +44,25 @@ foreach(path IN LISTS present)
 endforeach()
 
 set(generated "")
-string(JSON generated_entry ERROR_VARIABLE no_generated GET "${manifest}" generated)
-if(generated_entry AND NOT generated_entry STREQUAL "generated-NOTFOUND")
-    string(JSON generated GET "${generated_entry}" path)
-    string(JSON generated_expected GET "${generated_entry}" sha256)
-    if(NOT EXISTS "${TANTO_VENDOR_ROOT}/${generated}")
-        list(APPEND problems "missing: ${generated}")
-    else()
-        file(SHA256 "${TANTO_VENDOR_ROOT}/${generated}" generated_actual)
-        if(NOT generated_actual STREQUAL generated_expected)
-            list(APPEND problems "does not match its pin: ${generated}")
-        endif()
+string(JSON generated_entries ERROR_VARIABLE no_generated GET "${manifest}" generated)
+if(generated_entries AND NOT generated_entries STREQUAL "generated-NOTFOUND")
+    string(JSON generated_count LENGTH "${generated_entries}")
+    if(generated_count GREATER 0)
+        math(EXPR last_generated "${generated_count} - 1")
+        foreach(index RANGE 0 ${last_generated})
+            string(JSON generated_entry GET "${generated_entries}" ${index})
+            string(JSON generated_path GET "${generated_entry}" path)
+            string(JSON generated_expected GET "${generated_entry}" sha256)
+            list(APPEND generated "${generated_path}")
+            if(NOT EXISTS "${TANTO_VENDOR_ROOT}/${generated_path}")
+                list(APPEND problems "missing: ${generated_path}")
+            else()
+                file(SHA256 "${TANTO_VENDOR_ROOT}/${generated_path}" generated_actual)
+                if(NOT generated_actual STREQUAL generated_expected)
+                    list(APPEND problems "does not match its pin: ${generated_path}")
+                endif()
+            endif()
+        endforeach()
     endif()
 endif()
 
@@ -66,7 +74,8 @@ if(problems)
 endif()
 
 if(generated)
-    message(STATUS "${file_count} vendored ${TANTO_VENDOR_NAME} files and ${generated} "
+    list(JOIN generated ", " generated_names)
+    message(STATUS "${file_count} vendored ${TANTO_VENDOR_NAME} files and ${generated_names} "
         "match the manifest (${manifest_ref})")
 else()
     message(STATUS
