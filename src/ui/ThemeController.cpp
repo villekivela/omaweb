@@ -80,6 +80,27 @@ QVariantMap ThemeController::fallbackPalette() const
         {QStringLiteral("privateSurfaceHover"), QStringLiteral("#5f3b6e")},
         {QStringLiteral("font"), defaultFont()},
         {QStringLiteral("opacity"), defaultOpacity()},
+        {QStringLiteral("syntax"), defaultSyntax()},
+    };
+}
+
+// The engine's inspector draws source, markup and stylesheets, and it draws
+// them in these. Ten names rather than one per construct any one language has:
+// a terminal palette has six hues to give, and a theme derived from one has to
+// be able to fill every name here without inventing colour it does not have.
+QVariantMap ThemeController::defaultSyntax()
+{
+    return {
+        {QStringLiteral("keyword"), QStringLiteral("#c678dd")},
+        {QStringLiteral("string"), QStringLiteral("#98c379")},
+        {QStringLiteral("number"), QStringLiteral("#d19a66")},
+        {QStringLiteral("comment"), QStringLiteral("#7f7a8c")},
+        {QStringLiteral("tag"), QStringLiteral("#e06c75")},
+        {QStringLiteral("attribute"), QStringLiteral("#e5c07b")},
+        {QStringLiteral("value"), QStringLiteral("#98c379")},
+        {QStringLiteral("variable"), QStringLiteral("#e06c75")},
+        {QStringLiteral("function"), QStringLiteral("#61afef")},
+        {QStringLiteral("type"), QStringLiteral("#56b6c2")},
     };
 }
 
@@ -226,6 +247,22 @@ QVariantMap ThemeController::normalizedPalette(QVariantMap palette) const
             {QStringLiteral("family"), installedFamily(families)},
             {QStringLiteral("size"), size},
         });
+
+    // Every token is named, whether the theme named it or not, and every one
+    // is a colour: the inspector is handed these directly, and a name it
+    // cannot parse leaves that token drawn in the frontend's own palette
+    // beside Tanto's. Alpha is dropped rather than honoured — code is read
+    // against a solid surface, and a translucent character reads as a faded
+    // one.
+    const auto syntaxDefaults = defaultSyntax();
+    const auto themeSyntax = palette.value(QStringLiteral("syntax")).toMap();
+    QVariantMap syntax;
+    for (auto it = syntaxDefaults.cbegin(); it != syntaxDefaults.cend(); ++it) {
+        const QColor named(themeSyntax.value(it.key()).toString());
+        syntax.insert(it.key(),
+            named.isValid() ? named.name(QColor::HexRgb) : it.value().toString());
+    }
+    palette.insert(QStringLiteral("syntax"), syntax);
 
     const auto withOpacity = [&palette](const QString &key, double alpha) {
         QColor color(palette.value(key).toString());

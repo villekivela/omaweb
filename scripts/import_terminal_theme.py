@@ -55,6 +55,29 @@ SURFACE_STEPS = {
 }
 MUTED_TEXT_STEP = 0.70
 
+# The ANSI slot each syntax token is read from. A terminal has six hues to
+# give and code has more constructs than that, so tokens that read alike share
+# one: an attribute and a number are both literal-ish, a type and an attribute
+# value both sit at the end of a declaration.
+SYNTAX_SLOTS = {
+    "keyword": 5,
+    "string": 2,
+    "number": 3,
+    "tag": 1,
+    "attribute": 3,
+    "value": 6,
+    "variable": 1,
+    "function": 4,
+    "type": 6,
+}
+# A token drawn too dark to read against the window is swapped for its bright
+# twin, which is the same hue eight slots along. Both failing leaves the more
+# legible of the two rather than a colour from nowhere.
+SYNTAX_MINIMUM_CONTRAST = 4.5
+# A comment is body text turned down rather than a hue of its own: at the muted
+# step it reads as an interface label, and code wants it quieter than that.
+COMMENT_STEP = 0.52
+
 # The private-window ladder is the same climb taken towards the private accent
 # instead of the foreground, measured off the shipped default theme. A straight
 # mix lands too grey to read as private at a glance, so the result keeps a
@@ -411,12 +434,21 @@ def derive(source):
     private_accent = (max(private_options, key=chroma) if private_options
                       else rotate_hue(accent, PRIVATE_HUE_SHIFT, PRIVATE_ACCENT_GAIN))
 
+    syntax = {}
+    for token, slot in SYNTAX_SLOTS.items():
+        ordinary, bright = palette[slot], palette[slot + 8]
+        legible = (ordinary if contrast(ordinary, window) >= SYNTAX_MINIMUM_CONTRAST
+                   else max((ordinary, bright), key=lambda colour: contrast(colour, window)))
+        syntax[token] = to_hex(legible)
+    syntax["comment"] = to_hex(mix(window, text, COMMENT_STEP))
+
     derived = {
         "window": to_hex(window),
         "text": to_hex(text),
         "mutedText": to_hex(mix(window, text, MUTED_TEXT_STEP)),
         "accent": to_hex(accent),
         "privateAccent": to_hex(private_accent),
+        "syntax": syntax,
     }
     for key, step in SURFACE_STEPS.items():
         derived[key] = to_hex(mix(window, text, step))

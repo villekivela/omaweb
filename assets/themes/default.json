@@ -15,6 +15,18 @@
   "privateSidebar": "#3f2c4c",
   "privateSurface": "#4a3057",
   "privateSurfaceHover": "#5f3b6e",
+  "syntax": {
+    "keyword": "#c678dd",
+    "string": "#98c379",
+    "number": "#d19a66",
+    "comment": "#7f7a8c",
+    "tag": "#e06c75",
+    "attribute": "#e5c07b",
+    "value": "#98c379",
+    "variable": "#e06c75",
+    "function": "#61afef",
+    "type": "#56b6c2"
+  },
   "tint": {
     "saturation": 0.34,
     "lightness": 0.66

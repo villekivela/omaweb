@@ -15,6 +15,18 @@
   "privateSidebar": "{{ magenta }}",
   "privateSurface": "{{ magenta }}40",
   "privateSurfaceHover": "{{ magenta }}55",
+  "syntax": {
+    "keyword": "{{ magenta }}",
+    "string": "{{ green }}",
+    "number": "{{ yellow }}",
+    "comment": "{{ dark_foreground }}",
+    "tag": "{{ red }}",
+    "attribute": "{{ yellow }}",
+    "value": "{{ cyan }}",
+    "variable": "{{ red }}",
+    "function": "{{ blue }}",
+    "type": "{{ cyan }}"
+  },
   "tint": {
     "saturation": 0.34,
     "lightness": 0.66

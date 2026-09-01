@@ -19,6 +19,7 @@ private slots:
     void resolvesTheFirstInstalledTypeFamily();
     void fallsBackToAFamilyTheHostActuallyHas();
     void keepsTheTypeBaseSizeUsable();
+    void namesTheColoursCodeIsReadIn();
 };
 
 void ThemeControllerTest::enforcesDistinctPrivateColors()
@@ -210,6 +211,39 @@ void ThemeControllerTest::keepsTheTypeBaseSizeUsable()
     QCOMPARE(font.value(QStringLiteral("size")).toInt(), 12);
     // A theme that says nothing about type still names a family to draw with.
     QVERIFY(!font.value(QStringLiteral("families")).toStringList().isEmpty());
+}
+
+// The inspector the engine supplies draws source, markup and stylesheets, and
+// it draws them in Tanto's colours rather than Chromium's. A theme that says
+// nothing about code still names every one of them, because a token left
+// unnamed would come back in whatever the frontend ships.
+void ThemeControllerTest::namesTheColoursCodeIsReadIn()
+{
+    QTemporaryDir root;
+    QFile theme(root.filePath(QStringLiteral("theme.json")));
+    QVERIFY(theme.open(QIODevice::WriteOnly));
+    theme.write(R"JSON({
+        "window": "#101010",
+        "syntax": { "string": "#00ff00", "comment": "not a colour" }
+    })JSON");
+    theme.close();
+
+    ThemeController controller(theme.fileName());
+    const auto syntax = controller.palette().value(QStringLiteral("syntax")).toMap();
+    QCOMPARE(QColor(syntax.value(QStringLiteral("string")).toString()),
+        QColor(QStringLiteral("#00ff00")));
+    // A name that is not a colour is not a colour the inspector can be handed.
+    QCOMPARE(QColor(syntax.value(QStringLiteral("comment")).toString()),
+        QColor(QStringLiteral("#7f7a8c")));
+
+    for (const auto &token : {"keyword", "string", "number", "comment", "tag", "attribute",
+             "value", "variable", "function", "type"}) {
+        const QColor colour(syntax.value(QString::fromLatin1(token)).toString());
+        QVERIFY2(colour.isValid(), token);
+        // Code is read against a solid surface, so a token carries no alpha of
+        // its own to blend the character it draws into the page behind it.
+        QCOMPARE(colour.alpha(), 255);
+    }
 }
 
 // QFontDatabase needs a GUI application, so this suite is no longer guiless.
