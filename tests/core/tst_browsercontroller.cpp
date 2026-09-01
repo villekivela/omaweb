@@ -37,6 +37,7 @@ private slots:
     void keepsFinalTabAsBlankTab();
     void restsUntilSomethingIsOpenedInTheSpace();
     void keepsRendererFailureOnAffectedTab();
+    void keepsMutingDecisionWhileSoundComesAndGoes();
     void sharesPrivateIdentityUntilLastWindowCloses();
     void keepsHistorySuggestionsInsideActiveSpace();
     void scopesPermissionDecisionsToOriginSpaceAndLifetime();
@@ -413,6 +414,41 @@ void BrowserControllerTest::keepsRendererFailureOnAffectedTab()
     controller.recoverActiveTab();
     QVERIFY(!controller.activeRendererFailed());
     QCOMPARE(reloadSpy.count(), 1);
+}
+
+// Sound is the page's to report and muting is the reader's to decide, so the
+// two are held apart: a page that falls silent leaves the tab muted, because
+// the reader silenced the tab and not one clip in it.
+void BrowserControllerTest::keepsMutingDecisionWhileSoundComesAndGoes()
+{
+    QTemporaryDir root;
+    BrowserController controller(root.path(), QStringLiteral("test"));
+    const auto tabId = controller.activeTabId();
+    auto *tabs = controller.tabs();
+    const auto tabIndex = tabs->index(0, 0);
+
+    QVERIFY(!tabs->data(tabIndex, TabListModel::AudibleRole).toBool());
+    QVERIFY(!tabs->data(tabIndex, TabListModel::MutedRole).toBool());
+
+    QSignalSpy changes(tabs, &QAbstractItemModel::dataChanged);
+    controller.setTabAudible(tabId, true);
+    QVERIFY(tabs->data(tabIndex, TabListModel::AudibleRole).toBool());
+    QCOMPARE(changes.count(), 1);
+
+    // Saying again what the row already says would repaint every listening
+    // tab on every report the engine makes.
+    controller.setTabAudible(tabId, true);
+    QCOMPARE(changes.count(), 1);
+
+    controller.toggleTabMuted(tabId);
+    QVERIFY(tabs->data(tabIndex, TabListModel::MutedRole).toBool());
+
+    controller.setTabAudible(tabId, false);
+    QVERIFY(!tabs->data(tabIndex, TabListModel::AudibleRole).toBool());
+    QVERIFY(tabs->data(tabIndex, TabListModel::MutedRole).toBool());
+
+    controller.toggleTabMuted(tabId);
+    QVERIFY(!tabs->data(tabIndex, TabListModel::MutedRole).toBool());
 }
 
 void BrowserControllerTest::sharesPrivateIdentityUntilLastWindowCloses()

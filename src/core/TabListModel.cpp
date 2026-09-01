@@ -36,6 +36,10 @@ QVariant TabListModel::data(const QModelIndex &index, int role) const
         return tab.active;
     case LoadingRole:
         return tab.loading;
+    case AudibleRole:
+        return tab.audible;
+    case MutedRole:
+        return tab.muted;
     default:
         return {};
     }
@@ -52,6 +56,8 @@ QHash<int, QByteArray> TabListModel::roleNames() const
         {PinnedRole, "pinned"},
         {ActiveRole, "active"},
         {LoadingRole, "loading"},
+        {AudibleRole, "tabAudible"},
+        {MutedRole, "tabMuted"},
     };
 }
 

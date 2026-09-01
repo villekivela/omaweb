@@ -20,6 +20,10 @@ Rectangle {
         return mockFaviconUrls[hash % mockFaviconUrls.length]
     }
     property bool loading: false
+    // The lab plays nothing, so both sides of the tab's speaker are set by
+    // hand: `simulateAudible` stands in for a page that started making sound.
+    property bool pageAudible: false
+    property bool audioMuted: false
     property bool canGoBack: false
     property bool canGoForward: false
     property string pageLocalState: ""
@@ -76,6 +80,7 @@ Rectangle {
     function acceptNewWindowRequest(request) {
         if (request && request.requestedUrl) currentUrl = request.requestedUrl
     }
+    function simulateAudible(audible) { root.pageAudible = audible }
     function simulateRendererFailure() {
         rendererFailed("Renderer exited unexpectedly")
     }

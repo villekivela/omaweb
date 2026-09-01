@@ -8,6 +8,12 @@ Item {
     property alias pageTitle: webView.title
     property alias pageIconUrl: webView.icon
     property alias loading: webView.loading
+    // Chromium keeps a page "recently audible" for a moment after the sound
+    // stops, which is what keeps the tab's speaker from flickering through a
+    // pause between clips. Muting is the embedder's to set and survives
+    // navigation within the view, so the tab keeps its decision across pages.
+    readonly property bool pageAudible: webView.recentlyAudible
+    property alias audioMuted: webView.audioMuted
     property alias canGoBack: webView.canGoBack
     property alias canGoForward: webView.canGoForward
     property string profilePath: ""

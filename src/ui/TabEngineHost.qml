@@ -125,6 +125,9 @@ Item {
         if (root.activeEngine === engine) root.activeEngine = null
         delete root.engines[tabId]
         delete root.engineSpaces[tabId]
+        // The page that was making the sound is going away with its renderer,
+        // and nothing is left to report that it stopped.
+        root.browserController.setTabAudible(tabId, false)
         engine.destroy()
     }
 
@@ -143,6 +146,10 @@ Item {
             required property string tabId
             required property url tabUrl
             required property bool active
+            // The reader's standing decision about this tab's sound. The
+            // engine holds it while the tab has one, and is told again
+            // whenever it changes or a new engine takes the tab over.
+            required property bool tabMuted
 
             // A restored Space can hold many tabs, and each engine costs a
             // renderer process and a page load. Only a tab the user has
@@ -190,8 +197,11 @@ Item {
             function loadEngine() {
                 if (root.suspended || !everActive || !needsEngine()) return
                 engine = root.engines[tabId] || root.createEngine(tabId, tabSlot.tabUrl)
+                if (engine) engine.audioMuted = tabSlot.tabMuted
                 showEngine()
             }
+
+            onTabMutedChanged: if (engine) engine.audioMuted = tabSlot.tabMuted
 
             // Site artwork belongs to the loaded page rather than to the saved
             // session, so the core drops it when a Space switch reloads the
@@ -206,6 +216,19 @@ Item {
                 const retained = root.engines[tabId]
                 if (!retained || String(retained.pageIconUrl).length === 0) return
                 root.browserController.setTabIcon(tabId, retained.pageIconUrl)
+            }
+
+            // Sound is in the same position as artwork across a Space switch:
+            // the page kept playing, and kept the muting it was given, while
+            // the tab it belongs to was reloaded from a store that records
+            // neither. Both are read back off the engine that outlived the
+            // switch, so the row does not offer to mute a page it has already
+            // muted, or stay silent about one that is playing.
+            function restoreEngineSound() {
+                const retained = root.engines[tabId]
+                if (!retained) return
+                root.browserController.setTabMuted(tabId, retained.audioMuted)
+                root.browserController.setTabAudible(tabId, retained.pageAudible)
             }
 
             onTabUrlChanged: {
@@ -242,6 +265,7 @@ Item {
 
             Component.onCompleted: {
                 restoreReportedIcon()
+                restoreEngineSound()
                 loadEngine()
             }
 
@@ -263,6 +287,7 @@ Item {
                         if (tabSlot.engine) tabSlot.engine.visible = false
                     } else {
                         tabSlot.restoreReportedIcon()
+                        tabSlot.restoreEngineSound()
                         tabSlot.loadEngine()
                     }
                 }
@@ -298,6 +323,11 @@ Item {
 
                 function onPageTitleChanged() {
                     tabSlot.reportPageState()
+                }
+
+                function onPageAudibleChanged() {
+                    root.browserController.setTabAudible(
+                        tabSlot.tabId, tabSlot.engine.pageAudible)
                 }
 
                 function onLoadingChanged() {

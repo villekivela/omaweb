@@ -132,6 +132,51 @@ TestCase {
         compare(browser.activeTabId, activeTabId)
     }
 
+    // A tab that starts making sound turns its site chip into a speaker, and
+    // the speaker is where the sound is given back. It takes the chip's own
+    // box rather than a box of its own in front of it: a row that widened for
+    // it would shove its own title sideways every time a page started and
+    // stopped playing.
+    function test_soundingTabTurnsItsChipIntoASpeaker() {
+        const engine = openPage("https://sounding.example")
+        engine.simulateAudible(false)
+        const tabId = browser.activeTabId
+        const tabRow = findChild(window.contentItem, "tab-" + tabId)
+        const speaker = findChild(window.contentItem, "audio-" + tabId)
+        const tile = findChild(window.contentItem, "siteTile-" + tabId)
+        verify(tabRow !== null)
+        verify(speaker !== null)
+        verify(tile !== null)
+
+        // A silent tab says nothing about sound and shows its chip.
+        verify(!speaker.visible)
+        verify(tile.visible)
+        const chipX = tile.x
+        const chipWidth = tile.width
+
+        engine.simulateAudible(true)
+        tryVerify(function() { return speaker.visible })
+        verify(!tile.visible)
+        // The speaker stands in the chip's box, so nothing after it moves.
+        compare(speaker.x, chipX)
+        compare(speaker.width, chipWidth)
+        compare(tile.x, chipX)
+
+        mouseClick(tabRow, speaker.x + speaker.width / 2, speaker.y + speaker.height / 2)
+        tryVerify(function() { return engine.audioMuted })
+        // Muting the tab is not the page falling silent: the page stops
+        // reporting sound, and the speaker stays because it is the only way
+        // back.
+        engine.simulateAudible(false)
+        verify(speaker.visible)
+        verify(!tile.visible)
+
+        mouseClick(tabRow, speaker.x + speaker.width / 2, speaker.y + speaker.height / 2)
+        tryVerify(function() { return !engine.audioMuted })
+        tryVerify(function() { return !speaker.visible })
+        verify(tile.visible)
+    }
+
     // Pinning the first tab in a Space is where the section appears, and the
     // outline has to make room for it: the pins belong under the address, not
     // over the controls at the top.
@@ -153,6 +198,37 @@ TestCase {
 
         browser.toggleActivePinned()
         tryVerify(function() { return !section.visible })
+    }
+
+    // A pin is a square holding one chip, with nothing in front of anything to
+    // put a speaker before, so it wears the speaker in its top right corner.
+    function test_soundingPinWearsItsSpeakerInTheCorner() {
+        const engine = openPage("https://sounding-pin.example")
+        const tabId = browser.activeTabId
+        browser.toggleActivePinned()
+        tryVerify(function() {
+            return findChild(window.contentItem, "pinned-" + tabId) !== null
+        })
+        const pinRow = findChild(window.contentItem, "pinned-" + tabId)
+        const audioButton = findChild(window.contentItem, "audio-" + tabId)
+        verify(audioButton !== null)
+        verify(!audioButton.visible)
+
+        engine.simulateAudible(true)
+        tryVerify(function() { return audioButton.visible })
+        verify(audioButton.x + audioButton.width > pinRow.width / 2)
+        verify(audioButton.y + audioButton.height < pinRow.height / 2)
+
+        mouseClick(pinRow, audioButton.x + audioButton.width / 2,
+            audioButton.y + audioButton.height / 2)
+        tryVerify(function() { return engine.audioMuted })
+        // The pin was not activated by the click that muted it.
+        compare(browser.activeTabId, tabId)
+
+        browser.toggleTabMuted(tabId)
+        tryVerify(function() { return !engine.audioMuted })
+        engine.simulateAudible(false)
+        browser.toggleActivePinned()
     }
 
     function test_layoutKeepsChromeOutOfThePagesWay() {
@@ -526,6 +602,44 @@ TestCase {
         verify(browser.switchSpace(personalSpaceId))
         tryCompare(engineLoader, "item", personalEngineView)
         tryVerify(tabShowsIcon)
+    }
+
+    // A page kept playing while its Space was away, and kept the muting it was
+    // given. The Space's tabs come back from a store that records neither, so
+    // the row reads both off the page that outlived the switch.
+    function test_spaceSwitchKeepsWhatItsPagesAreStillPlaying() {
+        const engineLoader = findChild(window.contentItem, "engineLoader")
+        verify(engineLoader !== null)
+        const personalEngineView = openPage("https://one.example/sound")
+
+        const personalSpaceId = browser.activeSpaceId
+        const tabId = browser.activeTabId
+        personalEngineView.simulateAudible(true)
+        const speaker = findChild(window.contentItem, "audio-" + tabId)
+        verify(speaker !== null)
+        tryVerify(function() { return speaker.visible })
+        browser.toggleTabMuted(tabId)
+        tryVerify(function() { return personalEngineView.audioMuted })
+
+        const workSpaceId = browser.createSpace("Sound")
+        verify(browser.switchSpace(workSpaceId))
+        openPage("https://work-sound.example")
+        tryVerify(function() {
+            return engineLoader.item !== null && engineLoader.item !== personalEngineView
+        })
+
+        verify(browser.switchSpace(personalSpaceId))
+        tryCompare(engineLoader, "item", personalEngineView)
+        // The page is still muted, so the row still says so and still offers
+        // the sound back.
+        verify(personalEngineView.audioMuted)
+        const restored = findChild(window.contentItem, "audio-" + tabId)
+        verify(restored !== null)
+        tryVerify(function() { return restored.visible })
+
+        browser.toggleTabMuted(tabId)
+        tryVerify(function() { return !personalEngineView.audioMuted })
+        personalEngineView.simulateAudible(false)
     }
 
     // Moving a tab to another Space is not the same as switching to one. A

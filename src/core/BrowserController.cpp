@@ -611,6 +611,41 @@ void BrowserController::setTabLoading(const QString &tabId, bool loading)
     m_tabs.notifyChanged(tab->id, {TabListModel::LoadingRole});
 }
 
+// Whether a page is making sound is the page's to say, and it says it only
+// while it has a renderer: a tab that loses its engine falls silent here too,
+// or the row would keep offering to mute a page that is no longer loaded.
+void BrowserController::setTabAudible(const QString &tabId, bool audible)
+{
+    auto *tab = m_tabs.find(tabId);
+    if (!tab || tab->audible == audible) {
+        return;
+    }
+    tab->audible = audible;
+    m_tabs.notifyChanged(tab->id, {TabListModel::AudibleRole});
+}
+
+// Muting is a standing decision about the tab rather than about the page in
+// it: it survives navigation within the tab, because the reader silenced this
+// tab and not one particular document. A Space switch reloads its tabs from
+// the store, which knows nothing of either, so a page that outlived the
+// switch says both again on the way back.
+void BrowserController::setTabMuted(const QString &tabId, bool muted)
+{
+    auto *tab = m_tabs.find(tabId);
+    if (!tab || tab->muted == muted) {
+        return;
+    }
+    tab->muted = muted;
+    m_tabs.notifyChanged(tab->id, {TabListModel::MutedRole});
+}
+
+void BrowserController::toggleTabMuted(const QString &tabId)
+{
+    if (auto *tab = m_tabs.find(tabId)) {
+        setTabMuted(tabId, !tab->muted);
+    }
+}
+
 void BrowserController::reportTabRendererFailure(const QString &tabId, const QString &reason)
 {
     auto *tab = m_tabs.find(tabId);

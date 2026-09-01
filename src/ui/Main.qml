@@ -394,6 +394,7 @@ ApplicationWindow {
                 onAddressRequested: window.openOmnibar(false)
                 onTabActivated: function(tabId) { window.windowBrowser.activateTab(tabId) }
                 onTabCloseRequested: function(tabId) { window.windowBrowser.closeTab(tabId) }
+                onTabMuteToggled: function(tabId) { window.windowBrowser.toggleTabMuted(tabId) }
                 onSpaceActivated: function(spaceId) { window.windowBrowser.switchSpace(spaceId) }
                 onSpacesMenuRequested: function(anchorX, anchorY) {
                     window.spacesMenuX = anchorX
