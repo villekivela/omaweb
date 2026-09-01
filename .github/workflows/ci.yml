@@ -65,14 +65,22 @@ jobs:
         # is not told to.
         run: pacman -Syu --noconfirm git cmake ninja clang ccache rust qt6-base qt6-declarative qt6-webengine
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Take the build off root
+        # A container runs as root, and Chromium refuses to start as root
+        # unless its sandbox is turned off. Tanto does not build or test with
+        # the sandbox off (ADR 0013), and the rule in docs/development.md is to
+        # fix the host rather than pass the flag — so the host gets a user.
+        run: |
+          useradd --create-home --shell /bin/bash builder
+          chown -R builder "$GITHUB_WORKSPACE"
       - name: Bootstrap content blocker
-        run: scripts/bootstrap_content_blocker.sh
+        run: su builder -c 'scripts/bootstrap_content_blocker.sh'
       - name: Configure
-        run: cmake --preset ci
+        run: su builder -c 'cmake --preset ci'
       - name: Build
-        run: cmake --build --preset ci
+        run: su builder -c 'cmake --build --preset ci'
       - name: Test
-        run: ctest --preset ci
+        run: su builder -c 'ctest --preset ci'
       - name: Publish content-blocking compatibility
         run: |
           echo '### Content-blocking compatibility' >> "$GITHUB_STEP_SUMMARY"
