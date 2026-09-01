@@ -74,6 +74,12 @@ QtObject {
 
     property WebEngineProfile privateProfile: WebEngineProfile {
         storageName: root.privateBrowsing ? "tanto-private" : "tanto-space"
+        // A QML-declared profile is off-the-record by default, whatever its
+        // storage name and cookie policy say: an off-the-record one keeps
+        // everything in memory and silently downgrades the cookie policy to
+        // NoPersistentCookies, so a login lasts only as long as the process.
+        // Declared after the storage name, which the switch to disk needs.
+        offTheRecord: root.privateBrowsing
         persistentStoragePath: root.profilePath
         cachePath: root.profilePath + "/cache"
         persistentCookiesPolicy: root.privateBrowsing

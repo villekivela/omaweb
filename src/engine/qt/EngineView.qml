@@ -261,6 +261,9 @@ Item {
     property Component ownProfileComponent: Component {
         WebEngineProfile {
             storageName: "tanto-space"
+            // See EngineProfile.qml: without this the profile is memory-only
+            // and every cookie dies with the process.
+            offTheRecord: false
             persistentStoragePath: root.profilePath
             cachePath: root.profilePath + "/cache"
             persistentCookiesPolicy: WebEngineProfile.ForcePersistentCookies

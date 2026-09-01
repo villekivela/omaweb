@@ -4,6 +4,7 @@
 #include "EngineViewContract.h"
 
 #include <QGuiApplication>
+#include <QDir>
 #include <QFile>
 #include <QMetaMethod>
 #include <QQmlComponent>
@@ -18,6 +19,7 @@
 #include <QTemporaryDir>
 #include <QtWebEngineQuick/qtwebenginequickglobal.h>
 #include <QtWebEngineCore/QWebEngineNewWindowRequest>
+#include <QtWebEngineQuick/QQuickWebEngineProfile>
 
 #include <memory>
 
@@ -46,6 +48,7 @@ private slots:
     void qtAdapterPropagatesPageState();
     void qtProfilesIsolateSiteStorage();
     void qtPrivateWindowsShareOneProfile();
+    void qtSpaceProfilesKeepSiteStorageOnDisk();
     void qtRoutesOnlyDialogDestinationsToAuxiliaryWindows();
     void qtKeyboardNavigationHonorsInputContracts_data();
     void qtKeyboardNavigationHonorsInputContracts();
@@ -306,6 +309,64 @@ void QtEngineContractTest::qtPrivateWindowsShareOneProfile()
     const auto readUrl = QUrl::fromLocalFile(page.fileName());
     QVERIFY(second->setProperty("currentUrl", readUrl));
     QTRY_COMPARE(second->property("pageTitle").toString(), QStringLiteral("private"));
+}
+
+// A QML-declared WebEngineProfile is off-the-record unless it says otherwise,
+// and an off-the-record one keeps every cookie in memory however loudly the
+// storage name and cookie policy ask for disk. Nothing about a Space profile
+// looks wrong until the browser restarts and every login is gone, so the
+// contract is checked where it shows: on the profile and on the directory.
+void QtEngineContractTest::qtSpaceProfilesKeepSiteStorageOnDisk()
+{
+    QTemporaryDir root;
+    const auto spacePath = root.filePath(QStringLiteral("space"));
+
+    QQmlEngine engine;
+    QQmlComponent profileComponent(&engine, QUrl::fromLocalFile(
+        QStringLiteral(TANTO_QT_ENGINE_PROFILE_PATH)));
+    const std::unique_ptr<QObject> spaceHost(profileComponent.createWithInitialProperties({
+        {QStringLiteral("profilePath"), spacePath},
+        {QStringLiteral("privateBrowsing"), false},
+    }));
+    QVERIFY2(spaceHost, qPrintable(profileComponent.errorString()));
+    auto *spaceProfile = spaceHost->property("profile").value<QObject *>();
+    QVERIFY(spaceProfile);
+    QCOMPARE(spaceProfile->property("offTheRecord").toBool(), false);
+    // Read back rather than trust the write: an off-the-record profile accepts
+    // the assignment and reports NoPersistentCookies anyway.
+    QCOMPARE(spaceProfile->property("persistentCookiesPolicy").toInt(),
+        static_cast<int>(QQuickWebEngineProfile::ForcePersistentCookies));
+
+    const std::unique_ptr<QObject> privateHost(profileComponent.createWithInitialProperties({
+        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("private"))},
+    }));
+    QVERIFY2(privateHost, qPrintable(profileComponent.errorString()));
+    auto *privateProfile = privateHost->property("profile").value<QObject *>();
+    QVERIFY(privateProfile);
+    QCOMPARE(privateProfile->property("offTheRecord").toBool(), true);
+
+    QFile page(root.filePath(QStringLiteral("persisted-storage.html")));
+    QVERIFY(page.open(QIODevice::WriteOnly));
+    page.write(R"HTML(<!doctype html><title>loading</title><script>
+        localStorage.setItem('login', 'kept');
+        document.title = localStorage.getItem('login') || 'none';
+    </script>)HTML");
+    page.close();
+
+    QQmlComponent viewComponent(&engine, QUrl::fromLocalFile(
+        QStringLiteral(TANTO_QT_ENGINE_VIEW_PATH)));
+    const std::unique_ptr<QObject> view(viewComponent.createWithInitialProperties({
+        {QStringLiteral("sharedProfile"), spaceHost->property("profile")},
+    }));
+    QVERIFY2(view, qPrintable(viewComponent.errorString()));
+    QQuickWindow window;
+    qobject_cast<QQuickItem *>(view.get())->setParentItem(window.contentItem());
+    window.show();
+
+    QVERIFY(view->setProperty("currentUrl", QUrl::fromLocalFile(page.fileName())));
+    QTRY_COMPARE(view->property("pageTitle").toString(), QStringLiteral("kept"));
+    QTRY_VERIFY(!QDir(spacePath).entryList(QDir::Files | QDir::Dirs | QDir::NoDotAndDotDot)
+        .isEmpty());
 }
 
 void QtEngineContractTest::qtRoutesOnlyDialogDestinationsToAuxiliaryWindows()
