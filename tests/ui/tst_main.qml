@@ -132,6 +132,29 @@ TestCase {
         compare(browser.activeTabId, activeTabId)
     }
 
+    // Pinning the first tab in a Space is where the section appears, and the
+    // outline has to make room for it: the pins belong under the address, not
+    // over the controls at the top.
+    function test_pinningTheFirstTabPutsTheSectionUnderTheAddress() {
+        const section = findChild(window.contentItem, "pinnedList")
+        const address = findChild(window.contentItem, "addressButton")
+        verify(section !== null)
+        verify(address !== null)
+
+        openPage("https://pinned-place.example")
+        const tabId = browser.activeTabId
+        browser.toggleActivePinned()
+        tryVerify(function() { return section.visible })
+
+        const addressBottom = address.mapToItem(window.contentItem, 0, address.height).y
+        const sectionTop = section.mapToItem(window.contentItem, 0, 0).y
+        verify(sectionTop >= addressBottom)
+        verify(section.height > 0)
+
+        browser.toggleActivePinned()
+        tryVerify(function() { return !section.visible })
+    }
+
     function test_layoutKeepsChromeOutOfThePagesWay() {
         const settledSidebar = findChild(window.contentItem, "sidebar")
         window.sidebarCollapsed = false
