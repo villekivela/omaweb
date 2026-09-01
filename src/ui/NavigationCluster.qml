@@ -61,6 +61,10 @@ Rectangle {
         blurEnabled: true
         blur: 1
         blurMax: 48
+        // The blur stops at this item's own edge. Left to itself MultiEffect
+        // enlarges what it draws to fit the blur, which reaches out over the
+        // border the margins above were set to keep clear and softens it.
+        autoPaddingEnabled: false
         // Keeps the blur inside the strip's rounded corners rather than
         // squaring them off under the border.
         maskEnabled: true
