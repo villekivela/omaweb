@@ -42,6 +42,14 @@ BrowserController::BrowserController(QString dataRoot, QString engineName,
     m_persistTabsTimer.setSingleShot(true);
     m_persistTabsTimer.setInterval(persistTabsDelayMilliseconds);
     connect(&m_persistTabsTimer, &QTimer::timeout, this, [this] { persistTabs(); });
+    // Every route to a blank tab changes the tab model: opening the first
+    // address, closing the last page, switching Space, restoring a session.
+    // Watching the model is what keeps the answer from depending on a caller
+    // remembering to announce it.
+    connect(&m_tabs, &QAbstractItemModel::rowsInserted, this, [this] { refreshAtRest(); });
+    connect(&m_tabs, &QAbstractItemModel::rowsRemoved, this, [this] { refreshAtRest(); });
+    connect(&m_tabs, &QAbstractItemModel::dataChanged, this, [this] { refreshAtRest(); });
+    connect(&m_tabs, &QAbstractItemModel::modelReset, this, [this] { refreshAtRest(); });
     initialize();
 }
 
@@ -116,6 +124,17 @@ bool BrowserController::activeTabPinned() const
 {
     const auto *tab = m_tabs.find(m_activeTabId);
     return tab && tab->pinned;
+}
+
+bool BrowserController::activeTabBlank() const
+{
+    const auto *tab = m_tabs.find(m_activeTabId);
+    return !tab || isBlank(tab->url);
+}
+
+bool BrowserController::atRest() const
+{
+    return m_atRest;
 }
 
 bool BrowserController::activeRendererFailed() const
@@ -879,6 +898,38 @@ QString BrowserController::sessionPermissionKey(const QString &origin,
     const QString &permission) const
 {
     return m_activeSpaceId + QChar(0x1f) + origin + QChar(0x1f) + permission;
+}
+
+bool BrowserController::isBlank(const QUrl &url)
+{
+    return url.isEmpty() || url == QUrl(QStringLiteral("about:blank"));
+}
+
+// Pinned tabs are the Space's own furniture and say nothing about whether the
+// reader has opened anything, so rest is decided on the ordinary tabs alone.
+bool BrowserController::restingOnBlankTab() const
+{
+    const TabState *ordinary = nullptr;
+    for (const auto &tab : m_tabs.items()) {
+        if (tab.pinned) {
+            continue;
+        }
+        if (ordinary) {
+            return false;
+        }
+        ordinary = &tab;
+    }
+    return ordinary && isBlank(ordinary->url);
+}
+
+void BrowserController::refreshAtRest()
+{
+    const auto resting = restingOnBlankTab();
+    if (resting == m_atRest) {
+        return;
+    }
+    m_atRest = resting;
+    emit atRestChanged();
 }
 
 TabState BrowserController::makeBlankTab(const QString &spaceId)

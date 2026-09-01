@@ -14,6 +14,7 @@ class ThemeControllerTest final : public QObject {
 private slots:
     void enforcesDistinctPrivateColors();
     void appliesSemanticOpacityToChromeSurfaces();
+    void givesFullPageSurfacesTheSidebarsColourAndTheirOwnTranslucency();
     void resolvesTheFirstInstalledTypeFamily();
     void fallsBackToAFamilyTheHostActuallyHas();
     void keepsTheTypeBaseSizeUsable();
@@ -79,6 +80,51 @@ void ThemeControllerTest::appliesSemanticOpacityToChromeSurfaces()
 // installed here, and that is the one the palette has to resolve to. Handing
 // Qt a family the host does not have costs a font-alias sweep and draws in
 // whatever face Qt picks instead.
+// A surface that takes the whole page area is the sidebar's material, so a
+// theme names its colour once. It is read against a webpage rather than against
+// the desktop, so it does not inherit the sidebar's translucency: at that value
+// a dark page shows through as nothing and the surface reads as solid.
+void ThemeControllerTest::givesFullPageSurfacesTheSidebarsColourAndTheirOwnTranslucency()
+{
+    QTemporaryDir root;
+    QFile theme(root.filePath(QStringLiteral("theme.json")));
+    QVERIFY(theme.open(QIODevice::WriteOnly));
+    theme.write(R"JSON({
+        "window": "#101010",
+        "sidebar": "#f0f0f0",
+        "privateSidebar": "#800080",
+        "opacity": { "sidebar": 0.9, "sheet": 0.6 }
+    })JSON");
+    theme.close();
+
+    ThemeController controller(theme.fileName());
+    const auto palette = controller.palette();
+
+    // A light theme's sheet is light: inheriting the theme's own sidebar rather
+    // than falling back to Tanto's dark is what makes that true.
+    QCOMPARE(QColor(palette.value(QStringLiteral("sheetOpaque")).toString()),
+        QColor(QStringLiteral("#f0f0f0")));
+    QCOMPARE(QColor(palette.value(QStringLiteral("sheet")).toString()).alpha(), 153);
+    QCOMPARE(QColor(palette.value(QStringLiteral("sidebar")).toString()).alpha(), 230);
+    QCOMPARE(QColor(palette.value(QStringLiteral("privateSheetOpaque")).toString()),
+        QColor(QStringLiteral("#800080")));
+    QCOMPARE(QColor(palette.value(QStringLiteral("privateSheet")).toString()).alpha(), 153);
+
+    // Naming one takes precedence over inheriting it.
+    QFile named(root.filePath(QStringLiteral("named.json")));
+    QVERIFY(named.open(QIODevice::WriteOnly));
+    named.write(R"JSON({
+        "sidebar": "#f0f0f0",
+        "sheet": "#123456",
+        "opacity": { "sheet": 0.6 }
+    })JSON");
+    named.close();
+
+    ThemeController namedController(named.fileName());
+    QCOMPARE(QColor(namedController.palette().value(QStringLiteral("sheetOpaque")).toString()),
+        QColor(QStringLiteral("#123456")));
+}
+
 void ThemeControllerTest::resolvesTheFirstInstalledTypeFamily()
 {
     const auto installed = QFontDatabase::families();

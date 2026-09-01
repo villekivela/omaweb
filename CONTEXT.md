@@ -36,6 +36,14 @@ _Avoid_: Workspace, container, profile
 A tab saved within one Space and restored whenever that Space resumes. Its saved address changes only when the user explicitly updates the pin.
 _Avoid_: Bookmark, favorite
 
+**Space at rest**:
+A Space with nothing open in it, because nothing has been opened yet or the last page has been closed. Its only ordinary tab is blank. A Space at rest lists no ordinary tab and shows the Start page in place of a webpage; its Pinned tabs are unaffected.
+_Avoid_: Empty tab, blank tab, new tab
+
+**Start page**:
+What Tanto draws where a webpage would be whenever the tab on show has no address to load — a Space at rest, or `about:blank` itself: the browser's keyboard commands and the keys that run them, rather than a document loaded from anywhere. It costs no engine and takes the sidebar's translucency. The same sheet answers on demand over a live page, where it is opaque and closeable instead.
+_Avoid_: Home page, new tab page, about:blank, cheat sheet
+
 **Private window**:
 A temporary browser window whose browsing identity is separate from every Space and whose distinct appearance identifies it as private. Private windows share temporary state with each other only while at least one private window remains open.
 _Avoid_: Private Space, incognito Space

@@ -23,6 +23,7 @@
     "size": 12
   },
   "opacity": {
+    "sheet": 0.85,
     "sidebar": 0.90,
     "overlay": 0.96,
     "window": 0.0

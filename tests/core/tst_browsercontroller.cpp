@@ -35,6 +35,7 @@ private slots:
     void persistsTabsAndPins();
     void pinningMovesTabIntoPinnedBlock();
     void keepsFinalTabAsBlankTab();
+    void restsUntilSomethingIsOpenedInTheSpace();
     void keepsRendererFailureOnAffectedTab();
     void sharesPrivateIdentityUntilLastWindowCloses();
     void keepsHistorySuggestionsInsideActiveSpace();
@@ -351,6 +352,44 @@ void BrowserControllerTest::keepsFinalTabAsBlankTab()
     controller.closeActiveTab();
     QCOMPARE(controller.tabs()->rowCount(), 1);
     QCOMPARE(controller.activeUrl(), QUrl(QStringLiteral("about:blank")));
+}
+
+// A Space at rest is the state the interface has no page to show for and no
+// ordinary tab to list: nothing has been opened in it, or the last page in it
+// has been closed.
+void BrowserControllerTest::restsUntilSomethingIsOpenedInTheSpace()
+{
+    QTemporaryDir root;
+    BrowserController controller(root.path(), QStringLiteral("test"));
+    QSignalSpy restChanged(&controller, &BrowserController::atRestChanged);
+
+    QVERIFY(controller.atRest());
+
+    controller.openInput(QStringLiteral("https://example.com"), false);
+    QVERIFY(!controller.atRest());
+    QCOMPARE(restChanged.count(), 1);
+
+    // Closing the last page empties the Space rather than the window.
+    controller.closeActiveTab();
+    QCOMPARE(controller.tabs()->rowCount(), 1);
+    QVERIFY(controller.atRest());
+    QCOMPARE(restChanged.count(), 2);
+
+    // A pinned tab is the Space's own furniture. It is there whether anything
+    // has been opened or not, so it does not decide whether the Space rests.
+    controller.openInput(QStringLiteral("https://pinned.example"), false);
+    controller.toggleActivePinned();
+    QCOMPARE(controller.pinnedTabs()->rowCount(), 1);
+    QVERIFY(!controller.atRest());
+    controller.openInput(QStringLiteral("about:blank"), true);
+    QCOMPARE(controller.unpinnedTabs()->rowCount(), 1);
+    QVERIFY(controller.atRest());
+
+    // A blank tab beside an open page is a tab in its own right — a window a
+    // page asked for, say — and has to stay listed and closable.
+    controller.openInput(QStringLiteral("https://second.example"), true);
+    QCOMPARE(controller.unpinnedTabs()->rowCount(), 2);
+    QVERIFY(!controller.atRest());
 }
 
 void BrowserControllerTest::keepsRendererFailureOnAffectedTab()
