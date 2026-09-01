@@ -699,8 +699,19 @@ void QtEngineContractTest::qtLinkHintsOwnSingleKeyShortcuts()
     QTRY_VERIFY(adapter->property("pageHasFocus").toBool());
     QTRY_COMPARE(adapter->property("pageTitle").toString(), QStringLiteral("ready"));
 
-    QTest::keyClick(&window, Qt::Key_F);
-    QTRY_VERIFY(adapter->property("keyboardNavigationHintModeActive").toBool());
+    // A page's title is set as its <title> is parsed, which is well before the
+    // navigation script is injected into the finished document — and nothing
+    // the view exposes says when that script arrived. A key sent on the
+    // strength of the title alone can reach a page with no handler for it, and
+    // a key that lands nowhere is not sent again. So it is offered until it
+    // lands: an f that reaches a page without hints does nothing, and the one
+    // that opens them ends the loop.
+    QTRY_VERIFY_WITH_TIMEOUT(([&] {
+        if (!adapter->property("keyboardNavigationHintModeActive").toBool()) {
+            QTest::keyClick(&window, Qt::Key_F);
+        }
+        return adapter->property("keyboardNavigationHintModeActive").toBool();
+    }()), 15000);
     QTest::keyClick(&window, Qt::Key_M);
 
     QTRY_COMPARE(adapter->property("pageTitle").toString(), QStringLiteral("hint-selected"));
@@ -766,7 +777,13 @@ void QtEngineContractTest::qtKeyboardNavigationHonorsInputContracts()
     window.requestActivate();
     QVERIFY(QMetaObject::invokeMethod(adapter.get(), "focusPage"));
     QTRY_VERIFY(adapter->property("pageHasFocus").toBool());
-    QTRY_COMPARE(adapter->property("pageTitle").toString(), QStringLiteral("ready"));
+    // Several of these pages drive themselves: they wait for the hint layer
+    // and press their own keys as soon as the document is up. Such a page can
+    // reach what the row is waiting for before this line ever samples the
+    // title, and it never says "ready" again — so the page being up is what is
+    // waited for here, not one particular thing the title says.
+    QTRY_VERIFY(adapter->property("pageTitle").toString() == QStringLiteral("ready")
+        || adapter->property("pageTitle").toString() == expectedTitle);
     QVERIFY(QMetaObject::invokeMethod(adapter.get(), "configureKeyboardNavigation",
         Q_ARG(QVariant, configuration)));
     QTest::qWait(50);
