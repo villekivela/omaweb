@@ -18,6 +18,18 @@ Item {
     property bool useFavicons: true
     property bool tintFavicons: true
 
+    // A pinned tab is a square with no title, so its colour is what tells the
+    // sites apart, and the mark is drawn in it on every pin. The colour leaves
+    // the mark only on the active pin — a wash behind the button and a border
+    // to match. The rest keep the theme's own muted border, so one pin is the
+    // coloured one and the row around it stays monochrome.
+    //
+    // Until the favicon says what colour the site is, the pin stays the
+    // theme's: a hue hashed out of the host name tells chips apart, but it is
+    // not the site's own colour and no button is painted in it.
+    readonly property bool hasSiteColor: tile.hasSiteColor
+    readonly property color siteColor: hasSiteColor ? tile.siteTint : colors.accent
+
     signal activated(string tabId)
     signal closeRequested(string tabId)
 
@@ -34,15 +46,28 @@ Item {
         }
     }
 
+    // The kit paints hover and focus as veils over the fill, so the wash sits
+    // on a plate beneath the button rather than in its background: hovering
+    // the active pin then deepens the wash instead of replacing it.
+    Rectangle {
+        anchors.fill: parent
+        visible: root.pinned && root.active
+        color: Qt.rgba(root.siteColor.r, root.siteColor.g, root.siteColor.b, 0.18)
+        radius: Style.cornerRadius
+    }
+
     Omarchy.Button {
         id: tabButton
         anchors.fill: parent
-        active: root.active
+        // The active pin has a wash and a border of its own, so it never takes
+        // the kit's selected fill; an unpinned row has only that fill to say it.
+        active: root.active && !root.pinned
         hasCursor: root.activeFocus || hoverArea.containsMouse
         bordered: root.pinned
-        foreground: root.colors.text
+        foreground: root.pinned && root.active ? root.siteColor
+            : (root.pinned ? root.colors.mutedText : root.colors.text)
         background: "transparent"
-        accent: root.colors.accent
+        accent: root.pinned && root.active ? root.siteColor : root.colors.accent
         horizontalPadding: 0
         verticalPadding: 0
     }
@@ -61,6 +86,7 @@ Item {
         highlighted: root.active
         useArtwork: root.useFavicons
         tintArtwork: root.tintFavicons
+        siteColoredMark: root.pinned
     }
 
     // The title names the page; its address is already in the address button
