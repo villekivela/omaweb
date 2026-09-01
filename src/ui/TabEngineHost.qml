@@ -161,13 +161,21 @@ Item {
             // handler for `tabUrl` cannot trust a binding that depends on
             // `tabUrl` to have been re-evaluated yet: QML does not order a
             // property's change handlers against the bindings that read it.
+            //
+            // A delegate is built before it is told which tab it stands for,
+            // and an unnamed one stands for none: with no tab named for
+            // adoption either, it would match the tab being adopted and be
+            // given an engine of its own — one keyed to no tab, so no tab ever
+            // shows it, hides it or takes it away, left on top of the page the
+            // reader came back to.
             function needsEngine() {
+                if (tabSlot.tabId.length === 0) return false
                 return !root.blankAddress(tabSlot.tabUrl)
                     || root.adoptingTabId === tabSlot.tabId
             }
 
-            readonly property bool wantsEngine: !root.blankAddress(tabUrl)
-                || root.adoptingTabId === tabId
+            readonly property bool wantsEngine: tabId.length > 0
+                && (!root.blankAddress(tabUrl) || root.adoptingTabId === tabId)
 
             function showEngine() {
                 if (!engine) return
