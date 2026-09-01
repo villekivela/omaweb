@@ -27,6 +27,16 @@ class BrowserController final : public QObject {
     Q_PROPERTY(QString activeTitle READ activeTitle NOTIFY activeTabChanged)
     Q_PROPERTY(QString activeProfilePath READ activeProfilePath NOTIFY activeSpaceChanged)
     Q_PROPERTY(bool activeTabPinned READ activeTabPinned NOTIFY activeTabChanged)
+    // Whether the tab on show has an address to load. A blank one has no page
+    // to draw and nothing to draw it with, whether it is the Space resting or
+    // an address the reader typed, so the interface stands something else in
+    // its place rather than showing an empty viewport.
+    Q_PROPERTY(bool activeTabBlank READ activeTabBlank NOTIFY activeTabChanged)
+    // A Space is at rest when its only ordinary tab is blank: nothing has been
+    // opened in it, or the last page in it has been closed. The interface has
+    // no page to show then and no ordinary tab to list, so both read this
+    // rather than each deciding what counts as blank for itself.
+    Q_PROPERTY(bool atRest READ atRest NOTIFY atRestChanged)
     Q_PROPERTY(bool activeRendererFailed READ activeRendererFailed NOTIFY activeTabChanged)
     Q_PROPERTY(QString activeRendererFailureReason READ activeRendererFailureReason NOTIFY activeTabChanged)
     Q_PROPERTY(bool privateBrowsing READ privateBrowsing CONSTANT)
@@ -64,6 +74,8 @@ public:
     QString activeTitle() const;
     QString activeProfilePath() const;
     bool activeTabPinned() const;
+    bool activeTabBlank() const;
+    bool atRest() const;
     bool activeRendererFailed() const;
     QString activeRendererFailureReason() const;
     bool privateBrowsing() const;
@@ -110,6 +122,7 @@ public:
 signals:
     void activeSpaceChanged();
     void activeTabChanged();
+    void atRestChanged();
     void spaceSuspended(const QString &spaceId);
     void spaceRestored(const QString &spaceId);
     void spaceDiscarded(const QString &spaceId);
@@ -132,6 +145,9 @@ private:
     void schedulePersistTabs();
     void setActiveTab(const QString &tabId);
     static TabState makeBlankTab(const QString &spaceId);
+    static bool isBlank(const QUrl &url);
+    bool restingOnBlankTab() const;
+    void refreshAtRest();
     static QUrl resolveInput(const QString &input);
     static QString normalizedOrigin(const QUrl &url);
     QString sessionPermissionKey(const QString &origin, const QString &permission) const;
@@ -149,6 +165,7 @@ private:
     QString m_errorMessage;
     ClosedTab m_closedTab;
     bool m_ready = false;
+    bool m_atRest = false;
     bool m_privateBrowsing = false;
     QSharedPointer<QHash<QString, int>> m_sessionPermissionDecisions;
 };

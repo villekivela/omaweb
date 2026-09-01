@@ -21,6 +21,12 @@ Rectangle {
     // An empty pinned section takes no room at all.
     property int pinnedCount: browser ? browser.pinnedTabs.rowCount() : 0
 
+    // A Space whose only ordinary tab is blank lists no ordinary tab: the row
+    // would stand for a page nobody opened, wearing a site chip for a site
+    // that does not exist. The pinned block stays — those are the Space's own
+    // furniture and are there whether anything is open or not.
+    readonly property bool atRest: browser ? browser.atRest : false
+
     readonly property url activeUrl: browser ? browser.activeUrl : ""
     readonly property bool secure: String(activeUrl).indexOf("https://") === 0
     readonly property bool blank: String(activeUrl).length === 0 || String(activeUrl) === "about:blank"
@@ -332,7 +338,7 @@ Rectangle {
             spacing: 0
 
             Repeater {
-                model: root.browser ? root.browser.unpinnedTabs : null
+                model: root.atRest || !root.browser ? null : root.browser.unpinnedTabs
 
                 TabRow {
                     width: parent.width

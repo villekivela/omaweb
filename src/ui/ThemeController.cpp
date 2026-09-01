@@ -82,6 +82,11 @@ QVariantMap ThemeController::defaultOpacity()
 {
     return {
         {QStringLiteral("sidebar"), 0.85},
+        // A sheet is read against a webpage rather than against the desktop,
+        // and a page's own contrast is unknown, so it lets more through than
+        // the sidebar does: at the sidebar's own value a dark page shows as
+        // nothing at all and the surface reads as solid.
+        {QStringLiteral("sheet"), 0.82},
         {QStringLiteral("overlay"), 0.96},
         {QStringLiteral("window"), 0.0},
     };
@@ -159,6 +164,21 @@ QVariantMap ThemeController::normalizedPalette(QVariantMap palette) const
     enforceDifference(QStringLiteral("window"), QStringLiteral("privateWindow"));
     enforceDifference(QStringLiteral("accent"), QStringLiteral("privateAccent"));
 
+    // A Tanto surface that takes the whole page area — the shortcut sheet
+    // summoned over a page, the settings page — is the same material as the
+    // sidebar and takes its colour. Not its translucency: the sidebar is read
+    // against the desktop and these are read against a webpage. A theme that
+    // wants a colour of its own for them names one, and inheriting rather than
+    // falling back to Tanto's own dark is what keeps a light theme light.
+    const auto inheritSidebarColor = [&palette](const QString &sheetKey,
+                                         const QString &sidebarKey) {
+        if (!palette.contains(sheetKey)) {
+            palette.insert(sheetKey, palette.value(sidebarKey));
+        }
+    };
+    inheritSidebarColor(QStringLiteral("sheet"), QStringLiteral("sidebar"));
+    inheritSidebarColor(QStringLiteral("privateSheet"), QStringLiteral("privateSidebar"));
+
     // Semantic opacity is the single source of truth for how much of the desktop
     // shows through a Tanto-owned surface, so a theme that also bakes alpha into
     // the colour itself does not get to multiply the two. The opaque variants stay
@@ -215,10 +235,13 @@ QVariantMap ThemeController::normalizedPalette(QVariantMap palette) const
     const auto windowAlpha = opacity.value(QStringLiteral("window")).toDouble();
     const auto sidebarAlpha = opacity.value(QStringLiteral("sidebar")).toDouble();
     const auto overlayAlpha = opacity.value(QStringLiteral("overlay")).toDouble();
+    const auto sheetAlpha = opacity.value(QStringLiteral("sheet")).toDouble();
     withOpacity(QStringLiteral("window"), windowAlpha);
     withOpacity(QStringLiteral("privateWindow"), windowAlpha);
     withOpacity(QStringLiteral("sidebar"), sidebarAlpha);
     withOpacity(QStringLiteral("privateSidebar"), sidebarAlpha);
+    withOpacity(QStringLiteral("sheet"), sheetAlpha);
+    withOpacity(QStringLiteral("privateSheet"), sheetAlpha);
     withOpacity(QStringLiteral("overlay"), overlayAlpha);
     return palette;
 }

@@ -203,6 +203,7 @@ set(tanto_ui_files
     src/ui/NavigationCluster.qml
     src/ui/ActionButton.qml
     src/ui/CommandDialog.qml
+    src/ui/PageBackdrop.qml
     src/ui/PageQuestionBar.qml
     src/ui/SectionLabel.qml
     src/ui/MultilineField.qml
@@ -213,6 +214,7 @@ set(tanto_ui_files
     src/ui/SidebarResizer.qml
     src/ui/SiteTile.qml
     src/ui/SpaceOutline.qml
+    src/ui/StartPage.qml
     src/ui/TabEngineHost.qml
     src/ui/TabRow.qml
 )

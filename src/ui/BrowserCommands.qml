@@ -34,6 +34,7 @@ QtObject {
         case "reset-sidebar": window.setSidebarWidth(window.sidebarDefaultWidth); return true
         case "focus-sidebar": window.focusSidebar(); return true
         case "focus-page": window.focusPage(); return true
+        case "shortcuts": window.requestShortcuts(); return true
         case "settings": window.requestSettings(); return true
         case "private-window": windowManager.openPrivateWindow(); return true
         case "minimize-window": window.showMinimized(); return true
@@ -64,6 +65,7 @@ QtObject {
         "reset-sidebar": { group: "interface", title: "Reset the sidebar width" },
         "focus-sidebar": { group: "interface", title: "Focus the sidebar" },
         "focus-page": { group: "interface", title: "Focus the page" },
+        "shortcuts": { group: "interface", title: "Keyboard shortcuts" },
         "settings": { group: "interface", title: "Settings and downloads" },
         "private-window": { group: "interface", title: "New Private window" },
         "minimize-window": { group: "interface", title: "Minimize window" }

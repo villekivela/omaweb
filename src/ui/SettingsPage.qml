@@ -22,6 +22,10 @@ Rectangle {
     property bool useFavicons: true
     property bool tintFavicons: true
 
+    // The page to blur behind the settings, when there is one. Must not be an
+    // ancestor of this item.
+    property Item pageSource: null
+
     readonly property var sections: ["tabs", "keyboard", "content blocking", "network", "downloads"]
 
     // about:blank and other opaque addresses have no host to name, and saying
@@ -38,7 +42,10 @@ Rectangle {
     signal tintFaviconsToggled(bool enabled)
 
     visible: open
-    color: colors.windowOpaque
+    // Settings is a place over the page rather than instead of it, so the page
+    // stays visible through it: blurred, under the same translucency the
+    // sidebar beside it has.
+    color: "transparent"
     focus: open
 
     Keys.onPressed: function(event) {
@@ -58,6 +65,13 @@ Rectangle {
     }
 
     onOpenChanged: if (open) refresh()
+
+    PageBackdrop {
+        objectName: "settingsBackdrop"
+        anchors.fill: parent
+        source: root.pageSource
+        tint: root.colors.sheet
+    }
 
     Item {
         id: header

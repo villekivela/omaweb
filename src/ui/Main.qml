@@ -37,6 +37,12 @@ ApplicationWindow {
         Math.max(sidebarMinimumWidth, Math.min(560, window.width * 0.5))
     readonly property real sidebarDefaultWidth: 292
     property real sidebarWidth: sidebarDefaultWidth
+    // No page to show: the tab on show is blank and no engine is drawing it.
+    // That covers a resting Space and an `about:blank` the reader navigated to
+    // — and leaves out the blank tab a page opened, which has its engine
+    // already and is about to be a page.
+    readonly property bool pagelessViewport: window.windowBrowser.activeTabBlank
+        && !engineLoader.item
     property bool omnibarOpen: false
     property bool newTabIntent: false
     property string pendingMoveTabId: ""
@@ -63,6 +69,7 @@ ApplicationWindow {
     property var pendingPermissionResponder: null
     property var downloadRecordIds: ({})
     property bool settingsOpen: false
+    property bool shortcutsOpen: false
     property bool spacesMenuOpen: false
     property real spacesMenuX: 0
     property real spacesMenuY: 0
@@ -78,6 +85,8 @@ ApplicationWindow {
         palette.windowOpaque = source.privateWindowOpaque
         palette.sidebar = source.privateSidebar
         palette.sidebarOpaque = source.privateSidebarOpaque
+        palette.sheet = source.privateSheet
+        palette.sheetOpaque = source.privateSheetOpaque
         palette.surface = source.privateSurface
         palette.surfaceHover = source.privateSurfaceHover
         palette.accent = source.privateAccent
@@ -129,6 +138,14 @@ ApplicationWindow {
 
     function requestSettings() {
         window.settingsOpen = true
+    }
+
+    // The sheet a resting Space shows is the same sheet, so asking for it while
+    // it is already standing in for the page has nothing to add and nothing to
+    // toggle off.
+    function requestShortcuts() {
+        if (window.pagelessViewport) return
+        window.shortcutsOpen = !window.shortcutsOpen
     }
 
     // The two halves of the shell, each one key away from the other: the
@@ -399,10 +416,15 @@ ApplicationWindow {
 
                 // The shell around it is translucent by theme; a webpage viewport
                 // never is, so it gets its own opaque backing rather than
-                // inheriting whatever the desktop is showing.
+                // inheriting whatever the desktop is showing. A Space at rest
+                // has no webpage to back, and the start page over it is
+                // translucent like the sidebar, so the backing goes away with
+                // the page rather than sealing the desktop out of an empty
+                // viewport.
                 Rectangle {
                     objectName: "engineBacking"
                     anchors.fill: parent
+                    visible: !window.pagelessViewport
                     color: window.colors.windowOpaque
                 }
 
@@ -441,15 +463,14 @@ ApplicationWindow {
                             ? requestedUrl.toString()
                             : "about:blank"
                         window.windowBrowser.openInput(request ? "about:blank" : destination, true)
+                        // The tab the request opened is the active one, and it
+                        // is named rather than left to `item`: the tab starts
+                        // blank, a blank tab is given no engine, and the
+                        // request has to reach that tab's engine and not
+                        // whichever page happened to be showing.
                         if (request) {
-                            if (engineLoader.item) {
-                                engineLoader.item.acceptNewWindowRequest(request)
-                            } else {
-                                Qt.callLater(function() {
-                                    if (engineLoader.item)
-                                        engineLoader.item.acceptNewWindowRequest(request)
-                                })
-                            }
+                            engineLoader.adoptNewWindowRequest(
+                                window.windowBrowser.activeTabId, request)
                         }
                     }
 
@@ -463,6 +484,29 @@ ApplicationWindow {
                         window.pendingPermissionOrigin = origin
                         window.pendingPermissionType = permission
                         window.permissionOpen = true
+                    }
+                }
+
+                StartPage {
+                    id: startPage
+                    anchors.fill: parent
+                    z: 30
+                    colors: window.colors
+                    iconFontFamily: materialSymbols.name
+                    commands: browserCommands
+                    keymap: keymap
+                    privateWindow: window.privateWindow
+                    open: (window.pagelessViewport || window.shortcutsOpen)
+                        && !window.settingsOpen
+                    overPage: !window.pagelessViewport
+                    // The page behind the sheet, not the viewport that owns
+                    // both, so the blur never samples itself. There is nothing
+                    // to sample where there is no page.
+                    pageSource: window.pagelessViewport ? null : engineLoader
+
+                    onClosed: {
+                        window.shortcutsOpen = false
+                        window.focusPage()
                     }
                 }
 
@@ -501,6 +545,9 @@ ApplicationWindow {
                     blocker: contentBlocker
                     keyboard: keyboardNavigation
                     open: window.settingsOpen
+                    // As the sheet does: the page itself, never the viewport
+                    // that owns both.
+                    pageSource: window.pagelessViewport ? null : engineLoader
                     useFavicons: window.useFavicons
                     tintFavicons: window.tintFavicons
 

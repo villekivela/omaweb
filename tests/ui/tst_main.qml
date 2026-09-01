@@ -25,6 +25,20 @@ TestCase {
         window.destroy()
     }
 
+    // A Space at rest shows the start page: no engine is spent on the blank
+    // tab standing in for a page, and the outline lists no ordinary tab row.
+    // A test about a page, an engine or a tab row opens a page first.
+    function openPage(url) {
+        const engineHost = findChild(window.contentItem, "engineLoader")
+        verify(engineHost !== null)
+        browser.openInput(url, false)
+        tryVerify(function() {
+            return engineHost.item !== null
+                && engineHost.item.currentUrl.toString() === url
+        })
+        return engineHost.item
+    }
+
     function verifyApplicationWindowFlags(applicationWindow) {
         verify(Boolean(applicationWindow.flags & Qt.Window))
         if (Qt.platform.os === "osx") {
@@ -231,7 +245,7 @@ TestCase {
         tryVerify(function() { return window.active })
         window.sidebarCollapsed = false
         const engineHost = findChild(window.contentItem, "engineLoader")
-        verify(engineHost.item !== null)
+        openPage("https://focus.example")
 
         // Focusing the outline lands on the row the reader is already reading.
         window.commands.run("focus-sidebar", -1)
@@ -299,7 +313,7 @@ TestCase {
     function test_switchingTabsPreservesPageLocalState() {
         const engineHost = findChild(window.contentItem, "engineLoader")
         verify(engineHost !== null)
-        verify(engineHost.item !== null)
+        openPage("https://first.example")
 
         const firstTabId = browser.activeTabId
         engineHost.item.pageLocalState = "edited form value"
@@ -398,12 +412,13 @@ TestCase {
     function test_spaceSwitchKeepsEachSpacesPagesLoaded() {
         const engineLoader = findChild(window.contentItem, "engineLoader")
         verify(engineLoader !== null)
-        verify(engineLoader.item !== null)
+        openPage("https://personal-space.example")
         const personalSpaceId = browser.activeSpaceId
         const personalEngineView = engineLoader.item
         const workSpaceId = browser.createSpace("Work")
 
         verify(browser.switchSpace(workSpaceId))
+        openPage("https://work-space.example")
         tryVerify(function() {
             return engineLoader.item !== null
                 && engineLoader.item !== personalEngineView
@@ -415,10 +430,11 @@ TestCase {
         verify(browser.switchSpace(personalSpaceId))
         tryCompare(engineLoader, "item", personalEngineView)
 
-        // A deleted Space takes its pages with it.
+        // A deleted Space takes its pages with it. It has a page open now, so
+        // deleting it takes its name as confirmation.
         verify(browser.switchSpace(workSpaceId))
         tryCompare(engineLoader, "item", workEngineView)
-        verify(browser.deleteSpace(workSpaceId, ""))
+        verify(browser.deleteSpace(workSpaceId, "Work"))
         compare(browser.activeSpaceId, personalSpaceId)
         tryCompare(engineLoader, "item", personalEngineView)
     }
@@ -430,7 +446,7 @@ TestCase {
     function test_spaceSwitchKeepsTheIconsItsPagesAlreadyReported() {
         const engineLoader = findChild(window.contentItem, "engineLoader")
         verify(engineLoader !== null)
-        tryVerify(function() { return engineLoader.item !== null })
+        openPage("https://one.example/page")
 
         const personalSpaceId = browser.activeSpaceId
         const tabId = browser.activeTabId
@@ -446,6 +462,7 @@ TestCase {
 
         const workSpaceId = browser.createSpace("Work")
         verify(browser.switchSpace(workSpaceId))
+        openPage("https://work-icons.example")
         tryVerify(function() {
             return engineLoader.item !== null && engineLoader.item !== personalEngineView
         })
@@ -472,7 +489,7 @@ TestCase {
     function test_movingATabToAnotherSpaceLeavesItsPageAndIconBehind() {
         const engineLoader = findChild(window.contentItem, "engineLoader")
         verify(engineLoader !== null)
-        tryVerify(function() { return engineLoader.item !== null })
+        openPage("https://moved.example/page")
 
         const sourceSpaceId = browser.activeSpaceId
         const tabId = browser.activeTabId
@@ -539,6 +556,8 @@ TestCase {
         verify(privateBadge.visible)
         compare(privateBadge.text, "domino_mask")
         compare(String(privateBadge.color), String(privateBrowser.colors.privateAccent))
+        privateBrowser.windowBrowser.openInput("https://private.example", false)
+        tryVerify(function() { return privateEngine.item !== null })
         compare(privateEngine.item.profilePath, windowManager.privateProfilePath)
         compare(privateEngine.item.browserProfile, window.privateProfileHost.profile)
 
@@ -617,9 +636,18 @@ TestCase {
         verify(settingsButton !== null)
         verify(settingsSurface !== null)
         verify(!settingsSurface.visible)
+        // A page to cover, so the backdrop below has something to blur.
+        openPage("https://under-settings.example")
 
         settingsButton.clicked()
         tryVerify(function() { return settingsSurface.visible })
+
+        // Settings is a place over the page, not instead of it: the same
+        // translucency the sidebar has, over the page it covers, blurred.
+        const settingsBackdrop = findChild(window.contentItem, "settingsBackdrop")
+        verify(settingsBackdrop !== null)
+        compare(String(settingsBackdrop.tint), String(window.colors.sheet))
+        tryVerify(function() { return settingsBackdrop.sampling })
 
         const closeButton = findChild(window.contentItem, "closeSettingsButton")
         verify(closeButton !== null)
@@ -673,6 +701,186 @@ TestCase {
         compare(keyboardNavigationEnabled.checked, true)
     }
 
+    // A Space with nothing open in it has no page to show and no ordinary tab
+    // to list. What stands in for the page is the keymap itself, drawn from the
+    // same command registry and the same bindings the window dispatches
+    // through, and no renderer is spent on the blank tab behind it.
+    function test_restingSpaceShowsTheShortcutSheetInsteadOfAPage() {
+        const engineLoader = findChild(window.contentItem, "engineLoader")
+        const startPage = findChild(window.contentItem, "startPage")
+        const engineBacking = findChild(window.contentItem, "engineBacking")
+        verify(engineLoader !== null)
+        verify(startPage !== null)
+        verify(engineBacking !== null)
+
+        const homeSpaceId = browser.activeSpaceId
+        const restingSpaceId = browser.createSpace("Resting")
+        verify(browser.switchSpace(restingSpaceId))
+        tryVerify(function() { return browser.atRest })
+
+        // No row stands for a page nobody opened.
+        const restingTabId = browser.activeTabId
+        tryVerify(function() {
+            return findChild(window.contentItem, "tab-" + restingTabId) === null
+        })
+        tryVerify(function() { return startPage.visible })
+
+        // The resting page area is translucent like the sidebar rather than
+        // sealed with the opaque backing a webpage needs, and with no page
+        // there is nothing to blur behind it.
+        verify(!engineBacking.visible)
+        const restingBackdrop = findChild(window.contentItem, "shortcutsBackdrop")
+        verify(restingBackdrop !== null)
+        compare(String(restingBackdrop.tint), String(window.colors.sidebar))
+        verify(!restingBackdrop.sampling)
+
+        // A blank tab is not worth a renderer process.
+        compare(engineLoader.engines[restingTabId], undefined)
+        compare(engineLoader.item, null)
+
+        // Every command the sheet lists carries the keys the window answers to,
+        // and it names them exactly as the command panel does.
+        verify(startPage.sections.length > 0)
+        let listed = 0
+        let openAddressKeys = ""
+        for (let group = 0; group < startPage.sections.length; ++group) {
+            const entries = startPage.sections[group].entries
+            for (let index = 0; index < entries.length; ++index) {
+                verify(entries[index].keys.length > 0)
+                if (entries[index].title === "Open address")
+                    openAddressKeys = entries[index].keys
+                ++listed
+            }
+        }
+        verify(listed > 8)
+        compare(openAddressKeys, window.commands.keymap.keysFor("open-address"))
+        verify(openAddressKeys.length > 0)
+
+        // Committing an address ends the rest: the page arrives, and its row
+        // arrives with it.
+        openPage("https://resting.example")
+        tryVerify(function() { return !startPage.visible })
+        verify(engineBacking.visible)
+        tryVerify(function() {
+            return findChild(window.contentItem, "tab-" + restingTabId) !== null
+        })
+
+        verify(browser.switchSpace(homeSpaceId))
+        verify(browser.deleteSpace(restingSpaceId, "Resting"))
+    }
+
+    // A blank address is not the same thing as a resting Space, and it must not
+    // be an empty viewport either: there is no page, so the sheet stands in.
+    // The tab itself stays listed, because the reader put it there and has to
+    // be able to close it.
+    function test_blankAddressShowsTheSheetRatherThanAnEmptyViewport() {
+        const startPage = findChild(window.contentItem, "startPage")
+        const engineLoader = findChild(window.contentItem, "engineLoader")
+        verify(startPage !== null)
+        openPage("https://not-blank.example")
+        browser.openInputInBackground("https://beside.example")
+        verify(browser.tabs.rowCount() > 1)
+        verify(!startPage.visible)
+
+        const tabId = browser.activeTabId
+        browser.openInput("about:blank", false)
+        tryVerify(function() { return startPage.visible })
+
+        // The Space is not at rest, so the tab keeps its row and its close
+        // button, and the sheet stands in without pretending otherwise.
+        verify(!browser.atRest)
+        verify(findChild(window.contentItem, "tab-" + tabId) !== null)
+        verify(!startPage.overPage)
+        tryVerify(function() { return engineLoader.engines[tabId] === undefined })
+
+        openPage("https://not-blank.example/again")
+        tryVerify(function() { return !startPage.visible })
+    }
+
+    // Leaving a blank tab for a page and coming back has to bring the sheet
+    // back with it. The host names one active engine, and a tab that has none
+    // has to clear that name rather than leave the last tab's page standing in
+    // as the answer to "is a page up?".
+    function test_returningToABlankTabBringsTheSheetBack() {
+        const startPage = findChild(window.contentItem, "startPage")
+        const engineLoader = findChild(window.contentItem, "engineLoader")
+        verify(startPage !== null)
+
+        openPage("https://neighbour.example")
+        const blankTabId = browser.activeTabId
+        browser.openInput("about:blank", false)
+        tryVerify(function() { return startPage.visible })
+
+        browser.openInput("https://elsewhere.example", true)
+        const pageTabId = browser.activeTabId
+        tryVerify(function() {
+            return !startPage.visible && engineLoader.item !== null
+        })
+
+        browser.activateTab(blankTabId)
+        tryVerify(function() { return startPage.visible })
+        // Nothing is drawing a page, and the window is told so.
+        compare(engineLoader.item, null)
+
+        browser.activateTab(pageTabId)
+        tryVerify(function() { return !startPage.visible })
+        verify(engineLoader.item !== null)
+    }
+
+    // The sheet is a command like any other, so it answers on demand over a
+    // live page. There it cannot be translucent — a webpage read through a list
+    // of shortcuts is neither — and the reader came from somewhere, so it
+    // closes.
+    function test_shortcutSheetAnswersOnDemandOverAPage() {
+        const startPage = findChild(window.contentItem, "startPage")
+        verify(startPage !== null)
+        openPage("https://busy.example")
+        verify(!startPage.visible)
+
+        window.commands.run("shortcuts", -1)
+        tryVerify(function() { return startPage.visible })
+        verify(startPage.overPage)
+
+        // Over a page the sheet keeps the sidebar's translucency and blurs that
+        // page behind itself, so what the reader left is still legible as a
+        // place without being readable as a page.
+        const sheetBackdrop = findChild(window.contentItem, "shortcutsBackdrop")
+        verify(sheetBackdrop !== null)
+        // A sheet over a page lets more through than the sidebar does: at the
+        // sidebar's own value a dark page shows as nothing.
+        compare(String(sheetBackdrop.tint), String(window.colors.sheet))
+        verify(Qt.color(window.colors.sheet).a < Qt.color(window.colors.sidebar).a)
+        tryVerify(function() { return sheetBackdrop.sampling })
+        compare(sheetBackdrop.source, findChild(window.contentItem, "engineLoader"))
+
+        const closeButton = findChild(window.contentItem, "closeShortcutsButton")
+        verify(closeButton !== null)
+        verify(closeButton.visible)
+
+        // The same command takes it away again.
+        window.commands.run("shortcuts", -1)
+        tryVerify(function() { return !startPage.visible })
+
+        // So does Escape, and so does the close button.
+        window.commands.run("shortcuts", -1)
+        tryVerify(function() { return startPage.visible })
+        window.requestActivate()
+        tryVerify(function() { return window.active })
+        keyClick(Qt.Key_Escape)
+        tryVerify(function() { return !startPage.visible })
+
+        window.commands.run("shortcuts", -1)
+        tryVerify(function() { return startPage.visible })
+        closeButton.clicked()
+        tryVerify(function() { return !startPage.visible })
+
+        // Being in the registry is what makes it searchable and bindable.
+        const matches = window.commands.search("Keyboard shortcuts")
+        verify(matches.length > 0)
+        compare(matches[0].command, "shortcuts")
+        verify(matches[0].keys.length > 0)
+    }
+
     // A tab's chip stands in for artwork that is not being drawn, so it takes
     // the site's own colour: the hue of the favicon, at the theme's saturation
     // and lightness. An icon with no hue to give leaves the chip neutral
@@ -680,7 +888,7 @@ TestCase {
     function test_chipTakesItsColourFromTheFaviconWhenArtworkIsOff() {
         const engineLoader = findChild(window.contentItem, "engineLoader")
         verify(engineLoader !== null)
-        tryVerify(function() { return engineLoader.item !== null })
+        openPage("https://chip.example")
 
         const tabId = browser.activeTabId
         const tile = findChild(window.contentItem, "siteTile-" + tabId)

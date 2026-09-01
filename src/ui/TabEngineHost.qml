@@ -46,6 +46,38 @@ Item {
     property bool preservingEngines: false
     property var engineComponent: null
 
+    // A page that opens a window completes the request against the engine of
+    // the tab that window becomes. That tab starts blank and a blank tab is
+    // given no engine, so it is named here: naming it builds the engine, and
+    // the request then reaches that tab rather than whichever page was showing
+    // when the window was asked for.
+    property string adoptingTabId: ""
+
+    // A tab with no address to load. `about:blank` is what a tab holds before
+    // the reader commits a destination, what the last tab in a Space falls back
+    // to, and what a page's new window starts as, so it is the one address that
+    // is never worth an engine.
+    function blankAddress(url) {
+        const value = String(url)
+        return value.length === 0 || value === "about:blank"
+    }
+
+    function adoptNewWindowRequest(tabId, request) {
+        root.adoptingTabId = tabId
+        const engine = root.engines[tabId]
+        if (engine) {
+            root.adoptingTabId = ""
+            engine.acceptNewWindowRequest(request)
+            return
+        }
+        Qt.callLater(function() {
+            const late = root.engines[tabId]
+            if (!late) return
+            root.adoptingTabId = ""
+            late.acceptNewWindowRequest(request)
+        })
+    }
+
     function focusPage() {
         if (activeEngine) activeEngine.focusPage()
     }
@@ -119,6 +151,24 @@ Item {
             property bool everActive: active
             property var engine: null
 
+            // A blank tab has no page, and the shortcut sheet stands in for it.
+            // An engine here would spend a renderer process on an empty
+            // document nobody can see, so a tab gets one once it has an address
+            // to load — or once it is the tab a page's new-window request has to
+            // be handed to.
+            //
+            // Asked as a function as well as a binding, because a change
+            // handler for `tabUrl` cannot trust a binding that depends on
+            // `tabUrl` to have been re-evaluated yet: QML does not order a
+            // property's change handlers against the bindings that read it.
+            function needsEngine() {
+                return !root.blankAddress(tabSlot.tabUrl)
+                    || root.adoptingTabId === tabSlot.tabId
+            }
+
+            readonly property bool wantsEngine: !root.blankAddress(tabUrl)
+                || root.adoptingTabId === tabId
+
             function showEngine() {
                 if (!engine) return
                 engine.visible = tabSlot.active
@@ -130,7 +180,7 @@ Item {
             }
 
             function loadEngine() {
-                if (root.suspended || !everActive) return
+                if (root.suspended || !everActive || !needsEngine()) return
                 engine = root.engines[tabId] || root.createEngine(tabId, tabSlot.tabUrl)
                 showEngine()
             }
@@ -151,13 +201,32 @@ Item {
             }
 
             onTabUrlChanged: {
-                if (engine && engine.currentUrl !== tabUrl) engine.currentUrl = tabUrl
+                // A tab that has lost its address has lost its page, and the
+                // renderer that drew it goes too rather than idling behind the
+                // sheet that stands in for it.
+                if (!needsEngine()) {
+                    if (engine) {
+                        root.discardEngine(tabId)
+                        engine = null
+                    }
+                    return
+                }
+                if (!engine) loadEngine()
+                else if (engine.currentUrl !== tabUrl) engine.currentUrl = tabUrl
             }
+
+            onWantsEngineChanged: if (wantsEngine) loadEngine()
 
             onActiveChanged: {
                 if (active) {
                     everActive = true
                     loadEngine()
+                    // A tab with no engine is showing nothing, and the host has
+                    // to say so. Leaving the last tab's engine as the active one
+                    // would have the window believe a page is up: the sheet that
+                    // stands in for a blank tab would stay away, and back and
+                    // forward would answer for another tab's history.
+                    if (!engine) root.activeEngine = null
                 } else if (engine) {
                     engine.visible = false
                 }
