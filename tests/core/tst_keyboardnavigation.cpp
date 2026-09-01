@@ -16,6 +16,7 @@ private slots:
     void loadsVersionedBindingsDisabledByDefault();
     void resolvesSitePassthroughForHostsAndSubdomains();
     void rejectsUnsupportedVersionsAndCommands();
+    void dropsBindingsThisBuildDoesNotKnowAndKeepsTheRest();
     void persistsTheEnabledSetting();
     void adoptsNewDefaultsOnceWithoutResurrectingRemovedBindings();
     void replacesRetiredDefaultWithoutChangingCustomBindings();
@@ -102,6 +103,51 @@ void KeyboardNavigationTest::rejectsUnsupportedVersionsAndCommands()
     QVERIFY(!navigation.valid());
     QVERIFY(!navigation.enabled());
     QVERIFY(!navigation.errorMessage().isEmpty());
+
+    // A file whose page bindings are all unknown has nothing left to honour,
+    // which is the one case that still fails the file outright.
+    const auto emptied = writeConfiguration(root.path(), R"JSON({
+        "version": 1,
+        "enabled": true,
+        "bindings": { "x": "run-arbitrary-code" }
+    })JSON");
+    KeyboardNavigation nothingLeft(emptied);
+    QVERIFY(!nothingLeft.valid());
+    QVERIFY(nothingLeft.errorMessage().contains(QStringLiteral("run-arbitrary-code")));
+}
+
+// One configuration is shared by every Tanto on the machine, so a build meets
+// commands it does not have: one another build added, one retired since the file
+// was written. Losing the whole keymap to any of them leaves a keyboard-driven
+// browser with no keyboard, so the binding goes and the rest stays.
+void KeyboardNavigationTest::dropsBindingsThisBuildDoesNotKnowAndKeepsTheRest()
+{
+    QTemporaryDir root;
+    const auto path = writeConfiguration(root.path(), R"JSON({
+        "version": 1,
+        "enabled": true,
+        "bindings": { "j": "scroll-down", "z": "teleport" },
+        "browser": {
+            "Primary+L": "open-address",
+            "Primary+Shift+D": "debug-current-tab",
+            "Primary+W": "close-tab"
+        }
+    })JSON");
+    KeyboardNavigation navigation(path);
+
+    QVERIFY(navigation.valid());
+    QVERIFY(navigation.enabled());
+    QCOMPARE(navigation.bindings().value(QStringLiteral("j")).toString(),
+        QStringLiteral("scroll-down"));
+    QVERIFY(!navigation.bindings().contains(QStringLiteral("z")));
+    QCOMPARE(navigation.browserBindings().size(), 2);
+    QCOMPARE(navigation.browserBindings().value(QStringLiteral("Primary+W")).toString(),
+        QStringLiteral("close-tab"));
+    QVERIFY(!navigation.browserBindings().contains(QStringLiteral("Primary+Shift+D")));
+
+    // What was dropped is named rather than passed over in silence.
+    QVERIFY(navigation.errorMessage().contains(QStringLiteral("debug-current-tab")));
+    QVERIFY(navigation.errorMessage().contains(QStringLiteral("teleport")));
 }
 
 void KeyboardNavigationTest::persistsTheEnabledSetting()

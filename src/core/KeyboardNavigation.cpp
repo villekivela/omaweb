@@ -193,27 +193,38 @@ bool KeyboardNavigation::load()
         m_errorMessage = QStringLiteral("Keyboard navigation requires at least one binding");
         return false;
     }
-    QVariantMap parsedBindings;
-    for (auto it = bindings.begin(); it != bindings.end(); ++it) {
-        const auto command = it.value().toString();
-        if (it.key().isEmpty() || !supportedCommands.contains(command)) {
-            m_errorMessage = QStringLiteral("Unsupported Keyboard navigation binding: %1")
-                                 .arg(it.key());
-            return false;
+    // A binding this build cannot honour is dropped, and every other binding in
+    // the file still loads. Refusing the whole file costs the reader their
+    // keyboard entirely — in a browser driven from the keyboard — and one
+    // configuration is shared by every Tanto on the machine: a command that
+    // only one build knows about, or one retired since the file was written,
+    // would otherwise take the rest of the keymap down with it. What was
+    // dropped is named in the error message rather than passed over in silence.
+    QStringList ignored;
+    const auto parseSection = [&ignored](const QJsonObject &section,
+                                  const QSet<QString> &supported) {
+        QVariantMap parsed;
+        for (auto it = section.begin(); it != section.end(); ++it) {
+            const auto command = it.value().toString();
+            if (it.key().isEmpty() || !supported.contains(command)) {
+                ignored.append(QStringLiteral("%1 (%2)").arg(it.key(), command));
+                continue;
+            }
+            parsed.insert(it.key(), command);
         }
-        parsedBindings.insert(it.key(), command);
+        return parsed;
+    };
+
+    const auto parsedBindings = parseSection(bindings, supportedCommands);
+    if (parsedBindings.isEmpty()) {
+        m_errorMessage = QStringLiteral(
+            "Keyboard navigation recognised none of its page bindings: %1")
+                             .arg(ignored.join(QStringLiteral(", ")));
+        return false;
     }
 
-    QVariantMap parsedBrowserBindings;
-    const auto browser = root.value(QStringLiteral("browser")).toObject();
-    for (auto it = browser.begin(); it != browser.end(); ++it) {
-        const auto command = it.value().toString();
-        if (it.key().isEmpty() || !supportedBrowserCommands.contains(command)) {
-            m_errorMessage = QStringLiteral("Unsupported browser binding: %1").arg(it.key());
-            return false;
-        }
-        parsedBrowserBindings.insert(it.key(), command);
-    }
+    const auto parsedBrowserBindings = parseSection(
+        root.value(QStringLiteral("browser")).toObject(), supportedBrowserCommands);
 
     QHash<QString, SiteRule> parsedRules;
     const auto passthrough = root.value(QStringLiteral("passthrough")).toObject();
@@ -237,12 +248,15 @@ bool KeyboardNavigation::load()
         parsedRules.insert(host, rule);
     }
 
-    m_bindings = std::move(parsedBindings);
-    m_browserBindings = std::move(parsedBrowserBindings);
+    m_bindings = parsedBindings;
+    m_browserBindings = parsedBrowserBindings;
     m_siteRules = std::move(parsedRules);
     m_enabled = root.value(QStringLiteral("enabled")).toBool(false);
     m_valid = true;
-    m_errorMessage.clear();
+    m_errorMessage = ignored.isEmpty()
+        ? QString{}
+        : QStringLiteral("Ignored bindings this build does not know: %1")
+              .arg(ignored.join(QStringLiteral(", ")));
     return true;
 }
 
