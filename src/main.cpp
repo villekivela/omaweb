@@ -1,5 +1,6 @@
 #include "BrowserController.h"
 #include "ContentBlocker.h"
+#include "DevelopmentLaunch.h"
 #include "FaviconTint.h"
 #include "KeyboardNavigation.h"
 #include "KitTheme.h"
@@ -14,6 +15,7 @@
 #include <QFileInfo>
 #include <QFile>
 #include <QGuiApplication>
+#include <QProcess>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 #include <QStandardPaths>
@@ -125,6 +127,26 @@ int main(int argc, char *argv[])
         return 2;
     }
 
+    // Chromium reads the listener out of the environment at initialization, so
+    // the decision is made here and nowhere later. An ordinary launch clears
+    // the variable rather than trusting it: whatever set it, Tanto opens no
+    // listener it was not asked for on its own command line.
+    const auto launch = tanto::readDevelopmentLaunch(arguments,
+        QProcess::splitCommand(qEnvironmentVariable("QTWEBENGINE_CHROMIUM_FLAGS")));
+    if (!launch.refusal.isEmpty()) {
+        qCritical("Tanto refuses to start: %s", qPrintable(launch.refusal));
+        return 2;
+    }
+    if (launch.remoteDebugging) {
+        qputenv("QTWEBENGINE_REMOTE_DEBUGGING", launch.listenAddress.toLocal8Bit());
+        qWarning("Tanto is listening for remote debugging on %s. Anything running as this "
+                 "user can read and drive every page in this session, and Private windows "
+                 "are unavailable for it.",
+            qPrintable(launch.listenAddress));
+    } else {
+        qunsetenv("QTWEBENGINE_REMOTE_DEBUGGING");
+    }
+
     // Chromium learns its schemes before it starts, and content blocking
     // serves its substitute resources under one of Tanto's own.
     tanto::QtContentBlocker::registerSubstituteScheme();
@@ -141,7 +163,7 @@ int main(int argc, char *argv[])
         keybindingsPath(), QStringLiteral(TANTO_KEYBOARD_NAVIGATION_SCRIPT_PATH));
     tanto::QtContentBlocker engineContentBlocker(&contentBlocker);
     tanto::ThemeController theme(themePath());
-    tanto::WindowManager windowManager(QStringLiteral("qt"));
+    tanto::WindowManager windowManager(QStringLiteral("qt"), launch.privateWindowsAvailable);
 
     tanto::quickshell::installShim();
     tanto::registerFaviconTint();

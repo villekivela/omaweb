@@ -20,5 +20,10 @@ With favicon artwork turned off, a tab's two-letter tile takes its colour from t
 
 Remote search suggestions are off. Typing in the Omnibar queries only the active Space's local history and does not send the typed text over the network.
 
+Tanto opens no listening socket during an ordinary session. The `--remote-debugging[=port]` launch
+option is the one exception: it binds Chromium's debugging listener to loopback, prints the address
+and a warning, and disables Private windows for that launch. It is never on by default, and a
+Chromium debugging switch passed to the engine by any other route refuses the launch.
+
 Future features that add sync, remote suggestions, telemetry, or another background request must
 document the destination, trigger, data sent, default state, and disable control here before release.

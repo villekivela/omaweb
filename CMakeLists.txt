@@ -89,6 +89,8 @@ add_library(tanto-core STATIC
     src/content-blocking/ContentBlocker.h
     src/core/BrowserController.cpp
     src/core/BrowserController.h
+    src/core/DevelopmentLaunch.cpp
+    src/core/DevelopmentLaunch.h
     src/core/KeyboardNavigation.cpp
     src/core/KeyboardNavigation.h
     src/core/SessionStore.cpp
@@ -385,6 +387,13 @@ if(BUILD_TESTING)
     target_link_libraries(tanto-keyboard-navigation-tests PRIVATE tanto-core Qt6::Test)
     tanto_strict_target(tanto-keyboard-navigation-tests)
     add_test(NAME tanto-keyboard-navigation COMMAND tanto-keyboard-navigation-tests)
+
+    qt_add_executable(tanto-development-launch-tests
+        tests/core/tst_developmentlaunch.cpp
+    )
+    target_link_libraries(tanto-development-launch-tests PRIVATE tanto-core Qt6::Test)
+    tanto_strict_target(tanto-development-launch-tests)
+    add_test(NAME tanto-development-launch COMMAND tanto-development-launch-tests)
 
     qt_add_executable(tanto-content-blocker-tests
         tests/content-blocking/tst_contentmatcher.cpp

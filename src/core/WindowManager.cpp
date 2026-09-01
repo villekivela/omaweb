@@ -10,8 +10,14 @@
 namespace tanto {
 
 WindowManager::WindowManager(QString engineName, QObject *parent)
+    : WindowManager(std::move(engineName), true, parent)
+{
+}
+
+WindowManager::WindowManager(QString engineName, bool privateWindowsAvailable, QObject *parent)
     : QObject(parent)
     , m_engineName(std::move(engineName))
+    , m_privateWindowsAvailable(privateWindowsAvailable)
 {
 }
 
@@ -19,7 +25,7 @@ WindowManager::~WindowManager() = default;
 
 BrowserController *WindowManager::createPrivateWindow()
 {
-    if (!ensurePrivateSession()) {
+    if (!m_privateWindowsAvailable || !ensurePrivateSession()) {
         return nullptr;
     }
 
@@ -90,6 +96,11 @@ bool WindowManager::acceptPrivateDownloads() const
 bool WindowManager::recordPrivateDownloads() const
 {
     return false;
+}
+
+bool WindowManager::privateWindowsAvailable() const
+{
+    return m_privateWindowsAvailable;
 }
 
 bool WindowManager::ensurePrivateSession()
