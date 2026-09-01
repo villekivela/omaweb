@@ -1,5 +1,6 @@
 #include "ContentBlocker.h"
 #include "EngineCapabilities.h"
+#include "QtContentBlocker.h"
 #include "EngineViewContract.h"
 
 #include <QGuiApplication>
@@ -52,6 +53,7 @@ private slots:
     void qtHidesCosmeticRulesBeforeThePageRuns();
     void qtRunsScriptletsBeforeThePageRuns();
     void qtRefusesTheWindowsTheListsNameAndNoOthers();
+    void qtAttachesBlockingToTheProfileQmlCreates();
 };
 
 void QtEngineContractTest::adaptersExposeSharedContract_data()
@@ -899,6 +901,32 @@ void QtEngineContractTest::qtRefusesTheWindowsTheListsNameAndNoOthers()
     contentBlocker.setSiteEnabled(opener, false);
     QVERIFY(!refused(QWebEngineNewWindowRequest::InNewWindow,
         QStringLiteral("https://popads.example/win")));
+}
+
+// QML's WebEngineProfile is QQuickWebEngineProfile, a different class from the
+// QWebEngineProfile the widget API uses, and neither derives from the other.
+// Attaching to only one of them leaves every request on a Space's profile
+// unintercepted while Settings still reports the rules the lists contributed —
+// blocking that says it is on and is not. The return value says so, and the
+// QML that calls this discards it, so the assertion belongs here.
+void QtEngineContractTest::qtAttachesBlockingToTheProfileQmlCreates()
+{
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    tanto::ContentBlocker contentBlocker(
+        root.path(), tanto::ContentBlocker::DefaultLists::None);
+    tanto::QtContentBlocker engineContentBlocker(&contentBlocker);
+
+    QQmlEngine engine;
+    QQmlComponent component(&engine);
+    component.setData("import QtWebEngine\nWebEngineProfile { storageName: \"tanto-attach\" }",
+        QUrl());
+    const std::unique_ptr<QObject> profile(component.create());
+    QVERIFY2(profile, qPrintable(component.errorString()));
+    QVERIFY(engineContentBlocker.attachToProfile(profile.get()));
+
+    QObject notAProfile;
+    QVERIFY(!engineContentBlocker.attachToProfile(&notAProfile));
 }
 
 int main(int argc, char *argv[])
