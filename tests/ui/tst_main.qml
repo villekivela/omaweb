@@ -629,6 +629,41 @@ TestCase {
         tryVerify(function() { return window.active })
     }
 
+    // A page names no address at all while a navigation is in flight, and a
+    // page adopted from a new-window request passes through that gap on its way
+    // to the address the link asked for. The tab has not lost its page there,
+    // and must not be blanked for it: a blank tab is given no engine, so
+    // believing the gap would take the renderer down mid-load and leave the
+    // Start page standing where the opened page belongs.
+    function test_aPageBetweenAddressesKeepsItsTabAndItsEngine() {
+        const engineLoader = findChild(window.contentItem, "engineLoader")
+        const startPage = findChild(window.contentItem, "startPage")
+        verify(engineLoader !== null)
+        verify(startPage !== null)
+
+        openPage("https://opener.example")
+        engineLoader.item.simulateNewWindowRequest("https://opened.example/page", false)
+        tryVerify(function() {
+            return browser.activeUrl.toString() === "https://opened.example/page"
+        })
+        const openedTabId = browser.activeTabId
+        const openedEngine = engineLoader.item
+        verify(openedEngine !== null)
+
+        openedEngine.currentUrl = ""
+        compare(browser.activeUrl.toString(), "https://opened.example/page")
+        compare(engineLoader.engines[openedTabId], openedEngine)
+        compare(engineLoader.item, openedEngine)
+        verify(!startPage.visible)
+
+        // The address the navigation commits to is the one the tab takes.
+        openedEngine.currentUrl = "https://opened.example/next"
+        tryVerify(function() {
+            return browser.activeUrl.toString() === "https://opened.example/next"
+        })
+        verify(!startPage.visible)
+    }
+
     function test_omnibarShowsOnlyActiveSpaceHistory() {
         const personalSpaceId = browser.activeSpaceId
         browser.recordVisit("https://personal.example/docs", "Personal docs")
