@@ -2,6 +2,7 @@
 
 #include "ContentBlocker.h"
 
+#include <QQuickWebEngineProfile>
 #include <QWebEngineProfile>
 #include <QWebEngineUrlRequestInfo>
 #include <QWebEngineUrlRequestInterceptor>
@@ -88,14 +89,24 @@ QString QtContentBlocker::genericCosmeticStyleSheet(const QUrl &url, const QStri
 
 QtContentBlocker::~QtContentBlocker() = default;
 
+// QML's WebEngineProfile is QQuickWebEngineProfile, which is not a
+// QWebEngineProfile and does not derive from one: the two are separate classes
+// carrying the same call. Casting to one of them alone attaches to nothing and
+// says so only through a return value QML ignores, which is content blocking
+// that reports its rules and applies none of them.
 bool QtContentBlocker::attachToProfile(QObject *profileObject)
 {
-    auto *profile = qobject_cast<QWebEngineProfile *>(profileObject);
-    if (!profile) {
-        return false;
+    const auto attach = [this](auto *profile) {
+        profile->setUrlRequestInterceptor(m_interceptor.get());
+        return true;
+    };
+    if (auto *profile = qobject_cast<QWebEngineProfile *>(profileObject)) {
+        return attach(profile);
     }
-    profile->setUrlRequestInterceptor(m_interceptor.get());
-    return true;
+    if (auto *profile = qobject_cast<QQuickWebEngineProfile *>(profileObject)) {
+        return attach(profile);
+    }
+    return false;
 }
 
 } // namespace tanto
