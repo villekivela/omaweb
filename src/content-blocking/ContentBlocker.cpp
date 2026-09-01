@@ -23,6 +23,35 @@ namespace {
 constexpr int startupUpdateDelayMilliseconds = 5000;
 constexpr qint64 updateIntervalSeconds = 24 * 60 * 60;
 
+// Requests are matched on whichever thread the engine hands them to, while a
+// finished compile replaces the rule set from this object's thread, so the
+// pointer to the active set is published and read atomically rather than
+// assigned.
+//
+// C++20 deprecated the free atomic_load/atomic_store for shared_ptr in favour
+// of std::atomic<std::shared_ptr<T>>, which libc++ does not implement — the
+// static_assert there rejects any type that is not trivially copyable, and a
+// shared_ptr is not. macOS is the development platform, so the replacement is
+// unavailable on the build that has to work. The deprecation is answered once,
+// here, rather than at each of the call sites, and these two functions are
+// what to delete when libc++ carries the replacement.
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+
+template <typename T>
+std::shared_ptr<T> loadSnapshot(const std::shared_ptr<T> *slot)
+{
+    return std::atomic_load(slot);
+}
+
+template <typename T>
+void storeSnapshot(std::shared_ptr<T> *slot, std::shared_ptr<T> snapshot)
+{
+    std::atomic_store(slot, std::move(snapshot));
+}
+
+#pragma GCC diagnostic pop
+
 } // namespace
 
 ContentBlocker::ContentBlocker(QString dataRoot, DefaultLists defaults, QObject *parent)
@@ -30,7 +59,7 @@ ContentBlocker::ContentBlocker(QString dataRoot, DefaultLists defaults, QObject 
     , m_dataRoot(std::move(dataRoot))
     , m_defaultLists(defaults)
 {
-    std::atomic_store(&m_runtime, std::make_shared<const Runtime>());
+    storeSnapshot(&m_runtime, std::make_shared<const Runtime>());
     m_blockedCountFlush.setSingleShot(true);
     m_blockedCountFlush.setInterval(250);
     connect(&m_blockedCountFlush, &QTimer::timeout, this,
@@ -248,7 +277,7 @@ void ContentBlocker::updateAllSubscriptions()
 
 bool ContentBlocker::siteEnabled(const QUrl &url) const
 {
-    return !std::atomic_load(&m_runtime)->disabledSites.contains(siteKey(url));
+    return !loadSnapshot(&m_runtime)->disabledSites.contains(siteKey(url));
 }
 
 void ContentBlocker::setSiteEnabled(const QUrl &url, bool enabled)
@@ -277,7 +306,7 @@ int ContentBlocker::blockedRequestCount(const QUrl &url) const
 // every caller below is finished before it starts.
 std::shared_ptr<const ContentMatcher> ContentBlocker::matcherFor(const QUrl &siteUrl) const
 {
-    const auto runtime = std::atomic_load(&m_runtime);
+    const auto runtime = loadSnapshot(&m_runtime);
     if (!runtime->matcher || runtime->disabledSites.contains(siteKey(siteUrl))) {
         return {};
     }
@@ -486,7 +515,7 @@ void ContentBlocker::recompile()
             auto runtime = std::make_shared<Runtime>();
             runtime->matcher = compilation.matcher;
             runtime->disabledSites = m_disabledSites;
-            std::atomic_store(&m_runtime,
+            storeSnapshot(&m_runtime,
                 std::shared_ptr<const Runtime>(std::move(runtime)));
             m_compilationReport = compilation.report.toVariantMap();
             for (const auto &id : std::as_const(m_pendingCurrent)) {
@@ -506,11 +535,11 @@ void ContentBlocker::recompile()
 
 void ContentBlocker::replaceDisabledSites()
 {
-    const auto current = std::atomic_load(&m_runtime);
+    const auto current = loadSnapshot(&m_runtime);
     auto replacement = std::make_shared<Runtime>();
     replacement->matcher = current->matcher;
     replacement->disabledSites = m_disabledSites;
-    std::atomic_store(&m_runtime,
+    storeSnapshot(&m_runtime,
         std::shared_ptr<const Runtime>(std::move(replacement)));
 }
 
