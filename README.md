@@ -1,13 +1,21 @@
 # Tanto
 
-Tanto is a keyboard-driven browser for developers. It is developed on macOS and
-aims to become a Linux daily driver with first-class Wayland support.
+Tanto is a keyboard-driven browser being built for developers. Its Qt build is
+becoming a macOS daily driver first, then the same browser contract moves to
+Linux with first-class Wayland support.
 
 The window has no title bar. Tabs run down a sidebar, addresses and commands
 open in a centered Omnibar, and every action is reachable from the keyboard.
 Browsing is split into Spaces, each with its own logins, cookies, history,
 permissions, and tabs. Content blocking is built in rather than an extension.
 There is no telemetry, no account, and no sync.
+
+The developer feature is deliberately small: Tanto docks the inspector supplied
+by the current engine beside the tab it inspects. Qt provides Chromium DevTools;
+an engine without an inspector reports the command unavailable. Local addresses,
+one-time local certificate exceptions, cache-bypassing reload, and every browser
+action remain reachable from the keyboard. Tanto does not build an agent,
+diagnostics protocol, terminal, or source editor into the browser.
 
 QtWebEngine is the engine Tanto is built against today. Ladybird is the engine
 it is built *for*, and it stays in a separate pinned build until its embedding
@@ -17,10 +25,12 @@ and security contracts hold up for daily use.
 
 Pre-alpha, and not a browser to keep your banking session in yet.
 
-The vertical slice runs: frameless window, Spaces with vertical and pinned
-tabs, the Omnibar and command panel, keyboard navigation with link hints,
-content blocking, session persistence, live themes, and an engine-free UI lab.
-[docs/roadmap.md](docs/roadmap.md) tracks what each milestone still owes.
+The vertical slice runs: frameless window, Spaces with vertical and Pinned tabs,
+the Omnibar and command panel, keyboard navigation with link hints, content
+blocking, session persistence, live themes, and an engine-free UI lab. Docked
+Developer tools are the next feature. The following milestone fills the ordinary
+browser gaps such as find, zoom, printing, context menus, History, security
+controls, and release updates. [docs/roadmap.md](docs/roadmap.md) tracks the work.
 
 ## Build
 

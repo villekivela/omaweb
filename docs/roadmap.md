@@ -1,49 +1,57 @@
 # Roadmap
 
-## Milestone 1: vertical slice
+## Completed foundation
 
-Tracking issue: [#1](https://github.com/villekivela/tanto/issues/1)
+Tracking issues [#1](https://github.com/villekivela/tanto/issues/1) through [#6](https://github.com/villekivela/tanto/issues/6) established the Qt vertical slice and daily-driver foundation:
 
-- Frameless macOS application shell
-- Personal Space with vertical ordinary and pinned tabs
-- Centered Omnibar and basic navigation
-- Transactional session persistence
-- Transparent theme surfaces and private-theme contract
-- Engine-free UI lab
-- Qt engine adapter and contract tests
+- Frameless macOS application shell and engine-free UI lab
+- Spaces with isolated identities, suspension, vertical tabs, and Pinned tabs
+- Omnibar, command panel, keyboard navigation, and link hints
+- Transactional session persistence and renderer recovery
+- History suggestions, Site permissions, downloads, Private windows, and Auxiliary windows
+- Portable content blocking and runtime themes
 
-## Milestone 2: daily-driver Qt foundation
+## Next: dock Developer tools
 
-Tracking issues: [#2](https://github.com/villekivela/tanto/issues/2), [#3](https://github.com/villekivela/tanto/issues/3), [#4](https://github.com/villekivela/tanto/issues/4), [#5](https://github.com/villekivela/tanto/issues/5), and [#6](https://github.com/villekivela/tanto/issues/6).
+Tracking issue: [#51](https://github.com/villekivela/tanto/issues/51)
 
-- Multiple Spaces and switching
-- Downloads, history suggestions, permissions, and private windows
-- Portable content blocking
-- Keyboard navigation and link hints
-- Live theme files and macOS blur integration
-- Crash recovery and tab suspension
+- Add the engine capability and one Open developer tools command
+- Dock Qt's bundled Chromium DevTools beside the inspected tab
+- Attach one inspector to one tab across navigation and Space switches
+- Add Inspect element to the page context menu
+- Keep remote debugging behind an explicit loopback-only development launch option
 
-## Milestone 3: Ladybird adapter
+## Complete the Qt daily driver
 
-Tracking issue: [#7](https://github.com/villekivela/tanto/issues/7)
+Tracking issue: [#50](https://github.com/villekivela/tanto/issues/50)
 
-- Pinned external Ladybird build
-- Navigation, input, and rendering prototype
-- Shared engine-contract and blocker conformance
-- Qt Quick texture rendering path
-- Sandbox verification and experimental labeling
+- Find, per-tab zoom, Stop loading, Reload bypassing cache, fullscreen, print, and inline PDF viewing
+- Tanto-owned page context menus and browser prompts with native file and print dialogs
+- History sheet, configurable search engines, local-file opening, and browsing-data controls
+- Tab reordering, duplication, bulk closing, retained closed-tab stacks, and Keep active for selected Pinned tabs
+- Site information, certificate handling, third-party-cookie policy, safer downloads, and sandbox health
+- Native notifications, external-protocol confirmation, default-browser registration, signed updates, and a signed notarized macOS package
+- Research and implement engine-neutral phishing and malware URL reputation before public daily-driver status
 
-## Milestone 4: Linux and Wayland
+## Linux and Wayland
 
 Tracking issue: [#8](https://github.com/villekivela/tanto/issues/8)
 
-- Native Wayland validation under Omarchy and Hyprland
-- Arch `PKGBUILD` using system Qt packages
-- Compositor-specific blur capability with transparent and opaque fallbacks
-- Linux accessibility, IME, and packaging tests
+- Validate the completed browser contract under native Wayland on Omarchy and Hyprland
+- Ship an Arch `PKGBUILD` using system Qt packages
+- Add compositor-specific blur with transparent and opaque fallbacks
+- Run Linux accessibility, IME, packaging, sandbox, and default-browser tests
+
+## Ladybird adapter
+
+Tracking issue: [#7](https://github.com/villekivela/tanto/issues/7)
+
+- Build against a pinned Ladybird revision outside the default graph
+- Implement navigation, input, rendering, lifecycle, accessibility, and content-blocking contracts
+- Report unavailable daily-browser capabilities rather than imitating Qt behavior
+- Validate sandboxing and keep the build visibly experimental until it satisfies the daily-driver contract
 
 ## Deferred Feature modules
 
-- Diagnostics and agent access with optional Project attachments
 - Account
 - Sync with replaceable providers

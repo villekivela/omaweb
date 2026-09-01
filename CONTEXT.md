@@ -12,21 +12,9 @@ _Avoid_: Fallback engine
 The web engine Tanto ultimately intends to use for everyday browsing. Ladybird is the current target engine.
 _Avoid_: Experimental backend
 
-**Agent access**:
-Permission for a software agent to inspect and interact with the contents and diagnostics of a specific browser tab. Agent access is granted explicitly, with remembered permission allowed for selected local-development sites.
-_Avoid_: DevTools access, remote debugging
-
 **Local-development site**:
-A site operated by the user for active software development, usually served from the local machine. A remembered permission may grant agents access to matching local-development sites.
-_Avoid_: Trusted site
-
-**Development target**:
-A named environment in which a project's source code, development commands, and agent run. The host machine is the default Development target; a virtual machine or remote host may be another.
-_Avoid_: Remote, machine, runtime
-
-**Project attachment**:
-An optional project path on a Development target associated with one or more site origins. A matching Debugging session may use it as source context without granting access to the site.
-_Avoid_: Workspace, project window
+A site operated by the reader for software development, reached through localhost, an IP literal, or a reserved local-development domain. Tanto may give it narrowly scoped behavior that public sites never receive, such as a one-time overridable certificate exception.
+_Avoid_: Trusted site, Project site
 
 **Space**:
 A named browsing identity with its own logins, site data, permissions, history, session, and tabs. Switching Spaces does not expose one Space's browsing identity to another.
@@ -35,6 +23,10 @@ _Avoid_: Workspace, container, profile
 **Pinned tab**:
 A tab saved within one Space and restored whenever that Space resumes. Its saved address changes only when the user explicitly updates the pin.
 _Avoid_: Bookmark, favorite
+
+**Keep active**:
+A Pinned-tab setting that lets its page continue running while another Space is active. The setting survives restart, and Tanto always identifies the retained tab and its resource use.
+_Avoid_: Background Space, never suspend
 
 **Space at rest**:
 A Space with nothing open in it, because nothing has been opened yet or the last page has been closed. Its only ordinary tab is blank. A Space at rest lists no ordinary tab and shows the Start page in place of a webpage; its Pinned tabs are unaffected.
@@ -60,12 +52,16 @@ _Avoid_: Vim mode, Vimium extension
 A centered overlay for opening addresses, searching, selecting tabs or Spaces, and invoking browser commands. A new-tab request creates its tab only after the user commits a destination in the Omnibar.
 _Avoid_: Command bar, omnibox, command palette
 
+**Developer tools**:
+The inspector supplied by the current web engine and attached to one tab. Tanto opens and positions it but does not normalize its interface or debugging protocol across engines.
+_Avoid_: Diagnostics, Agent access, DevTools platform
+
 **Web extension**:
 A third-party browser package that can modify pages or add browser behavior through a supported WebExtensions contract.
 _Avoid_: Feature module, plugin
 
 **Feature module**:
-An optional Tanto component that adds a first-party product capability without becoming part of the browser core. Account, Sync, and Diagnostics are Feature modules.
+An optional Tanto component that adds a first-party product capability without becoming part of the browser core. Account and Sync are Feature modules.
 _Avoid_: Extension, plugin
 
 **Account**:
@@ -75,74 +71,6 @@ _Avoid_: Space, browser profile
 **Sync**:
 An optional Feature module that copies selected non-secret browser state between Tanto installations through a replaceable provider.
 _Avoid_: Backup, account
-
-**Diagnostics**:
-A capability that gives an explicitly authorized user or agent structured access to a tab's runtime failures, network activity, and page state.
-_Avoid_: DevTools, remote debugging
-
-**Incident buffer**:
-A small, temporary record of high-severity failures a tab produced before a Debugging session began. It excludes page contents, response bodies, storage, and general runtime activity.
-_Avoid_: Background capture, diagnostics history
-
-**Debugging session**:
-A temporary diagnostics connection to one browser tab. It follows that tab across navigations until the user detaches it or closes the tab.
-_Avoid_: DevTools session, debugging Space
-
-**Document generation**:
-One lifetime of the top-level document in a tab. Navigation creates a new Document generation without changing the tab's Debugging session.
-_Avoid_: Page session, navigation session
-
-**Diagnostics target**:
-A document, frame, or worker whose activity belongs to an authorized tab and can be attributed within its Debugging session.
-_Avoid_: CDP target, debug target
-
-**Diagnostics client**:
-A human interface or software agent connected to a Debugging session. Several Diagnostics clients may observe the same session, and each action identifies the client that issued it.
-_Avoid_: DevTools client, debugger
-
-**Diagnostics launch profile**:
-A saved choice of which human and agent Diagnostics clients Tanto opens for a new Debugging session and which Development target each client uses.
-_Avoid_: Debug configuration, terminal profile
-
-**Diagnostics reference**:
-A temporary name for an item within one Document generation, such as an element or request. A Diagnostics reference fails as stale rather than silently identifying a replacement item.
-_Avoid_: CDP identifier, node identifier
-
-**Session cursor**:
-A position in a Debugging session's ordered event history. A client that falls behind receives an explicit gap instead of an incomplete history presented as complete.
-_Avoid_: Log offset, event ID
-
-**Observation access**:
-Permission granted to one Diagnostics client to inspect a Debugging session's page state and runtime evidence without acting on the page.
-_Avoid_: Read-only DevTools
-
-**Control access**:
-Permission granted to one Diagnostics client to act on the page through navigation, input, script evaluation, or state-changing diagnostic commands.
-_Avoid_: Full access, write access
-
-**Control lease**:
-The temporary, exclusive right of one Diagnostics client to issue commands under a session's Control access. Other clients may continue observing while the lease is held.
-_Avoid_: Controller lock, session ownership
-
-**Destructive control**:
-Additional permission granted to one Diagnostics client to remove or replace browser-managed state, including site storage, cookies, caches, and permissions.
-_Avoid_: Admin access, unrestricted access
-
-**Sensitive-data access**:
-Additional permission granted to one Diagnostics client to reveal credentials, personal data, or other values that Diagnostics masks by default.
-_Avoid_: Secret mode, unredacted mode
-
-**Embedded-content access**:
-Additional permission granted to one Diagnostics client to inspect the contents and execution state of a cross-origin frame embedded by the authorized site.
-_Avoid_: Iframe access, third-party access
-
-**Main-world access**:
-Additional permission granted to one Diagnostics client to evaluate code in the JavaScript environment shared with the site.
-_Avoid_: Page eval, unrestricted JavaScript
-
-**Debug trace**:
-An explicitly exported, immutable record of a Debugging session that Diagnostics clients can inspect offline. Diagnostic events remain temporary unless the user creates a Debug trace.
-_Avoid_: Debug log, session history
 
 **Site permission**:
 A Space-specific decision that allows or blocks an origin from using a protected browser capability. A Private window retains its Site permissions only while the shared private session exists.

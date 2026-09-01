@@ -1,3 +1,7 @@
+---
+status: superseded by ADR-0027
+---
+
 # Broker engine-neutral Diagnostics sessions
 
 Tanto exposes Diagnostics through temporary, permission-checked Debugging sessions attached to Tanto tab identities. A bundled Feature module brokers versioned semantic operations to MCP and CLI Diagnostics clients, while engine adapters translate their native documents, frames, workers, network activity, console output, and page controls into the common contract. The public contract never exposes engine identifiers, payloads, or an escape hatch for raw engine commands.

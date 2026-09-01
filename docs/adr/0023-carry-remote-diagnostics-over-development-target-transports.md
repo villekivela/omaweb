@@ -1,3 +1,7 @@
+---
+status: superseded by ADR-0027
+---
+
 # Carry remote Diagnostics over Development-target transports
 
 A Project attachment names a path on a Development target, which may be the host or an SSH-accessible environment such as an OrbStack Linux machine. Tanto launches the external terminal into that target and path, then carries the same versioned Diagnostics client protocol over the target's authenticated bidirectional transport. The browser broker never opens a Diagnostics listener to a VM, LAN, or remote network.

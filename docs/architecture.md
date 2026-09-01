@@ -10,7 +10,7 @@ The variants share core state, persistence, QML, themes, platform code, and engi
 
 - `tanto-core` owns Spaces, tabs, sessions, commands, persistence policy, history, permissions, downloads, and errors.
 - `tanto-ui` contains shared QML and read-only UI-facing state, and drives the vendored kit's `qs.Commons` colour and type singletons from the theme palette.
-- `tanto-engine-api` defines navigation, lifecycle, input, content-blocking, accessibility, and diagnostics contracts.
+- `tanto-engine-api` defines navigation, lifecycle, input, content-blocking, accessibility, and Developer-tools capabilities.
 - `tanto-engine-qt` supplies the default engine view without leaking QtWebEngine imports into shared QML.
 - `tanto-engine-ladybird` is an optional build outside the default graph.
 - `tanto-quickshell-shim` registers the `Quickshell` and `Quickshell.Io` QML types the vendored Omarchy component kit imports.
@@ -31,6 +31,12 @@ Structural state commits transactionally. High-frequency presentation state save
 The Qt adapter calls a separately built `adblock-rust` shared library through a narrow C interface. Its version matches the pinned Ladybird revision. Ladybird uses its internal copy. Both adapters run the same conformance fixtures.
 
 Request matching uses an immutable in-memory snapshot. Subscription updates compile off the request path and atomically replace the active matcher.
+
+## Developer tools
+
+Core exposes one Open developer tools command. An adapter with an inspector attaches it to one tab and reports that capability; an adapter without one leaves the command unavailable. The Qt adapter hosts the bundled Chromium DevTools frontend in a second `WebEngineView` docked beside the inspected page. Tanto does not expose Chromium's debugging protocol during ordinary browsing.
+
+An inspected tab stays active when another Space is selected because Qt requires both the inspected page and its Developer-tools view to remain active. Closing Developer tools releases that exception. Moving the tab to another Space closes Developer tools before the engine profile changes.
 
 ## Keyboard navigation
 

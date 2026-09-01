@@ -1,3 +1,7 @@
+---
+status: superseded by ADR-0027
+---
+
 # Build the Diagnostics helper and CLI in Rust
 
 Tanto implements the out-of-process Diagnostics helper and the single `tanto` command-line client in Rust, while browser state, permission policy, visible status, and engine adapters remain C++ and QML. The helper and CLI need bounded concurrent streams, terminal rendering, trace processing, and a self-contained binary that Tanto can install on a Development target; keeping that work outside the browser also contains crashes while parsing engine and client data.
