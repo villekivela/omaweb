@@ -60,7 +60,10 @@ jobs:
       CXX: clang++
     steps:
       - name: Install toolchain
-        run: pacman -Syu --noconfirm git cmake ninja clang ccache qt6-base qt6-declarative qt6-webengine
+        # `rust` carries cargo, which the content-blocker bootstrap needs. The
+        # macOS runner ships one in its image; this container ships nothing it
+        # is not told to.
+        run: pacman -Syu --noconfirm git cmake ninja clang ccache rust qt6-base qt6-declarative qt6-webengine
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
       - name: Bootstrap content blocker
         run: scripts/bootstrap_content_blocker.sh
