@@ -26,6 +26,15 @@ Rectangle {
     // ancestor of this item.
     property Item pageSource: null
 
+    // What the keymap could not honour, if anything. Empty is the ordinary
+    // case, and shows nothing at all.
+    readonly property string keyboardReport: keyboard ? keyboard.errorMessage : ""
+
+    // Whether anything in here is waiting on the reader. The sidebar's settings
+    // button reads this, so a notice that lives on one section is still
+    // findable from outside it.
+    readonly property bool needsAttention: keyboardReport.length > 0
+
     readonly property var sections: ["tabs", "keyboard", "content blocking", "network", "downloads"]
 
     // about:blank and other opaque addresses have no host to name, and saying
@@ -216,6 +225,21 @@ Rectangle {
                     accessibleName: "Enable Keyboard navigation"
                     checked: root.keyboard ? root.keyboard.enabled : false
                     onClicked: if (root.keyboard) root.keyboard.setEnabled(!checked)
+                }
+                // A binding this build cannot honour is dropped rather than
+                // taking the whole keymap with it, so this notice is the only
+                // thing that says a configured key is missing. It waits beside
+                // the setting it is about: over the page it would be a banner
+                // the reader cannot dismiss and cannot act on while browsing.
+                NoticeBox {
+                    objectName: "keyboardBindingNotice"
+                    width: pane.width
+                    visible: root.section === 1 && root.keyboardReport.length > 0
+                    colors: root.colors
+                    iconFontFamily: root.iconFontFamily
+                    glyph: "keyboard_alt"
+                    title: "Some bindings were ignored"
+                    detail: root.keyboardReport
                 }
 
                 // ---- content blocking --------------------------------------

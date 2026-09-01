@@ -9,6 +9,7 @@
   "mutedText": "{{ dark_foreground }}",
   "accent": "{{ accent }}",
   "border": "{{ muted }}",
+  "urgent": "{{ red }}",
   "privateAccent": "{{ magenta }}",
   "privateWindow": "{{ dark_background }}",
   "privateSidebar": "{{ magenta }}",

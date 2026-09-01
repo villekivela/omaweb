@@ -68,6 +68,11 @@ QVariantMap ThemeController::fallbackPalette() const
         {QStringLiteral("mutedText"), QStringLiteral("#aaa5b7")},
         {QStringLiteral("accent"), QStringLiteral("#9b87ff")},
         {QStringLiteral("border"), QStringLiteral("#4a4658")},
+        // What the reader has to be told rather than shown: a binding that
+        // could not be honoured, a surface that failed. Distinct from the
+        // private accent, which says whose window this is and not that
+        // something is wrong.
+        {QStringLiteral("urgent"), QStringLiteral("#e06c75")},
         {QStringLiteral("privateAccent"), QStringLiteral("#c678dd")},
         {QStringLiteral("privateWindow"), QStringLiteral("#362640")},
         {QStringLiteral("privateSidebar"), QStringLiteral("#3f2c4c")},

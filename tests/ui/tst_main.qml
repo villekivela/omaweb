@@ -14,6 +14,39 @@ TestCase {
         Tanto.Main {}
     }
 
+    // The harness loads Tanto's own default keymap, which this build knows
+    // every command in, so nothing is ever ignored in it. These stand the two
+    // surfaces up against a keymap that did report something.
+    Component {
+        id: reportingSettingsComponent
+
+        Tanto.SettingsPage {
+            id: reportingSettings
+
+            property string report: ""
+
+            colors: testCase.window.colors
+            iconFontFamily: ""
+            keyboard: QtObject { property string errorMessage: reportingSettings.report }
+            open: true
+            section: 1
+            width: 900
+            height: 700
+        }
+    }
+
+    Component {
+        id: attentionOutlineComponent
+
+        Tanto.SpaceOutline {
+            colors: testCase.window.colors
+            iconFontFamily: ""
+            settingsAttention: true
+            width: 300
+            height: 600
+        }
+    }
+
     function initTestCase() {
         window = windowComponent.createObject(null)
         verify(window !== null)
@@ -879,6 +912,63 @@ TestCase {
         verify(matches.length > 0)
         compare(matches[0].command, "shortcuts")
         verify(matches[0].keys.length > 0)
+    }
+
+    // A binding this build cannot honour is dropped rather than taking the
+    // keymap with it, so a notice is the only thing that says a configured key
+    // is missing. It waits in the settings section it belongs to, and the
+    // sidebar's settings button carries a mark so it is findable from outside.
+    function test_settingsMarksItselfWhenTheKeymapReportsIgnoredBindings() {
+        const settings = findChild(window.contentItem, "settingsSurface")
+        const notice = findChild(window.contentItem, "keyboardBindingNotice")
+        const dot = findChild(window.contentItem, "settingsAttentionDot")
+        verify(settings !== null)
+        verify(notice !== null)
+        verify(dot !== null)
+
+        // This build knows every command in its own default file, so nothing is
+        // waiting and neither the notice nor the mark is drawn.
+        compare(keyboardNavigation.errorMessage, "")
+        verify(!settings.needsAttention)
+        verify(!notice.visible)
+        verify(!dot.visible)
+
+        // The notice and the mark are drawn in the one colour the theme names
+        // for something being wrong, so the two read as one thing.
+        compare(String(dot.color), String(window.colors.urgent))
+        compare(String(notice.urgent), String(window.colors.urgent))
+        verify(String(window.colors.urgent) !== String(window.colors.privateAccent))
+
+        // The notice states what the keymap reported, wherever that came from.
+        compare(notice.detail, settings.keyboardReport)
+
+        // A keymap that did report something: the notice states it, and the
+        // section it belongs to says the reader is wanted.
+        const reported = "Ignored bindings this build does not know: "
+            + "Primary+Shift+D (debug-current-tab)"
+        const reporting = reportingSettingsComponent.createObject(window.contentItem,
+            {"report": reported})
+        verify(reporting !== null)
+        compare(reporting.keyboardReport, reported)
+        verify(reporting.needsAttention)
+        const reportingNotice = findChild(reporting, "keyboardBindingNotice")
+        verify(reportingNotice !== null)
+        tryVerify(function() { return reportingNotice.visible })
+        compare(reportingNotice.detail, reported)
+        verify(reportingNotice.height > 0)
+        // It is not on the section it does not belong to.
+        reporting.section = 0
+        tryVerify(function() { return !reportingNotice.visible })
+        reporting.destroy()
+
+        // And the mark is drawn once the outline is told.
+        const marked = attentionOutlineComponent.createObject(window.contentItem)
+        verify(marked !== null)
+        const markedDot = findChild(marked, "settingsAttentionDot")
+        verify(markedDot !== null)
+        tryVerify(function() { return markedDot.visible })
+        compare(String(markedDot.color), String(window.colors.urgent))
+        marked.destroy()
     }
 
     // A tab's chip stands in for artwork that is not being drawn, so it takes
