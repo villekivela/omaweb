@@ -38,6 +38,7 @@ Rectangle {
     signal addressRequested()
     signal tabActivated(string tabId)
     signal tabCloseRequested(string tabId)
+    signal tabMuteToggled(string tabId)
     signal spaceActivated(string spaceId)
     signal spacesMenuRequested(real anchorX, real anchorY)
     signal settingsRequested()
@@ -330,6 +331,7 @@ Rectangle {
                 tintFavicons: root.tintFavicons
                 onActivated: function(id) { root.tabActivated(id) }
                 onCloseRequested: function(id) { root.tabCloseRequested(id) }
+                onMuteToggled: function(id) { root.tabMuteToggled(id) }
                 onActiveChanged: if (active) root.activeTabItem = this
                 Component.onCompleted: if (active) root.activeTabItem = this
             }
@@ -363,6 +365,7 @@ Rectangle {
                     tintFavicons: root.tintFavicons
                     onActivated: function(id) { root.tabActivated(id) }
                     onCloseRequested: function(id) { root.tabCloseRequested(id) }
+                    onMuteToggled: function(id) { root.tabMuteToggled(id) }
                     onActiveChanged: if (active) root.activeTabItem = this
                     Component.onCompleted: if (active) root.activeTabItem = this
                 }

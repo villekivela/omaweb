@@ -13,6 +13,8 @@ Item {
     required property bool pinned
     required property bool active
     required property bool loading
+    required property bool tabAudible
+    required property bool tabMuted
     property var colors
     property string iconFontFamily
     property bool useFavicons: true
@@ -30,13 +32,26 @@ Item {
     readonly property bool hasSiteColor: tile.hasSiteColor
     readonly property color siteColor: hasSiteColor ? tile.siteTint : colors.accent
 
+    // A tab that is making sound says so, and a muted one keeps saying it:
+    // the speaker is the only place the sound can be given back, so it stays
+    // on the row for as long as the reader's decision does.
+    readonly property bool showsAudio: tabAudible || tabMuted
+
+    // The 18px slot an ordinary row gives its site chip, and where it starts.
+    // The speaker takes the same box, so the two never sit in different
+    // places and the title beside them never moves.
+    readonly property int chipSize: 18
+    readonly property int chipInset: 8
+
     signal activated(string tabId)
     signal closeRequested(string tabId)
+    signal muteToggled(string tabId)
 
     height: pinned ? 44 : 36
     activeFocusOnTab: true
     Accessible.role: Accessible.PageTab
-    Accessible.name: pinned ? "Pinned: " + tabTitle : tabTitle
+    Accessible.name: (pinned ? "Pinned: " + tabTitle : tabTitle)
+        + (tabMuted ? " (muted)" : (tabAudible ? " (playing audio)" : ""))
     Accessible.onPressAction: root.activated(root.tabId)
 
     Keys.onPressed: function(event) {
@@ -75,10 +90,15 @@ Item {
     SiteTile {
         id: tile
         objectName: "siteTile-" + root.tabId
-        implicitWidth: root.pinned ? 22 : 18
-        implicitHeight: root.pinned ? 22 : 18
+        implicitWidth: root.pinned ? 22 : root.chipSize
+        implicitHeight: root.pinned ? 22 : root.chipSize
+        // The speaker stands in the chip's place rather than beside it: a row
+        // that widened for it would shove its own title sideways every time a
+        // page started and stopped playing. The chip is what the row can spare
+        // — the title beside it already names the site.
+        visible: !root.showsAudio || root.pinned
         anchors.left: parent.left
-        anchors.leftMargin: root.pinned ? (parent.width - width) / 2 : 8
+        anchors.leftMargin: root.pinned ? (parent.width - width) / 2 : root.chipInset
         anchors.verticalCenter: parent.verticalCenter
         colors: root.colors
         siteUrl: root.tabUrl
@@ -116,10 +136,56 @@ Item {
             root.forceActiveFocus()
             const overClose = !root.pinned
                 && mouse.x >= root.width - closeButton.width - closeButton.anchors.rightMargin
-            if (overClose) {
+            if (audioButton.covers(mouse.x, mouse.y)) {
+                root.muteToggled(root.tabId)
+            } else if (overClose) {
                 root.closeRequested(root.tabId)
             } else {
                 root.activated(root.tabId)
+            }
+        }
+
+        // A pin has only its chip to say which site it is, so its speaker goes
+        // in the corner over it rather than in its place.
+        Omarchy.BorderSurface {
+            id: audioButton
+            objectName: "audio-" + root.tabId
+            function covers(x, y) {
+                return audioButton.visible
+                    && x >= audioButton.x && x < audioButton.x + audioButton.width
+                    && y >= audioButton.y && y < audioButton.y + audioButton.height
+            }
+            readonly property bool hot: hoverArea.containsMouse
+                && covers(hoverArea.mouseX, hoverArea.mouseY)
+            readonly property color foreground: root.pinned && root.active
+                ? root.siteColor
+                : (root.tabMuted || !root.active ? root.colors.mutedText : root.colors.text)
+            anchors.left: root.pinned ? undefined : parent.left
+            anchors.leftMargin: root.chipInset
+            anchors.verticalCenter: root.pinned ? undefined : parent.verticalCenter
+            anchors.right: root.pinned ? parent.right : undefined
+            anchors.rightMargin: 2
+            anchors.top: root.pinned ? parent.top : undefined
+            anchors.topMargin: 2
+            width: root.chipSize
+            height: root.chipSize
+            visible: root.showsAudio
+            radius: Style.cornerRadius
+            color: hot ? Style.hoverFillFor(audioButton.foreground, root.colors.accent)
+                : "transparent"
+            borderSpec: hot
+                ? Border.controlSpec("hover-cursor", audioButton.foreground, root.colors.accent)
+                : Border.none()
+            Accessible.role: Accessible.Button
+            Accessible.name: (root.tabMuted ? "Unmute " : "Mute ") + root.tabTitle
+            Accessible.onPressAction: root.muteToggled(root.tabId)
+
+            Text {
+                anchors.centerIn: parent
+                text: root.tabMuted ? "volume_off" : "volume_up"
+                color: audioButton.foreground
+                font.family: root.iconFontFamily
+                font.pixelSize: Style.font.icon
             }
         }
 

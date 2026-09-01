@@ -17,6 +17,8 @@ QStringList validateEngineViewContract(const QObject &adapter)
         {"pageTitle", QMetaType::QString},
         {"pageIconUrl", QMetaType::QUrl},
         {"loading", QMetaType::Bool},
+        {"pageAudible", QMetaType::Bool},
+        {"audioMuted", QMetaType::Bool},
         {"canGoBack", QMetaType::Bool},
         {"canGoForward", QMetaType::Bool},
         {"profilePath", QMetaType::QString},

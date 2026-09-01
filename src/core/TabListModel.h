@@ -15,6 +15,12 @@ struct TabState {
     bool pinned = false;
     bool active = false;
     bool loading = false;
+    // A page's own doing, and a decision about it the reader made. Neither
+    // outlives the session: a tab restored from the store is silent until its
+    // page plays something, and asking to mute is asking to mute what is
+    // playing now.
+    bool audible = false;
+    bool muted = false;
     QString rendererFailureReason;
 };
 
@@ -33,6 +39,8 @@ public:
         // QML reads these positionally as Qt.UserRole + n, so new roles go on
         // the end. Inserting one renumbers every role after it.
         IconUrlRole,
+        AudibleRole,
+        MutedRole,
     };
     Q_ENUM(Role)
 
