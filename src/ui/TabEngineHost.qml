@@ -13,10 +13,19 @@ Item {
     required property var engineBlocker
     required property var keyboardManager
     property var hintTheme: ({})
+    // The palette the engine draws its inspector in, so a docked inspector is
+    // the same window as the chrome around it rather than the engine's own idea
+    // of a colour scheme.
+    property var developerToolsColors: ({})
     property color pageBackgroundColor: "#16151d"
     property string spaceId: ""
 
     readonly property alias item: root.activeEngine
+    // The inspector of the tab the core says is being inspected, for the dock
+    // to take as a child. Null whenever nothing is attached.
+    property var developerToolsView: null
+    readonly property string inspectedTabId: root.browserController
+        ? root.browserController.developerToolsTabId : ""
     readonly property bool hintModeActive: root.activeEngine
         ? root.activeEngine.keyboardNavigationHintModeActive : false
     property var activeEngine: null
@@ -82,6 +91,34 @@ Item {
         if (activeEngine) activeEngine.focusPage()
     }
 
+    // The core owns which tab is inspected; the engines are told about it here.
+    // One inspector at a time, so every engine that is not the named one gives
+    // its own up — including a tab that had the inspector before this one.
+    function syncDeveloperTools() {
+        const wanted = root.inspectedTabId
+        for (const tabId in root.engines) {
+            const engine = root.engines[tabId]
+            if (tabId !== wanted && engine.developerToolsAttached) engine.detachDeveloperTools()
+        }
+        const inspected = wanted.length > 0 ? root.engines[wanted] : null
+        if (inspected && !inspected.developerToolsAttached) inspected.attachDeveloperTools()
+        root.developerToolsView = inspected ? inspected.developerToolsView : null
+    }
+
+    onInspectedTabIdChanged: root.syncDeveloperTools()
+
+    // Asking to inspect the page is asking for the dock as well, so the core
+    // hears about the attachment first and the engine is told which node to
+    // select only once the core has accepted it. A tab the core refuses — a
+    // blank one, which has no page — must not be handed an inspector the core
+    // does not know about and would never take away again.
+    function inspectElement() {
+        if (!root.activeEngine) return
+        root.browserController.openDeveloperTools()
+        if (root.inspectedTabId !== root.browserController.activeTabId) return
+        root.activeEngine.inspectElement()
+    }
+
     function checkForEditedFormState(callback) {
         if (activeEngine) activeEngine.checkForEditedFormState(callback)
         else callback(false)
@@ -110,18 +147,29 @@ Item {
             "keyboardNavigationConfiguration": root.keyboardConfiguration(tabUrl),
             "keyboardNavigationScriptSource": root.keyboardManager.pageScript,
             "pageBackgroundColor": root.pageBackgroundColor,
+            "developerToolsColors": root.developerToolsColors,
             "visible": false
         })
         if (!engine) return null
         engine.anchors.fill = root
         root.engines[tabId] = engine
         root.engineSpaces[tabId] = root.spaceId
+        // A tab can be named as the inspected one before it has an engine to
+        // attach to — a Space coming back, or the tab being selected for the
+        // first time — so the attachment is made as soon as there is one.
+        if (tabId === root.inspectedTabId) root.syncDeveloperTools()
         return engine
     }
 
     function discardEngine(tabId) {
         const engine = root.engines[tabId]
         if (!engine) return
+        // The inspector is the engine's to destroy, and nothing else holds it:
+        // the dock only borrowed it.
+        if (engine.developerToolsAttached) {
+            engine.detachDeveloperTools()
+            if (tabId === root.inspectedTabId) root.developerToolsView = null
+        }
         if (root.activeEngine === engine) root.activeEngine = null
         delete root.engines[tabId]
         delete root.engineSpaces[tabId]
@@ -354,6 +402,12 @@ Item {
                     root.backgroundTabRequested(requestedUrl)
                 }
 
+                // The frontend's own close button, which is the reader saying
+                // they are finished with it rather than the tab going away.
+                function onDeveloperToolsClosed() {
+                    root.browserController.closeDeveloperTools()
+                }
+
                 function onSitePermissionRequested(requestId, origin, permission) {
                     root.sitePermissionRequested(
                         tabSlot.engine, requestId, origin, permission)
@@ -387,6 +441,11 @@ Item {
                     root.keyboardConfiguration(root.activeEngine.currentUrl))
             }
         }
+    }
+
+    onDeveloperToolsColorsChanged: {
+        for (const tabId in root.engines)
+            root.engines[tabId].developerToolsColors = root.developerToolsColors
     }
 
     onHintThemeChanged: {

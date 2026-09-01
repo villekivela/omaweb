@@ -200,6 +200,7 @@ set(tanto_ui_files
     src/ui/ChromeButton.qml
     src/ui/ChromeMenu.qml
     src/ui/CommandPanel.qml
+    src/ui/DeveloperToolsDock.qml
     src/ui/KeyHint.qml
     src/ui/KeyMap.qml
     src/ui/NavigationCluster.qml
@@ -214,7 +215,7 @@ set(tanto_ui_files
     src/ui/SettingRow.qml
     src/ui/SettingToggle.qml
     src/ui/SettingsPage.qml
-    src/ui/SidebarResizer.qml
+    src/ui/PanelResizer.qml
     src/ui/SiteTile.qml
     src/ui/SpaceOutline.qml
     src/ui/StartPage.qml

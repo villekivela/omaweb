@@ -71,6 +71,8 @@ const QSet<QString> supportedBrowserCommands = {
     QStringLiteral("reset-sidebar"),
     QStringLiteral("focus-sidebar"),
     QStringLiteral("focus-page"),
+    QStringLiteral("developer-tools"),
+    QStringLiteral("inspect-element"),
     QStringLiteral("shortcuts"),
     QStringLiteral("settings"),
     QStringLiteral("private-window"),

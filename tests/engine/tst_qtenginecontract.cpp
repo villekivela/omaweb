@@ -59,7 +59,45 @@ private slots:
     void qtServesTheSubstitutesTheListsName();
     void qtStripsTheParametersTheListsName();
     void qtAttachesBlockingToTheProfileQmlCreates();
+    void adaptersNameTheColoursTheirInspectorIsDrawnIn_data();
+    void adaptersNameTheColoursTheirInspectorIsDrawnIn();
+    void qtDocksAnInspectorDrawnInTantosColours();
+    void qtKeepsAnInspectedTabActiveOnlyWhileAttached();
+    void qtInspectsAPrivateTabInItsOwnTemporaryProfile();
 };
+
+namespace {
+
+// A palette with nothing in common with either Tanto's own default or the
+// frontend's, so a colour that arrives could only have come from here.
+QVariantMap inspectorPalette()
+{
+    return {
+        {QStringLiteral("windowOpaque"), QStringLiteral("#0b1a0b")},
+        {QStringLiteral("sidebarOpaque"), QStringLiteral("#112b11")},
+        {QStringLiteral("surface"), QStringLiteral("#1a3d1a")},
+        {QStringLiteral("surfaceHover"), QStringLiteral("#245224")},
+        {QStringLiteral("border"), QStringLiteral("#2f6b2f")},
+        {QStringLiteral("text"), QStringLiteral("#e8ffe8")},
+        {QStringLiteral("mutedText"), QStringLiteral("#9dc79d")},
+        {QStringLiteral("accent"), QStringLiteral("#00ff88")},
+        {QStringLiteral("urgent"), QStringLiteral("#ff0044")},
+        {QStringLiteral("syntax"), QVariantMap{
+            {QStringLiteral("keyword"), QStringLiteral("#123456")},
+            {QStringLiteral("string"), QStringLiteral("#654321")},
+            {QStringLiteral("number"), QStringLiteral("#abcdef")},
+            {QStringLiteral("comment"), QStringLiteral("#fedcba")},
+            {QStringLiteral("tag"), QStringLiteral("#010203")},
+            {QStringLiteral("attribute"), QStringLiteral("#040506")},
+            {QStringLiteral("value"), QStringLiteral("#070809")},
+            {QStringLiteral("variable"), QStringLiteral("#0a0b0c")},
+            {QStringLiteral("function"), QStringLiteral("#0d0e0f")},
+            {QStringLiteral("type"), QStringLiteral("#101112")},
+        }},
+    };
+}
+
+} // namespace
 
 void QtEngineContractTest::adaptersExposeSharedContract_data()
 {
@@ -1126,6 +1164,235 @@ void QtEngineContractTest::qtAttachesBlockingToTheProfileQmlCreates()
 
     QObject notAProfile;
     QVERIFY(!engineContentBlocker.attachToProfile(&notAProfile));
+}
+
+void QtEngineContractTest::adaptersNameTheColoursTheirInspectorIsDrawnIn_data()
+{
+    adaptersExposeSharedContract_data();
+}
+
+// Every adapter that reports the capability takes a palette for its inspector
+// and hands the inspector back attached to one tab at a time. The shell gives
+// the same palette to whichever engine is running, so neither one is allowed to
+// leave the inspector looking like something other than this window.
+void QtEngineContractTest::adaptersNameTheColoursTheirInspectorIsDrawnIn()
+{
+    QFETCH(QString, path);
+    QQmlEngine engine;
+    QQmlComponent component(&engine, QUrl::fromLocalFile(path));
+    const std::unique_ptr<QObject> adapter(component.create());
+    QVERIFY2(adapter, qPrintable(component.errorString()));
+    QVERIFY(adapter->property("capabilities").toInt() & EngineCapabilities::DeveloperTools);
+
+    QVERIFY(adapter->setProperty("developerToolsColors", inspectorPalette()));
+    QVERIFY(!adapter->property("developerToolsAttached").toBool());
+    QVERIFY(adapter->property("developerToolsView").value<QObject *>() == nullptr);
+
+    QVERIFY(QMetaObject::invokeMethod(adapter.get(), "attachDeveloperTools"));
+    QVERIFY(adapter->property("developerToolsAttached").toBool());
+    auto *first = adapter->property("developerToolsView").value<QObject *>();
+    QVERIFY(first);
+
+    // Asking twice does not build a second inspector.
+    QVERIFY(QMetaObject::invokeMethod(adapter.get(), "attachDeveloperTools"));
+    QCOMPARE(adapter->property("developerToolsView").value<QObject *>(), first);
+
+    QVERIFY(QMetaObject::invokeMethod(adapter.get(), "detachDeveloperTools"));
+    QVERIFY(!adapter->property("developerToolsAttached").toBool());
+    QVERIFY(adapter->property("developerToolsView").value<QObject *>() == nullptr);
+}
+
+// Chromium's inspector is a webpage whose whole design system is custom
+// properties on its own root element, so Tanto names them again rather than
+// patching the frontend or speaking a protocol to it. The assertion is what the
+// frontend actually computes, because a sheet that lost the cascade would look
+// exactly like one that was never injected.
+void QtEngineContractTest::qtDocksAnInspectorDrawnInTantosColours()
+{
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    QQmlEngine engine;
+    QQmlComponent component(&engine, QUrl::fromLocalFile(
+        QStringLiteral(TANTO_QT_ENGINE_VIEW_PATH)));
+    const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
+        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
+        {QStringLiteral("developerToolsColors"), inspectorPalette()},
+    }));
+    QVERIFY2(adapter, qPrintable(component.errorString()));
+
+    auto *view = qobject_cast<QQuickItem *>(adapter.get());
+    QVERIFY(view);
+    QQuickWindow window;
+    window.resize(1200, 800);
+    view->setParentItem(window.contentItem());
+    view->setSize(QSizeF(700, 800));
+    window.show();
+
+    QVERIFY(adapter->setProperty("currentUrl", QUrl(QStringLiteral(
+        "data:text/html,<title>Inspected</title><p id=target>inspect me</p>"))));
+    QTRY_COMPARE(adapter->property("pageTitle").toString(), QStringLiteral("Inspected"));
+
+    QVERIFY(QMetaObject::invokeMethod(adapter.get(), "attachDeveloperTools"));
+    auto *tools = adapter->property("developerToolsView").value<QObject *>();
+    QVERIFY(tools);
+    auto *toolsItem = qobject_cast<QQuickItem *>(tools);
+    QVERIFY(toolsItem);
+    // The shell docks the inspector beside the page; here the test window
+    // stands in for it.
+    toolsItem->setParentItem(window.contentItem());
+    toolsItem->setPosition(QPointF(700, 0));
+    toolsItem->setSize(QSizeF(500, 800));
+
+    // The frontend is served from Chromium's own scheme out of the engine's
+    // resources, so this is also the check that this build ships one.
+    QTRY_VERIFY_WITH_TIMEOUT(
+        tools->property("url").toUrl().scheme() == QLatin1String("devtools"), 20000);
+    QTRY_VERIFY_WITH_TIMEOUT(!tools->property("loading").toBool(), 20000);
+
+    // What the frontend resolves for one of its own tokens. The frontend owns
+    // its own document title and rewrites it as the inspected page reports one,
+    // so the answer comes back over the console instead: nothing else writes to
+    // it under this prefix, and nothing overwrites what was already said.
+    QMetaMethod consoleSignal;
+    for (int index = 0; index < tools->metaObject()->methodCount(); ++index) {
+        const auto method = tools->metaObject()->method(index);
+        if (method.name() == "javaScriptConsoleMessage") {
+            consoleSignal = method;
+            break;
+        }
+    }
+    QVERIFY(consoleSignal.isValid());
+    QSignalSpy consoleSpy(tools, consoleSignal);
+    QVERIFY(consoleSpy.isValid());
+
+    const auto reports = [&](const QString &expression, const QString &expected) {
+        const auto script = QStringLiteral("console.log('tanto-token:' + (%1))")
+            .arg(expression);
+        const auto wanted = QStringLiteral("tanto-token:") + expected;
+        consoleSpy.clear();
+        for (int attempt = 0; attempt < 40; ++attempt) {
+            QMetaObject::invokeMethod(tools, "runJavaScript", Q_ARG(QString, script));
+            QTest::qWait(250);
+            for (const auto &message : consoleSpy) {
+                if (message.at(1).toString() == wanted) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    };
+    const auto resolves = [&](const char *token, const QString &colour) {
+        return reports(QStringLiteral("getComputedStyle(document.documentElement)"
+                                      ".getPropertyValue('%1').trim()")
+                .arg(QString::fromLatin1(token)),
+            colour);
+    };
+
+    QVERIFY(resolves("--sys-color-token-keyword", QStringLiteral("#123456")));
+    QVERIFY(resolves("--sys-color-token-string", QStringLiteral("#654321")));
+    QVERIFY(resolves("--sys-color-token-comment", QStringLiteral("#fedcba")));
+    QVERIFY(resolves("--sys-color-cdt-base-container", QStringLiteral("#0b1a0b")));
+    QVERIFY(resolves("--sys-color-primary", QStringLiteral("#00ff88")));
+    // The frontend has a light face and a dark one, and Tanto's own window
+    // colour is what decides which of the two this is.
+    QVERIFY(reports(QStringLiteral("document.documentElement.classList"
+                                   ".contains('theme-with-dark-background')"),
+        QStringLiteral("true")));
+
+    // A live theme change reaches an inspector that is already open.
+    auto palette = inspectorPalette();
+    auto syntax = palette.value(QStringLiteral("syntax")).toMap();
+    syntax.insert(QStringLiteral("keyword"), QStringLiteral("#ff00ff"));
+    palette.insert(QStringLiteral("syntax"), syntax);
+    QVERIFY(adapter->setProperty("developerToolsColors", palette));
+    QVERIFY(resolves("--sys-color-token-keyword", QStringLiteral("#ff00ff")));
+
+    QVERIFY(QMetaObject::invokeMethod(adapter.get(), "detachDeveloperTools"));
+    QVERIFY(!adapter->property("developerToolsAttached").toBool());
+    QVERIFY(adapter->property("developerToolsView").value<QObject *>() == nullptr);
+}
+
+// An inspected tab keeps running while another tab or Space is on show, and
+// stops being exempt the moment Developer tools go. Qt is what enforces this:
+// a hidden view is ordinarily recommended for freezing and accepts it, and one
+// with an inspector attached is recommended Active and refuses. So this is a
+// test of the engine contract Tanto is relying on rather than of Tanto's code —
+// and it is the thing that would break silently if Qt changed its mind.
+void QtEngineContractTest::qtKeepsAnInspectedTabActiveOnlyWhileAttached()
+{
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    QQmlEngine engine;
+    QQmlComponent component(&engine, QUrl::fromLocalFile(
+        QStringLiteral(TANTO_QT_ENGINE_VIEW_PATH)));
+    const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
+        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
+    }));
+    QVERIFY2(adapter, qPrintable(component.errorString()));
+    auto *item = qobject_cast<QQuickItem *>(adapter.get());
+    QVERIFY(item);
+    QQuickWindow window;
+    window.resize(800, 600);
+    item->setParentItem(window.contentItem());
+    item->setSize(QSizeF(800, 600));
+    window.show();
+
+    QVERIFY(adapter->setProperty("currentUrl", QUrl(QStringLiteral(
+        "data:text/html,<title>Retained</title><p>retained</p>"))));
+    QTRY_COMPARE(adapter->property("pageTitle").toString(), QStringLiteral("Retained"));
+
+    auto *webView = adapter->findChild<QObject *>(QStringLiteral("qtWebView"));
+    QVERIFY(webView);
+    const auto activeState = webView->property("lifecycleState");
+    QVERIFY(activeState.isValid());
+    const auto frozenState = QVariant::fromValue(activeState.toInt() + 1);
+
+    // Hidden and uninspected: Qt says this page may be frozen, and freezes it.
+    webView->setProperty("visible", false);
+    QTRY_COMPARE(webView->property("recommendedState"), frozenState);
+    QVERIFY(webView->setProperty("lifecycleState", frozenState));
+    QCOMPARE(webView->property("lifecycleState"), frozenState);
+
+    // Attached, and still hidden: Qt says Active and refuses anything less.
+    QVERIFY(webView->setProperty("lifecycleState", activeState));
+    QVERIFY(QMetaObject::invokeMethod(adapter.get(), "attachDeveloperTools"));
+    QTRY_COMPARE(webView->property("recommendedState"), activeState);
+    webView->setProperty("lifecycleState", frozenState);
+    QCOMPARE(webView->property("lifecycleState"), activeState);
+
+    // Detached: the exception goes with the inspector.
+    QVERIFY(QMetaObject::invokeMethod(adapter.get(), "detachDeveloperTools"));
+    QTRY_COMPARE(webView->property("recommendedState"), frozenState);
+}
+
+// A Private window's pages run in one temporary off-the-record profile, and the
+// inspector is a page: it runs in the same profile, so what it stores about the
+// pages it inspected goes when the Private session does.
+void QtEngineContractTest::qtInspectsAPrivateTabInItsOwnTemporaryProfile()
+{
+    QQmlEngine engine;
+    QQmlComponent profileComponent(&engine);
+    profileComponent.setData(
+        "import QtWebEngine\nWebEngineProfile { offTheRecord: true }", QUrl());
+    const std::unique_ptr<QObject> privateProfile(profileComponent.create());
+    QVERIFY2(privateProfile, qPrintable(profileComponent.errorString()));
+    QVERIFY(privateProfile->property("offTheRecord").toBool());
+
+    QQmlComponent component(&engine, QUrl::fromLocalFile(
+        QStringLiteral(TANTO_QT_ENGINE_VIEW_PATH)));
+    const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
+        {QStringLiteral("sharedProfile"), QVariant::fromValue(privateProfile.get())},
+    }));
+    QVERIFY2(adapter, qPrintable(component.errorString()));
+
+    QVERIFY(QMetaObject::invokeMethod(adapter.get(), "attachDeveloperTools"));
+    auto *tools = adapter->property("developerToolsView").value<QObject *>();
+    QVERIFY(tools);
+    // The same profile object the inspected page runs in, not a profile of the
+    // inspector's own and not the default one.
+    QCOMPARE(tools->property("profile").value<QObject *>(), privateProfile.get());
+    QCOMPARE(adapter->property("browserProfile").value<QObject *>(), privateProfile.get());
+    QVERIFY(QMetaObject::invokeMethod(adapter.get(), "detachDeveloperTools"));
 }
 
 int main(int argc, char *argv[])

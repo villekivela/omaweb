@@ -27,11 +27,13 @@ Item {
     readonly property int persistentProfilesCapability: 1 << 1
     readonly property int contentBlockingCapability: 1 << 3
     readonly property int keyboardPageCommandsCapability: 1 << 4
+    readonly property int developerToolsCapability: 1 << 5
     readonly property int rendererRecoveryCapability: 1 << 6
     readonly property int capabilities: navigationCapability
         | persistentProfilesCapability
         | contentBlockingCapability
         | keyboardPageCommandsCapability
+        | developerToolsCapability
         | rendererRecoveryCapability
     property int blockedRequestCount: 0
     property color pageBackgroundColor: "#16151d"
@@ -52,6 +54,14 @@ Item {
         return script
     }
 
+    // The inspector Chromium supplies, and the palette it is drawn in. The
+    // view is the adapter's to build and destroy; where it sits is the shell's,
+    // so the shell takes it as a child once it exists.
+    property bool developerToolsAttached: false
+    property var developerToolsView: null
+    property var developerToolsColors: ({})
+
+    signal developerToolsClosed()
     signal rendererFailed(string reason)
     signal newTabRequested(var request, url requestedUrl)
     signal auxiliaryWindowRequested(var request, url requestedUrl)
@@ -67,6 +77,65 @@ Item {
         delete pendingPermissions[requestId]
         if (decision === 1 || decision === 2) request.grant()
         else request.deny()
+    }
+
+    // Chromium's inspector is a webpage of its own, and it runs in the profile
+    // of the page it inspects: a Private tab's inspector keeps its state in the
+    // temporary Private profile and loses it with the session, as the page
+    // does. It is built when it is first asked for rather than with the tab —
+    // one inspector costs a second renderer process.
+    property Component developerToolsComponent: Component {
+        WebEngineView {
+            objectName: "qtDeveloperToolsView"
+            profile: root.resolvedProfile()
+            backgroundColor: root.developerToolsBackgroundColor()
+            userScripts.collection: [root.developerToolsThemeScript]
+
+            // The frontend's own close button asks its window to close, which
+            // is the reader saying they are finished with it.
+            onWindowCloseRequested: root.developerToolsClosed()
+
+            onLoadingChanged: function(loadRequest) {
+                if (loadRequest.status === WebEngineView.LoadSucceededStatus)
+                    root.applyDeveloperToolsTheme()
+            }
+        }
+    }
+
+    function attachDeveloperTools() {
+        if (root.developerToolsAttached) return
+        const view = root.developerToolsComponent.createObject(root)
+        if (!view) return
+        root.developerToolsView = view
+        webView.devToolsView = view
+        root.developerToolsAttached = true
+    }
+
+    function detachDeveloperTools() {
+        if (!root.developerToolsAttached) return
+        root.developerToolsAttached = false
+        webView.devToolsView = null
+        const view = root.developerToolsView
+        root.developerToolsView = null
+        // The shell has taken the view as a child by now, so nothing else
+        // would ever take it away.
+        if (view) view.destroy()
+    }
+
+    // Chromium remembers the node the last context menu was opened over, and
+    // this is the action that reads it, so the target is the one the reader
+    // pointed at rather than wherever the page happens to be scrolled.
+    function inspectElement() {
+        if (root.developerToolsAttached) {
+            webView.triggerWebAction(WebEngineView.InspectElement)
+            return
+        }
+        root.attachDeveloperTools()
+        // The frontend has to exist before it can be told what to select.
+        Qt.callLater(function() {
+            if (root.developerToolsAttached)
+                webView.triggerWebAction(WebEngineView.InspectElement)
+        })
     }
 
     function goBack() { webView.goBack() }
@@ -93,12 +162,12 @@ Item {
     readonly property string cosmeticElementId: "__tanto_content_blocking"
     readonly property string genericCosmeticElementId: "__tanto_content_blocking_generic"
 
-    // A document-creation script runs before the parser has produced even an
-    // <html> element, so the stylesheet cannot simply be appended: it waits for
-    // the first element to appear, which is still before the page's own scripts
-    // run and before anything is painted. Re-application into a document that
-    // is already open takes the same path and appends immediately.
-    function cosmeticStyleSnippet(elementId, css) {
+    // A script that runs before the parser has produced even an <html> element
+    // cannot simply append a stylesheet: it waits for the first element to
+    // appear, which is still before the page's own scripts run and before
+    // anything is painted. Re-application into a document that is already open
+    // takes the same path and appends immediately.
+    function styleSheetSnippet(elementId, css) {
         return "(() => {"
             + "const id = " + JSON.stringify(elementId) + ";"
             + "const css = " + JSON.stringify(css) + ";"
@@ -158,7 +227,7 @@ Item {
         // does not depend on a scriptlet, and a scriptlet that throws must not
         // take the hiding with it.
         script.sourceCode = (css.length > 0
-                ? root.cosmeticStyleSnippet(root.cosmeticElementId, css) + ";\n" : "")
+                ? root.styleSheetSnippet(root.cosmeticElementId, css) + ";\n" : "")
             + root.scriptletSnippet(scriptlets)
         root.blockingScript = script
         webView.userScripts.collection = [
@@ -182,7 +251,7 @@ Item {
         // nothing was ever added, nothing to clear either — so skip the script.
         if (css.length === 0 && !cosmeticRulesInjected) return
         cosmeticRulesInjected = css.length > 0
-        webView.runJavaScript(root.cosmeticStyleSnippet(root.cosmeticElementId, css))
+        webView.runJavaScript(root.styleSheetSnippet(root.cosmeticElementId, css))
     }
 
     // The generic rules are the ones written against no particular site, and
@@ -193,7 +262,7 @@ Item {
     function clearGenericCosmeticRules() {
         if (!genericCosmeticRulesInjected) return
         root.genericCosmeticRulesInjected = false
-        webView.runJavaScript(root.cosmeticStyleSnippet(root.genericCosmeticElementId, ""))
+        webView.runJavaScript(root.styleSheetSnippet(root.genericCosmeticElementId, ""))
     }
     function surveyGenericCosmeticRules() {
         // Turning blocking off for a site, or a rule set that no longer hides
@@ -224,7 +293,7 @@ Item {
                 }
                 root.genericCosmeticRulesInjected = true
                 webView.runJavaScript(
-                    root.cosmeticStyleSnippet(root.genericCosmeticElementId, css))
+                    root.styleSheetSnippet(root.genericCosmeticElementId, css))
             })
     }
     function checkForEditedFormState(callback) {
@@ -324,6 +393,193 @@ Item {
             root.surveyGenericCosmeticRules()
         }
     }
+
+    readonly property string developerToolsElementId: "__tanto_developer_tools"
+
+    // The palette arrives from the shell and may be empty until the theme has
+    // loaded, so every colour read here names what to draw with instead.
+    function paletteColor(source, name, fallback) {
+        const value = source ? source[name] : undefined
+        return (value === undefined || String(value).length === 0) ? fallback : String(value)
+    }
+
+    function developerToolsColor(name, fallback) {
+        return root.paletteColor(root.developerToolsColors, name, fallback)
+    }
+
+    function developerToolsSyntaxColor(name, fallback) {
+        return root.paletteColor(root.developerToolsColors
+            ? root.developerToolsColors.syntax : null, name, fallback)
+    }
+
+    function developerToolsBackgroundColor() {
+        return root.developerToolsColor("windowOpaque", String(root.pageBackgroundColor))
+    }
+
+    // The frontend ships a light face and a dark one and picks between them
+    // from a setting Tanto does not own. Which one is right here is a question
+    // about Tanto's own window, so it is answered from the window's colour and
+    // the answer is written onto the frontend's root element.
+    function developerToolsDark() {
+        const surface = Qt.color(root.developerToolsBackgroundColor())
+        return (0.2126 * surface.r + 0.7152 * surface.g + 0.0722 * surface.b) < 0.5
+    }
+
+    // Chromium's inspector is a webpage, and its whole design system is custom
+    // properties declared on that page's `:root`. Naming them again, later and
+    // marked important, is the whole of the theming: no patched frontend, no
+    // debugging protocol, and nothing that breaks when the frontend adds a
+    // token Tanto has never heard of.
+    //
+    // The theme names ten syntax colours and the frontend has twenty-odd
+    // tokens, so several tokens share one: they are the constructs that read
+    // alike, and a terminal palette has no more hues to tell them apart with.
+    function developerToolsTokens() {
+        const text = root.developerToolsColor("text", "#f3f1fa")
+        const muted = root.developerToolsColor("mutedText", "#aaa5b7")
+        const body = root.developerToolsBackgroundColor()
+        const panel = root.developerToolsColor("sidebarOpaque", body)
+        const surface = root.developerToolsColor("surface", "#302e3d")
+        const hover = root.developerToolsColor("surfaceHover", "#3d394e")
+        const border = root.developerToolsColor("border", "#4a4658")
+        const accent = root.developerToolsColor("accent", "#9b87ff")
+        const urgent = root.developerToolsColor("urgent", "#e06c75")
+        const keyword = root.developerToolsSyntaxColor("keyword", accent)
+        const string = root.developerToolsSyntaxColor("string", text)
+        const number = root.developerToolsSyntaxColor("number", text)
+        const comment = root.developerToolsSyntaxColor("comment", muted)
+        const tag = root.developerToolsSyntaxColor("tag", text)
+        const attribute = root.developerToolsSyntaxColor("attribute", text)
+        const value = root.developerToolsSyntaxColor("value", string)
+        const variable = root.developerToolsSyntaxColor("variable", text)
+        const method = root.developerToolsSyntaxColor("function", accent)
+        const type = root.developerToolsSyntaxColor("type", text)
+        return {
+            // The panel bodies, the toolbars above them, and the raised
+            // surfaces the frontend stacks on top.
+            "--sys-color-cdt-base-container": body,
+            "--sys-color-cdt-base": panel,
+            "--sys-color-base": panel,
+            "--sys-color-base-container": panel,
+            "--sys-color-header-container": panel,
+            "--sys-color-base-container-elevated": surface,
+            "--sys-color-surface": surface,
+            "--sys-color-surface1": surface,
+            "--sys-color-surface2": surface,
+            "--sys-color-surface3": hover,
+            "--sys-color-surface4": hover,
+            "--sys-color-surface5": hover,
+            "--sys-color-surface-variant": hover,
+            "--sys-color-neutral-container": surface,
+            "--sys-color-omnibox-container": surface,
+            "--sys-color-tonal-container": hover,
+            // Type on all of them.
+            "--sys-color-on-surface": text,
+            "--sys-color-on-base": text,
+            "--sys-color-on-tonal-container": text,
+            "--sys-color-on-surface-subtle": muted,
+            "--sys-color-on-surface-secondary": muted,
+            "--sys-color-on-surface-primary": accent,
+            // Every hairline the frontend draws.
+            "--sys-color-divider": border,
+            "--sys-color-divider-prominent": border,
+            "--sys-color-divider-on-tonal-container": border,
+            "--sys-color-on-base-divider": border,
+            "--sys-color-outline": border,
+            "--sys-color-neutral-outline": border,
+            "--sys-color-tonal-outline": border,
+            // What the frontend picks out, and what it warns with.
+            "--sys-color-primary": accent,
+            "--sys-color-primary-bright": accent,
+            "--sys-color-state-focus-ring": accent,
+            "--sys-color-state-text-highlight": accent,
+            "--sys-color-state-on-text-highlight": body,
+            "--sys-color-state-hover-on-subtle": hover,
+            "--sys-color-state-header-hover": hover,
+            "--sys-color-inverse-surface": text,
+            "--sys-color-inverse-on-surface": body,
+            "--sys-color-error": urgent,
+            "--sys-color-error-bright": urgent,
+            "--sys-color-error-outline": urgent,
+            "--sys-color-on-surface-error": urgent,
+            "--sys-color-token-deleted": urgent,
+            // Source, markup and stylesheets.
+            "--sys-color-token-keyword": keyword,
+            "--sys-color-token-atom": keyword,
+            "--sys-color-token-pseudo-element": keyword,
+            "--sys-color-token-string": string,
+            "--sys-color-token-inserted": string,
+            "--sys-color-token-number": number,
+            "--sys-color-token-comment": comment,
+            "--sys-color-token-meta": comment,
+            "--sys-color-token-subtle": muted,
+            "--sys-color-token-tag": tag,
+            "--sys-color-token-attribute": attribute,
+            "--sys-color-token-property": attribute,
+            "--sys-color-token-attribute-value": value,
+            "--sys-color-token-string-special": value,
+            "--sys-color-token-variable": variable,
+            "--sys-color-token-property-special": variable,
+            "--sys-color-token-definition": method,
+            "--sys-color-token-builtin": method,
+            "--sys-color-token-variable-special": method,
+            "--sys-color-token-type": type,
+        }
+    }
+
+    function developerToolsStyleSheet() {
+        const tokens = root.developerToolsTokens()
+        let declarations = ""
+        for (const name in tokens) declarations += name + ":" + tokens[name] + " !important;"
+        // The frontend names its type per platform, at a selector of its own
+        // that an ordinary `:root` rule would lose to, so these are marked as
+        // the rest are. Only the fixed-pitch families: the panel labels are
+        // interface type, and the frontend's own is the right size for them.
+        const font = (root.developerToolsColors && root.developerToolsColors.font) || ({})
+        const family = String(font.family || "")
+        if (family.length > 0) {
+            const quoted = JSON.stringify(family) + ", monospace"
+            declarations += "--monospace-font-family:" + quoted + " !important;"
+            declarations += "--source-code-font-family:" + quoted + " !important;"
+        }
+        const size = parseInt(font.size, 10)
+        if (!isNaN(size) && size > 0) {
+            declarations += "--monospace-font-size:" + size + "px !important;"
+            declarations += "--source-code-font-size:" + size + "px !important;"
+        }
+        return ":root{" + declarations + "}"
+    }
+
+    function developerToolsThemeSnippet() {
+        return "(() => {"
+            + "const element = document.documentElement;"
+            + "if (element) element.classList.toggle('theme-with-dark-background', "
+            + (root.developerToolsDark() ? "true" : "false") + ");"
+            + "})();\n"
+            + root.styleSheetSnippet(root.developerToolsElementId,
+                root.developerToolsStyleSheet())
+    }
+
+    // The frontend has to open in Tanto's colours rather than arrive in
+    // Chromium's and change, so the sheet is in the document before the
+    // frontend's own scripts run. It is re-applied on a live theme change,
+    // which is the only time the colours move under an open inspector.
+    property var developerToolsThemeScript: {
+        const script = WebEngine.script()
+        script.name = "Tanto developer tools theme"
+        script.injectionPoint = WebEngineScript.DocumentCreation
+        script.worldId = WebEngineScript.MainWorld
+        script.runsOnSubFrames = true
+        script.sourceCode = root.developerToolsThemeSnippet()
+        return script
+    }
+
+    function applyDeveloperToolsTheme() {
+        if (!root.developerToolsView) return
+        root.developerToolsView.runJavaScript(root.developerToolsThemeSnippet())
+    }
+
+    onDeveloperToolsColorsChanged: root.applyDeveloperToolsTheme()
 
     property var keyboardNavigationScript: {
         const script = WebEngine.script()

@@ -37,6 +37,26 @@ ApplicationWindow {
         Math.max(sidebarMinimumWidth, Math.min(560, window.width * 0.5))
     readonly property real sidebarDefaultWidth: 292
     property real sidebarWidth: sidebarDefaultWidth
+    // Developer tools are docked to the right of the page they inspect, and the
+    // reader owns that seam as they own the sidebar's. The floor is what the
+    // inspector's own toolbar needs before its panels start collapsing.
+    readonly property real developerToolsMinimumWidth: 320
+    readonly property real developerToolsMaximumWidth:
+        Math.max(developerToolsMinimumWidth, Math.min(920, window.width * 0.6))
+    readonly property real developerToolsDefaultWidth: 480
+    property real developerToolsWidth: developerToolsDefaultWidth
+    // The dock stands only for the tab on show, and only once the engine has
+    // handed its inspector over. A Space being put away takes its pages off the
+    // screen before the next Space's arrive, and the inspector goes with them
+    // rather than hanging over an empty viewport.
+    readonly property bool developerToolsOpen: window.windowBrowser.activeTabInspected
+        && engineLoader.item !== null
+        && engineLoader.developerToolsView !== null
+    // An engine without an inspector leaves the command unavailable rather than
+    // offering a dock nothing can fill.
+    readonly property bool developerToolsAvailable: engineLoader.item !== null
+        && (engineLoader.item.capabilities
+            & engineLoader.item.developerToolsCapability) !== 0
     // No page to show: the tab on show is blank and no engine is drawing it.
     // That covers a resting Space and an `about:blank` the reader navigated to
     // — and leaves out the blank tab a page opened, which has its engine
@@ -159,6 +179,22 @@ ApplicationWindow {
         engineLoader.focusPage()
     }
 
+    function toggleDeveloperTools() {
+        if (!window.developerToolsAvailable) return
+        window.windowBrowser.toggleDeveloperTools()
+    }
+
+    function inspectElement() {
+        if (!window.developerToolsAvailable) return
+        engineLoader.inspectElement()
+    }
+
+    function setDeveloperToolsWidth(width) {
+        window.developerToolsWidth = Math.round(
+            Math.max(window.developerToolsMinimumWidth,
+                Math.min(window.developerToolsMaximumWidth, width)))
+    }
+
     function setSidebarWidth(width) {
         window.sidebarWidth = Math.round(Math.max(window.sidebarMinimumWidth,
             Math.min(window.sidebarMaximumWidth, width)))
@@ -177,6 +213,8 @@ ApplicationWindow {
     // A window narrow enough to break the clamp pulls the sidebar back in
     // with it, so the page is never squeezed out of its own window.
     onSidebarMaximumWidthChanged: window.setSidebarWidth(window.sidebarWidth)
+    onDeveloperToolsMaximumWidthChanged:
+        window.setDeveloperToolsWidth(window.developerToolsWidth)
 
     // A width the reader chose outlives the session that chose it. The clamp
     // runs on the way back in, so a saved width from a wider window or an older
@@ -184,6 +222,12 @@ ApplicationWindow {
     function restoreSidebarWidth() {
         const saved = parseFloat(window.windowBrowser.preference("sidebar-width", ""))
         if (!isNaN(saved)) window.setSidebarWidth(saved)
+    }
+
+    function restoreDeveloperToolsWidth() {
+        const saved = parseFloat(
+            window.windowBrowser.preference("developer-tools-width", ""))
+        if (!isNaN(saved)) window.setDeveloperToolsWidth(saved)
     }
 
     function restoreTabAppearance() {
@@ -202,6 +246,7 @@ ApplicationWindow {
     }
 
     onSidebarWidthChanged: sidebarWidthWriter.restart()
+    onDeveloperToolsWidthChanged: developerToolsWidthWriter.restart()
 
     // A drag reports every pixel it crosses. The store hears the width the
     // hand came to rest at, not the path it took to get there.
@@ -210,6 +255,13 @@ ApplicationWindow {
         interval: 400
         onTriggered: window.windowBrowser.setPreference("sidebar-width",
             String(window.sidebarWidth))
+    }
+
+    Timer {
+        id: developerToolsWidthWriter
+        interval: 400
+        onTriggered: window.windowBrowser.setPreference("developer-tools-width",
+            String(window.developerToolsWidth))
     }
 
     // 1 allow once, 2 always allow, 3 block — the decisions BrowserController
@@ -432,7 +484,14 @@ ApplicationWindow {
 
                 TabEngineHost {
                     id: engineLoader
-                    anchors.fill: parent
+                    anchors.left: parent.left
+                    anchors.top: parent.top
+                    anchors.bottom: parent.bottom
+                    // The page gives up the width the dock takes rather than
+                    // being covered by it, so nothing the inspector points at
+                    // is hidden behind the inspector.
+                    anchors.right: developerToolsDock.visible
+                        ? developerToolsDock.left : parent.right
                     focus: true
                     browserController: window.windowBrowser
                     engineSource: engineViewSource
@@ -447,6 +506,7 @@ ApplicationWindow {
                     engineBlocker: engineContentBlocker
                     keyboardManager: keyboardNavigation
                     hintTheme: window.colors
+                    developerToolsColors: window.colors
                     // Chromium's own pre-paint colour, so a navigation never
                     // flashes a bright frame through the dark shell.
                     pageBackgroundColor: window.colors.windowOpaque
@@ -487,6 +547,41 @@ ApplicationWindow {
                         window.pendingPermissionType = permission
                         window.permissionOpen = true
                     }
+                }
+
+                DeveloperToolsDock {
+                    id: developerToolsDock
+                    objectName: "developerToolsDock"
+                    anchors.right: parent.right
+                    anchors.top: parent.top
+                    anchors.bottom: parent.bottom
+                    width: window.developerToolsWidth
+                    visible: window.developerToolsOpen && !window.settingsOpen
+                    z: 4
+                    colors: window.colors
+                    developerToolsView: engineLoader.developerToolsView
+                }
+
+                PanelResizer {
+                    id: developerToolsResizer
+                    objectName: "developerToolsResizer"
+                    visible: developerToolsDock.visible
+                    enabled: visible
+                    height: parent.height
+                    x: developerToolsDock.x - width / 2
+                    z: 6
+                    colors: window.colors
+                    measureFromRight: true
+                    panelName: "Developer tools"
+                    currentWidth: window.developerToolsWidth
+                    minimumWidth: window.developerToolsMinimumWidth
+                    maximumWidth: window.developerToolsMaximumWidth
+                    defaultWidth: window.developerToolsDefaultWidth
+
+                    onWidthRequested: function(width) {
+                        window.setDeveloperToolsWidth(width)
+                    }
+                    onPageFocusRequested: window.focusPage()
                 }
 
                 StartPage {
@@ -685,7 +780,7 @@ ApplicationWindow {
             }
         }
 
-        SidebarResizer {
+        PanelResizer {
             id: sidebarResizer
             objectName: "sidebarResizer"
             visible: !window.sidebarCollapsed && !window.settingsOpen
@@ -782,6 +877,7 @@ ApplicationWindow {
         // Last, and on its own: how wide a panel was left is never a reason
         // for the page not to come up.
         window.restoreSidebarWidth()
+        window.restoreDeveloperToolsWidth()
         window.restoreTabAppearance()
     }
 

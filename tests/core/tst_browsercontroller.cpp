@@ -1,4 +1,5 @@
 #include "BrowserController.h"
+#include "SpaceListModel.h"
 #include "TabListModel.h"
 #include "WindowManager.h"
 
@@ -12,6 +13,7 @@
 #include <QTest>
 
 using tanto::BrowserController;
+using tanto::SpaceListModel;
 using tanto::TabListModel;
 using tanto::WindowManager;
 
@@ -43,6 +45,10 @@ private slots:
     void scopesPermissionDecisionsToOriginSpaceAndLifetime();
     void persistsOnlyNonPrivateDownloadHistory();
     void persistsInterfacePreferencesOutsidePrivateBrowsing();
+    void attachesOneInspectorToOneTab();
+    void keepsTheInspectorThroughASpaceSwitch();
+    void detachesTheInspectorWithTheTabItInspects();
+    void neverRestoresTheInspectorAfterRestart();
 };
 
 void BrowserControllerTest::createsPersonalSpaceAndBlankTab()
@@ -622,6 +628,125 @@ void BrowserControllerTest::persistsInterfacePreferencesOutsidePrivateBrowsing()
         QStringLiteral("500")));
     QCOMPARE(restored.preference(QStringLiteral("sidebar-width"), QStringLiteral("292")),
         QStringLiteral("412"));
+}
+
+// One inspector inspects one tab. Asking for it on a second tab moves it rather
+// than opening another, and a blank tab has no page for it to attach to.
+void BrowserControllerTest::attachesOneInspectorToOneTab()
+{
+    QTemporaryDir root;
+    BrowserController controller(root.path(), QStringLiteral("test"));
+
+    controller.openDeveloperTools();
+    QVERIFY2(controller.developerToolsTabId().isEmpty(),
+        "a blank tab has no page to inspect");
+
+    controller.openInput(QStringLiteral("https://first.example"), false);
+    const auto firstTabId = controller.activeTabId();
+    QSignalSpy attachmentSpy(&controller, &BrowserController::developerToolsChanged);
+    controller.openDeveloperTools();
+    QCOMPARE(controller.developerToolsTabId(), firstTabId);
+    QVERIFY(controller.activeTabInspected());
+    QCOMPARE(attachmentSpy.count(), 1);
+
+    controller.openInput(QStringLiteral("https://second.example"), true);
+    const auto secondTabId = controller.activeTabId();
+    QVERIFY(secondTabId != firstTabId);
+    // The inspector stays where it was until it is asked for here.
+    QCOMPARE(controller.developerToolsTabId(), firstTabId);
+    QVERIFY(!controller.activeTabInspected());
+
+    controller.openDeveloperTools();
+    QCOMPARE(controller.developerToolsTabId(), secondTabId);
+
+    controller.toggleDeveloperTools();
+    QVERIFY(controller.developerToolsTabId().isEmpty());
+    QVERIFY(!controller.activeTabInspected());
+}
+
+// Developer tools follow the tab, not the window: selecting another Space hides
+// them, and coming back to the inspected tab brings them with it.
+void BrowserControllerTest::keepsTheInspectorThroughASpaceSwitch()
+{
+    QTemporaryDir root;
+    BrowserController controller(root.path(), QStringLiteral("test"));
+    controller.openInput(QStringLiteral("https://inspected.example"), false);
+    const auto inspectedTabId = controller.activeTabId();
+    controller.openDeveloperTools();
+
+    const auto otherSpaceId = controller.createSpace(QStringLiteral("Work"));
+    QVERIFY(controller.switchSpace(otherSpaceId));
+    QCOMPARE(controller.developerToolsTabId(), inspectedTabId);
+    QVERIFY(!controller.activeTabInspected());
+
+    QVERIFY(controller.switchSpace(controller.spaces()->data(
+        controller.spaces()->index(0, 0), SpaceListModel::IdRole).toString()));
+    QCOMPARE(controller.activeTabId(), inspectedTabId);
+    QVERIFY(controller.activeTabInspected());
+}
+
+// Closing the tab, emptying it, moving it to another Space, or deleting the
+// Space it lives in all take the page the inspector was attached to away.
+void BrowserControllerTest::detachesTheInspectorWithTheTabItInspects()
+{
+    QTemporaryDir root;
+    BrowserController controller(root.path(), QStringLiteral("test"));
+
+    controller.openInput(QStringLiteral("https://closed.example"), false);
+    controller.openInput(QStringLiteral("https://kept.example"), true);
+    controller.openDeveloperTools();
+    controller.closeActiveTab();
+    QVERIFY(controller.developerToolsTabId().isEmpty());
+
+    // The last tab in a Space is emptied rather than removed, and an empty tab
+    // has no page either.
+    controller.openDeveloperTools();
+    QVERIFY(!controller.developerToolsTabId().isEmpty());
+    controller.closeActiveTab();
+    QVERIFY(controller.developerToolsTabId().isEmpty());
+
+    controller.openInput(QStringLiteral("https://navigated.example"), false);
+    controller.openDeveloperTools();
+    controller.updateTab(controller.activeTabId(), QUrl(QStringLiteral("about:blank")),
+        QStringLiteral("New tab"));
+    QVERIFY(controller.developerToolsTabId().isEmpty());
+
+    controller.openInput(QStringLiteral("https://moved.example"), false);
+    const auto movedTabId = controller.activeTabId();
+    const auto destinationSpaceId = controller.createSpace(QStringLiteral("Work"));
+    controller.openDeveloperTools();
+    QVERIFY(controller.confirmTabMoveToSpace(movedTabId, destinationSpaceId));
+    QVERIFY(controller.developerToolsTabId().isEmpty());
+
+    // Deleting the Space an inspected tab lives in, while another Space is
+    // active and that tab is not in the model to be noticed missing.
+    QVERIFY(controller.switchSpace(destinationSpaceId));
+    QCOMPARE(controller.activeTabId(), movedTabId);
+    controller.openDeveloperTools();
+    QCOMPARE(controller.developerToolsTabId(), movedTabId);
+    const auto personalSpaceId = controller.spaces()->data(
+        controller.spaces()->index(0, 0), SpaceListModel::IdRole).toString();
+    QVERIFY(controller.switchSpace(personalSpaceId));
+    QVERIFY(controller.deleteSpace(destinationSpaceId, QStringLiteral("Work")));
+    QVERIFY(controller.developerToolsTabId().isEmpty());
+}
+
+void BrowserControllerTest::neverRestoresTheInspectorAfterRestart()
+{
+    QTemporaryDir root;
+    QString inspectedTabId;
+    {
+        BrowserController controller(root.path(), QStringLiteral("test"));
+        controller.openInput(QStringLiteral("https://inspected.example"), false);
+        inspectedTabId = controller.activeTabId();
+        controller.openDeveloperTools();
+        QCOMPARE(controller.developerToolsTabId(), inspectedTabId);
+    }
+
+    BrowserController restarted(root.path(), QStringLiteral("test"));
+    QCOMPARE(restarted.activeTabId(), inspectedTabId);
+    QVERIFY(restarted.developerToolsTabId().isEmpty());
+    QVERIFY(!restarted.activeTabInspected());
 }
 
 QTEST_GUILESS_MAIN(BrowserControllerTest)

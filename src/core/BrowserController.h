@@ -37,6 +37,12 @@ class BrowserController final : public QObject {
     // no page to show then and no ordinary tab to list, so both read this
     // rather than each deciding what counts as blank for itself.
     Q_PROPERTY(bool atRest READ atRest NOTIFY atRestChanged)
+    // The one tab the engine's inspector is attached to, and whether the tab on
+    // show is that tab. Attachment lives in memory only: Developer tools never
+    // come back after a restart, and nothing about them is written to a session.
+    Q_PROPERTY(QString developerToolsTabId READ developerToolsTabId
+        NOTIFY developerToolsChanged)
+    Q_PROPERTY(bool activeTabInspected READ activeTabInspected NOTIFY activeTabChanged)
     Q_PROPERTY(bool activeRendererFailed READ activeRendererFailed NOTIFY activeTabChanged)
     Q_PROPERTY(QString activeRendererFailureReason READ activeRendererFailureReason NOTIFY activeTabChanged)
     Q_PROPERTY(bool privateBrowsing READ privateBrowsing CONSTANT)
@@ -76,6 +82,8 @@ public:
     bool activeTabPinned() const;
     bool activeTabBlank() const;
     bool atRest() const;
+    QString developerToolsTabId() const;
+    bool activeTabInspected() const;
     bool activeRendererFailed() const;
     QString activeRendererFailureReason() const;
     bool privateBrowsing() const;
@@ -106,6 +114,11 @@ public:
     Q_INVOKABLE void toggleTabMuted(const QString &tabId);
     Q_INVOKABLE void reportTabRendererFailure(const QString &tabId, const QString &reason);
     Q_INVOKABLE void recoverActiveTab();
+    // One inspector inspects one tab. Asking for it on another tab moves it
+    // there rather than opening a second one.
+    Q_INVOKABLE void openDeveloperTools();
+    Q_INVOKABLE void toggleDeveloperTools();
+    Q_INVOKABLE void closeDeveloperTools();
     Q_INVOKABLE void requestBack();
     Q_INVOKABLE void requestForward();
     Q_INVOKABLE void requestReload();
@@ -126,6 +139,7 @@ signals:
     void activeSpaceChanged();
     void activeTabChanged();
     void atRestChanged();
+    void developerToolsChanged();
     void spaceSuspended(const QString &spaceId);
     void spaceRestored(const QString &spaceId);
     void spaceDiscarded(const QString &spaceId);
@@ -151,6 +165,7 @@ private:
     static bool isBlank(const QUrl &url);
     bool restingOnBlankTab() const;
     void refreshAtRest();
+    void setDeveloperToolsTab(const QString &tabId, const QString &spaceId);
     static QUrl resolveInput(const QString &input);
     static QString normalizedOrigin(const QUrl &url);
     QString sessionPermissionKey(const QString &origin, const QString &permission) const;
@@ -164,6 +179,11 @@ private:
     QString m_activeSpaceId;
     QString m_activeSpaceName;
     QString m_activeTabId;
+    QString m_developerToolsTabId;
+    // The Space the inspected tab belongs to, so deleting that Space takes the
+    // attachment with it: the tab is gone from the store, and while another
+    // Space is active it is not in the tab model to be noticed missing.
+    QString m_developerToolsSpaceId;
     QString m_engineName;
     QString m_errorMessage;
     ClosedTab m_closedTab;

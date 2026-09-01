@@ -44,12 +44,29 @@ Rectangle {
     readonly property int navigationCapability: 1 << 0
     readonly property int contentBlockingCapability: 1 << 3
     readonly property int keyboardPageCommandsCapability: 1 << 4
+    readonly property int developerToolsCapability: 1 << 5
     readonly property int rendererRecoveryCapability: 1 << 6
     readonly property int capabilities: navigationCapability
         | contentBlockingCapability
         | keyboardPageCommandsCapability
+        | (root.inspectorAvailable ? developerToolsCapability : 0)
         | rendererRecoveryCapability
 
+    // The lab runs no engine and so has no inspector. It reports the capability
+    // and hands back a drawn stand-in, which is what makes the dock, its width
+    // and the tab it follows reviewable without the QtWebEngine build.
+    // `inspectorAvailable` is the other engine the contract has to answer for:
+    // one that supplies no inspector at all, whose command must be unavailable
+    // rather than offering a dock nothing can fill.
+    property bool inspectorAvailable: true
+    property bool developerToolsAttached: false
+    property var developerToolsView: null
+    property var developerToolsColors: ({})
+    // How many times the page's own target was asked for, so a test can tell
+    // opening the dock from inspecting through it.
+    property int inspectedElementCount: 0
+
+    signal developerToolsClosed()
     signal rendererFailed(string reason)
     signal newTabRequested(var request, url requestedUrl)
     signal auxiliaryWindowRequested(var request, url requestedUrl)
@@ -77,6 +94,45 @@ Rectangle {
         keyboardNavigationConfiguration = configuration
     }
     function checkForEditedFormState(callback) { callback(false) }
+    function attachDeveloperTools() {
+        if (!root.inspectorAvailable || root.developerToolsAttached) return
+        const view = root.mockDeveloperToolsComponent.createObject(root)
+        if (!view) return
+        root.developerToolsView = view
+        root.developerToolsAttached = true
+    }
+    function detachDeveloperTools() {
+        if (!root.developerToolsAttached) return
+        root.developerToolsAttached = false
+        const view = root.developerToolsView
+        root.developerToolsView = null
+        if (view) view.destroy()
+    }
+    function inspectElement() {
+        if (!root.inspectorAvailable) return
+        root.attachDeveloperTools()
+        root.inspectedElementCount += 1
+    }
+    function simulateDeveloperToolsClose() { root.developerToolsClosed() }
+
+    property Component mockDeveloperToolsComponent: Component {
+        Rectangle {
+            objectName: "mockDeveloperToolsView"
+            color: root.developerToolsColors.windowOpaque !== undefined
+                ? root.developerToolsColors.windowOpaque : "#16151d"
+
+            Text {
+                anchors.centerIn: parent
+                width: parent.width - 24
+                horizontalAlignment: Text.AlignHCenter
+                wrapMode: Text.WordWrap
+                text: "No inspector: this engine is the UI lab's stand-in"
+                color: root.developerToolsColors.mutedText !== undefined
+                    ? root.developerToolsColors.mutedText : "#aaa5b7"
+                font.pixelSize: 12
+            }
+        }
+    }
     function acceptNewWindowRequest(request) {
         if (request && request.requestedUrl) currentUrl = request.requestedUrl
     }

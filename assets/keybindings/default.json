@@ -24,6 +24,8 @@
     "Primary+Shift+B": "reset-sidebar",
     "Primary+E": "focus-sidebar",
     "Primary+Shift+E": "focus-page",
+    "Primary+Shift+I": "developer-tools",
+    "Primary+Shift+C": "inspect-element",
     "Primary+/": "shortcuts",
     "Primary+,": "settings",
     "Primary+M": "minimize-window",

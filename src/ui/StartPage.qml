@@ -42,7 +42,7 @@ Rectangle {
     // The order the sheet reads in, and the only groups it shows: the command
     // registry also groups the page's own scrolling and link hints, and those
     // belong to a page rather than to the empty viewport standing in for one.
-    readonly property var groups: ["navigation", "tabs", "spaces", "interface"]
+    readonly property var groups: ["navigation", "tabs", "spaces", "interface", "developer"]
 
     // Commands a Private window cannot run are left out rather than listed
     // dead: pinning, moving a tab and the Spaces themselves belong to the
@@ -66,6 +66,10 @@ Rectangle {
                 if (descriptions[command].group !== name) continue
                 if (root.privateWindow
                     && root.privateExclusions.indexOf(command) !== -1) continue
+                // A command the engine or the window cannot carry out here has
+                // no key worth promising. The command registry decides that,
+                // so the sheet and the command panel cannot disagree.
+                if (root.commands && !root.commands.available(command)) continue
                 const keys = root.keymap ? root.keymap.keysFor(command) : ""
                 // A command with no binding is reachable from the command
                 // panel and has nothing to say on a sheet of keys.

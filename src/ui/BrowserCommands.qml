@@ -34,6 +34,8 @@ QtObject {
         case "reset-sidebar": window.setSidebarWidth(window.sidebarDefaultWidth); return true
         case "focus-sidebar": window.focusSidebar(); return true
         case "focus-page": window.focusPage(); return true
+        case "developer-tools": window.toggleDeveloperTools(); return true
+        case "inspect-element": window.inspectElement(); return true
         case "shortcuts": window.requestShortcuts(); return true
         case "settings": window.requestSettings(); return true
         case "private-window": windowManager.openPrivateWindow(); return true
@@ -65,6 +67,8 @@ QtObject {
         "reset-sidebar": { group: "interface", title: "Reset the sidebar width" },
         "focus-sidebar": { group: "interface", title: "Focus the sidebar" },
         "focus-page": { group: "interface", title: "Focus the page" },
+        "developer-tools": { group: "developer", title: "Developer tools" },
+        "inspect-element": { group: "developer", title: "Inspect element" },
         "shortcuts": { group: "interface", title: "Keyboard shortcuts" },
         "settings": { group: "interface", title: "Settings and downloads" },
         "private-window": { group: "interface", title: "New Private window" },
@@ -82,6 +86,17 @@ QtObject {
         "open-link-background": "Follow link hint in a background tab"
     })
 
+    // A command the current engine or window cannot carry out is listed and
+    // unavailable rather than missing: the reader learns it exists, and why it
+    // is not on offer here.
+    function available(command) {
+        if (command === "developer-tools" || command === "inspect-element")
+            return window.developerToolsAvailable
+        if (command === "private-window")
+            return windowManager.privateWindowsAvailable
+        return true
+    }
+
     function actions() {
         const list = []
 
@@ -97,7 +112,7 @@ QtObject {
                 group: description.group,
                 title: description.title,
                 keys: keymap.keysFor(command),
-                enabled: true,
+                enabled: root.available(command),
                 command: command,
                 argument: -1
             })

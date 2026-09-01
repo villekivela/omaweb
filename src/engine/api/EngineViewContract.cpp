@@ -31,6 +31,13 @@ QStringList validateEngineViewContract(const QObject &adapter)
         {"keyboardNavigationConfiguration", QMetaType::QVariant},
         {"keyboardNavigationHintModeActive", QMetaType::Bool},
         {"keyboardNavigationScriptSource", QMetaType::QString},
+        // The inspector the engine supplies, if it has one, and the palette it
+        // is drawn in. The view is an opaque item the shell docks: no protocol,
+        // no frontend type, nothing an engine without an inspector has to
+        // pretend to have beyond reporting the capability off.
+        {"developerToolsAttached", QMetaType::Bool},
+        {"developerToolsView", QMetaType::QVariant},
+        {"developerToolsColors", QMetaType::QVariant},
     };
     struct RequiredMethod {
         const char *name;
@@ -46,6 +53,10 @@ QStringList validateEngineViewContract(const QObject &adapter)
         {"checkForEditedFormState", false, 1},
         {"acceptNewWindowRequest", false, 1},
         {"configureKeyboardNavigation", false, 1},
+        {"attachDeveloperTools", false, 0},
+        {"detachDeveloperTools", false, 0},
+        {"inspectElement", false, 0},
+        {"developerToolsClosed", true, 0},
         {"rendererFailed", true, 1, QMetaType::QString},
         {"newTabRequested", true, 2},
         {"auxiliaryWindowRequested", true, 2},

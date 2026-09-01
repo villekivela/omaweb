@@ -137,6 +137,16 @@ bool BrowserController::atRest() const
     return m_atRest;
 }
 
+QString BrowserController::developerToolsTabId() const
+{
+    return m_developerToolsTabId;
+}
+
+bool BrowserController::activeTabInspected() const
+{
+    return !m_developerToolsTabId.isEmpty() && m_developerToolsTabId == m_activeTabId;
+}
+
 bool BrowserController::activeRendererFailed() const
 {
     const auto *tab = m_tabs.find(m_activeTabId);
@@ -322,7 +332,12 @@ bool BrowserController::deleteSpace(const QString &spaceId, const QString &confi
     }
     m_spaces.reset(m_store.loadSpaces());
     // Nothing belonging to a deleted Space should outlive it, including the
-    // pages a window is still holding open for it.
+    // pages a window is still holding open for it and an inspector attached to
+    // one of them — which, while another Space is active, is not in the tab
+    // model to be noticed missing.
+    if (spaceId == m_developerToolsSpaceId) {
+        closeDeveloperTools();
+    }
     emit spaceDiscarded(spaceId);
     if (deletingActiveSpace) {
         m_activeSpaceId = replacementId;
@@ -409,6 +424,11 @@ bool BrowserController::confirmTabMoveToSpace(const QString &tabId,
         return false;
     }
 
+    // The tab reloads under the destination Space's identity and its engine
+    // profile, so nothing the inspector was attached to survives the move.
+    if (tabId == m_developerToolsTabId) {
+        closeDeveloperTools();
+    }
     m_activeTabId = sourceActiveTabId;
     m_tabs.reset(std::move(sourceTabs));
     emit activeTabChanged();
@@ -472,6 +492,12 @@ void BrowserController::closeTab(const QString &tabId)
     auto *tab = m_tabs.find(tabId);
     if (!tab || tab->pinned) {
         return;
+    }
+    // Past this point the tab goes, is emptied, or takes its Private window
+    // with it, and in every case the page the inspector was attached to is no
+    // longer there.
+    if (tabId == m_developerToolsTabId) {
+        closeDeveloperTools();
     }
 
     if (m_tabs.rowCount() == 1) {
@@ -580,6 +606,11 @@ void BrowserController::updateTab(const QString &tabId, const QUrl &url, const Q
     if (changedHost) {
         tab->iconUrl.clear();
     }
+    // A tab that has lost its address has lost its page, and the engine that
+    // drew it goes with it.
+    if (isBlank(url) && tabId == m_developerToolsTabId) {
+        closeDeveloperTools();
+    }
     m_tabs.notifyChanged(tab->id, changedHost
         ? QList<int>{TabListModel::UrlRole, TabListModel::TitleRole, TabListModel::IconUrlRole}
         : QList<int>{TabListModel::UrlRole, TabListModel::TitleRole});
@@ -671,6 +702,44 @@ void BrowserController::recoverActiveTab()
     tab->rendererFailureReason.clear();
     emit activeTabChanged();
     emit reloadRequested();
+}
+
+// A blank tab has no page and no engine to inspect, so there is nothing for an
+// inspector to attach to.
+void BrowserController::openDeveloperTools()
+{
+    if (m_activeTabId.isEmpty() || activeTabBlank()) {
+        return;
+    }
+    setDeveloperToolsTab(m_activeTabId, m_activeSpaceId);
+}
+
+void BrowserController::toggleDeveloperTools()
+{
+    if (activeTabInspected()) {
+        closeDeveloperTools();
+        return;
+    }
+    openDeveloperTools();
+}
+
+void BrowserController::closeDeveloperTools()
+{
+    setDeveloperToolsTab({}, {});
+}
+
+void BrowserController::setDeveloperToolsTab(const QString &tabId, const QString &spaceId)
+{
+    const auto movedTabs = m_developerToolsTabId != tabId;
+    m_developerToolsTabId = tabId;
+    m_developerToolsSpaceId = spaceId;
+    if (!movedTabs) {
+        return;
+    }
+    emit developerToolsChanged();
+    // Which tab is inspected is also a fact about the tab on show, and the
+    // interface reads it there to decide whether to dock the inspector.
+    emit activeTabChanged();
 }
 
 void BrowserController::requestBack()

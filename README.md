@@ -27,10 +27,10 @@ Pre-alpha, and not a browser to keep your banking session in yet.
 
 The vertical slice runs: frameless window, Spaces with vertical and Pinned tabs,
 the Omnibar and command panel, keyboard navigation with link hints, content
-blocking, session persistence, live themes, and an engine-free UI lab. Docked
-Developer tools are the next feature. The following milestone fills the ordinary
-browser gaps such as find, zoom, printing, context menus, History, security
-controls, and release updates. [docs/roadmap.md](docs/roadmap.md) tracks the work.
+blocking, session persistence, live themes, an engine-free UI lab, and Chromium
+DevTools docked beside the tab they inspect, drawn in the browser's own theme.
+The next milestone fills the ordinary browser gaps such as find, zoom, printing,
+context menus, History, security controls, and release updates. [docs/roadmap.md](docs/roadmap.md) tracks the work.
 
 ## Build
 
@@ -74,7 +74,8 @@ unset:
   first launch. Rebinding is editing that file; sharing a keymap is copying it.
 - `theme.json` is optional. Without one, Tanto follows the desktop theme
   (Omarchy on Linux) and then its built-in palette. `TANTO_THEME_FILE`
-  overrides both.
+  overrides both. Its `syntax` section names the colours code is read in, and
+  Developer tools are drawn in them.
 
 `scripts/import_terminal_theme.py` writes `theme.json` from the colours of the
 terminal you run it in. It reads Ghostty, iTerm2, kitty, Alacritty, and

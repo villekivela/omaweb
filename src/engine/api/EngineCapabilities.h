@@ -15,7 +15,7 @@ public:
         PrivateProfiles = 1 << 2,
         ContentBlocking = 1 << 3,
         KeyboardPageCommands = 1 << 4,
-        Diagnostics = 1 << 5,
+        DeveloperTools = 1 << 5,
         RendererRecovery = 1 << 6,
     };
     Q_DECLARE_FLAGS(Capabilities, Capability)

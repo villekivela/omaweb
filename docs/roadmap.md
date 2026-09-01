@@ -11,15 +11,17 @@ Tracking issues [#1](https://github.com/villekivela/tanto/issues/1) through [#6]
 - History suggestions, Site permissions, downloads, Private windows, and Auxiliary windows
 - Portable content blocking and runtime themes
 
-## Next: dock Developer tools
+## Docked Developer tools
 
 Tracking issue: [#51](https://github.com/villekivela/tanto/issues/51)
 
-- Add the engine capability and one Open developer tools command
-- Dock Qt's bundled Chromium DevTools beside the inspected tab
-- Attach one inspector to one tab across navigation and Space switches
-- Add Inspect element to the page context menu
-- Keep remote debugging behind an explicit loopback-only development launch option
+- The engine capability, an Open developer tools command, and Inspect element
+- Qt's bundled Chromium DevTools docked beside the inspected tab at a remembered width
+- One inspector on one tab across navigation and Space switches
+- The inspector drawn in the active theme, syntax colours included
+- Remote debugging behind an explicit loopback-only development launch option
+
+Tanto's own page context menu, which is where Inspect element belongs, arrives with the milestone below.
 
 ## Complete the Qt daily driver
 

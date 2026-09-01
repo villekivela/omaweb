@@ -53,7 +53,7 @@ A centered overlay for opening addresses, searching, selecting tabs or Spaces, a
 _Avoid_: Command bar, omnibox, command palette
 
 **Developer tools**:
-The inspector supplied by the current web engine and attached to one tab. Tanto opens and positions it but does not normalize its interface or debugging protocol across engines.
+The inspector supplied by the current web engine and attached to one tab. Tanto opens it, positions it, and draws it in the browser's own theme, but does not normalize its interface or debugging protocol across engines.
 _Avoid_: Diagnostics, Agent access, DevTools platform
 
 **Web extension**:

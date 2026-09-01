@@ -84,6 +84,252 @@ TestCase {
         }
     }
 
+    // An engine that supplies no inspector leaves the command listed and
+    // unavailable, and takes an open dock with it.
+    function test_developerToolsAreUnavailableWithoutAnInspector() {
+        const dock = findChild(window.contentItem, "developerToolsDock")
+        const engine = openPage("https://no-inspector.example")
+        window.commands.run("developer-tools", -1)
+        tryVerify(function() { return dock.visible })
+
+        engine.inspectorAvailable = false
+        tryVerify(function() { return !window.developerToolsAvailable })
+        browser.closeDeveloperTools()
+        tryVerify(function() { return !dock.visible })
+
+        // Neither command can be run, and neither promises a key.
+        window.commands.run("developer-tools", -1)
+        window.commands.run("inspect-element", -1)
+        compare(browser.developerToolsTabId, "")
+        compare(engine.inspectedElementCount, 0)
+        verify(!dock.visible)
+        const startPage = findChild(window.contentItem, "startPage")
+        compare(startPage.sections.filter(function(section) {
+            return section.group === "developer"
+        }).length, 0)
+
+        engine.inspectorAvailable = true
+        tryVerify(function() { return window.developerToolsAvailable })
+    }
+
+    // A Space at rest is running no engine at all, so there is nothing to
+    // inspect there either.
+    function test_developerToolsAreUnavailableWithoutAnEngine() {
+        const dock = findChild(window.contentItem, "developerToolsDock")
+        const engineHost = findChild(window.contentItem, "engineLoader")
+        // A blank tab is given no engine, so it is the one tab in any Space
+        // that has nothing to inspect.
+        browser.openInput("about:blank", true)
+        tryVerify(function() { return engineHost.item === null })
+        verify(window.pagelessViewport)
+        verify(!window.developerToolsAvailable)
+
+        const listed = window.commands.actions().filter(function(action) {
+            return action.command === "developer-tools"
+                || action.command === "inspect-element"
+        })
+        compare(listed.length, 2)
+        for (let index = 0; index < listed.length; ++index) {
+            verify(!listed[index].enabled)
+            window.commands.invoke(listed[index])
+        }
+        compare(browser.developerToolsTabId, "")
+        verify(!dock.visible)
+
+        // The sheet of keys promises nothing it cannot carry out either, so the
+        // registry is the only place that decides.
+        const startPage = findChild(window.contentItem, "startPage")
+        verify(startPage !== null)
+        const developerSections = startPage.sections.filter(function(section) {
+            return section.group === "developer"
+        })
+        compare(developerSections.length, 0)
+
+        browser.closeActiveTab()
+    }
+
+    // Developer tools take a column of their own beside the tab they inspect:
+    // the page gives up that width rather than being covered by it, and the
+    // view in the dock is the one the engine handed over.
+    function test_developerToolsDockBesideTheTabTheyInspect() {
+        const engineHost = findChild(window.contentItem, "engineLoader")
+        const engine = openPage("https://inspected.example")
+        const dock = findChild(window.contentItem, "developerToolsDock")
+        verify(dock !== null)
+        verify(!dock.visible)
+        verify(window.developerToolsAvailable)
+
+        window.commands.run("developer-tools", -1)
+        tryVerify(function() { return dock.visible })
+        verify(engine.developerToolsAttached)
+        compare(browser.developerToolsTabId, browser.activeTabId)
+        tryCompare(dock, "width", window.developerToolsWidth)
+        // The page stops where the dock starts rather than running under it,
+        // and the two of them together are the whole viewport. Measured against
+        // the viewport rather than against a remembered width, because the
+        // sidebar beside it has a width animation of its own.
+        const viewport = findChild(window.contentItem, "engineViewport")
+        verify(viewport !== null)
+        tryVerify(function() {
+            return Math.round(engineHost.width + dock.width) === Math.round(viewport.width)
+        })
+        compare(Math.round(engineHost.x + engineHost.width), Math.round(dock.x))
+
+        // The dock arrives beside the page rather than in front of it, so the
+        // keyboard stays where the reader left it.
+        verify(engine.activeFocus)
+
+        // The engine's own view is what the dock shows, at the dock's shape.
+        const view = engine.developerToolsView
+        verify(view !== null)
+        compare(view.parent, dock)
+        tryCompare(view, "width", dock.width)
+        // Drawn in the window's colours rather than the engine's own, and
+        // actually painted there: the probe is taken off the dock itself
+        // rather than off the property that was set on it.
+        compare(String(view.color), String(window.colors.windowOpaque))
+        const painted = grabImage(dock)
+        verify(Qt.colorEqual(
+            painted.pixel(Math.round(dock.width / 2), Math.round(dock.height / 2)),
+            window.colors.windowOpaque))
+
+        window.commands.run("developer-tools", -1)
+        tryVerify(function() { return !dock.visible })
+        verify(!engine.developerToolsAttached)
+        compare(browser.developerToolsTabId, "")
+        verify(engine.activeFocus)
+        // The page takes the whole viewport back.
+        tryVerify(function() {
+            return Math.round(engineHost.width) === Math.round(viewport.width)
+        })
+    }
+
+    // One inspector, attached to one tab. It hides behind another tab and comes
+    // back with its own, and a Space switch does not move or lose it.
+    function test_developerToolsFollowTheTabTheyAreAttachedTo() {
+        const dock = findChild(window.contentItem, "developerToolsDock")
+        const inspected = openPage("https://follows.example")
+        const inspectedTabId = browser.activeTabId
+        window.commands.run("developer-tools", -1)
+        tryVerify(function() { return dock.visible })
+        const view = inspected.developerToolsView
+
+        browser.openInput("https://other.example", true)
+        const otherTabId = browser.activeTabId
+        tryVerify(function() { return !dock.visible })
+        compare(browser.developerToolsTabId, inspectedTabId)
+
+        browser.activateTab(inspectedTabId)
+        tryVerify(function() { return dock.visible })
+        compare(inspected.developerToolsView, view)
+
+        const otherSpaceId = browser.createSpace("Inspecting")
+        verify(browser.switchSpace(otherSpaceId))
+        tryVerify(function() { return !dock.visible })
+        compare(browser.developerToolsTabId, inspectedTabId)
+
+        verify(browser.switchSpace(browser.spaces.data(
+            browser.spaces.index(0, 0), Qt.UserRole + 1)))
+        tryVerify(function() { return dock.visible })
+        // The same page, still inspected by the same inspector.
+        compare(browser.developerToolsTabId, inspectedTabId)
+        compare(findChild(window.contentItem, "engineLoader").developerToolsView, view)
+
+        // Asking for them on the other tab moves them rather than opening a
+        // second inspector.
+        browser.activateTab(otherTabId)
+        window.commands.run("developer-tools", -1)
+        tryVerify(function() { return dock.visible })
+        compare(browser.developerToolsTabId, otherTabId)
+        verify(!inspected.developerToolsAttached)
+
+        browser.closeDeveloperTools()
+        tryVerify(function() { return !dock.visible })
+    }
+
+    // Inspect element opens the dock and asks the page for the target the
+    // reader pointed at, which is more than opening the inspector.
+    function test_inspectElementOpensTheDockAndAsksForTheTarget() {
+        const dock = findChild(window.contentItem, "developerToolsDock")
+        const engine = openPage("https://inspect-element.example")
+        compare(engine.inspectedElementCount, 0)
+
+        window.commands.run("inspect-element", -1)
+        tryVerify(function() { return dock.visible })
+        compare(engine.inspectedElementCount, 1)
+        compare(browser.developerToolsTabId, browser.activeTabId)
+
+        browser.closeDeveloperTools()
+        tryVerify(function() { return !dock.visible })
+    }
+
+    // The inspector's own close button, and the tab going away underneath it.
+    function test_developerToolsDetachWithTheirTabOrOnRequest() {
+        const dock = findChild(window.contentItem, "developerToolsDock")
+        const engine = openPage("https://detaches.example")
+        window.commands.run("developer-tools", -1)
+        tryVerify(function() { return dock.visible })
+
+        engine.simulateDeveloperToolsClose()
+        tryVerify(function() { return !dock.visible })
+        compare(browser.developerToolsTabId, "")
+
+        browser.openInput("https://kept.example", true)
+        const inspectedTabId = browser.activeTabId
+        const second = findChild(window.contentItem, "engineLoader").item
+        window.commands.run("developer-tools", -1)
+        tryVerify(function() { return dock.visible })
+        browser.closeTab(inspectedTabId)
+        tryVerify(function() { return !dock.visible })
+        compare(browser.developerToolsTabId, "")
+    }
+
+    // The seam on the right answers the same way the sidebar's does, and the
+    // key that points away from the window's edge widens the panel.
+    function test_developerToolsWidthAnswersToBothPointerAndKeyboard() {
+        window.settingsOpen = false
+        window.requestActivate()
+        tryVerify(function() { return window.active })
+        openPage("https://resized.example")
+        window.commands.run("developer-tools", -1)
+        const dock = findChild(window.contentItem, "developerToolsDock")
+        tryVerify(function() { return dock.visible })
+        const resizer = findChild(window.contentItem, "developerToolsResizer")
+        verify(resizer !== null)
+        window.setDeveloperToolsWidth(window.developerToolsDefaultWidth)
+        tryCompare(dock, "width", window.developerToolsDefaultWidth)
+
+        // The handle rides the seam it moves.
+        compare(Math.round(resizer.x + resizer.width / 2), Math.round(dock.x))
+
+        resizer.forceActiveFocus()
+        compare(window.activeFocusItem.objectName, "developerToolsResizer")
+        keyClick(Qt.Key_Left)
+        compare(window.developerToolsWidth, window.developerToolsDefaultWidth + 16)
+        keyClick(Qt.Key_Right)
+        compare(window.developerToolsWidth, window.developerToolsDefaultWidth)
+        keyClick(Qt.Key_Left, Qt.ShiftModifier)
+        compare(window.developerToolsWidth, window.developerToolsDefaultWidth + 48)
+        keyClick(Qt.Key_Space)
+        compare(window.developerToolsWidth, window.developerToolsDefaultWidth)
+
+        // A request past either end stops at the end.
+        window.setDeveloperToolsWidth(window.developerToolsMaximumWidth + 400)
+        compare(window.developerToolsWidth, window.developerToolsMaximumWidth)
+        window.setDeveloperToolsWidth(0)
+        compare(window.developerToolsWidth, window.developerToolsMinimumWidth)
+        window.setDeveloperToolsWidth(window.developerToolsDefaultWidth)
+
+        // The handle reads as part of the dock, so it leaves like the rest of
+        // the chrome does.
+        keyClick(Qt.Key_Escape)
+        const engineHost = findChild(window.contentItem, "engineLoader")
+        tryVerify(function() { return engineHost.item.activeFocus })
+
+        browser.closeDeveloperTools()
+        tryVerify(function() { return !dock.visible })
+    }
+
     function test_applicationWindowUsesPlatformAppropriateFrame() {
         verifyApplicationWindowFlags(window)
     }

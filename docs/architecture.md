@@ -38,6 +38,10 @@ Core exposes one Open developer tools command. An adapter with an inspector atta
 
 An inspected tab stays active when another Space is selected because Qt requires both the inspected page and its Developer-tools view to remain active. Closing Developer tools releases that exception. Moving the tab to another Space closes Developer tools before the engine profile changes.
 
+The frontend is themed by naming its own CSS custom properties again on the page it is drawn on, so Tanto ships no patched frontend and speaks no debugging protocol to it. The theme palette carries a `syntax` section for the colours code is read in; the Qt adapter maps those and the chrome colours onto the frontend's design tokens.
+
+Remote debugging exists only behind the `--remote-debugging[=port]` launch option. Tanto binds it to loopback, refuses to start when a Chromium debugging switch reaches the engine through the command line or the environment, and takes Private windows away from that session.
+
 ## Keyboard navigation
 
 Core loads and validates the versioned keybinding and site-passthrough policy. Engine adapters receive the resolved configuration for the active URL and the shared page-command script through the engine-view contract. The Qt adapter injects that script at document readiness; the UI-lab mock accepts the same inputs, and the Ladybird adapter must inject the same script when ticket #7 adds it.

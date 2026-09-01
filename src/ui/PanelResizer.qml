@@ -1,9 +1,10 @@
 import QtQuick
 
-// The seam between the sidebar and the page. It straddles the border rather
-// than taking a column of its own, so the outline keeps every pixel of the
-// width the reader asked for. Dragging and the arrow keys move the same seam:
-// a pointer is a convenience here, never the only way through.
+// The seam between a panel and the page beside it — the sidebar on the left,
+// docked Developer tools on the right. It straddles the border rather than
+// taking a column of its own, so the panel keeps every pixel of the width the
+// reader asked for. Dragging and the arrow keys move the same seam: a pointer
+// is a convenience here, never the only way through.
 Item {
     id: root
 
@@ -15,17 +16,23 @@ Item {
     property real step: 16
     property real coarseStep: 48
     property bool dragging: false
+    // Which side of the window the panel is anchored to. A panel on the right
+    // grows as the pointer moves left, and its arrow keys read the same way
+    // round: the key that points away from the window's edge widens it.
+    property bool measureFromRight: false
+    // What the seam is the width of, for the reader who reaches it by keyboard.
+    property string panelName: "Sidebar"
 
     signal widthRequested(real width)
-    // The handle reads as part of the sidebar, so it leaves like the rest of
-    // it: Escape hands the keyboard back to the page.
+    // The handle reads as part of the panel, so it leaves like the rest of it:
+    // Escape hands the keyboard back to the page.
     signal pageFocusRequested()
 
     width: 10
     activeFocusOnTab: enabled
     Accessible.role: Accessible.Splitter
-    Accessible.name: "Sidebar width"
-    Accessible.description: "Arrow keys resize the sidebar"
+    Accessible.name: root.panelName + " width"
+    Accessible.description: "Arrow keys resize the " + root.panelName.toLowerCase()
 
     function request(width) {
         root.widthRequested(Math.max(root.minimumWidth, Math.min(root.maximumWidth, width)))
@@ -33,12 +40,13 @@ Item {
 
     Keys.onPressed: function(event) {
         const distance = (event.modifiers & Qt.ShiftModifier) ? root.coarseStep : root.step
+        const widen = root.measureFromRight ? -distance : distance
         switch (event.key) {
         case Qt.Key_Left:
-            root.request(root.currentWidth - distance)
+            root.request(root.currentWidth - widen)
             break
         case Qt.Key_Right:
-            root.request(root.currentWidth + distance)
+            root.request(root.currentWidth + widen)
             break
         case Qt.Key_Home:
             root.request(root.minimumWidth)
@@ -84,19 +92,22 @@ Item {
         // against the window rather than against this item.
         property real grabOffset: 0
 
-        function pointerX(mouse) {
-            return root.mapToItem(root.parent, mouse.x, 0).x
+        // The distance from the panel's own edge of the window, which is the
+        // width the seam is being dragged to.
+        function pointerWidth(mouse) {
+            const x = root.mapToItem(root.parent, mouse.x, 0).x
+            return root.measureFromRight ? root.parent.width - x : x
         }
 
         onPressed: function(mouse) {
             root.forceActiveFocus()
-            grabOffset = pointerX(mouse) - root.currentWidth
+            grabOffset = pointerWidth(mouse) - root.currentWidth
             root.dragging = true
         }
 
         onPositionChanged: function(mouse) {
             if (root.dragging) {
-                root.request(pointerX(mouse) - grabOffset)
+                root.request(pointerWidth(mouse) - grabOffset)
             }
         }
 
