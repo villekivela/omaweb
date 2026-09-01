@@ -13,6 +13,11 @@ Rectangle {
     property bool useArtwork: true
     property bool tintArtwork: true
 
+    // Set where the mark is all the tile draws, as on a pinned tab: no plate
+    // behind it, and the mark itself in the site's colour at full strength
+    // rather than a chip the colour has to be muted to sit inside.
+    property bool siteColoredMark: false
+
     readonly property string host: {
         const value = String(siteUrl).replace(/^[a-z]+:\/\//, "")
         return value.split("/")[0].split(":")[0]
@@ -51,9 +56,19 @@ Rectangle {
 
     readonly property bool showsArtwork: useArtwork && artwork.status === Image.Ready
 
+    // The colour a whole surface may take for this site: the favicon's own
+    // hue where the icon offers one, the hashed host hue where it does not,
+    // so a site that has yet to load an icon is still told apart.
+    readonly property color siteTint: faviconTint.valid ? faviconTint.color : hostTint
+
+    // Whether the site has actually said what colour it is. A hashed hue is a
+    // way of telling tiles apart, not the site's own colour, so callers that
+    // paint the site's colour onto their own surface wait for this.
+    readonly property bool hasSiteColor: faviconTint.valid
+
     FaviconTint {
         id: faviconTint
-        source: root.useArtwork ? "" : root.iconUrl
+        source: (root.siteColoredMark || !root.useArtwork) ? root.iconUrl : ""
         saturation: root.tintSaturation
         lightness: root.tintLightness
     }
@@ -63,7 +78,7 @@ Rectangle {
     radius: 2
     // The chip is the stand-in for missing artwork. Real artwork needs no
     // plate behind it: tinted, its own shape already reads against the sidebar.
-    color: showsArtwork
+    color: showsArtwork || siteColoredMark
         ? "transparent"
         : (highlighted ? chipTint : Qt.rgba(chipTint.r, chipTint.g, chipTint.b, 0.18))
     Accessible.ignored: true
@@ -90,14 +105,16 @@ Rectangle {
         visible: root.showsArtwork && root.tintArtwork
         saturation: -1.0
         colorization: 1.0
-        colorizationColor: root.hostTint
+        colorizationColor: root.siteTint
     }
 
     Text {
         anchors.centerIn: parent
         visible: !root.showsArtwork
         text: root.code
-        color: root.highlighted ? root.colors.windowOpaque : root.chipTint
+        color: root.siteColoredMark
+            ? (root.hasSiteColor ? root.siteTint : root.colors.mutedText)
+            : (root.highlighted ? root.colors.windowOpaque : root.chipTint)
         font.family: Style.font.family
         font.pixelSize: Style.font.caption
         font.weight: Font.DemiBold
