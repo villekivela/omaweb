@@ -382,6 +382,7 @@ ApplicationWindow {
                 canGoForward: engineLoader.item ? engineLoader.item.canGoForward : false
                 useFavicons: window.useFavicons
                 tintFavicons: window.tintFavicons
+                settingsAttention: settingsSurface.needsAttention
 
                 // A drag is already following the pointer; easing it too
                 // would make the seam lag behind the hand holding it.
@@ -536,6 +537,7 @@ ApplicationWindow {
                 }
 
                 SettingsPage {
+                    id: settingsSurface
                     objectName: "settingsSurface"
                     anchors.fill: parent
                     z: 45

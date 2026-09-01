@@ -15,6 +15,7 @@ private slots:
     void enforcesDistinctPrivateColors();
     void appliesSemanticOpacityToChromeSurfaces();
     void givesFullPageSurfacesTheSidebarsColourAndTheirOwnTranslucency();
+    void namesOneColourForSomethingBeingWrong();
     void resolvesTheFirstInstalledTypeFamily();
     void fallsBackToAFamilyTheHostActuallyHas();
     void keepsTheTypeBaseSizeUsable();
@@ -123,6 +124,35 @@ void ThemeControllerTest::givesFullPageSurfacesTheSidebarsColourAndTheirOwnTrans
     ThemeController namedController(named.fileName());
     QCOMPARE(QColor(namedController.palette().value(QStringLiteral("sheetOpaque")).toString()),
         QColor(QStringLiteral("#123456")));
+}
+
+// The colour a notice and the mark that leads to it are both drawn in. It is
+// not the private accent: that says whose window this is, not that something
+// needs attention, and a theme is free to make them the same only on purpose.
+void ThemeControllerTest::namesOneColourForSomethingBeingWrong()
+{
+    QTemporaryDir root;
+    QFile theme(root.filePath(QStringLiteral("theme.json")));
+    QVERIFY(theme.open(QIODevice::WriteOnly));
+    theme.write(R"JSON({ "window": "#101010", "urgent": "#ff8800" })JSON");
+    theme.close();
+
+    ThemeController controller(theme.fileName());
+    QCOMPARE(QColor(controller.palette().value(QStringLiteral("urgent")).toString()),
+        QColor(QStringLiteral("#ff8800")));
+
+    // A theme that names none still gets one, distinct from the private accent.
+    QFile bare(root.filePath(QStringLiteral("bare.json")));
+    QVERIFY(bare.open(QIODevice::WriteOnly));
+    bare.write(R"JSON({ "window": "#101010" })JSON");
+    bare.close();
+
+    ThemeController fallback(bare.fileName());
+    const auto palette = fallback.palette();
+    const QColor urgent(palette.value(QStringLiteral("urgent")).toString());
+    QVERIFY(urgent.isValid());
+    QVERIFY(urgent != QColor(palette.value(QStringLiteral("privateAccent")).toString()));
+    QVERIFY(urgent != QColor(palette.value(QStringLiteral("accent")).toString()));
 }
 
 void ThemeControllerTest::resolvesTheFirstInstalledTypeFamily()

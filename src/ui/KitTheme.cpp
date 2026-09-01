@@ -50,7 +50,7 @@ KitTheme::KitTheme(QQmlEngine *engine, const ThemeController *theme, QObject *pa
     // authority. Re-applying whenever one of them lands is.
     followResets(m_color,
         {QStringLiteral("foreground"), QStringLiteral("background"), QStringLiteral("accent"),
-            QStringLiteral("muted")});
+            QStringLiteral("muted"), QStringLiteral("urgent")});
     followResets(m_style,
         {QStringLiteral("fontFamily"), QStringLiteral("resolvedFontFamily"),
             QStringLiteral("fontBaseSize")});
@@ -74,6 +74,10 @@ void KitTheme::apply()
     // adapters in src/ui carry the per-window difference.
     assign(m_color, QStringLiteral("accent"), colorFrom(palette, QStringLiteral("accent")));
     assign(m_color, QStringLiteral("muted"), colorFrom(palette, QStringLiteral("mutedText")));
+    // The kit reaches for `urgent` in its own destructive states, so the theme
+    // owns that colour too rather than leaving the kit's default beside
+    // Tanto's own notices in the same window.
+    assign(m_color, QStringLiteral("urgent"), colorFrom(palette, QStringLiteral("urgent")));
 
     const auto font = palette.value(QStringLiteral("font")).toMap();
     const auto family = font.value(QStringLiteral("family"));

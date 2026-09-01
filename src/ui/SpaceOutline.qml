@@ -17,6 +17,10 @@ Rectangle {
     property bool tintFavicons: true
     property bool canGoBack: false
     property bool canGoForward: false
+    // Something in settings is waiting on the reader. The button wears a mark
+    // rather than the outline growing a line for it: settings is a place, and
+    // what is wrong is stated there, where it can be acted on.
+    property bool settingsAttention: false
 
     // An empty pinned section takes no room at all.
     property int pinnedCount: browser ? browser.pinnedTabs.rowCount() : 0
@@ -454,11 +458,29 @@ Rectangle {
             width: 30
             height: 30
             icon: "settings"
-            accessibleName: "Browsing settings and downloads"
+            accessibleName: root.settingsAttention
+                ? "Browsing settings and downloads — needs attention"
+                : "Browsing settings and downloads"
             fontFamily: root.iconFontFamily
-            foreground: root.colors.mutedText
+            foreground: root.settingsAttention ? root.colors.text : root.colors.mutedText
             accent: root.colors.accent
             onClicked: root.settingsRequested()
+
+            // The same colour the notice inside is drawn in, so the mark out
+            // here and the thing it stands for read as one.
+            Rectangle {
+                objectName: "settingsAttentionDot"
+                anchors.right: parent.right
+                anchors.top: parent.top
+                anchors.rightMargin: 3
+                anchors.topMargin: 3
+                width: 6
+                height: 6
+                radius: 3
+                visible: root.settingsAttention
+                color: root.colors.urgent
+                Accessible.ignored: true
+            }
         }
     }
 
