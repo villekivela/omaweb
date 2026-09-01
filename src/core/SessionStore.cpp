@@ -94,16 +94,16 @@ QVector<TabState> SessionStore::loadTabs(const QString &spaceId) const
         "SELECT id, url, title, pinned, active FROM tabs ORDER BY pinned DESC, position"));
     query.exec();
     while (query.next()) {
-        tabs.append({
-            query.value(0).toString(),
-            spaceId,
-            QUrl(query.value(1).toString()),
-            query.value(2).toString(),
-            QUrl(),
-            query.value(3).toBool(),
-            query.value(4).toBool(),
-            false,
-            {},
+        // Named rather than positional: a tab has state the store does not
+        // keep — what it is playing, why its renderer stopped — and a field
+        // added among those silently took the value of the one beside it.
+        tabs.append(TabState{
+            .id = query.value(0).toString(),
+            .spaceId = spaceId,
+            .url = QUrl(query.value(1).toString()),
+            .title = query.value(2).toString(),
+            .pinned = query.value(3).toBool(),
+            .active = query.value(4).toBool(),
         });
     }
     return tabs;
@@ -571,15 +571,12 @@ bool SessionStore::migrateLegacyTabs(QString *errorMessage)
     }
     while (query.next()) {
         TabState tab {
-            query.value(0).toString(),
-            query.value(1).toString(),
-            QUrl(query.value(2).toString()),
-            query.value(3).toString(),
-            QUrl(),
-            query.value(4).toBool(),
-            query.value(5).toBool(),
-            false,
-            {},
+            .id = query.value(0).toString(),
+            .spaceId = query.value(1).toString(),
+            .url = QUrl(query.value(2).toString()),
+            .title = query.value(3).toString(),
+            .pinned = query.value(4).toBool(),
+            .active = query.value(5).toBool(),
         };
         tabsBySpace[tab.spaceId].append(tab);
         if (tab.active) {
