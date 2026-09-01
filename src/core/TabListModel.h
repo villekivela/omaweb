@@ -6,12 +6,17 @@
 
 namespace tanto {
 
+// Everything a tab carries has a value it starts at, so a place that builds
+// one can name the fields it knows and leave the rest to the tab. Only the
+// address, the title and the pinning are the session's to keep; the artwork,
+// what the page is playing and why its renderer stopped belong to the page
+// and start empty on the way out of the store.
 struct TabState {
-    QString id;
-    QString spaceId;
-    QUrl url;
-    QString title;
-    QUrl iconUrl;
+    QString id {};
+    QString spaceId {};
+    QUrl url {};
+    QString title {};
+    QUrl iconUrl {};
     bool pinned = false;
     bool active = false;
     bool loading = false;
@@ -21,7 +26,7 @@ struct TabState {
     // playing now.
     bool audible = false;
     bool muted = false;
-    QString rendererFailureReason;
+    QString rendererFailureReason {};
 };
 
 class TabListModel final : public QAbstractListModel {
