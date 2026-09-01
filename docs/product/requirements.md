@@ -73,7 +73,9 @@ Hiding rules written against a page's own hostname are in the document before th
 
 A `##+js(...)` rule names a function from the vendored uBlock Origin scriptlet library and supplies its arguments; a list never supplies code. The named function runs in the page before the page's own scripts, because a check it neutralises has otherwise already run. A site the user turned blocking off for runs none. The scriptlets uBlock Origin gates behind trust are refused outright, as are names the bundled library does not carry, and a rule naming either is reported as unsupported rather than counted among the rules the list contributed.
 
-Tanto does not claim full uBlock Origin compatibility. Procedural selectors, response rewriting, HTML filtering, dynamic rules, CNAME uncloaking, redirects, and resource replacement are outside the first contract. A subscribed list keeps the rules this contract does parse; Settings reports what each list contributed and what it skipped.
+A `$redirect=` rule names a substitute resource from the vendored uBlock Origin library, and Tanto serves that body in place of the request rather than refusing it outright, so a page waiting on a tracker finishes loading instead of stalling. A `$redirect-rule=` serves its substitute only once a separate rule has refused the request. A rule naming a body the bundled library does not carry is reported as unsupported rather than counted among the rules the list contributed. A `$removeparam` rule refuses nothing: the request goes out with the tracking parameters the rule names stripped off the address the site receives.
+
+Tanto does not claim full uBlock Origin compatibility. Procedural selectors, response rewriting, content security policies, HTML filtering, dynamic rules, and CNAME uncloaking are outside the first contract. A subscribed list keeps the rules this contract does parse; Settings reports what each list contributed and what it skipped.
 
 ## Non-goals for the first milestone
 

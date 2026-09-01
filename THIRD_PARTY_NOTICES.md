@@ -12,18 +12,22 @@ Tanto vendors the QML component kit from the Omarchy shell (`shell/Ui` and
 Omarchy is licensed under the MIT License, Copyright (c) David Heinemeier Hansson.
 The upstream license text ships with the pinned revision.
 
-## uBlock Origin scriptlet library
+## uBlock Origin resource library
 
 Tanto vendors uBlock Origin's scriptlet library (`src/js/resources` and the three
-modules it imports from beside it, from https://github.com/gorhill/uBlock) under
-`third_party/ubo-scriptlets`, copied verbatim and pinned by `MANIFEST.json`. The
-library is built into the content blocker as `scriptlets.json`, generated from the
-copies and pinned by the same manifest. uBlock Origin is licensed under the GNU
-General Public License version 3 or later, Copyright (C) Raymond Hill. The upstream
-license text ships with the pinned revision as `LICENSE.txt`.
+modules it imports from beside it) and its web-accessible resources
+(`src/web_accessible_resources` and the `src/js/redirect-resources.js` map naming
+them), from https://github.com/gorhill/uBlock, under `third_party/ubo-scriptlets`,
+copied verbatim and pinned by `MANIFEST.json`. Both sets are built into the content
+blocker as `scriptlets.json` and `redirects.json`, generated from the copies and
+pinned by the same manifest. uBlock Origin is licensed under the GNU General Public
+License version 3 or later, Copyright (C) Raymond Hill. The upstream license text
+ships with the pinned revision as `LICENSE.txt`.
 
-A `##+js(...)` filter rule names a function from this library; no filter list ever
-supplies code. See `docs/adr/0025-run-only-vendored-scriptlets.md`.
+A `##+js(...)` filter rule names a function from this library and a `$redirect=`
+rule names a body from it; no filter list ever supplies either. See
+`docs/adr/0025-run-only-vendored-scriptlets.md` and
+`docs/adr/0026-serve-substitutes-under-a-tanto-scheme.md`.
 
 ## Default filter lists
 
@@ -45,7 +49,7 @@ The release process must include, at minimum:
 - Chromium component notices generated from the selected Qt SDK
 - Ladybird and its dependency notices for the Ladybird variant
 - `adblock-rust` and Rust dependency notices
-- uBlock Origin's license and corresponding-source instructions for the vendored scriptlet library
+- uBlock Origin's license and corresponding-source instructions for the vendored resource library
 - Filter-list source, license, attribution, and update address
 
 Do not publish a binary using this placeholder as its final notice inventory.

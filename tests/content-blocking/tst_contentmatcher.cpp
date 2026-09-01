@@ -19,6 +19,9 @@ private slots:
     void scriptletArgumentsAreNotReadAsSelectorSyntax();
     void sendsOnlyTheGenericRulesAPageCouldTrigger();
     void reportsUnsupportedCategories();
+    void reportsTheRedirectRulesThatCanServeNothing();
+    void redirectPrioritiesAreNotPartOfTheName();
+    void substitutesCarryTheirOwnMimeType();
     void popupRulesKeepTheirOtherConditions();
     void negatedPopupRulesStayOrdinaryRules();
 };
@@ -39,11 +42,15 @@ void ContentMatcherTest::sharedConformanceFixtures()
 
     for (const auto &value : root.value(QStringLiteral("network")).toArray()) {
         const auto fixture = value.toObject();
-        const auto blocked = compilation.matcher->shouldBlock(
+        const auto decision = compilation.matcher->check(
             QUrl(fixture.value(QStringLiteral("url")).toString()),
             QUrl(fixture.value(QStringLiteral("source")).toString()),
             fixture.value(QStringLiteral("type")).toString());
-        QCOMPARE(blocked, fixture.value(QStringLiteral("blocked")).toBool());
+        QCOMPARE(decision.blocked, fixture.value(QStringLiteral("blocked")).toBool());
+        QCOMPARE(decision.substitute,
+            fixture.value(QStringLiteral("substitute")).toString());
+        QCOMPARE(decision.rewrittenUrl,
+            QUrl(fixture.value(QStringLiteral("rewritten")).toString()));
     }
     for (const auto &value : root.value(QStringLiteral("popup")).toArray()) {
         const auto fixture = value.toObject();
@@ -199,16 +206,73 @@ void ContentMatcherTest::reportsUnsupportedCategories()
         "example.com#?#div:has(.ad)\n"
         "&popunder=$popup\n"
         "||example.com^$redirect=noopjs\n"
+        "||example.com^$replace=/ad//\n"
+        "$csp=script-src 'self',domain=example.com\n"
         "||safe.example^"));
     QVERIFY(compilation.matcher);
-    // The popup and scriptlet rules count among the accepted: both are kept
-    // and answered for now.
-    QCOMPARE(compilation.report.value(QStringLiteral("acceptedRuleCount")).toInt(), 3);
+    // The popup, scriptlet and redirect rules count among the accepted: all
+    // three are kept and answered for now.
+    QCOMPARE(compilation.report.value(QStringLiteral("acceptedRuleCount")).toInt(), 4);
     const auto unsupported = compilation.report.value(QStringLiteral("unsupported")).toObject();
     QVERIFY(!unsupported.contains(QStringLiteral("scriptlets")));
     QCOMPARE(unsupported.value(QStringLiteral("procedural selectors")).toInt(), 1);
     QVERIFY(!unsupported.contains(QStringLiteral("popup blocking")));
-    QCOMPARE(unsupported.value(QStringLiteral("redirects or resource replacement")).toInt(), 1);
+    QVERIFY(!unsupported.contains(QStringLiteral("redirects or resource replacement")));
+    // A response body and a response header are the two things a request
+    // interceptor cannot reach, whichever engine it is written against.
+    QCOMPARE(unsupported.value(QStringLiteral("response rewriting")).toInt(), 1);
+    QCOMPARE(unsupported.value(QStringLiteral("content security policies")).toInt(), 1);
+}
+
+// A rule naming a substitute this build carries no body for would block and
+// serve nothing, leaving the page waiting on a script that never arrives.
+// Counting it accepted would advertise a compatibility Tanto does not have,
+// the same way a rule naming an absent scriptlet would.
+void ContentMatcherTest::reportsTheRedirectRulesThatCanServeNothing()
+{
+    const auto compilation = ContentMatcher::compile(QStringLiteral(
+        "||analytics.example^$script,redirect=noopjs\n"
+        "||other.example^$script,redirect=no-such-substitute.js"));
+    QVERIFY(compilation.matcher);
+    QCOMPARE(compilation.report.value(QStringLiteral("acceptedRuleCount")).toInt(), 1);
+    QCOMPARE(compilation.report.value(QStringLiteral("unsupported")).toObject()
+                 .value(QStringLiteral("substitutes this build does not carry")).toInt(), 1);
+}
+
+// The name a `$redirect` rule spells may carry a `:priority` suffix, which
+// orders two rules naming different substitutes for one request. It is not
+// part of the name, and reading it as one would refuse the rule for carrying
+// a number.
+void ContentMatcherTest::redirectPrioritiesAreNotPartOfTheName()
+{
+    const auto compilation = ContentMatcher::compile(
+        QStringLiteral("||analytics.example^$script,redirect=noopjs:5"));
+    QVERIFY(compilation.matcher);
+    QCOMPARE(compilation.report.value(QStringLiteral("acceptedRuleCount")).toInt(), 1);
+    QVERIFY(compilation.report.value(QStringLiteral("unsupported")).toObject().isEmpty());
+    QCOMPARE(compilation.matcher->check(QUrl(QStringLiteral("https://analytics.example/t.js")),
+                 QUrl(QStringLiteral("https://site.example/")), QStringLiteral("script"))
+                 .substitute,
+        QStringLiteral("noop.js"));
+}
+
+// A substitute is a body out of the vendored library, served under the name
+// the library knows it by and with the MIME type that library gave it. A
+// script handed back as anything but JavaScript is a script the page refuses
+// to run, which is the failure the substitute exists to prevent.
+void ContentMatcherTest::substitutesCarryTheirOwnMimeType()
+{
+    const auto script = ContentMatcher::substitute(QStringLiteral("noop.js"));
+    QVERIFY(script.isValid());
+    QCOMPARE(script.mimeType, QByteArrayLiteral("application/javascript"));
+    QVERIFY(script.body.contains("function"));
+
+    const auto image = ContentMatcher::substitute(QStringLiteral("1x1.gif"));
+    QVERIFY(image.isValid());
+    QCOMPARE(image.mimeType, QByteArrayLiteral("image/gif"));
+    QVERIFY(image.body.startsWith("GIF"));
+
+    QVERIFY(!ContentMatcher::substitute(QStringLiteral("no-such-substitute.js")).isValid());
 }
 
 // A $popup rule carries the same address, party, and domain conditions as any
@@ -240,8 +304,8 @@ void ContentMatcherTest::negatedPopupRulesStayOrdinaryRules()
         QStringLiteral("||tracker.example^$~popup"));
     QVERIFY(compilation.matcher);
     QCOMPARE(compilation.report.value(QStringLiteral("invalidRuleCount")).toInt(), 0);
-    QVERIFY(compilation.matcher->shouldBlock(QUrl(QStringLiteral("https://tracker.example/p")),
-        QUrl(QStringLiteral("https://site.example/")), QStringLiteral("image")));
+    QVERIFY(compilation.matcher->check(QUrl(QStringLiteral("https://tracker.example/p")),
+        QUrl(QStringLiteral("https://site.example/")), QStringLiteral("image")).blocked);
     QVERIFY(!compilation.matcher->shouldBlockPopup(
         QUrl(QStringLiteral("https://tracker.example/p")),
         QUrl(QStringLiteral("https://site.example/"))));

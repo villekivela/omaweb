@@ -1,5 +1,7 @@
 #pragma once
 
+#include "ContentMatcher.h"
+
 #include <QHash>
 #include <QJsonObject>
 #include <QNetworkAccessManager>
@@ -54,10 +56,10 @@ public:
         const QStringList &ids) const;
 
     // The window a page asked for is refused from QML, where the request
-    // arrives, so unlike shouldBlock this one is invokable.
+    // arrives, so unlike checkRequest this one is invokable.
     Q_INVOKABLE bool shouldBlockPopup(const QUrl &requestUrl, const QUrl &openerUrl) const;
 
-    bool shouldBlock(const QUrl &requestUrl, const QUrl &sourceUrl,
+    RequestDecision checkRequest(const QUrl &requestUrl, const QUrl &sourceUrl,
         const QString &resourceType) const;
 
 signals:

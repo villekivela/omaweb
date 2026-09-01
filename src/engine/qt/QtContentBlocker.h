@@ -7,20 +7,27 @@
 #include <memory>
 
 class QWebEngineUrlRequestInterceptor;
+class QWebEngineUrlSchemeHandler;
 
 namespace tanto {
 
 class ContentBlocker;
+struct RequestDecision;
 
 class QtContentBlocker final : public QObject {
     Q_OBJECT
 
 public:
+    // The scheme a substitute is served under. Chromium refuses to redirect a
+    // request to a `data:` URL, and it has to learn about a scheme of its own
+    // before it starts, so this runs before QtWebEngineQuick::initialize().
+    static void registerSubstituteScheme();
+
     explicit QtContentBlocker(ContentBlocker *contentBlocker, QObject *parent = nullptr);
     ~QtContentBlocker() override;
 
     Q_INVOKABLE bool attachToProfile(QObject *profile);
-    bool shouldBlock(const QUrl &requestUrl, const QUrl &sourceUrl,
+    RequestDecision checkRequest(const QUrl &requestUrl, const QUrl &sourceUrl,
         QWebEngineUrlRequestInfo::ResourceType resourceType) const;
     QString cosmeticStyleSheet(const QUrl &url) const;
     bool cosmeticSurveyWanted(const QUrl &url) const;
@@ -30,6 +37,7 @@ public:
 private:
     ContentBlocker *m_contentBlocker;
     std::unique_ptr<QWebEngineUrlRequestInterceptor> m_interceptor;
+    std::unique_ptr<QWebEngineUrlSchemeHandler> m_substitutes;
 };
 
 } // namespace tanto
