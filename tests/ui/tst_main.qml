@@ -664,6 +664,39 @@ TestCase {
         verify(!startPage.visible)
     }
 
+    // Every engine the host holds answers for a tab that exists, and the tab
+    // showing is the only one drawing. An engine keyed to no tab would be a
+    // page nothing can show, hide or take away: it would sit over the page the
+    // reader came back to, which is what the tab they left looks like from
+    // behind it.
+    function test_everyEngineAnswersForATabThatExists() {
+        const engineLoader = findChild(window.contentItem, "engineLoader")
+        verify(engineLoader !== null)
+
+        const openerEngine = openPage("https://opener.example")
+        const openerTabId = browser.activeTabId
+        engineLoader.item.simulateNewWindowRequest("https://opened.example/page", false)
+        tryVerify(function() {
+            return browser.activeUrl.toString() === "https://opened.example/page"
+        })
+        const openedTabId = browser.activeTabId
+
+        // Both tabs hold a page, so both are listed: an engine keyed to
+        // anything else answers for no tab in the Space.
+        for (const tabId in engineLoader.engines) {
+            verify(tabId.length > 0)
+            verify(findChild(window.contentItem, "tab-" + tabId) !== null)
+            compare(engineLoader.engines[tabId].visible, tabId === openedTabId)
+        }
+
+        // The tab the link was clicked from still draws the page it left.
+        browser.activateTab(openerTabId)
+        tryVerify(function() { return engineLoader.item === openerEngine })
+        compare(engineLoader.engines[openerTabId], openerEngine)
+        verify(openerEngine.visible)
+        verify(!engineLoader.engines[openedTabId].visible)
+    }
+
     function test_omnibarShowsOnlyActiveSpaceHistory() {
         const personalSpaceId = browser.activeSpaceId
         browser.recordVisit("https://personal.example/docs", "Personal docs")
