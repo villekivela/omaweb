@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Tanto — a keyboard-driven browser for Omarchy</title>
+    <meta
+      name="description"
+      content="Tanto is a keyboard-driven web browser built for Omarchy. One window, tabs down the side, Spaces that keep your accounts apart, and a theme that follows your desktop."
+    >
+    <meta name="theme-color" content="#1a1b26">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="Tanto">
+    <meta property="og:title" content="Tanto — a keyboard-driven browser for Omarchy">
+    <meta
+      property="og:description"
+      content="Every command is a keystroke you chose. Every login sits in a Space that cannot see the others. And the whole browser changes colour when you run omarchy theme set."
+    >
+    <link rel="icon" href="favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="styles.css">
+  </head>
+
+  <body>
+    <div class="t-wrap">
+      <header class="t-top">
+        <img src="assets/icons/tanto.svg" alt="Tanto">
+        <div class="t-themes">
+          <span>Theme</span>
+          <button class="t-theme" type="button" aria-pressed="true" data-theme="tokyo-night">Tokyo Night</button>
+          <button class="t-theme" type="button" aria-pressed="false" data-theme="everforest">Everforest</button>
+          <button class="t-theme" type="button" aria-pressed="false" data-theme="kanagawa">Kanagawa</button>
+          <button class="t-theme" type="button" aria-pressed="false" data-theme="catppuccin">Catppuccin</button>
+          <button class="t-theme" type="button" aria-pressed="false" data-theme="nord">Nord</button>
+          <button class="t-theme" type="button" aria-pressed="false" data-theme="vantablack">Vantablack</button>
+        </div>
+      </header>
+
+      <section class="t-hero">
+        <p class="eyebrow">Keyboard-driven browser &middot; built for Omarchy</p>
+        <h1>The browser should be <em>part of your desktop</em>, not a guest on it.</h1>
+        <p>
+          Every command is a keystroke you chose. Every login sits in a Space
+          that cannot see the others. And the whole browser changes colour
+          when you run <code>omarchy theme set</code>, because it reads the
+          theme your bar and your terminal read &mdash; not a copy of it you
+          keep in sync by hand.
+        </p>
+        <div class="t-hero__actions">
+          <a class="btn btn--emphasis" href="https://github.com/villekivela/tanto">Read the source</a>
+          <a class="btn" href="https://github.com/villekivela/tanto/blob/main/docs/development.md">Build it yourself</a>
+        </div>
+      </section>
+
+    </div>
+
+    <!-- full-width desktop; the wallpaper layer parallaxes against the window -->
+    <div class="desk">
+      <div class="desk__wall" aria-hidden="true"></div>
+      <div class="desk__grain" aria-hidden="true"></div>
+      <div class="desk__stage">
+        <div class="ui" id="ui" data-collapsed="false">
+          <aside class="ui__side">
+            <div class="ui__chrome">
+              <button class="ui__ico ui__panel" type="button" aria-pressed="false">
+                <span class="ms ms--left-panel-close" aria-hidden="true"></span>
+                <span class="sr-only">Hide sidebar</span>
+              </button>
+              <span class="ui__ico"><span class="ms ms--search" aria-hidden="true"></span></span>
+              <span class="ui__gap"></span>
+              <span class="ui__ico"><span class="ms ms--arrow-back" aria-hidden="true"></span></span>
+              <span class="ui__ico"><span class="ms ms--arrow-forward" aria-hidden="true"></span></span>
+              <span class="ui__ico"><span class="ms ms--refresh" aria-hidden="true"></span></span>
+            </div>
+
+            <div class="ui__addr">
+              <span class="ui__lock ms ms--lock" aria-hidden="true"></span>
+              <span class="ui__url">omarchy.org/</span>
+              <span class="ui__blocked">
+                <span class="ms ms--shield" aria-hidden="true"></span>
+                <span>6</span>
+              </span>
+            </div>
+
+            <!-- Pinned tabs run 3-5 across, each showing the site code the
+                 application derives from the host. No heading: the sidebar
+                 has none. -->
+            <div class="ui__pinned">
+              <span class="ui__pin">GI</span>
+              <span class="ui__pin">LI</span>
+              <span class="ui__pin">OM</span>
+              <span class="ui__pin">YO</span>
+            </div>
+
+            <div class="ui__tab is-on"><span class="ui__fav">OM</span><span>Omarchy &mdash; Beautiful, Fun &amp; Agentic Linux</span></div>
+            <div class="ui__tab"><span class="ui__fav">HY</span><span>Hyprland Wiki &mdash; Configuring</span></div>
+            <div class="ui__tab"><span class="ui__fav">GI</span><span>villekivela/tanto &mdash; Issues</span></div>
+
+            <span class="ui__gap"></span>
+            <div class="ui__foot">
+              <span class="ui__spaces">
+                <span class="ui__space is-on">P</span>
+                <span class="ui__space">W</span>
+                <span class="ui__space">C</span>
+              </span>
+              <span class="ui__gap"></span>
+              <span class="ui__ico"><span class="ms ms--more-horiz" aria-hidden="true"></span></span>
+              <span class="ui__ico"><span class="ms ms--settings" aria-hidden="true"></span></span>
+            </div>
+          </aside>
+
+          <div class="ui__view">
+            <!-- The cluster the application floats over the page while the
+                 sidebar is hidden: it is how the sidebar comes back. -->
+            <div class="ui__cluster">
+              <span class="ui__ico"><span class="ms ms--arrow-back" aria-hidden="true"></span></span>
+              <span class="ui__ico"><span class="ms ms--arrow-forward" aria-hidden="true"></span></span>
+              <span class="ui__ico"><span class="ms ms--refresh" aria-hidden="true"></span></span>
+              <span class="ui__rule"></span>
+              <button class="ui__ico ui__panel" type="button" aria-pressed="true">
+                <span class="ms ms--left-panel-open" aria-hidden="true"></span>
+                <span class="sr-only">Show sidebar</span>
+              </button>
+              <span class="ui__ico"><span class="ms ms--search" aria-hidden="true"></span></span>
+            </div>
+
+            <div class="ui__page">
+              <p class="ui__start-eyebrow">Shortcuts &middot; Ctrl / &middot; Esc closes</p>
+              <h3>Keyboard commands</h3>
+              <div class="ui__keys">
+                <div><b>Ctrl L</b><i>Open an address</i></div>
+                <div><b>f</b><i>Hint every link in view</i></div>
+                <div><b>Ctrl K</b><i>Commands, tabs and Spaces</i></div>
+                <div><b>j k</b><i>Scroll the page</i></div>
+                <div><b>Ctrl T</b><i>New tab</i></div>
+                <div><b>d u</b><i>Scroll half a page</i></div>
+                <div><b>Ctrl E</b><i>Focus the sidebar</i></div>
+                <div><b>g g / G</b><i>Top / bottom</i></div>
+                <div><b>Ctrl B</b><i>Hide the sidebar</i></div>
+                <div><b>Ctrl Y</b><i>History</i></div>
+                <div><b>Ctrl Shift I</b><i>Developer tools</i></div>
+                <div><b>Ctrl /</b><i>Every binding, live</i></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="t-wrap t-wrap--rest">
+      <section class="t-section">
+        <div class="t-section__head">
+          <h2>Nothing needs the mouse</h2>
+          <p>Every command is bound, and every binding is a line in one JSON file you own.</p>
+        </div>
+        <div class="t-cols t-cols--3">
+          <div>
+            <h3>One overlay for everything</h3>
+            <p>
+              Addresses, search, tabs, Spaces and every browser command live
+              behind <code>Ctrl K</code>. Links get letter hints with
+              <code>f</code>. Scrolling is <code>j</code> and <code>k</code>,
+              because of course it is.
+            </p>
+          </div>
+          <div>
+            <h3>Your bindings, not ours</h3>
+            <p>
+              Rebind anything, hand a conflicting key back to the page, and
+              read the live sheet whenever you forget one. The Start page above
+              is that sheet.
+            </p>
+          </div>
+          <div>
+            <h3>Themed with the rest of the desktop</h3>
+            <p>
+              Run <code>omarchy theme set</code> and the browser changes along
+              with your bar, terminal and editor. Tanto watches the theme
+              Omarchy generates &mdash; no hook to install, no second colour
+              scheme to maintain.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section class="t-section">
+        <div class="t-section__head">
+          <h2>Two accounts, one window</h2>
+          <p>A Space is an isolated profile, not a different person. Personal and work, side by side.</p>
+        </div>
+        <div class="t-cols t-cols--2">
+          <div>
+            <h3>The same site, signed in twice</h3>
+            <p>
+              A Space keeps its own cookies, logins, history, permissions and
+              session. Open your own account in one and your work account in
+              another and the site never sees them as the same visitor &mdash;
+              no second browser, no private window, no signing out to switch.
+            </p>
+          </div>
+          <div>
+            <h3>Pinned tabs that stay put</h3>
+            <p>
+              Pin the handful of pages a Space is actually about and they come
+              back every time it resumes. Mark one Keep active and it keeps
+              running while you are elsewhere &mdash; and Tanto always tells
+              you which tab that is and what it is costing you.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section class="t-section">
+        <div class="t-section__head">
+          <h2>Where it stands</h2>
+          <p>Tanto is pre-alpha and says so. Do not put anything sensitive through it yet.</p>
+        </div>
+        <div class="t-cols t-cols--3">
+          <div>
+            <h3>Working now</h3>
+            <p>
+              Spaces, Pinned tabs, the Omnibar, keyboard navigation, docked
+              developer tools, content blocking, session restore, downloads,
+              Space-local history and site permissions.
+            </p>
+          </div>
+          <div>
+            <h3>Not finished</h3>
+            <p>
+              Certificate handling, download verification, sandbox health
+              reporting, URL reputation, updates and signed packages. All of it
+              is required before anyone browses anything that matters.
+            </p>
+          </div>
+          <div>
+            <h3>Linux is coming</h3>
+            <p>
+              The complete browser contract under native Wayland on Omarchy
+              and Hyprland, with the packaging to install it the ordinary way.
+              A browser that belongs in a tiling window manager instead of
+              merely surviving one.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <footer class="t-foot">
+        <span>Tanto &middot; pre-alpha &middot; GPL</span>
+        <span>The web engine is a replaceable part &mdash; more than one can be supported.</span>
+        <a href="https://github.com/villekivela/tanto">github.com/villekivela/tanto</a>
+      </footer>
+    </div>
+    <script src="script.js"></script>
+  </body>
+</html>

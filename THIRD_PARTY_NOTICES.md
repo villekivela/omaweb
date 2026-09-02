@@ -2,7 +2,13 @@
 
 ## Material Symbols
 
-Tanto bundles a small subset of Material Symbols Rounded by Google. Material Symbols are licensed under Apache License 2.0. The license text and subset provenance live in `assets/fonts/`.
+Tanto bundles a small subset of Material Symbols Rounded by Google. Material Symbols are licensed under Apache License 2.0. The license text and subset provenance live in `assets/fonts/`. The website ships its own smaller subset, with the same license text, in `website/assets/fonts/`.
+
+## JetBrains Mono
+
+The website ships a web copy of the JetBrains Mono variable font in
+`website/assets/fonts/`. JetBrains Mono is licensed under the SIL Open Font
+License 1.1; the license text lives beside it as `OFL.txt`.
 
 ## Omarchy shell component kit
 
