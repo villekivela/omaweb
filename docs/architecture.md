@@ -52,7 +52,7 @@ Printing is split between the adapter, which renders the page to a PDF in a Tant
 
 The Qt adapter draws PDFs in Chromium's sandboxed viewer, which carries its own find, zoom, print and download in a toolbar inside the page; Tanto's own find bar does not reach into that plugin. An adapter without a sandboxed viewer downloads the document instead, and the shell reports the missing capability.
 
-Site-requested fullscreen is a state the shell is in rather than something an engine does to the window: the adapter accepts the request and reports it with the origin, and the shell takes the window fullscreen, stands the outline aside, names the origin in a notice, and always exits on `Escape`. The fullscreen the reader asks Tanto for is tracked separately, so handing one back never takes the other away.
+Site-requested fullscreen is a state the shell is in rather than something an engine does to the window: the adapter accepts the request and reports it with the origin, and the shell takes the window fullscreen, stands the outline aside, names the origin in a notice, and always exits on `Escape`. The fullscreen the reader asks Tanto for is tracked separately, so handing one back never takes the other away. The window is also the desktop's to move — a platform menu command or shortcut takes it in and out of fullscreen without asking Tanto — so the shell reads its own state back off the window's visibility, and a page left holding a screen the reader has already taken back is told it no longer has one.
 
 ## Page context menu
 
@@ -69,6 +69,8 @@ Page commands ignore editable controls, IME composition, and unbound keys. Link 
 Main and Private windows are frameless and expose explicit system-move and resize regions. Tanto does not draw visible window controls. Platform-native menus and keyboard commands retain minimize, close, and quit behavior.
 
 Qt Quick owns the browser chrome. Webpage viewports stay opaque. macOS blur uses a small AppKit adapter; Wayland blur remains compositor-dependent and always has alpha and opaque fallbacks.
+
+The macOS adapter applies that chrome when a window's surface is created and again after every fullscreen transition. AppKit rebuilds a window's frame view across one, which takes back the standard window buttons, drops the backdrop that was a subview of the old frame view, and returns the window to an opaque background; nothing in the adapter reads the state it sets, so re-applying it is the same as applying it. A window filling the screen squares its corners, and the backdrop's mask follows. Auxiliary windows are deliberately framed dialogs and take none of this.
 
 ## Fast path
 

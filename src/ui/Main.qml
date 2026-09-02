@@ -22,8 +22,12 @@ ApplicationWindow {
 
     property var windowBrowser: browser
     // The native backdrop reads this to mask its blur to the same rounded rect,
-    // so the shell and the platform chrome cannot drift apart.
-    property real cornerRadius: 14
+    // so the shell and the platform chrome cannot drift apart. A window filling
+    // the screen has no corners to round, and rounding them there would notch
+    // the desktop through at all four.
+    readonly property real shellCornerRadius: 14
+    property real cornerRadius: window.visibility === Window.FullScreen
+        ? 0 : window.shellCornerRadius
     property bool privateWindow: false
     property string profilePathOverride: ""
     property var sharedEngineProfile: null
@@ -458,6 +462,24 @@ ApplicationWindow {
     function applyFullscreen() {
         window.visibility = (window.browserFullscreen || engineLoader.siteFullscreenActive)
             ? Window.FullScreen : Window.Windowed
+    }
+
+    // The window is also the desktop's to move: a menu command, ⌃⌘F, or the
+    // green button all take it in and out of fullscreen without asking Tanto.
+    // What Tanto believes is read back off the window afterwards, or the next
+    // fullscreen command would toggle the wrong way and appear to do nothing.
+    onVisibilityChanged: window.reconcileFullscreen()
+
+    function reconcileFullscreen() {
+        const filling = window.visibility === Window.FullScreen
+        if (!filling && engineLoader.siteFullscreenActive) {
+            // The screen was handed back by a route the page knows nothing
+            // about, and a page left believing it still has the screen draws
+            // for one. Telling it is also what gives the outline back.
+            window.exitSiteFullscreen()
+            return
+        }
+        window.browserFullscreen = filling && !engineLoader.siteFullscreenActive
     }
 
     function exitSiteFullscreen() {

@@ -1780,6 +1780,42 @@ TestCase {
         compare(window.browserFullscreen, false)
     }
 
+    // The window is the desktop's to move too — a menu command or a keyboard
+    // shortcut of the platform's own takes it in and out of fullscreen without
+    // asking Tanto. What Tanto believes has to follow the window, or the next
+    // fullscreen command toggles the wrong way and appears to do nothing.
+    function test_fullscreenFollowsTheWindowWhateverMovedIt() {
+        const engineHost = findChild(window.contentItem, "engineLoader")
+        const engine = openPage("https://desktop.example/page")
+        compare(window.browserFullscreen, false)
+
+        window.visibility = Window.FullScreen
+        tryCompare(window, "browserFullscreen", true)
+        // A window filling the screen has no corners to round.
+        compare(window.cornerRadius, 0)
+
+        window.visibility = Window.Windowed
+        tryCompare(window, "browserFullscreen", false)
+        compare(window.cornerRadius, window.shellCornerRadius)
+
+        // And the next command still works from there.
+        window.commands.run("fullscreen", -1)
+        compare(window.browserFullscreen, true)
+        window.commands.run("fullscreen", -1)
+        compare(window.browserFullscreen, false)
+
+        // A site holding the screen is told when the screen is taken back by a
+        // route it knows nothing about, and the outline comes back with it.
+        engine.simulateSiteFullscreen("desktop.example")
+        tryVerify(function() { return engineHost.siteFullscreenActive })
+        compare(window.sidebarCollapsed, true)
+
+        window.visibility = Window.Windowed
+        tryVerify(function() { return !engineHost.siteFullscreenActive })
+        compare(window.sidebarCollapsed, false)
+        compare(window.browserFullscreen, false)
+    }
+
     // A command this engine cannot carry out is listed, unavailable, and says
     // so when it is run. Doing nothing at all would leave the reader to guess
     // whether the key reached the browser.
