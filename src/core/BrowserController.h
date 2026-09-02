@@ -6,6 +6,7 @@
 
 #include <QObject>
 #include <QHash>
+#include <QSet>
 #include <QSharedPointer>
 #include <QSortFilterProxyModel>
 #include <QTimer>
@@ -27,6 +28,10 @@ class BrowserController final : public QObject {
     Q_PROPERTY(QString activeTitle READ activeTitle NOTIFY activeTabChanged)
     Q_PROPERTY(QString activeProfilePath READ activeProfilePath NOTIFY activeSpaceChanged)
     Q_PROPERTY(bool activeTabPinned READ activeTabPinned NOTIFY activeTabChanged)
+    // Whether the Pinned tab on show keeps its page running while another
+    // Space is active. A pin never implies it and an ordinary tab cannot
+    // carry it, so this is false for every tab the reader has not asked for.
+    Q_PROPERTY(bool activeTabKeepActive READ activeTabKeepActive NOTIFY activeTabChanged)
     // How large the page in the tab on show is drawn, as a factor: 1.0 is 100
     // percent. Zoom belongs to the tab rather than to the site, so nothing here
     // is keyed by origin, and it is kept in the session so a restored tab comes
@@ -50,6 +55,15 @@ class BrowserController final : public QObject {
     Q_PROPERTY(bool activeTabInspected READ activeTabInspected NOTIFY activeTabChanged)
     Q_PROPERTY(bool activeRendererFailed READ activeRendererFailed NOTIFY activeTabChanged)
     Q_PROPERTY(QString activeRendererFailureReason READ activeRendererFailureReason NOTIFY activeTabChanged)
+    // How many tabs this Space can still take back. The stack is the Space's
+    // own, holds its most recent closes, and survives a restart; a Private
+    // session keeps the same depth in memory and writes none of it down.
+    Q_PROPERTY(int closedTabCount READ closedTabCount NOTIFY closedTabsChanged)
+    // Every tab still running in a Space that is not the one on show: a Pinned
+    // tab the reader marked Keep active, or the tab an inspector is attached
+    // to. Nothing else outlives its Space's suspension, and what does is named
+    // here so the reader can see what is holding a renderer they cannot see.
+    Q_PROPERTY(QVariantList retainedTabs READ retainedTabs NOTIFY retainedTabsChanged)
     Q_PROPERTY(bool privateBrowsing READ privateBrowsing CONSTANT)
     Q_PROPERTY(bool ready READ ready CONSTANT)
     Q_PROPERTY(QString errorMessage READ errorMessage CONSTANT)
@@ -91,6 +105,9 @@ public:
     QString activeProfilePath() const;
     Q_INVOKABLE QString profilePathForSpace(const QString &spaceId) const;
     bool activeTabPinned() const;
+    bool activeTabKeepActive() const;
+    int closedTabCount() const;
+    QVariantList retainedTabs() const;
     double activeTabZoom() const;
     bool activeTabBlank() const;
     bool atRest() const;
@@ -117,8 +134,36 @@ public:
     Q_INVOKABLE bool retryActiveUrlInsecurely();
     Q_INVOKABLE void closeTab(const QString &tabId);
     Q_INVOKABLE void closeActiveTab();
+    // The two closes a row can ask for on its neighbours. Both mean the
+    // ordinary tabs and only those: a Pinned tab is the Space's furniture and
+    // is never swept away by a command aimed at the list below it.
+    Q_INVOKABLE void closeOtherTabs(const QString &tabId);
+    Q_INVOKABLE void closeTabsBelow(const QString &tabId);
     Q_INVOKABLE void reopenClosedTab();
+    // A new ordinary tab at the same address. Duplicate copies the
+    // destination and nothing else: no history to step back through, no form
+    // state, and no share of the page the original is running.
+    Q_INVOKABLE QString duplicateTab(const QString &tabId);
+    // Order is the reader's, and it is theirs within one section: a Pinned tab
+    // moves among the pins and an ordinary tab among the ordinary rows.
+    // Crossing between them is what pinning is for, so the destination is
+    // counted inside the tab's own section and a move that would leave it is
+    // refused. Both are written through immediately — an arrangement the
+    // reader made should not be waiting in a coalescing window at a quit.
+    Q_INVOKABLE bool moveTab(const QString &tabId, int destinationIndex);
+    Q_INVOKABLE bool moveTabBy(const QString &tabId, int offset);
+    Q_INVOKABLE int tabSectionIndex(const QString &tabId) const;
+    Q_INVOKABLE int tabSectionCount(const QString &tabId) const;
     Q_INVOKABLE void toggleActivePinned();
+    // Keep active belongs to one Pinned tab and survives restart. Asking it of
+    // an ordinary tab is refused rather than remembered: an ordinary tab
+    // belongs to the session the reader is looking at.
+    Q_INVOKABLE bool setTabKeepActive(const QString &tabId, bool keepActive);
+    Q_INVOKABLE bool toggleActiveKeepActive();
+    // The tabs of the Space on show that will keep running once it is put
+    // away. The interface hands this to the engine host at suspension, which
+    // is the only moment the answer is about a Space that is still active.
+    Q_INVOKABLE QStringList retainedTabIds() const;
     Q_INVOKABLE void updateTab(const QString &tabId, const QUrl &url, const QString &title);
     Q_INVOKABLE void setTabLoading(const QString &tabId, bool loading);
     Q_INVOKABLE void setTabIcon(const QString &tabId, const QUrl &iconUrl);
@@ -144,6 +189,19 @@ public:
     // read it again, read it again from the network, and stop reading it.
     Q_INVOKABLE void requestReloadBypassingCache();
     Q_INVOKABLE void requestStopLoading();
+    // Who a notification is for. A page may notify while the reader is looking
+    // at its Space, and otherwise only from a tab that is retained; anything
+    // else is a page whose Space was put away and has no business interrupting.
+    // The origin names the tab because a notification arrives from a Space's
+    // profile rather than from one page.
+    Q_INVOKABLE QVariantMap notificationTarget(const QString &spaceId,
+        const QUrl &origin) const;
+    Q_INVOKABLE bool activateNotificationTarget(const QString &spaceId, const QString &tabId);
+    // Audible autoplay waits for the reader to have dealt with the origin
+    // themselves. The memory is the session's and one Space's: another Space
+    // is another browsing identity, and nothing here reaches across a restart.
+    Q_INVOKABLE void recordOriginInteraction(const QUrl &url);
+    Q_INVOKABLE bool originInteracted(const QUrl &url) const;
     Q_INVOKABLE void recordVisit(const QUrl &url, const QString &title);
     Q_INVOKABLE QVariantList historySuggestions(const QString &query, int limit = 8) const;
     Q_INVOKABLE QVariantList history(const QString &query, int limit = 500) const;
@@ -178,7 +236,12 @@ signals:
     void activeTabChanged();
     void atRestChanged();
     void developerToolsChanged();
-    void spaceSuspended(const QString &spaceId);
+    void closedTabsChanged();
+    void retainedTabsChanged();
+    // The Space being put away, and the tabs inside it that keep running
+    // anyway. Named together because the exceptions are only knowable while
+    // that Space is still the active one.
+    void spaceSuspended(const QString &spaceId, const QStringList &retainedTabIds);
     void spaceRestored(const QString &spaceId);
     void spaceDiscarded(const QString &spaceId);
     void tabMoveConfirmationRequested(const QString &tabId, const QString &destinationSpaceId);
@@ -192,17 +255,19 @@ signals:
         const QStringList &dataTypes, qint64 since);
 
 private:
-    struct ClosedTab {
-        TabState tab;
-        bool valid = false;
-    };
-
     void initialize();
     void ensureDefaultSpace();
     void ensureActiveTab();
     bool persistTabs();
     void schedulePersistTabs();
     void setActiveTab(const QString &tabId);
+    qsizetype pinnedTabCount() const;
+    qsizetype tabRow(const QString &tabId) const;
+    void rememberClosedTab(const TabState &tab);
+    void loadClosedTabs();
+    void persistClosedTabs();
+    void refreshRetainedTabs();
+    QString originInteractionKey(const QUrl &url) const;
     static TabState makeBlankTab(const QString &spaceId);
     static double steppedZoom(double zoom, int direction);
     static bool isBlank(const QUrl &url);
@@ -235,7 +300,9 @@ private:
     QVariantList m_searchEngines;
     QString m_defaultSearchEngineId;
     QString m_errorMessage;
-    ClosedTab m_closedTab;
+    QVector<TabState> m_closedTabs;
+    QVariantList m_retainedTabs;
+    QSet<QString> m_interactedOrigins;
     bool m_ready = false;
     bool m_atRest = false;
     bool m_privateBrowsing = false;

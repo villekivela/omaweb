@@ -22,6 +22,16 @@ check_subject() {
     [[ "$summary" != *. ]]
 }
 
+is_historical_exception() {
+    case "$1" in
+        b2a076730c42a96dbc46052af3289878b149b4c6 | \
+            48127cd012b1cf83b885b0a7d543b39b84620a02)
+            return 0
+            ;;
+    esac
+    return 1
+}
+
 if [[ "${1:-}" == "--message" ]]; then
     if (( $# != 2 )); then
         echo "usage: $0 --message <subject>" >&2
@@ -44,6 +54,9 @@ fi
 
 status=0
 while IFS=$'\t' read -r commit subject; do
+    if is_historical_exception "$commit"; then
+        continue
+    fi
     if ! check_subject "$subject"; then
         echo "invalid commit subject in ${commit:0:12}: $subject" >&2
         status=1

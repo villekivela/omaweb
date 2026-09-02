@@ -91,7 +91,8 @@ QVector<TabState> SessionStore::loadTabs(const QString &spaceId) const
     QVector<TabState> tabs;
     QSqlQuery query(spaceDatabase(spaceId));
     query.prepare(QStringLiteral(
-        "SELECT id, url, title, pinned, active, zoom FROM tabs ORDER BY pinned DESC, position"));
+        "SELECT id, url, title, pinned, active, zoom, muted, keep_active "
+        "FROM tabs ORDER BY pinned DESC, position"));
     query.exec();
     while (query.next()) {
         // Named rather than positional: a tab has state the store does not
@@ -104,10 +105,77 @@ QVector<TabState> SessionStore::loadTabs(const QString &spaceId) const
             .title = query.value(2).toString(),
             .pinned = query.value(3).toBool(),
             .active = query.value(4).toBool(),
+            .muted = query.value(6).toBool(),
             .zoom = query.value(5).toDouble(),
+            .keepActive = query.value(7).toBool(),
         });
     }
     return tabs;
+}
+
+// The tabs a Space has lost, newest first, which is the order they come back
+// in. Only what the session keeps about a tab is here: a reopened tab is a new
+// tab at a saved address, not the page that was closed.
+QVector<TabState> SessionStore::loadClosedTabs(const QString &spaceId) const
+{
+    QVector<TabState> tabs;
+    QSqlQuery query(spaceDatabase(spaceId));
+    query.prepare(QStringLiteral(
+        "SELECT id, url, title, pinned, zoom, muted, keep_active "
+        "FROM closed_tabs ORDER BY position"));
+    query.exec();
+    while (query.next()) {
+        tabs.append(TabState{
+            .id = query.value(0).toString(),
+            .spaceId = spaceId,
+            .url = QUrl(query.value(1).toString()),
+            .title = query.value(2).toString(),
+            .pinned = query.value(3).toBool(),
+            .muted = query.value(5).toBool(),
+            .zoom = query.value(4).toDouble(),
+            .keepActive = query.value(6).toBool(),
+        });
+    }
+    return tabs;
+}
+
+// The whole stack is rewritten rather than pushed onto: it is at most a few
+// dozen rows, and one statement per close would still have to trim the far end.
+bool SessionStore::saveClosedTabs(const QString &spaceId, const QVector<TabState> &tabs)
+{
+    auto database = spaceDatabase(spaceId);
+    if (!database.transaction()) {
+        return false;
+    }
+
+    QSqlQuery removeExisting(database);
+    if (!removeExisting.exec(QStringLiteral("DELETE FROM closed_tabs"))) {
+        database.rollback();
+        return false;
+    }
+
+    for (qsizetype position = 0; position < tabs.size(); ++position) {
+        const auto &tab = tabs.at(position);
+        QSqlQuery insert(database);
+        insert.prepare(QStringLiteral(
+            "INSERT INTO closed_tabs"
+            "(id, url, title, pinned, zoom, muted, keep_active, position) "
+            "VALUES(?, ?, ?, ?, ?, ?, ?, ?)"));
+        insert.addBindValue(tab.id);
+        insert.addBindValue(tab.url.toString());
+        insert.addBindValue(tab.title);
+        insert.addBindValue(tab.pinned);
+        insert.addBindValue(tab.zoom);
+        insert.addBindValue(tab.muted);
+        insert.addBindValue(tab.keepActive);
+        insert.addBindValue(static_cast<int>(position));
+        if (!insert.exec()) {
+            database.rollback();
+            return false;
+        }
+    }
+
+    return database.commit();
 }
 
 bool SessionStore::saveSpace(const SpaceState &space)
@@ -213,11 +281,13 @@ bool SessionStore::saveTab(const TabState &tab, int position)
 {
     QSqlQuery query(spaceDatabase(tab.spaceId));
     query.prepare(QStringLiteral(
-        "INSERT INTO tabs(id, url, title, pinned, active, position, zoom) "
-        "VALUES(?, ?, ?, ?, ?, ?, ?) "
+        "INSERT INTO tabs"
+        "(id, url, title, pinned, active, position, zoom, muted, keep_active) "
+        "VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?) "
         "ON CONFLICT(id) DO UPDATE SET url = excluded.url, "
         "title = excluded.title, pinned = excluded.pinned, active = excluded.active, "
-        "position = excluded.position, zoom = excluded.zoom"));
+        "position = excluded.position, zoom = excluded.zoom, muted = excluded.muted, "
+        "keep_active = excluded.keep_active"));
     query.addBindValue(tab.id);
     query.addBindValue(tab.url.toString());
     query.addBindValue(tab.title);
@@ -225,6 +295,8 @@ bool SessionStore::saveTab(const TabState &tab, int position)
     query.addBindValue(tab.active);
     query.addBindValue(position);
     query.addBindValue(tab.zoom);
+    query.addBindValue(tab.muted);
+    query.addBindValue(tab.keepActive);
     return query.exec();
 }
 
@@ -292,8 +364,9 @@ bool SessionStore::saveSpaceMove(const QString &sourceSpaceId,
             QSqlQuery insert(m_database);
             insert.prepare(QStringLiteral(
                                "INSERT INTO %1.tabs"
-                               "(id, url, title, pinned, active, position, zoom) "
-                               "VALUES(?, ?, ?, ?, ?, ?, ?)")
+                               "(id, url, title, pinned, active, position, zoom, "
+                               "muted, keep_active) "
+                               "VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)")
                                .arg(schema));
             insert.addBindValue(tab.id);
             insert.addBindValue(tab.url.toString());
@@ -302,6 +375,8 @@ bool SessionStore::saveSpaceMove(const QString &sourceSpaceId,
             insert.addBindValue(tab.id == activeTabId);
             insert.addBindValue(position);
             insert.addBindValue(tab.zoom);
+            insert.addBindValue(tab.muted);
+            insert.addBindValue(tab.keepActive);
             if (!insert.exec()) {
                 return false;
             }
@@ -770,13 +845,34 @@ QSqlDatabase SessionStore::spaceDatabase(const QString &spaceId) const
         "pinned INTEGER NOT NULL DEFAULT 0, "
         "active INTEGER NOT NULL DEFAULT 0, "
         "position INTEGER NOT NULL DEFAULT 0, "
-        "zoom REAL NOT NULL DEFAULT 1.0)"));
+        "zoom REAL NOT NULL DEFAULT 1.0, "
+        "muted INTEGER NOT NULL DEFAULT 0, "
+        "keep_active INTEGER NOT NULL DEFAULT 0)"));
     // A Space whose store predates per-tab zoom keeps its tabs; the column is
     // added beside them, at the size every tab was drawn at before it existed.
     // Adding a column that is already there fails, and that failure is the
     // answer rather than a fault.
     schema.exec(QStringLiteral(
         "ALTER TABLE tabs ADD COLUMN zoom REAL NOT NULL DEFAULT 1.0"));
+    // Muting and Keep active arrived after zoom and are added the same way: a
+    // Space whose store predates them keeps its tabs, unmuted and suspending
+    // with their Space, which is where every tab was before the columns existed.
+    schema.exec(QStringLiteral(
+        "ALTER TABLE tabs ADD COLUMN muted INTEGER NOT NULL DEFAULT 0"));
+    schema.exec(QStringLiteral(
+        "ALTER TABLE tabs ADD COLUMN keep_active INTEGER NOT NULL DEFAULT 0"));
+    // The tabs this Space has lost, so Reopen closed tab answers after a
+    // restart as well as within a session. Position 0 is the newest.
+    schema.exec(QStringLiteral(
+        "CREATE TABLE IF NOT EXISTS closed_tabs ("
+        "id TEXT PRIMARY KEY, "
+        "url TEXT NOT NULL, "
+        "title TEXT NOT NULL, "
+        "pinned INTEGER NOT NULL DEFAULT 0, "
+        "zoom REAL NOT NULL DEFAULT 1.0, "
+        "muted INTEGER NOT NULL DEFAULT 0, "
+        "keep_active INTEGER NOT NULL DEFAULT 0, "
+        "position INTEGER NOT NULL DEFAULT 0)"));
     schema.exec(QStringLiteral(
         "CREATE TABLE IF NOT EXISTS history ("
         "id INTEGER PRIMARY KEY, "

@@ -21,6 +21,8 @@ public:
     bool open(QString *errorMessage = nullptr);
     QVector<SpaceState> loadSpaces() const;
     QVector<TabState> loadTabs(const QString &spaceId) const;
+    QVector<TabState> loadClosedTabs(const QString &spaceId) const;
+    bool saveClosedTabs(const QString &spaceId, const QVector<TabState> &tabs);
     bool saveSpace(const SpaceState &space);
     bool setActiveSpace(const QString &spaceId);
     bool spaceHasSavedContent(const QString &spaceId) const;

@@ -42,6 +42,8 @@ QVariant TabListModel::data(const QModelIndex &index, int role) const
         return tab.muted;
     case ZoomRole:
         return tab.zoom;
+    case KeepActiveRole:
+        return tab.keepActive;
     default:
         return {};
     }
@@ -61,6 +63,7 @@ QHash<int, QByteArray> TabListModel::roleNames() const
         {AudibleRole, "tabAudible"},
         {MutedRole, "tabMuted"},
         {ZoomRole, "tabZoom"},
+        {KeepActiveRole, "tabKeepActive"},
     };
 }
 
@@ -101,6 +104,14 @@ void TabListModel::append(TabState tab)
     const auto row = m_tabs.size();
     beginInsertRows({}, row, row);
     m_tabs.append(std::move(tab));
+    endInsertRows();
+}
+
+void TabListModel::insert(TabState tab, qsizetype row)
+{
+    const auto destination = qBound(qsizetype{0}, row, m_tabs.size());
+    beginInsertRows({}, destination, destination);
+    m_tabs.insert(destination, std::move(tab));
     endInsertRows();
 }
 

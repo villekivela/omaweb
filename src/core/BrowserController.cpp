@@ -19,6 +19,10 @@ namespace tanto {
 namespace {
 
 constexpr int persistTabsDelayMilliseconds = 400;
+// How many closes a Space remembers. Deep enough that a reader who shut a row
+// of tabs can walk all of them back, bounded so the store does not grow into a
+// second history of everywhere they have been.
+constexpr qsizetype retainedClosedTabs = 25;
 // Zoom factors arrive back from an engine as the doubles it rounded them to, so
 // a rung is recognised by nearness rather than by equality.
 constexpr double zoomTolerance = 0.001;
@@ -216,6 +220,22 @@ bool BrowserController::activeTabBlank() const
     return !tab || isBlank(tab->url);
 }
 
+bool BrowserController::activeTabKeepActive() const
+{
+    const auto *tab = m_tabs.find(m_activeTabId);
+    return tab && tab->pinned && tab->keepActive;
+}
+
+int BrowserController::closedTabCount() const
+{
+    return static_cast<int>(m_closedTabs.size());
+}
+
+QVariantList BrowserController::retainedTabs() const
+{
+    return m_retainedTabs;
+}
+
 bool BrowserController::atRest() const
 {
     return m_atRest;
@@ -323,7 +343,7 @@ bool BrowserController::switchSpace(const QString &spaceId)
     if (!persistTabs()) {
         return false;
     }
-    emit spaceSuspended(m_activeSpaceId);
+    emit spaceSuspended(m_activeSpaceId, retainedTabIds());
     if (!m_store.setActiveSpace(spaceId)) {
         emit spaceRestored(m_activeSpaceId);
         return false;
@@ -335,8 +355,11 @@ bool BrowserController::switchSpace(const QString &spaceId)
         space.active = space.id == spaceId;
     }
     m_spaces.reset(std::move(spaces));
-    m_closedTab = {};
     ensureActiveTab();
+    // Each Space takes back its own closes, and what is being retained changes
+    // the moment the Space on show does.
+    loadClosedTabs();
+    refreshRetainedTabs();
     emit spaceRestored(m_activeSpaceId);
     emit activeSpaceChanged();
     emit activeTabChanged();
@@ -406,7 +429,8 @@ bool BrowserController::deleteSpace(const QString &spaceId, const QString &confi
         return false;
     }
     if (deletingActiveSpace) {
-        emit spaceSuspended(spaceId);
+        // Nothing in a Space that is being deleted is worth keeping running.
+        emit spaceSuspended(spaceId, {});
     }
     if (!m_store.deleteSpace(spaceId, deletingActiveSpace ? replacementId : QString{})) {
         if (deletingActiveSpace) {
@@ -423,11 +447,12 @@ bool BrowserController::deleteSpace(const QString &spaceId, const QString &confi
         closeDeveloperTools();
     }
     emit spaceDiscarded(spaceId);
+    refreshRetainedTabs();
     if (deletingActiveSpace) {
         m_activeSpaceId = replacementId;
         m_activeSpaceName = replacementName;
-        m_closedTab = {};
         ensureActiveTab();
+        loadClosedTabs();
         emit spaceRestored(m_activeSpaceId);
         emit activeSpaceChanged();
         emit activeTabChanged();
@@ -515,6 +540,7 @@ bool BrowserController::confirmTabMoveToSpace(const QString &tabId,
     }
     m_activeTabId = sourceActiveTabId;
     m_tabs.reset(std::move(sourceTabs));
+    refreshRetainedTabs();
     emit activeTabChanged();
     return true;
 }
@@ -600,21 +626,28 @@ void BrowserController::closeTab(const QString &tabId)
             emit closeWindowRequested();
             return;
         }
+        // The last tab is emptied rather than removed, but the page in it was
+        // still closed and the reader can still ask for it back.
+        rememberClosedTab(*tab);
         tab->url = QUrl(QStringLiteral("about:blank"));
         tab->title = QStringLiteral("New tab");
         tab->loading = false;
+        tab->muted = false;
+        tab->zoom = 1.0;
         tab->rendererFailureReason.clear();
         m_tabs.notifyChanged(tab->id, {
             TabListModel::UrlRole,
             TabListModel::TitleRole,
             TabListModel::LoadingRole,
+            TabListModel::MutedRole,
+            TabListModel::ZoomRole,
         });
         schedulePersistTabs();
         emit activeTabChanged();
         return;
     }
 
-    m_closedTab = {*tab, true};
+    rememberClosedTab(*tab);
     if (tabId != m_activeTabId) {
         m_tabs.remove(tabId);
         schedulePersistTabs();
@@ -635,22 +668,236 @@ void BrowserController::closeTab(const QString &tabId)
     setActiveTab(nextId);
 }
 
-void BrowserController::reopenClosedTab()
+void BrowserController::closeOtherTabs(const QString &tabId)
 {
-    if (!m_closedTab.valid) {
+    if (!m_tabs.find(tabId)) {
         return;
     }
+    QStringList doomed;
+    for (const auto &tab : m_tabs.items()) {
+        if (!tab.pinned && tab.id != tabId) {
+            doomed.append(tab.id);
+        }
+    }
+    for (const auto &id : doomed) {
+        closeTab(id);
+    }
+}
+
+void BrowserController::closeTabsBelow(const QString &tabId)
+{
+    const auto *anchor = m_tabs.find(tabId);
+    // A command about the rows below this one is a command about the ordinary
+    // list, and a pin is not in it.
+    if (!anchor || anchor->pinned) {
+        return;
+    }
+    QStringList doomed;
+    bool below = false;
+    for (const auto &tab : m_tabs.items()) {
+        if (tab.id == tabId) {
+            below = true;
+            continue;
+        }
+        if (below && !tab.pinned) {
+            doomed.append(tab.id);
+        }
+    }
+    for (const auto &id : doomed) {
+        closeTab(id);
+    }
+}
+
+// What a Space remembers about a tab it lost is what the session kept about it:
+// the address, the title, the pinning, the zoom and the muting. Not the page —
+// a reopened tab loads the address again rather than resuming a document.
+void BrowserController::rememberClosedTab(const TabState &tab)
+{
+    if (isBlank(tab.url)) {
+        return;
+    }
+    TabState closed;
+    closed.id = tab.id;
+    closed.spaceId = tab.spaceId;
+    closed.url = tab.url;
+    closed.title = tab.title;
+    closed.pinned = tab.pinned;
+    closed.muted = tab.muted;
+    closed.zoom = tab.zoom;
+    closed.keepActive = tab.keepActive;
+    m_closedTabs.prepend(closed);
+    while (m_closedTabs.size() > retainedClosedTabs) {
+        m_closedTabs.removeLast();
+    }
+    persistClosedTabs();
+    emit closedTabsChanged();
+}
+
+void BrowserController::loadClosedTabs()
+{
+    m_closedTabs = m_privateBrowsing ? QVector<TabState>{}
+        : m_store.loadClosedTabs(m_activeSpaceId);
+    while (m_closedTabs.size() > retainedClosedTabs) {
+        m_closedTabs.removeLast();
+    }
+    emit closedTabsChanged();
+}
+
+// A Private session keeps the same stack for as long as it lasts and leaves
+// nothing behind, so nothing about it reaches a store.
+void BrowserController::persistClosedTabs()
+{
+    if (m_privateBrowsing) {
+        return;
+    }
+    m_store.saveClosedTabs(m_activeSpaceId, m_closedTabs);
+}
+
+// Newest first, so repeated asking walks back through the closes in the order
+// they happened. A tab comes back as it was left — its address, title, pinning,
+// zoom and muting — as a new tab, because the page it held is gone.
+void BrowserController::reopenClosedTab()
+{
+    if (m_closedTabs.isEmpty()) {
+        return;
+    }
+    auto tab = m_closedTabs.takeFirst();
+    persistClosedTabs();
+    emit closedTabsChanged();
+
+    tab.id = QUuid::createUuid().toString(QUuid::WithoutBraces);
+    tab.spaceId = m_activeSpaceId;
+    tab.active = true;
+    // A Private window has no Pinned section to come back into, and Keep
+    // active is a Pinned tab's setting.
+    if (m_privateBrowsing) {
+        tab.pinned = false;
+        tab.keepActive = false;
+    }
+    if (!tab.pinned) {
+        tab.keepActive = false;
+    }
+
     if (auto *current = m_tabs.find(m_activeTabId)) {
         current->active = false;
         m_tabs.notifyChanged(current->id, {TabListModel::ActiveRole});
     }
-    m_closedTab.tab.id = QUuid::createUuid().toString(QUuid::WithoutBraces);
-    m_closedTab.tab.active = true;
-    m_tabs.append(m_closedTab.tab);
-    m_activeTabId = m_closedTab.tab.id;
-    m_closedTab.valid = false;
+
+    // A tab that was pinned comes back into the Pinned section, at its end,
+    // rather than joining the ordinary rows and losing what the reader had
+    // arranged about it.
+    if (tab.pinned) {
+        m_tabs.insert(tab, pinnedTabCount());
+    } else {
+        m_tabs.append(tab);
+    }
+    m_activeTabId = tab.id;
     persistTabs();
     emit activeTabChanged();
+}
+
+QString BrowserController::duplicateTab(const QString &tabId)
+{
+    const auto *source = m_tabs.find(tabId);
+    if (!source || isBlank(source->url)) {
+        return {};
+    }
+
+    TabState tab;
+    tab.id = QUuid::createUuid().toString(QUuid::WithoutBraces);
+    tab.spaceId = m_activeSpaceId;
+    tab.url = source->url;
+    tab.title = source->title;
+    tab.active = true;
+    // A pin is the Space's furniture rather than something a copy inherits, and
+    // zoom and muting are decisions about the tab the reader made, not about
+    // the address. So the duplicate is an ordinary tab at 100 percent, unmuted.
+    const auto destination = source->pinned
+        ? m_tabs.items().size()
+        : tabRow(tabId) + 1;
+
+    if (auto *current = m_tabs.find(m_activeTabId)) {
+        current->active = false;
+        m_tabs.notifyChanged(current->id, {TabListModel::ActiveRole});
+    }
+    m_tabs.insert(tab, destination);
+    m_activeTabId = tab.id;
+    persistTabs();
+    emit activeTabChanged();
+    return tab.id;
+}
+
+qsizetype BrowserController::pinnedTabCount() const
+{
+    qsizetype count = 0;
+    for (const auto &tab : m_tabs.items()) {
+        if (tab.pinned) {
+            ++count;
+        }
+    }
+    return count;
+}
+
+qsizetype BrowserController::tabRow(const QString &tabId) const
+{
+    const auto &items = m_tabs.items();
+    for (qsizetype row = 0; row < items.size(); ++row) {
+        if (items.at(row).id == tabId) {
+            return row;
+        }
+    }
+    return -1;
+}
+
+int BrowserController::tabSectionIndex(const QString &tabId) const
+{
+    const auto *tab = m_tabs.find(tabId);
+    if (!tab) {
+        return -1;
+    }
+    return static_cast<int>(tabRow(tabId) - (tab->pinned ? 0 : pinnedTabCount()));
+}
+
+int BrowserController::tabSectionCount(const QString &tabId) const
+{
+    const auto *tab = m_tabs.find(tabId);
+    if (!tab) {
+        return 0;
+    }
+    const auto pinned = pinnedTabCount();
+    return static_cast<int>(tab->pinned ? pinned : m_tabs.items().size() - pinned);
+}
+
+bool BrowserController::moveTab(const QString &tabId, int destinationIndex)
+{
+    const auto *tab = m_tabs.find(tabId);
+    if (!tab) {
+        return false;
+    }
+    const auto pinned = pinnedTabCount();
+    const auto sectionStart = tab->pinned ? qsizetype{0} : pinned;
+    const auto sectionCount = tabSectionCount(tabId);
+    if (destinationIndex < 0 || destinationIndex >= sectionCount) {
+        return false;
+    }
+    if (!m_tabs.move(tabId, sectionStart + destinationIndex)) {
+        return false;
+    }
+    persistTabs();
+    return true;
+}
+
+bool BrowserController::moveTabBy(const QString &tabId, int offset)
+{
+    const auto index = tabSectionIndex(tabId);
+    if (index < 0 || offset == 0) {
+        return false;
+    }
+    const auto destination = index + offset;
+    if (destination < 0 || destination >= tabSectionCount(tabId)) {
+        return false;
+    }
+    return moveTab(tabId, destination);
 }
 
 void BrowserController::toggleActivePinned()
@@ -674,9 +921,189 @@ void BrowserController::toggleActivePinned()
     m_tabs.move(m_activeTabId, destinationRow);
     tab = m_tabs.find(m_activeTabId);
     tab->pinned = pinned;
-    m_tabs.notifyChanged(tab->id, {TabListModel::PinnedRole});
+    // Keep active is a Pinned tab's setting, so unpinning gives it up rather
+    // than keeping it in reserve for the next time the tab is pinned.
+    const auto lostKeepActive = !pinned && tab->keepActive;
+    if (lostKeepActive) {
+        tab->keepActive = false;
+    }
+    m_tabs.notifyChanged(tab->id, lostKeepActive
+        ? QList<int>{TabListModel::PinnedRole, TabListModel::KeepActiveRole}
+        : QList<int>{TabListModel::PinnedRole});
     persistTabs();
     emit activeTabChanged();
+}
+
+bool BrowserController::setTabKeepActive(const QString &tabId, bool keepActive)
+{
+    if (m_privateBrowsing) {
+        return false;
+    }
+    auto *tab = m_tabs.find(tabId);
+    if (!tab || !tab->pinned) {
+        return false;
+    }
+    if (tab->keepActive == keepActive) {
+        return true;
+    }
+    tab->keepActive = keepActive;
+    m_tabs.notifyChanged(tab->id, {TabListModel::KeepActiveRole});
+    persistTabs();
+    if (tabId == m_activeTabId) {
+        emit activeTabChanged();
+    }
+    return true;
+}
+
+bool BrowserController::toggleActiveKeepActive()
+{
+    const auto *tab = m_tabs.find(m_activeTabId);
+    return tab && setTabKeepActive(m_activeTabId, !tab->keepActive);
+}
+
+// A page with no address is not running, so there is nothing about it to keep
+// running. Everything else here is either the reader's standing request or the
+// inspector's: an inspected tab that stopped would leave the frontend attached
+// to a page that cannot answer.
+QStringList BrowserController::retainedTabIds() const
+{
+    QStringList ids;
+    for (const auto &tab : m_tabs.items()) {
+        if (isBlank(tab.url)) {
+            continue;
+        }
+        if ((tab.pinned && tab.keepActive) || tab.id == m_developerToolsTabId) {
+            ids.append(tab.id);
+        }
+    }
+    return ids;
+}
+
+// Read from the stores of the Spaces that are not on show, because that is the
+// only place their tabs are: the tab model holds one Space at a time. The
+// active Space contributes nothing — its pages are live because the reader is
+// looking at them, not because anything is being retained for them.
+void BrowserController::refreshRetainedTabs()
+{
+    QVariantList retained;
+    if (!m_privateBrowsing) {
+        for (const auto &space : m_spaces.items()) {
+            if (space.id == m_activeSpaceId) {
+                continue;
+            }
+            for (const auto &tab : m_store.loadTabs(space.id)) {
+                if (isBlank(tab.url)) {
+                    continue;
+                }
+                if (!(tab.pinned && tab.keepActive) && tab.id != m_developerToolsTabId) {
+                    continue;
+                }
+                retained.append(QVariantMap{
+                    {QStringLiteral("tabId"), tab.id},
+                    {QStringLiteral("spaceId"), space.id},
+                    {QStringLiteral("spaceName"), space.name},
+                    {QStringLiteral("title"), tab.title},
+                    {QStringLiteral("url"), tab.url},
+                    {QStringLiteral("zoom"), tab.zoom},
+                    {QStringLiteral("muted"), tab.muted},
+                    {QStringLiteral("inspected"), tab.id == m_developerToolsTabId},
+                });
+            }
+        }
+    }
+    if (retained == m_retainedTabs) {
+        return;
+    }
+    m_retainedTabs = retained;
+    emit retainedTabsChanged();
+}
+
+QVariantMap BrowserController::notificationTarget(const QString &spaceId,
+    const QUrl &origin) const
+{
+    const auto wanted = normalizedOrigin(origin);
+    if (wanted.isEmpty()) {
+        return {};
+    }
+
+    QString spaceName;
+    for (const auto &space : m_spaces.items()) {
+        if (space.id == spaceId) {
+            spaceName = space.name;
+            break;
+        }
+    }
+
+    const auto answer = [&](const QString &tabId, const QString &title) {
+        return QVariantMap{
+            {QStringLiteral("tabId"), tabId},
+            {QStringLiteral("spaceId"), spaceId},
+            {QStringLiteral("spaceName"), m_privateBrowsing
+                ? QStringLiteral("Private") : spaceName},
+            {QStringLiteral("origin"), wanted},
+            {QStringLiteral("title"), title},
+        };
+    };
+
+    // The Space the reader is looking at: any of its pages may say something.
+    if (spaceId == m_activeSpaceId) {
+        for (const auto &tab : m_tabs.items()) {
+            if (normalizedOrigin(tab.url) == wanted) {
+                return answer(tab.id, tab.title);
+            }
+        }
+        return {};
+    }
+
+    // Any other Space is put away, and only a tab that was kept running has a
+    // page left to speak for.
+    for (const auto &entry : m_retainedTabs) {
+        const auto retained = entry.toMap();
+        if (retained.value(QStringLiteral("spaceId")).toString() != spaceId) {
+            continue;
+        }
+        if (normalizedOrigin(retained.value(QStringLiteral("url")).toUrl()) != wanted) {
+            continue;
+        }
+        return answer(retained.value(QStringLiteral("tabId")).toString(),
+            retained.value(QStringLiteral("title")).toString());
+    }
+    return {};
+}
+
+// Activating a notification is asking to be taken to the page that sent it,
+// which may mean changing Space first.
+bool BrowserController::activateNotificationTarget(const QString &spaceId,
+    const QString &tabId)
+{
+    if (!spaceId.isEmpty() && spaceId != m_activeSpaceId && !switchSpace(spaceId)) {
+        return false;
+    }
+    if (!m_tabs.find(tabId)) {
+        return false;
+    }
+    activateTab(tabId);
+    return true;
+}
+
+QString BrowserController::originInteractionKey(const QUrl &url) const
+{
+    const auto origin = normalizedOrigin(url);
+    return origin.isEmpty() ? QString{} : m_activeSpaceId + QLatin1Char('|') + origin;
+}
+
+void BrowserController::recordOriginInteraction(const QUrl &url)
+{
+    const auto key = originInteractionKey(url);
+    if (!key.isEmpty()) {
+        m_interactedOrigins.insert(key);
+    }
+}
+
+bool BrowserController::originInteracted(const QUrl &url) const
+{
+    const auto key = originInteractionKey(url);
+    return !key.isEmpty() && m_interactedOrigins.contains(key);
 }
 
 void BrowserController::updateTab(const QString &tabId, const QUrl &url, const QString &title)
@@ -885,6 +1312,9 @@ void BrowserController::setDeveloperToolsTab(const QString &tabId, const QString
     if (!movedTabs) {
         return;
     }
+    // An inspected tab keeps running while another Space is active, so the
+    // retained set moves with the attachment.
+    refreshRetainedTabs();
     emit developerToolsChanged();
     // Which tab is inspected is also a fact about the tab on show, and the
     // interface reads it there to decide whether to dock the inspector.
@@ -1268,6 +1698,10 @@ void BrowserController::initialize()
     }
     ensureDefaultSpace();
     ensureActiveTab();
+    loadClosedTabs();
+    // A Pinned tab marked Keep active is running before its Space is ever
+    // selected, so what the session restores is known from the first moment.
+    refreshRetainedTabs();
     loadSearchEngines();
     m_ready = true;
 }
