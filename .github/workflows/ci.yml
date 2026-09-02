@@ -92,3 +92,12 @@ jobs:
           echo '```json' >> "$GITHUB_STEP_SUMMARY"
           cat build/ci/content-blocking-compatibility.json >> "$GITHUB_STEP_SUMMARY"
           echo '```' >> "$GITHUB_STEP_SUMMARY"
+      - name: Configure release resources
+        run: su builder -c 'cmake --preset release'
+      - name: Build release
+        run: su builder -c 'cmake --build --preset release'
+      - name: Verify embedded QML
+        # The release preset embeds QML instead of loading it from source, so
+        # these two guard the packaged form. Both are platform-neutral: one is
+        # a CMake script check, the other loads QML offscreen.
+        run: su builder -c "ctest --preset release -R '^(omaweb-shared-qml-boundary|omaweb-qml-load)$'"
