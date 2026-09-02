@@ -590,7 +590,6 @@ Rectangle {
                 ChromeButton {
                     required property string spaceId
                     required property string spaceName
-                    required property string spaceColor
                     required property bool active
 
                     objectName: "space-" + spaceId
@@ -600,16 +599,19 @@ Rectangle {
                     accessibleName: active
                         ? "Current Space: " + spaceName
                         : "Switch to " + spaceName
-                    foreground: active
-                        ? (spaceColor.length > 0 ? spaceColor : root.colors.text)
-                        : root.colors.mutedText
+                    // The letter is the theme's, not the Space's own colour:
+                    // the kit derives a control's fill and its border from its
+                    // foreground, so a coloured Space painted the whole button
+                    // in it — a lit plate louder than anything else in the
+                    // outline, for the one thing the reader already knows.
+                    // Being the only lit letter in the row is what says which
+                    // Space is on show.
+                    foreground: active ? root.colors.text : root.colors.mutedText
                     accent: root.colors.accent
                     // The Space on show is the one selected thing in this row,
                     // so it is drawn the way the kit draws a selection and the
                     // way a current tab row is: the kit's own selected fill,
-                    // bordered, with the letter in the Space's colour. A plate
-                    // painted from the palette said the same thing in a
-                    // vocabulary nothing else in the outline uses.
+                    // bordered.
                     selected: active
                     bordered: active
                     background: "transparent"
