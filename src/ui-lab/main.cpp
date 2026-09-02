@@ -16,6 +16,7 @@
 #include <QColor>
 #include <QCoreApplication>
 #include <QDir>
+#include <QHash>
 #include <QFile>
 #include <QImage>
 #include <QPainter>
@@ -84,7 +85,15 @@ int main(int argc, char *argv[])
     QFile::copy(QStringLiteral(TANTO_DEFAULT_KEYBINDINGS_PATH), keybindingsPath);
     tanto::KeyboardNavigation keyboardNavigation(
         keybindingsPath, QStringLiteral(TANTO_KEYBOARD_NAVIGATION_SCRIPT_PATH));
-    tanto::ThemeController theme(QStringLiteral(TANTO_THEME_PATH));
+    // The lab reviews chrome, and chrome is drawn in a palette, so it honours
+    // the same override the browser does: `TANTO_THEME_FILE=<path>` reviews a
+    // theme without installing it. Nothing else in the lab's search order —
+    // the config directory, the desktop's theme — applies: a lab that read the
+    // machine's theme would review a different palette on every machine.
+    const auto themeOverride = qEnvironmentVariable("TANTO_THEME_FILE");
+    tanto::ThemeController theme(themeOverride.isEmpty()
+            ? QStringLiteral(TANTO_THEME_PATH)
+            : themeOverride);
     tanto::WindowManager windowManager(QStringLiteral("mock"));
 
     tanto::quickshell::installShim();
@@ -128,6 +137,24 @@ int main(int argc, char *argv[])
     // reviewed. Nothing else about the window changes.
     if (arguments.contains(QStringLiteral("--private")) && !engine.rootObjects().isEmpty()) {
         engine.rootObjects().constFirst()->setProperty("privateWindow", true);
+    }
+    // The chromeless state and the two places — settings and history — are
+    // reached by a key or a click in the browser, which a capture cannot
+    // press. Naming the state is how the lab reviews them.
+    const auto showIndex = arguments.indexOf(QStringLiteral("--show"));
+    if (showIndex >= 0 && showIndex + 1 < arguments.size() && !engine.rootObjects().isEmpty()) {
+        static const QHash<QString, const char *> states = {
+            {QStringLiteral("collapsed"), "sidebarCollapsed"},
+            {QStringLiteral("settings"), "settingsOpen"},
+            {QStringLiteral("history"), "historyOpen"},
+            {QStringLiteral("shortcuts"), "shortcutsOpen"},
+        };
+        const auto property = states.value(arguments.at(showIndex + 1));
+        if (property == nullptr) {
+            qCritical("Unknown --show state %s", qPrintable(arguments.at(showIndex + 1)));
+            return 1;
+        }
+        engine.rootObjects().constFirst()->setProperty(property, true);
     }
     const auto captureIndex = arguments.indexOf(QStringLiteral("--capture"));
     if (captureIndex >= 0 && captureIndex + 1 < arguments.size()) {
