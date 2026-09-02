@@ -73,6 +73,7 @@ QtObject {
     }
 
     property WebEngineProfile privateProfile: WebEngineProfile {
+        property string preparedDownloadPath: ""
         storageName: root.privateBrowsing ? "tanto-private" : "tanto-space"
         // A QML-declared profile is off-the-record by default, whatever its
         // storage name and cookie policy say: an off-the-record one keeps
@@ -91,8 +92,15 @@ QtObject {
 
         onDownloadRequested: function(download) {
             if (!root.acceptDownloads) return
-            if (root.downloadDirectory.length > 0)
+            if (preparedDownloadPath.length > 0) {
+                const separator = Math.max(preparedDownloadPath.lastIndexOf("/"),
+                    preparedDownloadPath.lastIndexOf("\\"))
+                download.downloadDirectory = preparedDownloadPath.substring(0, separator)
+                download.downloadFileName = preparedDownloadPath.substring(separator + 1)
+                preparedDownloadPath = ""
+            } else if (root.downloadDirectory.length > 0) {
                 download.downloadDirectory = root.downloadDirectory
+            }
             if (download.downloadFileName.length === 0)
                 download.downloadFileName = download.suggestedFileName
             root.activeDownloadCount += 1

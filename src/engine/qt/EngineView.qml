@@ -1,5 +1,6 @@
 import QtQuick
 import QtWebEngine
+import Tanto
 
 Item {
     id: root
@@ -77,6 +78,8 @@ Item {
     property bool contextMenuTargetKnown: false
     // The reader asked to point at something before the inspector had loaded.
     property bool elementPickPending: false
+    property int pageGeneration: 0
+    property string lastContextMediaType: "none"
 
     // What the reader is looking for in this page, and where the search has
     // reached. One adapter draws one tab, so this is find belonging to a tab
@@ -109,12 +112,18 @@ Item {
     signal windowCloseRequested()
     signal backgroundTabRequested(url requestedUrl)
     signal sitePermissionRequested(string requestId, string origin, string permission)
+    signal browserPromptRequested(string requestId, var prompt)
+    signal fileSelectionRequested(string requestId, var selection)
     // The page has been rendered, or it has not. Either way the shell hears
     // about it: a print that produced nothing is not a print that quietly
     // didn't happen.
     signal printFinished(string destination, bool succeeded)
     property var pendingPermissions: ({})
     property int nextPermissionRequestId: 0
+    property var pendingBrowserPrompts: ({})
+    property int nextBrowserPromptId: 0
+    property bool javaScriptDialogsBlocked: false
+    property var pendingFileSelections: ({})
 
     function respondToPermission(requestId, decision) {
         const request = pendingPermissions[requestId]
@@ -122,6 +131,103 @@ Item {
         delete pendingPermissions[requestId]
         if (decision === 1 || decision === 2) request.grant()
         else request.deny()
+    }
+
+    function respondToBrowserPrompt(requestId, accepted, response) {
+        const pending = root.pendingBrowserPrompts[requestId]
+        if (!pending) return
+        delete root.pendingBrowserPrompts[requestId]
+        if (pending.kind.startsWith("javascript-") && response.stopPrompts === true)
+            root.javaScriptDialogsBlocked = true
+        if (pending.kind === "external-protocol") {
+            if (accepted) {
+                if (response.remember === true && root.permissionController)
+                    root.permissionController.rememberExternalProtocolDecision(
+                        pending.origin, pending.scheme)
+                ExternalProtocolHandler.open(pending.destination)
+            }
+        } else if (!accepted) {
+            pending.request.dialogReject()
+        } else if (pending.kind === "http-authentication") {
+            pending.request.dialogAccept(String(response.user || ""),
+                String(response.password || ""))
+        } else {
+            pending.request.dialogAccept(String(response.text || ""))
+        }
+    }
+
+    function originAddress(url) {
+        const match = String(url).match(/^([a-z][a-z0-9+.-]*:\/\/[^/]+)/i)
+        return match ? match[1] : String(url)
+    }
+
+    function requestExternalProtocol(destination) {
+        const address = String(destination)
+        const separator = address.indexOf(":")
+        const scheme = separator > 0 ? address.substring(0, separator).toLowerCase() : ""
+        const origin = root.originAddress(webView.url)
+        if (scheme.length === 0 || origin.length === 0) return
+        if (root.permissionController
+            && root.permissionController.externalProtocolAllowed(origin, scheme)) {
+            ExternalProtocolHandler.open(address)
+            return
+        }
+        const requestId = String(++root.nextBrowserPromptId)
+        const application = ExternalProtocolHandler.applicationName(address)
+        root.pendingBrowserPrompts[requestId] = {
+            "kind": "external-protocol",
+            "origin": origin,
+            "scheme": scheme,
+            "destination": address
+        }
+        root.browserPromptRequested(requestId, {
+            "kind": "external-protocol",
+            "application": application,
+            "scheme": scheme,
+            "origin": origin,
+            "destination": address,
+            "message": "Open " + application + "?",
+            "detail": scheme + " · " + origin + " · " + address
+        })
+    }
+
+    function respondToFileSelection(requestId, files) {
+        const request = root.pendingFileSelections[requestId]
+        if (!request) return
+        delete root.pendingFileSelections[requestId]
+        if (files.length === 0) {
+            request.dialogReject()
+            return
+        }
+        const paths = []
+        for (let index = 0; index < files.length; ++index)
+            paths.push(root.localPath(files[index]))
+        request.dialogAccept(paths)
+    }
+
+    function localPath(fileUrl) {
+        let path = decodeURIComponent(String(fileUrl).replace(/^file:\/\//, ""))
+        if (Qt.platform.os === "windows" && path.startsWith("/")) path = path.substring(1)
+        return path
+    }
+
+    function performPageContextAction(action, destination) {
+        if (action === "copy-image") {
+            webView.triggerWebAction(WebEngineView.CopyImageToClipboard)
+            return
+        }
+        const path = root.localPath(destination)
+        if (path.length === 0) return
+        const profile = root.resolvedProfile()
+        if (!profile || profile.preparedDownloadPath === undefined) return
+        profile.preparedDownloadPath = path
+        if (action === "save-link")
+            webView.triggerWebAction(WebEngineView.DownloadLinkToDisk)
+        else if (action === "save-media") {
+            const webAction = root.lastContextMediaType === "image"
+                ? WebEngineView.DownloadImageToDisk : WebEngineView.DownloadMediaToDisk
+            webView.triggerWebAction(webAction)
+        }
     }
 
     // Chromium's inspector is a webpage of its own, and it runs in the profile
@@ -218,6 +324,40 @@ Item {
         case ContextMenuRequest.MediaTypeFile: return "file"
         }
         return "none"
+    }
+
+    // A command has no pointer target. The focused element is the keyboard's
+    // target, so the adapter describes that element in the same plain-value
+    // shape as a pointer request. Inspect element deliberately enters the
+    // inspector's picker because Chromium is not holding a native menu node.
+    function requestPageContextMenu() {
+        root.contextMenuTargetKnown = false
+        const generation = root.pageGeneration
+        webView.runJavaScript(`(() => {
+            const target = document.activeElement || document.body;
+            const link = target && target.closest ? target.closest('a[href]') : null;
+            const media = target && target.closest
+                ? target.closest('img[src],video[src],audio[src]') : null;
+            const rect = target && target.getBoundingClientRect
+                ? target.getBoundingClientRect() : {left: innerWidth / 2, top: innerHeight / 2,
+                    width: 0, height: 0};
+            return {
+                x: Math.round(rect.left + rect.width / 2),
+                y: Math.round(rect.top + rect.height / 2),
+                selectedText: String(getSelection() || ''),
+                linkText: link ? String(link.textContent || '') : '',
+                linkUrl: link ? link.href : '',
+                mediaUrl: media ? (media.currentSrc || media.src || '') : '',
+                mediaType: media ? media.tagName.toLowerCase().replace('img', 'image') : 'none',
+                editable: Boolean(target && (target.isContentEditable
+                    || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)))
+            };
+        })()`, function(context) {
+            if (context && generation === root.pageGeneration) {
+                context.pageGeneration = generation
+                root.pageContextRequested(context)
+            }
+        })
     }
 
     function goBack() { webView.goBack() }
@@ -871,6 +1011,11 @@ Item {
         // A page may ask for the screen. Tanto answers the request rather than
         // the engine, so the shell can say whose page took it and hand it back.
         settings.fullScreenSupportEnabled: true
+        // Opening one selected local document must not give that document a
+        // directory-wide read capability. Related resources need a server or
+        // an explicit file-selection grant of their own.
+        settings.localContentCanAccessFileUrls: false
+        settings.localContentCanAccessRemoteUrls: false
         // Chromium paints this before a page supplies its own background.
         // Left at white it flashes a bright rectangle through dark chrome on
         // every navigation, so it follows the theme instead.
@@ -888,6 +1033,7 @@ Item {
         // what stops the engine drawing a menu of its own over Tanto's.
         onContextMenuRequested: function(request) {
             root.contextMenuTargetKnown = true
+            root.lastContextMediaType = root.mediaTypeName(request.mediaType)
             request.accepted = true
             root.pageContextRequested({
                 "x": request.position.x,
@@ -897,13 +1043,16 @@ Item {
                 "linkUrl": request.linkUrl,
                 "mediaUrl": request.mediaUrl,
                 "mediaType": root.mediaTypeName(request.mediaType),
-                "editable": request.isContentEditable
+                "editable": request.isContentEditable,
+                "pageGeneration": root.pageGeneration
             })
         }
 
         onLoadingChanged: function(loadRequest) {
             root.refreshBlockedRequestCount()
             if (loadRequest.status === WebEngineView.LoadStartedStatus) {
+                root.pageGeneration += 1
+                root.javaScriptDialogsBlocked = false
                 // The node Chromium is holding belonged to the page being
                 // replaced. What is at those coordinates now is not what the
                 // reader pointed at, so the next keyboard request picks again.
@@ -930,6 +1079,15 @@ Item {
                 root.auxiliaryWindowRequested(request, request.requestedUrl)
             else
                 root.newTabRequested(request, request.requestedUrl)
+        }
+
+        onNavigationRequested: function(request) {
+            const address = String(request.url)
+            const scheme = address.substring(0, address.indexOf(":")).toLowerCase()
+            if (scheme === "http" || scheme === "https" || scheme === "file"
+                || scheme === "about" || scheme === "data" || scheme === "tanto") return
+            request.reject()
+            root.requestExternalProtocol(request.url)
         }
 
         onWindowCloseRequested: root.windowCloseRequested()
@@ -980,6 +1138,59 @@ Item {
                 root.pendingPermissions[requestId] = request
                 root.sitePermissionRequested(requestId, request.origin.toString(), permission)
             }
+        }
+
+
+        onJavaScriptDialogRequested: function(request) {
+            request.accepted = true
+            if (root.javaScriptDialogsBlocked) {
+                request.dialogReject()
+                return
+            }
+            let suffix = "alert"
+            if (request.type === JavaScriptDialogRequest.DialogTypeConfirm) suffix = "confirm"
+            else if (request.type === JavaScriptDialogRequest.DialogTypePrompt) suffix = "prompt"
+            else if (request.type === JavaScriptDialogRequest.DialogTypeBeforeUnload)
+                suffix = "before-unload"
+            const requestId = String(++root.nextBrowserPromptId)
+            const kind = "javascript-" + suffix
+            root.pendingBrowserPrompts[requestId] = {"request": request, "kind": kind}
+            root.browserPromptRequested(requestId, {
+                "kind": kind,
+                "origin": request.securityOrigin.toString(),
+                "message": request.message,
+                "defaultText": request.defaultText
+            })
+        }
+
+        onAuthenticationDialogRequested: function(request) {
+            request.accepted = true
+            const requestId = String(++root.nextBrowserPromptId)
+            root.pendingBrowserPrompts[requestId] = {
+                "request": request, "kind": "http-authentication"
+            }
+            root.browserPromptRequested(requestId, {
+                "kind": "http-authentication",
+                "origin": request.url.toString(),
+                "message": "Sign in to " + root.originLabel(request.url),
+                "detail": request.realm
+            })
+        }
+
+
+        onFileDialogRequested: function(request) {
+            request.accepted = true
+            const requestId = String(++root.nextBrowserPromptId)
+            let mode = "open"
+            if (request.mode === FileDialogRequest.FileModeOpenMultiple) mode = "open-multiple"
+            else if (request.mode === FileDialogRequest.FileModeUploadFolder) mode = "folder"
+            else if (request.mode === FileDialogRequest.FileModeSave) mode = "save"
+            root.pendingFileSelections[requestId] = request
+            root.fileSelectionRequested(requestId, {
+                "mode": mode,
+                "mimeTypes": request.acceptedMimeTypes,
+                "suggestedName": request.defaultFileName
+            })
         }
     }
 }

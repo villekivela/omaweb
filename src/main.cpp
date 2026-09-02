@@ -1,6 +1,7 @@
 #include "BrowserController.h"
 #include "ContentBlocker.h"
 #include "DevelopmentLaunch.h"
+#include "ExternalProtocolHandler.h"
 #include "FaviconTint.h"
 #include "KeyboardNavigation.h"
 #include "KitTheme.h"
@@ -170,6 +171,7 @@ int main(int argc, char *argv[])
     tanto::quickshell::installShim();
     tanto::registerFaviconTint();
     tanto::registerSystemClipboard();
+    tanto::registerExternalProtocolHandler();
     tanto::registerPagePrinter();
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty(QStringLiteral("browser"), &browser);

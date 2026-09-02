@@ -1,6 +1,7 @@
 #include "BrowserController.h"
 #include "ContentBlocker.h"
 #include "FaviconTint.h"
+#include "ExternalProtocolHandler.h"
 #include "KeyboardNavigation.h"
 #include "KitTheme.h"
 #include "PagePrinter.h"
@@ -48,6 +49,7 @@ public slots:
         tanto::quickshell::installShim();
         tanto::registerFaviconTint();
         tanto::registerSystemClipboard();
+        tanto::registerExternalProtocolHandler();
         tanto::registerPagePrinter();
         m_dataRoot = std::make_unique<QTemporaryDir>();
         m_browser = std::make_unique<tanto::BrowserController>(

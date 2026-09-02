@@ -44,6 +44,8 @@ Item {
     signal backgroundTabRequested(url requestedUrl)
     signal sitePermissionRequested(var engine, string requestId, string origin, string permission)
     signal pageContextRequested(var engine, var context)
+    signal browserPromptRequested(var engine, string requestId, var prompt)
+    signal fileSelectionRequested(var engine, string requestId, var selection)
 
     function keyboardConfiguration(url) {
         const configuration = Object.assign({}, root.keyboardManager.configurationForUrl(url))
@@ -98,6 +100,10 @@ Item {
 
     function focusPage() {
         if (activeEngine) activeEngine.focusPage()
+    }
+
+    function requestPageContextMenu() {
+        if (activeEngine) activeEngine.requestPageContextMenu()
     }
 
     // The everyday page operations, each one addressed to the engine of the tab
@@ -452,6 +458,14 @@ Item {
                 function onSitePermissionRequested(requestId, origin, permission) {
                     root.sitePermissionRequested(
                         tabSlot.engine, requestId, origin, permission)
+                }
+
+                function onBrowserPromptRequested(requestId, prompt) {
+                    root.browserPromptRequested(tabSlot.engine, requestId, prompt)
+                }
+
+                function onFileSelectionRequested(requestId, selection) {
+                    root.fileSelectionRequested(tabSlot.engine, requestId, selection)
                 }
             }
         }

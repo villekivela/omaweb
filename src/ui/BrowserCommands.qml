@@ -47,6 +47,8 @@ QtObject {
         case "fullscreen": window.toggleBrowserFullscreen(); return true
         case "developer-tools": window.toggleDeveloperTools(); return true
         case "inspect-element": window.inspectElement(); return true
+        case "open-page-context-menu": window.openPageContextMenu(); return true
+        case "open-file": window.requestOpenFile(); return true
         case "shortcuts": window.requestShortcuts(); return true
         case "settings": window.requestSettings(); return true
         case "private-window": windowManager.openPrivateWindow(); return true
@@ -98,6 +100,9 @@ QtObject {
             requires: "inspector" },
         "inspect-element": { group: "developer", title: "Inspect element",
             requires: "inspector" },
+        "open-page-context-menu": { group: "page", title: "Open page context menu",
+            requires: "page" },
+        "open-file": { group: "navigation", title: "Open file" },
         "shortcuts": { group: "interface", title: "Keyboard shortcuts" },
         "settings": { group: "interface", title: "Settings and downloads" },
         "private-window": { group: "interface", title: "New Private window",

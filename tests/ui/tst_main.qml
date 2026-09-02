@@ -110,8 +110,8 @@ TestCase {
         // A link offers what you do with a link, first.
         engine.simulateContextMenu({"linkUrl": "https://linked.example/target"})
         tryVerify(function() { return menu.visible })
-        compare(labels().slice(0, 4), ["Open link in new tab",
-            "Open link in background", "Copy link address", "—"])
+        compare(labels().slice(0, 5), ["Open link in new tab",
+            "Open link in background", "Copy link address", "Save link as", "—"])
 
         // And running a row does that thing to that link.
         SystemClipboard.copyText("stale")
@@ -124,8 +124,8 @@ TestCase {
             "mediaUrl": "https://linked.example/cat.png", "mediaType": "image"})
         tryVerify(function() { return menu.visible })
         compare(labels().slice(0, 5), ["Open image in new tab", "Copy image address",
-            "—", "Copy", "—"])
-        window.runPageMenu(3)
+            "Copy image", "Save image as", "—"])
+        window.runPageMenu(5)
         compare(SystemClipboard.text(), "chosen words")
 
         // Opening a link in a background tab leaves the reader where they were.
@@ -168,6 +168,140 @@ TestCase {
 
         keyClick(Qt.Key_Escape)
         tryVerify(function() { return !menu.visible })
+    }
+
+    function test_pageContextMenuOpensFromKeyboardAndCommandPanel() {
+        const engine = openPage("https://keyboard-context.example/")
+        const menu = findChild(window.contentItem, "pageMenu")
+        window.requestActivate()
+        tryVerify(function() { return window.active })
+
+        keyClick(Qt.Key_F10, Qt.ShiftModifier)
+        tryVerify(function() { return menu.visible })
+        compare(engine.contextMenuRequestCount, 1)
+        keyClick(Qt.Key_Escape)
+        tryVerify(function() { return !menu.visible })
+
+        verify(window.commands.available("open-page-context-menu"))
+        verify(window.commands.run("open-page-context-menu", -1))
+        tryVerify(function() { return menu.visible })
+        compare(engine.contextMenuRequestCount, 2)
+    }
+
+    function test_pageContextMenuRejectsAStaleTarget() {
+        const engine = openPage("https://stale-target.example/before")
+        SystemClipboard.copyText("keep this")
+        engine.simulateContextMenu({"linkUrl": "https://stale-target.example/link"})
+        tryVerify(function() { return window.pageMenuOpen })
+
+        engine.currentUrl = "https://stale-target.example/after"
+        tryVerify(function() {
+            return browser.activeUrl.toString() === "https://stale-target.example/after"
+        })
+        window.runPageMenu(2)
+        compare(SystemClipboard.text(), "keep this")
+        verify(!window.pageMenuOpen)
+    }
+
+    function test_javascriptPromptsAreTabModalCancelableAndStoppable() {
+        const engine = openPage("https://prompts.example/page")
+        const bar = findChild(window.contentItem, "browserPromptBar")
+        verify(bar !== null)
+
+        engine.simulateJavaScriptPrompt("prompt", "https://prompts.example",
+            "What should this page use?", "suggested")
+        tryVerify(function() { return bar.visible })
+        compare(window.pendingBrowserPrompt.kind, "javascript-prompt")
+        compare(window.pendingBrowserPrompt.origin, "https://prompts.example")
+        compare(window.pendingBrowserPrompt.defaultText, "suggested")
+
+        window.respondToBrowserPrompt(false, "", "", "", true, false)
+        compare(engine.lastPromptAccepted, false)
+        verify(engine.javaScriptDialogsBlocked)
+        verify(!bar.visible)
+
+        engine.simulateJavaScriptPrompt("confirm", "https://prompts.example",
+            "This must not open", "")
+        wait(20)
+        verify(!bar.visible)
+    }
+
+    function test_pagePromptDoesNotFollowTheReaderToAnotherTab() {
+        const engine = openPage("https://prompt-tab.example/")
+        engine.simulateJavaScriptPrompt("confirm", "https://prompt-tab.example",
+            "Stay on this tab?", "")
+        tryVerify(function() { return window.browserPromptOpen })
+
+        browser.openInput("https://another-tab.example/", true)
+        tryVerify(function() { return browser.activeUrl.toString()
+            === "https://another-tab.example/" })
+        verify(!window.browserPromptOpen)
+        verify(!engine.lastPromptAccepted)
+    }
+
+    function test_httpAuthenticationCredentialsStayInTheLiveEngine() {
+        const engine = openPage("https://auth.example/private")
+        engine.simulateHttpAuthentication("https://auth.example", "Members")
+        tryVerify(function() { return window.browserPromptOpen })
+        compare(window.pendingBrowserPrompt.kind, "http-authentication")
+        compare(window.pendingBrowserPrompt.detail, "Members")
+
+        window.respondToBrowserPrompt(true, "", "reader", "secret", false, false)
+        compare(engine.lastPromptResponse.user, "reader")
+        compare(engine.lastPromptResponse.password, "secret")
+        verify(!window.browserPromptOpen)
+        compare(browser.preference("http-authentication", "missing"), "missing")
+    }
+
+    function test_externalProtocolConfirmationNamesDestinationAndCanBeRemembered() {
+        const engine = openPage("https://calendar.example/event")
+        const destination = "webcal://calendar.example/team?id=42"
+        engine.simulateExternalProtocol("Calendar", destination)
+        tryVerify(function() { return window.browserPromptOpen })
+        compare(window.pendingBrowserPrompt.kind, "external-protocol")
+        compare(window.pendingBrowserPrompt.application, "Calendar")
+        compare(window.pendingBrowserPrompt.scheme, "webcal")
+        compare(window.pendingBrowserPrompt.origin, "https://calendar.example")
+        compare(window.pendingBrowserPrompt.destination, destination)
+
+        window.respondToBrowserPrompt(true, "", "", "", false, true)
+        compare(engine.externalOpenCount, 1)
+        verify(browser.externalProtocolAllowed(
+            "https://calendar.example/elsewhere", "webcal"))
+
+        engine.simulateExternalProtocol("Calendar", "webcal://calendar.example/next")
+        compare(engine.externalOpenCount, 2)
+        verify(!window.browserPromptOpen)
+    }
+
+    function test_targetActionsUseNativeSaveAndFileSelectionBoundaries() {
+        const engine = openPage("https://files.example/form")
+        const nativeOpen = findChild(window, "openFileDialog")
+        const nativeSelection = findChild(window, "pageFileDialog")
+        const nativeSave = findChild(window, "saveTargetDialog")
+        verify(nativeOpen !== null)
+        verify(nativeSelection !== null)
+        verify(nativeSave !== null)
+        verify(window.commands.available("open-file"))
+
+        engine.simulateContextMenu({
+            "linkUrl": "https://files.example/archive.zip",
+            "mediaUrl": "https://files.example/photo.png",
+            "mediaType": "image"
+        })
+        tryVerify(function() { return window.pageMenuOpen })
+        const labels = window.pageMenuActions.map(function(row) { return row.label || "" })
+        verify(labels.indexOf("Save link as") >= 0)
+        verify(labels.indexOf("Copy image") >= 0)
+        verify(labels.indexOf("Save image as") >= 0)
+
+        engine.simulateFileSelection("open-multiple", ["image/png"])
+        compare(window.pendingFileSelection.mode, "open-multiple")
+        window.respondToFileSelection(["/tmp/one.png", "/tmp/two.png"])
+        compare(engine.lastSelectedFiles.length, 2)
+        engine.simulateFileSelection("open", ["text/plain"])
+        window.respondToFileSelection([])
+        verify(engine.fileSelectionCancelled)
     }
 
     // The address of the page on show goes to the clipboard on its own: no

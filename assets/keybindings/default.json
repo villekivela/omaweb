@@ -13,6 +13,7 @@
   },
   "browser": {
     "Primary+L": "open-address",
+    "Primary+O": "open-file",
     "Primary+K": "command-panel",
     "Primary+T": "new-tab",
     "Primary+W": "close-tab",
@@ -37,6 +38,7 @@
     "Primary+.": "stop-loading",
     "Primary+Shift+F": "fullscreen",
     "Primary+Alt+C": "inspect-element",
+    "Shift+F10": "open-page-context-menu",
     "Primary+/": "shortcuts",
     "Primary+,": "settings",
     "Primary+M": "minimize-window",

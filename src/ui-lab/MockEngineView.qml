@@ -95,6 +95,8 @@ Rectangle {
     // How many times the page's own target was asked for, so a test can tell
     // opening the dock from inspecting through it.
     property int inspectedElementCount: 0
+    property int contextMenuRequestCount: 0
+    property int pageGeneration: 0
 
     signal pageContextRequested(var context)
     signal developerToolsClosed()
@@ -104,10 +106,94 @@ Rectangle {
     signal windowCloseRequested()
     signal backgroundTabRequested(url requestedUrl)
     signal sitePermissionRequested(string requestId, string origin, string permission)
+    signal browserPromptRequested(string requestId, var prompt)
+    signal fileSelectionRequested(string requestId, var selection)
     signal printFinished(string destination, bool succeeded)
     function respondToPermission(requestId, decision) {}
+    property bool javaScriptDialogsBlocked: false
+    property bool lastPromptAccepted: false
+    property var lastPromptResponse: ({})
+    property int nextBrowserPromptId: 0
+    property var pendingExternalProtocols: ({})
+    property int externalOpenCount: 0
+    property var lastSelectedFiles: []
+    property bool fileSelectionCancelled: false
+    property string lastContextAction: ""
+    property string lastContextDestination: ""
+    function respondToBrowserPrompt(requestId, accepted, response) {
+        root.lastPromptAccepted = accepted
+        root.lastPromptResponse = response
+        if (response.stopPrompts === true) root.javaScriptDialogsBlocked = true
+        const external = root.pendingExternalProtocols[requestId]
+        if (external) {
+            delete root.pendingExternalProtocols[requestId]
+            if (accepted) {
+                if (response.remember === true && root.permissionController)
+                    root.permissionController.rememberExternalProtocolDecision(
+                        external.origin, external.scheme)
+                root.externalOpenCount += 1
+            }
+        }
+    }
+    function simulateJavaScriptPrompt(type, origin, message, defaultText) {
+        if (root.javaScriptDialogsBlocked) return
+        root.browserPromptRequested(String(++root.nextBrowserPromptId), {
+            "kind": "javascript-" + type,
+            "origin": String(origin),
+            "message": String(message),
+            "defaultText": String(defaultText || "")
+        })
+    }
+    function simulateHttpAuthentication(origin, realm) {
+        root.browserPromptRequested(String(++root.nextBrowserPromptId), {
+            "kind": "http-authentication",
+            "origin": String(origin),
+            "message": "Sign in to " + String(origin),
+            "detail": String(realm)
+        })
+    }
+    function simulateExternalProtocol(application, destination) {
+        const address = String(destination)
+        const scheme = address.substring(0, address.indexOf(":"))
+        if (root.permissionController
+            && root.permissionController.externalProtocolAllowed(root.currentUrl, scheme)) {
+            root.externalOpenCount += 1
+            return
+        }
+        const requestId = String(++root.nextBrowserPromptId)
+        const page = String(root.currentUrl)
+        const match = page.match(/^([a-z][a-z0-9+.-]*:\/\/[^/]+)/i)
+        const origin = match ? match[1] : page
+        root.pendingExternalProtocols[requestId] = {
+            "origin": origin, "scheme": scheme, "destination": address
+        }
+        root.browserPromptRequested(requestId, {
+            "kind": "external-protocol",
+            "application": String(application),
+            "scheme": scheme,
+            "origin": origin,
+            "destination": address,
+            "message": "Open " + String(application) + "?",
+            "detail": scheme + " · " + origin + " · " + address
+        })
+    }
+    function simulateFileSelection(mode, mimeTypes) {
+        root.fileSelectionRequested(String(++root.nextBrowserPromptId), {
+            "mode": String(mode), "mimeTypes": mimeTypes || [], "suggestedName": ""
+        })
+    }
+    function respondToFileSelection(requestId, files) {
+        root.lastSelectedFiles = files
+        root.fileSelectionCancelled = files.length === 0
+    }
+    function performPageContextAction(action, destination) {
+        root.lastContextAction = String(action)
+        root.lastContextDestination = String(destination)
+    }
 
     onCurrentUrlChanged: {
+        root.pageGeneration += 1
+        root.javaScriptDialogsBlocked = false
         pageLocalState = ""
         // The matches were in the page that has just been replaced. The query
         // is the reader's and stays.
@@ -243,7 +329,12 @@ Rectangle {
             "mediaUrl": named.mediaUrl !== undefined ? named.mediaUrl : "",
             "mediaType": named.mediaType !== undefined ? named.mediaType : "none",
             "editable": named.editable === true
+            , "pageGeneration": root.pageGeneration
         })
+    }
+    function requestPageContextMenu() {
+        root.contextMenuRequestCount += 1
+        root.simulateContextMenu({"x": root.width / 2, "y": root.height / 2})
     }
 
     property Component mockDeveloperToolsComponent: Component {

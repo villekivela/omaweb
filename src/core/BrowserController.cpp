@@ -886,6 +886,42 @@ bool BrowserController::setPermissionDecision(const QUrl &url, const QString &pe
         m_activeSpaceId, origin, normalizedPermission, decision);
 }
 
+bool BrowserController::externalProtocolAllowed(const QUrl &url, const QString &scheme) const
+{
+    const auto origin = normalizedOrigin(url);
+    const auto normalizedScheme = scheme.trimmed().toLower();
+    if (origin.isEmpty() || normalizedScheme.isEmpty()) {
+        return false;
+    }
+    const auto permission = QStringLiteral("external-protocol/%1").arg(normalizedScheme);
+    const auto sessionDecision = m_sessionPermissionDecisions->value(
+        sessionPermissionKey(origin, permission), Ask);
+    if (sessionDecision == AllowPersistently) {
+        return true;
+    }
+    return !m_privateBrowsing
+        && m_store.permissionDecision(m_activeSpaceId, origin, permission)
+            == AllowPersistently;
+}
+
+bool BrowserController::rememberExternalProtocolDecision(const QUrl &url,
+    const QString &scheme)
+{
+    const auto origin = normalizedOrigin(url);
+    const auto normalizedScheme = scheme.trimmed().toLower();
+    if (origin.isEmpty() || normalizedScheme.isEmpty()) {
+        return false;
+    }
+    const auto permission = QStringLiteral("external-protocol/%1").arg(normalizedScheme);
+    if (m_privateBrowsing) {
+        m_sessionPermissionDecisions->insert(
+            sessionPermissionKey(origin, permission), AllowPersistently);
+        return true;
+    }
+    return m_store.savePermissionDecision(
+        m_activeSpaceId, origin, permission, AllowPersistently);
+}
+
 QString BrowserController::recordDownload(const QString &runtimeId, const QUrl &url,
     const QString &path, const QString &state, qint64 receivedBytes, qint64 totalBytes)
 {

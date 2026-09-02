@@ -45,6 +45,7 @@ private slots:
     void sharesPrivateIdentityUntilLastWindowCloses();
     void keepsHistorySuggestionsInsideActiveSpace();
     void scopesPermissionDecisionsToOriginSpaceAndLifetime();
+    void scopesExternalProtocolDecisionsToOriginSchemeSpaceAndPrivateSession();
     void persistsOnlyNonPrivateDownloadHistory();
     void persistsInterfacePreferencesOutsidePrivateBrowsing();
     void attachesOneInspectorToOneTab();
@@ -652,6 +653,44 @@ void BrowserControllerTest::scopesPermissionDecisionsToOriginSpaceAndLifetime()
     QCOMPARE(restored.permissionDecision(QUrl(QStringLiteral("https://once.example")),
                  QStringLiteral("notifications")),
         BrowserController::Ask);
+}
+
+void BrowserControllerTest::scopesExternalProtocolDecisionsToOriginSchemeSpaceAndPrivateSession()
+{
+    QTemporaryDir root;
+    BrowserController controller(root.path(), QStringLiteral("test"));
+    const auto personalSpaceId = controller.activeSpaceId();
+
+    QVERIFY(controller.rememberExternalProtocolDecision(
+        QUrl(QStringLiteral("https://EXAMPLE.com/page")), QStringLiteral("MailTo")));
+    QVERIFY(controller.externalProtocolAllowed(
+        QUrl(QStringLiteral("https://example.com/another")), QStringLiteral("mailto")));
+    QVERIFY(!controller.externalProtocolAllowed(
+        QUrl(QStringLiteral("https://elsewhere.example")), QStringLiteral("mailto")));
+    QVERIFY(!controller.externalProtocolAllowed(
+        QUrl(QStringLiteral("https://example.com")), QStringLiteral("webcal")));
+
+    const auto workSpaceId = controller.createSpace(QStringLiteral("Work"));
+    QVERIFY(controller.switchSpace(workSpaceId));
+    QVERIFY(!controller.externalProtocolAllowed(
+        QUrl(QStringLiteral("https://example.com")), QStringLiteral("mailto")));
+    QVERIFY(controller.switchSpace(personalSpaceId));
+    QVERIFY(controller.externalProtocolAllowed(
+        QUrl(QStringLiteral("https://example.com")), QStringLiteral("mailto")));
+
+    const auto privateDecisions = QSharedPointer<QHash<QString, int>>::create();
+    BrowserController firstPrivate(root.path(), QStringLiteral("test"), true, privateDecisions);
+    BrowserController secondPrivate(root.path(), QStringLiteral("test"), true, privateDecisions);
+    QVERIFY(firstPrivate.rememberExternalProtocolDecision(
+        QUrl(QStringLiteral("https://private.example")), QStringLiteral("mailto")));
+    QVERIFY(secondPrivate.externalProtocolAllowed(
+        QUrl(QStringLiteral("https://private.example/path")), QStringLiteral("mailto")));
+    QVERIFY(secondPrivate.externalProtocolAllowed(
+        QUrl(QStringLiteral("https://private.example/path")), QStringLiteral("mailto")));
+
+    BrowserController freshPrivate(root.path(), QStringLiteral("test"), true);
+    QVERIFY(!freshPrivate.externalProtocolAllowed(
+        QUrl(QStringLiteral("https://private.example")), QStringLiteral("mailto")));
 }
 
 void BrowserControllerTest::persistsOnlyNonPrivateDownloadHistory()

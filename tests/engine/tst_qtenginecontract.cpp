@@ -1,5 +1,6 @@
 #include "ContentBlocker.h"
 #include "EngineCapabilities.h"
+#include "ExternalProtocolHandler.h"
 #include "QtContentBlocker.h"
 #include "EngineViewContract.h"
 
@@ -67,6 +68,9 @@ private slots:
     void qtPicksAnElementWhenNoContextMenuNamedOne();
     void qtDrawsMarkupStructureQuieterThanItsContent();
     void qtReportsThePageContextAndDrawsNoMenuOfItsOwn();
+    void qtReportsTargetsInsideCrossOriginFrames();
+    void qtOwnsJavaScriptPromptsAndReturnsTheirAnswer();
+    void qtOpensOneLocalFileWithoutDirectoryWideAccess();
     void adaptersAnswerForEveryEverydayPageOperation_data();
     void adaptersAnswerForEveryEverydayPageOperation();
     void qtFindsInThePageAndKeepsTheQueryAcrossNavigation();
@@ -1652,6 +1656,113 @@ void QtEngineContractTest::qtReportsThePageContextAndDrawsNoMenuOfItsOwn()
     QVERIFY(adapter->property("contextMenuTargetKnown").toBool());
 }
 
+void QtEngineContractTest::qtReportsTargetsInsideCrossOriginFrames()
+{
+    PageServer frameServer(R"HTML(<!doctype html><style>body{margin:0}</style>
+        <a href="https://target.example/from-frame"
+           style="display:block;width:240px;height:80px;font-size:24px">frame link</a>)HTML");
+    QVERIFY(frameServer.listen(QHostAddress::LocalHost));
+    PageServer pageServer(QStringLiteral(
+        "<!doctype html><title>Cross-origin frame</title>"
+        "<style>body{margin:0}iframe{border:0;width:300px;height:120px}</style>"
+        "<iframe src=\"http://127.0.0.1:%1/frame.html\"></iframe>")
+                              .arg(frameServer.serverPort())
+                              .toUtf8());
+    QVERIFY(pageServer.listen(QHostAddress::LocalHost));
+
+    QQmlEngine engine;
+    QQmlComponent component(&engine, QUrl::fromLocalFile(
+        QStringLiteral(TANTO_QT_ENGINE_VIEW_PATH)));
+    const std::unique_ptr<QObject> adapter(component.create());
+    QVERIFY2(adapter, qPrintable(component.errorString()));
+    auto *item = qobject_cast<QQuickItem *>(adapter.get());
+    QVERIFY(item);
+    QQuickWindow window;
+    window.resize(640, 480);
+    item->setParentItem(window.contentItem());
+    item->setSize(QSizeF(640, 480));
+    window.show();
+
+    QSignalSpy contextSpy(adapter.get(), SIGNAL(pageContextRequested(QVariant)));
+    QVERIFY(adapter->setProperty("currentUrl", QUrl(QStringLiteral(
+        "http://127.0.0.1:%1/page.html").arg(pageServer.serverPort()))));
+    QTRY_COMPARE_WITH_TIMEOUT(adapter->property("pageTitle").toString(),
+        QStringLiteral("Cross-origin frame"), 10000);
+    QTest::qWait(500);
+    QTest::mouseClick(&window, Qt::RightButton, {}, QPoint(40, 30));
+    QTRY_VERIFY_WITH_TIMEOUT(contextSpy.count() > 0, 10000);
+    QCOMPARE(contextSpy.last().first().toMap().value(QStringLiteral("linkUrl")).toUrl(),
+        QUrl(QStringLiteral("https://target.example/from-frame")));
+}
+
+void QtEngineContractTest::qtOwnsJavaScriptPromptsAndReturnsTheirAnswer()
+{
+    QQmlEngine engine;
+    QQmlComponent component(&engine, QUrl::fromLocalFile(
+        QStringLiteral(TANTO_QT_ENGINE_VIEW_PATH)));
+    const std::unique_ptr<QObject> adapter(component.create());
+    QVERIFY2(adapter, qPrintable(component.errorString()));
+    auto *item = qobject_cast<QQuickItem *>(adapter.get());
+    QVERIFY(item);
+    QQuickWindow window;
+    window.resize(640, 480);
+    item->setParentItem(window.contentItem());
+    item->setSize(QSizeF(640, 480));
+    window.show();
+
+    QSignalSpy promptSpy(adapter.get(), SIGNAL(browserPromptRequested(QString,QVariant)));
+    QVERIFY(promptSpy.isValid());
+    QVERIFY(adapter->setProperty("currentUrl", QUrl(QStringLiteral(
+        "data:text/html,<title>waiting</title><script>setTimeout(()=>{"
+        "document.title=prompt('Name','suggested')===null?'cancelled':'accepted'},0)"
+        "</script>"))));
+    QTRY_VERIFY_WITH_TIMEOUT(promptSpy.count() > 0, 10000);
+    const auto request = promptSpy.takeFirst();
+    const auto prompt = request.at(1).toMap();
+    QCOMPARE(prompt.value(QStringLiteral("kind")).toString(),
+        QStringLiteral("javascript-prompt"));
+    QCOMPARE(prompt.value(QStringLiteral("defaultText")).toString(),
+        QStringLiteral("suggested"));
+    QVERIFY(QMetaObject::invokeMethod(adapter.get(), "respondToBrowserPrompt",
+        Q_ARG(QVariant, request.at(0)), Q_ARG(QVariant, false),
+        Q_ARG(QVariant, QVariantMap{})));
+    QTRY_COMPARE_WITH_TIMEOUT(adapter->property("pageTitle").toString(),
+        QStringLiteral("cancelled"), 10000);
+}
+
+void QtEngineContractTest::qtOpensOneLocalFileWithoutDirectoryWideAccess()
+{
+    QTemporaryDir root;
+    QFile sibling(root.filePath(QStringLiteral("sibling.txt")));
+    QVERIFY(sibling.open(QIODevice::WriteOnly));
+    sibling.write("not granted");
+    sibling.close();
+    QFile page(root.filePath(QStringLiteral("chosen.html")));
+    QVERIFY(page.open(QIODevice::WriteOnly));
+    page.write(R"HTML(<!doctype html><title>waiting</title><script>
+        fetch('sibling.txt').then(() => document.title = 'wide access')
+            .catch(() => document.title = 'isolated');
+    </script>)HTML");
+    page.close();
+
+    QQmlEngine engine;
+    QQmlComponent component(&engine, QUrl::fromLocalFile(
+        QStringLiteral(TANTO_QT_ENGINE_VIEW_PATH)));
+    const std::unique_ptr<QObject> adapter(component.create());
+    QVERIFY2(adapter, qPrintable(component.errorString()));
+    auto *item = qobject_cast<QQuickItem *>(adapter.get());
+    QVERIFY(item);
+    QQuickWindow window;
+    window.resize(640, 480);
+    item->setParentItem(window.contentItem());
+    item->setSize(QSizeF(640, 480));
+    window.show();
+
+    QVERIFY(adapter->setProperty("currentUrl", QUrl::fromLocalFile(page.fileName())));
+    QTRY_COMPARE_WITH_TIMEOUT(adapter->property("pageTitle").toString(),
+        QStringLiteral("isolated"), 10000);
+}
+
 void QtEngineContractTest::adaptersAnswerForEveryEverydayPageOperation_data()
 {
     adaptersExposeSharedContract_data();
@@ -2018,6 +2129,7 @@ int main(int argc, char *argv[])
     tanto::QtContentBlocker::registerSubstituteScheme();
     QtWebEngineQuick::initialize();
     QGuiApplication application(argc, argv);
+    tanto::registerExternalProtocolHandler();
     QtEngineContractTest test;
     return QTest::qExec(&test, argc, argv);
 }

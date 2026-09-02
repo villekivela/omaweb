@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Window
+import QtQuick.Dialogs as Dialogs
 import Tanto
 
 ApplicationWindow {
@@ -133,11 +134,24 @@ ApplicationWindow {
     property real spacesMenuY: 0
     // What the reader pointed at on the page, and the menu Tanto draws for it.
     property var pageContext: null
+    property var pageContextEngine: null
     property bool pageMenuOpen: false
     property real pageMenuX: 0
     property real pageMenuY: 0
     property var pageMenuActions: []
     property bool permissionOpen: false
+    property var pendingBrowserPrompt: ({})
+    property var pendingBrowserPromptResponder: null
+    property string pendingBrowserPromptId: ""
+    property string pendingBrowserPromptTabId: ""
+    property bool browserPromptOpen: false
+    property var pendingFileSelection: ({})
+    property var pendingFileSelectionResponder: null
+    property string pendingFileSelectionId: ""
+    property string pendingFileSelectionTabId: ""
+    property var pendingSaveEngine: null
+    property string pendingSaveAction: ""
+    property string pendingSaveTabId: ""
     // One dialog is open at a time, so one panel serves them all and the
     // question it is asking is the only thing that changes.
     property string dialogMode: ""
@@ -175,6 +189,50 @@ ApplicationWindow {
         window: window
         browser: window.windowBrowser
         keymap: keymap
+    }
+
+    Dialogs.FileDialog {
+        id: openFileDialog
+        objectName: "openFileDialog"
+        title: "Open file"
+        fileMode: Dialogs.FileDialog.OpenFile
+        nameFilters: ["Web pages, text, images, and PDF (*.html *.htm *.txt *.png *.jpg *.jpeg *.gif *.webp *.svg *.pdf)"]
+        onAccepted: window.openLocalFile(selectedFile)
+    }
+
+    Dialogs.FileDialog {
+        id: pageFileDialog
+        objectName: "pageFileDialog"
+        title: "Choose file"
+        fileMode: Dialogs.FileDialog.OpenFile
+        onAccepted: {
+            const files = []
+            for (let index = 0; index < selectedFiles.length; ++index)
+                files.push(String(selectedFiles[index]))
+            window.respondToFileSelection(files)
+        }
+        onRejected: window.respondToFileSelection([])
+    }
+
+    Dialogs.FolderDialog {
+        id: pageFolderDialog
+        objectName: "pageFolderDialog"
+        title: "Choose folder"
+        onAccepted: window.respondToFileSelection([String(selectedFolder)])
+        onRejected: window.respondToFileSelection([])
+    }
+
+    Dialogs.FileDialog {
+        id: saveTargetDialog
+        objectName: "saveTargetDialog"
+        title: "Save as"
+        fileMode: Dialogs.FileDialog.SaveFile
+        onAccepted: window.completeTargetSave(selectedFile)
+        onRejected: {
+            window.pendingSaveEngine = null
+            window.pendingSaveAction = ""
+            window.pendingSaveTabId = ""
+        }
     }
 
     function openCommandPanel() {
@@ -223,6 +281,10 @@ ApplicationWindow {
         engineLoader.focusPage()
     }
 
+    function openPageContextMenu() {
+        engineLoader.requestPageContextMenu()
+    }
+
     // The address of the page on show, and nothing else with it. A blank tab
     // has no address worth putting on the clipboard, and clearing what the
     // reader had there is not what asking to copy it means.
@@ -239,11 +301,15 @@ ApplicationWindow {
             rows.push({"label": "Open link in new tab", "run": "open-link"})
             rows.push({"label": "Open link in background", "run": "open-link-background"})
             rows.push({"label": "Copy link address", "run": "copy-link"})
+            rows.push({"label": "Save link as", "run": "save-link"})
             rows.push({"separator": true})
         }
         if (media.length > 0) {
             rows.push({"label": "Open " + context.mediaType + " in new tab", "run": "open-media"})
             rows.push({"label": "Copy " + context.mediaType + " address", "run": "copy-media"})
+            if (context.mediaType === "image")
+                rows.push({"label": "Copy image", "run": "copy-image"})
+            rows.push({"label": "Save " + context.mediaType + " as", "run": "save-media"})
             rows.push({"separator": true})
         }
         if (selection.length > 0) {
@@ -269,6 +335,7 @@ ApplicationWindow {
         // in the window, so the point has to travel with it.
         const point = engineLoader.mapToItem(shell, context.x, context.y)
         window.pageContext = context
+        window.pageContextEngine = engine
         window.pageMenuActions = window.pageMenuFor(context)
         window.pageMenuX = point.x
         window.pageMenuY = point.y
@@ -278,8 +345,10 @@ ApplicationWindow {
     function runPageMenu(index) {
         const action = window.pageMenuActions[index]
         const context = window.pageContext
+        const engine = window.pageContextEngine
         window.pageMenuOpen = false
-        if (!action || !context) return
+        if (!action || !context || engine !== engineLoader.item
+            || Number(context.pageGeneration) !== Number(engine.pageGeneration)) return
         switch (action.run) {
         case "open-link":
             window.windowBrowser.openInput(String(context.linkUrl), true); break
@@ -290,6 +359,9 @@ ApplicationWindow {
             window.windowBrowser.openInput(String(context.mediaUrl), true); break
         case "copy-media": SystemClipboard.copyText(String(context.mediaUrl)); break
         case "copy-selection": SystemClipboard.copyText(String(context.selectedText)); break
+        case "copy-image": engine.performPageContextAction("copy-image", ""); break
+        case "save-link": window.requestTargetSave(engine, "save-link", context.linkUrl); break
+        case "save-media": window.requestTargetSave(engine, "save-media", context.mediaUrl); break
         case "back": window.windowBrowser.requestBack(); break
         case "forward": window.windowBrowser.requestForward(); break
         case "reload": window.windowBrowser.requestReload(); break
@@ -582,6 +654,122 @@ ApplicationWindow {
         }
         window.permissionOpen = false
         window.pendingPermissionResponder = null
+    }
+
+    function showBrowserPrompt(engine, requestId, prompt) {
+        if (engine !== engineLoader.item) {
+            engine.respondToBrowserPrompt(requestId, false, {})
+            return
+        }
+        window.pendingBrowserPromptResponder = engine
+        window.pendingBrowserPromptId = requestId
+        window.pendingBrowserPromptTabId = window.windowBrowser.activeTabId
+        window.pendingBrowserPrompt = prompt
+        window.browserPromptOpen = true
+    }
+
+    function respondToBrowserPrompt(accepted, text, user, password, stopPrompts, remember) {
+        const responder = window.pendingBrowserPromptResponder
+        if (responder) {
+            responder.respondToBrowserPrompt(window.pendingBrowserPromptId, accepted, {
+                "text": text,
+                "user": user,
+                "password": password,
+                "stopPrompts": stopPrompts,
+                "remember": remember
+            })
+        }
+        window.browserPromptOpen = false
+        window.pendingBrowserPromptResponder = null
+        window.pendingBrowserPromptId = ""
+        window.pendingBrowserPromptTabId = ""
+        window.pendingBrowserPrompt = ({})
+    }
+
+    function openLocalFile(fileUrl) {
+        const address = String(fileUrl)
+        if (!address.startsWith("file:")) return
+        window.windowBrowser.openInput(address, false)
+    }
+
+    function requestOpenFile() {
+        openFileDialog.open()
+    }
+
+    function showFileSelection(engine, requestId, selection) {
+        if (engine !== engineLoader.item) {
+            engine.respondToFileSelection(requestId, [])
+            return
+        }
+        window.pendingFileSelectionResponder = engine
+        window.pendingFileSelectionId = requestId
+        window.pendingFileSelectionTabId = window.windowBrowser.activeTabId
+        window.pendingFileSelection = selection
+        if (selection.mode === "folder") {
+            pageFolderDialog.open()
+            return
+        }
+        pageFileDialog.fileMode = selection.mode === "open-multiple"
+            ? Dialogs.FileDialog.OpenFiles
+            : (selection.mode === "save"
+                ? Dialogs.FileDialog.SaveFile : Dialogs.FileDialog.OpenFile)
+        pageFileDialog.open()
+    }
+
+    function respondToFileSelection(files) {
+        const responder = window.pendingFileSelectionResponder
+        const requestId = window.pendingFileSelectionId
+        window.pendingFileSelectionResponder = null
+        window.pendingFileSelectionId = ""
+        window.pendingFileSelectionTabId = ""
+        window.pendingFileSelection = ({})
+        if (responder) responder.respondToFileSelection(requestId, files)
+        if (pageFileDialog.visible) pageFileDialog.close()
+        if (pageFolderDialog.visible) pageFolderDialog.close()
+    }
+
+    function cancelTabModalRequests() {
+        if (window.browserPromptOpen)
+            window.respondToBrowserPrompt(false, "", "", "", false, false)
+        if (window.pendingFileSelectionResponder)
+            window.respondToFileSelection([])
+        window.pageMenuOpen = false
+        window.pendingSaveEngine = null
+        window.pendingSaveAction = ""
+        window.pendingSaveTabId = ""
+        if (saveTargetDialog.visible) saveTargetDialog.close()
+    }
+
+    function reconcileTabModalRequests() {
+        const active = window.windowBrowser.activeTabId
+        if ((window.browserPromptOpen && window.pendingBrowserPromptTabId !== active)
+            || (window.pendingFileSelectionResponder
+                && window.pendingFileSelectionTabId !== active)
+            || (window.pendingSaveEngine && window.pendingSaveTabId !== active)) {
+            window.cancelTabModalRequests()
+        }
+    }
+
+    function requestTargetSave(engine, action, url) {
+        window.pendingSaveEngine = engine
+        window.pendingSaveAction = action
+        window.pendingSaveTabId = window.windowBrowser.activeTabId
+        const address = String(url).split("?")[0].split("#")[0]
+        const slash = address.lastIndexOf("/")
+        const suggested = slash >= 0 && slash + 1 < address.length
+            ? address.substring(slash + 1) : "download"
+        saveTargetDialog.currentFile = "file://" + window.windowBrowser.downloadDirectory
+            + "/" + suggested
+        saveTargetDialog.open()
+    }
+
+    function completeTargetSave(fileUrl) {
+        const engine = window.pendingSaveEngine
+        if (engine && engine === engineLoader.item)
+            engine.performPageContextAction(window.pendingSaveAction, String(fileUrl))
+        window.pendingSaveEngine = null
+        window.pendingSaveAction = ""
+        window.pendingSaveTabId = ""
     }
 
     function stepTab(delta) {
@@ -899,6 +1087,14 @@ ApplicationWindow {
                         window.pendingPermissionType = permission
                         window.permissionOpen = true
                     }
+
+                    onBrowserPromptRequested: function(engine, requestId, prompt) {
+                        window.showBrowserPrompt(engine, requestId, prompt)
+                    }
+
+                    onFileSelectionRequested: function(engine, requestId, selection) {
+                        window.showFileSelection(engine, requestId, selection)
+                    }
                 }
 
                 DeveloperToolsDock {
@@ -1019,6 +1215,23 @@ ApplicationWindow {
                     }
                 }
 
+                PagePromptBar {
+                    objectName: "browserPromptBar"
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.top: parent.top
+                    z: 43
+                    colors: window.colors
+                    iconFontFamily: materialSymbols.name
+                    open: window.browserPromptOpen
+                    prompt: window.pendingBrowserPrompt
+
+                    onAnswered: function(accepted, text, user, password, stopPrompts, remember) {
+                        window.respondToBrowserPrompt(
+                            accepted, text, user, password, stopPrompts, remember)
+                    }
+                }
+
                 SettingsPage {
                     id: settingsSurface
                     objectName: "settingsSurface"
@@ -1107,6 +1320,7 @@ ApplicationWindow {
                     // The find bar stands for one tab, so it comes and goes
                     // with the tab it was opened on.
                     function onActiveTabChanged() {
+                        window.reconcileTabModalRequests()
                         window.refreshFindOpen()
                         window.reportPdfHandling(window.windowBrowser.activeUrl)
                     }

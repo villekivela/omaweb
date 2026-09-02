@@ -181,6 +181,7 @@ if(TANTO_BUILD_BROWSER)
 endif()
 
 add_library(tanto-platform STATIC
+    src/platform/ExternalProtocolHandler.h
     src/platform/PagePrinter.cpp
     src/platform/PagePrinter.h
     src/platform/WindowChrome.h
@@ -195,6 +196,7 @@ if(APPLE)
     # PDF the engine renders a page into.
     find_library(TANTO_QUARTZ_FRAMEWORK Quartz REQUIRED)
     target_sources(tanto-platform PRIVATE
+        src/platform/MacExternalProtocolHandler.mm
         src/platform/MacPagePrinter.mm
         src/platform/MacWindowChrome.mm
     )
@@ -204,7 +206,10 @@ if(APPLE)
         ${TANTO_QUARTZ_FRAMEWORK}
     )
 else()
-    target_sources(tanto-platform PRIVATE src/platform/WindowChrome.cpp)
+    target_sources(tanto-platform PRIVATE
+        src/platform/ExternalProtocolHandler.cpp
+        src/platform/WindowChrome.cpp
+    )
 endif()
 tanto_strict_target(tanto-platform)
 
@@ -226,6 +231,7 @@ set(tanto_ui_files
     src/ui/PageBackdrop.qml
     src/ui/PageNotice.qml
     src/ui/PageQuestionBar.qml
+    src/ui/PagePromptBar.qml
     src/ui/SectionLabel.qml
     src/ui/MultilineField.qml
     src/ui/SettingField.qml
@@ -539,6 +545,7 @@ if(BUILD_TESTING)
         target_link_libraries(tanto-qt-engine-contract-tests PRIVATE
             tanto-engine-qt
             tanto-content-blocking
+            tanto-platform
             Qt6::Gui
             Qt6::Network
             Qt6::Qml

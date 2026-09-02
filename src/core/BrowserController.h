@@ -142,6 +142,9 @@ public:
     Q_INVOKABLE int permissionDecision(const QUrl &url, const QString &permission);
     Q_INVOKABLE bool setPermissionDecision(const QUrl &url, const QString &permission,
         int decision);
+    Q_INVOKABLE bool externalProtocolAllowed(const QUrl &origin, const QString &scheme) const;
+    Q_INVOKABLE bool rememberExternalProtocolDecision(const QUrl &origin,
+        const QString &scheme);
     Q_INVOKABLE QString recordDownload(const QString &runtimeId, const QUrl &url, const QString &path,
         const QString &state, qint64 receivedBytes, qint64 totalBytes);
     Q_INVOKABLE bool updateDownload(const QString &id, const QString &state,
