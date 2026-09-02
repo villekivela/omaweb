@@ -27,7 +27,7 @@ Tracking issue: [#51](https://github.com/villekivela/tanto/issues/51)
 Tracking issue: [#50](https://github.com/villekivela/tanto/issues/50)
 
 - Find, per-tab zoom, Stop loading, Reload bypassing cache, fullscreen, print, and inline PDF viewing
-- Browser prompts with native file and print dialogs, and the page context menu's remaining items
+- Browser prompts with native file and print dialogs
 - History sheet, configurable search engines, local-file opening, and browsing-data controls
 - Tab reordering, duplication, bulk closing, retained closed-tab stacks, and Keep active for selected Pinned tabs
 - Site information, certificate handling, third-party-cookie policy, safer downloads, and sandbox health

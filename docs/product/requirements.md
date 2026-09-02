@@ -73,6 +73,7 @@ QtWebEngine is the Development engine. Ladybird is the Target engine. They ship 
 - Right-clicking a page opens a Tanto-drawn menu in the active theme. The engine reports what was under the pointer as plain values — a position, the addresses under it, the selection, whether the target takes typing — and draws no menu of its own.
 - The menu offers what Tanto can do with what was pointed at: a link opens in a new or background tab and its address copies; an image or media address opens and copies; a selection copies. Navigation, the page address, and Inspect element are always listed.
 - A command that cannot run here is listed and unavailable rather than hidden, and the keyboard passes over it. Arrow keys move, `Return` runs, `Escape` closes and hands the keyboard back to the page.
+- The menu does not offer Save page or View page source. Developer tools already show a page's source, and a file worth keeping is a download.
 
 ## Keyboard navigation
 
