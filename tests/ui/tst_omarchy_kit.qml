@@ -193,9 +193,10 @@ TestCase {
         verify(button.hoverBackground === undefined)
         compare(String(button.foreground), "#8d88a3")
         compare(String(button.accent), "#9b87ff")
-        // A glyph is sized by the icon token, not by the body text token.
+        // A glyph is sized by the kit's larger icon token, not by the body
+        // text token: chrome is aimed at rather than read.
         compare(button.icon, "settings")
-        compare(button.iconSize, Style.font.icon)
+        compare(button.iconSize, Style.font.iconLarge)
     }
 
     function test_chromeButtonClickReachesTheCallSite() {

@@ -127,15 +127,34 @@ Rectangle {
         anchors.leftMargin: 48
         anchors.rightMargin: 48
         anchors.topMargin: 40
-        height: 40
+        height: settingsEyebrow.height + Style.spacing.md + settingsHeading.height
+
+        // Settings is a place, so it is titled like one: what this is, and the
+        // key that leaves it, above the name.
+        Text {
+            id: settingsEyebrow
+            objectName: "settingsEyebrow"
+            anchors.left: parent.left
+            anchors.top: parent.top
+            text: "browsing · esc closes"
+            color: root.colors.mutedText
+            font.family: Style.font.family
+            font.pixelSize: Style.font.caption
+            font.bold: true
+            font.capitalization: Font.AllUppercase
+            font.letterSpacing: 1.6
+            Accessible.ignored: true
+        }
 
         Text {
+            id: settingsHeading
             anchors.left: parent.left
-            anchors.bottom: parent.bottom
+            anchors.top: settingsEyebrow.bottom
+            anchors.topMargin: Style.spacing.md
             text: "Settings"
             color: root.colors.text
             font.family: Style.font.family
-            font.pixelSize: 26
+            font.pixelSize: Style.font.display
             Accessible.role: Accessible.Heading
             Accessible.name: "Settings"
         }
@@ -143,7 +162,7 @@ Rectangle {
         ChromeButton {
             objectName: "closeSettingsButton"
             anchors.right: parent.right
-            anchors.bottom: parent.bottom
+            anchors.verticalCenter: settingsHeading.verticalCenter
             width: 30
             height: 30
             icon: "close"
@@ -185,6 +204,7 @@ Rectangle {
                     bottomPadding: 6
                     font.family: Style.font.family
                     font.pixelSize: Style.font.body
+                    font.bold: index === root.section
                     font.capitalization: Font.Capitalize
                     activeFocusOnTab: true
                     Accessible.role: Accessible.PageTab

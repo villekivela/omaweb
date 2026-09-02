@@ -817,9 +817,14 @@ TestCase {
         verify(navigationCluster !== null)
         compare(engineViewport.height, window.height)
 
-        // Navigation floats over the page instead of taking a band above it.
+        // Navigation floats over the page instead of taking a band above it,
+        // and it floats where the outline's own controls are: at the top, so
+        // hiding the sidebar does not move the commands to the floor.
         verify(navigationCluster.height < engineViewport.height / 4)
-        verify(navigationCluster.y > engineViewport.height / 2)
+        verify(navigationCluster.y < engineViewport.height / 2)
+        verify(navigationCluster.mapToItem(engineViewport, 0, 0).y
+            < sidebarNavigation.mapToItem(engineViewport, 0, 0).y
+                + sidebarNavigation.height)
 
         // Navigation opens the outline; pinned rows sit above the tabs.
         browser.toggleActivePinned()
@@ -833,9 +838,19 @@ TestCase {
             return pinnedRow.mapToItem(sidebar, 0, 0).y > navigationTop
         })
 
-        // The browsing identity closes the outline, below every tab row.
+        // The browsing identity closes the outline, below every tab row, and a
+        // rule separates it from the list rather than letting it read as one
+        // more row.
         verify(spaceHeading.mapToItem(sidebar, 0, 0).y
             > pinnedRow.mapToItem(sidebar, 0, 0).y)
+        const footerRule = findChild(window.contentItem, "outlineFooterRule")
+        verify(footerRule !== null)
+        verify(footerRule.visible)
+        compare(footerRule.height, 1)
+        verify(footerRule.mapToItem(sidebar, 0, 0).y
+            > pinnedRow.mapToItem(sidebar, 0, 0).y)
+        verify(footerRule.mapToItem(sidebar, 0, 0).y
+            < spaceHeading.mapToItem(sidebar, 0, 0).y)
         const pinnedList = findChild(window.contentItem, "pinnedList")
         verify(pinnedList.capacity >= 3)
         verify(pinnedList.capacity <= 5)
@@ -2353,6 +2368,34 @@ TestCase {
 
         tintFavicons.clicked()
         compare(window.tintFavicons, true)
+    }
+
+    // A pin is a square with no title, so Tanto paints it in the site's own
+    // colour — which is artwork colour, and therefore the tint setting's to
+    // give. Switched off, the pin is chrome: no wash, no site-coloured mark.
+    function test_pinnedSiteColourFollowsTheTintSetting() {
+        const tintFavicons = findChild(window.contentItem, "tintFavicons")
+        verify(tintFavicons !== null)
+        compare(window.tintFavicons, true)
+
+        browser.toggleActivePinned()
+        const pinnedRow = findChild(window.contentItem, "pinned-" + browser.activeTabId)
+        verify(pinnedRow !== null)
+        tryVerify(function() { return pinnedRow.visible })
+        compare(pinnedRow.siteColored, true)
+
+        tintFavicons.clicked()
+        compare(window.tintFavicons, false)
+        tryCompare(pinnedRow, "tintFavicons", false)
+        compare(pinnedRow.siteColored, false)
+        const tile = findChild(window.contentItem, "siteTile-" + browser.activeTabId)
+        verify(tile !== null)
+        compare(tile.siteColoredMark, false)
+
+        tintFavicons.clicked()
+        compare(window.tintFavicons, true)
+        tryCompare(pinnedRow, "siteColored", true)
+        browser.toggleActivePinned()
     }
 
     // ---- Everyday page commands ----------------------------------------

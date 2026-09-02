@@ -1441,10 +1441,14 @@ ApplicationWindow {
                     visible: !window.settingsOpen && !window.historyOpen
                         && window.sidebarCollapsed
                         && !engineLoader.siteFullscreenActive
+                    // Where the outline's own controls were: the strip stands
+                    // in for the top of the sidebar, so hiding the sidebar
+                    // leaves the commands where the reader was already
+                    // reaching for them rather than moving them to the floor.
                     anchors.left: parent.left
                     anchors.leftMargin: 16
-                    anchors.bottom: parent.bottom
-                    anchors.bottomMargin: 20
+                    anchors.top: parent.top
+                    anchors.topMargin: 16
                     z: 5
                     colors: window.colors
                     iconFontFamily: materialSymbols.name
