@@ -1695,11 +1695,21 @@ void QtEngineContractTest::qtReportsTargetsInsideCrossOriginFrames()
         "http://127.0.0.1:%1/page.html").arg(pageServer.serverPort()))));
     QTRY_COMPARE_WITH_TIMEOUT(adapter->property("pageTitle").toString(),
         QStringLiteral("Cross-origin frame"), 10000);
-    QTest::qWait(500);
-    QTest::mouseClick(&window, Qt::RightButton, {}, QPoint(40, 30));
-    QTRY_VERIFY_WITH_TIMEOUT(contextSpy.count() > 0, 10000);
-    QCOMPARE(contextSpy.last().first().toMap().value(QStringLiteral("linkUrl")).toUrl(),
-        QUrl(QStringLiteral("https://target.example/from-frame")));
+    // A click is a one-shot event. Sent before the frame inside the page is up,
+    // it lands on a document that has no link to report, and no amount of
+    // waiting afterwards brings the gesture back — the count simply stays at
+    // zero until the test times out. So the gesture is repeated until the page
+    // answers for the frame, which is what a reader does when a click seems not
+    // to have landed, rather than the test guessing at how long a frame takes.
+    const auto rightClickReportsTheFrameLink = [&window, &contextSpy] {
+        QTest::mouseClick(&window, Qt::RightButton, {}, QPoint(40, 30));
+        QTest::qWait(200);
+        return contextSpy.count() > 0
+            && contextSpy.last().first().toMap()
+                    .value(QStringLiteral("linkUrl")).toUrl()
+                == QUrl(QStringLiteral("https://target.example/from-frame"));
+    };
+    QTRY_VERIFY_WITH_TIMEOUT(rightClickReportsTheFrameLink(), 10000);
 
     contextSpy.clear();
     QVERIFY(QMetaObject::invokeMethod(adapter.get(), "requestPageContextMenu"));
