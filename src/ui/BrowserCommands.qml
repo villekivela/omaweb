@@ -34,6 +34,7 @@ QtObject {
         case "reset-sidebar": window.setSidebarWidth(window.sidebarDefaultWidth); return true
         case "focus-sidebar": window.focusSidebar(); return true
         case "focus-page": window.focusPage(); return true
+        case "copy-address": window.copyAddress(); return true
         case "developer-tools": window.toggleDeveloperTools(); return true
         case "inspect-element": window.inspectElement(); return true
         case "shortcuts": window.requestShortcuts(); return true
@@ -67,6 +68,7 @@ QtObject {
         "reset-sidebar": { group: "interface", title: "Reset the sidebar width" },
         "focus-sidebar": { group: "interface", title: "Focus the sidebar" },
         "focus-page": { group: "interface", title: "Focus the page" },
+        "copy-address": { group: "navigation", title: "Copy address" },
         "developer-tools": { group: "developer", title: "Developer tools" },
         "inspect-element": { group: "developer", title: "Inspect element" },
         "shortcuts": { group: "interface", title: "Keyboard shortcuts" },
@@ -92,6 +94,8 @@ QtObject {
     function available(command) {
         if (command === "developer-tools" || command === "inspect-element")
             return window.developerToolsAvailable
+        if (command === "copy-address")
+            return !browser.activeTabBlank
         if (command === "private-window")
             return windowManager.privateWindowsAvailable
         return true

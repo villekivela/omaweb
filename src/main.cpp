@@ -6,6 +6,7 @@
 #include "KitTheme.h"
 #include "QtContentBlocker.h"
 #include "Quickshell.h"
+#include "SystemClipboard.h"
 #include "ThemeController.h"
 #include "WindowChrome.h"
 #include "WindowManager.h"
@@ -167,6 +168,7 @@ int main(int argc, char *argv[])
 
     tanto::quickshell::installShim();
     tanto::registerFaviconTint();
+    tanto::registerSystemClipboard();
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty(QStringLiteral("browser"), &browser);
     engine.rootContext()->setContextProperty(QStringLiteral("contentBlocker"), &contentBlocker);

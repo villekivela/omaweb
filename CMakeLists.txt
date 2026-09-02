@@ -112,6 +112,8 @@ add_library(tanto-ui STATIC
     src/ui/FaviconTint.h
     src/ui/KitTheme.cpp
     src/ui/KitTheme.h
+    src/ui/SystemClipboard.cpp
+    src/ui/SystemClipboard.h
     src/ui/ThemeController.cpp
     src/ui/ThemeController.h
 )

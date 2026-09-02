@@ -1,5 +1,6 @@
 import QtQuick
 import QtTest
+import Tanto
 import "../../src/ui" as Tanto
 
 TestCase {
@@ -82,6 +83,25 @@ TestCase {
         } else {
             verify(Boolean(applicationWindow.flags & Qt.FramelessWindowHint))
         }
+    }
+
+    // The address of the page on show goes to the clipboard on its own: no
+    // title, no markup, and nothing at all from a tab that has no address.
+    function test_copyAddressPutsOnlyTheAddressOnTheClipboard() {
+        SystemClipboard.copyText("something the reader already had")
+        browser.openInput("about:blank", true)
+        tryVerify(function() { return browser.activeTabBlank })
+        verify(!window.commands.available("copy-address"))
+        window.commands.run("copy-address", -1)
+        compare(SystemClipboard.text(), "something the reader already had")
+        browser.closeActiveTab()
+
+        openPage("https://copy-me.example/path?q=1")
+        verify(window.commands.available("copy-address"))
+        window.commands.run("copy-address", -1)
+        compare(SystemClipboard.text(), "https://copy-me.example/path?q=1")
+        compare(window.commands.keymap.keysFor("copy-address"),
+            Qt.platform.os === "osx" ? "⌘⇧C" : "Ctrl+Shift+C")
     }
 
     // An engine that supplies no inspector leaves the command listed and

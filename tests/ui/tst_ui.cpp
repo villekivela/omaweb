@@ -4,6 +4,7 @@
 #include "KeyboardNavigation.h"
 #include "KitTheme.h"
 #include "Quickshell.h"
+#include "SystemClipboard.h"
 #include "ThemeController.h"
 #include "WindowManager.h"
 
@@ -45,6 +46,7 @@ public slots:
     {
         tanto::quickshell::installShim();
         tanto::registerFaviconTint();
+        tanto::registerSystemClipboard();
         m_dataRoot = std::make_unique<QTemporaryDir>();
         m_browser = std::make_unique<tanto::BrowserController>(
             m_dataRoot->path(), QStringLiteral("mock"));

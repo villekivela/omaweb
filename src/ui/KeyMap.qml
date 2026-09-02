@@ -10,6 +10,7 @@ QtObject {
 
     readonly property string primaryLabel: Qt.platform.os === "osx" ? "⌘" : "Ctrl+"
     readonly property string shiftLabel: Qt.platform.os === "osx" ? "⇧" : "Shift+"
+    readonly property string altLabel: Qt.platform.os === "osx" ? "⌥" : "Alt+"
 
     readonly property var browserBindings: configuration ? configuration.browserBindings : ({})
 
@@ -57,7 +58,8 @@ QtObject {
         if (Qt.platform.os !== "osx") {
             return binding.replace("Primary+", "Ctrl+")
         }
-        return binding.replace("Primary+", primaryLabel).replace("Shift+", shiftLabel)
+        return binding.replace("Primary+", primaryLabel)
+            .replace("Alt+", altLabel).replace("Shift+", shiftLabel)
     }
 
     // Every binding that invokes a command, formatted for the command panel.

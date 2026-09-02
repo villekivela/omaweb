@@ -82,7 +82,7 @@ The default browser commands include:
 - `gt` and `gT` to move between tabs, `1`–`9` to jump to one, `x` to close, `u` to reopen, `t` for a new tab, `p` to pin.
 - `gs` for the next Space and `Primary+1`–`Primary+9` for a specific one.
 - `Primary+B` to hide the sidebar, `Primary+E` to focus it, `Primary+,` for settings, and `Primary+K` or `:` for the command panel.
-- `Primary+Shift+I` for Developer tools and `Primary+Shift+C` to inspect the element the page context named.
+- `Primary+Shift+I` for Developer tools, `Primary+Alt+C` to inspect an element, and `Primary+Shift+C` to copy the address of the page on show.
 
 The default page commands include:
 

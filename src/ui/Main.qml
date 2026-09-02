@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import Tanto
 
 ApplicationWindow {
     id: window
@@ -177,6 +178,14 @@ ApplicationWindow {
 
     function focusPage() {
         engineLoader.focusPage()
+    }
+
+    // The address of the page on show, and nothing else with it. A blank tab
+    // has no address worth putting on the clipboard, and clearing what the
+    // reader had there is not what asking to copy it means.
+    function copyAddress() {
+        if (window.windowBrowser.activeTabBlank) return
+        SystemClipboard.copyText(window.windowBrowser.activeUrl.toString())
     }
 
     function toggleDeveloperTools() {
