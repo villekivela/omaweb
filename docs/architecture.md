@@ -38,7 +38,7 @@ Core exposes one Open developer tools command. An adapter with an inspector atta
 
 An inspected tab stays active when another Space is selected because Qt requires both the inspected page and its Developer-tools view to remain active. Closing Developer tools releases that exception. Moving the tab to another Space closes Developer tools before the engine profile changes.
 
-The frontend is themed by naming its own CSS custom properties again on the page it is drawn on, so Tanto ships no patched frontend and speaks no debugging protocol to it. The theme palette carries a `syntax` section for the colours code is read in; the Qt adapter maps those and the chrome colours onto the frontend's design tokens.
+The frontend is themed by naming its own CSS custom properties again on the page it is drawn on, so Tanto ships no patched frontend and speaks no debugging protocol to it. Chromium themes it through the tonal ramp its browser UI theme serves at `devtools://theme/colors.css`, and every one of the frontend's design tokens is a tone of that ramp, so the Qt adapter names the ramp as well as the tokens it is sure about. The theme palette carries a `syntax` section for the colours code is read in, and the frontend's interface takes the theme's type family.
 
 Remote debugging exists only behind the `--remote-debugging[=port]` launch option. Tanto binds it to loopback, refuses to start when a Chromium debugging switch reaches the engine through the command line or the environment, and takes Private windows away from that session.
 

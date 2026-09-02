@@ -94,6 +94,10 @@ QVariantMap inspectorPalette()
             {QStringLiteral("function"), QStringLiteral("#0d0e0f")},
             {QStringLiteral("type"), QStringLiteral("#101112")},
         }},
+        {QStringLiteral("font"), QVariantMap{
+            {QStringLiteral("family"), QStringLiteral("Menlo")},
+            {QStringLiteral("size"), 12},
+        }},
     };
 }
 
@@ -1298,6 +1302,22 @@ void QtEngineContractTest::qtDocksAnInspectorDrawnInTantosColours()
     QVERIFY(resolves("--sys-color-token-tag", QStringLiteral("#010203")));
     QVERIFY(resolves("--sys-color-cdt-base-container", QStringLiteral("#0b1a0b")));
     QVERIFY(resolves("--sys-color-primary", QStringLiteral("#00ff88")));
+
+    // Chromium themes its inspector through the tonal ramp underneath the
+    // tokens, which is served from the browser's own UI theme, so a token
+    // Tanto never names still has to land in Tanto's palette rather than in
+    // Chrome's. `--sys-color-purple` is one Tanto says nothing about: it is a
+    // tone of the ramp, and the ramp is the theme's.
+    QVERIFY(!resolves("--ref-palette-primary80", QStringLiteral("#a8c7fa")));
+    QVERIFY(resolves("--ref-palette-neutral10", QStringLiteral("#171c17")));
+    QVERIFY(resolves("--sys-color-purple", QStringLiteral("#abcced")));
+
+    // The inspector's own interface takes the theme's type, not the platform's:
+    // Tanto's chrome is drawn in one family and the dock is part of it.
+    QVERIFY(reports(QStringLiteral(
+        "getComputedStyle(document.documentElement)"
+        ".getPropertyValue('--default-font-family').trim()"
+        ".includes('Menlo')"), QStringLiteral("true")));
     // The frontend has a light face and a dark one, and Tanto's own window
     // colour is what decides which of the two this is.
     QVERIFY(reports(QStringLiteral("document.documentElement.classList"

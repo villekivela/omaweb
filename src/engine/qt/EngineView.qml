@@ -559,20 +559,93 @@ Item {
         }
     }
 
+    // Chromium themes its own inspector through the palette underneath the
+    // tokens rather than through the tokens themselves: the frontend links
+    // `devtools://theme/colors.css`, which is the browser's own UI theme
+    // rendered as a Material tonal ramp, and every one of its two hundred-odd
+    // design tokens is a tone of that ramp. Naming only the tokens Tanto knows
+    // about leaves everything else — buttons, badges, selections, the panels
+    // Tanto has never heard of — in Chrome's blues and greys. So the ramp is
+    // named too, and the tokens on top of it are the exceptions Tanto is sure
+    // about rather than the whole of the theming.
+    //
+    // A tone is a lightness: tone 0 is black and tone 100 is white, whatever
+    // hue the family carries. So each family keeps its colour's hue and
+    // saturation and takes its lightness from the tone.
+    readonly property var developerToolsToneLadder: [0, 10, 15, 20, 25, 30, 35, 40, 50, 60,
+        70, 80, 90, 94, 95, 98, 99, 100]
+
+    function developerToolsTone(base, tone, saturationCeiling) {
+        const colour = Qt.color(base)
+        // A grey has no hue to keep, and Qt reports it as none rather than as
+        // zero. Asking for a tone of it can only mean a grey of that lightness.
+        const achromatic = colour.hslHue < 0
+        const hue = achromatic ? 0 : colour.hslHue
+        const saturation = achromatic
+            ? 0
+            : Math.min(colour.hslSaturation,
+                saturationCeiling === undefined ? 1 : saturationCeiling)
+        return String(Qt.hsla(hue, saturation, tone / 100, 1))
+    }
+
+    // Which of Tanto's colours each of the frontend's palette families is a
+    // ramp of. The neutrals carry the window's own tint and little more of it
+    // than that, or every surface in the inspector would be tinted twice.
+    function developerToolsRamps() {
+        const accent = root.developerToolsColor("accent", "#9b87ff")
+        const keyword = root.developerToolsSyntaxColor("keyword", accent)
+        const window = root.developerToolsBackgroundColor()
+        return {
+            "neutral": [window, 0.08],
+            "neutral-variant": [window, 0.12],
+            "primary": [accent, undefined],
+            "secondary": [accent, undefined],
+            "tertiary": [keyword, undefined],
+            "error": [root.developerToolsColor("urgent", "#e06c75"), undefined],
+            "blue": [root.developerToolsSyntaxColor("function", accent), undefined],
+            "green": [root.developerToolsSyntaxColor("string", accent), undefined],
+            "yellow": [root.developerToolsSyntaxColor("number", accent), undefined],
+            "orange": [root.developerToolsSyntaxColor("number", accent), undefined],
+            "pink": [root.developerToolsSyntaxColor("tag", accent), undefined],
+            "purple": [keyword, undefined],
+            "indigo": [keyword, undefined],
+            "cyan": [root.developerToolsSyntaxColor("type", accent), undefined],
+        }
+    }
+
+    function developerToolsPaletteDeclarations() {
+        const ramps = root.developerToolsRamps()
+        let declarations = ""
+        for (const family in ramps) {
+            const base = ramps[family][0]
+            const ceiling = ramps[family][1]
+            for (const tone of root.developerToolsToneLadder) {
+                declarations += "--ref-palette-" + family + tone + ":"
+                    + root.developerToolsTone(base, tone, ceiling) + " !important;"
+            }
+        }
+        return declarations
+    }
+
     function developerToolsStyleSheet() {
         const tokens = root.developerToolsTokens()
-        let declarations = ""
+        let declarations = root.developerToolsPaletteDeclarations()
         for (const name in tokens) declarations += name + ":" + tokens[name] + " !important;"
         // The frontend names its type per platform, at a selector of its own
         // that an ordinary `:root` rule would lose to, so these are marked as
-        // the rest are. Only the fixed-pitch families: the panel labels are
-        // interface type, and the frontend's own is the right size for them.
+        // the rest are. Tanto's whole interface is drawn in one family, and the
+        // inspector docked inside it is part of that window: its panel labels
+        // take the family too, not only the source it lists. The sizes stay the
+        // frontend's own above, because its layout is built around them.
         const font = (root.developerToolsColors && root.developerToolsColors.font) || ({})
         const family = String(font.family || "")
         if (family.length > 0) {
             const quoted = JSON.stringify(family) + ", monospace"
-            declarations += "--monospace-font-family:" + quoted + " !important;"
-            declarations += "--source-code-font-family:" + quoted + " !important;"
+            for (const name of ["--default-font-family", "--monospace-font-family",
+                    "--source-code-font-family", "--report-font-family",
+                    "--report-font-family-monospace"]) {
+                declarations += name + ":" + quoted + " !important;"
+            }
         }
         const size = parseInt(font.size, 10)
         if (!isNaN(size) && size > 0) {
