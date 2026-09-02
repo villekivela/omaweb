@@ -255,7 +255,13 @@ QVariantMap ThemeController::normalizedPalette(QVariantMap palette) const
     // beside Tanto's. Alpha is dropped rather than honoured — code is read
     // against a solid surface, and a translucent character reads as a faded
     // one.
-    const auto syntaxDefaults = defaultSyntax();
+    auto syntaxDefaults = defaultSyntax();
+    // Punctuation is structure rather than content. An editor draws brackets,
+    // separators and quotes quieter than the names between them, and that
+    // contrast is most of what makes code read as code, so unless the theme
+    // names a colour for it, it is the interface's own muted text.
+    syntaxDefaults.insert(QStringLiteral("punctuation"),
+        palette.value(QStringLiteral("mutedText")));
     const auto themeSyntax = palette.value(QStringLiteral("syntax")).toMap();
     QVariantMap syntax;
     for (auto it = syntaxDefaults.cbegin(); it != syntaxDefaults.cend(); ++it) {

@@ -59,12 +59,14 @@ MUTED_TEXT_STEP = 0.70
 # give and code has more constructs than that, so tokens that read alike share
 # one: an attribute name and a type both name something rather than being a
 # value. An attribute's value is not here at all — it is a string, and the
-# inspector draws it in the string colour, as an editor does.
+# inspector draws it in the string colour, as an editor does. An element's name
+# takes the interactive slot rather than the error one: red carries "something
+# is wrong" in an interface, and most editors draw a tag in the blue family.
 SYNTAX_SLOTS = {
     "keyword": 5,
     "string": 2,
     "number": 3,
-    "tag": 1,
+    "tag": 4,
     "attribute": 6,
     "variable": 1,
     "function": 4,

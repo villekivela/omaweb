@@ -486,6 +486,7 @@ Item {
         const variable = root.developerToolsSyntaxColor("variable", text)
         const method = root.developerToolsSyntaxColor("function", accent)
         const type = root.developerToolsSyntaxColor("type", text)
+        const punctuation = root.developerToolsSyntaxColor("punctuation", muted)
         return {
             // The panel bodies, the toolbars above them, and the raised
             // surfaces the frontend stacks on top.
@@ -537,23 +538,23 @@ Item {
             "--sys-color-token-deleted": urgent,
             // Source, markup and stylesheets.
             "--sys-color-token-keyword": keyword,
-            "--sys-color-token-atom": keyword,
+            "--sys-color-token-atom": number,
             "--sys-color-token-pseudo-element": keyword,
             "--sys-color-token-string": string,
             "--sys-color-token-inserted": string,
             "--sys-color-token-number": number,
             "--sys-color-token-comment": comment,
             "--sys-color-token-meta": comment,
-            "--sys-color-token-subtle": muted,
+            "--sys-color-token-subtle": punctuation,
             "--sys-color-token-tag": tag,
             "--sys-color-token-attribute": attribute,
-            "--sys-color-token-property": attribute,
+            "--sys-color-token-property": method,
             "--sys-color-token-attribute-value": string,
             "--sys-color-token-string-special": string,
             "--sys-color-token-variable": variable,
-            "--sys-color-token-property-special": variable,
+            "--sys-color-token-property-special": method,
             "--sys-color-token-definition": method,
-            "--sys-color-token-builtin": method,
+            "--sys-color-token-builtin": variable,
             "--sys-color-token-variable-special": method,
             "--sys-color-token-type": type,
         }
@@ -655,12 +656,54 @@ Item {
         return ":root{" + declarations + "}"
     }
 
+    // The frontend's DOM tree draws every bracket, equals sign and quote in the
+    // same colour as a tag's name, because one class carries both: the name is
+    // a span inside the `<...>` the class wraps. An editor keeps structure
+    // quiet and lets the content speak, which is most of why the two do not
+    // read alike, and no design token can separate them — only a rule can.
+    //
+    // Those spans live in shadow trees, where a rule in the document cannot
+    // reach them. So the frontend's own `attachShadow` is wrapped before any of
+    // its scripts run, and every tree it opens from then on adopts one more
+    // stylesheet. Nothing is rewritten and nothing is read back: the frontend
+    // builds exactly what it would have built, in Tanto's colours.
+    function developerToolsMarkupStyleSheet() {
+        const punctuation = root.developerToolsSyntaxColor("punctuation",
+            root.developerToolsColor("mutedText", "#aaa5b7"))
+        const tag = root.developerToolsSyntaxColor("tag",
+            root.developerToolsColor("text", "#f3f1fa"))
+        return ".webkit-html-tag{color:" + punctuation + " !important}"
+            + ".webkit-html-tag-name,.webkit-html-close-tag-name{color:"
+            + tag + " !important}"
+    }
+
+    function developerToolsShadowSnippet() {
+        return "(() => {"
+            + "const css = " + JSON.stringify(root.developerToolsMarkupStyleSheet()) + ";"
+            + "const host = globalThis.__tantoDeveloperToolsShadow;"
+            + "if (host) { host.sheet.replaceSync(css); return; }"
+            + "if (typeof CSSStyleSheet !== 'function') return;"
+            + "let sheet;"
+            + "try { sheet = new CSSStyleSheet(); sheet.replaceSync(css); }"
+            + "catch (error) { return; }"
+            + "globalThis.__tantoDeveloperToolsShadow = { sheet: sheet };"
+            + "const attachShadow = Element.prototype.attachShadow;"
+            + "Element.prototype.attachShadow = function(options) {"
+            + "const shadow = attachShadow.call(this, options);"
+            + "try { shadow.adoptedStyleSheets = [...shadow.adoptedStyleSheets, sheet]; }"
+            + "catch (error) {}"
+            + "return shadow;"
+            + "};"
+            + "})();\n"
+    }
+
     function developerToolsThemeSnippet() {
         return "(() => {"
             + "const element = document.documentElement;"
             + "if (element) element.classList.toggle('theme-with-dark-background', "
             + (root.developerToolsDark() ? "true" : "false") + ");"
             + "})();\n"
+            + root.developerToolsShadowSnippet()
             + root.styleSheetSnippet(root.developerToolsElementId,
                 root.developerToolsStyleSheet())
     }

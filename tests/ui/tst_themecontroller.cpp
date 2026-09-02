@@ -235,9 +235,13 @@ void ThemeControllerTest::namesTheColoursCodeIsReadIn()
     // A name that is not a colour is not a colour the inspector can be handed.
     QCOMPARE(QColor(syntax.value(QStringLiteral("comment")).toString()),
         QColor(QStringLiteral("#7f7a8c")));
+    // Structure is quieter than the names between it, and the interface
+    // already names how quiet that is.
+    QCOMPARE(QColor(syntax.value(QStringLiteral("punctuation")).toString()),
+        QColor(controller.palette().value(QStringLiteral("mutedText")).toString()));
 
     for (const auto &token : {"keyword", "string", "number", "comment", "tag", "attribute",
-             "variable", "function", "type"}) {
+             "variable", "function", "type", "punctuation"}) {
         const QColor colour(syntax.value(QString::fromLatin1(token)).toString());
         QVERIFY2(colour.isValid(), token);
         // Code is read against a solid surface, so a token carries no alpha of

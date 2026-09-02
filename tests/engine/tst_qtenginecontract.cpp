@@ -65,6 +65,7 @@ private slots:
     void qtKeepsAnInspectedTabActiveOnlyWhileAttached();
     void qtInspectsAPrivateTabInItsOwnTemporaryProfile();
     void qtPicksAnElementWhenNoContextMenuNamedOne();
+    void qtDrawsMarkupStructureQuieterThanItsContent();
 };
 
 namespace {
@@ -93,6 +94,7 @@ QVariantMap inspectorPalette()
             {QStringLiteral("variable"), QStringLiteral("#0a0b0c")},
             {QStringLiteral("function"), QStringLiteral("#0d0e0f")},
             {QStringLiteral("type"), QStringLiteral("#101112")},
+            {QStringLiteral("punctuation"), QStringLiteral("#778899")},
         }},
         {QStringLiteral("font"), QVariantMap{
             {QStringLiteral("family"), QStringLiteral("Menlo")},
@@ -1489,6 +1491,102 @@ void QtEngineContractTest::qtPicksAnElementWhenNoContextMenuNamedOne()
     // rather than reading a node Chromium no longer has.
     QVERIFY(QMetaObject::invokeMethod(adapter.get(), "inspectElement"));
     QVERIFY(adapter->property("developerToolsAttached").toBool());
+    QVERIFY(QMetaObject::invokeMethod(adapter.get(), "detachDeveloperTools"));
+}
+
+// An editor keeps a document's structure quiet and lets its content speak: the
+// brackets, the equals signs and the quotes recede, and the names between them
+// carry the colour. The frontend's DOM tree draws all of it in one token,
+// because the name is a span inside the `<...>` that token wraps, so no design
+// token can tell them apart — only a rule can, and the spans live in shadow
+// trees a rule in the document cannot reach. This is the test that the way in
+// still works: the frontend's own `attachShadow` is wrapped before its scripts
+// run, and every tree it opens takes one more stylesheet.
+void QtEngineContractTest::qtDrawsMarkupStructureQuieterThanItsContent()
+{
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    QQmlEngine engine;
+    QQmlComponent component(&engine, QUrl::fromLocalFile(
+        QStringLiteral(TANTO_QT_ENGINE_VIEW_PATH)));
+    const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
+        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
+        {QStringLiteral("developerToolsColors"), inspectorPalette()},
+    }));
+    QVERIFY2(adapter, qPrintable(component.errorString()));
+    auto *item = qobject_cast<QQuickItem *>(adapter.get());
+    QVERIFY(item);
+    QQuickWindow window;
+    window.resize(1300, 800);
+    item->setParentItem(window.contentItem());
+    item->setSize(QSizeF(700, 800));
+    window.show();
+
+    QVERIFY(adapter->setProperty("currentUrl", QUrl(QStringLiteral(
+        "data:text/html,<title>Markup</title><p id=target class=x>read me</p>"))));
+    QTRY_COMPARE(adapter->property("pageTitle").toString(), QStringLiteral("Markup"));
+
+    QVERIFY(QMetaObject::invokeMethod(adapter.get(), "attachDeveloperTools"));
+    auto *tools = adapter->property("developerToolsView").value<QObject *>();
+    QVERIFY(tools);
+    auto *toolsItem = qobject_cast<QQuickItem *>(tools);
+    QVERIFY(toolsItem);
+    toolsItem->setParentItem(window.contentItem());
+    toolsItem->setPosition(QPointF(700, 0));
+    toolsItem->setSize(QSizeF(600, 800));
+    QTRY_VERIFY_WITH_TIMEOUT(!tools->property("loading").toBool(), 20000);
+
+    QMetaMethod consoleSignal;
+    for (int index = 0; index < tools->metaObject()->methodCount(); ++index) {
+        const auto method = tools->metaObject()->method(index);
+        if (method.name() == "javaScriptConsoleMessage") {
+            consoleSignal = method;
+            break;
+        }
+    }
+    QVERIFY(consoleSignal.isValid());
+    QSignalSpy consoleSpy(tools, consoleSignal);
+    QVERIFY(consoleSpy.isValid());
+
+    // The tree is built inside shadow roots, so the walk follows them down.
+    const auto script = QStringLiteral(R"JS(
+(() => {
+  const seen = new Set();
+  const walk = (node, depth) => {
+    if (depth > 40) return;
+    for (const element of node.querySelectorAll('*')) {
+      const classes = element.classList;
+      if (classes && classes.contains('webkit-html-tag-name'))
+        seen.add('name=' + getComputedStyle(element).color);
+      else if (classes && classes.contains('webkit-html-tag'))
+        seen.add('punctuation=' + getComputedStyle(element).color);
+      if (element.shadowRoot) walk(element.shadowRoot, depth + 1);
+    }
+  };
+  walk(document, 0);
+  console.log('tanto-markup:' + [...seen].join(' '));
+})()
+)JS");
+
+    QString report;
+    for (int attempt = 0; attempt < 40 && report.isEmpty(); ++attempt) {
+        QMetaObject::invokeMethod(tools, "runJavaScript", Q_ARG(QString, script));
+        QTest::qWait(250);
+        for (const auto &message : consoleSpy) {
+            const auto text = message.at(1).toString();
+            if (text.startsWith(QLatin1String("tanto-markup:"))
+                && text.contains(QLatin1String("name="))) {
+                report = text;
+            }
+        }
+    }
+    QVERIFY2(!report.isEmpty(), "the markup tree never rendered");
+    // The name carries the theme's tag colour; everything structural around it
+    // carries the quieter one the theme names for punctuation.
+    QVERIFY2(report.contains(QLatin1String("name=rgb(1, 2, 3)")), qPrintable(report));
+    QVERIFY2(report.contains(QLatin1String("punctuation=rgb(119, 136, 153)")),
+        qPrintable(report));
+
     QVERIFY(QMetaObject::invokeMethod(adapter.get(), "detachDeveloperTools"));
 }
 
