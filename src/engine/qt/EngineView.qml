@@ -270,6 +270,19 @@ Item {
         webView.printToPdf(path)
     }
 
+    // Who a request came from, as the reader would recognise them. The engine
+    // names the origin as a url, which JavaScript sees as a plain string with
+    // no host to read off it, so the authority is taken from the string — the
+    // host, and the port where there is one, because two development servers
+    // on one host are two different sites.
+    function originLabel(origin) {
+        const address = String(origin)
+        const scheme = address.indexOf("://")
+        const authority = (scheme === -1 ? address : address.substring(scheme + 3))
+            .split("/")[0]
+        return authority.length > 0 ? authority : address
+    }
+
     function exitSiteFullscreen() {
         if (!root.siteFullscreenActive) return
         root.siteFullscreenActive = false
@@ -933,15 +946,17 @@ Item {
         // Accepted here and reported to the shell, which is what makes site
         // fullscreen a state Tanto is in rather than something the engine did
         // to the window behind its back.
+        // Accepted last, once Tanto is in the state it is accepting. Accepting
+        // first would leave a page laid out for a screen it has been promised
+        // and not given if anything here failed, and the reader looking at a
+        // broken page in a window that never changed.
         onFullScreenRequested: function(request) {
-            request.accept()
             // The origin is named before the state changes: the shell reports
             // who took the screen the moment it hears that someone did.
             root.siteFullscreenOrigin = request.toggleOn
-                ? (request.origin.host.length > 0
-                    ? request.origin.host : request.origin.toString())
-                : ""
+                ? root.originLabel(request.origin) : ""
             root.siteFullscreenActive = request.toggleOn
+            request.accept()
         }
 
         onJavaScriptConsoleMessage: function(level, message, lineNumber, sourceId) {

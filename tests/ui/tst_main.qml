@@ -1762,11 +1762,17 @@ TestCase {
         compare(window.browserFullscreen, false)
         compare(window.sidebarCollapsed, false)
 
+        const floatingControls = findChild(window.contentItem, "navigationCluster")
+        verify(floatingControls !== null)
+
         engine.simulateSiteFullscreen("cinema.example")
         tryVerify(function() { return engineHost.siteFullscreenActive })
         compare(window.browserFullscreen, false)
         compare(window.sidebarCollapsed, true)
         verify(notice.message.indexOf("cinema.example") !== -1)
+        // The page has the whole window: standing the outline aside must not
+        // put the floating strip over the page in its place.
+        verify(!floatingControls.visible)
 
         keyClick(Qt.Key_Escape)
         tryVerify(function() { return !engineHost.siteFullscreenActive })

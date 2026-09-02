@@ -729,7 +729,9 @@ ApplicationWindow {
         anchors.fill: parent
         radius: window.cornerRadius
         color: window.colors.window
-        border.width: 1
+        // A window filling the screen has no edge to draw: the frame belongs to
+        // a window sitting on a desktop, not to one that is the desktop.
+        border.width: window.visibility === Window.FullScreen ? 0 : 1
         border.color: window.colors.border
         clip: true
 
@@ -1040,9 +1042,12 @@ ApplicationWindow {
                 }
 
                 // The outline carries these commands while it is open; the
-                // strip is what the chromeless state has instead.
+                // strip is what the chromeless state has instead — except
+                // where a site has been given the screen, which is the one
+                // state that has no browser chrome over it at all.
                 NavigationCluster {
                     visible: !window.settingsOpen && window.sidebarCollapsed
+                        && !engineLoader.siteFullscreenActive
                     anchors.left: parent.left
                     anchors.leftMargin: 16
                     anchors.bottom: parent.bottom

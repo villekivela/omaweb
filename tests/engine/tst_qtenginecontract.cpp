@@ -73,6 +73,7 @@ private slots:
     void qtKeepsTheZoomItIsGivenAcrossNavigation();
     void qtSeparatesReloadBypassingCacheFromReloadAndStop();
     void qtRendersAPageForPrintingAndDrawsPdfsInline();
+    void qtReportsSiteFullscreenWithItsOrigin();
 };
 
 namespace {
@@ -1922,6 +1923,94 @@ void QtEngineContractTest::qtRendersAPageForPrintingAndDrawsPdfsInline()
     QCOMPARE(adapter->property("currentUrl").toUrl(), QUrl::fromLocalFile(destination));
     QVERIFY(QMetaObject::invokeMethod(adapter.get(), "setZoomFactor", Q_ARG(QVariant, 1.5)));
     QCOMPARE(adapter->property("zoomFactor").toDouble(), 1.5);
+}
+
+// A page asking for the screen is the one path the shell cannot drive itself,
+// and the adapter is what turns the engine's request into a state Tanto is in.
+// Chromium refuses a fullscreen request that no gesture asked for, so the page
+// asks from a key press.
+void QtEngineContractTest::qtReportsSiteFullscreenWithItsOrigin()
+{
+    PageServer server(R"HTML(<!doctype html><html><body>
+        <script>
+            document.title = "ready";
+            document.addEventListener("keydown", () => {
+                if (document.fullscreenElement) document.exitFullscreen();
+                else document.documentElement.requestFullscreen();
+            });
+            document.addEventListener("fullscreenchange", () => {
+                document.title = document.fullscreenElement ? "full" : "windowed";
+            });
+        </script>
+    </body></html>)HTML");
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    QQmlEngine engine;
+    QQmlComponent component(&engine, QUrl::fromLocalFile(
+        QStringLiteral(TANTO_QT_ENGINE_VIEW_PATH)));
+    const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
+        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
+    }));
+    QVERIFY2(adapter, qPrintable(component.errorString()));
+
+    auto *view = qobject_cast<QQuickItem *>(adapter.get());
+    QVERIFY(view);
+    QQuickWindow window;
+    window.resize(640, 480);
+    view->setParentItem(window.contentItem());
+    view->setSize(QSizeF(640, 480));
+    window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
+    window.requestActivate();
+
+    QVERIFY(adapter->setProperty("currentUrl",
+        QUrl(QStringLiteral("http://127.0.0.1:%1/page.html").arg(server.serverPort()))));
+    QTRY_COMPARE_WITH_TIMEOUT(adapter->property("pageTitle").toString(),
+        QStringLiteral("ready"), 15000);
+    QVERIFY(QMetaObject::invokeMethod(adapter.get(), "focusPage"));
+    QTRY_VERIFY(adapter->property("pageHasFocus").toBool());
+
+    QVERIFY(!adapter->property("siteFullscreenActive").toBool());
+
+    // A page's title is set as its <title> is parsed, well before its scripts
+    // have run, and a key that lands on a page with no handler for it is not
+    // sent again. So it is offered until it lands.
+    QTRY_VERIFY_WITH_TIMEOUT(([&] {
+        if (!adapter->property("siteFullscreenActive").toBool()) {
+            QTest::keyClick(&window, Qt::Key_F);
+        }
+        return adapter->property("siteFullscreenActive").toBool();
+    }()), 15000);
+
+    // The shell hears that a page took the screen, and whose page it was.
+    QVERIFY(adapter->property("siteFullscreenActive").toBool());
+    QCOMPARE(adapter->property("siteFullscreenOrigin").toString(),
+        QStringLiteral("127.0.0.1:%1").arg(server.serverPort()));
+    QTRY_COMPARE_WITH_TIMEOUT(adapter->property("pageTitle").toString(),
+        QStringLiteral("full"), 15000);
+
+    // A page that gives the screen back of its own accord is the same request
+    // the other way, and the shell has to leave the state with it.
+    QTest::keyClick(&window, Qt::Key_F);
+    QTRY_VERIFY_WITH_TIMEOUT(!adapter->property("siteFullscreenActive").toBool(), 15000);
+    QCOMPARE(adapter->property("siteFullscreenOrigin").toString(), QString{});
+    QTRY_COMPARE_WITH_TIMEOUT(adapter->property("pageTitle").toString(),
+        QStringLiteral("windowed"), 15000);
+
+    // And the page is told when the reader takes it back instead.
+    QTRY_VERIFY_WITH_TIMEOUT(([&] {
+        if (!adapter->property("siteFullscreenActive").toBool()) {
+            QTest::keyClick(&window, Qt::Key_F);
+        }
+        return adapter->property("siteFullscreenActive").toBool();
+    }()), 15000);
+    QVERIFY(QMetaObject::invokeMethod(adapter.get(), "exitSiteFullscreen"));
+    QVERIFY(!adapter->property("siteFullscreenActive").toBool());
+    QCOMPARE(adapter->property("siteFullscreenOrigin").toString(), QString{});
+    QTRY_COMPARE_WITH_TIMEOUT(adapter->property("pageTitle").toString(),
+        QStringLiteral("windowed"), 15000);
 }
 
 int main(int argc, char *argv[])
