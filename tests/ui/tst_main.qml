@@ -1364,14 +1364,14 @@ TestCase {
         const personalSpaceId = browser.activeSpaceId
         openPage("https://chat.example/room")
         const chatTabId = browser.activeTabId
-        const host = window.spaceProfileHosts[personalSpaceId]
+        const host = window.profiles.hosts[personalSpaceId]
         verify(host !== undefined)
 
         const notificationId = host.simulateNotification(
             "https://chat.example", "New message", "Someone said something")
         const key = personalSpaceId + ":" + notificationId
-        tryVerify(function() { return window.pendingNotifications[key] !== undefined })
-        const raised = window.pendingNotifications[key]
+        tryVerify(function() { return window.notifications.pending[key] !== undefined })
+        const raised = window.notifications.pending[key]
         compare(raised.heading, "https://chat.example · Personal")
         compare(raised.detail, "New message — Someone said something")
         compare(raised.tabId, chatTabId)
@@ -1380,10 +1380,10 @@ TestCase {
         // hears the click.
         browser.openInput("https://elsewhere.example", true)
         const elsewhereTabId = browser.activeTabId
-        window.answerSiteNotification(key, true)
+        window.notifications.answer(key, true)
         compare(browser.activeTabId, chatTabId)
         verify(host.activatedNotifications.indexOf(notificationId) >= 0)
-        verify(window.pendingNotifications[key] === undefined)
+        verify(window.notifications.pending[key] === undefined)
 
         // A page whose Space has been put away, and which nothing is keeping
         // running, is refused rather than reaching the desktop.
@@ -1392,7 +1392,7 @@ TestCase {
         const refusedId = host.simulateNotification(
             "https://chat.example", "Ignored", "Nobody should see this")
         tryVerify(function() { return host.dismissedNotifications.indexOf(refusedId) >= 0 })
-        verify(window.pendingNotifications[personalSpaceId + ":" + refusedId] === undefined)
+        verify(window.notifications.pending[personalSpaceId + ":" + refusedId] === undefined)
 
         verify(browser.switchSpace(personalSpaceId))
         browser.closeTab(elsewhereTabId)

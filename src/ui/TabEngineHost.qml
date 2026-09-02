@@ -1,5 +1,4 @@
 import QtQuick
-import Tanto
 
 Item {
     id: root
@@ -7,8 +6,10 @@ Item {
 
     required property var browserController
     required property url engineSource
-    property url profileSource
-    property var profileHosts: ({})
+    // The table of Space profiles, which the window owns because it routes what
+    // comes out of them. This host asks it for the profile a retained tab's
+    // Space runs in, and for any Space a data-clearing command names.
+    required property var spaceProfiles
     required property string profilePath
     required property var sharedProfile
     required property var permissionController
@@ -49,11 +50,6 @@ Item {
     signal pageContextRequested(var engine, var context)
     signal browserPromptRequested(var engine, string requestId, var prompt)
     signal fileSelectionRequested(var engine, string requestId, var selection)
-    // A Space profile built here rather than by the window — the Space whose
-    // pages are only being retained may never have been visited. The window
-    // still has to hear about it: downloads and notifications are the window's
-    // to route, whoever created the profile.
-    signal profileHostCreated(string spaceId, var host)
 
     function keyboardConfiguration(url) {
         const configuration = Object.assign({}, root.keyboardManager.configurationForUrl(url))
@@ -66,11 +62,6 @@ Item {
     // would be torn down and every page reloaded on the way back. These outlive
     // their delegate and are handed back when the Space returns.
     readonly property var engines: ({})
-    // The tabs of a suspended Space that keep their engine anyway, by tab id.
-    // Only the Space on show keeps live pages; a Pinned tab marked Keep active
-    // and the tab an inspector is attached to are the exceptions, and the core
-    // names them at the moment the Space is put away.
-    readonly property var retainedEngineTabs: ({})
     // The Space each engine was opened in, so deleting a Space takes its pages
     // with it.
     readonly property var engineSpaces: ({})
@@ -168,12 +159,12 @@ Item {
         else callback(false)
     }
 
-    // Profile-wide data removal is an engine operation. The shell supplies the
-    // adapter component, while this boundary creates any inactive Space
-    // profile needed to carry out the command.
+    // Profile-wide data removal is an engine operation, and it reaches Spaces
+    // that are not on show — including ones with no profile open, which the
+    // table builds on being asked.
     function clearBrowsingData(spaceIds, dataTypes, since) {
         for (let index = 0; index < spaceIds.length; ++index) {
-            const host = root.profileHostFor(spaceIds[index])
+            const host = root.spaceProfiles.hostFor(spaceIds[index])
             if (host) host.clearBrowsingData(dataTypes, since)
         }
     }
@@ -189,7 +180,7 @@ Item {
         for (const tabId in root.engineSpaces) {
             if (root.engineSpaces[tabId] !== spaceId) continue
             if (retained.indexOf(tabId) >= 0) {
-                root.retainedEngineTabs[tabId] = spaceId
+                retainedEngines.keep(tabId, spaceId)
                 const engine = root.engines[tabId]
                 if (engine) engine.visible = false
                 continue
@@ -201,70 +192,16 @@ Item {
     function resume() {
         suspended = false
         preservingEngines = false
-        // The Space on show has its pages back; a tab of this Space that was
-        // being retained is now simply one of them.
-        for (const tabId in root.retainedEngineTabs) {
-            if (root.retainedEngineTabs[tabId] === root.spaceId)
-                delete root.retainedEngineTabs[tabId]
-        }
+        retainedEngines.releaseVisibleSpace()
         // Retained tabs come back after the visible Space, not with it: the
         // reader is waiting for the page in front of them, and a renderer
         // started for a Space they cannot see must not be in the way of it.
         Qt.callLater(root.restoreRetainedTabs)
     }
 
-    // A Pinned tab marked Keep active is running before its Space has ever been
-    // selected, so a restart — or a session that outlived a crash — has to
-    // start it rather than wait for the Space to be visited.
     function restoreRetainedTabs() {
-        if (!root.browserController || root.suspended) return
-        const wanted = root.browserController.retainedTabs
-        for (let index = 0; index < wanted.length; ++index) {
-            const kept = wanted[index]
-            if (root.engines[kept.tabId]) continue
-            if (root.blankAddress(kept.url)) continue
-            const host = root.profileHostFor(kept.spaceId)
-            if (!host) continue
-            const engine = root.createEngine(kept.tabId, kept.url, kept.spaceId,
-                root.browserController.profilePathForSpace(kept.spaceId), host.profile)
-            if (!engine) continue
-            engine.visible = false
-            engine.audioMuted = kept.muted === true
-            engine.setZoomFactor(kept.zoom !== undefined ? kept.zoom : 1.0)
-            root.retainedEngineTabs[kept.tabId] = kept.spaceId
-        }
-        // A tab the core no longer retains has no reason to keep a renderer.
-        for (const tabId in root.retainedEngineTabs) {
-            if (root.retainedEngineTabs[tabId] === root.spaceId) continue
-            let stillWanted = false
-            for (let index = 0; index < wanted.length; ++index)
-                stillWanted = stillWanted || wanted[index].tabId === tabId
-            if (stillWanted) continue
-            delete root.retainedEngineTabs[tabId]
-            root.discardEngine(tabId)
-        }
-    }
-
-    // The profile a Space's pages run in. The window keeps one per Space and
-    // hands the table over; a Space whose pages are only being retained may
-    // never have been visited, so its profile is built here when it is needed.
-    function profileHostFor(spaceId) {
-        const existing = root.profileHosts[spaceId]
-        if (existing) return existing
-        if (!root.profileSource || String(root.profileSource).length === 0) return null
-        const component = Qt.createComponent(root.profileSource)
-        const host = component.createObject(root, {
-            "profilePath": root.browserController.profilePathForSpace(spaceId),
-            "downloadDirectory": root.browserController.downloadDirectory,
-            "acceptDownloads": root.browserController.acceptDownloads,
-            "privateBrowsing": false,
-            "downloadNamespace": spaceId,
-            "engineContentBlocker": root.engineBlocker
-        })
-        if (!host) return null
-        root.profileHosts[spaceId] = host
-        root.profileHostCreated(spaceId, host)
-        return host
+        if (root.suspended) return
+        retainedEngines.reconcile()
     }
 
     // A tab of the Space on show takes that Space's profile, which is what the
@@ -317,7 +254,7 @@ Item {
     function discardEnginesForSpace(spaceId) {
         for (const tabId in root.engineSpaces) {
             if (root.engineSpaces[tabId] !== spaceId) continue
-            delete root.retainedEngineTabs[tabId]
+            retainedEngines.forget(tabId)
             discardEngine(tabId)
         }
     }
@@ -326,32 +263,21 @@ Item {
     // Space, and takes it away for good when the tab itself is closed or the
     // core stops retaining it.
     function keepsEngineFor(tabId) {
-        return root.retainedEngineTabs[tabId] !== undefined
+        return retainedEngines.keeps(tabId)
     }
 
-    // Every tab still running for a Space the reader is not looking at, and
-    // what each is costing. Naming them is not enough: a retained tab is a
-    // renderer process the reader cannot see, so what it holds is asked of the
-    // operating system rather than estimated.
+    // Which pages outlive their Space is a policy of its own, kept beside the
+    // engines rather than inside them: this host builds and destroys engines,
+    // and that decides which ones ought to exist.
+    property RetainedEngines retainedEngines: RetainedEngines {
+        host: root
+        browser: root.browserController
+        spaceProfiles: root.spaceProfiles
+        visibleSpaceId: root.spaceId
+    }
+
     function retainedTabReport() {
-        const report = []
-        if (!root.browserController) return report
-        const wanted = root.browserController.retainedTabs
-        for (let index = 0; index < wanted.length; ++index) {
-            const kept = wanted[index]
-            const engine = root.engines[kept.tabId]
-            report.push({
-                "tabId": kept.tabId,
-                "spaceId": kept.spaceId,
-                "spaceName": kept.spaceName,
-                "title": kept.title,
-                "url": kept.url,
-                "inspected": kept.inspected === true,
-                "running": engine !== undefined && engine !== null,
-                "residentBytes": engine ? ProcessResources.residentBytes(engine.renderProcessPid) : 0
-            })
-        }
-        return report
+        return retainedEngines.report()
     }
 
     Connections {

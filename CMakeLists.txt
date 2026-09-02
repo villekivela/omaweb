@@ -93,6 +93,7 @@ add_library(tanto-core STATIC
     src/core/DevelopmentLaunch.h
     src/core/KeyboardNavigation.cpp
     src/core/KeyboardNavigation.h
+    src/core/RetainedTab.h
     src/core/SessionStore.cpp
     src/core/SessionStore.h
     src/core/SpaceListModel.cpp
@@ -242,6 +243,7 @@ set(tanto_ui_files
     src/ui/PageNotice.qml
     src/ui/PageQuestionBar.qml
     src/ui/PagePromptBar.qml
+    src/ui/RetainedEngines.qml
     src/ui/SectionLabel.qml
     src/ui/MultilineField.qml
     src/ui/SettingDropdown.qml
@@ -250,8 +252,10 @@ set(tanto_ui_files
     src/ui/SettingToggle.qml
     src/ui/SettingsPage.qml
     src/ui/PanelResizer.qml
+    src/ui/SiteNotifications.qml
     src/ui/SiteTile.qml
     src/ui/SpaceOutline.qml
+    src/ui/SpaceProfiles.qml
     src/ui/StartPage.qml
     src/ui/TabEngineHost.qml
     src/ui/TabRow.qml
