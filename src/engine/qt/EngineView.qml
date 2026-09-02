@@ -15,9 +15,11 @@ Item {
     // navigation within the view, so the tab keeps its decision across pages.
     readonly property bool pageAudible: webView.recentlyAudible
     property alias audioMuted: webView.audioMuted
-    // Whether this page may start playing without a gesture of its own. The
-    // shell decides: a muted tab has nothing to interrupt with, and an origin
-    // the reader has already dealt with has earned it. Everything else waits.
+    // Whether this page may start playing without a gesture of its own. It is
+    // the shell's decision rather than the engine's default, and the shell
+    // allows it: a silent video interrupts nobody. Whether it is heard is a
+    // separate answer, given through the muting above, because the engine's own
+    // gesture requirement cannot tell the two apart.
     property bool autoplayAllowed: false
     // The process drawing this page, so the shell can say what a retained tab
     // actually costs rather than only that it is running. Zero while the view

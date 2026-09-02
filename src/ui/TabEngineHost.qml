@@ -220,18 +220,18 @@ Item {
         if (!root.browserController || root.suspended) return
         const wanted = root.browserController.retainedTabs
         for (let index = 0; index < wanted.length; ++index) {
-            const retained = wanted[index]
-            if (root.engines[retained.tabId]) continue
-            if (root.blankAddress(retained.url)) continue
-            const host = root.profileHostFor(retained.spaceId)
+            const kept = wanted[index]
+            if (root.engines[kept.tabId]) continue
+            if (root.blankAddress(kept.url)) continue
+            const host = root.profileHostFor(kept.spaceId)
             if (!host) continue
-            const engine = root.createEngine(retained.tabId, retained.url, retained.spaceId,
-                root.browserController.profilePathForSpace(retained.spaceId), host.profile)
+            const engine = root.createEngine(kept.tabId, kept.url, kept.spaceId,
+                root.browserController.profilePathForSpace(kept.spaceId), host.profile)
             if (!engine) continue
             engine.visible = false
-            engine.audioMuted = retained.muted === true
-            engine.setZoomFactor(retained.zoom !== undefined ? retained.zoom : 1.0)
-            root.retainedEngineTabs[retained.tabId] = retained.spaceId
+            engine.audioMuted = kept.muted === true
+            engine.setZoomFactor(kept.zoom !== undefined ? kept.zoom : 1.0)
+            root.retainedEngineTabs[kept.tabId] = kept.spaceId
         }
         // A tab the core no longer retains has no reason to keep a renderer.
         for (const tabId in root.retainedEngineTabs) {
@@ -325,7 +325,7 @@ Item {
     // A retained tab keeps its engine when its delegate goes away with the
     // Space, and takes it away for good when the tab itself is closed or the
     // core stops retaining it.
-    function retained(tabId) {
+    function keepsEngineFor(tabId) {
         return root.retainedEngineTabs[tabId] !== undefined
     }
 
@@ -338,28 +338,20 @@ Item {
         if (!root.browserController) return report
         const wanted = root.browserController.retainedTabs
         for (let index = 0; index < wanted.length; ++index) {
-            const retained = wanted[index]
-            const engine = root.engines[retained.tabId]
+            const kept = wanted[index]
+            const engine = root.engines[kept.tabId]
             report.push({
-                "tabId": retained.tabId,
-                "spaceId": retained.spaceId,
-                "spaceName": retained.spaceName,
-                "title": retained.title,
-                "url": retained.url,
-                "inspected": retained.inspected === true,
+                "tabId": kept.tabId,
+                "spaceId": kept.spaceId,
+                "spaceName": kept.spaceName,
+                "title": kept.title,
+                "url": kept.url,
+                "inspected": kept.inspected === true,
                 "running": engine !== undefined && engine !== null,
                 "residentBytes": engine ? ProcessResources.residentBytes(engine.renderProcessPid) : 0
             })
         }
         return report
-    }
-
-    // One origin's earned autoplay belongs to every tab showing that origin, so
-    // a gesture in one is answered across all of them.
-    signal autoplayPoliciesChanged()
-
-    function applyAutoplayPolicies() {
-        root.autoplayPoliciesChanged()
     }
 
     Connections {
@@ -383,6 +375,11 @@ Item {
             // engine holds it while the tab has one, and is told again
             // whenever it changes or a new engine takes the tab over.
             required property bool tabMuted
+            // Whether this tab's sound is being held back until the reader has
+            // dealt with its origin. The core owns it and says so for every tab
+            // on that origin at once, so a gesture in one page answers for the
+            // next tab showing the same site.
+            required property bool tabSoundSuppressed
             // How large this tab's page is drawn. The core owns it and keeps it
             // in the session; the engine is told it whenever it changes and
             // whenever a new engine takes the tab over.
@@ -435,28 +432,24 @@ Item {
                 if (root.suspended || !everActive || !needsEngine()) return
                 engine = root.engines[tabId] || root.createEngine(tabId, tabSlot.tabUrl)
                 if (engine) {
-                    engine.audioMuted = tabSlot.tabMuted
                     engine.setZoomFactor(tabSlot.tabZoom)
-                    tabSlot.applyAutoplayPolicy()
+                    tabSlot.applySoundPolicy()
                 }
                 showEngine()
             }
 
-            // Muted playback interrupts nobody, and an origin the reader has
-            // already dealt with has earned the sound. Everything else waits
-            // for a gesture. Asked rather than bound, because whether an origin
-            // has been dealt with is the core's memory and not a property to
-            // watch.
-            function applyAutoplayPolicy() {
+            // A page may start playing on its own: a silent video interrupts
+            // nobody, and refusing playback outright costs the reader pages
+            // that work in every other browser. What waits is the sound — the
+            // reader's own muting, and the origin they have not dealt with yet.
+            function applySoundPolicy() {
                 if (!tabSlot.engine) return
-                tabSlot.engine.autoplayAllowed = tabSlot.tabMuted
-                    || root.browserController.originInteracted(tabSlot.tabUrl)
+                tabSlot.engine.autoplayAllowed = true
+                tabSlot.engine.audioMuted = tabSlot.tabMuted || tabSlot.tabSoundSuppressed
             }
 
-            onTabMutedChanged: {
-                if (engine) engine.audioMuted = tabSlot.tabMuted
-                tabSlot.applyAutoplayPolicy()
-            }
+            onTabMutedChanged: tabSlot.applySoundPolicy()
+            onTabSoundSuppressedChanged: tabSlot.applySoundPolicy()
             onTabZoomChanged: if (engine) engine.setZoomFactor(tabSlot.tabZoom)
 
             // Site artwork belongs to the loaded page rather than to the saved
@@ -474,17 +467,17 @@ Item {
                 root.browserController.setTabIcon(tabId, retained.pageIconUrl)
             }
 
-            // Sound is in the same position as artwork across a Space switch:
-            // the page kept playing, and kept the muting it was given, while
-            // the tab it belongs to was reloaded from a store that records
-            // neither. Both are read back off the engine that outlived the
-            // switch, so the row does not offer to mute a page it has already
-            // muted, or stay silent about one that is playing.
-            function restoreEngineSound() {
-                const retained = root.engines[tabId]
-                if (!retained) return
-                root.browserController.setTabMuted(tabId, retained.audioMuted)
-                root.browserController.setTabAudible(tabId, retained.pageAudible)
+            // What a retained page is playing is in the same position as its
+            // artwork across a Space switch: the page kept going while the tab
+            // it belongs to was reloaded from a store that records nothing
+            // about it, and has no reason to report itself again. Only what it
+            // is playing is read back — the muting is the session's now, and
+            // the engine's own is partly this policy's rather than the
+            // reader's, so reading that back would silence the tab for good.
+            function restoreEnginePlayback() {
+                const kept = root.engines[tabId]
+                if (!kept) return
+                root.browserController.setTabAudible(tabId, kept.pageAudible)
             }
 
             onTabUrlChanged: {
@@ -521,7 +514,7 @@ Item {
 
             Component.onCompleted: {
                 restoreReportedIcon()
-                restoreEngineSound()
+                restoreEnginePlayback()
                 loadEngine()
             }
 
@@ -542,16 +535,12 @@ Item {
             Connections {
                 target: root
 
-                function onAutoplayPoliciesChanged() {
-                    tabSlot.applyAutoplayPolicy()
-                }
-
                 function onSuspendedChanged() {
                     if (root.suspended) {
                         if (tabSlot.engine) tabSlot.engine.visible = false
                     } else {
                         tabSlot.restoreReportedIcon()
-                        tabSlot.restoreEngineSound()
+                        tabSlot.restoreEnginePlayback()
                         tabSlot.loadEngine()
                     }
                 }
@@ -577,17 +566,17 @@ Item {
 
                 function onCurrentUrlChanged() {
                     tabSlot.reportPageState()
-                    tabSlot.applyAutoplayPolicy()
+                    tabSlot.applySoundPolicy()
                     tabSlot.engine.configureKeyboardNavigation(
                         root.keyboardConfiguration(tabSlot.engine.currentUrl))
                 }
 
-                // The reader dealt with the page themselves, which is what
-                // audible autoplay was waiting for — here and in the next tab
-                // on the same site.
+                // The reader dealt with the page themselves, which is what the
+                // sound was waiting for. The core answers for every tab on that
+                // origin, so the next tab showing the same site hears it too
+                // without being touched.
                 function onUserActivated() {
                     root.browserController.recordOriginInteraction(tabSlot.engine.currentUrl)
-                    root.applyAutoplayPolicies()
                 }
 
                 function onPageIconUrlChanged() {

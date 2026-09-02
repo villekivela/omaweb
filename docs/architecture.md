@@ -14,7 +14,7 @@ The variants share core state, persistence, QML, themes, platform code, and engi
 - `tanto-engine-qt` supplies the default engine view without leaking QtWebEngine imports into shared QML.
 - `tanto-engine-ladybird` is an optional build outside the default graph.
 - `tanto-quickshell-shim` registers the `Quickshell` and `Quickshell.Io` QML types the vendored Omarchy component kit imports.
-- `tanto-platform` contains small macOS and Linux window integrations.
+- `tanto-platform` contains the small window-system services the browser cannot supply itself: window integrations, the desktop's print dialog and notification centre, and what the operating system says one process holds.
 - `modules/*` contains independently compiled first-party Feature modules.
 - `tanto-ui-lab` loads the shared QML against fake browser state and a mock engine.
 
@@ -31,6 +31,14 @@ Structural state commits transactionally. High-frequency presentation state save
 The Qt adapter calls a separately built `adblock-rust` shared library through a narrow C interface. Its version matches the pinned Ladybird revision. Ladybird uses its internal copy. Both adapters run the same conformance fixtures.
 
 Request matching uses an immutable in-memory snapshot. Subscription updates compile off the request path and atomically replace the active matcher.
+
+## Tab lifecycle
+
+Order, pinning, duplication and the sweeping closes are core commands: the row asks for a step or a destination and the core decides what is reachable, because a tab moves within its own section and only the core knows where that section ends. An arrangement the reader made is written through at once rather than waiting in the coalescing window a page's own title reports use.
+
+Each Space keeps its own most recent closes in its own database, newest first, bounded so the stack does not become a second history. A record holds what the session holds about a tab — address, title, pinning, zoom, muting — and never the page: reopening loads the address again in a new tab. A Private session keeps the same stack in memory and writes none of it down.
+
+Only the Space on show keeps live pages. Putting a Space away discards its renderers, with two exceptions the core names at the moment of suspension: a Pinned tab the reader marked Keep active, and the tab an inspector is attached to. The engine host is told which tabs those are, because the answer is only knowable while that Space is still the active one. Retained tabs come back after the visible Space rather than with it — the reader is waiting for the page in front of them — and a Pinned tab marked Keep active is started even in a Space that has never been selected, which is what a restart, or a session that outlived a crash, has to restore. Every retained tab is listed in settings with the Space it belongs to, why it is running, and the resident memory its renderer actually holds, asked of the operating system rather than estimated.
 
 ## Developer tools
 
@@ -49,6 +57,10 @@ Find, zoom, reload, Reload bypassing cache, Stop loading, printing and site-requ
 Find belongs to a tab because it lives on that tab's adapter: the query and the match position are the adapter's properties, so hiding the interface leaves both, and only a navigation clears the matches. Zoom belongs to the tab in the other direction — the core owns the factor, writes it to the session with the rest of the tab, and hands it to whichever adapter draws that tab. Zoom moves along one fixed ladder rather than by a percentage, so both directions land on the same sizes and the ends are bounded.
 
 Printing is split between the adapter, which renders the page to a PDF in a Tanto-owned spool directory, and `tanto-platform`, which presents it in the desktop's own print dialog — including that dialog's PDF destination — and removes the spooled file afterwards. macOS presents it through AppKit and PDFKit. A platform with no print panel reports the capability off, which is where Linux stands until the Wayland port.
+
+Notifications are split the same way. They arrive from a Space's profile rather than from one page, so the origin is all there is to identify the sender by; the shell asks the core which tab in that Space owns the origin and whether it is entitled to interrupt — any page of the Space on show, and otherwise only a retained tab. What it hands the desktop always names origin and Space, and the answer comes back by a key of Tanto's own, because the page waiting on it belongs to a tab in a Space and none of that is the desktop's to keep. A desktop with no notification service reports so, and the page is told its notification closed rather than being left waiting on an answer nobody can give. A Private window raises none at all: a desktop notification records the origin in a list that outlives the private session.
+
+A page may start playing on its own, and what waits for the reader is the sound rather than the playback: a silent video interrupts nobody, and refusing playback outright costs pages that work in every other browser. Chromium's gesture requirement cannot separate the two, so the shell allows playback and holds the sound instead — every tab on an origin the reader has not dealt with is muted at the engine, and the whole origin is heard the moment they deal with it, by touching the page or by asking the row. That silence is never the reader's own muting: it is not written to the session, and the row offers the sound back in the same place it offers to mute.
 
 The Qt adapter draws PDFs in Chromium's sandboxed viewer, which carries its own find, zoom, print and download in a toolbar inside the page; Tanto's own find bar does not reach into that plugin. An adapter without a sandboxed viewer downloads the document instead, and the shell reports the missing capability.
 

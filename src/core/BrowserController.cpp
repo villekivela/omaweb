@@ -576,6 +576,7 @@ void BrowserController::openInput(const QString &input, bool inNewTab)
         m_tabs.notifyChanged(tab->id, {TabListModel::UrlRole, TabListModel::TitleRole});
     }
 
+    refreshSoundSuppression();
     schedulePersistTabs();
     emit activeTabChanged();
 }
@@ -603,6 +604,7 @@ void BrowserController::openInputInBackground(const QUrl &url)
     tab.title = url.host().isEmpty() ? url.toDisplayString() : url.host();
     tab.active = false;
     m_tabs.append(tab);
+    refreshSoundSuppression();
     schedulePersistTabs();
 }
 
@@ -645,6 +647,7 @@ void BrowserController::closeTab(const QString &tabId)
             TabListModel::MutedRole,
             TabListModel::ZoomRole,
         });
+        refreshSoundSuppression();
         schedulePersistTabs();
         emit activeTabChanged();
         return;
@@ -720,7 +723,11 @@ void BrowserController::rememberClosedTab(const TabState &tab)
         return;
     }
     TabState closed;
-    closed.id = tab.id;
+    // A record of its own, not the tab's. The last tab in a Space is emptied
+    // rather than removed and keeps its id, so a Space whose last page is
+    // closed twice would otherwise hold two records under one id — and the
+    // store, which keys them, would refuse the whole stack.
+    closed.id = QUuid::createUuid().toString(QUuid::WithoutBraces);
     closed.spaceId = tab.spaceId;
     closed.url = tab.url;
     closed.title = tab.title;
@@ -795,6 +802,7 @@ void BrowserController::reopenClosedTab()
         m_tabs.append(tab);
     }
     m_activeTabId = tab.id;
+    refreshSoundSuppression();
     persistTabs();
     emit activeTabChanged();
 }
@@ -825,6 +833,7 @@ QString BrowserController::duplicateTab(const QString &tabId)
     }
     m_tabs.insert(tab, destination);
     m_activeTabId = tab.id;
+    refreshSoundSuppression();
     persistTabs();
     emit activeTabChanged();
     return tab.id;
@@ -1013,18 +1022,24 @@ bool BrowserController::toggleActiveKeepActive()
     return tab && setTabKeepActive(m_activeTabId, !tab->keepActive);
 }
 
-// A page with no address is not running, so there is nothing about it to keep
-// running. Everything else here is either the reader's standing request or the
-// inspector's: an inspected tab that stopped would leave the frontend attached
+// The two exceptions to suspension: the reader's standing request, and the
+// inspector's. An inspected tab that stopped would leave the frontend attached
 // to a page that cannot answer.
+bool BrowserController::retains(const TabState &tab, const QString &developerToolsTabId)
+{
+    // A page with no address is not running, so there is nothing about it to
+    // keep running.
+    if (isBlank(tab.url)) {
+        return false;
+    }
+    return (tab.pinned && tab.keepActive) || tab.id == developerToolsTabId;
+}
+
 QStringList BrowserController::retainedTabIds() const
 {
     QStringList ids;
     for (const auto &tab : m_tabs.items()) {
-        if (isBlank(tab.url)) {
-            continue;
-        }
-        if ((tab.pinned && tab.keepActive) || tab.id == m_developerToolsTabId) {
+        if (retains(tab, m_developerToolsTabId)) {
             ids.append(tab.id);
         }
     }
@@ -1044,10 +1059,7 @@ void BrowserController::refreshRetainedTabs()
                 continue;
             }
             for (const auto &tab : m_store.loadTabs(space.id)) {
-                if (isBlank(tab.url)) {
-                    continue;
-                }
-                if (!(tab.pinned && tab.keepActive) && tab.id != m_developerToolsTabId) {
+                if (!retains(tab, m_developerToolsTabId)) {
                     continue;
                 }
                 retained.append(QVariantMap{
@@ -1147,9 +1159,52 @@ QString BrowserController::originInteractionKey(const QUrl &url) const
 void BrowserController::recordOriginInteraction(const QUrl &url)
 {
     const auto key = originInteractionKey(url);
-    if (!key.isEmpty()) {
-        m_interactedOrigins.insert(key);
+    if (key.isEmpty() || m_interactedOrigins.contains(key)) {
+        return;
     }
+    m_interactedOrigins.insert(key);
+    // An origin the reader has dealt with has earned its sound in every tab
+    // showing it, not only in the one they touched.
+    refreshSoundSuppression();
+}
+
+// Playback itself is allowed: a page that starts a silent video interrupts
+// nobody, and refusing it costs the reader pages that work everywhere else.
+// What waits is the sound. A tab whose origin the reader has not dealt with is
+// held silent, so a page that starts making noise on its own is not heard until
+// they have answered for the site — by touching the page, or by asking the row
+// for the sound.
+bool BrowserController::suppressesSound(const TabState &tab) const
+{
+    return !isBlank(tab.url) && !originInteracted(tab.url);
+}
+
+void BrowserController::refreshSoundSuppression()
+{
+    for (const auto &item : m_tabs.items()) {
+        auto *tab = m_tabs.find(item.id);
+        const auto suppressed = suppressesSound(*tab);
+        if (tab->soundSuppressed == suppressed) {
+            continue;
+        }
+        tab->soundSuppressed = suppressed;
+        m_tabs.notifyChanged(tab->id, {TabListModel::SoundSuppressedRole});
+    }
+}
+
+bool BrowserController::tabSoundSuppressed(const QString &tabId) const
+{
+    const auto *tab = m_tabs.find(tabId);
+    return tab && tab->soundSuppressed;
+}
+
+void BrowserController::grantTabSound(const QString &tabId)
+{
+    const auto *tab = m_tabs.find(tabId);
+    if (!tab || !tab->soundSuppressed) {
+        return;
+    }
+    recordOriginInteraction(tab->url);
 }
 
 bool BrowserController::originInteracted(const QUrl &url) const
@@ -1188,6 +1243,7 @@ void BrowserController::updateTab(const QString &tabId, const QUrl &url, const Q
     m_tabs.notifyChanged(tab->id, changedHost
         ? QList<int>{TabListModel::UrlRole, TabListModel::TitleRole, TabListModel::IconUrlRole}
         : QList<int>{TabListModel::UrlRole, TabListModel::TitleRole});
+    refreshSoundSuppression();
     schedulePersistTabs();
     if (tabId == m_activeTabId) {
         emit activeTabChanged();
@@ -1801,6 +1857,7 @@ void BrowserController::ensureActiveTab()
     }
     m_activeTabId = active->id;
     m_tabs.reset(std::move(tabs));
+    refreshSoundSuppression();
     persistTabs();
 }
 

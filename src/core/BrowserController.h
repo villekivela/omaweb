@@ -210,6 +210,11 @@ public:
     // is another browsing identity, and nothing here reaches across a restart.
     Q_INVOKABLE void recordOriginInteraction(const QUrl &url);
     Q_INVOKABLE bool originInteracted(const QUrl &url) const;
+    Q_INVOKABLE bool tabSoundSuppressed(const QString &tabId) const;
+    // The reader asking a row for its sound. That is the reader dealing with
+    // the origin — the same answer as touching the page — so it is recorded as
+    // one rather than becoming a muting decision of its own.
+    Q_INVOKABLE void grantTabSound(const QString &tabId);
     Q_INVOKABLE void recordVisit(const QUrl &url, const QString &title);
     Q_INVOKABLE QVariantList historySuggestions(const QString &query, int limit = 8) const;
     Q_INVOKABLE QVariantList history(const QString &query, int limit = 500) const;
@@ -271,6 +276,9 @@ private:
     void setActiveTab(const QString &tabId);
     qsizetype pinnedTabCount() const;
     qsizetype tabRow(const QString &tabId) const;
+    static bool retains(const TabState &tab, const QString &developerToolsTabId);
+    bool suppressesSound(const TabState &tab) const;
+    void refreshSoundSuppression();
     void rememberClosedTab(const TabState &tab);
     void loadClosedTabs();
     void persistClosedTabs();

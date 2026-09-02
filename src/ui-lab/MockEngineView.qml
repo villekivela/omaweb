@@ -26,7 +26,9 @@ Rectangle {
     property bool audioMuted: false
     // The lab starts no page and no process, so both sides of autoplay are set
     // by hand: `autoplayAllowed` is what the shell decides, and
-    // `simulateAutoplay` stands in for a page that tried to start on its own.
+    // `simulateAutoplay` stands in for a page that tried to start on its own —
+    // which it may do silently, and is heard only where the shell has not
+    // silenced the tab.
     property bool autoplayAllowed: false
     property int autoplayBlockedCount: 0
     // No renderer, so no process to account for. The lab reports a pid a test
