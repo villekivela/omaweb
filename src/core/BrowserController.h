@@ -1,5 +1,6 @@
 #pragma once
 
+#include "RetainedTab.h"
 #include "SessionStore.h"
 #include "SpaceListModel.h"
 #include "TabListModel.h"
@@ -283,6 +284,7 @@ private:
     void loadClosedTabs();
     void persistClosedTabs();
     void refreshRetainedTabs();
+    const RetainedTab *findRetainedTab(const QString &tabId) const;
     QString originInteractionKey(const QUrl &url) const;
     static TabState makeBlankTab(const QString &spaceId);
     static double steppedZoom(double zoom, int direction);
@@ -317,7 +319,7 @@ private:
     QString m_defaultSearchEngineId;
     QString m_errorMessage;
     QVector<TabState> m_closedTabs;
-    QVariantList m_retainedTabs;
+    QVector<RetainedTab> m_retainedTabs;
     QSet<QString> m_interactedOrigins;
     bool m_ready = false;
     bool m_atRest = false;

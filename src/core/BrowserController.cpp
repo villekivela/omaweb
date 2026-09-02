@@ -231,9 +231,16 @@ int BrowserController::closedTabCount() const
     return static_cast<int>(m_closedTabs.size());
 }
 
+// The one place the retained tabs are spoken of in strings: QML reads a list
+// of maps, and everything inside the core reads the type.
 QVariantList BrowserController::retainedTabs() const
 {
-    return m_retainedTabs;
+    QVariantList tabs;
+    tabs.reserve(m_retainedTabs.size());
+    for (const auto &retained : m_retainedTabs) {
+        tabs.append(retained.toVariantMap());
+    }
+    return tabs;
 }
 
 bool BrowserController::atRest() const
@@ -976,12 +983,8 @@ bool BrowserController::releaseRetainedTab(const QString &tabId)
     if (m_tabs.find(tabId)) {
         return setTabKeepActive(tabId, false);
     }
-    for (const auto &entry : m_retainedTabs) {
-        const auto retained = entry.toMap();
-        if (retained.value(QStringLiteral("tabId")).toString() != tabId) {
-            continue;
-        }
-        const auto spaceId = retained.value(QStringLiteral("spaceId")).toString();
+    if (const auto *retained = findRetainedTab(tabId)) {
+        const auto spaceId = retained->spaceId;
         auto tabs = m_store.loadTabs(spaceId);
         QString activeTabId;
         bool found = false;
@@ -1052,7 +1055,7 @@ QStringList BrowserController::retainedTabIds() const
 // looking at them, not because anything is being retained for them.
 void BrowserController::refreshRetainedTabs()
 {
-    QVariantList retained;
+    QVector<RetainedTab> retained;
     if (!m_privateBrowsing) {
         for (const auto &space : m_spaces.items()) {
             if (space.id == m_activeSpaceId) {
@@ -1062,15 +1065,15 @@ void BrowserController::refreshRetainedTabs()
                 if (!retains(tab, m_developerToolsTabId)) {
                     continue;
                 }
-                retained.append(QVariantMap{
-                    {QStringLiteral("tabId"), tab.id},
-                    {QStringLiteral("spaceId"), space.id},
-                    {QStringLiteral("spaceName"), space.name},
-                    {QStringLiteral("title"), tab.title},
-                    {QStringLiteral("url"), tab.url},
-                    {QStringLiteral("zoom"), tab.zoom},
-                    {QStringLiteral("muted"), tab.muted},
-                    {QStringLiteral("inspected"), tab.id == m_developerToolsTabId},
+                retained.append(RetainedTab{
+                    .tabId = tab.id,
+                    .spaceId = space.id,
+                    .spaceName = space.name,
+                    .title = tab.title,
+                    .url = tab.url,
+                    .zoom = tab.zoom,
+                    .muted = tab.muted,
+                    .inspected = tab.id == m_developerToolsTabId,
                 });
             }
         }
@@ -1078,8 +1081,18 @@ void BrowserController::refreshRetainedTabs()
     if (retained == m_retainedTabs) {
         return;
     }
-    m_retainedTabs = retained;
+    m_retainedTabs = std::move(retained);
     emit retainedTabsChanged();
+}
+
+const RetainedTab *BrowserController::findRetainedTab(const QString &tabId) const
+{
+    for (const auto &retained : m_retainedTabs) {
+        if (retained.tabId == tabId) {
+            return &retained;
+        }
+    }
+    return nullptr;
 }
 
 QVariantMap BrowserController::notificationTarget(const QString &spaceId,
@@ -1121,16 +1134,10 @@ QVariantMap BrowserController::notificationTarget(const QString &spaceId,
 
     // Any other Space is put away, and only a tab that was kept running has a
     // page left to speak for.
-    for (const auto &entry : m_retainedTabs) {
-        const auto retained = entry.toMap();
-        if (retained.value(QStringLiteral("spaceId")).toString() != spaceId) {
-            continue;
+    for (const auto &retained : m_retainedTabs) {
+        if (retained.spaceId == spaceId && normalizedOrigin(retained.url) == wanted) {
+            return answer(retained.tabId, retained.title);
         }
-        if (normalizedOrigin(retained.value(QStringLiteral("url")).toUrl()) != wanted) {
-            continue;
-        }
-        return answer(retained.value(QStringLiteral("tabId")).toString(),
-            retained.value(QStringLiteral("title")).toString());
     }
     return {};
 }

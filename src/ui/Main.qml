@@ -123,7 +123,6 @@ ApplicationWindow {
     // without a parent, and this list is what keeps it alive and closable.
     readonly property var privateWindows: []
     property var spaceProfileHost: null
-    readonly property var spaceProfileHosts: ({})
     property var omnibarSuggestions: []
     property var visibleDownloads: []
     // What the retained-tab list is showing. Rebuilt when the retained set
@@ -196,6 +195,8 @@ ApplicationWindow {
     }
 
     readonly property var commands: browserCommands
+    readonly property var notifications: siteNotifications
+    readonly property var profiles: spaceProfiles
 
     BrowserCommands {
         id: browserCommands
@@ -979,114 +980,32 @@ ApplicationWindow {
         omnibarOpen = true
     }
 
-    // One profile per Space, kept for as long as the Space's pages are. A
-    // profile owns the Space's cookies and cache on disk, so rebuilding it on
-    // every switch cost a full teardown and reopen of both.
+    // The profile the Space on show runs in. Which is the same table every
+    // other Space's profile is in, so coming back to a Space finds the one it
+    // was left with rather than a new one.
     function createSpaceProfile() {
         if (window.privateWindow) return
-        const spaceId = window.windowBrowser.activeSpaceId
-        const existing = window.spaceProfileHosts[spaceId]
-        if (existing) {
-            window.connectSpaceProfileDownloads(existing)
-            window.connectSpaceProfileNotifications(spaceId, existing)
-            window.spaceProfileHost = existing
-            return
-        }
-        const component = Qt.createComponent(engineProfileSource)
-        const host = component.createObject(window, {
-            "profilePath": window.windowBrowser.activeProfilePath,
-            "downloadDirectory": window.windowBrowser.downloadDirectory,
-            "acceptDownloads": window.windowBrowser.acceptDownloads,
-            "privateBrowsing": false,
-            "downloadNamespace": spaceId,
-            "engineContentBlocker": engineContentBlocker
-        })
+        const host = spaceProfiles.hostFor(window.windowBrowser.activeSpaceId)
+        if (host) window.spaceProfileHost = host
+    }
+
+    // Whoever built a Space's profile — this window on the way to showing that
+    // Space, or the engine host on the way to retaining a tab in one — the
+    // downloads and notifications that come out of it are the window's to
+    // route, so every profile passes through here once.
+    function adoptSpaceProfile(spaceId, host) {
         if (!host) return
-        window.connectSpaceProfileDownloads(host)
-        window.connectSpaceProfileNotifications(spaceId, host)
-        window.spaceProfileHosts[spaceId] = host
-        window.spaceProfileHost = host
-    }
-
-    function connectSpaceProfileDownloads(host) {
-        if (!host || host.downloadObserversConnected) return
-        host.downloadStarted.connect(window.handleDownloadStarted)
-        host.downloadUpdated.connect(window.handleDownloadUpdated)
-        host.downloadObserversConnected = true
-    }
-
-    // Notifications arrive from a Space's profile rather than from one page, so
-    // the Space is named here, where the profile is known, and the origin is
-    // what identifies the tab.
-    function connectSpaceProfileNotifications(spaceId, host) {
-        if (!host || host.notificationObserversConnected) return
-        host.notificationObserversConnected = true
-        host.notificationPresented.connect(
-            function(notificationId, origin, title, message) {
-                window.presentSiteNotification(
-                    spaceId, host, notificationId, origin, title, message)
-            })
-    }
-
-    // What the desktop is showing on Tanto's behalf, by the key it was given.
-    // The page is still waiting on each one: it hears a click or a dismissal,
-    // and nothing until then.
-    property var pendingNotifications: ({})
-
-    function presentSiteNotification(spaceId, host, notificationId, origin, title, message) {
-        const target = window.windowBrowser.notificationTarget(spaceId, origin)
-        // A page whose Space has been put away, and which nothing is keeping
-        // running, has no business interrupting: only a retained tab can speak
-        // for an inactive Space. The page is told the notification closed.
-        if (!target || !target.tabId) {
-            host.dismissNotification(notificationId)
-            return
+        if (!host.downloadObserversConnected) {
+            host.downloadStarted.connect(window.handleDownloadStarted)
+            host.downloadUpdated.connect(window.handleDownloadUpdated)
+            host.downloadObserversConnected = true
         }
-        const key = spaceId + ":" + notificationId
-        // Origin and Space, always and first: which site is asking, and which
-        // browsing identity it is asking in. The page's own words follow.
-        const heading = target.origin + " · " + target.spaceName
-        const detail = title.length > 0 && message.length > 0
-            ? title + " — " + message
-            : (title.length > 0 ? title : message)
-        window.pendingNotifications[key] = {
-            "spaceId": spaceId,
-            "tabId": target.tabId,
-            "host": host,
-            "notificationId": notificationId,
-            "heading": heading,
-            "detail": detail
-        }
-        // Nothing on this desktop to show it with. The reader will not see it,
-        // so the page is told it closed rather than left waiting on an answer
-        // that cannot come.
-        if (!SystemNotifier.present(key, heading, detail)) {
-            host.dismissNotification(notificationId)
-        }
-    }
-
-    // The reader answered one. Activating it is asking to be taken to the page
-    // that sent it, which may mean changing Space and raising the window.
-    function answerSiteNotification(key, activated) {
-        const pending = window.pendingNotifications[key]
-        if (!pending) return
-        delete window.pendingNotifications[key]
-        if (!activated) {
-            pending.host.dismissNotification(pending.notificationId)
-            return
-        }
-        window.windowBrowser.activateNotificationTarget(pending.spaceId, pending.tabId)
-        pending.host.activateNotification(pending.notificationId)
-        window.raise()
-        window.requestActivate()
+        siteNotifications.watch(spaceId, host)
     }
 
     function retireSpaceProfile(spaceId) {
-        const host = window.spaceProfileHosts[spaceId]
-        if (!host) return
-        delete window.spaceProfileHosts[spaceId]
-        if (window.spaceProfileHost === host) window.spaceProfileHost = null
-        host.retire()
+        const retired = spaceProfiles.retire(spaceId)
+        if (retired && window.spaceProfileHost === retired) window.spaceProfileHost = null
     }
 
     function handleDownloadStarted(runtimeId, sourceUrl, path, state, receivedBytes, totalBytes) {
@@ -1248,8 +1167,7 @@ ApplicationWindow {
                     focus: true
                     browserController: window.windowBrowser
                     engineSource: engineViewSource
-                    profileSource: engineProfileSource
-                    profileHosts: window.spaceProfileHosts
+                    spaceProfiles: spaceProfiles
                     profilePath: window.profilePathOverride.length > 0
                         ? window.profilePathOverride
                         : window.windowBrowser.activeProfilePath
@@ -1266,11 +1184,6 @@ ApplicationWindow {
                     // flashes a bright frame through the dark shell.
                     pageBackgroundColor: window.colors.windowOpaque
                     spaceId: window.windowBrowser.activeSpaceId
-
-                    onProfileHostCreated: function(spaceId, host) {
-                        window.connectSpaceProfileDownloads(host)
-                        window.connectSpaceProfileNotifications(spaceId, host)
-                    }
 
                     onAuxiliaryWindowRequested: function(engine, request, requestedUrl) {
                         auxiliaryWindowComponent.createObject(window, {
@@ -1725,14 +1638,12 @@ ApplicationWindow {
                 })
                 // A Private page is not given the desktop's notification
                 // centre. A notification would put the origin into a list that
-                // outlives the private session and is read by whoever is at the
-                // machine, which is the one thing a Private window promises
-                // not to do. The page hears the notification close instead.
-                window.privateProfileHost.notificationObserversConnected = true
-                window.privateProfileHost.notificationPresented.connect(
-                    function(notificationId, origin, title, message) {
-                        window.privateProfileHost.dismissNotification(notificationId)
-                    })
+                // outlives the private session and is read by whoever is at
+                // the machine, which is the one thing a Private window
+                // promises not to do. The shared private profile is watched
+                // like any other so that its pages hear their notifications
+                // close, and refused because the window refuses them.
+                siteNotifications.watch("", window.privateProfileHost)
             }
             const component = Qt.createComponent(Qt.resolvedUrl("Main.qml"))
             const opened = component.createObject(null, {
@@ -1768,13 +1679,6 @@ ApplicationWindow {
         repeat: true
         triggeredOnStart: true
         onTriggered: window.refreshRetainedTabs()
-    }
-
-    Connections {
-        target: SystemNotifier
-
-        function onActivated(key) { window.answerSiteNotification(key, true) }
-        function onDismissed(key) { window.answerSiteNotification(key, false) }
     }
 
     Connections {
@@ -1854,6 +1758,30 @@ ApplicationWindow {
             case 2: window.requestMoveTab(); break
             case 3: window.dialogMode = "delete"; break
             }
+        }
+    }
+
+    SpaceProfiles {
+        id: spaceProfiles
+        browser: window.windowBrowser
+        // A Private window runs one shared temporary profile rather than a
+        // Space's, so there is nothing here for it to build.
+        profileSource: window.privateWindow ? "" : engineProfileSource
+        contentBlocker: engineContentBlocker
+        owner: window
+
+        onCreated: function(spaceId, host) { window.adoptSpaceProfile(spaceId, host) }
+    }
+
+    SiteNotifications {
+        id: siteNotifications
+        browser: window.windowBrowser
+        allowed: !window.privateWindow
+
+        onActivationRequested: function(spaceId, tabId) {
+            window.windowBrowser.activateNotificationTarget(spaceId, tabId)
+            window.raise()
+            window.requestActivate()
         }
     }
 
