@@ -4,6 +4,7 @@ on:
   pull_request:
   push:
     branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -20,6 +21,10 @@ jobs:
         run: scripts/check_commit_messages.sh
 
   macos:
+    # macOS runners bill at ten times the minute rate, and this job's two
+    # configure-build-test rounds dominated the account's Actions budget. It
+    # runs on demand only: trigger CI manually to get macOS coverage back.
+    if: github.event_name == 'workflow_dispatch'
     runs-on: macos-15
     timeout-minutes: 30
     steps:
