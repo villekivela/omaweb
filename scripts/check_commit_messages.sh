@@ -61,7 +61,11 @@ while IFS=$'\t' read -r commit subject; do
         echo "invalid commit subject in ${commit:0:12}: $subject" >&2
         status=1
     fi
-done < <(git log --format='%H%x09%s' "$baseline..$head")
+# Merge commits carry GitHub's generated subject ("Merge pull request #N
+# from ..."), which no Conventional Commits pattern accepts. The convention
+# governs the commits an author writes, so merges are out of scope rather
+# than exempt one hash at a time.
+done < <(git log --no-merges --format='%H%x09%s' "$baseline..$head")
 
 if (( status != 0 )); then
     echo "expected: <type>[optional scope][!]: <lowercase imperative summary>" >&2

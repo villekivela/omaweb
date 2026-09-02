@@ -21,3 +21,6 @@ test: cover space restoration after restart
 CI checks every commit after `35e01d4`. Earlier commits are retained as historical
 exceptions. Two published commits after the baseline exceed the 72-character limit
 and are exempt by full hash in `scripts/check_commit_messages.sh`.
+
+Merge commits are not checked. GitHub generates their subject, and the convention
+governs the commits an author writes.
