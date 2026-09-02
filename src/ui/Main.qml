@@ -94,6 +94,12 @@ ApplicationWindow {
     property bool spacesMenuOpen: false
     property real spacesMenuX: 0
     property real spacesMenuY: 0
+    // What the reader pointed at on the page, and the menu Tanto draws for it.
+    property var pageContext: null
+    property bool pageMenuOpen: false
+    property real pageMenuX: 0
+    property real pageMenuY: 0
+    property var pageMenuActions: []
     property bool permissionOpen: false
     // One dialog is open at a time, so one panel serves them all and the
     // question it is asking is the only thing that changes.
@@ -183,6 +189,78 @@ ApplicationWindow {
     // The address of the page on show, and nothing else with it. A blank tab
     // has no address worth putting on the clipboard, and clearing what the
     // reader had there is not what asking to copy it means.
+    // The menu is built from what was under the pointer: a link offers what you
+    // do with a link, a selection offers copying, and what the page can always
+    // do comes last. Every row carries the command it runs, so the list and the
+    // doing cannot drift apart.
+    function pageMenuFor(context) {
+        const rows = []
+        const link = context.linkUrl ? String(context.linkUrl) : ""
+        const media = context.mediaUrl ? String(context.mediaUrl) : ""
+        const selection = String(context.selectedText || "")
+        if (link.length > 0) {
+            rows.push({"label": "Open link in new tab", "run": "open-link"})
+            rows.push({"label": "Open link in background", "run": "open-link-background"})
+            rows.push({"label": "Copy link address", "run": "copy-link"})
+            rows.push({"separator": true})
+        }
+        if (media.length > 0) {
+            rows.push({"label": "Open " + context.mediaType + " in new tab", "run": "open-media"})
+            rows.push({"label": "Copy " + context.mediaType + " address", "run": "copy-media"})
+            rows.push({"separator": true})
+        }
+        if (selection.length > 0) {
+            rows.push({"label": "Copy", "run": "copy-selection"})
+            rows.push({"separator": true})
+        }
+        rows.push({"label": "Back", "run": "back",
+            "enabled": engineLoader.item ? engineLoader.item.canGoBack : false})
+        rows.push({"label": "Forward", "run": "forward",
+            "enabled": engineLoader.item ? engineLoader.item.canGoForward : false})
+        rows.push({"label": "Reload", "run": "reload"})
+        rows.push({"separator": true})
+        rows.push({"label": "Copy address", "run": "copy-address",
+            "enabled": !window.windowBrowser.activeTabBlank})
+        rows.push({"separator": true})
+        rows.push({"label": "Inspect element", "run": "inspect-element",
+            "enabled": window.developerToolsAvailable})
+        return rows
+    }
+
+    function openPageMenu(engine, context) {
+        // The engine reports the point in its own coordinates; the menu lives
+        // in the window, so the point has to travel with it.
+        const point = engineLoader.mapToItem(shell, context.x, context.y)
+        window.pageContext = context
+        window.pageMenuActions = window.pageMenuFor(context)
+        window.pageMenuX = point.x
+        window.pageMenuY = point.y
+        window.pageMenuOpen = true
+    }
+
+    function runPageMenu(index) {
+        const action = window.pageMenuActions[index]
+        const context = window.pageContext
+        window.pageMenuOpen = false
+        if (!action || !context) return
+        switch (action.run) {
+        case "open-link":
+            window.windowBrowser.openInput(String(context.linkUrl), true); break
+        case "open-link-background":
+            window.windowBrowser.openInputInBackground(context.linkUrl); break
+        case "copy-link": SystemClipboard.copyText(String(context.linkUrl)); break
+        case "open-media":
+            window.windowBrowser.openInput(String(context.mediaUrl), true); break
+        case "copy-media": SystemClipboard.copyText(String(context.mediaUrl)); break
+        case "copy-selection": SystemClipboard.copyText(String(context.selectedText)); break
+        case "back": window.windowBrowser.requestBack(); break
+        case "forward": window.windowBrowser.requestForward(); break
+        case "reload": window.windowBrowser.requestReload(); break
+        case "copy-address": window.copyAddress(); break
+        case "inspect-element": window.inspectElement(); break
+        }
+    }
+
     function copyAddress() {
         if (window.windowBrowser.activeTabBlank) return
         SystemClipboard.copyText(window.windowBrowser.activeUrl.toString())
@@ -547,6 +625,10 @@ ApplicationWindow {
 
                     onBackgroundTabRequested: function(requestedUrl) {
                         window.windowBrowser.openInputInBackground(requestedUrl)
+                    }
+
+                    onPageContextRequested: function(engine, context) {
+                        window.openPageMenu(engine, context)
                     }
 
                     onSitePermissionRequested: function(engine, requestId, origin, permission) {
@@ -938,6 +1020,26 @@ ApplicationWindow {
             case 3: window.dialogMode = "delete"; break
             }
         }
+    }
+
+    ChromeMenu {
+        id: pageMenu
+        objectName: "pageMenu"
+        anchors.fill: parent
+        z: 56
+        colors: window.colors
+        open: window.pageMenuOpen
+        fromPointer: true
+        itemWidth: 248
+        anchorX: window.pageMenuX
+        anchorY: window.pageMenuY
+        items: window.pageMenuActions
+
+        onDismissed: {
+            window.pageMenuOpen = false
+            window.focusPage()
+        }
+        onTriggered: function(index) { window.runPageMenu(index) }
     }
 
     CommandDialog {

@@ -64,9 +64,15 @@ QtWebEngine is the Development engine. Ladybird is the Target engine. They ship 
 
 - Open developer tools attaches the current engine's inspector to one tab. The Qt adapter docks the bundled Chromium DevTools frontend on the right of the tab through `WebEngineView.devToolsView`; a draggable width survives restart. An engine without an inspector reports the command unavailable.
 - One Developer-tools view may inspect a tab. It survives navigation and Space switches without changing tabs, hides while another tab is visible, and returns with the inspected tab. Closing the tab, moving it to another Space, or closing Developer tools detaches it. Developer tools never restore after restart.
-- Inspect element in the page context menu opens Developer tools and selects its target. Until Tanto owns page context menus, the engine's own menu and a keyboard binding carry it. Private tabs may be inspected, and their Developer-tools storage expires with the Private session.
+- Inspect element in the page context menu opens Developer tools and selects its target, and `Primary+Alt+C` does the same from the keyboard. Private tabs may be inspected, and their Developer-tools storage expires with the Private session.
 - Developer tools are drawn in the active theme: the interface, its type, and the colours source, markup, and stylesheets are read in. Markup structure — brackets, separators, quotes — is drawn quieter than the names between it, as an editor draws them. The theme names the syntax colours; the rest of the inspector follows the same palette. An inspector Tanto cannot colour is left in the engine's own palette rather than approximated.
 - Remote debugging is available only through the explicit `--remote-debugging[=port]` launch option, bound to loopback. Tanto prints its address and a warning, never enables it during an ordinary release session, and disables Private windows for that launch.
+
+## Page context menu
+
+- Right-clicking a page opens a Tanto-drawn menu in the active theme. The engine reports what was under the pointer as plain values — a position, the addresses under it, the selection, whether the target takes typing — and draws no menu of its own.
+- The menu offers what Tanto can do with what was pointed at: a link opens in a new or background tab and its address copies; an image or media address opens and copies; a selection copies. Navigation, the page address, and Inspect element are always listed.
+- A command that cannot run here is listed and unavailable rather than hidden, and the keyboard passes over it. Arrow keys move, `Return` runs, `Escape` closes and hands the keyboard back to the page.
 
 ## Keyboard navigation
 

@@ -68,6 +68,12 @@ Item {
     // The reader asked to point at something before the inspector had loaded.
     property bool elementPickPending: false
 
+    // What the reader pointed at, as plain values rather than as the engine's
+    // own request object: a position, the addresses under the pointer, the
+    // selection, and whether the target takes typing. Tanto draws the menu, so
+    // the engine's own never appears and nothing about Chromium's menu model
+    // crosses this line.
+    signal pageContextRequested(var context)
     signal developerToolsClosed()
     signal rendererFailed(string reason)
     signal newTabRequested(var request, url requestedUrl)
@@ -167,6 +173,19 @@ Item {
         root.elementPickPending = false
         root.developerToolsView.runJavaScript(
             "globalThis.DevToolsAPI && globalThis.DevToolsAPI.enterInspectElementMode();")
+    }
+
+    // The engine's own enumeration never leaves the adapter; the shell reads a
+    // name, and an engine with a kind Tanto has no name for reports none.
+    function mediaTypeName(mediaType) {
+        switch (mediaType) {
+        case ContextMenuRequest.MediaTypeImage: return "image"
+        case ContextMenuRequest.MediaTypeVideo: return "video"
+        case ContextMenuRequest.MediaTypeAudio: return "audio"
+        case ContextMenuRequest.MediaTypeCanvas: return "canvas"
+        case ContextMenuRequest.MediaTypeFile: return "file"
+        }
+        return "none"
     }
 
     function goBack() { webView.goBack() }
@@ -760,8 +779,22 @@ Item {
 
         // Chromium keeps the node the menu was opened over, and Tanto has to
         // know that it has one: nothing on the view reports it, and the action
-        // that reads it crashes when there is none.
-        onContextMenuRequested: root.contextMenuTargetKnown = true
+        // that reads it crashes when there is none. Accepting the request is
+        // what stops the engine drawing a menu of its own over Tanto's.
+        onContextMenuRequested: function(request) {
+            root.contextMenuTargetKnown = true
+            request.accepted = true
+            root.pageContextRequested({
+                "x": request.position.x,
+                "y": request.position.y,
+                "selectedText": request.selectedText,
+                "linkText": request.linkText,
+                "linkUrl": request.linkUrl,
+                "mediaUrl": request.mediaUrl,
+                "mediaType": root.mediaTypeName(request.mediaType),
+                "editable": request.isContentEditable
+            })
+        }
 
         onLoadingChanged: function(loadRequest) {
             root.refreshBlockedRequestCount()

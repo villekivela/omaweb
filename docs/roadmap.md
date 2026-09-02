@@ -20,15 +20,14 @@ Tracking issue: [#51](https://github.com/villekivela/tanto/issues/51)
 - One inspector on one tab across navigation and Space switches
 - The inspector drawn in the active theme, syntax colours included
 - Remote debugging behind an explicit loopback-only development launch option
-
-Tanto's own page context menu, which is where Inspect element belongs, arrives with the milestone below.
+- A Tanto-drawn page context menu, which is where Inspect element belongs
 
 ## Complete the Qt daily driver
 
 Tracking issue: [#50](https://github.com/villekivela/tanto/issues/50)
 
 - Find, per-tab zoom, Stop loading, Reload bypassing cache, fullscreen, print, and inline PDF viewing
-- Tanto-owned page context menus and browser prompts with native file and print dialogs
+- Browser prompts with native file and print dialogs, and the page context menu's remaining items
 - History sheet, configurable search engines, local-file opening, and browsing-data controls
 - Tab reordering, duplication, bulk closing, retained closed-tab stacks, and Keep active for selected Pinned tabs
 - Site information, certificate handling, third-party-cookie policy, safer downloads, and sandbox health

@@ -66,6 +66,7 @@ private slots:
     void qtInspectsAPrivateTabInItsOwnTemporaryProfile();
     void qtPicksAnElementWhenNoContextMenuNamedOne();
     void qtDrawsMarkupStructureQuieterThanItsContent();
+    void qtReportsThePageContextAndDrawsNoMenuOfItsOwn();
 };
 
 namespace {
@@ -1588,6 +1589,60 @@ void QtEngineContractTest::qtDrawsMarkupStructureQuieterThanItsContent()
         qPrintable(report));
 
     QVERIFY(QMetaObject::invokeMethod(adapter.get(), "detachDeveloperTools"));
+}
+
+// Tanto draws the page's context menu, so the engine must report what was
+// under the pointer as plain values and then draw nothing itself. Accepting
+// the request is what does the second half, and a menu appearing over Tanto's
+// own is exactly what this catches.
+void QtEngineContractTest::qtReportsThePageContextAndDrawsNoMenuOfItsOwn()
+{
+    QQmlEngine engine;
+    QQmlComponent component(&engine, QUrl::fromLocalFile(
+        QStringLiteral(TANTO_QT_ENGINE_VIEW_PATH)));
+    const std::unique_ptr<QObject> adapter(component.create());
+    QVERIFY2(adapter, qPrintable(component.errorString()));
+    auto *item = qobject_cast<QQuickItem *>(adapter.get());
+    QVERIFY(item);
+    QQuickWindow window;
+    window.resize(800, 600);
+    item->setParentItem(window.contentItem());
+    item->setSize(QSizeF(800, 600));
+    window.show();
+
+    QSignalSpy contextSpy(adapter.get(), SIGNAL(pageContextRequested(QVariant)));
+    QVERIFY(contextSpy.isValid());
+    QVERIFY(adapter->setProperty("currentUrl", QUrl(QStringLiteral(
+        "data:text/html,<title>Context</title>"
+        "<a id=link href='https://example.com/target' "
+        "style='position:absolute;top:0;left:0;font-size:40px'>a link</a>"))));
+    QTRY_COMPARE(adapter->property("pageTitle").toString(), QStringLiteral("Context"));
+    QTest::qWait(500);
+
+    QTest::mouseClick(&window, Qt::RightButton, {}, QPoint(40, 20));
+    QTRY_VERIFY_WITH_TIMEOUT(contextSpy.count() > 0, 10000);
+    const auto context = contextSpy.first().first().toMap();
+    QCOMPARE(context.value(QStringLiteral("linkUrl")).toUrl(),
+        QUrl(QStringLiteral("https://example.com/target")));
+    QCOMPARE(context.value(QStringLiteral("mediaType")).toString(), QStringLiteral("none"));
+    QVERIFY(!context.value(QStringLiteral("editable")).toBool());
+    // The position is the engine's own, for the shell to place its menu at.
+    QVERIFY(context.value(QStringLiteral("x")).toInt() > 0);
+
+    // Nothing of the engine's own is left standing over the page.
+    int menuRows = 0;
+    for (auto *top : QGuiApplication::allWindows()) {
+        for (auto *node : top->findChildren<QObject *>()) {
+            if (QString::fromLatin1(node->metaObject()->className())
+                    .contains(QLatin1String("MenuItem"))) {
+                ++menuRows;
+            }
+        }
+    }
+    QCOMPARE(menuRows, 0);
+
+    // Chromium is holding the node now, so Inspect element can read it back.
+    QVERIFY(adapter->property("contextMenuTargetKnown").toBool());
 }
 
 int main(int argc, char *argv[])

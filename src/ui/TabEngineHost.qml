@@ -35,6 +35,7 @@ Item {
     signal newTabRequested(var engine, var request, url requestedUrl)
     signal backgroundTabRequested(url requestedUrl)
     signal sitePermissionRequested(var engine, string requestId, string origin, string permission)
+    signal pageContextRequested(var engine, var context)
 
     function keyboardConfiguration(url) {
         const configuration = Object.assign({}, root.keyboardManager.configurationForUrl(url))
@@ -400,6 +401,10 @@ Item {
 
                 function onBackgroundTabRequested(requestedUrl) {
                     root.backgroundTabRequested(requestedUrl)
+                }
+
+                function onPageContextRequested(context) {
+                    root.pageContextRequested(tabSlot.engine, context)
                 }
 
                 // The frontend's own close button, which is the reader saying

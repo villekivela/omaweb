@@ -85,6 +85,91 @@ TestCase {
         }
     }
 
+    // Tanto draws the page's context menu, so it offers what Tanto can do with
+    // what was under the pointer — and the engine's own menu never appears.
+    function test_pageContextMenuOffersWhatWasUnderThePointer() {
+        const engine = openPage("https://context.example/page")
+        const menu = findChild(window.contentItem, "pageMenu")
+        verify(menu !== null)
+        verify(!menu.visible)
+
+        function labels() {
+            return window.pageMenuActions.map(function(row) {
+                return row.separator === true ? "—" : row.label
+            })
+        }
+
+        // Bare page: navigation, the address, and the inspector.
+        engine.simulateContextMenu({})
+        tryVerify(function() { return menu.visible })
+        compare(labels(), ["Back", "Forward", "Reload", "—", "Copy address",
+            "—", "Inspect element"])
+        keyClick(Qt.Key_Escape)
+        tryVerify(function() { return !menu.visible })
+
+        // A link offers what you do with a link, first.
+        engine.simulateContextMenu({"linkUrl": "https://linked.example/target"})
+        tryVerify(function() { return menu.visible })
+        compare(labels().slice(0, 4), ["Open link in new tab",
+            "Open link in background", "Copy link address", "—"])
+
+        // And running a row does that thing to that link.
+        SystemClipboard.copyText("stale")
+        window.runPageMenu(2)
+        compare(SystemClipboard.text(), "https://linked.example/target")
+        tryVerify(function() { return !menu.visible })
+
+        // A selection offers copying it; an image offers its own address.
+        engine.simulateContextMenu({"selectedText": "chosen words",
+            "mediaUrl": "https://linked.example/cat.png", "mediaType": "image"})
+        tryVerify(function() { return menu.visible })
+        compare(labels().slice(0, 5), ["Open image in new tab", "Copy image address",
+            "—", "Copy", "—"])
+        window.runPageMenu(3)
+        compare(SystemClipboard.text(), "chosen words")
+
+        // Opening a link in a background tab leaves the reader where they were.
+        const before = browser.activeTabId
+        engine.simulateContextMenu({"linkUrl": "https://background.example/"})
+        tryVerify(function() { return menu.visible })
+        window.runPageMenu(1)
+        compare(browser.activeTabId, before)
+        tryVerify(function() {
+            for (let row = 0; row < browser.tabs.rowCount(); ++row) {
+                const index = browser.tabs.index(row, 0)
+                if (String(browser.tabs.data(index, Qt.UserRole + 3))
+                    === "https://background.example/") return true
+            }
+            return false
+        })
+    }
+
+    // A row that cannot be run is listed and passed over rather than hidden:
+    // the reader learns the command exists, and the keyboard never lands on it.
+    function test_pageContextMenuSkipsRowsItCannotRun() {
+        const engine = openPage("https://skips.example/")
+        const menu = findChild(window.contentItem, "pageMenu")
+        window.requestActivate()
+        tryVerify(function() { return window.active })
+
+        engine.simulateContextMenu({})
+        tryVerify(function() { return menu.visible })
+        // Back and Forward have nowhere to go on a tab with one page, so the
+        // first row the keyboard can reach is Reload.
+        compare(window.pageMenuActions[0].enabled, false)
+        compare(window.pageMenuActions[1].enabled, false)
+        compare(menu.selected, 2)
+
+        // Stepping never stops on a separator.
+        menu.step(1)
+        compare(window.pageMenuActions[menu.selected].separator, undefined)
+        menu.step(1)
+        compare(window.pageMenuActions[menu.selected].separator, undefined)
+
+        keyClick(Qt.Key_Escape)
+        tryVerify(function() { return !menu.visible })
+    }
+
     // The address of the page on show goes to the clipboard on its own: no
     // title, no markup, and nothing at all from a tab that has no address.
     function test_copyAddressPutsOnlyTheAddressOnTheClipboard() {

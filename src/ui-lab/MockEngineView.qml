@@ -66,6 +66,7 @@ Rectangle {
     // opening the dock from inspecting through it.
     property int inspectedElementCount: 0
 
+    signal pageContextRequested(var context)
     signal developerToolsClosed()
     signal rendererFailed(string reason)
     signal newTabRequested(var request, url requestedUrl)
@@ -114,6 +115,22 @@ Rectangle {
         root.inspectedElementCount += 1
     }
     function simulateDeveloperToolsClose() { root.developerToolsClosed() }
+    // The lab has no engine to right-click, so a context is handed over by
+    // name. Anything the caller leaves out is what a click on bare page
+    // background reports.
+    function simulateContextMenu(context) {
+        const named = context || ({})
+        root.pageContextRequested({
+            "x": named.x !== undefined ? named.x : 40,
+            "y": named.y !== undefined ? named.y : 30,
+            "selectedText": named.selectedText !== undefined ? named.selectedText : "",
+            "linkText": named.linkText !== undefined ? named.linkText : "",
+            "linkUrl": named.linkUrl !== undefined ? named.linkUrl : "",
+            "mediaUrl": named.mediaUrl !== undefined ? named.mediaUrl : "",
+            "mediaType": named.mediaType !== undefined ? named.mediaType : "none",
+            "editable": named.editable === true
+        })
+    }
 
     property Component mockDeveloperToolsComponent: Component {
         Rectangle {

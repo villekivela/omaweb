@@ -42,6 +42,10 @@ The frontend is themed by naming its own CSS custom properties again on the page
 
 Remote debugging exists only behind the `--remote-debugging[=port]` launch option. Tanto binds it to loopback, refuses to start when a Chromium debugging switch reaches the engine through the command line or the environment, and takes Private windows away from that session.
 
+## Page context menu
+
+Tanto draws the page's context menu. The engine adapter accepts the engine's own context-menu request, so no engine menu is ever shown, and reports the target as plain values rather than as the engine's request object: no engine menu model or media enumeration crosses the engine-view contract. The shell builds the rows from those values and runs them through the same commands the keyboard uses.
+
 ## Keyboard navigation
 
 Core loads and validates the versioned keybinding and site-passthrough policy. Engine adapters receive the resolved configuration for the active URL and the shared page-command script through the engine-view contract. The Qt adapter injects that script at document readiness; the UI-lab mock accepts the same inputs, and the Ladybird adapter must inject the same script when ticket #7 adds it.

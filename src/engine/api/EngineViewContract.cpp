@@ -57,6 +57,7 @@ QStringList validateEngineViewContract(const QObject &adapter)
         {"detachDeveloperTools", false, 0},
         {"inspectElement", false, 0},
         {"developerToolsClosed", true, 0},
+        {"pageContextRequested", true, 1},
         {"rendererFailed", true, 1, QMetaType::QString},
         {"newTabRequested", true, 2},
         {"auxiliaryWindowRequested", true, 2},
