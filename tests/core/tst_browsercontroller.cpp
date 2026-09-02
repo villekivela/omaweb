@@ -10,6 +10,7 @@
 #include <QFileInfo>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QSet>
 #include <QSignalSpy>
 #include <QSqlDatabase>
 #include <QSqlQuery>
@@ -62,6 +63,18 @@ private slots:
     void attachesOneInspectorToOneTab();
     void keepsTheInspectorThroughASpaceSwitch();
     void detachesTheInspectorWithTheTabItInspects();
+    void reordersTabsWithinTheirSection();
+    void duplicatesOnlyTheAddress();
+    void sweepingClosesSpareEveryPinnedTab();
+    void keepsRecentClosesPerSpaceAcrossRestart();
+    void reopensClosedTabsNewestFirstAndBoundedAtTwentyFive();
+    void keepsPrivateClosesInMemoryOnly();
+    void restoresMutingWithTheTabAndNeverByOrigin();
+    void allowsKeepActiveOnlyOnPinnedTabs();
+    void namesEverySuspensionExceptionAndNothingElse();
+    void restoresRetainedTabsOfUnvisitedSpacesAfterRestart();
+    void routesNotificationsToTheOriginatingTab();
+    void remembersOriginInteractionWithinOneSpaceAndSession();
     void neverRestoresTheInspectorAfterRestart();
 };
 
@@ -1033,6 +1046,453 @@ void BrowserControllerTest::neverRestoresTheInspectorAfterRestart()
     QCOMPARE(restarted.activeTabId(), inspectedTabId);
     QVERIFY(restarted.developerToolsTabId().isEmpty());
     QVERIFY(!restarted.activeTabInspected());
+}
+
+// Order inside a section is the reader's. A drag names a destination and a
+// keypress names a step, and neither can carry a tab out of its own section.
+void BrowserControllerTest::reordersTabsWithinTheirSection()
+{
+    QTemporaryDir root;
+    QString firstPinId;
+    QString secondPinId;
+    QString lastTabId;
+    {
+        BrowserController controller(root.path(), QStringLiteral("test"));
+        controller.openInput(QStringLiteral("https://pin-one.example"), false);
+        controller.toggleActivePinned();
+        firstPinId = controller.activeTabId();
+        controller.openInput(QStringLiteral("https://pin-two.example"), true);
+        controller.toggleActivePinned();
+        secondPinId = controller.activeTabId();
+        controller.openInput(QStringLiteral("https://one.example"), true);
+        const auto firstTabId = controller.activeTabId();
+        controller.openInput(QStringLiteral("https://two.example"), true);
+        lastTabId = controller.activeTabId();
+
+        auto *tabs = controller.tabs();
+        const auto idAt = [tabs](int row) {
+            return tabs->data(tabs->index(row, 0), TabListModel::IdRole).toString();
+        };
+        // Pins lead the model, so the sections are the first two rows and the
+        // two ordinary rows after them.
+        QCOMPARE(tabs->rowCount(), 4);
+        QCOMPARE(idAt(0), firstPinId);
+        QCOMPARE(idAt(1), secondPinId);
+
+        // Section-relative: the second pin asked for the first place lands in
+        // row 0, not somewhere among the ordinary tabs.
+        QVERIFY(controller.moveTab(secondPinId, 0));
+        QCOMPARE(idAt(0), secondPinId);
+        QCOMPARE(idAt(1), firstPinId);
+
+        // A pin cannot be asked for a place the Pinned section does not have.
+        QVERIFY(!controller.moveTab(secondPinId, 2));
+        QCOMPARE(idAt(0), secondPinId);
+
+        // The keyboard steps, and stops at the section edge rather than
+        // spilling into the pins above.
+        QCOMPARE(controller.tabSectionIndex(lastTabId), 1);
+        QVERIFY(controller.moveTabBy(lastTabId, -1));
+        QCOMPARE(controller.tabSectionIndex(lastTabId), 0);
+        QCOMPARE(idAt(2), lastTabId);
+        QVERIFY(!controller.moveTabBy(lastTabId, -1));
+        QCOMPARE(idAt(2), lastTabId);
+        QCOMPARE(controller.tabSectionIndex(firstTabId), 1);
+    }
+
+    // Arrangement is written through as it is made, not at the next quit.
+    BrowserController restored(root.path(), QStringLiteral("test"));
+    auto *tabs = restored.tabs();
+    QCOMPARE(tabs->data(tabs->index(0, 0), TabListModel::IdRole).toString(), secondPinId);
+    QCOMPARE(tabs->data(tabs->index(1, 0), TabListModel::IdRole).toString(), firstPinId);
+    QCOMPARE(tabs->data(tabs->index(2, 0), TabListModel::IdRole).toString(), lastTabId);
+}
+
+// Duplicate opens the address again and copies nothing else about the tab: not
+// the pin, not the zoom, not the muting, and — because it is a new tab with a
+// new engine — neither history nor form state nor the running page.
+void BrowserControllerTest::duplicatesOnlyTheAddress()
+{
+    QTemporaryDir root;
+    BrowserController controller(root.path(), QStringLiteral("test"));
+    controller.openInput(QStringLiteral("https://source.example/page"), false);
+    const auto sourceId = controller.activeTabId();
+    controller.setTabZoom(sourceId, 1.5);
+    controller.setTabMuted(sourceId, true);
+    controller.toggleActivePinned();
+
+    const auto duplicateId = controller.duplicateTab(sourceId);
+    QVERIFY(!duplicateId.isEmpty());
+    QVERIFY(duplicateId != sourceId);
+    QCOMPARE(controller.activeTabId(), duplicateId);
+    QCOMPARE(controller.activeUrl(), QUrl(QStringLiteral("https://source.example/page")));
+    QVERIFY(!controller.activeTabPinned());
+    QCOMPARE(controller.activeTabZoom(), 1.0);
+
+    auto *tabs = controller.tabs();
+    const auto duplicateRow = tabs->index(tabs->rowCount() - 1, 0);
+    QCOMPARE(tabs->data(duplicateRow, TabListModel::IdRole).toString(), duplicateId);
+    QVERIFY(!tabs->data(duplicateRow, TabListModel::MutedRole).toBool());
+
+    // A blank tab has no address to open again.
+    controller.openInput(QStringLiteral("about:blank"), true);
+    QVERIFY(controller.duplicateTab(controller.activeTabId()).isEmpty());
+}
+
+// Both sweeping closes mean the ordinary list. A pin is the Space's furniture
+// and is never taken by a command aimed at the rows around it.
+void BrowserControllerTest::sweepingClosesSpareEveryPinnedTab()
+{
+    QTemporaryDir root;
+    BrowserController controller(root.path(), QStringLiteral("test"));
+    controller.openInput(QStringLiteral("https://pinned.example"), false);
+    controller.toggleActivePinned();
+    const auto pinnedId = controller.activeTabId();
+    controller.openInput(QStringLiteral("https://above.example"), true);
+    controller.openInput(QStringLiteral("https://kept.example"), true);
+    const auto keptId = controller.activeTabId();
+    controller.openInput(QStringLiteral("https://below-one.example"), true);
+    controller.openInput(QStringLiteral("https://below-two.example"), true);
+
+    // Below means below in the ordinary list; the row above it stays.
+    controller.closeTabsBelow(keptId);
+    auto *tabs = controller.tabs();
+    QCOMPARE(tabs->rowCount(), 3);
+    QCOMPARE(tabs->data(tabs->index(0, 0), TabListModel::IdRole).toString(), pinnedId);
+
+    controller.closeOtherTabs(keptId);
+    QCOMPARE(tabs->rowCount(), 2);
+    QCOMPARE(tabs->data(tabs->index(0, 0), TabListModel::IdRole).toString(), pinnedId);
+    QCOMPARE(tabs->data(tabs->index(1, 0), TabListModel::IdRole).toString(), keptId);
+
+    // Asked about a pin, the command aimed at the ordinary rows below it does
+    // nothing at all.
+    controller.closeTabsBelow(pinnedId);
+    QCOMPARE(tabs->rowCount(), 2);
+}
+
+// Each Space keeps its own recent closes across a restart, newest first, and
+// gives back everything the session held about a tab.
+void BrowserControllerTest::keepsRecentClosesPerSpaceAcrossRestart()
+{
+    QTemporaryDir root;
+    QString personalSpaceId;
+    QString workSpaceId;
+    {
+        BrowserController controller(root.path(), QStringLiteral("test"));
+        personalSpaceId = controller.activeSpaceId();
+        controller.openInput(QStringLiteral("https://one.example"), false);
+        controller.openInput(QStringLiteral("https://two.example"), true);
+        const auto secondId = controller.activeTabId();
+        controller.setTabZoom(secondId, 1.25);
+        controller.setTabMuted(secondId, true);
+        controller.toggleActivePinned();
+        controller.toggleActivePinned();
+        controller.closeTab(secondId);
+        QCOMPARE(controller.closedTabCount(), 1);
+
+        workSpaceId = controller.createSpace(QStringLiteral("Work"));
+        QVERIFY(controller.switchSpace(workSpaceId));
+        // Another Space's closes are not this Space's to take back.
+        QCOMPARE(controller.closedTabCount(), 0);
+        controller.openInput(QStringLiteral("https://work.example"), false);
+        controller.closeActiveTab();
+        QCOMPARE(controller.closedTabCount(), 1);
+        QVERIFY(controller.switchSpace(personalSpaceId));
+        QCOMPARE(controller.closedTabCount(), 1);
+    }
+
+    BrowserController restored(root.path(), QStringLiteral("test"));
+    QCOMPARE(restored.activeSpaceId(), personalSpaceId);
+    QCOMPARE(restored.closedTabCount(), 1);
+    restored.reopenClosedTab();
+    QCOMPARE(restored.activeUrl(), QUrl(QStringLiteral("https://two.example")));
+    QCOMPARE(restored.activeTabZoom(), 1.25);
+    auto *tabs = restored.tabs();
+    const auto reopened = tabs->index(tabs->rowCount() - 1, 0);
+    QVERIFY(tabs->data(reopened, TabListModel::MutedRole).toBool());
+    QCOMPARE(restored.closedTabCount(), 0);
+
+    QVERIFY(restored.switchSpace(workSpaceId));
+    QCOMPARE(restored.closedTabCount(), 1);
+    restored.reopenClosedTab();
+    QCOMPARE(restored.activeUrl(), QUrl(QStringLiteral("https://work.example")));
+}
+
+// Twenty-five deep, in reverse closing order, and a pin comes back pinned.
+void BrowserControllerTest::reopensClosedTabsNewestFirstAndBoundedAtTwentyFive()
+{
+    QTemporaryDir root;
+    BrowserController controller(root.path(), QStringLiteral("test"));
+    controller.openInput(QStringLiteral("https://anchor.example"), false);
+
+    for (int index = 0; index < 30; ++index) {
+        controller.openInput(QStringLiteral("https://closed-%1.example").arg(index), true);
+        controller.closeActiveTab();
+    }
+    QCOMPARE(controller.closedTabCount(), 25);
+
+    // The oldest five fell off the far end; the newest is the first back.
+    controller.reopenClosedTab();
+    QCOMPARE(controller.activeUrl(), QUrl(QStringLiteral("https://closed-29.example")));
+    controller.reopenClosedTab();
+    QCOMPARE(controller.activeUrl(), QUrl(QStringLiteral("https://closed-28.example")));
+    QCOMPARE(controller.closedTabCount(), 23);
+
+    controller.openInput(QStringLiteral("https://pinned.example"), true);
+    controller.toggleActivePinned();
+    const auto pinnedId = controller.activeTabId();
+    // A pin is closed by unpinning it first, the way the interface does; the
+    // close itself refuses a pinned tab.
+    controller.toggleActivePinned();
+    controller.closeTab(pinnedId);
+    controller.reopenClosedTab();
+    QVERIFY(!controller.activeTabPinned());
+    QCOMPARE(controller.activeUrl(), QUrl(QStringLiteral("https://pinned.example")));
+}
+
+// A Private session remembers its closes for as long as it lasts and writes
+// none of them down.
+void BrowserControllerTest::keepsPrivateClosesInMemoryOnly()
+{
+    QTemporaryDir root;
+    BrowserController controller(root.path(), QStringLiteral("test"), true);
+    controller.openInput(QStringLiteral("https://private-one.example"), false);
+    controller.openInput(QStringLiteral("https://private-two.example"), true);
+    const auto secondId = controller.activeTabId();
+
+    controller.closeTab(secondId);
+    QCOMPARE(controller.closedTabCount(), 1);
+    controller.reopenClosedTab();
+    QCOMPARE(controller.activeUrl(), QUrl(QStringLiteral("https://private-two.example")));
+    QCOMPARE(controller.closedTabCount(), 0);
+
+    QVERIFY(!QFileInfo::exists(QDir(root.path()).filePath(QStringLiteral("state.sqlite"))));
+}
+
+// Muting is the reader's standing decision about a tab and comes back with it,
+// while what a page is playing does not: a restored tab is silent until its
+// page says otherwise. Neither is ever keyed by origin.
+void BrowserControllerTest::restoresMutingWithTheTabAndNeverByOrigin()
+{
+    QTemporaryDir root;
+    QString mutedId;
+    QString sameOriginId;
+    {
+        BrowserController controller(root.path(), QStringLiteral("test"));
+        controller.openInput(QStringLiteral("https://loud.example/one"), false);
+        mutedId = controller.activeTabId();
+        controller.setTabMuted(mutedId, true);
+        controller.setTabAudible(mutedId, true);
+        controller.openInput(QStringLiteral("https://loud.example/two"), true);
+        sameOriginId = controller.activeTabId();
+        auto *tabs = controller.tabs();
+        // The same site in another tab is not muted by the decision made here.
+        QVERIFY(!tabs->data(tabs->index(1, 0), TabListModel::MutedRole).toBool());
+
+        // Muting survives navigation within the tab.
+        controller.updateTab(mutedId, QUrl(QStringLiteral("https://elsewhere.example")),
+            QStringLiteral("Elsewhere"));
+        QVERIFY(tabs->data(tabs->index(0, 0), TabListModel::MutedRole).toBool());
+    }
+
+    BrowserController restored(root.path(), QStringLiteral("test"));
+    auto *tabs = restored.tabs();
+    QVERIFY(tabs->data(tabs->index(0, 0), TabListModel::MutedRole).toBool());
+    QVERIFY(!tabs->data(tabs->index(0, 0), TabListModel::AudibleRole).toBool());
+    QVERIFY(!tabs->data(tabs->index(1, 0), TabListModel::MutedRole).toBool());
+}
+
+// Keep active belongs to a Pinned tab, never to an ordinary one, and a pin
+// never implies it. Unpinning gives it up.
+void BrowserControllerTest::allowsKeepActiveOnlyOnPinnedTabs()
+{
+    QTemporaryDir root;
+    QString pinnedId;
+    {
+        BrowserController controller(root.path(), QStringLiteral("test"));
+        controller.openInput(QStringLiteral("https://kept.example"), false);
+        pinnedId = controller.activeTabId();
+
+        QVERIFY(!controller.setTabKeepActive(pinnedId, true));
+        controller.toggleActivePinned();
+        QVERIFY(!controller.activeTabKeepActive());
+        QVERIFY(controller.setTabKeepActive(pinnedId, true));
+        QVERIFY(controller.activeTabKeepActive());
+
+        controller.toggleActivePinned();
+        QVERIFY(!controller.activeTabKeepActive());
+        controller.toggleActivePinned();
+        QVERIFY(!controller.activeTabKeepActive());
+        QVERIFY(controller.toggleActiveKeepActive());
+        QVERIFY(controller.activeTabKeepActive());
+    }
+
+    BrowserController restored(root.path(), QStringLiteral("test"));
+    QCOMPARE(restored.activeTabId(), pinnedId);
+    QVERIFY(restored.activeTabKeepActive());
+
+    // A Private window has no Pinned section, so it has nothing to keep active.
+    BrowserController privateController(root.path(), QStringLiteral("test"), true);
+    privateController.openInput(QStringLiteral("https://kept.example"), false);
+    QVERIFY(!privateController.setTabKeepActive(privateController.activeTabId(), true));
+}
+
+// Suspension has exactly two exceptions: a Pinned tab marked Keep active, and
+// the tab an inspector is attached to. Both are named when their Space is put
+// away and both are identified while it is gone; nothing else survives.
+void BrowserControllerTest::namesEverySuspensionExceptionAndNothingElse()
+{
+    QTemporaryDir root;
+    BrowserController controller(root.path(), QStringLiteral("test"));
+    const auto personalSpaceId = controller.activeSpaceId();
+    controller.openInput(QStringLiteral("https://kept.example"), false);
+    controller.toggleActivePinned();
+    const auto keptId = controller.activeTabId();
+    QVERIFY(controller.setTabKeepActive(keptId, true));
+    controller.openInput(QStringLiteral("https://suspended.example"), true);
+    controller.toggleActivePinned();
+    const auto suspendedPinId = controller.activeTabId();
+    controller.openInput(QStringLiteral("https://ordinary.example"), true);
+    const auto inspectedId = controller.activeTabId();
+    controller.openDeveloperTools();
+
+    QCOMPARE(controller.retainedTabIds(),
+        QStringList({keptId, inspectedId}));
+    // Nothing is being retained while the Space holding these tabs is the one
+    // on show: its pages are live because the reader is looking at them.
+    QVERIFY(controller.retainedTabs().isEmpty());
+
+    const auto workSpaceId = controller.createSpace(QStringLiteral("Work"));
+    QSignalSpy suspendedSpy(&controller, &BrowserController::spaceSuspended);
+    QVERIFY(controller.switchSpace(workSpaceId));
+    QCOMPARE(suspendedSpy.count(), 1);
+    QCOMPARE(suspendedSpy.first().at(0).toString(), personalSpaceId);
+    QCOMPARE(suspendedSpy.first().at(1).toStringList(), QStringList({keptId, inspectedId}));
+
+    QCOMPARE(controller.retainedTabs().size(), 2);
+    QSet<QString> retainedIds;
+    for (const auto &entry : controller.retainedTabs()) {
+        const auto retained = entry.toMap();
+        retainedIds.insert(retained.value(QStringLiteral("tabId")).toString());
+        QCOMPARE(retained.value(QStringLiteral("spaceId")).toString(), personalSpaceId);
+        QCOMPARE(retained.value(QStringLiteral("spaceName")).toString(),
+            QStringLiteral("Personal"));
+    }
+    QVERIFY(retainedIds.contains(keptId));
+    QVERIFY(retainedIds.contains(inspectedId));
+    QVERIFY(!retainedIds.contains(suspendedPinId));
+
+    // Detaching the inspector puts its tab back under ordinary suspension.
+    controller.closeDeveloperTools();
+    QCOMPARE(controller.retainedTabs().size(), 1);
+    QCOMPARE(controller.retainedTabs().first().toMap()
+                 .value(QStringLiteral("tabId")).toString(), keptId);
+}
+
+// A Pinned tab marked Keep active is running before its Space has ever been
+// selected, which is what a restart — or a crash the session outlived — has to
+// bring back.
+void BrowserControllerTest::restoresRetainedTabsOfUnvisitedSpacesAfterRestart()
+{
+    QTemporaryDir root;
+    QString workSpaceId;
+    QString keptId;
+    {
+        BrowserController controller(root.path(), QStringLiteral("test"));
+        const auto personalSpaceId = controller.activeSpaceId();
+        workSpaceId = controller.createSpace(QStringLiteral("Work"));
+        QVERIFY(controller.switchSpace(workSpaceId));
+        controller.openInput(QStringLiteral("https://kept.example"), false);
+        controller.toggleActivePinned();
+        keptId = controller.activeTabId();
+        QVERIFY(controller.setTabKeepActive(keptId, true));
+        QVERIFY(controller.switchSpace(personalSpaceId));
+    }
+
+    // Nothing here has selected the Work Space, and the session still knows
+    // one of its tabs is meant to be running.
+    BrowserController restored(root.path(), QStringLiteral("test"));
+    QCOMPARE(restored.retainedTabs().size(), 1);
+    const auto retained = restored.retainedTabs().first().toMap();
+    QCOMPARE(retained.value(QStringLiteral("tabId")).toString(), keptId);
+    QCOMPARE(retained.value(QStringLiteral("spaceId")).toString(), workSpaceId);
+    QCOMPARE(retained.value(QStringLiteral("url")).toUrl(),
+        QUrl(QStringLiteral("https://kept.example")));
+
+    // Selecting that Space stops retaining it: the reader is looking at it.
+    QVERIFY(restored.switchSpace(workSpaceId));
+    QVERIFY(restored.retainedTabs().isEmpty());
+}
+
+// A notification names the origin and the Space, and activating it goes to the
+// tab that sent it — changing Space on the way when it has to.
+void BrowserControllerTest::routesNotificationsToTheOriginatingTab()
+{
+    QTemporaryDir root;
+    BrowserController controller(root.path(), QStringLiteral("test"));
+    const auto personalSpaceId = controller.activeSpaceId();
+    controller.openInput(QStringLiteral("https://chat.example/room"), false);
+    const auto chatId = controller.activeTabId();
+    controller.toggleActivePinned();
+    QVERIFY(controller.setTabKeepActive(chatId, true));
+    controller.openInput(QStringLiteral("https://quiet.example"), true);
+    const auto quietId = controller.activeTabId();
+
+    const auto target = controller.notificationTarget(personalSpaceId,
+        QUrl(QStringLiteral("https://chat.example")));
+    QCOMPARE(target.value(QStringLiteral("tabId")).toString(), chatId);
+    QCOMPARE(target.value(QStringLiteral("spaceName")).toString(), QStringLiteral("Personal"));
+    QCOMPARE(target.value(QStringLiteral("origin")).toString(),
+        QStringLiteral("https://chat.example"));
+
+    // A Space with no page at that origin has no tab to speak for it.
+    QVERIFY(controller.notificationTarget(personalSpaceId,
+        QUrl(QStringLiteral("https://elsewhere.example"))).isEmpty());
+
+    const auto workSpaceId = controller.createSpace(QStringLiteral("Work"));
+    QVERIFY(controller.switchSpace(workSpaceId));
+
+    // The retained tab may still say something while its Space is away; the
+    // suspended one beside it may not.
+    QCOMPARE(controller.notificationTarget(personalSpaceId,
+        QUrl(QStringLiteral("https://chat.example")))
+            .value(QStringLiteral("tabId")).toString(), chatId);
+    QVERIFY(controller.notificationTarget(personalSpaceId,
+        QUrl(QStringLiteral("https://quiet.example"))).isEmpty());
+    Q_UNUSED(quietId)
+
+    QVERIFY(controller.activateNotificationTarget(personalSpaceId, chatId));
+    QCOMPARE(controller.activeSpaceId(), personalSpaceId);
+    QCOMPARE(controller.activeTabId(), chatId);
+}
+
+// Audible autoplay waits for the reader to have dealt with the origin. The
+// memory is one Space's and one session's.
+void BrowserControllerTest::remembersOriginInteractionWithinOneSpaceAndSession()
+{
+    QTemporaryDir root;
+    const QUrl page(QStringLiteral("https://video.example/watch"));
+    {
+        BrowserController controller(root.path(), QStringLiteral("test"));
+        controller.openInput(page.toString(), false);
+        QVERIFY(!controller.originInteracted(page));
+
+        controller.recordOriginInteraction(page);
+        QVERIFY(controller.originInteracted(page));
+        // The origin, not the page: another path on the same site is the same
+        // origin, and another site is not.
+        QVERIFY(controller.originInteracted(QUrl(QStringLiteral("https://video.example/other"))));
+        QVERIFY(!controller.originInteracted(QUrl(QStringLiteral("https://other.example/"))));
+
+        // Another Space is another browsing identity.
+        const auto workSpaceId = controller.createSpace(QStringLiteral("Work"));
+        QVERIFY(controller.switchSpace(workSpaceId));
+        QVERIFY(!controller.originInteracted(page));
+    }
+
+    BrowserController restored(root.path(), QStringLiteral("test"));
+    QVERIFY(!restored.originInteracted(page));
 }
 
 QTEST_GUILESS_MAIN(BrowserControllerTest)

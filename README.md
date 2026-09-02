@@ -35,8 +35,8 @@ The current Qt build includes:
   printing, and inline PDF viewing
 - A Tanto-drawn page menu with link, image, media, selection, navigation, and
   inspection commands
-- Session restoration, renderer recovery, downloads, history suggestions, and
-  Site permissions
+- Session restoration, renderer recovery, downloads, searchable Space-local
+  History, browsing-data controls, and Site permissions
 - Built-in content blocking with EasyList, EasyPrivacy, cosmetic rules,
   scriptlets, and substitute resources
 - Runtime themes, terminal-theme import, Private-window styling, and an
