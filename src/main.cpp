@@ -166,7 +166,8 @@ int main(int argc, char *argv[])
         keybindingsPath(), QStringLiteral(TANTO_KEYBOARD_NAVIGATION_SCRIPT_PATH));
     tanto::QtContentBlocker engineContentBlocker(&contentBlocker);
     tanto::ThemeController theme(themePath());
-    tanto::WindowManager windowManager(QStringLiteral("qt"), launch.privateWindowsAvailable);
+    tanto::WindowManager windowManager(
+        QStringLiteral("qt"), configRoot(), launch.privateWindowsAvailable);
 
     tanto::quickshell::installShim();
     tanto::registerFaviconTint();

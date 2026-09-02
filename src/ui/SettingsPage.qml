@@ -83,15 +83,11 @@ Rectangle {
     }
 
     function makeDefaultSearchEngine(id) {
-        if (root.browser.saveSearchEngines(root.engines, id)) root.refresh()
+        if (root.browser.setDefaultSearchEngine(id)) root.refresh()
     }
 
-    function deleteSearchEngine(id, wasDefault) {
-        const next = root.engines.filter(function(engine) { return engine.id !== id })
-        if (next.length === 0) return
-        const defaultId = wasDefault ? next[0].id
-            : root.engines.filter(function(engine) { return engine.default })[0].id
-        if (root.browser.saveSearchEngines(next, defaultId)) root.refresh()
+    function deleteSearchEngine(id) {
+        if (root.browser.deleteSearchEngine(id)) root.refresh()
     }
 
     onOpenChanged: if (open) refresh()
@@ -533,7 +529,7 @@ Rectangle {
                                 label: "Delete"
                                 destructive: true
                                 enabled: root.engines.length > 1
-                                onClicked: root.deleteSearchEngine(modelData.id, modelData.default)
+                                onClicked: root.deleteSearchEngine(modelData.id)
                             }
                         }
                     }
@@ -572,12 +568,8 @@ Rectangle {
                         enabled: engineName.text.trim().length > 0
                             && engineQueryUrl.text.indexOf("{query}") >= 0
                         onClicked: {
-                            const id = engineName.text.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-")
-                            const next = root.engines.slice()
-                            next.push({"id": id, "name": engineName.text.trim(),
-                                "queryUrl": engineQueryUrl.text.trim(),
-                                "keyword": engineKeyword.text.trim()})
-                            if (root.browser.saveSearchEngines(next, id)) {
+                            if (root.browser.addSearchEngine(engineName.text,
+                                    engineQueryUrl.text, engineKeyword.text)) {
                                 engineName.text = ""
                                 engineQueryUrl.text = ""
                                 engineKeyword.text = ""

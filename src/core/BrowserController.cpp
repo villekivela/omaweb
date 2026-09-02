@@ -27,8 +27,7 @@ constexpr double zoomTolerance = 0.001;
 
 BrowserController::BrowserController(QString dataRoot, QString engineName, QObject *parent)
     : BrowserController(dataRoot, std::move(engineName), false,
-        QSharedPointer<QHash<QString, int>>::create(),
-        QDir(dataRoot).filePath(QStringLiteral("config")), parent)
+        QSharedPointer<QHash<QString, int>>::create(), {}, parent)
 {
 }
 
@@ -42,8 +41,7 @@ BrowserController::BrowserController(QString dataRoot, QString engineName, QStri
 BrowserController::BrowserController(QString dataRoot, QString engineName,
     bool privateBrowsing, QObject *parent)
     : BrowserController(dataRoot, std::move(engineName), privateBrowsing,
-        QSharedPointer<QHash<QString, int>>::create(),
-        QDir(dataRoot).filePath(QStringLiteral("config")), parent)
+        QSharedPointer<QHash<QString, int>>::create(), {}, parent)
 {
 }
 
@@ -51,8 +49,7 @@ BrowserController::BrowserController(QString dataRoot, QString engineName,
     bool privateBrowsing, QSharedPointer<QHash<QString, int>> sessionPermissionDecisions,
     QObject *parent)
     : BrowserController(dataRoot, std::move(engineName), privateBrowsing,
-        std::move(sessionPermissionDecisions),
-        QDir(dataRoot).filePath(QStringLiteral("config")), parent)
+        std::move(sessionPermissionDecisions), {}, parent)
 {
 }
 
@@ -939,6 +936,58 @@ QVariantList BrowserController::searchEngines() const
     return engines;
 }
 
+bool BrowserController::addSearchEngine(const QString &name, const QString &queryUrl,
+    const QString &keyword)
+{
+    const auto normalizedName = name.trimmed();
+    auto id = normalizedName.toLower();
+    id.replace(QRegularExpression(QStringLiteral("[^a-z0-9]+")), QStringLiteral("-"));
+    id.remove(QRegularExpression(QStringLiteral("^-|-$")));
+    if (id.isEmpty()) {
+        id = QStringLiteral("search");
+    }
+    const auto baseId = id;
+    int suffix = 2;
+    QSet<QString> ids;
+    for (const auto &value : m_searchEngines) {
+        ids.insert(value.toMap().value(QStringLiteral("id")).toString());
+    }
+    while (ids.contains(id)) {
+        id = QStringLiteral("%1-%2").arg(baseId).arg(suffix++);
+    }
+    auto engines = m_searchEngines;
+    engines.append(QVariantMap{{QStringLiteral("id"), id},
+        {QStringLiteral("name"), normalizedName},
+        {QStringLiteral("queryUrl"), queryUrl.trimmed()},
+        {QStringLiteral("keyword"), keyword.trimmed()}});
+    return saveSearchEngines(engines, id);
+}
+
+bool BrowserController::deleteSearchEngine(const QString &id)
+{
+    if (m_privateBrowsing || m_searchEngines.size() <= 1) {
+        return false;
+    }
+    QVariantList engines;
+    for (const auto &value : m_searchEngines) {
+        if (value.toMap().value(QStringLiteral("id")).toString() != id) {
+            engines.append(value);
+        }
+    }
+    if (engines.size() == m_searchEngines.size()) {
+        return false;
+    }
+    const auto defaultId = id == m_defaultSearchEngineId
+        ? engines.first().toMap().value(QStringLiteral("id")).toString()
+        : m_defaultSearchEngineId;
+    return saveSearchEngines(engines, defaultId);
+}
+
+bool BrowserController::setDefaultSearchEngine(const QString &id)
+{
+    return saveSearchEngines(m_searchEngines, id);
+}
+
 bool BrowserController::saveSearchEngines(const QVariantList &engines,
     const QString &defaultEngineId)
 {
@@ -1152,6 +1201,7 @@ void BrowserController::initialize()
         auto tab = makeBlankTab({});
         m_activeTabId = tab.id;
         m_tabs.reset({tab});
+        loadSearchEngines();
         m_ready = true;
         return;
     }
@@ -1254,8 +1304,18 @@ bool BrowserController::loadSearchEngines()
         {QStringLiteral("queryUrl"), QStringLiteral("https://duckduckgo.com/?q={query}")},
         {QStringLiteral("keyword"), QString{}}};
     const auto path = QDir(m_configRoot).filePath(QStringLiteral("search-engines.json"));
+    if (m_configRoot.isEmpty()) {
+        m_searchEngines = {duckDuckGo};
+        m_defaultSearchEngineId = QStringLiteral("duckduckgo");
+        return true;
+    }
     QFile file(path);
     if (!file.exists()) {
+        if (m_privateBrowsing) {
+            m_searchEngines = {duckDuckGo};
+            m_defaultSearchEngineId = QStringLiteral("duckduckgo");
+            return true;
+        }
         return saveSearchEngines({duckDuckGo}, QStringLiteral("duckduckgo"));
     }
     if (!file.open(QIODevice::ReadOnly)) {
@@ -1331,8 +1391,12 @@ QUrl BrowserController::resolveConfiguredInput(const QString &input) const
         && host.contains('.') && !host.startsWith('.') && !host.endsWith('.');
     if (localAddress || publicAddress || explicitPort) {
         const auto insecureLocal = localAddress || (explicitPort && !publicAddress);
+        auto address = value;
+        if (literal.protocol() == QAbstractSocket::IPv6Protocol && !authority.startsWith('[')) {
+            address = QStringLiteral("[%1]%2").arg(authority, value.mid(authority.size()));
+        }
         return QUrl((insecureLocal ? QStringLiteral("http://") : QStringLiteral("https://"))
-            + value);
+            + address);
     }
 
     auto terms = value;

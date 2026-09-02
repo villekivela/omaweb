@@ -12,6 +12,7 @@ QtObject {
     property string downloadNamespace: ""
     property int activeDownloadCount: 0
     property bool retired: false
+    property bool downloadObserversConnected: false
     readonly property var profile: privateProfile
     signal downloadStarted(string runtimeId, url sourceUrl, string path, string state,
         double receivedBytes, double totalBytes)

@@ -73,6 +73,9 @@ public:
     BrowserController(QString dataRoot, QString engineName, bool privateBrowsing,
         QSharedPointer<QHash<QString, int>> sessionPermissionDecisions,
         QObject *parent = nullptr);
+    BrowserController(QString dataRoot, QString engineName, bool privateBrowsing,
+        QSharedPointer<QHash<QString, int>> sessionPermissionDecisions,
+        QString configRoot, QObject *parent = nullptr);
 
     ~BrowserController() override;
 
@@ -148,8 +151,10 @@ public:
     Q_INVOKABLE bool deleteHistoryOrigin(const QUrl &url);
     Q_INVOKABLE bool deleteHistorySince(qint64 since);
     Q_INVOKABLE QVariantList searchEngines() const;
-    Q_INVOKABLE bool saveSearchEngines(const QVariantList &engines,
-        const QString &defaultEngineId);
+    Q_INVOKABLE bool addSearchEngine(const QString &name, const QString &queryUrl,
+        const QString &keyword = {});
+    Q_INVOKABLE bool deleteSearchEngine(const QString &id);
+    Q_INVOKABLE bool setDefaultSearchEngine(const QString &id);
     Q_INVOKABLE bool clearBrowsingData(const QStringList &dataTypes, qint64 since,
         bool everySpace = false, const QString &confirmation = {});
     Q_INVOKABLE int permissionDecision(const QUrl &url, const QString &permission);
@@ -185,9 +190,6 @@ signals:
         const QStringList &dataTypes, qint64 since);
 
 private:
-    BrowserController(QString dataRoot, QString engineName, bool privateBrowsing,
-        QSharedPointer<QHash<QString, int>> sessionPermissionDecisions,
-        QString configRoot, QObject *parent);
     struct ClosedTab {
         TabState tab;
         bool valid = false;
@@ -208,6 +210,7 @@ private:
     static QUrl resolveInput(const QString &input);
     QUrl resolveConfiguredInput(const QString &input) const;
     bool loadSearchEngines();
+    bool saveSearchEngines(const QVariantList &engines, const QString &defaultEngineId);
     static QString normalizedOrigin(const QUrl &url);
     QString sessionPermissionKey(const QString &origin, const QString &permission) const;
 

@@ -33,6 +33,11 @@ Rectangle {
         search.forceActiveFocus()
     }
 
+    Connections {
+        target: root.browser
+        function onActiveSpaceChanged() { if (root.open) root.refresh() }
+    }
+
     Keys.onPressed: function(event) {
         if (event.key === Qt.Key_Escape) {
             root.closed()

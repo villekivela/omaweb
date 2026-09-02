@@ -1387,6 +1387,14 @@ TestCase {
         tryCompare(list, "count", 1)
         compare(String(list.model[0].url), "https://history-sheet.example/first")
 
+        const personalSpaceId = browser.activeSpaceId
+        const workSpaceId = browser.createSpace("History sheet work")
+        verify(browser.switchSpace(workSpaceId))
+        tryCompare(list, "count", 0)
+        verify(browser.switchSpace(personalSpaceId))
+        tryCompare(list, "count", 1)
+        verify(browser.deleteSpace(workSpaceId, "History sheet work"))
+
         findChild(window.contentItem, "closeHistoryButton").clicked()
         tryVerify(function() { return !surface.visible })
     }

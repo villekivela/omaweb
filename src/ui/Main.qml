@@ -892,6 +892,7 @@ ApplicationWindow {
         const spaceId = window.windowBrowser.activeSpaceId
         const existing = window.spaceProfileHosts[spaceId]
         if (existing) {
+            window.connectSpaceProfileDownloads(existing)
             window.spaceProfileHost = existing
             return
         }
@@ -905,10 +906,16 @@ ApplicationWindow {
             "engineContentBlocker": engineContentBlocker
         })
         if (!host) return
-        host.downloadStarted.connect(window.handleDownloadStarted)
-        host.downloadUpdated.connect(window.handleDownloadUpdated)
+        window.connectSpaceProfileDownloads(host)
         window.spaceProfileHosts[spaceId] = host
         window.spaceProfileHost = host
+    }
+
+    function connectSpaceProfileDownloads(host) {
+        if (!host || host.downloadObserversConnected) return
+        host.downloadStarted.connect(window.handleDownloadStarted)
+        host.downloadUpdated.connect(window.handleDownloadUpdated)
+        host.downloadObserversConnected = true
     }
 
     function retireSpaceProfile(spaceId) {
@@ -1063,6 +1070,8 @@ ApplicationWindow {
                     focus: true
                     browserController: window.windowBrowser
                     engineSource: engineViewSource
+                    profileSource: engineProfileSource
+                    profileHosts: window.spaceProfileHosts
                     profilePath: window.profilePathOverride.length > 0
                         ? window.profilePathOverride
                         : window.windowBrowser.activeProfilePath
@@ -1385,29 +1394,7 @@ ApplicationWindow {
                     }
 
                     function onEngineDataClearRequested(spaceIds, dataTypes, since) {
-                        for (let index = 0; index < spaceIds.length; ++index) {
-                            const spaceId = spaceIds[index]
-                            const host = window.spaceProfileHosts[spaceId]
-                            if (host) {
-                                host.clearBrowsingData(dataTypes, since)
-                                continue
-                            }
-                            const component = Qt.createComponent(engineProfileSource)
-                            const temporary = component.createObject(window, {
-                                "profilePath": window.windowBrowser.profilePathForSpace(spaceId),
-                                "downloadDirectory": window.windowBrowser.downloadDirectory,
-                                "acceptDownloads": window.windowBrowser.acceptDownloads,
-                                "privateBrowsing": false,
-                                "downloadNamespace": spaceId,
-                                "engineContentBlocker": engineContentBlocker
-                            })
-                            if (temporary) {
-                                temporary.downloadStarted.connect(window.handleDownloadStarted)
-                                temporary.downloadUpdated.connect(window.handleDownloadUpdated)
-                                window.spaceProfileHosts[spaceId] = temporary
-                                temporary.clearBrowsingData(dataTypes, since)
-                            }
-                        }
+                        engineLoader.clearBrowsingData(spaceIds, dataTypes, since)
                     }
 
                     function onCloseWindowRequested() {

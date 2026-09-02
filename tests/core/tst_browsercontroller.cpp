@@ -663,6 +663,8 @@ void BrowserControllerTest::resolvesAddressesBeforeSearches()
     QCOMPARE(controller.activeUrl(), QUrl(QStringLiteral("http://localhost:3000/app")));
     controller.openInput(QStringLiteral("127.0.0.1:8080"), false);
     QCOMPARE(controller.activeUrl(), QUrl(QStringLiteral("http://127.0.0.1:8080")));
+    controller.openInput(QStringLiteral("::1"), false);
+    QCOMPARE(controller.activeUrl(), QUrl(QStringLiteral("http://[::1]")));
     controller.openInput(QStringLiteral("project.test"), false);
     QCOMPARE(controller.activeUrl(), QUrl(QStringLiteral("http://project.test")));
     controller.openInput(QStringLiteral("example.com:444/path"), false);
@@ -705,6 +707,11 @@ void BrowserControllerTest::migratesAndUsesSearchEngineConfiguration()
     QVERIFY(migrated.open(QIODevice::ReadOnly));
     const auto document = QJsonDocument::fromJson(migrated.readAll());
     QCOMPARE(document.object().value(QStringLiteral("version")).toInt(), 1);
+
+    BrowserController privateController({}, QStringLiteral("test"), true,
+        QSharedPointer<QHash<QString, int>>::create(), configRoot);
+    privateController.openInput(QStringLiteral("private search"), false);
+    QCOMPARE(privateController.activeUrl().host(), QStringLiteral("docs.example"));
 }
 
 void BrowserControllerTest::refusesPersistentBrowsingDataActionsInPrivateWindows()

@@ -15,8 +15,15 @@ WindowManager::WindowManager(QString engineName, QObject *parent)
 }
 
 WindowManager::WindowManager(QString engineName, bool privateWindowsAvailable, QObject *parent)
+    : WindowManager(std::move(engineName), {}, privateWindowsAvailable, parent)
+{
+}
+
+WindowManager::WindowManager(QString engineName, QString configRoot,
+    bool privateWindowsAvailable, QObject *parent)
     : QObject(parent)
     , m_engineName(std::move(engineName))
+    , m_configRoot(std::move(configRoot))
     , m_privateWindowsAvailable(privateWindowsAvailable)
 {
 }
@@ -30,7 +37,7 @@ BrowserController *WindowManager::createPrivateWindow()
     }
 
     auto *controller = new BrowserController({}, m_engineName, true,
-        m_privatePermissionDecisions, this);
+        m_privatePermissionDecisions, m_configRoot, this);
     if (!controller->ready()) {
         controller->deleteLater();
         return nullptr;

@@ -6,6 +6,8 @@ Item {
 
     required property var browserController
     required property url engineSource
+    property url profileSource
+    property var profileHosts: ({})
     required property string profilePath
     required property var sharedProfile
     required property var permissionController
@@ -153,6 +155,30 @@ Item {
     function checkForEditedFormState(callback) {
         if (activeEngine) activeEngine.checkForEditedFormState(callback)
         else callback(false)
+    }
+
+    // Profile-wide data removal is an engine operation. The shell supplies the
+    // adapter component, while this boundary creates any inactive Space
+    // profile needed to carry out the command.
+    function clearBrowsingData(spaceIds, dataTypes, since) {
+        for (let index = 0; index < spaceIds.length; ++index) {
+            const spaceId = spaceIds[index]
+            let host = root.profileHosts[spaceId]
+            if (!host) {
+                const component = Qt.createComponent(root.profileSource)
+                host = component.createObject(root, {
+                    "profilePath": root.browserController.profilePathForSpace(spaceId),
+                    "downloadDirectory": root.browserController.downloadDirectory,
+                    "acceptDownloads": root.browserController.acceptDownloads,
+                    "privateBrowsing": false,
+                    "downloadNamespace": spaceId,
+                    "engineContentBlocker": root.engineBlocker
+                })
+                if (!host) continue
+                root.profileHosts[spaceId] = host
+            }
+            host.clearBrowsingData(dataTypes, since)
+        }
     }
 
     function suspend() {
