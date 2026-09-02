@@ -280,7 +280,8 @@ void KeyboardNavigationTest::replacesRetiredDefaultWithoutChangingCustomBindings
         "browser": {
             "X": "reopen-tab",
             "J": "next-tab",
-            "K": "previous-tab"
+            "K": "previous-tab",
+            "Primary+Shift+C": "copy-address"
         },
         "passthrough": {}
     })JSON";
@@ -297,7 +298,9 @@ void KeyboardNavigationTest::replacesRetiredDefaultWithoutChangingCustomBindings
             "gT": "previous-tab",
             "gs": "next-space",
             "gn": "new-space",
-            "q": "close-tab"
+            "q": "close-tab",
+            "Primary+Shift+C": "inspect-element",
+            "Primary+Shift+K": "inspect-element"
         },
         "passthrough": {}
     })JSON");
@@ -317,6 +320,14 @@ void KeyboardNavigationTest::replacesRetiredDefaultWithoutChangingCustomBindings
         QStringLiteral("reopen-tab"));
     QCOMPARE(browserBindings.value(QStringLiteral("q")).toString(),
         QStringLiteral("close-tab"));
+    // A key Tanto has repurposed follows the new default rather than keeping
+    // the command Tanto itself put there. Adoption cannot do this on its own:
+    // it never argues with a key the file already binds.
+    QCOMPARE(browserBindings.value(QStringLiteral("Primary+Shift+C")).toString(),
+        QStringLiteral("copy-address"));
+    // The same command on a key the reader chose is the reader's, and stays.
+    QCOMPARE(browserBindings.value(QStringLiteral("Primary+Shift+K")).toString(),
+        QStringLiteral("inspect-element"));
 }
 
 QTEST_GUILESS_MAIN(KeyboardNavigationTest)

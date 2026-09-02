@@ -286,10 +286,17 @@ bool KeyboardNavigation::adoptDefaults(const QString &configurationPath,
     const auto ledger = settings.value(adoptedDefaultsKey).toObject();
     auto adopted = false;
 
-    // Retired browser defaults must leave upgraded files. `u` now scrolls the
-    // page, while the old `g` sequences prevent the page from ever receiving
-    // the first key of `gg`. Remove only unchanged former defaults. Any other
+    // Defaults Tanto has since changed its mind about. A key still carrying the
+    // command Tanto shipped on it is Tanto's own former default rather than a
+    // choice the reader made, so it follows the new decision: dropped where
+    // there is no default for that key any more — `u` now scrolls the page, and
+    // the old `g` sequences kept the page from ever receiving the first key of
+    // `gg` — and replaced where the key now means something else. Any other
     // command on these keys is a user choice and stays put.
+    //
+    // Adoption alone cannot do this: it offers a default once and never argues
+    // with a key the file already binds, which is right for the reader's own
+    // bindings and wrong for Tanto's abandoned ones.
     auto browser = settings.value(QStringLiteral("browser")).toObject();
     const auto defaultBrowser = defaults.value(QStringLiteral("browser")).toObject();
     const QHash<QString, QString> retiredBrowserDefaults = {
@@ -298,14 +305,22 @@ bool KeyboardNavigation::adoptDefaults(const QString &configurationPath,
         {QStringLiteral("gT"), QStringLiteral("previous-tab")},
         {QStringLiteral("gs"), QStringLiteral("next-space")},
         {QStringLiteral("gn"), QStringLiteral("new-space")},
+        // Copying the address is what this key does in every other browser, so
+        // inspecting an element moved to the one Chromium uses for it.
+        {QStringLiteral("Primary+Shift+C"), QStringLiteral("inspect-element")},
     };
     for (auto it = retiredBrowserDefaults.cbegin();
          it != retiredBrowserDefaults.cend(); ++it) {
-        if (!defaultBrowser.contains(it.key())
-            && browser.value(it.key()).toString() == it.value()) {
-            browser.remove(it.key());
-            adopted = true;
+        if (browser.value(it.key()).toString() != it.value()) {
+            continue;
         }
+        const auto replacement = defaultBrowser.value(it.key()).toString();
+        if (replacement.isEmpty()) {
+            browser.remove(it.key());
+        } else {
+            browser.insert(it.key(), replacement);
+        }
+        adopted = true;
     }
     if (adopted) {
         settings.insert(QStringLiteral("browser"), browser);
