@@ -66,6 +66,8 @@ public:
     Q_ENUM(PermissionDecision)
 
     BrowserController(QString dataRoot, QString engineName, QObject *parent = nullptr);
+    BrowserController(QString dataRoot, QString engineName, QString configRoot,
+        QObject *parent = nullptr);
     BrowserController(QString dataRoot, QString engineName, bool privateBrowsing,
         QObject *parent = nullptr);
     BrowserController(QString dataRoot, QString engineName, bool privateBrowsing,
@@ -84,6 +86,7 @@ public:
     QUrl activeUrl() const;
     QString activeTitle() const;
     QString activeProfilePath() const;
+    Q_INVOKABLE QString profilePathForSpace(const QString &spaceId) const;
     bool activeTabPinned() const;
     double activeTabZoom() const;
     bool activeTabBlank() const;
@@ -108,6 +111,7 @@ public:
     Q_INVOKABLE bool confirmTabMoveToSpace(const QString &tabId, const QString &destinationSpaceId);
     Q_INVOKABLE void openInput(const QString &input, bool inNewTab);
     Q_INVOKABLE void openInputInBackground(const QUrl &url);
+    Q_INVOKABLE bool retryActiveUrlInsecurely();
     Q_INVOKABLE void closeTab(const QString &tabId);
     Q_INVOKABLE void closeActiveTab();
     Q_INVOKABLE void reopenClosedTab();
@@ -139,6 +143,15 @@ public:
     Q_INVOKABLE void requestStopLoading();
     Q_INVOKABLE void recordVisit(const QUrl &url, const QString &title);
     Q_INVOKABLE QVariantList historySuggestions(const QString &query, int limit = 8) const;
+    Q_INVOKABLE QVariantList history(const QString &query, int limit = 500) const;
+    Q_INVOKABLE bool deleteHistoryVisit(qint64 id);
+    Q_INVOKABLE bool deleteHistoryOrigin(const QUrl &url);
+    Q_INVOKABLE bool deleteHistorySince(qint64 since);
+    Q_INVOKABLE QVariantList searchEngines() const;
+    Q_INVOKABLE bool saveSearchEngines(const QVariantList &engines,
+        const QString &defaultEngineId);
+    Q_INVOKABLE bool clearBrowsingData(const QStringList &dataTypes, qint64 since,
+        bool everySpace = false, const QString &confirmation = {});
     Q_INVOKABLE int permissionDecision(const QUrl &url, const QString &permission);
     Q_INVOKABLE bool setPermissionDecision(const QUrl &url, const QString &permission,
         int decision);
@@ -168,8 +181,13 @@ signals:
     void reloadBypassingCacheRequested();
     void stopLoadingRequested();
     void closeWindowRequested();
+    void engineDataClearRequested(const QStringList &spaceIds,
+        const QStringList &dataTypes, qint64 since);
 
 private:
+    BrowserController(QString dataRoot, QString engineName, bool privateBrowsing,
+        QSharedPointer<QHash<QString, int>> sessionPermissionDecisions,
+        QString configRoot, QObject *parent);
     struct ClosedTab {
         TabState tab;
         bool valid = false;
@@ -188,6 +206,8 @@ private:
     void refreshAtRest();
     void setDeveloperToolsTab(const QString &tabId, const QString &spaceId);
     static QUrl resolveInput(const QString &input);
+    QUrl resolveConfiguredInput(const QString &input) const;
+    bool loadSearchEngines();
     static QString normalizedOrigin(const QUrl &url);
     QString sessionPermissionKey(const QString &origin, const QString &permission) const;
 
@@ -206,6 +226,9 @@ private:
     // Space is active it is not in the tab model to be noticed missing.
     QString m_developerToolsSpaceId;
     QString m_engineName;
+    QString m_configRoot;
+    QVariantList m_searchEngines;
+    QString m_defaultSearchEngineId;
     QString m_errorMessage;
     ClosedTab m_closedTab;
     bool m_ready = false;

@@ -109,6 +109,7 @@ Command on macOS and Control on Linux. These are the main defaults:
 | `Primary+Shift+I` | Toggle Developer tools |
 | `Primary+Alt+C` | Inspect an element |
 | `Primary+F` or `/` | Find in the page |
+| `Primary+Y` | Open History for the active Space |
 | `Primary+=`, `Primary+-`, `Primary+0` | Change or reset tab zoom |
 | `Primary+Shift+R` or `R` | Reload without cache |
 | `Primary+B` | Hide or show the sidebar |
@@ -131,6 +132,9 @@ that variable is unset.
   passthrough rules. Tanto writes it on first launch.
 - `theme.json` can replace the built-in palette, typography, semantic opacity,
   and Developer-tools syntax colours.
+- `search-engines.json` contains the versioned local search-engine list, its
+  optional keywords, and the default engine. Tanto creates it with DuckDuckGo
+  as the default and keeps remote suggestions off.
 
 `TANTO_CONFIG_ROOT` relocates the configuration directory.
 `TANTO_KEYBINDINGS_FILE` and `TANTO_THEME_FILE` select individual files during

@@ -35,6 +35,11 @@ public:
     bool savePreference(const QString &name, const QString &value);
     bool recordVisit(const QString &spaceId, const QUrl &url, const QString &title);
     QVariantList historySuggestions(const QString &spaceId, const QString &query, int limit) const;
+    QVariantList history(const QString &spaceId, const QString &query, int limit) const;
+    bool deleteHistoryVisit(const QString &spaceId, qint64 id);
+    bool deleteHistoryOrigin(const QString &spaceId, const QString &origin);
+    bool deleteHistorySince(const QString &spaceId, qint64 since);
+    bool clearPermissionsSince(const QString &spaceId, qint64 since);
     int permissionDecision(const QString &spaceId, const QString &origin,
         const QString &permission) const;
     bool savePermissionDecision(const QString &spaceId, const QString &origin,

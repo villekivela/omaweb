@@ -394,6 +394,103 @@ QVariantList SessionStore::historySuggestions(const QString &spaceId,
     return suggestions;
 }
 
+QVariantList SessionStore::history(const QString &spaceId, const QString &text, int limit) const
+{
+    QVariantList rows;
+    QSqlQuery query(spaceDatabase(spaceId));
+    const auto pattern = QStringLiteral("%%1%").arg(text);
+    query.prepare(QStringLiteral(
+        "SELECT id, url, title, visited_at FROM history "
+        "WHERE ? = '' OR url LIKE ? OR title LIKE ? "
+        "ORDER BY visited_at DESC, id DESC LIMIT ?"));
+    query.addBindValue(text);
+    query.addBindValue(pattern);
+    query.addBindValue(pattern);
+    query.addBindValue(limit);
+    if (!query.exec()) {
+        return rows;
+    }
+    while (query.next()) {
+        QVariantMap row;
+        row.insert(QStringLiteral("id"), query.value(0).toLongLong());
+        row.insert(QStringLiteral("url"), query.value(1).toUrl());
+        row.insert(QStringLiteral("title"), query.value(2).toString());
+        row.insert(QStringLiteral("visitedAt"), query.value(3).toLongLong());
+        rows.append(row);
+    }
+    return rows;
+}
+
+bool SessionStore::deleteHistoryVisit(const QString &spaceId, qint64 id)
+{
+    QSqlQuery query(spaceDatabase(spaceId));
+    query.prepare(QStringLiteral("DELETE FROM history WHERE id = ?"));
+    query.addBindValue(id);
+    return query.exec() && query.numRowsAffected() == 1;
+}
+
+bool SessionStore::deleteHistoryOrigin(const QString &spaceId, const QString &origin)
+{
+    auto database = spaceDatabase(spaceId);
+    QSqlQuery select(database);
+    if (!select.exec(QStringLiteral("SELECT id, url FROM history"))) {
+        return false;
+    }
+    QList<qint64> ids;
+    while (select.next()) {
+        QUrl rowUrl(select.value(1).toString());
+        QUrl rowOrigin;
+        rowOrigin.setScheme(rowUrl.scheme().toLower());
+        rowOrigin.setHost(rowUrl.host().toLower());
+        const auto port = rowUrl.port(-1);
+        const auto defaultPort = rowUrl.scheme().compare(QStringLiteral("https"),
+            Qt::CaseInsensitive) == 0 ? 443 : 80;
+        if (port != -1 && port != defaultPort) {
+            rowOrigin.setPort(port);
+        }
+        if (rowOrigin.toString(QUrl::FullyEncoded) == origin) {
+            ids.append(select.value(0).toLongLong());
+        }
+    }
+    if (!database.transaction()) {
+        return false;
+    }
+    for (const auto id : ids) {
+        QSqlQuery remove(database);
+        remove.prepare(QStringLiteral("DELETE FROM history WHERE id = ?"));
+        remove.addBindValue(id);
+        if (!remove.exec()) {
+            database.rollback();
+            return false;
+        }
+    }
+    return database.commit();
+}
+
+bool SessionStore::deleteHistorySince(const QString &spaceId, qint64 since)
+{
+    QSqlQuery query(spaceDatabase(spaceId));
+    query.prepare(since > 0
+        ? QStringLiteral("DELETE FROM history WHERE visited_at >= ?")
+        : QStringLiteral("DELETE FROM history"));
+    if (since > 0) {
+        query.addBindValue(since);
+    }
+    return query.exec();
+}
+
+bool SessionStore::clearPermissionsSince(const QString &spaceId, qint64 since)
+{
+    QSqlQuery query(spaceDatabase(spaceId));
+    query.prepare(since > 0
+        ? QStringLiteral("DELETE FROM site_permissions WHERE updated_at >= ?")
+        : QStringLiteral("DELETE FROM site_permissions"));
+    if (since > 0) {
+        query.addBindValue(since);
+    }
+    return query.exec();
+}
+
 int SessionStore::permissionDecision(const QString &spaceId, const QString &origin,
     const QString &permission) const
 {
@@ -413,11 +510,13 @@ bool SessionStore::savePermissionDecision(const QString &spaceId, const QString 
 {
     QSqlQuery query(spaceDatabase(spaceId));
     query.prepare(QStringLiteral(
-        "INSERT INTO site_permissions(origin, permission, decision) VALUES(?, ?, ?) "
-        "ON CONFLICT(origin, permission) DO UPDATE SET decision = excluded.decision"));
+        "INSERT INTO site_permissions(origin, permission, decision, updated_at) VALUES(?, ?, ?, ?) "
+        "ON CONFLICT(origin, permission) DO UPDATE SET decision = excluded.decision, "
+        "updated_at = excluded.updated_at"));
     query.addBindValue(origin);
     query.addBindValue(permission);
     query.addBindValue(decision);
+    query.addBindValue(QDateTime::currentMSecsSinceEpoch());
     return query.exec();
 }
 
@@ -700,7 +799,10 @@ QSqlDatabase SessionStore::spaceDatabase(const QString &spaceId) const
         "origin TEXT NOT NULL, "
         "permission TEXT NOT NULL, "
         "decision INTEGER NOT NULL, "
+        "updated_at INTEGER NOT NULL DEFAULT 0, "
         "PRIMARY KEY(origin, permission))"));
+    schema.exec(QStringLiteral(
+        "ALTER TABLE site_permissions ADD COLUMN updated_at INTEGER NOT NULL DEFAULT 0"));
     m_spaceConnectionNames.insert(spaceId, connectionName);
     m_spaceDatabases.insert(spaceId, database);
     return database;

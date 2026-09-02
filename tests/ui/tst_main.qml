@@ -102,7 +102,8 @@ TestCase {
         // Bare page: navigation, the address, and the inspector.
         engine.simulateContextMenu({})
         tryVerify(function() { return menu.visible })
-        compare(labels(), ["Back", "Forward", "Reload", "—", "Copy address",
+        compare(labels(), ["Back", "Forward", "Reload", "Retry over insecure HTTP",
+            "—", "Copy address",
             "—", "Inspect element"])
         keyClick(Qt.Key_Escape)
         tryVerify(function() { return !menu.visible })
@@ -1367,7 +1368,59 @@ TestCase {
         tryCompare(suggestions, "count", 0)
         window.closeOmnibar()
         verify(browser.switchSpace(personalSpaceId))
-        verify(browser.deleteSpace(workSpaceId, ""))
+        verify(browser.deleteSpace(workSpaceId, "History Work"))
+    }
+
+    function test_historyIsAFilteredBrowserOwnedSheet() {
+        browser.recordVisit("https://history-sheet.example/first", "History sheet first")
+        browser.recordVisit("https://other-sheet.example/second", "Other sheet")
+        window.requestHistory()
+
+        const surface = findChild(window.contentItem, "historySurface")
+        const search = findChild(window.contentItem, "historySearch")
+        const list = findChild(window.contentItem, "historyList")
+        verify(surface !== null)
+        verify(search !== null)
+        verify(list !== null)
+        tryVerify(function() { return surface.visible })
+        search.text = "history-sheet.example"
+        tryCompare(list, "count", 1)
+        compare(String(list.model[0].url), "https://history-sheet.example/first")
+
+        findChild(window.contentItem, "closeHistoryButton").clicked()
+        tryVerify(function() { return !surface.visible })
+    }
+
+    function test_settingsOwnSearchAndBrowsingDataControls() {
+        window.requestSettings()
+        const searchSection = findChild(window.contentItem, "settingsSection5")
+        const dataSection = findChild(window.contentItem, "settingsSection6")
+        verify(searchSection !== null)
+        verify(dataSection !== null)
+        compare(searchSection.text.toLowerCase(), "search")
+        compare(dataSection.text.toLowerCase(), "privacy")
+
+        searchSection.Accessible.pressAction()
+        const engines = findChild(window.contentItem, "searchEngineList")
+        verify(engines !== null)
+        compare(engines.count, 1)
+        verify(String(engines.model[0].name).indexOf("DuckDuckGo") >= 0)
+
+        dataSection.Accessible.pressAction()
+        verify(findChild(window.contentItem, "clearCookies") !== null)
+        verify(findChild(window.contentItem, "clearStorage") !== null)
+        verify(findChild(window.contentItem, "clearCache") !== null)
+        verify(findChild(window.contentItem, "clearPermissions") !== null)
+        verify(findChild(window.contentItem, "clearHistory") !== null)
+        const everySpace = findChild(window.contentItem, "clearEverySpace")
+        const confirmation = findChild(window.contentItem, "clearEverySpaceConfirmation")
+        verify(everySpace !== null)
+        verify(confirmation !== null)
+        compare(confirmation.visible, false)
+        everySpace.clicked()
+        compare(confirmation.visible, true)
+
+        findChild(window.contentItem, "closeSettingsButton").clicked()
     }
 
     function test_theSidebarOpensAndClosesSettings() {

@@ -222,6 +222,7 @@ set(tanto_ui_files
     src/ui/CommandPanel.qml
     src/ui/DeveloperToolsDock.qml
     src/ui/FindBar.qml
+    src/ui/HistoryPage.qml
     src/ui/KeyHint.qml
     src/ui/KeyMap.qml
     src/ui/NavigationCluster.qml

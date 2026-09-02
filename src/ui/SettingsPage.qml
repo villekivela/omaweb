@@ -21,6 +21,13 @@ Rectangle {
     property int blockedRequestCount: 0
     property bool useFavicons: true
     property bool tintFavicons: true
+    property var engines: []
+    property bool clearCookiesSelected: true
+    property bool clearStorageSelected: true
+    property bool clearCacheSelected: true
+    property bool clearPermissionsSelected: true
+    property bool clearHistorySelected: true
+    property bool clearEverySpaceSelected: false
 
     // The page to blur behind the settings, when there is one. Must not be an
     // ancestor of this item.
@@ -35,7 +42,8 @@ Rectangle {
     // findable from outside it.
     readonly property bool needsAttention: keyboardReport.length > 0
 
-    readonly property var sections: ["tabs", "keyboard", "content blocking", "network", "downloads"]
+    readonly property var sections: ["tabs", "keyboard", "content blocking", "network",
+        "downloads", "search", "privacy"]
 
     // about:blank and other opaque addresses have no host to name, and saying
     // "blocked on about" would be worse than saying nothing.
@@ -67,10 +75,23 @@ Rectangle {
     function refresh() {
         if (!root.browser) return
         root.downloads = root.browser.downloadHistory()
+        root.engines = root.browser.searchEngines()
         root.subscriptions = root.blocker ? root.blocker.subscriptions : []
         root.blockedRequestCount = root.blocker
             ? root.blocker.blockedRequestCount(root.browser.activeUrl) : 0
         userRules.text = root.blocker ? root.blocker.userRules : ""
+    }
+
+    function makeDefaultSearchEngine(id) {
+        if (root.browser.saveSearchEngines(root.engines, id)) root.refresh()
+    }
+
+    function deleteSearchEngine(id, wasDefault) {
+        const next = root.engines.filter(function(engine) { return engine.id !== id })
+        if (next.length === 0) return
+        const defaultId = wasDefault ? next[0].id
+            : root.engines.filter(function(engine) { return engine.default })[0].id
+        if (root.browser.saveSearchEngines(next, defaultId)) root.refresh()
     }
 
     onOpenChanged: if (open) refresh()
@@ -223,7 +244,7 @@ Rectangle {
                     note: "Tanto's own command layer. It gives the same commands with every "
                         + "engine, and lets sites receive the keys they need."
                     accessibleName: "Enable Keyboard navigation"
-                    checked: root.keyboard ? root.keyboard.enabled : false
+                    checked: root.keyboard ? root.keyboard.enabled === true : false
                     onClicked: if (root.keyboard) root.keyboard.setEnabled(!checked)
                 }
                 // A binding this build cannot honour is dropped rather than
@@ -373,7 +394,7 @@ Rectangle {
 
                     Text {
                         width: pane.width
-                        visible: root.blocker
+                        visible: root.blocker !== null && root.blocker !== undefined
                             && root.blocker.compilationReport.unsupported !== undefined
                             && Object.keys(root.blocker.compilationReport.unsupported).length > 0
                         text: "Unsupported rules in the active lists: "
@@ -475,6 +496,214 @@ Rectangle {
                     colors: root.colors
                     title: "No recorded downloads"
                     note: "Downloads Tanto has recorded in this Space appear here."
+                }
+
+                // ---- search ------------------------------------------------
+
+                Repeater {
+                    id: searchEngineList
+                    objectName: "searchEngineList"
+                    model: root.section === 5 ? root.engines : []
+
+                    SettingRow {
+                        required property var modelData
+                        width: pane.width
+                        colors: root.colors
+                        title: modelData.name + (modelData.default ? " · default" : "")
+                        note: modelData.queryUrl
+
+                        Row {
+                            spacing: 8
+                            Text {
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: modelData.keyword.length > 0
+                                    ? "keyword " + modelData.keyword : "no keyword"
+                                color: root.colors.mutedText
+                                font.family: Style.font.family
+                                font.pixelSize: Style.font.caption
+                            }
+                            ActionButton {
+                                colors: root.colors
+                                label: "Default"
+                                visible: !modelData.default
+                                onClicked: root.makeDefaultSearchEngine(modelData.id)
+                            }
+                            ActionButton {
+                                colors: root.colors
+                                label: "Delete"
+                                destructive: true
+                                enabled: root.engines.length > 1
+                                onClicked: root.deleteSearchEngine(modelData.id, modelData.default)
+                            }
+                        }
+                    }
+                }
+
+                Column {
+                    width: pane.width
+                    visible: root.section === 5
+                    spacing: 8
+
+                    SectionLabel { colors: root.colors; text: "add a search engine" }
+                    SettingField {
+                        id: engineName
+                        width: parent.width
+                        colors: root.colors
+                        placeholder: "name"
+                        accessibleName: "Search engine name"
+                    }
+                    SettingField {
+                        id: engineQueryUrl
+                        width: parent.width
+                        colors: root.colors
+                        placeholder: "query URL with {query}"
+                        accessibleName: "Search engine query URL"
+                    }
+                    SettingField {
+                        id: engineKeyword
+                        width: parent.width
+                        colors: root.colors
+                        placeholder: "optional keyword"
+                        accessibleName: "Search engine keyword"
+                    }
+                    ActionButton {
+                        colors: root.colors
+                        label: "Add and make default"
+                        enabled: engineName.text.trim().length > 0
+                            && engineQueryUrl.text.indexOf("{query}") >= 0
+                        onClicked: {
+                            const id = engineName.text.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-")
+                            const next = root.engines.slice()
+                            next.push({"id": id, "name": engineName.text.trim(),
+                                "queryUrl": engineQueryUrl.text.trim(),
+                                "keyword": engineKeyword.text.trim()})
+                            if (root.browser.saveSearchEngines(next, id)) {
+                                engineName.text = ""
+                                engineQueryUrl.text = ""
+                                engineKeyword.text = ""
+                                root.refresh()
+                            }
+                        }
+                    }
+                }
+
+                // ---- privacy -----------------------------------------------
+
+                SectionLabel {
+                    visible: root.section === 6
+                    colors: root.colors
+                    text: "clear browsing data"
+                }
+
+                SettingToggle {
+                    objectName: "clearCookies"
+                    width: pane.width
+                    visible: root.section === 6
+                    colors: root.colors
+                    title: "Cookies"
+                    checked: root.clearCookiesSelected
+                    onClicked: root.clearCookiesSelected = !checked
+                }
+                SettingToggle {
+                    objectName: "clearStorage"
+                    width: pane.width
+                    visible: root.section === 6
+                    colors: root.colors
+                    title: "Site storage"
+                    checked: root.clearStorageSelected
+                    onClicked: root.clearStorageSelected = !checked
+                }
+                SettingToggle {
+                    objectName: "clearCache"
+                    width: pane.width
+                    visible: root.section === 6
+                    colors: root.colors
+                    title: "Cache"
+                    checked: root.clearCacheSelected
+                    onClicked: root.clearCacheSelected = !checked
+                }
+                SettingToggle {
+                    objectName: "clearPermissions"
+                    width: pane.width
+                    visible: root.section === 6
+                    colors: root.colors
+                    title: "Site permissions"
+                    checked: root.clearPermissionsSelected
+                    onClicked: root.clearPermissionsSelected = !checked
+                }
+                SettingToggle {
+                    objectName: "clearHistory"
+                    width: pane.width
+                    visible: root.section === 6
+                    colors: root.colors
+                    title: "History"
+                    checked: root.clearHistorySelected
+                    onClicked: root.clearHistorySelected = !checked
+                }
+
+                SettingRow {
+                    width: pane.width
+                    visible: root.section === 6
+                    colors: root.colors
+                    title: "Time range"
+                    note: "Applied within the selected Space by default."
+
+                    ComboBox {
+                        id: clearRange
+                        objectName: "clearTimeRange"
+                        model: ["last hour", "last day", "last week", "all time"]
+                        currentIndex: 1
+                        Accessible.name: "Browsing data time range"
+                    }
+                }
+
+                SettingToggle {
+                    objectName: "clearEverySpace"
+                    width: pane.width
+                    visible: root.section === 6
+                    colors: root.colors
+                    title: "Every Space"
+                    note: "Off clears only " + (root.browser ? root.browser.activeSpaceName : "this Space") + "."
+                    checked: root.clearEverySpaceSelected
+                    onClicked: root.clearEverySpaceSelected = !checked
+                }
+
+                SettingField {
+                    id: clearEverySpaceConfirmation
+                    objectName: "clearEverySpaceConfirmation"
+                    width: pane.width
+                    visible: root.section === 6 && root.clearEverySpaceSelected
+                    colors: root.colors
+                    destructive: true
+                    placeholder: "type CLEAR ALL"
+                    accessibleName: "Confirm clearing every Space"
+                }
+
+                ActionButton {
+                    objectName: "clearBrowsingDataButton"
+                    visible: root.section === 6
+                    colors: root.colors
+                    label: root.clearEverySpaceSelected ? "Clear every Space" : "Clear this Space"
+                    destructive: true
+                    enabled: !root.clearEverySpaceSelected
+                        || clearEverySpaceConfirmation.text === "CLEAR ALL"
+                    onClicked: {
+                        const selected = []
+                        if (root.clearCookiesSelected) selected.push("cookies")
+                        if (root.clearStorageSelected) selected.push("storage")
+                        if (root.clearCacheSelected) selected.push("cache")
+                        if (root.clearPermissionsSelected) selected.push("permissions")
+                        if (root.clearHistorySelected) selected.push("history")
+                        const durations = [3600000, 86400000, 604800000, 0]
+                        const duration = durations[clearRange.currentIndex]
+                        const since = duration === 0 ? 0 : Date.now() - duration
+                        if (root.browser.clearBrowsingData(selected, since,
+                                root.clearEverySpaceSelected,
+                                clearEverySpaceConfirmation.text)) {
+                            clearEverySpaceConfirmation.text = ""
+                            root.refresh()
+                        }
+                    }
                 }
             }
         }

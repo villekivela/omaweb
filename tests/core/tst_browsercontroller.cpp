@@ -4,13 +4,18 @@
 #include "WindowManager.h"
 
 #include <QAbstractItemModel>
+#include <QDateTime>
+#include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QSignalSpy>
 #include <QSqlDatabase>
 #include <QSqlQuery>
 #include <QTemporaryDir>
 #include <QTest>
+#include <QUrlQuery>
 
 using tanto::BrowserController;
 using tanto::SpaceListModel;
@@ -44,6 +49,11 @@ private slots:
     void restoresEveryTabsZoomAfterRestart();
     void sharesPrivateIdentityUntilLastWindowCloses();
     void keepsHistorySuggestionsInsideActiveSpace();
+    void filtersAndDeletesHistoryAtRequestedBoundaries();
+    void resolvesAddressesBeforeSearches();
+    void migratesAndUsesSearchEngineConfiguration();
+    void refusesPersistentBrowsingDataActionsInPrivateWindows();
+    void clearsSelectedBrowsingDataWithinConfirmedScope();
     void scopesPermissionDecisionsToOriginSpaceAndLifetime();
     void scopesExternalProtocolDecisionsToOriginSchemeSpaceAndPrivateSession();
     void persistsOnlyNonPrivateDownloadHistory();
@@ -606,6 +616,140 @@ void BrowserControllerTest::keepsHistorySuggestionsInsideActiveSpace()
     QCOMPARE(personalSuggestions.size(), 1);
     QCOMPARE(personalSuggestions.first().toMap().value(QStringLiteral("url")).toUrl(),
         QUrl(QStringLiteral("https://docs.example/personal")));
+}
+
+void BrowserControllerTest::filtersAndDeletesHistoryAtRequestedBoundaries()
+{
+    QTemporaryDir root;
+    BrowserController controller(root.path(), QStringLiteral("test"));
+    controller.recordVisit(QUrl(QStringLiteral("https://one.example/first")),
+        QStringLiteral("First visit"));
+    QTest::qWait(2);
+    const auto boundary = QDateTime::currentMSecsSinceEpoch();
+    QTest::qWait(2);
+    controller.recordVisit(QUrl(QStringLiteral("https://one.example/second")),
+        QStringLiteral("Second visit"));
+    controller.recordVisit(QUrl(QStringLiteral("https://two.example/keep")),
+        QStringLiteral("Keep this"));
+
+    auto rows = controller.history(QStringLiteral("one.example"));
+    QCOMPARE(rows.size(), 2);
+    QVERIFY(controller.deleteHistoryVisit(
+        rows.first().toMap().value(QStringLiteral("id")).toLongLong()));
+    QCOMPARE(controller.history(QStringLiteral("one.example")).size(), 1);
+
+    QVERIFY(controller.deleteHistorySince(boundary));
+    QCOMPARE(controller.history({}).size(), 1);
+    QCOMPARE(controller.history({}).first().toMap().value(QStringLiteral("title")).toString(),
+        QStringLiteral("First visit"));
+
+    controller.recordVisit(QUrl(QStringLiteral("https://one.example/a")), QStringLiteral("A"));
+    controller.recordVisit(QUrl(QStringLiteral("https://one.example:444/b")), QStringLiteral("B"));
+    controller.recordVisit(QUrl(QStringLiteral("https://other.example/c")), QStringLiteral("C"));
+    QVERIFY(controller.deleteHistoryOrigin(QUrl(QStringLiteral("https://one.example/path"))));
+    QCOMPARE(controller.history(QStringLiteral("one.example")).size(), 1);
+    QCOMPARE(controller.history(QStringLiteral("one.example")).first().toMap()
+                 .value(QStringLiteral("url")).toUrl().port(), 444);
+}
+
+void BrowserControllerTest::resolvesAddressesBeforeSearches()
+{
+    QTemporaryDir root;
+    BrowserController controller(root.path(), QStringLiteral("test"));
+
+    controller.openInput(QStringLiteral("example.com/path"), false);
+    QCOMPARE(controller.activeUrl(), QUrl(QStringLiteral("https://example.com/path")));
+    controller.openInput(QStringLiteral("localhost:3000/app"), false);
+    QCOMPARE(controller.activeUrl(), QUrl(QStringLiteral("http://localhost:3000/app")));
+    controller.openInput(QStringLiteral("127.0.0.1:8080"), false);
+    QCOMPARE(controller.activeUrl(), QUrl(QStringLiteral("http://127.0.0.1:8080")));
+    controller.openInput(QStringLiteral("project.test"), false);
+    QCOMPARE(controller.activeUrl(), QUrl(QStringLiteral("http://project.test")));
+    controller.openInput(QStringLiteral("example.com:444/path"), false);
+    QCOMPARE(controller.activeUrl(), QUrl(QStringLiteral("https://example.com:444/path")));
+    QVERIFY(controller.retryActiveUrlInsecurely());
+    QCOMPARE(controller.activeUrl(), QUrl(QStringLiteral("http://example.com:444/path")));
+    controller.openInput(QStringLiteral("http://example.com/plain"), false);
+    QCOMPARE(controller.activeUrl(), QUrl(QStringLiteral("http://example.com/plain")));
+    controller.openInput(QStringLiteral("words to search"), false);
+    QCOMPARE(controller.activeUrl().host(), QStringLiteral("duckduckgo.com"));
+}
+
+void BrowserControllerTest::migratesAndUsesSearchEngineConfiguration()
+{
+    QTemporaryDir root;
+    const auto configRoot = root.filePath(QStringLiteral("config"));
+    QVERIFY(QDir().mkpath(configRoot));
+    QFile legacy(QDir(configRoot).filePath(QStringLiteral("search-engines.json")));
+    QVERIFY(legacy.open(QIODevice::WriteOnly));
+    QVERIFY(legacy.write(R"JSON({
+        "default": "docs",
+        "engines": [{
+            "id": "docs", "name": "Docs", "queryUrl": "https://docs.example/?q={query}",
+            "keyword": "d"
+        }]
+    })JSON") > 0);
+    legacy.close();
+
+    BrowserController controller(root.filePath(QStringLiteral("data")),
+        QStringLiteral("test"), configRoot);
+    QVERIFY(controller.ready());
+    QCOMPARE(controller.searchEngines().size(), 1);
+    controller.openInput(QStringLiteral("migration guide"), false);
+    QCOMPARE(controller.activeUrl().host(), QStringLiteral("docs.example"));
+    controller.openInput(QStringLiteral("d shortcuts"), false);
+    QCOMPARE(QUrlQuery(controller.activeUrl()).queryItemValue(QStringLiteral("q")),
+        QStringLiteral("shortcuts"));
+
+    QFile migrated(legacy.fileName());
+    QVERIFY(migrated.open(QIODevice::ReadOnly));
+    const auto document = QJsonDocument::fromJson(migrated.readAll());
+    QCOMPARE(document.object().value(QStringLiteral("version")).toInt(), 1);
+}
+
+void BrowserControllerTest::refusesPersistentBrowsingDataActionsInPrivateWindows()
+{
+    QTemporaryDir root;
+    BrowserController controller(root.path(), QStringLiteral("test"), true);
+    QSignalSpy clearSpy(&controller, &BrowserController::engineDataClearRequested);
+
+    QVERIFY(!controller.clearBrowsingData(
+        {QStringLiteral("cookies"), QStringLiteral("history")}, 0, false, {}));
+    QCOMPARE(clearSpy.count(), 0);
+    QCOMPARE(controller.history({}).size(), 0);
+}
+
+void BrowserControllerTest::clearsSelectedBrowsingDataWithinConfirmedScope()
+{
+    QTemporaryDir root;
+    BrowserController controller(root.path(), QStringLiteral("test"));
+    const auto personalSpaceId = controller.activeSpaceId();
+    controller.recordVisit(QUrl(QStringLiteral("https://personal-clear.example")),
+        QStringLiteral("Personal"));
+    QVERIFY(controller.setPermissionDecision(
+        QUrl(QStringLiteral("https://personal-clear.example")), QStringLiteral("camera"),
+        BrowserController::Block));
+    const auto workSpaceId = controller.createSpace(QStringLiteral("Work"));
+    QVERIFY(controller.switchSpace(workSpaceId));
+    controller.recordVisit(QUrl(QStringLiteral("https://work-clear.example")),
+        QStringLiteral("Work"));
+    QSignalSpy clearSpy(&controller, &BrowserController::engineDataClearRequested);
+
+    QVERIFY(controller.clearBrowsingData({QStringLiteral("history")}, 0, false, {}));
+    QCOMPARE(controller.history({}).size(), 0);
+    QCOMPARE(clearSpy.count(), 1);
+    QVERIFY(controller.switchSpace(personalSpaceId));
+    QCOMPARE(controller.history({}).size(), 1);
+    QCOMPARE(controller.permissionDecision(QUrl(QStringLiteral("https://personal-clear.example")),
+                 QStringLiteral("camera")), BrowserController::Block);
+
+    QVERIFY(!controller.clearBrowsingData({QStringLiteral("history"),
+        QStringLiteral("permissions")}, 0, true, QStringLiteral("clear all")));
+    QVERIFY(controller.clearBrowsingData({QStringLiteral("history"),
+        QStringLiteral("permissions")}, 0, true, QStringLiteral("CLEAR ALL")));
+    QCOMPARE(controller.history({}).size(), 0);
+    QCOMPARE(controller.permissionDecision(QUrl(QStringLiteral("https://personal-clear.example")),
+                 QStringLiteral("camera")), BrowserController::Ask);
 }
 
 void BrowserControllerTest::scopesPermissionDecisionsToOriginSpaceAndLifetime()

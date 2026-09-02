@@ -160,7 +160,7 @@ int main(int argc, char *argv[])
     QCoreApplication::setApplicationName(QStringLiteral("Tanto"));
     QCoreApplication::setApplicationVersion(QStringLiteral(TANTO_VERSION));
 
-    tanto::BrowserController browser(dataRoot(), QStringLiteral("qt"));
+    tanto::BrowserController browser(dataRoot(), QStringLiteral("qt"), configRoot());
     tanto::ContentBlocker contentBlocker(dataRoot());
     tanto::KeyboardNavigation keyboardNavigation(
         keybindingsPath(), QStringLiteral(TANTO_KEYBOARD_NAVIGATION_SCRIPT_PATH));

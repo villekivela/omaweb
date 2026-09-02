@@ -128,6 +128,7 @@ ApplicationWindow {
     property var pendingPermissionResponder: null
     property var downloadRecordIds: ({})
     property bool settingsOpen: false
+    property bool historyOpen: false
     property bool shortcutsOpen: false
     property bool spacesMenuOpen: false
     property real spacesMenuX: 0
@@ -262,7 +263,15 @@ ApplicationWindow {
     }
 
     function requestSettings() {
+        window.historyOpen = false
         window.settingsOpen = true
+    }
+
+    function requestHistory() {
+        if (window.privateWindow) return
+        window.settingsOpen = false
+        window.shortcutsOpen = false
+        window.historyOpen = true
     }
 
     // The sheet a resting Space shows is the same sheet, so asking for it while
@@ -324,6 +333,9 @@ ApplicationWindow {
         rows.push({"label": "Forward", "command": "forward",
             "enabled": engineLoader.item ? engineLoader.item.canGoForward : false})
         rows.push({"label": "Reload", "command": "reload"})
+        if (String(window.windowBrowser.activeUrl).startsWith("https://")) {
+            rows.push({"label": "Retry over insecure HTTP", "run": "retry-insecure"})
+        }
         rows.push({"separator": true})
         rows.push({"label": "Copy address", "command": "copy-address",
             "enabled": !window.windowBrowser.activeTabBlank})
@@ -369,6 +381,7 @@ ApplicationWindow {
         case "copy-image": engine.performPageContextAction("copy-image", ""); break
         case "save-link": window.requestTargetSave(engine, "save-link", context.linkUrl); break
         case "save-media": window.requestTargetSave(engine, "save-media", context.mediaUrl); break
+        case "retry-insecure": window.windowBrowser.retryActiveUrlInsecurely(); break
         }
     }
 
@@ -952,7 +965,7 @@ ApplicationWindow {
     Shortcut {
         sequence: "Esc"
         enabled: engineLoader.siteFullscreenActive && !window.omnibarOpen
-            && !window.settingsOpen && !window.pageMenuOpen
+            && !window.settingsOpen && !window.historyOpen && !window.pageMenuOpen
             && !window.permissionOpen && window.dialogMode.length === 0
         context: Qt.WindowShortcut
         onActivated: window.exitSiteFullscreen()
@@ -1151,6 +1164,7 @@ ApplicationWindow {
                     anchors.bottom: parent.bottom
                     width: window.developerToolsWidth
                     visible: window.developerToolsOpen && !window.settingsOpen
+                        && !window.historyOpen
                     z: 4
                     colors: window.colors
                     developerToolsView: engineLoader.developerToolsView
@@ -1188,7 +1202,7 @@ ApplicationWindow {
                     keymap: keymap
                     privateWindow: window.privateWindow
                     open: (window.pagelessViewport || window.shortcutsOpen)
-                        && !window.settingsOpen
+                        && !window.settingsOpen && !window.historyOpen
                     overPage: !window.pagelessViewport
                     // The page behind the sheet, not the viewport that owns
                     // both, so the blur never samples itself. There is nothing
@@ -1214,7 +1228,7 @@ ApplicationWindow {
                     // The bar stands for the tab on show, and only where there
                     // is a page to search.
                     open: window.findOpen && window.findAvailable
-                        && !window.settingsOpen
+                        && !window.settingsOpen && !window.historyOpen
                     query: engineLoader.item ? engineLoader.item.findQuery : ""
                     matchCount: engineLoader.item ? engineLoader.item.findMatchCount : 0
                     activeMatch: engineLoader.item ? engineLoader.item.findActiveMatch : 0
@@ -1298,12 +1312,25 @@ ApplicationWindow {
                     onTintFaviconsToggled: function(enabled) { window.setTintFavicons(enabled) }
                 }
 
+                HistoryPage {
+                    id: historySurface
+                    anchors.fill: parent
+                    z: 46
+                    colors: window.colors
+                    iconFontFamily: materialSymbols.name
+                    browser: window.windowBrowser
+                    open: window.historyOpen
+                    pageSource: window.pagelessViewport ? null : engineLoader
+                    onClosed: window.historyOpen = false
+                }
+
                 // The outline carries these commands while it is open; the
                 // strip is what the chromeless state has instead — except
                 // where a site has been given the screen, which is the one
                 // state that has no browser chrome over it at all.
                 NavigationCluster {
-                    visible: !window.settingsOpen && window.sidebarCollapsed
+                    visible: !window.settingsOpen && !window.historyOpen
+                        && window.sidebarCollapsed
                         && !engineLoader.siteFullscreenActive
                     anchors.left: parent.left
                     anchors.leftMargin: 16
@@ -1355,6 +1382,32 @@ ApplicationWindow {
                     function onSpaceDiscarded(spaceId) {
                         engineLoader.discardEnginesForSpace(spaceId)
                         window.retireSpaceProfile(spaceId)
+                    }
+
+                    function onEngineDataClearRequested(spaceIds, dataTypes, since) {
+                        for (let index = 0; index < spaceIds.length; ++index) {
+                            const spaceId = spaceIds[index]
+                            const host = window.spaceProfileHosts[spaceId]
+                            if (host) {
+                                host.clearBrowsingData(dataTypes, since)
+                                continue
+                            }
+                            const component = Qt.createComponent(engineProfileSource)
+                            const temporary = component.createObject(window, {
+                                "profilePath": window.windowBrowser.profilePathForSpace(spaceId),
+                                "downloadDirectory": window.windowBrowser.downloadDirectory,
+                                "acceptDownloads": window.windowBrowser.acceptDownloads,
+                                "privateBrowsing": false,
+                                "downloadNamespace": spaceId,
+                                "engineContentBlocker": engineContentBlocker
+                            })
+                            if (temporary) {
+                                temporary.downloadStarted.connect(window.handleDownloadStarted)
+                                temporary.downloadUpdated.connect(window.handleDownloadUpdated)
+                                window.spaceProfileHosts[spaceId] = temporary
+                                temporary.clearBrowsingData(dataTypes, since)
+                            }
+                        }
                     }
 
                     function onCloseWindowRequested() {
@@ -1438,7 +1491,7 @@ ApplicationWindow {
         PanelResizer {
             id: sidebarResizer
             objectName: "sidebarResizer"
-            visible: !window.sidebarCollapsed && !window.settingsOpen
+            visible: !window.sidebarCollapsed && !window.settingsOpen && !window.historyOpen
             enabled: visible
             height: parent.height
             x: sidebar.x + sidebar.width - width / 2

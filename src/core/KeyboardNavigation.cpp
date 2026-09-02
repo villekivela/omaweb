@@ -87,6 +87,7 @@ const QSet<QString> supportedBrowserCommands = {
     QStringLiteral("inspect-element"),
     QStringLiteral("open-page-context-menu"),
     QStringLiteral("shortcuts"),
+    QStringLiteral("history"),
     QStringLiteral("settings"),
     QStringLiteral("private-window"),
     QStringLiteral("minimize-window"),

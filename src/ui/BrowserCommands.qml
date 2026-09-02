@@ -50,6 +50,7 @@ QtObject {
         case "open-page-context-menu": window.openPageContextMenu(); return true
         case "open-file": window.requestOpenFile(); return true
         case "shortcuts": window.requestShortcuts(); return true
+        case "history": window.requestHistory(); return true
         case "settings": window.requestSettings(); return true
         case "private-window": windowManager.openPrivateWindow(); return true
         case "minimize-window": window.showMinimized(); return true
@@ -104,6 +105,7 @@ QtObject {
             requires: "page" },
         "open-file": { group: "navigation", title: "Open file" },
         "shortcuts": { group: "interface", title: "Keyboard shortcuts" },
+        "history": { group: "interface", title: "History", requires: "ordinary-window" },
         "settings": { group: "interface", title: "Settings and downloads" },
         "private-window": { group: "interface", title: "New Private window",
             requires: "private-windows" },
@@ -133,6 +135,7 @@ QtObject {
         case "printing": return window.printingAvailable
         case "inspector": return window.developerToolsAvailable
         case "private-windows": return windowManager.privateWindowsAvailable
+        case "ordinary-window": return !window.privateWindow
         }
         return true
     }

@@ -23,6 +23,18 @@ QtObject {
         if (activeDownloadCount === 0) root.destroy()
     }
 
+    function clearBrowsingData(dataTypes, since) {
+        // Qt exposes cookie and HTTP-cache removal at profile scope. Storage
+        // shares that profile scope, so asking to clear it also drops the
+        // cache and visited-link state the engine derives from it.
+        if (dataTypes.indexOf("cookies") >= 0)
+            privateProfile.cookieStore.deleteAllCookies()
+        if (dataTypes.indexOf("cache") >= 0 || dataTypes.indexOf("storage") >= 0)
+            privateProfile.clearHttpCache()
+        if (dataTypes.indexOf("history") >= 0 || dataTypes.indexOf("storage") >= 0)
+            privateProfile.clearAllVisitedLinks()
+    }
+
     property Component downloadObserver: Component {
         QtObject {
             id: observer
