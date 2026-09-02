@@ -2,7 +2,7 @@
 
 #include <QQmlEngine>
 
-namespace tanto {
+namespace omaweb {
 
 #ifndef Q_OS_MACOS
 
@@ -38,8 +38,8 @@ void SystemNotifier::withdraw(const QString &key)
 
 void registerSystemNotifier()
 {
-    qmlRegisterSingletonType<SystemNotifier>("Tanto", 1, 0, "SystemNotifier",
+    qmlRegisterSingletonType<SystemNotifier>("Omaweb", 1, 0, "SystemNotifier",
         [](QQmlEngine *, QJSEngine *) -> QObject * { return new SystemNotifier; });
 }
 
-} // namespace tanto
+} // namespace omaweb

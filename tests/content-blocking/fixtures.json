@@ -14,10 +14,10 @@
     "###banner-ad",
     "entity.*##.entity-ad",
     "@@||nogeneric.example^$generichide",
-    "site.example##+js(set-constant, tantoScriptletRan, true)",
-    "noscriptlet.example##+js(set-constant, tantoScriptletRan, true)",
-    "noscriptlet.example#@#+js(set-constant, tantoScriptletRan, true)",
-    "site.example##+js(trusted-set-cookie, tanto, ran)",
+    "site.example##+js(set-constant, omawebScriptletRan, true)",
+    "noscriptlet.example##+js(set-constant, omawebScriptletRan, true)",
+    "noscriptlet.example#@#+js(set-constant, omawebScriptletRan, true)",
+    "site.example##+js(trusted-set-cookie, omaweb, ran)",
     "||popads.example^$popup",
     "@@||popads.example/checkout$popup",
     "||windows.example^$popup,third-party",
@@ -228,7 +228,7 @@
     {
       "name": "site scriptlet",
       "url": "https://site.example/",
-      "contains": "tantoScriptletRan",
+      "contains": "omawebScriptletRan",
       "injected": true
     },
     {

@@ -14,7 +14,7 @@
 
 #include <memory>
 
-namespace tanto {
+namespace omaweb {
 
 class ContentMatcher;
 
@@ -118,4 +118,4 @@ private:
     int m_activeCompilations = 0;
 };
 
-} // namespace tanto
+} // namespace omaweb

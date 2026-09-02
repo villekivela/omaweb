@@ -7,7 +7,7 @@
 #include <QMetaObject>
 #include <QTextStream>
 
-namespace tanto::quickshell {
+namespace omaweb::quickshell {
 
 StdioCollector::StdioCollector(QObject *parent)
     : QObject(parent)
@@ -270,4 +270,4 @@ void FileView::refreshWatch()
     }
 }
 
-} // namespace tanto::quickshell
+} // namespace omaweb::quickshell

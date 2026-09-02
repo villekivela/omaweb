@@ -3,7 +3,7 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Window
 import QtQuick.Dialogs as Dialogs
-import Tanto
+import Omaweb
 
 ApplicationWindow {
     id: window
@@ -19,7 +19,7 @@ ApplicationWindow {
         : Qt.Window | Qt.FramelessWindowHint
     topPadding: 0
     visible: true
-    title: window.privateWindow ? "Private — Tanto" : window.windowBrowser.activeTitle + " — Tanto"
+    title: window.privateWindow ? "Private — Omaweb" : window.windowBrowser.activeTitle + " — Omaweb"
 
     property var windowBrowser: browser
     // The native backdrop reads this to mask its blur to the same rounded rect,
@@ -65,7 +65,7 @@ ApplicationWindow {
         && (engineLoader.item.capabilities
             & engineLoader.item.developerToolsCapability) !== 0
     // The everyday page operations an engine may or may not have. Each is read
-    // off the adapter itself, so a command Tanto cannot carry out here is listed
+    // off the adapter itself, so a command Omaweb cannot carry out here is listed
     // and unavailable rather than doing nothing when it is run.
     readonly property bool findAvailable: engineLoader.item !== null
         && (engineLoader.item.capabilities & engineLoader.item.pageFindCapability) !== 0
@@ -142,7 +142,7 @@ ApplicationWindow {
     property bool spacesMenuOpen: false
     property real spacesMenuX: 0
     property real spacesMenuY: 0
-    // What the reader pointed at on the page, and the menu Tanto draws for it.
+    // What the reader pointed at on the page, and the menu Omaweb draws for it.
     property var pageContext: null
     property var pageContextEngine: null
     property bool pageMenuOpen: false
@@ -487,7 +487,7 @@ ApplicationWindow {
     }
 
     // A statement about the page, over the page, that takes itself away. What
-    // Tanto has just done, and what it could not do.
+    // Omaweb has just done, and what it could not do.
     function showNotice(glyph, message, detail, duration) {
         pageNotice.show(glyph, message, detail, duration)
     }
@@ -616,7 +616,7 @@ ApplicationWindow {
         const destination = PagePrinter.reserveDestination(window.windowBrowser.activeTitle)
         if (destination.length === 0) {
             window.showNotice("print_disabled", "Printing failed",
-                "Tanto could not make a file to render the page into")
+                "Omaweb could not make a file to render the page into")
             return
         }
         engineLoader.printPage(destination)
@@ -648,8 +648,8 @@ ApplicationWindow {
     }
 
     // The window is also the desktop's to move: a menu command, ⌃⌘F, or the
-    // green button all take it in and out of fullscreen without asking Tanto.
-    // What Tanto believes is read back off the window afterwards, or the next
+    // green button all take it in and out of fullscreen without asking Omaweb.
+    // What Omaweb believes is read back off the window afterwards, or the next
     // fullscreen command would toggle the wrong way and appear to do nothing.
     onVisibilityChanged: window.reconcileFullscreen()
 
@@ -1222,7 +1222,7 @@ ApplicationWindow {
                     }
 
                     // A site taking the screen is a state the window is in, not
-                    // something the engine did to it behind Tanto's back: the
+                    // something the engine did to it behind Omaweb's back: the
                     // window goes fullscreen, the outline stands aside, and the
                     // reader is told whose page is holding it and how to leave.
                     onSiteFullscreenActiveChanged: {

@@ -16,7 +16,7 @@
 
 class QFileSystemWatcher;
 
-namespace tanto::quickshell {
+namespace omaweb::quickshell {
 
 // Collects a process's standard output and reports it once the stream ends.
 class StdioCollector : public QObject {
@@ -122,4 +122,4 @@ private:
     QFileSystemWatcher *m_watcher = nullptr;
 };
 
-} // namespace tanto::quickshell
+} // namespace omaweb::quickshell

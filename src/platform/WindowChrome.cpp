@@ -1,9 +1,9 @@
 #include "WindowChrome.h"
 
-namespace tanto {
+namespace omaweb {
 
 void installWindowChrome(QGuiApplication *)
 {
 }
 
-} // namespace tanto
+} // namespace omaweb

@@ -9,10 +9,10 @@
 #import <AppKit/AppKit.h>
 #import <QuartzCore/QuartzCore.h>
 
-namespace tanto {
+namespace omaweb {
 namespace {
 
-NSString *const kBackdropIdentifier = @"tanto.window.backdrop";
+NSString *const kBackdropIdentifier = @"omaweb.window.backdrop";
 
 bool windowIsFullScreen(NSWindow *nativeWindow)
 {
@@ -33,7 +33,7 @@ CGFloat backdropCornerRadius(QWindow *window, NSWindow *nativeWindow)
 }
 
 // Tier one of the surface contract in ADR 0002: a native blur behind every
-// Tanto-owned surface. The webpage viewport paints its own opaque backing on
+// Omaweb-owned surface. The webpage viewport paints its own opaque backing on
 // top, so nothing here reaches the page. NSVisualEffectView drops to a plain
 // opaque fill by itself when the system asks for reduced transparency, which
 // is the fallback that contract calls for.
@@ -77,7 +77,7 @@ void ensureBackdrop(QWindow *window, NSWindow *nativeWindow)
     [frameView addSubview:backdrop positioned:NSWindowBelow relativeTo:contentView];
 }
 
-// Everything about a Tanto window that AppKit does not keep for itself. It is
+// Everything about a Omaweb window that AppKit does not keep for itself. It is
 // applied when the window's surface is created and again after every fullscreen
 // transition, because AppKit rebuilds the frame view across one: the standard
 // window buttons come back under its own management, the frame view loses the
@@ -116,7 +116,7 @@ void configureWindow(QWindow *window)
     [nativeWindow standardWindowButton:NSWindowZoomButton].hidden = YES;
 
     // Changing the style mask makes AppKit rebuild the frame view, which resets the
-    // window to an opaque background and flattens every translucent surface Tanto
+    // window to an opaque background and flattens every translucent surface Omaweb
     // draws against it. Restore what Qt configured for an alpha surface, and only
     // for an alpha surface — a window with no alpha buffer would render black.
     if (window->format().alphaBufferSize() > 0) {
@@ -202,7 +202,7 @@ private:
         [tokens release];
     }
 
-    // This file is compiled without ARC, as the rest of Tanto's AppKit code is,
+    // This file is compiled without ARC, as the rest of Omaweb's AppKit code is,
     // so the observer tokens are owned here and released with their window.
     QHash<QWindow *, NSMutableArray *> m_observers;
 };
@@ -215,4 +215,4 @@ void installWindowChrome(QGuiApplication *application)
     application->installEventFilter(filter);
 }
 
-} // namespace tanto
+} // namespace omaweb

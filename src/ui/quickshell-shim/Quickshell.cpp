@@ -6,7 +6,7 @@
 #include <QQuickStyle>
 #include <QtGlobal>
 
-namespace tanto::quickshell {
+namespace omaweb::quickshell {
 
 void installShim()
 {
@@ -36,8 +36,8 @@ QString Quickshell::env(const QString &name) const
 
 void Quickshell::execDetached(const QStringList &command)
 {
-    qWarning("Quickshell.execDetached is not available in Tanto: %s",
+    qWarning("Quickshell.execDetached is not available in Omaweb: %s",
         qPrintable(command.join(QLatin1Char(' '))));
 }
 
-} // namespace tanto::quickshell
+} // namespace omaweb::quickshell

@@ -7,11 +7,11 @@
 
 #include <memory>
 
-namespace tanto {
+namespace omaweb {
 
 // What the lists have to say about one request, in Qt's types. The three
 // answers are independent and each is dropped where it would mean nothing;
-// `tanto_blocker.h` carries the reasoning.
+// `omaweb_blocker.h` carries the reasoning.
 struct RequestDecision {
     bool blocked = false;
     // The substitute to serve instead, by name, or empty when the request is
@@ -63,4 +63,4 @@ private:
     std::unique_ptr<Private> d;
 };
 
-} // namespace tanto
+} // namespace omaweb

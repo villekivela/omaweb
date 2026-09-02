@@ -15,7 +15,7 @@
 namespace {
 
 QJsonObject runFixtures(const QJsonObject &fixtures,
-    const tanto::QtContentBlocker &adapter, const tanto::ContentBlocker &contentBlocker)
+    const omaweb::QtContentBlocker &adapter, const omaweb::ContentBlocker &contentBlocker)
 {
     const auto resourceType = [](const QString &name) {
         using Info = QWebEngineUrlRequestInfo;
@@ -111,7 +111,7 @@ int main(int argc, char *argv[])
     if (application.arguments().size() != 2) {
         return 2;
     }
-    QFile fixtureFile(QStringLiteral(TANTO_CONTENT_BLOCKER_FIXTURES));
+    QFile fixtureFile(QStringLiteral(OMAWEB_CONTENT_BLOCKER_FIXTURES));
     if (!fixtureFile.open(QIODevice::ReadOnly)) {
         return 2;
     }
@@ -120,7 +120,7 @@ int main(int argc, char *argv[])
     for (const auto &rule : fixtures.value(QStringLiteral("rules")).toArray()) {
         rules.append(rule.toString());
     }
-    const auto compilation = tanto::ContentMatcher::compile(rules.join(QLatin1Char('\n')));
+    const auto compilation = omaweb::ContentMatcher::compile(rules.join(QLatin1Char('\n')));
     if (!compilation.matcher) {
         return 1;
     }
@@ -128,10 +128,10 @@ int main(int argc, char *argv[])
     if (!dataRoot.isValid()) {
         return 2;
     }
-    tanto::ContentBlocker contentBlocker(
-        dataRoot.path(), tanto::ContentBlocker::DefaultLists::None);
+    omaweb::ContentBlocker contentBlocker(
+        dataRoot.path(), omaweb::ContentBlocker::DefaultLists::None);
     QEventLoop compiled;
-    QObject::connect(&contentBlocker, &tanto::ContentBlocker::rulesChanged,
+    QObject::connect(&contentBlocker, &omaweb::ContentBlocker::rulesChanged,
         &compiled, &QEventLoop::quit);
     contentBlocker.setUserRules(rules.join(QLatin1Char('\n')));
     QTimer::singleShot(5000, &compiled, &QEventLoop::quit);
@@ -139,12 +139,12 @@ int main(int argc, char *argv[])
     if (contentBlocker.compiling()) {
         return 1;
     }
-    const tanto::QtContentBlocker qtAdapter(&contentBlocker);
+    const omaweb::QtContentBlocker qtAdapter(&contentBlocker);
     const auto result = runFixtures(fixtures, qtAdapter, contentBlocker);
     const auto report = QJsonObject{
-        {QStringLiteral("contract"), QStringLiteral("Tanto content blocking v1")},
+        {QStringLiteral("contract"), QStringLiteral("Omaweb content blocking v1")},
         {QStringLiteral("adblockRustVersion"), QStringLiteral("0.12.5")},
-        {QStringLiteral("ladybirdRevision"), QStringLiteral(TANTO_LADYBIRD_REVISION)},
+        {QStringLiteral("ladybirdRevision"), QStringLiteral(OMAWEB_LADYBIRD_REVISION)},
         {QStringLiteral("unsupportedRuleCategories"), QJsonArray{
             QStringLiteral("scriptlets requiring trust"),
             QStringLiteral("scriptlets this build does not carry"),

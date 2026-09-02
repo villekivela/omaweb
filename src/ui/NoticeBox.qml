@@ -4,7 +4,7 @@ import qs.Ui as Omarchy
 
 // Something the reader has to know about, stated where they can act on it. The
 // Omarchy kit has no notice of its own — `urgent` is a colour role its buttons
-// and its confirm dialog reach for, not a surface — so this is Tanto's, built
+// and its confirm dialog reach for, not a surface — so this is Omaweb's, built
 // out of the kit's `BorderSurface` and its border specs rather than a variant
 // forked from a component that does something else.
 //

@@ -49,7 +49,7 @@ jobs:
       - name: Build release
         run: cmake --build --preset release
       - name: Verify embedded QML
-        run: ctest --preset release -R '^(tanto-shared-qml-boundary|tanto-qml-load)$'
+        run: ctest --preset release -R '^(omaweb-shared-qml-boundary|omaweb-qml-load)$'
 
   arch-linux:
     runs-on: ubuntu-latest
@@ -67,7 +67,7 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
       - name: Take the build off root
         # A container runs as root, and Chromium refuses to start as root
-        # unless its sandbox is turned off. Tanto does not build or test with
+        # unless its sandbox is turned off. Omaweb does not build or test with
         # the sandbox off (ADR 0013), and the rule in docs/development.md is to
         # fix the host rather than pass the flag — so the host gets a user.
         run: |

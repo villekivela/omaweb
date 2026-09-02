@@ -1,6 +1,6 @@
 import QtQuick
 import QtWebEngine
-import Tanto
+import Omaweb
 
 Item {
     id: root
@@ -63,14 +63,14 @@ Item {
     property bool keyboardNavigationHintModeActive: false
     property var editedStateScript: {
         const script = WebEngine.script()
-        script.name = "Tanto edited form state"
+        script.name = "Omaweb edited form state"
         script.injectionPoint = WebEngineScript.DocumentReady
         script.worldId = WebEngineScript.MainWorld
         script.runsOnSubFrames = false
-        script.sourceCode = "globalThis.__tantoContentEditableEdited = false;"
+        script.sourceCode = "globalThis.__omawebContentEditableEdited = false;"
             + "document.addEventListener('input', event => {"
             + "if (event.target && event.target.isContentEditable) "
-            + "globalThis.__tantoContentEditableEdited = true;"
+            + "globalThis.__omawebContentEditableEdited = true;"
             + "}, true);"
         return script
     }
@@ -111,7 +111,7 @@ Item {
 
     // What the reader pointed at, as plain values rather than as the engine's
     // own request object: a position, the addresses under the pointer, the
-    // selection, and whether the target takes typing. Tanto draws the menu, so
+    // selection, and whether the target takes typing. Omaweb draws the menu, so
     // the engine's own never appears and nothing about Chromium's menu model
     // crosses this line.
     signal pageContextRequested(var context)
@@ -333,7 +333,7 @@ Item {
     }
 
     // The engine's own enumeration never leaves the adapter; the shell reads a
-    // name, and an engine with a kind Tanto has no name for reports none.
+    // name, and an engine with a kind Omaweb has no name for reports none.
     function mediaTypeName(mediaType) {
         switch (mediaType) {
         case ContextMenuRequest.MediaTypeImage: return "image"
@@ -458,8 +458,8 @@ Item {
     }
     function applyKeyboardNavigationConfiguration() {
         if (!webView || !keyboardNavigationConfiguration.version) return
-        webView.runJavaScript("globalThis.__tantoKeyboardNavigation && "
-            + "globalThis.__tantoKeyboardNavigation.configure("
+        webView.runJavaScript("globalThis.__omawebKeyboardNavigation && "
+            + "globalThis.__omawebKeyboardNavigation.configure("
             + JSON.stringify(keyboardNavigationConfiguration) + ");")
     }
     function refreshBlockedRequestCount() {
@@ -468,8 +468,8 @@ Item {
     }
     property bool cosmeticRulesInjected: false
     property bool genericCosmeticRulesInjected: false
-    readonly property string cosmeticElementId: "__tanto_content_blocking"
-    readonly property string genericCosmeticElementId: "__tanto_content_blocking_generic"
+    readonly property string cosmeticElementId: "__omaweb_content_blocking"
+    readonly property string genericCosmeticElementId: "__omaweb_content_blocking_generic"
 
     // A script that runs before the parser has produced even an <html> element
     // cannot simply append a stylesheet: it waits for the first element to
@@ -508,7 +508,7 @@ Item {
     //
     // `scriptletGlobals` is the one name the library expects its host to
     // supply: uBlock Origin passes its own extension's origin, a logging
-    // channel, and a cache of the sandbox it builds. Tanto passes an empty
+    // channel, and a cache of the sandbox it builds. Omaweb passes an empty
     // object, which is what says "no web-accessible resources, no logging
     // channel" — the library reads it defensively and builds the rest itself.
     function scriptletSnippet(source) {
@@ -528,7 +528,7 @@ Item {
         const css = contentBlocker.cosmeticStyleSheet(url)
         const scriptlets = contentBlocker.scriptletSource(url)
         const script = WebEngine.script()
-        script.name = "Tanto content blocking"
+        script.name = "Omaweb content blocking"
         script.injectionPoint = WebEngineScript.DocumentCreation
         script.worldId = WebEngineScript.MainWorld
         script.runsOnSubFrames = false
@@ -616,7 +616,7 @@ Item {
             + "for (const option of document.querySelectorAll('select option')) {"
             + "if (option.selected !== option.defaultSelected) return true;"
             + "}"
-            + "return Boolean(globalThis.__tantoContentEditableEdited);"
+            + "return Boolean(globalThis.__omawebContentEditableEdited);"
             + "})()",
             callback)
     }
@@ -644,7 +644,7 @@ Item {
     // without one, and only at the moment the view asks for it.
     property Component ownProfileComponent: Component {
         WebEngineProfile {
-            storageName: "tanto-space"
+            storageName: "omaweb-space"
             // See EngineProfile.qml: without this the profile is memory-only
             // and every cookie dies with the process.
             offTheRecord: false
@@ -703,7 +703,7 @@ Item {
         }
     }
 
-    readonly property string developerToolsElementId: "__tanto_developer_tools"
+    readonly property string developerToolsElementId: "__omaweb_developer_tools"
 
     // The palette arrives from the shell and may be empty until the theme has
     // loaded, so every colour read here names what to draw with instead.
@@ -726,8 +726,8 @@ Item {
     }
 
     // The frontend ships a light face and a dark one and picks between them
-    // from a setting Tanto does not own. Which one is right here is a question
-    // about Tanto's own window, so it is answered from the window's colour and
+    // from a setting Omaweb does not own. Which one is right here is a question
+    // about Omaweb's own window, so it is answered from the window's colour and
     // the answer is written onto the frontend's root element.
     function developerToolsDark() {
         const surface = Qt.color(root.developerToolsBackgroundColor())
@@ -738,7 +738,7 @@ Item {
     // properties declared on that page's `:root`. Naming them again, later and
     // marked important, is the whole of the theming: no patched frontend, no
     // debugging protocol, and nothing that breaks when the frontend adds a
-    // token Tanto has never heard of.
+    // token Omaweb has never heard of.
     //
     // The theme names nine syntax colours and the frontend has twenty-odd
     // tokens, so several tokens share one: they are the constructs that read
@@ -842,10 +842,10 @@ Item {
     // tokens rather than through the tokens themselves: the frontend links
     // `devtools://theme/colors.css`, which is the browser's own UI theme
     // rendered as a Material tonal ramp, and every one of its two hundred-odd
-    // design tokens is a tone of that ramp. Naming only the tokens Tanto knows
+    // design tokens is a tone of that ramp. Naming only the tokens Omaweb knows
     // about leaves everything else — buttons, badges, selections, the panels
-    // Tanto has never heard of — in Chrome's blues and greys. So the ramp is
-    // named too, and the tokens on top of it are the exceptions Tanto is sure
+    // Omaweb has never heard of — in Chrome's blues and greys. So the ramp is
+    // named too, and the tokens on top of it are the exceptions Omaweb is sure
     // about rather than the whole of the theming.
     //
     // A tone is a lightness: tone 0 is black and tone 100 is white, whatever
@@ -867,7 +867,7 @@ Item {
         return String(Qt.hsla(hue, saturation, tone / 100, 1))
     }
 
-    // Which of Tanto's colours each of the frontend's palette families is a
+    // Which of Omaweb's colours each of the frontend's palette families is a
     // ramp of. The neutrals carry the window's own tint and little more of it
     // than that, or every surface in the inspector would be tinted twice.
     function developerToolsRamps() {
@@ -912,7 +912,7 @@ Item {
         for (const name in tokens) declarations += name + ":" + tokens[name] + " !important;"
         // The frontend names its type per platform, at a selector of its own
         // that an ordinary `:root` rule would lose to, so these are marked as
-        // the rest are. Tanto's whole interface is drawn in one family, and the
+        // the rest are. Omaweb's whole interface is drawn in one family, and the
         // inspector docked inside it is part of that window: its panel labels
         // take the family too, not only the source it lists. The sizes stay the
         // frontend's own above, because its layout is built around them.
@@ -944,7 +944,7 @@ Item {
     // reach them. So the frontend's own `attachShadow` is wrapped before any of
     // its scripts run, and every tree it opens from then on adopts one more
     // stylesheet. Nothing is rewritten and nothing is read back: the frontend
-    // builds exactly what it would have built, in Tanto's colours.
+    // builds exactly what it would have built, in Omaweb's colours.
     function developerToolsMarkupStyleSheet() {
         const punctuation = root.developerToolsSyntaxColor("punctuation",
             root.developerToolsColor("mutedText", "#aaa5b7"))
@@ -958,13 +958,13 @@ Item {
     function developerToolsShadowSnippet() {
         return "(() => {"
             + "const css = " + JSON.stringify(root.developerToolsMarkupStyleSheet()) + ";"
-            + "const host = globalThis.__tantoDeveloperToolsShadow;"
+            + "const host = globalThis.__omawebDeveloperToolsShadow;"
             + "if (host) { host.sheet.replaceSync(css); return; }"
             + "if (typeof CSSStyleSheet !== 'function') return;"
             + "let sheet;"
             + "try { sheet = new CSSStyleSheet(); sheet.replaceSync(css); }"
             + "catch (error) { return; }"
-            + "globalThis.__tantoDeveloperToolsShadow = { sheet: sheet };"
+            + "globalThis.__omawebDeveloperToolsShadow = { sheet: sheet };"
             + "const attachShadow = Element.prototype.attachShadow;"
             + "Element.prototype.attachShadow = function(options) {"
             + "const shadow = attachShadow.call(this, options);"
@@ -986,13 +986,13 @@ Item {
                 root.developerToolsStyleSheet())
     }
 
-    // The frontend has to open in Tanto's colours rather than arrive in
+    // The frontend has to open in Omaweb's colours rather than arrive in
     // Chromium's and change, so the sheet is in the document before the
     // frontend's own scripts run. It is re-applied on a live theme change,
     // which is the only time the colours move under an open inspector.
     property var developerToolsThemeScript: {
         const script = WebEngine.script()
-        script.name = "Tanto developer tools theme"
+        script.name = "Omaweb developer tools theme"
         script.injectionPoint = WebEngineScript.DocumentCreation
         script.worldId = WebEngineScript.MainWorld
         script.runsOnSubFrames = true
@@ -1009,13 +1009,13 @@ Item {
 
     property var keyboardNavigationScript: {
         const script = WebEngine.script()
-        script.name = "Tanto Keyboard navigation"
+        script.name = "Omaweb Keyboard navigation"
         script.injectionPoint = WebEngineScript.DocumentReady
         script.worldId = WebEngineScript.MainWorld
         script.runsOnSubFrames = false
         script.sourceCode = root.keyboardNavigationScriptSource
-            + "\nglobalThis.__tantoKeyboardNavigation && "
-            + "globalThis.__tantoKeyboardNavigation.configure("
+            + "\nglobalThis.__omawebKeyboardNavigation && "
+            + "globalThis.__omawebKeyboardNavigation.configure("
             + JSON.stringify(root.keyboardNavigationConfiguration) + ");"
         return script
     }
@@ -1025,7 +1025,7 @@ Item {
     // shell needs it per origin rather than per page, so the page says so.
     property var userActivationScript: {
         const script = WebEngine.script()
-        script.name = "Tanto user activation"
+        script.name = "Omaweb user activation"
         script.injectionPoint = WebEngineScript.DocumentReady
         script.worldId = WebEngineScript.MainWorld
         script.runsOnSubFrames = false
@@ -1034,7 +1034,7 @@ Item {
             const report = () => {
                 if (reported) return;
                 reported = true;
-                console.info('__tanto_user_activation__');
+                console.info('__omaweb_user_activation__');
             };
             for (const name of ['pointerdown', 'keydown', 'touchstart'])
                 document.addEventListener(name, report, {capture: true, passive: true});
@@ -1044,7 +1044,7 @@ Item {
 
     property var externalProtocolOriginScript: {
         const script = WebEngine.script()
-        script.name = "Tanto external protocol origin"
+        script.name = "Omaweb external protocol origin"
         script.injectionPoint = WebEngineScript.DocumentReady
         script.worldId = WebEngineScript.MainWorld
         script.runsOnSubFrames = true
@@ -1053,8 +1053,8 @@ Item {
                 ? event.target.closest('a[href]') : null;
             if (!link) return;
             const scheme = String(link.protocol || '').replace(':', '').toLowerCase();
-            if (['http', 'https', 'file', 'about', 'data', 'tanto'].includes(scheme)) return;
-            console.info('__tanto_external_protocol__' + JSON.stringify({
+            if (['http', 'https', 'file', 'about', 'data', 'omaweb'].includes(scheme)) return;
+            console.info('__omaweb_external_protocol__' + JSON.stringify({
                 destination: link.href, origin: location.origin
             }));
         }, true);`
@@ -1071,7 +1071,7 @@ Item {
         // downloads the document instead, which is what an engine with no such
         // viewer does.
         settings.pdfViewerEnabled: true
-        // A page may ask for the screen. Tanto answers the request rather than
+        // A page may ask for the screen. Omaweb answers the request rather than
         // the engine, so the shell can say whose page took it and hand it back.
         settings.fullScreenSupportEnabled: true
         // Opening one selected local document must not give that document a
@@ -1097,10 +1097,10 @@ Item {
             root.rendererFailed("Renderer stopped with exit code " + exitCode)
         }
 
-        // Chromium keeps the node the menu was opened over, and Tanto has to
+        // Chromium keeps the node the menu was opened over, and Omaweb has to
         // know that it has one: nothing on the view reports it, and the action
         // that reads it crashes when there is none. Accepting the request is
-        // what stops the engine drawing a menu of its own over Tanto's.
+        // what stops the engine drawing a menu of its own over Omaweb's.
         onContextMenuRequested: function(request) {
             root.contextMenuTargetKnown = true
             root.lastContextMediaType = root.mediaTypeName(request.mediaType)
@@ -1155,7 +1155,7 @@ Item {
             const address = String(request.url)
             const scheme = address.substring(0, address.indexOf(":")).toLowerCase()
             if (scheme === "http" || scheme === "https" || scheme === "file"
-                || scheme === "about" || scheme === "data" || scheme === "tanto") return
+                || scheme === "about" || scheme === "data" || scheme === "omaweb") return
             request.reject()
             root.requestExternalProtocol(request.url, request.isMainFrame)
         }
@@ -1172,9 +1172,9 @@ Item {
         }
 
         // Accepted here and reported to the shell, which is what makes site
-        // fullscreen a state Tanto is in rather than something the engine did
+        // fullscreen a state Omaweb is in rather than something the engine did
         // to the window behind its back.
-        // Accepted last, once Tanto is in the state it is accepting. Accepting
+        // Accepted last, once Omaweb is in the state it is accepting. Accepting
         // first would leave a page laid out for a screen it has been promised
         // and not given if anything here failed, and the reader looking at a
         // broken page in a window that never changed.
@@ -1188,19 +1188,19 @@ Item {
         }
 
         onJavaScriptConsoleMessage: function(level, message, lineNumber, sourceId) {
-            if (message.startsWith("__tanto_external_protocol__")) {
+            if (message.startsWith("__omaweb_external_protocol__")) {
                 try {
                     const report = JSON.parse(message.substring(
-                        "__tanto_external_protocol__".length))
+                        "__omaweb_external_protocol__".length))
                     root.externalProtocolOrigins[String(report.destination)] = String(report.origin)
                 } catch (error) {
                     console.warn("Could not read external protocol origin: " + error)
                 }
-            } else if (message === "__tanto_user_activation__") {
+            } else if (message === "__omaweb_user_activation__") {
                 root.userActivated()
-            } else if (message === "__tanto_keyboard_hint_mode__:1")
+            } else if (message === "__omaweb_keyboard_hint_mode__:1")
                 root.keyboardNavigationHintModeActive = true
-            else if (message === "__tanto_keyboard_hint_mode__:0")
+            else if (message === "__omaweb_keyboard_hint_mode__:0")
                 root.keyboardNavigationHintModeActive = false
         }
 

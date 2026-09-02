@@ -6,8 +6,8 @@
 
 #include <unistd.h>
 
-using tanto::ProcessResources;
-using tanto::SystemNotifier;
+using omaweb::ProcessResources;
+using omaweb::SystemNotifier;
 
 class PlatformServicesTest final : public QObject {
     Q_OBJECT

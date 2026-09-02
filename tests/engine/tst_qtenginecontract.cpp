@@ -25,12 +25,12 @@
 
 #include <memory>
 
-using tanto::validateEngineViewContract;
-using tanto::EngineCapabilities;
+using omaweb::validateEngineViewContract;
+using omaweb::EngineCapabilities;
 
 static QString keyboardNavigationPageScript()
 {
-    QFile file(QStringLiteral(TANTO_KEYBOARD_NAVIGATION_SCRIPT_PATH));
+    QFile file(QStringLiteral(OMAWEB_KEYBOARD_NAVIGATION_SCRIPT_PATH));
     if (!file.open(QIODevice::ReadOnly)) {
         return {};
     }
@@ -63,7 +63,7 @@ private slots:
     void qtAttachesBlockingToTheProfileQmlCreates();
     void adaptersNameTheColoursTheirInspectorIsDrawnIn_data();
     void adaptersNameTheColoursTheirInspectorIsDrawnIn();
-    void qtDocksAnInspectorDrawnInTantosColours();
+    void qtDocksAnInspectorDrawnInOmawebsColours();
     void qtKeepsAnInspectedTabActiveOnlyWhileAttached();
     void qtInspectsAPrivateTabInItsOwnTemporaryProfile();
     void qtPicksAnElementWhenNoContextMenuNamedOne();
@@ -88,7 +88,7 @@ private slots:
 
 namespace {
 
-// A palette with nothing in common with either Tanto's own default or the
+// A palette with nothing in common with either Omaweb's own default or the
 // frontend's, so a colour that arrives could only have come from here.
 QVariantMap inspectorPalette()
 {
@@ -126,8 +126,8 @@ QVariantMap inspectorPalette()
 void QtEngineContractTest::adaptersExposeSharedContract_data()
 {
     QTest::addColumn<QString>("path");
-    QTest::newRow("UI-lab mock") << QStringLiteral(TANTO_MOCK_ENGINE_VIEW_PATH);
-    QTest::newRow("QtWebEngine") << QStringLiteral(TANTO_QT_ENGINE_VIEW_PATH);
+    QTest::newRow("UI-lab mock") << QStringLiteral(OMAWEB_MOCK_ENGINE_VIEW_PATH);
+    QTest::newRow("QtWebEngine") << QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH);
 }
 
 void QtEngineContractTest::adaptersExposeSharedContract()
@@ -150,7 +150,7 @@ void QtEngineContractTest::mockReportsLifecycleEvents()
 {
     QQmlEngine engine;
     QQmlComponent component(&engine, QUrl::fromLocalFile(
-        QStringLiteral(TANTO_MOCK_ENGINE_VIEW_PATH)));
+        QStringLiteral(OMAWEB_MOCK_ENGINE_VIEW_PATH)));
     const std::unique_ptr<QObject> adapter(component.create());
     QVERIFY2(adapter, qPrintable(component.errorString()));
 
@@ -167,7 +167,7 @@ void QtEngineContractTest::mockReportsNewWindowPurpose()
 {
     QQmlEngine engine;
     QQmlComponent component(&engine, QUrl::fromLocalFile(
-        QStringLiteral(TANTO_MOCK_ENGINE_VIEW_PATH)));
+        QStringLiteral(OMAWEB_MOCK_ENGINE_VIEW_PATH)));
     const std::unique_ptr<QObject> adapter(component.create());
     QVERIFY2(adapter, qPrintable(component.errorString()));
 
@@ -216,7 +216,7 @@ void QtEngineContractTest::qtAdapterPropagatesPageState()
 {
     QQmlEngine engine;
     QQmlComponent component(&engine, QUrl::fromLocalFile(
-        QStringLiteral(TANTO_QT_ENGINE_VIEW_PATH)));
+        QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
     const std::unique_ptr<QObject> adapter(component.create());
     QVERIFY2(adapter, qPrintable(component.errorString()));
 
@@ -288,7 +288,7 @@ void QtEngineContractTest::qtProfilesIsolateSiteStorage()
 
     QQmlEngine engine;
     QQmlComponent component(&engine, QUrl::fromLocalFile(
-        QStringLiteral(TANTO_QT_ENGINE_VIEW_PATH)));
+        QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
     const std::unique_ptr<QObject> personal(component.createWithInitialProperties({
         {QStringLiteral("profilePath"), root.filePath(QStringLiteral("personal"))},
     }));
@@ -336,7 +336,7 @@ void QtEngineContractTest::qtPrivateWindowsShareOneProfile()
 
     QQmlEngine engine;
     QQmlComponent profileComponent(&engine, QUrl::fromLocalFile(
-        QStringLiteral(TANTO_QT_ENGINE_PROFILE_PATH)));
+        QStringLiteral(OMAWEB_QT_ENGINE_PROFILE_PATH)));
     const std::unique_ptr<QObject> profileHost(profileComponent.createWithInitialProperties({
         {QStringLiteral("profilePath"), root.filePath(QStringLiteral("private"))},
     }));
@@ -345,7 +345,7 @@ void QtEngineContractTest::qtPrivateWindowsShareOneProfile()
     QVERIFY(sharedProfile.isValid());
 
     QQmlComponent viewComponent(&engine, QUrl::fromLocalFile(
-        QStringLiteral(TANTO_QT_ENGINE_VIEW_PATH)));
+        QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
     const std::unique_ptr<QObject> first(viewComponent.createWithInitialProperties({
         {QStringLiteral("sharedProfile"), sharedProfile},
     }));
@@ -385,7 +385,7 @@ void QtEngineContractTest::qtSpaceProfilesKeepSiteStorageOnDisk()
 
     QQmlEngine engine;
     QQmlComponent profileComponent(&engine, QUrl::fromLocalFile(
-        QStringLiteral(TANTO_QT_ENGINE_PROFILE_PATH)));
+        QStringLiteral(OMAWEB_QT_ENGINE_PROFILE_PATH)));
     const std::unique_ptr<QObject> spaceHost(profileComponent.createWithInitialProperties({
         {QStringLiteral("profilePath"), spacePath},
         {QStringLiteral("privateBrowsing"), false},
@@ -416,7 +416,7 @@ void QtEngineContractTest::qtSpaceProfilesKeepSiteStorageOnDisk()
     page.close();
 
     QQmlComponent viewComponent(&engine, QUrl::fromLocalFile(
-        QStringLiteral(TANTO_QT_ENGINE_VIEW_PATH)));
+        QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
     const std::unique_ptr<QObject> view(viewComponent.createWithInitialProperties({
         {QStringLiteral("sharedProfile"), spaceHost->property("profile")},
     }));
@@ -435,7 +435,7 @@ void QtEngineContractTest::qtRoutesOnlyDialogDestinationsToAuxiliaryWindows()
 {
     QQmlEngine engine;
     QQmlComponent component(&engine, QUrl::fromLocalFile(
-        QStringLiteral(TANTO_QT_ENGINE_VIEW_PATH)));
+        QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
     const std::unique_ptr<QObject> adapter(component.create());
     QVERIFY2(adapter, qPrintable(component.errorString()));
 
@@ -565,7 +565,7 @@ void QtEngineContractTest::qtKeyboardNavigationHonorsInputContracts_data()
             <script>
                 document.documentElement.style.zoom = '175%';
                 new MutationObserver(() => {
-                    const overlay = document.getElementById('__tanto_link_hints');
+                    const overlay = document.getElementById('__omaweb_link_hints');
                     const hint = overlay && overlay.querySelector('span');
                     if (overlay && overlay.getAttribute('role') === 'status'
                             && overlay.getAttribute('aria-live') === 'polite'
@@ -583,8 +583,8 @@ void QtEngineContractTest::qtKeyboardNavigationHonorsInputContracts_data()
         << QByteArray(R"HTML(<!doctype html><title>ready</title>
             <a href="#target">Target</a><script>
                 new MutationObserver(() => {
-                    if (document.getElementById('__tanto_link_hints')
-                            && document.activeElement.id === '__tanto_link_hint_input')
+                    if (document.getElementById('__omaweb_link_hints')
+                            && document.activeElement.id === '__omaweb_link_hint_input')
                         document.title = 'hint-focus';
                 }).observe(document.documentElement, { childList: true, subtree: true });
                 setTimeout(() => dispatchEvent(new KeyboardEvent('keydown', {
@@ -596,7 +596,7 @@ void QtEngineContractTest::qtKeyboardNavigationHonorsInputContracts_data()
         << QByteArray(R"HTML(<!doctype html><title>ready</title>
             <a href="#target">Target</a><script>
                 new MutationObserver(() => {
-                    const hint = document.querySelector('#__tanto_link_hints > span');
+                    const hint = document.querySelector('#__omaweb_link_hints > span');
                     if (!hint) return;
                     const style = getComputedStyle(hint);
                     // The hint is the sidebar's site chip: a surface plate,
@@ -630,11 +630,11 @@ void QtEngineContractTest::qtKeyboardNavigationHonorsInputContracts_data()
                     dispatchEvent(new KeyboardEvent('keydown', {
                         key: 'F', shiftKey: true, bubbles: true, cancelable: true
                     }));
-                    if (!document.getElementById('__tanto_link_hints')) {
+                    if (!document.getElementById('__omaweb_link_hints')) {
                         setTimeout(activateBackgroundHint, 100);
                         return;
                     }
-                    const hint = document.querySelector('#__tanto_link_hints > span');
+                    const hint = document.querySelector('#__omaweb_link_hints > span');
                     dispatchEvent(new KeyboardEvent('keydown', {
                         key: hint.textContent.toLowerCase(), bubbles: true, cancelable: true
                     }));
@@ -711,7 +711,7 @@ void QtEngineContractTest::qtLinkHintsOwnSingleKeyShortcuts()
 
     QQmlEngine engine;
     QQmlComponent component(&engine, QUrl::fromLocalFile(
-        QStringLiteral(TANTO_QT_ENGINE_VIEW_PATH)));
+        QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
     const QVariantMap configuration = {
         {QStringLiteral("version"), 1},
         {QStringLiteral("enabled"), true},
@@ -795,7 +795,7 @@ void QtEngineContractTest::qtKeyboardNavigationHonorsInputContracts()
 
     QQmlEngine engine;
     QQmlComponent component(&engine, QUrl::fromLocalFile(
-        QStringLiteral(TANTO_QT_ENGINE_VIEW_PATH)));
+        QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
     const QVariantMap configuration = {
         {QStringLiteral("version"), 1},
         {QStringLiteral("enabled"), true},
@@ -924,14 +924,14 @@ void QtEngineContractTest::qtHidesCosmeticRulesBeforeThePageRuns()
 
     QTemporaryDir root;
     QVERIFY(root.isValid());
-    tanto::ContentBlocker contentBlocker(
-        root.path(), tanto::ContentBlocker::DefaultLists::None);
+    omaweb::ContentBlocker contentBlocker(
+        root.path(), omaweb::ContentBlocker::DefaultLists::None);
     contentBlocker.setUserRules(QStringLiteral("127.0.0.1##.local-ad\n##.generic-ad"));
     QTRY_VERIFY_WITH_TIMEOUT(!contentBlocker.compiling(), 5000);
 
     QQmlEngine engine;
     QQmlComponent component(&engine, QUrl::fromLocalFile(
-        QStringLiteral(TANTO_QT_ENGINE_VIEW_PATH)));
+        QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
     const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
         {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
         {QStringLiteral("contentBlocker"), QVariant::fromValue<QObject *>(&contentBlocker)},
@@ -965,21 +965,21 @@ void QtEngineContractTest::qtHidesCosmeticRulesBeforeThePageRuns()
 void QtEngineContractTest::qtRunsScriptletsBeforeThePageRuns()
 {
     PageServer server(R"HTML(<!doctype html><html><body>
-        <script>document.title = String(window.tantoScriptletRan);</script>
+        <script>document.title = String(window.omawebScriptletRan);</script>
     </body></html>)HTML");
     QVERIFY(server.listen(QHostAddress::LocalHost));
 
     QTemporaryDir root;
     QVERIFY(root.isValid());
-    tanto::ContentBlocker contentBlocker(
-        root.path(), tanto::ContentBlocker::DefaultLists::None);
+    omaweb::ContentBlocker contentBlocker(
+        root.path(), omaweb::ContentBlocker::DefaultLists::None);
     contentBlocker.setUserRules(
-        QStringLiteral("127.0.0.1##+js(set-constant, tantoScriptletRan, true)"));
+        QStringLiteral("127.0.0.1##+js(set-constant, omawebScriptletRan, true)"));
     QTRY_VERIFY_WITH_TIMEOUT(!contentBlocker.compiling(), 5000);
 
     QQmlEngine engine;
     QQmlComponent component(&engine, QUrl::fromLocalFile(
-        QStringLiteral(TANTO_QT_ENGINE_VIEW_PATH)));
+        QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
     const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
         {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
         {QStringLiteral("contentBlocker"), QVariant::fromValue<QObject *>(&contentBlocker)},
@@ -1028,17 +1028,17 @@ void QtEngineContractTest::qtServesTheSubstitutesTheListsName()
 
     QTemporaryDir root;
     QVERIFY(root.isValid());
-    tanto::ContentBlocker contentBlocker(
-        root.path(), tanto::ContentBlocker::DefaultLists::None);
+    omaweb::ContentBlocker contentBlocker(
+        root.path(), omaweb::ContentBlocker::DefaultLists::None);
     contentBlocker.setUserRules(QStringLiteral(
         "/tracker.gif$image,redirect=1x1.gif\n"
         "/banner.gif$image"));
     QTRY_VERIFY_WITH_TIMEOUT(!contentBlocker.compiling(), 5000);
-    tanto::QtContentBlocker engineContentBlocker(&contentBlocker);
+    omaweb::QtContentBlocker engineContentBlocker(&contentBlocker);
 
     QQmlEngine engine;
     QQmlComponent component(&engine, QUrl::fromLocalFile(
-        QStringLiteral(TANTO_QT_ENGINE_VIEW_PATH)));
+        QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
     const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
         {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
         {QStringLiteral("contentBlocker"), QVariant::fromValue<QObject *>(&contentBlocker)},
@@ -1085,15 +1085,15 @@ void QtEngineContractTest::qtStripsTheParametersTheListsName()
 
     QTemporaryDir root;
     QVERIFY(root.isValid());
-    tanto::ContentBlocker contentBlocker(
-        root.path(), tanto::ContentBlocker::DefaultLists::None);
+    omaweb::ContentBlocker contentBlocker(
+        root.path(), omaweb::ContentBlocker::DefaultLists::None);
     contentBlocker.setUserRules(QStringLiteral("$removeparam=utm_source"));
     QTRY_VERIFY_WITH_TIMEOUT(!contentBlocker.compiling(), 5000);
-    tanto::QtContentBlocker engineContentBlocker(&contentBlocker);
+    omaweb::QtContentBlocker engineContentBlocker(&contentBlocker);
 
     QQmlEngine engine;
     QQmlComponent component(&engine, QUrl::fromLocalFile(
-        QStringLiteral(TANTO_QT_ENGINE_VIEW_PATH)));
+        QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
     const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
         {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
         {QStringLiteral("contentBlocker"), QVariant::fromValue<QObject *>(&contentBlocker)},
@@ -1122,14 +1122,14 @@ void QtEngineContractTest::qtRefusesTheWindowsTheListsNameAndNoOthers()
 {
     QTemporaryDir root;
     QVERIFY(root.isValid());
-    tanto::ContentBlocker contentBlocker(
-        root.path(), tanto::ContentBlocker::DefaultLists::None);
+    omaweb::ContentBlocker contentBlocker(
+        root.path(), omaweb::ContentBlocker::DefaultLists::None);
     contentBlocker.setUserRules(QStringLiteral("||popads.example^$popup"));
     QTRY_VERIFY_WITH_TIMEOUT(!contentBlocker.compiling(), 5000);
 
     QQmlEngine engine;
     QQmlComponent component(&engine, QUrl::fromLocalFile(
-        QStringLiteral(TANTO_QT_ENGINE_VIEW_PATH)));
+        QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
     const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
         {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
         {QStringLiteral("contentBlocker"), QVariant::fromValue<QObject *>(&contentBlocker)},
@@ -1174,13 +1174,13 @@ void QtEngineContractTest::qtAttachesBlockingToTheProfileQmlCreates()
 {
     QTemporaryDir root;
     QVERIFY(root.isValid());
-    tanto::ContentBlocker contentBlocker(
-        root.path(), tanto::ContentBlocker::DefaultLists::None);
-    tanto::QtContentBlocker engineContentBlocker(&contentBlocker);
+    omaweb::ContentBlocker contentBlocker(
+        root.path(), omaweb::ContentBlocker::DefaultLists::None);
+    omaweb::QtContentBlocker engineContentBlocker(&contentBlocker);
 
     QQmlEngine engine;
     QQmlComponent component(&engine);
-    component.setData("import QtWebEngine\nWebEngineProfile { storageName: \"tanto-attach\" }",
+    component.setData("import QtWebEngine\nWebEngineProfile { storageName: \"omaweb-attach\" }",
         QUrl());
     const std::unique_ptr<QObject> profile(component.create());
     QVERIFY2(profile, qPrintable(component.errorString()));
@@ -1227,17 +1227,17 @@ void QtEngineContractTest::adaptersNameTheColoursTheirInspectorIsDrawnIn()
 }
 
 // Chromium's inspector is a webpage whose whole design system is custom
-// properties on its own root element, so Tanto names them again rather than
+// properties on its own root element, so Omaweb names them again rather than
 // patching the frontend or speaking a protocol to it. The assertion is what the
 // frontend actually computes, because a sheet that lost the cascade would look
 // exactly like one that was never injected.
-void QtEngineContractTest::qtDocksAnInspectorDrawnInTantosColours()
+void QtEngineContractTest::qtDocksAnInspectorDrawnInOmawebsColours()
 {
     QTemporaryDir root;
     QVERIFY(root.isValid());
     QQmlEngine engine;
     QQmlComponent component(&engine, QUrl::fromLocalFile(
-        QStringLiteral(TANTO_QT_ENGINE_VIEW_PATH)));
+        QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
     const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
         {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
         {QStringLiteral("developerToolsColors"), inspectorPalette()},
@@ -1290,9 +1290,9 @@ void QtEngineContractTest::qtDocksAnInspectorDrawnInTantosColours()
     QVERIFY(consoleSpy.isValid());
 
     const auto reports = [&](const QString &expression, const QString &expected) {
-        const auto script = QStringLiteral("console.log('tanto-token:' + (%1))")
+        const auto script = QStringLiteral("console.log('omaweb-token:' + (%1))")
             .arg(expression);
-        const auto wanted = QStringLiteral("tanto-token:") + expected;
+        const auto wanted = QStringLiteral("omaweb-token:") + expected;
         consoleSpy.clear();
         for (int attempt = 0; attempt < 40; ++attempt) {
             QMetaObject::invokeMethod(tools, "runJavaScript", Q_ARG(QString, script));
@@ -1325,20 +1325,20 @@ void QtEngineContractTest::qtDocksAnInspectorDrawnInTantosColours()
 
     // Chromium themes its inspector through the tonal ramp underneath the
     // tokens, which is served from the browser's own UI theme, so a token
-    // Tanto never names still has to land in Tanto's palette rather than in
-    // Chrome's. `--sys-color-purple` is one Tanto says nothing about: it is a
+    // Omaweb never names still has to land in Omaweb's palette rather than in
+    // Chrome's. `--sys-color-purple` is one Omaweb says nothing about: it is a
     // tone of the ramp, and the ramp is the theme's.
     QVERIFY(!resolves("--ref-palette-primary80", QStringLiteral("#a8c7fa")));
     QVERIFY(resolves("--ref-palette-neutral10", QStringLiteral("#171c17")));
     QVERIFY(resolves("--sys-color-purple", QStringLiteral("#abcced")));
 
     // The inspector's own interface takes the theme's type, not the platform's:
-    // Tanto's chrome is drawn in one family and the dock is part of it.
+    // Omaweb's chrome is drawn in one family and the dock is part of it.
     QVERIFY(reports(QStringLiteral(
         "getComputedStyle(document.documentElement)"
         ".getPropertyValue('--default-font-family').trim()"
         ".includes('Menlo')"), QStringLiteral("true")));
-    // The frontend has a light face and a dark one, and Tanto's own window
+    // The frontend has a light face and a dark one, and Omaweb's own window
     // colour is what decides which of the two this is.
     QVERIFY(reports(QStringLiteral("document.documentElement.classList"
                                    ".contains('theme-with-dark-background')"),
@@ -1361,7 +1361,7 @@ void QtEngineContractTest::qtDocksAnInspectorDrawnInTantosColours()
 // stops being exempt the moment Developer tools go. Qt is what enforces this:
 // a hidden view is ordinarily recommended for freezing and accepts it, and one
 // with an inspector attached is recommended Active and refuses. So this is a
-// test of the engine contract Tanto is relying on rather than of Tanto's code —
+// test of the engine contract Omaweb is relying on rather than of Omaweb's code —
 // and it is the thing that would break silently if Qt changed its mind.
 void QtEngineContractTest::qtKeepsAnInspectedTabActiveOnlyWhileAttached()
 {
@@ -1369,7 +1369,7 @@ void QtEngineContractTest::qtKeepsAnInspectedTabActiveOnlyWhileAttached()
     QVERIFY(root.isValid());
     QQmlEngine engine;
     QQmlComponent component(&engine, QUrl::fromLocalFile(
-        QStringLiteral(TANTO_QT_ENGINE_VIEW_PATH)));
+        QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
     const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
         {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
     }));
@@ -1424,7 +1424,7 @@ void QtEngineContractTest::qtInspectsAPrivateTabInItsOwnTemporaryProfile()
     QVERIFY(privateProfile->property("offTheRecord").toBool());
 
     QQmlComponent component(&engine, QUrl::fromLocalFile(
-        QStringLiteral(TANTO_QT_ENGINE_VIEW_PATH)));
+        QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
     const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
         {QStringLiteral("sharedProfile"), QVariant::fromValue(privateProfile.get())},
     }));
@@ -1450,7 +1450,7 @@ void QtEngineContractTest::qtPicksAnElementWhenNoContextMenuNamedOne()
     QVERIFY(root.isValid());
     QQmlEngine engine;
     QQmlComponent component(&engine, QUrl::fromLocalFile(
-        QStringLiteral(TANTO_QT_ENGINE_VIEW_PATH)));
+        QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
     const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
         {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
     }));
@@ -1526,7 +1526,7 @@ void QtEngineContractTest::qtDrawsMarkupStructureQuieterThanItsContent()
     QVERIFY(root.isValid());
     QQmlEngine engine;
     QQmlComponent component(&engine, QUrl::fromLocalFile(
-        QStringLiteral(TANTO_QT_ENGINE_VIEW_PATH)));
+        QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
     const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
         {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
         {QStringLiteral("developerToolsColors"), inspectorPalette()},
@@ -1582,7 +1582,7 @@ void QtEngineContractTest::qtDrawsMarkupStructureQuieterThanItsContent()
     }
   };
   walk(document, 0);
-  console.log('tanto-markup:' + [...seen].join(' '));
+  console.log('omaweb-markup:' + [...seen].join(' '));
 })()
 )JS");
 
@@ -1592,7 +1592,7 @@ void QtEngineContractTest::qtDrawsMarkupStructureQuieterThanItsContent()
         QTest::qWait(250);
         for (const auto &message : consoleSpy) {
             const auto text = message.at(1).toString();
-            if (text.startsWith(QLatin1String("tanto-markup:"))
+            if (text.startsWith(QLatin1String("omaweb-markup:"))
                 && text.contains(QLatin1String("name="))) {
                 report = text;
             }
@@ -1608,15 +1608,15 @@ void QtEngineContractTest::qtDrawsMarkupStructureQuieterThanItsContent()
     QVERIFY(QMetaObject::invokeMethod(adapter.get(), "detachDeveloperTools"));
 }
 
-// Tanto draws the page's context menu, so the engine must report what was
+// Omaweb draws the page's context menu, so the engine must report what was
 // under the pointer as plain values and then draw nothing itself. Accepting
-// the request is what does the second half, and a menu appearing over Tanto's
+// the request is what does the second half, and a menu appearing over Omaweb's
 // own is exactly what this catches.
 void QtEngineContractTest::qtReportsThePageContextAndDrawsNoMenuOfItsOwn()
 {
     QQmlEngine engine;
     QQmlComponent component(&engine, QUrl::fromLocalFile(
-        QStringLiteral(TANTO_QT_ENGINE_VIEW_PATH)));
+        QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
     const std::unique_ptr<QObject> adapter(component.create());
     QVERIFY2(adapter, qPrintable(component.errorString()));
     auto *item = qobject_cast<QQuickItem *>(adapter.get());
@@ -1679,7 +1679,7 @@ void QtEngineContractTest::qtReportsTargetsInsideCrossOriginFrames()
 
     QQmlEngine engine;
     QQmlComponent component(&engine, QUrl::fromLocalFile(
-        QStringLiteral(TANTO_QT_ENGINE_VIEW_PATH)));
+        QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
     const std::unique_ptr<QObject> adapter(component.create());
     QVERIFY2(adapter, qPrintable(component.errorString()));
     auto *item = qobject_cast<QQuickItem *>(adapter.get());
@@ -1722,7 +1722,7 @@ void QtEngineContractTest::qtOwnsJavaScriptPromptsAndReturnsTheirAnswer()
 {
     QQmlEngine engine;
     QQmlComponent component(&engine, QUrl::fromLocalFile(
-        QStringLiteral(TANTO_QT_ENGINE_VIEW_PATH)));
+        QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
     const std::unique_ptr<QObject> adapter(component.create());
     QVERIFY2(adapter, qPrintable(component.errorString()));
     auto *item = qobject_cast<QQuickItem *>(adapter.get());
@@ -1770,7 +1770,7 @@ void QtEngineContractTest::qtOpensOneLocalFileWithoutDirectoryWideAccess()
 
     QQmlEngine engine;
     QQmlComponent component(&engine, QUrl::fromLocalFile(
-        QStringLiteral(TANTO_QT_ENGINE_VIEW_PATH)));
+        QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
     const std::unique_ptr<QObject> adapter(component.create());
     QVERIFY2(adapter, qPrintable(component.errorString()));
     auto *item = qobject_cast<QQuickItem *>(adapter.get());
@@ -1824,7 +1824,7 @@ void QtEngineContractTest::qtFindsInThePageAndKeepsTheQueryAcrossNavigation()
 {
     QQmlEngine engine;
     QQmlComponent component(&engine, QUrl::fromLocalFile(
-        QStringLiteral(TANTO_QT_ENGINE_VIEW_PATH)));
+        QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
     const std::unique_ptr<QObject> adapter(component.create());
     QVERIFY2(adapter, qPrintable(component.errorString()));
 
@@ -1876,7 +1876,7 @@ void QtEngineContractTest::qtKeepsTheZoomItIsGivenAcrossNavigation()
 {
     QQmlEngine engine;
     QQmlComponent component(&engine, QUrl::fromLocalFile(
-        QStringLiteral(TANTO_QT_ENGINE_VIEW_PATH)));
+        QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
     const std::unique_ptr<QObject> adapter(component.create());
     QVERIFY2(adapter, qPrintable(component.errorString()));
 
@@ -1962,7 +1962,7 @@ void QtEngineContractTest::qtSeparatesReloadBypassingCacheFromReloadAndStop()
     QVERIFY(root.isValid());
     QQmlEngine engine;
     QQmlComponent component(&engine, QUrl::fromLocalFile(
-        QStringLiteral(TANTO_QT_ENGINE_VIEW_PATH)));
+        QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
     const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
         {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
     }));
@@ -2013,7 +2013,7 @@ void QtEngineContractTest::qtRendersAPageForPrintingAndDrawsPdfsInline()
     QVERIFY(root.isValid());
     QQmlEngine engine;
     QQmlComponent component(&engine, QUrl::fromLocalFile(
-        QStringLiteral(TANTO_QT_ENGINE_VIEW_PATH)));
+        QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
     const std::unique_ptr<QObject> adapter(component.create());
     QVERIFY2(adapter, qPrintable(component.errorString()));
 
@@ -2067,7 +2067,7 @@ void QtEngineContractTest::qtRendersAPageForPrintingAndDrawsPdfsInline()
 }
 
 // A page asking for the screen is the one path the shell cannot drive itself,
-// and the adapter is what turns the engine's request into a state Tanto is in.
+// and the adapter is what turns the engine's request into a state Omaweb is in.
 // Chromium refuses a fullscreen request that no gesture asked for, so the page
 // asks from a key press.
 void QtEngineContractTest::qtReportsSiteFullscreenWithItsOrigin()
@@ -2090,7 +2090,7 @@ void QtEngineContractTest::qtReportsSiteFullscreenWithItsOrigin()
     QVERIFY(root.isValid());
     QQmlEngine engine;
     QQmlComponent component(&engine, QUrl::fromLocalFile(
-        QStringLiteral(TANTO_QT_ENGINE_VIEW_PATH)));
+        QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
     const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
         {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
     }));
@@ -2157,8 +2157,8 @@ void QtEngineContractTest::qtReportsSiteFullscreenWithItsOrigin()
 void QtEngineContractTest::profileAdaptersHandOverNotifications_data()
 {
     QTest::addColumn<QString>("path");
-    QTest::newRow("UI-lab mock") << QStringLiteral(TANTO_MOCK_ENGINE_PROFILE_PATH);
-    QTest::newRow("QtWebEngine") << QStringLiteral(TANTO_QT_ENGINE_PROFILE_PATH);
+    QTest::newRow("UI-lab mock") << QStringLiteral(OMAWEB_MOCK_ENGINE_PROFILE_PATH);
+    QTest::newRow("QtWebEngine") << QStringLiteral(OMAWEB_QT_ENGINE_PROFILE_PATH);
 }
 
 // A notification arrives from a Space's profile rather than from one page, so
@@ -2186,8 +2186,8 @@ void QtEngineContractTest::profileAdaptersHandOverNotifications()
 void QtEngineContractTest::adaptersTakeTheShellsAutoplayDecision_data()
 {
     QTest::addColumn<QString>("path");
-    QTest::newRow("UI-lab mock") << QStringLiteral(TANTO_MOCK_ENGINE_VIEW_PATH);
-    QTest::newRow("QtWebEngine") << QStringLiteral(TANTO_QT_ENGINE_VIEW_PATH);
+    QTest::newRow("UI-lab mock") << QStringLiteral(OMAWEB_MOCK_ENGINE_VIEW_PATH);
+    QTest::newRow("QtWebEngine") << QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH);
 }
 
 // Whether a page may start playing on its own is the shell's decision, not the
@@ -2224,7 +2224,7 @@ void QtEngineContractTest::qtReportsTheProcessDrawingThePage()
 {
     QQmlEngine engine;
     QQmlComponent component(&engine, QUrl::fromLocalFile(
-        QStringLiteral(TANTO_QT_ENGINE_VIEW_PATH)));
+        QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
     const std::unique_ptr<QObject> adapter(component.create());
     QVERIFY2(adapter, qPrintable(component.errorString()));
 
@@ -2244,7 +2244,7 @@ void QtEngineContractTest::qtReportsTheProcessDrawingThePage()
     QTRY_COMPARE(adapter->property("pageTitle").toString(), QStringLiteral("Costed"));
     QTRY_VERIFY(adapter->property("renderProcessPid").toInt() > 0);
 
-    tanto::ProcessResources resources;
+    omaweb::ProcessResources resources;
     QVERIFY(resources.available());
     QVERIFY(resources.residentBytes(adapter->property("renderProcessPid").toInt()) > 0);
     // A process that is not there costs nothing, and is not guessed at.
@@ -2253,10 +2253,10 @@ void QtEngineContractTest::qtReportsTheProcessDrawingThePage()
 
 int main(int argc, char *argv[])
 {
-    tanto::QtContentBlocker::registerSubstituteScheme();
+    omaweb::QtContentBlocker::registerSubstituteScheme();
     QtWebEngineQuick::initialize();
     QGuiApplication application(argc, argv);
-    tanto::registerExternalProtocolHandler();
+    omaweb::registerExternalProtocolHandler();
     QtEngineContractTest test;
     return QTest::qExec(&test, argc, argv);
 }

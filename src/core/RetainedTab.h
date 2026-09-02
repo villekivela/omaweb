@@ -4,7 +4,7 @@
 #include <QUrl>
 #include <QVariantMap>
 
-namespace tanto {
+namespace omaweb {
 
 // A tab still running in a Space that is not the one on show, and why. Only two
 // things earn it: a Pinned tab the reader marked Keep active, and the tab an
@@ -45,4 +45,4 @@ struct RetainedTab {
     }
 };
 
-} // namespace tanto
+} // namespace omaweb

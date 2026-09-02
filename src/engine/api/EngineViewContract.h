@@ -4,8 +4,8 @@
 
 class QObject;
 
-namespace tanto {
+namespace omaweb {
 
 QStringList validateEngineViewContract(const QObject &adapter);
 
-} // namespace tanto
+} // namespace omaweb

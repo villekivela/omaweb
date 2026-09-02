@@ -1,7 +1,7 @@
 #include "ExternalProtocolHandler.h"
 
 #include <AppKit/AppKit.h>
-namespace tanto {
+namespace omaweb {
 
 QString applicationNameForMac(const QUrl &destination)
 {
@@ -18,4 +18,4 @@ QString applicationNameForMac(const QUrl &destination)
     return QStringLiteral("the application registered for %1").arg(destination.scheme());
 }
 
-} // namespace tanto
+} // namespace omaweb

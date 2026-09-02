@@ -6,7 +6,7 @@
 #include <QTemporaryDir>
 #include <QTest>
 
-using tanto::ThemeController;
+using omaweb::ThemeController;
 
 class ThemeControllerTest final : public QObject {
     Q_OBJECT
@@ -103,7 +103,7 @@ void ThemeControllerTest::givesFullPageSurfacesTheSidebarsColourAndTheirOwnTrans
     const auto palette = controller.palette();
 
     // A light theme's sheet is light: inheriting the theme's own sidebar rather
-    // than falling back to Tanto's dark is what makes that true.
+    // than falling back to Omaweb's dark is what makes that true.
     QCOMPARE(QColor(palette.value(QStringLiteral("sheetOpaque")).toString()),
         QColor(QStringLiteral("#f0f0f0")));
     QCOMPARE(QColor(palette.value(QStringLiteral("sheet")).toString()).alpha(), 153);
@@ -214,7 +214,7 @@ void ThemeControllerTest::keepsTheTypeBaseSizeUsable()
 }
 
 // The inspector the engine supplies draws source, markup and stylesheets, and
-// it draws them in Tanto's colours rather than Chromium's. A theme that says
+// it draws them in Omaweb's colours rather than Chromium's. A theme that says
 // nothing about code still names every one of them, because a token left
 // unnamed would come back in whatever the frontend ships.
 void ThemeControllerTest::namesTheColoursCodeIsReadIn()

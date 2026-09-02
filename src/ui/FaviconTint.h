@@ -10,7 +10,7 @@
 class QImage;
 class QQuickImageResponse;
 
-namespace tanto {
+namespace omaweb {
 
 // The hue a favicon reads as, in [0, 1), or nothing when the icon has no
 // colour to give. Pixels that are near-transparent, near-neutral or nearly
@@ -73,8 +73,8 @@ private:
     QPointer<QQuickImageResponse> m_response;
 };
 
-// Makes `FaviconTint` available to QML as `import Tanto`. Call once per
+// Makes `FaviconTint` available to QML as `import Omaweb`. Call once per
 // process, before loading QML that uses it.
 void registerFaviconTint();
 
-} // namespace tanto
+} // namespace omaweb

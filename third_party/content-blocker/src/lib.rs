@@ -41,7 +41,7 @@ struct Library {
     // names are kept apart from the code.
     injectable: BTreeSet<String>,
     // The scriptlets uBO only lets a list the user vouched for inject —
-    // `trusted-set-cookie` sets any cookie to any value. Tanto vouches for no
+    // `trusted-set-cookie` sets any cookie to any value. Omaweb vouches for no
     // list, so every rule set compiles without permissions and the engine
     // refuses these. Kept apart from the unknown names so a report can say
     // which of the two happened.
@@ -51,7 +51,7 @@ struct Library {
     // asks, for the same reason as the injectable names.
     substitutes: BTreeMap<String, String>,
     // The same bodies read the other way. A match reports the body it chose
-    // and never the name it came from, and the name is what Tanto serves the
+    // and never the name it came from, and the name is what Omaweb serves the
     // substitute under, so that a replaced request stays legible in a network
     // log as the resource that replaced it. Two resources with byte-identical
     // bodies and the same MIME type would share an entry and one of the two
@@ -146,7 +146,7 @@ impl ResourceStorageBackend for VendoredResources {
     }
 }
 
-pub struct TantoBlocker {
+pub struct OmawebBlocker {
     engine: Engine,
     // A second engine holds the list's $popup rules with that option stripped
     // off. adblock-rust has no popup request type and rejects the option
@@ -271,7 +271,7 @@ fn substituted_name(line: &str) -> Option<&str> {
 }
 
 // EasyList writes `$redirect=`; uBO and AdGuard also accept `$rewrite=` for
-// the same thing, and eight of the rules Tanto ships use it. adblock-rust
+// the same thing, and eight of the rules Omaweb ships use it. adblock-rust
 // knows only the first spelling and rejects the option outright, which would
 // throw away the whole rule rather than the option.
 //
@@ -345,10 +345,10 @@ fn names(value: *const c_char) -> Vec<String> {
 #[unsafe(no_mangle)]
 /// # Safety
 /// `rules` must be a valid NUL-terminated UTF-8 string. If non-null, `report` must be writable.
-pub unsafe extern "C" fn tanto_blocker_compile(
+pub unsafe extern "C" fn omaweb_blocker_compile(
     rules: *const c_char,
     report: *mut *mut c_char,
-) -> *mut TantoBlocker {
+) -> *mut OmawebBlocker {
     catch_unwind(AssertUnwindSafe(|| {
         let Some(rules) = input(rules) else {
             return std::ptr::null_mut();
@@ -404,7 +404,7 @@ pub unsafe extern "C" fn tanto_blocker_compile(
             });
             unsafe { *report = output(value.to_string()) };
         }
-        Box::into_raw(Box::new(TantoBlocker {
+        Box::into_raw(Box::new(OmawebBlocker {
             engine,
             popups: popup_engine,
         }))
@@ -414,8 +414,8 @@ pub unsafe extern "C" fn tanto_blocker_compile(
 
 #[unsafe(no_mangle)]
 /// # Safety
-/// `blocker` must be null or a pointer returned by `tanto_blocker_compile` that has not been freed.
-pub unsafe extern "C" fn tanto_blocker_destroy(blocker: *mut TantoBlocker) {
+/// `blocker` must be null or a pointer returned by `omaweb_blocker_compile` that has not been freed.
+pub unsafe extern "C" fn omaweb_blocker_destroy(blocker: *mut OmawebBlocker) {
     if !blocker.is_null() {
         let _ = catch_unwind(AssertUnwindSafe(|| unsafe {
             drop(Box::from_raw(blocker));
@@ -428,7 +428,7 @@ pub unsafe extern "C" fn tanto_blocker_destroy(blocker: *mut TantoBlocker) {
 /// that is served only when some other rule blocks, and a `$removeparam` rule
 /// strips tracking parameters off a request that is going out either way.
 #[repr(C)]
-pub struct TantoBlockerDecision {
+pub struct OmawebBlockerDecision {
     /// A blocking rule matched and no exception took it back.
     pub blocked: bool,
     /// The name of the substitute to serve instead, or null when the request
@@ -439,7 +439,7 @@ pub struct TantoBlockerDecision {
     pub rewritten_url: *mut c_char,
 }
 
-impl TantoBlockerDecision {
+impl OmawebBlockerDecision {
     // No rule was consulted: a null argument, an address the engine cannot
     // parse, or a panic. The lists said nothing, which is not the same as
     // their having said "allow", but it is what a caller does with it.
@@ -455,14 +455,14 @@ impl TantoBlockerDecision {
 #[unsafe(no_mangle)]
 /// # Safety
 /// `blocker` must be a live matcher. String arguments must be valid NUL-terminated UTF-8, and
-/// `decision` must point at writable storage for one `TantoBlockerDecision`. The strings it
-/// comes back holding belong to the caller until `tanto_blocker_decision_release` frees them.
-pub unsafe extern "C" fn tanto_blocker_check(
-    blocker: *const TantoBlocker,
+/// `decision` must point at writable storage for one `OmawebBlockerDecision`. The strings it
+/// comes back holding belong to the caller until `omaweb_blocker_decision_release` frees them.
+pub unsafe extern "C" fn omaweb_blocker_check(
+    blocker: *const OmawebBlocker,
     url: *const c_char,
     source_url: *const c_char,
     resource_type: *const c_char,
-    decision: *mut TantoBlockerDecision,
+    decision: *mut OmawebBlockerDecision,
 ) {
     if decision.is_null() {
         return;
@@ -474,10 +474,10 @@ pub unsafe extern "C" fn tanto_blocker_check(
             input(source_url),
             input(resource_type),
         ) else {
-            return TantoBlockerDecision::unanswered();
+            return OmawebBlockerDecision::unanswered();
         };
         let Ok(request) = Request::new(&url, &source_url, &resource_type) else {
-            return TantoBlockerDecision::unanswered();
+            return OmawebBlockerDecision::unanswered();
         };
         let result = blocker.engine.check_network_request(&request);
         // A redirect does not imply a block: a `redirect-rule` names a
@@ -485,10 +485,10 @@ pub unsafe extern "C" fn tanto_blocker_check(
         // matched, and `removeparam` rewrites an address the request is still
         // going out to. Each answer is dropped where it would mean nothing, so
         // that a caller acting on one cannot act on it at the wrong moment.
-        TantoBlockerDecision {
+        OmawebBlockerDecision {
             blocked: result.matched,
             // The engine reports the body it chose rather than the name the
-            // rule asked for, and the name is what Tanto serves it under.
+            // rule asked for, and the name is what Omaweb serves it under.
             substitute: result
                 .redirect
                 .as_deref()
@@ -501,15 +501,15 @@ pub unsafe extern "C" fn tanto_blocker_check(
                 .map_or(std::ptr::null_mut(), output),
         }
     }))
-    .unwrap_or_else(|_| TantoBlockerDecision::unanswered());
+    .unwrap_or_else(|_| OmawebBlockerDecision::unanswered());
     unsafe { decision.write(answer) };
 }
 
 #[unsafe(no_mangle)]
 /// # Safety
-/// `decision` must be null or point at a `TantoBlockerDecision` filled in by `tanto_blocker_check`
+/// `decision` must be null or point at a `OmawebBlockerDecision` filled in by `omaweb_blocker_check`
 /// whose strings have not already been freed.
-pub unsafe extern "C" fn tanto_blocker_decision_release(decision: *mut TantoBlockerDecision) {
+pub unsafe extern "C" fn omaweb_blocker_decision_release(decision: *mut OmawebBlockerDecision) {
     let Some(decision) = (unsafe { decision.as_mut() }) else {
         return;
     };
@@ -530,7 +530,7 @@ pub unsafe extern "C" fn tanto_blocker_decision_release(decision: *mut TantoBloc
 /// Returns the substitute body this build carries under `name`, as a `data:` URL carrying the
 /// resource's own MIME type, or null for a name it carries none for. The library is a constant
 /// built into this binary, so this answers without a compiled rule set.
-pub unsafe extern "C" fn tanto_blocker_substitute(name: *const c_char) -> *mut c_char {
+pub unsafe extern "C" fn omaweb_blocker_substitute(name: *const c_char) -> *mut c_char {
     catch_unwind(AssertUnwindSafe(|| {
         let Some(name) = input(name) else {
             return std::ptr::null_mut();
@@ -550,8 +550,8 @@ pub unsafe extern "C" fn tanto_blocker_substitute(name: *const c_char) -> *mut c
 /// source, which is what makes `third-party` and `domain=` mean here what they mean anywhere
 /// else. `other` is the request type because a $popup rule names no type of its own, and that is
 /// the type every rule without one accepts.
-pub unsafe extern "C" fn tanto_blocker_matches_popup(
-    blocker: *const TantoBlocker,
+pub unsafe extern "C" fn omaweb_blocker_matches_popup(
+    blocker: *const OmawebBlocker,
     url: *const c_char,
     opener_url: *const c_char,
 ) -> bool {
@@ -574,8 +574,8 @@ pub unsafe extern "C" fn tanto_blocker_matches_popup(
 ///
 /// Returns the stylesheet for the rules written against this page's hostname. Generic rules are
 /// not included: the page surveys its own classes and ids and asks for those separately.
-pub unsafe extern "C" fn tanto_blocker_cosmetic_css(
-    blocker: *const TantoBlocker,
+pub unsafe extern "C" fn omaweb_blocker_cosmetic_css(
+    blocker: *const OmawebBlocker,
     url: *const c_char,
 ) -> *mut c_char {
     catch_unwind(AssertUnwindSafe(|| {
@@ -596,8 +596,8 @@ pub unsafe extern "C" fn tanto_blocker_cosmetic_css(
 /// named function from the vendored library, its dependencies, and the calls with the rules'
 /// arguments. Empty when no rule names a scriptlet here, when an `#@#+js(...)` exception takes
 /// one back, or when the named resource is one uBO gates behind trust.
-pub unsafe extern "C" fn tanto_blocker_scriptlet_source(
-    blocker: *const TantoBlocker,
+pub unsafe extern "C" fn omaweb_blocker_scriptlet_source(
+    blocker: *const OmawebBlocker,
     url: *const c_char,
 ) -> *mut c_char {
     catch_unwind(AssertUnwindSafe(|| {
@@ -615,8 +615,8 @@ pub unsafe extern "C" fn tanto_blocker_scriptlet_source(
 ///
 /// Reports whether this page still needs to survey its classes and ids. A `$generichide`
 /// exception turns the survey off for the whole page.
-pub unsafe extern "C" fn tanto_blocker_cosmetic_survey_wanted(
-    blocker: *const TantoBlocker,
+pub unsafe extern "C" fn omaweb_blocker_cosmetic_survey_wanted(
+    blocker: *const OmawebBlocker,
     url: *const c_char,
 ) -> bool {
     catch_unwind(AssertUnwindSafe(|| {
@@ -635,8 +635,8 @@ pub unsafe extern "C" fn tanto_blocker_cosmetic_survey_wanted(
 ///
 /// Returns the stylesheet for the generic rules that the classes and ids actually on the page
 /// could trigger. Shipping every generic rule instead cost a 617 KB stylesheet on every page.
-pub unsafe extern "C" fn tanto_blocker_generic_cosmetic_css(
-    blocker: *const TantoBlocker,
+pub unsafe extern "C" fn omaweb_blocker_generic_cosmetic_css(
+    blocker: *const OmawebBlocker,
     url: *const c_char,
     classes: *const c_char,
     ids: *const c_char,
@@ -662,7 +662,7 @@ pub unsafe extern "C" fn tanto_blocker_generic_cosmetic_css(
 #[unsafe(no_mangle)]
 /// # Safety
 /// `value` must be null or a pointer returned by this library that has not been freed.
-pub unsafe extern "C" fn tanto_blocker_string_free(value: *mut c_char) {
+pub unsafe extern "C" fn omaweb_blocker_string_free(value: *mut c_char) {
     if !value.is_null() {
         let _ = catch_unwind(AssertUnwindSafe(|| unsafe {
             drop(CString::from_raw(value));

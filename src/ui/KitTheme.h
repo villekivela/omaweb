@@ -6,7 +6,7 @@
 //
 // Kit components read colour and type from the `qs.Commons` `Color` and `Style`
 // singletons, which resolve an Omarchy theme from `~/.local/state/omarchy`,
-// `~/.config/omarchy/shell.toml` and `hyprctl`. Tanto's theme palette is its
+// `~/.config/omarchy/shell.toml` and `hyprctl`. Omaweb's theme palette is its
 // source of truth instead, so this pushes the palette into those singletons
 // and keeps pushing: the kit's own lookups are files and processes that land
 // after startup, and a value written once would simply lose to them.
@@ -17,7 +17,7 @@
 
 class QQmlEngine;
 
-namespace tanto {
+namespace omaweb {
 
 class ThemeController;
 
@@ -39,4 +39,4 @@ private:
     bool m_applying = false;
 };
 
-} // namespace tanto
+} // namespace omaweb

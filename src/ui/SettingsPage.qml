@@ -317,7 +317,7 @@ Rectangle {
                     visible: root.section === 1
                     colors: root.colors
                     title: "Keyboard navigation"
-                    note: "Tanto's own command layer. It gives the same commands with every "
+                    note: "Omaweb's own command layer. It gives the same commands with every "
                         + "engine, and lets sites receive the keys they need."
                     accessibleName: "Enable Keyboard navigation"
                     checked: root.keyboard ? root.keyboard.enabled === true : false
@@ -524,7 +524,7 @@ Rectangle {
                         objectName: "automaticRequestsStatus"
                         width: Math.min(260, pane.width / 2)
                         text: "Enabled filter-list subscriptions make automatic network requests "
-                            + "to their displayed update address when Tanto starts. Remote search "
+                            + "to their displayed update address when Omaweb starts. Remote search "
                             + "suggestions remain off."
                         color: root.colors.mutedText
                         wrapMode: Text.WordWrap
@@ -571,7 +571,7 @@ Rectangle {
                     visible: root.section === 4 && root.downloads.length === 0
                     colors: root.colors
                     title: "No recorded downloads"
-                    note: "Downloads Tanto has recorded in this Space appear here."
+                    note: "Downloads Omaweb has recorded in this Space appear here."
                 }
 
                 // ---- search ------------------------------------------------

@@ -1,6 +1,6 @@
-# `</>` Tanto
+# `</>` Omaweb
 
-Tanto is a keyboard-driven web browser. It uses one ordinary window, vertical
+Omaweb is a keyboard-driven web browser. It uses one ordinary window, vertical
 tabs, and isolated browsing Spaces.
 
 The Qt build runs on macOS today. The immediate goal is a dependable macOS
@@ -10,13 +10,13 @@ until its embedding and security contracts are ready.
 
 ## Developer tools
 
-Developer tools belong to the tab being inspected. Tanto docks the inspector
+Developer tools belong to the tab being inspected. Omaweb docks the inspector
 provided by the current engine beside that tab, keeps it attached across
 navigation and Space switches, and hides it when another tab is on show. The Qt
-build uses Chromium DevTools and draws it in the active Tanto theme. Inspect
-element is available from Tanto's page menu and from the keyboard.
+build uses Chromium DevTools and draws it in the active Omaweb theme. Inspect
+element is available from Omaweb's page menu and from the keyboard.
 
-Tanto does not add a diagnostics protocol, agent gateway, terminal, or source
+Omaweb does not add a diagnostics protocol, agent gateway, terminal, or source
 editor. Local addresses resolve as addresses, reload can bypass cache, page
 commands are keyboard-accessible, and the engine's real inspector is close at
 hand.
@@ -33,7 +33,7 @@ The current Qt build includes:
 - Docked Chromium DevTools, Inspect element, and loopback-only development debugging
 - Find, per-tab zoom, normal and cache-bypassing reload, Stop loading, fullscreen,
   printing, and inline PDF viewing
-- A Tanto-drawn page menu with link, image, media, selection, navigation, and
+- A Omaweb-drawn page menu with link, image, media, selection, navigation, and
   inspection commands
 - Session restoration, renderer recovery, downloads, searchable Space-local
   History, browsing-data controls, and Site permissions
@@ -42,7 +42,7 @@ The current Qt build includes:
 - Runtime themes, terminal-theme import, Private-window styling, and an
   engine-free UI lab
 
-Tanto is still pre-alpha. Do not use it for sensitive browsing. It does not yet
+Omaweb is still pre-alpha. Do not use it for sensitive browsing. It does not yet
 have the complete certificate, download, sandbox-health, URL-reputation,
 update, and signed-package work required for daily-driver status.
 
@@ -59,7 +59,7 @@ Build the pinned content-blocking library once before the first configure:
 scripts/bootstrap_content_blocker.sh
 ```
 
-Then configure, build, and test Tanto:
+Then configure, build, and test Omaweb:
 
 ```sh
 cmake --preset dev
@@ -70,10 +70,10 @@ ctest --preset dev
 Run the browser on macOS:
 
 ```sh
-./build/dev/tanto.app/Contents/MacOS/tanto
+./build/dev/omaweb.app/Contents/MacOS/omaweb
 ```
 
-On Linux, run `./build/dev/tanto`.
+On Linux, run `./build/dev/omaweb`.
 
 Development builds load QML, themes, and the icon font from the source tree.
 Those edits need an application restart but no recompile. The `asan`, `release`,
@@ -87,10 +87,10 @@ The UI lab draws the same QML against fake browser state:
 ```sh
 cmake --preset ui
 cmake --build --preset ui
-./build/ui/tanto-ui-lab.app/Contents/MacOS/tanto-ui-lab
+./build/ui/omaweb-ui-lab.app/Contents/MacOS/omaweb-ui-lab
 ```
 
-Linux uses `./build/ui/tanto-ui-lab`. Pass `--private` to inspect the Private
+Linux uses `./build/ui/omaweb-ui-lab`. Pass `--private` to inspect the Private
 palette or `--capture <path>` to render one frame and exit. Headless capture
 works with `QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software`.
 
@@ -125,23 +125,23 @@ keys. The complete default map is in
 
 ## Configuration
 
-User-editable files live in `$XDG_CONFIG_HOME/tanto`, or `~/.config/tanto` when
+User-editable files live in `$XDG_CONFIG_HOME/omaweb`, or `~/.config/omaweb` when
 that variable is unset.
 
 - `keybindings.json` contains browser and page bindings plus per-site key
-  passthrough rules. Tanto writes it on first launch.
+  passthrough rules. Omaweb writes it on first launch.
 - `theme.json` can replace the built-in palette, typography, semantic opacity,
   and Developer-tools syntax colours.
 - `search-engines.json` contains the versioned local search-engine list, its
-  optional keywords, and the default engine. Tanto creates it with DuckDuckGo
+  optional keywords, and the default engine. Omaweb creates it with DuckDuckGo
   as the default and keeps remote suggestions off.
 
-`TANTO_CONFIG_ROOT` relocates the configuration directory.
-`TANTO_KEYBINDINGS_FILE` and `TANTO_THEME_FILE` select individual files during
+`OMAWEB_CONFIG_ROOT` relocates the configuration directory.
+`OMAWEB_KEYBINDINGS_FILE` and `OMAWEB_THEME_FILE` select individual files during
 development.
 
 Run `scripts/import_terminal_theme.py` from Ghostty, iTerm2, kitty, Alacritty,
-or Terminal.app to derive `theme.json` from that terminal. A running Tanto
+or Terminal.app to derive `theme.json` from that terminal. A running Omaweb
 watches the file and repaints when it changes. Use `--print` to inspect the
 result without writing it.
 
@@ -164,13 +164,13 @@ Start with [the architecture](docs/architecture.md),
 ## Roadmap
 
 The remaining Qt daily-driver work is tracked by
-[#50](https://github.com/villekivela/tanto/issues/50). It covers browser prompts,
+[#50](https://github.com/villekivela/omaweb/issues/50). It covers browser prompts,
 History and data controls, tab management, certificate and cookie policy,
 download hardening, native notifications, signed updates, macOS packaging, and
 phishing and malware protection.
 
-After that, [#8](https://github.com/villekivela/tanto/issues/8) carries the
-browser to Linux and Wayland. [#7](https://github.com/villekivela/tanto/issues/7)
+After that, [#8](https://github.com/villekivela/omaweb/issues/8) carries the
+browser to Linux and Wayland. [#7](https://github.com/villekivela/omaweb/issues/7)
 tracks the Ladybird adapter. [The roadmap](docs/roadmap.md) keeps the ordered
 breakdown.
 
@@ -181,7 +181,7 @@ feature list waiting for a checkbox.
 
 ## Privacy and security
 
-Tanto has no telemetry, advertising identifier, browser account, cloud sync,
+Omaweb has no telemetry, advertising identifier, browser account, cloud sync,
 Google push service, or automatic crash upload. Every automatic request made by
 the browser is listed in [the network request ledger](docs/network-requests.md).
 
@@ -196,6 +196,6 @@ listed above and specified in
 
 ## License
 
-Tanto's own code is licensed under MPL 2.0. Engines, filter data, interface
+Omaweb's own code is licensed under MPL 2.0. Engines, filter data, interface
 components, and other third-party material retain their own licenses. See
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

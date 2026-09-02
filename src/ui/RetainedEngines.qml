@@ -1,5 +1,5 @@
 import QtQuick
-import Tanto
+import Omaweb
 
 // The pages that outlive their Space, and what they cost.
 //

@@ -7,7 +7,7 @@
 #include <QDateTime>
 #include <QUuid>
 
-namespace tanto {
+namespace omaweb {
 namespace {
 
 constexpr int retainedHistoryRows = 5000;
@@ -16,7 +16,7 @@ constexpr int retainedHistoryRows = 5000;
 
 SessionStore::SessionStore(QString dataRoot)
     : m_dataRoot(std::move(dataRoot))
-    , m_connectionName(QStringLiteral("tanto-%1").arg(QUuid::createUuid().toString(QUuid::WithoutBraces)))
+    , m_connectionName(QStringLiteral("omaweb-%1").arg(QUuid::createUuid().toString(QUuid::WithoutBraces)))
 {
 }
 
@@ -917,4 +917,4 @@ void SessionStore::closeSpaceDatabase(const QString &spaceId)
     }
 }
 
-} // namespace tanto
+} // namespace omaweb

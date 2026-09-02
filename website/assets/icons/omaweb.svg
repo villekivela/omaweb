@@ -2,13 +2,13 @@
 <!-- Created with Inkscape (http://www.inkscape.org/) -->
 
 <svg
-   width="127"
+   width="160"
    height="20"
-   viewBox="0 0 127 20"
+   viewBox="0 0 160 20"
    version="1.1"
    id="svg1"
    inkscape:version="1.4.2 (ebf0e940, 2025-05-08)"
-   sodipodi:docname="tanto.svg"
+   sodipodi:docname="omaweb.svg"
    xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
    xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
    xmlns="http://www.w3.org/2000/svg"
@@ -25,11 +25,11 @@
      inkscape:document-units="px"
      showguides="true"
      inkscape:zoom="3.5367755"
-     inkscape:cx="121.72104"
-     inkscape:cy="67.858421"
-     inkscape:window-width="2544"
+     inkscape:cx="116.06617"
+     inkscape:cy="105.18055"
+     inkscape:window-width="2520"
      inkscape:window-height="1373"
-     inkscape:window-x="8"
+     inkscape:window-x="38"
      inkscape:window-y="30"
      inkscape:window-maximized="0"
      inkscape:current-layer="layer1" />
@@ -44,14 +44,20 @@
        id="g37"
        transform="translate(1.3101755,0.8976725)">
       <path
-         style="font-size:26.2395px;font-family:'Space Grotesk';-inkscape-font-specification:'Space Grotesk, @wght=700';font-variation-settings:'wght' 700;letter-spacing:0.264583px;stroke-width:4.40801;paint-order:stroke fill markers"
-         d="m 71.822546,115.46056 v -15.21891 h -5.35285 v -3.148736 h 14.16933 v 3.148736 h -5.35286 v 15.21891 z m 8.50379,0 4.82807,-18.367646 h 6.03509 l 4.82807,18.367646 h -3.56858 l -0.9971,-4.04088 h -6.55987 l -0.9971,4.04088 z m 5.3791,-7.2421 h 4.93303 l -2.23036,-8.947668 h -0.47231 z m 12.78085,7.2421 V 97.092914 h 6.586114 l 3.64729,16.006096 H 109.192 V 97.092914 h 3.41113 v 18.367646 h -6.58611 l -3.64729,-16.006091 h -0.47231 v 16.006091 z m 22.095844,0 v -15.21891 h -5.35285 v -3.148736 h 14.16933 v 3.148736 h -5.35286 v 15.21891 z m 17.84504,0.36736 q -3.46361,0 -5.5103,-1.88925 -2.04668,-1.91548 -2.04668,-5.45781 v -4.40824 q 0,-3.54233 2.04668,-5.431576 2.04669,-1.915483 5.5103,-1.915483 3.46361,0 5.51029,1.915483 2.04669,1.889246 2.04669,5.431576 v 4.40824 q 0,3.54233 -2.04669,5.45781 -2.04668,1.88925 -5.51029,1.88925 z m 0,-3.09626 q 1.94172,0 3.01754,-1.1283 1.07582,-1.1283 1.07582,-3.01755 v -4.61815 q 0,-1.88924 -1.07582,-3.01754 -1.07582,-1.128298 -3.01754,-1.128298 -1.91548,0 -3.01754,1.128298 -1.07582,1.1283 -1.07582,3.01754 v 4.61815 q 0,1.88925 1.07582,3.01755 1.10206,1.1283 3.01754,1.1283 z"
-         id="text8"
-         aria-label="TANTO" />
-      <path
          id="path32"
          style="font-variation-settings:'wght' 600;fill:#000000;fill-opacity:1;stroke:none;stroke-width:5.2;stroke-dasharray:none;stroke-opacity:1;paint-order:stroke fill markers"
          d="m 28.63857,97.088945 -9.187009,9.187005 9.187009,9.18763 h 3.69342 l 13.915739,-13.91637 4.72873,4.72874 -9.187009,9.18763 h 6.305601 l 9.18701,-9.18763 -9.187622,-9.187005 H 44.40102 l -13.91574,13.915735 -4.728742,-4.72873 9.18701,-9.187005 z" />
     </g>
+    <text
+       xml:space="preserve"
+       style="font-size:26.2391px;font-family:'Space Grotesk';-inkscape-font-specification:'Space Grotesk, @wght=700';font-variation-settings:'wght' 700;text-align:start;letter-spacing:0.264579px;writing-mode:lr-tb;direction:ltr;text-anchor:start;fill:#000000;stroke-width:19.6535;paint-order:stroke fill markers"
+       x="66.467934"
+       y="116.3579"
+       id="text1"><tspan
+         sodipodi:role="line"
+         id="tspan1"
+         x="66.467934"
+         y="116.3579"
+         style="stroke-width:19.6535">OMAWEB</tspan></text>
   </g>
 </svg>

@@ -8,8 +8,8 @@ target_directory="$repository_root/.cache/content-blocker"
 CARGO_TARGET_DIR="$target_directory" cargo build --locked --release --manifest-path "$manifest"
 
 case "$(uname -s)" in
-  Darwin) library="$target_directory/release/libtanto_content_blocker.dylib" ;;
-  Linux) library="$target_directory/release/libtanto_content_blocker.so" ;;
+  Darwin) library="$target_directory/release/libomaweb_content_blocker.dylib" ;;
+  Linux) library="$target_directory/release/libomaweb_content_blocker.so" ;;
   *) echo "Unsupported content-blocker host: $(uname -s)" >&2; exit 1 ;;
 esac
 

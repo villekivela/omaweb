@@ -1,14 +1,14 @@
 #include "DevelopmentLaunch.h"
 
-namespace tanto {
+namespace omaweb {
 namespace {
 
 constexpr auto debuggingOption = "--remote-debugging";
 constexpr int defaultPort = 9222;
 
 // Every way Chromium can be told to open a debugging channel that is not
-// Tanto's own option. Passing one of these means the channel would be opened
-// behind Tanto's back: on whatever interface the flag named, with Private
+// Omaweb's own option. Passing one of these means the channel would be opened
+// behind Omaweb's back: on whatever interface the flag named, with Private
 // windows still on offer.
 bool isEngineDebuggingFlag(const QString &argument)
 {
@@ -39,7 +39,7 @@ DevelopmentLaunch readDevelopmentLaunch(const QStringList &arguments,
 
     for (const auto &argument : arguments + engineFlags) {
         if (isEngineDebuggingFlag(argument)) {
-            return refuse(QStringLiteral("%1 opens a debugging listener Tanto does not "
+            return refuse(QStringLiteral("%1 opens a debugging listener Omaweb does not "
                                          "control. Use --remote-debugging=<port> instead.")
                     .arg(argument));
         }
@@ -52,7 +52,7 @@ DevelopmentLaunch readDevelopmentLaunch(const QStringList &arguments,
         if (separator != -1) {
             auto valid = false;
             port = argument.sliced(separator + 1).toInt(&valid);
-            // Below 1024 needs privilege Tanto does not want, and 0 would have
+            // Below 1024 needs privilege Omaweb does not want, and 0 would have
             // the engine pick a port nothing here could report.
             if (!valid || port < 1024 || port > 65535) {
                 return refuse(QStringLiteral("%1 is not a port between 1024 and 65535")
@@ -69,4 +69,4 @@ DevelopmentLaunch readDevelopmentLaunch(const QStringList &arguments,
     return launch;
 }
 
-} // namespace tanto
+} // namespace omaweb

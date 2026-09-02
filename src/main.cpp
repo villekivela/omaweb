@@ -49,7 +49,7 @@ bool hasUnsafeEngineFlag(const QStringList &arguments)
 
 QString dataRoot()
 {
-    const auto override = qEnvironmentVariable("TANTO_DATA_ROOT");
+    const auto override = qEnvironmentVariable("OMAWEB_DATA_ROOT");
     if (!override.isEmpty()) {
         return override;
     }
@@ -57,22 +57,22 @@ QString dataRoot()
 }
 
 // User-editable configuration lives beside every other tool's, under
-// XDG_CONFIG_HOME (~/.config/tanto), rather than in the application data
+// XDG_CONFIG_HOME (~/.config/omaweb), rather than in the application data
 // directory that holds profiles, caches and blocklists.
 QString configRoot()
 {
-    const auto override = qEnvironmentVariable("TANTO_CONFIG_ROOT");
+    const auto override = qEnvironmentVariable("OMAWEB_CONFIG_ROOT");
     if (!override.isEmpty()) {
         return override;
     }
     const auto xdg = qEnvironmentVariable("XDG_CONFIG_HOME");
     const auto base = xdg.isEmpty() ? QDir::home().filePath(QStringLiteral(".config")) : xdg;
-    return QDir(base).filePath(QStringLiteral("tanto"));
+    return QDir(base).filePath(QStringLiteral("omaweb"));
 }
 
 QString themePath()
 {
-    const auto override = qEnvironmentVariable("TANTO_THEME_FILE");
+    const auto override = qEnvironmentVariable("OMAWEB_THEME_FILE");
     if (!override.isEmpty()) {
         return override;
     }
@@ -84,17 +84,17 @@ QString themePath()
     }
 #if defined(Q_OS_LINUX)
     const auto omarchyTheme = QDir::home().filePath(
-        QStringLiteral(".local/state/omarchy/current/theme/tanto.json"));
+        QStringLiteral(".local/state/omarchy/current/theme/omaweb.json"));
     if (QFileInfo::exists(omarchyTheme)) {
         return omarchyTheme;
     }
 #endif
-    return QStringLiteral(TANTO_THEME_PATH);
+    return QStringLiteral(OMAWEB_THEME_PATH);
 }
 
 QString keybindingsPath()
 {
-    const auto override = qEnvironmentVariable("TANTO_KEYBINDINGS_FILE");
+    const auto override = qEnvironmentVariable("OMAWEB_KEYBINDINGS_FILE");
     if (!override.isEmpty()) {
         return override;
     }
@@ -107,15 +107,15 @@ QString keybindingsPath()
         const auto legacy = QDir(QDir(dataRoot()).filePath(QStringLiteral("settings")))
             .filePath(QStringLiteral("keybindings.json"));
         if (QFileInfo::exists(legacy) && QFile::rename(legacy, path)) {
-            tanto::KeyboardNavigation::adoptDefaults(path,
-                QStringLiteral(TANTO_DEFAULT_KEYBINDINGS_PATH));
+            omaweb::KeyboardNavigation::adoptDefaults(path,
+                QStringLiteral(OMAWEB_DEFAULT_KEYBINDINGS_PATH));
             return path;
         }
-        QFile::copy(QStringLiteral(TANTO_DEFAULT_KEYBINDINGS_PATH), path);
+        QFile::copy(QStringLiteral(OMAWEB_DEFAULT_KEYBINDINGS_PATH), path);
         return path;
     }
-    tanto::KeyboardNavigation::adoptDefaults(path,
-        QStringLiteral(TANTO_DEFAULT_KEYBINDINGS_PATH));
+    omaweb::KeyboardNavigation::adoptDefaults(path,
+        QStringLiteral(OMAWEB_DEFAULT_KEYBINDINGS_PATH));
     return path;
 }
 
@@ -128,23 +128,23 @@ int main(int argc, char *argv[])
         arguments.append(QString::fromLocal8Bit(argv[index]));
     }
     if (qEnvironmentVariableIsSet("QTWEBENGINE_DISABLE_SANDBOX") || hasUnsafeEngineFlag(arguments)) {
-        qCritical("Tanto refuses to start with browser sandbox-disabling or single-process flags.");
+        qCritical("Omaweb refuses to start with browser sandbox-disabling or single-process flags.");
         return 2;
     }
 
     // Chromium reads the listener out of the environment at initialization, so
     // the decision is made here and nowhere later. An ordinary launch clears
-    // the variable rather than trusting it: whatever set it, Tanto opens no
+    // the variable rather than trusting it: whatever set it, Omaweb opens no
     // listener it was not asked for on its own command line.
-    const auto launch = tanto::readDevelopmentLaunch(arguments,
+    const auto launch = omaweb::readDevelopmentLaunch(arguments,
         QProcess::splitCommand(qEnvironmentVariable("QTWEBENGINE_CHROMIUM_FLAGS")));
     if (!launch.refusal.isEmpty()) {
-        qCritical("Tanto refuses to start: %s", qPrintable(launch.refusal));
+        qCritical("Omaweb refuses to start: %s", qPrintable(launch.refusal));
         return 2;
     }
     if (launch.remoteDebugging) {
         qputenv("QTWEBENGINE_REMOTE_DEBUGGING", launch.listenAddress.toLocal8Bit());
-        qWarning("Tanto is listening for remote debugging on %s. Anything running as this "
+        qWarning("Omaweb is listening for remote debugging on %s. Anything running as this "
                  "user can read and drive every page in this session, and Private windows "
                  "are unavailable for it.",
             qPrintable(launch.listenAddress));
@@ -153,31 +153,31 @@ int main(int argc, char *argv[])
     }
 
     // Chromium learns its schemes before it starts, and content blocking
-    // serves its substitute resources under one of Tanto's own.
-    tanto::QtContentBlocker::registerSubstituteScheme();
+    // serves its substitute resources under one of Omaweb's own.
+    omaweb::QtContentBlocker::registerSubstituteScheme();
     QtWebEngineQuick::initialize();
     QGuiApplication application(argc, argv);
-    tanto::installWindowChrome(&application);
-    QCoreApplication::setOrganizationName(QStringLiteral("Tanto"));
-    QCoreApplication::setApplicationName(QStringLiteral("Tanto"));
-    QCoreApplication::setApplicationVersion(QStringLiteral(TANTO_VERSION));
+    omaweb::installWindowChrome(&application);
+    QCoreApplication::setOrganizationName(QStringLiteral("Omaweb"));
+    QCoreApplication::setApplicationName(QStringLiteral("Omaweb"));
+    QCoreApplication::setApplicationVersion(QStringLiteral(OMAWEB_VERSION));
 
-    tanto::BrowserController browser(dataRoot(), QStringLiteral("qt"), configRoot());
-    tanto::ContentBlocker contentBlocker(dataRoot());
-    tanto::KeyboardNavigation keyboardNavigation(
-        keybindingsPath(), QStringLiteral(TANTO_KEYBOARD_NAVIGATION_SCRIPT_PATH));
-    tanto::QtContentBlocker engineContentBlocker(&contentBlocker);
-    tanto::ThemeController theme(themePath());
-    tanto::WindowManager windowManager(
+    omaweb::BrowserController browser(dataRoot(), QStringLiteral("qt"), configRoot());
+    omaweb::ContentBlocker contentBlocker(dataRoot());
+    omaweb::KeyboardNavigation keyboardNavigation(
+        keybindingsPath(), QStringLiteral(OMAWEB_KEYBOARD_NAVIGATION_SCRIPT_PATH));
+    omaweb::QtContentBlocker engineContentBlocker(&contentBlocker);
+    omaweb::ThemeController theme(themePath());
+    omaweb::WindowManager windowManager(
         QStringLiteral("qt"), configRoot(), launch.privateWindowsAvailable);
 
-    tanto::quickshell::installShim();
-    tanto::registerFaviconTint();
-    tanto::registerSystemClipboard();
-    tanto::registerExternalProtocolHandler();
-    tanto::registerPagePrinter();
-    tanto::registerSystemNotifier();
-    tanto::registerProcessResources();
+    omaweb::quickshell::installShim();
+    omaweb::registerFaviconTint();
+    omaweb::registerSystemClipboard();
+    omaweb::registerExternalProtocolHandler();
+    omaweb::registerPagePrinter();
+    omaweb::registerSystemNotifier();
+    omaweb::registerProcessResources();
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty(QStringLiteral("browser"), &browser);
     engine.rootContext()->setContextProperty(QStringLiteral("contentBlocker"), &contentBlocker);
@@ -188,22 +188,22 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty(QStringLiteral("theme"), &theme);
     engine.rootContext()->setContextProperty(QStringLiteral("windowManager"), &windowManager);
     engine.rootContext()->setContextProperty(
-        QStringLiteral("engineViewSource"), QUrl(QStringLiteral(TANTO_ENGINE_VIEW_URL)));
+        QStringLiteral("engineViewSource"), QUrl(QStringLiteral(OMAWEB_ENGINE_VIEW_URL)));
     engine.rootContext()->setContextProperty(
-        QStringLiteral("engineProfileSource"), QUrl(QStringLiteral(TANTO_ENGINE_PROFILE_URL)));
+        QStringLiteral("engineProfileSource"), QUrl(QStringLiteral(OMAWEB_ENGINE_PROFILE_URL)));
     engine.rootContext()->setContextProperty(
-        QStringLiteral("iconFontSource"), QUrl(QStringLiteral(TANTO_ICON_FONT_URL)));
-    engine.addImportPath(QStringLiteral(TANTO_UI_DIRECTORY));
+        QStringLiteral("iconFontSource"), QUrl(QStringLiteral(OMAWEB_ICON_FONT_URL)));
+    engine.addImportPath(QStringLiteral(OMAWEB_UI_DIRECTORY));
     // The vendored Omarchy component kit: qs.Ui and qs.Commons.
-    engine.addImportPath(QStringLiteral(TANTO_OMARCHY_IMPORT_PATH));
-    // The kit's own colour and type come from an Omarchy theme on disk. Tanto's
+    engine.addImportPath(QStringLiteral(OMAWEB_OMARCHY_IMPORT_PATH));
+    // The kit's own colour and type come from an Omarchy theme on disk. Omaweb's
     // palette is the source of truth, so it is pushed into the kit's singletons
     // once the engine can resolve them.
-    tanto::KitTheme kitTheme(&engine, &theme);
+    omaweb::KitTheme kitTheme(&engine, &theme);
 
     QObject::connect(&engine, &QQmlApplicationEngine::objectCreationFailed,
         &application, [] { QCoreApplication::exit(1); }, Qt::QueuedConnection);
-    engine.load(QUrl(QStringLiteral(TANTO_MAIN_QML_URL)));
+    engine.load(QUrl(QStringLiteral(OMAWEB_MAIN_QML_URL)));
 
     if (arguments.contains(QStringLiteral("--validate-qml"))) {
         if (engine.rootObjects().isEmpty()) {

@@ -5,7 +5,7 @@
 #import <AppKit/AppKit.h>
 #import <Quartz/Quartz.h>
 
-namespace tanto {
+namespace omaweb {
 
 // The print panel is a window-server service. Offscreen and minimal platform
 // plugins have no window server, so there is no panel to present and the
@@ -27,7 +27,7 @@ bool PagePrinter::present(const QString &path, const QString &jobName)
 
     bool presented = false;
     @autoreleasepool {
-        // This file is compiled without ARC, as the rest of Tanto's AppKit code
+        // This file is compiled without ARC, as the rest of Omaweb's AppKit code
         // is, so what is allocated or copied here is released here.
         NSURL *location = [NSURL fileURLWithPath:path.toNSString()];
         PDFDocument *document = [[PDFDocument alloc] initWithURL:location];
@@ -40,7 +40,7 @@ bool PagePrinter::present(const QString &path, const QString &jobName)
                                           autoRotate:YES];
             if (operation) {
                 operation.jobTitle = jobName.isEmpty()
-                    ? @"Tanto" : jobName.toNSString();
+                    ? @"Omaweb" : jobName.toNSString();
                 operation.showsPrintPanel = YES;
                 operation.showsProgressPanel = YES;
                 // Modal by design: the reader is answering a question about
@@ -58,4 +58,4 @@ bool PagePrinter::present(const QString &path, const QString &jobName)
     return presented;
 }
 
-} // namespace tanto
+} // namespace omaweb

@@ -1,25 +1,25 @@
 #include "ContentMatcher.h"
 
-#include "tanto_blocker.h"
+#include "omaweb_blocker.h"
 
 #include <QJsonArray>
 #include <QJsonDocument>
 
-namespace tanto {
+namespace omaweb {
 
 class ContentMatcher::Private final {
 public:
-    explicit Private(TantoBlocker *value)
+    explicit Private(OmawebBlocker *value)
         : blocker(value)
     {
     }
 
     ~Private()
     {
-        tanto_blocker_destroy(blocker);
+        omaweb_blocker_destroy(blocker);
     }
 
-    TantoBlocker *blocker = nullptr;
+    OmawebBlocker *blocker = nullptr;
 };
 
 ContentMatcher::ContentMatcher(std::unique_ptr<Private> data)
@@ -33,11 +33,11 @@ MatcherCompilation ContentMatcher::compile(const QString &rules)
 {
     const auto encodedRules = rules.toUtf8();
     char *encodedReport = nullptr;
-    auto *blocker = tanto_blocker_compile(encodedRules.constData(), &encodedReport);
+    auto *blocker = omaweb_blocker_compile(encodedRules.constData(), &encodedReport);
     QJsonObject report;
     if (encodedReport) {
         report = QJsonDocument::fromJson(QByteArray(encodedReport)).object();
-        tanto_blocker_string_free(encodedReport);
+        omaweb_blocker_string_free(encodedReport);
     }
     if (!blocker) {
         return {{}, report};
@@ -66,8 +66,8 @@ RequestDecision ContentMatcher::check(const QUrl &requestUrl, const QUrl &source
     const auto request = requestUrl.toString(QUrl::FullyEncoded).toUtf8();
     const auto source = sourceUrl.toString(QUrl::FullyEncoded).toUtf8();
     const auto type = resourceType.toUtf8();
-    TantoBlockerDecision answer{};
-    tanto_blocker_check(d->blocker, request.constData(), source.constData(), type.constData(),
+    OmawebBlockerDecision answer{};
+    omaweb_blocker_check(d->blocker, request.constData(), source.constData(), type.constData(),
         &answer);
     RequestDecision decision;
     decision.blocked = answer.blocked;
@@ -76,7 +76,7 @@ RequestDecision ContentMatcher::check(const QUrl &requestUrl, const QUrl &source
     if (!rewritten.isEmpty()) {
         decision.rewrittenUrl = QUrl(rewritten);
     }
-    tanto_blocker_decision_release(&answer);
+    omaweb_blocker_decision_release(&answer);
     return decision;
 }
 
@@ -86,12 +86,12 @@ RequestDecision ContentMatcher::check(const QUrl &requestUrl, const QUrl &source
 Substitute ContentMatcher::substitute(const QString &name)
 {
     const auto encodedName = name.toUtf8();
-    auto *encoded = tanto_blocker_substitute(encodedName.constData());
+    auto *encoded = omaweb_blocker_substitute(encodedName.constData());
     if (!encoded) {
         return {};
     }
     const QByteArray dataUrl(encoded);
-    tanto_blocker_string_free(encoded);
+    omaweb_blocker_string_free(encoded);
     constexpr QByteArrayView prefix = "data:";
     constexpr QByteArrayView separator = ";base64,";
     const auto mark = dataUrl.indexOf(separator);
@@ -111,7 +111,7 @@ bool ContentMatcher::shouldBlockPopup(const QUrl &requestUrl, const QUrl &opener
 {
     const auto request = requestUrl.toString(QUrl::FullyEncoded).toUtf8();
     const auto opener = openerUrl.toString(QUrl::FullyEncoded).toUtf8();
-    return tanto_blocker_matches_popup(d->blocker, request.constData(), opener.constData());
+    return omaweb_blocker_matches_popup(d->blocker, request.constData(), opener.constData());
 }
 
 namespace {
@@ -129,12 +129,12 @@ QByteArray encodedNames(const QStringList &names)
 QString ContentMatcher::cosmeticStyleSheet(const QUrl &url) const
 {
     const auto encodedUrl = url.toString(QUrl::FullyEncoded).toUtf8();
-    auto *css = tanto_blocker_cosmetic_css(d->blocker, encodedUrl.constData());
+    auto *css = omaweb_blocker_cosmetic_css(d->blocker, encodedUrl.constData());
     if (!css) {
         return {};
     }
     const auto result = QString::fromUtf8(css);
-    tanto_blocker_string_free(css);
+    omaweb_blocker_string_free(css);
     return result;
 }
 
@@ -144,19 +144,19 @@ QString ContentMatcher::cosmeticStyleSheet(const QUrl &url) const
 QString ContentMatcher::scriptletSource(const QUrl &url) const
 {
     const auto encodedUrl = url.toString(QUrl::FullyEncoded).toUtf8();
-    auto *source = tanto_blocker_scriptlet_source(d->blocker, encodedUrl.constData());
+    auto *source = omaweb_blocker_scriptlet_source(d->blocker, encodedUrl.constData());
     if (!source) {
         return {};
     }
     const auto result = QString::fromUtf8(source);
-    tanto_blocker_string_free(source);
+    omaweb_blocker_string_free(source);
     return result;
 }
 
 bool ContentMatcher::cosmeticSurveyWanted(const QUrl &url) const
 {
     const auto encodedUrl = url.toString(QUrl::FullyEncoded).toUtf8();
-    return tanto_blocker_cosmetic_survey_wanted(d->blocker, encodedUrl.constData());
+    return omaweb_blocker_cosmetic_survey_wanted(d->blocker, encodedUrl.constData());
 }
 
 QString ContentMatcher::genericCosmeticStyleSheet(const QUrl &url, const QStringList &classes,
@@ -165,14 +165,14 @@ QString ContentMatcher::genericCosmeticStyleSheet(const QUrl &url, const QString
     const auto encodedUrl = url.toString(QUrl::FullyEncoded).toUtf8();
     const auto encodedClasses = encodedNames(classes);
     const auto encodedIds = encodedNames(ids);
-    auto *css = tanto_blocker_generic_cosmetic_css(d->blocker, encodedUrl.constData(),
+    auto *css = omaweb_blocker_generic_cosmetic_css(d->blocker, encodedUrl.constData(),
         encodedClasses.constData(), encodedIds.constData());
     if (!css) {
         return {};
     }
     const auto result = QString::fromUtf8(css);
-    tanto_blocker_string_free(css);
+    omaweb_blocker_string_free(css);
     return result;
 }
 
-} // namespace tanto
+} // namespace omaweb

@@ -9,7 +9,7 @@
 
 class QTemporaryDir;
 
-namespace tanto {
+namespace omaweb {
 
 class BrowserController;
 
@@ -58,4 +58,4 @@ private:
     QSharedPointer<QHash<QString, int>> m_privatePermissionDecisions;
 };
 
-} // namespace tanto
+} // namespace omaweb

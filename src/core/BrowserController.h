@@ -14,7 +14,7 @@
 #include <QUrl>
 #include <QVariantList>
 
-namespace tanto {
+namespace omaweb {
 
 class BrowserController final : public QObject {
     Q_OBJECT
@@ -327,4 +327,4 @@ private:
     QSharedPointer<QHash<QString, int>> m_sessionPermissionDecisions;
 };
 
-} // namespace tanto
+} // namespace omaweb

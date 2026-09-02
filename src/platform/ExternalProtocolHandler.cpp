@@ -3,7 +3,7 @@
 #include <QDesktopServices>
 #include <QQmlEngine>
 
-namespace tanto {
+namespace omaweb {
 
 ExternalProtocolHandler::ExternalProtocolHandler(QObject *parent)
     : QObject(parent)
@@ -26,8 +26,8 @@ bool ExternalProtocolHandler::open(const QUrl &destination) const
 
 void registerExternalProtocolHandler()
 {
-    qmlRegisterSingletonType<ExternalProtocolHandler>("Tanto", 1, 0, "ExternalProtocolHandler",
+    qmlRegisterSingletonType<ExternalProtocolHandler>("Omaweb", 1, 0, "ExternalProtocolHandler",
         [](QQmlEngine *, QJSEngine *) -> QObject * { return new ExternalProtocolHandler; });
 }
 
-} // namespace tanto
+} // namespace omaweb

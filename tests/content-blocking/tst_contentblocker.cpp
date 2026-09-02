@@ -5,7 +5,7 @@
 #include <QTemporaryDir>
 #include <QTest>
 
-using tanto::ContentBlocker;
+using omaweb::ContentBlocker;
 
 class ContentBlockerTest final : public QObject {
     Q_OBJECT

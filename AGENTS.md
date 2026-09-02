@@ -2,7 +2,7 @@
 
 ### Issue tracker
 
-Issues and specs are tracked in GitHub Issues for `villekivela/tanto`. See `docs/agents/issue-tracker.md`.
+Issues and specs are tracked in GitHub Issues for `villekivela/omaweb`. See `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 

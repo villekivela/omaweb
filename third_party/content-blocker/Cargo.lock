@@ -433,7 +433,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "tanto-content-blocker"
+name = "omaweb-content-blocker"
 version = "0.1.0"
 dependencies = [
  "adblock",

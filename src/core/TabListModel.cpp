@@ -1,6 +1,6 @@
 #include "TabListModel.h"
 
-namespace tanto {
+namespace omaweb {
 
 TabListModel::TabListModel(QObject *parent)
     : QAbstractListModel(parent)
@@ -164,4 +164,4 @@ void TabListModel::notifyChanged(const QString &id, const QList<int> &roles)
     }
 }
 
-} // namespace tanto
+} // namespace omaweb

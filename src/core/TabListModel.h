@@ -4,7 +4,7 @@
 #include <QUrl>
 #include <QVector>
 
-namespace tanto {
+namespace omaweb {
 
 // Everything a tab carries has a value it starts at, so a place that builds
 // one can name the fields it knows and leave the rest to the tab. Only the
@@ -88,4 +88,4 @@ private:
     QVector<TabState> m_tabs;
 };
 
-} // namespace tanto
+} // namespace omaweb

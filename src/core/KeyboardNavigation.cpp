@@ -7,7 +7,7 @@
 #include <QSaveFile>
 #include <QSet>
 
-namespace tanto {
+namespace omaweb {
 
 namespace {
 
@@ -46,7 +46,7 @@ const QSet<QString> supportedCommands = {
     QStringLiteral("open-link-background"),
 };
 
-// Commands Tanto itself performs. The page never sees these, so they may be
+// Commands Omaweb itself performs. The page never sees these, so they may be
 // bound to chords as well as to single keys.
 const QSet<QString> supportedBrowserCommands = {
     QStringLiteral("back"),
@@ -219,7 +219,7 @@ bool KeyboardNavigation::load()
     // A binding this build cannot honour is dropped, and every other binding in
     // the file still loads. Refusing the whole file costs the reader their
     // keyboard entirely — in a browser driven from the keyboard — and one
-    // configuration is shared by every Tanto on the machine: a command that
+    // configuration is shared by every Omaweb on the machine: a command that
     // only one build knows about, or one retired since the file was written,
     // would otherwise take the rest of the keymap down with it. What was
     // dropped is named in the error message rather than passed over in silence.
@@ -306,8 +306,8 @@ bool KeyboardNavigation::adoptDefaults(const QString &configurationPath,
     const auto ledger = settings.value(adoptedDefaultsKey).toObject();
     auto adopted = false;
 
-    // Defaults Tanto has since changed its mind about. A key still carrying the
-    // command Tanto shipped on it is Tanto's own former default rather than a
+    // Defaults Omaweb has since changed its mind about. A key still carrying the
+    // command Omaweb shipped on it is Omaweb's own former default rather than a
     // choice the reader made, so it follows the new decision: dropped where
     // there is no default for that key any more — `u` now scrolls the page, and
     // the old `g` sequences kept the page from ever receiving the first key of
@@ -316,7 +316,7 @@ bool KeyboardNavigation::adoptDefaults(const QString &configurationPath,
     //
     // Adoption alone cannot do this: it offers a default once and never argues
     // with a key the file already binds, which is right for the reader's own
-    // bindings and wrong for Tanto's abandoned ones.
+    // bindings and wrong for Omaweb's abandoned ones.
     auto browser = settings.value(QStringLiteral("browser")).toObject();
     const auto defaultBrowser = defaults.value(QStringLiteral("browser")).toObject();
     const QHash<QString, QString> retiredBrowserDefaults = {
@@ -438,4 +438,4 @@ bool KeyboardNavigation::hostMatches(const QString &host, const QString &ruleHos
     return host == ruleHost || host.endsWith(QLatin1Char('.') + ruleHost);
 }
 
-} // namespace tanto
+} // namespace omaweb

@@ -7,7 +7,7 @@
 #include <QStandardPaths>
 #include <QUuid>
 
-namespace tanto {
+namespace omaweb {
 namespace {
 
 QString printSpoolDirectory()
@@ -16,7 +16,7 @@ QString printSpoolDirectory()
     if (root.isEmpty()) {
         return {};
     }
-    const auto spool = QDir(root).filePath(QStringLiteral("tanto-print"));
+    const auto spool = QDir(root).filePath(QStringLiteral("omaweb-print"));
     return QDir().mkpath(spool) ? spool : QString{};
 }
 
@@ -94,8 +94,8 @@ bool PagePrinter::present(const QString &path, const QString &jobName)
 
 void registerPagePrinter()
 {
-    qmlRegisterSingletonType<PagePrinter>("Tanto", 1, 0, "PagePrinter",
+    qmlRegisterSingletonType<PagePrinter>("Omaweb", 1, 0, "PagePrinter",
         [](QQmlEngine *, QJSEngine *) -> QObject * { return new PagePrinter; });
 }
 
-} // namespace tanto
+} // namespace omaweb

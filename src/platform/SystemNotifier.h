@@ -3,14 +3,14 @@
 #include <QObject>
 #include <QString>
 
-namespace tanto {
+namespace omaweb {
 
 // The desktop's own notifications. A page that asks to interrupt the reader is
-// answered by the window system rather than by a surface Tanto draws: the
+// answered by the window system rather than by a surface Omaweb draws: the
 // reader is looking at something else when it matters, and only the desktop can
 // reach them there.
 //
-// Tanto supplies the text — which always names the origin and the Space — and
+// Omaweb supplies the text — which always names the origin and the Space — and
 // hears back which notification the reader answered. It hands out a key of its
 // own rather than the desktop's identifier, because the page waiting for the
 // answer belongs to a tab in a Space and nothing about that is the desktop's to
@@ -41,8 +41,8 @@ signals:
     void dismissed(const QString &key);
 };
 
-// Makes `SystemNotifier` available to QML as `import Tanto`. Call once per
+// Makes `SystemNotifier` available to QML as `import Omaweb`. Call once per
 // process, before loading QML that uses it.
 void registerSystemNotifier();
 
-} // namespace tanto
+} // namespace omaweb

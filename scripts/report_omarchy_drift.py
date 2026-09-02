@@ -5,7 +5,7 @@ Upstream's `quattro` is an active branch and the pin only moves when someone
 runs the sync, so drift is invisible until someone thinks to look. This is the
 prompt to look: one open issue, updated in place while the pin is behind and
 closed once it catches up. It never syncs anything — an upstream API change
-lands on Tanto's adapters, so a human reads the diff.
+lands on Omaweb's adapters, so a human reads the diff.
 
 Usage:
 
@@ -29,7 +29,7 @@ LABEL_DESCRIPTION = "The vendored Omarchy kit is behind upstream"
 TRIAGE_LABEL = "ready-for-human"
 
 # Kept in the body so the issue can be found again even if the label is lost.
-MARKER = "<!-- tanto:omarchy-kit-drift -->"
+MARKER = "<!-- omaweb:omarchy-kit-drift -->"
 
 
 def gh(*arguments: str) -> str:
@@ -64,7 +64,7 @@ def issue_body(report: dict) -> str:
         f"[Compare {report['pinned'][:12]}...{report['head'][:12]}]"
         f"({report['compare']})",
         "",
-        "Read the diff before syncing: an upstream API change lands on Tanto's",
+        "Read the diff before syncing: an upstream API change lands on Omaweb's",
         "adapters in `src/ui`, not on the vendored copies.",
         "",
         "```sh",

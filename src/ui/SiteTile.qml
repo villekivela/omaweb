@@ -1,6 +1,6 @@
 import QtQuick
 import QtQuick.Effects
-import Tanto
+import Omaweb
 import qs.Commons
 
 Rectangle {
@@ -47,7 +47,7 @@ Rectangle {
     }
 
     // With artwork switched off the chip is all the site gets, so it takes the
-    // site's own colour: the hue of the favicon Tanto is not drawing. An icon
+    // site's own colour: the hue of the favicon Omaweb is not drawing. An icon
     // with no colour to give — a white or black mark, or none at all — leaves
     // the chip neutral rather than inventing one.
     readonly property color chipTint: useArtwork

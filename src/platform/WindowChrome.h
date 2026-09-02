@@ -2,8 +2,8 @@
 
 class QGuiApplication;
 
-namespace tanto {
+namespace omaweb {
 
 void installWindowChrome(QGuiApplication *application);
 
-} // namespace tanto
+} // namespace omaweb

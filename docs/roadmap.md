@@ -2,7 +2,7 @@
 
 ## Completed foundation
 
-Tracking issues [#1](https://github.com/villekivela/tanto/issues/1) through [#6](https://github.com/villekivela/tanto/issues/6) established the Qt vertical slice and daily-driver foundation:
+Tracking issues [#1](https://github.com/villekivela/omaweb/issues/1) through [#6](https://github.com/villekivela/omaweb/issues/6) established the Qt vertical slice and daily-driver foundation:
 
 - Frameless macOS application shell and engine-free UI lab
 - Spaces with isolated identities, suspension, vertical tabs, and Pinned tabs
@@ -13,18 +13,18 @@ Tracking issues [#1](https://github.com/villekivela/tanto/issues/1) through [#6]
 
 ## Docked Developer tools
 
-Tracking issue: [#51](https://github.com/villekivela/tanto/issues/51)
+Tracking issue: [#51](https://github.com/villekivela/omaweb/issues/51)
 
 - The engine capability, an Open developer tools command, and Inspect element
 - Qt's bundled Chromium DevTools docked beside the inspected tab at a remembered width
 - One inspector on one tab across navigation and Space switches
 - The inspector drawn in the active theme, syntax colours included
 - Remote debugging behind an explicit loopback-only development launch option
-- A Tanto-drawn page context menu, which is where Inspect element belongs
+- A Omaweb-drawn page context menu, which is where Inspect element belongs
 
 ## Everyday page commands
 
-Tracking issue: [#52](https://github.com/villekivela/tanto/issues/52)
+Tracking issue: [#52](https://github.com/villekivela/omaweb/issues/52)
 
 - Find belonging to one tab, retained while hidden and cleared by navigation
 - Per-tab zoom on one ladder, kept in the session and restored with the tab
@@ -36,7 +36,7 @@ Tracking issue: [#52](https://github.com/villekivela/tanto/issues/52)
 
 ## Complete the Qt daily driver
 
-Tracking issue: [#50](https://github.com/villekivela/tanto/issues/50)
+Tracking issue: [#50](https://github.com/villekivela/omaweb/issues/50)
 
 - Browser prompts with native file dialogs
 - History sheet, configurable search engines, local-file opening, and browsing-data controls
@@ -47,7 +47,7 @@ Tracking issue: [#50](https://github.com/villekivela/tanto/issues/50)
 
 ## Linux and Wayland
 
-Tracking issue: [#8](https://github.com/villekivela/tanto/issues/8)
+Tracking issue: [#8](https://github.com/villekivela/omaweb/issues/8)
 
 - Validate the completed browser contract under native Wayland on Omarchy and Hyprland
 - Ship an Arch `PKGBUILD` using system Qt packages
@@ -56,7 +56,7 @@ Tracking issue: [#8](https://github.com/villekivela/tanto/issues/8)
 
 ## Ladybird adapter
 
-Tracking issue: [#7](https://github.com/villekivela/tanto/issues/7)
+Tracking issue: [#7](https://github.com/villekivela/omaweb/issues/7)
 
 - Build against a pinned Ladybird revision outside the default graph
 - Implement navigation, input, rendering, lifecycle, accessibility, and content-blocking contracts

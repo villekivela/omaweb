@@ -18,10 +18,10 @@
 #include <QTest>
 #include <QUrlQuery>
 
-using tanto::BrowserController;
-using tanto::SpaceListModel;
-using tanto::TabListModel;
-using tanto::WindowManager;
+using omaweb::BrowserController;
+using omaweb::SpaceListModel;
+using omaweb::TabListModel;
+using omaweb::WindowManager;
 
 class BrowserControllerTest final : public QObject {
     Q_OBJECT
@@ -331,7 +331,7 @@ void BrowserControllerTest::createsTabOnlyAfterCommittedInput()
     BrowserController controller(root.path(), QStringLiteral("test"));
 
     QCOMPARE(controller.tabs()->rowCount(), 1);
-    controller.openInput(QStringLiteral("tanto browser"), true);
+    controller.openInput(QStringLiteral("omaweb browser"), true);
     QCOMPARE(controller.tabs()->rowCount(), 2);
     QCOMPARE(controller.activeUrl().host(), QStringLiteral("duckduckgo.com"));
 }

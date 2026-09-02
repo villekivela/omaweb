@@ -25,9 +25,9 @@
       "displayName": "Qt development build",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
-        "TANTO_BUILD_BROWSER": true,
-        "TANTO_BUILD_UI_LAB": true,
-        "TANTO_SOURCE_QML": true
+        "OMAWEB_BUILD_BROWSER": true,
+        "OMAWEB_BUILD_UI_LAB": true,
+        "OMAWEB_SOURCE_QML": true
       }
     },
     {
@@ -36,9 +36,9 @@
       "displayName": "Engine-free UI lab",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
-        "TANTO_BUILD_BROWSER": false,
-        "TANTO_BUILD_UI_LAB": true,
-        "TANTO_SOURCE_QML": true
+        "OMAWEB_BUILD_BROWSER": false,
+        "OMAWEB_BUILD_UI_LAB": true,
+        "OMAWEB_SOURCE_QML": true
       }
     },
     {
@@ -56,9 +56,9 @@
       "displayName": "Release build",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
-        "TANTO_BUILD_BROWSER": true,
-        "TANTO_BUILD_UI_LAB": false,
-        "TANTO_SOURCE_QML": false
+        "OMAWEB_BUILD_BROWSER": true,
+        "OMAWEB_BUILD_UI_LAB": false,
+        "OMAWEB_SOURCE_QML": false
       }
     },
     {
@@ -76,9 +76,9 @@
       "binaryDir": "${sourceDir}/build/ladybird",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
-        "TANTO_BUILD_BROWSER": false,
-        "TANTO_BUILD_UI_LAB": true,
-        "TANTO_SOURCE_QML": true
+        "OMAWEB_BUILD_BROWSER": false,
+        "OMAWEB_BUILD_UI_LAB": true,
+        "OMAWEB_SOURCE_QML": true
       }
     }
   ],

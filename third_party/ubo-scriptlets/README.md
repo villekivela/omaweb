@@ -12,18 +12,18 @@ in a page is the set in this directory.
 uBO gates behind trust are refused outright here.
 
 `src/web_accessible_resources` is the substitute bodies. A `$redirect=` rule names
-one of them and Tanto serves it in place of the request the lists refuse, so a page
+one of them and Omaweb serves it in place of the request the lists refuse, so a page
 waiting on a tracker finishes loading rather than stalling. Which of these files a
 filter may name is `src/js/redirect-resources.js` beside them, not the directory
 listing: the directory also holds uBO's own extension pages, which no rule may ask
-for. `docs/adr/0026-serve-substitutes-under-a-tanto-scheme.md` records the rest.
+for. `docs/adr/0026-serve-substitutes-under-an-omaweb-scheme.md` records the rest.
 
 ## Nothing here is edited
 
 Every file is byte-identical to upstream, which is what makes a sync a review of
 upstream's diff rather than a merge. `ctest` fails on a local edit, an untracked
 file under `src/`, or a digest that does not match the manifest
-(`tanto-vendored-ubo-scriptlets`), and so does the sync script.
+(`omaweb-vendored-ubo-scriptlets`), and so does the sync script.
 
 ## scriptlets.json and redirects.json
 

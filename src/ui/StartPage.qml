@@ -42,7 +42,7 @@ Rectangle {
     // The order the sheet reads in, and the only groups it shows: the command
     // registry also groups the page's own scrolling and link hints, and those
     // belong to a page rather than to the empty viewport standing in for one.
-    // The page group here is Tanto's own page commands — find, zoom, print —
+    // The page group here is Omaweb's own page commands — find, zoom, print —
     // which the registry leaves out wherever there is no page to run them on.
     readonly property var groups: ["navigation", "page", "tabs", "spaces",
         "interface", "developer"]

@@ -10,7 +10,7 @@
 //
 // A scriptlet uBO marks `requiresTrust` is one it only lets a list the user
 // vouched for inject — `trusted-set-cookie` can set any cookie to any value.
-// Tanto grants no list that trust, so those resources are pinned behind a
+// Omaweb grants no list that trust, so those resources are pinned behind a
 // permission bit that nothing here ever holds, and adblock-rust refuses them.
 // See docs/adr/0025-run-only-vendored-scriptlets.md.
 

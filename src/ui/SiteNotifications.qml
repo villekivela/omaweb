@@ -1,5 +1,5 @@
 import QtQuick
-import Tanto
+import Omaweb
 
 // Notifications a page asked for, on their way to the desktop and back.
 //
@@ -23,8 +23,8 @@ QtObject {
     // to do — the answer may mean changing Space and raising the window.
     signal activationRequested(string spaceId, string tabId)
 
-    // What the desktop is showing on Tanto's behalf, by the key it was given.
-    // Tanto's own key rather than the desktop's, because the page waiting on
+    // What the desktop is showing on Omaweb's behalf, by the key it was given.
+    // Omaweb's own key rather than the desktop's, because the page waiting on
     // each one belongs to a tab in a Space and none of that is the desktop's
     // to keep. The page hears a click or a dismissal, and nothing until then.
     readonly property var pending: ({})

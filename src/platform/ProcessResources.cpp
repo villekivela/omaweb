@@ -12,7 +12,7 @@
 #include <unistd.h>
 #endif
 
-namespace tanto {
+namespace omaweb {
 
 ProcessResources::ProcessResources(QObject *parent)
     : QObject(parent)
@@ -34,7 +34,7 @@ qint64 ProcessResources::residentBytes(qint64 pid) const
         return 0;
     }
 #if defined(Q_OS_MACOS)
-    // The engine's renderers are Tanto's own children and so run as the same
+    // The engine's renderers are Omaweb's own children and so run as the same
     // user, which is all this call needs; it answers for no one else's.
     rusage_info_current usage {};
     if (proc_pid_rusage(static_cast<int>(pid), RUSAGE_INFO_CURRENT,
@@ -63,8 +63,8 @@ qint64 ProcessResources::residentBytes(qint64 pid) const
 
 void registerProcessResources()
 {
-    qmlRegisterSingletonType<ProcessResources>("Tanto", 1, 0, "ProcessResources",
+    qmlRegisterSingletonType<ProcessResources>("Omaweb", 1, 0, "ProcessResources",
         [](QQmlEngine *, QJSEngine *) -> QObject * { return new ProcessResources; });
 }
 
-} // namespace tanto
+} // namespace omaweb

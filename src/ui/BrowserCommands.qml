@@ -3,7 +3,7 @@ import QtQuick
 QtObject {
     id: root
 
-    // The single registry of everything Tanto can do. The command panel reads
+    // The single registry of everything Omaweb can do. The command panel reads
     // it, the keymap dispatches into it, and nothing else may define an action:
     // a command missing here is unreachable by keyboard and unsearchable.
     property var window

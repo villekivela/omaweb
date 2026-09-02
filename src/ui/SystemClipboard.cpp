@@ -4,7 +4,7 @@
 #include <QGuiApplication>
 #include <QQmlEngine>
 
-namespace tanto {
+namespace omaweb {
 
 SystemClipboard::SystemClipboard(QObject *parent)
     : QObject(parent)
@@ -29,8 +29,8 @@ QString SystemClipboard::text() const
 
 void registerSystemClipboard()
 {
-    qmlRegisterSingletonType<SystemClipboard>("Tanto", 1, 0, "SystemClipboard",
+    qmlRegisterSingletonType<SystemClipboard>("Omaweb", 1, 0, "SystemClipboard",
         [](QQmlEngine *, QJSEngine *) -> QObject * { return new SystemClipboard; });
 }
 
-} // namespace tanto
+} // namespace omaweb

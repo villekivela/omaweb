@@ -6,7 +6,7 @@
 #import <Foundation/Foundation.h>
 #import <UserNotifications/UserNotifications.h>
 
-namespace tanto {
+namespace omaweb {
 namespace {
 
 // The delegate is the notification centre's, one per process, and it outlives
@@ -28,17 +28,17 @@ bool notificationCentreUsable()
 }
 
 } // namespace
-} // namespace tanto
+} // namespace omaweb
 
 // Both halves of an answered notification: the reader tapping it, and the
-// reader dismissing it. Tanto's own key rides in the request identifier, so
+// reader dismissing it. Omaweb's own key rides in the request identifier, so
 // nothing here has to keep a table of its own.
-@interface TantoNotificationDelegate : NSObject <UNUserNotificationCenterDelegate>
+@interface OmawebNotificationDelegate : NSObject <UNUserNotificationCenterDelegate>
 @end
 
-@implementation TantoNotificationDelegate
+@implementation OmawebNotificationDelegate
 
-// Without this a notification raised while Tanto is frontmost is delivered
+// Without this a notification raised while Omaweb is frontmost is delivered
 // silently and never drawn — and the page it belongs to may be in a Space the
 // reader is not looking at, which is exactly when it matters.
 - (void)userNotificationCenter:(UNUserNotificationCenter *)center
@@ -59,7 +59,7 @@ bool notificationCentreUsable()
     const QString key = QString::fromNSString(response.notification.request.identifier);
     const NSString *action = response.actionIdentifier;
     const bool dismissed = [action isEqualToString:UNNotificationDismissActionIdentifier];
-    if (auto *notifier = tanto::currentNotifier.data()) {
+    if (auto *notifier = omaweb::currentNotifier.data()) {
         // The answer arrives on the main queue, which is the Qt main thread, so
         // the signal is emitted straight rather than posted.
         if (dismissed) {
@@ -73,7 +73,7 @@ bool notificationCentreUsable()
 
 @end
 
-namespace tanto {
+namespace omaweb {
 
 SystemNotifier::SystemNotifier(QObject *parent)
     : QObject(parent)
@@ -82,14 +82,14 @@ SystemNotifier::SystemNotifier(QObject *parent)
         return;
     }
     currentNotifier = this;
-    static TantoNotificationDelegate *delegate = nil;
+    static OmawebNotificationDelegate *delegate = nil;
     @autoreleasepool {
         UNUserNotificationCenter *centre = [UNUserNotificationCenter currentNotificationCenter];
         if (!delegate) {
-            // This file is compiled without ARC, as the rest of Tanto's AppKit
+            // This file is compiled without ARC, as the rest of Omaweb's AppKit
             // code is. The delegate is the centre's for the life of the
             // process and is deliberately never released.
-            delegate = [[TantoNotificationDelegate alloc] init];
+            delegate = [[OmawebNotificationDelegate alloc] init];
         }
         centre.delegate = delegate;
         // Asking costs the reader one system prompt, once. A refusal is not an
@@ -149,4 +149,4 @@ void SystemNotifier::withdraw(const QString &key)
     }
 }
 
-} // namespace tanto
+} // namespace omaweb

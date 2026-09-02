@@ -4,7 +4,7 @@
 #include <QString>
 #include <QUrl>
 
-namespace tanto {
+namespace omaweb {
 
 #if defined(Q_OS_MACOS)
 QString applicationNameForMac(const QUrl &destination);
@@ -21,4 +21,4 @@ public:
 
 void registerExternalProtocolHandler();
 
-} // namespace tanto
+} // namespace omaweb

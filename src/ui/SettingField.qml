@@ -3,7 +3,7 @@ import qs.Ui as Omarchy
 
 // The themed text box the settings page and the dialogs share, drawn by the
 // Omarchy kit's `TextField` (third_party/omarchy-shell). This file is the
-// adapter: it keeps Tanto's `placeholder` and `destructive` vocabulary, the
+// adapter: it keeps Omaweb's `placeholder` and `destructive` vocabulary, the
 // `focusInput` / `selectAllText` calls the dialogs make, and the
 // accessibility annotation the kit does not carry.
 //

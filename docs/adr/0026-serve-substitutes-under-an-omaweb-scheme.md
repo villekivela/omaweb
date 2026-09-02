@@ -1,4 +1,4 @@
-# Serve substitutes under a Tanto scheme
+# Serve substitutes under an Omaweb scheme
 
 Supersedes the part of [0010](0010-own-portable-content-blocking.md) that placed
 redirects and resource replacement outside the first content-blocking contract, and
@@ -12,7 +12,7 @@ the tracker is gone and so is the article. This is what a list's `$redirect=` ru
 are for — they name a small stand-in body that defines the symbols the page expects
 and does nothing else, so the page finishes initialising with the tracker replaced
 rather than missing. Twenty-seven such rules ship in EasyList and EasyPrivacy today,
-plus eight more written as `$rewrite=abp-resource:…`, and until now Tanto discarded
+plus eight more written as `$rewrite=abp-resource:…`, and until now Omaweb discarded
 all thirty-five and blocked what they named.
 
 A rule names a substitute. It does not supply one, for the same reason a scriptlet
@@ -26,8 +26,8 @@ because a rule that blocks and then serves nothing leaves exactly the half-loade
 page substitutes exist to prevent.
 
 `adblock-rust` hands a matched body over as a `data:` URL, and Chromium refuses to
-redirect a request to one. So Tanto registers `tanto-resource:` and serves the body
-under the name the library knows it by — `tanto-resource:noop.js` rather than twenty
+redirect a request to one. So Omaweb registers `omaweb-resource:` and serves the body
+under the name the library knows it by — `omaweb-resource:noop.js` rather than twenty
 kilobytes of base64 — which keeps a replaced request legible in a network log as the
 resource that replaced it. Reading the name back out of the body is a lookup built
 once for the process, because the engine reports which body it chose and never which
@@ -47,15 +47,15 @@ the set of requests the option's own default names.
 
 Both answers are redirects, and Chromium drops a redirect on a request carrying a
 payload. So a substitute cannot stand in for a POST, and the request is refused
-outright instead, which is what Tanto did with it before; and a `$removeparam` rule
+outright instead, which is what Omaweb did with it before; and a `$removeparam` rule
 cannot strip a POST's parameters, which is a limit uBlock Origin shares. Every rule
-in the lists Tanto ships names a resource a page fetches rather than posts to.
+in the lists Omaweb ships names a resource a page fetches rather than posts to.
 
 Two things stay out of contract, and both for the same reason: a
 `QWebEngineUrlRequestInterceptor` sees a request and never a response. `$replace`
 rewrites a response body and `$csp` adds a response header, and neither is reachable
-from where Tanto decides. CNAME uncloaking needs DNS the interceptor never sees.
-`$replace` is zero rules in the lists Tanto ships and `$csp` is five, four of which
+from where Omaweb decides. CNAME uncloaking needs DNS the interceptor never sees.
+`$replace` is zero rules in the lists Omaweb ships and `$csp` is five, four of which
 add a policy and one of which takes one back, so the cost is a reported category
 rather than blocking that quietly does nothing. They can be
 reconsidered when the Ladybird adapter can offer response access.

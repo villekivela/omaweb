@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Derive a Tanto theme from the colours of the terminal this script runs in.
+"""Derive a Omaweb theme from the colours of the terminal this script runs in.
 
-A terminal gives up a background, a foreground and sixteen ANSI colours. Tanto's
+A terminal gives up a background, a foreground and sixteen ANSI colours. Omaweb's
 schema wants a lightness ladder of chrome surfaces on top of that, so most of
 this file is the derivation rather than the reading. Run it from the terminal
 whose colours you want; TERM_PROGRAM then identifies that terminal exactly,
@@ -462,7 +462,7 @@ def derive(source):
 def build_theme(source):
     """Fill the shipped theme's colour keys, leaving its other sections alone.
 
-    The type base size, tint and the semantic opacities are Tanto's own layout
+    The type base size, tint and the semantic opacities are Omaweb's own layout
     decisions. A terminal's background-opacity in particular means something
     different here, where opacity is per-surface rather than per-window.
     """
@@ -475,13 +475,13 @@ def build_theme(source):
     return theme
 
 
-OMARCHY_THEME = Path.home() / ".local/state/omarchy/current/theme/tanto.json"
+OMARCHY_THEME = Path.home() / ".local/state/omarchy/current/theme/omaweb.json"
 
 
 def desktop_manages_theme():
-    """Whether a desktop theme manager is already supplying Tanto's palette.
+    """Whether a desktop theme manager is already supplying Omaweb's palette.
 
-    On Omarchy the desktop is the source of truth: it renders Tanto's template
+    On Omarchy the desktop is the source of truth: it renders Omaweb's template
     on every theme switch. A theme written to the configuration directory ranks
     above that, so importing one here would silently freeze the palette at
     whatever the terminal looked like on the day the import ran.
@@ -490,11 +490,11 @@ def desktop_manages_theme():
 
 
 def default_output():
-    override = os.environ.get("TANTO_CONFIG_ROOT")
+    override = os.environ.get("OMAWEB_CONFIG_ROOT")
     if override:
         return Path(override) / "theme.json"
     base = os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config"
-    return Path(base) / "tanto" / "theme.json"
+    return Path(base) / "omaweb" / "theme.json"
 
 
 def main():
@@ -502,7 +502,7 @@ def main():
     parser.add_argument("--terminal", choices=sorted(READERS),
                         help="read this terminal instead of the one running the script")
     parser.add_argument("--output", type=Path, default=None,
-                        help="write here instead of the Tanto configuration directory")
+                        help="write here instead of the Omaweb configuration directory")
     parser.add_argument("--print", dest="print_only", action="store_true",
                         help="write nothing; print the theme")
     parser.add_argument("--force", action="store_true", help="overwrite an existing theme")
@@ -522,7 +522,7 @@ def main():
 
     output = arguments.output or default_output()
     if arguments.output is None and desktop_manages_theme() and not arguments.force:
-        print(f"import_terminal_theme: Omarchy is already theming Tanto through "
+        print(f"import_terminal_theme: Omarchy is already theming Omaweb through "
               f"{OMARCHY_THEME}, and a theme in the configuration directory would override it "
               f"for good — the palette would stop following theme switches. Pass --force to "
               f"import anyway, or --print to see the result without writing.", file=sys.stderr)

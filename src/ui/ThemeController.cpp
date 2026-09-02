@@ -9,7 +9,7 @@
 
 #include <algorithm>
 
-namespace tanto {
+namespace omaweb {
 
 ThemeController::ThemeController(QString themePath, QObject *parent)
     : QObject(parent)
@@ -143,7 +143,7 @@ QString ThemeController::installedFamily(const QStringList &candidates)
     if (QFontDatabase::hasFamily(fixed)) {
         return fixed;
     }
-    // A host with no fixed-pitch family is not one Tanto can be picky on.
+    // A host with no fixed-pitch family is not one Omaweb can be picky on.
     const auto installed = QFontDatabase::families();
     return installed.isEmpty() ? QString{} : installed.constFirst();
 }
@@ -191,12 +191,12 @@ QVariantMap ThemeController::normalizedPalette(QVariantMap palette) const
     enforceDifference(QStringLiteral("window"), QStringLiteral("privateWindow"));
     enforceDifference(QStringLiteral("accent"), QStringLiteral("privateAccent"));
 
-    // A Tanto surface that takes the whole page area — the shortcut sheet
+    // A Omaweb surface that takes the whole page area — the shortcut sheet
     // summoned over a page, the settings page — is the same material as the
     // sidebar and takes its colour. Not its translucency: the sidebar is read
     // against the desktop and these are read against a webpage. A theme that
     // wants a colour of its own for them names one, and inheriting rather than
-    // falling back to Tanto's own dark is what keeps a light theme light.
+    // falling back to Omaweb's own dark is what keeps a light theme light.
     const auto inheritSidebarColor = [&palette](const QString &sheetKey,
                                          const QString &sidebarKey) {
         if (!palette.contains(sheetKey)) {
@@ -207,7 +207,7 @@ QVariantMap ThemeController::normalizedPalette(QVariantMap palette) const
     inheritSidebarColor(QStringLiteral("privateSheet"), QStringLiteral("privateSidebar"));
 
     // Semantic opacity is the single source of truth for how much of the desktop
-    // shows through a Tanto-owned surface, so a theme that also bakes alpha into
+    // shows through a Omaweb-owned surface, so a theme that also bakes alpha into
     // the colour itself does not get to multiply the two. The opaque variants stay
     // available for the places that must hide whatever is behind them.
     auto opacity = defaultOpacity();
@@ -227,7 +227,7 @@ QVariantMap ThemeController::normalizedPalette(QVariantMap palette) const
     // The theme names the families it prefers and the size the type scale
     // grows from; the resolved family is what the interface actually draws
     // with. Everything above the base size is derived from it, so this is the
-    // whole of Tanto's type contract.
+    // whole of Omaweb's type contract.
     const auto defaults = defaultFont();
     const auto themeFont = palette.value(QStringLiteral("font")).toMap();
     auto families = themeFont.value(QStringLiteral("families")).toStringList();
@@ -252,7 +252,7 @@ QVariantMap ThemeController::normalizedPalette(QVariantMap palette) const
     // Every token is named, whether the theme named it or not, and every one
     // is a colour: the inspector is handed these directly, and a name it
     // cannot parse leaves that token drawn in the frontend's own palette
-    // beside Tanto's. Alpha is dropped rather than honoured — code is read
+    // beside Omaweb's. Alpha is dropped rather than honoured — code is read
     // against a solid surface, and a translucent character reads as a faded
     // one.
     auto syntaxDefaults = defaultSyntax();
@@ -305,4 +305,4 @@ void ThemeController::refreshWatchPaths()
     }
 }
 
-} // namespace tanto
+} // namespace omaweb

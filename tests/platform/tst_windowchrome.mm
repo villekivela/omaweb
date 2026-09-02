@@ -13,13 +13,13 @@ class WindowChromeTest final : public QObject {
 private slots:
     void expandedClientAreaRemainsAStandardWindow()
     {
-        tanto::installWindowChrome(qGuiApp);
+        omaweb::installWindowChrome(qGuiApp);
 
         QQuickWindow window;
         window.setFlags(Qt::Window
             | Qt::ExpandedClientAreaHint
             | Qt::NoTitleBarBackgroundHint);
-        window.setTitle(QStringLiteral("Tanto window chrome test"));
+        window.setTitle(QStringLiteral("Omaweb window chrome test"));
         window.resize(480, 320);
         window.show();
         QVERIFY(QTest::qWaitForWindowExposed(&window));
@@ -41,7 +41,7 @@ private slots:
 
     void keepsAlphaSurfacesNonOpaque()
     {
-        tanto::installWindowChrome(qGuiApp);
+        omaweb::installWindowChrome(qGuiApp);
 
         QQuickWindow window;
         window.setColor(QColor(0, 0, 0, 0));
@@ -60,9 +60,9 @@ private slots:
         QCOMPARE([nativeWindow.backgroundColor alphaComponent], 0.0);
     }
 
-    void blursBehindTantoOwnedSurfaces()
+    void blursBehindOmawebOwnedSurfaces()
     {
-        tanto::installWindowChrome(qGuiApp);
+        omaweb::installWindowChrome(qGuiApp);
 
         QQuickWindow window;
         window.setColor(QColor(0, 0, 0, 0));
@@ -105,7 +105,7 @@ private slots:
     // leaves it in, and the notification that ends one is posted for it.
     void restoresItsChromeAfterAFullScreenTransition()
     {
-        tanto::installWindowChrome(qGuiApp);
+        omaweb::installWindowChrome(qGuiApp);
 
         QQuickWindow window;
         window.setColor(QColor(0, 0, 0, 0));
@@ -123,10 +123,10 @@ private slots:
         QVERIFY(nativeWindow != nil);
 
         // By identifier: AppKit puts visual-effect views of its own in the
-        // frame view, and only the one Tanto installed is Tanto's to repair.
+        // frame view, and only the one Omaweb installed is Omaweb's to repair.
         const auto backdropOf = [](NSWindow *host) -> NSVisualEffectView * {
             for (NSView *sibling in host.contentView.superview.subviews) {
-                if ([sibling.identifier isEqualToString:@"tanto.window.backdrop"]) {
+                if ([sibling.identifier isEqualToString:@"omaweb.window.backdrop"]) {
                     return static_cast<NSVisualEffectView *>(sibling);
                 }
             }
@@ -175,7 +175,7 @@ private slots:
     // unrepaired, so the observer belongs to the window and goes with it.
     void stopsWatchingAWindowThatHasGoneAway()
     {
-        tanto::installWindowChrome(qGuiApp);
+        omaweb::installWindowChrome(qGuiApp);
 
         NSWindow *nativeWindow = nil;
         {

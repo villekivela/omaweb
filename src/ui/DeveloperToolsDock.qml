@@ -1,7 +1,7 @@
 import QtQuick
 
 // Where the engine's inspector is shown: beside the tab it inspects, at a width
-// the reader owns. The view itself belongs to the engine adapter — Tanto builds
+// the reader owns. The view itself belongs to the engine adapter — Omaweb builds
 // no inspector and knows nothing about the one it is handed — so this takes it
 // as a child and gives it the dock's shape and nothing else.
 Item {

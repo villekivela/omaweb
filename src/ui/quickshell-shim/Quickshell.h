@@ -14,7 +14,7 @@
 #include <QString>
 #include <QStringList>
 
-namespace tanto::quickshell {
+namespace omaweb::quickshell {
 
 // Registers the shim's types under the `Quickshell` and `Quickshell.Io` module
 // URIs, and picks the Qt Quick Controls style the kit needs. Call once per QML
@@ -36,4 +36,4 @@ public:
     Q_INVOKABLE void execDetached(const QStringList &command);
 };
 
-} // namespace tanto::quickshell
+} // namespace omaweb::quickshell

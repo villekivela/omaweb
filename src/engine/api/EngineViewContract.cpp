@@ -4,7 +4,7 @@
 #include <QMetaObject>
 #include <QObject>
 
-namespace tanto {
+namespace omaweb {
 
 QStringList validateEngineViewContract(const QObject &adapter)
 {
@@ -146,4 +146,4 @@ QStringList validateEngineViewContract(const QObject &adapter)
     return missing;
 }
 
-} // namespace tanto
+} // namespace omaweb

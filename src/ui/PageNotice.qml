@@ -8,7 +8,7 @@ import qs.Ui as Omarchy
 // This one says what just happened: the size the page is now drawn at, the site
 // that took the screen, a command this engine cannot carry out.
 //
-// A command Tanto cannot carry out has to say so rather than do nothing, and
+// A command Omaweb cannot carry out has to say so rather than do nothing, and
 // this is where it says it.
 Item {
     id: root

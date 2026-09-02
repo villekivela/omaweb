@@ -1,6 +1,6 @@
 # Own keyboard navigation
 
-Tanto implements Keyboard navigation as a first-party built-in capability controlled by a setting rather than depending on Vimium or another engine-specific extension. Native commands control the browser interface, while an injected page script handles scrolling, link hints, and page commands. Each engine adapter must provide the same command contract.
+Omaweb implements Keyboard navigation as a first-party built-in capability controlled by a setting rather than depending on Vimium or another engine-specific extension. Native commands control the browser interface, while an injected page script handles scrolling, link hints, and page commands. Each engine adapter must provide the same command contract.
 
 Keyboard navigation has no persistent Normal or Insert state. It ignores editable controls, supports per-site key-routing overrides, and lets a site receive all keys when needed. Bindings live in versioned JSON. The interface identifies consumed key sequences so hidden state does not trap the user.
 

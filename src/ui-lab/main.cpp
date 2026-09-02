@@ -68,9 +68,9 @@ QVariantList drawMockFavicons(const QString &directory)
 int main(int argc, char *argv[])
 {
     QGuiApplication application(argc, argv);
-    tanto::installWindowChrome(&application);
-    QCoreApplication::setOrganizationName(QStringLiteral("Tanto"));
-    QCoreApplication::setApplicationName(QStringLiteral("Tanto UI Lab"));
+    omaweb::installWindowChrome(&application);
+    QCoreApplication::setOrganizationName(QStringLiteral("Omaweb"));
+    QCoreApplication::setApplicationName(QStringLiteral("Omaweb UI Lab"));
 
     QTemporaryDir dataRoot;
     if (!dataRoot.isValid()) {
@@ -78,31 +78,31 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    tanto::BrowserController browser(dataRoot.path(), QStringLiteral("mock"));
-    tanto::ContentBlocker contentBlocker(
-        dataRoot.path(), tanto::ContentBlocker::DefaultLists::None);
+    omaweb::BrowserController browser(dataRoot.path(), QStringLiteral("mock"));
+    omaweb::ContentBlocker contentBlocker(
+        dataRoot.path(), omaweb::ContentBlocker::DefaultLists::None);
     const auto keybindingsPath = dataRoot.filePath(QStringLiteral("keybindings.json"));
-    QFile::copy(QStringLiteral(TANTO_DEFAULT_KEYBINDINGS_PATH), keybindingsPath);
-    tanto::KeyboardNavigation keyboardNavigation(
-        keybindingsPath, QStringLiteral(TANTO_KEYBOARD_NAVIGATION_SCRIPT_PATH));
+    QFile::copy(QStringLiteral(OMAWEB_DEFAULT_KEYBINDINGS_PATH), keybindingsPath);
+    omaweb::KeyboardNavigation keyboardNavigation(
+        keybindingsPath, QStringLiteral(OMAWEB_KEYBOARD_NAVIGATION_SCRIPT_PATH));
     // The lab reviews chrome, and chrome is drawn in a palette, so it honours
-    // the same override the browser does: `TANTO_THEME_FILE=<path>` reviews a
+    // the same override the browser does: `OMAWEB_THEME_FILE=<path>` reviews a
     // theme without installing it. Nothing else in the lab's search order —
     // the config directory, the desktop's theme — applies: a lab that read the
     // machine's theme would review a different palette on every machine.
-    const auto themeOverride = qEnvironmentVariable("TANTO_THEME_FILE");
-    tanto::ThemeController theme(themeOverride.isEmpty()
-            ? QStringLiteral(TANTO_THEME_PATH)
+    const auto themeOverride = qEnvironmentVariable("OMAWEB_THEME_FILE");
+    omaweb::ThemeController theme(themeOverride.isEmpty()
+            ? QStringLiteral(OMAWEB_THEME_PATH)
             : themeOverride);
-    tanto::WindowManager windowManager(QStringLiteral("mock"));
+    omaweb::WindowManager windowManager(QStringLiteral("mock"));
 
-    tanto::quickshell::installShim();
-    tanto::registerFaviconTint();
-    tanto::registerSystemClipboard();
-    tanto::registerExternalProtocolHandler();
-    tanto::registerPagePrinter();
-    tanto::registerSystemNotifier();
-    tanto::registerProcessResources();
+    omaweb::quickshell::installShim();
+    omaweb::registerFaviconTint();
+    omaweb::registerSystemClipboard();
+    omaweb::registerExternalProtocolHandler();
+    omaweb::registerPagePrinter();
+    omaweb::registerSystemNotifier();
+    omaweb::registerProcessResources();
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty(QStringLiteral("browser"), &browser);
     engine.rootContext()->setContextProperty(QStringLiteral("contentBlocker"), &contentBlocker);
@@ -113,24 +113,24 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty(QStringLiteral("theme"), &theme);
     engine.rootContext()->setContextProperty(QStringLiteral("windowManager"), &windowManager);
     engine.rootContext()->setContextProperty(
-        QStringLiteral("engineViewSource"), QUrl(QStringLiteral(TANTO_ENGINE_VIEW_URL)));
+        QStringLiteral("engineViewSource"), QUrl(QStringLiteral(OMAWEB_ENGINE_VIEW_URL)));
     engine.rootContext()->setContextProperty(
-        QStringLiteral("engineProfileSource"), QUrl(QStringLiteral(TANTO_ENGINE_PROFILE_URL)));
+        QStringLiteral("engineProfileSource"), QUrl(QStringLiteral(OMAWEB_ENGINE_PROFILE_URL)));
     engine.rootContext()->setContextProperty(
-        QStringLiteral("iconFontSource"), QUrl(QStringLiteral(TANTO_ICON_FONT_URL)));
+        QStringLiteral("iconFontSource"), QUrl(QStringLiteral(OMAWEB_ICON_FONT_URL)));
     engine.rootContext()->setContextProperty(QStringLiteral("mockFaviconUrls"),
         drawMockFavicons(dataRoot.filePath(QStringLiteral("favicons"))));
-    engine.addImportPath(QStringLiteral(TANTO_UI_DIRECTORY));
+    engine.addImportPath(QStringLiteral(OMAWEB_UI_DIRECTORY));
     // The vendored Omarchy component kit: qs.Ui and qs.Commons.
-    engine.addImportPath(QStringLiteral(TANTO_OMARCHY_IMPORT_PATH));
-    // The kit's own colour and type come from an Omarchy theme on disk. Tanto's
+    engine.addImportPath(QStringLiteral(OMAWEB_OMARCHY_IMPORT_PATH));
+    // The kit's own colour and type come from an Omarchy theme on disk. Omaweb's
     // palette is the source of truth, so it is pushed into the kit's singletons
     // once the engine can resolve them.
-    tanto::KitTheme kitTheme(&engine, &theme);
+    omaweb::KitTheme kitTheme(&engine, &theme);
 
     QObject::connect(&engine, &QQmlApplicationEngine::objectCreationFailed,
         &application, [] { QCoreApplication::exit(1); }, Qt::QueuedConnection);
-    engine.load(QUrl(QStringLiteral(TANTO_MAIN_QML_URL)));
+    engine.load(QUrl(QStringLiteral(OMAWEB_MAIN_QML_URL)));
 
     const auto arguments = application.arguments();
     // Private chrome is a whole palette of its own, and the lab is where it is

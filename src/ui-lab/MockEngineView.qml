@@ -408,7 +408,7 @@ Rectangle {
 
         Text {
             anchors.horizontalCenter: parent.horizontalCenter
-            text: "Tanto UI lab"
+            text: "Omaweb UI lab"
             color: "#25232b"
             font.pixelSize: 28
             font.weight: Font.DemiBold

@@ -12,14 +12,14 @@
 #include <QWebEngineUrlScheme>
 #include <QWebEngineUrlSchemeHandler>
 
-namespace tanto {
+namespace omaweb {
 namespace {
 
 // A page that waits on `analytics.js` and is handed nothing waits forever, so
 // a filter list can name a substitute to serve in its place. Chromium refuses
 // to redirect a request to a `data:` URL, which is the form the library hands
 // a body over in, so the substitutes get a scheme of their own.
-constexpr auto substituteScheme = "tanto-resource";
+constexpr auto substituteScheme = "omaweb-resource";
 
 // The address one substitute is served at. A canonical resource name is a
 // bare filename — `noop.js`, `1x1.gif` — so the whole address is the scheme
@@ -183,4 +183,4 @@ bool QtContentBlocker::attachToProfile(QObject *profileObject)
     return false;
 }
 
-} // namespace tanto
+} // namespace omaweb

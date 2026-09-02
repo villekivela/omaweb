@@ -2,7 +2,7 @@
 
 ## Material Symbols
 
-Tanto bundles a small subset of Material Symbols Rounded by Google. Material Symbols are licensed under Apache License 2.0. The license text and subset provenance live in `assets/fonts/`. The website ships its own smaller subset, with the same license text, in `website/assets/fonts/`.
+Omaweb bundles a small subset of Material Symbols Rounded by Google. Material Symbols are licensed under Apache License 2.0. The license text and subset provenance live in `assets/fonts/`. The website ships its own smaller subset, with the same license text, in `website/assets/fonts/`.
 
 ## JetBrains Mono
 
@@ -12,7 +12,7 @@ License 1.1; the license text lives beside it as `OFL.txt`.
 
 ## Omarchy shell component kit
 
-Tanto vendors the QML component kit from the Omarchy shell (`shell/Ui` and
+Omaweb vendors the QML component kit from the Omarchy shell (`shell/Ui` and
 `shell/Commons` of https://github.com/omacom/omarchy) under
 `third_party/omarchy-shell`, copied verbatim and pinned by `MANIFEST.json`.
 Omarchy is licensed under the MIT License, Copyright (c) David Heinemeier Hansson.
@@ -20,7 +20,7 @@ The upstream license text ships with the pinned revision.
 
 ## uBlock Origin resource library
 
-Tanto vendors uBlock Origin's scriptlet library (`src/js/resources` and the three
+Omaweb vendors uBlock Origin's scriptlet library (`src/js/resources` and the three
 modules it imports from beside it) and its web-accessible resources
 (`src/web_accessible_resources` and the `src/js/redirect-resources.js` map naming
 them), from https://github.com/gorhill/uBlock, under `third_party/ubo-scriptlets`,
@@ -33,11 +33,11 @@ ships with the pinned revision as `LICENSE.txt`.
 A `##+js(...)` filter rule names a function from this library and a `$redirect=`
 rule names a body from it; no filter list ever supplies either. See
 `docs/adr/0025-run-only-vendored-scriptlets.md` and
-`docs/adr/0026-serve-substitutes-under-a-tanto-scheme.md`.
+`docs/adr/0026-serve-substitutes-under-an-omaweb-scheme.md`.
 
 ## Default filter lists
 
-Tanto subscribes to two filter lists on a first run and fetches them from
+Omaweb subscribes to two filter lists on a first run and fetches them from
 https://easylist.to/. Neither list ships in the repository or in a build.
 
 - EasyList — https://easylist.to/easylist/easylist.txt

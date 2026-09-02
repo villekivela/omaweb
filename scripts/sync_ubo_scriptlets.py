@@ -89,7 +89,7 @@ def token() -> str | None:
 
 
 def fetch(url: str, attempts: int = 4) -> bytes:
-    headers = {"User-Agent": "tanto-sync-ubo-scriptlets"}
+    headers = {"User-Agent": "omaweb-sync-ubo-scriptlets"}
     if url.startswith(API):
         authorization = token()
         if authorization:

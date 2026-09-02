@@ -2,11 +2,11 @@
 
 #include <QObject>
 
-namespace tanto {
+namespace omaweb {
 
 // What one process is costing, asked of the operating system. A retained tab
 // keeps a renderer running while the reader is looking at another Space, and
-// Tanto has to be able to say what that costs rather than only that it is
+// Omaweb has to be able to say what that costs rather than only that it is
 // happening. The engine adapter reports which process draws a page; this
 // answers for that process.
 //
@@ -27,8 +27,8 @@ public:
     Q_INVOKABLE qint64 residentBytes(qint64 pid) const;
 };
 
-// Makes `ProcessResources` available to QML as `import Tanto`. Call once per
+// Makes `ProcessResources` available to QML as `import Omaweb`. Call once per
 // process, before loading QML that uses it.
 void registerProcessResources();
 
-} // namespace tanto
+} // namespace omaweb

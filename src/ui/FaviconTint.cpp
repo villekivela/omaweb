@@ -14,7 +14,7 @@
 #include <memory>
 #include <numbers>
 
-namespace tanto {
+namespace omaweb {
 namespace {
 
 // Enough of an icon to find its mark in. Real favicons are 16 to 64 pixels
@@ -190,7 +190,7 @@ void FaviconTint::resolve()
     }
 
     if (m_source.scheme() != QLatin1String("image")) {
-        // A local file or a resource. Anything else — an http icon Tanto would
+        // A local file or a resource. Anything else — an http icon Omaweb would
         // have to go and fetch — is left uncoloured on purpose.
         const auto path = QQmlFile::urlToLocalFileOrQrc(m_source);
         if (path.isEmpty()) {
@@ -277,7 +277,7 @@ void FaviconTint::applyHue(std::optional<qreal> hue)
 
 void registerFaviconTint()
 {
-    qmlRegisterType<FaviconTint>("Tanto", 1, 0, "FaviconTint");
+    qmlRegisterType<FaviconTint>("Omaweb", 1, 0, "FaviconTint");
 }
 
-} // namespace tanto
+} // namespace omaweb

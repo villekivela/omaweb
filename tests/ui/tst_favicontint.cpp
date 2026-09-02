@@ -10,7 +10,7 @@
 #include <QSignalSpy>
 #include <QtTest>
 
-using namespace tanto;
+using namespace omaweb;
 
 namespace {
 
@@ -197,7 +197,7 @@ private slots:
     void staysInvalidForARemoteIcon()
     {
         // Nothing here fetches an icon: docs/network-requests.md lists every
-        // request Tanto makes on its own, and a chip is not worth one.
+        // request Omaweb makes on its own, and a chip is not worth one.
         FaviconTint tint;
         tint.setSource(QUrl(QStringLiteral("https://example.com/favicon.ico")));
         QVERIFY(!tint.isValid());
@@ -303,7 +303,7 @@ private:
     FaviconTint *createTint(QQmlEngine &engine, const QString &source)
     {
         const auto qml = QStringLiteral(
-            "import Tanto\nFaviconTint { source: \"%1\" }").arg(source);
+            "import Omaweb\nFaviconTint { source: \"%1\" }").arg(source);
         auto *component = new QQmlComponent(&engine, &engine);
         component->setData(qml.toUtf8(), QUrl());
         if (component->isError()) {

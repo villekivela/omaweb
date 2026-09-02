@@ -2,7 +2,7 @@ import QtQuick
 import qs.Ui as Omarchy
 
 // Settings-facing adapter for the Omarchy dropdown. Keep the small API used by
-// Tanto here so settings controls do not fall back to platform-native styling.
+// Omaweb here so settings controls do not fall back to platform-native styling.
 Omarchy.Dropdown {
     id: root
 

@@ -7,7 +7,7 @@
 #include <QQmlProperty>
 #include <QVariantMap>
 
-namespace tanto {
+namespace omaweb {
 namespace {
 
 // Writing only on a difference is what stops the re-apply from chasing its own
@@ -66,7 +66,7 @@ void KitTheme::apply()
     const auto palette = m_theme->palette();
     assign(m_color, QStringLiteral("foreground"), colorFrom(palette, QStringLiteral("text")));
     // The kit paints `background` as a solid surface, so it takes the opaque
-    // window rather than the alpha Tanto's own chrome lets the desktop through.
+    // window rather than the alpha Omaweb's own chrome lets the desktop through.
     assign(m_color, QStringLiteral("background"),
         colorFrom(palette, QStringLiteral("windowOpaque")));
     // A private window's accent differs from the main window's, and the two
@@ -76,17 +76,17 @@ void KitTheme::apply()
     assign(m_color, QStringLiteral("muted"), colorFrom(palette, QStringLiteral("mutedText")));
     // The kit reaches for `urgent` in its own destructive states, so the theme
     // owns that colour too rather than leaving the kit's default beside
-    // Tanto's own notices in the same window.
+    // Omaweb's own notices in the same window.
     assign(m_color, QStringLiteral("urgent"), colorFrom(palette, QStringLiteral("urgent")));
 
     const auto font = palette.value(QStringLiteral("font")).toMap();
     const auto family = font.value(QStringLiteral("family"));
     // Upstream keeps a fontconfig alias in `fontFamily` and the name it
     // resolves to in `resolvedFontFamily`, so that `omarchy font set` changes
-    // the shell's type by rewriting fonts.conf. Tanto's theme names the family
+    // the shell's type by rewriting fonts.conf. Omaweb's theme names the family
     // instead, which is what gives up that path: both properties get the same
-    // concrete name, and the desktop's own family reaches Tanto through
-    // `integrations/omarchy/tanto.json.tpl` rendering it into the palette.
+    // concrete name, and the desktop's own family reaches Omaweb through
+    // `integrations/omarchy/omaweb.json.tpl` rendering it into the palette.
     assign(m_style, QStringLiteral("fontFamily"), family);
     assign(m_style, QStringLiteral("resolvedFontFamily"), family);
     assign(m_style, QStringLiteral("fontBaseSize"), font.value(QStringLiteral("size")));
@@ -97,11 +97,11 @@ void KitTheme::followResets(QObject *target, const QStringList &properties)
 {
     for (const auto &name : properties) {
         if (!QQmlProperty(target, name).connectNotifySignal(this, SLOT(apply()))) {
-            qWarning("The Omarchy kit's %s no longer reports changes; Tanto's palette "
+            qWarning("The Omarchy kit's %s no longer reports changes; Omaweb's palette "
                      "may lose to the kit's own theme lookups.",
                 qPrintable(name));
         }
     }
 }
 
-} // namespace tanto
+} // namespace omaweb

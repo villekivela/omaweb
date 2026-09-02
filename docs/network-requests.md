@@ -3,7 +3,7 @@
 A first run subscribes to EasyList and EasyPrivacy with both enabled, so the first startup check
 fetches both lists. Turning a subscription off in Settings stops its requests.
 
-Tanto checks enabled Content-blocking subscriptions when the browser starts. Each request goes
+Omaweb checks enabled Content-blocking subscriptions when the browser starts. Each request goes
 only to the update address shown for that subscription. It sends a normal HTTP GET with no browsing
 history, Space identifier, Account information, or user-rule data. Disabling a subscription stops
 its update requests.
@@ -11,7 +11,7 @@ its update requests.
 The browser sends network requests only after an explicit user or page action:
 
 - Committing an address in the Omnibar loads that address.
-- Committing non-address text searches DuckDuckGo. Tanto sends the text as the `q` query parameter.
+- Committing non-address text searches DuckDuckGo. Omaweb sends the text as the `q` query parameter.
 - Navigations started by a loaded page use the active Space's engine profile.
 - Accepting a download fetches the requested file.
 - Adding a Content-blocking subscription fetches its declared update address immediately.
@@ -20,7 +20,7 @@ With favicon artwork turned off, a tab's two-letter tile takes its colour from t
 
 Remote search suggestions are off. Typing in the Omnibar queries only the active Space's local history and does not send the typed text over the network.
 
-Tanto opens no listening socket during an ordinary session. The `--remote-debugging[=port]` launch
+Omaweb opens no listening socket during an ordinary session. The `--remote-debugging[=port]` launch
 option is the one exception: it binds Chromium's debugging listener to loopback, prints the address
 and a warning, and disables Private windows for that launch. It is never on by default, and a
 Chromium debugging switch passed to the engine by any other route refuses the launch.

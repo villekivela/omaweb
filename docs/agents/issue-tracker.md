@@ -11,7 +11,7 @@ Issues and specs for this repo live as GitHub issues. Use the `gh` CLI for all o
 - Apply or remove labels with `gh issue edit <number> --add-label "..."` and `gh issue edit <number> --remove-label "..."`.
 - Close with `gh issue close <number> --comment "..."`.
 
-The `gh` CLI infers `villekivela/tanto` from the Git remote when run inside this repository.
+The `gh` CLI infers `villekivela/omaweb` from the Git remote when run inside this repository.
 
 ## Pull requests as a triage request source
 

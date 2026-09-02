@@ -6,7 +6,7 @@ import qs.Ui as Omarchy
 // The multi-line counterpart to `SettingField`, for the user-rules editor.
 //
 // The Omarchy kit's `TextField` is single-line and the kit has no text area,
-// so this is Tanto's own control rather than an adapter. It is built from the
+// so this is Omaweb's own control rather than an adapter. It is built from the
 // kit's tokens — the same fill, border spec, corner radius, and type scale
 // `TextField` reads — so it sits beside a kit field without looking like a
 // second design, and nothing under third_party is forked to get there.

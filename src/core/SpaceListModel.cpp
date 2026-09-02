@@ -1,6 +1,6 @@
 #include "SpaceListModel.h"
 
-namespace tanto {
+namespace omaweb {
 
 SpaceListModel::SpaceListModel(QObject *parent)
     : QAbstractListModel(parent)
@@ -55,4 +55,4 @@ void SpaceListModel::reset(QVector<SpaceState> spaces)
     endResetModel();
 }
 
-} // namespace tanto
+} // namespace omaweb

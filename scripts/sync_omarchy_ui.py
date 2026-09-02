@@ -2,9 +2,9 @@
 """Vendor the Omarchy shell's QML component kit into third_party/omarchy-shell.
 
 The kit is copied byte for byte. Nothing under the vendored tree is ever
-edited by hand: Tanto adapts to the kit through its own QML modules
+edited by hand: Omaweb adapts to the kit through its own QML modules
 (`src/ui/quickshell-shim` supplies the Quickshell types the kit imports,
-`src/ui/*.qml` adapts the components to Tanto's call sites). Keeping the
+`src/ui/*.qml` adapts the components to Omaweb's call sites). Keeping the
 copies pristine is what makes a sync a review of upstream's diff instead of
 a merge.
 
@@ -73,7 +73,7 @@ def token() -> str | None:
 
 
 def fetch(url: str, attempts: int = 4) -> bytes:
-    headers = {"User-Agent": "tanto-sync-omarchy-ui"}
+    headers = {"User-Agent": "omaweb-sync-omarchy-ui"}
     if url.startswith(API):
         authorization = token()
         if authorization:

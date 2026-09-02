@@ -1,7 +1,7 @@
 import QtQuick
 import QtQuick.Effects
 
-// The wash under a Tanto surface that takes the whole page area — the shortcut
+// The wash under an Omaweb surface that takes the whole page area — the shortcut
 // sheet, the settings page. The page it covers is blurred where it lies and the
 // surface's own colour goes on top, so the reader can still see what they left
 // behind instead of losing it behind a solid plate, and without being asked to

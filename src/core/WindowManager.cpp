@@ -7,7 +7,7 @@
 #include <QTemporaryDir>
 #include <QTimer>
 
-namespace tanto {
+namespace omaweb {
 
 WindowManager::WindowManager(QString engineName, QObject *parent)
     : WindowManager(std::move(engineName), true, parent)
@@ -117,7 +117,7 @@ bool WindowManager::ensurePrivateSession()
     }
 
     auto root = std::make_unique<QTemporaryDir>(
-        QDir::tempPath() + QStringLiteral("/tanto-private-XXXXXX"));
+        QDir::tempPath() + QStringLiteral("/omaweb-private-XXXXXX"));
     if (!root->isValid()) {
         return false;
     }
@@ -131,4 +131,4 @@ bool WindowManager::ensurePrivateSession()
     return true;
 }
 
-} // namespace tanto
+} // namespace omaweb

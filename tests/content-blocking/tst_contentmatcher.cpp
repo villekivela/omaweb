@@ -5,7 +5,7 @@
 #include <QJsonDocument>
 #include <QTest>
 
-using tanto::ContentMatcher;
+using omaweb::ContentMatcher;
 
 class ContentMatcherTest final : public QObject {
     Q_OBJECT
@@ -28,7 +28,7 @@ private slots:
 
 void ContentMatcherTest::sharedConformanceFixtures()
 {
-    QFile fixture(QStringLiteral(TANTO_CONTENT_BLOCKER_FIXTURES));
+    QFile fixture(QStringLiteral(OMAWEB_CONTENT_BLOCKER_FIXTURES));
     QVERIFY(fixture.open(QIODevice::ReadOnly));
     const auto document = QJsonDocument::fromJson(fixture.readAll());
     QVERIFY(document.isObject());
@@ -81,7 +81,7 @@ void ContentMatcherTest::sharedConformanceFixtures()
 void ContentMatcherTest::scriptletsCallTheLibraryFunctionTheRuleNames()
 {
     const auto compilation = ContentMatcher::compile(QStringLiteral(
-        "site.example##+js(set-constant, tantoScriptletRan, true)"));
+        "site.example##+js(set-constant, omawebScriptletRan, true)"));
     QVERIFY(compilation.matcher);
     const auto source = compilation.matcher->scriptletSource(
         QUrl(QStringLiteral("https://site.example/")));
@@ -90,7 +90,7 @@ void ContentMatcherTest::scriptletsCallTheLibraryFunctionTheRuleNames()
     // rule's arguments.
     QVERIFY(source.contains(QStringLiteral("function setConstantFn(")));
     QVERIFY(source.contains(QStringLiteral("function setConstant(")));
-    QVERIFY(source.contains(QStringLiteral("setConstant(\"tantoScriptletRan\", \"true\")")));
+    QVERIFY(source.contains(QStringLiteral("setConstant(\"omawebScriptletRan\", \"true\")")));
 }
 
 // An exception naming the same scriptlet takes it back, and it is a cosmetic
@@ -111,7 +111,7 @@ void ContentMatcherTest::scriptletExceptionsSurviveTheirArgumentCount()
 // the page's classes and ids rather than the stylesheet for its hostname.
 void ContentMatcherTest::sharedSurveyFixtures()
 {
-    QFile fixture(QStringLiteral(TANTO_CONTENT_BLOCKER_FIXTURES));
+    QFile fixture(QStringLiteral(OMAWEB_CONTENT_BLOCKER_FIXTURES));
     QVERIFY(fixture.open(QIODevice::ReadOnly));
     const auto root = QJsonDocument::fromJson(fixture.readAll()).object();
     QStringList rules;
@@ -146,7 +146,7 @@ void ContentMatcherTest::sharedSurveyFixtures()
 }
 
 // A rule naming a scriptlet this build cannot run is a rule that does nothing,
-// and counting it accepted would advertise a compatibility Tanto does not have.
+// and counting it accepted would advertise a compatibility Omaweb does not have.
 // The two reasons are reported apart: one is a version behind, the other is a
 // deliberate refusal.
 void ContentMatcherTest::reportsTheScriptletRulesThatWillNotRun()
@@ -226,7 +226,7 @@ void ContentMatcherTest::reportsUnsupportedCategories()
 
 // A rule naming a substitute this build carries no body for would block and
 // serve nothing, leaving the page waiting on a script that never arrives.
-// Counting it accepted would advertise a compatibility Tanto does not have,
+// Counting it accepted would advertise a compatibility Omaweb does not have,
 // the same way a rule naming an absent scriptlet would.
 void ContentMatcherTest::reportsTheRedirectRulesThatCanServeNothing()
 {

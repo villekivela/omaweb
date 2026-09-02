@@ -3,7 +3,7 @@
 #include <QAbstractListModel>
 #include <QVector>
 
-namespace tanto {
+namespace omaweb {
 
 struct SpaceState {
     QString id;
@@ -36,4 +36,4 @@ private:
     QVector<SpaceState> m_spaces;
 };
 
-} // namespace tanto
+} // namespace omaweb

@@ -5,8 +5,8 @@ import qs.Ui as Omarchy
 // underneath, the switch on the right. Drawn by the Omarchy kit's `Toggle`
 // (third_party/omarchy-shell), which owns both the switch and the click.
 //
-// This file is the adapter: call sites keep Tanto's `title` / `note` /
-// `accessibleName` vocabulary and its palette, and Tanto keeps the
+// This file is the adapter: call sites keep Omaweb's `title` / `note` /
+// `accessibleName` vocabulary and its palette, and Omaweb keeps the
 // accessibility annotations the kit does not carry.
 //
 // The kit is stateless about the value — it reports the click and leaves

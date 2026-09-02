@@ -3,7 +3,7 @@ name: Omarchy kit drift
 # The kit is vendored from an active upstream branch and the pin only moves when
 # someone runs the sync, so drift is invisible until someone thinks to look.
 # This looks weekly and leaves one issue behind. It never syncs: an upstream API
-# change lands on Tanto's adapters, so a human reads the diff.
+# change lands on Omaweb's adapters, so a human reads the diff.
 on:
   schedule:
     - cron: "0 6 * * 1"

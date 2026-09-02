@@ -9,7 +9,7 @@
 class QWebEngineUrlRequestInterceptor;
 class QWebEngineUrlSchemeHandler;
 
-namespace tanto {
+namespace omaweb {
 
 class ContentBlocker;
 struct RequestDecision;
@@ -40,4 +40,4 @@ private:
     std::unique_ptr<QWebEngineUrlSchemeHandler> m_substitutes;
 };
 
-} // namespace tanto
+} // namespace omaweb

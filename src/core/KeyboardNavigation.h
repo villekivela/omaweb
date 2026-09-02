@@ -4,7 +4,7 @@
 #include <QUrl>
 #include <QVariantMap>
 
-namespace tanto {
+namespace omaweb {
 
 class KeyboardNavigation final : public QObject {
     Q_OBJECT
@@ -58,4 +58,4 @@ private:
     bool m_valid = false;
 };
 
-} // namespace tanto
+} // namespace omaweb

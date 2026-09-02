@@ -7,7 +7,7 @@
 #include <QTemporaryDir>
 #include <QTest>
 
-using tanto::KeyboardNavigation;
+using omaweb::KeyboardNavigation;
 
 class KeyboardNavigationTest final : public QObject {
     Q_OBJECT
@@ -116,7 +116,7 @@ void KeyboardNavigationTest::rejectsUnsupportedVersionsAndCommands()
     QVERIFY(nothingLeft.errorMessage().contains(QStringLiteral("run-arbitrary-code")));
 }
 
-// One configuration is shared by every Tanto on the machine, so a build meets
+// One configuration is shared by every Omaweb on the machine, so a build meets
 // commands it does not have: one another build added, one retired since the file
 // was written. Losing the whole keymap to any of them leaves a keyboard-driven
 // browser with no keyboard, so the binding goes and the rest stays.
@@ -320,8 +320,8 @@ void KeyboardNavigationTest::replacesRetiredDefaultWithoutChangingCustomBindings
         QStringLiteral("reopen-tab"));
     QCOMPARE(browserBindings.value(QStringLiteral("q")).toString(),
         QStringLiteral("close-tab"));
-    // A key Tanto has repurposed follows the new default rather than keeping
-    // the command Tanto itself put there. Adoption cannot do this on its own:
+    // A key Omaweb has repurposed follows the new default rather than keeping
+    // the command Omaweb itself put there. Adoption cannot do this on its own:
     // it never argues with a key the file already binds.
     QCOMPARE(browserBindings.value(QStringLiteral("Primary+Shift+C")).toString(),
         QStringLiteral("copy-address"));

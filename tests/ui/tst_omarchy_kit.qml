@@ -3,9 +3,9 @@ import QtQuick.Controls
 import QtTest
 import qs.Commons
 import qs.Ui as Omarchy
-import "../../src/ui" as Tanto
+import "../../src/ui" as Omaweb
 
-// The vendored Omarchy kit reaches Tanto through three seams: the Quickshell
+// The vendored Omarchy kit reaches Omaweb through three seams: the Quickshell
 // shim its singletons import, the `qs.Commons` tokens its components read, and
 // the adapters in src/ui. Each is cheap to break during a sync, so each is
 // asserted here rather than left to a panel nobody opens.
@@ -28,7 +28,7 @@ TestCase {
     Component {
         id: actionButtonComponent
 
-        Tanto.ActionButton {
+        Omaweb.ActionButton {
             colors: testCase.colorsFixture
             label: "Add subscription"
         }
@@ -37,7 +37,7 @@ TestCase {
     Component {
         id: chromeButtonComponent
 
-        Tanto.ChromeButton {
+        Omaweb.ChromeButton {
             foreground: testCase.colorsFixture.mutedText
             accent: testCase.colorsFixture.accent
             icon: "settings"
@@ -48,7 +48,7 @@ TestCase {
     Component {
         id: sectionLabelComponent
 
-        Tanto.SectionLabel {
+        Omaweb.SectionLabel {
             colors: testCase.colorsFixture
             text: "pinned"
         }
@@ -57,7 +57,7 @@ TestCase {
     Component {
         id: settingFieldComponent
 
-        Tanto.SettingField {
+        Omaweb.SettingField {
             colors: testCase.colorsFixture
             placeholder: "list name"
             accessibleName: "Subscription name"
@@ -67,7 +67,7 @@ TestCase {
     Component {
         id: multilineFieldComponent
 
-        Tanto.MultilineField {
+        Omaweb.MultilineField {
             colors: testCase.colorsFixture
             placeholder: "one rule per line"
             accessibleName: "User rules"
@@ -81,7 +81,7 @@ TestCase {
             foreground: testCase.colorsFixture.text
             accent: testCase.colorsFixture.accent
             label: "Keyboard navigation"
-            description: "Tanto's own command layer."
+            description: "Omaweb's own command layer."
         }
     }
 
@@ -95,9 +95,9 @@ TestCase {
         verify(Border.none() !== undefined)
     }
 
-    // Tanto's own Typography object is gone: the kit's scale is the only type
-    // scale, so every size a Tanto surface asks for has to exist on it.
-    function test_theKitScaleCoversEverySizeTantoAsksFor() {
+    // Omaweb's own Typography object is gone: the kit's scale is the only type
+    // scale, so every size a Omaweb surface asks for has to exist on it.
+    function test_theKitScaleCoversEverySizeOmawebAsksFor() {
         verify(Style.font.caption > 0)
         verify(Style.font.body >= Style.font.caption)
         verify(Style.font.title >= Style.font.body)
@@ -107,9 +107,9 @@ TestCase {
     }
 
     // The kit's Commons singletons resolve colour and type from an Omarchy
-    // theme on disk, which is not Tanto's source of truth. ThemeController is,
+    // theme on disk, which is not Omaweb's source of truth. ThemeController is,
     // so the palette is pushed into them (#11).
-    function test_theKitTypeComesFromTantosTheme() {
+    function test_theKitTypeComesFromOmawebsTheme() {
         const font = theme.palette.font
         compare(Style.fontFamily, font.family)
         compare(Style.font.family, font.family)
@@ -121,7 +121,7 @@ TestCase {
         verify(font.family !== "monospace")
     }
 
-    function test_theKitPaletteComesFromTantosTheme() {
+    function test_theKitPaletteComesFromOmawebsTheme() {
         compare(String(Color.foreground), String(theme.palette.text))
         // The kit paints `background` as a solid surface, so it takes the
         // opaque window rather than the alpha the desktop shows through.
@@ -134,7 +134,7 @@ TestCase {
     // processes, and those land after startup. A palette pushed once loses to
     // whichever of them writes last, so the seam pushes again — which is what
     // makes ThemeController authoritative rather than merely first.
-    function test_theKitCannotOutlastTantosPalette() {
+    function test_theKitCannotOutlastOmawebsPalette() {
         Color.loadColors("foreground = \"#ff0000\"\naccent = \"#00ff00\"")
         compare(String(Color.foreground), String(theme.palette.text))
         compare(String(Color.accent), String(theme.palette.accent))
@@ -150,10 +150,10 @@ TestCase {
         Color.loadColors("")
     }
 
-    function test_actionButtonUsesTheKitAndTantoPalette() {
+    function test_actionButtonUsesTheKitAndOmawebPalette() {
         const button = createTemporaryObject(actionButtonComponent, testCase)
         verify(button !== null)
-        // Sized by the kit's padding and the label, not by Tanto's old fixed
+        // Sized by the kit's padding and the label, not by Omaweb's old fixed
         // 30px box.
         verify(button.implicitWidth > 0)
         verify(button.implicitHeight > 0)
@@ -175,7 +175,7 @@ TestCase {
         let clicks = 0
         const button = createTemporaryObject(actionButtonComponent, testCase)
         button.clicked.connect(function() { clicks += 1 })
-        // Tanto is keyboard-driven, and the activation keys are the kit's.
+        // Omaweb is keyboard-driven, and the activation keys are the kit's.
         button.forceActiveFocus()
         verify(button.activeFocus)
         keyClick(Qt.Key_Return)
@@ -187,7 +187,7 @@ TestCase {
         const button = createTemporaryObject(chromeButtonComponent, testCase)
         verify(button !== null)
         // Chrome is borderless and transparent at rest; the kit paints hover,
-        // focus and pressed fills itself, which is why Tanto's
+        // focus and pressed fills itself, which is why Omaweb's
         // `hoverBackground` no longer exists.
         compare(button.bordered, false)
         verify(button.hoverBackground === undefined)
@@ -254,7 +254,7 @@ TestCase {
         compare(String(field.accent), "#dc6bce")
     }
 
-    // The kit has no text area, so the rules editor is Tanto's own control —
+    // The kit has no text area, so the rules editor is Omaweb's own control —
     // but it reads the kit's tokens rather than a second set of values.
     function test_multilineFieldHoldsSeveralLinesOnTheKitsTokens() {
         const field = createTemporaryObject(multilineFieldComponent, testCase)

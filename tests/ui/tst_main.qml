@@ -1,7 +1,7 @@
 import QtQuick
 import QtTest
-import Tanto
-import "../../src/ui" as Tanto
+import Omaweb
+import "../../src/ui" as Omaweb
 
 TestCase {
     id: testCase
@@ -12,16 +12,16 @@ TestCase {
 
     Component {
         id: windowComponent
-        Tanto.Main {}
+        Omaweb.Main {}
     }
 
-    // The harness loads Tanto's own default keymap, which this build knows
+    // The harness loads Omaweb's own default keymap, which this build knows
     // every command in, so nothing is ever ignored in it. These stand the two
     // surfaces up against a keymap that did report something.
     Component {
         id: reportingSettingsComponent
 
-        Tanto.SettingsPage {
+        Omaweb.SettingsPage {
             id: reportingSettings
 
             property string report: ""
@@ -39,7 +39,7 @@ TestCase {
     Component {
         id: attentionOutlineComponent
 
-        Tanto.SpaceOutline {
+        Omaweb.SpaceOutline {
             colors: testCase.window.colors
             iconFontFamily: ""
             settingsAttention: true
@@ -119,7 +119,7 @@ TestCase {
         }
     }
 
-    // Tanto draws the page's context menu, so it offers what Tanto can do with
+    // Omaweb draws the page's context menu, so it offers what Omaweb can do with
     // what was under the pointer — and the engine's own menu never appears.
     function test_pageContextMenuOffersWhatWasUnderThePointer() {
         const engine = openPage("https://context.example/page")
@@ -2370,7 +2370,7 @@ TestCase {
         compare(window.tintFavicons, true)
     }
 
-    // A pin is a square with no title, so Tanto paints it in the site's own
+    // A pin is a square with no title, so Omaweb paints it in the site's own
     // colour — which is artwork colour, and therefore the tint setting's to
     // give. Switched off, the pin is chrome: no wash, no site-coloured mark.
     function test_pinnedSiteColourFollowsTheTintSetting() {
@@ -2588,7 +2588,7 @@ TestCase {
 
     // The window is the desktop's to move too — a menu command or a keyboard
     // shortcut of the platform's own takes it in and out of fullscreen without
-    // asking Tanto. What Tanto believes has to follow the window, or the next
+    // asking Omaweb. What Omaweb believes has to follow the window, or the next
     // fullscreen command toggles the wrong way and appears to do nothing.
     function test_fullscreenFollowsTheWindowWhateverMovedIt() {
         const engineHost = findChild(window.contentItem, "engineLoader")

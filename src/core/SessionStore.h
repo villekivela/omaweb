@@ -8,7 +8,7 @@
 #include <QUrl>
 #include <QVariantList>
 
-namespace tanto {
+namespace omaweb {
 
 class SessionStore final {
 public:
@@ -69,4 +69,4 @@ private:
     mutable QHash<QString, QString> m_spaceConnectionNames;
 };
 
-} // namespace tanto
+} // namespace omaweb

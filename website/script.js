@@ -1,4 +1,4 @@
-// Tanto website behaviour. Three things, all optional: the page renders and
+// Omaweb website behaviour. Three things, all optional: the page renders and
 // reads correctly with this file blocked.
 //
 //   1. Theme switching. One palette drives the page and the product UI, so

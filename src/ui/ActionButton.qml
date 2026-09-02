@@ -3,11 +3,11 @@ import qs.Ui as Omarchy
 
 // One button shape for the whole shell, drawn by the Omarchy kit's `Button`
 // (third_party/omarchy-shell). This file is the adapter: call sites keep
-// Tanto's vocabulary — a palette passed down, a `primary` answer, a
-// `destructive` one — and Tanto keeps the accessibility annotations the kit
+// Omaweb's vocabulary — a palette passed down, a `primary` answer, a
+// `destructive` one — and Omaweb keeps the accessibility annotations the kit
 // does not carry.
 //
-// Emphasis follows the kit rather than Tanto's old filled rectangle: the
+// Emphasis follows the kit rather than Omaweb's old filled rectangle: the
 // primary answer is bold, tinted, and bordered in the accent instead of being
 // a solid accent block. Colors stay per-instance so ThemeController remains
 // the single source of truth for the palette; type comes from the kit's

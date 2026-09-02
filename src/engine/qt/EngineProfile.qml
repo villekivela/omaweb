@@ -114,7 +114,7 @@ QtObject {
 
     property WebEngineProfile privateProfile: WebEngineProfile {
         property string preparedDownloadPath: ""
-        storageName: root.privateBrowsing ? "tanto-private" : "tanto-space"
+        storageName: root.privateBrowsing ? "omaweb-private" : "omaweb-space"
         // A QML-declared profile is off-the-record by default, whatever its
         // storage name and cookie policy say: an off-the-record one keeps
         // everything in memory and silently downgrades the cookie policy to

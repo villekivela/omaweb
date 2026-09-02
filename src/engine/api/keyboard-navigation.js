@@ -1,5 +1,5 @@
 (() => {
-    if (globalThis.__tantoKeyboardNavigation) return;
+    if (globalThis.__omawebKeyboardNavigation) return;
     const state = {
         config: { enabled: false, bindings: {}, passthroughAll: false, passthroughKeys: [] },
         prefix: '', prefixTimer: 0, hintInput: '', hints: [], hintMode: '',
@@ -44,24 +44,24 @@
     };
     const clearHints = () => {
         const wasActive = Boolean(state.hintMode);
-        document.getElementById('__tanto_link_hints')?.remove();
+        document.getElementById('__omaweb_link_hints')?.remove();
         if (state.previousFocus?.isConnected) state.previousFocus.focus({ preventScroll: true });
         state.hints = [];
         state.hintInput = '';
         state.hintMode = '';
         state.hintFocus = null;
         state.previousFocus = null;
-        if (wasActive) console.debug('__tanto_keyboard_hint_mode__:0');
+        if (wasActive) console.debug('__omaweb_keyboard_hint_mode__:0');
     };
     const clearPrefix = () => {
         state.prefix = '';
         clearTimeout(state.prefixTimer);
-        document.getElementById('__tanto_key_sequence')?.remove();
+        document.getElementById('__omaweb_key_sequence')?.remove();
     };
     const showPrefix = key => {
-        document.getElementById('__tanto_key_sequence')?.remove();
+        document.getElementById('__omaweb_key_sequence')?.remove();
         const indicator = document.createElement('span');
-        indicator.id = '__tanto_key_sequence';
+        indicator.id = '__omaweb_key_sequence';
         indicator.textContent = key + '…';
         indicator.setAttribute('role', 'status');
         indicator.setAttribute('aria-label', 'Keyboard sequence ' + key);
@@ -79,7 +79,7 @@
             candidates = candidates.filter(target => Boolean(target.href));
         }
         const overlay = document.createElement('div');
-        overlay.id = '__tanto_link_hints';
+        overlay.id = '__omaweb_link_hints';
         overlay.setAttribute('role', 'status');
         overlay.setAttribute('aria-live', 'polite');
         overlay.setAttribute('aria-label', candidates.length + ' link hints available');
@@ -91,7 +91,7 @@
             + 'color:' + (theme.text || 'CanvasText') + ';font-family:' + JSON.stringify(fontFamily)
             + ',monospace;font-size:' + fontSize + 'px;font-weight:600;';
         const focus = document.createElement('input');
-        focus.id = '__tanto_link_hint_input';
+        focus.id = '__omaweb_link_hint_input';
         focus.type = 'text';
         focus.tabIndex = -1;
         focus.setAttribute('aria-label', 'Type a link hint');
@@ -126,7 +126,7 @@
         });
         document.documentElement.append(overlay);
         state.hintMode = command;
-        console.debug('__tanto_keyboard_hint_mode__:1');
+        console.debug('__omaweb_keyboard_hint_mode__:1');
         state.previousFocus = document.activeElement;
         state.hintFocus = focus;
         focus.focus({ preventScroll: true });
@@ -235,7 +235,7 @@
         event.stopImmediatePropagation();
         execute(bindings[key]);
     }, true);
-    globalThis.__tantoKeyboardNavigation = {
+    globalThis.__omawebKeyboardNavigation = {
         configure(configuration) {
             clearHints();
             clearPrefix();

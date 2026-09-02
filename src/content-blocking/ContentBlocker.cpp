@@ -17,7 +17,7 @@
 
 #include <utility>
 
-namespace tanto {
+namespace omaweb {
 namespace {
 
 constexpr int startupUpdateDelayMilliseconds = 5000;
@@ -553,4 +553,4 @@ ContentBlocker::Subscription *ContentBlocker::findSubscription(const QString &id
     return nullptr;
 }
 
-} // namespace tanto
+} // namespace omaweb

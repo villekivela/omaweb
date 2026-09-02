@@ -3,7 +3,7 @@
 #include <QFlags>
 #include <QObject>
 
-namespace tanto {
+namespace omaweb {
 
 class EngineCapabilities final {
     Q_GADGET
@@ -18,7 +18,7 @@ public:
         DeveloperTools = 1 << 5,
         RendererRecovery = 1 << 6,
         // The everyday page operations. Each one is named separately because an
-        // engine can supply one and not the next, and a command Tanto cannot
+        // engine can supply one and not the next, and a command Omaweb cannot
         // carry out has to say so rather than do nothing.
         PageFind = 1 << 7,
         PageZoom = 1 << 8,
@@ -34,4 +34,4 @@ public:
 
 Q_DECLARE_OPERATORS_FOR_FLAGS(EngineCapabilities::Capabilities)
 
-} // namespace tanto
+} // namespace omaweb

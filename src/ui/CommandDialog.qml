@@ -1,7 +1,7 @@
 import QtQuick
 import qs.Commons
 
-// Tanto already has one place where it asks the user something: the Omnibar.
+// Omaweb already has one place where it asks the user something: the Omnibar.
 // Every question about the browser itself arrives in the same shape — centred,
 // scrimmed, one accent-bordered panel — so the answer is always typed or picked
 // in a list, and there is only ever one grammar to learn.

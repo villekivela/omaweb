@@ -22,7 +22,7 @@ ApplicationWindow {
     flags: Qt.Dialog | Qt.WindowTitleHint | Qt.WindowCloseButtonHint
     title: engineLoader.item && engineLoader.item.pageTitle.length > 0
         ? engineLoader.item.pageTitle
-        : "Tanto"
+        : "Omaweb"
 
     onClosing: Qt.callLater(function() { auxiliary.destroy() })
 

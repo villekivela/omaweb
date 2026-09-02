@@ -3,7 +3,7 @@
 #include <QObject>
 #include <QString>
 
-namespace tanto {
+namespace omaweb {
 
 // The desktop clipboard, for the commands that put something on it. Clipboard
 // access is a window-system service, so it belongs beside the interface rather
@@ -21,8 +21,8 @@ public:
     Q_INVOKABLE QString text() const;
 };
 
-// Makes `SystemClipboard` available to QML as `import Tanto`. Call once per
+// Makes `SystemClipboard` available to QML as `import Omaweb`. Call once per
 // process, before loading QML that uses it.
 void registerSystemClipboard();
 
-} // namespace tanto
+} // namespace omaweb

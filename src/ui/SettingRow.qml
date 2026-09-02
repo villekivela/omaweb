@@ -7,7 +7,7 @@ import qs.Commons
 // network.
 //
 // A setting that is simply on or off is the Omarchy kit's `Toggle` instead —
-// it owns its own switch and its own click. This row stays Tanto's because the
+// it owns its own switch and its own click. This row stays Omaweb's because the
 // kit has no row that carries arbitrary content: the surfaces left here hold a
 // status line, a button, or nothing at all. It reads the kit's type scale and
 // spacing tokens so it sits in the same pane as a `Toggle` without looking

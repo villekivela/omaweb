@@ -24,11 +24,11 @@ Use the engine-free UI runner for QML work:
 ```sh
 cmake --preset ui
 cmake --build --preset ui
-./build/ui/tanto-ui-lab.app/Contents/MacOS/tanto-ui-lab
+./build/ui/omaweb-ui-lab.app/Contents/MacOS/omaweb-ui-lab
 ```
 
-On Linux, the executable is `./build/ui/tanto-ui-lab`. Pass `--private` to paint the window in the private palette, which is the only
-way to review that chrome without opening a private window. `TANTO_THEME_FILE` points the lab at one theme file, as it does the browser, so a palette can be
+On Linux, the executable is `./build/ui/omaweb-ui-lab`. Pass `--private` to paint the window in the private palette, which is the only
+way to review that chrome without opening a private window. `OMAWEB_THEME_FILE` points the lab at one theme file, as it does the browser, so a palette can be
 reviewed without installing it. Pass `--show collapsed`, `--show settings`, `--show history` or
 `--show shortcuts` to open the state a capture cannot press a key to reach. Pass `--capture <path>` to
 render one frame to a PNG and exit, which works headlessly with
@@ -55,11 +55,11 @@ Never use Chromium's `--no-sandbox`, `--single-process`, in-process network-serv
 
 ## Theme
 
-Tanto reads `theme.json` from the configuration directory when one is present, falling back to the desktop-managed theme (Omarchy, on Linux) and then the built-in palette. `TANTO_THEME_FILE` overrides all three.
+Omaweb reads `theme.json` from the configuration directory when one is present, falling back to the desktop-managed theme (Omarchy, on Linux) and then the built-in palette. `OMAWEB_THEME_FILE` overrides all three.
 
-`scripts/import_terminal_theme.py` derives that file from the terminal it runs in. Run it from the terminal whose colours you want — `TERM_PROGRAM` identifies that terminal exactly — and it writes `theme.json` into the configuration directory, which `ThemeController` is watching, so a running Tanto repaints without a restart. It reads Ghostty (via `ghostty +show-config`, which resolves a named theme into concrete colours), iTerm2, kitty, Alacritty, and a customised Terminal.app profile. `--print` shows the result instead of writing it, `--terminal` overrides detection, and `--force` replaces an existing theme. On a Linux desktop that already renders Tanto's template, the script refuses to write and says so: a theme in the configuration directory outranks the desktop-rendered one, so importing would freeze the palette at whatever the terminal looked like that day.
+`scripts/import_terminal_theme.py` derives that file from the terminal it runs in. Run it from the terminal whose colours you want — `TERM_PROGRAM` identifies that terminal exactly — and it writes `theme.json` into the configuration directory, which `ThemeController` is watching, so a running Omaweb repaints without a restart. It reads Ghostty (via `ghostty +show-config`, which resolves a named theme into concrete colours), iTerm2, kitty, Alacritty, and a customised Terminal.app profile. `--print` shows the result instead of writing it, `--terminal` overrides detection, and `--force` replaces an existing theme. On a Linux desktop that already renders Omaweb's template, the script refuses to write and says so: a theme in the configuration directory outranks the desktop-rendered one, so importing would freeze the palette at whatever the terminal looked like that day.
 
-The derivation takes the terminal's background, foreground and sixteen ANSI colours and builds the chrome ladder by mixing in OKLab, with the step sizes measured off the default theme. The accent is the blue, magenta or cyan slot with the most chroma that clears 4.5:1 against the background. Two slots within a tenth of each other count as equally vivid, and then the earlier slot wins, so a Tokyo Night import keeps its blue instead of losing it to a magenta a rounding error more saturated. Red, green and yellow are left alone because they already mean error, success and warning. The private accent is the magenta the accent did not take, or the accent turned 32 degrees towards magenta when it did. The type base size, tint and the semantic opacities stay as the default theme sets them — a terminal's `background-opacity` is a window-wide setting and does not translate to Tanto's per-surface opacity.
+The derivation takes the terminal's background, foreground and sixteen ANSI colours and builds the chrome ladder by mixing in OKLab, with the step sizes measured off the default theme. The accent is the blue, magenta or cyan slot with the most chroma that clears 4.5:1 against the background. Two slots within a tenth of each other count as equally vivid, and then the earlier slot wins, so a Tokyo Night import keeps its blue instead of losing it to a magenta a rounding error more saturated. Red, green and yellow are left alone because they already mean error, success and warning. The private accent is the magenta the accent did not take, or the accent turned 32 degrees towards magenta when it did. The type base size, tint and the semantic opacities stay as the default theme sets them — a terminal's `background-opacity` is a window-wide setting and does not translate to Omaweb's per-surface opacity.
 
 `theme.json`'s `font` block is `families` and `size`. `families` is a preference order and the first family the host actually has installed wins, so a theme can name a font it would like without breaking a machine that lacks it; nothing is ever handed to Qt that Qt cannot find, because a missing family costs a font-alias sweep at startup and then draws in whatever face Qt substitutes. `size` is the root the whole type scale grows from — every size the interface asks for is derived from it by the Omarchy kit, which `ThemeController` drives. See [ADR 0018](adr/0018-drive-the-kit-from-the-theme-palette.md).
 
@@ -70,9 +70,9 @@ Shared controls come from the Omarchy shell's QML kit, vendored under
 Qt 6, so the kit is used as-is rather than reimplemented.
 
 Vendored files are byte-for-byte copies and are never edited — `ctest` fails on any
-local change. Tanto meets the kit from three sides: `src/ui/quickshell-shim` registers
+local change. Omaweb meets the kit from three sides: `src/ui/quickshell-shim` registers
 the `Quickshell` and `Quickshell.Io` types the kit's singletons import, the QML
-in `src/ui` adapts components to Tanto's call sites, keeping Tanto's property names
+in `src/ui` adapts components to Omaweb's call sites, keeping Omaweb's property names
 and its accessibility annotations, and `src/ui/KitTheme.cpp` drives the kit's
 `qs.Commons` colour and type singletons from the theme palette so they follow
 `ThemeController` rather than an Omarchy theme on disk. The vendor root is on the QML
@@ -85,15 +85,15 @@ scripts/sync_omarchy_ui.py --sync --ref <sha>
 ```
 
 Upstream's branch moves, so a sync is deliberate: move the pin, read the diff, and
-run `ctest`. `tanto-ui` instantiates the adapted components and asserts the kit's
+run `ctest`. `omaweb-ui` instantiates the adapted components and asserts the kit's
 tokens resolve, so an upstream API change fails there.
 
 Nothing moves the pin on its own, so the `Omarchy kit drift` workflow does the
 looking: every Monday it runs `--check-upstream --report drift.json` and hands the
 report to `scripts/report_omarchy_drift.py`, which keeps one `omarchy-drift` issue
 listing the added, removed, and changed files with a compare link, and closes it once
-the pin catches up. It never syncs — an upstream API change lands on Tanto's adapters,
-so the diff wants a reader. `ctest -R tanto-omarchy-drift` covers both halves with
+the pin catches up. It never syncs — an upstream API change lands on Omaweb's adapters,
+so the diff wants a reader. `ctest -R omaweb-omarchy-drift` covers both halves with
 GitHub stubbed out.
 
 ## Content-blocking scriptlets and substitutes
@@ -104,7 +104,7 @@ vendored under `third_party/ubo-scriptlets` and pinned by `MANIFEST.json` the sa
 the Omarchy kit is. A rule supplies a name and arguments; it never supplies code or a
 body, so the set of either that can reach a page is the set in the repository. See
 [ADR 0025](adr/0025-run-only-vendored-scriptlets.md) and
-[ADR 0026](adr/0026-serve-substitutes-under-a-tanto-scheme.md).
+[ADR 0026](adr/0026-serve-substitutes-under-an-omaweb-scheme.md).
 
 `scriptlets.json` and `redirects.json` beside the copies are the same two sets as
 `adblock-rust` resource descriptors, which the content blocker builds into its own
@@ -127,7 +127,7 @@ the pages the browser loads. Both vendored trees share one integrity test,
 
 ## Keyboard navigation configuration
 
-Tanto copies `assets/keybindings/default.json` to `keybindings.json` in the configuration directory on first launch — `$XDG_CONFIG_HOME/tanto`, or `~/.config/tanto` when that is unset. A file left by an earlier version under the application data directory is moved there. Set `TANTO_CONFIG_ROOT` to relocate the whole directory, or `TANTO_KEYBINDINGS_FILE` to load one specific file during development. The version 1 format maps key sequences to the supported commands and may give a site selected keys or the whole page:
+Omaweb copies `assets/keybindings/default.json` to `keybindings.json` in the configuration directory on first launch — `$XDG_CONFIG_HOME/omaweb`, or `~/.config/omaweb` when that is unset. A file left by an earlier version under the application data directory is moved there. Set `OMAWEB_CONFIG_ROOT` to relocate the whole directory, or `OMAWEB_KEYBINDINGS_FILE` to load one specific file during development. The version 1 format maps key sequences to the supported commands and may give a site selected keys or the whole page:
 
 ```json
 {
@@ -150,7 +150,7 @@ Tanto copies `assets/keybindings/default.json` to `keybindings.json` in the conf
 }
 ```
 
-Site rules match the named host and its subdomains. Tanto rejects unknown schema versions and command names instead of loading part of the file.
+Site rules match the named host and its subdomains. Omaweb rejects unknown schema versions and command names instead of loading part of the file.
 
 ## Performance
 

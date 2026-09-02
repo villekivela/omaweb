@@ -3,7 +3,7 @@
 #include <QObject>
 #include <QString>
 
-namespace tanto {
+namespace omaweb {
 
 // The platform's own print dialog, and the temporary file a page is rendered
 // into on the way to it. Printing is a window-system service like the
@@ -22,7 +22,7 @@ public:
 
     bool available() const;
 
-    // A path in a Tanto-owned temporary directory for the adapter to render
+    // A path in a Omaweb-owned temporary directory for the adapter to render
     // into. Empty when no such directory can be made, which is the shell's cue
     // to report the failure rather than ask for a print that goes nowhere.
     Q_INVOKABLE QString reserveDestination(const QString &name) const;
@@ -34,8 +34,8 @@ public:
     Q_INVOKABLE void discard(const QString &path);
 };
 
-// Makes `PagePrinter` available to QML as `import Tanto`. Call once per
+// Makes `PagePrinter` available to QML as `import Omaweb`. Call once per
 // process, before loading QML that uses it.
 void registerPagePrinter();
 
-} // namespace tanto
+} // namespace omaweb

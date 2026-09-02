@@ -15,7 +15,7 @@
 
 #include <iterator>
 
-namespace tanto {
+namespace omaweb {
 namespace {
 
 constexpr int persistTabsDelayMilliseconds = 400;
@@ -2111,4 +2111,4 @@ TabState BrowserController::makeBlankTab(const QString &spaceId)
     return tab;
 }
 
-} // namespace tanto
+} // namespace omaweb

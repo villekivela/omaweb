@@ -5,7 +5,7 @@
 #include <QStringList>
 #include <QVariantMap>
 
-namespace tanto {
+namespace omaweb {
 
 class ThemeController final : public QObject {
     Q_OBJECT
@@ -39,4 +39,4 @@ private:
     QVariantMap m_palette;
 };
 
-} // namespace tanto
+} // namespace omaweb
