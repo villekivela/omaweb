@@ -235,6 +235,7 @@ set(tanto_ui_files
     src/ui/PagePromptBar.qml
     src/ui/SectionLabel.qml
     src/ui/MultilineField.qml
+    src/ui/SettingDropdown.qml
     src/ui/SettingField.qml
     src/ui/SettingRow.qml
     src/ui/SettingToggle.qml

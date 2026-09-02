@@ -551,26 +551,28 @@ Rectangle {
                         width: parent.width
                         spacing: 8
 
-                        ComboBox {
+                        SettingDropdown {
                             id: providerPreset
                             objectName: "searchProviderPreset"
                             width: parent.width - addProvider.width - 8
-                            model: root.enginePresets
-                            textRole: "name"
-                            valueRole: "id"
-                            Accessible.name: "Predefined search provider"
+                            colors: root.colors
+                            options: root.enginePresets.map(function(engine) {
+                                return { value: engine.id, label: engine.name }
+                            })
+                            value: options.length > 0 ? String(options[0].value) : ""
+                            accessibleName: "Predefined search provider"
                         }
 
                         ActionButton {
                             id: addProvider
                             objectName: "addSearchProviderButton"
                             colors: root.colors
-                            label: root.searchEngineInstalled(providerPreset.currentValue)
+                            label: root.searchEngineInstalled(providerPreset.value)
                                 ? "Added" : "Add"
-                            enabled: providerPreset.currentIndex >= 0
-                                && !root.searchEngineInstalled(providerPreset.currentValue)
+                            enabled: providerPreset.value !== ""
+                                && !root.searchEngineInstalled(providerPreset.value)
                             onClicked: {
-                                if (root.browser.addSearchEnginePreset(providerPreset.currentValue))
+                                if (root.browser.addSearchEnginePreset(providerPreset.value))
                                     root.refresh()
                             }
                         }
@@ -677,12 +679,18 @@ Rectangle {
                     title: "Time range"
                     note: "Applied within the selected Space by default."
 
-                    ComboBox {
+                    SettingDropdown {
                         id: clearRange
                         objectName: "clearTimeRange"
-                        model: ["last hour", "last day", "last week", "all time"]
-                        currentIndex: 1
-                        Accessible.name: "Browsing data time range"
+                        colors: root.colors
+                        options: [
+                            { value: "3600000", label: "last hour" },
+                            { value: "86400000", label: "last day" },
+                            { value: "604800000", label: "last week" },
+                            { value: "0", label: "all time" }
+                        ]
+                        value: "86400000"
+                        accessibleName: "Browsing data time range"
                     }
                 }
 
@@ -723,8 +731,7 @@ Rectangle {
                         if (root.clearCacheSelected) selected.push("cache")
                         if (root.clearPermissionsSelected) selected.push("permissions")
                         if (root.clearHistorySelected) selected.push("history")
-                        const durations = [3600000, 86400000, 604800000, 0]
-                        const duration = durations[clearRange.currentIndex]
+                        const duration = Number(clearRange.value)
                         const since = duration === 0 ? 0 : Date.now() - duration
                         if (root.browser.clearBrowsingData(selected, since,
                                 root.clearEverySpaceSelected,
