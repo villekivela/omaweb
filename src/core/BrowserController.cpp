@@ -447,7 +447,6 @@ bool BrowserController::deleteSpace(const QString &spaceId, const QString &confi
         closeDeveloperTools();
     }
     emit spaceDiscarded(spaceId);
-    refreshRetainedTabs();
     if (deletingActiveSpace) {
         m_activeSpaceId = replacementId;
         m_activeSpaceName = replacementName;
@@ -457,6 +456,10 @@ bool BrowserController::deleteSpace(const QString &spaceId, const QString &confi
         emit activeSpaceChanged();
         emit activeTabChanged();
     }
+    // Last, so the Space now on show is the one excluded: a deletion that
+    // replaced the active Space must not leave that Space's own Keep active
+    // tabs listed as though something were holding them for it.
+    refreshRetainedTabs();
     return true;
 }
 
