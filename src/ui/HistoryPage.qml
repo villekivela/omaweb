@@ -58,23 +58,41 @@ Rectangle {
 
         Item {
             width: parent.width
-            height: 40
+            height: historyEyebrow.height + Style.spacing.md + historyHeading.height
 
             Text {
+                id: historyEyebrow
+                objectName: "historyEyebrow"
                 anchors.left: parent.left
-                anchors.bottom: parent.bottom
-                text: "History · " + (root.browser ? root.browser.activeSpaceName : "")
+                anchors.top: parent.top
+                text: (root.browser ? root.browser.activeSpaceName : "") + " · esc closes"
+                color: root.colors.mutedText
+                font.family: Style.font.family
+                font.pixelSize: Style.font.caption
+                font.bold: true
+                font.capitalization: Font.AllUppercase
+                font.letterSpacing: 1.6
+                Accessible.ignored: true
+            }
+
+            Text {
+                id: historyHeading
+                anchors.left: parent.left
+                anchors.top: historyEyebrow.bottom
+                anchors.topMargin: Style.spacing.md
+                text: "History"
                 color: root.colors.text
                 font.family: Style.font.family
-                font.pixelSize: 26
+                font.pixelSize: Style.font.display
                 Accessible.role: Accessible.Heading
+                Accessible.name: "History"
             }
 
             ChromeButton {
                 id: closeButton
                 objectName: "closeHistoryButton"
                 anchors.right: parent.right
-                anchors.bottom: parent.bottom
+                anchors.verticalCenter: historyHeading.verticalCenter
                 width: 30
                 height: 30
                 icon: "close"

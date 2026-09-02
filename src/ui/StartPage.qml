@@ -128,15 +128,35 @@ Rectangle {
 
             Item {
                 width: parent.width
-                height: 34
+                height: heading.height + eyebrow.height + Style.spacing.md
+
+                // What the sheet is, above what it is called: the line names
+                // the place and the two keys that reach it and leave it, which
+                // is the one thing a sheet of keys cannot itself list.
+                Text {
+                    id: eyebrow
+                    objectName: "shortcutsEyebrow"
+                    anchors.left: parent.left
+                    anchors.top: parent.top
+                    text: root.overPage ? "shortcuts · esc closes" : "shortcuts"
+                    color: root.colors.mutedText
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.caption
+                    font.bold: true
+                    font.capitalization: Font.AllUppercase
+                    font.letterSpacing: 1.6
+                    Accessible.ignored: true
+                }
 
                 Text {
+                    id: heading
                     anchors.left: parent.left
-                    anchors.verticalCenter: parent.verticalCenter
-                    text: "Shortcuts"
+                    anchors.top: eyebrow.bottom
+                    anchors.topMargin: Style.spacing.md
+                    text: "Keyboard commands"
                     color: root.colors.text
                     font.family: Style.font.family
-                    font.pixelSize: 26
+                    font.pixelSize: Style.font.display
                     Accessible.role: Accessible.Heading
                     Accessible.name: "Keyboard shortcuts"
                 }
@@ -144,7 +164,7 @@ Rectangle {
                 ChromeButton {
                     objectName: "closeShortcutsButton"
                     anchors.right: parent.right
-                    anchors.verticalCenter: parent.verticalCenter
+                    anchors.verticalCenter: heading.verticalCenter
                     width: 30
                     height: 30
                     visible: root.overPage
@@ -187,20 +207,46 @@ Rectangle {
                         Repeater {
                             model: groupBlock.modelData.entries
 
+                            // The key comes first and in the accent: the
+                            // reader is here to find which key runs a command,
+                            // and a column of keys is what they can scan. The
+                            // rule under each row is what lets a key and its
+                            // command be read across a gap this wide.
                             Item {
                                 id: entryRow
 
                                 required property var modelData
+
+                                // Wide enough for the longest binding the
+                                // keymap sets, so every command in the column
+                                // starts on one line.
+                                readonly property int keyColumn: Math.round(Style.font.body * 6.5)
 
                                 width: parent.width
                                 height: 24
                                 Accessible.role: Accessible.StaticText
                                 Accessible.name: modelData.title + ": " + modelData.keys
 
+                                // The keys are set exactly as the command panel
+                                // sets them, so the same command reads the same
+                                // way in both places.
                                 Text {
+                                    id: entryKeys
                                     anchors.left: parent.left
-                                    anchors.right: entryKeys.left
-                                    anchors.rightMargin: 12
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    width: entryRow.keyColumn
+                                    text: entryRow.modelData.keys
+                                    color: root.colors.accent
+                                    elide: Text.ElideRight
+                                    font.family: Style.font.family
+                                    font.pixelSize: Style.font.body
+                                    font.bold: true
+                                }
+
+                                Text {
+                                    anchors.left: entryKeys.right
+                                    anchors.leftMargin: Style.spacing.xl
+                                    anchors.right: parent.right
                                     anchors.verticalCenter: parent.verticalCenter
                                     text: entryRow.modelData.title
                                     color: root.colors.text
@@ -209,18 +255,13 @@ Rectangle {
                                     font.pixelSize: Style.font.body
                                 }
 
-                                // The keys are set exactly as the command panel
-                                // sets them, so the same command reads the same
-                                // way in both places.
-                                Text {
-                                    id: entryKeys
+                                Rectangle {
+                                    anchors.left: parent.left
                                     anchors.right: parent.right
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    text: entryRow.modelData.keys
-                                    color: root.colors.mutedText
-                                    opacity: 0.85
-                                    font.family: Style.font.family
-                                    font.pixelSize: Style.font.caption
+                                    anchors.bottom: parent.bottom
+                                    height: Style.spacing.hairline
+                                    color: root.colors.border
+                                    opacity: 0.5
                                 }
                             }
                         }
