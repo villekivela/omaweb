@@ -85,9 +85,11 @@ QVariantMap ThemeController::fallbackPalette() const
 }
 
 // The engine's inspector draws source, markup and stylesheets, and it draws
-// them in these. Ten names rather than one per construct any one language has:
+// them in these. Nine names rather than one per construct any one language has:
 // a terminal palette has six hues to give, and a theme derived from one has to
 // be able to fill every name here without inventing colour it does not have.
+// There is deliberately no name for an attribute's value — it is a string, and
+// an editor draws it as one.
 QVariantMap ThemeController::defaultSyntax()
 {
     return {
@@ -97,7 +99,6 @@ QVariantMap ThemeController::defaultSyntax()
         {QStringLiteral("comment"), QStringLiteral("#7f7a8c")},
         {QStringLiteral("tag"), QStringLiteral("#e06c75")},
         {QStringLiteral("attribute"), QStringLiteral("#e5c07b")},
-        {QStringLiteral("value"), QStringLiteral("#98c379")},
         {QStringLiteral("variable"), QStringLiteral("#e06c75")},
         {QStringLiteral("function"), QStringLiteral("#61afef")},
         {QStringLiteral("type"), QStringLiteral("#56b6c2")},

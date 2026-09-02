@@ -60,6 +60,13 @@ Item {
     property bool developerToolsAttached: false
     property var developerToolsView: null
     property var developerToolsColors: ({})
+    // Whether Chromium is holding a node from a context menu. `InspectElement`
+    // reads that node and dereferences it without checking first, so asking for
+    // it when no menu has been opened takes the whole browser down. A keyboard
+    // request never has one, which is exactly the case that has to be caught.
+    property bool contextMenuTargetKnown: false
+    // The reader asked to point at something before the inspector had loaded.
+    property bool elementPickPending: false
 
     signal developerToolsClosed()
     signal rendererFailed(string reason)
@@ -96,8 +103,9 @@ Item {
             onWindowCloseRequested: root.developerToolsClosed()
 
             onLoadingChanged: function(loadRequest) {
-                if (loadRequest.status === WebEngineView.LoadSucceededStatus)
-                    root.applyDeveloperToolsTheme()
+                if (loadRequest.status !== WebEngineView.LoadSucceededStatus) return
+                root.applyDeveloperToolsTheme()
+                root.pickElement()
             }
         }
     }
@@ -114,6 +122,7 @@ Item {
     function detachDeveloperTools() {
         if (!root.developerToolsAttached) return
         root.developerToolsAttached = false
+        root.elementPickPending = false
         webView.devToolsView = null
         const view = root.developerToolsView
         root.developerToolsView = null
@@ -122,20 +131,42 @@ Item {
         if (view) view.destroy()
     }
 
-    // Chromium remembers the node the last context menu was opened over, and
-    // this is the action that reads it, so the target is the one the reader
-    // pointed at rather than wherever the page happens to be scrolled.
+    // Two ways to name what to inspect, and the reader has already chosen
+    // between them. Opening a context menu over a node is Chromium naming it,
+    // and `InspectElement` is the action that reads it back. Asking from the
+    // keyboard names nothing, so the inspector's own element picker is what
+    // answers: the reader points at what they meant, which is what the key does
+    // in every other browser.
     function inspectElement() {
-        if (root.developerToolsAttached) {
+        const alreadyOpen = root.developerToolsAttached
+        root.attachDeveloperTools()
+        if (!root.developerToolsAttached) return
+        if (!root.contextMenuTargetKnown) {
+            root.elementPickPending = true
+            if (alreadyOpen) root.pickElement()
+            return
+        }
+        if (alreadyOpen) {
             webView.triggerWebAction(WebEngineView.InspectElement)
             return
         }
-        root.attachDeveloperTools()
-        // The frontend has to exist before it can be told what to select.
+        // The inspector has to exist before the page can be told to reveal a
+        // node in it.
         Qt.callLater(function() {
-            if (root.developerToolsAttached)
+            if (root.developerToolsAttached && root.contextMenuTargetKnown)
                 webView.triggerWebAction(WebEngineView.InspectElement)
         })
+    }
+
+    // The frontend's own picker, asked for the way its host asks for it. It
+    // waits for the frontend to finish loading, because a page that has not run
+    // its scripts has no picker to enter.
+    function pickElement() {
+        if (!root.elementPickPending || !root.developerToolsView) return
+        if (root.developerToolsView.loading) return
+        root.elementPickPending = false
+        root.developerToolsView.runJavaScript(
+            "globalThis.DevToolsAPI && globalThis.DevToolsAPI.enterInspectElementMode();")
     }
 
     function goBack() { webView.goBack() }
@@ -431,9 +462,11 @@ Item {
     // debugging protocol, and nothing that breaks when the frontend adds a
     // token Tanto has never heard of.
     //
-    // The theme names ten syntax colours and the frontend has twenty-odd
+    // The theme names nine syntax colours and the frontend has twenty-odd
     // tokens, so several tokens share one: they are the constructs that read
     // alike, and a terminal palette has no more hues to tell them apart with.
+    // An attribute's value is drawn as the string it is, which is what every
+    // editor does and what keeps the inspector reading like the one beside it.
     function developerToolsTokens() {
         const text = root.developerToolsColor("text", "#f3f1fa")
         const muted = root.developerToolsColor("mutedText", "#aaa5b7")
@@ -450,7 +483,6 @@ Item {
         const comment = root.developerToolsSyntaxColor("comment", muted)
         const tag = root.developerToolsSyntaxColor("tag", text)
         const attribute = root.developerToolsSyntaxColor("attribute", text)
-        const value = root.developerToolsSyntaxColor("value", string)
         const variable = root.developerToolsSyntaxColor("variable", text)
         const method = root.developerToolsSyntaxColor("function", accent)
         const type = root.developerToolsSyntaxColor("type", text)
@@ -516,8 +548,8 @@ Item {
             "--sys-color-token-tag": tag,
             "--sys-color-token-attribute": attribute,
             "--sys-color-token-property": attribute,
-            "--sys-color-token-attribute-value": value,
-            "--sys-color-token-string-special": value,
+            "--sys-color-token-attribute-value": string,
+            "--sys-color-token-string-special": string,
             "--sys-color-token-variable": variable,
             "--sys-color-token-property-special": variable,
             "--sys-color-token-definition": method,
@@ -610,9 +642,18 @@ Item {
             root.rendererFailed("Renderer stopped with exit code " + exitCode)
         }
 
+        // Chromium keeps the node the menu was opened over, and Tanto has to
+        // know that it has one: nothing on the view reports it, and the action
+        // that reads it crashes when there is none.
+        onContextMenuRequested: root.contextMenuTargetKnown = true
+
         onLoadingChanged: function(loadRequest) {
             root.refreshBlockedRequestCount()
             if (loadRequest.status === WebEngineView.LoadStartedStatus) {
+                // The node Chromium is holding belonged to the page being
+                // replaced. What is at those coordinates now is not what the
+                // reader pointed at, so the next keyboard request picks again.
+                root.contextMenuTargetKnown = false
                 root.installBlockingScript(loadRequest.url)
                 return
             }

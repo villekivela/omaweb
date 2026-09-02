@@ -57,15 +57,15 @@ MUTED_TEXT_STEP = 0.70
 
 # The ANSI slot each syntax token is read from. A terminal has six hues to
 # give and code has more constructs than that, so tokens that read alike share
-# one: an attribute and a number are both literal-ish, a type and an attribute
-# value both sit at the end of a declaration.
+# one: an attribute name and a type both name something rather than being a
+# value. An attribute's value is not here at all — it is a string, and the
+# inspector draws it in the string colour, as an editor does.
 SYNTAX_SLOTS = {
     "keyword": 5,
     "string": 2,
     "number": 3,
     "tag": 1,
-    "attribute": 3,
-    "value": 6,
+    "attribute": 6,
     "variable": 1,
     "function": 4,
     "type": 6,

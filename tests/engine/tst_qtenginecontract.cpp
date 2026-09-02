@@ -64,6 +64,7 @@ private slots:
     void qtDocksAnInspectorDrawnInTantosColours();
     void qtKeepsAnInspectedTabActiveOnlyWhileAttached();
     void qtInspectsAPrivateTabInItsOwnTemporaryProfile();
+    void qtPicksAnElementWhenNoContextMenuNamedOne();
 };
 
 namespace {
@@ -89,7 +90,6 @@ QVariantMap inspectorPalette()
             {QStringLiteral("comment"), QStringLiteral("#fedcba")},
             {QStringLiteral("tag"), QStringLiteral("#010203")},
             {QStringLiteral("attribute"), QStringLiteral("#040506")},
-            {QStringLiteral("value"), QStringLiteral("#070809")},
             {QStringLiteral("variable"), QStringLiteral("#0a0b0c")},
             {QStringLiteral("function"), QStringLiteral("#0d0e0f")},
             {QStringLiteral("type"), QStringLiteral("#101112")},
@@ -1291,6 +1291,11 @@ void QtEngineContractTest::qtDocksAnInspectorDrawnInTantosColours()
     QVERIFY(resolves("--sys-color-token-keyword", QStringLiteral("#123456")));
     QVERIFY(resolves("--sys-color-token-string", QStringLiteral("#654321")));
     QVERIFY(resolves("--sys-color-token-comment", QStringLiteral("#fedcba")));
+    // An attribute's value is a string, and reads as one. The theme names no
+    // separate colour for it, and the inspector must not invent one.
+    QVERIFY(resolves("--sys-color-token-attribute-value", QStringLiteral("#654321")));
+    QVERIFY(resolves("--sys-color-token-attribute", QStringLiteral("#040506")));
+    QVERIFY(resolves("--sys-color-token-tag", QStringLiteral("#010203")));
     QVERIFY(resolves("--sys-color-cdt-base-container", QStringLiteral("#0b1a0b")));
     QVERIFY(resolves("--sys-color-primary", QStringLiteral("#00ff88")));
     // The frontend has a light face and a dark one, and Tanto's own window
@@ -1392,6 +1397,78 @@ void QtEngineContractTest::qtInspectsAPrivateTabInItsOwnTemporaryProfile()
     // inspector's own and not the default one.
     QCOMPARE(tools->property("profile").value<QObject *>(), privateProfile.get());
     QCOMPARE(adapter->property("browserProfile").value<QObject *>(), privateProfile.get());
+    QVERIFY(QMetaObject::invokeMethod(adapter.get(), "detachDeveloperTools"));
+}
+
+// Chromium's InspectElement reads the node a context menu was opened over and
+// dereferences it without checking, so asking for it from the keyboard — where
+// no menu has been opened — used to take the whole browser down. This test
+// crashes the suite if that comes back.
+void QtEngineContractTest::qtPicksAnElementWhenNoContextMenuNamedOne()
+{
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    QQmlEngine engine;
+    QQmlComponent component(&engine, QUrl::fromLocalFile(
+        QStringLiteral(TANTO_QT_ENGINE_VIEW_PATH)));
+    const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
+        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
+    }));
+    QVERIFY2(adapter, qPrintable(component.errorString()));
+    auto *item = qobject_cast<QQuickItem *>(adapter.get());
+    QVERIFY(item);
+    QQuickWindow window;
+    window.resize(1200, 800);
+    item->setParentItem(window.contentItem());
+    item->setSize(QSizeF(700, 800));
+    window.show();
+
+    QVERIFY(adapter->setProperty("currentUrl", QUrl(QStringLiteral(
+        "data:text/html,<title>Pick me</title><p id=target>pick me</p>"))));
+    QTRY_COMPARE(adapter->property("pageTitle").toString(), QStringLiteral("Pick me"));
+    QVERIFY(!adapter->property("contextMenuTargetKnown").toBool());
+
+    // The keyboard route: the inspector opens, and the frontend's own element
+    // picker is asked for once it has loaded, because nothing named a node.
+    QVERIFY(QMetaObject::invokeMethod(adapter.get(), "inspectElement"));
+    QVERIFY(adapter->property("developerToolsAttached").toBool());
+    auto *tools = adapter->property("developerToolsView").value<QObject *>();
+    QVERIFY(tools);
+    auto *toolsItem = qobject_cast<QQuickItem *>(tools);
+    QVERIFY(toolsItem);
+    toolsItem->setParentItem(window.contentItem());
+    toolsItem->setPosition(QPointF(700, 0));
+    toolsItem->setSize(QSizeF(500, 800));
+    QTRY_VERIFY_WITH_TIMEOUT(!adapter->property("elementPickPending").toBool(), 20000);
+
+    // A context menu names a node, and then the action that reads it is the one
+    // that runs. Navigating away takes the node with it: what sits at those
+    // coordinates on the next page is not what the reader pointed at.
+    auto *webView = adapter->findChild<QObject *>(QStringLiteral("qtWebView"));
+    QVERIFY(webView);
+    QMetaMethod contextMenuSignal;
+    for (int index = 0; index < webView->metaObject()->methodCount(); ++index) {
+        const auto method = webView->metaObject()->method(index);
+        if (method.name() == "contextMenuRequested") {
+            contextMenuSignal = method;
+            break;
+        }
+    }
+    QVERIFY(contextMenuSignal.isValid());
+    void *request = nullptr;
+    QVERIFY(contextMenuSignal.invoke(webView, Qt::DirectConnection,
+        QGenericArgument(contextMenuSignal.parameterMetaType(0).name(), &request)));
+    QVERIFY(adapter->property("contextMenuTargetKnown").toBool());
+
+    QVERIFY(adapter->setProperty("currentUrl", QUrl(QStringLiteral(
+        "data:text/html,<title>Elsewhere</title><p>elsewhere</p>"))));
+    QTRY_COMPARE(adapter->property("pageTitle").toString(), QStringLiteral("Elsewhere"));
+    QVERIFY(!adapter->property("contextMenuTargetKnown").toBool());
+
+    // And asking again on the page that named nothing still opens the picker
+    // rather than reading a node Chromium no longer has.
+    QVERIFY(QMetaObject::invokeMethod(adapter.get(), "inspectElement"));
+    QVERIFY(adapter->property("developerToolsAttached").toBool());
     QVERIFY(QMetaObject::invokeMethod(adapter.get(), "detachDeveloperTools"));
 }
 

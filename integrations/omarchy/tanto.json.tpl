@@ -21,8 +21,7 @@
     "number": "{{ yellow }}",
     "comment": "{{ dark_foreground }}",
     "tag": "{{ red }}",
-    "attribute": "{{ yellow }}",
-    "value": "{{ cyan }}",
+    "attribute": "{{ cyan }}",
     "variable": "{{ red }}",
     "function": "{{ blue }}",
     "type": "{{ cyan }}"

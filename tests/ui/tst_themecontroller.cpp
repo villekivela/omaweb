@@ -237,7 +237,7 @@ void ThemeControllerTest::namesTheColoursCodeIsReadIn()
         QColor(QStringLiteral("#7f7a8c")));
 
     for (const auto &token : {"keyword", "string", "number", "comment", "tag", "attribute",
-             "value", "variable", "function", "type"}) {
+             "variable", "function", "type"}) {
         const QColor colour(syntax.value(QString::fromLatin1(token)).toString());
         QVERIFY2(colour.isValid(), token);
         // Code is read against a solid surface, so a token carries no alpha of
