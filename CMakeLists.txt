@@ -469,6 +469,22 @@ if(BUILD_TESTING)
         )
     endif()
 
+    qt_add_executable(tanto-platform-services-tests
+        tests/platform/tst_platformservices.cpp
+    )
+    target_link_libraries(tanto-platform-services-tests PRIVATE
+        tanto-platform
+        Qt6::Gui
+        Qt6::Test
+    )
+    tanto_strict_target(tanto-platform-services-tests)
+    add_test(NAME tanto-platform-services COMMAND tanto-platform-services-tests)
+    # The notification service is a window-server service, and the seam's
+    # contract is what it does without one.
+    set_tests_properties(tanto-platform-services PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+    )
+
     qt_add_executable(tanto-favicon-tint-tests tests/ui/tst_favicontint.cpp)
     target_link_libraries(tanto-favicon-tint-tests PRIVATE tanto-ui Qt6::Gui Qt6::Test)
     tanto_strict_target(tanto-favicon-tint-tests)
@@ -567,6 +583,7 @@ if(BUILD_TESTING)
             TANTO_MOCK_ENGINE_VIEW_PATH="${CMAKE_CURRENT_SOURCE_DIR}/src/ui-lab/MockEngineView.qml"
             TANTO_QT_ENGINE_VIEW_PATH="${CMAKE_CURRENT_SOURCE_DIR}/src/engine/qt/EngineView.qml"
             TANTO_QT_ENGINE_PROFILE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/src/engine/qt/EngineProfile.qml"
+            TANTO_MOCK_ENGINE_PROFILE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/src/ui-lab/MockEngineProfile.qml"
             TANTO_KEYBOARD_NAVIGATION_SCRIPT_PATH="${CMAKE_CURRENT_SOURCE_DIR}/src/engine/api/keyboard-navigation.js"
         )
         tanto_strict_target(tanto-qt-engine-contract-tests)

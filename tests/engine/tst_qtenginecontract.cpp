@@ -3,6 +3,7 @@
 #include "ExternalProtocolHandler.h"
 #include "QtContentBlocker.h"
 #include "EngineViewContract.h"
+#include "ProcessResources.h"
 
 #include <QGuiApplication>
 #include <QDir>
@@ -78,6 +79,11 @@ private slots:
     void qtSeparatesReloadBypassingCacheFromReloadAndStop();
     void qtRendersAPageForPrintingAndDrawsPdfsInline();
     void qtReportsSiteFullscreenWithItsOrigin();
+    void profileAdaptersHandOverNotifications_data();
+    void profileAdaptersHandOverNotifications();
+    void adaptersTakeTheShellsAutoplayDecision_data();
+    void adaptersTakeTheShellsAutoplayDecision();
+    void qtReportsTheProcessDrawingThePage();
 };
 
 namespace {
@@ -2129,6 +2135,103 @@ void QtEngineContractTest::qtReportsSiteFullscreenWithItsOrigin()
     QCOMPARE(adapter->property("siteFullscreenOrigin").toString(), QString{});
     QTRY_COMPARE_WITH_TIMEOUT(adapter->property("pageTitle").toString(),
         QStringLiteral("windowed"), 15000);
+}
+
+void QtEngineContractTest::profileAdaptersHandOverNotifications_data()
+{
+    QTest::addColumn<QString>("path");
+    QTest::newRow("UI-lab mock") << QStringLiteral(TANTO_MOCK_ENGINE_PROFILE_PATH);
+    QTest::newRow("QtWebEngine") << QStringLiteral(TANTO_QT_ENGINE_PROFILE_PATH);
+}
+
+// A notification arrives from a Space's profile rather than from one page, so
+// the profile is where the shell meets it: the origin and the words come out,
+// and the answer — shown and clicked, or closed unseen — goes back in. Whether
+// the reader is entitled to be interrupted is the shell's to decide, which it
+// cannot do if the engine has already shown the notification.
+void QtEngineContractTest::profileAdaptersHandOverNotifications()
+{
+    QFETCH(QString, path);
+    QQmlEngine engine;
+    QQmlComponent component(&engine, QUrl::fromLocalFile(path));
+    QVERIFY2(component.isReady(), qPrintable(component.errorString()));
+    const std::unique_ptr<QObject> profile(component.create());
+    QVERIFY2(profile, qPrintable(component.errorString()));
+
+    const auto *metaObject = profile->metaObject();
+    const auto presented = metaObject->indexOfSignal(
+        "notificationPresented(QString,QUrl,QString,QString)");
+    QVERIFY2(presented >= 0, "profile does not report notifications to the shell");
+    QVERIFY(metaObject->indexOfMethod("activateNotification(QVariant)") >= 0);
+    QVERIFY(metaObject->indexOfMethod("dismissNotification(QVariant)") >= 0);
+}
+
+void QtEngineContractTest::adaptersTakeTheShellsAutoplayDecision_data()
+{
+    QTest::addColumn<QString>("path");
+    QTest::newRow("UI-lab mock") << QStringLiteral(TANTO_MOCK_ENGINE_VIEW_PATH);
+    QTest::newRow("QtWebEngine") << QStringLiteral(TANTO_QT_ENGINE_VIEW_PATH);
+}
+
+// Whether a page may start playing on its own is the shell's decision, not the
+// engine's default: muted playback interrupts nobody, and audible playback
+// waits until the reader has dealt with the origin. Every adapter starts out
+// requiring a gesture and takes the answer it is given.
+void QtEngineContractTest::adaptersTakeTheShellsAutoplayDecision()
+{
+    QFETCH(QString, path);
+    QQmlEngine engine;
+    QQmlComponent component(&engine, QUrl::fromLocalFile(path));
+    QVERIFY2(component.isReady(), qPrintable(component.errorString()));
+    const std::unique_ptr<QObject> adapter(component.create());
+    QVERIFY2(adapter, qPrintable(component.errorString()));
+
+    QVERIFY(!adapter->property("autoplayAllowed").toBool());
+    QVERIFY(adapter->setProperty("autoplayAllowed", true));
+    QVERIFY(adapter->property("autoplayAllowed").toBool());
+
+    // The Qt adapter turns it into Chromium's own policy, which is per view.
+    if (auto *view = adapter->findChild<QObject *>(QStringLiteral("qtWebView"))) {
+        const auto settings = view->property("settings").value<QObject *>();
+        QVERIFY(settings);
+        QTRY_VERIFY(!settings->property("playbackRequiresUserGesture").toBool());
+        QVERIFY(adapter->setProperty("autoplayAllowed", false));
+        QTRY_VERIFY(settings->property("playbackRequiresUserGesture").toBool());
+    }
+}
+
+// A retained tab holds a renderer the reader cannot see, so the browser has to
+// be able to say what it costs. The adapter names the process; the platform
+// answers for it.
+void QtEngineContractTest::qtReportsTheProcessDrawingThePage()
+{
+    QQmlEngine engine;
+    QQmlComponent component(&engine, QUrl::fromLocalFile(
+        QStringLiteral(TANTO_QT_ENGINE_VIEW_PATH)));
+    const std::unique_ptr<QObject> adapter(component.create());
+    QVERIFY2(adapter, qPrintable(component.errorString()));
+
+    auto *view = qobject_cast<QQuickItem *>(adapter.get());
+    QVERIFY(view);
+    QQuickWindow window;
+    window.resize(640, 480);
+    view->setParentItem(window.contentItem());
+    view->setSize(QSizeF(640, 480));
+    window.show();
+
+    // Nothing is loaded, so nothing is drawing and there is no process to name.
+    QCOMPARE(adapter->property("renderProcessPid").toInt(), 0);
+
+    QVERIFY(adapter->setProperty("currentUrl", QUrl(QStringLiteral(
+        "data:text/html,<title>Costed</title><p>page</p>"))));
+    QTRY_COMPARE(adapter->property("pageTitle").toString(), QStringLiteral("Costed"));
+    QTRY_VERIFY(adapter->property("renderProcessPid").toInt() > 0);
+
+    tanto::ProcessResources resources;
+    QVERIFY(resources.available());
+    QVERIFY(resources.residentBytes(adapter->property("renderProcessPid").toInt()) > 0);
+    // A process that is not there costs nothing, and is not guessed at.
+    QCOMPARE(resources.residentBytes(0), 0);
 }
 
 int main(int argc, char *argv[])

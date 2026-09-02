@@ -36,6 +36,39 @@ TestCase {
         }
     }
 
+    // One row on its own, so a drag can be measured against known geometry:
+    // the shared window's ordinary list is as long as the tests before this one
+    // left it, and a row scrolled out of the viewport takes no pointer.
+    Component {
+        id: dragRowComponent
+
+        Tanto.TabRow {
+            property var offsets: []
+
+            colors: testCase.window.colors
+            iconFontFamily: ""
+            tabId: "dragged"
+            tabTitle: "Dragged"
+            tabUrl: "https://dragged.example"
+            tabIconUrl: ""
+            pinned: false
+            active: false
+            loading: false
+            tabAudible: false
+            tabMuted: false
+            width: 260
+            // Clear of the window's own chrome, which is above it and would
+            // take the press.
+            x: 500
+            y: 400
+            z: 70
+
+            onMoveRequested: function(tabId, offset) {
+                offsets = offsets.concat([offset])
+            }
+        }
+    }
+
     Component {
         id: attentionOutlineComponent
 
@@ -1071,105 +1104,429 @@ TestCase {
         tryCompare(browser, "activeTabId", start)
     }
 
-    function test_spaceSwitchKeepsEachSpacesPagesLoaded() {
+    // Only the Space on show keeps live pages. Putting one away takes its
+    // renderers with it: coming back reloads its tabs from their addresses
+    // rather than finding the very pages that were left. That is the memory
+    // policy the browser is built on, not a shortcoming of the switch.
+    function test_spaceSuspensionTakesThePagesItPutsAway() {
         const engineLoader = findChild(window.contentItem, "engineLoader")
         verify(engineLoader !== null)
         openPage("https://personal-space.example")
         const personalSpaceId = browser.activeSpaceId
+        const personalTabId = browser.activeTabId
         const personalEngineView = engineLoader.item
         const workSpaceId = browser.createSpace("Work")
 
         verify(browser.switchSpace(workSpaceId))
+        // The page is gone, not hidden: nothing is being kept for a Space the
+        // reader is not looking at.
+        tryVerify(function() { return engineLoader.engines[personalTabId] === undefined })
+        verify(!engineLoader.retained(personalTabId))
         openPage("https://work-space.example")
+        const workEngineView = engineLoader.item
+        const workTabId = browser.activeTabId
+
+        verify(browser.switchSpace(personalSpaceId))
         tryVerify(function() {
             return engineLoader.item !== null
                 && engineLoader.item !== personalEngineView
+                && engineLoader.item !== workEngineView
+                && String(engineLoader.item.currentUrl) === "https://personal-space.example"
                 && engineLoader.item.profilePath === browser.activeProfilePath
         })
-        const workEngineView = engineLoader.item
 
-        // Coming back finds the very page that was left, not a reload of it.
-        verify(browser.switchSpace(personalSpaceId))
-        tryCompare(engineLoader, "item", personalEngineView)
-
-        // A deleted Space takes its pages with it. It has a page open now, so
-        // deleting it takes its name as confirmation.
-        verify(browser.switchSpace(workSpaceId))
-        tryCompare(engineLoader, "item", workEngineView)
         verify(browser.deleteSpace(workSpaceId, "Work"))
         compare(browser.activeSpaceId, personalSpaceId)
-        tryCompare(engineLoader, "item", personalEngineView)
+        verify(engineLoader.engines[workTabId] === undefined)
     }
 
-    // Site artwork is page state, not session state, so the Space switch that
-    // reloads a Space's tabs from its store drops it. The page itself is kept
-    // alive across the switch and will never report its icon again, so coming
-    // back has to find the icon the reader already watched load.
-    function test_spaceSwitchKeepsTheIconsItsPagesAlreadyReported() {
+    // The two exceptions to that policy, and nothing else: a Pinned tab the
+    // reader marked Keep active, and the tab an inspector is attached to. Both
+    // keep their page while their Space is away, both are named in the list of
+    // what is being retained, and both are reported with what they cost.
+    function test_suspensionKeepsOnlyTheTabsTheCoreRetains() {
         const engineLoader = findChild(window.contentItem, "engineLoader")
         verify(engineLoader !== null)
-        openPage("https://one.example/page")
-
         const personalSpaceId = browser.activeSpaceId
-        const tabId = browser.activeTabId
-        const iconUrl = "https://one.example/favicon.ico"
-        const personalEngineView = engineLoader.item
-        const tabShowsIcon = function() {
-            const row = findChild(window.contentItem, "tab-" + tabId)
+
+        openPage("https://kept.example/room")
+        const keptTabId = browser.activeTabId
+        browser.toggleActivePinned()
+        verify(browser.setTabKeepActive(keptTabId, true))
+        const keptEngineView = engineLoader.engines[keptTabId]
+        verify(keptEngineView !== undefined)
+
+        browser.openInput("https://inspected.example", true)
+        tryVerify(function() { return engineLoader.item !== null })
+        const inspectedTabId = browser.activeTabId
+        browser.openDeveloperTools()
+
+        browser.openInput("https://ordinary.example", true)
+        tryVerify(function() { return engineLoader.item !== null })
+        const ordinaryTabId = browser.activeTabId
+
+        const workSpaceId = browser.createSpace("Retained")
+        verify(browser.switchSpace(workSpaceId))
+
+        // The ordinary page is gone; the retained ones are still running.
+        tryVerify(function() { return engineLoader.engines[ordinaryTabId] === undefined })
+        verify(engineLoader.retained(keptTabId))
+        verify(engineLoader.retained(inspectedTabId))
+        verify(!engineLoader.retained(ordinaryTabId))
+        compare(engineLoader.engines[keptTabId], keptEngineView)
+
+        // The reader can see the whole list and what each one holds.
+        tryVerify(function() { return engineLoader.retainedTabReport().length === 2 })
+        const report = engineLoader.retainedTabReport()
+        let keptReport = null
+        for (let index = 0; index < report.length; ++index) {
+            if (report[index].tabId === keptTabId) keptReport = report[index]
+        }
+        verify(keptReport !== null)
+        compare(keptReport.spaceName, "Personal")
+        verify(keptReport.running)
+
+        // Coming back finds the retained page where it was left, and reloads
+        // the ordinary one.
+        verify(browser.switchSpace(personalSpaceId))
+        tryVerify(function() { return engineLoader.engines[keptTabId] === keptEngineView })
+        tryVerify(function() { return !engineLoader.retained(keptTabId) })
+
+        browser.closeDeveloperTools()
+        browser.setTabKeepActive(keptTabId, false)
+        browser.activateTab(keptTabId)
+        browser.toggleActivePinned()
+        browser.closeTab(keptTabId)
+        browser.closeTab(inspectedTabId)
+        browser.closeTab(ordinaryTabId)
+        verify(browser.deleteSpace(workSpaceId, "Retained"))
+    }
+
+    // A retained page kept playing and kept its artwork while its Space was
+    // away. The Space's tabs come back from a store that records neither, so
+    // the row reads both off the page that outlived the switch.
+    function test_retainedTabBringsBackItsIconAndItsSound() {
+        const engineLoader = findChild(window.contentItem, "engineLoader")
+        verify(engineLoader !== null)
+        const personalSpaceId = browser.activeSpaceId
+        const keptEngineView = openPage("https://kept-sound.example")
+        const keptTabId = browser.activeTabId
+        browser.toggleActivePinned()
+        verify(browser.setTabKeepActive(keptTabId, true))
+
+        const iconUrl = "https://kept-sound.example/favicon.ico"
+        keptEngineView.pageIconUrl = iconUrl
+        keptEngineView.simulateAudible(true)
+        const showsIcon = function() {
+            const row = findChild(window.contentItem, "pinned-" + keptTabId)
             return row !== null && String(row.tabIconUrl) === iconUrl
         }
-
-        personalEngineView.pageIconUrl = iconUrl
-        tryVerify(tabShowsIcon)
-
-        const workSpaceId = browser.createSpace("Work")
-        verify(browser.switchSpace(workSpaceId))
-        openPage("https://work-icons.example")
-        tryVerify(function() {
-            return engineLoader.item !== null && engineLoader.item !== personalEngineView
-        })
-
-        verify(browser.switchSpace(personalSpaceId))
-        tryCompare(engineLoader, "item", personalEngineView)
-        tryVerify(tabShowsIcon)
-    }
-
-    // A page kept playing while its Space was away, and kept the muting it was
-    // given. The Space's tabs come back from a store that records neither, so
-    // the row reads both off the page that outlived the switch.
-    function test_spaceSwitchKeepsWhatItsPagesAreStillPlaying() {
-        const engineLoader = findChild(window.contentItem, "engineLoader")
-        verify(engineLoader !== null)
-        const personalEngineView = openPage("https://one.example/sound")
-
-        const personalSpaceId = browser.activeSpaceId
-        const tabId = browser.activeTabId
-        personalEngineView.simulateAudible(true)
-        const speaker = findChild(window.contentItem, "audio-" + tabId)
-        verify(speaker !== null)
-        tryVerify(function() { return speaker.visible })
-        browser.toggleTabMuted(tabId)
-        tryVerify(function() { return personalEngineView.audioMuted })
+        tryVerify(showsIcon)
 
         const workSpaceId = browser.createSpace("Sound")
         verify(browser.switchSpace(workSpaceId))
-        openPage("https://work-sound.example")
-        tryVerify(function() {
-            return engineLoader.item !== null && engineLoader.item !== personalEngineView
-        })
-
         verify(browser.switchSpace(personalSpaceId))
-        tryCompare(engineLoader, "item", personalEngineView)
-        // The page is still muted, so the row still says so and still offers
-        // the sound back.
-        verify(personalEngineView.audioMuted)
-        const restored = findChild(window.contentItem, "audio-" + tabId)
-        verify(restored !== null)
-        tryVerify(function() { return restored.visible })
+
+        tryVerify(function() { return engineLoader.engines[keptTabId] === keptEngineView })
+        tryVerify(showsIcon)
+        const speaker = findChild(window.contentItem, "audio-" + keptTabId)
+        verify(speaker !== null)
+        tryVerify(function() { return speaker.visible })
+
+        keptEngineView.simulateAudible(false)
+        browser.setTabKeepActive(keptTabId, false)
+        browser.activateTab(keptTabId)
+        browser.toggleActivePinned()
+        browser.closeTab(keptTabId)
+        verify(browser.deleteSpace(workSpaceId, "Sound"))
+    }
+
+    // Muting is the session's, not the page's: a tab whose renderer was thrown
+    // away with its Space comes back muted from the store, and the engine that
+    // reloads it is told so.
+    function test_mutingComesBackFromTheSessionAfterSuspension() {
+        const engineLoader = findChild(window.contentItem, "engineLoader")
+        const personalSpaceId = browser.activeSpaceId
+        const engineView = openPage("https://muted.example")
+        const tabId = browser.activeTabId
+        browser.toggleTabMuted(tabId)
+        tryVerify(function() { return engineView.audioMuted })
+
+        const workSpaceId = browser.createSpace("Muting")
+        verify(browser.switchSpace(workSpaceId))
+        tryVerify(function() { return engineLoader.engines[tabId] === undefined })
+        verify(browser.switchSpace(personalSpaceId))
+
+        // A different engine, drawing the same tab, muted because the tab is.
+        tryVerify(function() {
+            const reloaded = engineLoader.engines[tabId]
+            return reloaded !== undefined && reloaded !== engineView && reloaded.audioMuted
+        })
+        const row = findChild(window.contentItem, "tab-" + tabId)
+        verify(row !== null)
+        verify(row.tabMuted)
 
         browser.toggleTabMuted(tabId)
-        tryVerify(function() { return !personalEngineView.audioMuted })
-        personalEngineView.simulateAudible(false)
+        verify(browser.deleteSpace(workSpaceId, "Muting"))
+    }
+
+    // Muted playback interrupts nobody, so it starts freely. Audible playback
+    // waits until the reader has dealt with the origin themselves — and once
+    // they have, every tab on that origin has it.
+    function test_audibleAutoplayWaitsForTheOriginToBeDealtWith() {
+        const engineLoader = findChild(window.contentItem, "engineLoader")
+        const engineView = openPage("https://autoplay.example/clip")
+        const tabId = browser.activeTabId
+
+        verify(!engineView.autoplayAllowed)
+        verify(!engineView.simulateAutoplay())
+        compare(engineView.autoplayBlockedCount, 1)
+
+        // Muted, the page may start.
+        browser.toggleTabMuted(tabId)
+        tryVerify(function() { return engineView.autoplayAllowed })
+        verify(engineView.simulateAutoplay())
+        verify(!engineView.pageAudible)
+        browser.toggleTabMuted(tabId)
+        tryVerify(function() { return !engineView.autoplayAllowed })
+
+        // A gesture on the page earns the origin its sound, here and in the
+        // next tab showing the same site.
+        browser.openInput("https://autoplay.example/other", true)
+        tryVerify(function() { return engineLoader.item !== null })
+        const secondTabId = browser.activeTabId
+        const secondEngineView = engineLoader.engines[secondTabId]
+        verify(secondEngineView !== undefined)
+        verify(!secondEngineView.autoplayAllowed)
+
+        engineView.simulateUserActivation()
+        tryVerify(function() {
+            return engineView.autoplayAllowed && secondEngineView.autoplayAllowed
+        })
+        verify(secondEngineView.simulateAutoplay())
+        verify(secondEngineView.pageAudible)
+
+        secondEngineView.simulateAudible(false)
+        browser.closeTab(secondTabId)
+        browser.closeTab(tabId)
+    }
+
+    // A notification names the origin and the Space before it says anything the
+    // page wrote, and answering it goes to the tab that sent it.
+    function test_notificationNamesOriginAndSpaceAndAnswersToItsTab() {
+        const personalSpaceId = browser.activeSpaceId
+        openPage("https://chat.example/room")
+        const chatTabId = browser.activeTabId
+        const host = window.spaceProfileHosts[personalSpaceId]
+        verify(host !== undefined)
+        window.lastSiteNotification = null
+
+        const notificationId = host.simulateNotification(
+            "https://chat.example", "New message", "Someone said something")
+        tryVerify(function() { return window.lastSiteNotification !== null })
+        compare(window.lastSiteNotification.heading, "https://chat.example · Personal")
+        compare(window.lastSiteNotification.detail, "New message — Someone said something")
+        compare(window.lastSiteNotification.tabId, chatTabId)
+
+        // Answering it takes the reader to the page that sent it, and the page
+        // hears the click.
+        browser.openInput("https://elsewhere.example", true)
+        const elsewhereTabId = browser.activeTabId
+        window.answerSiteNotification(window.lastSiteNotification.key, true)
+        compare(browser.activeTabId, chatTabId)
+        compare(host.activatedNotifications.indexOf(notificationId) >= 0, true)
+
+        // A page whose Space has been put away, and which nothing is keeping
+        // running, is refused rather than reaching the desktop.
+        const workSpaceId = browser.createSpace("Notifying")
+        verify(browser.switchSpace(workSpaceId))
+        window.lastSiteNotification = null
+        const refusedId = host.simulateNotification(
+            "https://chat.example", "Ignored", "Nobody should see this")
+        tryVerify(function() { return host.dismissedNotifications.indexOf(refusedId) >= 0 })
+        compare(window.lastSiteNotification, null)
+
+        verify(browser.switchSpace(personalSpaceId))
+        browser.closeTab(elsewhereTabId)
+        browser.closeTab(chatTabId)
+        verify(browser.deleteSpace(workSpaceId, "Notifying"))
+    }
+
+    // A row's menu is about that row. The ordinary rows are offered the two
+    // sweeping closes and their own close; a pin is offered neither, and gets
+    // Keep active instead.
+    function test_tabMenuOffersClosesToOrdinaryRowsAndKeepActiveToPins() {
+        openPage("https://menu.example/one")
+        const ordinaryTabId = browser.activeTabId
+        const ordinaryLabels = window.tabMenuActionsFor(ordinaryTabId).map(
+            function(action) { return action.label })
+        verify(ordinaryLabels.indexOf("Close other tabs") >= 0)
+        verify(ordinaryLabels.indexOf("Close tabs below") >= 0)
+        verify(ordinaryLabels.indexOf("Duplicate tab") >= 0)
+        verify(ordinaryLabels.indexOf("Keep active") === -1)
+
+        browser.toggleActivePinned()
+        const pinnedLabels = window.tabMenuActionsFor(ordinaryTabId).map(
+            function(action) { return action.label })
+        verify(pinnedLabels.indexOf("Keep active") >= 0)
+        verify(pinnedLabels.indexOf("Close tab") === -1)
+        verify(pinnedLabels.indexOf("Close other tabs") === -1)
+        verify(pinnedLabels.indexOf("Close tabs below") === -1)
+
+        // The row opens its own menu, by pointer and by keyboard, and the menu
+        // runs against the row it was opened on.
+        const row = findChild(window.contentItem, "pinned-" + ordinaryTabId)
+        verify(row !== null)
+        mouseClick(row, row.width / 2, row.height / 2, Qt.RightButton)
+        tryVerify(function() { return window.tabMenuOpen })
+        compare(window.tabMenuTabId, ordinaryTabId)
+        window.tabMenuOpen = false
+
+        // The keyboard reaches it through the command rather than a key of the
+        // row's own: the page's context menu already owns Shift+F10.
+        browser.activateTab(ordinaryTabId)
+        verify(window.commands.run("tab-menu"))
+        tryVerify(function() { return window.tabMenuOpen })
+        compare(window.tabMenuTabId, ordinaryTabId)
+        window.tabMenuOpen = false
+
+        browser.activateTab(ordinaryTabId)
+        browser.toggleActivePinned()
+        browser.closeTab(ordinaryTabId)
+    }
+
+    // Order is the reader's, within one section. A drag down the ordinary list
+    // moves a row past its neighbour and no further than the section's end,
+    // and the keyboard does the same a step at a time.
+    function test_tabsReorderByPointerAndKeyboardWithinTheirSection() {
+        openPage("https://order.example/one")
+        const firstTabId = browser.activeTabId
+        browser.openInput("https://order.example/two", true)
+        const secondTabId = browser.activeTabId
+        browser.openInput("https://order.example/three", true)
+        const thirdTabId = browser.activeTabId
+        // A pin above them, which no ordinary row may be dragged into.
+        browser.activateTab(firstTabId)
+        browser.toggleActivePinned()
+
+        // The window is shared with every other test, so the places are read
+        // relative to where these two rows start rather than from the top.
+        const secondPlace = browser.tabSectionIndex(secondTabId)
+        compare(browser.tabSectionIndex(thirdTabId), secondPlace + 1)
+
+        // The pointer asks the core for the same step the keyboard does.
+        verify(browser.moveTab(secondTabId, secondPlace + 1))
+        compare(browser.tabSectionIndex(secondTabId), secondPlace + 1)
+        compare(browser.tabSectionIndex(thirdTabId), secondPlace)
+
+        // The keyboard steps it back, and stops at the section's edge rather
+        // than carrying it into the pins.
+        browser.activateTab(secondTabId)
+        verify(window.commands.run("move-tab-up"))
+        compare(browser.tabSectionIndex(secondTabId), secondPlace)
+        for (let step = 0; step < secondPlace + 2; ++step)
+            window.commands.run("move-tab-up")
+        compare(browser.tabSectionIndex(secondTabId), 0)
+        verify(browser.tabPinned(firstTabId))
+
+        browser.activateTab(firstTabId)
+        browser.toggleActivePinned()
+        browser.closeTab(thirdTabId)
+        browser.closeTab(secondTabId)
+        browser.closeTab(firstTabId)
+    }
+
+    // A drag asks for whole places, one at a time, and only with the button
+    // that moves rows: the right button opens the menu and moves nothing.
+    function test_draggingARowAsksToMoveItByWholePlaces() {
+        const row = dragRowComponent.createObject(window.contentItem)
+        verify(row !== null)
+        const half = row.height / 2
+
+        // Short of half a row, the drag has not carried the row over its
+        // neighbour's place and nothing is asked for.
+        mousePress(row, row.width / 2, 4)
+        mouseMove(row, row.width / 2, 4 + half - 4)
+        wait(1)
+        compare(row.offsets.length, 0)
+        // Past it, one whole place — never a fraction of one.
+        mouseMove(row, row.width / 2, 4 + half + 4)
+        tryVerify(function() { return row.offsets.length === 1 })
+        compare(row.offsets, [1])
+        mouseRelease(row, row.width / 2, 4 + half + 4)
+
+        // Upwards is the same gesture the other way.
+        mousePress(row, row.width / 2, row.height - 4)
+        mouseMove(row, row.width / 2, row.height - 4 - half - 4)
+        tryVerify(function() { return row.offsets.length === 2 })
+        compare(row.offsets, [1, -1])
+        mouseRelease(row, row.width / 2, row.height - 4 - half - 4)
+
+        // The right button opens the menu and moves nothing.
+        mousePress(row, row.width / 2, 4, Qt.RightButton)
+        mouseMove(row, row.width / 2, 4 + half + 4)
+        wait(1)
+        compare(row.offsets, [1, -1])
+        mouseRelease(row, row.width / 2, 4 + half + 4, Qt.RightButton)
+
+        row.destroy()
+    }
+
+    // Duplicate opens the address again in a new ordinary tab, with its own
+    // engine: no history, no form state, and no share of the page it came from.
+    function test_duplicateOpensTheAddressInItsOwnNewTab() {
+        const engineLoader = findChild(window.contentItem, "engineLoader")
+        const engineView = openPage("https://duplicated.example/page")
+        const sourceTabId = browser.activeTabId
+        engineView.pageLocalState = "typed into a form"
+
+        verify(window.commands.run("duplicate-tab"))
+        const duplicateTabId = browser.activeTabId
+        verify(duplicateTabId !== sourceTabId)
+        tryVerify(function() {
+            const copy = engineLoader.engines[duplicateTabId]
+            return copy !== undefined && copy !== engineView
+                && String(copy.currentUrl) === "https://duplicated.example/page"
+                && copy.pageLocalState === ""
+        })
+        verify(!browser.tabPinned(duplicateTabId))
+
+        browser.closeTab(duplicateTabId)
+        browser.closeTab(sourceTabId)
+    }
+
+    // Settings names every retained tab, which Space it belongs to, why it is
+    // running and what it holds — and lets the reader stop one from there.
+    function test_settingsListEveryRetainedTabAndItsCost() {
+        const engineLoader = findChild(window.contentItem, "engineLoader")
+        const personalSpaceId = browser.activeSpaceId
+        openPage("https://listed.example")
+        const keptTabId = browser.activeTabId
+        browser.toggleActivePinned()
+        verify(browser.setTabKeepActive(keptTabId, true))
+
+        const workSpaceId = browser.createSpace("Listed")
+        verify(browser.switchSpace(workSpaceId))
+        window.settingsOpen = true
+        window.refreshRetainedTabs()
+
+        const listed = findChild(window.contentItem, "retainedTab-" + keptTabId)
+        verify(listed !== null)
+        verify(listed.note.indexOf("Personal") >= 0)
+        verify(listed.note.indexOf("Keep active") >= 0)
+
+        // Stopping it from the list is the same decision as the row's own, made
+        // about a tab in a Space that is not on show.
+        window.releaseRetainedTab(keptTabId)
+        tryVerify(function() { return browser.retainedTabs.length === 0 })
+        tryVerify(function() { return engineLoader.engines[keptTabId] === undefined })
+        window.settingsOpen = false
+
+        verify(browser.switchSpace(personalSpaceId))
+        browser.activateTab(keptTabId)
+        browser.toggleActivePinned()
+        browser.closeTab(keptTabId)
+        verify(browser.deleteSpace(workSpaceId, "Listed"))
     }
 
     // Moving a tab to another Space is not the same as switching to one. A
