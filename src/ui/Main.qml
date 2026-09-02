@@ -262,24 +262,24 @@ ApplicationWindow {
         if (window.windowBrowser.tabPinned(tabId)) {
             const keptActive = window.windowBrowser.tabKeepActive(tabId)
             return [
-                {"label": "Duplicate tab", "command": "duplicate"},
+                {"label": "Duplicate tab", "command": "duplicate-tab"},
                 {"label": keptActive ? "Stop keeping active" : "Keep active",
-                    "command": "keep-active"},
-                {"label": "Unpin tab", "command": "pin"},
+                    "command": "keep-tab-active"},
+                {"label": "Unpin tab", "command": "pin-tab"},
                 {"separator": true},
-                {"label": "Move to another Space", "command": "move-space",
+                {"label": "Move to another Space", "command": "move-tab",
                     "enabled": !window.privateWindow}
             ]
         }
         return [
-            {"label": "Duplicate tab", "command": "duplicate"},
-            {"label": "Pin tab", "command": "pin", "enabled": !window.privateWindow},
-            {"label": "Move to another Space", "command": "move-space",
+            {"label": "Duplicate tab", "command": "duplicate-tab"},
+            {"label": "Pin tab", "command": "pin-tab", "enabled": !window.privateWindow},
+            {"label": "Move to another Space", "command": "move-tab",
                 "enabled": !window.privateWindow},
             {"separator": true},
-            {"label": "Close other tabs", "command": "close-others"},
-            {"label": "Close tabs below", "command": "close-below"},
-            {"label": "Close tab", "command": "close", "destructive": true}
+            {"label": "Close other tabs", "command": "close-other-tabs"},
+            {"label": "Close tabs below", "command": "close-tabs-below"},
+            {"label": "Close tab", "command": "close-tab", "destructive": true}
         ]
     }
 
@@ -302,6 +302,9 @@ ApplicationWindow {
         window.tabMenuOpen = true
     }
 
+    // A menu row names the command the registry names, so the vocabulary is
+    // one vocabulary. Every command here is about a named tab, and the ones the
+    // registry states as being about the tab on show are given that tab first.
     function runTabMenu(index) {
         const actions = window.tabMenuActionsFor(window.tabMenuTabId)
         const action = actions[index]
@@ -309,24 +312,17 @@ ApplicationWindow {
         window.tabMenuOpen = false
         if (!action || tabId.length === 0) return
         switch (action.command) {
-        case "duplicate": window.windowBrowser.duplicateTab(tabId); break
-        case "keep-active":
+        case "duplicate-tab": window.windowBrowser.duplicateTab(tabId); break
+        case "close-other-tabs": window.windowBrowser.closeOtherTabs(tabId); break
+        case "close-tabs-below": window.windowBrowser.closeTabsBelow(tabId); break
+        case "close-tab": window.windowBrowser.closeTab(tabId); break
+        case "keep-tab-active":
             window.windowBrowser.setTabKeepActive(tabId,
                 !window.windowBrowser.tabKeepActive(tabId))
             break
-        // Pinning and moving a tab to another Space are commands about the tab
-        // on show, so the row is made the tab on show first.
-        case "pin":
+        default:
             window.windowBrowser.activateTab(tabId)
-            window.windowBrowser.toggleActivePinned()
-            break
-        case "move-space":
-            window.windowBrowser.activateTab(tabId)
-            window.requestMoveTab()
-            break
-        case "close-others": window.windowBrowser.closeOtherTabs(tabId); break
-        case "close-below": window.windowBrowser.closeTabsBelow(tabId); break
-        case "close": window.windowBrowser.closeTab(tabId); break
+            window.commands.run(action.command, -1)
         }
     }
 
@@ -1037,12 +1033,6 @@ ApplicationWindow {
     // and nothing until then.
     property var pendingNotifications: ({})
 
-    // The last notification the shell agreed to raise: which tab it belongs to
-    // and the words it was given. Deciding is the shell's, showing is the
-    // desktop's, and the two are kept apart so a platform with no notification
-    // service still refuses the right notifications.
-    property var lastSiteNotification: null
-
     function presentSiteNotification(spaceId, host, notificationId, origin, title, message) {
         const target = window.windowBrowser.notificationTarget(spaceId, origin)
         // A page whose Space has been put away, and which nothing is keeping
@@ -1059,18 +1049,13 @@ ApplicationWindow {
         const detail = title.length > 0 && message.length > 0
             ? title + " — " + message
             : (title.length > 0 ? title : message)
-        window.lastSiteNotification = {
-            "key": key,
-            "tabId": target.tabId,
-            "spaceId": spaceId,
-            "heading": heading,
-            "detail": detail
-        }
         window.pendingNotifications[key] = {
             "spaceId": spaceId,
             "tabId": target.tabId,
             "host": host,
-            "notificationId": notificationId
+            "notificationId": notificationId,
+            "heading": heading,
+            "detail": detail
         }
         // Nothing on this desktop to show it with. The reader will not see it,
         // so the page is told it closed rather than left waiting on an answer
@@ -1199,7 +1184,16 @@ ApplicationWindow {
                 onAddressRequested: window.openOmnibar(false)
                 onTabActivated: function(tabId) { window.windowBrowser.activateTab(tabId) }
                 onTabCloseRequested: function(tabId) { window.windowBrowser.closeTab(tabId) }
-                onTabMuteToggled: function(tabId) { window.windowBrowser.toggleTabMuted(tabId) }
+                // The speaker is the one place a row's sound can be given
+                // back, so it answers for both reasons a tab is silent: the
+                // reader's own muting, and an origin they have not dealt with.
+                onTabMuteToggled: function(tabId) {
+                    if (window.windowBrowser.tabSoundSuppressed(tabId)) {
+                        window.windowBrowser.grantTabSound(tabId)
+                        return
+                    }
+                    window.windowBrowser.toggleTabMuted(tabId)
+                }
                 onTabMoveRequested: function(tabId, offset) {
                     window.windowBrowser.moveTabBy(tabId, offset)
                 }

@@ -44,6 +44,8 @@ QVariant TabListModel::data(const QModelIndex &index, int role) const
         return tab.zoom;
     case KeepActiveRole:
         return tab.keepActive;
+    case SoundSuppressedRole:
+        return tab.soundSuppressed;
     default:
         return {};
     }
@@ -64,6 +66,7 @@ QHash<int, QByteArray> TabListModel::roleNames() const
         {MutedRole, "tabMuted"},
         {ZoomRole, "tabZoom"},
         {KeepActiveRole, "tabKeepActive"},
+        {SoundSuppressedRole, "tabSoundSuppressed"},
     };
 }
 

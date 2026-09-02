@@ -15,6 +15,10 @@ Item {
     required property bool loading
     required property bool tabAudible
     required property bool tabMuted
+    // The tab's sound is being held back until the reader has dealt with its
+    // origin. The row draws it the way it draws muting, because that is what it
+    // is from where the reader sits — silence, with the sound one press away.
+    required property bool tabSoundSuppressed
     property var colors
     property string iconFontFamily
     property bool useFavicons: true
@@ -36,6 +40,7 @@ Item {
     // the speaker is the only place the sound can be given back, so it stays
     // on the row for as long as the reader's decision does.
     readonly property bool showsAudio: tabAudible || tabMuted
+    readonly property bool silenced: tabMuted || tabSoundSuppressed
 
     // The 18px slot an ordinary row gives its site chip, and where it starts.
     // The speaker takes the same box, so the two never sit in different
@@ -58,7 +63,9 @@ Item {
     activeFocusOnTab: true
     Accessible.role: Accessible.PageTab
     Accessible.name: (pinned ? "Pinned: " + tabTitle : tabTitle)
-        + (tabMuted ? " (muted)" : (tabAudible ? " (playing audio)" : ""))
+        + (tabMuted ? " (muted)"
+            : (tabSoundSuppressed && tabAudible ? " (playing silently)"
+                : (tabAudible ? " (playing audio)" : "")))
     Accessible.onPressAction: root.activated(root.tabId)
 
     Keys.onPressed: function(event) {
@@ -224,7 +231,7 @@ Item {
                 && covers(hoverArea.mouseX, hoverArea.mouseY)
             readonly property color foreground: root.pinned && root.active
                 ? root.siteColor
-                : (root.tabMuted || !root.active ? root.colors.mutedText : root.colors.text)
+                : (root.silenced || !root.active ? root.colors.mutedText : root.colors.text)
             anchors.left: root.pinned ? undefined : parent.left
             anchors.leftMargin: root.chipInset
             anchors.verticalCenter: root.pinned ? undefined : parent.verticalCenter
@@ -242,12 +249,13 @@ Item {
                 ? Border.controlSpec("hover-cursor", audioButton.foreground, root.colors.accent)
                 : Border.none()
             Accessible.role: Accessible.Button
-            Accessible.name: (root.tabMuted ? "Unmute " : "Mute ") + root.tabTitle
+            Accessible.name: (root.tabMuted ? "Unmute "
+                : (root.tabSoundSuppressed ? "Allow sound from " : "Mute ")) + root.tabTitle
             Accessible.onPressAction: root.muteToggled(root.tabId)
 
             Text {
                 anchors.centerIn: parent
-                text: root.tabMuted ? "volume_off" : "volume_up"
+                text: root.silenced ? "volume_off" : "volume_up"
                 color: audioButton.foreground
                 font.family: root.iconFontFamily
                 font.pixelSize: Style.font.icon

@@ -47,7 +47,10 @@ QStringList validateEngineViewContract(const QObject &adapter)
         {"zoomFactor", QMetaType::Double},
         // Whether a page may start playing without a gesture of its own, and
         // the process drawing it. The first is the shell's decision to make
-        // per tab; the second is what lets it say what a retained tab costs.
+        // per tab — an engine that requires a gesture cannot separate a silent
+        // video from an audible one, so the shell decides and then controls
+        // audibility through the muting. The second is what lets it say what a
+        // retained tab costs.
         {"autoplayAllowed", QMetaType::Bool},
         {"renderProcessPid", QMetaType::Int},
         // Fullscreen the site asked for, which is not fullscreen the reader

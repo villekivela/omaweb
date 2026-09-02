@@ -27,6 +27,13 @@ struct TabState {
     // not one document in it.
     bool audible = false;
     bool muted = false;
+    // Whether this tab's sound is being held back until the reader has dealt
+    // with its origin themselves. A page may start playing on its own — a
+    // silent video costs nobody anything — but a page that starts making
+    // sound on its own has not been asked for. This is not the reader's
+    // muting: they never asked for it, it is never written to the session, and
+    // it goes away the moment they touch the site.
+    bool soundSuppressed = false;
     // How large the page is drawn in this tab. Unlike sound, zoom is the
     // session's to keep: a tab restored from the store comes back at the size
     // the reader left it. 1.0 is 100 percent, which is where a new tab starts.
@@ -57,6 +64,7 @@ public:
         MutedRole,
         ZoomRole,
         KeepActiveRole,
+        SoundSuppressedRole,
     };
     Q_ENUM(Role)
 

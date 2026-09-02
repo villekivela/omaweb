@@ -69,6 +69,7 @@ private slots:
     void keepsRecentClosesPerSpaceAcrossRestart();
     void reopensClosedTabsNewestFirstAndBoundedAtTwentyFive();
     void keepsPrivateClosesInMemoryOnly();
+    void remembersTheSameSpacesLastPageClosedTwice();
     void restoresMutingWithTheTabAndNeverByOrigin();
     void allowsKeepActiveOnlyOnPinnedTabs();
     void namesEverySuspensionExceptionAndNothingElse();
@@ -77,6 +78,7 @@ private slots:
     void restoresTheSessionAfterAnUncleanExit();
     void routesNotificationsToTheOriginatingTab();
     void remembersOriginInteractionWithinOneSpaceAndSession();
+    void holdsBackSoundUntilTheOriginIsDealtWith();
     void neverRestoresTheInspectorAfterRestart();
 };
 
@@ -1253,6 +1255,31 @@ void BrowserControllerTest::reopensClosedTabsNewestFirstAndBoundedAtTwentyFive()
     QCOMPARE(controller.activeUrl(), QUrl(QStringLiteral("https://pinned.example")));
 }
 
+// The last tab in a Space is emptied rather than removed, and keeps its id. So
+// the same tab can be the one that was closed twice, and both closes have to be
+// there to take back — a stack that refused the second would stop recording
+// anything at all.
+void BrowserControllerTest::remembersTheSameSpacesLastPageClosedTwice()
+{
+    QTemporaryDir root;
+    {
+        BrowserController controller(root.path(), QStringLiteral("test"));
+        controller.openInput(QStringLiteral("https://first.example"), false);
+        controller.closeActiveTab();
+        QCOMPARE(controller.tabs()->rowCount(), 1);
+        controller.openInput(QStringLiteral("https://second.example"), false);
+        controller.closeActiveTab();
+        QCOMPARE(controller.closedTabCount(), 2);
+    }
+
+    BrowserController restored(root.path(), QStringLiteral("test"));
+    QCOMPARE(restored.closedTabCount(), 2);
+    restored.reopenClosedTab();
+    QCOMPARE(restored.activeUrl(), QUrl(QStringLiteral("https://second.example")));
+    restored.reopenClosedTab();
+    QCOMPARE(restored.activeUrl(), QUrl(QStringLiteral("https://first.example")));
+}
+
 // A Private session remembers its closes for as long as it lasts and writes
 // none of them down.
 void BrowserControllerTest::keepsPrivateClosesInMemoryOnly()
@@ -1559,6 +1586,55 @@ void BrowserControllerTest::remembersOriginInteractionWithinOneSpaceAndSession()
 
     BrowserController restored(root.path(), QStringLiteral("test"));
     QVERIFY(!restored.originInteracted(page));
+}
+
+// A page may start playing on its own; the sound is what waits. Every tab on
+// an origin the reader has not dealt with is held silent, and the whole origin
+// is heard the moment they deal with it — from the page or from the row. It is
+// never the reader's own muting, and never written down.
+void BrowserControllerTest::holdsBackSoundUntilTheOriginIsDealtWith()
+{
+    QTemporaryDir root;
+    QString firstId;
+    {
+        BrowserController controller(root.path(), QStringLiteral("test"));
+        auto *tabs = controller.tabs();
+        // A blank tab has no page to play anything.
+        QVERIFY(!controller.tabSoundSuppressed(controller.activeTabId()));
+
+        controller.openInput(QStringLiteral("https://loud.example/one"), false);
+        firstId = controller.activeTabId();
+        controller.openInput(QStringLiteral("https://loud.example/two"), true);
+        const auto secondId = controller.activeTabId();
+        controller.openInput(QStringLiteral("https://quiet.example/"), true);
+        const auto otherOriginId = controller.activeTabId();
+
+        QVERIFY(controller.tabSoundSuppressed(firstId));
+        QVERIFY(controller.tabSoundSuppressed(secondId));
+        QVERIFY(tabs->data(tabs->index(0, 0), TabListModel::SoundSuppressedRole).toBool());
+        // Held back is not muted: the reader asked for neither.
+        QVERIFY(!tabs->data(tabs->index(0, 0), TabListModel::MutedRole).toBool());
+
+        // The row asking for one tab's sound is the reader dealing with the
+        // origin, so the other tab on that site is heard as well.
+        controller.grantTabSound(firstId);
+        QVERIFY(!controller.tabSoundSuppressed(firstId));
+        QVERIFY(!controller.tabSoundSuppressed(secondId));
+        QVERIFY(controller.tabSoundSuppressed(otherOriginId));
+
+        // Leaving for a site the reader has not dealt with holds the sound
+        // again, in the same tab.
+        controller.updateTab(firstId, QUrl(QStringLiteral("https://elsewhere.example/")),
+            QStringLiteral("Elsewhere"));
+        QVERIFY(controller.tabSoundSuppressed(firstId));
+    }
+
+    // Nothing about it is the session's to keep: a restored tab is held silent
+    // until the reader deals with its origin again.
+    BrowserController restored(root.path(), QStringLiteral("test"));
+    QVERIFY(restored.tabSoundSuppressed(restored.activeTabId()));
+    auto *tabs = restored.tabs();
+    QVERIFY(!tabs->data(tabs->index(0, 0), TabListModel::MutedRole).toBool());
 }
 
 QTEST_GUILESS_MAIN(BrowserControllerTest)

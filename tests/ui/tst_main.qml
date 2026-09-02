@@ -56,6 +56,7 @@ TestCase {
             loading: false
             tabAudible: false
             tabMuted: false
+            tabSoundSuppressed: false
             width: 260
             // Clear of the window's own chrome, which is above it and would
             // take the press.
@@ -104,6 +105,14 @@ TestCase {
                 && engineHost.item.currentUrl.toString() === url
         })
         return engineHost.item
+    }
+
+    // The speaker press as the sidebar reports it, so the test exercises the
+    // shell's decision about what a press means rather than reaching past it.
+    function sidebar_tabMuteToggled(tabId) {
+        const outline = findChild(window.contentItem, "sidebar")
+        verify(outline !== null)
+        outline.tabMuteToggled(tabId)
     }
 
     function verifyApplicationWindowFlags(applicationWindow) {
@@ -675,6 +684,10 @@ TestCase {
     // stopped playing.
     function test_soundingTabTurnsItsChipIntoASpeaker() {
         const engine = openPage("https://sounding.example")
+        // The speaker is about muting here, so the origin is dealt with first:
+        // a site the reader has not touched is held silent, and the speaker
+        // answers for that instead.
+        engine.simulateUserActivation()
         engine.simulateAudible(false)
         const tabId = browser.activeTabId
         const tabRow = findChild(window.contentItem, "tab-" + tabId)
@@ -767,6 +780,9 @@ TestCase {
     // put a speaker before, so it wears the speaker in its top right corner.
     function test_soundingPinWearsItsSpeakerInTheCorner() {
         const engine = openPage("https://sounding-pin.example")
+        // As above: the corner speaker is about muting, so the origin is dealt
+        // with before the press is expected to mean it.
+        engine.simulateUserActivation()
         const tabId = browser.activeTabId
         browser.toggleActivePinned()
         tryVerify(function() {
@@ -1121,7 +1137,7 @@ TestCase {
         // The page is gone, not hidden: nothing is being kept for a Space the
         // reader is not looking at.
         tryVerify(function() { return engineLoader.engines[personalTabId] === undefined })
-        verify(!engineLoader.retained(personalTabId))
+        verify(!engineLoader.keepsEngineFor(personalTabId))
         openPage("https://work-space.example")
         const workEngineView = engineLoader.item
         const workTabId = browser.activeTabId
@@ -1170,9 +1186,9 @@ TestCase {
 
         // The ordinary page is gone; the retained ones are still running.
         tryVerify(function() { return engineLoader.engines[ordinaryTabId] === undefined })
-        verify(engineLoader.retained(keptTabId))
-        verify(engineLoader.retained(inspectedTabId))
-        verify(!engineLoader.retained(ordinaryTabId))
+        verify(engineLoader.keepsEngineFor(keptTabId))
+        verify(engineLoader.keepsEngineFor(inspectedTabId))
+        verify(!engineLoader.keepsEngineFor(ordinaryTabId))
         compare(engineLoader.engines[keptTabId], keptEngineView)
 
         // The reader can see the whole list and what each one holds.
@@ -1190,7 +1206,7 @@ TestCase {
         // the ordinary one.
         verify(browser.switchSpace(personalSpaceId))
         tryVerify(function() { return engineLoader.engines[keptTabId] === keptEngineView })
-        tryVerify(function() { return !engineLoader.retained(keptTabId) })
+        tryVerify(function() { return !engineLoader.keepsEngineFor(keptTabId) })
 
         browser.closeDeveloperTools()
         browser.setTabKeepActive(keptTabId, false)
@@ -1270,44 +1286,83 @@ TestCase {
         verify(browser.deleteSpace(workSpaceId, "Muting"))
     }
 
-    // Muted playback interrupts nobody, so it starts freely. Audible playback
-    // waits until the reader has dealt with the origin themselves — and once
-    // they have, every tab on that origin has it.
-    function test_audibleAutoplayWaitsForTheOriginToBeDealtWith() {
+    // A page may start playing on its own; what waits for the reader is the
+    // sound. Until they have dealt with the origin the tab is held silent, and
+    // once they have, every tab on that origin is heard — including the one
+    // they never touched.
+    function test_soundWaitsForTheOriginToBeDealtWith() {
         const engineLoader = findChild(window.contentItem, "engineLoader")
         const engineView = openPage("https://autoplay.example/clip")
         const tabId = browser.activeTabId
 
-        verify(!engineView.autoplayAllowed)
-        verify(!engineView.simulateAutoplay())
-        compare(engineView.autoplayBlockedCount, 1)
-
-        // Muted, the page may start.
-        browser.toggleTabMuted(tabId)
-        tryVerify(function() { return engineView.autoplayAllowed })
+        verify(browser.tabSoundSuppressed(tabId))
+        tryVerify(function() { return engineView.autoplayAllowed && engineView.audioMuted })
+        // The page starts, and is not heard.
         verify(engineView.simulateAutoplay())
         verify(!engineView.pageAudible)
-        browser.toggleTabMuted(tabId)
-        tryVerify(function() { return !engineView.autoplayAllowed })
 
-        // A gesture on the page earns the origin its sound, here and in the
-        // next tab showing the same site.
+        // The row says so where it says muting, because that is what it is from
+        // where the reader sits, and offers the sound back in the same place.
+        const row = findChild(window.contentItem, "tab-" + tabId)
+        verify(row !== null)
+        verify(row.tabSoundSuppressed)
+        verify(row.silenced)
+        verify(!row.tabMuted)
+
+        // A second tab on the same site is held silent too.
         browser.openInput("https://autoplay.example/other", true)
         tryVerify(function() { return engineLoader.item !== null })
         const secondTabId = browser.activeTabId
         const secondEngineView = engineLoader.engines[secondTabId]
         verify(secondEngineView !== undefined)
-        verify(!secondEngineView.autoplayAllowed)
+        tryVerify(function() { return secondEngineView.audioMuted })
 
+        // A gesture on one page answers for the origin, so both are heard.
         engineView.simulateUserActivation()
         tryVerify(function() {
-            return engineView.autoplayAllowed && secondEngineView.autoplayAllowed
+            return !engineView.audioMuted && !secondEngineView.audioMuted
         })
+        verify(!browser.tabSoundSuppressed(tabId))
         verify(secondEngineView.simulateAutoplay())
         verify(secondEngineView.pageAudible)
 
+        // The reader's own muting is still theirs, and still says so.
+        browser.toggleTabMuted(secondTabId)
+        tryVerify(function() { return secondEngineView.audioMuted })
+        verify(!browser.tabSoundSuppressed(secondTabId))
+
         secondEngineView.simulateAudible(false)
         browser.closeTab(secondTabId)
+        browser.closeTab(tabId)
+    }
+
+    // Asking a silenced row for its sound is the reader dealing with the
+    // origin, not a muting decision of their own: the tab is heard, and the
+    // next tab on that site is too.
+    function test_theRowGivesBackASilencedTabsSound() {
+        const engineLoader = findChild(window.contentItem, "engineLoader")
+        const engineView = openPage("https://granted.example/page")
+        const tabId = browser.activeTabId
+        verify(browser.tabSoundSuppressed(tabId))
+
+        const speaker = findChild(window.contentItem, "audio-" + tabId)
+        verify(speaker !== null)
+        // The row only shows the speaker once there is sound to give back.
+        engineView.simulateAudible(true)
+        tryVerify(function() { return speaker.visible })
+        compare(speaker.Accessible.name.indexOf("Allow sound from"), 0)
+
+        sidebar_tabMuteToggled(tabId)
+        tryVerify(function() { return !browser.tabSoundSuppressed(tabId) })
+        tryVerify(function() { return !engineView.audioMuted })
+        // Not a muting: pressing it again now mutes, as it always did.
+        sidebar_tabMuteToggled(tabId)
+        tryVerify(function() { return engineView.audioMuted })
+        const row = findChild(window.contentItem, "tab-" + tabId)
+        verify(row.tabMuted)
+
+        browser.toggleTabMuted(tabId)
+        engineView.simulateAudible(false)
         browser.closeTab(tabId)
     }
 
@@ -1319,32 +1374,33 @@ TestCase {
         const chatTabId = browser.activeTabId
         const host = window.spaceProfileHosts[personalSpaceId]
         verify(host !== undefined)
-        window.lastSiteNotification = null
 
         const notificationId = host.simulateNotification(
             "https://chat.example", "New message", "Someone said something")
-        tryVerify(function() { return window.lastSiteNotification !== null })
-        compare(window.lastSiteNotification.heading, "https://chat.example · Personal")
-        compare(window.lastSiteNotification.detail, "New message — Someone said something")
-        compare(window.lastSiteNotification.tabId, chatTabId)
+        const key = personalSpaceId + ":" + notificationId
+        tryVerify(function() { return window.pendingNotifications[key] !== undefined })
+        const raised = window.pendingNotifications[key]
+        compare(raised.heading, "https://chat.example · Personal")
+        compare(raised.detail, "New message — Someone said something")
+        compare(raised.tabId, chatTabId)
 
         // Answering it takes the reader to the page that sent it, and the page
         // hears the click.
         browser.openInput("https://elsewhere.example", true)
         const elsewhereTabId = browser.activeTabId
-        window.answerSiteNotification(window.lastSiteNotification.key, true)
+        window.answerSiteNotification(key, true)
         compare(browser.activeTabId, chatTabId)
-        compare(host.activatedNotifications.indexOf(notificationId) >= 0, true)
+        verify(host.activatedNotifications.indexOf(notificationId) >= 0)
+        verify(window.pendingNotifications[key] === undefined)
 
         // A page whose Space has been put away, and which nothing is keeping
         // running, is refused rather than reaching the desktop.
         const workSpaceId = browser.createSpace("Notifying")
         verify(browser.switchSpace(workSpaceId))
-        window.lastSiteNotification = null
         const refusedId = host.simulateNotification(
             "https://chat.example", "Ignored", "Nobody should see this")
         tryVerify(function() { return host.dismissedNotifications.indexOf(refusedId) >= 0 })
-        compare(window.lastSiteNotification, null)
+        verify(window.pendingNotifications[personalSpaceId + ":" + refusedId] === undefined)
 
         verify(browser.switchSpace(personalSpaceId))
         browser.closeTab(elsewhereTabId)
