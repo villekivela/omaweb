@@ -25,14 +25,15 @@ QtObject {
     }
 
     function clearBrowsingData(dataTypes, since) {
-        // Qt exposes cookie and HTTP-cache removal at profile scope. Storage
-        // shares that profile scope, so asking to clear it also drops the
-        // cache and visited-link state the engine derives from it.
+        // Qt exposes cookie, HTTP-cache and visited-link removal at profile
+        // scope. It does not expose time-filtered removal or a local-storage
+        // and IndexedDB remover; the browser request still reaches this engine
+        // boundary without clearing a category the reader did not select.
         if (dataTypes.indexOf("cookies") >= 0)
             privateProfile.cookieStore.deleteAllCookies()
-        if (dataTypes.indexOf("cache") >= 0 || dataTypes.indexOf("storage") >= 0)
+        if (dataTypes.indexOf("cache") >= 0)
             privateProfile.clearHttpCache()
-        if (dataTypes.indexOf("history") >= 0 || dataTypes.indexOf("storage") >= 0)
+        if (dataTypes.indexOf("history") >= 0)
             privateProfile.clearAllVisitedLinks()
     }
 
