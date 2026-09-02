@@ -31,6 +31,14 @@ Item {
     property var activeEngine: null
     property bool suspended: true
 
+    // What the page the reader is looking at is doing with the whole screen,
+    // read off the engine that draws it rather than kept beside it.
+    readonly property bool siteFullscreenActive: root.activeEngine
+        ? root.activeEngine.siteFullscreenActive : false
+    readonly property string siteFullscreenOrigin: root.activeEngine
+        ? root.activeEngine.siteFullscreenOrigin : ""
+
+    signal printFinished(string destination, bool succeeded)
     signal auxiliaryWindowRequested(var engine, var request, url requestedUrl)
     signal newTabRequested(var engine, var request, url requestedUrl)
     signal backgroundTabRequested(url requestedUrl)
@@ -90,6 +98,22 @@ Item {
 
     function focusPage() {
         if (activeEngine) activeEngine.focusPage()
+    }
+
+    // The everyday page operations, each one addressed to the engine of the tab
+    // on show. A tab with no engine has no page to find in, print or hand the
+    // screen back, so nothing is asked of one — the shell has already said so.
+    function findText(query, forward) {
+        if (root.activeEngine) root.activeEngine.findText(query, forward)
+    }
+
+    function printPage(destination) {
+        if (root.activeEngine) root.activeEngine.printPage(destination)
+        else root.printFinished(destination, false)
+    }
+
+    function exitSiteFullscreen() {
+        if (root.activeEngine) root.activeEngine.exitSiteFullscreen()
     }
 
     // The core owns which tab is inspected; the engines are told about it here.
@@ -199,6 +223,10 @@ Item {
             // engine holds it while the tab has one, and is told again
             // whenever it changes or a new engine takes the tab over.
             required property bool tabMuted
+            // How large this tab's page is drawn. The core owns it and keeps it
+            // in the session; the engine is told it whenever it changes and
+            // whenever a new engine takes the tab over.
+            required property real tabZoom
 
             // A restored Space can hold many tabs, and each engine costs a
             // renderer process and a page load. Only a tab the user has
@@ -246,11 +274,15 @@ Item {
             function loadEngine() {
                 if (root.suspended || !everActive || !needsEngine()) return
                 engine = root.engines[tabId] || root.createEngine(tabId, tabSlot.tabUrl)
-                if (engine) engine.audioMuted = tabSlot.tabMuted
+                if (engine) {
+                    engine.audioMuted = tabSlot.tabMuted
+                    engine.setZoomFactor(tabSlot.tabZoom)
+                }
                 showEngine()
             }
 
             onTabMutedChanged: if (engine) engine.audioMuted = tabSlot.tabMuted
+            onTabZoomChanged: if (engine) engine.setZoomFactor(tabSlot.tabZoom)
 
             // Site artwork belongs to the loaded page rather than to the saved
             // session, so the core drops it when a Space switch reloads the
@@ -407,6 +439,10 @@ Item {
                     root.pageContextRequested(tabSlot.engine, context)
                 }
 
+                function onPrintFinished(destination, succeeded) {
+                    root.printFinished(destination, succeeded)
+                }
+
                 // The frontend's own close button, which is the reader saying
                 // they are finished with it rather than the tab going away.
                 function onDeveloperToolsClosed() {
@@ -434,6 +470,14 @@ Item {
 
         function onReloadRequested() {
             if (root.activeEngine) root.activeEngine.reloadPage()
+        }
+
+        function onReloadBypassingCacheRequested() {
+            if (root.activeEngine) root.activeEngine.reloadPageBypassingCache()
+        }
+
+        function onStopLoadingRequested() {
+            if (root.activeEngine) root.activeEngine.stopLoading()
         }
     }
 

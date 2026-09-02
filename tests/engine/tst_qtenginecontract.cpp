@@ -67,6 +67,12 @@ private slots:
     void qtPicksAnElementWhenNoContextMenuNamedOne();
     void qtDrawsMarkupStructureQuieterThanItsContent();
     void qtReportsThePageContextAndDrawsNoMenuOfItsOwn();
+    void adaptersAnswerForEveryEverydayPageOperation_data();
+    void adaptersAnswerForEveryEverydayPageOperation();
+    void qtFindsInThePageAndKeepsTheQueryAcrossNavigation();
+    void qtKeepsTheZoomItIsGivenAcrossNavigation();
+    void qtSeparatesReloadBypassingCacheFromReloadAndStop();
+    void qtRendersAPageForPrintingAndDrawsPdfsInline();
 };
 
 namespace {
@@ -1643,6 +1649,279 @@ void QtEngineContractTest::qtReportsThePageContextAndDrawsNoMenuOfItsOwn()
 
     // Chromium is holding the node now, so Inspect element can read it back.
     QVERIFY(adapter->property("contextMenuTargetKnown").toBool());
+}
+
+void QtEngineContractTest::adaptersAnswerForEveryEverydayPageOperation_data()
+{
+    adaptersExposeSharedContract_data();
+}
+
+// Every adapter answers for the everyday page operations one way or the other.
+// The contract above already requires the properties and the operations; this
+// is the capability beside them, which is what tells the shell whether a
+// command can run here or has to say that it cannot.
+void QtEngineContractTest::adaptersAnswerForEveryEverydayPageOperation()
+{
+    QFETCH(QString, path);
+    QQmlEngine engine;
+    QQmlComponent component(&engine, QUrl::fromLocalFile(path));
+    const std::unique_ptr<QObject> adapter(component.create());
+    QVERIFY2(adapter, qPrintable(component.errorString()));
+
+    const auto capabilities = adapter->property("capabilities").toInt();
+    QVERIFY(capabilities & EngineCapabilities::PageFind);
+    QVERIFY(capabilities & EngineCapabilities::PageZoom);
+    QVERIFY(capabilities & EngineCapabilities::Printing);
+    QVERIFY(capabilities & EngineCapabilities::SiteFullscreen);
+    QVERIFY(capabilities & EngineCapabilities::InlinePdfViewing);
+
+    // Every tab starts at 100 percent and searching for nothing.
+    QCOMPARE(adapter->property("zoomFactor").toDouble(), 1.0);
+    QCOMPARE(adapter->property("findQuery").toString(), QString{});
+    QCOMPARE(adapter->property("findMatchCount").toInt(), 0);
+    QVERIFY(!adapter->property("siteFullscreenActive").toBool());
+}
+
+// Find belongs to the tab: the query and the match position live on the
+// adapter, a navigation takes the matches and leaves the query, and clearing
+// takes both.
+void QtEngineContractTest::qtFindsInThePageAndKeepsTheQueryAcrossNavigation()
+{
+    QQmlEngine engine;
+    QQmlComponent component(&engine, QUrl::fromLocalFile(
+        QStringLiteral(TANTO_QT_ENGINE_VIEW_PATH)));
+    const std::unique_ptr<QObject> adapter(component.create());
+    QVERIFY2(adapter, qPrintable(component.errorString()));
+
+    auto *view = qobject_cast<QQuickItem *>(adapter.get());
+    QVERIFY(view);
+    QQuickWindow window;
+    window.resize(640, 480);
+    view->setParentItem(window.contentItem());
+    view->setSize(QSizeF(640, 480));
+    window.show();
+
+    QVERIFY(adapter->setProperty("currentUrl", QUrl(QStringLiteral(
+        "data:text/html,<title>Findable</title>"
+        "<p>alpha beta alpha gamma alpha</p>"))));
+    QTRY_COMPARE(adapter->property("pageTitle").toString(), QStringLiteral("Findable"));
+
+    QVERIFY(QMetaObject::invokeMethod(adapter.get(), "findText",
+        Q_ARG(QVariant, QStringLiteral("alpha")), Q_ARG(QVariant, true)));
+    QCOMPARE(adapter->property("findQuery").toString(), QStringLiteral("alpha"));
+    QTRY_COMPARE(adapter->property("findMatchCount").toInt(), 3);
+    QCOMPARE(adapter->property("findActiveMatch").toInt(), 1);
+
+    QVERIFY(QMetaObject::invokeMethod(adapter.get(), "findText",
+        Q_ARG(QVariant, QStringLiteral("alpha")), Q_ARG(QVariant, true)));
+    QTRY_COMPARE(adapter->property("findActiveMatch").toInt(), 2);
+
+    // The matches were in the page being replaced; the query is the reader's.
+    QVERIFY(adapter->setProperty("currentUrl", QUrl(QStringLiteral(
+        "data:text/html,<title>Elsewhere</title><p>nothing here</p>"))));
+    QTRY_COMPARE(adapter->property("pageTitle").toString(), QStringLiteral("Elsewhere"));
+    QCOMPARE(adapter->property("findMatchCount").toInt(), 0);
+    QCOMPARE(adapter->property("findQuery").toString(), QStringLiteral("alpha"));
+
+    QVERIFY(QMetaObject::invokeMethod(adapter.get(), "clearFind"));
+    QCOMPARE(adapter->property("findQuery").toString(), QString{});
+    QCOMPARE(adapter->property("findMatchCount").toInt(), 0);
+}
+
+// Zoom is the tab's rather than the page's: it is set once and every page the
+// tab goes on to show is drawn at it.
+void QtEngineContractTest::qtKeepsTheZoomItIsGivenAcrossNavigation()
+{
+    QQmlEngine engine;
+    QQmlComponent component(&engine, QUrl::fromLocalFile(
+        QStringLiteral(TANTO_QT_ENGINE_VIEW_PATH)));
+    const std::unique_ptr<QObject> adapter(component.create());
+    QVERIFY2(adapter, qPrintable(component.errorString()));
+
+    auto *view = qobject_cast<QQuickItem *>(adapter.get());
+    QVERIFY(view);
+    QQuickWindow window;
+    window.resize(640, 480);
+    view->setParentItem(window.contentItem());
+    view->setSize(QSizeF(640, 480));
+    window.show();
+
+    QVERIFY(adapter->setProperty("currentUrl", QUrl(QStringLiteral(
+        "data:text/html,<title>Zoomed</title><p>page</p>"))));
+    QTRY_COMPARE(adapter->property("pageTitle").toString(), QStringLiteral("Zoomed"));
+
+    QVERIFY(QMetaObject::invokeMethod(adapter.get(), "setZoomFactor",
+        Q_ARG(QVariant, 1.5)));
+    QCOMPARE(adapter->property("zoomFactor").toDouble(), 1.5);
+
+    QVERIFY(adapter->setProperty("currentUrl", QUrl(QStringLiteral(
+        "data:text/html,<title>Still zoomed</title><p>next</p>"))));
+    QTRY_COMPARE(adapter->property("pageTitle").toString(), QStringLiteral("Still zoomed"));
+    QCOMPARE(adapter->property("zoomFactor").toDouble(), 1.5);
+
+    // A factor that is not a size is not a zoom.
+    QVERIFY(QMetaObject::invokeMethod(adapter.get(), "setZoomFactor", Q_ARG(QVariant, 0)));
+    QCOMPARE(adapter->property("zoomFactor").toDouble(), 1.5);
+}
+
+namespace {
+
+// A page whose one subresource is cacheable and reports how many times it has
+// actually been fetched. Normal reload keeps the cached copy; reload bypassing
+// cache does not, which is the whole difference between the two commands.
+class CountingServer final : public QTcpServer {
+public:
+    CountingServer()
+    {
+        connect(this, &QTcpServer::newConnection, this, [this] {
+            auto *socket = nextPendingConnection();
+            connect(socket, &QTcpSocket::readyRead, socket, [this, socket] {
+                const auto request = socket->readAll();
+                const auto fields = request.split(' ');
+                const auto path = fields.size() > 1 ? fields.at(1) : QByteArray();
+                QByteArray headers;
+                QByteArray body;
+                if (path.startsWith("/counter.js")) {
+                    ++m_scriptRequests;
+                    body = "document.title = '" + QByteArray::number(m_scriptRequests) + "';";
+                    headers = "Content-Type: application/javascript\r\n"
+                              "Cache-Control: max-age=600\r\n";
+                } else if (path.startsWith("/slow")) {
+                    // Answered by nothing at all: a load to stop.
+                    return;
+                } else {
+                    body = "<!doctype html><title>waiting</title>"
+                           "<script src=\"/counter.js\"></script>";
+                    headers = "Content-Type: text/html\r\nCache-Control: no-store\r\n";
+                }
+                socket->write("HTTP/1.1 200 OK\r\n" + headers + "Content-Length: "
+                    + QByteArray::number(body.size())
+                    + "\r\nConnection: close\r\n\r\n" + body);
+                socket->flush();
+                socket->disconnectFromHost();
+            });
+        });
+    }
+
+    int scriptRequests() const { return m_scriptRequests; }
+
+private:
+    int m_scriptRequests = 0;
+};
+
+} // namespace
+
+void QtEngineContractTest::qtSeparatesReloadBypassingCacheFromReloadAndStop()
+{
+    CountingServer server;
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    QQmlEngine engine;
+    QQmlComponent component(&engine, QUrl::fromLocalFile(
+        QStringLiteral(TANTO_QT_ENGINE_VIEW_PATH)));
+    const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
+        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
+    }));
+    QVERIFY2(adapter, qPrintable(component.errorString()));
+
+    auto *view = qobject_cast<QQuickItem *>(adapter.get());
+    QVERIFY(view);
+    QQuickWindow window;
+    window.resize(640, 480);
+    view->setParentItem(window.contentItem());
+    view->setSize(QSizeF(640, 480));
+    window.show();
+
+    const QUrl pageUrl(QStringLiteral("http://127.0.0.1:%1/page.html")
+                           .arg(server.serverPort()));
+    QVERIFY(adapter->setProperty("currentUrl", pageUrl));
+    QTRY_COMPARE_WITH_TIMEOUT(adapter->property("pageTitle").toString(),
+        QStringLiteral("1"), 15000);
+
+    // Reading the page again keeps what the cache already holds.
+    QVERIFY(QMetaObject::invokeMethod(adapter.get(), "reloadPage"));
+    QTRY_VERIFY_WITH_TIMEOUT(!adapter->property("loading").toBool(), 15000);
+    QTRY_COMPARE_WITH_TIMEOUT(adapter->property("pageTitle").toString(),
+        QStringLiteral("1"), 15000);
+    QCOMPARE(server.scriptRequests(), 1);
+
+    // Reading it again from the network does not.
+    QVERIFY(QMetaObject::invokeMethod(adapter.get(), "reloadPageBypassingCache"));
+    QTRY_COMPARE_WITH_TIMEOUT(adapter->property("pageTitle").toString(),
+        QStringLiteral("2"), 15000);
+    QCOMPARE(server.scriptRequests(), 2);
+
+    // Stopping ends the load and leaves the page that was there standing.
+    const QUrl slowUrl(QStringLiteral("http://127.0.0.1:%1/slow").arg(server.serverPort()));
+    QVERIFY(adapter->setProperty("currentUrl", slowUrl));
+    QTRY_VERIFY_WITH_TIMEOUT(adapter->property("loading").toBool(), 15000);
+    QVERIFY(QMetaObject::invokeMethod(adapter.get(), "stopLoading"));
+    QTRY_VERIFY_WITH_TIMEOUT(!adapter->property("loading").toBool(), 15000);
+    QCOMPARE(adapter->property("pageTitle").toString(), QStringLiteral("2"));
+}
+
+// The adapter renders the page into a PDF for the platform's print dialog to
+// present, and draws a PDF in Chromium's own sandboxed viewer rather than
+// handing it to the download stack.
+void QtEngineContractTest::qtRendersAPageForPrintingAndDrawsPdfsInline()
+{
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    QQmlEngine engine;
+    QQmlComponent component(&engine, QUrl::fromLocalFile(
+        QStringLiteral(TANTO_QT_ENGINE_VIEW_PATH)));
+    const std::unique_ptr<QObject> adapter(component.create());
+    QVERIFY2(adapter, qPrintable(component.errorString()));
+
+    auto *view = qobject_cast<QQuickItem *>(adapter.get());
+    QVERIFY(view);
+    QQuickWindow window;
+    window.resize(640, 480);
+    view->setParentItem(window.contentItem());
+    view->setSize(QSizeF(640, 480));
+    window.show();
+
+    QVERIFY(adapter->setProperty("currentUrl", QUrl(QStringLiteral(
+        "data:text/html,<title>Printable</title><h1>Invoice</h1>"))));
+    QTRY_COMPARE(adapter->property("pageTitle").toString(), QStringLiteral("Printable"));
+
+    QSignalSpy printSpy(adapter.get(), SIGNAL(printFinished(QString,bool)));
+    QVERIFY(printSpy.isValid());
+
+    // A render with nowhere to go is reported rather than attempted.
+    QVERIFY(QMetaObject::invokeMethod(adapter.get(), "printPage", Q_ARG(QVariant, QString{})));
+    QCOMPARE(printSpy.count(), 1);
+    QVERIFY(!printSpy.takeFirst().at(1).toBool());
+
+    const auto destination = root.filePath(QStringLiteral("page.pdf"));
+    QVERIFY(QMetaObject::invokeMethod(adapter.get(), "printPage",
+        Q_ARG(QVariant, destination)));
+    QTRY_VERIFY_WITH_TIMEOUT(printSpy.count() == 1, 15000);
+    const auto rendered = printSpy.takeFirst();
+    QCOMPARE(rendered.at(0).toString(), destination);
+    QVERIFY(rendered.at(1).toBool());
+
+    QFile pdf(destination);
+    QVERIFY(pdf.open(QIODevice::ReadOnly));
+    QVERIFY(pdf.read(4).startsWith("%PDF"));
+    pdf.close();
+
+    // And the same document opens inside the engine rather than downloading.
+    auto *webView = adapter->findChild<QObject *>(QStringLiteral("qtWebView"));
+    QVERIFY(webView);
+    const auto settings = webView->property("settings").value<QObject *>();
+    QVERIFY(settings);
+    QVERIFY(settings->property("pdfViewerEnabled").toBool());
+
+    // Zoom reaches the document as it reaches a page: the viewer is drawn
+    // inside the view, not in an application of its own.
+    QVERIFY(adapter->setProperty("currentUrl", QUrl::fromLocalFile(destination)));
+    QTRY_VERIFY_WITH_TIMEOUT(!adapter->property("loading").toBool(), 15000);
+    QCOMPARE(adapter->property("currentUrl").toUrl(), QUrl::fromLocalFile(destination));
+    QVERIFY(QMetaObject::invokeMethod(adapter.get(), "setZoomFactor", Q_ARG(QVariant, 1.5)));
+    QCOMPARE(adapter->property("zoomFactor").toDouble(), 1.5);
 }
 
 int main(int argc, char *argv[])

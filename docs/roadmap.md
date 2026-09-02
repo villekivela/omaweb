@@ -22,12 +22,23 @@ Tracking issue: [#51](https://github.com/villekivela/tanto/issues/51)
 - Remote debugging behind an explicit loopback-only development launch option
 - A Tanto-drawn page context menu, which is where Inspect element belongs
 
+## Everyday page commands
+
+Tracking issue: [#52](https://github.com/villekivela/tanto/issues/52)
+
+- Find belonging to one tab, retained while hidden and cleared by navigation
+- Per-tab zoom on one ladder, kept in the session and restored with the tab
+- Reload, Reload bypassing cache and Stop loading as three separate operations
+- Browser fullscreen and site-requested fullscreen kept apart, the latter announced by origin and left with `Escape`
+- Printing through the platform's own print dialog, including its PDF destination
+- PDFs drawn in the engine's sandboxed viewer, downloaded and reported where there is none
+- Every operation reporting an engine or desktop that cannot carry it out
+
 ## Complete the Qt daily driver
 
 Tracking issue: [#50](https://github.com/villekivela/tanto/issues/50)
 
-- Find, per-tab zoom, Stop loading, Reload bypassing cache, fullscreen, print, and inline PDF viewing
-- Browser prompts with native file and print dialogs
+- Browser prompts with native file dialogs
 - History sheet, configurable search engines, local-file opening, and browsing-data controls
 - Tab reordering, duplication, bulk closing, retained closed-tab stacks, and Keep active for selected Pinned tabs
 - Site information, certificate handling, third-party-cookie policy, safer downloads, and sandbox health

@@ -1597,4 +1597,273 @@ TestCase {
         tintFavicons.clicked()
         compare(window.tintFavicons, true)
     }
+
+    // ---- Everyday page commands ----------------------------------------
+
+    function openPageInNewTab(url) {
+        const engineHost = findChild(window.contentItem, "engineLoader")
+        browser.openInput(url, true)
+        tryVerify(function() {
+            return engineHost.item !== null
+                && engineHost.item.currentUrl.toString() === url
+        })
+        return engineHost.item
+    }
+
+    function commandEnabled(command) {
+        const actions = window.commands.actions()
+        for (let index = 0; index < actions.length; ++index) {
+            if (actions[index].command === command) return actions[index].enabled
+        }
+        return undefined
+    }
+
+    // Find belongs to one tab: hiding it keeps the query and the match the tab
+    // had reached, another tab has a search of its own, and a navigation takes
+    // the matches without taking the query.
+    function test_findBelongsToOneTabAndKeepsItsQueryWhileHidden() {
+        const first = openPage("https://find-one.example/page")
+        first.pageText = "alpha beta alpha gamma alpha"
+        const firstTabId = browser.activeTabId
+        const bar = findChild(window.contentItem, "findBar")
+        verify(bar !== null)
+        verify(!bar.open)
+
+        window.commands.run("find", -1)
+        tryVerify(function() { return bar.open })
+        const input = findChild(bar, "findInput")
+        verify(input !== null)
+        // Asking to find puts the keyboard in the field: a bar that opens and
+        // leaves the reader typing into the page has not answered the command.
+        tryVerify(function() { return input.activeFocus })
+        // One row, and everything in it has room: the field, the tally, the
+        // two match steps and the close.
+        const closeButton = findChild(bar, "findCloseButton")
+        verify(closeButton !== null)
+        verify(input.width > 100)
+        verify(input.height <= bar.height)
+        verify(closeButton.x + closeButton.width <= bar.width)
+        verify(input.x + input.width <= closeButton.x)
+
+        input.text = "alpha"
+        tryCompare(bar, "matchCount", 3)
+        compare(bar.activeMatch, 1)
+        compare(first.findQuery, "alpha")
+
+        window.commands.run("find-next", -1)
+        compare(bar.activeMatch, 2)
+        window.commands.run("find-previous", -1)
+        compare(bar.activeMatch, 1)
+
+        // Hidden, not forgotten — and the keyboard goes back to the page.
+        window.closeFind()
+        compare(bar.open, false)
+        tryVerify(function() { return first.pageHasFocus })
+        compare(first.findQuery, "alpha")
+        compare(first.findActiveMatch, 1)
+
+        window.commands.run("find", -1)
+        tryVerify(function() { return bar.open })
+        compare(bar.text, "alpha")
+
+        // The tab beside it is searching for nothing, and says so by not
+        // offering the bar at all.
+        const second = openPageInNewTab("https://find-two.example/page")
+        const secondTabId = browser.activeTabId
+        compare(bar.open, false)
+        compare(second.findQuery, "")
+
+        // A search of its own, which goes away with the tab rather than
+        // outliving it in the window's map.
+        window.commands.run("find", -1)
+        tryVerify(function() { return bar.open })
+        verify(window.tabsShowingFind[secondTabId] === true)
+
+        browser.activateTab(firstTabId)
+        tryVerify(function() { return bar.open })
+        compare(bar.text, "alpha")
+
+        // A navigation invalidates where the search had reached. What the
+        // reader was looking for is still theirs.
+        browser.openInput("https://find-one.example/other", false)
+        tryCompare(first, "findMatchCount", 0)
+        compare(first.findQuery, "alpha")
+
+        browser.closeTab(secondTabId)
+        window.refreshFindOpen()
+        compare(window.tabsShowingFind[secondTabId], undefined)
+
+        window.closeFind()
+    }
+
+    // Zoom belongs to one tab, reaches that tab's engine, and leaves every
+    // other tab at the size it was.
+    function test_zoomBelongsToOneTabAndReachesItsEngine() {
+        const first = openPage("https://zoom-one.example")
+        const firstTabId = browser.activeTabId
+        compare(browser.activeTabZoom, 1.0)
+        compare(first.zoomFactor, 1.0)
+
+        window.commands.run("zoom-in", -1)
+        compare(browser.activeTabZoom, 1.1)
+        tryCompare(first, "zoomFactor", 1.1)
+
+        const notice = findChild(window.contentItem, "pageNotice")
+        verify(notice !== null)
+        compare(notice.message, "Page zoom 110%")
+
+        const second = openPageInNewTab("https://zoom-two.example")
+        const secondTabId = browser.activeTabId
+        compare(browser.activeTabZoom, 1.0)
+        compare(second.zoomFactor, 1.0)
+
+        browser.activateTab(firstTabId)
+        compare(browser.activeTabZoom, 1.1)
+        window.commands.run("zoom-out", -1)
+        compare(browser.activeTabZoom, 1.0)
+        window.commands.run("zoom-in", -1)
+        window.commands.run("zoom-reset", -1)
+        compare(browser.activeTabZoom, 1.0)
+        tryCompare(first, "zoomFactor", 1.0)
+
+        browser.closeTab(secondTabId)
+    }
+
+    // Three asks that look alike from outside are three operations inside:
+    // read the page again, read it again from the network, stop reading it.
+    function test_reloadStopAndBypassingCacheAreSeparateOperations() {
+        const engine = openPage("https://reload.example/page")
+        const bypassedBefore = engine.bypassedCacheCount
+        const stoppedBefore = engine.stoppedLoadCount
+
+        window.commands.run("reload", -1)
+        compare(engine.bypassedCacheCount, bypassedBefore)
+        compare(engine.stoppedLoadCount, stoppedBefore)
+        verify(engine.loading)
+
+        window.commands.run("reload-bypassing-cache", -1)
+        compare(engine.bypassedCacheCount, bypassedBefore + 1)
+
+        window.commands.run("stop-loading", -1)
+        compare(engine.stoppedLoadCount, stoppedBefore + 1)
+        compare(engine.loading, false)
+
+        // And the page is still the page: stopping a load clears nothing.
+        compare(engine.currentUrl.toString(), "https://reload.example/page")
+    }
+
+    // A site holding the screen is not the reader holding it. The notice names
+    // the origin, Escape hands the screen back, and the reader's own fullscreen
+    // is untouched throughout.
+    function test_siteFullscreenIsDistinctFromBrowserFullscreenAndLeavesWithEscape() {
+        const engineHost = findChild(window.contentItem, "engineLoader")
+        const engine = openPage("https://cinema.example/watch")
+        const notice = findChild(window.contentItem, "pageNotice")
+        compare(window.browserFullscreen, false)
+        compare(window.sidebarCollapsed, false)
+
+        engine.simulateSiteFullscreen("cinema.example")
+        tryVerify(function() { return engineHost.siteFullscreenActive })
+        compare(window.browserFullscreen, false)
+        compare(window.sidebarCollapsed, true)
+        verify(notice.message.indexOf("cinema.example") !== -1)
+
+        keyClick(Qt.Key_Escape)
+        tryVerify(function() { return !engineHost.siteFullscreenActive })
+        compare(window.sidebarCollapsed, false)
+        compare(window.browserFullscreen, false)
+
+        window.commands.run("fullscreen", -1)
+        compare(window.browserFullscreen, true)
+        compare(engineHost.siteFullscreenActive, false)
+        window.commands.run("fullscreen", -1)
+        compare(window.browserFullscreen, false)
+    }
+
+    // A command this engine cannot carry out is listed, unavailable, and says
+    // so when it is run. Doing nothing at all would leave the reader to guess
+    // whether the key reached the browser.
+    function test_everyPageOperationReportsAnEngineThatCannotDoIt() {
+        const engine = openPage("https://limited.example/page")
+        const notice = findChild(window.contentItem, "pageNotice")
+        const bar = findChild(window.contentItem, "findBar")
+
+        compare(testCase.commandEnabled("find"), true)
+        compare(testCase.commandEnabled("zoom-in"), true)
+
+        engine.findAvailable = false
+        engine.zoomAvailable = false
+        compare(window.findAvailable, false)
+        compare(window.zoomAvailable, false)
+        compare(testCase.commandEnabled("find"), false)
+        compare(testCase.commandEnabled("find-next"), false)
+        compare(testCase.commandEnabled("zoom-out"), false)
+
+        window.commands.run("find", -1)
+        compare(bar.open, false)
+        tryCompare(notice, "message", "Find is not available")
+
+        window.commands.run("zoom-in", -1)
+        compare(browser.activeTabZoom, 1.0)
+        tryCompare(notice, "message", "Zoom is not available")
+
+        // Printing needs an engine that can render the page and a desktop with
+        // a dialog to answer. The test session has no dialog, so the command is
+        // unavailable and names that half.
+        compare(window.printingAvailable, false)
+        compare(testCase.commandEnabled("print"), false)
+        window.commands.run("print", -1)
+        tryCompare(notice, "message", "Print is not available")
+        compare(notice.detail, "This desktop has no print dialog to answer")
+
+        engine.findAvailable = true
+        engine.zoomAvailable = true
+
+        // A tab with no page at all is not an engine that lacks something, and
+        // the notice does not say it is.
+        browser.openInput("about:blank", true)
+        const blankTabId = browser.activeTabId
+        tryVerify(function() { return window.pagelessViewport })
+        compare(testCase.commandEnabled("stop-loading"), false)
+        window.commands.run("stop-loading", -1)
+        tryCompare(notice, "message", "Stop loading is not available")
+        compare(notice.detail, "There is no page here")
+
+        browser.closeTab(blankTabId)
+        notice.dismiss()
+    }
+
+    // A render that produced nothing is a failure the reader hears about,
+    // rather than a print that quietly never happened.
+    function test_printReportsARenderThatProducedNothing() {
+        const engine = openPage("https://print.example/invoice")
+        const notice = findChild(window.contentItem, "pageNotice")
+        engine.printPage("")
+        tryCompare(notice, "message", "Printing failed")
+        notice.dismiss()
+    }
+
+    // Where the engine has no sandboxed PDF viewer the document is downloaded
+    // instead, and the missing capability is reported rather than left to be
+    // inferred from a page that never appeared.
+    function test_pdfWithoutASandboxedViewerIsDownloadedAndReported() {
+        const engine = openPage("https://docs.example/start")
+        const notice = findChild(window.contentItem, "pageNotice")
+        compare(window.inlinePdfViewingAvailable, true)
+
+        browser.openInput("https://docs.example/inline.pdf", false)
+        tryVerify(function() {
+            return String(browser.activeUrl) === "https://docs.example/inline.pdf"
+        })
+        compare(notice.showing, false)
+
+        engine.inlinePdfViewingAvailable = false
+        compare(window.inlinePdfViewingAvailable, false)
+        browser.openInput("https://docs.example/manual.pdf", false)
+        tryCompare(notice, "message", "This engine cannot show PDFs")
+        compare(notice.detail, "The document was downloaded instead")
+
+        engine.inlinePdfViewingAvailable = true
+        notice.dismiss()
+    }
 }

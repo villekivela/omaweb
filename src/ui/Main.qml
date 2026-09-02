@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import QtQuick.Window
 import Tanto
 
 ApplicationWindow {
@@ -58,6 +59,25 @@ ApplicationWindow {
     readonly property bool developerToolsAvailable: engineLoader.item !== null
         && (engineLoader.item.capabilities
             & engineLoader.item.developerToolsCapability) !== 0
+    // The everyday page operations an engine may or may not have. Each is read
+    // off the adapter itself, so a command Tanto cannot carry out here is listed
+    // and unavailable rather than doing nothing when it is run.
+    readonly property bool findAvailable: engineLoader.item !== null
+        && (engineLoader.item.capabilities & engineLoader.item.pageFindCapability) !== 0
+    readonly property bool zoomAvailable: engineLoader.item !== null
+        && (engineLoader.item.capabilities & engineLoader.item.pageZoomCapability) !== 0
+    // Two halves have to hold: an engine that can render the page for printing,
+    // and a desktop with a print dialog to answer.
+    readonly property bool printingAvailable: engineLoader.item !== null
+        && (engineLoader.item.capabilities & engineLoader.item.printingCapability) !== 0
+        && PagePrinter.available
+    // A PDF the engine draws in its own sandbox, with find, zoom, print and
+    // download inside it. An engine without one downloads the document, and
+    // says so.
+    readonly property bool inlinePdfViewingAvailable: engineLoader.item !== null
+        && (engineLoader.item.capabilities
+            & engineLoader.item.inlinePdfViewingCapability) !== 0
+
     // No page to show: the tab on show is blank and no engine is drawing it.
     // That covers a resting Space and an `about:blank` the reader navigated to
     // — and leaves out the blank tab a page opened, which has its engine
@@ -66,6 +86,19 @@ ApplicationWindow {
         && !engineLoader.item
     property bool omnibarOpen: false
     property bool newTabIntent: false
+    // Which tabs have the find bar showing, by tab id. Find belongs to a tab,
+    // so opening it on one page does not open it over the next — and a tab that
+    // has been closed takes its entry with it rather than leaving the map to
+    // grow for the life of the session.
+    property var tabsShowingFind: ({})
+    property bool findOpen: false
+    // Fullscreen the reader asked for, which is not fullscreen a site asked
+    // for. Keeping them apart is what lets a site hand the screen back without
+    // taking the reader's own fullscreen with it.
+    property bool browserFullscreen: false
+    // The sidebar was showing when a site took the screen, so it comes back
+    // when the screen does.
+    property bool sidebarHiddenForFullscreen: false
     property string pendingMoveTabId: ""
     property string pendingMoveSpaceId: ""
     property var privateProfileHost: null
@@ -264,6 +297,171 @@ ApplicationWindow {
     function copyAddress() {
         if (window.windowBrowser.activeTabBlank) return
         SystemClipboard.copyText(window.windowBrowser.activeUrl.toString())
+    }
+
+    // A statement about the page, over the page, that takes itself away. What
+    // Tanto has just done, and what it could not do.
+    function showNotice(glyph, message, detail, duration) {
+        pageNotice.show(glyph, message, detail, duration)
+    }
+
+    // A command that cannot run here says so. Doing nothing at all would leave
+    // the reader to guess whether the key reached the browser. A tab with no
+    // page is not an engine that lacks something, and does not say it is.
+    function reportUnavailable(what) {
+        window.showNotice("block", what + " is not available",
+            engineLoader.item
+                ? "This engine does not offer it"
+                : "There is no page here")
+    }
+
+    // Find belongs to one tab. The bar's openness is per tab, and the query and
+    // the match position are the tab's engine's, so coming back to a tab finds
+    // the search exactly where it was left.
+    function refreshFindOpen() {
+        const tabs = window.windowBrowser.tabs
+        const showing = ({})
+        for (let row = 0; row < tabs.rowCount(); ++row) {
+            const tabId = tabs.data(tabs.index(row, 0), Qt.UserRole + 1)
+            if (window.tabsShowingFind[tabId] === true) showing[tabId] = true
+        }
+        window.tabsShowingFind = showing
+        window.findOpen = showing[window.windowBrowser.activeTabId] === true
+    }
+
+    function openFind() {
+        if (!window.findAvailable) {
+            window.reportUnavailable("Find")
+            return
+        }
+        window.tabsShowingFind[window.windowBrowser.activeTabId] = true
+        window.refreshFindOpen()
+        Qt.callLater(findBar.focusField)
+    }
+
+    function closeFind() {
+        delete window.tabsShowingFind[window.windowBrowser.activeTabId]
+        window.refreshFindOpen()
+        window.focusPage()
+    }
+
+    function stepFind(forward) {
+        if (!window.findAvailable) {
+            window.reportUnavailable("Find")
+            return
+        }
+        if (!window.findOpen || findBar.text.length === 0) {
+            window.openFind()
+            return
+        }
+        engineLoader.findText(findBar.text, forward)
+    }
+
+    function stepZoom(direction) {
+        if (!window.zoomAvailable) {
+            window.reportUnavailable("Zoom")
+            return
+        }
+        window.windowBrowser.stepActiveZoom(direction)
+        window.showZoomNotice()
+    }
+
+    function resetZoom() {
+        if (!window.zoomAvailable) {
+            window.reportUnavailable("Zoom")
+            return
+        }
+        window.windowBrowser.resetActiveZoom()
+        window.showZoomNotice()
+    }
+
+    function showZoomNotice() {
+        window.showNotice("zoom_in", "Page zoom "
+            + Math.round(window.windowBrowser.activeTabZoom * 100) + "%",
+            "this tab only")
+    }
+
+    // A PDF is drawn inside the engine's own sandbox where there is one, and
+    // downloaded where there is not. Either way the reader is told which
+    // happened rather than left wondering where the document went.
+    property string reportedPdfAddress: ""
+
+    function reportPdfHandling(url) {
+        if (!engineLoader.item) return
+        const address = String(url).split("?")[0].split("#")[0]
+        if (!address.toLowerCase().endsWith(".pdf")
+            || address === window.reportedPdfAddress) {
+            return
+        }
+        window.reportedPdfAddress = address
+        if (window.inlinePdfViewingAvailable) return
+        window.showNotice("download", "This engine cannot show PDFs",
+            "The document was downloaded instead", 4200)
+    }
+
+    function reloadBypassingCache() {
+        if (!engineLoader.item) {
+            window.reportUnavailable("Reload bypassing cache")
+            return
+        }
+        window.windowBrowser.requestReloadBypassingCache()
+    }
+
+    function stopLoading() {
+        if (!engineLoader.item) {
+            window.reportUnavailable("Stop loading")
+            return
+        }
+        window.windowBrowser.requestStopLoading()
+    }
+
+    // The engine renders the page into a file; the desktop's own print dialog,
+    // with its PDF destination, is what the reader answers.
+    function printPage() {
+        if (!window.printingAvailable) {
+            // Two halves, and the reader is told which one is missing.
+            window.showNotice("block", "Print is not available",
+                PagePrinter.available
+                    ? "This engine cannot render a page for printing"
+                    : "This desktop has no print dialog to answer")
+            return
+        }
+        const destination = PagePrinter.reserveDestination(window.windowBrowser.activeTitle)
+        if (destination.length === 0) {
+            window.showNotice("print_disabled", "Printing failed",
+                "Tanto could not make a file to render the page into")
+            return
+        }
+        engineLoader.printPage(destination)
+    }
+
+    function presentPrint(destination, succeeded) {
+        if (!succeeded) {
+            PagePrinter.discard(destination)
+            window.showNotice("print_disabled", "Printing failed",
+                "The page could not be rendered for printing")
+            return
+        }
+        if (!PagePrinter.present(destination, window.windowBrowser.activeTitle)) {
+            window.showNotice("print_disabled", "Printing failed",
+                "This desktop has no print dialog to present")
+        }
+    }
+
+    // The reader's own fullscreen. A site's is `siteFullscreenActive`, and the
+    // two are tracked apart so handing one back never takes the other away.
+    function toggleBrowserFullscreen() {
+        window.browserFullscreen = !window.browserFullscreen
+        window.applyFullscreen()
+    }
+
+    function applyFullscreen() {
+        window.visibility = (window.browserFullscreen || engineLoader.siteFullscreenActive)
+            ? Window.FullScreen : Window.Windowed
+    }
+
+    function exitSiteFullscreen() {
+        engineLoader.exitSiteFullscreen()
     }
 
     function toggleDeveloperTools() {
@@ -492,6 +690,18 @@ ApplicationWindow {
         }
     }
 
+    // Site-requested fullscreen always exits with Escape, whatever the page
+    // does with the key. It is not a keymap binding: a reader who has lost the
+    // window to a page must not have to know what their keymap says.
+    Shortcut {
+        sequence: "Esc"
+        enabled: engineLoader.siteFullscreenActive && !window.omnibarOpen
+            && !window.settingsOpen && !window.pageMenuOpen
+            && !window.permissionOpen && window.dialogMode.length === 0
+        context: Qt.WindowShortcut
+        onActivated: window.exitSiteFullscreen()
+    }
+
     Rectangle {
         id: shell
         anchors.fill: parent
@@ -631,6 +841,33 @@ ApplicationWindow {
                         window.openPageMenu(engine, context)
                     }
 
+                    onPrintFinished: function(destination, succeeded) {
+                        window.presentPrint(destination, succeeded)
+                    }
+
+                    // A site taking the screen is a state the window is in, not
+                    // something the engine did to it behind Tanto's back: the
+                    // window goes fullscreen, the outline stands aside, and the
+                    // reader is told whose page is holding it and how to leave.
+                    onSiteFullscreenActiveChanged: {
+                        if (engineLoader.siteFullscreenActive) {
+                            window.sidebarHiddenForFullscreen = !window.sidebarCollapsed
+                            window.sidebarCollapsed = true
+                            window.applyFullscreen()
+                            window.showNotice("fullscreen",
+                                engineLoader.siteFullscreenOrigin
+                                    + " is showing this page fullscreen",
+                                "press esc to leave", 4200)
+                            return
+                        }
+                        window.applyFullscreen()
+                        if (window.sidebarHiddenForFullscreen) {
+                            window.sidebarCollapsed = false
+                            window.sidebarHiddenForFullscreen = false
+                        }
+                        pageNotice.dismiss()
+                    }
+
                     onSitePermissionRequested: function(engine, requestId, origin, permission) {
                         window.pendingPermissionRequest = requestId
                         window.pendingPermissionResponder = engine
@@ -696,6 +933,41 @@ ApplicationWindow {
                         window.shortcutsOpen = false
                         window.focusPage()
                     }
+                }
+
+                FindBar {
+                    id: findBar
+                    objectName: "findBar"
+                    anchors.right: parent.right
+                    anchors.rightMargin: 20
+                    anchors.top: parent.top
+                    anchors.topMargin: 16
+                    z: 41
+                    colors: window.colors
+                    iconFontFamily: materialSymbols.name
+                    // The bar stands for the tab on show, and only where there
+                    // is a page to search.
+                    open: window.findOpen && window.findAvailable
+                        && !window.settingsOpen
+                    query: engineLoader.item ? engineLoader.item.findQuery : ""
+                    matchCount: engineLoader.item ? engineLoader.item.findMatchCount : 0
+                    activeMatch: engineLoader.item ? engineLoader.item.findActiveMatch : 0
+
+                    onSearchRequested: function(text, forward) {
+                        engineLoader.findText(text, forward)
+                    }
+                    onClosed: window.closeFind()
+                }
+
+                PageNotice {
+                    id: pageNotice
+                    objectName: "pageNotice"
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    anchors.top: parent.top
+                    anchors.topMargin: 16
+                    z: 42
+                    colors: window.colors
+                    iconFontFamily: materialSymbols.name
                 }
 
                 PageQuestionBar {
@@ -803,6 +1075,13 @@ ApplicationWindow {
 
                     function onCloseWindowRequested() {
                         if (window.privateWindow) window.close()
+                    }
+
+                    // The find bar stands for one tab, so it comes and goes
+                    // with the tab it was opened on.
+                    function onActiveTabChanged() {
+                        window.refreshFindOpen()
+                        window.reportPdfHandling(window.windowBrowser.activeUrl)
                     }
                 }
 

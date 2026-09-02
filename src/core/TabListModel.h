@@ -26,6 +26,10 @@ struct TabState {
     // playing now.
     bool audible = false;
     bool muted = false;
+    // How large the page is drawn in this tab. Unlike sound, zoom is the
+    // session's to keep: a tab restored from the store comes back at the size
+    // the reader left it. 1.0 is 100 percent, which is where a new tab starts.
+    double zoom = 1.0;
     QString rendererFailureReason {};
 };
 
@@ -46,6 +50,7 @@ public:
         IconUrlRole,
         AudibleRole,
         MutedRole,
+        ZoomRole,
     };
     Q_ENUM(Role)
 

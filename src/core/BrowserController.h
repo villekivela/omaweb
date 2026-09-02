@@ -27,6 +27,11 @@ class BrowserController final : public QObject {
     Q_PROPERTY(QString activeTitle READ activeTitle NOTIFY activeTabChanged)
     Q_PROPERTY(QString activeProfilePath READ activeProfilePath NOTIFY activeSpaceChanged)
     Q_PROPERTY(bool activeTabPinned READ activeTabPinned NOTIFY activeTabChanged)
+    // How large the page in the tab on show is drawn, as a factor: 1.0 is 100
+    // percent. Zoom belongs to the tab rather than to the site, so nothing here
+    // is keyed by origin, and it is kept in the session so a restored tab comes
+    // back at the size it was left.
+    Q_PROPERTY(double activeTabZoom READ activeTabZoom NOTIFY activeTabChanged)
     // Whether the tab on show has an address to load. A blank one has no page
     // to draw and nothing to draw it with, whether it is the Space resting or
     // an address the reader typed, so the interface stands something else in
@@ -80,6 +85,7 @@ public:
     QString activeTitle() const;
     QString activeProfilePath() const;
     bool activeTabPinned() const;
+    double activeTabZoom() const;
     bool activeTabBlank() const;
     bool atRest() const;
     QString developerToolsTabId() const;
@@ -112,6 +118,11 @@ public:
     Q_INVOKABLE void setTabAudible(const QString &tabId, bool audible);
     Q_INVOKABLE void setTabMuted(const QString &tabId, bool muted);
     Q_INVOKABLE void toggleTabMuted(const QString &tabId);
+    // Zoom moves along a fixed ladder rather than by a percentage, so every
+    // step lands on a size the reader has seen before and the ends are bounded.
+    Q_INVOKABLE void setTabZoom(const QString &tabId, double zoom);
+    Q_INVOKABLE void stepActiveZoom(int direction);
+    Q_INVOKABLE void resetActiveZoom();
     Q_INVOKABLE void reportTabRendererFailure(const QString &tabId, const QString &reason);
     Q_INVOKABLE void recoverActiveTab();
     // One inspector inspects one tab. Asking for it on another tab moves it
@@ -122,6 +133,10 @@ public:
     Q_INVOKABLE void requestBack();
     Q_INVOKABLE void requestForward();
     Q_INVOKABLE void requestReload();
+    // Three separate asks, because they mean three different things to a page:
+    // read it again, read it again from the network, and stop reading it.
+    Q_INVOKABLE void requestReloadBypassingCache();
+    Q_INVOKABLE void requestStopLoading();
     Q_INVOKABLE void recordVisit(const QUrl &url, const QString &title);
     Q_INVOKABLE QVariantList historySuggestions(const QString &query, int limit = 8) const;
     Q_INVOKABLE int permissionDecision(const QUrl &url, const QString &permission);
@@ -147,6 +162,8 @@ signals:
     void backRequested();
     void forwardRequested();
     void reloadRequested();
+    void reloadBypassingCacheRequested();
+    void stopLoadingRequested();
     void closeWindowRequested();
 
 private:
@@ -162,6 +179,7 @@ private:
     void schedulePersistTabs();
     void setActiveTab(const QString &tabId);
     static TabState makeBlankTab(const QString &spaceId);
+    static double steppedZoom(double zoom, int direction);
     static bool isBlank(const QUrl &url);
     bool restingOnBlankTab() const;
     void refreshAtRest();

@@ -91,7 +91,7 @@ QVector<TabState> SessionStore::loadTabs(const QString &spaceId) const
     QVector<TabState> tabs;
     QSqlQuery query(spaceDatabase(spaceId));
     query.prepare(QStringLiteral(
-        "SELECT id, url, title, pinned, active FROM tabs ORDER BY pinned DESC, position"));
+        "SELECT id, url, title, pinned, active, zoom FROM tabs ORDER BY pinned DESC, position"));
     query.exec();
     while (query.next()) {
         // Named rather than positional: a tab has state the store does not
@@ -104,6 +104,7 @@ QVector<TabState> SessionStore::loadTabs(const QString &spaceId) const
             .title = query.value(2).toString(),
             .pinned = query.value(3).toBool(),
             .active = query.value(4).toBool(),
+            .zoom = query.value(5).toDouble(),
         });
     }
     return tabs;
@@ -212,15 +213,18 @@ bool SessionStore::saveTab(const TabState &tab, int position)
 {
     QSqlQuery query(spaceDatabase(tab.spaceId));
     query.prepare(QStringLiteral(
-        "INSERT INTO tabs(id, url, title, pinned, active, position) VALUES(?, ?, ?, ?, ?, ?) "
+        "INSERT INTO tabs(id, url, title, pinned, active, position, zoom) "
+        "VALUES(?, ?, ?, ?, ?, ?, ?) "
         "ON CONFLICT(id) DO UPDATE SET url = excluded.url, "
-        "title = excluded.title, pinned = excluded.pinned, active = excluded.active, position = excluded.position"));
+        "title = excluded.title, pinned = excluded.pinned, active = excluded.active, "
+        "position = excluded.position, zoom = excluded.zoom"));
     query.addBindValue(tab.id);
     query.addBindValue(tab.url.toString());
     query.addBindValue(tab.title);
     query.addBindValue(tab.pinned);
     query.addBindValue(tab.active);
     query.addBindValue(position);
+    query.addBindValue(tab.zoom);
     return query.exec();
 }
 
@@ -287,8 +291,9 @@ bool SessionStore::saveSpaceMove(const QString &sourceSpaceId,
             const auto &tab = tabs.at(position);
             QSqlQuery insert(m_database);
             insert.prepare(QStringLiteral(
-                               "INSERT INTO %1.tabs(id, url, title, pinned, active, position) "
-                               "VALUES(?, ?, ?, ?, ?, ?)")
+                               "INSERT INTO %1.tabs"
+                               "(id, url, title, pinned, active, position, zoom) "
+                               "VALUES(?, ?, ?, ?, ?, ?, ?)")
                                .arg(schema));
             insert.addBindValue(tab.id);
             insert.addBindValue(tab.url.toString());
@@ -296,6 +301,7 @@ bool SessionStore::saveSpaceMove(const QString &sourceSpaceId,
             insert.addBindValue(tab.pinned);
             insert.addBindValue(tab.id == activeTabId);
             insert.addBindValue(position);
+            insert.addBindValue(tab.zoom);
             if (!insert.exec()) {
                 return false;
             }
@@ -664,7 +670,14 @@ QSqlDatabase SessionStore::spaceDatabase(const QString &spaceId) const
         "title TEXT NOT NULL, "
         "pinned INTEGER NOT NULL DEFAULT 0, "
         "active INTEGER NOT NULL DEFAULT 0, "
-        "position INTEGER NOT NULL DEFAULT 0)"));
+        "position INTEGER NOT NULL DEFAULT 0, "
+        "zoom REAL NOT NULL DEFAULT 1.0)"));
+    // A Space whose store predates per-tab zoom keeps its tabs; the column is
+    // added beside them, at the size every tab was drawn at before it existed.
+    // Adding a column that is already there fails, and that failure is the
+    // answer rather than a fault.
+    schema.exec(QStringLiteral(
+        "ALTER TABLE tabs ADD COLUMN zoom REAL NOT NULL DEFAULT 1.0"));
     schema.exec(QStringLiteral(
         "CREATE TABLE IF NOT EXISTS history ("
         "id INTEGER PRIMARY KEY, "

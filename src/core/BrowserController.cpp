@@ -5,10 +5,15 @@
 #include <QUuid>
 #include <QStandardPaths>
 
+#include <iterator>
+
 namespace tanto {
 namespace {
 
 constexpr int persistTabsDelayMilliseconds = 400;
+// Zoom factors arrive back from an engine as the doubles it rounded them to, so
+// a rung is recognised by nearness rather than by equality.
+constexpr double zoomTolerance = 0.001;
 
 } // namespace
 
@@ -124,6 +129,12 @@ bool BrowserController::activeTabPinned() const
 {
     const auto *tab = m_tabs.find(m_activeTabId);
     return tab && tab->pinned;
+}
+
+double BrowserController::activeTabZoom() const
+{
+    const auto *tab = m_tabs.find(m_activeTabId);
+    return tab ? tab->zoom : 1.0;
 }
 
 bool BrowserController::activeTabBlank() const
@@ -677,6 +688,60 @@ void BrowserController::toggleTabMuted(const QString &tabId)
     }
 }
 
+// Zoom is the reader's decision about this tab, so it survives navigation
+// within the tab and is written to the session with the rest of the tab.
+void BrowserController::setTabZoom(const QString &tabId, double zoom)
+{
+    auto *tab = m_tabs.find(tabId);
+    if (!tab || qFuzzyCompare(tab->zoom, zoom)) {
+        return;
+    }
+    tab->zoom = zoom;
+    m_tabs.notifyChanged(tab->id, {TabListModel::ZoomRole});
+    schedulePersistTabs();
+    if (tabId == m_activeTabId) {
+        emit activeTabChanged();
+    }
+}
+
+// The ladder every browser zooms along. Stepping rather than multiplying keeps
+// the sizes the same in both directions and keeps the ends where they are: no
+// amount of asking for less makes a page smaller than a quarter.
+double BrowserController::steppedZoom(double zoom, int direction)
+{
+    static constexpr double ladder[] = {
+        0.25, 0.33, 0.5, 0.67, 0.75, 0.8, 0.9, 1.0, 1.1, 1.25, 1.5, 1.75, 2.0, 2.5, 3.0,
+    };
+    static constexpr int rungs = static_cast<int>(std::size(ladder));
+    if (direction == 0) {
+        return zoom;
+    }
+    if (direction > 0) {
+        for (const auto rung : ladder) {
+            if (rung > zoom + zoomTolerance) {
+                return rung;
+            }
+        }
+        return ladder[rungs - 1];
+    }
+    for (int index = rungs - 1; index >= 0; --index) {
+        if (ladder[index] < zoom - zoomTolerance) {
+            return ladder[index];
+        }
+    }
+    return ladder[0];
+}
+
+void BrowserController::stepActiveZoom(int direction)
+{
+    setTabZoom(m_activeTabId, steppedZoom(activeTabZoom(), direction));
+}
+
+void BrowserController::resetActiveZoom()
+{
+    setTabZoom(m_activeTabId, 1.0);
+}
+
 void BrowserController::reportTabRendererFailure(const QString &tabId, const QString &reason)
 {
     auto *tab = m_tabs.find(tabId);
@@ -755,6 +820,16 @@ void BrowserController::requestForward()
 void BrowserController::requestReload()
 {
     emit reloadRequested();
+}
+
+void BrowserController::requestReloadBypassingCache()
+{
+    emit reloadBypassingCacheRequested();
+}
+
+void BrowserController::requestStopLoading()
+{
+    emit stopLoadingRequested();
 }
 
 void BrowserController::recordVisit(const QUrl &url, const QString &title)

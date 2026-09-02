@@ -40,6 +40,8 @@ QVariant TabListModel::data(const QModelIndex &index, int role) const
         return tab.audible;
     case MutedRole:
         return tab.muted;
+    case ZoomRole:
+        return tab.zoom;
     default:
         return {};
     }
@@ -58,6 +60,7 @@ QHash<int, QByteArray> TabListModel::roleNames() const
         {LoadingRole, "loading"},
         {AudibleRole, "tabAudible"},
         {MutedRole, "tabMuted"},
+        {ZoomRole, "tabZoom"},
     };
 }
 

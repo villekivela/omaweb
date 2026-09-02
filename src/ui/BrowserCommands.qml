@@ -15,6 +15,8 @@ QtObject {
         case "back": browser.requestBack(); return true
         case "forward": browser.requestForward(); return true
         case "reload": browser.requestReload(); return true
+        case "reload-bypassing-cache": window.reloadBypassingCache(); return true
+        case "stop-loading": window.stopLoading(); return true
         case "open-address": window.openOmnibar(false); return true
         case "command-panel": window.openCommandPanel(); return true
         case "new-tab": window.openOmnibar(true); return true
@@ -35,6 +37,14 @@ QtObject {
         case "focus-sidebar": window.focusSidebar(); return true
         case "focus-page": window.focusPage(); return true
         case "copy-address": window.copyAddress(); return true
+        case "find": window.openFind(); return true
+        case "find-next": window.stepFind(true); return true
+        case "find-previous": window.stepFind(false); return true
+        case "zoom-in": window.stepZoom(1); return true
+        case "zoom-out": window.stepZoom(-1); return true
+        case "zoom-reset": window.resetZoom(); return true
+        case "print": window.printPage(); return true
+        case "fullscreen": window.toggleBrowserFullscreen(); return true
         case "developer-tools": window.toggleDeveloperTools(); return true
         case "inspect-element": window.inspectElement(); return true
         case "shortcuts": window.requestShortcuts(); return true
@@ -45,10 +55,17 @@ QtObject {
         return false
     }
 
+    // Every command names what it needs to run here, so availability is read
+    // off the same table as the title rather than off a cascade beside it: a
+    // command added without a requirement runs everywhere, and one that needs
+    // something says which thing in the row that declares it.
     readonly property var descriptions: ({
         "back": { group: "navigation", title: "Back" },
         "forward": { group: "navigation", title: "Forward" },
         "reload": { group: "navigation", title: "Reload" },
+        "reload-bypassing-cache": { group: "navigation", title: "Reload bypassing cache",
+            requires: "page" },
+        "stop-loading": { group: "navigation", title: "Stop loading", requires: "page" },
         "open-address": { group: "navigation", title: "Open address" },
         "command-panel": { group: "interface", title: "Command panel" },
         "new-tab": { group: "tabs", title: "New tab" },
@@ -68,12 +85,23 @@ QtObject {
         "reset-sidebar": { group: "interface", title: "Reset the sidebar width" },
         "focus-sidebar": { group: "interface", title: "Focus the sidebar" },
         "focus-page": { group: "interface", title: "Focus the page" },
-        "copy-address": { group: "navigation", title: "Copy address" },
-        "developer-tools": { group: "developer", title: "Developer tools" },
-        "inspect-element": { group: "developer", title: "Inspect element" },
+        "copy-address": { group: "navigation", title: "Copy address", requires: "page" },
+        "find": { group: "page", title: "Find in page", requires: "find" },
+        "find-next": { group: "page", title: "Next match", requires: "find" },
+        "find-previous": { group: "page", title: "Previous match", requires: "find" },
+        "zoom-in": { group: "page", title: "Zoom in", requires: "zoom" },
+        "zoom-out": { group: "page", title: "Zoom out", requires: "zoom" },
+        "zoom-reset": { group: "page", title: "Reset zoom", requires: "zoom" },
+        "print": { group: "page", title: "Print", requires: "printing" },
+        "fullscreen": { group: "interface", title: "Fullscreen" },
+        "developer-tools": { group: "developer", title: "Developer tools",
+            requires: "inspector" },
+        "inspect-element": { group: "developer", title: "Inspect element",
+            requires: "inspector" },
         "shortcuts": { group: "interface", title: "Keyboard shortcuts" },
         "settings": { group: "interface", title: "Settings and downloads" },
-        "private-window": { group: "interface", title: "New Private window" },
+        "private-window": { group: "interface", title: "New Private window",
+            requires: "private-windows" },
         "minimize-window": { group: "interface", title: "Minimize window" }
     })
 
@@ -92,12 +120,15 @@ QtObject {
     // unavailable rather than missing: the reader learns it exists, and why it
     // is not on offer here.
     function available(command) {
-        if (command === "developer-tools" || command === "inspect-element")
-            return window.developerToolsAvailable
-        if (command === "copy-address")
-            return !browser.activeTabBlank
-        if (command === "private-window")
-            return windowManager.privateWindowsAvailable
+        const description = descriptions[command]
+        switch (description ? description.requires : "") {
+        case "page": return !browser.activeTabBlank
+        case "find": return window.findAvailable
+        case "zoom": return window.zoomAvailable
+        case "printing": return window.printingAvailable
+        case "inspector": return window.developerToolsAvailable
+        case "private-windows": return windowManager.privateWindowsAvailable
+        }
         return true
     }
 

@@ -180,16 +180,29 @@ if(TANTO_BUILD_BROWSER)
     tanto_strict_target(tanto-engine-qt)
 endif()
 
-add_library(tanto-platform STATIC src/platform/WindowChrome.h)
+add_library(tanto-platform STATIC
+    src/platform/PagePrinter.cpp
+    src/platform/PagePrinter.h
+    src/platform/WindowChrome.h
+)
 target_include_directories(tanto-platform PUBLIC src/platform)
-target_link_libraries(tanto-platform PUBLIC Qt6::Gui Qt6::Quick)
+target_link_libraries(tanto-platform PUBLIC Qt6::Gui Qt6::Qml Qt6::Quick)
 if(APPLE)
     enable_language(OBJCXX)
     find_library(TANTO_APPKIT_FRAMEWORK AppKit REQUIRED)
     find_library(TANTO_QUARTZCORE_FRAMEWORK QuartzCore REQUIRED)
-    target_sources(tanto-platform PRIVATE src/platform/MacWindowChrome.mm)
-    target_link_libraries(tanto-platform
-        PRIVATE ${TANTO_APPKIT_FRAMEWORK} ${TANTO_QUARTZCORE_FRAMEWORK})
+    # Quartz is the umbrella that carries PDFKit, which draws and prints the
+    # PDF the engine renders a page into.
+    find_library(TANTO_QUARTZ_FRAMEWORK Quartz REQUIRED)
+    target_sources(tanto-platform PRIVATE
+        src/platform/MacPagePrinter.mm
+        src/platform/MacWindowChrome.mm
+    )
+    target_link_libraries(tanto-platform PRIVATE
+        ${TANTO_APPKIT_FRAMEWORK}
+        ${TANTO_QUARTZCORE_FRAMEWORK}
+        ${TANTO_QUARTZ_FRAMEWORK}
+    )
 else()
     target_sources(tanto-platform PRIVATE src/platform/WindowChrome.cpp)
 endif()
@@ -203,6 +216,7 @@ set(tanto_ui_files
     src/ui/ChromeMenu.qml
     src/ui/CommandPanel.qml
     src/ui/DeveloperToolsDock.qml
+    src/ui/FindBar.qml
     src/ui/KeyHint.qml
     src/ui/KeyMap.qml
     src/ui/NavigationCluster.qml
@@ -210,6 +224,7 @@ set(tanto_ui_files
     src/ui/ActionButton.qml
     src/ui/CommandDialog.qml
     src/ui/PageBackdrop.qml
+    src/ui/PageNotice.qml
     src/ui/PageQuestionBar.qml
     src/ui/SectionLabel.qml
     src/ui/MultilineField.qml
@@ -493,6 +508,7 @@ if(BUILD_TESTING)
             tanto-core
             tanto-content-blocking
             tanto-ui
+            tanto-platform
             tanto-quickshell-shim
             Qt6::Gui
             Qt6::Qml

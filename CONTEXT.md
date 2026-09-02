@@ -88,6 +88,10 @@ _Avoid_: Redirect resource, stub, mock response
 A function from the vendored uBlock Origin library that a filter list's rule names and supplies arguments for, run in a page before the page's own scripts. A filter list names a Scriptlet and never supplies its code.
 _Avoid_: Injected script, user script
 
+**Site fullscreen**:
+A page holding the whole screen because the site asked for it. It begins with a notice naming the origin and always ends with `Escape`. It is separate from the fullscreen the reader asks Tanto for, and handing one back never takes the other away.
+_Avoid_: Fullscreen mode, video fullscreen
+
 **Theme palette**:
 A complete, versioned set of visual values that defines Tanto's current appearance, including the semantic opacity values for its interface surfaces and the type family and base size they draw with. Tanto can replace the active theme palette while running.
 _Avoid_: Theme injection, color scheme

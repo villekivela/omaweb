@@ -42,6 +42,18 @@ The frontend is themed by naming its own CSS custom properties again on the page
 
 Remote debugging exists only behind the `--remote-debugging[=port]` launch option. Tanto binds it to loopback, refuses to start when a Chromium debugging switch reaches the engine through the command line or the environment, and takes Private windows away from that session.
 
+## Everyday page commands
+
+Find, zoom, reload, Reload bypassing cache, Stop loading, printing and site-requested fullscreen are engine-view-contract operations, each with a capability beside it. A command whose capability an adapter does not report is listed and unavailable, and running it reports the gap rather than doing nothing.
+
+Find belongs to a tab because it lives on that tab's adapter: the query and the match position are the adapter's properties, so hiding the interface leaves both, and only a navigation clears the matches. Zoom belongs to the tab in the other direction — the core owns the factor, writes it to the session with the rest of the tab, and hands it to whichever adapter draws that tab. Zoom moves along one fixed ladder rather than by a percentage, so both directions land on the same sizes and the ends are bounded.
+
+Printing is split between the adapter, which renders the page to a PDF in a Tanto-owned spool directory, and `tanto-platform`, which presents it in the desktop's own print dialog — including that dialog's PDF destination — and removes the spooled file afterwards. macOS presents it through AppKit and PDFKit. A platform with no print panel reports the capability off, which is where Linux stands until the Wayland port.
+
+The Qt adapter draws PDFs in Chromium's sandboxed viewer, which carries its own find, zoom, print and download in a toolbar inside the page; Tanto's own find bar does not reach into that plugin. An adapter without a sandboxed viewer downloads the document instead, and the shell reports the missing capability.
+
+Site-requested fullscreen is a state the shell is in rather than something an engine does to the window: the adapter accepts the request and reports it with the origin, and the shell takes the window fullscreen, stands the outline aside, names the origin in a notice, and always exits on `Escape`. The fullscreen the reader asks Tanto for is tracked separately, so handing one back never takes the other away.
+
 ## Page context menu
 
 Tanto draws the page's context menu. The engine adapter accepts the engine's own context-menu request, so no engine menu is ever shown, and reports the target as plain values rather than as the engine's request object: no engine menu model or media enumeration crosses the engine-view contract. The shell builds the rows from those values and runs them through the same commands the keyboard uses.

@@ -3,6 +3,7 @@
 #include "FaviconTint.h"
 #include "KeyboardNavigation.h"
 #include "KitTheme.h"
+#include "PagePrinter.h"
 #include "Quickshell.h"
 #include "SystemClipboard.h"
 #include "ThemeController.h"
@@ -86,6 +87,7 @@ int main(int argc, char *argv[])
     tanto::quickshell::installShim();
     tanto::registerFaviconTint();
     tanto::registerSystemClipboard();
+    tanto::registerPagePrinter();
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty(QStringLiteral("browser"), &browser);
     engine.rootContext()->setContextProperty(QStringLiteral("contentBlocker"), &contentBlocker);

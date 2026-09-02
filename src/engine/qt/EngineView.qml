@@ -29,12 +29,22 @@ Item {
     readonly property int keyboardPageCommandsCapability: 1 << 4
     readonly property int developerToolsCapability: 1 << 5
     readonly property int rendererRecoveryCapability: 1 << 6
+    readonly property int pageFindCapability: 1 << 7
+    readonly property int pageZoomCapability: 1 << 8
+    readonly property int printingCapability: 1 << 9
+    readonly property int siteFullscreenCapability: 1 << 10
+    readonly property int inlinePdfViewingCapability: 1 << 11
     readonly property int capabilities: navigationCapability
         | persistentProfilesCapability
         | contentBlockingCapability
         | keyboardPageCommandsCapability
         | developerToolsCapability
         | rendererRecoveryCapability
+        | pageFindCapability
+        | pageZoomCapability
+        | printingCapability
+        | siteFullscreenCapability
+        | inlinePdfViewingCapability
     property int blockedRequestCount: 0
     property color pageBackgroundColor: "#16151d"
     property var keyboardNavigationConfiguration: ({})
@@ -68,6 +78,24 @@ Item {
     // The reader asked to point at something before the inspector had loaded.
     property bool elementPickPending: false
 
+    // What the reader is looking for in this page, and where the search has
+    // reached. One adapter draws one tab, so this is find belonging to a tab
+    // without anything keeping a table of tabs: hiding the interface leaves
+    // both standing, and only a navigation takes the matches away.
+    property string findQuery: ""
+    property int findMatchCount: 0
+    property int findActiveMatch: 0
+
+    // How large this tab's page is drawn. The shell owns the value — it is the
+    // tab's, and outlives the page in it — and the view is told what it is.
+    property alias zoomFactor: webView.zoomFactor
+
+    // Fullscreen the site asked for, which is not the reader asking for the
+    // window. The origin is named so the shell can say who took the screen, and
+    // the page is told when the reader takes it back.
+    property bool siteFullscreenActive: false
+    property string siteFullscreenOrigin: ""
+
     // What the reader pointed at, as plain values rather than as the engine's
     // own request object: a position, the addresses under the pointer, the
     // selection, and whether the target takes typing. Tanto draws the menu, so
@@ -81,6 +109,10 @@ Item {
     signal windowCloseRequested()
     signal backgroundTabRequested(url requestedUrl)
     signal sitePermissionRequested(string requestId, string origin, string permission)
+    // The page has been rendered, or it has not. Either way the shell hears
+    // about it: a print that produced nothing is not a print that quietly
+    // didn't happen.
+    signal printFinished(string destination, bool succeeded)
     property var pendingPermissions: ({})
     property int nextPermissionRequestId: 0
 
@@ -192,6 +224,58 @@ Item {
     function goForward() { webView.goForward() }
     function focusPage() { webView.forceActiveFocus() }
     function reloadPage() { webView.reload() }
+    // Reading the page again and reading it again from the network are two
+    // different asks, and so is stopping: a stopped load leaves the page and
+    // everything typed into it exactly where it was.
+    function reloadPageBypassingCache() {
+        webView.triggerWebAction(WebEngineView.ReloadAndBypassCache)
+    }
+    function stopLoading() { webView.stop() }
+
+    // The matches, and not the query: a navigation invalidates where the search
+    // had reached, but not what the reader was looking for.
+    function forgetFindMatches() {
+        root.findMatchCount = 0
+        root.findActiveMatch = 0
+    }
+
+    function findText(query, forward) {
+        root.findQuery = String(query)
+        if (root.findQuery.length === 0) {
+            root.forgetFindMatches()
+            webView.findText("")
+            return
+        }
+        webView.findText(root.findQuery, forward ? 0 : WebEngineView.FindBackward)
+    }
+
+    function clearFind() {
+        root.findQuery = ""
+        root.forgetFindMatches()
+        webView.findText("")
+    }
+
+    function setZoomFactor(factor) {
+        const wanted = Number(factor)
+        if (!(wanted > 0)) return
+        webView.zoomFactor = wanted
+    }
+
+    function printPage(destination) {
+        const path = String(destination)
+        if (path.length === 0) {
+            root.printFinished("", false)
+            return
+        }
+        webView.printToPdf(path)
+    }
+
+    function exitSiteFullscreen() {
+        if (!root.siteFullscreenActive) return
+        root.siteFullscreenActive = false
+        root.siteFullscreenOrigin = ""
+        webView.fullScreenCancelled()
+    }
     function configureKeyboardNavigation(configuration) {
         keyboardNavigationHintModeActive = false
         keyboardNavigationConfiguration = configuration
@@ -766,6 +850,14 @@ Item {
         objectName: "qtWebView"
         anchors.fill: parent
         profile: root.resolvedProfile()
+        // Chromium draws a PDF in a sandboxed viewer of its own, with find,
+        // zoom, print and download inside it. Without this the profile
+        // downloads the document instead, which is what an engine with no such
+        // viewer does.
+        settings.pdfViewerEnabled: true
+        // A page may ask for the screen. Tanto answers the request rather than
+        // the engine, so the shell can say whose page took it and hand it back.
+        settings.fullScreenSupportEnabled: true
         // Chromium paints this before a page supplies its own background.
         // Left at white it flashes a bright rectangle through dark chrome on
         // every navigation, so it follows the theme instead.
@@ -803,6 +895,9 @@ Item {
                 // replaced. What is at those coordinates now is not what the
                 // reader pointed at, so the next keyboard request picks again.
                 root.contextMenuTargetKnown = false
+                // The matches were in the page being replaced. The query is the
+                // reader's and stays, ready to run against what arrives.
+                root.forgetFindMatches()
                 root.installBlockingScript(loadRequest.url)
                 return
             }
@@ -825,6 +920,29 @@ Item {
         }
 
         onWindowCloseRequested: root.windowCloseRequested()
+
+        onFindTextFinished: function(result) {
+            root.findMatchCount = result.numberOfMatches
+            root.findActiveMatch = result.activeMatch
+        }
+
+        onPdfPrintingFinished: function(filePath, success) {
+            root.printFinished(filePath, success)
+        }
+
+        // Accepted here and reported to the shell, which is what makes site
+        // fullscreen a state Tanto is in rather than something the engine did
+        // to the window behind its back.
+        onFullScreenRequested: function(request) {
+            request.accept()
+            // The origin is named before the state changes: the shell reports
+            // who took the screen the moment it hears that someone did.
+            root.siteFullscreenOrigin = request.toggleOn
+                ? (request.origin.host.length > 0
+                    ? request.origin.host : request.origin.toString())
+                : ""
+            root.siteFullscreenActive = request.toggleOn
+        }
 
         onJavaScriptConsoleMessage: function(level, message, lineNumber, sourceId) {
             if (message === "__tanto_keyboard_hint_mode__:1")

@@ -40,6 +40,8 @@ private slots:
     void restsUntilSomethingIsOpenedInTheSpace();
     void keepsRendererFailureOnAffectedTab();
     void keepsMutingDecisionWhileSoundComesAndGoes();
+    void stepsZoomAlongOneLadderPerTab();
+    void restoresEveryTabsZoomAfterRestart();
     void sharesPrivateIdentityUntilLastWindowCloses();
     void keepsHistorySuggestionsInsideActiveSpace();
     void scopesPermissionDecisionsToOriginSpaceAndLifetime();
@@ -455,6 +457,81 @@ void BrowserControllerTest::keepsMutingDecisionWhileSoundComesAndGoes()
 
     controller.toggleTabMuted(tabId);
     QVERIFY(!tabs->data(tabIndex, TabListModel::MutedRole).toBool());
+}
+
+// Zoom belongs to one tab: stepping it moves that tab and no other, and the
+// ladder is the same going up and coming back down.
+void BrowserControllerTest::stepsZoomAlongOneLadderPerTab()
+{
+    QTemporaryDir root;
+    BrowserController controller(root.path(), QStringLiteral("test"));
+    controller.openInput(QStringLiteral("https://first.example"), false);
+    const auto firstTabId = controller.activeTabId();
+    controller.openInput(QStringLiteral("https://second.example"), true);
+    const auto secondTabId = controller.activeTabId();
+
+    QCOMPARE(controller.activeTabZoom(), 1.0);
+    controller.stepActiveZoom(1);
+    QCOMPARE(controller.activeTabZoom(), 1.1);
+    controller.stepActiveZoom(1);
+    QCOMPARE(controller.activeTabZoom(), 1.25);
+    controller.stepActiveZoom(-1);
+    QCOMPARE(controller.activeTabZoom(), 1.1);
+
+    // The other tab never moved, and the model says so for both.
+    auto *tabs = controller.tabs();
+    const auto zoomOf = [tabs](const QString &tabId) {
+        for (int row = 0; row < tabs->rowCount(); ++row) {
+            const auto index = tabs->index(row, 0);
+            if (tabs->data(index, TabListModel::IdRole).toString() == tabId) {
+                return tabs->data(index, TabListModel::ZoomRole).toDouble();
+            }
+        }
+        return 0.0;
+    };
+    QCOMPARE(zoomOf(firstTabId), 1.0);
+    QCOMPARE(zoomOf(secondTabId), 1.1);
+
+    // The ends of the ladder hold: asking for more than it has changes nothing.
+    for (int step = 0; step < 20; ++step) {
+        controller.stepActiveZoom(1);
+    }
+    QCOMPARE(controller.activeTabZoom(), 3.0);
+    for (int step = 0; step < 20; ++step) {
+        controller.stepActiveZoom(-1);
+    }
+    QCOMPARE(controller.activeTabZoom(), 0.25);
+
+    controller.resetActiveZoom();
+    QCOMPARE(controller.activeTabZoom(), 1.0);
+
+    // A new tab starts at 100 percent whatever the tab beside it is drawn at.
+    controller.stepActiveZoom(1);
+    controller.openInput(QStringLiteral("https://third.example"), true);
+    QCOMPARE(controller.activeTabZoom(), 1.0);
+}
+
+void BrowserControllerTest::restoresEveryTabsZoomAfterRestart()
+{
+    QTemporaryDir root;
+    QString zoomedTabId;
+    QString plainTabId;
+    {
+        BrowserController controller(root.path(), QStringLiteral("test"));
+        controller.openInput(QStringLiteral("https://plain.example"), false);
+        plainTabId = controller.activeTabId();
+        controller.openInput(QStringLiteral("https://zoomed.example"), true);
+        zoomedTabId = controller.activeTabId();
+        controller.stepActiveZoom(1);
+        controller.stepActiveZoom(1);
+        QCOMPARE(controller.activeTabZoom(), 1.25);
+    }
+
+    BrowserController restored(root.path(), QStringLiteral("test"));
+    QCOMPARE(restored.activeTabId(), zoomedTabId);
+    QCOMPARE(restored.activeTabZoom(), 1.25);
+    restored.activateTab(plainTabId);
+    QCOMPARE(restored.activeTabZoom(), 1.0);
 }
 
 void BrowserControllerTest::sharesPrivateIdentityUntilLastWindowCloses()

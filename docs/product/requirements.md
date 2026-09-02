@@ -90,6 +90,9 @@ The default browser commands include:
 - `gs` for the next Space and `Primary+1`–`Primary+9` for a specific one.
 - `Primary+B` to hide the sidebar, `Primary+E` to focus it, `Primary+,` for settings, and `Primary+K` or `:` for the command panel.
 - `Primary+Shift+I` for Developer tools, `Primary+Alt+C` to inspect an element, and `Primary+Shift+C` to copy the address of the page on show.
+- `Primary+F` or `/` to find in the page, `Primary+G` or `n` for the next match and `Primary+Shift+G` or `N` for the previous one.
+- `Primary+=`, `Primary+-` and `Primary+0` to zoom the tab in, out and back to 100 percent.
+- `Primary+Shift+R` or `R` to reload bypassing cache, `Primary+.` to stop loading, `Primary+P` to print, and `Primary+Shift+F` for fullscreen.
 
 The default page commands include:
 

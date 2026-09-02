@@ -38,6 +38,18 @@ QStringList validateEngineViewContract(const QObject &adapter)
         {"developerToolsAttached", QMetaType::Bool},
         {"developerToolsView", QMetaType::QVariant},
         {"developerToolsColors", QMetaType::QVariant},
+        // Find belongs to one tab, and a tab is one adapter, so the query and
+        // where it has reached live here rather than in a table the shell keeps
+        // beside the tabs.
+        {"findQuery", QMetaType::QString},
+        {"findMatchCount", QMetaType::Int},
+        {"findActiveMatch", QMetaType::Int},
+        {"zoomFactor", QMetaType::Double},
+        // Fullscreen the site asked for, which is not fullscreen the reader
+        // asked for: the origin is named so the notice can say who is holding
+        // the screen.
+        {"siteFullscreenActive", QMetaType::Bool},
+        {"siteFullscreenOrigin", QMetaType::QString},
     };
     struct RequiredMethod {
         const char *name;
@@ -49,6 +61,15 @@ QStringList validateEngineViewContract(const QObject &adapter)
         {"goBack", false, 0},
         {"goForward", false, 0},
         {"reloadPage", false, 0},
+        {"reloadPageBypassingCache", false, 0},
+        {"stopLoading", false, 0},
+        {"findText", false, 2},
+        {"clearFind", false, 0},
+        {"setZoomFactor", false, 1},
+        // The adapter renders the page; presenting it belongs to the platform's
+        // own print dialog, so the destination is named by the shell.
+        {"printPage", false, 1},
+        {"exitSiteFullscreen", false, 0},
         {"focusPage", false, 0},
         {"checkForEditedFormState", false, 1},
         {"acceptNewWindowRequest", false, 1},
@@ -57,6 +78,7 @@ QStringList validateEngineViewContract(const QObject &adapter)
         {"detachDeveloperTools", false, 0},
         {"inspectElement", false, 0},
         {"developerToolsClosed", true, 0},
+        {"printFinished", true, 2, QMetaType::QString},
         {"pageContextRequested", true, 1},
         {"rendererFailed", true, 1, QMetaType::QString},
         {"newTabRequested", true, 2},
