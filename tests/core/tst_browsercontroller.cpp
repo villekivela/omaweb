@@ -73,6 +73,7 @@ private slots:
     void allowsKeepActiveOnlyOnPinnedTabs();
     void namesEverySuspensionExceptionAndNothingElse();
     void restoresRetainedTabsOfUnvisitedSpacesAfterRestart();
+    void restoresTheSessionAfterAnUncleanExit();
     void routesNotificationsToTheOriginatingTab();
     void remembersOriginInteractionWithinOneSpaceAndSession();
     void neverRestoresTheInspectorAfterRestart();
@@ -1423,6 +1424,49 @@ void BrowserControllerTest::restoresRetainedTabsOfUnvisitedSpacesAfterRestart()
     // Selecting that Space stops retaining it: the reader is looking at it.
     QVERIFY(restored.switchSpace(workSpaceId));
     QVERIFY(restored.retainedTabs().isEmpty());
+}
+
+// A crash is an exit with no chance to write anything down. Everything the
+// reader arranges about a tab — its place, its pin, Keep active, its zoom, its
+// muting, and the closes it can still take back — is written as they do it, so
+// a session opened over a store whose last writer never closed it finds all of
+// it. The first session is deliberately still open here: nothing it did may
+// depend on its destructor.
+void BrowserControllerTest::restoresTheSessionAfterAnUncleanExit()
+{
+    QTemporaryDir root;
+    BrowserController crashed(root.path(), QStringLiteral("test"));
+    crashed.openInput(QStringLiteral("https://kept.example"), false);
+    const auto keptId = crashed.activeTabId();
+    crashed.toggleActivePinned();
+    QVERIFY(crashed.setTabKeepActive(keptId, true));
+    crashed.openInput(QStringLiteral("https://first.example"), true);
+    const auto firstId = crashed.activeTabId();
+    crashed.setTabZoom(firstId, 1.25);
+    crashed.setTabMuted(firstId, true);
+    crashed.openInput(QStringLiteral("https://second.example"), true);
+    const auto secondId = crashed.activeTabId();
+    QVERIFY(crashed.moveTab(secondId, 0));
+    crashed.openInput(QStringLiteral("https://closed.example"), true);
+    crashed.closeActiveTab();
+
+    BrowserController restored(root.path(), QStringLiteral("test"));
+    auto *tabs = restored.tabs();
+    QCOMPARE(tabs->rowCount(), 3);
+    const auto idAt = [tabs](int row) {
+        return tabs->data(tabs->index(row, 0), TabListModel::IdRole).toString();
+    };
+    QCOMPARE(idAt(0), keptId);
+    QVERIFY(tabs->data(tabs->index(0, 0), TabListModel::KeepActiveRole).toBool());
+    // The arrangement the reader made, not the order the tabs were opened in.
+    QCOMPARE(idAt(1), secondId);
+    QCOMPARE(idAt(2), firstId);
+    QCOMPARE(tabs->data(tabs->index(2, 0), TabListModel::ZoomRole).toDouble(), 1.25);
+    QVERIFY(tabs->data(tabs->index(2, 0), TabListModel::MutedRole).toBool());
+
+    QCOMPARE(restored.closedTabCount(), 1);
+    restored.reopenClosedTab();
+    QCOMPARE(restored.activeUrl(), QUrl(QStringLiteral("https://closed.example")));
 }
 
 // A notification names the origin and the Space, and activating it goes to the
