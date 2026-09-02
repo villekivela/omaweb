@@ -39,8 +39,11 @@ Rectangle {
     signal tabActivated(string tabId)
     signal tabCloseRequested(string tabId)
     signal tabMuteToggled(string tabId)
-    signal tabMoveRequested(string tabId, int offset)
     signal tabMenuRequested(string tabId, real anchorX, real anchorY)
+    // Where a dragged row was let go, counted inside its own section. The list
+    // owns this because placing rows is the list's: a row knows how tall it is
+    // and nothing about the rows around it.
+    signal tabDropped(string tabId, int destination)
     signal spaceActivated(string spaceId)
     signal spacesMenuRequested(real anchorX, real anchorY)
     signal settingsRequested()
@@ -55,6 +58,124 @@ Rectangle {
     // Where "focus the sidebar" lands: the row the reader is already reading,
     // so the keyboard arrives where their attention is.
     property var activeTabItem: null
+
+    // The row in the hand, and where the arrangement would put it if it were
+    // let go now. A drag reorders nothing until it is released: opening the
+    // place the row would land in says everything the reader needs, and the
+    // session is written once rather than at every row the hand passes over.
+    property var draggedRow: null
+    property int dropDestination: -1
+
+    // The rows of one section, by the place each holds. The children of a
+    // positioner are in no particular order, and a Repeater is among them, so
+    // each row is asked which place it is in rather than counted off.
+    function sectionRows(container) {
+        const rows = []
+        for (let index = 0; index < container.children.length; ++index) {
+            const child = container.children[index]
+            if (child.tabId !== undefined) rows[child.placeInSection] = child
+        }
+        return rows
+    }
+
+    function rowsFor(row) {
+        return root.sectionRows(row.pinned ? pinnedSection : ordinarySection)
+    }
+
+    // Where the list put a row, whatever the hand has since done with it.
+    function homeOf(row) {
+        const at = row.mapToItem(root, 0, 0)
+        return Qt.point(at.x - row.carry.x, at.y - row.carry.y)
+    }
+
+    function beginTabDrag(row) {
+        root.draggedRow = row
+        root.dropDestination = row.placeInSection
+        row.lifted = true
+    }
+
+    // The hand's position decides two things: where the held row is drawn, and
+    // which place it would take. The second is read off where the list put the
+    // other rows, so a wrapped row of pins answers as truthfully as a stack of
+    // ordinary rows.
+    function updateTabDrag(row, sceneX, sceneY) {
+        if (root.draggedRow !== row) return
+        const pointer = root.mapFromItem(null, sceneX, sceneY)
+        const home = root.homeOf(row)
+        const wanted = Qt.point(pointer.x - row.grabbedAt.x, pointer.y - row.grabbedAt.y)
+        // An ordinary row is carried along the list it is in; a pin is laid out
+        // across the section as well as down it.
+        row.carry = row.pinned
+            ? Qt.point(wanted.x - home.x, wanted.y - home.y)
+            : Qt.point(0, wanted.y - home.y)
+
+        const rows = root.rowsFor(row)
+        let destination = row.placeInSection
+        for (let place = 0; place < rows.length; ++place) {
+            const other = rows[place]
+            if (!other) continue
+            const at = root.homeOf(other)
+            if (pointer.x < at.x || pointer.x >= at.x + other.width) {
+                // Outside this row's column: only its band decides, so a
+                // stacked list ignores the horizontal miss entirely.
+                if (other.pinned) continue
+            }
+            if (pointer.y < at.y || pointer.y >= at.y + other.height) continue
+            destination = place
+            break
+        }
+        // Past the end of the section in either direction, the nearest place is
+        // the one the hand meant.
+        if (destination === row.placeInSection && rows.length > 0) {
+            const first = rows[0] ? root.homeOf(rows[0]) : null
+            const last = rows[rows.length - 1]
+                ? root.homeOf(rows[rows.length - 1]) : null
+            if (first && pointer.y < first.y) destination = 0
+            else if (last && pointer.y >= last.y + rows[rows.length - 1].height)
+                destination = rows.length - 1
+        }
+        root.dropDestination = destination
+        root.openTheDroppedPlace(row, rows, destination)
+    }
+
+    // Every row between where the held row came from and where it would land
+    // moves up or down by one place — into the place the arrangement would give
+    // it — which is what opens the gap the held row will drop into.
+    function openTheDroppedPlace(row, rows, destination) {
+        const from = row.placeInSection
+        for (let place = 0; place < rows.length; ++place) {
+            const other = rows[place]
+            if (!other || other === row) continue
+            let shifted = place
+            if (from < destination && place > from && place <= destination) shifted = place - 1
+            else if (destination < from && place >= destination && place < from) shifted = place + 1
+            const target = rows[shifted]
+            if (!target || shifted === place) {
+                other.carry = Qt.point(0, 0)
+                continue
+            }
+            const here = root.homeOf(other)
+            const there = root.homeOf(target)
+            other.carry = Qt.point(there.x - here.x, there.y - here.y)
+        }
+    }
+
+    function endTabDrag(row) {
+        if (root.draggedRow !== row) return
+        const destination = root.dropDestination
+        const rows = root.rowsFor(row)
+        root.draggedRow = null
+        root.dropDestination = -1
+        row.lifted = false
+        // Every row goes back to the place the list gives it, and the list is
+        // told the one thing the drag decided.
+        for (let place = 0; place < rows.length; ++place) {
+            if (rows[place]) rows[place].carry = Qt.point(0, 0)
+        }
+        if (destination >= 0 && destination !== row.placeInSection) {
+            root.tabDropped(row.tabId, destination)
+        }
+    }
 
     function focusOutline() {
         if (activeTabItem !== null && activeTabItem.visible) {
@@ -332,7 +453,9 @@ Rectangle {
             model: root.browser ? root.browser.pinnedTabs : null
 
             TabRow {
+                id: pinnedRow
                 required property int index
+                placeInSection: index
                 readonly property int rowStart: Math.floor(index
                     / pinnedSection.capacity) * pinnedSection.capacity
                 readonly property int tabsInRow: Math.min(pinnedSection.capacity,
@@ -346,7 +469,11 @@ Rectangle {
                 onActivated: function(id) { root.tabActivated(id) }
                 onCloseRequested: function(id) { root.tabCloseRequested(id) }
                 onMuteToggled: function(id) { root.tabMuteToggled(id) }
-                onMoveRequested: function(id, offset) { root.tabMoveRequested(id, offset) }
+                onDragStarted: root.beginTabDrag(pinnedRow)
+                onDragMoved: function(id, sceneX, sceneY) {
+                    root.updateTabDrag(pinnedRow, sceneX, sceneY)
+                }
+                onDragEnded: root.endTabDrag(pinnedRow)
                 onMenuRequested: function(id, anchorX, anchorY) {
                     root.tabMenuRequested(id, anchorX, anchorY)
                 }
@@ -369,6 +496,8 @@ Rectangle {
         clip: true
 
         Column {
+            id: ordinarySection
+            objectName: "ordinaryList"
             width: tabScroll.availableWidth
             spacing: 0
 
@@ -376,6 +505,9 @@ Rectangle {
                 model: root.atRest || !root.browser ? null : root.browser.unpinnedTabs
 
                 TabRow {
+                    id: ordinaryRow
+                    required property int index
+                    placeInSection: index
                     width: parent.width
                     colors: root.colors
                     iconFontFamily: root.iconFontFamily
@@ -384,7 +516,11 @@ Rectangle {
                     onActivated: function(id) { root.tabActivated(id) }
                     onCloseRequested: function(id) { root.tabCloseRequested(id) }
                     onMuteToggled: function(id) { root.tabMuteToggled(id) }
-                    onMoveRequested: function(id, offset) { root.tabMoveRequested(id, offset) }
+                    onDragStarted: root.beginTabDrag(ordinaryRow)
+                    onDragMoved: function(id, sceneX, sceneY) {
+                        root.updateTabDrag(ordinaryRow, sceneX, sceneY)
+                    }
+                    onDragEnded: root.endTabDrag(ordinaryRow)
                     onMenuRequested: function(id, anchorX, anchorY) {
                         root.tabMenuRequested(id, anchorX, anchorY)
                     }

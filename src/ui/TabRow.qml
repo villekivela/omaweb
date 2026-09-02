@@ -11,6 +11,9 @@ Item {
     required property url tabUrl
     required property url tabIconUrl
     required property bool pinned
+    // Which place this row holds inside its own section. The list sets it, and
+    // a drag is answered in the same counting.
+    property int placeInSection: -1
     required property bool active
     required property bool loading
     required property bool tabAudible
@@ -51,13 +54,40 @@ Item {
     signal activated(string tabId)
     signal closeRequested(string tabId)
     signal muteToggled(string tabId)
-    // A drag or a keypress asking for this row to change places, by whole rows
-    // within its own section. The row says how far, not where: which section it
-    // is in and where that ends is the core's to know.
-    signal moveRequested(string tabId, int offset)
+    // A drag of this row, reported in scene coordinates. Where the pointer is
+    // and where that lands belong to the list: a row knows how tall it is and
+    // nothing about the rows around it. The list answers by placing this row —
+    // `lifted` while it is held, `carry` for how far it has been carried from
+    // where the list put it — so the row stays under the hand that took it
+    // while the rows it passes open the place it will land in.
+    signal dragStarted(string tabId)
+    signal dragMoved(string tabId, real sceneX, real sceneY)
+    signal dragEnded(string tabId)
     // The row's own menu, opened by pointer or by keyboard. Scene coordinates,
     // because the menu hangs in the window rather than inside the row.
     signal menuRequested(string tabId, real anchorX, real anchorY)
+
+    // A held row is drawn where the hand has carried it rather than where the
+    // list put it, and over the rows it is passing. The rows it passes are
+    // carried too, by the list, into the places the arrangement would give
+    // them — so the gap the row would drop into is open before it is dropped.
+    //
+    // Carried by a transform rather than by `x` and `y`: the row's place is
+    // the positioner's to set, and a row that fought it for its own coordinates
+    // would be put back the moment anything else in the list changed.
+    property bool lifted: false
+    property point carry: Qt.point(0, 0)
+    readonly property point grabbedAt: hoverArea.grabbedAt
+    z: lifted ? 20 : 0
+    opacity: lifted ? 0.92 : 1.0
+    transform: Translate { x: root.carry.x; y: root.carry.y }
+
+    // A row settles into an opened place rather than jumping into it. The one
+    // in the hand is not eased: it is already following the pointer.
+    Behavior on carry {
+        enabled: !root.lifted
+        PropertyAnimation { duration: 110; easing.type: Easing.OutCubic }
+    }
 
     height: pinned ? 44 : 36
     activeFocusOnTab: true
@@ -156,21 +186,27 @@ Item {
         hoverEnabled: true
         cursorShape: Qt.PointingHandCursor
         acceptedButtons: Qt.LeftButton | Qt.RightButton
-        // Where the drag started, in scene coordinates. The row itself moves
-        // out from under the pointer as the drag lands, so its own frame is no
-        // use for measuring how far the hand has travelled.
-        property point dragOrigin: Qt.point(0, 0)
-        property bool dragged: false
-        // Rows change places rather than sliding between them, and the place
-        // changes when the row being dragged covers more of its neighbour's
-        // than of its own — half a row. Ordinary rows are stacked and pins are
-        // laid out along the row, so that half is measured on the axis each
-        // section runs in.
-        readonly property real dragStep: (root.pinned ? root.width : root.height) / 2
+        // A press on a row and a move is a reorder, so the row keeps the
+        // gesture until the button comes up rather than letting the list it
+        // scrolls in take it half way through. The list still scrolls by wheel
+        // and by its own bar; what it no longer does is scroll by dragging the
+        // rows the reader is trying to rearrange.
+        preventStealing: true
+        // Where in the row the hand took hold, and where it was when it did.
+        // A press is a click until it has travelled far enough to be a drag,
+        // so that a row is not lifted by the tremor in a click.
+        property point grabbedAt: Qt.point(0, 0)
+        property point pressedAt: Qt.point(0, 0)
+        readonly property real liftThreshold: 4
+
+        function report(mouse) {
+            const scene = root.mapToItem(null, mouse.x, mouse.y)
+            root.dragMoved(root.tabId, scene.x, scene.y)
+        }
 
         onPressed: function(mouse) {
-            hoverArea.dragOrigin = root.mapToItem(null, mouse.x, mouse.y)
-            hoverArea.dragged = false
+            hoverArea.grabbedAt = Qt.point(mouse.x, mouse.y)
+            hoverArea.pressedAt = root.mapToItem(null, mouse.x, mouse.y)
         }
 
         onPositionChanged: function(mouse) {
@@ -178,21 +214,25 @@ Item {
             // synthesized move carries no buttons, and a right-press opening
             // the menu must not drag the row on the way.
             if (!(hoverArea.pressedButtons & Qt.LeftButton)) return
-            if (hoverArea.dragStep <= 0) return
-            const point = root.mapToItem(null, mouse.x, mouse.y)
-            const delta = root.pinned
-                ? point.x - hoverArea.dragOrigin.x
-                : point.y - hoverArea.dragOrigin.y
-            if (Math.abs(delta) < hoverArea.dragStep) return
-            const step = delta > 0 ? 1 : -1
-            hoverArea.dragOrigin = root.pinned
-                ? Qt.point(hoverArea.dragOrigin.x + step * hoverArea.dragStep,
-                    hoverArea.dragOrigin.y)
-                : Qt.point(hoverArea.dragOrigin.x,
-                    hoverArea.dragOrigin.y + step * hoverArea.dragStep)
-            hoverArea.dragged = true
-            root.moveRequested(root.tabId, step)
+            const scene = root.mapToItem(null, mouse.x, mouse.y)
+            if (!root.lifted) {
+                const travelled = Math.max(Math.abs(scene.x - hoverArea.pressedAt.x),
+                    Math.abs(scene.y - hoverArea.pressedAt.y))
+                if (travelled < hoverArea.liftThreshold) return
+                root.dragStarted(root.tabId)
+            }
+            hoverArea.report(mouse)
         }
+
+        onReleased: function(mouse) {
+            if (!root.lifted) return
+            root.dragEnded(root.tabId)
+        }
+
+        // A gesture the window took away — the pointer leaving the window, or
+        // something above claiming it — leaves the row where the list has
+        // already put it rather than holding it in the air.
+        onCanceled: if (root.lifted) root.dragEnded(root.tabId)
 
         onClicked: function(mouse) {
             if (mouse.button === Qt.RightButton) {
@@ -200,11 +240,8 @@ Item {
                 root.openMenu(mouse.x, mouse.y)
                 return
             }
-            // A row that has just been dragged into place was not clicked.
-            if (hoverArea.dragged) {
-                hoverArea.dragged = false
-                return
-            }
+            // A row that has just been carried into place was not clicked.
+            if (root.lifted) return
             root.forceActiveFocus()
             const overClose = !root.pinned
                 && mouse.x >= root.width - closeButton.width - closeButton.anchors.rightMargin
