@@ -8,6 +8,8 @@
 #elif defined(Q_OS_LINUX)
 #include <QByteArray>
 #include <QFile>
+
+#include <unistd.h>
 #endif
 
 namespace tanto {

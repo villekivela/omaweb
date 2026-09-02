@@ -73,6 +73,7 @@ private slots:
     void allowsKeepActiveOnlyOnPinnedTabs();
     void namesEverySuspensionExceptionAndNothingElse();
     void restoresRetainedTabsOfUnvisitedSpacesAfterRestart();
+    void stopsRetainingTheSpaceThatReplacesADeletedOne();
     void restoresTheSessionAfterAnUncleanExit();
     void routesNotificationsToTheOriginatingTab();
     void remembersOriginInteractionWithinOneSpaceAndSession();
@@ -1467,6 +1468,27 @@ void BrowserControllerTest::restoresTheSessionAfterAnUncleanExit()
     QCOMPARE(restored.closedTabCount(), 1);
     restored.reopenClosedTab();
     QCOMPARE(restored.activeUrl(), QUrl(QStringLiteral("https://closed.example")));
+}
+
+// Deleting the Space on show hands the window to another one, and that Space's
+// own Keep active tabs stop being something held for it: the reader is looking
+// at them.
+void BrowserControllerTest::stopsRetainingTheSpaceThatReplacesADeletedOne()
+{
+    QTemporaryDir root;
+    BrowserController controller(root.path(), QStringLiteral("test"));
+    const auto personalSpaceId = controller.activeSpaceId();
+    controller.openInput(QStringLiteral("https://kept.example"), false);
+    controller.toggleActivePinned();
+    QVERIFY(controller.setTabKeepActive(controller.activeTabId(), true));
+
+    const auto workSpaceId = controller.createSpace(QStringLiteral("Work"));
+    QVERIFY(controller.switchSpace(workSpaceId));
+    QCOMPARE(controller.retainedTabs().size(), 1);
+
+    QVERIFY(controller.deleteSpace(workSpaceId, QStringLiteral("Work")));
+    QCOMPARE(controller.activeSpaceId(), personalSpaceId);
+    QVERIFY(controller.retainedTabs().isEmpty());
 }
 
 // A notification names the origin and the Space, and activating it goes to the
