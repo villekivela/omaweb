@@ -45,6 +45,11 @@ QStringList validateEngineViewContract(const QObject &adapter)
         {"findMatchCount", QMetaType::Int},
         {"findActiveMatch", QMetaType::Int},
         {"zoomFactor", QMetaType::Double},
+        // Whether a page may start playing without a gesture of its own, and
+        // the process drawing it. The first is the shell's decision to make
+        // per tab; the second is what lets it say what a retained tab costs.
+        {"autoplayAllowed", QMetaType::Bool},
+        {"renderProcessPid", QMetaType::Int},
         // Fullscreen the site asked for, which is not fullscreen the reader
         // asked for: the origin is named so the notice can say who is holding
         // the screen.
@@ -91,6 +96,7 @@ QStringList validateEngineViewContract(const QObject &adapter)
         {"auxiliaryWindowRequested", true, 2},
         {"windowCloseRequested", true, 0},
         {"backgroundTabRequested", true, 1, QMetaType::QUrl},
+        {"userActivated", true, 0},
     };
 
     QStringList missing;

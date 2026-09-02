@@ -106,6 +106,12 @@ ApplicationWindow {
     property bool sidebarHiddenForFullscreen: false
     property string pendingMoveTabId: ""
     property string pendingMoveSpaceId: ""
+    // The row the tab menu was opened on, and where it hangs. A menu is about
+    // one tab, which is not always the tab on show.
+    property string tabMenuTabId: ""
+    property real tabMenuX: 0
+    property real tabMenuY: 0
+    property bool tabMenuOpen: false
     property var privateProfileHost: null
     // The window that opened this Private window, so it can be dropped from
     // that window's list once it closes. Empty in every other window.
@@ -120,6 +126,10 @@ ApplicationWindow {
     readonly property var spaceProfileHosts: ({})
     property var omnibarSuggestions: []
     property var visibleDownloads: []
+    // What the retained-tab list is showing. Rebuilt when the retained set
+    // changes and while the list is open, because a renderer's resident memory
+    // moves on its own and a number that never moves is worse than none.
+    property var visibleRetainedTabs: []
     property var visibleSubscriptions: []
     property int visibleBlockedRequestCount: 0
     property var pendingPermissionRequest: null
@@ -242,6 +252,95 @@ ApplicationWindow {
     function openCommandPanel() {
         commandPanel.beginCommand()
         omnibarOpen = true
+    }
+
+    // Everything a row can be asked on its own. The ordinary rows and the pins
+    // are offered different lists: a pin has no close and no rows below it, and
+    // Keep active is a pin's setting alone.
+    function tabMenuActionsFor(tabId) {
+        if (tabId.length === 0) return []
+        if (window.windowBrowser.tabPinned(tabId)) {
+            const keptActive = window.windowBrowser.tabKeepActive(tabId)
+            return [
+                {"label": "Duplicate tab", "command": "duplicate"},
+                {"label": keptActive ? "Stop keeping active" : "Keep active",
+                    "command": "keep-active"},
+                {"label": "Unpin tab", "command": "pin"},
+                {"separator": true},
+                {"label": "Move to another Space", "command": "move-space",
+                    "enabled": !window.privateWindow}
+            ]
+        }
+        return [
+            {"label": "Duplicate tab", "command": "duplicate"},
+            {"label": "Pin tab", "command": "pin", "enabled": !window.privateWindow},
+            {"label": "Move to another Space", "command": "move-space",
+                "enabled": !window.privateWindow},
+            {"separator": true},
+            {"label": "Close other tabs", "command": "close-others"},
+            {"label": "Close tabs below", "command": "close-below"},
+            {"label": "Close tab", "command": "close", "destructive": true}
+        ]
+    }
+
+    // The command panel's way in: the menu belongs to the tab on show, and
+    // hangs off that tab's row where there is a row on screen to hang it off.
+    function openActiveTabMenu() {
+        const row = sidebar.activeTabItem
+        if (!window.sidebarCollapsed && row && row.visible) {
+            row.openMenu(0, row.height)
+            return
+        }
+        window.openTabMenu(window.windowBrowser.activeTabId,
+            window.width / 2, window.height / 2)
+    }
+
+    function openTabMenu(tabId, anchorX, anchorY) {
+        window.tabMenuTabId = tabId
+        window.tabMenuX = anchorX
+        window.tabMenuY = anchorY
+        window.tabMenuOpen = true
+    }
+
+    function runTabMenu(index) {
+        const actions = window.tabMenuActionsFor(window.tabMenuTabId)
+        const action = actions[index]
+        const tabId = window.tabMenuTabId
+        window.tabMenuOpen = false
+        if (!action || tabId.length === 0) return
+        switch (action.command) {
+        case "duplicate": window.windowBrowser.duplicateTab(tabId); break
+        case "keep-active":
+            window.windowBrowser.setTabKeepActive(tabId,
+                !window.windowBrowser.tabKeepActive(tabId))
+            break
+        // Pinning and moving a tab to another Space are commands about the tab
+        // on show, so the row is made the tab on show first.
+        case "pin":
+            window.windowBrowser.activateTab(tabId)
+            window.windowBrowser.toggleActivePinned()
+            break
+        case "move-space":
+            window.windowBrowser.activateTab(tabId)
+            window.requestMoveTab()
+            break
+        case "close-others": window.windowBrowser.closeOtherTabs(tabId); break
+        case "close-below": window.windowBrowser.closeTabsBelow(tabId); break
+        case "close": window.windowBrowser.closeTab(tabId); break
+        }
+    }
+
+    function refreshRetainedTabs() {
+        window.visibleRetainedTabs = engineLoader.retainedTabReport()
+    }
+
+    // Stopping one from the list is the same decision as the row's own Keep
+    // active, made about a tab in a Space that is not on show — so the setting
+    // is written to that Space's store rather than to the tab model, which
+    // holds the Space the reader is looking at.
+    function releaseRetainedTab(tabId) {
+        window.windowBrowser.releaseRetainedTab(tabId)
+        window.refreshRetainedTabs()
     }
 
     function requestMoveTab() {
@@ -893,6 +992,7 @@ ApplicationWindow {
         const existing = window.spaceProfileHosts[spaceId]
         if (existing) {
             window.connectSpaceProfileDownloads(existing)
+            window.connectSpaceProfileNotifications(spaceId, existing)
             window.spaceProfileHost = existing
             return
         }
@@ -907,6 +1007,7 @@ ApplicationWindow {
         })
         if (!host) return
         window.connectSpaceProfileDownloads(host)
+        window.connectSpaceProfileNotifications(spaceId, host)
         window.spaceProfileHosts[spaceId] = host
         window.spaceProfileHost = host
     }
@@ -916,6 +1017,72 @@ ApplicationWindow {
         host.downloadStarted.connect(window.handleDownloadStarted)
         host.downloadUpdated.connect(window.handleDownloadUpdated)
         host.downloadObserversConnected = true
+    }
+
+    // Notifications arrive from a Space's profile rather than from one page, so
+    // the Space is named here, where the profile is known, and the origin is
+    // what identifies the tab.
+    function connectSpaceProfileNotifications(spaceId, host) {
+        if (!host || host.notificationObserversConnected) return
+        host.notificationObserversConnected = true
+        host.notificationPresented.connect(
+            function(notificationId, origin, title, message) {
+                window.presentSiteNotification(
+                    spaceId, host, notificationId, origin, title, message)
+            })
+    }
+
+    // What the desktop is showing on Tanto's behalf, by the key it was given.
+    // The page is still waiting on each one: it hears a click or a dismissal,
+    // and nothing until then.
+    property var pendingNotifications: ({})
+
+    function presentSiteNotification(spaceId, host, notificationId, origin, title, message) {
+        const target = window.windowBrowser.notificationTarget(spaceId, origin)
+        // A page whose Space has been put away, and which nothing is keeping
+        // running, has no business interrupting: only a retained tab can speak
+        // for an inactive Space. The page is told the notification closed.
+        if (!target || !target.tabId) {
+            host.dismissNotification(notificationId)
+            return
+        }
+        if (!SystemNotifier.available) {
+            host.dismissNotification(notificationId)
+            return
+        }
+        const key = spaceId + ":" + notificationId
+        // Origin and Space, always and first: which site is asking, and which
+        // browsing identity it is asking in. The page's own words follow.
+        const heading = target.origin + " · " + target.spaceName
+        const detail = title.length > 0 && message.length > 0
+            ? title + " — " + message
+            : (title.length > 0 ? title : message)
+        if (!SystemNotifier.present(key, heading, detail)) {
+            host.dismissNotification(notificationId)
+            return
+        }
+        window.pendingNotifications[key] = {
+            "spaceId": spaceId,
+            "tabId": target.tabId,
+            "host": host,
+            "notificationId": notificationId
+        }
+    }
+
+    // The reader answered one. Activating it is asking to be taken to the page
+    // that sent it, which may mean changing Space and raising the window.
+    function answerSiteNotification(key, activated) {
+        const pending = window.pendingNotifications[key]
+        if (!pending) return
+        delete window.pendingNotifications[key]
+        if (!activated) {
+            pending.host.dismissNotification(pending.notificationId)
+            return
+        }
+        window.windowBrowser.activateNotificationTarget(pending.spaceId, pending.tabId)
+        pending.host.activateNotification(pending.notificationId)
+        window.raise()
+        window.requestActivate()
     }
 
     function retireSpaceProfile(spaceId) {
@@ -1022,6 +1189,12 @@ ApplicationWindow {
                 onTabActivated: function(tabId) { window.windowBrowser.activateTab(tabId) }
                 onTabCloseRequested: function(tabId) { window.windowBrowser.closeTab(tabId) }
                 onTabMuteToggled: function(tabId) { window.windowBrowser.toggleTabMuted(tabId) }
+                onTabMoveRequested: function(tabId, offset) {
+                    window.windowBrowser.moveTabBy(tabId, offset)
+                }
+                onTabMenuRequested: function(tabId, anchorX, anchorY) {
+                    window.openTabMenu(tabId, anchorX, anchorY)
+                }
                 onSpaceActivated: function(spaceId) { window.windowBrowser.switchSpace(spaceId) }
                 onSpacesMenuRequested: function(anchorX, anchorY) {
                     window.spacesMenuX = anchorX
@@ -1088,6 +1261,11 @@ ApplicationWindow {
                     // flashes a bright frame through the dark shell.
                     pageBackgroundColor: window.colors.windowOpaque
                     spaceId: window.windowBrowser.activeSpaceId
+
+                    onProfileHostCreated: function(spaceId, host) {
+                        window.connectSpaceProfileDownloads(host)
+                        window.connectSpaceProfileNotifications(spaceId, host)
+                    }
 
                     onAuxiliaryWindowRequested: function(engine, request, requestedUrl) {
                         auxiliaryWindowComponent.createObject(window, {
@@ -1315,8 +1493,12 @@ ApplicationWindow {
                     pageSource: window.pagelessViewport ? null : engineLoader
                     useFavicons: window.useFavicons
                     tintFavicons: window.tintFavicons
+                    retainedTabs: window.visibleRetainedTabs
 
                     onClosed: window.settingsOpen = false
+                    onRetainedTabReleased: function(tabId) {
+                        window.releaseRetainedTab(tabId)
+                    }
                     onUseFaviconsToggled: function(enabled) { window.setUseFavicons(enabled) }
                     onTintFaviconsToggled: function(enabled) { window.setTintFavicons(enabled) }
                 }
@@ -1371,12 +1553,13 @@ ApplicationWindow {
                         window.dialogMode = "confirm-move"
                     }
 
-                    // The Space's pages and the profile they run in are put
-                    // aside, not thrown away: coming back to a Space should
-                    // find it where it was left rather than reloading every
-                    // tab from its address.
-                    function onSpaceSuspended(spaceId) {
-                        engineLoader.suspend()
+                    // Only the Space on show keeps live pages. Putting one away
+                    // takes its renderers with it, except the tabs the core
+                    // names: a Pinned tab marked Keep active, and the tab an
+                    // inspector is attached to. The profile stays, so coming
+                    // back does not reopen the Space's cookies and cache.
+                    function onSpaceSuspended(spaceId, retainedTabIds) {
+                        engineLoader.suspend(spaceId, retainedTabIds)
                     }
 
                     function onSpaceRestored(spaceId) {
@@ -1535,6 +1718,16 @@ ApplicationWindow {
                     "privateBrowsing": true,
                     "engineContentBlocker": engineContentBlocker
                 })
+                // A Private page is not given the desktop's notification
+                // centre. A notification would put the origin into a list that
+                // outlives the private session and is read by whoever is at the
+                // machine, which is the one thing a Private window promises
+                // not to do. The page hears the notification close instead.
+                window.privateProfileHost.notificationObserversConnected = true
+                window.privateProfileHost.notificationPresented.connect(
+                    function(notificationId, origin, title, message) {
+                        window.privateProfileHost.dismissNotification(notificationId)
+                    })
             }
             const component = Qt.createComponent(Qt.resolvedUrl("Main.qml"))
             const opened = component.createObject(null, {
@@ -1553,6 +1746,30 @@ ApplicationWindow {
             window.privateProfileHost.retire()
             window.privateProfileHost = null
         }
+    }
+
+    Connections {
+        target: window.windowBrowser
+
+        function onRetainedTabsChanged() { window.refreshRetainedTabs() }
+    }
+
+    // A renderer's resident memory is a moving number, so the open list asks
+    // again rather than showing what was true when it was opened. Nothing ticks
+    // while the list is closed.
+    Timer {
+        running: window.settingsOpen && !window.privateWindow
+        interval: 2000
+        repeat: true
+        triggeredOnStart: true
+        onTriggered: window.refreshRetainedTabs()
+    }
+
+    Connections {
+        target: SystemNotifier
+
+        function onActivated(key) { window.answerSiteNotification(key, true) }
+        function onDismissed(key) { window.answerSiteNotification(key, false) }
     }
 
     Connections {
@@ -1633,6 +1850,23 @@ ApplicationWindow {
             case 3: window.dialogMode = "delete"; break
             }
         }
+    }
+
+    ChromeMenu {
+        id: tabMenu
+        objectName: "tabMenu"
+        anchors.fill: parent
+        z: 56
+        colors: window.colors
+        open: window.tabMenuOpen
+        fromPointer: true
+        itemWidth: 224
+        anchorX: window.tabMenuX
+        anchorY: window.tabMenuY
+        items: window.tabMenuActionsFor(window.tabMenuTabId)
+
+        onDismissed: window.tabMenuOpen = false
+        onTriggered: function(index) { window.runTabMenu(index) }
     }
 
     ChromeMenu {

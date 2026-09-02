@@ -22,6 +22,10 @@ Rectangle {
     property bool useFavicons: true
     property bool tintFavicons: true
     property var engines: []
+    // Every tab still running for a Space that is not on show, and what each
+    // costs. A retained tab is a renderer the reader cannot see, so the browser
+    // has to be able to show them the whole list.
+    property var retainedTabs: []
     property var enginePresets: []
     property bool clearCookiesSelected: true
     property bool clearStorageSelected: true
@@ -55,7 +59,17 @@ Rectangle {
         return value.replace(/^[a-z]+:\/\//, "").split("/")[0].split(":")[0]
     }
 
+    // Bytes as the reader reads them. A retained tab whose renderer the
+    // platform cannot account for says so rather than claiming nothing.
+    function resourceLabel(bytes) {
+        if (!(bytes > 0)) return "size unavailable"
+        const megabytes = bytes / (1024 * 1024)
+        return (megabytes >= 100 ? Math.round(megabytes)
+            : Math.round(megabytes * 10) / 10) + " MB"
+    }
+
     signal closed()
+    signal retainedTabReleased(string tabId)
     signal useFaviconsToggled(bool enabled)
     signal tintFaviconsToggled(bool enabled)
 
@@ -233,6 +247,46 @@ Rectangle {
                     enabled: root.useFavicons
                     checked: root.tintFavicons
                     onClicked: root.tintFaviconsToggled(!checked)
+                }
+
+                SectionLabel {
+                    visible: root.section === 0
+                    colors: root.colors
+                    text: "kept active"
+                }
+
+                Repeater {
+                    model: root.section === 0 ? root.retainedTabs : []
+
+                    SettingRow {
+                        required property var modelData
+
+                        objectName: "retainedTab-" + modelData.tabId
+                        width: pane.width
+                        colors: root.colors
+                        title: modelData.title.length > 0 ? modelData.title : String(modelData.url)
+                        note: modelData.spaceName + " · "
+                            + (modelData.inspected ? "Developer tools" : "Keep active")
+                            + " · " + (modelData.running
+                                ? root.resourceLabel(modelData.residentBytes)
+                                : "not running")
+
+                        ActionButton {
+                            visible: !modelData.inspected
+                            colors: root.colors
+                            label: "stop"
+                            accessibleName: "Stop keeping " + modelData.title + " active"
+                            onClicked: root.retainedTabReleased(modelData.tabId)
+                        }
+                    }
+                }
+
+                SettingRow {
+                    width: pane.width
+                    visible: root.section === 0 && root.retainedTabs.length === 0
+                    colors: root.colors
+                    title: "Nothing is kept active"
+                    note: "A Pinned tab set to Keep active, or a tab with Developer tools attached, keeps running while its Space is inactive and is listed here with what it costs."
                 }
 
                 // ---- keyboard ----------------------------------------------

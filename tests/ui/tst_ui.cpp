@@ -5,6 +5,8 @@
 #include "KeyboardNavigation.h"
 #include "KitTheme.h"
 #include "PagePrinter.h"
+#include "ProcessResources.h"
+#include "SystemNotifier.h"
 #include "Quickshell.h"
 #include "SystemClipboard.h"
 #include "ThemeController.h"
@@ -51,6 +53,8 @@ public slots:
         tanto::registerSystemClipboard();
         tanto::registerExternalProtocolHandler();
         tanto::registerPagePrinter();
+        tanto::registerSystemNotifier();
+        tanto::registerProcessResources();
         m_dataRoot = std::make_unique<QTemporaryDir>();
         m_browser = std::make_unique<tanto::BrowserController>(
             m_dataRoot->path(), QStringLiteral("mock"));

@@ -5,6 +5,8 @@
 #include "KeyboardNavigation.h"
 #include "KitTheme.h"
 #include "PagePrinter.h"
+#include "ProcessResources.h"
+#include "SystemNotifier.h"
 #include "Quickshell.h"
 #include "SystemClipboard.h"
 #include "ThemeController.h"
@@ -90,6 +92,8 @@ int main(int argc, char *argv[])
     tanto::registerSystemClipboard();
     tanto::registerExternalProtocolHandler();
     tanto::registerPagePrinter();
+    tanto::registerSystemNotifier();
+    tanto::registerProcessResources();
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty(QStringLiteral("browser"), &browser);
     engine.rootContext()->setContextProperty(QStringLiteral("contentBlocker"), &contentBlocker);

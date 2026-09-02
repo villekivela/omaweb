@@ -185,6 +185,10 @@ add_library(tanto-platform STATIC
     src/platform/ExternalProtocolHandler.h
     src/platform/PagePrinter.cpp
     src/platform/PagePrinter.h
+    src/platform/ProcessResources.cpp
+    src/platform/ProcessResources.h
+    src/platform/SystemNotifier.cpp
+    src/platform/SystemNotifier.h
     src/platform/WindowChrome.h
 )
 target_include_directories(tanto-platform PUBLIC src/platform)
@@ -196,15 +200,20 @@ if(APPLE)
     # Quartz is the umbrella that carries PDFKit, which draws and prints the
     # PDF the engine renders a page into.
     find_library(TANTO_QUARTZ_FRAMEWORK Quartz REQUIRED)
+    # The desktop's notification service, which is a bundle service: it
+    # identifies the notifying application by its bundle identifier.
+    find_library(TANTO_USER_NOTIFICATIONS_FRAMEWORK UserNotifications REQUIRED)
     target_sources(tanto-platform PRIVATE
         src/platform/MacExternalProtocolHandler.mm
         src/platform/MacPagePrinter.mm
+        src/platform/MacSystemNotifier.mm
         src/platform/MacWindowChrome.mm
     )
     target_link_libraries(tanto-platform PRIVATE
         ${TANTO_APPKIT_FRAMEWORK}
         ${TANTO_QUARTZCORE_FRAMEWORK}
         ${TANTO_QUARTZ_FRAMEWORK}
+        ${TANTO_USER_NOTIFICATIONS_FRAMEWORK}
     )
 else()
     target_sources(tanto-platform PRIVATE

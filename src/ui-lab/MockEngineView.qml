@@ -24,6 +24,14 @@ Rectangle {
     // hand: `simulateAudible` stands in for a page that started making sound.
     property bool pageAudible: false
     property bool audioMuted: false
+    // The lab starts no page and no process, so both sides of autoplay are set
+    // by hand: `autoplayAllowed` is what the shell decides, and
+    // `simulateAutoplay` stands in for a page that tried to start on its own.
+    property bool autoplayAllowed: false
+    property int autoplayBlockedCount: 0
+    // No renderer, so no process to account for. The lab reports a pid a test
+    // can name rather than pretending to have one.
+    property int renderProcessPid: 0
     property bool canGoBack: false
     property bool canGoForward: false
     property string pageLocalState: ""
@@ -109,6 +117,18 @@ Rectangle {
     signal browserPromptRequested(string requestId, var prompt)
     signal fileSelectionRequested(string requestId, var selection)
     signal printFinished(string destination, bool succeeded)
+    signal userActivated()
+    function simulateUserActivation() { root.userActivated() }
+    // A page trying to play of its own accord. It gets the sound only where the
+    // shell has already said it may.
+    function simulateAutoplay() {
+        if (!root.autoplayAllowed) {
+            root.autoplayBlockedCount += 1
+            return false
+        }
+        root.pageAudible = !root.audioMuted
+        return true
+    }
     function respondToPermission(requestId, decision) {}
     property bool javaScriptDialogsBlocked: false
     property bool lastPromptAccepted: false

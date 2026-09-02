@@ -13,11 +13,37 @@ QtObject {
     property int activeDownloadCount: 0
     property bool retired: false
     property bool downloadObserversConnected: false
+    property bool notificationObserversConnected: false
     readonly property var profile: privateProfile
     signal downloadStarted(string runtimeId, url sourceUrl, string path, string state,
         double receivedBytes, double totalBytes)
     signal downloadUpdated(string runtimeId, string state, double receivedBytes,
         double totalBytes, string error)
+    // A notification arrives from a Space's profile rather than from one page,
+    // so the origin is all there is to say who sent it. The shell decides
+    // whether that origin has a tab entitled to interrupt, presents the
+    // desktop's own notification, and asks for it back by id.
+    signal notificationPresented(string notificationId, url origin, string title,
+        string message)
+    property var pendingNotifications: ({})
+    property int nextNotificationId: 0
+
+    // The reader answered the notification: the page hears the click, and the
+    // shell takes them to the tab.
+    function activateNotification(notificationId) {
+        const notification = root.pendingNotifications[notificationId]
+        if (!notification) return
+        delete root.pendingNotifications[notificationId]
+        notification.click()
+        notification.close()
+    }
+
+    function dismissNotification(notificationId) {
+        const notification = root.pendingNotifications[notificationId]
+        if (!notification) return
+        delete root.pendingNotifications[notificationId]
+        notification.close()
+    }
 
     function retire() {
         retired = true
@@ -103,6 +129,20 @@ QtObject {
         httpCacheType: root.privateBrowsing
             ? WebEngineProfile.MemoryHttpCache
             : WebEngineProfile.DiskHttpCache
+
+        // Chromium hands the notification over and waits: nothing is shown
+        // until `show` is called, and a page that is never told otherwise has
+        // simply not been answered. That is what lets the shell refuse one from
+        // a Space it has put away.
+        onPresentNotification: function(notification) {
+            const notificationId = String(++root.nextNotificationId)
+            root.pendingNotifications[notificationId] = notification
+            notification.closed.connect(function() {
+                delete root.pendingNotifications[notificationId]
+            })
+            root.notificationPresented(notificationId, notification.origin,
+                notification.title, notification.message)
+        }
 
         onDownloadRequested: function(download) {
             if (!root.acceptDownloads) return

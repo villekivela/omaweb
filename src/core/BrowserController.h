@@ -159,7 +159,15 @@ public:
     // an ordinary tab is refused rather than remembered: an ordinary tab
     // belongs to the session the reader is looking at.
     Q_INVOKABLE bool setTabKeepActive(const QString &tabId, bool keepActive);
+    // Asked of one tab rather than read off the model by role number: a menu
+    // is about the row it was opened on, which is not always the tab on show.
+    Q_INVOKABLE bool tabPinned(const QString &tabId) const;
+    Q_INVOKABLE bool tabKeepActive(const QString &tabId) const;
     Q_INVOKABLE bool toggleActiveKeepActive();
+    // Stopping one retained tab from the list that names them. The tab is in a
+    // Space that is not on show, so its Space's store is where the setting
+    // lives rather than the tab model, which holds one Space at a time.
+    Q_INVOKABLE bool releaseRetainedTab(const QString &tabId);
     // The tabs of the Space on show that will keep running once it is put
     // away. The interface hands this to the engine host at suspension, which
     // is the only moment the answer is about a Space that is still active.

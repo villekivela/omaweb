@@ -26,6 +26,13 @@ QtObject {
         case "previous-tab": window.stepTab(-1); return true
         case "select-tab": window.activateTabAt(argument); return true
         case "pin-tab": browser.toggleActivePinned(); return true
+        case "keep-tab-active": browser.toggleActiveKeepActive(); return true
+        case "duplicate-tab": browser.duplicateTab(browser.activeTabId); return true
+        case "move-tab-up": browser.moveTabBy(browser.activeTabId, -1); return true
+        case "move-tab-down": browser.moveTabBy(browser.activeTabId, 1); return true
+        case "close-other-tabs": browser.closeOtherTabs(browser.activeTabId); return true
+        case "close-tabs-below": browser.closeTabsBelow(browser.activeTabId); return true
+        case "tab-menu": window.openActiveTabMenu(); return true
         case "move-tab": window.requestMoveTab(); return true
         case "next-space": window.stepSpace(1); return true
         case "select-space": window.activateSpaceAt(argument); return true
@@ -78,6 +85,15 @@ QtObject {
         "previous-tab": { group: "tabs", title: "Previous tab" },
         "select-tab": { group: "tabs", title: "Jump to tab by number" },
         "pin-tab": { group: "tabs", title: "Pin or unpin this tab" },
+        "keep-tab-active": { group: "tabs", title: "Keep this Pinned tab active",
+            requires: "pinned-tab" },
+        "duplicate-tab": { group: "tabs", title: "Duplicate tab", requires: "page" },
+        "move-tab-up": { group: "tabs", title: "Move tab up" },
+        "move-tab-down": { group: "tabs", title: "Move tab down" },
+        "close-other-tabs": { group: "tabs", title: "Close other tabs" },
+        "close-tabs-below": { group: "tabs", title: "Close tabs below",
+            requires: "ordinary-tab" },
+        "tab-menu": { group: "tabs", title: "Open tab menu" },
         "move-tab": { group: "tabs", title: "Move tab to another Space" },
         "next-space": { group: "spaces", title: "Next Space" },
         "select-space": { group: "spaces", title: "Switch Space by number" },
@@ -136,6 +152,10 @@ QtObject {
         case "inspector": return window.developerToolsAvailable
         case "private-windows": return windowManager.privateWindowsAvailable
         case "ordinary-window": return !window.privateWindow
+        // Keep active is a Pinned tab's setting, and the rows below a tab are
+        // the ordinary list's.
+        case "pinned-tab": return browser.activeTabPinned && !window.privateWindow
+        case "ordinary-tab": return !browser.activeTabPinned
         }
         return true
     }
@@ -147,6 +167,7 @@ QtObject {
             const description = descriptions[command]
             if (window.privateWindow
                 && (command === "pin-tab" || command === "move-tab"
+                    || command === "keep-tab-active"
                     || command === "select-space" || command === "next-space"
                     || command === "new-space")) {
                 continue
