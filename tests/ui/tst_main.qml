@@ -36,40 +36,6 @@ TestCase {
         }
     }
 
-    // One row on its own, so a drag can be measured against known geometry:
-    // the shared window's ordinary list is as long as the tests before this one
-    // left it, and a row scrolled out of the viewport takes no pointer.
-    Component {
-        id: dragRowComponent
-
-        Tanto.TabRow {
-            property var offsets: []
-
-            colors: testCase.window.colors
-            iconFontFamily: ""
-            tabId: "dragged"
-            tabTitle: "Dragged"
-            tabUrl: "https://dragged.example"
-            tabIconUrl: ""
-            pinned: false
-            active: false
-            loading: false
-            tabAudible: false
-            tabMuted: false
-            tabSoundSuppressed: false
-            width: 260
-            // Clear of the window's own chrome, which is above it and would
-            // take the press.
-            x: 500
-            y: 400
-            z: 70
-
-            onMoveRequested: function(tabId, offset) {
-                offsets = offsets.concat([offset])
-            }
-        }
-    }
-
     Component {
         id: attentionOutlineComponent
 
@@ -105,6 +71,32 @@ TestCase {
                 && engineHost.item.currentUrl.toString() === url
         })
         return engineHost.item
+    }
+
+    // A row whose place in the list has stopped moving. The outline fills in
+    // behind the model, so a row read too early is read where it is not going
+    // to be.
+    function settleRow(row) {
+        let previous = -1
+        let steady = 0
+        tryVerify(function() {
+            const at = row.mapToItem(window.contentItem, 0, 0).y
+            steady = at === previous ? steady + 1 : 0
+            previous = at
+            return steady >= 3
+        })
+    }
+
+    // A hand moving, rather than one jump. The events are sent in the window's
+    // own coordinates because the row is about to leave the list and follow the
+    // pointer: measured against the row itself, every step would be measured
+    // from somewhere the row has already moved to.
+    function dragRowBy(from, distance) {
+        const steps = 6
+        for (let step = 1; step <= steps; ++step) {
+            mouseMove(window.contentItem, from.x, from.y + distance * step / steps)
+            wait(1)
+        }
     }
 
     // The speaker press as the sidebar reports it, so the test exercises the
@@ -1492,40 +1484,148 @@ TestCase {
         browser.closeTab(firstTabId)
     }
 
-    // A drag asks for whole places, one at a time, and only with the button
-    // that moves rows: the right button opens the menu and moves nothing.
-    function test_draggingARowAsksToMoveItByWholePlaces() {
-        const row = dragRowComponent.createObject(window.contentItem)
+    // A dragged row leaves the list and follows the hand, the rows it passes
+    // open the place it would drop into, and one drag can carry it the whole
+    // length of its section. Nothing is reordered until it is let go.
+    function test_draggingARowCarriesItToAnyPlaceInItsSection() {
+        openPage("https://carried.example/one")
+        const firstTabId = browser.activeTabId
+        browser.openInput("https://carried.example/two", true)
+        const secondTabId = browser.activeTabId
+        browser.openInput("https://carried.example/three", true)
+        const thirdTabId = browser.activeTabId
+        const outline = findChild(window.contentItem, "sidebar")
+        verify(outline !== null)
+
+        // The list is still filling in behind the tabs just opened, and a row
+        // that is about to be placed somewhere else cannot be dragged from
+        // where it currently looks to be. The arrangement replaces the rows
+        // showing it, so a row is asked for again after every settle.
+        settleRow(findChild(window.contentItem, "tab-" + thirdTabId))
+        const lastRow = findChild(window.contentItem, "tab-" + thirdTabId)
+        verify(lastRow !== null)
+
+        const place = browser.tabSectionIndex(thirdTabId)
+        const rowHeight = lastRow.height
+        verify(place >= 2)
+        compare(browser.tabSectionIndex(secondTabId), place - 1)
+        const grabY = rowHeight / 2
+        // Two whole places in one gesture, which is what the step-at-a-time
+        // reorder this replaced could not do.
+        const travel = rowHeight * 2
+        const grabbed = lastRow.mapToItem(window.contentItem, lastRow.width / 2, grabY)
+
+        // A press alone is not a drag: a row is not lifted by the tremor in a
+        // click, and nothing is asked of the list.
+        mousePress(lastRow, lastRow.width / 2, grabY)
+        mouseMove(window.contentItem, grabbed.x, grabbed.y + 2)
+        wait(1)
+        verify(!lastRow.lifted)
+
+        // Carried up past both of its neighbours in one gesture. The row goes
+        // with the hand rather than staying where the list put it, and the
+        // rows it passes open the place it would drop into.
+        dragRowBy(grabbed, -travel)
+        verify(lastRow.lifted)
+        verify(lastRow.carry.y < -rowHeight)
+        compare(outline.dropDestination, place - 2)
+        const passedRow = findChild(window.contentItem, "tab-" + secondTabId)
+        verify(passedRow !== null)
+        // The rows it passed settle into the places the arrangement would give
+        // them rather than jumping, so the gap opens over a frame or two.
+        tryVerify(function() { return passedRow.carry.y > 0 })
+        // And nothing has actually moved yet.
+        compare(browser.tabSectionIndex(thirdTabId), place)
+
+        mouseRelease(window.contentItem, grabbed.x, grabbed.y - travel)
+        // Two places up, and the rows it passed have each moved down one.
+        compare(browser.tabSectionIndex(thirdTabId), place - 2)
+        compare(browser.tabSectionIndex(secondTabId), place)
+
+        // The arrangement replaces the rows that were showing it, so the row is
+        // asked for again rather than remembered.
+        const carried = findChild(window.contentItem, "tab-" + thirdTabId)
+        verify(carried !== null)
+        verify(!carried.lifted)
+        compare(carried.carry.y, 0)
+
+        // And the whole length of the section, from wherever it now sits to
+        // the very first place.
+        settleRow(carried)
+        const regrabbed = carried.mapToItem(window.contentItem, carried.width / 2, grabY)
+        // Well past the first row rather than exactly onto it: what is being
+        // asked is that a drag off the top of the section lands at the top of
+        // it, not that a particular pixel does.
+        const toTheTop = rowHeight * (browser.tabSectionIndex(thirdTabId) + 4)
+        mousePress(carried, carried.width / 2, grabY)
+        dragRowBy(regrabbed, -toTheTop)
+        compare(outline.dropDestination, 0)
+        mouseRelease(window.contentItem, regrabbed.x, regrabbed.y - toTheTop)
+        compare(browser.tabSectionIndex(thirdTabId), 0)
+
+        browser.closeTab(thirdTabId)
+        browser.closeTab(secondTabId)
+        browser.closeTab(firstTabId)
+    }
+
+    // Pins are laid out across the section as well as down it, so a pin is
+    // carried in both directions and the place it would take is read off where
+    // the list put the other pins rather than from a row height.
+    function test_draggingAPinCarriesItAcrossThePinnedSection() {
+        openPage("https://pin-order.example/one")
+        const firstTabId = browser.activeTabId
+        browser.toggleActivePinned()
+        browser.openInput("https://pin-order.example/two", true)
+        const secondTabId = browser.activeTabId
+        browser.toggleActivePinned()
+        const outline = findChild(window.contentItem, "sidebar")
+
+        settleRow(findChild(window.contentItem, "pinned-" + secondTabId))
+        const secondPin = findChild(window.contentItem, "pinned-" + secondTabId)
+        verify(secondPin !== null)
+        compare(browser.tabSectionIndex(secondTabId), 1)
+
+        const grabbed = secondPin.mapToItem(window.contentItem,
+            secondPin.width / 2, secondPin.height / 2)
+        mousePress(secondPin, secondPin.width / 2, secondPin.height / 2)
+        const steps = 6
+        for (let step = 1; step <= steps; ++step) {
+            mouseMove(window.contentItem,
+                grabbed.x - secondPin.width * step / steps, grabbed.y)
+            wait(1)
+        }
+        verify(secondPin.lifted)
+        // Carried sideways, which is the axis its section runs in.
+        verify(secondPin.carry.x < 0)
+        compare(outline.dropDestination, 0)
+        mouseRelease(window.contentItem, grabbed.x - secondPin.width, grabbed.y)
+        compare(browser.tabSectionIndex(secondTabId), 0)
+        compare(browser.tabSectionIndex(firstTabId), 1)
+
+        browser.activateTab(secondTabId)
+        browser.toggleActivePinned()
+        browser.closeTab(secondTabId)
+        browser.activateTab(firstTabId)
+        browser.toggleActivePinned()
+        browser.closeTab(firstTabId)
+    }
+
+    // The right button opens the menu; it never carries the row.
+    function test_theRightButtonNeverCarriesARow() {
+        openPage("https://menu-only.example")
+        const tabId = browser.activeTabId
+        const row = findChild(window.contentItem, "tab-" + tabId)
         verify(row !== null)
-        const half = row.height / 2
 
-        // Short of half a row, the drag has not carried the row over its
-        // neighbour's place and nothing is asked for.
-        mousePress(row, row.width / 2, 4)
-        mouseMove(row, row.width / 2, 4 + half - 4)
+        mousePress(row, row.width / 2, row.height / 2, Qt.RightButton)
+        mouseMove(row, row.width / 2, row.height / 2 + row.height * 2)
         wait(1)
-        compare(row.offsets.length, 0)
-        // Past it, one whole place — never a fraction of one.
-        mouseMove(row, row.width / 2, 4 + half + 4)
-        tryVerify(function() { return row.offsets.length === 1 })
-        compare(row.offsets, [1])
-        mouseRelease(row, row.width / 2, 4 + half + 4)
+        verify(!row.lifted)
+        compare(row.carry.y, 0)
+        mouseRelease(row, row.width / 2, row.height / 2 + row.height * 2, Qt.RightButton)
+        window.tabMenuOpen = false
 
-        // Upwards is the same gesture the other way.
-        mousePress(row, row.width / 2, row.height - 4)
-        mouseMove(row, row.width / 2, row.height - 4 - half - 4)
-        tryVerify(function() { return row.offsets.length === 2 })
-        compare(row.offsets, [1, -1])
-        mouseRelease(row, row.width / 2, row.height - 4 - half - 4)
-
-        // The right button opens the menu and moves nothing.
-        mousePress(row, row.width / 2, 4, Qt.RightButton)
-        mouseMove(row, row.width / 2, 4 + half + 4)
-        wait(1)
-        compare(row.offsets, [1, -1])
-        mouseRelease(row, row.width / 2, 4 + half + 4, Qt.RightButton)
-
-        row.destroy()
+        browser.closeTab(tabId)
     }
 
     // Duplicate opens the address again in a new ordinary tab, with its own

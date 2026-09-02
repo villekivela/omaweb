@@ -1194,8 +1194,8 @@ ApplicationWindow {
                     }
                     window.windowBrowser.toggleTabMuted(tabId)
                 }
-                onTabMoveRequested: function(tabId, offset) {
-                    window.windowBrowser.moveTabBy(tabId, offset)
+                onTabDropped: function(tabId, destination) {
+                    window.windowBrowser.moveTab(tabId, destination)
                 }
                 onTabMenuRequested: function(tabId, anchorX, anchorY) {
                     window.openTabMenu(tabId, anchorX, anchorY)
