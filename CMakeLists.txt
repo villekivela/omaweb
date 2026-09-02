@@ -181,6 +181,7 @@ if(TANTO_BUILD_BROWSER)
 endif()
 
 add_library(tanto-platform STATIC
+    src/platform/ExternalProtocolHandler.cpp
     src/platform/ExternalProtocolHandler.h
     src/platform/PagePrinter.cpp
     src/platform/PagePrinter.h
@@ -207,7 +208,6 @@ if(APPLE)
     )
 else()
     target_sources(tanto-platform PRIVATE
-        src/platform/ExternalProtocolHandler.cpp
         src/platform/WindowChrome.cpp
     )
 endif()

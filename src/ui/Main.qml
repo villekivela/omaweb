@@ -145,6 +145,7 @@ ApplicationWindow {
     property string pendingBrowserPromptId: ""
     property string pendingBrowserPromptTabId: ""
     property bool browserPromptOpen: false
+    property var browserPromptsByTab: ({})
     property var pendingFileSelection: ({})
     property var pendingFileSelectionResponder: null
     property string pendingFileSelectionId: ""
@@ -152,6 +153,7 @@ ApplicationWindow {
     property var pendingSaveEngine: null
     property string pendingSaveAction: ""
     property string pendingSaveTabId: ""
+    property int pendingSaveGeneration: -1
     // One dialog is open at a time, so one panel serves them all and the
     // question it is asking is the only thing that changes.
     property string dialogMode: ""
@@ -232,6 +234,7 @@ ApplicationWindow {
             window.pendingSaveEngine = null
             window.pendingSaveAction = ""
             window.pendingSaveTabId = ""
+            window.pendingSaveGeneration = -1
         }
     }
 
@@ -316,16 +319,16 @@ ApplicationWindow {
             rows.push({"label": "Copy", "run": "copy-selection"})
             rows.push({"separator": true})
         }
-        rows.push({"label": "Back", "run": "back",
+        rows.push({"label": "Back", "command": "back",
             "enabled": engineLoader.item ? engineLoader.item.canGoBack : false})
-        rows.push({"label": "Forward", "run": "forward",
+        rows.push({"label": "Forward", "command": "forward",
             "enabled": engineLoader.item ? engineLoader.item.canGoForward : false})
-        rows.push({"label": "Reload", "run": "reload"})
+        rows.push({"label": "Reload", "command": "reload"})
         rows.push({"separator": true})
-        rows.push({"label": "Copy address", "run": "copy-address",
+        rows.push({"label": "Copy address", "command": "copy-address",
             "enabled": !window.windowBrowser.activeTabBlank})
         rows.push({"separator": true})
-        rows.push({"label": "Inspect element", "run": "inspect-element",
+        rows.push({"label": "Inspect element", "command": "inspect-element",
             "enabled": window.developerToolsAvailable})
         return rows
     }
@@ -349,6 +352,10 @@ ApplicationWindow {
         window.pageMenuOpen = false
         if (!action || !context || engine !== engineLoader.item
             || Number(context.pageGeneration) !== Number(engine.pageGeneration)) return
+        if (action.command) {
+            browserCommands.run(action.command, -1)
+            return
+        }
         switch (action.run) {
         case "open-link":
             window.windowBrowser.openInput(String(context.linkUrl), true); break
@@ -362,11 +369,6 @@ ApplicationWindow {
         case "copy-image": engine.performPageContextAction("copy-image", ""); break
         case "save-link": window.requestTargetSave(engine, "save-link", context.linkUrl); break
         case "save-media": window.requestTargetSave(engine, "save-media", context.mediaUrl); break
-        case "back": window.windowBrowser.requestBack(); break
-        case "forward": window.windowBrowser.requestForward(); break
-        case "reload": window.windowBrowser.requestReload(); break
-        case "copy-address": window.copyAddress(); break
-        case "inspect-element": window.inspectElement(); break
         }
     }
 
@@ -661,15 +663,49 @@ ApplicationWindow {
             engine.respondToBrowserPrompt(requestId, false, {})
             return
         }
-        window.pendingBrowserPromptResponder = engine
-        window.pendingBrowserPromptId = requestId
-        window.pendingBrowserPromptTabId = window.windowBrowser.activeTabId
-        window.pendingBrowserPrompt = prompt
+        const tabId = window.windowBrowser.activeTabId
+        const prompts = Object.assign({}, window.browserPromptsByTab)
+        prompts[tabId] = {
+            "responder": engine,
+            "requestId": requestId,
+            "prompt": prompt,
+            "generation": engine.pageGeneration
+        }
+        window.browserPromptsByTab = prompts
+        window.presentBrowserPromptForActiveTab()
+    }
+
+    function presentBrowserPromptForActiveTab() {
+        const tabId = window.windowBrowser.activeTabId
+        const pending = window.browserPromptsByTab[tabId]
+        if (!pending) {
+            window.browserPromptOpen = false
+            window.pendingBrowserPromptResponder = null
+            window.pendingBrowserPromptId = ""
+            window.pendingBrowserPromptTabId = ""
+            window.pendingBrowserPrompt = ({})
+            return
+        }
+        if (!pending.responder
+            || Number(pending.generation) !== Number(pending.responder.pageGeneration)) {
+            const prompts = Object.assign({}, window.browserPromptsByTab)
+            delete prompts[tabId]
+            window.browserPromptsByTab = prompts
+            if (pending.responder)
+                pending.responder.respondToBrowserPrompt(pending.requestId, false, {})
+            window.presentBrowserPromptForActiveTab()
+            return
+        }
+        window.pendingBrowserPromptResponder = pending.responder
+        window.pendingBrowserPromptId = pending.requestId
+        window.pendingBrowserPromptTabId = tabId
+        window.pendingBrowserPrompt = pending.prompt
         window.browserPromptOpen = true
     }
 
     function respondToBrowserPrompt(accepted, text, user, password, stopPrompts, remember) {
         const responder = window.pendingBrowserPromptResponder
+        const tabId = window.pendingBrowserPromptTabId
         if (responder) {
             responder.respondToBrowserPrompt(window.pendingBrowserPromptId, accepted, {
                 "text": text,
@@ -679,11 +715,10 @@ ApplicationWindow {
                 "remember": remember
             })
         }
-        window.browserPromptOpen = false
-        window.pendingBrowserPromptResponder = null
-        window.pendingBrowserPromptId = ""
-        window.pendingBrowserPromptTabId = ""
-        window.pendingBrowserPrompt = ({})
+        const prompts = Object.assign({}, window.browserPromptsByTab)
+        delete prompts[tabId]
+        window.browserPromptsByTab = prompts
+        window.presentBrowserPromptForActiveTab()
     }
 
     function openLocalFile(fileUrl) {
@@ -737,23 +772,31 @@ ApplicationWindow {
         window.pendingSaveEngine = null
         window.pendingSaveAction = ""
         window.pendingSaveTabId = ""
+        window.pendingSaveGeneration = -1
         if (saveTargetDialog.visible) saveTargetDialog.close()
     }
 
     function reconcileTabModalRequests() {
         const active = window.windowBrowser.activeTabId
-        if ((window.browserPromptOpen && window.pendingBrowserPromptTabId !== active)
-            || (window.pendingFileSelectionResponder
-                && window.pendingFileSelectionTabId !== active)
-            || (window.pendingSaveEngine && window.pendingSaveTabId !== active)) {
-            window.cancelTabModalRequests()
+        window.presentBrowserPromptForActiveTab()
+        if (window.pendingFileSelectionResponder
+            && window.pendingFileSelectionTabId !== active)
+            window.respondToFileSelection([])
+        if (window.pendingSaveEngine && window.pendingSaveTabId !== active) {
+            window.pendingSaveEngine = null
+            window.pendingSaveAction = ""
+            window.pendingSaveTabId = ""
+            window.pendingSaveGeneration = -1
+            if (saveTargetDialog.visible) saveTargetDialog.close()
         }
+        window.pageMenuOpen = false
     }
 
     function requestTargetSave(engine, action, url) {
         window.pendingSaveEngine = engine
         window.pendingSaveAction = action
         window.pendingSaveTabId = window.windowBrowser.activeTabId
+        window.pendingSaveGeneration = Number(engine.pageGeneration)
         const address = String(url).split("?")[0].split("#")[0]
         const slash = address.lastIndexOf("/")
         const suggested = slash >= 0 && slash + 1 < address.length
@@ -765,11 +808,14 @@ ApplicationWindow {
 
     function completeTargetSave(fileUrl) {
         const engine = window.pendingSaveEngine
-        if (engine && engine === engineLoader.item)
+        if (engine && engine === engineLoader.item
+            && window.pendingSaveGeneration === Number(engine.pageGeneration))
             engine.performPageContextAction(window.pendingSaveAction, String(fileUrl))
         window.pendingSaveEngine = null
         window.pendingSaveAction = ""
         window.pendingSaveTabId = ""
+        window.pendingSaveGeneration = -1
+        if (saveTargetDialog.visible) saveTargetDialog.close()
     }
 
     function stepTab(delta) {
@@ -1217,9 +1263,7 @@ ApplicationWindow {
 
                 PagePromptBar {
                     objectName: "browserPromptBar"
-                    anchors.left: parent.left
-                    anchors.right: parent.right
-                    anchors.top: parent.top
+                    anchors.fill: parent
                     z: 43
                     colors: window.colors
                     iconFontFamily: materialSymbols.name

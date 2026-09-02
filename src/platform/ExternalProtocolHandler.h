@@ -6,6 +6,10 @@
 
 namespace tanto {
 
+#if defined(Q_OS_MACOS)
+QString applicationNameForMac(const QUrl &destination);
+#endif
+
 class ExternalProtocolHandler final : public QObject {
     Q_OBJECT
 

@@ -14,12 +14,12 @@ Item {
     readonly property bool asksForCredentials: kind === "http-authentication"
     readonly property bool canStop: kind.startsWith("javascript-")
     readonly property bool canRemember: kind === "external-protocol"
+        && prompt.rememberable !== false
 
     signal answered(bool accepted, string text, string user, string password,
         bool stopPrompts, bool remember)
 
     visible: open
-    height: open ? panel.implicitHeight + 24 : 0
     focus: open
 
     onOpenChanged: {
@@ -48,8 +48,15 @@ Item {
         }
     }
 
-    Rectangle {
+    MouseArea {
         anchors.fill: parent
+    }
+
+    Rectangle {
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: parent.top
+        height: panel.implicitHeight + 24
         color: root.colors.overlay
 
         Column {
@@ -74,7 +81,7 @@ Item {
                 width: parent.width
                 text: String(root.prompt.detail || root.prompt.origin || "")
                 color: root.colors.mutedText
-                elide: Text.ElideRight
+                wrapMode: Text.WrapAnywhere
                 font.family: Style.font.family
                 font.pixelSize: Style.font.caption
             }
@@ -133,7 +140,8 @@ Item {
 
                 ActionButton {
                     colors: root.colors
-                    label: root.kind === "javascript-alert" ? "OK" : "Allow"
+                    label: root.kind === "external-protocol" ? "Open"
+                        : (root.kind === "http-authentication" ? "Sign in" : "OK")
                     primary: true
                     onClicked: root.submit(true)
                 }

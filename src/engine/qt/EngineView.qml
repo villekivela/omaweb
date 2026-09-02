@@ -124,6 +124,7 @@ Item {
     property int nextBrowserPromptId: 0
     property bool javaScriptDialogsBlocked: false
     property var pendingFileSelections: ({})
+    property var externalProtocolOrigins: ({})
 
     function respondToPermission(requestId, decision) {
         const request = pendingPermissions[requestId]
@@ -161,19 +162,23 @@ Item {
         return match ? match[1] : String(url)
     }
 
-    function requestExternalProtocol(destination) {
+    function requestExternalProtocol(destination, mainFrame) {
         const address = String(destination)
         const separator = address.indexOf(":")
         const scheme = separator > 0 ? address.substring(0, separator).toLowerCase() : ""
-        const origin = root.originAddress(webView.url)
-        if (scheme.length === 0 || origin.length === 0) return
+        const rememberedOrigin = root.externalProtocolOrigins[address]
+        delete root.externalProtocolOrigins[address]
+        const origin = mainFrame ? root.originAddress(webView.url) : String(rememberedOrigin || "")
+        if (scheme.length === 0) return
         if (root.permissionController
+            && origin.length > 0
             && root.permissionController.externalProtocolAllowed(origin, scheme)) {
             ExternalProtocolHandler.open(address)
             return
         }
         const requestId = String(++root.nextBrowserPromptId)
         const application = ExternalProtocolHandler.applicationName(address)
+        const displayOrigin = origin.length > 0 ? origin : "Unknown embedded origin"
         root.pendingBrowserPrompts[requestId] = {
             "kind": "external-protocol",
             "origin": origin,
@@ -184,10 +189,11 @@ Item {
             "kind": "external-protocol",
             "application": application,
             "scheme": scheme,
-            "origin": origin,
+            "origin": displayOrigin,
             "destination": address,
+            "rememberable": origin.length > 0,
             "message": "Open " + application + "?",
-            "detail": scheme + " · " + origin + " · " + address
+            "detail": scheme + " · " + displayOrigin + " · " + address
         })
     }
 
@@ -326,14 +332,9 @@ Item {
         return "none"
     }
 
-    // A command has no pointer target. The focused element is the keyboard's
-    // target, so the adapter describes that element in the same plain-value
-    // shape as a pointer request. Inspect element deliberately enters the
-    // inspector's picker because Chromium is not holding a native menu node.
-    function requestPageContextMenu() {
-        root.contextMenuTargetKnown = false
-        const generation = root.pageGeneration
-        webView.runJavaScript(`(() => {
+    function requestContextFromFrame(frame, generation) {
+        frame.runJavaScript(`(() => {
+            if (!document.hasFocus()) return null;
             const target = document.activeElement || document.body;
             const link = target && target.closest ? target.closest('a[href]') : null;
             const media = target && target.closest
@@ -353,11 +354,19 @@ Item {
                     || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)))
             };
         })()`, function(context) {
-            if (context && generation === root.pageGeneration) {
-                context.pageGeneration = generation
-                root.pageContextRequested(context)
-            }
+            if (!context || generation !== root.pageGeneration) return
+            context.pageGeneration = generation
+            root.pageContextRequested(context)
         })
+        for (let index = 0; index < frame.children.length; ++index)
+            root.requestContextFromFrame(frame.children[index], generation)
+    }
+
+    // Qt runs the query inside each frame, so a focused element keeps its own
+    // origin's DOM even when the embedding page cannot read it.
+    function requestPageContextMenu() {
+        root.contextMenuTargetKnown = false
+        root.requestContextFromFrame(webView.mainFrame, root.pageGeneration)
     }
 
     function goBack() { webView.goBack() }
@@ -998,6 +1007,25 @@ Item {
         return script
     }
 
+    property var externalProtocolOriginScript: {
+        const script = WebEngine.script()
+        script.name = "Tanto external protocol origin"
+        script.injectionPoint = WebEngineScript.DocumentReady
+        script.worldId = WebEngineScript.MainWorld
+        script.runsOnSubFrames = true
+        script.sourceCode = `document.addEventListener('click', event => {
+            const link = event.target && event.target.closest
+                ? event.target.closest('a[href]') : null;
+            if (!link) return;
+            const scheme = String(link.protocol || '').replace(':', '').toLowerCase();
+            if (['http', 'https', 'file', 'about', 'data', 'tanto'].includes(scheme)) return;
+            console.info('__tanto_external_protocol__' + JSON.stringify({
+                destination: link.href, origin: location.origin
+            }));
+        }, true);`
+        return script
+    }
+
     WebEngineView {
         id: webView
         objectName: "qtWebView"
@@ -1021,7 +1049,8 @@ Item {
         // every navigation, so it follows the theme instead.
         backgroundColor: root.pageBackgroundColor
         focus: true
-        userScripts.collection: [root.editedStateScript, root.keyboardNavigationScript]
+        userScripts.collection: [root.editedStateScript, root.keyboardNavigationScript,
+            root.externalProtocolOriginScript]
 
         onRenderProcessTerminated: function(terminationStatus, exitCode) {
             root.rendererFailed("Renderer stopped with exit code " + exitCode)
@@ -1087,7 +1116,7 @@ Item {
             if (scheme === "http" || scheme === "https" || scheme === "file"
                 || scheme === "about" || scheme === "data" || scheme === "tanto") return
             request.reject()
-            root.requestExternalProtocol(request.url)
+            root.requestExternalProtocol(request.url, request.isMainFrame)
         }
 
         onWindowCloseRequested: root.windowCloseRequested()
@@ -1118,7 +1147,15 @@ Item {
         }
 
         onJavaScriptConsoleMessage: function(level, message, lineNumber, sourceId) {
-            if (message === "__tanto_keyboard_hint_mode__:1")
+            if (message.startsWith("__tanto_external_protocol__")) {
+                try {
+                    const report = JSON.parse(message.substring(
+                        "__tanto_external_protocol__".length))
+                    root.externalProtocolOrigins[String(report.destination)] = String(report.origin)
+                } catch (error) {
+                    console.warn("Could not read external protocol origin: " + error)
+                }
+            } else if (message === "__tanto_keyboard_hint_mode__:1")
                 root.keyboardNavigationHintModeActive = true
             else if (message === "__tanto_keyboard_hint_mode__:0")
                 root.keyboardNavigationHintModeActive = false

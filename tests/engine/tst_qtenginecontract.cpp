@@ -1660,7 +1660,8 @@ void QtEngineContractTest::qtReportsTargetsInsideCrossOriginFrames()
 {
     PageServer frameServer(R"HTML(<!doctype html><style>body{margin:0}</style>
         <a href="https://target.example/from-frame"
-           style="display:block;width:240px;height:80px;font-size:24px">frame link</a>)HTML");
+           style="display:block;width:240px;height:80px;font-size:24px">frame link</a>
+        <script>document.querySelector('a').focus()</script>)HTML");
     QVERIFY(frameServer.listen(QHostAddress::LocalHost));
     PageServer pageServer(QStringLiteral(
         "<!doctype html><title>Cross-origin frame</title>"
@@ -1690,6 +1691,12 @@ void QtEngineContractTest::qtReportsTargetsInsideCrossOriginFrames()
         QStringLiteral("Cross-origin frame"), 10000);
     QTest::qWait(500);
     QTest::mouseClick(&window, Qt::RightButton, {}, QPoint(40, 30));
+    QTRY_VERIFY_WITH_TIMEOUT(contextSpy.count() > 0, 10000);
+    QCOMPARE(contextSpy.last().first().toMap().value(QStringLiteral("linkUrl")).toUrl(),
+        QUrl(QStringLiteral("https://target.example/from-frame")));
+
+    contextSpy.clear();
+    QVERIFY(QMetaObject::invokeMethod(adapter.get(), "requestPageContextMenu"));
     QTRY_VERIFY_WITH_TIMEOUT(contextSpy.count() > 0, 10000);
     QCOMPARE(contextSpy.last().first().toMap().value(QStringLiteral("linkUrl")).toUrl(),
         QUrl(QStringLiteral("https://target.example/from-frame")));

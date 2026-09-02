@@ -12,7 +12,11 @@ ExternalProtocolHandler::ExternalProtocolHandler(QObject *parent)
 
 QString ExternalProtocolHandler::applicationName(const QUrl &destination) const
 {
+#if defined(Q_OS_MACOS)
+    return applicationNameForMac(destination);
+#else
     return QStringLiteral("the application registered for %1").arg(destination.scheme());
+#endif
 }
 
 bool ExternalProtocolHandler::open(const QUrl &destination) const

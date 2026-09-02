@@ -203,6 +203,17 @@ TestCase {
         verify(!window.pageMenuOpen)
     }
 
+    function test_saveDialogRejectsATargetThatBecameStaleWhileOpen() {
+        const engine = openPage("https://stale-save.example/before")
+        window.pendingSaveEngine = engine
+        window.pendingSaveAction = "save-link"
+        window.pendingSaveTabId = browser.activeTabId
+        window.pendingSaveGeneration = Number(engine.pageGeneration)
+        engine.currentUrl = "https://stale-save.example/after"
+        window.completeTargetSave("file:///tmp/archive.zip")
+        compare(engine.lastContextAction, "")
+    }
+
     function test_javascriptPromptsAreTabModalCancelableAndStoppable() {
         const engine = openPage("https://prompts.example/page")
         const bar = findChild(window.contentItem, "browserPromptBar")
@@ -228,6 +239,7 @@ TestCase {
 
     function test_pagePromptDoesNotFollowTheReaderToAnotherTab() {
         const engine = openPage("https://prompt-tab.example/")
+        const promptTabId = browser.activeTabId
         engine.simulateJavaScriptPrompt("confirm", "https://prompt-tab.example",
             "Stay on this tab?", "")
         tryVerify(function() { return window.browserPromptOpen })
@@ -237,6 +249,11 @@ TestCase {
             === "https://another-tab.example/" })
         verify(!window.browserPromptOpen)
         verify(!engine.lastPromptAccepted)
+
+        browser.activateTab(promptTabId)
+        tryVerify(function() { return window.browserPromptOpen })
+        window.respondToBrowserPrompt(false, "", "", "", false, false)
+        verify(!window.browserPromptOpen)
     }
 
     function test_httpAuthenticationCredentialsStayInTheLiveEngine() {
