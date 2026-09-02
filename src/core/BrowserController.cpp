@@ -955,6 +955,55 @@ bool BrowserController::setTabKeepActive(const QString &tabId, bool keepActive)
     return true;
 }
 
+bool BrowserController::releaseRetainedTab(const QString &tabId)
+{
+    if (m_privateBrowsing) {
+        return false;
+    }
+    // A retained tab of the Space on show is simply one of its tabs.
+    if (m_tabs.find(tabId)) {
+        return setTabKeepActive(tabId, false);
+    }
+    for (const auto &entry : m_retainedTabs) {
+        const auto retained = entry.toMap();
+        if (retained.value(QStringLiteral("tabId")).toString() != tabId) {
+            continue;
+        }
+        const auto spaceId = retained.value(QStringLiteral("spaceId")).toString();
+        auto tabs = m_store.loadTabs(spaceId);
+        QString activeTabId;
+        bool found = false;
+        for (auto &tab : tabs) {
+            if (tab.active) {
+                activeTabId = tab.id;
+            }
+            if (tab.id != tabId) {
+                continue;
+            }
+            tab.keepActive = false;
+            found = true;
+        }
+        if (!found || !m_store.saveTabs(spaceId, tabs, activeTabId)) {
+            return false;
+        }
+        refreshRetainedTabs();
+        return true;
+    }
+    return false;
+}
+
+bool BrowserController::tabPinned(const QString &tabId) const
+{
+    const auto *tab = m_tabs.find(tabId);
+    return tab && tab->pinned;
+}
+
+bool BrowserController::tabKeepActive(const QString &tabId) const
+{
+    const auto *tab = m_tabs.find(tabId);
+    return tab && tab->pinned && tab->keepActive;
+}
+
 bool BrowserController::toggleActiveKeepActive()
 {
     const auto *tab = m_tabs.find(m_activeTabId);

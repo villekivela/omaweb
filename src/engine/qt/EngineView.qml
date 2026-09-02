@@ -15,6 +15,14 @@ Item {
     // navigation within the view, so the tab keeps its decision across pages.
     readonly property bool pageAudible: webView.recentlyAudible
     property alias audioMuted: webView.audioMuted
+    // Whether this page may start playing without a gesture of its own. The
+    // shell decides: a muted tab has nothing to interrupt with, and an origin
+    // the reader has already dealt with has earned it. Everything else waits.
+    property bool autoplayAllowed: false
+    // The process drawing this page, so the shell can say what a retained tab
+    // actually costs rather than only that it is running. Zero while the view
+    // has no renderer, which is the honest answer for a page that is not up.
+    readonly property int renderProcessPid: webView.renderProcessPid
     property alias canGoBack: webView.canGoBack
     property alias canGoForward: webView.canGoForward
     property string profilePath: ""
@@ -118,6 +126,9 @@ Item {
     // about it: a print that produced nothing is not a print that quietly
     // didn't happen.
     signal printFinished(string destination, bool succeeded)
+    // The reader dealt with this page themselves. What that earns the origin is
+    // the shell's to decide and remember; the adapter only reports it.
+    signal userActivated()
     property var pendingPermissions: ({})
     property int nextPermissionRequestId: 0
     property var pendingBrowserPrompts: ({})
@@ -1007,6 +1018,28 @@ Item {
         return script
     }
 
+    // A first-hand gesture on the page, reported once per document. Chromium
+    // has its own record of user activation but does not hand it out, and the
+    // shell needs it per origin rather than per page, so the page says so.
+    property var userActivationScript: {
+        const script = WebEngine.script()
+        script.name = "Tanto user activation"
+        script.injectionPoint = WebEngineScript.DocumentReady
+        script.worldId = WebEngineScript.MainWorld
+        script.runsOnSubFrames = false
+        script.sourceCode = `(() => {
+            let reported = false;
+            const report = () => {
+                if (reported) return;
+                reported = true;
+                console.info('__tanto_user_activation__');
+            };
+            for (const name of ['pointerdown', 'keydown', 'touchstart'])
+                document.addEventListener(name, report, {capture: true, passive: true});
+        })();`
+        return script
+    }
+
     property var externalProtocolOriginScript: {
         const script = WebEngine.script()
         script.name = "Tanto external protocol origin"
@@ -1050,7 +1083,13 @@ Item {
         backgroundColor: root.pageBackgroundColor
         focus: true
         userScripts.collection: [root.editedStateScript, root.keyboardNavigationScript,
-            root.externalProtocolOriginScript]
+            root.externalProtocolOriginScript, root.userActivationScript]
+        // Chromium's autoplay policy is per view. Requiring a gesture blocks
+        // muted autoplay along with audible autoplay, so the shell decides
+        // instead: it turns the requirement off once the page has nothing left
+        // to gain by starting — either the tab is muted or the reader has
+        // already dealt with the origin.
+        settings.playbackRequiresUserGesture: !root.autoplayAllowed
 
         onRenderProcessTerminated: function(terminationStatus, exitCode) {
             root.rendererFailed("Renderer stopped with exit code " + exitCode)
@@ -1155,6 +1194,8 @@ Item {
                 } catch (error) {
                     console.warn("Could not read external protocol origin: " + error)
                 }
+            } else if (message === "__tanto_user_activation__") {
+                root.userActivated()
             } else if (message === "__tanto_keyboard_hint_mode__:1")
                 root.keyboardNavigationHintModeActive = true
             else if (message === "__tanto_keyboard_hint_mode__:0")

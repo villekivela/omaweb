@@ -39,6 +39,8 @@ Rectangle {
     signal tabActivated(string tabId)
     signal tabCloseRequested(string tabId)
     signal tabMuteToggled(string tabId)
+    signal tabMoveRequested(string tabId, int offset)
+    signal tabMenuRequested(string tabId, real anchorX, real anchorY)
     signal spaceActivated(string spaceId)
     signal spacesMenuRequested(real anchorX, real anchorY)
     signal settingsRequested()
@@ -344,6 +346,10 @@ Rectangle {
                 onActivated: function(id) { root.tabActivated(id) }
                 onCloseRequested: function(id) { root.tabCloseRequested(id) }
                 onMuteToggled: function(id) { root.tabMuteToggled(id) }
+                onMoveRequested: function(id, offset) { root.tabMoveRequested(id, offset) }
+                onMenuRequested: function(id, anchorX, anchorY) {
+                    root.tabMenuRequested(id, anchorX, anchorY)
+                }
                 onActiveChanged: if (active) root.activeTabItem = this
                 Component.onCompleted: if (active) root.activeTabItem = this
             }
@@ -378,6 +384,10 @@ Rectangle {
                     onActivated: function(id) { root.tabActivated(id) }
                     onCloseRequested: function(id) { root.tabCloseRequested(id) }
                     onMuteToggled: function(id) { root.tabMuteToggled(id) }
+                    onMoveRequested: function(id, offset) { root.tabMoveRequested(id, offset) }
+                    onMenuRequested: function(id, anchorX, anchorY) {
+                        root.tabMenuRequested(id, anchorX, anchorY)
+                    }
                     onActiveChanged: if (active) root.activeTabItem = this
                     Component.onCompleted: if (active) root.activeTabItem = this
                 }

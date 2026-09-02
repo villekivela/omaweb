@@ -46,6 +46,13 @@ Item {
     signal activated(string tabId)
     signal closeRequested(string tabId)
     signal muteToggled(string tabId)
+    // A drag or a keypress asking for this row to change places, by whole rows
+    // within its own section. The row says how far, not where: which section it
+    // is in and where that ends is the core's to know.
+    signal moveRequested(string tabId, int offset)
+    // The row's own menu, opened by pointer or by keyboard. Scene coordinates,
+    // because the menu hangs in the window rather than inside the row.
+    signal menuRequested(string tabId, real anchorX, real anchorY)
 
     height: pinned ? 44 : 36
     activeFocusOnTab: true
@@ -58,7 +65,15 @@ Item {
         if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Space) {
             root.activated(root.tabId)
             event.accepted = true
+        } else if (event.key === Qt.Key_F10 && (event.modifiers & Qt.ShiftModifier)) {
+            root.openMenu(0, root.height)
+            event.accepted = true
         }
+    }
+
+    function openMenu(x, y) {
+        const point = root.mapToItem(null, x, y)
+        root.menuRequested(root.tabId, point.x, point.y)
     }
 
     // The kit paints hover and focus as veils over the fill, so the wash sits
@@ -132,7 +147,50 @@ Item {
         z: 10
         hoverEnabled: true
         cursorShape: Qt.PointingHandCursor
+        acceptedButtons: Qt.LeftButton | Qt.RightButton
+        // Where the drag started, in scene coordinates. The row itself moves
+        // out from under the pointer as the drag lands, so its own frame is no
+        // use for measuring how far the hand has travelled.
+        property point dragOrigin: Qt.point(0, 0)
+        property bool dragged: false
+        // Ordinary rows are stacked, pins are laid out along the row, so a
+        // whole place is a row's height in one and its width in the other.
+        readonly property real dragStep: root.pinned ? root.width : root.height
+
+        onPressed: function(mouse) {
+            hoverArea.dragOrigin = root.mapToItem(null, mouse.x, mouse.y)
+            hoverArea.dragged = false
+        }
+
+        onPositionChanged: function(mouse) {
+            if (!hoverArea.pressed || !(mouse.buttons & Qt.LeftButton)) return
+            if (hoverArea.dragStep <= 0) return
+            const point = root.mapToItem(null, mouse.x, mouse.y)
+            const delta = root.pinned
+                ? point.x - hoverArea.dragOrigin.x
+                : point.y - hoverArea.dragOrigin.y
+            if (Math.abs(delta) < hoverArea.dragStep) return
+            const step = delta > 0 ? 1 : -1
+            hoverArea.dragOrigin = root.pinned
+                ? Qt.point(hoverArea.dragOrigin.x + step * hoverArea.dragStep,
+                    hoverArea.dragOrigin.y)
+                : Qt.point(hoverArea.dragOrigin.x,
+                    hoverArea.dragOrigin.y + step * hoverArea.dragStep)
+            hoverArea.dragged = true
+            root.moveRequested(root.tabId, step)
+        }
+
         onClicked: function(mouse) {
+            if (mouse.button === Qt.RightButton) {
+                root.forceActiveFocus()
+                root.openMenu(mouse.x, mouse.y)
+                return
+            }
+            // A row that has just been dragged into place was not clicked.
+            if (hoverArea.dragged) {
+                hoverArea.dragged = false
+                return
+            }
             root.forceActiveFocus()
             const overClose = !root.pinned
                 && mouse.x >= root.width - closeButton.width - closeButton.anchors.rightMargin
