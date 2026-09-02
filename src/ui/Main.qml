@@ -1037,16 +1037,18 @@ ApplicationWindow {
     // and nothing until then.
     property var pendingNotifications: ({})
 
+    // The last notification the shell agreed to raise: which tab it belongs to
+    // and the words it was given. Deciding is the shell's, showing is the
+    // desktop's, and the two are kept apart so a platform with no notification
+    // service still refuses the right notifications.
+    property var lastSiteNotification: null
+
     function presentSiteNotification(spaceId, host, notificationId, origin, title, message) {
         const target = window.windowBrowser.notificationTarget(spaceId, origin)
         // A page whose Space has been put away, and which nothing is keeping
         // running, has no business interrupting: only a retained tab can speak
         // for an inactive Space. The page is told the notification closed.
         if (!target || !target.tabId) {
-            host.dismissNotification(notificationId)
-            return
-        }
-        if (!SystemNotifier.available) {
             host.dismissNotification(notificationId)
             return
         }
@@ -1057,15 +1059,24 @@ ApplicationWindow {
         const detail = title.length > 0 && message.length > 0
             ? title + " — " + message
             : (title.length > 0 ? title : message)
-        if (!SystemNotifier.present(key, heading, detail)) {
-            host.dismissNotification(notificationId)
-            return
+        window.lastSiteNotification = {
+            "key": key,
+            "tabId": target.tabId,
+            "spaceId": spaceId,
+            "heading": heading,
+            "detail": detail
         }
         window.pendingNotifications[key] = {
             "spaceId": spaceId,
             "tabId": target.tabId,
             "host": host,
             "notificationId": notificationId
+        }
+        // Nothing on this desktop to show it with. The reader will not see it,
+        // so the page is told it closed rather than left waiting on an answer
+        // that cannot come.
+        if (!SystemNotifier.present(key, heading, detail)) {
+            host.dismissNotification(notificationId)
         }
     }
 

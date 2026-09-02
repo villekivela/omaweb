@@ -65,11 +65,12 @@ Item {
         if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Space) {
             root.activated(root.tabId)
             event.accepted = true
-        } else if (event.key === Qt.Key_F10 && (event.modifiers & Qt.ShiftModifier)) {
-            root.openMenu(0, root.height)
-            event.accepted = true
         }
     }
+
+    // The keyboard reaches this menu through the `tab-menu` command rather than
+    // through a key handled here: `Shift+F10` already belongs to the page's own
+    // menu, and a window shortcut takes a key before a focused row sees it.
 
     function openMenu(x, y) {
         const point = root.mapToItem(null, x, y)
@@ -153,9 +154,12 @@ Item {
         // use for measuring how far the hand has travelled.
         property point dragOrigin: Qt.point(0, 0)
         property bool dragged: false
-        // Ordinary rows are stacked, pins are laid out along the row, so a
-        // whole place is a row's height in one and its width in the other.
-        readonly property real dragStep: root.pinned ? root.width : root.height
+        // Rows change places rather than sliding between them, and the place
+        // changes when the row being dragged covers more of its neighbour's
+        // than of its own — half a row. Ordinary rows are stacked and pins are
+        // laid out along the row, so that half is measured on the axis each
+        // section runs in.
+        readonly property real dragStep: (root.pinned ? root.width : root.height) / 2
 
         onPressed: function(mouse) {
             hoverArea.dragOrigin = root.mapToItem(null, mouse.x, mouse.y)
@@ -163,7 +167,10 @@ Item {
         }
 
         onPositionChanged: function(mouse) {
-            if (!hoverArea.pressed || !(mouse.buttons & Qt.LeftButton)) return
+            // The area's own record of what is held, not the event's: a
+            // synthesized move carries no buttons, and a right-press opening
+            // the menu must not drag the row on the way.
+            if (!(hoverArea.pressedButtons & Qt.LeftButton)) return
             if (hoverArea.dragStep <= 0) return
             const point = root.mapToItem(null, mouse.x, mouse.y)
             const delta = root.pinned
