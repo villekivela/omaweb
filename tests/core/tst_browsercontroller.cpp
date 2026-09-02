@@ -661,6 +661,8 @@ void BrowserControllerTest::resolvesAddressesBeforeSearches()
     QCOMPARE(controller.activeUrl(), QUrl(QStringLiteral("https://example.com/path")));
     controller.openInput(QStringLiteral("localhost:3000/app"), false);
     QCOMPARE(controller.activeUrl(), QUrl(QStringLiteral("http://localhost:3000/app")));
+    controller.openInput(QStringLiteral("localhost?mode=test"), false);
+    QCOMPARE(controller.activeUrl(), QUrl(QStringLiteral("http://localhost?mode=test")));
     controller.openInput(QStringLiteral("127.0.0.1:8080"), false);
     QCOMPARE(controller.activeUrl(), QUrl(QStringLiteral("http://127.0.0.1:8080")));
     controller.openInput(QStringLiteral("::1"), false);

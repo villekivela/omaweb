@@ -1373,7 +1373,7 @@ QUrl BrowserController::resolveConfiguredInput(const QString &input) const
         return QUrl(value);
     }
 
-    const auto authority = value.section('/', 0, 0);
+    const auto authority = value.split(QRegularExpression(QStringLiteral("[/?#]"))).first();
     auto host = authority;
     if (host.startsWith('[') && host.contains(']')) {
         host = host.mid(1, host.indexOf(']') - 1);
