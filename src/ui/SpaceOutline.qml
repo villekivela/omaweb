@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import qs.Commons
+import qs.Ui as Omarchy
 
 Rectangle {
     id: root
@@ -321,16 +322,24 @@ Rectangle {
             }
         }
 
-        Rectangle {
+        // The address is a form control, so it is drawn as the kit draws one:
+        // a border at rest rather than a borderless plate that only grows an
+        // edge once it is focused. A field the reader can type into says so
+        // before they touch it.
+        Omarchy.BorderSurface {
             id: addressButton
             objectName: "addressButton"
             property string accessibleName: "Search or enter address"
+            readonly property bool focused: root.statusOpen || addressButton.activeFocus
             width: parent.width
             height: 34
             radius: 2
-            color: addressMouse.containsMouse ? root.colors.surfaceHover : root.colors.surface
-            border.width: root.statusOpen || addressButton.activeFocus ? 1 : 0
-            border.color: root.colors.accent
+            color: Style.controlFill(addressButton.focused, addressMouse.containsMouse,
+                root.colors.text, root.colors.accent)
+            borderSpec: Border.controlSpec(
+                addressButton.focused ? "focus"
+                    : (addressMouse.containsMouse ? "hover-cursor" : "normal"),
+                root.colors.text, root.colors.accent)
             activeFocusOnTab: true
             Accessible.role: Accessible.Button
             Accessible.name: addressButton.accessibleName
@@ -356,7 +365,7 @@ Rectangle {
                 text: root.secure ? "lock" : "lock_open"
                 color: root.secure ? root.colors.text : root.colors.mutedText
                 font.family: root.iconFontFamily
-                font.pixelSize: 14
+                font.pixelSize: Style.font.iconLarge
                 Accessible.role: Accessible.StaticText
                 Accessible.name: root.secure ? "Connection is encrypted" : "Connection is not encrypted"
 
@@ -398,7 +407,7 @@ Rectangle {
                     text: "shield"
                     color: root.colors.mutedText
                     font.family: root.iconFontFamily
-                    font.pixelSize: 13
+                    font.pixelSize: Style.font.icon
                 }
 
                 Text {
@@ -488,7 +497,7 @@ Rectangle {
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.top: pinnedSection.bottom
-        anchors.bottom: footer.top
+        anchors.bottom: footerRule.top
         anchors.leftMargin: 16
         anchors.rightMargin: 16
         anchors.topMargin: 12
@@ -529,6 +538,22 @@ Rectangle {
                 }
             }
         }
+    }
+
+    // What the Space is, and what it carries, are not more tabs: the rule says
+    // where the list ends so the footer reads as the outline's own furniture
+    // rather than as the row after the last tab.
+    Rectangle {
+        id: footerRule
+        objectName: "outlineFooterRule"
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: footer.top
+        anchors.leftMargin: 16
+        anchors.rightMargin: 16
+        anchors.bottomMargin: Style.spacing.lg
+        height: Style.spacing.hairline
+        color: root.colors.border
     }
 
     // The Space letters, the Space menu and the settings the Space carries
@@ -579,7 +604,15 @@ Rectangle {
                         ? (spaceColor.length > 0 ? spaceColor : root.colors.text)
                         : root.colors.mutedText
                     accent: root.colors.accent
-                    background: active ? root.colors.surface : "transparent"
+                    // The Space on show is the one selected thing in this row,
+                    // so it is drawn the way the kit draws a selection and the
+                    // way a current tab row is: the kit's own selected fill,
+                    // bordered, with the letter in the Space's colour. A plate
+                    // painted from the palette said the same thing in a
+                    // vocabulary nothing else in the outline uses.
+                    selected: active
+                    bordered: active
+                    background: "transparent"
                     onClicked: root.spaceActivated(spaceId)
                 }
             }

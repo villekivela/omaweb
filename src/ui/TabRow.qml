@@ -39,6 +39,14 @@ Item {
     readonly property bool hasSiteColor: tile.hasSiteColor
     readonly property color siteColor: hasSiteColor ? tile.siteTint : colors.accent
 
+    // Whether the site's own colour may reach this row at all. A pin is a
+    // favicon with no title, so its colour is the only thing telling the sites
+    // apart — but taking a colour off the site's artwork is what "Tint
+    // favicons" answers, and a reader who has said no to that has said no
+    // here too. Without it the pin is chrome: the theme's muted border, the
+    // kit's own selected fill for the active one.
+    readonly property bool siteColored: pinned && tintFavicons
+
     // A tab that is making sound says so, and a muted one keeps saying it:
     // the speaker is the only place the sound can be given back, so it stays
     // on the row for as long as the reader's decision does.
@@ -119,7 +127,7 @@ Item {
     // the active pin then deepens the wash instead of replacing it.
     Rectangle {
         anchors.fill: parent
-        visible: root.pinned && root.active
+        visible: root.siteColored && root.active
         color: Qt.rgba(root.siteColor.r, root.siteColor.g, root.siteColor.b, 0.18)
         radius: Style.cornerRadius
     }
@@ -127,15 +135,23 @@ Item {
     Omarchy.Button {
         id: tabButton
         anchors.fill: parent
-        // The active pin has a wash and a border of its own, so it never takes
-        // the kit's selected fill; an unpinned row has only that fill to say it.
-        active: root.active && !root.pinned
+        // A site-coloured pin has a wash and a border of its own, so it never
+        // takes the kit's selected fill. Every other current row does — an
+        // unpinned one, and a pin the reader has switched site colour off for.
+        active: root.active && !root.siteColored
         hasCursor: root.activeFocus || hoverArea.containsMouse
-        bordered: root.pinned
-        foreground: root.pinned && root.active ? root.siteColor
+        // A pin is a bordered tile at rest, as the reader's own address field
+        // is; an ordinary row takes its border only when it is the current tab,
+        // which is what makes one row in the list read as the page on show.
+        bordered: root.pinned || root.active
+        foreground: root.siteColored && root.active ? root.siteColor
             : (root.pinned ? root.colors.mutedText : root.colors.text)
-        background: "transparent"
-        accent: root.pinned && root.active ? root.siteColor : root.colors.accent
+        // A pin is a control rather than a line of text, so it carries the
+        // kit's control fill instead of sitting on the sidebar unfilled.
+        background: root.pinned
+            ? Style.normalFillFor(root.colors.text, root.colors.accent)
+            : "transparent"
+        accent: root.siteColored && root.active ? root.siteColor : root.colors.accent
         horizontalPadding: 0
         verticalPadding: 0
     }
@@ -159,7 +175,7 @@ Item {
         highlighted: root.active
         useArtwork: root.useFavicons
         tintArtwork: root.tintFavicons
-        siteColoredMark: root.pinned
+        siteColoredMark: root.siteColored
     }
 
     // The title names the page; its address is already in the address button
@@ -266,7 +282,7 @@ Item {
             }
             readonly property bool hot: hoverArea.containsMouse
                 && covers(hoverArea.mouseX, hoverArea.mouseY)
-            readonly property color foreground: root.pinned && root.active
+            readonly property color foreground: root.siteColored && root.active
                 ? root.siteColor
                 : (root.silenced || !root.active ? root.colors.mutedText : root.colors.text)
             anchors.left: root.pinned ? undefined : parent.left
@@ -295,7 +311,7 @@ Item {
                 text: root.silenced ? "volume_off" : "volume_up"
                 color: audioButton.foreground
                 font.family: root.iconFontFamily
-                font.pixelSize: Style.font.icon
+                font.pixelSize: Style.font.iconLarge
             }
         }
 
@@ -328,7 +344,7 @@ Item {
                 text: "close"
                 color: closeButton.foreground
                 font.family: root.iconFontFamily
-                font.pixelSize: Style.font.icon
+                font.pixelSize: Style.font.iconLarge
             }
         }
     }

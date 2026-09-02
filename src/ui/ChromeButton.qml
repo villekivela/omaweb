@@ -1,4 +1,5 @@
 import QtQuick
+import qs.Commons
 import qs.Ui as Omarchy
 
 // The small chrome control — the arrows in the navigation strip, the Space
@@ -9,8 +10,11 @@ import qs.Ui as Omarchy
 // does not carry.
 //
 // The two slots are separate because the kit sizes them separately: a glyph
-// takes `Style.font.icon` and a word `Style.font.body`, where Tanto's own
-// button gave both one hard-coded 15px.
+// takes an icon token and a word `Style.font.body`, where Tanto's own button
+// gave both one hard-coded 15px. Chrome takes the larger of the kit's two icon
+// tokens: a browser's arrows, panel and gear are the controls the reader aims
+// at with the pointer, and at `Style.font.icon` they read as annotations beside
+// the address rather than as the buttons they are.
 //
 // The kit paints hover, focus and pressed fills itself from `foreground` and
 // `accent`, so Tanto's `hoverBackground` is gone: chrome is borderless and
@@ -24,6 +28,7 @@ Omarchy.Button {
 
     text: label
     iconText: icon
+    iconSize: Style.font.iconLarge
     // A disabled control is not a keyboard stop, which is what Tanto's own
     // `activeFocusOnTab: enabled` said before the kit took the painting over.
     focusable: enabled
