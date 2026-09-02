@@ -1830,6 +1830,12 @@ void QtEngineContractTest::qtFindsInThePageAndKeepsTheQueryAcrossNavigation()
         "data:text/html,<title>Findable</title>"
         "<p>alpha beta alpha gamma alpha</p>"))));
     QTRY_COMPARE(adapter->property("pageTitle").toString(), QStringLiteral("Findable"));
+    // A title arrives before the document is finished, and a search is answered
+    // once against whatever is there when it is asked: a query issued mid-load
+    // is told nothing was found and is never run again. That is the contract —
+    // matches belong to the document that was searched — so the test waits for
+    // the page rather than searching one that is still arriving.
+    QTRY_VERIFY(!adapter->property("loading").toBool());
 
     QVERIFY(QMetaObject::invokeMethod(adapter.get(), "findText",
         Q_ARG(QVariant, QStringLiteral("alpha")), Q_ARG(QVariant, true)));
@@ -1845,6 +1851,7 @@ void QtEngineContractTest::qtFindsInThePageAndKeepsTheQueryAcrossNavigation()
     QVERIFY(adapter->setProperty("currentUrl", QUrl(QStringLiteral(
         "data:text/html,<title>Elsewhere</title><p>nothing here</p>"))));
     QTRY_COMPARE(adapter->property("pageTitle").toString(), QStringLiteral("Elsewhere"));
+    QTRY_VERIFY(!adapter->property("loading").toBool());
     QCOMPARE(adapter->property("findMatchCount").toInt(), 0);
     QCOMPARE(adapter->property("findQuery").toString(), QStringLiteral("alpha"));
 
