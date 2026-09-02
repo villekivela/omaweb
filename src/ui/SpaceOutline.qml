@@ -65,8 +65,20 @@ Rectangle {
     // Key events climb from the focused row to here, so one handler covers the
     // whole outline: Escape is the way back to the page.
     Keys.onEscapePressed: function(event) {
+        if (root.statusOpen) {
+            root.statusOpen = false
+            event.accepted = true
+            return
+        }
         root.pageFocusRequested()
         event.accepted = true
+    }
+
+    Shortcut {
+        sequence: "Esc"
+        enabled: root.statusOpen
+        context: Qt.WindowShortcut
+        onActivated: root.statusOpen = false
     }
 
     color: colors.sidebar
@@ -498,13 +510,19 @@ Rectangle {
         }
     }
 
+    MouseArea {
+        anchors.fill: parent
+        visible: root.statusOpen
+        z: 4
+        onClicked: root.statusOpen = false
+    }
+
     Rectangle {
         objectName: "siteStatusPanel"
         visible: root.statusOpen
         anchors.left: parent.left
         anchors.leftMargin: 16
-        anchors.top: parent.top
-        anchors.topMargin: 172
+        y: outline.y + addressButton.y + addressButton.height + 8
         width: Math.min(260, root.width - 32)
         height: statusColumn.implicitHeight + 20
         radius: 2
@@ -512,6 +530,8 @@ Rectangle {
         border.width: 1
         border.color: root.colors.accent
         z: 5
+
+        MouseArea { anchors.fill: parent }
 
         Column {
             id: statusColumn

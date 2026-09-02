@@ -151,6 +151,8 @@ public:
     Q_INVOKABLE bool deleteHistoryOrigin(const QUrl &url);
     Q_INVOKABLE bool deleteHistorySince(qint64 since);
     Q_INVOKABLE QVariantList searchEngines() const;
+    Q_INVOKABLE QVariantList searchEnginePresets() const;
+    Q_INVOKABLE bool addSearchEnginePreset(const QString &id);
     Q_INVOKABLE bool addSearchEngine(const QString &name, const QString &queryUrl,
         const QString &keyword = {});
     Q_INVOKABLE bool deleteSearchEngine(const QString &id);

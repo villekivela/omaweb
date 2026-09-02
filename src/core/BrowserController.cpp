@@ -23,6 +23,41 @@ constexpr int persistTabsDelayMilliseconds = 400;
 // a rung is recognised by nearness rather than by equality.
 constexpr double zoomTolerance = 0.001;
 
+QVariantList predefinedSearchEngines()
+{
+    return {
+        QVariantMap{{QStringLiteral("id"), QStringLiteral("duckduckgo")},
+            {QStringLiteral("name"), QStringLiteral("DuckDuckGo")},
+            {QStringLiteral("queryUrl"), QStringLiteral("https://duckduckgo.com/?q={query}")},
+            {QStringLiteral("keyword"), QStringLiteral("d")}},
+        QVariantMap{{QStringLiteral("id"), QStringLiteral("google")},
+            {QStringLiteral("name"), QStringLiteral("Google")},
+            {QStringLiteral("queryUrl"), QStringLiteral("https://www.google.com/search?q={query}")},
+            {QStringLiteral("keyword"), QStringLiteral("g")}},
+        QVariantMap{{QStringLiteral("id"), QStringLiteral("bing")},
+            {QStringLiteral("name"), QStringLiteral("Bing")},
+            {QStringLiteral("queryUrl"), QStringLiteral("https://www.bing.com/search?q={query}")},
+            {QStringLiteral("keyword"), QStringLiteral("b")}},
+        QVariantMap{{QStringLiteral("id"), QStringLiteral("brave")},
+            {QStringLiteral("name"), QStringLiteral("Brave Search")},
+            {QStringLiteral("queryUrl"), QStringLiteral("https://search.brave.com/search?q={query}")},
+            {QStringLiteral("keyword"), QStringLiteral("br")}},
+        QVariantMap{{QStringLiteral("id"), QStringLiteral("kagi")},
+            {QStringLiteral("name"), QStringLiteral("Kagi")},
+            {QStringLiteral("queryUrl"), QStringLiteral("https://kagi.com/search?q={query}")},
+            {QStringLiteral("keyword"), QStringLiteral("k")}},
+        QVariantMap{{QStringLiteral("id"), QStringLiteral("ecosia")},
+            {QStringLiteral("name"), QStringLiteral("Ecosia")},
+            {QStringLiteral("queryUrl"), QStringLiteral("https://www.ecosia.org/search?q={query}")},
+            {QStringLiteral("keyword"), QStringLiteral("e")}},
+        QVariantMap{{QStringLiteral("id"), QStringLiteral("startpage")},
+            {QStringLiteral("name"), QStringLiteral("Startpage")},
+            {QStringLiteral("queryUrl"),
+                QStringLiteral("https://www.startpage.com/sp/search?query={query}")},
+            {QStringLiteral("keyword"), QStringLiteral("sp")}},
+    };
+}
+
 } // namespace
 
 BrowserController::BrowserController(QString dataRoot, QString engineName, QObject *parent)
@@ -936,6 +971,29 @@ QVariantList BrowserController::searchEngines() const
     return engines;
 }
 
+QVariantList BrowserController::searchEnginePresets() const
+{
+    return predefinedSearchEngines();
+}
+
+bool BrowserController::addSearchEnginePreset(const QString &id)
+{
+    for (const auto &configured : m_searchEngines) {
+        if (configured.toMap().value(QStringLiteral("id")).toString() == id) {
+            return false;
+        }
+    }
+    for (const auto &preset : predefinedSearchEngines()) {
+        if (preset.toMap().value(QStringLiteral("id")).toString() != id) {
+            continue;
+        }
+        auto engines = m_searchEngines;
+        engines.append(preset);
+        return saveSearchEngines(engines, m_defaultSearchEngineId);
+    }
+    return false;
+}
+
 bool BrowserController::addSearchEngine(const QString &name, const QString &queryUrl,
     const QString &keyword)
 {
@@ -1299,10 +1357,8 @@ void BrowserController::setActiveTab(const QString &tabId)
 
 bool BrowserController::loadSearchEngines()
 {
-    const QVariantMap duckDuckGo{{QStringLiteral("id"), QStringLiteral("duckduckgo")},
-        {QStringLiteral("name"), QStringLiteral("DuckDuckGo")},
-        {QStringLiteral("queryUrl"), QStringLiteral("https://duckduckgo.com/?q={query}")},
-        {QStringLiteral("keyword"), QString{}}};
+    auto duckDuckGo = predefinedSearchEngines().first().toMap();
+    duckDuckGo.insert(QStringLiteral("keyword"), QString{});
     const auto path = QDir(m_configRoot).filePath(QStringLiteral("search-engines.json"));
     if (m_configRoot.isEmpty()) {
         m_searchEngines = {duckDuckGo};

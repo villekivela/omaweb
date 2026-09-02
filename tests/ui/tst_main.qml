@@ -703,6 +703,33 @@ TestCase {
         tryVerify(function() { return !section.visible })
     }
 
+    function test_siteStatusStaysWithAddressAndDismisses() {
+        openPage("https://status-position.example")
+        const sidebar = findChild(window.contentItem, "sidebar")
+        const address = findChild(window.contentItem, "addressButton")
+        const security = findChild(window.contentItem, "securityIndicator")
+        const panel = findChild(window.contentItem, "siteStatusPanel")
+        verify(sidebar !== null)
+        verify(address !== null)
+        verify(security !== null)
+        verify(panel !== null)
+
+        mouseClick(security, security.width / 2, security.height / 2)
+        tryVerify(function() { return panel.visible })
+        const addressBottom = address.mapToItem(window.contentItem, 0, address.height).y
+        const panelTop = panel.mapToItem(window.contentItem, 0, 0).y
+        verify(panelTop >= addressBottom + 6)
+        verify(panelTop <= addressBottom + 10)
+
+        keyClick(Qt.Key_Escape)
+        tryVerify(function() { return !panel.visible })
+
+        mouseClick(security, security.width / 2, security.height / 2)
+        tryVerify(function() { return panel.visible })
+        mouseClick(window.contentItem, sidebar.width + 80, window.height / 2)
+        tryVerify(function() { return !panel.visible })
+    }
+
     // A pin is a square holding one chip, with nothing in front of anything to
     // put a speaker before, so it wears the speaker in its top right corner.
     function test_soundingPinWearsItsSpeakerInTheCorner() {
@@ -1413,6 +1440,11 @@ TestCase {
         verify(engines !== null)
         compare(engines.count, 1)
         verify(String(engines.model[0].name).indexOf("DuckDuckGo") >= 0)
+        const providerPicker = findChild(window.contentItem, "searchProviderPreset")
+        const addProvider = findChild(window.contentItem, "addSearchProviderButton")
+        verify(providerPicker !== null)
+        verify(addProvider !== null)
+        verify(providerPicker.count >= 5)
 
         dataSection.Accessible.pressAction()
         verify(findChild(window.contentItem, "clearCookies") !== null)

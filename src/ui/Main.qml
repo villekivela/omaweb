@@ -1475,6 +1475,15 @@ ApplicationWindow {
             }
         }
 
+        MouseArea {
+            x: sidebar.width
+            width: parent.width - x
+            height: parent.height
+            visible: sidebar.statusOpen
+            z: 50
+            onClicked: sidebar.statusOpen = false
+        }
+
         PanelResizer {
             id: sidebarResizer
             objectName: "sidebarResizer"

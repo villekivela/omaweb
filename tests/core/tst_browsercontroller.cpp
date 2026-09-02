@@ -52,6 +52,7 @@ private slots:
     void filtersAndDeletesHistoryAtRequestedBoundaries();
     void resolvesAddressesBeforeSearches();
     void migratesAndUsesSearchEngineConfiguration();
+    void addsPredefinedSearchEngineProviders();
     void refusesPersistentBrowsingDataActionsInPrivateWindows();
     void clearsSelectedBrowsingDataWithinConfirmedScope();
     void scopesPermissionDecisionsToOriginSpaceAndLifetime();
@@ -714,6 +715,22 @@ void BrowserControllerTest::migratesAndUsesSearchEngineConfiguration()
         QSharedPointer<QHash<QString, int>>::create(), configRoot);
     privateController.openInput(QStringLiteral("private search"), false);
     QCOMPARE(privateController.activeUrl().host(), QStringLiteral("docs.example"));
+}
+
+void BrowserControllerTest::addsPredefinedSearchEngineProviders()
+{
+    QTemporaryDir root;
+    BrowserController controller(root.filePath(QStringLiteral("data")),
+        QStringLiteral("test"), root.filePath(QStringLiteral("config")));
+
+    const auto presets = controller.searchEnginePresets();
+    QVERIFY(presets.size() >= 5);
+    QVERIFY(controller.addSearchEnginePreset(QStringLiteral("brave")));
+    QVERIFY(!controller.addSearchEnginePreset(QStringLiteral("brave")));
+    QCOMPARE(controller.searchEngines().size(), 2);
+
+    controller.openInput(QStringLiteral("br private search"), false);
+    QCOMPARE(controller.activeUrl().host(), QStringLiteral("search.brave.com"));
 }
 
 void BrowserControllerTest::refusesPersistentBrowsingDataActionsInPrivateWindows()

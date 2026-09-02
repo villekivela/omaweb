@@ -22,6 +22,7 @@ Rectangle {
     property bool useFavicons: true
     property bool tintFavicons: true
     property var engines: []
+    property var enginePresets: []
     property bool clearCookiesSelected: true
     property bool clearStorageSelected: true
     property bool clearCacheSelected: true
@@ -76,6 +77,7 @@ Rectangle {
         if (!root.browser) return
         root.downloads = root.browser.downloadHistory()
         root.engines = root.browser.searchEngines()
+        root.enginePresets = root.browser.searchEnginePresets()
         root.subscriptions = root.blocker ? root.blocker.subscriptions : []
         root.blockedRequestCount = root.blocker
             ? root.blocker.blockedRequestCount(root.browser.activeUrl) : 0
@@ -88,6 +90,10 @@ Rectangle {
 
     function deleteSearchEngine(id) {
         if (root.browser.deleteSearchEngine(id)) root.refresh()
+    }
+
+    function searchEngineInstalled(id) {
+        return root.engines.some(function(engine) { return engine.id === id })
     }
 
     onOpenChanged: if (open) refresh()
@@ -540,7 +546,38 @@ Rectangle {
                     visible: root.section === 5
                     spacing: 8
 
-                    SectionLabel { colors: root.colors; text: "add a search engine" }
+                    SectionLabel { colors: root.colors; text: "add a provider" }
+                    Row {
+                        width: parent.width
+                        spacing: 8
+
+                        ComboBox {
+                            id: providerPreset
+                            objectName: "searchProviderPreset"
+                            width: parent.width - addProvider.width - 8
+                            model: root.enginePresets
+                            textRole: "name"
+                            valueRole: "id"
+                            Accessible.name: "Predefined search provider"
+                        }
+
+                        ActionButton {
+                            id: addProvider
+                            objectName: "addSearchProviderButton"
+                            colors: root.colors
+                            label: root.searchEngineInstalled(providerPreset.currentValue)
+                                ? "Added" : "Add"
+                            enabled: providerPreset.currentIndex >= 0
+                                && !root.searchEngineInstalled(providerPreset.currentValue)
+                            onClicked: {
+                                if (root.browser.addSearchEnginePreset(providerPreset.currentValue))
+                                    root.refresh()
+                            }
+                        }
+                    }
+
+                    Item { width: 1; height: 12 }
+                    SectionLabel { colors: root.colors; text: "add a custom engine" }
                     SettingField {
                         id: engineName
                         width: parent.width
