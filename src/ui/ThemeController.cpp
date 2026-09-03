@@ -10,6 +10,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 
 namespace omaweb {
 namespace {
@@ -42,58 +43,81 @@ QColor blended(const QColor &from, const QColor &to, double amount)
         channel(from.blue(), to.blue()));
 }
 
+// The colour a role settles on: what the theme named where that already
+// reads on every surface the role is drawn on, and otherwise the nearest
+// colour that does. Some palettes have no such colour to give — nothing is
+// 3:1 against both a near-black window and a saturated sidebar — and there
+// the role takes whichever candidate reads best on the surface it reads worst
+// on. A palette is never rejected over this. A theme that cannot be repaired
+// exactly is still the theme the reader chose, and dropping every colour it
+// named to reach a floor on one role costs the reader more than the role is
+// worth: it is the difference between quiet text a shade faint and a browser
+// that has stopped following the desktop.
 QColor adjustedForContrast(const QColor &preferred, const QColor &fallback,
     const QList<QColor> &grounds, double minimumContrast, bool preserveHue)
 {
-    const auto clears = [&grounds, minimumContrast](const QColor &candidate) {
-        return std::all_of(grounds.cbegin(), grounds.cend(),
-            [&candidate, minimumContrast](const QColor &ground) {
-                return contrastRatio(candidate, ground) >= minimumContrast;
-            });
+    const auto worstContrast = [&grounds](const QColor &candidate) {
+        auto worst = std::numeric_limits<double>::max();
+        for (const auto &ground : grounds) {
+            worst = std::min(worst, contrastRatio(candidate, ground));
+        }
+        return worst;
     };
-    if (clears(preferred)) {
+    if (grounds.isEmpty() || worstContrast(preferred) >= minimumContrast) {
         return preferred;
     }
 
+    // Both answers are carried through the search, because which one is
+    // wanted is not known until it ends: the clearing candidate that moved
+    // least from what the theme asked for, and — for a palette where nothing
+    // clears — the one that reads best on its worst surface. How far a
+    // candidate moved is the search's own measure, so each search below hands
+    // it whatever "least moved" means for the candidates it generates.
+    auto best = preferred;
+    auto bestWorst = worstContrast(preferred);
+    QColor repaired;
+    auto repairedDistance = std::numeric_limits<double>::max();
+    const auto consider = [&](const QColor &candidate, double distance) {
+        if (!candidate.isValid()) {
+            return;
+        }
+        const auto worst = worstContrast(candidate);
+        if (worst >= minimumContrast && distance < repairedDistance) {
+            repaired = candidate;
+            repairedDistance = distance;
+        }
+        if (worst > bestWorst) {
+            bestWorst = worst;
+            best = candidate;
+        }
+    };
+
     constexpr auto steps = 256;
     if (preserveHue && preferred.hslSaturationF() > 0.0) {
-        QColor closest;
-        auto closestDistance = 2.0;
         for (auto step = 1; step < steps; ++step) {
             const auto lightness = static_cast<double>(step) / steps;
             const QColor candidate(QColor::fromHslF(
                 preferred.hslHueF(), preferred.hslSaturationF(), lightness)
                                        .name(QColor::HexRgb));
-            const auto distance = std::abs(lightness - preferred.lightnessF());
-            if (distance < closestDistance && clears(candidate)) {
-                closest = candidate;
-                closestDistance = distance;
-            }
+            consider(candidate, std::abs(lightness - preferred.lightnessF()));
         }
-        if (closest.isValid()) {
-            return closest;
-        }
-        return {};
+        return repaired.isValid() ? repaired : best;
     }
 
-    for (auto step = 1; step <= steps; ++step) {
-        const auto candidate = blended(preferred, fallback, static_cast<double>(step) / steps);
-        if (clears(candidate)) {
-            return candidate;
-        }
-    }
-    const QColor black(Qt::black);
-    const QColor white(Qt::white);
+    // Towards the colour the role belongs with first, and only then towards
+    // black or white. The offset keeps every blend of the pair ahead of every
+    // blend of an endpoint, however far each had to travel.
     for (auto step = 1; step <= steps; ++step) {
         const auto amount = static_cast<double>(step) / steps;
-        for (const auto &endpoint : {black, white}) {
-            const auto candidate = blended(preferred, endpoint, amount);
-            if (clears(candidate)) {
-                return candidate;
-            }
+        consider(blended(preferred, fallback, amount), amount);
+    }
+    for (auto step = 1; step <= steps; ++step) {
+        const auto amount = static_cast<double>(step) / steps;
+        for (const auto &endpoint : {QColor(Qt::black), QColor(Qt::white)}) {
+            consider(blended(preferred, endpoint, amount), 1.0 + amount);
         }
     }
-    return {};
+    return repaired.isValid() ? repaired : best;
 }
 
 } // namespace
@@ -375,9 +399,6 @@ QVariantMap ThemeController::normalizedPalette(QVariantMap palette) const
         constexpr auto minimumContrast = 4.5;
         const auto resolved = adjustedForContrast(
             quietest, text, grounds, minimumContrast, hasNamedMutedText);
-        if (!resolved.isValid()) {
-            return normalizedPalette(fallback);
-        }
         palette.insert(QStringLiteral("mutedText"), resolved.name(QColor::HexRgb));
 
         const QColor privateQuietest(hasNamedMutedText
@@ -385,9 +406,6 @@ QVariantMap ThemeController::normalizedPalette(QVariantMap palette) const
                 : QColor(palette.value(QStringLiteral("privateSidebar")).toString()));
         const auto privateResolved = adjustedForContrast(privateQuietest, text, privateGrounds,
             minimumContrast, hasNamedMutedText);
-        if (!privateResolved.isValid()) {
-            return normalizedPalette(fallback);
-        }
         palette.insert(
             QStringLiteral("privateMutedText"), privateResolved.name(QColor::HexRgb));
     }
@@ -408,9 +426,6 @@ QVariantMap ThemeController::normalizedPalette(QVariantMap palette) const
         constexpr auto minimumBorderContrast = 3.0;
         const auto resolved = adjustedForContrast(faintestBorder, text, borderedSurfaces,
             minimumBorderContrast, hasNamedBorder);
-        if (!resolved.isValid()) {
-            return normalizedPalette(fallback);
-        }
         palette.insert(QStringLiteral("border"), resolved.name(QColor::HexRgb));
 
         const QColor faintestPrivateBorder(hasNamedBorder
@@ -418,9 +433,6 @@ QVariantMap ThemeController::normalizedPalette(QVariantMap palette) const
                 : QColor(palette.value(QStringLiteral("privateSidebar")).toString()));
         const auto privateResolved = adjustedForContrast(faintestPrivateBorder, text,
             privateBorderedSurfaces, minimumBorderContrast, hasNamedBorder);
-        if (!privateResolved.isValid()) {
-            return normalizedPalette(fallback);
-        }
         palette.insert(QStringLiteral("privateBorder"), privateResolved.name(QColor::HexRgb));
     }
 

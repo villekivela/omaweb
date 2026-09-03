@@ -29,7 +29,8 @@ private slots:
     void preservesTheHueOfAMutedColourItRepairs();
     void keepsBordersVisibleOnEverySurfaceTheySeparate();
     void preservesTheHueOfABorderItRepairs();
-    void rejectsAPaletteWhoseSurfacesCannotShareReadableRoles();
+    void keepsAPaletteWhoseSurfacesCannotShareReadableRoles();
+    void keepsTheDesktopsOwnColoursWhenAPrivateSurfaceIsAnAccent();
     void reportsAThemeReloadWhenTheNormalizedPaletteDoesNotChange();
     void keepsASaturatedPaletteWhenBlackCanSupplyUnnamedRoles();
     void resolvesTheFirstInstalledTypeFamily();
@@ -388,7 +389,11 @@ void ThemeControllerTest::preservesTheHueOfABorderItRepairs()
     QVERIFY(std::abs(repaired.hslHueF() - named.hslHueF()) < 0.01);
 }
 
-void ThemeControllerTest::rejectsAPaletteWhoseSurfacesCannotShareReadableRoles()
+// Some palettes have no colour to give a role: nothing reads at 4.5:1 on both
+// a black sidebar and a mid grey surface. The floor is a repair, not a
+// gatekeeper, so the theme the reader chose stays on screen and the role takes
+// whichever colour reads best on the surface it reads worst on.
+void ThemeControllerTest::keepsAPaletteWhoseSurfacesCannotShareReadableRoles()
 {
     QTemporaryDir root;
     QFile theme(root.filePath(QStringLiteral("theme.json")));
@@ -405,47 +410,116 @@ void ThemeControllerTest::rejectsAPaletteWhoseSurfacesCannotShareReadableRoles()
     theme.close();
 
     ThemeController controller(theme.fileName());
-    QCOMPARE(QColor(controller.palette().value(QStringLiteral("windowOpaque")).toString()),
-        QColor(QStringLiteral("#16151d")));
+    const auto palette = controller.palette();
+    QCOMPARE(QColor(palette.value(QStringLiteral("windowOpaque")).toString()),
+        QColor(QStringLiteral("#010101")));
+    const QColor muted(palette.value(QStringLiteral("mutedText")).toString());
+    QVERIFY(muted.isValid());
+    // Better on the surface it reads worst on than the colour the theme named,
+    // which is the whole of what an unsatisfiable floor can promise.
+    const auto worst = [&muted](const QColor &named) {
+        const QColor sidebar(QStringLiteral("#000000"));
+        const QColor surface(QStringLiteral("#777777"));
+        return std::min(contrastRatio(named, sidebar), contrastRatio(named, surface))
+            < std::min(contrastRatio(muted, sidebar), contrastRatio(muted, surface));
+    };
+    QVERIFY(worst(QColor(QStringLiteral("#800000"))));
 }
 
+// The palette Omarchy renders from the shipped template gives the private
+// window the desktop's dark background and the private sidebar its accent, and
+// no colour is 3:1 against both. That is the ordinary case, not a broken
+// theme: the desktop's own colours have to survive it, or every theme switch
+// lands on Omaweb's built-in palette and the browser stops following the
+// desktop at all.
+void ThemeControllerTest::keepsTheDesktopsOwnColoursWhenAPrivateSurfaceIsAnAccent()
+{
+    QTemporaryDir root;
+    QFile theme(root.filePath(QStringLiteral("theme.json")));
+    QVERIFY(theme.open(QIODevice::WriteOnly));
+    theme.write(R"JSON({
+        "window": "#161616",
+        "sidebar": "#1e1e1e",
+        "overlay": "#1e1e1e",
+        "surface": "#3c3836",
+        "surfaceHover": "#665c54",
+        "text": "#d4be98",
+        "mutedText": "#7c6f64",
+        "accent": "#7daea3",
+        "border": "#665c54",
+        "privateAccent": "#d3869b",
+        "privateWindow": "#1e1e1e",
+        "privateSidebar": "#d3869b",
+        "privateSurface": "#d3869b40",
+        "privateSurfaceHover": "#d3869b55"
+    })JSON");
+    theme.close();
+
+    ThemeController controller(theme.fileName());
+    const auto palette = controller.palette();
+    QCOMPARE(QColor(palette.value(QStringLiteral("windowOpaque")).toString()),
+        QColor(QStringLiteral("#161616")));
+    QCOMPARE(QColor(palette.value(QStringLiteral("sidebarOpaque")).toString()),
+        QColor(QStringLiteral("#1e1e1e")));
+    QCOMPARE(QColor(palette.value(QStringLiteral("surface")).toString()),
+        QColor(QStringLiteral("#3c3836")));
+    QCOMPARE(QColor(palette.value(QStringLiteral("text")).toString()),
+        QColor(QStringLiteral("#d4be98")));
+    QCOMPARE(QColor(palette.value(QStringLiteral("accent")).toString()),
+        QColor(QStringLiteral("#7daea3")));
+    // The roles the floor governs still read everywhere they can: the public
+    // palette is satisfiable, so nothing there is allowed to be a compromise.
+    const QColor muted(palette.value(QStringLiteral("mutedText")).toString());
+    for (const auto &key : {"sidebarOpaque", "surface", "surfaceHover", "overlayOpaque",
+             "sheetOpaque"}) {
+        const QColor ground(palette.value(QString::fromLatin1(key)).toString());
+        QVERIFY2(contrastRatio(muted, ground) >= minimumContrast, key);
+    }
+    QVERIFY(QColor(palette.value(QStringLiteral("privateMutedText")).toString()).isValid());
+    QVERIFY(QColor(palette.value(QStringLiteral("privateBorder")).toString()).isValid());
+}
+
+// The kit reads the desktop's `shell.toml` when Omaweb tells it to, and what
+// tells it is a reload rather than a colour moving: two themes can carry the
+// same palette and different control chrome, and the desktop still switched.
 void ThemeControllerTest::reportsAThemeReloadWhenTheNormalizedPaletteDoesNotChange()
 {
     QTemporaryDir root;
     QFile theme(root.filePath(QStringLiteral("theme.json")));
     QVERIFY(theme.open(QIODevice::WriteOnly));
     theme.write(R"JSON({
-        "window": "#010101",
-        "sidebar": "#000000",
-        "overlay": "#000000",
-        "surface": "#777777",
-        "surfaceHover": "#777777",
-        "text": "#ffffff",
-        "mutedText": "#800000"
+        "window": "#101010",
+        "sidebar": "#181818",
+        "overlay": "#181818",
+        "surface": "#202020",
+        "text": "#f0f0f0",
+        "mutedText": "#9a9a9a"
     })JSON");
     theme.close();
 
     ThemeController controller(theme.fileName());
+    const auto before = controller.palette();
     QSignalSpy paletteChanges(&controller, &ThemeController::paletteChanged);
     QSignalSpy themeReloads(&controller, &ThemeController::themeReloaded);
 
+    // The same colours, written in a different order. A theme manager that
+    // re-renders the palette for a theme whose colours happen to match leaves
+    // Omaweb nothing to see, and the kit still has to be told.
     QVERIFY(theme.open(QIODevice::WriteOnly | QIODevice::Truncate));
     theme.write(R"JSON({
-        "window": "#020202",
-        "sidebar": "#000000",
-        "overlay": "#000000",
-        "surface": "#888888",
-        "surfaceHover": "#888888",
-        "text": "#ffffff",
-        "mutedText": "#800000"
+        "sidebar": "#181818",
+        "window": "#101010",
+        "text": "#f0f0f0",
+        "surface": "#202020",
+        "mutedText": "#9a9a9a",
+        "overlay": "#181818"
     })JSON");
     theme.close();
     controller.reload();
 
+    QCOMPARE(controller.palette(), before);
     QCOMPARE(paletteChanges.count(), 0);
     QCOMPARE(themeReloads.count(), 1);
-    QCOMPARE(QColor(controller.palette().value(QStringLiteral("windowOpaque")).toString()),
-        QColor(QStringLiteral("#16151d")));
 }
 
 void ThemeControllerTest::keepsASaturatedPaletteWhenBlackCanSupplyUnnamedRoles()
