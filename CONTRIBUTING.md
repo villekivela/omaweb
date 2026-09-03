@@ -48,10 +48,9 @@ On Linux that binary is `./build/ui/omaweb-ui-lab`. Pass `--capture <path>` to
 render a frame to a PNG, which works headlessly and is the easiest way to show
 a chrome change in a pull request.
 
-`ctest --preset dev` must pass before you open a pull request. CI runs the `ci`
-preset on Arch Linux for every change. The macOS job runs on demand only,
-because macOS runners bill at ten times the minute rate, so run the tests
-locally if you are working on macOS.
+`ctest --preset dev` must pass before you open a pull request. CI then runs the
+`ci` preset on both Arch Linux and macOS, and builds the `release` preset to
+check that the embedded QML still loads.
 
 ## Things that will fail the build
 
