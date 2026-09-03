@@ -50,9 +50,8 @@ a stock Omarchy while this rule is still washing every window, so it is not the
 thing to check.
 
 Omaweb's window class is `omaweb` on both Wayland and X11 — `main()` states it
-rather than leaving Qt to derive one — so the exemption is one line at the
-bottom of `~/.config/hypr/hyprland.lua`, under the "Add any other personal
-Hyprland configuration below" comment that file already carries:
+rather than leaving Qt to derive one — so the exemption is one line in
+`~/.config/hypr/looknfeel.lua`, which is where a window's appearance belongs:
 
 ```lua
 o.window("omaweb", { tag = "-default-opacity", opacity = "1 1" })
@@ -67,9 +66,9 @@ the tag. A user override is loaded after all of that — `hyprland.lua` requires
 Omarchy's defaults before its own files — so the later `opacity = "1 1"` wins.
 Dropping the tag as well costs nothing and is what the defaults do.
 
-The rule is appearance, so `~/.config/hypr/looknfeel.lua` is the tidier home
-for it if `o` is in scope there; the bottom of `hyprland.lua` is the one the
-file itself demonstrates.
+The bottom of `~/.config/hypr/hyprland.lua` works as well, under the "Add any
+other personal Hyprland configuration below" comment it already carries. Either
+is loaded after Omarchy's defaults, which is all the rule needs.
 
 This is a rule the reader adds, not one Omaweb installs. Omaweb writes into
 `~/.config/omarchy/themed/` because that is a template directory a program is
