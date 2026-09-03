@@ -2,7 +2,7 @@
 
 ## Product
 
-Omaweb is a keyboard-driven browser for developers. The Qt build must become a macOS daily driver before the same browser contract moves to Linux with first-class Wayland support. The main application window is frameless, uses vertical tabs, and has transparent browser-owned surfaces.
+Omaweb is a keyboard-driven browser for developers. Linux with first-class Wayland support is its distribution platform. The Qt build may run on macOS for development and testing, but Omaweb does not distribute macOS builds. The main application window is frameless, uses vertical tabs, and has transparent browser-owned surfaces.
 
 QtWebEngine is the Development engine. Ladybird is the Target engine. They ship as separate application build variants and share Omaweb's browser model, interface, settings, and engine-contract tests. The Qt build may satisfy a capability before Ladybird; the Ladybird build reports the gap and remains experimental rather than imitating behavior it cannot provide.
 
@@ -121,8 +121,9 @@ The default page commands include:
 
 ## Distribution
 
-- The first daily-driver package is a signed and notarized macOS application. Omaweb registers HTTP and HTTPS handling and changes the default browser only through an explicit command.
-- Omaweb checks a signed update manifest once per day and on manual request. Settings can disable automatic checks, every request is documented, and installation requires approval.
+- The first daily-driver package is a native Arch package for Linux and Wayland. Linux default-browser integration registers HTTP and HTTPS handling and changes the default browser only through an explicit command.
+- Release and update delivery belongs to the Linux package. Omaweb does not ship an application-level updater.
+- macOS application bundles are development and test artifacts. Omaweb does not sign, notarize, publish, or qualify them for end-user distribution.
 - Open-codec audio and video, camera, microphone, and screen sharing belong to the daily-driver contract. DRM streaming and proprietary codecs remain unsupported until their distribution rights are resolved.
 - Omaweb follows operating-system proxy settings and trust stores. It may report detected state and document launch-time development overrides, but it stores no proxy credentials and owns no certificate-authority database.
 
@@ -153,5 +154,5 @@ Omaweb does not claim full uBlock Origin compatibility. Procedural selectors, re
 - Translation, Reader mode, browser-owned screenshots, View source, or spellchecking
 - DRM streaming and proprietary media codecs before distribution review
 - USB, Bluetooth, serial, or MIDI permissions
-- Mac App Store distribution
+- macOS distribution
 - AppImage or Flatpak packaging

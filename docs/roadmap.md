@@ -34,7 +34,7 @@ Tracking issue: [#52](https://github.com/villekivela/omaweb/issues/52)
 - PDFs drawn in the engine's sandboxed viewer, downloaded and reported where there is none
 - Every operation reporting an engine or desktop that cannot carry it out
 
-## Complete the Qt daily driver
+## Complete the Qt browser contract
 
 Tracking issue: [#50](https://github.com/villekivela/omaweb/issues/50)
 
@@ -42,7 +42,7 @@ Tracking issue: [#50](https://github.com/villekivela/omaweb/issues/50)
 - History sheet, configurable search engines, local-file opening, and browsing-data controls
 - Tab reordering, duplication, bulk closing, retained closed-tab stacks, and Keep active for selected Pinned tabs
 - Site information, certificate handling, third-party-cookie policy, safer downloads, and sandbox health
-- Native notifications, external-protocol confirmation, default-browser registration, signed updates, and a signed notarized macOS package
+- Native notifications and external-protocol confirmation
 - Research and implement engine-neutral phishing and malware URL reputation before public daily-driver status
 
 ## Linux and Wayland
@@ -52,7 +52,11 @@ Tracking issue: [#8](https://github.com/villekivela/omaweb/issues/8)
 - Validate the completed browser contract under native Wayland on Omarchy and Hyprland
 - Ship an Arch `PKGBUILD` using system Qt packages
 - Add compositor-specific blur with transparent and opaque fallbacks
+- Add Linux default-browser integration and release delivery through the native package
 - Run Linux accessibility, IME, packaging, sandbox, and default-browser tests
+
+macOS remains a development and CI platform. Omaweb does not distribute macOS
+builds.
 
 ## Ladybird adapter
 

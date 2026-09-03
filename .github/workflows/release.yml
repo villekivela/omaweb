@@ -5,9 +5,9 @@ name: Release
 #
 #   git tag v0.2.0 && git push origin v0.2.0
 #
-# This publishes notes only. It attaches no binaries, because a distributed
-# build needs the full notice inventory described in THIRD_PARTY_NOTICES.md,
-# and a macOS build needs signing and notarisation on top of that.
+# This publishes notes only. A distributed Linux build needs the full notice
+# inventory described in THIRD_PARTY_NOTICES.md. macOS bundles are development
+# artifacts and are not attached to releases.
 
 on:
   push:
