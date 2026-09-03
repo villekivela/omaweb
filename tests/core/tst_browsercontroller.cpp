@@ -1958,34 +1958,53 @@ void BrowserControllerTest::endsThirdPartyCookieAllowancesWithTheirSpaceAndPriva
     QVERIFY(reopened->thirdPartyCookieAllowances().isEmpty());
 }
 
-// What Site information shows for stored data. It is the Space's own, measured
-// where the engine keeps it, and it is not guessed at for a Space that has
-// nothing there.
+// What Site information shows for stored data. It is the Space's own, it is
+// measured where the engine says it keeps it, and it counts only what the
+// clearing action can actually take — a number the action cannot move would be
+// worse than none.
 void BrowserControllerTest::measuresTheSiteDataHeldForOneSpace()
 {
+    const QStringList named{QStringLiteral("Cookies"), QStringLiteral("Local Storage"),
+        QStringLiteral("cache")};
     QTemporaryDir root;
     BrowserController controller(root.path(), QStringLiteral("test"));
     const auto spaceId = controller.activeSpaceId();
     const auto profilePath = controller.profilePathForSpace(spaceId);
     QVERIFY(!profilePath.isEmpty());
 
-    // A Space nobody has browsed in measures nothing, which is a measurement
-    // rather than an unknown: the directory is there and it is empty.
-    QCOMPARE(controller.siteDataBytes(spaceId), 0);
+    // A Space that has kept none of it measures nothing, which is a
+    // measurement rather than an unknown.
+    QCOMPARE(controller.siteDataBytes(spaceId, named), 0);
 
-    QVERIFY(QDir().mkpath(QDir(profilePath).filePath(QStringLiteral("Local Storage"))));
-    QFile stored(QDir(profilePath).filePath(QStringLiteral("Local Storage/leveldb.log")));
+    const QDir profile(profilePath);
+    QVERIFY(QDir().mkpath(profile.filePath(QStringLiteral("Local Storage/leveldb"))));
+    QFile stored(profile.filePath(QStringLiteral("Local Storage/leveldb/000003.log")));
     QVERIFY(stored.open(QIODevice::WriteOnly));
-    QCOMPARE(stored.write(QByteArray(4096, 'x')), 4096);
+    QCOMPARE(stored.write(QByteArray(3000, 'x')), 3000);
     stored.close();
-    QCOMPARE(controller.siteDataBytes(spaceId), 4096);
+    // A named file counts as much as a named directory: Chromium keeps cookies
+    // in one file and storage in a tree.
+    QFile cookies(profile.filePath(QStringLiteral("Cookies")));
+    QVERIFY(cookies.open(QIODevice::WriteOnly));
+    QCOMPARE(cookies.write(QByteArray(1096, 'c')), 1096);
+    cookies.close();
+    QCOMPARE(controller.siteDataBytes(spaceId, named), 4096);
+
+    // Everything else in the profile is not site data the action can clear, so
+    // it is not counted. Reporting it would be a number nothing could move.
+    QFile elsewhere(profile.filePath(QStringLiteral("Local State")));
+    QVERIFY(elsewhere.open(QIODevice::WriteOnly));
+    QCOMPARE(elsewhere.write(QByteArray(9999, 'z')), 9999);
+    elsewhere.close();
+    QCOMPARE(controller.siteDataBytes(spaceId, named), 4096);
 
     // Another Space's data is not this one's, however much of it there is.
     const auto workSpaceId = controller.createSpace(QStringLiteral("Work"));
-    QCOMPARE(controller.siteDataBytes(workSpaceId), 0);
-    // A Space with nowhere on disk to look is an unknown rather than a zero,
-    // so Site information says it could not be measured.
-    QCOMPARE(controller.siteDataBytes(QString()), -1);
+    QCOMPARE(controller.siteDataBytes(workSpaceId, named), 0);
+    // An engine that names nothing is an engine with nothing to measure, and
+    // so is a Space with nowhere on disk to look.
+    QCOMPARE(controller.siteDataBytes(spaceId, {}), -1);
+    QCOMPARE(controller.siteDataBytes(QString(), named), -1);
 }
 
 QTEST_GUILESS_MAIN(BrowserControllerTest)

@@ -900,11 +900,13 @@ TestCase {
     // before it goes.
     function test_siteInformationClearsTheSpacesDataOnceConfirmed() {
         const engine = openPage("https://space-data.example/page")
-        // An engine that keeps a profile on disk, which the lab otherwise does
-        // not: without one there is no size to show and nothing to clear.
-        engine.persistentProfilesAvailable = true
         const sidebar = findChild(window.contentItem, "sidebar")
         const panel = findChild(window.contentItem, "siteInformationPanel")
+        // An engine that keeps a profile on disk and names what it keeps there,
+        // which the lab otherwise does not: without both there is no size to
+        // show and nothing to clear.
+        engine.persistentProfilesAvailable = true
+        sidebar.siteDataEntries = ["Cookies", "Local Storage", "cache"]
         sidebar.statusOpen = true
         tryVerify(function() { return panel.visible })
 
@@ -933,7 +935,14 @@ TestCase {
         tryVerify(function() { return !question.visible })
         compare(clear.label, "clear Space data")
 
+        // The notice says what was taken, and what this engine could not take.
+        const notice = findChild(window.contentItem, "pageNotice")
+        tryVerify(function() { return notice.showing })
+        compare(notice.message, "Cleared this Space's cookies and cache")
+        verify(notice.detail.indexOf("local storage and databases stay") !== -1)
+
         engine.persistentProfilesAvailable = false
+        sidebar.siteDataEntries = []
         sidebar.statusOpen = false
         tryVerify(function() { return !panel.visible })
     }
@@ -956,17 +965,20 @@ TestCase {
         const blocked = findChild(window.contentItem, "siteInformationBlocked")
         const siteData = findChild(window.contentItem, "siteInformationSiteData")
         const cookies = findChild(window.contentItem, "siteInformationCookies")
+        const engine = findChild(window.contentItem, "engineLoader").item
         compare(origin.text, "site-information.example")
         compare(connection.text, "· connection is encrypted")
         verify(blocked.text.indexOf("requests blocked in this window") !== -1)
         // The lab keeps nothing on disk and refuses no third party. Both gaps
         // are the adapter's own report, and both are said rather than drawn as
         // a comfortable blank.
-        compare(siteData.text, "· this engine keeps no site data on disk")
+        // Stated rather than inherited from whatever ran before: the lab keeps
+        // nothing on disk, and the panel says so instead of showing a blank.
+        engine.persistentProfilesAvailable = false
+        tryCompare(siteData, "text", "· this engine keeps no site data on disk")
         compare(cookies.text, "· third-party cookies and storage are blocked")
         // An engine that cannot refuse a third party says so here rather than
         // leaving the line reading like a promise it is not keeping.
-        const engine = findChild(window.contentItem, "engineLoader").item
         engine.thirdPartyCookieControlAvailable = false
         tryCompare(cookies, "text", "· this engine cannot refuse a third party")
         engine.thirdPartyCookieControlAvailable = true
@@ -1001,6 +1013,9 @@ TestCase {
             return findChild(window.contentItem, "siteInformationNoPermissions").visible
         })
         compare(browser.permissionDecision("https://site-information.example/", "camera"), 0)
+        const notice = findChild(window.contentItem, "pageNotice")
+        tryVerify(function() { return notice.showing })
+        compare(notice.message, "Reset every decision for site-information.example")
 
         keyClick(Qt.Key_Escape)
         tryVerify(function() { return !panel.visible })

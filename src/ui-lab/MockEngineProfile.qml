@@ -10,6 +10,11 @@ QtObject {
     property var cookieController: null
     property string cookieSpaceId: ""
     readonly property bool thirdPartyCookiesBlocked: false
+    // The lab keeps nothing on disk, so it names nothing and Site information
+    // has no size to show. A test that needs the shell stood up against an
+    // engine that does keep site data names some.
+    property var siteDataEntries: []
+    signal browsingDataCleared()
     property string downloadDirectory: ""
     property bool acceptDownloads: false
     property bool privateBrowsing: true
@@ -43,5 +48,8 @@ QtObject {
         dismissedNotifications = dismissedNotifications.concat([String(notificationId)])
     }
     function retire() { destroy() }
-    function clearBrowsingData(dataTypes, since) { browsingDataClearCount += 1 }
+    function clearBrowsingData(dataTypes, since) {
+        browsingDataClearCount += 1
+        browsingDataCleared()
+    }
 }

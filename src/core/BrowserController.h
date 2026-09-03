@@ -285,9 +285,13 @@ public:
     // its own Space.
     QStringList allowedThirdPartyCookieOrigins(const QString &spaceId) const;
     // How much site data the engine is holding for one Space, in bytes, or -1
-    // where there is nothing on disk to measure. Site information shows it only
-    // where the adapter claims a persistent profile.
-    Q_INVOKABLE double siteDataBytes(const QString &spaceId) const;
+    // where there is nothing there to measure. The engine names the files and
+    // directories its site data lives in, because their layout is Chromium's
+    // business and not the browser's; Omaweb knows only where it put the
+    // profile. Measuring the whole profile instead would report a number the
+    // clearing action cannot move.
+    Q_INVOKABLE double siteDataBytes(const QString &spaceId,
+        const QStringList &entries) const;
     Q_INVOKABLE bool externalProtocolAllowed(const QUrl &origin, const QString &scheme) const;
     Q_INVOKABLE bool rememberExternalProtocolDecision(const QUrl &origin,
         const QString &scheme);

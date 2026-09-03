@@ -104,6 +104,9 @@ ApplicationWindow {
     // changes, and read by the state below so that the state follows it. A
     // binding cannot see into an invokable on its own.
     property int certificateExceptionGeneration: 0
+    // Bumped when the engine reports it has finished clearing, so Site
+    // information re-reads a size that has actually moved.
+    property int siteDataGeneration: 0
     // What the connection to the page on show is, read off the engine drawing
     // it — and then contradicted where Omaweb knows better. An engine keeps an
     // accepted certificate for as long as its profile lives and offers no way
@@ -1180,11 +1183,18 @@ ApplicationWindow {
                 siteDataOnDisk: window.siteDataOnDisk
                 insecureContentBlocked: window.insecureContentBlocked
                 cookiePolicy: engineCookiePolicy
+                siteDataEntries: window.spaceProfileHost
+                    ? window.spaceProfileHost.siteDataEntries : []
+                siteDataGeneration: window.siteDataGeneration
                 canGoBack: engineLoader.item ? engineLoader.item.canGoBack : false
                 canGoForward: engineLoader.item ? engineLoader.item.canGoForward : false
                 useFavicons: window.useFavicons
                 tintFavicons: window.tintFavicons
                 settingsAttention: settingsSurface.needsAttention
+
+                onNoticeRequested: function(glyph, message, detail) {
+                    window.showNotice(glyph, message, detail, 4200)
+                }
 
                 // A drag is already following the pointer; easing it too
                 // would make the seam lag behind the hand holding it.
@@ -1930,6 +1940,13 @@ ApplicationWindow {
         owner: window
 
         onCreated: function(spaceId, host) { window.adoptSpaceProfile(spaceId, host) }
+    }
+
+    Connections {
+        target: window.spaceProfileHost
+        ignoreUnknownSignals: true
+
+        function onBrowsingDataCleared() { window.siteDataGeneration += 1 }
     }
 
     SiteNotifications {

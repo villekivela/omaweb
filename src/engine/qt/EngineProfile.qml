@@ -25,6 +25,23 @@ QtObject {
     property bool retired: false
     property bool downloadObserversConnected: false
     property bool notificationObserversConnected: false
+    // Where this engine keeps the site data the browser's clearing action can
+    // actually take. Chromium's layout is Chromium's business, so the engine
+    // names it and Omaweb, which knows only where it put the profile, measures
+    // it. Counting the whole profile instead would report a number the action
+    // cannot move. The cache sits beside the profile rather than inside it,
+    // which is where EngineProfile puts it.
+    readonly property var siteDataEntries: [
+        "Cookies", "Cookies-journal",
+        "Local Storage", "Session Storage", "IndexedDB", "databases",
+        "File System", "Service Worker", "Shared Storage",
+        "cache"
+    ]
+    // The engine has finished taking what it was asked to take. Site
+    // information re-reads on this rather than guessing at a delay: Chromium
+    // clears asynchronously, and a size that has not moved yet reads as an
+    // action that did nothing.
+    signal browsingDataCleared()
     readonly property var profile: privateProfile
     signal downloadStarted(string runtimeId, url sourceUrl, string path, string state,
         double receivedBytes, double totalBytes)
@@ -72,6 +89,7 @@ QtObject {
             privateProfile.clearHttpCache()
         if (dataTypes.indexOf("history") >= 0)
             privateProfile.clearAllVisitedLinks()
+        root.browsingDataCleared()
     }
 
     property Component downloadObserver: Component {
@@ -154,6 +172,10 @@ QtObject {
             root.notificationPresented(notificationId, notification.origin,
                 notification.title, notification.message)
         }
+
+        // Chromium reports the cache removal separately because it finishes
+        // separately, and it is the largest part of what was taken.
+        onClearHttpCacheCompleted: root.browsingDataCleared()
 
         onDownloadRequested: function(download) {
             if (!root.acceptDownloads) return

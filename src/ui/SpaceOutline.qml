@@ -46,11 +46,15 @@ Rectangle {
     // The engine's third-party filter, which is the only thing that knows
     // which embedded origins a page has actually had refused.
     property var cookiePolicy: null
+    property var siteDataEntries: []
+    property int siteDataGeneration: 0
     readonly property bool secure: root.connectionState === "secure"
     readonly property bool certificateError: root.connectionState === "certificate-error"
     readonly property bool blank: String(activeUrl).length === 0 || String(activeUrl) === "about:blank"
 
     signal addressRequested()
+    // What Site information just did, on its way to the window's notice.
+    signal noticeRequested(string glyph, string message, string detail)
     signal tabActivated(string tabId)
     signal tabCloseRequested(string tabId)
     signal tabMuteToggled(string tabId)
@@ -735,6 +739,12 @@ Rectangle {
         siteDataOnDisk: root.siteDataOnDisk
         insecureContentBlocked: root.insecureContentBlocked
         blockedRequestCount: root.blockedRequestCount
+        siteDataEntries: root.siteDataEntries
+        siteDataGeneration: root.siteDataGeneration
         open: root.statusOpen
+
+        onNoticeRequested: function(glyph, message, detail) {
+            root.noticeRequested(glyph, message, detail)
+        }
     }
 }

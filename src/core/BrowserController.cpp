@@ -1933,18 +1933,32 @@ QStringList BrowserController::allowedThirdPartyCookieOrigins(const QString &spa
     return m_sessionSiteState->allowedThirdPartyCookieOrigins(spaceId);
 }
 
-double BrowserController::siteDataBytes(const QString &spaceId) const
+double BrowserController::siteDataBytes(const QString &spaceId,
+    const QStringList &entries) const
 {
     const auto path = profilePathForSpace(spaceId);
-    if (path.isEmpty() || !QFileInfo::exists(path)) {
+    if (path.isEmpty() || entries.isEmpty() || !QFileInfo::exists(path)) {
         return -1;
     }
+    const QDir profile(path);
     double bytes = 0;
-    QDirIterator files(path, QDir::Files | QDir::Hidden | QDir::NoDotAndDotDot,
-        QDirIterator::Subdirectories);
-    while (files.hasNext()) {
-        files.next();
-        bytes += double(files.fileInfo().size());
+    for (const auto &entry : entries) {
+        const QFileInfo named(profile.filePath(entry));
+        if (!named.exists()) {
+            continue;
+        }
+        // Chromium keeps cookies in one file and storage in a tree, so an
+        // engine may name either.
+        if (named.isFile()) {
+            bytes += double(named.size());
+            continue;
+        }
+        QDirIterator files(named.absoluteFilePath(),
+            QDir::Files | QDir::Hidden | QDir::NoDotAndDotDot, QDirIterator::Subdirectories);
+        while (files.hasNext()) {
+            files.next();
+            bytes += double(files.fileInfo().size());
+        }
     }
     return bytes;
 }

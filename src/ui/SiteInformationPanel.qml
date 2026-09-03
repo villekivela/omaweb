@@ -27,6 +27,17 @@ Rectangle {
     property bool insecureContentBlocked: true
     property int blockedRequestCount: 0
     property bool open: false
+    // The files and directories the engine says its site data lives in, and a
+    // count the window bumps when the engine reports it has finished clearing.
+    // Chromium clears asynchronously, so a size read straight after the press
+    // has not moved yet and reads as an action that did nothing.
+    property var siteDataEntries: []
+    property int siteDataGeneration: 0
+
+    // What the panel just did, on its way to the notice that says so. An
+    // irreversible action that reports nothing is one the reader cannot tell
+    // from a button that does not work.
+    signal noticeRequested(string glyph, string message, string detail)
 
     // The decisions the core stores, named here so nothing in this file
     // compares against a bare number.
@@ -96,12 +107,14 @@ Rectangle {
         root.cookieAllowanceRows = root.browser.thirdPartyCookieAllowances()
         root.refusedThirdParties = root.cookiePolicy
             ? root.cookiePolicy.refusedOrigins(root.activeUrl) : []
-        root.siteDataBytes = root.siteDataOnDisk && root.browser.activeSpaceId.length > 0
-            ? root.browser.siteDataBytes(root.browser.activeSpaceId) : -1
+        root.siteDataBytes = root.siteDataOnDisk
+            ? root.browser.siteDataBytes(root.browser.activeSpaceId, root.siteDataEntries)
+            : -1
         root.resetPending = ""
     }
 
     onOpenChanged: if (root.open) root.refreshSiteInformation()
+    onSiteDataGenerationChanged: if (root.open) root.refreshSiteInformation()
 
     visible: root.open
     height: statusColumn.implicitHeight + 20
@@ -354,8 +367,20 @@ Rectangle {
                         root.resetPending = "site-data"
                         return
                     }
-                    root.browser.clearBrowsingData(["cookies", "storage", "cache"], 0)
+                    const cleared = root.browser.clearBrowsingData(
+                        ["cookies", "storage", "cache"], 0)
                     root.refreshSiteInformation()
+                    // Named for what the engine can actually take. Local
+                    // storage and IndexedDB have no removal at this engine
+                    // boundary, and saying so is the difference between an
+                    // action that fell short and one that lied.
+                    root.noticeRequested(cleared ? "delete_sweep" : "block",
+                        cleared
+                            ? "Cleared this Space's cookies and cache"
+                            : "Could not clear this Space's site data",
+                        cleared
+                            ? "local storage and databases stay: this engine has no way to remove them"
+                            : "")
                 }
             }
 
@@ -371,8 +396,13 @@ Rectangle {
                         root.resetPending = "permissions"
                         return
                     }
-                    root.browser.resetSitePermissions(root.activeUrl)
+                    const reset = root.browser.resetSitePermissions(root.activeUrl)
                     root.refreshSiteInformation()
+                    root.noticeRequested(reset ? "shield_person" : "block",
+                        reset
+                            ? "Reset every decision for " + root.originLabel
+                            : "Could not reset the decisions for " + root.originLabel,
+                        reset ? "asked again the next time it wants one" : "")
                 }
             }
         }
