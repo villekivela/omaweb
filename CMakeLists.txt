@@ -431,6 +431,12 @@ if(BUILD_TESTING)
             COMMAND ${Python3_EXECUTABLE}
                 ${CMAKE_CURRENT_SOURCE_DIR}/tests/scripts/tst_omarchy_drift.py
         )
+        # The release notes group Conventional Commit subjects, and a grouping
+        # that drops the scoped half still produces notes that read as whole.
+        add_test(NAME omaweb-release-notes
+            COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/tests/scripts/tst_release_notes.py
+        )
     endif()
 
     qt_add_executable(omaweb-core-tests tests/core/tst_browsercontroller.cpp)
