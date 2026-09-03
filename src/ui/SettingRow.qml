@@ -35,8 +35,7 @@ Item {
         anchors.top: parent.top
         height: Style.spacing.hairline
         visible: root.separated
-        color: root.colors.border
-        opacity: 0.5
+        color: root.colors.separator
     }
 
     Text {
