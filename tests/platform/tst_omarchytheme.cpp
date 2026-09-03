@@ -234,6 +234,9 @@ void OmarchyThemeTest::readsTheDirectoriesTheDesktopStandardNames()
     QVERIFY(bare.userTemplate().endsWith(QStringLiteral("/themed/omaweb.json.tpl")));
 }
 
-QTEST_MAIN(OmarchyThemeTest)
+// Following the desktop's theme is files and one detached process, so this
+// suite needs no window server -- and must not ask for one, or it aborts on a
+// headless Linux runner where no platform plugin can load.
+QTEST_GUILESS_MAIN(OmarchyThemeTest)
 
 #include "tst_omarchytheme.moc"
