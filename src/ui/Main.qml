@@ -1202,6 +1202,8 @@ ApplicationWindow {
                     window.showNotice(glyph, message, detail, 4200)
                 }
 
+                onSiteStorageClearRequested: engineLoader.clearPageSiteData()
+
                 // A drag is already following the pointer; easing it too
                 // would make the seam lag behind the hand holding it.
                 Behavior on Layout.preferredWidth {
@@ -1363,6 +1365,26 @@ ApplicationWindow {
 
                     onCertificateErrorRaised: function(engine, requestId, failure) {
                         window.showCertificateError(engine, requestId, failure)
+                    }
+
+                    // What the page managed to empty of its own storage. A page
+                    // that held nothing says so rather than reporting a success
+                    // the reader would read as having taken something.
+                    onPageSiteDataCleared: function(origin, cleared, error) {
+                        if (error.length > 0) {
+                            window.showNotice("block",
+                                "Could not empty " + origin + "'s storage", error, 4200)
+                            return
+                        }
+                        if (cleared.length === 0) {
+                            window.showNotice("delete_sweep",
+                                origin + " had nothing stored", "", 3000)
+                            return
+                        }
+                        window.showNotice("delete_sweep",
+                            "Emptied " + origin + "'s storage",
+                            cleared.join(", ") + " · cookies are cleared for the whole Space",
+                            4200)
                     }
 
                     onBrowserPromptRequested: function(engine, requestId, prompt) {

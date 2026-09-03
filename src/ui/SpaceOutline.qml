@@ -57,6 +57,7 @@ Rectangle {
     signal addressRequested()
     // What Site information just did, on its way to the window's notice.
     signal noticeRequested(string glyph, string message, string detail)
+    signal siteStorageClearRequested()
     signal tabActivated(string tabId)
     signal tabCloseRequested(string tabId)
     signal tabMuteToggled(string tabId)
@@ -750,5 +751,7 @@ Rectangle {
         onNoticeRequested: function(glyph, message, detail) {
             root.noticeRequested(glyph, message, detail)
         }
+
+        onSiteStorageClearRequested: root.siteStorageClearRequested()
     }
 }

@@ -895,6 +895,64 @@ TestCase {
         tryVerify(function() { return !panel.visible })
     }
 
+    // The only clearing that is about the site the panel is headed by. The
+    // engine exposes no per-origin removal, so the page is asked to empty its
+    // own storage and reports what it managed to take.
+    function test_siteInformationEmptiesOneSitesStorageThroughItsPage() {
+        const engine = openPage("https://site-storage.example/app")
+        const sidebar = findChild(window.contentItem, "sidebar")
+        const panel = findChild(window.contentItem, "siteInformationPanel")
+        sidebar.statusOpen = true
+        tryVerify(function() { return panel.visible })
+
+        const clear = findChild(window.contentItem, "clearSiteStorage")
+        const question = findChild(window.contentItem, "siteInformationResetQuestion")
+        verify(clear !== null)
+        verify(clear.enabled)
+        compare(clear.label, "clear this site")
+
+        // The first press only asks, and names the origin and the scope.
+        settleActions(clear)
+        mouseClick(clear, clear.width / 2, clear.height / 2)
+        tryVerify(function() { return question.visible })
+        compare(question.text,
+            "empty site-storage.example's storage, databases and service workers?")
+        compare(engine.pageSiteDataClearCount, 0)
+
+        mouseClick(clear, clear.width / 2, clear.height / 2)
+        tryVerify(function() { return engine.pageSiteDataClearCount === 1 })
+        const notice = findChild(window.contentItem, "pageNotice")
+        tryVerify(function() { return notice.showing })
+        compare(notice.message, "Emptied site-storage.example's storage")
+        verify(notice.detail.indexOf("local storage, databases") !== -1)
+        // Cookies are not reachable from inside a page, so the notice says
+        // where they are taken instead of leaving the reader to assume.
+        verify(notice.detail.indexOf("cookies are cleared for the whole Space") !== -1)
+
+        // A page holding nothing says so rather than reporting a success the
+        // reader would read as having taken something.
+        engine.pageSiteData = []
+        mouseClick(clear, clear.width / 2, clear.height / 2)
+        tryVerify(function() { return question.visible })
+        mouseClick(clear, clear.width / 2, clear.height / 2)
+        tryVerify(function() { return notice.message === "site-storage.example had nothing stored" })
+
+        // And a page that cannot answer is not reported as one that did.
+        engine.pageSiteDataRefusal = "databases could not be emptied"
+        mouseClick(clear, clear.width / 2, clear.height / 2)
+        tryVerify(function() { return question.visible })
+        mouseClick(clear, clear.width / 2, clear.height / 2)
+        tryVerify(function() {
+            return notice.message === "Could not empty site-storage.example's storage"
+        })
+        compare(notice.detail, "databases could not be emptied")
+
+        engine.pageSiteDataRefusal = ""
+        engine.pageSiteData = ["local storage", "databases"]
+        sidebar.statusOpen = false
+        tryVerify(function() { return !panel.visible })
+    }
+
     // Clearing site data is the Space's, because the engine cannot clear one
     // site's storage on its own. The panel says which scope is going, and asks
     // before it goes.
@@ -923,8 +981,7 @@ TestCase {
         verify(!retained.visible)
         panel.retainedDataBytes = 900 * 1024 * 1024
         tryVerify(function() { return retained.visible })
-        compare(retained.text,
-            "· 900 MB of storage and databases this engine cannot clear")
+        compare(retained.text, "· 900 MB of storage and databases, one site at a time")
 
         // An engine that cannot take everything it is asked for.
         window.spaceProfileHost.untouchedCategories = ["storage"]
@@ -941,7 +998,7 @@ TestCase {
         // The question names the scope, so the reader is not told "site" and
         // given "Space".
         compare(question.text,
-            "clear the cookies, storage and cache of every site in this Space?")
+            "clear the cookies and cache of every site in this Space?")
         compare(clear.label, "confirm clear")
 
         mouseClick(clear, clear.width / 2, clear.height / 2)

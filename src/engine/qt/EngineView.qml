@@ -175,6 +175,9 @@ Item {
     readonly property bool insecureContentBlocked:
         !webView.settings.allowRunningInsecureContent
     signal certificateErrorRaised(string requestId, var failure)
+    // The origin whose data was asked for, what the page managed to empty, and
+    // why it could not — one of the three is always the useful one.
+    signal pageSiteDataCleared(string origin, var cleared, string error)
     property var pendingCertificateErrors: ({})
     property int nextCertificateErrorId: 0
     // The failures Chromium never offers an override for, whatever else it
@@ -198,6 +201,61 @@ Item {
     // The reader's answer to one failure. Accepting it lets this load through
     // and nothing else: Chromium is told about this certificate for this host,
     // and the adapter keeps saying the connection is in error.
+    // A page emptying its own storage, which is the only per-origin removal
+    // there is: engines expose none at the embedding boundary, and everything
+    // here is reachable from inside the document. Cookies are not — the ones
+    // that matter are unreadable from script — so they stay the Space-wide
+    // action's to take.
+    //
+    // The work is asynchronous and `runJavaScript` does not wait for a promise,
+    // so the page reports back through the console the way the rest of this
+    // adapter's page reports do.
+    function clearPageSiteData() {
+        const address = String(webView.url)
+        if (address.length === 0 || address.startsWith("about:")) {
+            root.pageSiteDataCleared("", [], "there is no page to clear")
+            return
+        }
+        webView.runJavaScript(`(async () => {
+            const cleared = [];
+            const refused = [];
+            const attempt = async (name, work) => {
+                try { if (await work()) cleared.push(name) }
+                catch (error) { refused.push(name) }
+            };
+            await attempt("local storage", () => {
+                const had = localStorage.length > 0 || sessionStorage.length > 0;
+                localStorage.clear();
+                sessionStorage.clear();
+                return had;
+            });
+            await attempt("databases", async () => {
+                if (!indexedDB.databases) throw new Error("no database listing");
+                const named = await indexedDB.databases();
+                await Promise.all(named.map(one => new Promise(done => {
+                    const request = indexedDB.deleteDatabase(one.name);
+                    request.onsuccess = request.onerror = request.onblocked = done;
+                })));
+                return named.length > 0;
+            });
+            await attempt("caches", async () => {
+                if (!window.caches) return false;
+                const keys = await caches.keys();
+                await Promise.all(keys.map(key => caches.delete(key)));
+                return keys.length > 0;
+            });
+            await attempt("service workers", async () => {
+                if (!navigator.serviceWorker) return false;
+                const registered = await navigator.serviceWorker.getRegistrations();
+                await Promise.all(registered.map(one => one.unregister()));
+                return registered.length > 0;
+            });
+            console.info('__omaweb_site_data_cleared__' + JSON.stringify({
+                origin: location.origin, cleared: cleared, refused: refused
+            }));
+        })()`)
+    }
+
     function respondToCertificateError(requestId, accepted) {
         const error = root.pendingCertificateErrors[requestId]
         if (!error) return
@@ -1340,7 +1398,17 @@ Item {
         }
 
         onJavaScriptConsoleMessage: function(level, message, lineNumber, sourceId) {
-            if (message.startsWith("__omaweb_external_protocol__")) {
+            if (message.startsWith("__omaweb_site_data_cleared__")) {
+                try {
+                    const report = JSON.parse(message.substring(
+                        "__omaweb_site_data_cleared__".length))
+                    root.pageSiteDataCleared(String(report.origin), report.cleared,
+                        report.refused.length > 0
+                            ? report.refused.join(" and ") + " could not be emptied" : "")
+                } catch (error) {
+                    root.pageSiteDataCleared("", [], "the page did not answer")
+                }
+            } else if (message.startsWith("__omaweb_external_protocol__")) {
                 try {
                     const report = JSON.parse(message.substring(
                         "__omaweb_external_protocol__".length))

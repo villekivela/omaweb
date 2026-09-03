@@ -48,6 +48,7 @@ Item {
     signal backgroundTabRequested(url requestedUrl)
     signal sitePermissionRequested(var engine, string requestId, string origin, string permission)
     signal certificateErrorRaised(var engine, string requestId, var failure)
+    signal pageSiteDataCleared(string origin, var cleared, string error)
     signal pageContextRequested(var engine, var context)
     signal browserPromptRequested(var engine, string requestId, var prompt)
     signal fileSelectionRequested(var engine, string requestId, var selection)
@@ -180,6 +181,12 @@ Item {
 
     // An origin's decisions are the browser's to keep, so the engine's own
     // record of them is dropped when the reader takes them back.
+    // The page empties its own storage, which is the only removal that is
+    // about one origin rather than a whole Space.
+    function clearPageSiteData() {
+        if (root.activeEngine) root.activeEngine.clearPageSiteData()
+    }
+
     function resetOriginPermissions(spaceId, origin) {
         const host = root.spaceProfiles.hostFor(spaceId)
         if (host) host.resetOriginPermissions(origin)
@@ -579,6 +586,12 @@ Item {
 
                 function onCertificateErrorRaised(requestId, failure) {
                     root.certificateErrorRaised(tabSlot.engine, requestId, failure)
+                }
+
+                function onPageSiteDataCleared(origin, cleared, error) {
+                    // Only the page the reader asked about answers to them.
+                    if (tabSlot.engine !== root.activeEngine) return
+                    root.pageSiteDataCleared(origin, cleared, error)
                 }
 
                 function onBrowserPromptRequested(requestId, prompt) {

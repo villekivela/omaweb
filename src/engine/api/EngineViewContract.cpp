@@ -100,6 +100,11 @@ QStringList validateEngineViewContract(const QObject &adapter)
         // engine's own facts — overridable, main frame, fatal — and waits;
         // deciding what may be offered for them is the shell's.
         {"respondToCertificateError", false, 2},
+        // One origin's own site data, cleared from inside its page. Engines
+        // expose no per-origin removal at their embedding boundary, but a page
+        // can empty its own storage, so the ask goes to the page and the
+        // answer says what it managed to empty.
+        {"clearPageSiteData", false, 0},
         {"respondToFileSelection", false, 2},
         {"performPageContextAction", false, 2},
         {"developerToolsClosed", true, 0},
@@ -107,6 +112,7 @@ QStringList validateEngineViewContract(const QObject &adapter)
         {"pageContextRequested", true, 1},
         {"browserPromptRequested", true, 2},
         {"certificateErrorRaised", true, 2},
+        {"pageSiteDataCleared", true, 3, QMetaType::QString},
         {"fileSelectionRequested", true, 2},
         {"rendererFailed", true, 1, QMetaType::QString},
         {"newTabRequested", true, 2},

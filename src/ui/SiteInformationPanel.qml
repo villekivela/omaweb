@@ -44,6 +44,10 @@ Rectangle {
     // irreversible action that reports nothing is one the reader cannot tell
     // from a button that does not work.
     signal noticeRequested(string glyph, string message, string detail)
+    // One origin's own storage, emptied from inside its page. The engine
+    // exposes no per-origin removal, so this is the only clearing that is
+    // actually about the site the panel is headed by.
+    signal siteStorageClearRequested()
 
     // The decisions the core stores, named here so nothing in this file
     // compares against a bare number.
@@ -220,14 +224,15 @@ Rectangle {
         }
 
         // The rest of what the Space is holding. It is the larger half on a
-        // machine that has been browsing for a while, and no action here can
-        // move it, so it is said plainly instead of being counted above.
+        // machine that has been browsing for a while, and the Space-wide
+        // clearing cannot take any of it — only a page can empty its own — so
+        // it is said plainly rather than counted into the size above.
         Text {
             objectName: "siteInformationRetainedData"
             width: parent.width
             visible: root.siteDataOnDisk && root.retainedDataBytes > 0
             text: "· " + root.formatBytes(root.retainedDataBytes)
-                + " of storage and databases this engine cannot clear"
+                + " of storage and databases, one site at a time"
             color: root.colors.mutedText
             wrapMode: Text.WordWrap
             font.family: Style.font.family
@@ -371,18 +376,46 @@ Rectangle {
             objectName: "siteInformationResetQuestion"
             width: parent.width
             visible: root.resetPending.length > 0
-            text: root.resetPending === "site-data"
-                ? "clear the cookies, storage and cache of every site in this Space?"
-                : "reset every decision made for " + root.originLabel + "?"
+            text: {
+                switch (root.resetPending) {
+                case "site-storage":
+                    return "empty " + root.originLabel
+                        + "'s storage, databases and service workers?"
+                case "site-data":
+                    return "clear the cookies and cache of every site in this Space?"
+                default:
+                    return "reset every decision made for " + root.originLabel + "?"
+                }
+            }
             color: root.colors.text
             wrapMode: Text.WordWrap
             font.family: Style.font.family
             font.pixelSize: Style.font.caption
         }
 
-        Row {
+        // Three scopes, and each one says which it is before it happens. They
+        // wrap rather than share a row: the panel is narrow, and a press meant
+        // for one of these must not be able to land on another.
+        Flow {
             width: parent.width
             spacing: 6
+
+            ActionButton {
+                objectName: "clearSiteStorage"
+                colors: root.colors
+                label: root.resetPending === "site-storage"
+                    ? "confirm empty" : "clear this site"
+                primary: root.resetPending === "site-storage"
+                enabled: !root.blank
+                onClicked: {
+                    if (root.resetPending !== "site-storage") {
+                        root.resetPending = "site-storage"
+                        return
+                    }
+                    root.resetPending = ""
+                    root.siteStorageClearRequested()
+                }
+            }
 
             ActionButton {
                 objectName: "clearSiteData"

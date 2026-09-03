@@ -104,6 +104,7 @@ private slots:
     void qtNamesEveryPermissionTheShellHasAPolicyFor();
     void qtAsksTheShellAboutEveryPermissionRequest();
     void qtEmptiesTheCacheItWasAskedToClear();
+    void qtEmptiesOneOriginsStorageFromInsideItsPage();
 };
 
 namespace {
@@ -2900,6 +2901,81 @@ void QtEngineContractTest::qtEmptiesTheCacheItWasAskedToClear()
     for (const auto &entry : takes) {
         QVERIFY2(!keeps.contains(entry), qPrintable(entry));
     }
+}
+
+// The only per-origin removal there is. Engines expose none at their embedding
+// boundary, so the ask goes to the page: everything a site keeps for itself is
+// reachable from inside its own document.
+void QtEngineContractTest::qtEmptiesOneOriginsStorageFromInsideItsPage()
+{
+    PageServer server(R"HTML(<!doctype html><html><body><title>storing</title>
+        <script>
+            // Counting only, so asking again never recreates what was cleared.
+            const count = async () => {
+                const named = indexedDB.databases ? await indexedDB.databases() : [];
+                document.title = "stored:" + localStorage.length + ":" + named.length;
+            };
+            localStorage.setItem("login", "kept");
+            const request = indexedDB.open("kept", 1);
+            request.onupgradeneeded = () => request.result.createObjectStore("rows");
+            request.onsuccess = () => { request.result.close(); count(); };
+            addEventListener("hashchange", count);
+        </script>
+    </body></html>)HTML");
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+    const auto address = QStringLiteral("http://127.0.0.1:%1/page.html").arg(server.serverPort());
+
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    QQmlEngine engine;
+    QQmlComponent profileComponent(&engine, QUrl::fromLocalFile(
+        QStringLiteral(OMAWEB_QT_ENGINE_PROFILE_PATH)));
+    const std::unique_ptr<QObject> host(profileComponent.createWithInitialProperties({
+        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("space"))},
+        {QStringLiteral("privateBrowsing"), false},
+    }));
+    QVERIFY2(host, qPrintable(profileComponent.errorString()));
+
+    QQmlComponent viewComponent(&engine, QUrl::fromLocalFile(
+        QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    const std::unique_ptr<QObject> adapter(viewComponent.createWithInitialProperties({
+        {QStringLiteral("sharedProfile"), host->property("profile")},
+    }));
+    QVERIFY2(adapter, qPrintable(viewComponent.errorString()));
+    QQuickWindow window;
+    window.resize(640, 480);
+    auto *view = qobject_cast<QQuickItem *>(adapter.get());
+    QVERIFY(view);
+    view->setParentItem(window.contentItem());
+    view->setSize(QSizeF(640, 480));
+    window.show();
+
+    QSignalSpy report(adapter.get(), SIGNAL(pageSiteDataCleared(QString,QVariant,QString)));
+    QVERIFY(report.isValid());
+
+    // A page with nothing to clear is answered rather than left waiting.
+    QVERIFY(QMetaObject::invokeMethod(adapter.get(), "clearPageSiteData"));
+    QCOMPARE(report.count(), 1);
+    QVERIFY(!report.takeFirst().at(2).toString().isEmpty());
+
+    QVERIFY(adapter->setProperty("currentUrl", QUrl(address)));
+    QTRY_COMPARE_WITH_TIMEOUT(adapter->property("pageTitle").toString(),
+        QStringLiteral("stored:1:1"), 20000);
+
+    QVERIFY(QMetaObject::invokeMethod(adapter.get(), "clearPageSiteData"));
+    QTRY_VERIFY_WITH_TIMEOUT(report.count() > 0, 20000);
+    const auto answered = report.takeFirst();
+    QCOMPARE(answered.at(0).toString(), QStringLiteral("http://127.0.0.1:%1").arg(
+        server.serverPort()));
+    const auto cleared = answered.at(1).toStringList();
+    QVERIFY2(cleared.contains(QStringLiteral("local storage")), qPrintable(cleared.join(u',')));
+    QVERIFY2(cleared.contains(QStringLiteral("databases")), qPrintable(cleared.join(u',')));
+    QCOMPARE(answered.at(2).toString(), QString());
+
+    // The page says so itself: asking it to look again finds nothing left.
+    QVERIFY(adapter->setProperty("currentUrl", QUrl(address + QStringLiteral("#again"))));
+    QTRY_COMPARE_WITH_TIMEOUT(adapter->property("pageTitle").toString(),
+        QStringLiteral("stored:0:0"), 20000);
 }
 
 int main(int argc, char *argv[])

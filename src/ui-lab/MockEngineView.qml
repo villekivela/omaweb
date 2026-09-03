@@ -140,6 +140,23 @@ Rectangle {
     }
 
     signal certificateErrorRaised(string requestId, var failure)
+    signal pageSiteDataCleared(string origin, var cleared, string error)
+    // The lab has no storage to empty, so what a page would have reported is
+    // named. An engine whose page cannot answer reports that instead.
+    property var pageSiteData: ["local storage", "databases"]
+    property string pageSiteDataRefusal: ""
+    property int pageSiteDataClearCount: 0
+    function clearPageSiteData() {
+        const address = String(root.currentUrl)
+        if (address.length === 0 || address.startsWith("about:")) {
+            root.pageSiteDataCleared("", [], "there is no page to clear")
+            return
+        }
+        root.pageSiteDataClearCount += 1
+        root.pageSiteDataCleared(root.originLabel(root.currentUrl),
+            root.pageSiteDataRefusal.length > 0 ? [] : root.pageSiteData,
+            root.pageSiteDataRefusal)
+    }
     property var pendingCertificateErrors: ({})
     property int nextCertificateErrorId: 0
     property var certificateDecisions: ({})
