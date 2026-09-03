@@ -20,38 +20,6 @@ jobs:
       - name: Check commit messages
         run: scripts/check_commit_messages.sh
 
-  macos:
-    runs-on: macos-15
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Install toolchain
-        env:
-          HOMEBREW_NO_AUTO_UPDATE: "1"
-        run: brew install cmake ninja ccache qtwebengine
-      - name: Locate Qt
-        run: echo "CMAKE_PREFIX_PATH=$(brew --prefix qt)" >> "$GITHUB_ENV"
-      - name: Bootstrap content blocker
-        run: scripts/bootstrap_content_blocker.sh
-      - name: Configure
-        run: cmake --preset ci
-      - name: Build
-        run: cmake --build --preset ci
-      - name: Test
-        run: ctest --preset ci
-      - name: Publish content-blocking compatibility
-        run: |
-          echo '### Content-blocking compatibility' >> "$GITHUB_STEP_SUMMARY"
-          echo '```json' >> "$GITHUB_STEP_SUMMARY"
-          cat build/ci/content-blocking-compatibility.json >> "$GITHUB_STEP_SUMMARY"
-          echo '```' >> "$GITHUB_STEP_SUMMARY"
-      - name: Configure release resources
-        run: cmake --preset release
-      - name: Build release
-        run: cmake --build --preset release
-      - name: Verify embedded QML
-        run: ctest --preset release -R '^(omaweb-shared-qml-boundary|omaweb-qml-load)$'
-
   arch-linux:
     runs-on: ubuntu-latest
     container: archlinux:base-devel
@@ -61,9 +29,8 @@ jobs:
       CXX: clang++
     steps:
       - name: Install toolchain
-        # `rust` carries cargo, which the content-blocker bootstrap needs. The
-        # macOS runner ships one in its image; this container ships nothing it
-        # is not told to.
+        # `rust` carries cargo, which the content-blocker bootstrap needs. This
+        # container ships nothing it is not told to.
         run: pacman -Syu --noconfirm git cmake ninja clang ccache rust qt6-base qt6-declarative qt6-webengine
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Take the build off root

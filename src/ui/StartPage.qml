@@ -260,8 +260,7 @@ Rectangle {
                                     anchors.right: parent.right
                                     anchors.bottom: parent.bottom
                                     height: Style.spacing.hairline
-                                    color: root.colors.border
-                                    opacity: 0.5
+                                    color: root.colors.separator
                                 }
                             }
                         }

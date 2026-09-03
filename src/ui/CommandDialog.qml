@@ -138,7 +138,7 @@ Item {
                 anchors.right: parent.right
                 anchors.bottom: parent.bottom
                 height: 1
-                color: root.colors.border
+                color: root.colors.separator
             }
         }
 
@@ -295,7 +295,7 @@ Item {
                 anchors.top: parent.top
                 height: 1
                 visible: root.confirmHint.length > 0
-                color: root.colors.border
+                color: root.colors.separator
             }
 
             Text {

@@ -132,7 +132,7 @@ Item {
                         anchors.rightMargin: 14
                         anchors.verticalCenter: parent.verticalCenter
                         height: 1
-                        color: root.colors.border
+                        color: root.colors.separator
                     }
 
                     Text {

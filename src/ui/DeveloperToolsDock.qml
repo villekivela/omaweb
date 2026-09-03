@@ -37,6 +37,6 @@ Item {
         anchors.top: parent.top
         anchors.bottom: parent.bottom
         width: 1
-        color: root.colors.border
+        color: root.colors.separator
     }
 }

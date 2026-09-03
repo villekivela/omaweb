@@ -9,8 +9,118 @@
 #include <QJsonObject>
 
 #include <algorithm>
+#include <cmath>
+#include <limits>
 
 namespace omaweb {
+namespace {
+
+// WCAG relative luminance and contrast ratio. The theme palette decides
+// whether text can be read and borders can be seen on their surfaces, so the
+// calculation lives here rather than becoming a general colour utility.
+double relativeLuminance(const QColor &colour)
+{
+    const auto channel = [](double value) {
+        return value <= 0.04045 ? value / 12.92 : std::pow((value + 0.055) / 1.055, 2.4);
+    };
+    return 0.2126 * channel(colour.redF()) + 0.7152 * channel(colour.greenF())
+        + 0.0722 * channel(colour.blueF());
+}
+
+double contrastRatio(const QColor &one, const QColor &other)
+{
+    const auto first = relativeLuminance(one);
+    const auto second = relativeLuminance(other);
+    return (std::max(first, second) + 0.05) / (std::min(first, second) + 0.05);
+}
+
+QColor blended(const QColor &from, const QColor &to, double amount)
+{
+    const auto channel = [amount](int start, int end) {
+        return qRound(start + (end - start) * amount);
+    };
+    return QColor::fromRgb(channel(from.red(), to.red()), channel(from.green(), to.green()),
+        channel(from.blue(), to.blue()));
+}
+
+// The colour a role settles on: what the theme named where that already
+// reads on every surface the role is drawn on, and otherwise the nearest
+// colour that does. Some palettes have no such colour to give — nothing is
+// 3:1 against both a near-black window and a saturated sidebar — and there
+// the role takes whichever candidate reads best on the surface it reads worst
+// on. A palette is never rejected over this. A theme that cannot be repaired
+// exactly is still the theme the reader chose, and dropping every colour it
+// named to reach a floor on one role costs the reader more than the role is
+// worth: it is the difference between quiet text a shade faint and a browser
+// that has stopped following the desktop.
+QColor adjustedForContrast(const QColor &preferred, const QColor &fallback,
+    const QList<QColor> &grounds, double minimumContrast, bool preserveHue)
+{
+    const auto worstContrast = [&grounds](const QColor &candidate) {
+        auto worst = std::numeric_limits<double>::max();
+        for (const auto &ground : grounds) {
+            worst = std::min(worst, contrastRatio(candidate, ground));
+        }
+        return worst;
+    };
+    if (grounds.isEmpty() || worstContrast(preferred) >= minimumContrast) {
+        return preferred;
+    }
+
+    // Both answers are carried through the search, because which one is
+    // wanted is not known until it ends: the clearing candidate that moved
+    // least from what the theme asked for, and — for a palette where nothing
+    // clears — the one that reads best on its worst surface. How far a
+    // candidate moved is the search's own measure, so each search below hands
+    // it whatever "least moved" means for the candidates it generates.
+    auto best = preferred;
+    auto bestWorst = worstContrast(preferred);
+    QColor repaired;
+    auto repairedDistance = std::numeric_limits<double>::max();
+    const auto consider = [&](const QColor &candidate, double distance) {
+        if (!candidate.isValid()) {
+            return;
+        }
+        const auto worst = worstContrast(candidate);
+        if (worst >= minimumContrast && distance < repairedDistance) {
+            repaired = candidate;
+            repairedDistance = distance;
+        }
+        if (worst > bestWorst) {
+            bestWorst = worst;
+            best = candidate;
+        }
+    };
+
+    constexpr auto steps = 256;
+    if (preserveHue && preferred.hslSaturationF() > 0.0) {
+        for (auto step = 1; step < steps; ++step) {
+            const auto lightness = static_cast<double>(step) / steps;
+            const QColor candidate(QColor::fromHslF(
+                preferred.hslHueF(), preferred.hslSaturationF(), lightness)
+                                       .name(QColor::HexRgb));
+            consider(candidate, std::abs(lightness - preferred.lightnessF()));
+        }
+        return repaired.isValid() ? repaired : best;
+    }
+
+    // Towards the colour the role belongs with first, and only then towards
+    // black or white. The offset keeps every blend of the pair ahead of every
+    // blend of an endpoint, however far each had to travel.
+    for (auto step = 1; step <= steps; ++step) {
+        const auto amount = static_cast<double>(step) / steps;
+        consider(blended(preferred, fallback, amount), amount);
+    }
+    for (auto step = 1; step <= steps; ++step) {
+        const auto amount = static_cast<double>(step) / steps;
+        for (const auto &endpoint : {QColor(Qt::black), QColor(Qt::white)}) {
+            consider(blended(preferred, endpoint, amount), 1.0 + amount);
+        }
+    }
+    return repaired.isValid() ? repaired : best;
+}
+
+} // namespace
 
 ThemeController::ThemeController(QString themePath, QObject *parent)
     : ThemeController(QStringList{std::move(themePath)}, parent)
@@ -59,9 +169,11 @@ void ThemeController::reload()
             continue;
         }
         apply(normalizedPalette(document.object().toVariantMap()));
+        emit themeReloaded();
         return;
     }
     apply(normalizedPalette(fallbackPalette()));
+    emit themeReloaded();
 }
 
 void ThemeController::apply(QVariantMap palette)
@@ -167,6 +279,14 @@ QString ThemeController::installedFamily(const QStringList &candidates)
 
 QVariantMap ThemeController::normalizedPalette(QVariantMap palette) const
 {
+    // Asked before the defaults are filled in, because a colour Omaweb
+    // supplied is not a colour the theme asked for.
+    const auto themeNamedMutedText = palette.contains(QStringLiteral("mutedText"));
+    const auto themeNamedBorder = palette.contains(QStringLiteral("border"));
+    const auto themeNamedSeparator = palette.contains(QStringLiteral("separator"));
+    const auto themeNamedSurfaceHover = palette.contains(QStringLiteral("surfaceHover"));
+    const auto themeNamedPrivateSurfaceHover
+        = palette.contains(QStringLiteral("privateSurfaceHover"));
     const auto fallback = fallbackPalette();
     for (auto it = fallback.cbegin(); it != fallback.cend(); ++it) {
         if (!palette.contains(it.key())) {
@@ -222,6 +342,127 @@ QVariantMap ThemeController::normalizedPalette(QVariantMap palette) const
     };
     inheritSidebarColor(QStringLiteral("sheet"), QStringLiteral("sidebar"));
     inheritSidebarColor(QStringLiteral("privateSheet"), QStringLiteral("privateSidebar"));
+    inheritSidebarColor(QStringLiteral("privateOverlay"), QStringLiteral("privateSidebar"));
+    if (!themeNamedSurfaceHover) {
+        palette.insert(QStringLiteral("surfaceHover"), palette.value(QStringLiteral("surface")));
+    }
+    if (!themeNamedPrivateSurfaceHover) {
+        palette.insert(QStringLiteral("privateSurfaceHover"),
+            palette.value(QStringLiteral("privateSurface")));
+    }
+
+    // Muted text is not decoration. It is a tab's title, a Space's letters,
+    // the footer's controls — content the reader has to read, drawn quieter
+    // than the rest so the rest can lead. A palette derived from a terminal's
+    // sixteen colours has nothing to say about it: Omarchy offers
+    // `dark_foreground`, which its own templates spend on
+    // `disabledForeground`, and for a theme that names none of the extended
+    // colours that is ANSI bright black — the value Omaweb also draws its
+    // borders in. Drawn as text on the sidebar it lands below the disabled
+    // rendering of ordinary text, so everything quiet reads as unavailable and
+    // the two states the interface most needs to keep apart collapse into one.
+    //
+    // So the theme's colour is a preference and legibility is Omaweb's. The
+    // named colour changes only in lightness until it clears 4.5:1 — WCAG AA
+    // for body text — against every Omaweb surface muted text is read on. A
+    // theme whose colour already reads keeps it exactly; the rest keep their
+    // hue and lose only the part that was unreadable. A theme that names no
+    // muted text starts from the surface instead of from `text`, so what it
+    // gets is the quietest tint of its own text colour that still reads, which
+    // is dark on a light theme and light on a dark one without either being
+    // special-cased.
+    //
+    // A disabled control is `text` at 0.35 alpha, which cannot reach 3:1
+    // against the ground it is composited over, so anything clearing this
+    // floor also stays clearly ahead of disabled. One threshold does both jobs.
+    const QColor text(palette.value(QStringLiteral("text")).toString());
+    const auto coloursFor = [&palette](std::initializer_list<QString> keys) {
+        QList<QColor> colours;
+        for (const auto &key : keys) {
+            const QColor colour(palette.value(key).toString());
+            if (colour.isValid()) {
+                colours.append(colour);
+            }
+        }
+        return colours;
+    };
+    const auto grounds = coloursFor({QStringLiteral("sidebar"), QStringLiteral("surface"),
+        QStringLiteral("surfaceHover"), QStringLiteral("overlay"), QStringLiteral("sheet")});
+    const auto privateGrounds = coloursFor({QStringLiteral("privateSidebar"),
+        QStringLiteral("privateSurface"), QStringLiteral("privateSurfaceHover"),
+        QStringLiteral("privateOverlay"), QStringLiteral("privateSheet")});
+    const QColor named(palette.value(QStringLiteral("mutedText")).toString());
+    const auto hasNamedMutedText = themeNamedMutedText && named.isValid();
+    const QColor quietest(hasNamedMutedText
+            ? named
+            : QColor(palette.value(QStringLiteral("sidebar")).toString()));
+    if (text.isValid() && quietest.isValid() && !grounds.isEmpty()) {
+        constexpr auto minimumContrast = 4.5;
+        const auto resolved = adjustedForContrast(
+            quietest, text, grounds, minimumContrast, hasNamedMutedText);
+        palette.insert(QStringLiteral("mutedText"), resolved.name(QColor::HexRgb));
+
+        const QColor privateQuietest(hasNamedMutedText
+                ? named
+                : QColor(palette.value(QStringLiteral("privateSidebar")).toString()));
+        const auto privateResolved = adjustedForContrast(privateQuietest, text, privateGrounds,
+            minimumContrast, hasNamedMutedText);
+        palette.insert(
+            QStringLiteral("privateMutedText"), privateResolved.name(QColor::HexRgb));
+    }
+
+    // The grounds a border is actually drawn on, which is every Omaweb surface
+    // except a hover fill: the rules and frames this role paints sit on a
+    // surface at rest, and a control that does have an edge while the pointer
+    // is over it takes that edge from the kit's own text-and-accent spec
+    // rather than from here. Asking the role to clear a hover fill as well
+    // costs the theme its colour for nothing — a palette naming one colour for
+    // both, as the template Omarchy renders does, can never be 3:1 against
+    // itself, so the repair walked every such border up to near-white.
+    const auto borderedSurfaces = coloursFor({QStringLiteral("window"),
+        QStringLiteral("sidebar"), QStringLiteral("surface"), QStringLiteral("overlay"),
+        QStringLiteral("sheet")});
+    const auto privateBorderedSurfaces = coloursFor({QStringLiteral("privateWindow"),
+        QStringLiteral("privateSidebar"), QStringLiteral("privateSurface"),
+        QStringLiteral("privateOverlay"), QStringLiteral("privateSheet")});
+    const QColor namedBorder(palette.value(QStringLiteral("border")).toString());
+    const auto hasNamedBorder = themeNamedBorder && namedBorder.isValid();
+    const QColor faintestBorder(hasNamedBorder
+            ? namedBorder
+            : QColor(palette.value(QStringLiteral("sidebar")).toString()));
+    if (text.isValid() && faintestBorder.isValid() && !borderedSurfaces.isEmpty()) {
+        constexpr auto minimumBorderContrast = 3.0;
+        const auto resolved = adjustedForContrast(faintestBorder, text, borderedSurfaces,
+            minimumBorderContrast, hasNamedBorder);
+        palette.insert(QStringLiteral("border"), resolved.name(QColor::HexRgb));
+
+        const QColor faintestPrivateBorder(hasNamedBorder
+                ? namedBorder
+                : QColor(palette.value(QStringLiteral("privateSidebar")).toString()));
+        const auto privateResolved = adjustedForContrast(faintestPrivateBorder, text,
+            privateBorderedSurfaces, minimumBorderContrast, hasNamedBorder);
+        palette.insert(QStringLiteral("privateBorder"), privateResolved.name(QColor::HexRgb));
+    }
+
+    // A rule inside a surface is not a frame around one, and the kit does not
+    // draw them alike: its panel dividers are the foreground colour at a low
+    // alpha, while a control's edge is that colour at a much higher one. That
+    // is why the bar's separators read quieter than anything the border role
+    // can give, and Omaweb's hairlines are those same dividers — the seam
+    // down the sidebar, the rule above a browsing identity, the bands in a
+    // panel. They take the kit's grammar rather than the border colour, and
+    // the strength mirrors `strength` in
+    // third_party/omarchy-shell/qs/Ui/PanelSeparator.qml.
+    //
+    // Deliberately below every contrast floor above: a divider that clears
+    // 3:1 is a frame, and the reader ends up with a browser drawn in boxes.
+    // A theme that names its own rule colour keeps it, alpha and all.
+    if (text.isValid() && !themeNamedSeparator) {
+        constexpr auto separatorStrength = 0.12;
+        auto separator = text;
+        separator.setAlphaF(separatorStrength);
+        palette.insert(QStringLiteral("separator"), separator.name(QColor::HexArgb));
+    }
 
     // Semantic opacity is the single source of truth for how much of the desktop
     // shows through a Omaweb-owned surface, so a theme that also bakes alpha into
@@ -309,6 +550,7 @@ QVariantMap ThemeController::normalizedPalette(QVariantMap palette) const
     withOpacity(QStringLiteral("sheet"), sheetAlpha);
     withOpacity(QStringLiteral("privateSheet"), sheetAlpha);
     withOpacity(QStringLiteral("overlay"), overlayAlpha);
+    withOpacity(QStringLiteral("privateOverlay"), overlayAlpha);
     return palette;
 }
 
