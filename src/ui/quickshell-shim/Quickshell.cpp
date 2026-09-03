@@ -8,8 +8,14 @@
 
 namespace omaweb::quickshell {
 
-void installShim()
+void installShim(QQmlEngine &engine)
 {
+    // Omarchy installs the real Quickshell into Qt's own qml directory, and a
+    // module found on the import path beats C++ registration -- the engine
+    // would resolve `import Quickshell` there and then fail to load a plugin
+    // Omaweb has no use for. Prepending the shim's own qmldir files shadows it.
+    engine.addImportPath(QStringLiteral("qrc:/omaweb/quickshell-shim"));
+
     // The kit's `TextField` is a Qt Quick Controls `TextField` that replaces
     // its own `background`, and a native style refuses that customization —
     // on macOS the field silently renders as an Aqua box instead. Basic is

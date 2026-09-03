@@ -78,6 +78,12 @@ and its accessibility annotations, and `src/ui/KitTheme.cpp` drives the kit's
 `ThemeController` rather than an Omarchy theme on disk. The vendor root is on the QML
 import path in source builds and lands under `qrc:/qt/qml` in resource builds.
 
+Running on Omarchy itself means the real Quickshell is already installed in Qt's qml
+directory, where a module on the import path beats the shim's C++ registration. The
+shim ships a qmldir for each URI it claims and puts them first, and
+`omaweb-qml-load-over-quickshell` loads the whole UI with a decoy Quickshell on the
+import path so a regression fails on any host rather than only on Omarchy.
+
 ```sh
 scripts/sync_omarchy_ui.py --verify          # the local tree matches the manifest
 scripts/sync_omarchy_ui.py --check-upstream  # what changed on quattro since the pin

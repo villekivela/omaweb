@@ -1,0 +1,6 @@
+# Claims the `Quickshell` module URI for the shim's C++ types. Omarchy installs
+# the real Quickshell into Qt's own qml directory, and a module found on the
+# import path wins over C++ registration alone -- the engine would then look
+# for that module's plugin and fail. Naming no plugin here leaves the types to
+# omaweb::quickshell::installShim().
+module Quickshell

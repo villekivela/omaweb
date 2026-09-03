@@ -142,6 +142,17 @@ add_library(omaweb-quickshell-shim STATIC
 target_include_directories(omaweb-quickshell-shim PUBLIC src/ui/quickshell-shim)
 target_link_libraries(omaweb-quickshell-shim PUBLIC Qt6::Core Qt6::Qml Qt6::QuickControls2)
 set_target_properties(omaweb-quickshell-shim PROPERTIES AUTOMOC ON)
+
+# The shim's qmldir files ride in the shim's own resource, so every target that
+# links it resolves `import Quickshell` the same way whether the rest of the QML
+# comes from the source tree or from a resource.
+qt_add_resources(omaweb-quickshell-shim "omaweb_quickshell_shim_qml"
+    PREFIX "/omaweb/quickshell-shim"
+    BASE "${CMAKE_CURRENT_SOURCE_DIR}/src/ui/quickshell-shim/qml"
+    FILES
+        src/ui/quickshell-shim/qml/Quickshell/qmldir
+        src/ui/quickshell-shim/qml/Quickshell/Io/qmldir
+)
 omaweb_strict_target(omaweb-quickshell-shim)
 
 # The manifest is the single list of vendored files: the resource build, the
@@ -544,6 +555,15 @@ if(BUILD_TESTING)
     add_test(NAME omaweb-qml-load COMMAND omaweb-qml-smoke --validate-qml)
     set_tests_properties(omaweb-qml-load PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+    )
+
+    # The same load with a decoy Quickshell on the import path, which is the
+    # shape of an Omarchy host: the shim's qmldir has to win over a real module
+    # sitting in Qt's qml directory, or the kit's imports go looking for a
+    # plugin that is not there.
+    add_test(NAME omaweb-qml-load-over-quickshell COMMAND omaweb-qml-smoke --validate-qml)
+    set_tests_properties(omaweb-qml-load-over-quickshell PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QML_IMPORT_PATH=${CMAKE_CURRENT_SOURCE_DIR}/tests/qml/quickshell-decoy;QML2_IMPORT_PATH=${CMAKE_CURRENT_SOURCE_DIR}/tests/qml/quickshell-decoy"
     )
 
     if(OMAWEB_BUILD_UI_LAB)

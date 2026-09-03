@@ -24,7 +24,11 @@ does not match the manifest, and the sync script refuses to overwrite an edited 
 Three seams carry the adaptation instead; the third, `KitTheme`, arrived with 0018.
 `omaweb-quickshell-shim` registers the `Quickshell` and `Quickshell.Io` types the
 kit's singletons import — an environment lookup, a watched file, and a short-lived
-process run for its output. The kit's
+process run for its output. It also ships a qmldir for each of those URIs and puts
+them at the front of the engine's import path: Omarchy installs the real Quickshell
+into Qt's own qml directory, a module found on the import path beats C++
+registration, and the engine would otherwise resolve the kit's imports there and
+fail to load a plugin Omaweb has no use for. The kit's
 layer-shell and Hyprland surfaces stay out of scope, and so do the components that
 need them: `Panel`, `PopupCard`, `KeyboardPanel`, `MultiSelect`, `BarIconButton`,
 and `SpeedTestOverlay`. QML in `src/ui` adapts each component to Omaweb's call sites,

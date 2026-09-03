@@ -14,12 +14,15 @@
 #include <QString>
 #include <QStringList>
 
+class QQmlEngine;
+
 namespace omaweb::quickshell {
 
 // Registers the shim's types under the `Quickshell` and `Quickshell.Io` module
-// URIs, and picks the Qt Quick Controls style the kit needs. Call once per QML
+// URIs, puts the qmldir files that claim those URIs on the engine's import
+// path, and picks the Qt Quick Controls style the kit needs. Call once per QML
 // engine, before loading anything that imports the vendored kit.
-void installShim();
+void installShim(QQmlEngine &engine);
 
 // The `Quickshell` singleton: `import Quickshell` then `Quickshell.env(...)`.
 class Quickshell : public QObject {
