@@ -30,9 +30,14 @@ fi
 
 emit_section() {
     local heading="$1" pattern="$2" body
+    # The pattern reaches awk through the environment rather than -v: awk
+    # expands escape sequences in a -v assignment, so `\(` arrives as a bare
+    # `(` and the literal parentheses around a Conventional Commit scope turn
+    # into a group. Every scoped subject then fails to match while unscoped
+    # ones still pass, which is a silent hole rather than an error.
     body="$(git log --no-merges --format='%s|%h' "$range" \
-        | awk -F'|' -v pattern="$pattern" '
-            $1 ~ pattern {
+        | pattern="$pattern" awk -F'|' '
+            $1 ~ ENVIRON["pattern"] {
                 subject = $1
                 sub(/^[a-z]+(\([^)]*\))?!?: /, "", subject)
                 printf "- %s (%s)\n", subject, $2
