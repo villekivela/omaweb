@@ -60,6 +60,11 @@ o.window("omaweb", { tag = "-default-opacity", opacity = "1 1" })
 Then `hyprctl reload`. That is the same shape Omarchy's own
 `default/hypr/apps/qemu.lua` uses to opt a window out.
 
+`1 1` rather than the `1.0 0.985` Omarchy gives Chromium and Firefox in
+`apps/browser.lua`: an unfocused browser there still washes its page by 1.5%,
+and a webpage viewport that is opaque only while focused is not opaque. Omaweb's
+own surfaces carry the translucency instead, where the theme can name it.
+
 Order is what makes it work. Omarchy's defaults tag every window, let their
 `apps/*.lua` opt out, and only then apply the opacity to whatever still carries
 the tag. A user override is loaded after all of that — `hyprland.lua` requires
