@@ -14,10 +14,9 @@
 namespace omaweb {
 namespace {
 
-// WCAG relative luminance and contrast ratio. Omaweb needs them for one
-// decision — whether text can be read on the surface it is drawn on — and the
-// theme palette is the only place that decision is made, so they live here
-// rather than becoming a colour utility of their own.
+// WCAG relative luminance and contrast ratio. The theme palette decides
+// whether text can be read and borders can be seen on their surfaces, so the
+// calculation lives here rather than becoming a general colour utility.
 double relativeLuminance(const QColor &colour)
 {
     const auto channel = [](double value) {
@@ -41,6 +40,60 @@ QColor blended(const QColor &from, const QColor &to, double amount)
     };
     return QColor::fromRgb(channel(from.red(), to.red()), channel(from.green(), to.green()),
         channel(from.blue(), to.blue()));
+}
+
+QColor adjustedForContrast(const QColor &preferred, const QColor &fallback,
+    const QList<QColor> &grounds, double minimumContrast, bool preserveHue)
+{
+    const auto clears = [&grounds, minimumContrast](const QColor &candidate) {
+        return std::all_of(grounds.cbegin(), grounds.cend(),
+            [&candidate, minimumContrast](const QColor &ground) {
+                return contrastRatio(candidate, ground) >= minimumContrast;
+            });
+    };
+    if (clears(preferred)) {
+        return preferred;
+    }
+
+    constexpr auto steps = 256;
+    if (preserveHue && preferred.hslSaturationF() > 0.0) {
+        QColor closest;
+        auto closestDistance = 2.0;
+        for (auto step = 1; step < steps; ++step) {
+            const auto lightness = static_cast<double>(step) / steps;
+            const QColor candidate(QColor::fromHslF(
+                preferred.hslHueF(), preferred.hslSaturationF(), lightness)
+                                       .name(QColor::HexRgb));
+            const auto distance = std::abs(lightness - preferred.lightnessF());
+            if (distance < closestDistance && clears(candidate)) {
+                closest = candidate;
+                closestDistance = distance;
+            }
+        }
+        if (closest.isValid()) {
+            return closest;
+        }
+        return {};
+    }
+
+    for (auto step = 1; step <= steps; ++step) {
+        const auto candidate = blended(preferred, fallback, static_cast<double>(step) / steps);
+        if (clears(candidate)) {
+            return candidate;
+        }
+    }
+    const QColor black(Qt::black);
+    const QColor white(Qt::white);
+    for (auto step = 1; step <= steps; ++step) {
+        const auto amount = static_cast<double>(step) / steps;
+        for (const auto &endpoint : {black, white}) {
+            const auto candidate = blended(preferred, endpoint, amount);
+            if (clears(candidate)) {
+                return candidate;
+            }
+        }
+    }
+    return {};
 }
 
 } // namespace
@@ -203,6 +256,10 @@ QVariantMap ThemeController::normalizedPalette(QVariantMap palette) const
     // Asked before the defaults are filled in, because a colour Omaweb
     // supplied is not a colour the theme asked for.
     const auto themeNamedMutedText = palette.contains(QStringLiteral("mutedText"));
+    const auto themeNamedBorder = palette.contains(QStringLiteral("border"));
+    const auto themeNamedSurfaceHover = palette.contains(QStringLiteral("surfaceHover"));
+    const auto themeNamedPrivateSurfaceHover
+        = palette.contains(QStringLiteral("privateSurfaceHover"));
     const auto fallback = fallbackPalette();
     for (auto it = fallback.cbegin(); it != fallback.cend(); ++it) {
         if (!palette.contains(it.key())) {
@@ -258,6 +315,14 @@ QVariantMap ThemeController::normalizedPalette(QVariantMap palette) const
     };
     inheritSidebarColor(QStringLiteral("sheet"), QStringLiteral("sidebar"));
     inheritSidebarColor(QStringLiteral("privateSheet"), QStringLiteral("privateSidebar"));
+    inheritSidebarColor(QStringLiteral("privateOverlay"), QStringLiteral("privateSidebar"));
+    if (!themeNamedSurfaceHover) {
+        palette.insert(QStringLiteral("surfaceHover"), palette.value(QStringLiteral("surface")));
+    }
+    if (!themeNamedPrivateSurfaceHover) {
+        palette.insert(QStringLiteral("privateSurfaceHover"),
+            palette.value(QStringLiteral("privateSurface")));
+    }
 
     // Muted text is not decoration. It is a tab's title, a Space's letters,
     // the footer's controls — content the reader has to read, drawn quieter
@@ -271,51 +336,90 @@ QVariantMap ThemeController::normalizedPalette(QVariantMap palette) const
     // the two states the interface most needs to keep apart collapse into one.
     //
     // So the theme's colour is a preference and legibility is Omaweb's. The
-    // named colour is taken toward `text` until it clears 4.5:1 — WCAG AA for
-    // body text — against every Omaweb surface muted text is read on. A theme
-    // whose colour already reads keeps it exactly; the rest keep their hue and
-    // lose only the part that was unreadable. A theme that names no muted text
-    // starts from the surface instead of from `text`, so what it gets is the
-    // quietest tint of its own text colour that still reads, which is dark on
-    // a light theme and light on a dark one without either being special-cased.
+    // named colour changes only in lightness until it clears 4.5:1 — WCAG AA
+    // for body text — against every Omaweb surface muted text is read on. A
+    // theme whose colour already reads keeps it exactly; the rest keep their
+    // hue and lose only the part that was unreadable. A theme that names no
+    // muted text starts from the surface instead of from `text`, so what it
+    // gets is the quietest tint of its own text colour that still reads, which
+    // is dark on a light theme and light on a dark one without either being
+    // special-cased.
     //
     // A disabled control is `text` at 0.35 alpha, which cannot reach 3:1
     // against the ground it is composited over, so anything clearing this
     // floor also stays clearly ahead of disabled. One threshold does both jobs.
     const QColor text(palette.value(QStringLiteral("text")).toString());
-    QList<QColor> grounds;
-    for (const auto &key : {QStringLiteral("sidebar"), QStringLiteral("surface"),
-             QStringLiteral("overlay"), QStringLiteral("sheet")}) {
-        const QColor ground(palette.value(key).toString());
-        if (ground.isValid()) {
-            grounds.append(ground);
+    const auto coloursFor = [&palette](std::initializer_list<QString> keys) {
+        QList<QColor> colours;
+        for (const auto &key : keys) {
+            const QColor colour(palette.value(key).toString());
+            if (colour.isValid()) {
+                colours.append(colour);
+            }
         }
-    }
+        return colours;
+    };
+    const auto grounds = coloursFor({QStringLiteral("sidebar"), QStringLiteral("surface"),
+        QStringLiteral("surfaceHover"), QStringLiteral("overlay"), QStringLiteral("sheet")});
+    const auto privateGrounds = coloursFor({QStringLiteral("privateSidebar"),
+        QStringLiteral("privateSurface"), QStringLiteral("privateSurfaceHover"),
+        QStringLiteral("privateOverlay"), QStringLiteral("privateSheet")});
     const QColor named(palette.value(QStringLiteral("mutedText")).toString());
-    const QColor quietest(themeNamedMutedText && named.isValid()
+    const auto hasNamedMutedText = themeNamedMutedText && named.isValid();
+    const QColor quietest(hasNamedMutedText
             ? named
             : QColor(palette.value(QStringLiteral("sidebar")).toString()));
     if (text.isValid() && quietest.isValid() && !grounds.isEmpty()) {
         constexpr auto minimumContrast = 4.5;
-        constexpr auto steps = 32;
-        const auto reads = [&grounds](const QColor &candidate) {
-            return std::all_of(grounds.cbegin(), grounds.cend(), [&candidate](const QColor &g) {
-                return contrastRatio(candidate, g) >= minimumContrast;
-            });
-        };
-        // Ending on `text` itself: a theme whose ordinary text cannot be read
-        // on its own surfaces has a problem no muted colour can fix, and
-        // drawing the quiet parts in the same colour as the rest at least
-        // stops them being the quietest thing on a page nobody can read.
-        auto resolved = text;
-        for (auto step = 0; step <= steps; ++step) {
-            const auto candidate = blended(quietest, text, static_cast<double>(step) / steps);
-            if (reads(candidate)) {
-                resolved = candidate;
-                break;
-            }
+        const auto resolved = adjustedForContrast(
+            quietest, text, grounds, minimumContrast, hasNamedMutedText);
+        if (!resolved.isValid()) {
+            return normalizedPalette(fallback);
         }
         palette.insert(QStringLiteral("mutedText"), resolved.name(QColor::HexRgb));
+
+        const QColor privateQuietest(hasNamedMutedText
+                ? named
+                : QColor(palette.value(QStringLiteral("privateSidebar")).toString()));
+        const auto privateResolved = adjustedForContrast(privateQuietest, text, privateGrounds,
+            minimumContrast, hasNamedMutedText);
+        if (!privateResolved.isValid()) {
+            return normalizedPalette(fallback);
+        }
+        palette.insert(
+            QStringLiteral("privateMutedText"), privateResolved.name(QColor::HexRgb));
+    }
+
+    const auto borderedSurfaces = coloursFor({QStringLiteral("window"),
+        QStringLiteral("sidebar"), QStringLiteral("surface"), QStringLiteral("surfaceHover"),
+        QStringLiteral("overlay"), QStringLiteral("sheet")});
+    const auto privateBorderedSurfaces = coloursFor({QStringLiteral("privateWindow"),
+        QStringLiteral("privateSidebar"), QStringLiteral("privateSurface"),
+        QStringLiteral("privateSurfaceHover"), QStringLiteral("privateOverlay"),
+        QStringLiteral("privateSheet")});
+    const QColor namedBorder(palette.value(QStringLiteral("border")).toString());
+    const auto hasNamedBorder = themeNamedBorder && namedBorder.isValid();
+    const QColor faintestBorder(hasNamedBorder
+            ? namedBorder
+            : QColor(palette.value(QStringLiteral("sidebar")).toString()));
+    if (text.isValid() && faintestBorder.isValid() && !borderedSurfaces.isEmpty()) {
+        constexpr auto minimumBorderContrast = 3.0;
+        const auto resolved = adjustedForContrast(faintestBorder, text, borderedSurfaces,
+            minimumBorderContrast, hasNamedBorder);
+        if (!resolved.isValid()) {
+            return normalizedPalette(fallback);
+        }
+        palette.insert(QStringLiteral("border"), resolved.name(QColor::HexRgb));
+
+        const QColor faintestPrivateBorder(hasNamedBorder
+                ? namedBorder
+                : QColor(palette.value(QStringLiteral("privateSidebar")).toString()));
+        const auto privateResolved = adjustedForContrast(faintestPrivateBorder, text,
+            privateBorderedSurfaces, minimumBorderContrast, hasNamedBorder);
+        if (!privateResolved.isValid()) {
+            return normalizedPalette(fallback);
+        }
+        palette.insert(QStringLiteral("privateBorder"), privateResolved.name(QColor::HexRgb));
     }
 
     // Semantic opacity is the single source of truth for how much of the desktop
@@ -404,6 +508,7 @@ QVariantMap ThemeController::normalizedPalette(QVariantMap palette) const
     withOpacity(QStringLiteral("sheet"), sheetAlpha);
     withOpacity(QStringLiteral("privateSheet"), sheetAlpha);
     withOpacity(QStringLiteral("overlay"), overlayAlpha);
+    withOpacity(QStringLiteral("privateOverlay"), overlayAlpha);
     return palette;
 }
 

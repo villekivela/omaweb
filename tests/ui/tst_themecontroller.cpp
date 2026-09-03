@@ -21,9 +21,15 @@ private slots:
     void givesFullPageSurfacesTheSidebarsColourAndTheirOwnTranslucency();
     void namesOneColourForSomethingBeingWrong();
     void keepsQuietTextReadableOnEverySurfaceItIsDrawnOn();
+    void keepsQuietTextReadableOnPrivateAndHoverSurfaces();
     void keepsQuietTextAheadOfADisabledControl();
     void quietensATextColourAThemeNamesNoMutedTextFor();
     void keepsAMutedColourAThemeGotRight();
+    void preservesTheHueOfAMutedColourItRepairs();
+    void keepsBordersVisibleOnEverySurfaceTheySeparate();
+    void preservesTheHueOfABorderItRepairs();
+    void rejectsAPaletteWhoseSurfacesCannotShareReadableRoles();
+    void keepsASaturatedPaletteWhenBlackCanSupplyUnnamedRoles();
     void resolvesTheFirstInstalledTypeFamily();
     void fallsBackToAFamilyTheHostActuallyHas();
     void keepsTheTypeBaseSizeUsable();
@@ -97,6 +103,7 @@ void ThemeControllerTest::appliesSemanticOpacityToChromeSurfaces()
 namespace {
 
 constexpr auto minimumContrast = 4.5;
+constexpr auto minimumGraphicContrast = 3.0;
 constexpr auto disabledOpacity = 0.35;
 
 double relativeLuminance(const QColor &colour)
@@ -165,6 +172,42 @@ void ThemeControllerTest::keepsQuietTextReadableOnEverySurfaceItIsDrawnOn()
     QVERIFY(contrastRatio(muted, QColor(palette.value(QStringLiteral("sidebarOpaque")).toString()))
         < contrastRatio(QColor(palette.value(QStringLiteral("text")).toString()),
             QColor(palette.value(QStringLiteral("sidebarOpaque")).toString())));
+}
+
+void ThemeControllerTest::keepsQuietTextReadableOnPrivateAndHoverSurfaces()
+{
+    QTemporaryDir root;
+    QFile theme(root.filePath(QStringLiteral("theme.json")));
+    QVERIFY(theme.open(QIODevice::WriteOnly));
+    theme.write(R"JSON({
+        "sidebar": "#101010",
+        "overlay": "#101010",
+        "surface": "#101010",
+        "surfaceHover": "#65486f",
+        "text": "#ffffff",
+        "mutedText": "#888888",
+        "privateSidebar": "#65486f",
+        "privateSurface": "#65486f",
+        "privateSurfaceHover": "#765780"
+    })JSON");
+    theme.close();
+
+    ThemeController controller(theme.fileName());
+    const auto palette = controller.palette();
+    const QColor muted(palette.value(QStringLiteral("mutedText")).toString());
+    for (const auto &key : {
+             "sidebarOpaque", "surface", "surfaceHover", "overlayOpaque", "sheetOpaque"}) {
+        const QColor ground(palette.value(QString::fromLatin1(key)).toString());
+        QVERIFY2(ground.isValid(), key);
+        QVERIFY2(contrastRatio(muted, ground) >= minimumContrast, key);
+    }
+    const QColor privateMuted(palette.value(QStringLiteral("privateMutedText")).toString());
+    for (const auto &key : {"privateSidebarOpaque", "privateSurface", "privateSurfaceHover",
+             "privateOverlayOpaque", "privateSheetOpaque"}) {
+        const QColor ground(palette.value(QString::fromLatin1(key)).toString());
+        QVERIFY2(ground.isValid(), key);
+        QVERIFY2(contrastRatio(privateMuted, ground) >= minimumContrast, key);
+    }
 }
 
 // The defect the floor exists to prevent: muted text drawn fainter than the
@@ -252,6 +295,142 @@ void ThemeControllerTest::keepsAMutedColourAThemeGotRight()
         QColor(QStringLiteral("#b3bdcc")));
 }
 
+void ThemeControllerTest::preservesTheHueOfAMutedColourItRepairs()
+{
+    QTemporaryDir root;
+    QFile theme(root.filePath(QStringLiteral("theme.json")));
+    QVERIFY(theme.open(QIODevice::WriteOnly));
+    theme.write(R"JSON({
+        "sidebar": "#101010",
+        "overlay": "#101010",
+        "surface": "#181818",
+        "surfaceHover": "#202020",
+        "text": "#d8e8c0",
+        "mutedText": "#35105f",
+        "privateSidebar": "#181818",
+        "privateSurface": "#202020",
+        "privateSurfaceHover": "#282828"
+    })JSON");
+    theme.close();
+
+    ThemeController controller(theme.fileName());
+    const QColor named(QStringLiteral("#35105f"));
+    const QColor repaired(controller.palette().value(QStringLiteral("mutedText")).toString());
+    QVERIFY(contrastRatio(repaired, QColor(QStringLiteral("#202020"))) >= minimumContrast);
+    QVERIFY(std::abs(repaired.hslHueF() - named.hslHueF()) < 0.01);
+}
+
+void ThemeControllerTest::keepsBordersVisibleOnEverySurfaceTheySeparate()
+{
+    QTemporaryDir root;
+    QFile theme(root.filePath(QStringLiteral("theme.json")));
+    QVERIFY(theme.open(QIODevice::WriteOnly));
+    theme.write(R"JSON({
+        "window": "#0a0a0f",
+        "sidebar": "#0e0e16",
+        "overlay": "#0e0e16",
+        "surface": "#13131d",
+        "surfaceHover": "#1b1b27",
+        "text": "#d8d8df",
+        "border": "#333333",
+        "privateWindow": "#21172a",
+        "privateSidebar": "#2b1d36",
+        "privateSurface": "#35223f",
+        "privateSurfaceHover": "#40294c"
+    })JSON");
+    theme.close();
+
+    ThemeController controller(theme.fileName());
+    const auto palette = controller.palette();
+    const QColor border(palette.value(QStringLiteral("border")).toString());
+    for (const auto &key : {"windowOpaque", "sidebarOpaque", "surface", "surfaceHover",
+             "overlayOpaque", "sheetOpaque"}) {
+        const QColor ground(palette.value(QString::fromLatin1(key)).toString());
+        QVERIFY2(ground.isValid(), key);
+        QVERIFY2(contrastRatio(border, ground) >= minimumGraphicContrast, key);
+    }
+    const QColor privateBorder(palette.value(QStringLiteral("privateBorder")).toString());
+    for (const auto &key : {"privateWindowOpaque", "privateSidebarOpaque", "privateSurface",
+             "privateSurfaceHover", "privateOverlayOpaque", "privateSheetOpaque"}) {
+        const QColor ground(palette.value(QString::fromLatin1(key)).toString());
+        QVERIFY2(ground.isValid(), key);
+        QVERIFY2(contrastRatio(privateBorder, ground) >= minimumGraphicContrast, key);
+    }
+}
+
+void ThemeControllerTest::preservesTheHueOfABorderItRepairs()
+{
+    QTemporaryDir root;
+    QFile theme(root.filePath(QStringLiteral("theme.json")));
+    QVERIFY(theme.open(QIODevice::WriteOnly));
+    theme.write(R"JSON({
+        "window": "#101010",
+        "sidebar": "#101010",
+        "overlay": "#101010",
+        "surface": "#181818",
+        "surfaceHover": "#202020",
+        "text": "#00ff00",
+        "border": "#000080",
+        "privateWindow": "#181818",
+        "privateSidebar": "#181818",
+        "privateSurface": "#202020",
+        "privateSurfaceHover": "#282828"
+    })JSON");
+    theme.close();
+
+    ThemeController controller(theme.fileName());
+    const QColor named(QStringLiteral("#000080"));
+    const QColor repaired(controller.palette().value(QStringLiteral("border")).toString());
+    QVERIFY(contrastRatio(repaired, QColor(QStringLiteral("#202020")))
+        >= minimumGraphicContrast);
+    QVERIFY(std::abs(repaired.hslHueF() - named.hslHueF()) < 0.01);
+}
+
+void ThemeControllerTest::rejectsAPaletteWhoseSurfacesCannotShareReadableRoles()
+{
+    QTemporaryDir root;
+    QFile theme(root.filePath(QStringLiteral("theme.json")));
+    QVERIFY(theme.open(QIODevice::WriteOnly));
+    theme.write(R"JSON({
+        "window": "#010101",
+        "sidebar": "#000000",
+        "overlay": "#000000",
+        "surface": "#777777",
+        "surfaceHover": "#777777",
+        "text": "#ffffff",
+        "mutedText": "#800000"
+    })JSON");
+    theme.close();
+
+    ThemeController controller(theme.fileName());
+    QCOMPARE(QColor(controller.palette().value(QStringLiteral("windowOpaque")).toString()),
+        QColor(QStringLiteral("#16151d")));
+}
+
+void ThemeControllerTest::keepsASaturatedPaletteWhenBlackCanSupplyUnnamedRoles()
+{
+    QTemporaryDir root;
+    QFile theme(root.filePath(QStringLiteral("theme.json")));
+    QVERIFY(theme.open(QIODevice::WriteOnly));
+    theme.write(R"JSON({
+        "window": "#00ff00",
+        "sidebar": "#00ff00",
+        "overlay": "#00ff00",
+        "surface": "#00ff00",
+        "surfaceHover": "#00ee00",
+        "text": "#ffffff",
+        "privateWindow": "#00aa00",
+        "privateSidebar": "#00aa00",
+        "privateSurface": "#00aa00",
+        "privateSurfaceHover": "#009900"
+    })JSON");
+    theme.close();
+
+    ThemeController controller(theme.fileName());
+    QCOMPARE(QColor(controller.palette().value(QStringLiteral("windowOpaque")).toString()),
+        QColor(QStringLiteral("#00ff00")));
+}
+
 // The theme palette names the type families it prefers; only one of them is
 // installed here, and that is the one the palette has to resolve to. Handing
 // Qt a family the host does not have costs a font-alias sweep and draws in
@@ -268,6 +447,9 @@ void ThemeControllerTest::givesFullPageSurfacesTheSidebarsColourAndTheirOwnTrans
     theme.write(R"JSON({
         "window": "#101010",
         "sidebar": "#f0f0f0",
+        "overlay": "#e8e8e8",
+        "surface": "#e8e8e8",
+        "surfaceHover": "#e0e0e0",
         "privateSidebar": "#800080",
         "opacity": { "sidebar": 0.9, "sheet": 0.6 }
     })JSON");
@@ -291,14 +473,17 @@ void ThemeControllerTest::givesFullPageSurfacesTheSidebarsColourAndTheirOwnTrans
     QVERIFY(named.open(QIODevice::WriteOnly));
     named.write(R"JSON({
         "sidebar": "#f0f0f0",
-        "sheet": "#123456",
+        "overlay": "#e8e8e8",
+        "surface": "#e8e8e8",
+        "surfaceHover": "#e0e0e0",
+        "sheet": "#d8d8d8",
         "opacity": { "sheet": 0.6 }
     })JSON");
     named.close();
 
     ThemeController namedController(named.fileName());
     QCOMPARE(QColor(namedController.palette().value(QStringLiteral("sheetOpaque")).toString()),
-        QColor(QStringLiteral("#123456")));
+        QColor(QStringLiteral("#d8d8d8")));
 }
 
 // The colour a notice and the mark that leads to it are both drawn in. It is

@@ -2134,6 +2134,9 @@ TestCase {
         // read as "float this next to its opener".
         verify(!privateBrowser.transientParent)
         compare(privateBrowser.colors.accent, privateBrowser.colors.privateAccent)
+        compare(privateBrowser.colors.overlay, theme.palette.privateOverlay)
+        compare(privateBrowser.colors.mutedText, theme.palette.privateMutedText)
+        compare(privateBrowser.colors.border, theme.palette.privateBorder)
 
         const spaceSwitcher = findChild(privateBrowser.contentItem, "spaceSwitcher")
         const pinnedList = findChild(privateBrowser.contentItem, "pinnedList")
