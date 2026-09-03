@@ -13,7 +13,7 @@ The variants share core state, persistence, QML, themes, platform code, and engi
 - `omaweb-engine-api` defines navigation, lifecycle, input, content-blocking, accessibility, and Developer-tools capabilities.
 - `omaweb-engine-qt` supplies the default engine view without leaking QtWebEngine imports into shared QML.
 - `omaweb-engine-ladybird` is an optional build outside the default graph.
-- `omaweb-quickshell-shim` registers the `Quickshell` and `Quickshell.Io` QML types the vendored Omarchy component kit imports.
+- `omaweb-quickshell-shim` registers the `Quickshell` and `Quickshell.Io` QML types the vendored Omarchy component kit imports, and shadows the real Quickshell an Omarchy host installs into Qt's qml directory.
 - `omaweb-platform` contains the small window-system services the browser cannot supply itself: window integrations, the desktop's print dialog and notification centre, and what the operating system says one process holds.
 - `modules/*` contains independently compiled first-party Feature modules.
 - `omaweb-ui-lab` loads the shared QML against fake browser state and a mock engine.

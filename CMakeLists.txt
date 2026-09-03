@@ -142,6 +142,17 @@ add_library(omaweb-quickshell-shim STATIC
 target_include_directories(omaweb-quickshell-shim PUBLIC src/ui/quickshell-shim)
 target_link_libraries(omaweb-quickshell-shim PUBLIC Qt6::Core Qt6::Qml Qt6::QuickControls2)
 set_target_properties(omaweb-quickshell-shim PROPERTIES AUTOMOC ON)
+
+# The shim's qmldir files ride in the shim's own resource, so every target that
+# links it resolves `import Quickshell` the same way whether the rest of the QML
+# comes from the source tree or from a resource.
+qt_add_resources(omaweb-quickshell-shim "omaweb_quickshell_shim_qml"
+    PREFIX "/omaweb/quickshell-shim"
+    BASE "${CMAKE_CURRENT_SOURCE_DIR}/src/ui/quickshell-shim/qml"
+    FILES
+        src/ui/quickshell-shim/qml/Quickshell/qmldir
+        src/ui/quickshell-shim/qml/Quickshell/Io/qmldir
+)
 omaweb_strict_target(omaweb-quickshell-shim)
 
 # The manifest is the single list of vendored files: the resource build, the
@@ -546,6 +557,15 @@ if(BUILD_TESTING)
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
     )
 
+    # The same load with a decoy Quickshell on the import path, which is the
+    # shape of an Omarchy host: the shim's qmldir has to win over a real module
+    # sitting in Qt's qml directory, or the kit's imports go looking for a
+    # plugin that is not there.
+    add_test(NAME omaweb-qml-load-over-quickshell COMMAND omaweb-qml-smoke --validate-qml)
+    set_tests_properties(omaweb-qml-load-over-quickshell PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QML_IMPORT_PATH=${CMAKE_CURRENT_SOURCE_DIR}/tests/qml/quickshell-decoy;QML2_IMPORT_PATH=${CMAKE_CURRENT_SOURCE_DIR}/tests/qml/quickshell-decoy"
+    )
+
     if(OMAWEB_BUILD_UI_LAB)
         qt_add_executable(omaweb-ui-tests tests/ui/tst_ui.cpp)
         target_link_libraries(omaweb-ui-tests PRIVATE
@@ -605,3 +625,18 @@ if(BUILD_TESTING)
         )
     endif()
 endif()
+
+# The vendored kit imports Quickshell, which omaweb-quickshell-shim registers
+# from C++. On a host that also has the real Quickshell installed in Qt's qml
+# directory, qmlimportscanner finds those qmldir files and Qt warns that the
+# plugin link targets they name are missing from this scope. Only static plugin
+# targets are ever linked, so the scan has nothing to do on a shared Qt build.
+# Qt runs the scan from a finalizer, so setting the property here still takes
+# effect for every executable declared above.
+get_property(omaweb_directory_targets DIRECTORY PROPERTY BUILDSYSTEM_TARGETS)
+foreach(omaweb_target IN LISTS omaweb_directory_targets)
+    get_target_property(omaweb_target_type ${omaweb_target} TYPE)
+    if(omaweb_target_type STREQUAL "EXECUTABLE")
+        set_target_properties(${omaweb_target} PROPERTIES QT_QML_MODULE_NO_IMPORT_SCAN TRUE)
+    endif()
+endforeach()

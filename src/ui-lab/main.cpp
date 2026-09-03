@@ -99,7 +99,6 @@ int main(int argc, char *argv[])
             : themeOverride);
     omaweb::WindowManager windowManager(QStringLiteral("mock"));
 
-    omaweb::quickshell::installShim();
     omaweb::registerFaviconTint();
     omaweb::registerSystemClipboard();
     omaweb::registerExternalProtocolHandler();
@@ -107,6 +106,7 @@ int main(int argc, char *argv[])
     omaweb::registerSystemNotifier();
     omaweb::registerProcessResources();
     QQmlApplicationEngine engine;
+    omaweb::quickshell::installShim(engine);
     engine.rootContext()->setContextProperty(QStringLiteral("browser"), &browser);
     engine.rootContext()->setContextProperty(QStringLiteral("contentBlocker"), &contentBlocker);
     engine.rootContext()->setContextProperty(

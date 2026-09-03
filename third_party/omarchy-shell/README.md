@@ -18,9 +18,12 @@ Two things make an unedited copy work inside Omaweb:
 
 - **`src/ui/quickshell-shim/`** supplies the `Quickshell` and `Quickshell.Io`
   types the kit imports — an environment lookup, a watched file, and a
-  short-lived process. The kit's layer-shell and Hyprland surfaces are out of
-  scope, and so are the components that need them (`Panel`, `PopupCard`,
-  `KeyboardPanel`, `MultiSelect`, `BarIconButton`, `SpeedTestOverlay`).
+  short-lived process. Its own qmldir for each URI goes to the front of the
+  engine's import path, so the real Quickshell that Omarchy installs into Qt's
+  qml directory does not claim the kit's imports instead. The kit's layer-shell
+  and Hyprland surfaces are out of scope, and so are the components that need
+  them (`Panel`, `PopupCard`, `KeyboardPanel`, `MultiSelect`, `BarIconButton`,
+  `SpeedTestOverlay`).
 - **`src/ui/*.qml`** adapts components to Omaweb's call sites — keeping Omaweb's
   property names and its accessibility annotations, with a kit component
   underneath.

@@ -1,0 +1,3 @@
+# See ../qmldir.
+module Quickshell.Io
+plugin quickshell-coreplugin

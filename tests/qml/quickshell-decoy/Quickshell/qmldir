@@ -1,0 +1,6 @@
+# Stands in for the real Quickshell that Omarchy installs into Qt's own qml
+# directory. Naming a plugin Omaweb does not ship is what makes the decoy bite:
+# if the shim's qmldir stops shadowing it, the engine resolves the module here
+# and fails to load the plugin, exactly as it does on an Omarchy host.
+module Quickshell
+plugin quickshell-coreplugin

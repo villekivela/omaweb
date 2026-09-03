@@ -1,0 +1,2 @@
+# See ../qmldir: claims the URI, leaves the types to installShim().
+module Quickshell.Io

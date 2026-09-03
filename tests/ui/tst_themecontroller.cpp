@@ -189,10 +189,16 @@ void ThemeControllerTest::fallsBackToAFamilyTheHostActuallyHas()
     ThemeController controller(theme.fileName());
     const auto font = controller.palette().value(QStringLiteral("font")).toMap();
     const auto family = font.value(QStringLiteral("family")).toString();
-    // Whatever the fallback lands on, it is a family the host has. A
-    // fontconfig alias is not: "monospace" does not exist on macOS.
+    // Whatever the fallback lands on, it is a family the host has.
     QVERIFY(QFontDatabase::hasFamily(family));
-    QVERIFY(family != QStringLiteral("monospace"));
+    // "monospace" is a fontconfig alias. macOS has no such family and a bare
+    // container has no fonts to alias, so there the name must not survive as
+    // the answer -- that is the substitution this test was written to catch.
+    // A Linux host with fonts installed does report it as a family, and
+    // honouring what the theme asked for is then the right answer.
+    if (!QFontDatabase::hasFamily(QStringLiteral("monospace"))) {
+        QVERIFY(family != QStringLiteral("monospace"));
+    }
     // An empty candidate is not a family, and it must not become the answer.
     QCOMPARE(font.value(QStringLiteral("families")).toStringList(),
         QStringList{QStringLiteral("monospace")});
