@@ -125,12 +125,12 @@ QVariantMap ThemeController::defaultSyntax()
 QVariantMap ThemeController::defaultOpacity()
 {
     return {
-        {QStringLiteral("sidebar"), 0.85},
+        {QStringLiteral("sidebar"), 0.90},
         // A sheet is read against a webpage rather than against the desktop,
         // and a page's own contrast is unknown, so it lets more through than
         // the sidebar does: at the sidebar's own value a dark page shows as
         // nothing at all and the surface reads as solid.
-        {QStringLiteral("sheet"), 0.82},
+        {QStringLiteral("sheet"), 0.85},
         {QStringLiteral("overlay"), 0.96},
         {QStringLiteral("window"), 0.0},
     };
