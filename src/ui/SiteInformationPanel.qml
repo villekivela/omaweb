@@ -4,10 +4,15 @@ import qs.Commons
 // What Omaweb states about the site on show, for the Space it is on show in.
 //
 // One origin, one Space, one moment: the connection the engine reported, the
-// requests Content blocking refused, the site data the Space holds, the
-// origin's Site permissions, and two confirmed ways to take state back. Where
-// the engine cannot answer for one of those lines, the line says so — a blank
-// reads as a reassurance, and the reader has no way to tell one from an answer.
+// requests Content blocking refused, the site data the Space holds, and the
+// origin's Site permissions. Where the engine cannot answer for one of those
+// lines, the line says so — a blank reads as a reassurance, and the reader has
+// no way to tell one from an answer.
+//
+// This panel states; it does not ask. Every question it leads to is asked in
+// the centred dialog every other question about the browser is asked in, which
+// has the room to say what is about to happen and answers to the keyboard. A
+// confirmation squeezed in beside the thing it is about has neither.
 Rectangle {
     id: root
 
@@ -37,17 +42,18 @@ Rectangle {
     // cannot move must not be counted as one it can.
     property var retainedDataEntries: []
     property int siteDataGeneration: 0
-    // The categories the engine said it could not take, from the window.
-    property var untouchedDataCategories: []
 
     // What the panel just did, on its way to the notice that says so. An
     // irreversible action that reports nothing is one the reader cannot tell
     // from a button that does not work.
-    signal noticeRequested(string glyph, string message, string detail)
-    // One origin's own storage, emptied from inside its page. The engine
-    // exposes no per-origin removal, so this is the only clearing that is
-    // actually about the site the panel is headed by.
-    signal siteStorageClearRequested()
+    // What the reader asked for, by name, for the window to ask about properly.
+    signal actionRequested(string action)
+
+    // How many refused third parties are worth listing. A page has as many as
+    // it has embedded services, most of them asking for storage they do not
+    // need; the reader acts on one of these only when a flow is failing, and
+    // the dialog is where the whole list is.
+    readonly property int listedThirdParties: 3
 
     // The decisions the core stores, named here so nothing in this file
     // compares against a bare number.
@@ -62,10 +68,6 @@ Rectangle {
     property var refusedThirdParties: []
     property real siteDataBytes: -1
     property real retainedDataBytes: -1
-    // Which reset the panel is waiting on a confirmation for. Both are
-    // irreversible, so neither happens on one press.
-    property string resetPending: ""
-
     readonly property string originLabel: {
         const address = String(root.activeUrl)
         const separator = address.indexOf("://")
@@ -112,8 +114,7 @@ Rectangle {
             return "this engine keeps no site data on disk"
         if (root.siteDataBytes < 0)
             return "the site data in this Space could not be measured"
-        return root.formatBytes(root.siteDataBytes)
-            + " of cookies and cache in this Space, which clearing takes"
+        return root.formatBytes(root.siteDataBytes) + " of cookies and cache in this Space"
     }
 
     function refreshSiteInformation() {
@@ -128,7 +129,6 @@ Rectangle {
         root.retainedDataBytes = root.siteDataOnDisk
             ? root.browser.siteDataBytes(root.browser.activeSpaceId, root.retainedDataEntries)
             : -1
-        root.resetPending = ""
     }
 
     onOpenChanged: if (root.open) root.refreshSiteInformation()
@@ -232,7 +232,7 @@ Rectangle {
             width: parent.width
             visible: root.siteDataOnDisk && root.retainedDataBytes > 0
             text: "· " + root.formatBytes(root.retainedDataBytes)
-                + " of storage and databases, one site at a time"
+                + " of storage and databases"
             color: root.colors.mutedText
             wrapMode: Text.WordWrap
             font.family: Style.font.family
@@ -252,82 +252,55 @@ Rectangle {
             font.pixelSize: Style.font.caption
         }
 
-        // A flow that needs a third party can be given one, by name, for a
-        // reason the reader can read back. Nothing here survives the session,
-        // and every one of them is beside its own way out.
+        // What this page had refused, and what it has been allowed. Stated
+        // here and acted on in the dialog: a reader looking at an embedded
+        // asset host has no way to judge it from its name alone, and a row of
+        // buttons beside each one invites a decision nobody can make.
         Repeater {
-            model: root.thirdPartyCookieControlAvailable ? root.refusedThirdParties : []
+            model: root.thirdPartyCookieControlAvailable
+                ? root.refusedThirdParties.slice(0, root.listedThirdParties) : []
 
-            Row {
+            Text {
                 required property int index
                 required property string modelData
 
                 objectName: "refusedThirdParty" + index
                 width: statusColumn.width
-                spacing: 6
-
-                Text {
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: statusColumn.width - 132
-                    text: "· " + modelData
-                    color: root.colors.mutedText
-                    elide: Text.ElideMiddle
-                    font.family: Style.font.family
-                    font.pixelSize: Style.font.caption
-                }
-
-                ActionButton {
-                    objectName: "allowSignIn" + index
-                    colors: root.colors
-                    label: "sign-in"
-                    onClicked: {
-                        root.browser.allowThirdPartyCookies(modelData, "authentication")
-                        root.refreshSiteInformation()
-                    }
-                }
-
-                ActionButton {
-                    objectName: "allowPayment" + index
-                    colors: root.colors
-                    label: "payment"
-                    onClicked: {
-                        root.browser.allowThirdPartyCookies(modelData, "payment")
-                        root.refreshSiteInformation()
-                    }
-                }
+                text: "· " + modelData + " — refused"
+                color: root.colors.mutedText
+                elide: Text.ElideMiddle
+                font.family: Style.font.family
+                font.pixelSize: Style.font.caption
             }
+        }
+
+        Text {
+            objectName: "refusedThirdPartyOverflow"
+            width: parent.width
+            visible: root.thirdPartyCookieControlAvailable
+                && root.refusedThirdParties.length > root.listedThirdParties
+            text: "· and " + (root.refusedThirdParties.length - root.listedThirdParties)
+                + " more, listed under third parties"
+            color: root.colors.mutedText
+            wrapMode: Text.WordWrap
+            font.family: Style.font.family
+            font.pixelSize: Style.font.caption
         }
 
         Repeater {
             model: root.cookieAllowanceRows
 
-            Row {
+            Text {
                 required property int index
                 required property var modelData
 
                 objectName: "cookieAllowance" + index
                 width: statusColumn.width
-                spacing: 6
-
-                Text {
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: statusColumn.width - 80
-                    text: "· " + modelData.origin + " — allowed for " + modelData.purpose
-                    color: root.colors.text
-                    elide: Text.ElideMiddle
-                    font.family: Style.font.family
-                    font.pixelSize: Style.font.caption
-                }
-
-                ActionButton {
-                    objectName: "revokeAllowance" + index
-                    colors: root.colors
-                    label: "revoke"
-                    onClicked: {
-                        root.browser.revokeThirdPartyCookieAllowance(modelData.origin)
-                        root.refreshSiteInformation()
-                    }
-                }
+                text: "· " + modelData.origin + " — allowed for " + modelData.purpose
+                color: root.colors.text
+                elide: Text.ElideMiddle
+                font.family: Style.font.family
+                font.pixelSize: Style.font.caption
             }
         }
 
@@ -367,35 +340,9 @@ Rectangle {
             }
         }
 
-        // Both resets are irreversible, so neither happens on one press. The
-        // second press is about one named action rather than a general
-        // agreement, and the question says which scope is about to go: the
-        // engine cannot clear one site's storage on its own, so clearing site
-        // data is the Space's and says so.
-        Text {
-            objectName: "siteInformationResetQuestion"
-            width: parent.width
-            visible: root.resetPending.length > 0
-            text: {
-                switch (root.resetPending) {
-                case "site-storage":
-                    return "empty " + root.originLabel
-                        + "'s storage, databases and service workers?"
-                case "site-data":
-                    return "clear the cookies and cache of every site in this Space?"
-                default:
-                    return "reset every decision made for " + root.originLabel + "?"
-                }
-            }
-            color: root.colors.text
-            wrapMode: Text.WordWrap
-            font.family: Style.font.family
-            font.pixelSize: Style.font.caption
-        }
-
-        // Three scopes, and each one says which it is before it happens. They
-        // wrap rather than share a row: the panel is narrow, and a press meant
-        // for one of these must not be able to land on another.
+        // Triggers, not answers. Each one opens the window's own dialog, where
+        // there is room to say which scope is about to go and the keyboard can
+        // answer it.
         Flow {
             width: parent.width
             spacing: 6
@@ -403,76 +350,35 @@ Rectangle {
             ActionButton {
                 objectName: "clearSiteStorage"
                 colors: root.colors
-                label: root.resetPending === "site-storage"
-                    ? "confirm empty" : "clear this site"
-                primary: root.resetPending === "site-storage"
+                label: "clear this site"
                 enabled: !root.blank
-                onClicked: {
-                    if (root.resetPending !== "site-storage") {
-                        root.resetPending = "site-storage"
-                        return
-                    }
-                    root.resetPending = ""
-                    root.siteStorageClearRequested()
-                }
+                onClicked: root.actionRequested("site-storage")
             }
 
             ActionButton {
                 objectName: "clearSiteData"
                 colors: root.colors
-                label: root.resetPending === "site-data"
-                    ? "confirm clear" : "clear Space data"
-                primary: root.resetPending === "site-data"
+                label: "clear Space data"
                 enabled: !root.privateWindow && root.siteDataOnDisk
-                onClicked: {
-                    if (root.resetPending !== "site-data") {
-                        root.resetPending = "site-data"
-                        return
-                    }
-                    const cleared = root.browser.clearBrowsingData(
-                        ["cookies", "storage", "cache"], 0)
-                    root.refreshSiteInformation()
-                    // Named for what the engine actually took, and it is the
-                    // engine that says what it could not — the difference
-                    // between an action that fell short and one that lied.
-                    const stayed = root.untouchedDataCategories
-                    root.noticeRequested(cleared ? "delete_sweep" : "block",
-                        cleared
-                            ? "Cleared this Space's cookies and cache"
-                            : "Could not clear this Space's site data",
-                        cleared && stayed.length > 0
-                            ? stayed.join(" and ")
-                                + " stayed: this engine has no way to remove them"
-                            : "")
-                }
+                onClicked: root.actionRequested("space-data")
             }
 
             ActionButton {
                 objectName: "resetSitePermissions"
                 colors: root.colors
-                label: root.resetPending === "permissions"
-                    ? "confirm reset" : "reset permissions"
-                primary: root.resetPending === "permissions"
+                label: "reset permissions"
                 enabled: !root.blank
-                onClicked: {
-                    if (root.resetPending !== "permissions") {
-                        root.resetPending = "permissions"
-                        return
-                    }
-                    const reset = root.browser.resetSitePermissions(root.activeUrl)
-                    root.refreshSiteInformation()
-                    // Reloading does not take a capability off a page: the
-                    // engine answers a granted one from a store keyed by the
-                    // frame that asked, and a reload reuses that frame. Opening
-                    // the site again is a new frame, and asks.
-                    root.noticeRequested(reset ? "shield_person" : "block",
-                        reset
-                            ? "Reset every decision for " + root.originLabel
-                            : "Could not reset the decisions for " + root.originLabel,
-                        reset
-                            ? "a page already holding one keeps it until you open the site again"
-                            : "")
-                }
+                onClicked: root.actionRequested("reset-permissions")
+            }
+
+            ActionButton {
+                objectName: "manageThirdParties"
+                colors: root.colors
+                label: "third parties"
+                enabled: root.thirdPartyCookieControlAvailable
+                    && (root.refusedThirdParties.length > 0
+                        || root.cookieAllowanceRows.length > 0)
+                onClicked: root.actionRequested("third-party")
             }
         }
     }

@@ -48,16 +48,21 @@ Rectangle {
     property var cookiePolicy: null
     property var siteDataEntries: []
     property var retainedDataEntries: []
-    property var untouchedDataCategories: []
     property int siteDataGeneration: 0
     readonly property bool secure: root.connectionState === "secure"
     readonly property bool certificateError: root.connectionState === "certificate-error"
     readonly property bool blank: String(activeUrl).length === 0 || String(activeUrl) === "about:blank"
+    // The site the panel is headed by, as the window's dialogs name it, and the
+    // third parties it had refused. The panel is the one place that asks the
+    // engine's filter, so the dialog reads the answer from here rather than
+    // asking again for itself.
+    readonly property string siteOrigin: sitePanel.originLabel
+    readonly property var refusedThirdParties: sitePanel.refusedThirdParties
 
     signal addressRequested()
-    // What Site information just did, on its way to the window's notice.
-    signal noticeRequested(string glyph, string message, string detail)
-    signal siteStorageClearRequested()
+    // What the reader asked Site information for, on its way to the window's
+    // own dialog. The outline states; the window asks.
+    signal siteActionRequested(string action)
     signal tabActivated(string tabId)
     signal tabCloseRequested(string tabId)
     signal tabMuteToggled(string tabId)
@@ -744,14 +749,9 @@ Rectangle {
         blockedRequestCount: root.blockedRequestCount
         siteDataEntries: root.siteDataEntries
         retainedDataEntries: root.retainedDataEntries
-        untouchedDataCategories: root.untouchedDataCategories
         siteDataGeneration: root.siteDataGeneration
         open: root.statusOpen
 
-        onNoticeRequested: function(glyph, message, detail) {
-            root.noticeRequested(glyph, message, detail)
-        }
-
-        onSiteStorageClearRequested: root.siteStorageClearRequested()
+        onActionRequested: function(action) { root.siteActionRequested(action) }
     }
 }

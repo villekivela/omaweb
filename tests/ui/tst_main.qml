@@ -855,44 +855,96 @@ TestCase {
         tryVerify(function() { return !panel.visible })
     }
 
-    // The panel is where a blocked third party is named, given an allowance for
-    // one flow, and taken back — and where clearing the Space's site data is
-    // asked about before it happens.
-    function test_siteInformationGrantsAndRevokesOneFlowsAllowance() {
-        openPage("https://allowance.example/checkout")
-        const engine = findChild(window.contentItem, "engineLoader").item
+    // Nothing in the panel may reach past its own border. Every answer it
+    // offers is a button the reader has to be able to hit, and a button drawn
+    // outside the panel is drawn over the page behind it.
+    function test_siteInformationKeepsEveryAnswerInsideItsBorder() {
+        const engine = openPage("https://panel-geometry.example/page")
         const sidebar = findChild(window.contentItem, "sidebar")
-        const security = findChild(window.contentItem, "securityIndicator")
         const panel = findChild(window.contentItem, "siteInformationPanel")
-        // The lab has no third-party filter, so the origins one would have
-        // refused are named here. What is under test is the panel's answer.
+        const width = window.sidebarWidth
+        // The narrowest the sidebar goes, which is where an overflowing row
+        // shows up first. The width eases, so it is waited for.
+        window.sidebarWidth = window.sidebarMinimumWidth
+        tryVerify(function() { return sidebar.width === window.sidebarMinimumWidth })
+        engine.persistentProfilesAvailable = true
         sidebar.statusOpen = true
         tryVerify(function() { return panel.visible })
-        panel.refusedThirdParties = ["https://pay.example"]
 
-        const signIn = findChild(window.contentItem, "allowSignIn0")
-        const payment = findChild(window.contentItem, "allowPayment0")
-        verify(signIn !== null)
-        verify(payment !== null)
-        settleActions(payment)
-        mouseClick(payment, payment.width / 2, payment.height / 2)
-        tryVerify(function() {
-            return findChild(window.contentItem, "cookieAllowance0") !== null
-        })
-        const allowance = findChild(window.contentItem, "cookieAllowance0")
-        verify(allowance !== null)
-        verify(browser.thirdPartyCookiesAllowed(browser.activeSpaceId, "https://pay.example"))
-        compare(browser.thirdPartyCookieAllowances()[0].purpose, "payment")
+        // The longest content the panel ever carries: a refused third party
+        // with an origin no sidebar is wide enough for, and an allowance.
+        panel.refusedThirdParties = [
+            "https://private-user-images.githubusercontent.com",
+            "https://avatars.githubusercontent.com"
+        ]
+        browser.allowThirdPartyCookies(
+            "https://collector-pxxxxxx.eu-north-1.example", "payment")
+        panel.refreshSiteInformation()
+        panel.retainedDataBytes = 322.7 * 1024 * 1024
 
-        const revoke = findChild(window.contentItem, "revokeAllowance0")
-        verify(revoke !== null)
-        settleActions(revoke)
-        mouseClick(revoke, revoke.width / 2, revoke.height / 2)
-        tryVerify(function() { return browser.thirdPartyCookieAllowances().length === 0 })
-        verify(!browser.thirdPartyCookiesAllowed(browser.activeSpaceId, "https://pay.example"))
+        const answers = ["clearSiteStorage", "clearSiteData", "resetSitePermissions",
+            "manageThirdParties"]
+        const lines = ["siteInformationOrigin", "siteInformationConnection",
+            "siteInformationSiteData", "siteInformationRetainedData",
+            "siteInformationCookies", "refusedThirdParty0", "cookieAllowance0",
+            "refusedThirdPartyOverflow", "siteInformationNoPermissions"]
+        for (const name of answers) settleActions(findChild(window.contentItem, name))
 
+        // Measured first, asserted last: restoring the window before the
+        // verify keeps a failure here from reaching the next test.
+        const problems = []
+        const left = panel.mapToItem(window.contentItem, 0, 0).x
+        const right = left + panel.width
+        if (right > sidebar.width) {
+            problems.push("the panel ends at " + right + ", past the sidebar's " + sidebar.width)
+        }
+        for (const name of answers.concat(lines)) {
+            const item = findChild(window.contentItem, name)
+            if (item === null) {
+                if (answers.indexOf(name) !== -1) problems.push(name + " is missing")
+                continue
+            }
+            if (!item.visible) continue
+            const at = item.mapToItem(window.contentItem, 0, 0)
+            if (at.x < left) problems.push(name + " starts at " + at.x + ", left of " + left)
+            if (at.x + item.width > right) {
+                problems.push(name + " ends at " + (at.x + item.width) + ", past " + right)
+            }
+        }
+
+        browser.revokeThirdPartyCookieAllowance(
+            "https://collector-pxxxxxx.eu-north-1.example")
+        panel.refusedThirdParties = []
+        engine.persistentProfilesAvailable = false
         sidebar.statusOpen = false
+        window.sidebarWidth = width
         tryVerify(function() { return !panel.visible })
+
+        compare(problems.join("; "), "")
+    }
+
+    // Every question the panel leads to is asked in the window's own centred
+    // dialog, which has room to name the scope. The panel goes away when the
+    // dialog opens, so one surface holds the question.
+    // `prepare` runs once the panel is open, for the state the lab has no
+    // engine to supply — the panel reads that when it opens, so naming it
+    // earlier would be overwritten.
+    function openSiteAction(name, prepare) {
+        const sidebar = findChild(window.contentItem, "sidebar")
+        const panel = findChild(window.contentItem, "siteInformationPanel")
+        sidebar.statusOpen = true
+        tryVerify(function() { return panel.visible })
+        if (prepare !== undefined) prepare(panel)
+        const trigger = findChild(window.contentItem, name)
+        verify(trigger !== null, name + " is missing")
+        verify(trigger.enabled, name + " is not enabled")
+        settleActions(trigger)
+        mouseClick(trigger, trigger.width / 2, trigger.height / 2)
+        const dialog = findChild(window.contentItem, "spaceDialog")
+        tryVerify(function() { return dialog.open })
+        // One surface holds the question: the panel goes away behind it.
+        verify(!panel.visible)
+        return dialog
     }
 
     // The only clearing that is about the site the panel is headed by. The
@@ -900,48 +952,35 @@ TestCase {
     // own storage and reports what it managed to take.
     function test_siteInformationEmptiesOneSitesStorageThroughItsPage() {
         const engine = openPage("https://site-storage.example/app")
-        const sidebar = findChild(window.contentItem, "sidebar")
-        const panel = findChild(window.contentItem, "siteInformationPanel")
-        sidebar.statusOpen = true
-        tryVerify(function() { return panel.visible })
+        const dialog = openSiteAction("clearSiteStorage")
 
-        const clear = findChild(window.contentItem, "clearSiteStorage")
-        const question = findChild(window.contentItem, "siteInformationResetQuestion")
-        verify(clear !== null)
-        verify(clear.enabled)
-        compare(clear.label, "clear this site")
-
-        // The first press only asks, and names the origin and the scope.
-        settleActions(clear)
-        mouseClick(clear, clear.width / 2, clear.height / 2)
-        tryVerify(function() { return question.visible })
-        compare(question.text,
-            "empty site-storage.example's storage, databases and service workers?")
+        // The dialog names the site, the scope, and what it cannot take.
+        verify(window.dialogMode === "site-storage")
+        verify(dialog.message.indexOf("site-storage.example") !== -1)
+        verify(dialog.message.indexOf("local storage, databases") !== -1)
+        verify(dialog.message.indexOf("cookies are not included") !== -1)
         compare(engine.pageSiteDataClearCount, 0)
 
-        mouseClick(clear, clear.width / 2, clear.height / 2)
+        keyClick(Qt.Key_Return)
         tryVerify(function() { return engine.pageSiteDataClearCount === 1 })
         const notice = findChild(window.contentItem, "pageNotice")
         tryVerify(function() { return notice.showing })
         compare(notice.message, "Emptied site-storage.example's storage")
-        verify(notice.detail.indexOf("local storage, databases") !== -1)
-        // Cookies are not reachable from inside a page, so the notice says
-        // where they are taken instead of leaving the reader to assume.
         verify(notice.detail.indexOf("cookies are cleared for the whole Space") !== -1)
 
         // A page holding nothing says so rather than reporting a success the
         // reader would read as having taken something.
         engine.pageSiteData = []
-        mouseClick(clear, clear.width / 2, clear.height / 2)
-        tryVerify(function() { return question.visible })
-        mouseClick(clear, clear.width / 2, clear.height / 2)
-        tryVerify(function() { return notice.message === "site-storage.example had nothing stored" })
+        openSiteAction("clearSiteStorage")
+        keyClick(Qt.Key_Return)
+        tryVerify(function() {
+            return notice.message === "site-storage.example had nothing stored"
+        })
 
         // And a page that cannot answer is not reported as one that did.
         engine.pageSiteDataRefusal = "databases could not be emptied"
-        mouseClick(clear, clear.width / 2, clear.height / 2)
-        tryVerify(function() { return question.visible })
-        mouseClick(clear, clear.width / 2, clear.height / 2)
+        openSiteAction("clearSiteStorage")
+        keyClick(Qt.Key_Return)
         tryVerify(function() {
             return notice.message === "Could not empty site-storage.example's storage"
         })
@@ -949,30 +988,26 @@ TestCase {
 
         engine.pageSiteDataRefusal = ""
         engine.pageSiteData = ["local storage", "databases"]
-        sidebar.statusOpen = false
-        tryVerify(function() { return !panel.visible })
     }
 
-    // Clearing site data is the Space's, because the engine cannot clear one
-    // site's storage on its own. The panel says which scope is going, and asks
-    // before it goes.
+    // Clearing cookies and cache is the Space's, because the engine can only
+    // take those for every site at once. The dialog says so before it happens.
     function test_siteInformationClearsTheSpacesDataOnceConfirmed() {
         const engine = openPage("https://space-data.example/page")
         const sidebar = findChild(window.contentItem, "sidebar")
-        const panel = findChild(window.contentItem, "siteInformationPanel")
-        // An engine that keeps a profile on disk and names what it keeps there,
-        // which the lab otherwise does not: without both there is no size to
-        // show and nothing to clear.
+        // An engine that keeps a profile on disk and names what it keeps
+        // there, which the lab otherwise does not.
         engine.persistentProfilesAvailable = true
         sidebar.siteDataEntries = ["Cookies", "cache"]
         sidebar.retainedDataEntries = ["Local Storage", "IndexedDB"]
+        window.spaceProfileHost.untouchedCategories = ["storage"]
+
+        const panel = findChild(window.contentItem, "siteInformationPanel")
         sidebar.statusOpen = true
         tryVerify(function() { return panel.visible })
-
         const siteData = findChild(window.contentItem, "siteInformationSiteData")
         tryVerify(function() {
-            return siteData.text.indexOf(
-                "of cookies and cache in this Space, which clearing takes") !== -1
+            return siteData.text.indexOf("of cookies and cache in this Space") !== -1
         })
         // What the engine holds and cannot take is a line of its own, never a
         // byte counted as clearable.
@@ -981,30 +1016,18 @@ TestCase {
         verify(!retained.visible)
         panel.retainedDataBytes = 900 * 1024 * 1024
         tryVerify(function() { return retained.visible })
-        compare(retained.text, "· 900 MB of storage and databases, one site at a time")
+        compare(retained.text, "· 900 MB of storage and databases")
+        sidebar.statusOpen = false
 
-        // An engine that cannot take everything it is asked for.
-        window.spaceProfileHost.untouchedCategories = ["storage"]
-        const clear = findChild(window.contentItem, "clearSiteData")
-        const question = findChild(window.contentItem, "siteInformationResetQuestion")
-        verify(clear !== null)
-        verify(clear.enabled)
-        compare(clear.label, "clear Space data")
-        verify(!question.visible)
+        const dialog = openSiteAction("clearSiteData")
+        verify(dialog.message.indexOf("Every site in") !== -1)
+        verify(dialog.message.indexOf("Storage and databases stay") !== -1)
+        const cleared = window.spaceProfileHost.browsingDataClearCount
 
-        settleActions(clear)
-        mouseClick(clear, clear.width / 2, clear.height / 2)
-        tryVerify(function() { return question.visible })
-        // The question names the scope, so the reader is not told "site" and
-        // given "Space".
-        compare(question.text,
-            "clear the cookies and cache of every site in this Space?")
-        compare(clear.label, "confirm clear")
-
-        mouseClick(clear, clear.width / 2, clear.height / 2)
-        tryVerify(function() { return !question.visible })
-        compare(clear.label, "clear Space data")
-
+        keyClick(Qt.Key_Return)
+        tryVerify(function() {
+            return window.spaceProfileHost.browsingDataClearCount === cleared + 1
+        })
         // The notice says what was taken, and the engine is what says which
         // categories it could not take.
         const notice = findChild(window.contentItem, "pageNotice")
@@ -1015,173 +1038,77 @@ TestCase {
         engine.persistentProfilesAvailable = false
         sidebar.siteDataEntries = []
         sidebar.retainedDataEntries = []
-        sidebar.statusOpen = false
-        tryVerify(function() { return !panel.visible })
+        window.spaceProfileHost.untouchedCategories = []
     }
 
-    // One panel, one origin, one Space: what the connection is, what was
-    // blocked, what is stored, what the site may do, and two ways to take it
-    // back. Where the engine cannot answer, the panel says so.
-    function test_siteInformationNamesTheSpacesContractForOneSite() {
-        openPage("https://site-information.example/page")
-        browser.setPermissionDecision("https://site-information.example/page", "camera", 2)
-        const security = findChild(window.contentItem, "securityIndicator")
+    // A blocked third party is named in the panel and answered in the dialog,
+    // where there is room to say what allowing one is for. A reader looking at
+    // an embedded asset host cannot judge it from its name alone.
+    function test_thirdPartyAllowanceIsChosenInTheDialog() {
+        openPage("https://allowance.example/checkout")
+        const sidebar = findChild(window.contentItem, "sidebar")
         const panel = findChild(window.contentItem, "siteInformationPanel")
-        verify(security !== null)
-        verify(panel !== null)
-        mouseClick(security, security.width / 2, security.height / 2)
+        sidebar.statusOpen = true
         tryVerify(function() { return panel.visible })
 
-        const origin = findChild(window.contentItem, "siteInformationOrigin")
-        const connection = findChild(window.contentItem, "siteInformationConnection")
-        const blocked = findChild(window.contentItem, "siteInformationBlocked")
-        const siteData = findChild(window.contentItem, "siteInformationSiteData")
-        const cookies = findChild(window.contentItem, "siteInformationCookies")
-        const engine = findChild(window.contentItem, "engineLoader").item
-        compare(origin.text, "site-information.example")
-        compare(connection.text, "· connection is encrypted")
-        verify(blocked.text.indexOf("requests blocked in this window") !== -1)
-        // The lab keeps nothing on disk and refuses no third party. Both gaps
-        // are the adapter's own report, and both are said rather than drawn as
-        // a comfortable blank.
-        // Stated rather than inherited from whatever ran before: the lab keeps
-        // nothing on disk, and the panel says so instead of showing a blank.
-        engine.persistentProfilesAvailable = false
-        tryCompare(siteData, "text", "· this engine keeps no site data on disk")
-        compare(cookies.text, "· third-party cookies and storage are blocked")
-        // An engine that cannot refuse a third party says so here rather than
-        // leaving the line reading like a promise it is not keeping.
-        engine.thirdPartyCookieControlAvailable = false
-        tryCompare(cookies, "text", "· this engine cannot refuse a third party")
-        engine.thirdPartyCookieControlAvailable = true
+        // With nothing refused and nothing allowed there is nothing to answer.
+        const trigger = findChild(window.contentItem, "manageThirdParties")
+        verify(trigger !== null)
+        verify(!trigger.enabled)
 
-        // An engine that cannot report a certificate failure cannot be blocking
-        // on one either, so the connection line above is worth less than it
-        // looks and the panel says so.
-        const certificates = findChild(window.contentItem, "siteInformationCertificates")
-        verify(certificates !== null)
-        verify(!certificates.visible)
-        engine.certificateDecisionsAvailable = false
-        tryVerify(function() { return certificates.visible })
-        compare(certificates.text, "· this engine cannot report a certificate failure")
-        engine.certificateDecisionsAvailable = true
-        tryVerify(function() { return !certificates.visible })
+        // The lab has no third-party filter, so the origins one would have
+        // refused are named here.
+        const refused = ["https://pay.example", "https://cdn.example",
+            "https://images.example", "https://fonts.example"]
+        const name = function(surface) { surface.refusedThirdParties = refused }
+        panel.refusedThirdParties = refused
+        tryVerify(function() { return trigger.enabled })
+        // Only the first few are listed; the rest are the dialog's to show.
+        verify(findChild(window.contentItem, "refusedThirdParty2") !== null)
+        compare(findChild(window.contentItem, "refusedThirdParty3"), null)
+        const overflow = findChild(window.contentItem, "refusedThirdPartyOverflow")
+        tryVerify(function() { return overflow.visible })
+        compare(overflow.text, "· and 1 more, listed under third parties")
 
-        const permission = findChild(window.contentItem, "sitePermission0")
-        verify(permission !== null)
-        compare(permission.text, "· camera — always allowed")
+        sidebar.statusOpen = false
 
-        // Resetting takes two presses, and the first only asks.
-        const reset = findChild(window.contentItem, "resetSitePermissions")
-        const question = findChild(window.contentItem, "siteInformationResetQuestion")
-        verify(reset !== null)
-        verify(!question.visible)
-        settleActions(reset)
-        mouseClick(reset, reset.width / 2, reset.height / 2)
-        tryVerify(function() { return question.visible })
-        compare(browser.permissionDecision("https://site-information.example/", "camera"), 2)
-        mouseClick(reset, reset.width / 2, reset.height / 2)
-        tryVerify(function() {
-            return findChild(window.contentItem, "siteInformationNoPermissions").visible
-        })
-        compare(browser.permissionDecision("https://site-information.example/", "camera"), 0)
+        const dialog = openSiteAction("manageThirdParties", name)
+        verify(dialog.message.indexOf("not working") !== -1)
+        verify(dialog.message.indexOf("does not need it") !== -1)
+        compare(window.thirdPartyRows.length, 8)
+        compare(findChild(window.contentItem, "commandDialogRow0").objectName,
+            "commandDialogRow0")
+
+        // The second row is the payment answer for the first origin.
+        keyClick(Qt.Key_Down)
+        keyClick(Qt.Key_Return)
+        tryVerify(function() { return browser.thirdPartyCookieAllowances().length === 1 })
+        compare(browser.thirdPartyCookieAllowances()[0].origin, "https://pay.example")
+        compare(browser.thirdPartyCookieAllowances()[0].purpose, "payment")
+        verify(browser.thirdPartyCookiesAllowed(browser.activeSpaceId, "https://pay.example"))
         const notice = findChild(window.contentItem, "pageNotice")
         tryVerify(function() { return notice.showing })
-        compare(notice.message, "Reset every decision for site-information.example")
-        // Reloading does not take a capability off a page, so the notice must
-        // not offer it as the way to.
-        verify(notice.detail.indexOf("open the site again") !== -1)
-        verify(notice.detail.indexOf("reload") === -1)
-        // The engine's own record of the origin goes too: a decision Omaweb
-        // cannot reach is one its reset would only appear to undo.
-        verify(window.spaceProfileHost.resetPermissionOrigins.length > 0)
+        compare(notice.message, "Allowing https://pay.example")
+        verify(notice.detail.indexOf("for a payment") !== -1)
 
-        keyClick(Qt.Key_Escape)
-        tryVerify(function() { return !panel.visible })
-    }
+        // The panel now names it as allowed, beside the ones still refused.
+        sidebar.statusOpen = true
+        tryVerify(function() { return panel.visible })
+        panel.refusedThirdParties = refused
+        const allowed = findChild(window.contentItem, "cookieAllowance0")
+        verify(allowed !== null)
+        compare(allowed.text, "· https://pay.example — allowed for payment")
+        sidebar.statusOpen = false
 
-    // A certificate failure blocks. The one question Omaweb asks is about a
-    // Local-development site's own main frame, and the answer covers this load
-    // and nothing after it.
-    function test_certificateExceptionOnlyForAnOverridableLocalMainFrame() {
-        const engine = openPage("https://localhost:8443/app")
-        const bar = findChild(window.contentItem, "certificateQuestionBar")
-        verify(bar !== null)
-        verify(!bar.open)
+        // An allowance is taken back the same way, from the top of the list.
+        openSiteAction("manageThirdParties", name)
+        compare(window.thirdPartyRows[0].purpose, "")
+        keyClick(Qt.Key_Return)
+        tryVerify(function() { return browser.thirdPartyCookieAllowances().length === 0 })
+        verify(!browser.thirdPartyCookiesAllowed(browser.activeSpaceId, "https://pay.example"))
+        tryVerify(function() { return notice.message === "Stopped allowing https://pay.example" })
 
-        const requestId = engine.simulateCertificateError({})
-        tryVerify(function() { return bar.open })
-        const action = findChild(bar, "questionAction0")
-        verify(action !== null)
-        settleActions(action)
-        mouseClick(action, action.width / 2, action.height / 2)
-        tryVerify(function() { return !bar.open })
-        compare(engine.certificateDecisions[requestId], true)
-        // Nothing was written down: the answer is not a Site permission and
-        // does not appear among them.
-        compare(browser.sitePermissions("https://localhost:8443/app").length, 0)
-
-        // A frame's failure inside the same page is refused without a question.
-        engine.simulateCertificateError({
-            "url": "https://tracker.example/pixel", "mainFrame": false
-        })
-        verify(!bar.open)
-
-        // A failure no engine overrides is refused, and so is one the engine
-        // will not override.
-        engine.simulateCertificateError({"fatal": true})
-        verify(!bar.open)
-        engine.simulateCertificateError({"overridable": false})
-        verify(!bar.open)
-
-        // A public site is refused whatever the failure looks like.
-        const publicEngine = openPage("https://bank.example/login")
-        const publicRequest = publicEngine.simulateCertificateError({})
-        verify(!bar.open)
-        compare(publicEngine.certificateDecisions[publicRequest], false)
-    }
-
-    // Camera takes the three decisions. Clipboard read is asked every time, so
-    // the bar has no answer that outlives the request.
-    function test_clipboardReadAndScreenSharingAreAskedEveryTime() {
-        const engine = openPage("https://capability.example/page")
-        const bar = findChild(window.contentItem, "sitePermissionBar")
-        verify(bar !== null)
-
-        const cameraRequest = engine.simulateSitePermission(
-            "https://capability.example/page", "camera")
-        tryVerify(function() { return bar.open })
-        compare(bar.actions.length, 3)
-        compare(bar.actions[1].label, "Always allow")
-        const always = findChild(bar, "questionAction1")
-        settleActions(always)
-        mouseClick(always, always.width / 2, always.height / 2)
-        tryVerify(function() { return !bar.open })
-        compare(engine.permissionAnswers[cameraRequest], 2)
-        compare(browser.permissionDecision("https://capability.example/", "camera"), 2)
-
-        for (const eachTime of ["clipboard-read", "screen-sharing"]) {
-            const requestId = engine.simulateSitePermission(
-                "https://capability.example/page", eachTime)
-            tryVerify(function() { return bar.open })
-            compare(bar.actions.length, 2)
-            compare(bar.actions[1].label, "Block")
-            verify(bar.detail.indexOf("never remembered") !== -1)
-            const allowOnce = findChild(bar, "questionAction0")
-            settleActions(allowOnce)
-            mouseClick(allowOnce, allowOnce.width / 2, allowOnce.height / 2)
-            tryVerify(function() { return !bar.open })
-            compare(engine.permissionAnswers[requestId], 1)
-            // Answering once answered this request. The next one asks again.
-            compare(browser.permissionDecision("https://capability.example/", eachTime), 0)
-        }
-
-        // A capability outside the contract is refused without a question, so
-        // the request never reaches a bar at all.
-        const settled = engine.permissionsSettledWithoutAsking
-        compare(engine.simulateSitePermission("https://capability.example/page", "usb"), "")
-        compare(engine.permissionsSettledWithoutAsking, settled + 1)
-        verify(!bar.open)
+        panel.refusedThirdParties = []
     }
 
     function test_siteStatusStaysWithAddressAndDismisses() {

@@ -110,6 +110,9 @@ ApplicationWindow {
     // The categories the engine said it could not take, from the last clearing
     // it was asked for.
     property var untouchedDataCategories: []
+    // Every third party this page has had refused, and every one it has been
+    // allowed, as the rows the dialog offers.
+    property var thirdPartyRows: []
     // What the connection to the page on show is, read off the engine drawing
     // it — and then contradicted where Omaweb knows better. An engine keeps an
     // accepted certificate for as long as its profile lives and offers no way
@@ -859,6 +862,83 @@ ApplicationWindow {
         window.pendingCertificateFailureId = ""
     }
 
+    // A third party a page had refused can be allowed for one named flow, and
+    // an allowance can be taken back. Both are rows rather than buttons: the
+    // reader is choosing among origins they cannot judge by name, so each row
+    // says the whole origin and what allowing it would be for.
+    function refreshThirdPartyRows() {
+        const rows = []
+        const allowances = window.windowBrowser.thirdPartyCookieAllowances()
+        for (let index = 0; index < allowances.length; ++index) {
+            rows.push({
+                "label": "stop allowing " + allowances[index].origin,
+                "note": "allowed for " + allowances[index].purpose,
+                "origin": allowances[index].origin,
+                "purpose": ""
+            })
+        }
+        // Read from the panel, which asked the engine's filter when it opened.
+        // Asking again here would be a second place that knows how to.
+        const refused = sidebar.refusedThirdParties
+        for (let index = 0; index < refused.length; ++index) {
+            rows.push({
+                "label": "allow " + refused[index] + " for a sign-in",
+                "note": "until this session ends",
+                "origin": refused[index],
+                "purpose": "authentication"
+            })
+            rows.push({
+                "label": "allow " + refused[index] + " for a payment",
+                "note": "until this session ends",
+                "origin": refused[index],
+                "purpose": "payment"
+            })
+        }
+        window.thirdPartyRows = rows
+    }
+
+    function answerThirdPartyRow(index) {
+        const row = window.thirdPartyRows[index]
+        if (!row) return
+        if (row.purpose.length === 0) {
+            if (window.windowBrowser.revokeThirdPartyCookieAllowance(row.origin)) {
+                window.showNotice("cookie", "Stopped allowing " + row.origin,
+                    "it is refused again from the next request", 4200)
+            }
+            return
+        }
+        if (window.windowBrowser.allowThirdPartyCookies(row.origin, row.purpose)) {
+            window.showNotice("cookie", "Allowing " + row.origin,
+                "for a " + (row.purpose === "payment" ? "payment" : "sign-in")
+                    + " · until this session ends · reload the page to use it", 4200)
+        }
+    }
+
+    function clearSpaceSiteData() {
+        const cleared = window.windowBrowser.clearBrowsingData(
+            ["cookies", "storage", "cache"], 0)
+        const stayed = window.untouchedDataCategories
+        window.showNotice(cleared ? "delete_sweep" : "block",
+            cleared
+                ? "Cleared this Space's cookies and cache"
+                : "Could not clear this Space's site data",
+            cleared && stayed.length > 0
+                ? stayed.join(" and ") + " stayed: this engine has no way to remove them"
+                : "")
+    }
+
+    function resetSitePermissions() {
+        const origin = window.windowBrowser.activeUrl
+        const reset = window.windowBrowser.resetSitePermissions(origin)
+        // Reloading does not take a capability off a page: the engine answers a
+        // granted one from a store keyed by the frame that asked, and a reload
+        // reuses that frame. Opening the site again is a new frame, and asks.
+        window.showNotice(reset ? "shield_person" : "block",
+            reset ? "Reset every decision for this site"
+                  : "Could not reset the decisions for this site",
+            reset ? "a page already holding one keeps it until you open the site again" : "")
+    }
+
     function showBrowserPrompt(engine, requestId, prompt) {
         if (engine !== engineLoader.item) {
             engine.respondToBrowserPrompt(requestId, false, {})
@@ -1190,7 +1270,6 @@ ApplicationWindow {
                     ? window.spaceProfileHost.siteDataEntries : []
                 retainedDataEntries: window.spaceProfileHost
                     ? window.spaceProfileHost.retainedDataEntries : []
-                untouchedDataCategories: window.untouchedDataCategories
                 siteDataGeneration: window.siteDataGeneration
                 canGoBack: engineLoader.item ? engineLoader.item.canGoBack : false
                 canGoForward: engineLoader.item ? engineLoader.item.canGoForward : false
@@ -1198,11 +1277,13 @@ ApplicationWindow {
                 tintFavicons: window.tintFavicons
                 settingsAttention: settingsSurface.needsAttention
 
-                onNoticeRequested: function(glyph, message, detail) {
-                    window.showNotice(glyph, message, detail, 4200)
+                // The panel states; the window asks. Opening the dialog puts
+                // the panel away, so there is one surface holding the question.
+                onSiteActionRequested: function(action) {
+                    sidebar.statusOpen = false
+                    if (action === "third-party") window.refreshThirdPartyRows()
+                    window.dialogMode = action
                 }
-
-                onSiteStorageClearRequested: engineLoader.clearPageSiteData()
 
                 // A drag is already following the pointer; easing it too
                 // would make the seam lag behind the hand holding it.
@@ -2041,6 +2122,7 @@ ApplicationWindow {
         colors: window.colors
         open: window.dialogMode.length > 0
         destructive: window.dialogMode === "delete" || window.dialogMode === "confirm-move"
+            || window.dialogMode === "space-data" || window.dialogMode === "site-storage"
         inputVisible: window.dialogMode === "new" || window.dialogMode === "rename"
             || window.dialogMode === "delete"
         selectPreset: window.dialogMode === "rename"
@@ -2053,6 +2135,10 @@ ApplicationWindow {
             case "delete": return "delete space"
             case "move": return "move tab to a space"
             case "confirm-move": return "discard edited form state"
+            case "site-storage": return "clear this site's storage"
+            case "space-data": return "clear this Space's site data"
+            case "reset-permissions": return "reset this site's permissions"
+            case "third-party": return "third parties on this page"
             }
             return ""
         }
@@ -2075,6 +2161,32 @@ ApplicationWindow {
                 return "This page has edited form state. Moving it reloads the page under the "
                     + "destination identity and discards those edits."
             }
+            // Each of these names its own scope, because the three of them are
+            // three different sizes and only the wording tells them apart.
+            if (window.dialogMode === "site-storage") {
+                return sidebar.siteOrigin + " loses the local storage, databases, caches and "
+                    + "service workers it kept in this Space. Its cookies are not included: "
+                    + "the engine can only take those for every site at once. The page may "
+                    + "misbehave until it is reloaded, and this cannot be undone."
+            }
+            if (window.dialogMode === "space-data") {
+                return "Every site in " + window.windowBrowser.activeSpaceName + " loses its "
+                    + "cookies and cached files, so open sessions there are signed out. "
+                    + "Storage and databases stay: this engine can only take those one site "
+                    + "at a time. This cannot be undone."
+            }
+            if (window.dialogMode === "reset-permissions") {
+                return sidebar.siteOrigin + " loses every decision made for it in this Space, "
+                    + "and is asked again the next time it wants one. A page already holding "
+                    + "a capability keeps it until the site is opened again — reloading is "
+                    + "not enough."
+            }
+            if (window.dialogMode === "third-party") {
+                return "Sites embedded in this page are refused cookies and storage. Allow "
+                    + "one only when a sign-in or a payment on this page is not working; an "
+                    + "embedded image or script host does not need it. Nothing allowed here "
+                    + "outlives this session."
+            }
             return ""
         }
 
@@ -2085,11 +2197,21 @@ ApplicationWindow {
             case "delete": return "⏎ delete " + window.windowBrowser.activeSpaceName
             case "move": return "↑↓ choose      ⏎ move the tab"
             case "confirm-move": return "⏎ discard the edits and move"
+            case "site-storage": return "⏎ clear " + sidebar.siteOrigin + "'s storage"
+            case "space-data": return "⏎ clear every site's cookies and cache"
+            case "reset-permissions": return "⏎ reset " + sidebar.siteOrigin + "'s permissions"
+            case "third-party": return "↑↓ choose      ⏎ answer for that site"
             }
             return ""
         }
 
-        rows: window.dialogMode === "move" ? window.moveTargets : []
+        rows: {
+            switch (window.dialogMode) {
+            case "move": return window.moveTargets
+            case "third-party": return window.thirdPartyRows
+            }
+            return []
+        }
 
         onDismissed: window.dialogMode = ""
 
@@ -2109,11 +2231,25 @@ ApplicationWindow {
                 window.windowBrowser.confirmTabMoveToSpace(
                     window.pendingMoveTabId, window.pendingMoveSpaceId)
                 break
+            case "site-storage":
+                engineLoader.clearPageSiteData()
+                break
+            case "space-data":
+                window.clearSpaceSiteData()
+                break
+            case "reset-permissions":
+                window.resetSitePermissions()
+                break
             }
             window.dialogMode = ""
         }
 
         onRowActivated: function(index) {
+            if (window.dialogMode === "third-party") {
+                window.dialogMode = ""
+                window.answerThirdPartyRow(index)
+                return
+            }
             const target = window.moveTargets[index]
             if (!target) return
             const tabId = window.windowBrowser.activeTabId
