@@ -355,6 +355,12 @@ if(OMAWEB_BUILD_BROWSER)
         "src/engine/qt/EngineProfile.qml" "src/engine/qt")
     omaweb_strict_target(omaweb)
 
+    # The vendored kit imports Quickshell, which omaweb-quickshell-shim registers
+    # from C++. On a host that also has the real Quickshell installed in Qt's qml
+    # directory, qmlimportscanner finds its qmldir and Qt warns that the plugin's
+    # link target is missing. Nothing needs linking here, so skip the scan.
+    set_target_properties(omaweb PROPERTIES QT_QML_MODULE_NO_IMPORT_SCAN TRUE)
+
     set_target_properties(omaweb PROPERTIES
         MACOSX_BUNDLE_BUNDLE_NAME "Omaweb"
         MACOSX_BUNDLE_GUI_IDENTIFIER "dev.omaweb.browser"
@@ -380,6 +386,12 @@ if(OMAWEB_BUILD_UI_LAB)
     omaweb_configure_qml(omaweb-ui-lab "src/ui-lab/MockEngineView.qml"
         "src/ui-lab/MockEngineProfile.qml" "src/ui-lab")
     omaweb_strict_target(omaweb-ui-lab)
+
+    # The vendored kit imports Quickshell, which omaweb-quickshell-shim registers
+    # from C++. On a host that also has the real Quickshell installed in Qt's qml
+    # directory, qmlimportscanner finds its qmldir and Qt warns that the plugin's
+    # link target is missing. Nothing needs linking here, so skip the scan.
+    set_target_properties(omaweb-ui-lab PROPERTIES QT_QML_MODULE_NO_IMPORT_SCAN TRUE)
     set_target_properties(omaweb-ui-lab PROPERTIES
         MACOSX_BUNDLE_BUNDLE_NAME "Omaweb UI Lab"
         MACOSX_BUNDLE_GUI_IDENTIFIER "dev.omaweb.browser.ui-lab"
