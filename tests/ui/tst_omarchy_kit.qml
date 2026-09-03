@@ -150,6 +150,22 @@ TestCase {
         Color.loadColors("")
     }
 
+    // Palette normalization can reject two different desktop palettes to the
+    // same built-in colours. The desktop still switched, so the kit must
+    // reread shell.toml even though ThemeController's palette did not change.
+    function test_theKitRereadsDesktopStyleWhenTheThemeReloads() {
+        const sentinel = 0.731
+        Color.loadShell("[controls]\nnormal-fill-alpha = " + sentinel + "\n")
+        compare(Style.normalFillAlpha, sentinel)
+
+        theme.reload()
+        const reloadedAlpha = Style.normalFillAlpha
+
+        // Restore a predictable baseline before reporting a failure.
+        Color.loadShell("")
+        verify(Math.abs(reloadedAlpha - sentinel) > 0.0001)
+    }
+
     function test_actionButtonUsesTheKitAndOmawebPalette() {
         const button = createTemporaryObject(actionButtonComponent, testCase)
         verify(button !== null)

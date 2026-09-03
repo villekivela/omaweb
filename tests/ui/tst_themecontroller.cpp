@@ -5,8 +5,11 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QFontDatabase>
+#include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QTest>
+
+#include <cmath>
 
 using omaweb::ThemeController;
 
@@ -18,6 +21,20 @@ private slots:
     void appliesSemanticOpacityToChromeSurfaces();
     void givesFullPageSurfacesTheSidebarsColourAndTheirOwnTranslucency();
     void namesOneColourForSomethingBeingWrong();
+    void keepsQuietTextReadableOnEverySurfaceItIsDrawnOn();
+    void keepsQuietTextReadableOnPrivateAndHoverSurfaces();
+    void keepsQuietTextAheadOfADisabledControl();
+    void quietensATextColourAThemeNamesNoMutedTextFor();
+    void keepsAMutedColourAThemeGotRight();
+    void preservesTheHueOfAMutedColourItRepairs();
+    void keepsBordersVisibleOnEverySurfaceTheySeparate();
+    void preservesTheHueOfABorderItRepairs();
+    void keepsABorderAThemeAlsoNamedAsItsHoverFill();
+    void drawsARuleAsQuietlyAsTheBarDraws();
+    void keepsAPaletteWhoseSurfacesCannotShareReadableRoles();
+    void keepsTheDesktopsOwnColoursWhenAPrivateSurfaceIsAnAccent();
+    void reportsAThemeReloadWhenTheNormalizedPaletteDoesNotChange();
+    void keepsASaturatedPaletteWhenBlackCanSupplyUnnamedRoles();
     void resolvesTheFirstInstalledTypeFamily();
     void fallsBackToAFamilyTheHostActuallyHas();
     void keepsTheTypeBaseSizeUsable();
@@ -84,6 +101,540 @@ void ThemeControllerTest::appliesSemanticOpacityToChromeSurfaces()
                  .value(QStringLiteral("overlay")).toDouble(), 1.0);
 }
 
+// The contrast floor Omaweb holds muted text to, and the disabled treatment it
+// has to stay ahead of, in one place: a disabled control is `text` at this
+// alpha, and every muted-text test here reasons against the same numbers the
+// interface draws with.
+namespace {
+
+constexpr auto minimumContrast = 4.5;
+constexpr auto minimumGraphicContrast = 3.0;
+constexpr auto disabledOpacity = 0.35;
+
+double relativeLuminance(const QColor &colour)
+{
+    const auto channel = [](double value) {
+        return value <= 0.04045 ? value / 12.92 : std::pow((value + 0.055) / 1.055, 2.4);
+    };
+    return 0.2126 * channel(colour.redF()) + 0.7152 * channel(colour.greenF())
+        + 0.0722 * channel(colour.blueF());
+}
+
+double contrastRatio(const QColor &one, const QColor &other)
+{
+    const auto first = relativeLuminance(one);
+    const auto second = relativeLuminance(other);
+    return (std::max(first, second) + 0.05) / (std::min(first, second) + 0.05);
+}
+
+// What the reader actually sees where a control is drawn at reduced opacity:
+// the colour composited over the surface behind it.
+QColor composited(const QColor &colour, double alpha, const QColor &ground)
+{
+    const auto channel = [alpha](int over, int under) {
+        return qRound(alpha * over + (1.0 - alpha) * under);
+    };
+    return QColor::fromRgb(channel(colour.red(), ground.red()),
+        channel(colour.green(), ground.green()), channel(colour.blue(), ground.blue()));
+}
+
+} // namespace
+
+// Muted text is content — tab titles, Space letters, the footer's controls —
+// so it holds WCAG AA for body text against every surface it is drawn on, not
+// only against the one the theme's author happened to look at. A palette
+// derived from a terminal offers ANSI bright black for it, which is a border
+// colour, and this is the theme in the report that prompted the floor.
+void ThemeControllerTest::keepsQuietTextReadableOnEverySurfaceItIsDrawnOn()
+{
+    QTemporaryDir root;
+    QFile theme(root.filePath(QStringLiteral("theme.json")));
+    QVERIFY(theme.open(QIODevice::WriteOnly));
+    theme.write(R"JSON({
+        "window": "#0a0a0f",
+        "sidebar": "#0e0e16",
+        "overlay": "#0e0e16",
+        "surface": "#13131d",
+        "text": "#c8c8c8",
+        "mutedText": "#434353"
+    })JSON");
+    theme.close();
+
+    ThemeController controller(theme.fileName());
+    const auto palette = controller.palette();
+    const QColor muted(palette.value(QStringLiteral("mutedText")).toString());
+    QVERIFY(muted.isValid());
+    // `surface` carries no semantic opacity, so it has no opaque variant to
+    // read; the surfaces that do are checked underneath their translucency,
+    // which is the colour the text is actually drawn over.
+    for (const auto &key : {"sidebarOpaque", "surface", "overlayOpaque", "sheetOpaque"}) {
+        const QColor ground(palette.value(QString::fromLatin1(key)).toString());
+        QVERIFY2(ground.isValid(), key);
+        QVERIFY2(contrastRatio(muted, ground) >= minimumContrast, key);
+    }
+    // Quieter than the text it was taken from, or the floor has cost the
+    // palette the distinction it exists to draw.
+    QVERIFY(contrastRatio(muted, QColor(palette.value(QStringLiteral("sidebarOpaque")).toString()))
+        < contrastRatio(QColor(palette.value(QStringLiteral("text")).toString()),
+            QColor(palette.value(QStringLiteral("sidebarOpaque")).toString())));
+}
+
+void ThemeControllerTest::keepsQuietTextReadableOnPrivateAndHoverSurfaces()
+{
+    QTemporaryDir root;
+    QFile theme(root.filePath(QStringLiteral("theme.json")));
+    QVERIFY(theme.open(QIODevice::WriteOnly));
+    theme.write(R"JSON({
+        "sidebar": "#101010",
+        "overlay": "#101010",
+        "surface": "#101010",
+        "surfaceHover": "#65486f",
+        "text": "#ffffff",
+        "mutedText": "#888888",
+        "privateSidebar": "#65486f",
+        "privateSurface": "#65486f",
+        "privateSurfaceHover": "#765780"
+    })JSON");
+    theme.close();
+
+    ThemeController controller(theme.fileName());
+    const auto palette = controller.palette();
+    const QColor muted(palette.value(QStringLiteral("mutedText")).toString());
+    for (const auto &key : {
+             "sidebarOpaque", "surface", "surfaceHover", "overlayOpaque", "sheetOpaque"}) {
+        const QColor ground(palette.value(QString::fromLatin1(key)).toString());
+        QVERIFY2(ground.isValid(), key);
+        QVERIFY2(contrastRatio(muted, ground) >= minimumContrast, key);
+    }
+    const QColor privateMuted(palette.value(QStringLiteral("privateMutedText")).toString());
+    for (const auto &key : {"privateSidebarOpaque", "privateSurface", "privateSurfaceHover",
+             "privateOverlayOpaque", "privateSheetOpaque"}) {
+        const QColor ground(palette.value(QString::fromLatin1(key)).toString());
+        QVERIFY2(ground.isValid(), key);
+        QVERIFY2(contrastRatio(privateMuted, ground) >= minimumContrast, key);
+    }
+}
+
+// The defect the floor exists to prevent: muted text drawn fainter than the
+// disabled rendering of ordinary text, so every quiet label reads as a control
+// the reader cannot use. Checked on the theme that showed it and on a light
+// theme, because the disabled composite moves the other way there.
+void ThemeControllerTest::keepsQuietTextAheadOfADisabledControl()
+{
+    const QList<QPair<QByteArray, QByteArray>> themes{
+        {QByteArrayLiteral("dark"), QByteArrayLiteral(R"JSON({
+            "sidebar": "#0e0e16", "overlay": "#0e0e16", "surface": "#13131d",
+            "text": "#c8c8c8", "mutedText": "#434353"
+        })JSON")},
+        {QByteArrayLiteral("light"), QByteArrayLiteral(R"JSON({
+            "sidebar": "#f5f5f5", "overlay": "#f5f5f5", "surface": "#c0c0c0",
+            "text": "#000000", "mutedText": "#c0c0c0"
+        })JSON")},
+    };
+
+    for (const auto &[name, contents] : themes) {
+        QTemporaryDir root;
+        QFile theme(root.filePath(QStringLiteral("theme.json")));
+        QVERIFY(theme.open(QIODevice::WriteOnly));
+        theme.write(contents);
+        theme.close();
+
+        ThemeController controller(theme.fileName());
+        const auto palette = controller.palette();
+        const QColor ground(palette.value(QStringLiteral("sidebarOpaque")).toString());
+        const QColor muted(palette.value(QStringLiteral("mutedText")).toString());
+        const auto disabled = composited(
+            QColor(palette.value(QStringLiteral("text")).toString()), disabledOpacity, ground);
+        QVERIFY2(contrastRatio(muted, ground) > contrastRatio(disabled, ground), name.constData());
+    }
+}
+
+// A theme that names no muted text is not owed Omaweb's own: it gets the
+// quietest tint of its own text colour that still reads, which keeps a light
+// theme's quiet text dark without either theme being special-cased.
+void ThemeControllerTest::quietensATextColourAThemeNamesNoMutedTextFor()
+{
+    QTemporaryDir root;
+    QFile theme(root.filePath(QStringLiteral("theme.json")));
+    QVERIFY(theme.open(QIODevice::WriteOnly));
+    theme.write(R"JSON({
+        "window": "#ffffff",
+        "sidebar": "#f5f5f5",
+        "overlay": "#f5f5f5",
+        "surface": "#eeeeee",
+        "text": "#101010"
+    })JSON");
+    theme.close();
+
+    ThemeController controller(theme.fileName());
+    const auto palette = controller.palette();
+    const QColor muted(palette.value(QStringLiteral("mutedText")).toString());
+    const QColor ground(palette.value(QStringLiteral("sidebarOpaque")).toString());
+    QVERIFY(contrastRatio(muted, ground) >= minimumContrast);
+    // Derived from the theme's text rather than from the palette Omaweb ships:
+    // dark on a light theme, and quieter than the text it came from.
+    QVERIFY(relativeLuminance(muted) < relativeLuminance(ground));
+    QVERIFY(contrastRatio(muted, ground)
+        < contrastRatio(QColor(palette.value(QStringLiteral("text")).toString()), ground));
+}
+
+// The floor repairs; it does not redecorate. A theme whose muted text already
+// reads keeps the exact colour it named, hue and all.
+void ThemeControllerTest::keepsAMutedColourAThemeGotRight()
+{
+    QTemporaryDir root;
+    QFile theme(root.filePath(QStringLiteral("theme.json")));
+    QVERIFY(theme.open(QIODevice::WriteOnly));
+    theme.write(R"JSON({
+        "window": "#080e18",
+        "sidebar": "#080e18",
+        "overlay": "#080e18",
+        "surface": "#101820",
+        "text": "#e8eef7",
+        "mutedText": "#b3bdcc"
+    })JSON");
+    theme.close();
+
+    ThemeController controller(theme.fileName());
+    QCOMPARE(QColor(controller.palette().value(QStringLiteral("mutedText")).toString()),
+        QColor(QStringLiteral("#b3bdcc")));
+}
+
+void ThemeControllerTest::preservesTheHueOfAMutedColourItRepairs()
+{
+    QTemporaryDir root;
+    QFile theme(root.filePath(QStringLiteral("theme.json")));
+    QVERIFY(theme.open(QIODevice::WriteOnly));
+    theme.write(R"JSON({
+        "sidebar": "#101010",
+        "overlay": "#101010",
+        "surface": "#181818",
+        "surfaceHover": "#202020",
+        "text": "#d8e8c0",
+        "mutedText": "#35105f",
+        "privateSidebar": "#181818",
+        "privateSurface": "#202020",
+        "privateSurfaceHover": "#282828"
+    })JSON");
+    theme.close();
+
+    ThemeController controller(theme.fileName());
+    const QColor named(QStringLiteral("#35105f"));
+    const QColor repaired(controller.palette().value(QStringLiteral("mutedText")).toString());
+    QVERIFY(contrastRatio(repaired, QColor(QStringLiteral("#202020"))) >= minimumContrast);
+    QVERIFY(std::abs(repaired.hslHueF() - named.hslHueF()) < 0.01);
+}
+
+void ThemeControllerTest::keepsBordersVisibleOnEverySurfaceTheySeparate()
+{
+    QTemporaryDir root;
+    QFile theme(root.filePath(QStringLiteral("theme.json")));
+    QVERIFY(theme.open(QIODevice::WriteOnly));
+    theme.write(R"JSON({
+        "window": "#0a0a0f",
+        "sidebar": "#0e0e16",
+        "overlay": "#0e0e16",
+        "surface": "#13131d",
+        "surfaceHover": "#1b1b27",
+        "text": "#d8d8df",
+        "border": "#333333",
+        "privateWindow": "#21172a",
+        "privateSidebar": "#2b1d36",
+        "privateSurface": "#35223f",
+        "privateSurfaceHover": "#40294c"
+    })JSON");
+    theme.close();
+
+    ThemeController controller(theme.fileName());
+    const auto palette = controller.palette();
+    const QColor border(palette.value(QStringLiteral("border")).toString());
+    // No hover fill among them: a rule or a frame is drawn on a surface at
+    // rest, and the edge a control grows under the pointer is the kit's.
+    for (const auto &key :
+        {"windowOpaque", "sidebarOpaque", "surface", "overlayOpaque", "sheetOpaque"}) {
+        const QColor ground(palette.value(QString::fromLatin1(key)).toString());
+        QVERIFY2(ground.isValid(), key);
+        QVERIFY2(contrastRatio(border, ground) >= minimumGraphicContrast, key);
+    }
+    const QColor privateBorder(palette.value(QStringLiteral("privateBorder")).toString());
+    for (const auto &key : {"privateWindowOpaque", "privateSidebarOpaque", "privateSurface",
+             "privateOverlayOpaque", "privateSheetOpaque"}) {
+        const QColor ground(palette.value(QString::fromLatin1(key)).toString());
+        QVERIFY2(ground.isValid(), key);
+        QVERIFY2(contrastRatio(privateBorder, ground) >= minimumGraphicContrast, key);
+    }
+}
+
+void ThemeControllerTest::preservesTheHueOfABorderItRepairs()
+{
+    QTemporaryDir root;
+    QFile theme(root.filePath(QStringLiteral("theme.json")));
+    QVERIFY(theme.open(QIODevice::WriteOnly));
+    theme.write(R"JSON({
+        "window": "#101010",
+        "sidebar": "#101010",
+        "overlay": "#101010",
+        "surface": "#181818",
+        "surfaceHover": "#202020",
+        "text": "#00ff00",
+        "border": "#000080",
+        "privateWindow": "#181818",
+        "privateSidebar": "#181818",
+        "privateSurface": "#202020",
+        "privateSurfaceHover": "#282828"
+    })JSON");
+    theme.close();
+
+    ThemeController controller(theme.fileName());
+    const QColor named(QStringLiteral("#000080"));
+    const QColor repaired(controller.palette().value(QStringLiteral("border")).toString());
+    QVERIFY(contrastRatio(repaired, QColor(QStringLiteral("#181818")))
+        >= minimumGraphicContrast);
+    QVERIFY(std::abs(repaired.hslHueF() - named.hslHueF()) < 0.01);
+}
+
+// The template Omarchy renders from names the desktop's one muted colour for
+// both the hover fill and the border, and no colour is 3:1 against itself. A
+// border asked to clear the fill it can never clear left every such theme
+// drawing its rules and frames in near-white.
+void ThemeControllerTest::keepsABorderAThemeAlsoNamedAsItsHoverFill()
+{
+    QTemporaryDir root;
+    QFile theme(root.filePath(QStringLiteral("theme.json")));
+    QVERIFY(theme.open(QIODevice::WriteOnly));
+    theme.write(R"JSON({
+        "window": "#010304",
+        "sidebar": "#030607",
+        "overlay": "#030607",
+        "surface": "#0e1719",
+        "surfaceHover": "#617877",
+        "text": "#c3d2d0",
+        "border": "#617877",
+        "privateWindow": "#030607",
+        "privateSidebar": "#b58c99",
+        "privateSurface": "#4a3d42",
+        "privateSurfaceHover": "#617877"
+    })JSON");
+    theme.close();
+
+    ThemeController controller(theme.fileName());
+    QCOMPARE(controller.palette().value(QStringLiteral("border")).toString(),
+        QStringLiteral("#617877"));
+}
+
+// A divider is not a frame. The kit draws its panel separators as the
+// foreground colour at a low alpha, so a rule in Omaweb's own chrome has to be
+// that quiet too — in the border colour it read as the loudest thing on a
+// sidebar whose whole point is the page beside it.
+void ThemeControllerTest::drawsARuleAsQuietlyAsTheBarDraws()
+{
+    QTemporaryDir root;
+    QFile theme(root.filePath(QStringLiteral("theme.json")));
+    QVERIFY(theme.open(QIODevice::WriteOnly));
+    theme.write(R"JSON({
+        "window": "#010304",
+        "sidebar": "#030607",
+        "surface": "#0e1719",
+        "surfaceHover": "#617877",
+        "text": "#c3d2d0",
+        "border": "#617877"
+    })JSON");
+    theme.close();
+
+    ThemeController controller(theme.fileName());
+    const QColor separator(controller.palette().value(QStringLiteral("separator")).toString());
+    QVERIFY(separator.isValid());
+    QCOMPARE(separator.rgb(), QColor(QStringLiteral("#c3d2d0")).rgb());
+    QCOMPARE(separator.alpha(), 31);
+
+    // Quieter than the border it replaced, once each is drawn on the surface
+    // they share. Alpha is the whole of the difference, so the comparison has
+    // to be made on what the reader actually sees.
+    const QColor sidebar(QStringLiteral("#030607"));
+    const auto drawnOnTheSidebar = [&sidebar](const QColor &rule) {
+        const auto amount = rule.alphaF();
+        const auto channel = [amount](int over, int under) {
+            return qRound(under + (over - under) * amount);
+        };
+        return QColor::fromRgb(channel(rule.red(), sidebar.red()),
+            channel(rule.green(), sidebar.green()), channel(rule.blue(), sidebar.blue()));
+    };
+    const QColor border(controller.palette().value(QStringLiteral("border")).toString());
+    QVERIFY(contrastRatio(drawnOnTheSidebar(separator), sidebar)
+        < contrastRatio(drawnOnTheSidebar(border), sidebar));
+
+    // A theme that has a rule colour of its own keeps it, alpha and all.
+    QFile named(root.filePath(QStringLiteral("named.json")));
+    QVERIFY(named.open(QIODevice::WriteOnly));
+    named.write(R"JSON({
+        "sidebar": "#030607",
+        "text": "#c3d2d0",
+        "separator": "#33ff8800"
+    })JSON");
+    named.close();
+
+    ThemeController namedController(named.fileName());
+    QCOMPARE(namedController.palette().value(QStringLiteral("separator")).toString(),
+        QStringLiteral("#33ff8800"));
+}
+
+// Some palettes have no colour to give a role: nothing reads at 4.5:1 on both
+// a black sidebar and a mid grey surface. The floor is a repair, not a
+// gatekeeper, so the theme the reader chose stays on screen and the role takes
+// whichever colour reads best on the surface it reads worst on.
+void ThemeControllerTest::keepsAPaletteWhoseSurfacesCannotShareReadableRoles()
+{
+    QTemporaryDir root;
+    QFile theme(root.filePath(QStringLiteral("theme.json")));
+    QVERIFY(theme.open(QIODevice::WriteOnly));
+    theme.write(R"JSON({
+        "window": "#010101",
+        "sidebar": "#000000",
+        "overlay": "#000000",
+        "surface": "#777777",
+        "surfaceHover": "#777777",
+        "text": "#ffffff",
+        "mutedText": "#800000"
+    })JSON");
+    theme.close();
+
+    ThemeController controller(theme.fileName());
+    const auto palette = controller.palette();
+    QCOMPARE(QColor(palette.value(QStringLiteral("windowOpaque")).toString()),
+        QColor(QStringLiteral("#010101")));
+    const QColor muted(palette.value(QStringLiteral("mutedText")).toString());
+    QVERIFY(muted.isValid());
+    // Better on the surface it reads worst on than the colour the theme named,
+    // which is the whole of what an unsatisfiable floor can promise.
+    const auto worst = [&muted](const QColor &named) {
+        const QColor sidebar(QStringLiteral("#000000"));
+        const QColor surface(QStringLiteral("#777777"));
+        return std::min(contrastRatio(named, sidebar), contrastRatio(named, surface))
+            < std::min(contrastRatio(muted, sidebar), contrastRatio(muted, surface));
+    };
+    QVERIFY(worst(QColor(QStringLiteral("#800000"))));
+}
+
+// The palette Omarchy renders from the shipped template gives the private
+// window the desktop's dark background and the private sidebar its accent, and
+// no colour is 3:1 against both. That is the ordinary case, not a broken
+// theme: the desktop's own colours have to survive it, or every theme switch
+// lands on Omaweb's built-in palette and the browser stops following the
+// desktop at all.
+void ThemeControllerTest::keepsTheDesktopsOwnColoursWhenAPrivateSurfaceIsAnAccent()
+{
+    QTemporaryDir root;
+    QFile theme(root.filePath(QStringLiteral("theme.json")));
+    QVERIFY(theme.open(QIODevice::WriteOnly));
+    theme.write(R"JSON({
+        "window": "#161616",
+        "sidebar": "#1e1e1e",
+        "overlay": "#1e1e1e",
+        "surface": "#3c3836",
+        "surfaceHover": "#665c54",
+        "text": "#d4be98",
+        "mutedText": "#7c6f64",
+        "accent": "#7daea3",
+        "border": "#665c54",
+        "privateAccent": "#d3869b",
+        "privateWindow": "#1e1e1e",
+        "privateSidebar": "#d3869b",
+        "privateSurface": "#d3869b40",
+        "privateSurfaceHover": "#d3869b55"
+    })JSON");
+    theme.close();
+
+    ThemeController controller(theme.fileName());
+    const auto palette = controller.palette();
+    QCOMPARE(QColor(palette.value(QStringLiteral("windowOpaque")).toString()),
+        QColor(QStringLiteral("#161616")));
+    QCOMPARE(QColor(palette.value(QStringLiteral("sidebarOpaque")).toString()),
+        QColor(QStringLiteral("#1e1e1e")));
+    QCOMPARE(QColor(palette.value(QStringLiteral("surface")).toString()),
+        QColor(QStringLiteral("#3c3836")));
+    QCOMPARE(QColor(palette.value(QStringLiteral("text")).toString()),
+        QColor(QStringLiteral("#d4be98")));
+    QCOMPARE(QColor(palette.value(QStringLiteral("accent")).toString()),
+        QColor(QStringLiteral("#7daea3")));
+    // The roles the floor governs still read everywhere they can: the public
+    // palette is satisfiable, so nothing there is allowed to be a compromise.
+    const QColor muted(palette.value(QStringLiteral("mutedText")).toString());
+    for (const auto &key : {"sidebarOpaque", "surface", "surfaceHover", "overlayOpaque",
+             "sheetOpaque"}) {
+        const QColor ground(palette.value(QString::fromLatin1(key)).toString());
+        QVERIFY2(contrastRatio(muted, ground) >= minimumContrast, key);
+    }
+    QVERIFY(QColor(palette.value(QStringLiteral("privateMutedText")).toString()).isValid());
+    QVERIFY(QColor(palette.value(QStringLiteral("privateBorder")).toString()).isValid());
+}
+
+// The kit reads the desktop's `shell.toml` when Omaweb tells it to, and what
+// tells it is a reload rather than a colour moving: two themes can carry the
+// same palette and different control chrome, and the desktop still switched.
+void ThemeControllerTest::reportsAThemeReloadWhenTheNormalizedPaletteDoesNotChange()
+{
+    QTemporaryDir root;
+    QFile theme(root.filePath(QStringLiteral("theme.json")));
+    QVERIFY(theme.open(QIODevice::WriteOnly));
+    theme.write(R"JSON({
+        "window": "#101010",
+        "sidebar": "#181818",
+        "overlay": "#181818",
+        "surface": "#202020",
+        "text": "#f0f0f0",
+        "mutedText": "#9a9a9a"
+    })JSON");
+    theme.close();
+
+    ThemeController controller(theme.fileName());
+    const auto before = controller.palette();
+    QSignalSpy paletteChanges(&controller, &ThemeController::paletteChanged);
+    QSignalSpy themeReloads(&controller, &ThemeController::themeReloaded);
+
+    // The same colours, written in a different order. A theme manager that
+    // re-renders the palette for a theme whose colours happen to match leaves
+    // Omaweb nothing to see, and the kit still has to be told.
+    QVERIFY(theme.open(QIODevice::WriteOnly | QIODevice::Truncate));
+    theme.write(R"JSON({
+        "sidebar": "#181818",
+        "window": "#101010",
+        "text": "#f0f0f0",
+        "surface": "#202020",
+        "mutedText": "#9a9a9a",
+        "overlay": "#181818"
+    })JSON");
+    theme.close();
+    controller.reload();
+
+    QCOMPARE(controller.palette(), before);
+    QCOMPARE(paletteChanges.count(), 0);
+    QCOMPARE(themeReloads.count(), 1);
+}
+
+void ThemeControllerTest::keepsASaturatedPaletteWhenBlackCanSupplyUnnamedRoles()
+{
+    QTemporaryDir root;
+    QFile theme(root.filePath(QStringLiteral("theme.json")));
+    QVERIFY(theme.open(QIODevice::WriteOnly));
+    theme.write(R"JSON({
+        "window": "#00ff00",
+        "sidebar": "#00ff00",
+        "overlay": "#00ff00",
+        "surface": "#00ff00",
+        "surfaceHover": "#00ee00",
+        "text": "#ffffff",
+        "privateWindow": "#00aa00",
+        "privateSidebar": "#00aa00",
+        "privateSurface": "#00aa00",
+        "privateSurfaceHover": "#009900"
+    })JSON");
+    theme.close();
+
+    ThemeController controller(theme.fileName());
+    QCOMPARE(QColor(controller.palette().value(QStringLiteral("windowOpaque")).toString()),
+        QColor(QStringLiteral("#00ff00")));
+}
+
 // The theme palette names the type families it prefers; only one of them is
 // installed here, and that is the one the palette has to resolve to. Handing
 // Qt a family the host does not have costs a font-alias sweep and draws in
@@ -100,6 +651,9 @@ void ThemeControllerTest::givesFullPageSurfacesTheSidebarsColourAndTheirOwnTrans
     theme.write(R"JSON({
         "window": "#101010",
         "sidebar": "#f0f0f0",
+        "overlay": "#e8e8e8",
+        "surface": "#e8e8e8",
+        "surfaceHover": "#e0e0e0",
         "privateSidebar": "#800080",
         "opacity": { "sidebar": 0.9, "sheet": 0.6 }
     })JSON");
@@ -123,14 +677,17 @@ void ThemeControllerTest::givesFullPageSurfacesTheSidebarsColourAndTheirOwnTrans
     QVERIFY(named.open(QIODevice::WriteOnly));
     named.write(R"JSON({
         "sidebar": "#f0f0f0",
-        "sheet": "#123456",
+        "overlay": "#e8e8e8",
+        "surface": "#e8e8e8",
+        "surfaceHover": "#e0e0e0",
+        "sheet": "#d8d8d8",
         "opacity": { "sheet": 0.6 }
     })JSON");
     named.close();
 
     ThemeController namedController(named.fileName());
     QCOMPARE(QColor(namedController.palette().value(QStringLiteral("sheetOpaque")).toString()),
-        QColor(QStringLiteral("#123456")));
+        QColor(QStringLiteral("#d8d8d8")));
 }
 
 // The colour a notice and the mark that leads to it are both drawn in. It is

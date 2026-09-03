@@ -231,8 +231,12 @@ ApplicationWindow {
         palette.sidebarOpaque = source.privateSidebarOpaque
         palette.sheet = source.privateSheet
         palette.sheetOpaque = source.privateSheetOpaque
+        palette.overlay = source.privateOverlay
+        palette.overlayOpaque = source.privateOverlayOpaque
         palette.surface = source.privateSurface
         palette.surfaceHover = source.privateSurfaceHover
+        palette.mutedText = source.privateMutedText
+        palette.border = source.privateBorder
         palette.accent = source.privateAccent
         return palette
     }

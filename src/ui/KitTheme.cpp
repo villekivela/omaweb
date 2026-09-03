@@ -46,18 +46,20 @@ KitTheme::KitTheme(QQmlEngine *engine, const ThemeController *theme, QObject *pa
     // The kit reads a theme's `colors.toml` and `shell.toml` once and expects a
     // running shell to be handed new values over IPC when the desktop switches
     // theme -- `Color.qml` says so, and sets `watchChanges: false` on both.
-    // Omaweb is not that shell and has no such channel, so the palette
-    // changing underneath is the signal: the kit is asked to read them again
-    // before Omaweb's own values go back on top. Without this, everything the
-    // kit draws from `[controls]` -- a Pinned tile's border, the current tab's
-    // fill, the address field's edge, a profile button -- stays on the theme
-    // the reader has left, while Omaweb's own colours move.
+    // Omaweb is not that shell and has no such channel, so a completed theme
+    // reload is the signal: the kit is asked to read them again before
+    // Omaweb's own values go back on top. A reload is deliberately distinct
+    // from paletteChanged because two desktop palettes can normalize to the
+    // same colours while carrying different `[controls]` values. Without
+    // this, a Pinned tile's border, the current tab's fill, the address field's
+    // edge, and profile buttons can stay on the theme the reader has left.
     if (!m_color->property("colorsFile").value<QObject *>()
         || !m_color->property("shellFile").value<QObject *>()) {
         qWarning("The Omarchy kit no longer exposes colorsFile and shellFile, so its control "
                  "chrome will not follow a theme switch until the browser restarts.");
     }
-    connect(m_theme, &ThemeController::paletteChanged, this, [this] {
+    connect(m_theme, &ThemeController::paletteChanged, this, &KitTheme::apply);
+    connect(m_theme, &ThemeController::themeReloaded, this, [this] {
         rereadKitSources();
         apply();
     });

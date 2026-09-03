@@ -24,6 +24,10 @@ public:
 
 signals:
     void paletteChanged();
+    // A complete reload selected a theme source (or the built-in fallback).
+    // Unlike paletteChanged, this is emitted even when normalization leaves
+    // the visible palette unchanged.
+    void themeReloaded();
 
 private:
     static QVariantMap defaultOpacity();

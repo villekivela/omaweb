@@ -241,11 +241,13 @@ Rectangle {
         function onModelReset() { root.pinnedCount = root.browser.pinnedTabs.rowCount() }
     }
 
+    // The seam down the sidebar is a divider rather than a frame, so it is
+    // drawn as the bar draws one.
     Rectangle {
         anchors.right: parent.right
         width: 1
         height: parent.height
-        color: root.colors.border
+        color: root.colors.separator
     }
 
     Column {
@@ -582,7 +584,7 @@ Rectangle {
         anchors.rightMargin: 16
         anchors.bottomMargin: Style.spacing.lg
         height: Style.spacing.hairline
-        color: root.colors.border
+        color: root.colors.separator
     }
 
     // The Space letters, the Space menu and the settings the Space carries
