@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QFileSystemWatcher>
+#include <QHash>
 #include <QObject>
 #include <QStringList>
 #include <QVariantMap>
@@ -39,6 +40,9 @@ private:
     void refreshWatchPaths();
 
     QStringList m_themePaths;
+    // What each watched candidate resolved to when its watch was added, so a
+    // relinked directory can be noticed and the watch re-pointed.
+    QHash<QString, QString> m_watchedTargets;
     QFileSystemWatcher m_watcher;
     QVariantMap m_palette;
 };

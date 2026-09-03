@@ -320,13 +320,35 @@ void ThemeController::refreshWatchPaths()
         return !path.isEmpty() && !path.startsWith(QLatin1Char(':'))
             && QFileInfo::exists(path);
     };
+    const auto watchDirectory = [this, &watchable](const QString &directory) {
+        if (directory != QDir::homePath() && watchable(directory)
+            && !m_watcher.directories().contains(directory)) {
+            m_watcher.addPath(directory);
+        }
+    };
+
     for (const auto &path : m_themePaths) {
         if (path.startsWith(QLatin1Char(':'))) {
             continue;
         }
+        // A watch resolves through symlinks, so it follows the inode the path
+        // pointed at when it was added. A desktop that switches themes by
+        // relinking a directory leaves that watch on the theme the reader has
+        // just left: the file it holds never changes again, and the palette at
+        // the same name is a different file nobody is watching. So the target
+        // is remembered, and a watch whose target moved is taken off and put
+        // back on the name rather than the file it used to be.
+        const auto canonical = QFileInfo(path).canonicalFilePath();
+        const auto previous = m_watchedTargets.value(path);
+        if (!previous.isEmpty() && previous != canonical) {
+            m_watcher.removePath(path);
+            m_watchedTargets.remove(path);
+        }
         if (watchable(path) && !m_watcher.files().contains(path)) {
             m_watcher.addPath(path);
+            m_watchedTargets.insert(path, canonical);
         }
+
         // Neither a candidate nor the directory a theme manager renders it
         // into need exist yet. The deepest directory that does is watched, so
         // each level appearing arms the one below it and the palette is picked
@@ -341,9 +363,16 @@ void ThemeController::refreshWatchPaths()
             }
             directory = parent;
         }
-        if (directory != home && watchable(directory)
-            && !m_watcher.directories().contains(directory)) {
-            m_watcher.addPath(directory);
+        watchDirectory(directory);
+
+        // The relink itself happens in the directory that holds the link, and
+        // nothing inside the directory it points at moves. That parent is
+        // watched too -- but only where a link is actually in play, because
+        // the ordinary case is a configuration directory whose parent is
+        // `~/.config`, which every tool on the machine writes to.
+        if (watchable(directory)
+            && QFileInfo(directory).canonicalFilePath() != QDir(directory).absolutePath()) {
+            watchDirectory(QFileInfo(directory).absolutePath());
         }
     }
 }

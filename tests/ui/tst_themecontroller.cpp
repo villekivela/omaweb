@@ -25,6 +25,7 @@ private slots:
     void readsTheFirstPaletteOfferedThatIsThere();
     void followsADesktopPaletteThatAppearsAfterStartup();
     void followsADesktopPaletteWhoseDirectoryAppearsAfterStartup();
+    void followsADesktopThatSwitchesThemeByRelinking();
 };
 
 void ThemeControllerTest::enforcesDistinctPrivateColors()
@@ -327,6 +328,50 @@ void ThemeControllerTest::followsADesktopPaletteWhoseDirectoryAppearsAfterStartu
     QVERIFY(rendered.open(QIODevice::WriteOnly));
     rendered.write(R"JSON({ "window": "#303030", "opacity": { "window": 1.0 } })JSON");
     rendered.close();
+
+    QTRY_COMPARE_WITH_TIMEOUT(
+        QColor(controller.palette().value(QStringLiteral("window")).toString()),
+        QColor(QStringLiteral("#303030")), 10000);
+}
+
+// How Omarchy switches themes: `current/theme` is a symlink, and `theme set`
+// points it at another directory. A watch resolves through a symlink, so
+// watching the rendered palette leaves the watch on the theme the reader just
+// left -- the file it holds never changes again, and the palette under the same
+// name is a different file. This is the website's own claim: run
+// `omarchy theme set` and the browser changes colour.
+void ThemeControllerTest::followsADesktopThatSwitchesThemeByRelinking()
+{
+    QTemporaryDir root;
+    const auto first = root.filePath(QStringLiteral("themes/first"));
+    const auto second = root.filePath(QStringLiteral("themes/second"));
+    QVERIFY(QDir().mkpath(first));
+    QVERIFY(QDir().mkpath(second));
+    QVERIFY(QDir().mkpath(root.filePath(QStringLiteral("current"))));
+
+    const auto palette = [](const QString &directory, const QByteArray &window) {
+        QFile file(QDir(directory).filePath(QStringLiteral("omaweb.json")));
+        QVERIFY(file.open(QIODevice::WriteOnly));
+        file.write("{ \"window\": \"" + window + "\", \"opacity\": { \"window\": 1.0 } }");
+    };
+    palette(first, "#101010");
+    palette(second, "#303030");
+
+    const auto link = root.filePath(QStringLiteral("current/theme"));
+    QVERIFY(QFile::link(first, link));
+
+    QFile builtIn(root.filePath(QStringLiteral("built-in.json")));
+    QVERIFY(builtIn.open(QIODevice::WriteOnly));
+    builtIn.write(R"JSON({ "window": "#000000", "opacity": { "window": 1.0 } })JSON");
+    builtIn.close();
+
+    ThemeController controller(
+        QStringList{QDir(link).filePath(QStringLiteral("omaweb.json")), builtIn.fileName()});
+    QCOMPARE(QColor(controller.palette().value(QStringLiteral("window")).toString()),
+        QColor(QStringLiteral("#101010")));
+
+    QVERIFY(QFile::remove(link));
+    QVERIFY(QFile::link(second, link));
 
     QTRY_COMPARE_WITH_TIMEOUT(
         QColor(controller.palette().value(QStringLiteral("window")).toString()),
