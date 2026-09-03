@@ -25,6 +25,31 @@ bool isEngineDebuggingFlag(const QString &argument)
     return false;
 }
 
+// Every switch that lowers the web's own security boundaries for every page in
+// the browser: mixed content that would otherwise be blocked, origins that
+// would otherwise be separated, certificates that would otherwise be refused.
+// None of them is a preference, because nothing the reader can see on a page
+// would tell them the boundary was given away.
+bool isSecurityLoweringFlag(const QString &argument)
+{
+    static const QStringList flags = {
+        QStringLiteral("--allow-running-insecure-content"),
+        QStringLiteral("--disable-web-security"),
+        QStringLiteral("--ignore-certificate-errors"),
+        QStringLiteral("--ignore-certificate-errors-spki-list"),
+        QStringLiteral("--allow-insecure-localhost"),
+        QStringLiteral("--unsafely-treat-insecure-origin-as-secure"),
+        QStringLiteral("--reduce-security-for-testing"),
+        QStringLiteral("--disable-site-isolation-trials"),
+    };
+    for (const auto &flag : flags) {
+        if (argument == flag || argument.startsWith(flag + QStringLiteral("="))) {
+            return true;
+        }
+    }
+    return false;
+}
+
 } // namespace
 
 DevelopmentLaunch readDevelopmentLaunch(const QStringList &arguments,
@@ -38,6 +63,11 @@ DevelopmentLaunch readDevelopmentLaunch(const QStringList &arguments,
     };
 
     for (const auto &argument : arguments + engineFlags) {
+        if (isSecurityLoweringFlag(argument)) {
+            return refuse(QStringLiteral("%1 turns off a web security boundary for every "
+                                         "page. Omaweb has no launch that does that.")
+                    .arg(argument.section(u'=', 0, 0)));
+        }
         if (isEngineDebuggingFlag(argument)) {
             return refuse(QStringLiteral("%1 opens a debugging listener Omaweb does not "
                                          "control. Use --remote-debugging=<port> instead.")

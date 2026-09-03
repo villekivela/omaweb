@@ -22,7 +22,10 @@ struct DevelopmentLaunch {
 // `arguments` is the command line; `engineFlags` is whatever the environment
 // passes straight through to the engine. A debugging switch aimed at the engine
 // through either route is a refusal rather than a listener Omaweb did not ask
-// for: `--remote-debugging[=port]` is the one way in.
+// for: `--remote-debugging[=port]` is the one way in. A switch that lowers a
+// web security boundary browser-wide — insecure content, origin separation,
+// certificate checking — is a refusal through either route as well: there is no
+// release path that turns one of those off.
 DevelopmentLaunch readDevelopmentLaunch(const QStringList &arguments,
     const QStringList &engineFlags = {});
 
