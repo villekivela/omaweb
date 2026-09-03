@@ -1954,6 +1954,33 @@ TestCase {
         tryVerify(function() { return !surface.visible })
     }
 
+    function test_settingsAboutNamesTheVersion() {
+        window.requestSettings()
+        const aboutSection = findChild(window.contentItem, "settingsSection7")
+        verify(aboutSection !== null)
+        compare(aboutSection.text.toLowerCase(), "about")
+
+        aboutSection.Accessible.pressAction()
+        const name = findChild(window.contentItem, "aboutName")
+        const version = findChild(window.contentItem, "aboutVersion")
+        const links = findChild(window.contentItem, "aboutLinks")
+        verify(name !== null)
+        verify(version !== null)
+        verify(links !== null)
+        compare(name.text, "Omaweb")
+
+        // The build carries a version, and the page shows that one rather than
+        // a hardcoded string that would rot at the next release.
+        verify(Qt.application.version.length > 0)
+        compare(version.text, "Version " + Qt.application.version)
+        verify(links.text.indexOf("omaweb.app") >= 0)
+
+        // Test functions share one window and run in name order, so hand the
+        // page back on the section the later settings tests open it expecting.
+        findChild(window.contentItem, "settingsSection0").Accessible.pressAction()
+        findChild(window.contentItem, "closeSettingsButton").clicked()
+    }
+
     function test_settingsOwnSearchAndBrowsingDataControls() {
         window.requestSettings()
         const searchSection = findChild(window.contentItem, "settingsSection5")

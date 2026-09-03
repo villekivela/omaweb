@@ -13,6 +13,7 @@
 #include "WindowManager.h"
 
 #include <QColor>
+#include <QCoreApplication>
 #include <QImage>
 #include <QPainter>
 #include <QQmlContext>
@@ -48,6 +49,9 @@ class UiTestSetup final : public QObject {
 public slots:
     void qmlEngineAvailable(QQmlEngine *engine)
     {
+        // The settings page's about section reads Qt.application.version, so the
+        // test host has to carry the version the browser does.
+        QCoreApplication::setApplicationVersion(QStringLiteral(OMAWEB_VERSION));
         omaweb::quickshell::installShim();
         omaweb::registerFaviconTint();
         omaweb::registerSystemClipboard();

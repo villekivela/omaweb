@@ -1,6 +1,13 @@
 cmake_minimum_required(VERSION 3.30)
 
-project(Omaweb VERSION 0.1.0 LANGUAGES CXX)
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+include(OmawebVersion)
+omaweb_resolve_version()
+
+project(Omaweb VERSION ${OMAWEB_VERSION} LANGUAGES CXX)
+
+omaweb_watch_git_head()
+message(STATUS "Omaweb version ${OMAWEB_VERSION_STRING} (build ${OMAWEB_BUILD_NUMBER})")
 
 include(CTest)
 
@@ -263,7 +270,7 @@ set(omaweb_ui_files
 
 function(omaweb_configure_qml target engine_view engine_profile engine_directory)
     target_compile_definitions(${target} PRIVATE
-        OMAWEB_VERSION="${PROJECT_VERSION}"
+        OMAWEB_VERSION="${OMAWEB_VERSION_STRING}"
         OMAWEB_UI_DIRECTORY="${CMAKE_CURRENT_SOURCE_DIR}/src/ui"
     )
 
@@ -352,7 +359,7 @@ if(OMAWEB_BUILD_BROWSER)
         MACOSX_BUNDLE_BUNDLE_NAME "Omaweb"
         MACOSX_BUNDLE_GUI_IDENTIFIER "dev.omaweb.browser"
         MACOSX_BUNDLE_SHORT_VERSION_STRING "${PROJECT_VERSION}"
-        MACOSX_BUNDLE_BUNDLE_VERSION "1"
+        MACOSX_BUNDLE_BUNDLE_VERSION "${OMAWEB_BUILD_NUMBER}"
         WIN32_EXECUTABLE TRUE
     )
 endif()
@@ -553,6 +560,7 @@ if(BUILD_TESTING)
             Qt6::QuickTest
         )
         target_compile_definitions(omaweb-ui-tests PRIVATE
+            OMAWEB_VERSION="${OMAWEB_VERSION_STRING}"
             OMAWEB_DEFAULT_KEYBINDINGS_PATH="${CMAKE_CURRENT_SOURCE_DIR}/assets/keybindings/default.json"
             QUICK_TEST_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/ui"
             OMAWEB_MOCK_ENGINE_VIEW_URL="file://${CMAKE_CURRENT_SOURCE_DIR}/src/ui-lab/MockEngineView.qml"
