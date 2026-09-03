@@ -29,6 +29,7 @@ private slots:
     void preservesTheHueOfAMutedColourItRepairs();
     void keepsBordersVisibleOnEverySurfaceTheySeparate();
     void preservesTheHueOfABorderItRepairs();
+    void keepsABorderAThemeAlsoNamedAsItsHoverFill();
     void keepsAPaletteWhoseSurfacesCannotShareReadableRoles();
     void keepsTheDesktopsOwnColoursWhenAPrivateSurfaceIsAnAccent();
     void reportsAThemeReloadWhenTheNormalizedPaletteDoesNotChange();
@@ -346,15 +347,17 @@ void ThemeControllerTest::keepsBordersVisibleOnEverySurfaceTheySeparate()
     ThemeController controller(theme.fileName());
     const auto palette = controller.palette();
     const QColor border(palette.value(QStringLiteral("border")).toString());
-    for (const auto &key : {"windowOpaque", "sidebarOpaque", "surface", "surfaceHover",
-             "overlayOpaque", "sheetOpaque"}) {
+    // No hover fill among them: a rule or a frame is drawn on a surface at
+    // rest, and the edge a control grows under the pointer is the kit's.
+    for (const auto &key :
+        {"windowOpaque", "sidebarOpaque", "surface", "overlayOpaque", "sheetOpaque"}) {
         const QColor ground(palette.value(QString::fromLatin1(key)).toString());
         QVERIFY2(ground.isValid(), key);
         QVERIFY2(contrastRatio(border, ground) >= minimumGraphicContrast, key);
     }
     const QColor privateBorder(palette.value(QStringLiteral("privateBorder")).toString());
     for (const auto &key : {"privateWindowOpaque", "privateSidebarOpaque", "privateSurface",
-             "privateSurfaceHover", "privateOverlayOpaque", "privateSheetOpaque"}) {
+             "privateOverlayOpaque", "privateSheetOpaque"}) {
         const QColor ground(palette.value(QString::fromLatin1(key)).toString());
         QVERIFY2(ground.isValid(), key);
         QVERIFY2(contrastRatio(privateBorder, ground) >= minimumGraphicContrast, key);
@@ -384,9 +387,38 @@ void ThemeControllerTest::preservesTheHueOfABorderItRepairs()
     ThemeController controller(theme.fileName());
     const QColor named(QStringLiteral("#000080"));
     const QColor repaired(controller.palette().value(QStringLiteral("border")).toString());
-    QVERIFY(contrastRatio(repaired, QColor(QStringLiteral("#202020")))
+    QVERIFY(contrastRatio(repaired, QColor(QStringLiteral("#181818")))
         >= minimumGraphicContrast);
     QVERIFY(std::abs(repaired.hslHueF() - named.hslHueF()) < 0.01);
+}
+
+// The template Omarchy renders from names the desktop's one muted colour for
+// both the hover fill and the border, and no colour is 3:1 against itself. A
+// border asked to clear the fill it can never clear left every such theme
+// drawing its rules and frames in near-white.
+void ThemeControllerTest::keepsABorderAThemeAlsoNamedAsItsHoverFill()
+{
+    QTemporaryDir root;
+    QFile theme(root.filePath(QStringLiteral("theme.json")));
+    QVERIFY(theme.open(QIODevice::WriteOnly));
+    theme.write(R"JSON({
+        "window": "#010304",
+        "sidebar": "#030607",
+        "overlay": "#030607",
+        "surface": "#0e1719",
+        "surfaceHover": "#617877",
+        "text": "#c3d2d0",
+        "border": "#617877",
+        "privateWindow": "#030607",
+        "privateSidebar": "#b58c99",
+        "privateSurface": "#4a3d42",
+        "privateSurfaceHover": "#617877"
+    })JSON");
+    theme.close();
+
+    ThemeController controller(theme.fileName());
+    QCOMPARE(controller.palette().value(QStringLiteral("border")).toString(),
+        QStringLiteral("#617877"));
 }
 
 // Some palettes have no colour to give a role: nothing reads at 4.5:1 on both
