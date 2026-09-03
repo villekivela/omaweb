@@ -140,6 +140,12 @@ that variable is unset.
 `OMAWEB_KEYBINDINGS_FILE` and `OMAWEB_THEME_FILE` select individual files during
 development.
 
+On Linux, Omaweb follows the Omarchy theme without being set up for it: the
+first start installs the template it ships to `~/.config/omarchy/themed/` and
+asks Omarchy to render the active theme through it. A template already there is
+kept. `OMAWEB_NO_OMARCHY_TEMPLATE` stops Omaweb writing into that directory at
+all — see [`integrations/omarchy/README.md`](integrations/omarchy/README.md).
+
 Run `scripts/import_terminal_theme.py` from Ghostty, iTerm2, kitty, Alacritty,
 or Terminal.app to derive `theme.json` from that terminal. A running Omaweb
 watches the file and repaints when it changes. Use `--print` to inspect the

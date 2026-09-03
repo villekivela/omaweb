@@ -1,7 +1,9 @@
 #include "ThemeController.h"
 
 #include <QColor>
+#include <QDir>
 #include <QFile>
+#include <QFileInfo>
 #include <QFontDatabase>
 #include <QTemporaryDir>
 #include <QTest>
@@ -20,6 +22,9 @@ private slots:
     void fallsBackToAFamilyTheHostActuallyHas();
     void keepsTheTypeBaseSizeUsable();
     void namesTheColoursCodeIsReadIn();
+    void readsTheFirstPaletteOfferedThatIsThere();
+    void followsADesktopPaletteThatAppearsAfterStartup();
+    void followsADesktopPaletteWhoseDirectoryAppearsAfterStartup();
 };
 
 void ThemeControllerTest::enforcesDistinctPrivateColors()
@@ -254,6 +259,78 @@ void ThemeControllerTest::namesTheColoursCodeIsReadIn()
         // its own to blend the character it draws into the page behind it.
         QCOMPARE(colour.alpha(), 255);
     }
+}
+
+// Omaweb has more than one place a palette may come from -- an override, the
+// reader's own configuration directory, the desktop's rendered theme, and the
+// built-in -- and they are offered in that order rather than resolved once.
+void ThemeControllerTest::readsTheFirstPaletteOfferedThatIsThere()
+{
+    QTemporaryDir root;
+    const auto absent = root.filePath(QStringLiteral("missing/theme.json"));
+    QFile theme(root.filePath(QStringLiteral("theme.json")));
+    QVERIFY(theme.open(QIODevice::WriteOnly));
+    theme.write(R"JSON({ "window": "#101010", "opacity": { "window": 1.0 } })JSON");
+    theme.close();
+
+    ThemeController controller(QStringList{absent, theme.fileName()});
+    QCOMPARE(QColor(controller.palette().value(QStringLiteral("window")).toString()),
+        QColor(QStringLiteral("#101010")));
+}
+
+// A theme switch renders the desktop's palette while Omaweb is already
+// running, and on an Omarchy machine the first render lands moments after
+// startup. The palette a restart would have found has to arrive without one.
+void ThemeControllerTest::followsADesktopPaletteThatAppearsAfterStartup()
+{
+    QTemporaryDir root;
+    const auto desktop = root.filePath(QStringLiteral("desktop/theme.json"));
+    QVERIFY(QDir().mkpath(QFileInfo(desktop).absolutePath()));
+    QFile builtIn(root.filePath(QStringLiteral("built-in.json")));
+    QVERIFY(builtIn.open(QIODevice::WriteOnly));
+    builtIn.write(R"JSON({ "window": "#101010", "opacity": { "window": 1.0 } })JSON");
+    builtIn.close();
+
+    ThemeController controller(QStringList{desktop, builtIn.fileName()});
+    QCOMPARE(QColor(controller.palette().value(QStringLiteral("window")).toString()),
+        QColor(QStringLiteral("#101010")));
+
+    QFile rendered(desktop);
+    QVERIFY(rendered.open(QIODevice::WriteOnly));
+    rendered.write(R"JSON({ "window": "#202020", "opacity": { "window": 1.0 } })JSON");
+    rendered.close();
+
+    QTRY_COMPARE(QColor(controller.palette().value(QStringLiteral("window")).toString()),
+        QColor(QStringLiteral("#202020")));
+}
+
+// A desktop theme is rendered into a directory the theme manager creates, and
+// on a machine that has never rendered Omaweb's palette that directory is not
+// there when the browser starts. The deepest directory that does exist is
+// watched, so each level appearing arms the one below it.
+void ThemeControllerTest::followsADesktopPaletteWhoseDirectoryAppearsAfterStartup()
+{
+    QTemporaryDir root;
+    const auto desktop = root.filePath(QStringLiteral("state/current/theme/theme.json"));
+    QVERIFY(QDir().mkpath(root.filePath(QStringLiteral("state"))));
+    QFile builtIn(root.filePath(QStringLiteral("built-in.json")));
+    QVERIFY(builtIn.open(QIODevice::WriteOnly));
+    builtIn.write(R"JSON({ "window": "#101010", "opacity": { "window": 1.0 } })JSON");
+    builtIn.close();
+
+    ThemeController controller(QStringList{desktop, builtIn.fileName()});
+    QCOMPARE(QColor(controller.palette().value(QStringLiteral("window")).toString()),
+        QColor(QStringLiteral("#101010")));
+
+    QVERIFY(QDir().mkpath(QFileInfo(desktop).absolutePath()));
+    QFile rendered(desktop);
+    QVERIFY(rendered.open(QIODevice::WriteOnly));
+    rendered.write(R"JSON({ "window": "#303030", "opacity": { "window": 1.0 } })JSON");
+    rendered.close();
+
+    QTRY_COMPARE_WITH_TIMEOUT(
+        QColor(controller.palette().value(QStringLiteral("window")).toString()),
+        QColor(QStringLiteral("#303030")), 10000);
 }
 
 // QFontDatabase needs a GUI application, so this suite is no longer guiless.

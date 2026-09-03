@@ -1,8 +1,9 @@
 #include "ThemeController.h"
 
+#include <QColor>
+#include <QDir>
 #include <QFile>
 #include <QFileInfo>
-#include <QColor>
 #include <QFontDatabase>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -12,9 +13,13 @@
 namespace omaweb {
 
 ThemeController::ThemeController(QString themePath, QObject *parent)
+    : ThemeController(QStringList{std::move(themePath)}, parent)
+{
+}
+
+ThemeController::ThemeController(QStringList themePaths, QObject *parent)
     : QObject(parent)
-    , m_themePath(std::move(themePath))
-    , m_themeDirectory(QFileInfo(m_themePath).absolutePath())
+    , m_themePaths(std::move(themePaths))
 {
     connect(&m_watcher, &QFileSystemWatcher::fileChanged, this, [this] {
         reload();
@@ -35,25 +40,37 @@ QVariantMap ThemeController::palette() const
 
 void ThemeController::reload()
 {
-    QFile file(m_themePath);
-    if (!file.open(QIODevice::ReadOnly)) {
-        const auto fallback = normalizedPalette(fallbackPalette());
-        if (m_palette != fallback) {
-            m_palette = fallback;
-            emit paletteChanged();
+    for (const auto &path : m_themePaths) {
+        QFile file(path);
+        if (!file.open(QIODevice::ReadOnly)) {
+            continue;
         }
+        const auto document = QJsonDocument::fromJson(file.readAll());
+        if (!document.isObject()) {
+            if (!m_palette.isEmpty()) {
+                // A theme manager rewriting the file in place is momentarily
+                // half-written. The palette on show stays until it reads
+                // whole, rather than flashing whatever ranks below it.
+                return;
+            }
+            // Nothing is on show yet, so there is nothing to protect and a
+            // file that never reads whole must not leave the interface with no
+            // colours at all.
+            continue;
+        }
+        apply(normalizedPalette(document.object().toVariantMap()));
         return;
     }
+    apply(normalizedPalette(fallbackPalette()));
+}
 
-    const auto document = QJsonDocument::fromJson(file.readAll());
-    if (!document.isObject()) {
+void ThemeController::apply(QVariantMap palette)
+{
+    if (palette == m_palette) {
         return;
     }
-    const auto next = normalizedPalette(document.object().toVariantMap());
-    if (next != m_palette) {
-        m_palette = next;
-        emit paletteChanged();
-    }
+    m_palette = std::move(palette);
+    emit paletteChanged();
 }
 
 QVariantMap ThemeController::fallbackPalette() const
@@ -297,11 +314,37 @@ QVariantMap ThemeController::normalizedPalette(QVariantMap palette) const
 
 void ThemeController::refreshWatchPaths()
 {
-    if (QFile::exists(m_themePath) && !m_watcher.files().contains(m_themePath)) {
-        m_watcher.addPath(m_themePath);
-    }
-    if (QFileInfo::exists(m_themeDirectory) && !m_watcher.directories().contains(m_themeDirectory)) {
-        m_watcher.addPath(m_themeDirectory);
+    // A palette compiled into the binary never changes, and the file system
+    // has nothing to say about a resource path.
+    const auto watchable = [](const QString &path) {
+        return !path.isEmpty() && !path.startsWith(QLatin1Char(':'))
+            && QFileInfo::exists(path);
+    };
+    for (const auto &path : m_themePaths) {
+        if (path.startsWith(QLatin1Char(':'))) {
+            continue;
+        }
+        if (watchable(path) && !m_watcher.files().contains(path)) {
+            m_watcher.addPath(path);
+        }
+        // Neither a candidate nor the directory a theme manager renders it
+        // into need exist yet. The deepest directory that does is watched, so
+        // each level appearing arms the one below it and the palette is picked
+        // up whenever it finally lands. The reader's home is where that stops:
+        // watching it would reload the palette on every file any tool writes.
+        auto directory = QFileInfo(path).absolutePath();
+        const auto home = QDir::homePath();
+        while (!watchable(directory) && directory != home) {
+            const auto parent = QFileInfo(directory).absolutePath();
+            if (parent == directory || parent.isEmpty()) {
+                break;
+            }
+            directory = parent;
+        }
+        if (directory != home && watchable(directory)
+            && !m_watcher.directories().contains(directory)) {
+            m_watcher.addPath(directory);
+        }
     }
 }
 

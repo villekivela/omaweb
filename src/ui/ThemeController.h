@@ -13,6 +13,10 @@ class ThemeController final : public QObject {
 
 public:
     explicit ThemeController(QString themePath, QObject *parent = nullptr);
+    // The places a palette may come from, in the order they outrank each
+    // other. The first one that reads is the palette; the rest are watched, so
+    // a higher-ranked file appearing later takes over without a restart.
+    explicit ThemeController(QStringList themePaths, QObject *parent = nullptr);
 
     QVariantMap palette() const;
     Q_INVOKABLE void reload();
@@ -30,11 +34,11 @@ private:
     // in whatever face Qt substitutes.
     static QString installedFamily(const QStringList &candidates);
     QVariantMap fallbackPalette() const;
+    void apply(QVariantMap palette);
     QVariantMap normalizedPalette(QVariantMap palette) const;
     void refreshWatchPaths();
 
-    QString m_themePath;
-    QString m_themeDirectory;
+    QStringList m_themePaths;
     QFileSystemWatcher m_watcher;
     QVariantMap m_palette;
 };

@@ -5,6 +5,7 @@
 #include "FaviconTint.h"
 #include "KeyboardNavigation.h"
 #include "KitTheme.h"
+#include "OmarchyTheme.h"
 #include "PagePrinter.h"
 #include "ProcessResources.h"
 #include "QtContentBlocker.h"
@@ -70,26 +71,25 @@ QString configRoot()
     return QDir(base).filePath(QStringLiteral("omaweb"));
 }
 
-QString themePath()
+// Every place a palette may come from, in the order they outrank each other.
+// The files are not tested for here: the controller reads the first one that is
+// there and watches the rest, so a desktop theme rendered a moment after
+// startup takes over without a restart.
+QStringList themePaths()
 {
     const auto override = qEnvironmentVariable("OMAWEB_THEME_FILE");
     if (!override.isEmpty()) {
-        return override;
+        // An override names one file, and nothing overtakes it.
+        return {override};
     }
     // A theme the user dropped in their own config directory outranks a
     // desktop-managed one; both outrank the built-in.
-    const auto configured = QDir(configRoot()).filePath(QStringLiteral("theme.json"));
-    if (QFileInfo::exists(configured)) {
-        return configured;
-    }
+    QStringList paths{QDir(configRoot()).filePath(QStringLiteral("theme.json"))};
 #if defined(Q_OS_LINUX)
-    const auto omarchyTheme = QDir::home().filePath(
-        QStringLiteral(".local/state/omarchy/current/theme/omaweb.json"));
-    if (QFileInfo::exists(omarchyTheme)) {
-        return omarchyTheme;
-    }
+    paths.append(omaweb::OmarchyThemePaths::fromEnvironment().renderedTheme());
 #endif
-    return QStringLiteral(OMAWEB_THEME_PATH);
+    paths.append(QStringLiteral(OMAWEB_THEME_PATH));
+    return paths;
 }
 
 QString keybindingsPath()
@@ -167,7 +167,13 @@ int main(int argc, char *argv[])
     omaweb::KeyboardNavigation keyboardNavigation(
         keybindingsPath(), QStringLiteral(OMAWEB_KEYBOARD_NAVIGATION_SCRIPT_PATH));
     omaweb::QtContentBlocker engineContentBlocker(&contentBlocker);
-    omaweb::ThemeController theme(themePath());
+#if defined(Q_OS_LINUX)
+    // Omarchy is the desktop Omaweb is built for, so following its theme is
+    // the default rather than a template the reader has to install by hand.
+    omaweb::followOmarchyTheme(omaweb::OmarchyThemePaths::fromEnvironment(),
+        QStringLiteral(OMAWEB_OMARCHY_TEMPLATE_PATH));
+#endif
+    omaweb::ThemeController theme(themePaths());
     omaweb::WindowManager windowManager(
         QStringLiteral("qt"), configRoot(), launch.privateWindowsAvailable);
 

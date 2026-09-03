@@ -84,7 +84,9 @@ Never use Chromium's `--no-sandbox`, `--single-process`, in-process network-serv
 
 ## Theme
 
-Omaweb reads `theme.json` from the configuration directory when one is present, falling back to the desktop-managed theme (Omarchy, on Linux) and then the built-in palette. `OMAWEB_THEME_FILE` overrides all three.
+Omaweb reads `theme.json` from the configuration directory when one is present, falling back to the desktop-managed theme (Omarchy, on Linux) and then the built-in palette. `OMAWEB_THEME_FILE` overrides all three. The order is not resolved once: every candidate is watched, so a file that outranks the one in use takes over the moment it appears, without a restart.
+
+On Linux, following the desktop's theme needs no setup. The first start on a machine that has Omarchy installs `integrations/omarchy/omaweb.json.tpl` to `~/.config/omarchy/themed/` and asks Omarchy to render the active theme through it. A template already there stands. See [`integrations/omarchy/README.md`](../integrations/omarchy/README.md) for the overrides, including `OMAWEB_NO_OMARCHY_TEMPLATE`.
 
 `scripts/import_terminal_theme.py` derives that file from the terminal it runs in. Run it from the terminal whose colours you want — `TERM_PROGRAM` identifies that terminal exactly — and it writes `theme.json` into the configuration directory, which `ThemeController` is watching, so a running Omaweb repaints without a restart. It reads Ghostty (via `ghostty +show-config`, which resolves a named theme into concrete colours), iTerm2, kitty, Alacritty, and a customised Terminal.app profile. `--print` shows the result instead of writing it, `--terminal` overrides detection, and `--force` replaces an existing theme. On a Linux desktop that already renders Omaweb's template, the script refuses to write and says so: a theme in the configuration directory outranks the desktop-rendered one, so importing would freeze the palette at whatever the terminal looked like that day.
 
