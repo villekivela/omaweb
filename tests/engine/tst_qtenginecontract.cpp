@@ -1862,6 +1862,11 @@ void QtEngineContractTest::qtFindsInThePageAndKeepsTheQueryAcrossNavigation()
         "data:text/html,<title>Elsewhere</title><p>nothing here</p>"))));
     QTRY_COMPARE(adapter->property("pageTitle").toString(), QStringLiteral("Elsewhere"));
     QTRY_VERIFY(!adapter->property("loading").toBool());
+    // Chromium answers a search asynchronously, so the answer for the page
+    // being replaced can arrive after the navigation took its matches away.
+    // Give a late one room to land: it belongs to a page that is gone, and
+    // reporting it against this one is what the generation guard prevents.
+    QTest::qWait(250);
     QCOMPARE(adapter->property("findMatchCount").toInt(), 0);
     QCOMPARE(adapter->property("findQuery").toString(), QStringLiteral("alpha"));
 
