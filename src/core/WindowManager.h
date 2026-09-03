@@ -5,6 +5,8 @@
 #include <QHash>
 #include <QSharedPointer>
 
+#include "SessionSiteState.h"
+
 #include <memory>
 
 class QTemporaryDir;
@@ -56,9 +58,10 @@ private:
     std::unique_ptr<QTemporaryDir> m_privateRoot;
     QSet<BrowserController *> m_privateWindows;
     QSharedPointer<QHash<QString, int>> m_privatePermissionDecisions;
-    // The third-party-cookie allowances the private windows share, alongside
-    // the Site permissions they already do. Both go when the last one closes.
-    QSharedPointer<QHash<QString, QString>> m_privateCookieAllowances;
+    // The site state the private windows share, alongside the Site permissions
+    // they already do: third-party allowances and granted certificate
+    // exceptions. All of it goes when the last of them closes.
+    QSharedPointer<SessionSiteState> m_privateSiteState;
 };
 
 } // namespace omaweb

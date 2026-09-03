@@ -99,14 +99,14 @@ BrowserController::BrowserController(QString dataRoot, QString engineName,
     bool privateBrowsing, QSharedPointer<QHash<QString, int>> sessionPermissionDecisions,
     QString configRoot, QObject *parent)
     : BrowserController(std::move(dataRoot), std::move(engineName), privateBrowsing,
-        std::move(sessionPermissionDecisions),
-        QSharedPointer<QHash<QString, QString>>::create(), std::move(configRoot), parent)
+        std::move(sessionPermissionDecisions), QSharedPointer<SessionSiteState>::create(),
+        std::move(configRoot), parent)
 {
 }
 
 BrowserController::BrowserController(QString dataRoot, QString engineName,
     bool privateBrowsing, QSharedPointer<QHash<QString, int>> sessionPermissionDecisions,
-    QSharedPointer<QHash<QString, QString>> sessionCookieAllowances,
+    QSharedPointer<SessionSiteState> sessionSiteState,
     QString configRoot, QObject *parent)
     : QObject(parent)
     , m_store(std::move(dataRoot))
@@ -114,7 +114,7 @@ BrowserController::BrowserController(QString dataRoot, QString engineName,
     , m_configRoot(std::move(configRoot))
     , m_privateBrowsing(privateBrowsing)
     , m_sessionPermissionDecisions(std::move(sessionPermissionDecisions))
-    , m_sessionCookieAllowances(std::move(sessionCookieAllowances))
+    , m_sessionSiteState(std::move(sessionSiteState))
 {
     m_pinnedTabs.setSourceModel(&m_tabs);
     m_pinnedTabs.setFilterRole(TabListModel::PinnedRole);
@@ -1717,14 +1717,14 @@ int BrowserController::permissionPolicy(const QString &permission) const
         QStringLiteral("local-fonts"),
     };
     if (rememberable.contains(normalizedPermission)) {
-        return RememberablePermission;
+        return Rememberable;
     }
     if (eachTime.contains(normalizedPermission)) {
-        return ApprovedEachTime;
+        return AskedEachTime;
     }
     // Everything else, named or not: outside the daily-driver contract, or a
     // capability this build does not know. Neither is a question worth asking.
-    return RefusedPermission;
+    return Refused;
 }
 
 int BrowserController::permissionDecision(const QUrl &url, const QString &permission)
@@ -1734,10 +1734,10 @@ int BrowserController::permissionDecision(const QUrl &url, const QString &permis
     // A capability Omaweb has no policy for is refused before anything else is
     // considered, including whether the address named an origin at all.
     const auto policy = permissionPolicy(normalizedPermission);
-    if (policy == RefusedPermission) {
+    if (policy == Refused) {
         return Block;
     }
-    if (origin.isEmpty() || policy == ApprovedEachTime) {
+    if (origin.isEmpty() || policy == AskedEachTime) {
         return Ask;
     }
     const auto key = sessionPermissionKey(origin, normalizedPermission);
@@ -1761,13 +1761,13 @@ bool BrowserController::setPermissionDecision(const QUrl &url, const QString &pe
         return false;
     }
     const auto policy = permissionPolicy(normalizedPermission);
-    if (policy == RefusedPermission) {
+    if (policy == Refused) {
         return false;
     }
     // The answer reaches the page that asked; what it does not do is outlive
     // the request. Persisting one would be the reader agreeing to a use they
     // will not be shown again.
-    if (policy == ApprovedEachTime) {
+    if (policy == AskedEachTime) {
         return decision != AllowPersistently;
     }
     if (decision == AllowOnce || m_privateBrowsing) {
@@ -1782,10 +1782,40 @@ bool BrowserController::setPermissionDecision(const QUrl &url, const QString &pe
 QVariantList BrowserController::sitePermissions(const QUrl &url) const
 {
     const auto origin = normalizedOrigin(url);
-    if (origin.isEmpty() || m_privateBrowsing) {
+    if (origin.isEmpty()) {
         return {};
     }
-    return m_store.permissionsForOrigin(m_activeSpaceId, origin);
+    QVariantList permissions;
+    QSet<QString> listed;
+    if (!m_privateBrowsing) {
+        permissions = m_store.permissionsForOrigin(m_activeSpaceId, origin);
+        for (const auto &entry : permissions) {
+            listed.insert(entry.toMap().value(QStringLiteral("permission")).toString());
+        }
+    }
+    // The session's own answers count too, and are the only ones a Private
+    // window has. Read without being spent: listing what a site holds is not
+    // the site asking to use it.
+    const auto prefix = m_activeSpaceId + QChar(0x1f) + origin + QChar(0x1f);
+    for (auto it = m_sessionPermissionDecisions->cbegin();
+         it != m_sessionPermissionDecisions->cend(); ++it) {
+        if (!it.key().startsWith(prefix)) {
+            continue;
+        }
+        const auto permission = it.key().mid(prefix.size());
+        if (listed.contains(permission)) {
+            continue;
+        }
+        permissions.append(QVariantMap{
+            {QStringLiteral("permission"), permission},
+            {QStringLiteral("decision"), it.value()},
+        });
+    }
+    std::sort(permissions.begin(), permissions.end(), [](const auto &left, const auto &right) {
+        return left.toMap().value(QStringLiteral("permission")).toString()
+            < right.toMap().value(QStringLiteral("permission")).toString();
+    });
+    return permissions;
 }
 
 bool BrowserController::resetSitePermissions(const QUrl &url)
@@ -1797,7 +1827,8 @@ bool BrowserController::resetSitePermissions(const QUrl &url)
     const auto prefix = m_activeSpaceId + QChar(0x1f) + origin + QChar(0x1f);
     m_sessionPermissionDecisions->removeIf(
         [&prefix](auto it) { return it.key().startsWith(prefix); });
-    revokeThirdPartyCookieAllowance(url);
+    m_sessionSiteState->forgetThirdParty(m_activeSpaceId, origin);
+    emit thirdPartyCookieAllowancesChanged();
     if (m_privateBrowsing) {
         return true;
     }
@@ -1846,55 +1877,60 @@ bool BrowserController::mayOfferCertificateException(const QUrl &url, bool overr
 bool BrowserController::thirdPartyCookiesAllowed(const QString &spaceId,
     const QUrl &origin) const
 {
-    const auto normalized = normalizedOrigin(origin);
-    if (normalized.isEmpty()) {
-        return false;
-    }
     // A Private window has no Space of its own, so its allowances key on the
     // empty name its shared session already uses for Site permissions.
-    return m_sessionCookieAllowances->contains(cookieAllowanceKey(spaceId, normalized));
+    return m_sessionSiteState->thirdPartyCookiesAllowed(spaceId, normalizedOrigin(origin));
 }
 
 bool BrowserController::allowThirdPartyCookies(const QUrl &origin, const QString &purpose)
 {
-    const auto normalized = normalizedOrigin(origin);
-    const auto normalizedPurpose = purpose.trimmed().toLower();
-    // The two flows a third party legitimately completes on another site's
-    // behalf. An allowance Omaweb cannot name to the reader is not one it gives.
-    if (normalized.isEmpty()
-        || (normalizedPurpose != QStringLiteral("authentication")
-            && normalizedPurpose != QStringLiteral("payment"))) {
+    if (!m_sessionSiteState->allowThirdPartyCookies(m_activeSpaceId,
+            normalizedOrigin(origin), purpose.trimmed().toLower())) {
         return false;
     }
-    m_sessionCookieAllowances->insert(
-        cookieAllowanceKey(m_activeSpaceId, normalized), normalizedPurpose);
     emit thirdPartyCookieAllowancesChanged();
     return true;
 }
 
 bool BrowserController::revokeThirdPartyCookieAllowance(const QUrl &origin)
 {
-    const auto normalized = normalizedOrigin(origin);
-    if (normalized.isEmpty()
-        || m_sessionCookieAllowances->remove(cookieAllowanceKey(m_activeSpaceId, normalized))
-            == 0) {
+    if (!m_sessionSiteState->revokeThirdPartyCookies(
+            m_activeSpaceId, normalizedOrigin(origin))) {
         return false;
     }
     emit thirdPartyCookieAllowancesChanged();
     return true;
 }
 
+QVariantList BrowserController::thirdPartyCookieAllowances() const
+{
+    return m_sessionSiteState->thirdPartyCookieAllowances(m_activeSpaceId);
+}
+
+bool BrowserController::recordCertificateException(const QUrl &url)
+{
+    const auto origin = normalizedOrigin(url);
+    if (origin.isEmpty()) {
+        return false;
+    }
+    m_sessionSiteState->allowCertificate(m_activeSpaceId, origin);
+    emit certificateExceptionsChanged();
+    return true;
+}
+
+bool BrowserController::certificateExceptionInEffect(const QUrl &url) const
+{
+    return m_sessionSiteState->certificateAllowed(m_activeSpaceId, normalizedOrigin(url));
+}
+
+QStringList BrowserController::certificateExceptionOrigins() const
+{
+    return m_sessionSiteState->allowedCertificateOrigins(m_activeSpaceId);
+}
+
 QStringList BrowserController::allowedThirdPartyCookieOrigins(const QString &spaceId) const
 {
-    QStringList origins;
-    const auto prefix = spaceId + QChar(0x1f);
-    for (auto it = m_sessionCookieAllowances->cbegin();
-         it != m_sessionCookieAllowances->cend(); ++it) {
-        if (it.key().startsWith(prefix)) {
-            origins.append(it.key().mid(prefix.size()));
-        }
-    }
-    return origins;
+    return m_sessionSiteState->allowedThirdPartyCookieOrigins(spaceId);
 }
 
 double BrowserController::siteDataBytes(const QString &spaceId) const
@@ -1911,27 +1947,6 @@ double BrowserController::siteDataBytes(const QString &spaceId) const
         bytes += double(files.fileInfo().size());
     }
     return bytes;
-}
-
-QVariantList BrowserController::thirdPartyCookieAllowances() const
-{
-    QVariantList allowances;
-    const auto prefix = m_activeSpaceId + QChar(0x1f);
-    for (auto it = m_sessionCookieAllowances->cbegin();
-         it != m_sessionCookieAllowances->cend(); ++it) {
-        if (!it.key().startsWith(prefix)) {
-            continue;
-        }
-        allowances.append(QVariantMap{
-            {QStringLiteral("origin"), it.key().mid(prefix.size())},
-            {QStringLiteral("purpose"), it.value()},
-        });
-    }
-    std::sort(allowances.begin(), allowances.end(), [](const auto &left, const auto &right) {
-        return left.toMap().value(QStringLiteral("origin")).toString()
-            < right.toMap().value(QStringLiteral("origin")).toString();
-    });
-    return allowances;
 }
 
 bool BrowserController::externalProtocolAllowed(const QUrl &url, const QString &scheme) const
@@ -2285,11 +2300,6 @@ QString BrowserController::sessionPermissionKey(const QString &origin,
     const QString &permission) const
 {
     return m_activeSpaceId + QChar(0x1f) + origin + QChar(0x1f) + permission;
-}
-
-QString BrowserController::cookieAllowanceKey(const QString &spaceId, const QString &origin)
-{
-    return spaceId + QChar(0x1f) + origin;
 }
 
 bool BrowserController::isBlank(const QUrl &url)

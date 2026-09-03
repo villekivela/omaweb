@@ -13,8 +13,10 @@ QtObject {
     property var engineCookiePolicy: null
     property var cookieController: null
     property string cookieSpaceId: ""
-    readonly property bool thirdPartyCookiesBlocked: root.cookiePolicyAttached
-    property bool cookiePolicyAttached: false
+    // Whether the engine's third-party filter is actually attached. Reported
+    // rather than assumed: a profile the filter could not be attached to is one
+    // Site information has to stop promising anything about.
+    property bool thirdPartyCookiesBlocked: false
     property string downloadDirectory: ""
     property bool acceptDownloads: false
     property bool privateBrowsing: true
@@ -179,7 +181,7 @@ QtObject {
         if (root.engineContentBlocker)
             root.engineContentBlocker.attachToProfile(root.profile)
         if (root.engineCookiePolicy && root.cookieController) {
-            root.cookiePolicyAttached = root.engineCookiePolicy.attachToProfile(
+            root.thirdPartyCookiesBlocked = root.engineCookiePolicy.attachToProfile(
                 root.profile, root.cookieController, root.cookieSpaceId)
         }
     }

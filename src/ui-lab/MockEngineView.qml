@@ -52,9 +52,6 @@ Rectangle {
     property color pageBackgroundColor: "#16151d"
     readonly property bool pageHasFocus: root.activeFocus
     readonly property int navigationCapability: 1 << 0
-    // Named but never claimed: the lab keeps nothing on disk, so Site
-    // information has no size to show for it. The bit has to be nameable for
-    // the shell to read the gap off the adapter.
     readonly property int persistentProfilesCapability: 1 << 1
     readonly property int contentBlockingCapability: 1 << 3
     readonly property int keyboardPageCommandsCapability: 1 << 4
@@ -82,6 +79,10 @@ Rectangle {
     // that cannot refuse a third-party cookie.
     property bool certificateDecisionsAvailable: true
     property bool thirdPartyCookieControlAvailable: true
+    // Off by default and honest about it: the lab keeps nothing on disk, so
+    // Site information has no size to show. A test that needs the shell stood
+    // up against an engine that does keep a profile turns it on.
+    property bool persistentProfilesAvailable: false
     readonly property int capabilities: navigationCapability
         | contentBlockingCapability
         | keyboardPageCommandsCapability
@@ -92,6 +93,7 @@ Rectangle {
         | (root.printingAvailable ? printingCapability : 0)
         | (root.siteFullscreenAvailable ? siteFullscreenCapability : 0)
         | (root.inlinePdfViewingAvailable ? inlinePdfViewingCapability : 0)
+        | (root.persistentProfilesAvailable ? persistentProfilesCapability : 0)
         | (root.certificateDecisionsAvailable ? certificateDecisionsCapability : 0)
         | (root.thirdPartyCookieControlAvailable ? thirdPartyCookieControlCapability : 0)
 
@@ -119,8 +121,10 @@ Rectangle {
         if (root.certificateErrorOrigin.length > 0
             && root.certificateErrorOrigin === root.originLabel(root.currentUrl))
             return "certificate-error"
+        // A page that never arrived is not a page reached over an unencrypted
+        // connection: there is no connection to report either way.
+        if (root.lastLoadFailed) return "internal"
         if (scheme !== "http" && scheme !== "https") return "internal"
-        if (root.lastLoadFailed) return "insecure"
         return scheme === "https" ? "secure" : "insecure"
     }
     // The lab enables no override, and says so the same way the engine adapter

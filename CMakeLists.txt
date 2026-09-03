@@ -101,6 +101,8 @@ add_library(omaweb-core STATIC
     src/core/KeyboardNavigation.cpp
     src/core/KeyboardNavigation.h
     src/core/RetainedTab.h
+    src/core/SessionSiteState.cpp
+    src/core/SessionSiteState.h
     src/core/SessionStore.cpp
     src/core/SessionStore.h
     src/core/SpaceListModel.cpp
@@ -267,6 +269,7 @@ set(omaweb_ui_files
     src/ui/PagePromptBar.qml
     src/ui/RetainedEngines.qml
     src/ui/SectionLabel.qml
+    src/ui/SiteInformationPanel.qml
     src/ui/MultilineField.qml
     src/ui/SettingDropdown.qml
     src/ui/SettingField.qml

@@ -817,6 +817,127 @@ TestCase {
         tryCompare(security, "text", "lock")
     }
 
+    // An engine stops reporting a certificate failure once it has been told to
+    // accept the certificate, and starts calling the connection secure. Coming
+    // back to a site whose check the reader waived must still say so.
+    function test_aWaivedCertificateCheckStaysVisibleForTheSession() {
+        const engine = openPage("https://localhost:7443/waived")
+        const security = findChild(window.contentItem, "securityIndicator")
+        const bar = findChild(window.contentItem, "certificateQuestionBar")
+
+        const requestId = engine.simulateCertificateError({})
+        tryVerify(function() { return bar.open })
+        const action = findChild(bar, "questionAction0")
+        settleActions(action)
+        mouseClick(action, action.width / 2, action.height / 2)
+        tryVerify(function() { return !bar.open })
+        verify(browser.certificateExceptionInEffect("https://localhost:7443/waived"))
+
+        // The engine has forgotten the failure — this is exactly what it does
+        // after accepting — and the trigger still warns, because Omaweb has not.
+        engine.certificateErrorOrigin = ""
+        compare(engine.connectionState, "secure")
+        tryCompare(security, "text", "warning")
+
+        // Reading elsewhere and coming back to the same origin says it again.
+        openPage("https://elsewhere-after-waiver.example/page")
+        tryCompare(security, "text", "lock")
+        openPage("https://localhost:7443/another-page")
+        tryCompare(security, "text", "warning")
+
+        mouseClick(security, security.width / 2, security.height / 2)
+        const panel = findChild(window.contentItem, "siteInformationPanel")
+        tryVerify(function() { return panel.visible })
+        const connection = findChild(window.contentItem, "siteInformationConnection")
+        compare(connection.text,
+            "· certificate could not be verified · waived for this session")
+        keyClick(Qt.Key_Escape)
+        tryVerify(function() { return !panel.visible })
+    }
+
+    // The panel is where a blocked third party is named, given an allowance for
+    // one flow, and taken back — and where clearing the Space's site data is
+    // asked about before it happens.
+    function test_siteInformationGrantsAndRevokesOneFlowsAllowance() {
+        openPage("https://allowance.example/checkout")
+        const engine = findChild(window.contentItem, "engineLoader").item
+        const sidebar = findChild(window.contentItem, "sidebar")
+        const security = findChild(window.contentItem, "securityIndicator")
+        const panel = findChild(window.contentItem, "siteInformationPanel")
+        // The lab has no third-party filter, so the origins one would have
+        // refused are named here. What is under test is the panel's answer.
+        sidebar.statusOpen = true
+        tryVerify(function() { return panel.visible })
+        panel.refusedThirdParties = ["https://pay.example"]
+
+        const signIn = findChild(window.contentItem, "allowSignIn0")
+        const payment = findChild(window.contentItem, "allowPayment0")
+        verify(signIn !== null)
+        verify(payment !== null)
+        settleActions(payment)
+        mouseClick(payment, payment.width / 2, payment.height / 2)
+        tryVerify(function() {
+            return findChild(window.contentItem, "cookieAllowance0") !== null
+        })
+        const allowance = findChild(window.contentItem, "cookieAllowance0")
+        verify(allowance !== null)
+        verify(browser.thirdPartyCookiesAllowed(browser.activeSpaceId, "https://pay.example"))
+        compare(browser.thirdPartyCookieAllowances()[0].purpose, "payment")
+
+        const revoke = findChild(window.contentItem, "revokeAllowance0")
+        verify(revoke !== null)
+        settleActions(revoke)
+        mouseClick(revoke, revoke.width / 2, revoke.height / 2)
+        tryVerify(function() { return browser.thirdPartyCookieAllowances().length === 0 })
+        verify(!browser.thirdPartyCookiesAllowed(browser.activeSpaceId, "https://pay.example"))
+
+        sidebar.statusOpen = false
+        tryVerify(function() { return !panel.visible })
+    }
+
+    // Clearing site data is the Space's, because the engine cannot clear one
+    // site's storage on its own. The panel says which scope is going, and asks
+    // before it goes.
+    function test_siteInformationClearsTheSpacesDataOnceConfirmed() {
+        const engine = openPage("https://space-data.example/page")
+        // An engine that keeps a profile on disk, which the lab otherwise does
+        // not: without one there is no size to show and nothing to clear.
+        engine.persistentProfilesAvailable = true
+        const sidebar = findChild(window.contentItem, "sidebar")
+        const panel = findChild(window.contentItem, "siteInformationPanel")
+        sidebar.statusOpen = true
+        tryVerify(function() { return panel.visible })
+
+        const siteData = findChild(window.contentItem, "siteInformationSiteData")
+        tryVerify(function() {
+            return siteData.text.indexOf("of cookies, storage and cache in this Space") !== -1
+        })
+
+        const clear = findChild(window.contentItem, "clearSiteData")
+        const question = findChild(window.contentItem, "siteInformationResetQuestion")
+        verify(clear !== null)
+        verify(clear.enabled)
+        compare(clear.label, "clear Space data")
+        verify(!question.visible)
+
+        settleActions(clear)
+        mouseClick(clear, clear.width / 2, clear.height / 2)
+        tryVerify(function() { return question.visible })
+        // The question names the scope, so the reader is not told "site" and
+        // given "Space".
+        compare(question.text,
+            "clear the cookies, storage and cache of every site in this Space?")
+        compare(clear.label, "confirm clear")
+
+        mouseClick(clear, clear.width / 2, clear.height / 2)
+        tryVerify(function() { return !question.visible })
+        compare(clear.label, "clear Space data")
+
+        engine.persistentProfilesAvailable = false
+        sidebar.statusOpen = false
+        tryVerify(function() { return !panel.visible })
+    }
+
     // One panel, one origin, one Space: what the connection is, what was
     // blocked, what is stored, what the site may do, and two ways to take it
     // back. Where the engine cannot answer, the panel says so.
@@ -849,6 +970,18 @@ TestCase {
         engine.thirdPartyCookieControlAvailable = false
         tryCompare(cookies, "text", "· this engine cannot refuse a third party")
         engine.thirdPartyCookieControlAvailable = true
+
+        // An engine that cannot report a certificate failure cannot be blocking
+        // on one either, so the connection line above is worth less than it
+        // looks and the panel says so.
+        const certificates = findChild(window.contentItem, "siteInformationCertificates")
+        verify(certificates !== null)
+        verify(!certificates.visible)
+        engine.certificateDecisionsAvailable = false
+        tryVerify(function() { return certificates.visible })
+        compare(certificates.text, "· this engine cannot report a certificate failure")
+        engine.certificateDecisionsAvailable = true
+        tryVerify(function() { return !certificates.visible })
 
         const permission = findChild(window.contentItem, "sitePermission0")
         verify(permission !== null)

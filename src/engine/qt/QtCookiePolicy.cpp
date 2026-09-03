@@ -10,18 +10,10 @@
 namespace omaweb {
 namespace {
 
-// The same separator the core keys its own session tables with, so a key made
-// here and a key made there are the same string.
-constexpr QChar keySeparator = QChar(0x1f);
 // How many refused third parties one page is remembered by. Enough to name the
 // embedded flows a page actually has, and bounded so the table cannot become a
 // record of everywhere the reader has been.
 constexpr qsizetype refusedOriginsPerPage = 16;
-
-QString allowanceKey(const QString &spaceId, const QString &origin)
-{
-    return spaceId + keySeparator + origin;
-}
 
 } // namespace
 
@@ -136,21 +128,20 @@ bool QtCookiePolicy::allows(const QString &spaceId, const QUrl &origin)
         return false;
     }
     const QMutexLocker locker(&m_guard);
-    return m_allowed.contains(allowanceKey(spaceId, named));
+    return m_allowed.value(spaceId).contains(named);
 }
 
 void QtCookiePolicy::refreshAllowances()
 {
-    QSet<QString> allowed;
+    QHash<QString, QSet<QString>> allowed;
     for (auto it = m_attachments.cbegin(); it != m_attachments.cend(); ++it) {
         const auto &attachment = it.value();
         if (!attachment.controller) {
             continue;
         }
-        for (const auto &origin :
-            attachment.controller->allowedThirdPartyCookieOrigins(attachment.spaceId)) {
-            allowed.insert(allowanceKey(attachment.spaceId, origin));
-        }
+        const auto origins =
+            attachment.controller->allowedThirdPartyCookieOrigins(attachment.spaceId);
+        allowed[attachment.spaceId] = QSet<QString>(origins.cbegin(), origins.cend());
     }
     const QMutexLocker locker(&m_guard);
     m_allowed = std::move(allowed);

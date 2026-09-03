@@ -61,7 +61,8 @@ private:
 
     QHash<QWebEngineCookieStore *, Attachment> m_attachments;
     mutable QMutex m_guard;
-    QSet<QString> m_allowed;
+    // Keyed by Space, so nothing here has to know how the core spells a key.
+    QHash<QString, QSet<QString>> m_allowed;
     QHash<QString, QStringList> m_refusedOrigins;
     QAtomicInt m_refused;
 };

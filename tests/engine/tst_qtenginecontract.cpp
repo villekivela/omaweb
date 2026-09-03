@@ -147,38 +147,6 @@ void QtEngineContractTest::adaptersExposeSharedContract_data()
     QTest::newRow("QtWebEngine") << QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH);
 }
 
-// An adapter says what the connection is; the shell never works it out from an
-// address of its own. Every state has to be reachable, and the state has to
-// follow the page as its origin changes.
-void QtEngineContractTest::adaptersReportTheConnectionFromTheirOwnFacts_data()
-{
-    adaptersExposeSharedContract_data();
-}
-
-void QtEngineContractTest::adaptersReportTheConnectionFromTheirOwnFacts()
-{
-    QFETCH(QString, path);
-    QQmlEngine engine;
-    QQmlComponent component(&engine, QUrl::fromLocalFile(path));
-    QVERIFY2(component.isReady(), qPrintable(component.errorString()));
-    const std::unique_ptr<QObject> adapter(component.create());
-    QVERIFY2(adapter, qPrintable(component.errorString()));
-
-    // Omaweb's own furniture is not a connection to anywhere.
-    QCOMPARE(adapter->property("connectionState").toString(), QStringLiteral("internal"));
-
-    QVERIFY(adapter->setProperty("currentUrl", QUrl(QStringLiteral("https://example.com/one"))));
-    QCOMPARE(adapter->property("connectionState").toString(), QStringLiteral("secure"));
-
-    // An origin change carries the answer with it, both ways.
-    QVERIFY(adapter->setProperty("currentUrl", QUrl(QStringLiteral("http://example.com/two"))));
-    QCOMPARE(adapter->property("connectionState").toString(), QStringLiteral("insecure"));
-    QVERIFY(adapter->setProperty("currentUrl", QUrl(QStringLiteral("https://other.example/"))));
-    QCOMPARE(adapter->property("connectionState").toString(), QStringLiteral("secure"));
-    QVERIFY(adapter->setProperty("currentUrl", QUrl(QStringLiteral("about:blank"))));
-    QCOMPARE(adapter->property("connectionState").toString(), QStringLiteral("internal"));
-}
-
 void QtEngineContractTest::adaptersRefuseEveryInsecureContentOverride_data()
 {
     adaptersExposeSharedContract_data();
@@ -2547,9 +2515,39 @@ void QtEngineContractTest::qtDefersACertificateFailureWithTheEnginesOwnFacts()
     QVERIFY(!isFatal(QWebEngineCertificateError::CertificateAuthorityInvalid));
     QVERIFY(!isFatal(QWebEngineCertificateError::CertificateDateInvalid));
 
-    // Leaving takes the report with it, because nothing wrote it down.
+    // Leaving takes the adapter's own report with it: nothing in the adapter
+    // wrote the failure down.
     QVERIFY(adapter->setProperty("currentUrl", QUrl(QStringLiteral("about:blank"))));
     QTRY_COMPARE(adapter->property("connectionState").toString(), QStringLiteral("internal"));
+
+    // A refused failure is asked about again on the next load: the adapter
+    // wrote nothing down, so there is nothing to skip the question.
+    QVERIFY(adapter->setProperty("currentUrl", QUrl(address)));
+    QTRY_VERIFY_WITH_TIMEOUT(raised.count() > 1, 20000);
+    QVERIFY(QMetaObject::invokeMethod(adapter.get(), "respondToCertificateError",
+        Q_ARG(QVariant, raised.at(1).at(0)), Q_ARG(QVariant, true)));
+    QTRY_COMPARE_WITH_TIMEOUT(adapter->property("pageTitle").toString(),
+        QStringLiteral("reached"), 20000);
+    // Accepted, and still reported as an error: the check was waived, not
+    // passed.
+    QCOMPARE(adapter->property("connectionState").toString(),
+        QStringLiteral("certificate-error"));
+
+    // The engine keeps what it was told. An accepted certificate goes into
+    // Chromium's per-profile SSL host state, which has no public way back, so
+    // the next load of that host raises nothing at all. This is why the shell
+    // records a waived check of its own rather than reading the absence of a
+    // report as a check that passed.
+    // Reading the same page again shows it. The engine raises nothing the
+    // second time, so an adapter has no way to tell a certificate that was
+    // waived from one that passed — which is why the shell records the waiver
+    // rather than reading the absence of a report as a check that held.
+    const auto raisedBefore = raised.count();
+    QVERIFY(QMetaObject::invokeMethod(adapter.get(), "reloadPage"));
+    QTRY_VERIFY_WITH_TIMEOUT(adapter->property("loading").toBool(), 5000);
+    QTRY_VERIFY_WITH_TIMEOUT(!adapter->property("loading").toBool(), 20000);
+    QCOMPARE(adapter->property("pageTitle").toString(), QStringLiteral("reached"));
+    QCOMPARE(raised.count(), raisedBefore);
 }
 
 // Third-party state is refused by the engine's own filter, which governs a
@@ -2674,6 +2672,53 @@ void QtEngineContractTest::qtNamesEveryPermissionTheShellHasAPolicyFor()
     QCOMPARE(named(Permission::PermissionType::LocalFontsAccess),
         QStringLiteral("local-fonts"));
     QCOMPARE(named(Permission::PermissionType::Unsupported), QString());
+}
+
+// An adapter says what the connection is; the shell never works it out from an
+// address of its own. Every state has to be reachable, and the state has to
+// follow the page as its origin changes.
+void QtEngineContractTest::adaptersReportTheConnectionFromTheirOwnFacts_data()
+{
+    adaptersExposeSharedContract_data();
+}
+
+void QtEngineContractTest::adaptersReportTheConnectionFromTheirOwnFacts()
+{
+    QFETCH(QString, path);
+    QQmlEngine engine;
+    QQmlComponent component(&engine, QUrl::fromLocalFile(path));
+    QVERIFY2(component.isReady(), qPrintable(component.errorString()));
+    const std::unique_ptr<QObject> adapter(component.create());
+    QVERIFY2(adapter, qPrintable(component.errorString()));
+
+    // A real page, so the state is about a load the adapter actually committed
+    // rather than about an address that was only assigned.
+    PageServer server(R"HTML(<!doctype html><title>reached</title>)HTML");
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+
+    // Omaweb's own furniture is not a connection to anywhere.
+    QCOMPARE(adapter->property("connectionState").toString(), QStringLiteral("internal"));
+
+    QVERIFY(adapter->setProperty("currentUrl",
+        QUrl(QStringLiteral("http://127.0.0.1:%1/page.html").arg(server.serverPort()))));
+    QTRY_COMPARE_WITH_TIMEOUT(adapter->property("connectionState").toString(),
+        QStringLiteral("insecure"), 20000);
+
+    // An origin change carries the answer with it. An https address nothing
+    // answers on is a page that never arrived, and no connection to report.
+    QVERIFY(adapter->setProperty("currentUrl",
+        QUrl(QStringLiteral("https://127.0.0.1:%1/page.html").arg(server.serverPort()))));
+    QVERIFY(adapter->setProperty("lastLoadFailed", true));
+    QTRY_COMPARE_WITH_TIMEOUT(adapter->property("connectionState").toString(),
+        QStringLiteral("internal"), 20000);
+
+    // A committed https load is the one state that says the connection was
+    // verified, and only the engine can put the adapter in it.
+    QVERIFY(adapter->setProperty("lastLoadFailed", false));
+    QCOMPARE(adapter->property("connectionState").toString(), QStringLiteral("secure"));
+
+    QVERIFY(adapter->setProperty("currentUrl", QUrl(QStringLiteral("about:blank"))));
+    QTRY_COMPARE(adapter->property("connectionState").toString(), QStringLiteral("internal"));
 }
 
 int main(int argc, char *argv[])

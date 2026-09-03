@@ -145,9 +145,13 @@ Item {
     // saying so: an exception the reader granted is still a certificate error,
     // and there is nothing else on the page to tell them the check was waived.
     property string certificateErrorOrigin: ""
+    // Whether the load now in flight has had a failure reported for it, which
+    // is what tells a page reached over a waived certificate from one whose
+    // certificate has since been fixed.
+    property bool certificateErrorRaisedForLoad: false
     // Whether the last committed load ended in a failure. Chromium draws its
-    // own error page in place of the document, and a page that never arrived
-    // is not a page reached over a verified connection.
+    // own error page in place of the document, and there is no connection to
+    // the address to report anything about.
     property bool lastLoadFailed: false
     // What the connection to the page on show is, from what the engine
     // committed and what it reported about the certificate — never from an
@@ -159,8 +163,10 @@ Item {
         if (root.certificateErrorOrigin.length > 0
             && root.certificateErrorOrigin === root.originLabel(webView.url))
             return "certificate-error"
+        // A page that never arrived is not a page reached over an unencrypted
+        // connection: there is no connection to report either way.
+        if (root.lastLoadFailed) return "internal"
         if (scheme !== "http" && scheme !== "https") return "internal"
-        if (root.lastLoadFailed) return "insecure"
         return scheme === "https" ? "secure" : "insecure"
     }
     // Chromium refuses active mixed content unless the embedder turns the
@@ -1210,6 +1216,7 @@ Item {
         onCertificateError: function(error) {
             error.defer()
             if (error.isMainFrame) {
+                root.certificateErrorRaisedForLoad = true
                 root.certificateErrorOrigin = root.originLabel(error.url)
             }
             const requestId = String(++root.nextCertificateErrorId)
@@ -1251,13 +1258,7 @@ Item {
                 root.pageGeneration += 1
                 root.javaScriptDialogsBlocked = false
                 root.lastLoadFailed = false
-                // The failure belonged to the origin being left. Leaving it
-                // takes the report with it; coming back asks again, because
-                // nothing about the exception was written down.
-                if (root.certificateErrorOrigin.length > 0
-                    && root.certificateErrorOrigin !== root.originLabel(loadRequest.url)) {
-                    root.certificateErrorOrigin = ""
-                }
+                root.certificateErrorRaisedForLoad = false
                 // The node Chromium is holding belonged to the page being
                 // replaced. What is at those coordinates now is not what the
                 // reader pointed at, so the next keyboard request picks again.
@@ -1274,6 +1275,16 @@ Item {
             }
             if (loadRequest.status === WebEngineView.LoadFailedStatus) {
                 root.lastLoadFailed = true
+            }
+            // A load that arrived without a certificate failure clears the
+            // report. The certificate that failed may since have been fixed,
+            // and the adapter must not keep saying otherwise — the engine's
+            // own memory of an accepted certificate is the shell's to carry,
+            // because the adapter cannot tell a fixed certificate from a
+            // waived one and must not guess.
+            if (loadRequest.status === WebEngineView.LoadSucceededStatus
+                && !root.certificateErrorRaisedForLoad) {
+                root.certificateErrorOrigin = ""
             }
             if (!loading) root.applyKeyboardNavigationConfiguration()
         }

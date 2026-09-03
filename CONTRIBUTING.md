@@ -17,7 +17,7 @@ tools belong to the tab being inspected, and there is no diagnostics protocol,
 agent gateway, terminal, or source editor. A pull request adding one of those
 will be declined on scope, however good the code is.
 
-`docs/adr/` holds 27 architecture decisions. Skim the ones near your change.
+`docs/adr/` holds 29 architecture decisions. Skim the ones near your change.
 They record what was already settled and why, which is usually faster than
 asking. If your change contradicts one, say so in the issue and expect to
 argue the case. A change that settles a new question of its own wants a new

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "RetainedTab.h"
+#include "SessionSiteState.h"
 #include "SessionStore.h"
 #include "SpaceListModel.h"
 #include "TabListModel.h"
@@ -85,9 +86,9 @@ public:
     // cannot see being spent gets no memory at all, and one outside the
     // daily-driver contract is refused without a question being asked.
     enum PermissionPolicy {
-        RefusedPermission = 0,
-        ApprovedEachTime = 1,
-        RememberablePermission = 2,
+        Refused = 0,
+        AskedEachTime = 1,
+        Rememberable = 2,
     };
     Q_ENUM(PermissionPolicy)
 
@@ -102,12 +103,13 @@ public:
     BrowserController(QString dataRoot, QString engineName, bool privateBrowsing,
         QSharedPointer<QHash<QString, int>> sessionPermissionDecisions,
         QString configRoot, QObject *parent = nullptr);
-    // The third-party-cookie allowances a shared private session hands round
-    // its windows, beside the Site permissions it already shares. Both tables
-    // live in memory for exactly as long as that session does.
+    // The session's own site state — third-party allowances and granted
+    // certificate exceptions — which a shared private session hands round its
+    // windows beside the Site permissions it already shares. Both live in
+    // memory for exactly as long as that session does.
     BrowserController(QString dataRoot, QString engineName, bool privateBrowsing,
         QSharedPointer<QHash<QString, int>> sessionPermissionDecisions,
-        QSharedPointer<QHash<QString, QString>> sessionCookieAllowances,
+        QSharedPointer<SessionSiteState> sessionSiteState,
         QString configRoot, QObject *parent = nullptr);
 
     ~BrowserController() override;
@@ -264,6 +266,13 @@ public:
     Q_INVOKABLE bool mayOfferCertificateException(const QUrl &url, bool overridable,
         bool mainFrame, bool fatal) const;
     Q_INVOKABLE bool localDevelopmentSite(const QUrl &url) const;
+    // The reader let one through. Engines remember an accepted certificate for
+    // as long as their profile lives and offer no way to take it back, so the
+    // grant is recorded here — in memory, for this Space, for this session — to
+    // keep the address trigger saying the check was waived for as long as it is.
+    Q_INVOKABLE bool recordCertificateException(const QUrl &url);
+    Q_INVOKABLE bool certificateExceptionInEffect(const QUrl &url) const;
+    Q_INVOKABLE QStringList certificateExceptionOrigins() const;
     // Third-party cookies are blocked. An authentication or payment flow may be
     // given one origin's allowance in one Space: temporary, listed in Site
     // information, and revocable there.
@@ -313,6 +322,7 @@ signals:
     void engineDataClearRequested(const QStringList &spaceIds,
         const QStringList &dataTypes, qint64 since);
     void thirdPartyCookieAllowancesChanged();
+    void certificateExceptionsChanged();
 
 private:
     void initialize();
@@ -344,7 +354,6 @@ private:
     bool saveSearchEngines(const QVariantList &engines, const QString &defaultEngineId);
     static QString normalizedOrigin(const QUrl &url);
     QString sessionPermissionKey(const QString &origin, const QString &permission) const;
-    static QString cookieAllowanceKey(const QString &spaceId, const QString &origin);
     static bool localDevelopmentHost(const QString &host);
 
     SessionStore m_store;
@@ -373,7 +382,7 @@ private:
     bool m_atRest = false;
     bool m_privateBrowsing = false;
     QSharedPointer<QHash<QString, int>> m_sessionPermissionDecisions;
-    QSharedPointer<QHash<QString, QString>> m_sessionCookieAllowances;
+    QSharedPointer<SessionSiteState> m_sessionSiteState;
 };
 
 } // namespace omaweb

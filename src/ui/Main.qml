@@ -95,10 +95,29 @@ ApplicationWindow {
     readonly property bool siteDataOnDisk: engineLoader.item !== null
         && (engineLoader.item.capabilities
             & engineLoader.item.persistentProfilesCapability) !== 0
+    // The permission policies the core answers with, named here so nothing in
+    // the interface compares against a bare number.
+    readonly property int permissionRefused: 0
+    readonly property int permissionAskedEachTime: 1
+    readonly property int permissionRememberable: 2
+    // Bumped whenever the core's record of granted certificate exceptions
+    // changes, and read by the state below so that the state follows it. A
+    // binding cannot see into an invokable on its own.
+    property int certificateExceptionGeneration: 0
     // What the connection to the page on show is, read off the engine drawing
-    // it. A tab with no page has no connection to report.
-    readonly property string connectionState: engineLoader.item
-        ? engineLoader.item.connectionState : "internal"
+    // it — and then contradicted where Omaweb knows better. An engine keeps an
+    // accepted certificate for as long as its profile lives and offers no way
+    // back, so once the reader has waived a check the engine stops reporting
+    // it and starts calling the connection secure. Omaweb's own record of the
+    // waiver is what keeps the address trigger honest about it.
+    readonly property string connectionState: {
+        const generation = window.certificateExceptionGeneration
+        const reported = engineLoader.item
+            ? engineLoader.item.connectionState : "internal"
+        if (reported === "internal" || generation < 0) return reported
+        return window.windowBrowser.certificateExceptionInEffect(
+            window.windowBrowser.activeUrl) ? "certificate-error" : reported
+    }
     readonly property bool insecureContentBlocked: engineLoader.item === null
         || engineLoader.item.insecureContentBlocked
 
@@ -822,6 +841,13 @@ ApplicationWindow {
             window.pendingCertificateResponder.respondToCertificateError(
                 window.pendingCertificateFailureId, accepted)
         }
+        // The engine will now keep the accepted certificate for as long as its
+        // profile lives and stop reporting the failure. Recording the waiver
+        // is what lets the address trigger keep saying the check was waived.
+        if (accepted) {
+            window.windowBrowser.recordCertificateException(
+                window.pendingCertificateFailure.url)
+        }
         window.certificateQuestionOpen = false
         window.pendingCertificateResponder = null
         window.pendingCertificateFailureId = ""
@@ -1447,10 +1473,10 @@ ApplicationWindow {
                     message: window.pendingPermissionOrigin
                         + " asked for a protected browser capability"
                     detail: window.pendingPermissionType
-                        + (permissionBar.policy === 2
+                        + (permissionBar.policy === window.permissionRememberable
                             ? " · remembered for this Space only"
                             : " · asked every time, never remembered")
-                    actions: permissionBar.policy === 2
+                    actions: permissionBar.policy === window.permissionRememberable
                         ? [
                             {"label": "Allow once", "decision": 1},
                             {"label": "Always allow", "decision": 2,
@@ -1797,6 +1823,9 @@ ApplicationWindow {
         target: window.windowBrowser
 
         function onRetainedTabsChanged() { window.refreshRetainedTabs() }
+        function onCertificateExceptionsChanged() {
+            window.certificateExceptionGeneration += 1
+        }
     }
 
     // A renderer's resident memory is a moving number, so the open list asks

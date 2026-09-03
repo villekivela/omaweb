@@ -61,6 +61,7 @@ private slots:
     void listsAndResetsOneSitesPermissionsWithinItsSpace();
     void refusesEveryCertificateExceptionButAnOverridableLocalMainFrame();
     void keepsCertificateExceptionsOutOfEveryStoreAndSession();
+    void keepsAGrantedCertificateExceptionVisibleForItsSession();
     void blocksThirdPartyCookiesUntilAFlowIsGivenAVisibleAllowance();
     void endsThirdPartyCookieAllowancesWithTheirSpaceAndPrivateSession();
     void measuresTheSiteDataHeldForOneSpace();
@@ -1659,7 +1660,7 @@ void BrowserControllerTest::remembersOnlyThePermissionsThatMayBeRemembered()
         const auto permission = QString::fromLatin1(rememberable);
         const QUrl origin(QStringLiteral("https://%1.example").arg(permission));
         QCOMPARE(controller.permissionPolicy(permission),
-            int(BrowserController::RememberablePermission));
+            int(BrowserController::Rememberable));
         QVERIFY2(controller.setPermissionDecision(origin, permission,
                      BrowserController::AllowPersistently),
             rememberable);
@@ -1674,7 +1675,7 @@ void BrowserControllerTest::remembersOnlyThePermissionsThatMayBeRemembered()
         const auto permission = QString::fromLatin1(eachTime);
         const QUrl origin(QStringLiteral("https://%1.example").arg(permission));
         QCOMPARE(controller.permissionPolicy(permission),
-            int(BrowserController::ApprovedEachTime));
+            int(BrowserController::AskedEachTime));
         // Answering once is answering this request, and the next one asks
         // again — whichever way the reader answered.
         QVERIFY2(controller.setPermissionDecision(origin, permission,
@@ -1693,7 +1694,7 @@ void BrowserControllerTest::remembersOnlyThePermissionsThatMayBeRemembered()
         const auto permission = QString::fromLatin1(outside);
         const QUrl origin(QStringLiteral("https://outside.example"));
         QCOMPARE(controller.permissionPolicy(permission),
-            int(BrowserController::RefusedPermission));
+            int(BrowserController::Refused));
         QVERIFY2(!controller.setPermissionDecision(origin, permission,
                      BrowserController::AllowPersistently),
             outside);
@@ -1734,6 +1735,15 @@ void BrowserControllerTest::listsAndResetsOneSitesPermissionsWithinItsSpace()
     QVERIFY(controller.switchSpace(workSpaceId));
     QVERIFY(controller.sitePermissions(site).isEmpty());
     QVERIFY(controller.switchSpace(personalSpaceId));
+
+    // An answer the session is holding is listed too — it is a decision the
+    // site holds, and a Private window has no other kind.
+    QVERIFY(controller.setPermissionDecision(site, QStringLiteral("notifications"),
+        BrowserController::AllowOnce));
+    QCOMPARE(controller.sitePermissions(site).size(), 3);
+    // Listing it does not spend it: the site has not asked to use it.
+    QCOMPARE(controller.permissionDecision(site, QStringLiteral("notifications")),
+        BrowserController::AllowOnce);
 
     QVERIFY(controller.resetSitePermissions(site));
     QVERIFY(controller.sitePermissions(site).isEmpty());
@@ -1793,7 +1803,7 @@ void BrowserControllerTest::keepsCertificateExceptionsOutOfEveryStoreAndSession(
         QVERIFY(!controller.setPermissionDecision(local,
             QStringLiteral("certificate-exception"), BrowserController::AllowPersistently));
         QCOMPARE(controller.permissionPolicy(QStringLiteral("certificate-exception")),
-            int(BrowserController::RefusedPermission));
+            int(BrowserController::Refused));
         QVERIFY(controller.sitePermissions(local).isEmpty());
     }
 
@@ -1801,9 +1811,66 @@ void BrowserControllerTest::keepsCertificateExceptionsOutOfEveryStoreAndSession(
     QVERIFY(restored.sitePermissions(local).isEmpty());
     QCOMPARE(restored.permissionDecision(local, QStringLiteral("certificate-exception")),
         BrowserController::Block);
-    // Offering it again is the point: an exception the browser remembered would
+    // Offering it again is the point: an exception the browser wrote down would
     // be a certificate check the reader stopped being asked about.
     QVERIFY(restored.mayOfferCertificateException(local, true, true, false));
+    QVERIFY(restored.certificateExceptionOrigins().isEmpty());
+    QVERIFY(!restored.certificateExceptionInEffect(local));
+}
+
+// Engines keep an accepted certificate for as long as their profile lives and
+// offer no way to take it back, so the grant is recorded here to keep the
+// address trigger saying the check was waived. The record is one Space's, is
+// never written down, and goes with the session.
+void BrowserControllerTest::keepsAGrantedCertificateExceptionVisibleForItsSession()
+{
+    QTemporaryDir root;
+    const QUrl local(QStringLiteral("https://localhost:8443/app"));
+    QString personalSpaceId;
+    {
+        BrowserController controller(root.path(), QStringLiteral("test"));
+        personalSpaceId = controller.activeSpaceId();
+        QSignalSpy changed(&controller, &BrowserController::certificateExceptionsChanged);
+        QVERIFY(controller.recordCertificateException(local));
+        QCOMPARE(changed.count(), 1);
+        QVERIFY(controller.certificateExceptionInEffect(local));
+        // The origin's, so every tab of the Space showing that origin says so.
+        QVERIFY(controller.certificateExceptionInEffect(
+            QUrl(QStringLiteral("https://localhost:8443/other"))));
+        QVERIFY(!controller.certificateExceptionInEffect(
+            QUrl(QStringLiteral("https://localhost:9443/app"))));
+        QCOMPARE(controller.certificateExceptionOrigins(),
+            QStringList{QStringLiteral("https://localhost:8443")});
+
+        // The Space beside it shares no engine profile, so it shares no waived
+        // check either.
+        const auto workSpaceId = controller.createSpace(QStringLiteral("Work"));
+        QVERIFY(controller.switchSpace(workSpaceId));
+        QVERIFY(!controller.certificateExceptionInEffect(local));
+        QVERIFY(controller.certificateExceptionOrigins().isEmpty());
+
+        // Nothing about an address that names no site is recorded.
+        QVERIFY(!controller.recordCertificateException(QUrl()));
+    }
+
+    BrowserController restored(root.path(), QStringLiteral("test"));
+    QVERIFY(restored.switchSpace(personalSpaceId));
+    QVERIFY(!restored.certificateExceptionInEffect(local));
+    QVERIFY(restored.certificateExceptionOrigins().isEmpty());
+
+    // Private windows share one session, and its waived checks go with it.
+    WindowManager manager(QStringLiteral("test"));
+    auto *first = manager.createPrivateWindow();
+    auto *second = manager.createPrivateWindow();
+    QVERIFY(first && second);
+    QVERIFY(first->recordCertificateException(local));
+    QVERIFY(second->certificateExceptionInEffect(local));
+    manager.releasePrivateWindow(first);
+    manager.releasePrivateWindow(second);
+    QTRY_VERIFY(manager.privateProfilePath().isEmpty());
+    auto *reopened = manager.createPrivateWindow();
+    QVERIFY(reopened);
+    QVERIFY(!reopened->certificateExceptionInEffect(local));
 }
 
 // Third-party cookies are blocked. A sign-in or a payment can be given one
