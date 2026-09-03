@@ -145,9 +145,11 @@ void ThemeController::reload()
             continue;
         }
         apply(normalizedPalette(document.object().toVariantMap()));
+        emit themeReloaded();
         return;
     }
     apply(normalizedPalette(fallbackPalette()));
+    emit themeReloaded();
 }
 
 void ThemeController::apply(QVariantMap palette)

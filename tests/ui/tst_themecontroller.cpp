@@ -5,6 +5,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QFontDatabase>
+#include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QTest>
 
@@ -29,6 +30,7 @@ private slots:
     void keepsBordersVisibleOnEverySurfaceTheySeparate();
     void preservesTheHueOfABorderItRepairs();
     void rejectsAPaletteWhoseSurfacesCannotShareReadableRoles();
+    void reportsAThemeReloadWhenTheNormalizedPaletteDoesNotChange();
     void keepsASaturatedPaletteWhenBlackCanSupplyUnnamedRoles();
     void resolvesTheFirstInstalledTypeFamily();
     void fallsBackToAFamilyTheHostActuallyHas();
@@ -403,6 +405,45 @@ void ThemeControllerTest::rejectsAPaletteWhoseSurfacesCannotShareReadableRoles()
     theme.close();
 
     ThemeController controller(theme.fileName());
+    QCOMPARE(QColor(controller.palette().value(QStringLiteral("windowOpaque")).toString()),
+        QColor(QStringLiteral("#16151d")));
+}
+
+void ThemeControllerTest::reportsAThemeReloadWhenTheNormalizedPaletteDoesNotChange()
+{
+    QTemporaryDir root;
+    QFile theme(root.filePath(QStringLiteral("theme.json")));
+    QVERIFY(theme.open(QIODevice::WriteOnly));
+    theme.write(R"JSON({
+        "window": "#010101",
+        "sidebar": "#000000",
+        "overlay": "#000000",
+        "surface": "#777777",
+        "surfaceHover": "#777777",
+        "text": "#ffffff",
+        "mutedText": "#800000"
+    })JSON");
+    theme.close();
+
+    ThemeController controller(theme.fileName());
+    QSignalSpy paletteChanges(&controller, &ThemeController::paletteChanged);
+    QSignalSpy themeReloads(&controller, &ThemeController::themeReloaded);
+
+    QVERIFY(theme.open(QIODevice::WriteOnly | QIODevice::Truncate));
+    theme.write(R"JSON({
+        "window": "#020202",
+        "sidebar": "#000000",
+        "overlay": "#000000",
+        "surface": "#888888",
+        "surfaceHover": "#888888",
+        "text": "#ffffff",
+        "mutedText": "#800000"
+    })JSON");
+    theme.close();
+    controller.reload();
+
+    QCOMPARE(paletteChanges.count(), 0);
+    QCOMPARE(themeReloads.count(), 1);
     QCOMPARE(QColor(controller.palette().value(QStringLiteral("windowOpaque")).toString()),
         QColor(QStringLiteral("#16151d")));
 }
