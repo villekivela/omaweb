@@ -43,7 +43,24 @@ KitTheme::KitTheme(QQmlEngine *engine, const ThemeController *theme, QObject *pa
         return;
     }
 
-    connect(m_theme, &ThemeController::paletteChanged, this, &KitTheme::apply);
+    // The kit reads a theme's `colors.toml` and `shell.toml` once and expects a
+    // running shell to be handed new values over IPC when the desktop switches
+    // theme -- `Color.qml` says so, and sets `watchChanges: false` on both.
+    // Omaweb is not that shell and has no such channel, so the palette
+    // changing underneath is the signal: the kit is asked to read them again
+    // before Omaweb's own values go back on top. Without this, everything the
+    // kit draws from `[controls]` -- a Pinned tile's border, the current tab's
+    // fill, the address field's edge, a profile button -- stays on the theme
+    // the reader has left, while Omaweb's own colours move.
+    if (!m_color->property("colorsFile").value<QObject *>()
+        || !m_color->property("shellFile").value<QObject *>()) {
+        qWarning("The Omarchy kit no longer exposes colorsFile and shellFile, so its control "
+                 "chrome will not follow a theme switch until the browser restarts.");
+    }
+    connect(m_theme, &ThemeController::paletteChanged, this, [this] {
+        rereadKitSources();
+        apply();
+    });
     // Every one of the kit's own sources — a watched colours.toml, a shell.toml
     // that resets Style wholesale when it fails to load, an `hyprctl` run — is
     // asynchronous, so being the first writer is not the same as being the
@@ -55,6 +72,18 @@ KitTheme::KitTheme(QQmlEngine *engine, const ThemeController *theme, QObject *pa
         {QStringLiteral("fontFamily"), QStringLiteral("resolvedFontFamily"),
             QStringLiteral("fontBaseSize")});
     apply();
+}
+
+void KitTheme::rereadKitSources()
+{
+    for (const auto *name : {"colorsFile", "shellFile"}) {
+        if (auto *view = m_color->property(name).value<QObject *>()) {
+            // Synchronous in the shim, so the kit has re-parsed both files by
+            // the time this returns and `apply()` can put Omaweb's palette
+            // back over whatever they reset.
+            QMetaObject::invokeMethod(view, "reload");
+        }
+    }
 }
 
 void KitTheme::apply()
