@@ -3,10 +3,10 @@
 Omaweb is a keyboard-driven web browser. It uses one ordinary window, vertical
 tabs, and isolated browsing Spaces.
 
-The Qt build runs on macOS today. The immediate goal is a dependable macOS
-daily driver, followed by the same browser contract on Linux and Wayland.
-Ladybird is the target engine, but it remains a separate experimental build
-until its embedding and security contracts are ready.
+The Qt build runs on macOS as a development build. Omaweb is distributed for
+Linux, with first-class Wayland support. Ladybird is the target engine, but it
+remains a separate experimental build until its embedding and security
+contracts are ready.
 
 ## Developer tools
 
@@ -43,8 +43,8 @@ The current Qt build includes:
   engine-free UI lab
 
 Omaweb is still pre-alpha. Do not use it for sensitive browsing. It does not yet
-have the complete certificate, download, sandbox-health, URL-reputation,
-update, and signed-package work required for daily-driver status.
+have the complete certificate, download, sandbox-health, URL-reputation, and
+Linux release work required for daily-driver status.
 
 ## Build and run
 
@@ -172,13 +172,13 @@ Start with [the architecture](docs/architecture.md),
 The remaining Qt daily-driver work is tracked by
 [#50](https://github.com/villekivela/omaweb/issues/50). It covers browser prompts,
 History and data controls, tab management, certificate and cookie policy,
-download hardening, native notifications, signed updates, macOS packaging, and
-phishing and malware protection.
+download hardening, native notifications, and phishing and malware protection.
 
-After that, [#8](https://github.com/villekivela/omaweb/issues/8) carries the
-browser to Linux and Wayland. [#7](https://github.com/villekivela/omaweb/issues/7)
-tracks the Ladybird adapter. [The roadmap](docs/roadmap.md) keeps the ordered
-breakdown.
+[#8](https://github.com/villekivela/omaweb/issues/8) carries the browser to its
+Linux and Wayland distribution target. macOS remains available for development
+and testing, but macOS builds are not distributed.
+[#7](https://github.com/villekivela/omaweb/issues/7) tracks the Ladybird adapter.
+[The roadmap](docs/roadmap.md) keeps the ordered breakdown.
 
 Bookmarks, password management, third-party WebExtensions, Account, Sync,
 installed web applications, Reader mode, translation, and DRM are outside the

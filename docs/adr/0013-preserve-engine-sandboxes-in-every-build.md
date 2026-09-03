@@ -1,4 +1,5 @@
 # Preserve engine sandboxes in every build
+status: superseded in part by ADR-0029
 
 Omaweb requires Qt 6.11 at its latest approved patch, macOS 13 or newer, and Xcode 15 or newer. The canonical macOS setup uses Qt's Apple Silicon SDK with QtWebEngine, while Homebrew supplies CMake, Ninja, and compiler caching. Development produces a runnable application bundle; signing, notarization, and DMG distribution remain later work. Omaweb does not target the Mac App Store.
 

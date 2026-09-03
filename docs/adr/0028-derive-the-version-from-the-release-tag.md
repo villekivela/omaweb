@@ -23,10 +23,10 @@ prerelease on GitHub for the same reason.
 Releases publish notes and no binaries. `scripts/release_notes.sh` groups the
 Conventional Commit subjects since the previous tag, which is why the commit
 convention is enforced in CI: the changelog is a product of the commit
-messages rather than a file anyone maintains. Attaching a build would require
-the full notice inventory that `THIRD_PARTY_NOTICES.md` describes, and on macOS
-signing and notarisation as well, so a binary release is a separate decision
-from a version number.
+messages rather than a file anyone maintains. A Linux package release requires
+the full notice inventory that `THIRD_PARTY_NOTICES.md` describes, so a binary
+release is a separate decision from a version number. macOS bundles remain
+development artifacts and are not attached to releases.
 
 The alternative was a version literal in `CMakeLists.txt` bumped by hand. It
 needs a commit per release, and it goes stale silently, because nothing fails
