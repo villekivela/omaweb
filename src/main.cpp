@@ -161,6 +161,14 @@ int main(int argc, char *argv[])
     QCoreApplication::setOrganizationName(QStringLiteral("Omaweb"));
     QCoreApplication::setApplicationName(QStringLiteral("Omaweb"));
     QCoreApplication::setApplicationVersion(QStringLiteral(OMAWEB_VERSION));
+    // The Wayland app id and the X11 window class, which is what a desktop's
+    // window rules key on. Left unset, Qt derives one from the executable or
+    // the application name, and which of those it picks is Qt's business
+    // rather than a name a reader can write a rule against. Omarchy washes
+    // every window to 0.985 opacity by default and exempts browsers by class,
+    // so this being ours to state is the difference between a page that is
+    // opaque and one that is nearly so.
+    QGuiApplication::setDesktopFileName(QStringLiteral("omaweb"));
 
     omaweb::BrowserController browser(dataRoot(), QStringLiteral("qt"), configRoot());
     omaweb::ContentBlocker contentBlocker(dataRoot());
