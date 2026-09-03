@@ -2,6 +2,7 @@
 
 Omaweb is a keyboard-driven web browser. It uses one ordinary window, vertical
 tabs, and isolated browsing Spaces.
+<img width="4866" height="2738" alt="screenshot-2026-09-03_09-28-51" src="https://github.com/user-attachments/assets/c48ae0f1-3e2e-43ce-b7e9-4de36dfc0d1d" />
 
 The Qt build runs on macOS as a development build. Omaweb is distributed for
 Linux, with first-class Wayland support. Ladybird is the target engine, but it
