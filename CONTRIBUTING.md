@@ -1,9 +1,9 @@
 # Contributing
 
-Omaweb is pre-alpha. The Qt build on macOS is the only configuration that gets
-daily use, Linux and Wayland come next, and the Ladybird build stays
-experimental until its embedding and security contracts are ready. Patches for
-the macOS and Linux Qt builds are the most useful thing to send.
+Omaweb is pre-alpha. macOS is a development and CI platform, while Linux and
+Wayland are the distribution target. The Ladybird build stays experimental
+until its embedding and security contracts are ready. Patches for the macOS and
+Linux Qt builds are the most useful thing to send.
 
 ## Before you write code
 
@@ -17,7 +17,7 @@ tools belong to the tab being inspected, and there is no diagnostics protocol,
 agent gateway, terminal, or source editor. A pull request adding one of those
 will be declined on scope, however good the code is.
 
-`docs/adr/` holds 27 architecture decisions. Skim the ones near your change.
+`docs/adr/` holds the architecture decisions. Skim the ones near your change.
 They record what was already settled and why, which is usually faster than
 asking. If your change contradicts one, say so in the issue and expect to
 argue the case. A change that settles a new question of its own wants a new
