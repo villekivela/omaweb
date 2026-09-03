@@ -33,8 +33,90 @@ Rectangle {
     readonly property bool atRest: browser ? browser.atRest : false
 
     readonly property url activeUrl: browser ? browser.activeUrl : ""
-    readonly property bool secure: String(activeUrl).indexOf("https://") === 0
+    // What the connection is, as the engine drawing the page reports it. The
+    // outline never works this out from the address: an address is what was
+    // asked for, and a lock drawn from one is a claim nothing checked.
+    property string connectionState: "internal"
+    // What the engine can and cannot answer for. A gap is said out loud rather
+    // than drawn as a reassuring blank.
+    property bool certificateDecisionsAvailable: false
+    property bool thirdPartyCookieControlAvailable: false
+    property bool siteDataOnDisk: false
+    property bool insecureContentBlocked: true
+    // The engine's third-party filter, which is the only thing that knows
+    // which embedded origins a page has actually had refused.
+    property var cookiePolicy: null
+    readonly property bool secure: root.connectionState === "secure"
+    readonly property bool certificateError: root.connectionState === "certificate-error"
     readonly property bool blank: String(activeUrl).length === 0 || String(activeUrl) === "about:blank"
+
+    // What Site information is showing. Read when the panel opens rather than
+    // kept live: these are answers about one origin at one moment, and a panel
+    // nobody has open has nothing to say.
+    property var sitePermissionRows: []
+    property var cookieAllowanceRows: []
+    property var refusedThirdParties: []
+    property real siteDataBytes: -1
+    // Which reset the panel is waiting on a confirmation for. Clearing site
+    // data and resetting permissions are both irreversible, so neither happens
+    // on one press.
+    property string resetPending: ""
+
+    readonly property string originLabel: {
+        const address = String(root.activeUrl)
+        const separator = address.indexOf("://")
+        if (separator === -1) return address
+        const authority = address.substring(separator + 3).split("/")[0]
+        return authority.length > 0 ? authority : address
+    }
+
+    readonly property string connectionSentence: {
+        switch (root.connectionState) {
+        case "secure": return "connection is encrypted"
+        case "certificate-error":
+            return "certificate could not be verified"
+        case "insecure": return "connection is not encrypted"
+        default: return "no page is loaded"
+        }
+    }
+
+    function permissionDecisionName(decision) {
+        switch (Number(decision)) {
+        case 1: return "allowed once"
+        case 2: return "always allowed"
+        case 3: return "blocked"
+        default: return "asked each time"
+        }
+    }
+
+    function siteDataSentence() {
+        if (!root.siteDataOnDisk)
+            return "this engine keeps no site data on disk"
+        if (root.siteDataBytes < 0)
+            return "site data in this Space could not be measured"
+        const units = ["B", "kB", "MB", "GB"]
+        let size = root.siteDataBytes
+        let unit = 0
+        while (size >= 1024 && unit < units.length - 1) {
+            size = size / 1024
+            unit += 1
+        }
+        const rounded = unit === 0 ? Math.round(size) : Math.round(size * 10) / 10
+        return rounded + " " + units[unit] + " of site data in this Space"
+    }
+
+    function refreshSiteInformation() {
+        if (!root.browser) return
+        root.sitePermissionRows = root.browser.sitePermissions(root.activeUrl)
+        root.cookieAllowanceRows = root.browser.thirdPartyCookieAllowances()
+        root.refusedThirdParties = root.cookiePolicy
+            ? root.cookiePolicy.refusedOrigins(root.activeUrl) : []
+        root.siteDataBytes = root.siteDataOnDisk && root.browser.activeSpaceId.length > 0
+            ? root.browser.siteDataBytes(root.browser.activeSpaceId) : -1
+        root.resetPending = ""
+    }
+
+    onStatusOpenChanged: if (root.statusOpen) root.refreshSiteInformation()
 
     signal addressRequested()
     signal tabActivated(string tabId)
@@ -362,12 +444,15 @@ Rectangle {
                 anchors.verticalCenter: parent.verticalCenter
                 width: 18
                 horizontalAlignment: Text.AlignHCenter
-                text: root.secure ? "lock" : "lock_open"
-                color: root.secure ? root.colors.text : root.colors.mutedText
+                text: root.certificateError
+                    ? "warning" : (root.secure ? "lock" : "lock_open")
+                color: root.certificateError
+                    ? root.colors.urgent
+                    : (root.secure ? root.colors.text : root.colors.mutedText)
                 font.family: root.iconFontFamily
                 font.pixelSize: Style.font.iconLarge
                 Accessible.role: Accessible.StaticText
-                Accessible.name: root.secure ? "Connection is encrypted" : "Connection is not encrypted"
+                Accessible.name: "Site information: " + root.connectionSentence
 
                 MouseArea {
                     anchors.fill: parent
@@ -699,12 +784,12 @@ Rectangle {
     }
 
     Rectangle {
-        objectName: "siteStatusPanel"
+        objectName: "siteInformationPanel"
         visible: root.statusOpen
         anchors.left: parent.left
         anchors.leftMargin: 16
         y: outline.y + addressButton.y + addressButton.height + 8
-        width: Math.min(260, root.width - 32)
+        width: Math.min(320, Math.max(200, root.width - 32))
         height: statusColumn.implicitHeight + 20
         radius: 2
         color: root.colors.overlay
@@ -722,27 +807,243 @@ Rectangle {
 
             SectionLabel {
                 colors: root.colors
-                text: "site status"
+                text: "site information"
+            }
+
+            // The origin first: every line under it is about this site inside
+            // this Space, and nothing else.
+            Text {
+                objectName: "siteInformationOrigin"
+                width: parent.width
+                text: root.blank ? "no site" : root.originLabel
+                color: root.colors.text
+                elide: Text.ElideMiddle
+                font.family: Style.font.family
+                font.pixelSize: Style.font.body
             }
 
             Text {
+                objectName: "siteInformationConnection"
                 width: parent.width
-                text: root.secure
-                    ? "· connection is encrypted"
-                    : "· connection is not encrypted"
-                color: root.colors.mutedText
+                text: "· " + root.connectionSentence
+                    + (root.certificateError ? " · exception is for this load only" : "")
+                color: root.certificateError ? root.colors.urgent : root.colors.mutedText
                 wrapMode: Text.WordWrap
                 font.family: Style.font.family
                 font.pixelSize: Style.font.caption
             }
 
             Text {
+                width: parent.width
+                visible: !root.insecureContentBlocked
+                text: "· this engine is not blocking insecure content"
+                color: root.colors.urgent
+                wrapMode: Text.WordWrap
+                font.family: Style.font.family
+                font.pixelSize: Style.font.caption
+            }
+
+            Text {
+                objectName: "siteInformationBlocked"
                 width: parent.width
                 text: "· " + root.blockedRequestCount + " requests blocked in this window"
                 color: root.colors.mutedText
                 wrapMode: Text.WordWrap
                 font.family: Style.font.family
                 font.pixelSize: Style.font.caption
+            }
+
+            Text {
+                objectName: "siteInformationSiteData"
+                width: parent.width
+                text: "· " + root.siteDataSentence()
+                color: root.colors.mutedText
+                wrapMode: Text.WordWrap
+                font.family: Style.font.family
+                font.pixelSize: Style.font.caption
+            }
+
+            Text {
+                objectName: "siteInformationCookies"
+                width: parent.width
+                text: root.thirdPartyCookieControlAvailable
+                    ? "· third-party cookies and storage are blocked"
+                    : "· this engine cannot refuse a third party"
+                color: root.thirdPartyCookieControlAvailable
+                    ? root.colors.mutedText : root.colors.urgent
+                wrapMode: Text.WordWrap
+                font.family: Style.font.family
+                font.pixelSize: Style.font.caption
+            }
+
+            // A flow that needs a third party can be given one, by name, for a
+            // reason the reader can read back. Nothing here survives the
+            // session, and every one of them is beside its own way out.
+            Repeater {
+                model: root.thirdPartyCookieControlAvailable ? root.refusedThirdParties : []
+
+                Row {
+                    required property int index
+                    required property string modelData
+
+                    objectName: "refusedThirdParty" + index
+                    width: statusColumn.width
+                    spacing: 6
+
+                    Text {
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: statusColumn.width - 132
+                        text: "· " + modelData
+                        color: root.colors.mutedText
+                        elide: Text.ElideMiddle
+                        font.family: Style.font.family
+                        font.pixelSize: Style.font.caption
+                    }
+
+                    ActionButton {
+                        objectName: "allowSignIn" + index
+                        colors: root.colors
+                        label: "sign-in"
+                        onClicked: {
+                            root.browser.allowThirdPartyCookies(modelData, "authentication")
+                            root.refreshSiteInformation()
+                        }
+                    }
+
+                    ActionButton {
+                        objectName: "allowPayment" + index
+                        colors: root.colors
+                        label: "payment"
+                        onClicked: {
+                            root.browser.allowThirdPartyCookies(modelData, "payment")
+                            root.refreshSiteInformation()
+                        }
+                    }
+                }
+            }
+
+            Repeater {
+                model: root.cookieAllowanceRows
+
+                Row {
+                    required property int index
+                    required property var modelData
+
+                    objectName: "cookieAllowance" + index
+                    width: statusColumn.width
+                    spacing: 6
+
+                    Text {
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: statusColumn.width - 80
+                        text: "· " + modelData.origin + " — allowed for " + modelData.purpose
+                        color: root.colors.text
+                        elide: Text.ElideMiddle
+                        wrapMode: Text.NoWrap
+                        font.family: Style.font.family
+                        font.pixelSize: Style.font.caption
+                    }
+
+                    ActionButton {
+                        objectName: "revokeAllowance" + index
+                        colors: root.colors
+                        label: "revoke"
+                        onClicked: {
+                            root.browser.revokeThirdPartyCookieAllowance(modelData.origin)
+                            root.refreshSiteInformation()
+                        }
+                    }
+                }
+            }
+
+            SectionLabel {
+                colors: root.colors
+                text: "permissions in this space"
+            }
+
+            Text {
+                objectName: "siteInformationNoPermissions"
+                width: parent.width
+                visible: root.sitePermissionRows.length === 0
+                text: root.privateWindow
+                    ? "· nothing is remembered in a private window"
+                    : "· nothing decided for this site"
+                color: root.colors.mutedText
+                wrapMode: Text.WordWrap
+                font.family: Style.font.family
+                font.pixelSize: Style.font.caption
+            }
+
+            Repeater {
+                model: root.sitePermissionRows
+
+                Text {
+                    required property int index
+                    required property var modelData
+
+                    objectName: "sitePermission" + index
+                    width: statusColumn.width
+                    text: "· " + modelData.permission + " — "
+                        + root.permissionDecisionName(modelData.decision)
+                    color: root.colors.mutedText
+                    wrapMode: Text.WordWrap
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.caption
+                }
+            }
+
+            // Both resets are irreversible, so neither happens on one press.
+            // The second press is about one named action rather than a general
+            // agreement, and asking again cancels the first.
+            Text {
+                objectName: "siteInformationResetQuestion"
+                width: parent.width
+                visible: root.resetPending.length > 0
+                text: root.resetPending === "site-data"
+                    ? "clear this Space's cookies, storage and cache?"
+                    : "reset every decision made for this site?"
+                color: root.colors.text
+                wrapMode: Text.WordWrap
+                font.family: Style.font.family
+                font.pixelSize: Style.font.caption
+            }
+
+            Row {
+                width: parent.width
+                spacing: 6
+
+                ActionButton {
+                    objectName: "clearSiteData"
+                    colors: root.colors
+                    label: root.resetPending === "site-data" ? "confirm clear" : "clear site data"
+                    primary: root.resetPending === "site-data"
+                    enabled: !root.privateWindow && root.siteDataOnDisk
+                    onClicked: {
+                        if (root.resetPending !== "site-data") {
+                            root.resetPending = "site-data"
+                            return
+                        }
+                        root.browser.clearBrowsingData(["cookies", "storage", "cache"], 0)
+                        root.refreshSiteInformation()
+                    }
+                }
+
+                ActionButton {
+                    objectName: "resetSitePermissions"
+                    colors: root.colors
+                    label: root.resetPending === "permissions"
+                        ? "confirm reset" : "reset permissions"
+                    primary: root.resetPending === "permissions"
+                    enabled: !root.blank
+                    onClicked: {
+                        if (root.resetPending !== "permissions") {
+                            root.resetPending = "permissions"
+                            return
+                        }
+                        root.browser.resetSitePermissions(root.activeUrl)
+                        root.refreshSiteInformation()
+                    }
+                }
             }
         }
     }

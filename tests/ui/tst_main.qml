@@ -73,6 +73,15 @@ TestCase {
         return engineHost.item
     }
 
+    // A button in a row the positioner has not laid out yet sits on top of its
+    // neighbours, so a press meant for one lands on another. The first answer
+    // in a row is at the left edge; every one after it has been moved.
+    function settleActions(action) {
+        if (!action) return
+        tryVerify(function() { return action.width > 0 })
+        wait(50)
+    }
+
     // A row whose place in the list has stopped moving. The outline fills in
     // behind the model, so a row read too early is read where it is not going
     // to be.
@@ -741,12 +750,219 @@ TestCase {
         tryVerify(function() { return !section.visible })
     }
 
+    // The lock is the engine's report, not a reading of the address bar. A
+    // certificate failure is drawn as one and stays drawn while the exception
+    // the reader granted is in effect.
+    // An Auxiliary window is where a sign-in or a payment finishes, so it is
+    // exactly where a certificate failure must not be waved through. It asks
+    // the same question of the same rule as an ordinary tab, in the window that
+    // opened it.
+    function test_auxiliaryWindowsAskTheSameCertificateQuestion() {
+        const engineLoader = findChild(window.contentItem, "engineLoader")
+        openPage("https://auxiliary-opener.example/start")
+        engineLoader.item.simulateNewWindowRequest("https://localhost:9443/callback", true)
+        const auxiliary = findChild(window, "auxiliaryWindow")
+        tryVerify(function() { return auxiliary !== null && auxiliary.visible })
+        const auxiliaryEngine = findChild(auxiliary.contentItem, "auxiliaryEngineLoader")
+        tryVerify(function() { return auxiliaryEngine.item !== null })
+
+        const bar = findChild(window.contentItem, "certificateQuestionBar")
+        verify(bar !== null)
+        verify(!bar.open)
+
+        // A public site inside an Auxiliary window is refused, with no question
+        // asked of the reader.
+        const refused = auxiliaryEngine.item.simulateCertificateError({
+            "url": "https://bank.example/callback"
+        })
+        verify(!bar.open)
+        compare(auxiliaryEngine.item.certificateDecisions[refused], false)
+
+        // The Local-development main frame is the one case that is offered, and
+        // the answer reaches the Auxiliary window's own engine.
+        const offered = auxiliaryEngine.item.simulateCertificateError({})
+        tryVerify(function() { return bar.open })
+        const action = findChild(bar, "questionAction0")
+        settleActions(action)
+        mouseClick(action, action.width / 2, action.height / 2)
+        tryVerify(function() { return !bar.open })
+        compare(auxiliaryEngine.item.certificateDecisions[offered], true)
+
+        auxiliaryEngine.item.simulateWindowCloseRequest()
+        tryVerify(function() { return !auxiliary.visible })
+        window.requestActivate()
+        tryVerify(function() { return window.active })
+    }
+
+    function test_addressTriggerReportsOnlyWhatTheEngineKnows() {
+        const engine = openPage("https://reported-secure.example/page")
+        const security = findChild(window.contentItem, "securityIndicator")
+        verify(security !== null)
+        tryCompare(security, "text", "lock")
+
+        // The engine says the connection is in error; the trigger follows it
+        // rather than the https it can see in the address.
+        const requestId = engine.simulateCertificateError({})
+        tryCompare(security, "text", "warning")
+        compare(engine.connectionState, "certificate-error")
+
+        // Granting the exception does not turn the warning into a lock: the
+        // check was waived, not passed.
+        engine.respondToCertificateError(requestId, true)
+        tryCompare(security, "text", "warning")
+
+        openPage("http://reported-insecure.example/page")
+        tryCompare(security, "text", "lock_open")
+        openPage("https://reported-secure-again.example/page")
+        tryCompare(security, "text", "lock")
+    }
+
+    // One panel, one origin, one Space: what the connection is, what was
+    // blocked, what is stored, what the site may do, and two ways to take it
+    // back. Where the engine cannot answer, the panel says so.
+    function test_siteInformationNamesTheSpacesContractForOneSite() {
+        openPage("https://site-information.example/page")
+        browser.setPermissionDecision("https://site-information.example/page", "camera", 2)
+        const security = findChild(window.contentItem, "securityIndicator")
+        const panel = findChild(window.contentItem, "siteInformationPanel")
+        verify(security !== null)
+        verify(panel !== null)
+        mouseClick(security, security.width / 2, security.height / 2)
+        tryVerify(function() { return panel.visible })
+
+        const origin = findChild(window.contentItem, "siteInformationOrigin")
+        const connection = findChild(window.contentItem, "siteInformationConnection")
+        const blocked = findChild(window.contentItem, "siteInformationBlocked")
+        const siteData = findChild(window.contentItem, "siteInformationSiteData")
+        const cookies = findChild(window.contentItem, "siteInformationCookies")
+        compare(origin.text, "site-information.example")
+        compare(connection.text, "· connection is encrypted")
+        verify(blocked.text.indexOf("requests blocked in this window") !== -1)
+        // The lab keeps nothing on disk and refuses no third party. Both gaps
+        // are the adapter's own report, and both are said rather than drawn as
+        // a comfortable blank.
+        compare(siteData.text, "· this engine keeps no site data on disk")
+        compare(cookies.text, "· third-party cookies and storage are blocked")
+        // An engine that cannot refuse a third party says so here rather than
+        // leaving the line reading like a promise it is not keeping.
+        const engine = findChild(window.contentItem, "engineLoader").item
+        engine.thirdPartyCookieControlAvailable = false
+        tryCompare(cookies, "text", "· this engine cannot refuse a third party")
+        engine.thirdPartyCookieControlAvailable = true
+
+        const permission = findChild(window.contentItem, "sitePermission0")
+        verify(permission !== null)
+        compare(permission.text, "· camera — always allowed")
+
+        // Resetting takes two presses, and the first only asks.
+        const reset = findChild(window.contentItem, "resetSitePermissions")
+        const question = findChild(window.contentItem, "siteInformationResetQuestion")
+        verify(reset !== null)
+        verify(!question.visible)
+        settleActions(reset)
+        mouseClick(reset, reset.width / 2, reset.height / 2)
+        tryVerify(function() { return question.visible })
+        compare(browser.permissionDecision("https://site-information.example/", "camera"), 2)
+        mouseClick(reset, reset.width / 2, reset.height / 2)
+        tryVerify(function() {
+            return findChild(window.contentItem, "siteInformationNoPermissions").visible
+        })
+        compare(browser.permissionDecision("https://site-information.example/", "camera"), 0)
+
+        keyClick(Qt.Key_Escape)
+        tryVerify(function() { return !panel.visible })
+    }
+
+    // A certificate failure blocks. The one question Omaweb asks is about a
+    // Local-development site's own main frame, and the answer covers this load
+    // and nothing after it.
+    function test_certificateExceptionOnlyForAnOverridableLocalMainFrame() {
+        const engine = openPage("https://localhost:8443/app")
+        const bar = findChild(window.contentItem, "certificateQuestionBar")
+        verify(bar !== null)
+        verify(!bar.open)
+
+        const requestId = engine.simulateCertificateError({})
+        tryVerify(function() { return bar.open })
+        const action = findChild(bar, "questionAction0")
+        verify(action !== null)
+        settleActions(action)
+        mouseClick(action, action.width / 2, action.height / 2)
+        tryVerify(function() { return !bar.open })
+        compare(engine.certificateDecisions[requestId], true)
+        // Nothing was written down: the answer is not a Site permission and
+        // does not appear among them.
+        compare(browser.sitePermissions("https://localhost:8443/app").length, 0)
+
+        // A frame's failure inside the same page is refused without a question.
+        engine.simulateCertificateError({
+            "url": "https://tracker.example/pixel", "mainFrame": false
+        })
+        verify(!bar.open)
+
+        // A failure no engine overrides is refused, and so is one the engine
+        // will not override.
+        engine.simulateCertificateError({"fatal": true})
+        verify(!bar.open)
+        engine.simulateCertificateError({"overridable": false})
+        verify(!bar.open)
+
+        // A public site is refused whatever the failure looks like.
+        const publicEngine = openPage("https://bank.example/login")
+        const publicRequest = publicEngine.simulateCertificateError({})
+        verify(!bar.open)
+        compare(publicEngine.certificateDecisions[publicRequest], false)
+    }
+
+    // Camera takes the three decisions. Clipboard read is asked every time, so
+    // the bar has no answer that outlives the request.
+    function test_clipboardReadAndScreenSharingAreAskedEveryTime() {
+        const engine = openPage("https://capability.example/page")
+        const bar = findChild(window.contentItem, "sitePermissionBar")
+        verify(bar !== null)
+
+        const cameraRequest = engine.simulateSitePermission(
+            "https://capability.example/page", "camera")
+        tryVerify(function() { return bar.open })
+        compare(bar.actions.length, 3)
+        compare(bar.actions[1].label, "Always allow")
+        const always = findChild(bar, "questionAction1")
+        settleActions(always)
+        mouseClick(always, always.width / 2, always.height / 2)
+        tryVerify(function() { return !bar.open })
+        compare(engine.permissionAnswers[cameraRequest], 2)
+        compare(browser.permissionDecision("https://capability.example/", "camera"), 2)
+
+        for (const eachTime of ["clipboard-read", "screen-sharing"]) {
+            const requestId = engine.simulateSitePermission(
+                "https://capability.example/page", eachTime)
+            tryVerify(function() { return bar.open })
+            compare(bar.actions.length, 2)
+            compare(bar.actions[1].label, "Block")
+            verify(bar.detail.indexOf("never remembered") !== -1)
+            const allowOnce = findChild(bar, "questionAction0")
+            settleActions(allowOnce)
+            mouseClick(allowOnce, allowOnce.width / 2, allowOnce.height / 2)
+            tryVerify(function() { return !bar.open })
+            compare(engine.permissionAnswers[requestId], 1)
+            // Answering once answered this request. The next one asks again.
+            compare(browser.permissionDecision("https://capability.example/", eachTime), 0)
+        }
+
+        // A capability outside the contract is refused without a question, so
+        // the request never reaches a bar at all.
+        const settled = engine.permissionsSettledWithoutAsking
+        compare(engine.simulateSitePermission("https://capability.example/page", "usb"), "")
+        compare(engine.permissionsSettledWithoutAsking, settled + 1)
+        verify(!bar.open)
+    }
+
     function test_siteStatusStaysWithAddressAndDismisses() {
         openPage("https://status-position.example")
         const sidebar = findChild(window.contentItem, "sidebar")
         const address = findChild(window.contentItem, "addressButton")
         const security = findChild(window.contentItem, "securityIndicator")
-        const panel = findChild(window.contentItem, "siteStatusPanel")
+        const panel = findChild(window.contentItem, "siteInformationPanel")
         verify(sidebar !== null)
         verify(address !== null)
         verify(security !== null)

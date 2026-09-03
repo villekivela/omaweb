@@ -82,6 +82,25 @@ ApplicationWindow {
     readonly property bool inlinePdfViewingAvailable: engineLoader.item !== null
         && (engineLoader.item.capabilities
             & engineLoader.item.inlinePdfViewingCapability) !== 0
+    // The two halves of a site's security contract an engine can be missing,
+    // and whether it keeps a Space's site data on disk at all. Site information
+    // says which of its lines the engine cannot answer for rather than drawing
+    // a reassuring blank.
+    readonly property bool certificateDecisionsAvailable: engineLoader.item !== null
+        && (engineLoader.item.capabilities
+            & engineLoader.item.certificateDecisionsCapability) !== 0
+    readonly property bool thirdPartyCookieControlAvailable: engineLoader.item !== null
+        && (engineLoader.item.capabilities
+            & engineLoader.item.thirdPartyCookieControlCapability) !== 0
+    readonly property bool siteDataOnDisk: engineLoader.item !== null
+        && (engineLoader.item.capabilities
+            & engineLoader.item.persistentProfilesCapability) !== 0
+    // What the connection to the page on show is, read off the engine drawing
+    // it. A tab with no page has no connection to report.
+    readonly property string connectionState: engineLoader.item
+        ? engineLoader.item.connectionState : "internal"
+    readonly property bool insecureContentBlocked: engineLoader.item === null
+        || engineLoader.item.insecureContentBlocked
 
     // No page to show: the tab on show is blank and no engine is drawing it.
     // That covers a resting Space and an `about:blank` the reader navigated to
@@ -150,6 +169,13 @@ ApplicationWindow {
     property real pageMenuY: 0
     property var pageMenuActions: []
     property bool permissionOpen: false
+    // A certificate failure the engine is holding a load for. Refusing is the
+    // default and has already happened; what is decided here is only whether
+    // Omaweb will offer the reader a way past this one.
+    property var pendingCertificateFailure: ({})
+    property string pendingCertificateFailureId: ""
+    property var pendingCertificateResponder: null
+    property bool certificateQuestionOpen: false
     property var pendingBrowserPrompt: ({})
     property var pendingBrowserPromptResponder: null
     property string pendingBrowserPromptId: ""
@@ -767,6 +793,40 @@ ApplicationWindow {
         window.pendingPermissionResponder = null
     }
 
+    // The engine is blocking the load and waiting. An exception is offered only
+    // for what the core's rule allows: an overridable, non-fatal failure in the
+    // main frame of a Local-development site. Everything else is refused here,
+    // and nothing about an answer is written down.
+    function showCertificateError(engine, requestId, failure, inFront) {
+        // A question about a page nobody is looking at is a question the reader
+        // cannot answer, so it is refused: a retained tab in another Space
+        // reaches no bar. An Auxiliary window is in front of them by
+        // definition, and says so.
+        const visible = inFront === true || engine === engineLoader.item
+        const offerable = visible
+            && window.windowBrowser.mayOfferCertificateException(failure.url,
+                failure.overridable === true, failure.mainFrame === true,
+                failure.fatal === true)
+        if (!offerable) {
+            engine.respondToCertificateError(requestId, false)
+            return
+        }
+        window.pendingCertificateFailure = failure
+        window.pendingCertificateFailureId = requestId
+        window.pendingCertificateResponder = engine
+        window.certificateQuestionOpen = true
+    }
+
+    function respondToCertificateError(accepted) {
+        if (window.pendingCertificateResponder) {
+            window.pendingCertificateResponder.respondToCertificateError(
+                window.pendingCertificateFailureId, accepted)
+        }
+        window.certificateQuestionOpen = false
+        window.pendingCertificateResponder = null
+        window.pendingCertificateFailureId = ""
+    }
+
     function showBrowserPrompt(engine, requestId, prompt) {
         if (engine !== engineLoader.item) {
             engine.respondToBrowserPrompt(requestId, false, {})
@@ -1055,7 +1115,8 @@ ApplicationWindow {
         sequence: "Esc"
         enabled: engineLoader.siteFullscreenActive && !window.omnibarOpen
             && !window.settingsOpen && !window.historyOpen && !window.pageMenuOpen
-            && !window.permissionOpen && window.dialogMode.length === 0
+            && !window.permissionOpen && !window.certificateQuestionOpen
+            && window.dialogMode.length === 0
         context: Qt.WindowShortcut
         onActivated: window.exitSiteFullscreen()
     }
@@ -1087,6 +1148,12 @@ ApplicationWindow {
                 privateWindow: window.privateWindow
                 collapsed: window.sidebarCollapsed
                 blockedRequestCount: window.visibleBlockedRequestCount
+                connectionState: window.connectionState
+                certificateDecisionsAvailable: window.certificateDecisionsAvailable
+                thirdPartyCookieControlAvailable: window.thirdPartyCookieControlAvailable
+                siteDataOnDisk: window.siteDataOnDisk
+                insecureContentBlocked: window.insecureContentBlocked
+                cookiePolicy: engineCookiePolicy
                 canGoBack: engineLoader.item ? engineLoader.item.canGoBack : false
                 canGoForward: engineLoader.item ? engineLoader.item.canGoForward : false
                 useFavicons: window.useFavicons
@@ -1252,6 +1319,10 @@ ApplicationWindow {
                         window.permissionOpen = true
                     }
 
+                    onCertificateErrorRaised: function(engine, requestId, failure) {
+                        window.showCertificateError(engine, requestId, failure)
+                    }
+
                     onBrowserPromptRequested: function(engine, requestId, prompt) {
                         window.showBrowserPrompt(engine, requestId, prompt)
                     }
@@ -1356,6 +1427,7 @@ ApplicationWindow {
                 }
 
                 PageQuestionBar {
+                    id: permissionBar
                     objectName: "sitePermissionBar"
                     anchors.left: parent.left
                     anchors.right: parent.right
@@ -1365,18 +1437,61 @@ ApplicationWindow {
                     iconFontFamily: materialSymbols.name
                     open: window.permissionOpen
                     glyph: "shield_person"
+                    // What Omaweb will do with the answer is the core's rule,
+                    // not the bar's: a capability whose use the reader cannot
+                    // see being spent is never offered a persistent answer, and
+                    // the bar says so instead of quietly dropping the button.
+                    readonly property int policy: window.pendingPermissionType.length > 0
+                        ? window.windowBrowser.permissionPolicy(window.pendingPermissionType)
+                        : 0
                     message: window.pendingPermissionOrigin
                         + " asked for a protected browser capability"
                     detail: window.pendingPermissionType
-                        + " · remembered for this Space only"
+                        + (permissionBar.policy === 2
+                            ? " · remembered for this Space only"
+                            : " · asked every time, never remembered")
+                    actions: permissionBar.policy === 2
+                        ? [
+                            {"label": "Allow once", "decision": 1},
+                            {"label": "Always allow", "decision": 2,
+                                "enabled": !window.privateWindow},
+                            {"label": "Block", "decision": 3}
+                        ]
+                        : [
+                            {"label": "Allow once", "decision": 1},
+                            {"label": "Block", "decision": 3}
+                        ]
+
+                    onActionTriggered: function(index) {
+                        window.respondToPermission(permissionBar.actions[index].decision)
+                    }
+                }
+
+                // A certificate failure the reader is being offered a way past.
+                // It reaches this bar only where the core's rule allows one, so
+                // the question is always about a Local-development site's own
+                // main frame and always about this load alone.
+                PageQuestionBar {
+                    objectName: "certificateQuestionBar"
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.top: parent.top
+                    z: 41
+                    colors: window.colors
+                    iconFontFamily: materialSymbols.name
+                    open: window.certificateQuestionOpen
+                    glyph: "warning"
+                    message: String(window.pendingCertificateFailure.origin || "")
+                        + " could not prove its certificate"
+                    detail: String(window.pendingCertificateFailure.description || "")
+                        + " · local development site · this load only, never remembered"
                     actions: [
-                        {"label": "Allow once"},
-                        {"label": "Always allow", "enabled": !window.privateWindow},
+                        {"label": "Continue once"},
                         {"label": "Block"}
                     ]
 
                     onActionTriggered: function(index) {
-                        window.respondToPermission(index + 1)
+                        window.respondToCertificateError(index === 0)
                     }
                 }
 
@@ -1623,6 +1738,10 @@ ApplicationWindow {
                 window.pendingPermissionType = permission
                 window.permissionOpen = true
             }
+
+            onCertificateErrorRaised: function(responder, requestId, failure) {
+                window.showCertificateError(responder, requestId, failure, true)
+            }
         }
     }
 
@@ -1638,7 +1757,13 @@ ApplicationWindow {
                     "downloadDirectory": windowManager.privateDownloadDirectory,
                     "acceptDownloads": windowManager.acceptPrivateDownloads,
                     "privateBrowsing": true,
-                    "engineContentBlocker": engineContentBlocker
+                    "engineContentBlocker": engineContentBlocker,
+                    // A Private window has no Space of its own, so its
+                    // third-party allowances key on the empty name its shared
+                    // session already uses for Site permissions.
+                    "engineCookiePolicy": engineCookiePolicy,
+                    "cookieController": controller,
+                    "cookieSpaceId": ""
                 })
                 // A Private page is not given the desktop's notification
                 // centre. A notification would put the origin into a list that
@@ -1772,6 +1897,7 @@ ApplicationWindow {
         // Space's, so there is nothing here for it to build.
         profileSource: window.privateWindow ? "" : engineProfileSource
         contentBlocker: engineContentBlocker
+        cookiePolicy: engineCookiePolicy
         owner: window
 
         onCreated: function(spaceId, host) { window.adoptSpaceProfile(spaceId, host) }

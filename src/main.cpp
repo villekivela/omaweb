@@ -9,6 +9,7 @@
 #include "PagePrinter.h"
 #include "ProcessResources.h"
 #include "QtContentBlocker.h"
+#include "QtCookiePolicy.h"
 #include "Quickshell.h"
 #include "SystemClipboard.h"
 #include "SystemNotifier.h"
@@ -175,6 +176,10 @@ int main(int argc, char *argv[])
     omaweb::KeyboardNavigation keyboardNavigation(
         keybindingsPath(), QStringLiteral(OMAWEB_KEYBOARD_NAVIGATION_SCRIPT_PATH));
     omaweb::QtContentBlocker engineContentBlocker(&contentBlocker);
+    // One filter for the process, attached to every Space's profile as it is
+    // built. Third-party cookies are blocked by it; whether an origin has been
+    // given an allowance is the core's answer, read per Space.
+    omaweb::QtCookiePolicy engineCookiePolicy;
 #if defined(Q_OS_LINUX)
     // Omarchy is the desktop Omaweb is built for, so following its theme is
     // the default rather than a template the reader has to install by hand.
@@ -199,6 +204,8 @@ int main(int argc, char *argv[])
         QStringLiteral("keyboardNavigation"), &keyboardNavigation);
     engine.rootContext()->setContextProperty(
         QStringLiteral("engineContentBlocker"), &engineContentBlocker);
+    engine.rootContext()->setContextProperty(
+        QStringLiteral("engineCookiePolicy"), &engineCookiePolicy);
     engine.rootContext()->setContextProperty(QStringLiteral("theme"), &theme);
     engine.rootContext()->setContextProperty(QStringLiteral("windowManager"), &windowManager);
     engine.rootContext()->setContextProperty(

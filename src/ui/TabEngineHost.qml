@@ -47,6 +47,7 @@ Item {
     signal newTabRequested(var engine, var request, url requestedUrl)
     signal backgroundTabRequested(url requestedUrl)
     signal sitePermissionRequested(var engine, string requestId, string origin, string permission)
+    signal certificateErrorRaised(var engine, string requestId, var failure)
     signal pageContextRequested(var engine, var context)
     signal browserPromptRequested(var engine, string requestId, var prompt)
     signal fileSelectionRequested(var engine, string requestId, var selection)
@@ -559,6 +560,10 @@ Item {
                 function onSitePermissionRequested(requestId, origin, permission) {
                     root.sitePermissionRequested(
                         tabSlot.engine, requestId, origin, permission)
+                }
+
+                function onCertificateErrorRaised(requestId, failure) {
+                    root.certificateErrorRaised(tabSlot.engine, requestId, failure)
                 }
 
                 function onBrowserPromptRequested(requestId, prompt) {
