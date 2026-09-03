@@ -88,6 +88,16 @@ bool QtCookiePolicy::attachToProfile(QObject *profile, QObject *controller,
     return true;
 }
 
+bool QtCookiePolicy::deleteAllCookies(QObject *profile)
+{
+    auto *engineProfile = qobject_cast<QQuickWebEngineProfile *>(profile);
+    if (!engineProfile || !engineProfile->cookieStore()) {
+        return false;
+    }
+    engineProfile->cookieStore()->deleteAllCookies();
+    return true;
+}
+
 int QtCookiePolicy::refusedCount() const
 {
     return m_refused.loadRelaxed();

@@ -1829,6 +1829,7 @@ bool BrowserController::resetSitePermissions(const QUrl &url)
         [&prefix](auto it) { return it.key().startsWith(prefix); });
     m_sessionSiteState->forgetThirdParty(m_activeSpaceId, origin);
     emit thirdPartyCookieAllowancesChanged();
+    emit engineOriginPermissionsResetRequested(m_activeSpaceId, url);
     if (m_privateBrowsing) {
         return true;
     }

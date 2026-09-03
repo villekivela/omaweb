@@ -9,6 +9,7 @@
 
 #include <QGuiApplication>
 #include <QDir>
+#include <QDirIterator>
 #include <QFile>
 #include <QMetaMethod>
 #include <QQmlComponent>
@@ -101,6 +102,8 @@ private slots:
     void qtDefersACertificateFailureWithTheEnginesOwnFacts();
     void qtRefusesThirdPartyCookiesUntilAnOriginIsAllowed();
     void qtNamesEveryPermissionTheShellHasAPolicyFor();
+    void qtAsksTheShellAboutEveryPermissionRequest();
+    void qtEmptiesTheCacheItWasAskedToClear();
 };
 
 namespace {
@@ -2719,6 +2722,184 @@ void QtEngineContractTest::adaptersReportTheConnectionFromTheirOwnFacts()
 
     QVERIFY(adapter->setProperty("currentUrl", QUrl(QStringLiteral("about:blank"))));
     QTRY_COMPARE(adapter->property("connectionState").toString(), QStringLiteral("internal"));
+}
+
+// Chromium keeps its own permission store and, left to itself, answers a
+// second request from it without ever asking the embedder. That would put a
+// decision beyond the reach of everything Omaweb offers for taking one back:
+// the reader would reset a permission, reload, and never be asked again. The
+// engine is told to ask every time, so Omaweb's own store is the only place a
+// site's decisions live.
+void QtEngineContractTest::qtAsksTheShellAboutEveryPermissionRequest()
+{
+    PageServer server(R"HTML(<!doctype html><html><body><title>asking</title>
+        <script>
+            navigator.geolocation.getCurrentPosition(
+                () => document.title = "located", () => document.title = "refused");
+        </script>
+    </body></html>)HTML");
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+    // Loopback is a secure context, which geolocation requires, and asking for
+    // a position needs no hardware to reach the permission question.
+    const QUrl page(QStringLiteral("http://127.0.0.1:%1/page.html").arg(server.serverPort()));
+
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    QQmlEngine engine;
+    QQmlComponent profileComponent(&engine, QUrl::fromLocalFile(
+        QStringLiteral(OMAWEB_QT_ENGINE_PROFILE_PATH)));
+    const std::unique_ptr<QObject> host(profileComponent.createWithInitialProperties({
+        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("space"))},
+        {QStringLiteral("privateBrowsing"), false},
+    }));
+    QVERIFY2(host, qPrintable(profileComponent.errorString()));
+    auto *profile = host->property("profile").value<QObject *>();
+    QVERIFY(profile);
+    // Read back rather than trusted: a profile that stores decisions on disk
+    // is one whose grants Omaweb cannot reach.
+    QCOMPARE(profile->property("persistentPermissionsPolicy").toInt(),
+        static_cast<int>(QQuickWebEngineProfile::PersistentPermissionsPolicy::AskEveryTime));
+    QVERIFY(qobject_cast<QQuickWebEngineProfile *>(profile)
+            ->listPermissionsForOrigin(page).isEmpty());
+
+    QQmlComponent viewComponent(&engine, QUrl::fromLocalFile(
+        QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    const std::unique_ptr<QObject> adapter(viewComponent.createWithInitialProperties({
+        {QStringLiteral("sharedProfile"), host->property("profile")},
+    }));
+    QVERIFY2(adapter, qPrintable(viewComponent.errorString()));
+    QQuickWindow window;
+    window.resize(640, 480);
+    auto *view = qobject_cast<QQuickItem *>(adapter.get());
+    QVERIFY(view);
+    view->setParentItem(window.contentItem());
+    view->setSize(QSizeF(640, 480));
+    window.show();
+
+    QSignalSpy asked(adapter.get(), SIGNAL(sitePermissionRequested(QString,QString,QString)));
+    QVERIFY(asked.isValid());
+    QVERIFY(adapter->setProperty("currentUrl", page));
+    QTRY_VERIFY_WITH_TIMEOUT(asked.count() > 0, 20000);
+    QCOMPARE(asked.first().at(2).toString(), QStringLiteral("geolocation"));
+
+    // Granting it answers this request. It does not put the decision anywhere
+    // Omaweb cannot see or take back.
+    QVERIFY(QMetaObject::invokeMethod(adapter.get(), "respondToPermission",
+        Q_ARG(QVariant, asked.first().at(0)), Q_ARG(QVariant, 2)));
+    QVERIFY(qobject_cast<QQuickWebEngineProfile *>(profile)
+            ->listPermissionsForOrigin(page).isEmpty());
+
+    // What it takes for the question to come back, which the interface has to
+    // state correctly. Chromium answers a granted capability from a transient
+    // store keyed by the frame that asked, and a reload reuses that frame — so
+    // reloading does not bring the question back and must not be offered as
+    // the way to take a capability off a page.
+    const auto askedBeforeReload = asked.count();
+    QVERIFY(QMetaObject::invokeMethod(adapter.get(), "reloadPage"));
+    QTest::qWait(3000);
+    QCOMPARE(asked.count(), askedBeforeReload);
+
+    // Opening the site again is a new document in a new frame, and that asks.
+    PageServer elsewhere(R"HTML(<!doctype html><title>elsewhere</title>)HTML");
+    QVERIFY(elsewhere.listen(QHostAddress::LocalHost));
+    QVERIFY(adapter->setProperty("currentUrl",
+        QUrl(QStringLiteral("http://localhost:%1/page.html").arg(elsewhere.serverPort()))));
+    QTRY_COMPARE_WITH_TIMEOUT(adapter->property("pageTitle").toString(),
+        QStringLiteral("elsewhere"), 20000);
+    const auto askedBeforeReturn = asked.count();
+    QVERIFY(adapter->setProperty("currentUrl", page));
+    QTRY_VERIFY_WITH_TIMEOUT(asked.count() > askedBeforeReturn, 20000);
+}
+
+namespace {
+
+double bytesUnder(const QString &path)
+{
+    double bytes = 0;
+    QDirIterator files(path, QDir::Files | QDir::Hidden | QDir::NoDotAndDotDot,
+        QDirIterator::Subdirectories);
+    while (files.hasNext()) {
+        files.next();
+        bytes += double(files.fileInfo().size());
+    }
+    return bytes;
+}
+
+} // namespace
+
+// Clearing has to actually take something, and say when it has finished. A
+// size that has not moved reads as an action that did nothing, and Chromium
+// clears asynchronously, so the report is what Site information re-reads on.
+void QtEngineContractTest::qtEmptiesTheCacheItWasAskedToClear()
+{
+    QByteArray body("<!doctype html><title>cached</title><body>");
+    // Big enough that the cache holding it is unmistakable next to an empty one.
+    body.append(QByteArray(400000, 'x'));
+    PageServer server(body);
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    const auto profilePath = root.filePath(QStringLiteral("space"));
+    QQmlEngine engine;
+    QQmlComponent profileComponent(&engine, QUrl::fromLocalFile(
+        QStringLiteral(OMAWEB_QT_ENGINE_PROFILE_PATH)));
+    const std::unique_ptr<QObject> host(profileComponent.createWithInitialProperties({
+        {QStringLiteral("profilePath"), profilePath},
+        {QStringLiteral("privateBrowsing"), false},
+    }));
+    QVERIFY2(host, qPrintable(profileComponent.errorString()));
+
+    QQmlComponent viewComponent(&engine, QUrl::fromLocalFile(
+        QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    const std::unique_ptr<QObject> adapter(viewComponent.createWithInitialProperties({
+        {QStringLiteral("sharedProfile"), host->property("profile")},
+    }));
+    QVERIFY2(adapter, qPrintable(viewComponent.errorString()));
+    QQuickWindow window;
+    window.resize(640, 480);
+    auto *view = qobject_cast<QQuickItem *>(adapter.get());
+    QVERIFY(view);
+    view->setParentItem(window.contentItem());
+    view->setSize(QSizeF(640, 480));
+    window.show();
+
+    QVERIFY(adapter->setProperty("currentUrl",
+        QUrl(QStringLiteral("http://127.0.0.1:%1/page.html").arg(server.serverPort()))));
+    QTRY_COMPARE_WITH_TIMEOUT(adapter->property("pageTitle").toString(),
+        QStringLiteral("cached"), 20000);
+
+    // The cache the engine keeps beside the profile, which is what the reader
+    // is shown a size for.
+    const auto cachePath = profilePath + QStringLiteral("/cache");
+    QTRY_VERIFY_WITH_TIMEOUT(bytesUnder(cachePath) > 100000, 20000);
+
+    QSignalSpy cleared(host.get(), SIGNAL(browsingDataCleared()));
+    QVERIFY(cleared.isValid());
+    // The engine is given a filter it cannot honour so the reply is checked
+    // too: what it could not take has to come back rather than be assumed.
+    QVariant untouched;
+    QVERIFY(QMetaObject::invokeMethod(host.get(), "clearBrowsingData",
+        Q_RETURN_ARG(QVariant, untouched),
+        Q_ARG(QVariant, QVariant(QStringList{QStringLiteral("cookies"),
+            QStringLiteral("storage"), QStringLiteral("cache")})),
+        Q_ARG(QVariant, QVariant(qint64(0)))));
+    // Local storage has no remover at this boundary, and the engine says so
+    // instead of letting the browser claim it went.
+    QVERIFY(untouched.toStringList().contains(QStringLiteral("storage")));
+    QTRY_VERIFY_WITH_TIMEOUT(cleared.count() > 0, 20000);
+    QTRY_VERIFY_WITH_TIMEOUT(bytesUnder(cachePath) < 100000, 20000);
+
+    // The engine names what its clearing takes and what it holds anyway, and
+    // the two do not overlap: a byte counted as clearable has to be clearable.
+    const auto takes = host->property("siteDataEntries").toStringList();
+    const auto keeps = host->property("retainedDataEntries").toStringList();
+    QVERIFY(takes.contains(QStringLiteral("cache")));
+    QVERIFY(takes.contains(QStringLiteral("Cookies")));
+    QVERIFY(!keeps.isEmpty());
+    for (const auto &entry : takes) {
+        QVERIFY2(!keeps.contains(entry), qPrintable(entry));
+    }
 }
 
 int main(int argc, char *argv[])

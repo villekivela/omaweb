@@ -906,15 +906,28 @@ TestCase {
         // which the lab otherwise does not: without both there is no size to
         // show and nothing to clear.
         engine.persistentProfilesAvailable = true
-        sidebar.siteDataEntries = ["Cookies", "Local Storage", "cache"]
+        sidebar.siteDataEntries = ["Cookies", "cache"]
+        sidebar.retainedDataEntries = ["Local Storage", "IndexedDB"]
         sidebar.statusOpen = true
         tryVerify(function() { return panel.visible })
 
         const siteData = findChild(window.contentItem, "siteInformationSiteData")
         tryVerify(function() {
-            return siteData.text.indexOf("of cookies, storage and cache in this Space") !== -1
+            return siteData.text.indexOf(
+                "of cookies and cache in this Space, which clearing takes") !== -1
         })
+        // What the engine holds and cannot take is a line of its own, never a
+        // byte counted as clearable.
+        const retained = findChild(window.contentItem, "siteInformationRetainedData")
+        verify(retained !== null)
+        verify(!retained.visible)
+        panel.retainedDataBytes = 900 * 1024 * 1024
+        tryVerify(function() { return retained.visible })
+        compare(retained.text,
+            "· 900 MB of storage and databases this engine cannot clear")
 
+        // An engine that cannot take everything it is asked for.
+        window.spaceProfileHost.untouchedCategories = ["storage"]
         const clear = findChild(window.contentItem, "clearSiteData")
         const question = findChild(window.contentItem, "siteInformationResetQuestion")
         verify(clear !== null)
@@ -935,14 +948,16 @@ TestCase {
         tryVerify(function() { return !question.visible })
         compare(clear.label, "clear Space data")
 
-        // The notice says what was taken, and what this engine could not take.
+        // The notice says what was taken, and the engine is what says which
+        // categories it could not take.
         const notice = findChild(window.contentItem, "pageNotice")
         tryVerify(function() { return notice.showing })
         compare(notice.message, "Cleared this Space's cookies and cache")
-        verify(notice.detail.indexOf("local storage and databases stay") !== -1)
+        compare(notice.detail, "storage stayed: this engine has no way to remove them")
 
         engine.persistentProfilesAvailable = false
         sidebar.siteDataEntries = []
+        sidebar.retainedDataEntries = []
         sidebar.statusOpen = false
         tryVerify(function() { return !panel.visible })
     }
@@ -1016,6 +1031,13 @@ TestCase {
         const notice = findChild(window.contentItem, "pageNotice")
         tryVerify(function() { return notice.showing })
         compare(notice.message, "Reset every decision for site-information.example")
+        // Reloading does not take a capability off a page, so the notice must
+        // not offer it as the way to.
+        verify(notice.detail.indexOf("open the site again") !== -1)
+        verify(notice.detail.indexOf("reload") === -1)
+        // The engine's own record of the origin goes too: a decision Omaweb
+        // cannot reach is one its reset would only appear to undo.
+        verify(window.spaceProfileHost.resetPermissionOrigins.length > 0)
 
         keyClick(Qt.Key_Escape)
         tryVerify(function() { return !panel.visible })

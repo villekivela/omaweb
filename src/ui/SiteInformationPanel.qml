@@ -32,7 +32,13 @@ Rectangle {
     // Chromium clears asynchronously, so a size read straight after the press
     // has not moved yet and reads as an action that did nothing.
     property var siteDataEntries: []
+    // What the engine holds that its clearing cannot take. Reported on a line
+    // of its own rather than folded into the size above: a byte the action
+    // cannot move must not be counted as one it can.
+    property var retainedDataEntries: []
     property int siteDataGeneration: 0
+    // The categories the engine said it could not take, from the window.
+    property var untouchedDataCategories: []
 
     // What the panel just did, on its way to the notice that says so. An
     // irreversible action that reports nothing is one the reader cannot tell
@@ -51,6 +57,7 @@ Rectangle {
     property var cookieAllowanceRows: []
     property var refusedThirdParties: []
     property real siteDataBytes: -1
+    property real retainedDataBytes: -1
     // Which reset the panel is waiting on a confirmation for. Both are
     // irreversible, so neither happens on one press.
     property string resetPending: ""
@@ -85,20 +92,24 @@ Rectangle {
     // measure and what the clearing action takes. Naming the three is the
     // difference between a number the reader can act on and one they have to
     // guess the scope of.
-    function siteDataSentence() {
-        if (!root.siteDataOnDisk)
-            return "this engine keeps no site data on disk"
-        if (root.siteDataBytes < 0)
-            return "the site data in this Space could not be measured"
+    function formatBytes(bytes) {
         const units = ["B", "kB", "MB", "GB"]
-        let size = root.siteDataBytes
+        let size = bytes
         let unit = 0
         while (size >= 1024 && unit < units.length - 1) {
             size = size / 1024
             unit += 1
         }
-        const rounded = unit === 0 ? Math.round(size) : Math.round(size * 10) / 10
-        return rounded + " " + units[unit] + " of cookies, storage and cache in this Space"
+        return (unit === 0 ? Math.round(size) : Math.round(size * 10) / 10) + " " + units[unit]
+    }
+
+    function siteDataSentence() {
+        if (!root.siteDataOnDisk)
+            return "this engine keeps no site data on disk"
+        if (root.siteDataBytes < 0)
+            return "the site data in this Space could not be measured"
+        return root.formatBytes(root.siteDataBytes)
+            + " of cookies and cache in this Space, which clearing takes"
     }
 
     function refreshSiteInformation() {
@@ -109,6 +120,9 @@ Rectangle {
             ? root.cookiePolicy.refusedOrigins(root.activeUrl) : []
         root.siteDataBytes = root.siteDataOnDisk
             ? root.browser.siteDataBytes(root.browser.activeSpaceId, root.siteDataEntries)
+            : -1
+        root.retainedDataBytes = root.siteDataOnDisk
+            ? root.browser.siteDataBytes(root.browser.activeSpaceId, root.retainedDataEntries)
             : -1
         root.resetPending = ""
     }
@@ -199,6 +213,21 @@ Rectangle {
             objectName: "siteInformationSiteData"
             width: parent.width
             text: "· " + root.siteDataSentence()
+            color: root.colors.mutedText
+            wrapMode: Text.WordWrap
+            font.family: Style.font.family
+            font.pixelSize: Style.font.caption
+        }
+
+        // The rest of what the Space is holding. It is the larger half on a
+        // machine that has been browsing for a while, and no action here can
+        // move it, so it is said plainly instead of being counted above.
+        Text {
+            objectName: "siteInformationRetainedData"
+            width: parent.width
+            visible: root.siteDataOnDisk && root.retainedDataBytes > 0
+            text: "· " + root.formatBytes(root.retainedDataBytes)
+                + " of storage and databases this engine cannot clear"
             color: root.colors.mutedText
             wrapMode: Text.WordWrap
             font.family: Style.font.family
@@ -370,16 +399,17 @@ Rectangle {
                     const cleared = root.browser.clearBrowsingData(
                         ["cookies", "storage", "cache"], 0)
                     root.refreshSiteInformation()
-                    // Named for what the engine can actually take. Local
-                    // storage and IndexedDB have no removal at this engine
-                    // boundary, and saying so is the difference between an
-                    // action that fell short and one that lied.
+                    // Named for what the engine actually took, and it is the
+                    // engine that says what it could not — the difference
+                    // between an action that fell short and one that lied.
+                    const stayed = root.untouchedDataCategories
                     root.noticeRequested(cleared ? "delete_sweep" : "block",
                         cleared
                             ? "Cleared this Space's cookies and cache"
                             : "Could not clear this Space's site data",
-                        cleared
-                            ? "local storage and databases stay: this engine has no way to remove them"
+                        cleared && stayed.length > 0
+                            ? stayed.join(" and ")
+                                + " stayed: this engine has no way to remove them"
                             : "")
                 }
             }
@@ -398,11 +428,17 @@ Rectangle {
                     }
                     const reset = root.browser.resetSitePermissions(root.activeUrl)
                     root.refreshSiteInformation()
+                    // Reloading does not take a capability off a page: the
+                    // engine answers a granted one from a store keyed by the
+                    // frame that asked, and a reload reuses that frame. Opening
+                    // the site again is a new frame, and asks.
                     root.noticeRequested(reset ? "shield_person" : "block",
                         reset
                             ? "Reset every decision for " + root.originLabel
                             : "Could not reset the decisions for " + root.originLabel,
-                        reset ? "asked again the next time it wants one" : "")
+                        reset
+                            ? "a page already holding one keeps it until you open the site again"
+                            : "")
                 }
             }
         }

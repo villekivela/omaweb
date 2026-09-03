@@ -47,6 +47,8 @@ Rectangle {
     // which embedded origins a page has actually had refused.
     property var cookiePolicy: null
     property var siteDataEntries: []
+    property var retainedDataEntries: []
+    property var untouchedDataCategories: []
     property int siteDataGeneration: 0
     readonly property bool secure: root.connectionState === "secure"
     readonly property bool certificateError: root.connectionState === "certificate-error"
@@ -740,6 +742,8 @@ Rectangle {
         insecureContentBlocked: root.insecureContentBlocked
         blockedRequestCount: root.blockedRequestCount
         siteDataEntries: root.siteDataEntries
+        retainedDataEntries: root.retainedDataEntries
+        untouchedDataCategories: root.untouchedDataCategories
         siteDataGeneration: root.siteDataGeneration
         open: root.statusOpen
 

@@ -14,6 +14,14 @@ QtObject {
     // has no size to show. A test that needs the shell stood up against an
     // engine that does keep site data names some.
     property var siteDataEntries: []
+    property var retainedDataEntries: []
+    property var resetPermissionOrigins: []
+    // What this engine would not be able to take, so the shell's report of it
+    // can be reviewed against an engine that falls short.
+    property var untouchedCategories: []
+    function resetOriginPermissions(origin) {
+        resetPermissionOrigins = resetPermissionOrigins.concat([String(origin)])
+    }
     signal browsingDataCleared()
     property string downloadDirectory: ""
     property bool acceptDownloads: false
@@ -51,5 +59,6 @@ QtObject {
     function clearBrowsingData(dataTypes, since) {
         browsingDataClearCount += 1
         browsingDataCleared()
+        return untouchedCategories
     }
 }

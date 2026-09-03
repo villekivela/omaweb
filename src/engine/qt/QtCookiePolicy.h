@@ -45,6 +45,11 @@ public:
     // them rather than leaving the reader to guess which embedded flow is
     // failing. Bounded per page: this is a list to act on, not a log.
     Q_INVOKABLE QStringList refusedOrigins(const QUrl &firstParty) const;
+    // Every cookie in one profile, gone. Chromium reaches its cookie store
+    // through a plain C++ accessor rather than a property, so QML cannot ask
+    // for this and the request comes through here — the one object that
+    // already holds the store.
+    Q_INVOKABLE bool deleteAllCookies(QObject *profile);
     // The origin a cookie access belongs to, in the shape the core's
     // allowances are keyed by.
     static QString cookieOrigin(const QUrl &url);

@@ -163,11 +163,26 @@ Item {
     // Profile-wide data removal is an engine operation, and it reaches Spaces
     // that are not on show — including ones with no profile open, which the
     // table builds on being asked.
+    // Returns the categories the engine could not take, so the browser can say
+    // what stayed rather than claim everything went.
     function clearBrowsingData(spaceIds, dataTypes, since) {
+        const untouched = []
         for (let index = 0; index < spaceIds.length; ++index) {
             const host = root.spaceProfiles.hostFor(spaceIds[index])
-            if (host) host.clearBrowsingData(dataTypes, since)
+            if (!host) continue
+            const stayed = host.clearBrowsingData(dataTypes, since) || []
+            for (let named = 0; named < stayed.length; ++named) {
+                if (untouched.indexOf(stayed[named]) === -1) untouched.push(stayed[named])
+            }
         }
+        return untouched
+    }
+
+    // An origin's decisions are the browser's to keep, so the engine's own
+    // record of them is dropped when the reader takes them back.
+    function resetOriginPermissions(spaceId, origin) {
+        const host = root.spaceProfiles.hostFor(spaceId)
+        if (host) host.resetOriginPermissions(origin)
     }
 
     // Putting a Space away costs it its pages, which is the memory policy the

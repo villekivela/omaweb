@@ -107,6 +107,9 @@ ApplicationWindow {
     // Bumped when the engine reports it has finished clearing, so Site
     // information re-reads a size that has actually moved.
     property int siteDataGeneration: 0
+    // The categories the engine said it could not take, from the last clearing
+    // it was asked for.
+    property var untouchedDataCategories: []
     // What the connection to the page on show is, read off the engine drawing
     // it — and then contradicted where Omaweb knows better. An engine keeps an
     // accepted certificate for as long as its profile lives and offers no way
@@ -1185,6 +1188,9 @@ ApplicationWindow {
                 cookiePolicy: engineCookiePolicy
                 siteDataEntries: window.spaceProfileHost
                     ? window.spaceProfileHost.siteDataEntries : []
+                retainedDataEntries: window.spaceProfileHost
+                    ? window.spaceProfileHost.retainedDataEntries : []
+                untouchedDataCategories: window.untouchedDataCategories
                 siteDataGeneration: window.siteDataGeneration
                 canGoBack: engineLoader.item ? engineLoader.item.canGoBack : false
                 canGoForward: engineLoader.item ? engineLoader.item.canGoForward : false
@@ -1649,8 +1655,15 @@ ApplicationWindow {
                         window.retireSpaceProfile(spaceId)
                     }
 
+                    // The engine answers straight away with what it could not
+                    // take, which is what the notice about it reports.
                     function onEngineDataClearRequested(spaceIds, dataTypes, since) {
-                        engineLoader.clearBrowsingData(spaceIds, dataTypes, since)
+                        window.untouchedDataCategories =
+                            engineLoader.clearBrowsingData(spaceIds, dataTypes, since)
+                    }
+
+                    function onEngineOriginPermissionsResetRequested(spaceId, origin) {
+                        engineLoader.resetOriginPermissions(spaceId, origin)
                     }
 
                     function onCloseWindowRequested() {

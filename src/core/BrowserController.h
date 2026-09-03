@@ -325,6 +325,10 @@ signals:
     void closeWindowRequested();
     void engineDataClearRequested(const QStringList &spaceIds,
         const QStringList &dataTypes, qint64 since);
+    // The reader took an origin's decisions back, so the engine's own record
+    // of them goes too: a decision Omaweb cannot reach is one its reset would
+    // only appear to undo.
+    void engineOriginPermissionsResetRequested(const QString &spaceId, const QUrl &origin);
     void thirdPartyCookieAllowancesChanged();
     void certificateExceptionsChanged();
 
