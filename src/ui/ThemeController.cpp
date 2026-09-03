@@ -410,13 +410,20 @@ QVariantMap ThemeController::normalizedPalette(QVariantMap palette) const
             QStringLiteral("privateMutedText"), privateResolved.name(QColor::HexRgb));
     }
 
+    // The grounds a border is actually drawn on, which is every Omaweb surface
+    // except a hover fill: the rules and frames this role paints sit on a
+    // surface at rest, and a control that does have an edge while the pointer
+    // is over it takes that edge from the kit's own text-and-accent spec
+    // rather than from here. Asking the role to clear a hover fill as well
+    // costs the theme its colour for nothing — a palette naming one colour for
+    // both, as the template Omarchy renders does, can never be 3:1 against
+    // itself, so the repair walked every such border up to near-white.
     const auto borderedSurfaces = coloursFor({QStringLiteral("window"),
-        QStringLiteral("sidebar"), QStringLiteral("surface"), QStringLiteral("surfaceHover"),
-        QStringLiteral("overlay"), QStringLiteral("sheet")});
+        QStringLiteral("sidebar"), QStringLiteral("surface"), QStringLiteral("overlay"),
+        QStringLiteral("sheet")});
     const auto privateBorderedSurfaces = coloursFor({QStringLiteral("privateWindow"),
         QStringLiteral("privateSidebar"), QStringLiteral("privateSurface"),
-        QStringLiteral("privateSurfaceHover"), QStringLiteral("privateOverlay"),
-        QStringLiteral("privateSheet")});
+        QStringLiteral("privateOverlay"), QStringLiteral("privateSheet")});
     const QColor namedBorder(palette.value(QStringLiteral("border")).toString());
     const auto hasNamedBorder = themeNamedBorder && namedBorder.isValid();
     const QColor faintestBorder(hasNamedBorder
