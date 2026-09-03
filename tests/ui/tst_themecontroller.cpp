@@ -30,6 +30,7 @@ private slots:
     void keepsBordersVisibleOnEverySurfaceTheySeparate();
     void preservesTheHueOfABorderItRepairs();
     void keepsABorderAThemeAlsoNamedAsItsHoverFill();
+    void drawsARuleAsQuietlyAsTheBarDraws();
     void keepsAPaletteWhoseSurfacesCannotShareReadableRoles();
     void keepsTheDesktopsOwnColoursWhenAPrivateSurfaceIsAnAccent();
     void reportsAThemeReloadWhenTheNormalizedPaletteDoesNotChange();
@@ -419,6 +420,62 @@ void ThemeControllerTest::keepsABorderAThemeAlsoNamedAsItsHoverFill()
     ThemeController controller(theme.fileName());
     QCOMPARE(controller.palette().value(QStringLiteral("border")).toString(),
         QStringLiteral("#617877"));
+}
+
+// A divider is not a frame. The kit draws its panel separators as the
+// foreground colour at a low alpha, so a rule in Omaweb's own chrome has to be
+// that quiet too — in the border colour it read as the loudest thing on a
+// sidebar whose whole point is the page beside it.
+void ThemeControllerTest::drawsARuleAsQuietlyAsTheBarDraws()
+{
+    QTemporaryDir root;
+    QFile theme(root.filePath(QStringLiteral("theme.json")));
+    QVERIFY(theme.open(QIODevice::WriteOnly));
+    theme.write(R"JSON({
+        "window": "#010304",
+        "sidebar": "#030607",
+        "surface": "#0e1719",
+        "surfaceHover": "#617877",
+        "text": "#c3d2d0",
+        "border": "#617877"
+    })JSON");
+    theme.close();
+
+    ThemeController controller(theme.fileName());
+    const QColor separator(controller.palette().value(QStringLiteral("separator")).toString());
+    QVERIFY(separator.isValid());
+    QCOMPARE(separator.rgb(), QColor(QStringLiteral("#c3d2d0")).rgb());
+    QCOMPARE(separator.alpha(), 31);
+
+    // Quieter than the border it replaced, once each is drawn on the surface
+    // they share. Alpha is the whole of the difference, so the comparison has
+    // to be made on what the reader actually sees.
+    const QColor sidebar(QStringLiteral("#030607"));
+    const auto drawnOnTheSidebar = [&sidebar](const QColor &rule) {
+        const auto amount = rule.alphaF();
+        const auto channel = [amount](int over, int under) {
+            return qRound(under + (over - under) * amount);
+        };
+        return QColor::fromRgb(channel(rule.red(), sidebar.red()),
+            channel(rule.green(), sidebar.green()), channel(rule.blue(), sidebar.blue()));
+    };
+    const QColor border(controller.palette().value(QStringLiteral("border")).toString());
+    QVERIFY(contrastRatio(drawnOnTheSidebar(separator), sidebar)
+        < contrastRatio(drawnOnTheSidebar(border), sidebar));
+
+    // A theme that has a rule colour of its own keeps it, alpha and all.
+    QFile named(root.filePath(QStringLiteral("named.json")));
+    QVERIFY(named.open(QIODevice::WriteOnly));
+    named.write(R"JSON({
+        "sidebar": "#030607",
+        "text": "#c3d2d0",
+        "separator": "#33ff8800"
+    })JSON");
+    named.close();
+
+    ThemeController namedController(named.fileName());
+    QCOMPARE(namedController.palette().value(QStringLiteral("separator")).toString(),
+        QStringLiteral("#33ff8800"));
 }
 
 // Some palettes have no colour to give a role: nothing reads at 4.5:1 on both

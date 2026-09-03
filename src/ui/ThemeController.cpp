@@ -283,6 +283,7 @@ QVariantMap ThemeController::normalizedPalette(QVariantMap palette) const
     // supplied is not a colour the theme asked for.
     const auto themeNamedMutedText = palette.contains(QStringLiteral("mutedText"));
     const auto themeNamedBorder = palette.contains(QStringLiteral("border"));
+    const auto themeNamedSeparator = palette.contains(QStringLiteral("separator"));
     const auto themeNamedSurfaceHover = palette.contains(QStringLiteral("surfaceHover"));
     const auto themeNamedPrivateSurfaceHover
         = palette.contains(QStringLiteral("privateSurfaceHover"));
@@ -441,6 +442,26 @@ QVariantMap ThemeController::normalizedPalette(QVariantMap palette) const
         const auto privateResolved = adjustedForContrast(faintestPrivateBorder, text,
             privateBorderedSurfaces, minimumBorderContrast, hasNamedBorder);
         palette.insert(QStringLiteral("privateBorder"), privateResolved.name(QColor::HexRgb));
+    }
+
+    // A rule inside a surface is not a frame around one, and the kit does not
+    // draw them alike: its panel dividers are the foreground colour at a low
+    // alpha, while a control's edge is that colour at a much higher one. That
+    // is why the bar's separators read quieter than anything the border role
+    // can give, and Omaweb's hairlines are those same dividers — the seam
+    // down the sidebar, the rule above a browsing identity, the bands in a
+    // panel. They take the kit's grammar rather than the border colour, and
+    // the strength mirrors `strength` in
+    // third_party/omarchy-shell/qs/Ui/PanelSeparator.qml.
+    //
+    // Deliberately below every contrast floor above: a divider that clears
+    // 3:1 is a frame, and the reader ends up with a browser drawn in boxes.
+    // A theme that names its own rule colour keeps it, alpha and all.
+    if (text.isValid() && !themeNamedSeparator) {
+        constexpr auto separatorStrength = 0.12;
+        auto separator = text;
+        separator.setAlphaF(separatorStrength);
+        palette.insert(QStringLiteral("separator"), separator.name(QColor::HexArgb));
     }
 
     // Semantic opacity is the single source of truth for how much of the desktop

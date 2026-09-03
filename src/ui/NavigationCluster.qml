@@ -142,7 +142,7 @@ Rectangle {
             width: 1
             height: 18
             anchors.verticalCenter: parent.verticalCenter
-            color: root.colors.border
+            color: root.colors.separator
         }
 
         ChromeButton {
