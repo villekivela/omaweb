@@ -57,6 +57,14 @@ private slots:
     void refusesPersistentBrowsingDataActionsInPrivateWindows();
     void clearsSelectedBrowsingDataWithinConfirmedScope();
     void scopesPermissionDecisionsToOriginSpaceAndLifetime();
+    void remembersOnlyThePermissionsThatMayBeRemembered();
+    void listsAndResetsOneSitesPermissionsWithinItsSpace();
+    void refusesEveryCertificateExceptionButAnOverridableLocalMainFrame();
+    void keepsCertificateExceptionsOutOfEveryStoreAndSession();
+    void keepsAGrantedCertificateExceptionVisibleForItsSession();
+    void blocksThirdPartyCookiesUntilAFlowIsGivenAVisibleAllowance();
+    void endsThirdPartyCookieAllowancesWithTheirSpaceAndPrivateSession();
+    void measuresTheSiteDataHeldForOneSpace();
     void scopesExternalProtocolDecisionsToOriginSchemeSpaceAndPrivateSession();
     void persistsOnlyNonPrivateDownloadHistory();
     void persistsInterfacePreferencesOutsidePrivateBrowsing();
@@ -1635,6 +1643,368 @@ void BrowserControllerTest::holdsBackSoundUntilTheOriginIsDealtWith()
     QVERIFY(restored.tabSoundSuppressed(restored.activeTabId()));
     auto *tabs = restored.tabs();
     QVERIFY(!tabs->data(tabs->index(0, 0), TabListModel::MutedRole).toBool());
+}
+
+// Camera, microphone, geolocation and notifications take the three decisions.
+// Clipboard read and screen sharing take approval each time: an allowance the
+// reader cannot see being spent is not one they gave. Everything outside the
+// contract is refused without asking, because a question whose only honest
+// answer is no is not a question.
+void BrowserControllerTest::remembersOnlyThePermissionsThatMayBeRemembered()
+{
+    QTemporaryDir root;
+    BrowserController controller(root.path(), QStringLiteral("test"));
+
+    for (const auto *rememberable : {"camera", "microphone", "camera-and-microphone",
+             "geolocation", "notifications"}) {
+        const auto permission = QString::fromLatin1(rememberable);
+        const QUrl origin(QStringLiteral("https://%1.example").arg(permission));
+        QCOMPARE(controller.permissionPolicy(permission),
+            int(BrowserController::Rememberable));
+        QVERIFY2(controller.setPermissionDecision(origin, permission,
+                     BrowserController::AllowPersistently),
+            rememberable);
+        QCOMPARE(controller.permissionDecision(origin, permission),
+            BrowserController::AllowPersistently);
+        QVERIFY(controller.setPermissionDecision(origin, permission,
+            BrowserController::Block));
+        QCOMPARE(controller.permissionDecision(origin, permission), BrowserController::Block);
+    }
+
+    for (const auto *eachTime : {"clipboard-read", "screen-sharing"}) {
+        const auto permission = QString::fromLatin1(eachTime);
+        const QUrl origin(QStringLiteral("https://%1.example").arg(permission));
+        QCOMPARE(controller.permissionPolicy(permission),
+            int(BrowserController::AskedEachTime));
+        // Answering once is answering this request, and the next one asks
+        // again — whichever way the reader answered.
+        QVERIFY2(controller.setPermissionDecision(origin, permission,
+                     BrowserController::AllowOnce),
+            eachTime);
+        QCOMPARE(controller.permissionDecision(origin, permission), BrowserController::Ask);
+        QVERIFY(!controller.setPermissionDecision(origin, permission,
+            BrowserController::AllowPersistently));
+        QCOMPARE(controller.permissionDecision(origin, permission), BrowserController::Ask);
+        QVERIFY(controller.setPermissionDecision(origin, permission,
+            BrowserController::Block));
+        QCOMPARE(controller.permissionDecision(origin, permission), BrowserController::Ask);
+    }
+
+    for (const auto *outside : {"usb", "bluetooth", "serial", "midi", "unsupported", ""}) {
+        const auto permission = QString::fromLatin1(outside);
+        const QUrl origin(QStringLiteral("https://outside.example"));
+        QCOMPARE(controller.permissionPolicy(permission),
+            int(BrowserController::Refused));
+        QVERIFY2(!controller.setPermissionDecision(origin, permission,
+                     BrowserController::AllowPersistently),
+            outside);
+        QCOMPARE(controller.permissionDecision(origin, permission), BrowserController::Block);
+    }
+}
+
+// What Site information reads and what its reset action does. Both belong to
+// one origin inside one Space, and neither reaches the Space beside it.
+void BrowserControllerTest::listsAndResetsOneSitesPermissionsWithinItsSpace()
+{
+    QTemporaryDir root;
+    BrowserController controller(root.path(), QStringLiteral("test"));
+    const auto personalSpaceId = controller.activeSpaceId();
+    const QUrl site(QStringLiteral("https://site.example/page"));
+    QVERIFY(controller.setPermissionDecision(site, QStringLiteral("camera"),
+        BrowserController::AllowPersistently));
+    QVERIFY(controller.setPermissionDecision(site, QStringLiteral("geolocation"),
+        BrowserController::Block));
+    QVERIFY(controller.setPermissionDecision(QUrl(QStringLiteral("https://other.example")),
+        QStringLiteral("camera"), BrowserController::AllowPersistently));
+
+    auto listed = controller.sitePermissions(site);
+    QCOMPARE(listed.size(), 2);
+    QVariantMap byPermission;
+    for (const auto &entry : listed) {
+        const auto row = entry.toMap();
+        byPermission.insert(row.value(QStringLiteral("permission")).toString(),
+            row.value(QStringLiteral("decision")));
+    }
+    QCOMPARE(byPermission.value(QStringLiteral("camera")).toInt(),
+        int(BrowserController::AllowPersistently));
+    QCOMPARE(byPermission.value(QStringLiteral("geolocation")).toInt(),
+        int(BrowserController::Block));
+
+    // A Space of its own knows nothing about the decisions made in the other.
+    const auto workSpaceId = controller.createSpace(QStringLiteral("Work"));
+    QVERIFY(controller.switchSpace(workSpaceId));
+    QVERIFY(controller.sitePermissions(site).isEmpty());
+    QVERIFY(controller.switchSpace(personalSpaceId));
+
+    // An answer the session is holding is listed too — it is a decision the
+    // site holds, and a Private window has no other kind.
+    QVERIFY(controller.setPermissionDecision(site, QStringLiteral("notifications"),
+        BrowserController::AllowOnce));
+    QCOMPARE(controller.sitePermissions(site).size(), 3);
+    // Listing it does not spend it: the site has not asked to use it.
+    QCOMPARE(controller.permissionDecision(site, QStringLiteral("notifications")),
+        BrowserController::AllowOnce);
+
+    QVERIFY(controller.resetSitePermissions(site));
+    QVERIFY(controller.sitePermissions(site).isEmpty());
+    QCOMPARE(controller.permissionDecision(site, QStringLiteral("camera")),
+        BrowserController::Ask);
+    // The reset was this site's. The site beside it keeps what it was given.
+    QCOMPARE(controller.permissionDecision(QUrl(QStringLiteral("https://other.example")),
+                 QStringLiteral("camera")),
+        BrowserController::AllowPersistently);
+}
+
+// A certificate failure blocks. The one exception Omaweb will even offer is a
+// Local-development site's own main frame, and only where the engine says the
+// failure can be overridden at all.
+void BrowserControllerTest::refusesEveryCertificateExceptionButAnOverridableLocalMainFrame()
+{
+    QTemporaryDir root;
+    BrowserController controller(root.path(), QStringLiteral("test"));
+
+    for (const auto *local : {"https://localhost:8443/app", "https://app.localhost/",
+             "https://api.test/v1", "https://127.0.0.1:3000/", "https://[::1]:8080/",
+             "https://192.168.1.20:8443/"}) {
+        const QUrl url(QString::fromLatin1(local));
+        QVERIFY2(controller.localDevelopmentSite(url), local);
+        QVERIFY2(controller.mayOfferCertificateException(url, true, true, false), local);
+    }
+
+    // A public site is refused however the failure is described.
+    const QUrl publicSite(QStringLiteral("https://bank.example/login"));
+    QVERIFY(!controller.localDevelopmentSite(publicSite));
+    QVERIFY(!controller.mayOfferCertificateException(publicSite, true, true, false));
+
+    const QUrl local(QStringLiteral("https://localhost:8443/app"));
+    // A subresource: the reader is looking at a page, not at the request that
+    // failed, so there is nothing they could be shown to decide about.
+    QVERIFY(!controller.mayOfferCertificateException(local, true, false, false));
+    // Not overridable, and fatal, are the engine's own two refusals.
+    QVERIFY(!controller.mayOfferCertificateException(local, false, true, false));
+    QVERIFY(!controller.mayOfferCertificateException(local, true, true, true));
+    // Nothing to decide about an address that names no site.
+    QVERIFY(!controller.mayOfferCertificateException(QUrl(), true, true, false));
+    QVERIFY(!controller.mayOfferCertificateException(
+        QUrl(QStringLiteral("http://localhost:8443/")), true, true, false));
+}
+
+// One exception, for the load in front of the reader. Nothing writes it down,
+// so the next failure asks again — in this session and in the next.
+void BrowserControllerTest::keepsCertificateExceptionsOutOfEveryStoreAndSession()
+{
+    QTemporaryDir root;
+    const QUrl local(QStringLiteral("https://localhost:8443/app"));
+    {
+        BrowserController controller(root.path(), QStringLiteral("test"));
+        QVERIFY(controller.mayOfferCertificateException(local, true, true, false));
+        // Answering it is answering one request. There is no decision to store
+        // and no permission the answer becomes.
+        QVERIFY(!controller.setPermissionDecision(local,
+            QStringLiteral("certificate-exception"), BrowserController::AllowPersistently));
+        QCOMPARE(controller.permissionPolicy(QStringLiteral("certificate-exception")),
+            int(BrowserController::Refused));
+        QVERIFY(controller.sitePermissions(local).isEmpty());
+    }
+
+    BrowserController restored(root.path(), QStringLiteral("test"));
+    QVERIFY(restored.sitePermissions(local).isEmpty());
+    QCOMPARE(restored.permissionDecision(local, QStringLiteral("certificate-exception")),
+        BrowserController::Block);
+    // Offering it again is the point: an exception the browser wrote down would
+    // be a certificate check the reader stopped being asked about.
+    QVERIFY(restored.mayOfferCertificateException(local, true, true, false));
+    QVERIFY(restored.certificateExceptionOrigins().isEmpty());
+    QVERIFY(!restored.certificateExceptionInEffect(local));
+}
+
+// Engines keep an accepted certificate for as long as their profile lives and
+// offer no way to take it back, so the grant is recorded here to keep the
+// address trigger saying the check was waived. The record is one Space's, is
+// never written down, and goes with the session.
+void BrowserControllerTest::keepsAGrantedCertificateExceptionVisibleForItsSession()
+{
+    QTemporaryDir root;
+    const QUrl local(QStringLiteral("https://localhost:8443/app"));
+    QString personalSpaceId;
+    {
+        BrowserController controller(root.path(), QStringLiteral("test"));
+        personalSpaceId = controller.activeSpaceId();
+        QSignalSpy changed(&controller, &BrowserController::certificateExceptionsChanged);
+        QVERIFY(controller.recordCertificateException(local));
+        QCOMPARE(changed.count(), 1);
+        QVERIFY(controller.certificateExceptionInEffect(local));
+        // The origin's, so every tab of the Space showing that origin says so.
+        QVERIFY(controller.certificateExceptionInEffect(
+            QUrl(QStringLiteral("https://localhost:8443/other"))));
+        QVERIFY(!controller.certificateExceptionInEffect(
+            QUrl(QStringLiteral("https://localhost:9443/app"))));
+        QCOMPARE(controller.certificateExceptionOrigins(),
+            QStringList{QStringLiteral("https://localhost:8443")});
+
+        // The Space beside it shares no engine profile, so it shares no waived
+        // check either.
+        const auto workSpaceId = controller.createSpace(QStringLiteral("Work"));
+        QVERIFY(controller.switchSpace(workSpaceId));
+        QVERIFY(!controller.certificateExceptionInEffect(local));
+        QVERIFY(controller.certificateExceptionOrigins().isEmpty());
+
+        // Nothing about an address that names no site is recorded.
+        QVERIFY(!controller.recordCertificateException(QUrl()));
+    }
+
+    BrowserController restored(root.path(), QStringLiteral("test"));
+    QVERIFY(restored.switchSpace(personalSpaceId));
+    QVERIFY(!restored.certificateExceptionInEffect(local));
+    QVERIFY(restored.certificateExceptionOrigins().isEmpty());
+
+    // Private windows share one session, and its waived checks go with it.
+    WindowManager manager(QStringLiteral("test"));
+    auto *first = manager.createPrivateWindow();
+    auto *second = manager.createPrivateWindow();
+    QVERIFY(first && second);
+    QVERIFY(first->recordCertificateException(local));
+    QVERIFY(second->certificateExceptionInEffect(local));
+    manager.releasePrivateWindow(first);
+    manager.releasePrivateWindow(second);
+    QTRY_VERIFY(manager.privateProfilePath().isEmpty());
+    auto *reopened = manager.createPrivateWindow();
+    QVERIFY(reopened);
+    QVERIFY(!reopened->certificateExceptionInEffect(local));
+}
+
+// Third-party cookies are blocked. A sign-in or a payment can be given one
+// origin's worth of allowance: temporary, listed where the reader can see it,
+// and taken back on demand.
+void BrowserControllerTest::blocksThirdPartyCookiesUntilAFlowIsGivenAVisibleAllowance()
+{
+    QTemporaryDir root;
+    BrowserController controller(root.path(), QStringLiteral("test"));
+    const auto spaceId = controller.activeSpaceId();
+    const QUrl identity(QStringLiteral("https://login.example/callback"));
+
+    QVERIFY(!controller.thirdPartyCookiesAllowed(spaceId, identity));
+    QVERIFY(controller.thirdPartyCookieAllowances().isEmpty());
+
+    // Only a flow that has a name Omaweb can show the reader.
+    QVERIFY(!controller.allowThirdPartyCookies(identity, QStringLiteral("advertising")));
+    QVERIFY(!controller.thirdPartyCookiesAllowed(spaceId, identity));
+
+    QSignalSpy changed(&controller, &BrowserController::thirdPartyCookieAllowancesChanged);
+    QVERIFY(controller.allowThirdPartyCookies(identity, QStringLiteral("authentication")));
+    QCOMPARE(changed.count(), 1);
+    QVERIFY(controller.thirdPartyCookiesAllowed(spaceId, identity));
+    // The allowance is the origin's, not the address's.
+    QVERIFY(controller.thirdPartyCookiesAllowed(spaceId,
+        QUrl(QStringLiteral("https://login.example/token"))));
+    QVERIFY(!controller.thirdPartyCookiesAllowed(spaceId,
+        QUrl(QStringLiteral("https://tracker.example/"))));
+
+    const auto listed = controller.thirdPartyCookieAllowances();
+    QCOMPARE(listed.size(), 1);
+    QCOMPARE(listed.first().toMap().value(QStringLiteral("origin")).toString(),
+        QStringLiteral("https://login.example"));
+    QCOMPARE(listed.first().toMap().value(QStringLiteral("purpose")).toString(),
+        QStringLiteral("authentication"));
+
+    QVERIFY(controller.revokeThirdPartyCookieAllowance(identity));
+    QCOMPARE(changed.count(), 2);
+    QVERIFY(!controller.thirdPartyCookiesAllowed(spaceId, identity));
+    QVERIFY(controller.thirdPartyCookieAllowances().isEmpty());
+    QVERIFY(!controller.revokeThirdPartyCookieAllowance(identity));
+}
+
+void BrowserControllerTest::endsThirdPartyCookieAllowancesWithTheirSpaceAndPrivateSession()
+{
+    QTemporaryDir root;
+    const QUrl identity(QStringLiteral("https://pay.example/"));
+    QString personalSpaceId;
+    {
+        BrowserController controller(root.path(), QStringLiteral("test"));
+        personalSpaceId = controller.activeSpaceId();
+        QVERIFY(controller.allowThirdPartyCookies(identity, QStringLiteral("payment")));
+
+        const auto workSpaceId = controller.createSpace(QStringLiteral("Work"));
+        QVERIFY(controller.switchSpace(workSpaceId));
+        QVERIFY(controller.thirdPartyCookieAllowances().isEmpty());
+        QVERIFY(!controller.thirdPartyCookiesAllowed(workSpaceId, identity));
+        // The Space it was granted in still has it, and is the only one that
+        // does.
+        QVERIFY(controller.thirdPartyCookiesAllowed(personalSpaceId, identity));
+    }
+
+    // Nothing wrote it down, so the next session starts with none.
+    BrowserController restored(root.path(), QStringLiteral("test"));
+    QVERIFY(restored.switchSpace(personalSpaceId));
+    QVERIFY(restored.thirdPartyCookieAllowances().isEmpty());
+    QVERIFY(!restored.thirdPartyCookiesAllowed(personalSpaceId, identity));
+
+    // Private windows share one temporary session, and it goes when the last
+    // of them does.
+    WindowManager manager(QStringLiteral("test"));
+    auto *first = manager.createPrivateWindow();
+    auto *second = manager.createPrivateWindow();
+    QVERIFY(first && second);
+    QVERIFY(first->allowThirdPartyCookies(identity, QStringLiteral("authentication")));
+    QCOMPARE(second->thirdPartyCookieAllowances().size(), 1);
+    QVERIFY(second->thirdPartyCookiesAllowed(second->activeSpaceId(), identity));
+    manager.releasePrivateWindow(first);
+    manager.releasePrivateWindow(second);
+    // The session's temporary state is dropped once the close has settled, so
+    // the next private window starts from nothing.
+    QTRY_VERIFY(manager.privateProfilePath().isEmpty());
+    auto *reopened = manager.createPrivateWindow();
+    QVERIFY(reopened);
+    QVERIFY(reopened->thirdPartyCookieAllowances().isEmpty());
+}
+
+// What Site information shows for stored data. It is the Space's own, it is
+// measured where the engine says it keeps it, and it counts only what the
+// clearing action can actually take — a number the action cannot move would be
+// worse than none.
+void BrowserControllerTest::measuresTheSiteDataHeldForOneSpace()
+{
+    const QStringList named{QStringLiteral("Cookies"), QStringLiteral("Local Storage"),
+        QStringLiteral("cache")};
+    QTemporaryDir root;
+    BrowserController controller(root.path(), QStringLiteral("test"));
+    const auto spaceId = controller.activeSpaceId();
+    const auto profilePath = controller.profilePathForSpace(spaceId);
+    QVERIFY(!profilePath.isEmpty());
+
+    // A Space that has kept none of it measures nothing, which is a
+    // measurement rather than an unknown.
+    QCOMPARE(controller.siteDataBytes(spaceId, named), 0);
+
+    const QDir profile(profilePath);
+    QVERIFY(QDir().mkpath(profile.filePath(QStringLiteral("Local Storage/leveldb"))));
+    QFile stored(profile.filePath(QStringLiteral("Local Storage/leveldb/000003.log")));
+    QVERIFY(stored.open(QIODevice::WriteOnly));
+    QCOMPARE(stored.write(QByteArray(3000, 'x')), 3000);
+    stored.close();
+    // A named file counts as much as a named directory: Chromium keeps cookies
+    // in one file and storage in a tree.
+    QFile cookies(profile.filePath(QStringLiteral("Cookies")));
+    QVERIFY(cookies.open(QIODevice::WriteOnly));
+    QCOMPARE(cookies.write(QByteArray(1096, 'c')), 1096);
+    cookies.close();
+    QCOMPARE(controller.siteDataBytes(spaceId, named), 4096);
+
+    // Everything else in the profile is not site data the action can clear, so
+    // it is not counted. Reporting it would be a number nothing could move.
+    QFile elsewhere(profile.filePath(QStringLiteral("Local State")));
+    QVERIFY(elsewhere.open(QIODevice::WriteOnly));
+    QCOMPARE(elsewhere.write(QByteArray(9999, 'z')), 9999);
+    elsewhere.close();
+    QCOMPARE(controller.siteDataBytes(spaceId, named), 4096);
+
+    // Another Space's data is not this one's, however much of it there is.
+    const auto workSpaceId = controller.createSpace(QStringLiteral("Work"));
+    QCOMPARE(controller.siteDataBytes(workSpaceId, named), 0);
+    // An engine that names nothing is an engine with nothing to measure, and
+    // so is a Space with nowhere on disk to look.
+    QCOMPARE(controller.siteDataBytes(spaceId, {}), -1);
+    QCOMPARE(controller.siteDataBytes(QString(), named), -1);
 }
 
 QTEST_GUILESS_MAIN(BrowserControllerTest)

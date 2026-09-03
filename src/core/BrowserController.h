@@ -1,6 +1,7 @@
 #pragma once
 
 #include "RetainedTab.h"
+#include "SessionSiteState.h"
 #include "SessionStore.h"
 #include "SpaceListModel.h"
 #include "TabListModel.h"
@@ -80,6 +81,17 @@ public:
     };
     Q_ENUM(PermissionDecision)
 
+    // What Omaweb will do with an answer about a capability, which is not the
+    // same question as what the answer was. A capability whose use the reader
+    // cannot see being spent gets no memory at all, and one outside the
+    // daily-driver contract is refused without a question being asked.
+    enum PermissionPolicy {
+        Refused = 0,
+        AskedEachTime = 1,
+        Rememberable = 2,
+    };
+    Q_ENUM(PermissionPolicy)
+
     BrowserController(QString dataRoot, QString engineName, QObject *parent = nullptr);
     BrowserController(QString dataRoot, QString engineName, QString configRoot,
         QObject *parent = nullptr);
@@ -90,6 +102,14 @@ public:
         QObject *parent = nullptr);
     BrowserController(QString dataRoot, QString engineName, bool privateBrowsing,
         QSharedPointer<QHash<QString, int>> sessionPermissionDecisions,
+        QString configRoot, QObject *parent = nullptr);
+    // The session's own site state — third-party allowances and granted
+    // certificate exceptions — which a shared private session hands round its
+    // windows beside the Site permissions it already shares. Both live in
+    // memory for exactly as long as that session does.
+    BrowserController(QString dataRoot, QString engineName, bool privateBrowsing,
+        QSharedPointer<QHash<QString, int>> sessionPermissionDecisions,
+        QSharedPointer<SessionSiteState> sessionSiteState,
         QString configRoot, QObject *parent = nullptr);
 
     ~BrowserController() override;
@@ -234,6 +254,44 @@ public:
     Q_INVOKABLE int permissionDecision(const QUrl &url, const QString &permission);
     Q_INVOKABLE bool setPermissionDecision(const QUrl &url, const QString &permission,
         int decision);
+    Q_INVOKABLE int permissionPolicy(const QString &permission) const;
+    // What Site information reads and what its reset action does: one origin's
+    // decisions inside the Space on show, and nothing beyond it.
+    Q_INVOKABLE QVariantList sitePermissions(const QUrl &url) const;
+    Q_INVOKABLE bool resetSitePermissions(const QUrl &url);
+    // A certificate failure blocks. Whether Omaweb will even offer the reader
+    // an exception is this: the engine's own facts about the failure, and
+    // whether the address is a Local-development site's own main frame.
+    // Nothing here records an answer — there is no remembered exception.
+    Q_INVOKABLE bool mayOfferCertificateException(const QUrl &url, bool overridable,
+        bool mainFrame, bool fatal) const;
+    Q_INVOKABLE bool localDevelopmentSite(const QUrl &url) const;
+    // The reader let one through. Engines remember an accepted certificate for
+    // as long as their profile lives and offer no way to take it back, so the
+    // grant is recorded here — in memory, for this Space, for this session — to
+    // keep the address trigger saying the check was waived for as long as it is.
+    Q_INVOKABLE bool recordCertificateException(const QUrl &url);
+    Q_INVOKABLE bool certificateExceptionInEffect(const QUrl &url) const;
+    Q_INVOKABLE QStringList certificateExceptionOrigins() const;
+    // Third-party cookies are blocked. An authentication or payment flow may be
+    // given one origin's allowance in one Space: temporary, listed in Site
+    // information, and revocable there.
+    Q_INVOKABLE bool thirdPartyCookiesAllowed(const QString &spaceId, const QUrl &origin) const;
+    Q_INVOKABLE bool allowThirdPartyCookies(const QUrl &origin, const QString &purpose);
+    Q_INVOKABLE bool revokeThirdPartyCookieAllowance(const QUrl &origin);
+    Q_INVOKABLE QVariantList thirdPartyCookieAllowances() const;
+    // Read by the engine adapter enforcing the blocking, for a Space that is
+    // not necessarily the one on show: a retained tab's profile is asked about
+    // its own Space.
+    QStringList allowedThirdPartyCookieOrigins(const QString &spaceId) const;
+    // How much site data the engine is holding for one Space, in bytes, or -1
+    // where there is nothing there to measure. The engine names the files and
+    // directories its site data lives in, because their layout is Chromium's
+    // business and not the browser's; Omaweb knows only where it put the
+    // profile. Measuring the whole profile instead would report a number the
+    // clearing action cannot move.
+    Q_INVOKABLE double siteDataBytes(const QString &spaceId,
+        const QStringList &entries) const;
     Q_INVOKABLE bool externalProtocolAllowed(const QUrl &origin, const QString &scheme) const;
     Q_INVOKABLE bool rememberExternalProtocolDecision(const QUrl &origin,
         const QString &scheme);
@@ -267,6 +325,12 @@ signals:
     void closeWindowRequested();
     void engineDataClearRequested(const QStringList &spaceIds,
         const QStringList &dataTypes, qint64 since);
+    // The reader took an origin's decisions back, so the engine's own record
+    // of them goes too: a decision Omaweb cannot reach is one its reset would
+    // only appear to undo.
+    void engineOriginPermissionsResetRequested(const QString &spaceId, const QUrl &origin);
+    void thirdPartyCookieAllowancesChanged();
+    void certificateExceptionsChanged();
 
 private:
     void initialize();
@@ -298,6 +362,7 @@ private:
     bool saveSearchEngines(const QVariantList &engines, const QString &defaultEngineId);
     static QString normalizedOrigin(const QUrl &url);
     QString sessionPermissionKey(const QString &origin, const QString &permission) const;
+    static bool localDevelopmentHost(const QString &host);
 
     SessionStore m_store;
     QTimer m_persistTabsTimer;
@@ -325,6 +390,7 @@ private:
     bool m_atRest = false;
     bool m_privateBrowsing = false;
     QSharedPointer<QHash<QString, int>> m_sessionPermissionDecisions;
+    QSharedPointer<SessionSiteState> m_sessionSiteState;
 };
 
 } // namespace omaweb

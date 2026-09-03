@@ -6,6 +6,17 @@ QtObject {
 
     property string profilePath: ""
     property var engineContentBlocker: null
+    // Third-party cookies are blocked by the engine's own filter, and whether
+    // an origin has been given an allowance is the core's answer for one Space.
+    // Both are handed in rather than reached for: a profile may be built for a
+    // Space nobody is looking at.
+    property var engineCookiePolicy: null
+    property var cookieController: null
+    property string cookieSpaceId: ""
+    // Whether the engine's third-party filter is actually attached. Reported
+    // rather than assumed: a profile the filter could not be attached to is one
+    // Site information has to stop promising anything about.
+    property bool thirdPartyCookiesBlocked: false
     property string downloadDirectory: ""
     property bool acceptDownloads: false
     property bool privateBrowsing: true
@@ -14,6 +25,26 @@ QtObject {
     property bool retired: false
     property bool downloadObserversConnected: false
     property bool notificationObserversConnected: false
+    // Where this engine keeps the site data the browser's clearing action can
+    // actually take. Chromium's layout is Chromium's business, so the engine
+    // names it and Omaweb, which knows only where it put the profile, measures
+    // it. Counting the whole profile instead would report a number the action
+    // cannot move. The cache sits beside the profile rather than inside it,
+    // which is where EngineProfile puts it.
+    readonly property var siteDataEntries: ["Cookies", "Cookies-journal", "cache"]
+    // And what it holds that the clearing cannot take. Qt exposes no removal
+    // for local storage, databases or service workers at this boundary, so
+    // their size is reported separately rather than folded into a number the
+    // action cannot move.
+    readonly property var retainedDataEntries: [
+        "Local Storage", "Session Storage", "IndexedDB", "databases",
+        "File System", "Service Worker", "Shared Storage", "blob_storage"
+    ]
+    // The engine has finished taking what it was asked to take. Site
+    // information re-reads on this rather than guessing at a delay: Chromium
+    // clears asynchronously, and a size that has not moved yet reads as an
+    // action that did nothing.
+    signal browsingDataCleared()
     readonly property var profile: privateProfile
     signal downloadStarted(string runtimeId, url sourceUrl, string path, string state,
         double receivedBytes, double totalBytes)
@@ -50,17 +81,42 @@ QtObject {
         if (activeDownloadCount === 0) root.destroy()
     }
 
+    // The reader took an origin's decisions back, so the engine's own record of
+    // them goes too. Only the persistent types have one — Chromium keeps camera
+    // and microphone in a transient store keyed by the frame that asked, which
+    // no public API reaches, so a page already holding one keeps it until the
+    // site is opened again.
+    function resetOriginPermissions(origin) {
+        const persistentTypes = [
+            WebEnginePermission.PermissionType.Notifications,
+            WebEnginePermission.PermissionType.Geolocation,
+            WebEnginePermission.PermissionType.ClipboardReadWrite,
+            WebEnginePermission.PermissionType.LocalFontsAccess
+        ]
+        for (let index = 0; index < persistentTypes.length; ++index) {
+            const permission = privateProfile.queryPermission(origin, persistentTypes[index])
+            if (permission.isValid) permission.reset()
+        }
+    }
+
+    // What this engine can actually take, category by category, each on its own
+    // so a category it cannot take is one it reports rather than one that stops
+    // the rest. Chromium reaches its cookie store through a C++ accessor and
+    // not a property, so cookies go through the cookie policy; the HTTP cache
+    // it clears itself, asynchronously; and it exposes no removal at all for
+    // local storage, databases or service workers, nor any time filter. The
+    // reader is told what stayed rather than left to believe it went.
     function clearBrowsingData(dataTypes, since) {
-        // Qt exposes cookie, HTTP-cache and visited-link removal at profile
-        // scope. It does not expose time-filtered removal or a local-storage
-        // and IndexedDB remover; the browser request still reaches this engine
-        // boundary without clearing a category the reader did not select.
-        if (dataTypes.indexOf("cookies") >= 0)
-            privateProfile.cookieStore.deleteAllCookies()
-        if (dataTypes.indexOf("cache") >= 0)
-            privateProfile.clearHttpCache()
-        if (dataTypes.indexOf("history") >= 0)
-            privateProfile.clearAllVisitedLinks()
+        const untouched = []
+        if (dataTypes.indexOf("cookies") >= 0) {
+            const deleted = root.engineCookiePolicy
+                && root.engineCookiePolicy.deleteAllCookies(root.profile)
+            if (!deleted) untouched.push("cookies")
+        }
+        if (dataTypes.indexOf("storage") >= 0) untouched.push("storage")
+        if (dataTypes.indexOf("cache") >= 0) privateProfile.clearHttpCache()
+        root.browsingDataCleared()
+        return untouched
     }
 
     property Component downloadObserver: Component {
@@ -129,6 +185,15 @@ QtObject {
         httpCacheType: root.privateBrowsing
             ? WebEngineProfile.MemoryHttpCache
             : WebEngineProfile.DiskHttpCache
+        // Chromium keeps a permission store of its own and, left to itself,
+        // answers a second request from it without ever asking the embedder.
+        // That would put a decision beyond the reach of everything Omaweb
+        // offers for taking one back: the reader resets a permission, reloads,
+        // and is never asked again. Asking every time makes Omaweb's own store
+        // the only place a site's decisions live, which is also what lets
+        // allow-once mean once and clipboard read mean every time.
+        persistentPermissionsPolicy:
+            WebEngineProfile.PersistentPermissionsPolicy.AskEveryTime
 
         // Chromium hands the notification over and waits: nothing is shown
         // until `show` is called, and a page that is never told otherwise has
@@ -143,6 +208,10 @@ QtObject {
             root.notificationPresented(notificationId, notification.origin,
                 notification.title, notification.message)
         }
+
+        // Chromium reports the cache removal separately because it finishes
+        // separately, and it is the largest part of what was taken.
+        onClearHttpCacheCompleted: root.browsingDataCleared()
 
         onDownloadRequested: function(download) {
             if (!root.acceptDownloads) return
@@ -169,5 +238,9 @@ QtObject {
     Component.onCompleted: {
         if (root.engineContentBlocker)
             root.engineContentBlocker.attachToProfile(root.profile)
+        if (root.engineCookiePolicy && root.cookieController) {
+            root.thirdPartyCookiesBlocked = root.engineCookiePolicy.attachToProfile(
+                root.profile, root.cookieController, root.cookieSpaceId)
+        }
     }
 }

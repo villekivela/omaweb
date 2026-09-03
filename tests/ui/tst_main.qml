@@ -73,6 +73,15 @@ TestCase {
         return engineHost.item
     }
 
+    // A button in a row the positioner has not laid out yet sits on top of its
+    // neighbours, so a press meant for one lands on another. The first answer
+    // in a row is at the left edge; every one after it has been moved.
+    function settleActions(action) {
+        if (!action) return
+        tryVerify(function() { return action.width > 0 })
+        wait(50)
+    }
+
     // A row whose place in the list has stopped moving. The outline fills in
     // behind the model, so a row read too early is read where it is not going
     // to be.
@@ -741,12 +750,373 @@ TestCase {
         tryVerify(function() { return !section.visible })
     }
 
+    // The lock is the engine's report, not a reading of the address bar. A
+    // certificate failure is drawn as one and stays drawn while the exception
+    // the reader granted is in effect.
+    // An Auxiliary window is where a sign-in or a payment finishes, so it is
+    // exactly where a certificate failure must not be waved through. It asks
+    // the same question of the same rule as an ordinary tab, in the window that
+    // opened it.
+    function test_auxiliaryWindowsAskTheSameCertificateQuestion() {
+        const engineLoader = findChild(window.contentItem, "engineLoader")
+        openPage("https://auxiliary-opener.example/start")
+        engineLoader.item.simulateNewWindowRequest("https://localhost:9443/callback", true)
+        const auxiliary = findChild(window, "auxiliaryWindow")
+        tryVerify(function() { return auxiliary !== null && auxiliary.visible })
+        const auxiliaryEngine = findChild(auxiliary.contentItem, "auxiliaryEngineLoader")
+        tryVerify(function() { return auxiliaryEngine.item !== null })
+
+        const bar = findChild(window.contentItem, "certificateQuestionBar")
+        verify(bar !== null)
+        verify(!bar.open)
+
+        // A public site inside an Auxiliary window is refused, with no question
+        // asked of the reader.
+        const refused = auxiliaryEngine.item.simulateCertificateError({
+            "url": "https://bank.example/callback"
+        })
+        verify(!bar.open)
+        compare(auxiliaryEngine.item.certificateDecisions[refused], false)
+
+        // The Local-development main frame is the one case that is offered, and
+        // the answer reaches the Auxiliary window's own engine.
+        const offered = auxiliaryEngine.item.simulateCertificateError({})
+        tryVerify(function() { return bar.open })
+        const action = findChild(bar, "questionAction0")
+        settleActions(action)
+        mouseClick(action, action.width / 2, action.height / 2)
+        tryVerify(function() { return !bar.open })
+        compare(auxiliaryEngine.item.certificateDecisions[offered], true)
+
+        auxiliaryEngine.item.simulateWindowCloseRequest()
+        tryVerify(function() { return !auxiliary.visible })
+        window.requestActivate()
+        tryVerify(function() { return window.active })
+    }
+
+    function test_addressTriggerReportsOnlyWhatTheEngineKnows() {
+        const engine = openPage("https://reported-secure.example/page")
+        const security = findChild(window.contentItem, "securityIndicator")
+        verify(security !== null)
+        tryCompare(security, "text", "lock")
+
+        // The engine says the connection is in error; the trigger follows it
+        // rather than the https it can see in the address.
+        const requestId = engine.simulateCertificateError({})
+        tryCompare(security, "text", "warning")
+        compare(engine.connectionState, "certificate-error")
+
+        // Granting the exception does not turn the warning into a lock: the
+        // check was waived, not passed.
+        engine.respondToCertificateError(requestId, true)
+        tryCompare(security, "text", "warning")
+
+        openPage("http://reported-insecure.example/page")
+        tryCompare(security, "text", "lock_open")
+        openPage("https://reported-secure-again.example/page")
+        tryCompare(security, "text", "lock")
+    }
+
+    // An engine stops reporting a certificate failure once it has been told to
+    // accept the certificate, and starts calling the connection secure. Coming
+    // back to a site whose check the reader waived must still say so.
+    function test_aWaivedCertificateCheckStaysVisibleForTheSession() {
+        const engine = openPage("https://localhost:7443/waived")
+        const security = findChild(window.contentItem, "securityIndicator")
+        const bar = findChild(window.contentItem, "certificateQuestionBar")
+
+        const requestId = engine.simulateCertificateError({})
+        tryVerify(function() { return bar.open })
+        const action = findChild(bar, "questionAction0")
+        settleActions(action)
+        mouseClick(action, action.width / 2, action.height / 2)
+        tryVerify(function() { return !bar.open })
+        verify(browser.certificateExceptionInEffect("https://localhost:7443/waived"))
+
+        // The engine has forgotten the failure — this is exactly what it does
+        // after accepting — and the trigger still warns, because Omaweb has not.
+        engine.certificateErrorOrigin = ""
+        compare(engine.connectionState, "secure")
+        tryCompare(security, "text", "warning")
+
+        // Reading elsewhere and coming back to the same origin says it again.
+        openPage("https://elsewhere-after-waiver.example/page")
+        tryCompare(security, "text", "lock")
+        openPage("https://localhost:7443/another-page")
+        tryCompare(security, "text", "warning")
+
+        mouseClick(security, security.width / 2, security.height / 2)
+        const panel = findChild(window.contentItem, "siteInformationPanel")
+        tryVerify(function() { return panel.visible })
+        const connection = findChild(window.contentItem, "siteInformationConnection")
+        compare(connection.text,
+            "· certificate could not be verified · waived for this session")
+        keyClick(Qt.Key_Escape)
+        tryVerify(function() { return !panel.visible })
+    }
+
+    // Nothing in the panel may reach past its own border. Every answer it
+    // offers is a button the reader has to be able to hit, and a button drawn
+    // outside the panel is drawn over the page behind it.
+    function test_siteInformationKeepsEveryAnswerInsideItsBorder() {
+        const engine = openPage("https://panel-geometry.example/page")
+        const sidebar = findChild(window.contentItem, "sidebar")
+        const panel = findChild(window.contentItem, "siteInformationPanel")
+        const width = window.sidebarWidth
+        // The narrowest the sidebar goes, which is where an overflowing row
+        // shows up first. The width eases, so it is waited for.
+        window.sidebarWidth = window.sidebarMinimumWidth
+        tryVerify(function() { return sidebar.width === window.sidebarMinimumWidth })
+        engine.persistentProfilesAvailable = true
+        sidebar.statusOpen = true
+        tryVerify(function() { return panel.visible })
+
+        // The longest content the panel ever carries: a refused third party
+        // with an origin no sidebar is wide enough for, and an allowance.
+        panel.refusedThirdParties = [
+            "https://private-user-images.githubusercontent.com",
+            "https://avatars.githubusercontent.com"
+        ]
+        browser.allowThirdPartyCookies(
+            "https://collector-pxxxxxx.eu-north-1.example", "payment")
+        panel.refreshSiteInformation()
+        panel.retainedDataBytes = 322.7 * 1024 * 1024
+
+        const answers = ["clearSiteStorage", "clearSiteData", "resetSitePermissions",
+            "manageThirdParties"]
+        const lines = ["siteInformationOrigin", "siteInformationConnection",
+            "siteInformationSiteData", "siteInformationRetainedData",
+            "siteInformationCookies", "refusedThirdParty0", "cookieAllowance0",
+            "refusedThirdPartyOverflow", "siteInformationNoPermissions"]
+        for (const name of answers) settleActions(findChild(window.contentItem, name))
+
+        // Measured first, asserted last: restoring the window before the
+        // verify keeps a failure here from reaching the next test.
+        const problems = []
+        const left = panel.mapToItem(window.contentItem, 0, 0).x
+        const right = left + panel.width
+        if (right > sidebar.width) {
+            problems.push("the panel ends at " + right + ", past the sidebar's " + sidebar.width)
+        }
+        for (const name of answers.concat(lines)) {
+            const item = findChild(window.contentItem, name)
+            if (item === null) {
+                if (answers.indexOf(name) !== -1) problems.push(name + " is missing")
+                continue
+            }
+            if (!item.visible) continue
+            const at = item.mapToItem(window.contentItem, 0, 0)
+            if (at.x < left) problems.push(name + " starts at " + at.x + ", left of " + left)
+            if (at.x + item.width > right) {
+                problems.push(name + " ends at " + (at.x + item.width) + ", past " + right)
+            }
+        }
+
+        browser.revokeThirdPartyCookieAllowance(
+            "https://collector-pxxxxxx.eu-north-1.example")
+        panel.refusedThirdParties = []
+        engine.persistentProfilesAvailable = false
+        sidebar.statusOpen = false
+        window.sidebarWidth = width
+        tryVerify(function() { return !panel.visible })
+
+        compare(problems.join("; "), "")
+    }
+
+    // Every question the panel leads to is asked in the window's own centred
+    // dialog, which has room to name the scope. The panel goes away when the
+    // dialog opens, so one surface holds the question.
+    // `prepare` runs once the panel is open, for the state the lab has no
+    // engine to supply — the panel reads that when it opens, so naming it
+    // earlier would be overwritten.
+    function openSiteAction(name, prepare) {
+        const sidebar = findChild(window.contentItem, "sidebar")
+        const panel = findChild(window.contentItem, "siteInformationPanel")
+        sidebar.statusOpen = true
+        tryVerify(function() { return panel.visible })
+        if (prepare !== undefined) prepare(panel)
+        const trigger = findChild(window.contentItem, name)
+        verify(trigger !== null, name + " is missing")
+        verify(trigger.enabled, name + " is not enabled")
+        settleActions(trigger)
+        mouseClick(trigger, trigger.width / 2, trigger.height / 2)
+        const dialog = findChild(window.contentItem, "spaceDialog")
+        tryVerify(function() { return dialog.open })
+        // One surface holds the question: the panel goes away behind it.
+        verify(!panel.visible)
+        return dialog
+    }
+
+    // The only clearing that is about the site the panel is headed by. The
+    // engine exposes no per-origin removal, so the page is asked to empty its
+    // own storage and reports what it managed to take.
+    function test_siteInformationEmptiesOneSitesStorageThroughItsPage() {
+        const engine = openPage("https://site-storage.example/app")
+        const dialog = openSiteAction("clearSiteStorage")
+
+        // The dialog names the site, the scope, and what it cannot take.
+        verify(window.dialogMode === "site-storage")
+        verify(dialog.message.indexOf("site-storage.example") !== -1)
+        verify(dialog.message.indexOf("local storage, databases") !== -1)
+        verify(dialog.message.indexOf("cookies are not included") !== -1)
+        compare(engine.pageSiteDataClearCount, 0)
+
+        keyClick(Qt.Key_Return)
+        tryVerify(function() { return engine.pageSiteDataClearCount === 1 })
+        const notice = findChild(window.contentItem, "pageNotice")
+        tryVerify(function() { return notice.showing })
+        compare(notice.message, "Emptied site-storage.example's storage")
+        verify(notice.detail.indexOf("cookies are cleared for the whole Space") !== -1)
+
+        // A page holding nothing says so rather than reporting a success the
+        // reader would read as having taken something.
+        engine.pageSiteData = []
+        openSiteAction("clearSiteStorage")
+        keyClick(Qt.Key_Return)
+        tryVerify(function() {
+            return notice.message === "site-storage.example had nothing stored"
+        })
+
+        // And a page that cannot answer is not reported as one that did.
+        engine.pageSiteDataRefusal = "databases could not be emptied"
+        openSiteAction("clearSiteStorage")
+        keyClick(Qt.Key_Return)
+        tryVerify(function() {
+            return notice.message === "Could not empty site-storage.example's storage"
+        })
+        compare(notice.detail, "databases could not be emptied")
+
+        engine.pageSiteDataRefusal = ""
+        engine.pageSiteData = ["local storage", "databases"]
+    }
+
+    // Clearing cookies and cache is the Space's, because the engine can only
+    // take those for every site at once. The dialog says so before it happens.
+    function test_siteInformationClearsTheSpacesDataOnceConfirmed() {
+        const engine = openPage("https://space-data.example/page")
+        const sidebar = findChild(window.contentItem, "sidebar")
+        // An engine that keeps a profile on disk and names what it keeps
+        // there, which the lab otherwise does not.
+        engine.persistentProfilesAvailable = true
+        sidebar.siteDataEntries = ["Cookies", "cache"]
+        sidebar.retainedDataEntries = ["Local Storage", "IndexedDB"]
+        window.spaceProfileHost.untouchedCategories = ["storage"]
+
+        const panel = findChild(window.contentItem, "siteInformationPanel")
+        sidebar.statusOpen = true
+        tryVerify(function() { return panel.visible })
+        const siteData = findChild(window.contentItem, "siteInformationSiteData")
+        tryVerify(function() {
+            return siteData.text.indexOf("of cookies and cache in this Space") !== -1
+        })
+        // What the engine holds and cannot take is a line of its own, never a
+        // byte counted as clearable.
+        const retained = findChild(window.contentItem, "siteInformationRetainedData")
+        verify(retained !== null)
+        verify(!retained.visible)
+        panel.retainedDataBytes = 900 * 1024 * 1024
+        tryVerify(function() { return retained.visible })
+        compare(retained.text, "· 900 MB of storage and databases")
+        sidebar.statusOpen = false
+
+        const dialog = openSiteAction("clearSiteData")
+        verify(dialog.message.indexOf("Every site in") !== -1)
+        verify(dialog.message.indexOf("Storage and databases stay") !== -1)
+        const cleared = window.spaceProfileHost.browsingDataClearCount
+
+        keyClick(Qt.Key_Return)
+        tryVerify(function() {
+            return window.spaceProfileHost.browsingDataClearCount === cleared + 1
+        })
+        // The notice says what was taken, and the engine is what says which
+        // categories it could not take.
+        const notice = findChild(window.contentItem, "pageNotice")
+        tryVerify(function() { return notice.showing })
+        compare(notice.message, "Cleared this Space's cookies and cache")
+        compare(notice.detail, "storage stayed: this engine has no way to remove them")
+
+        engine.persistentProfilesAvailable = false
+        sidebar.siteDataEntries = []
+        sidebar.retainedDataEntries = []
+        window.spaceProfileHost.untouchedCategories = []
+    }
+
+    // A blocked third party is named in the panel and answered in the dialog,
+    // where there is room to say what allowing one is for. A reader looking at
+    // an embedded asset host cannot judge it from its name alone.
+    function test_thirdPartyAllowanceIsChosenInTheDialog() {
+        openPage("https://allowance.example/checkout")
+        const sidebar = findChild(window.contentItem, "sidebar")
+        const panel = findChild(window.contentItem, "siteInformationPanel")
+        sidebar.statusOpen = true
+        tryVerify(function() { return panel.visible })
+
+        // With nothing refused and nothing allowed there is nothing to answer.
+        const trigger = findChild(window.contentItem, "manageThirdParties")
+        verify(trigger !== null)
+        verify(!trigger.enabled)
+
+        // The lab has no third-party filter, so the origins one would have
+        // refused are named here.
+        const refused = ["https://pay.example", "https://cdn.example",
+            "https://images.example", "https://fonts.example"]
+        const name = function(surface) { surface.refusedThirdParties = refused }
+        panel.refusedThirdParties = refused
+        tryVerify(function() { return trigger.enabled })
+        // Only the first few are listed; the rest are the dialog's to show.
+        verify(findChild(window.contentItem, "refusedThirdParty2") !== null)
+        compare(findChild(window.contentItem, "refusedThirdParty3"), null)
+        const overflow = findChild(window.contentItem, "refusedThirdPartyOverflow")
+        tryVerify(function() { return overflow.visible })
+        compare(overflow.text, "· and 1 more, listed under third parties")
+
+        sidebar.statusOpen = false
+
+        const dialog = openSiteAction("manageThirdParties", name)
+        verify(dialog.message.indexOf("not working") !== -1)
+        verify(dialog.message.indexOf("does not need it") !== -1)
+        compare(window.thirdPartyRows.length, 8)
+        compare(findChild(window.contentItem, "commandDialogRow0").objectName,
+            "commandDialogRow0")
+
+        // The second row is the payment answer for the first origin.
+        keyClick(Qt.Key_Down)
+        keyClick(Qt.Key_Return)
+        tryVerify(function() { return browser.thirdPartyCookieAllowances().length === 1 })
+        compare(browser.thirdPartyCookieAllowances()[0].origin, "https://pay.example")
+        compare(browser.thirdPartyCookieAllowances()[0].purpose, "payment")
+        verify(browser.thirdPartyCookiesAllowed(browser.activeSpaceId, "https://pay.example"))
+        const notice = findChild(window.contentItem, "pageNotice")
+        tryVerify(function() { return notice.showing })
+        compare(notice.message, "Allowing https://pay.example")
+        verify(notice.detail.indexOf("for a payment") !== -1)
+
+        // The panel now names it as allowed, beside the ones still refused.
+        sidebar.statusOpen = true
+        tryVerify(function() { return panel.visible })
+        panel.refusedThirdParties = refused
+        const allowed = findChild(window.contentItem, "cookieAllowance0")
+        verify(allowed !== null)
+        compare(allowed.text, "· https://pay.example — allowed for payment")
+        sidebar.statusOpen = false
+
+        // An allowance is taken back the same way, from the top of the list.
+        openSiteAction("manageThirdParties", name)
+        compare(window.thirdPartyRows[0].purpose, "")
+        keyClick(Qt.Key_Return)
+        tryVerify(function() { return browser.thirdPartyCookieAllowances().length === 0 })
+        verify(!browser.thirdPartyCookiesAllowed(browser.activeSpaceId, "https://pay.example"))
+        tryVerify(function() { return notice.message === "Stopped allowing https://pay.example" })
+
+        panel.refusedThirdParties = []
+    }
+
     function test_siteStatusStaysWithAddressAndDismisses() {
         openPage("https://status-position.example")
         const sidebar = findChild(window.contentItem, "sidebar")
         const address = findChild(window.contentItem, "addressButton")
         const security = findChild(window.contentItem, "securityIndicator")
-        const panel = findChild(window.contentItem, "siteStatusPanel")
+        const panel = findChild(window.contentItem, "siteInformationPanel")
         verify(sidebar !== null)
         verify(address !== null)
         verify(security !== null)

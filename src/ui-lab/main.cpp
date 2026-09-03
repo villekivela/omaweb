@@ -113,6 +113,10 @@ int main(int argc, char *argv[])
         QStringLiteral("keyboardNavigation"), &keyboardNavigation);
     engine.rootContext()->setContextProperty(
         QStringLiteral("engineContentBlocker"), QVariant::fromValue<QObject *>(nullptr));
+    // The lab runs no engine, so there is no third-party filter to attach.
+    // Site information reads the gap off the adapter's capabilities.
+    engine.rootContext()->setContextProperty(
+        QStringLiteral("engineCookiePolicy"), QVariant::fromValue<QObject *>(nullptr));
     engine.rootContext()->setContextProperty(QStringLiteral("theme"), &theme);
     engine.rootContext()->setContextProperty(QStringLiteral("windowManager"), &windowManager);
     engine.rootContext()->setContextProperty(

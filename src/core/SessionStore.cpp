@@ -595,6 +595,34 @@ bool SessionStore::savePermissionDecision(const QString &spaceId, const QString 
     return query.exec();
 }
 
+QVariantList SessionStore::permissionsForOrigin(const QString &spaceId,
+    const QString &origin) const
+{
+    QSqlQuery query(spaceDatabase(spaceId));
+    query.prepare(QStringLiteral("SELECT permission, decision FROM site_permissions "
+                                 "WHERE origin = ? ORDER BY permission"));
+    query.addBindValue(origin);
+    QVariantList permissions;
+    if (!query.exec()) {
+        return permissions;
+    }
+    while (query.next()) {
+        permissions.append(QVariantMap{
+            {QStringLiteral("permission"), query.value(0).toString()},
+            {QStringLiteral("decision"), query.value(1).toInt()},
+        });
+    }
+    return permissions;
+}
+
+bool SessionStore::clearPermissionsForOrigin(const QString &spaceId, const QString &origin)
+{
+    QSqlQuery query(spaceDatabase(spaceId));
+    query.prepare(QStringLiteral("DELETE FROM site_permissions WHERE origin = ?"));
+    query.addBindValue(origin);
+    return query.exec();
+}
+
 bool SessionStore::recordDownload(const QString &id, const QUrl &url, const QString &path,
     const QString &state, qint64 receivedBytes, qint64 totalBytes)
 {

@@ -2,6 +2,8 @@
 
 #include <QRegularExpression>
 #include <QDir>
+#include <QDirIterator>
+#include <QFileInfo>
 #include <QFile>
 #include <QHostAddress>
 #include <QJsonArray>
@@ -13,6 +15,7 @@
 #include <QUuid>
 #include <QStandardPaths>
 
+#include <algorithm>
 #include <iterator>
 
 namespace omaweb {
@@ -95,12 +98,23 @@ BrowserController::BrowserController(QString dataRoot, QString engineName,
 BrowserController::BrowserController(QString dataRoot, QString engineName,
     bool privateBrowsing, QSharedPointer<QHash<QString, int>> sessionPermissionDecisions,
     QString configRoot, QObject *parent)
+    : BrowserController(std::move(dataRoot), std::move(engineName), privateBrowsing,
+        std::move(sessionPermissionDecisions), QSharedPointer<SessionSiteState>::create(),
+        std::move(configRoot), parent)
+{
+}
+
+BrowserController::BrowserController(QString dataRoot, QString engineName,
+    bool privateBrowsing, QSharedPointer<QHash<QString, int>> sessionPermissionDecisions,
+    QSharedPointer<SessionSiteState> sessionSiteState,
+    QString configRoot, QObject *parent)
     : QObject(parent)
     , m_store(std::move(dataRoot))
     , m_engineName(std::move(engineName))
     , m_configRoot(std::move(configRoot))
     , m_privateBrowsing(privateBrowsing)
     , m_sessionPermissionDecisions(std::move(sessionPermissionDecisions))
+    , m_sessionSiteState(std::move(sessionSiteState))
 {
     m_pinnedTabs.setSourceModel(&m_tabs);
     m_pinnedTabs.setFilterRole(TabListModel::PinnedRole);
@@ -1680,11 +1694,50 @@ bool BrowserController::clearBrowsingData(const QStringList &dataTypes, qint64 s
     return true;
 }
 
+int BrowserController::permissionPolicy(const QString &permission) const
+{
+    const auto normalizedPermission = permission.trimmed().toLower();
+    // The capabilities whose answer belongs to the origin rather than to the
+    // moment: the reader can see afterwards that a site holds one, and take it
+    // back where Site information lists it.
+    static const QSet<QString> rememberable{
+        QStringLiteral("camera"),
+        QStringLiteral("microphone"),
+        QStringLiteral("camera-and-microphone"),
+        QStringLiteral("geolocation"),
+        QStringLiteral("notifications"),
+    };
+    // Reading the clipboard and sharing a screen hand over whatever happens to
+    // be there at that instant, which no earlier answer could have covered. So
+    // they are asked every time and no answer is written down.
+    static const QSet<QString> eachTime{
+        QStringLiteral("clipboard-read"),
+        QStringLiteral("screen-sharing"),
+        QStringLiteral("pointer-lock"),
+        QStringLiteral("local-fonts"),
+    };
+    if (rememberable.contains(normalizedPermission)) {
+        return Rememberable;
+    }
+    if (eachTime.contains(normalizedPermission)) {
+        return AskedEachTime;
+    }
+    // Everything else, named or not: outside the daily-driver contract, or a
+    // capability this build does not know. Neither is a question worth asking.
+    return Refused;
+}
+
 int BrowserController::permissionDecision(const QUrl &url, const QString &permission)
 {
     const auto origin = normalizedOrigin(url);
     const auto normalizedPermission = permission.trimmed().toLower();
-    if (origin.isEmpty() || normalizedPermission.isEmpty()) {
+    // A capability Omaweb has no policy for is refused before anything else is
+    // considered, including whether the address named an origin at all.
+    const auto policy = permissionPolicy(normalizedPermission);
+    if (policy == Refused) {
+        return Block;
+    }
+    if (origin.isEmpty() || policy == AskedEachTime) {
         return Ask;
     }
     const auto key = sessionPermissionKey(origin, normalizedPermission);
@@ -1707,6 +1760,16 @@ bool BrowserController::setPermissionDecision(const QUrl &url, const QString &pe
         || decision < AllowOnce || decision > Block) {
         return false;
     }
+    const auto policy = permissionPolicy(normalizedPermission);
+    if (policy == Refused) {
+        return false;
+    }
+    // The answer reaches the page that asked; what it does not do is outlive
+    // the request. Persisting one would be the reader agreeing to a use they
+    // will not be shown again.
+    if (policy == AskedEachTime) {
+        return decision != AllowPersistently;
+    }
     if (decision == AllowOnce || m_privateBrowsing) {
         m_sessionPermissionDecisions->insert(
             sessionPermissionKey(origin, normalizedPermission), decision);
@@ -1714,6 +1777,191 @@ bool BrowserController::setPermissionDecision(const QUrl &url, const QString &pe
     }
     return m_store.savePermissionDecision(
         m_activeSpaceId, origin, normalizedPermission, decision);
+}
+
+QVariantList BrowserController::sitePermissions(const QUrl &url) const
+{
+    const auto origin = normalizedOrigin(url);
+    if (origin.isEmpty()) {
+        return {};
+    }
+    QVariantList permissions;
+    QSet<QString> listed;
+    if (!m_privateBrowsing) {
+        permissions = m_store.permissionsForOrigin(m_activeSpaceId, origin);
+        for (const auto &entry : permissions) {
+            listed.insert(entry.toMap().value(QStringLiteral("permission")).toString());
+        }
+    }
+    // The session's own answers count too, and are the only ones a Private
+    // window has. Read without being spent: listing what a site holds is not
+    // the site asking to use it.
+    const auto prefix = m_activeSpaceId + QChar(0x1f) + origin + QChar(0x1f);
+    for (auto it = m_sessionPermissionDecisions->cbegin();
+         it != m_sessionPermissionDecisions->cend(); ++it) {
+        if (!it.key().startsWith(prefix)) {
+            continue;
+        }
+        const auto permission = it.key().mid(prefix.size());
+        if (listed.contains(permission)) {
+            continue;
+        }
+        permissions.append(QVariantMap{
+            {QStringLiteral("permission"), permission},
+            {QStringLiteral("decision"), it.value()},
+        });
+    }
+    std::sort(permissions.begin(), permissions.end(), [](const auto &left, const auto &right) {
+        return left.toMap().value(QStringLiteral("permission")).toString()
+            < right.toMap().value(QStringLiteral("permission")).toString();
+    });
+    return permissions;
+}
+
+bool BrowserController::resetSitePermissions(const QUrl &url)
+{
+    const auto origin = normalizedOrigin(url);
+    if (origin.isEmpty()) {
+        return false;
+    }
+    const auto prefix = m_activeSpaceId + QChar(0x1f) + origin + QChar(0x1f);
+    m_sessionPermissionDecisions->removeIf(
+        [&prefix](auto it) { return it.key().startsWith(prefix); });
+    m_sessionSiteState->forgetThirdParty(m_activeSpaceId, origin);
+    emit thirdPartyCookieAllowancesChanged();
+    emit engineOriginPermissionsResetRequested(m_activeSpaceId, url);
+    if (m_privateBrowsing) {
+        return true;
+    }
+    return m_store.clearPermissionsForOrigin(m_activeSpaceId, origin);
+}
+
+bool BrowserController::localDevelopmentSite(const QUrl &url) const
+{
+    return localDevelopmentHost(url.host());
+}
+
+bool BrowserController::localDevelopmentHost(const QString &host)
+{
+    const auto name = host.trimmed().toLower();
+    if (name.isEmpty()) {
+        return false;
+    }
+    QHostAddress literal;
+    // An address the reader typed as a literal is a machine they can point at:
+    // their own, or one on the network in front of them.
+    if (literal.setAddress(name)
+        || (name.startsWith(u'[') && name.endsWith(u']')
+            && literal.setAddress(name.mid(1, name.size() - 2)))) {
+        return true;
+    }
+    return name == QStringLiteral("localhost")
+        || name.endsWith(QStringLiteral(".localhost"))
+        || name.endsWith(QStringLiteral(".test"));
+}
+
+bool BrowserController::mayOfferCertificateException(const QUrl &url, bool overridable,
+    bool mainFrame, bool fatal) const
+{
+    // Fatal and non-overridable are the engine's own refusals, and Omaweb does
+    // not reach past them. A subresource leaves the reader nothing to decide
+    // about: the page in front of them is not the request that failed.
+    if (!overridable || fatal || !mainFrame) {
+        return false;
+    }
+    if (url.scheme().toLower() != QStringLiteral("https")) {
+        return false;
+    }
+    return localDevelopmentSite(url);
+}
+
+bool BrowserController::thirdPartyCookiesAllowed(const QString &spaceId,
+    const QUrl &origin) const
+{
+    // A Private window has no Space of its own, so its allowances key on the
+    // empty name its shared session already uses for Site permissions.
+    return m_sessionSiteState->thirdPartyCookiesAllowed(spaceId, normalizedOrigin(origin));
+}
+
+bool BrowserController::allowThirdPartyCookies(const QUrl &origin, const QString &purpose)
+{
+    if (!m_sessionSiteState->allowThirdPartyCookies(m_activeSpaceId,
+            normalizedOrigin(origin), purpose.trimmed().toLower())) {
+        return false;
+    }
+    emit thirdPartyCookieAllowancesChanged();
+    return true;
+}
+
+bool BrowserController::revokeThirdPartyCookieAllowance(const QUrl &origin)
+{
+    if (!m_sessionSiteState->revokeThirdPartyCookies(
+            m_activeSpaceId, normalizedOrigin(origin))) {
+        return false;
+    }
+    emit thirdPartyCookieAllowancesChanged();
+    return true;
+}
+
+QVariantList BrowserController::thirdPartyCookieAllowances() const
+{
+    return m_sessionSiteState->thirdPartyCookieAllowances(m_activeSpaceId);
+}
+
+bool BrowserController::recordCertificateException(const QUrl &url)
+{
+    const auto origin = normalizedOrigin(url);
+    if (origin.isEmpty()) {
+        return false;
+    }
+    m_sessionSiteState->allowCertificate(m_activeSpaceId, origin);
+    emit certificateExceptionsChanged();
+    return true;
+}
+
+bool BrowserController::certificateExceptionInEffect(const QUrl &url) const
+{
+    return m_sessionSiteState->certificateAllowed(m_activeSpaceId, normalizedOrigin(url));
+}
+
+QStringList BrowserController::certificateExceptionOrigins() const
+{
+    return m_sessionSiteState->allowedCertificateOrigins(m_activeSpaceId);
+}
+
+QStringList BrowserController::allowedThirdPartyCookieOrigins(const QString &spaceId) const
+{
+    return m_sessionSiteState->allowedThirdPartyCookieOrigins(spaceId);
+}
+
+double BrowserController::siteDataBytes(const QString &spaceId,
+    const QStringList &entries) const
+{
+    const auto path = profilePathForSpace(spaceId);
+    if (path.isEmpty() || entries.isEmpty() || !QFileInfo::exists(path)) {
+        return -1;
+    }
+    const QDir profile(path);
+    double bytes = 0;
+    for (const auto &entry : entries) {
+        const QFileInfo named(profile.filePath(entry));
+        if (!named.exists()) {
+            continue;
+        }
+        // Chromium keeps cookies in one file and storage in a tree, so an
+        // engine may name either.
+        if (named.isFile()) {
+            bytes += double(named.size());
+            continue;
+        }
+        QDirIterator files(named.absoluteFilePath(),
+            QDir::Files | QDir::Hidden | QDir::NoDotAndDotDot, QDirIterator::Subdirectories);
+        while (files.hasNext()) {
+            files.next();
+            bytes += double(files.fileInfo().size());
+        }
+    }
+    return bytes;
 }
 
 bool BrowserController::externalProtocolAllowed(const QUrl &url, const QString &scheme) const
@@ -1989,10 +2237,11 @@ QUrl BrowserController::resolveConfiguredInput(const QString &input) const
     QHostAddress literal;
     const auto explicitPort = authority.contains(QRegularExpression(
         QStringLiteral("(?:\\]|[^:]):[0-9]+$")));
-    const auto localAddress = host.compare(QStringLiteral("localhost"), Qt::CaseInsensitive) == 0
-        || host.endsWith(QStringLiteral(".localhost"), Qt::CaseInsensitive)
-        || host.endsWith(QStringLiteral(".test"), Qt::CaseInsensitive)
-        || literal.setAddress(host);
+    literal.setAddress(host);
+    // The same hosts a Local-development site is recognised by, so an address
+    // that resolves as local is the one a certificate exception may be offered
+    // for.
+    const auto localAddress = localDevelopmentHost(host);
     const auto publicAddress = !value.contains(QRegularExpression(QStringLiteral("\\s")))
         && host.contains('.') && !host.startsWith('.') && !host.endsWith('.');
     if (localAddress || publicAddress || explicitPort) {

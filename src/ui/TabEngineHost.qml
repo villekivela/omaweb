@@ -47,6 +47,8 @@ Item {
     signal newTabRequested(var engine, var request, url requestedUrl)
     signal backgroundTabRequested(url requestedUrl)
     signal sitePermissionRequested(var engine, string requestId, string origin, string permission)
+    signal certificateErrorRaised(var engine, string requestId, var failure)
+    signal pageSiteDataCleared(string origin, var cleared, string error)
     signal pageContextRequested(var engine, var context)
     signal browserPromptRequested(var engine, string requestId, var prompt)
     signal fileSelectionRequested(var engine, string requestId, var selection)
@@ -162,11 +164,32 @@ Item {
     // Profile-wide data removal is an engine operation, and it reaches Spaces
     // that are not on show — including ones with no profile open, which the
     // table builds on being asked.
+    // Returns the categories the engine could not take, so the browser can say
+    // what stayed rather than claim everything went.
     function clearBrowsingData(spaceIds, dataTypes, since) {
+        const untouched = []
         for (let index = 0; index < spaceIds.length; ++index) {
             const host = root.spaceProfiles.hostFor(spaceIds[index])
-            if (host) host.clearBrowsingData(dataTypes, since)
+            if (!host) continue
+            const stayed = host.clearBrowsingData(dataTypes, since) || []
+            for (let named = 0; named < stayed.length; ++named) {
+                if (untouched.indexOf(stayed[named]) === -1) untouched.push(stayed[named])
+            }
         }
+        return untouched
+    }
+
+    // An origin's decisions are the browser's to keep, so the engine's own
+    // record of them is dropped when the reader takes them back.
+    // The page empties its own storage, which is the only removal that is
+    // about one origin rather than a whole Space.
+    function clearPageSiteData() {
+        if (root.activeEngine) root.activeEngine.clearPageSiteData()
+    }
+
+    function resetOriginPermissions(spaceId, origin) {
+        const host = root.spaceProfiles.hostFor(spaceId)
+        if (host) host.resetOriginPermissions(origin)
     }
 
     // Putting a Space away costs it its pages, which is the memory policy the
@@ -559,6 +582,16 @@ Item {
                 function onSitePermissionRequested(requestId, origin, permission) {
                     root.sitePermissionRequested(
                         tabSlot.engine, requestId, origin, permission)
+                }
+
+                function onCertificateErrorRaised(requestId, failure) {
+                    root.certificateErrorRaised(tabSlot.engine, requestId, failure)
+                }
+
+                function onPageSiteDataCleared(origin, cleared, error) {
+                    // Only the page the reader asked about answers to them.
+                    if (tabSlot.engine !== root.activeEngine) return
+                    root.pageSiteDataCleared(origin, cleared, error)
                 }
 
                 function onBrowserPromptRequested(requestId, prompt) {

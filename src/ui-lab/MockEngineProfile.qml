@@ -3,6 +3,26 @@ import QtQuick
 QtObject {
     property string profilePath: ""
     property var engineContentBlocker: null
+    // The lab reaches no network and so blocks nothing. It says so rather than
+    // being trusted: an engine that cannot refuse a third party is one Site
+    // information has to name.
+    property var engineCookiePolicy: null
+    property var cookieController: null
+    property string cookieSpaceId: ""
+    readonly property bool thirdPartyCookiesBlocked: false
+    // The lab keeps nothing on disk, so it names nothing and Site information
+    // has no size to show. A test that needs the shell stood up against an
+    // engine that does keep site data names some.
+    property var siteDataEntries: []
+    property var retainedDataEntries: []
+    property var resetPermissionOrigins: []
+    // What this engine would not be able to take, so the shell's report of it
+    // can be reviewed against an engine that falls short.
+    property var untouchedCategories: []
+    function resetOriginPermissions(origin) {
+        resetPermissionOrigins = resetPermissionOrigins.concat([String(origin)])
+    }
+    signal browsingDataCleared()
     property string downloadDirectory: ""
     property bool acceptDownloads: false
     property bool privateBrowsing: true
@@ -36,5 +56,9 @@ QtObject {
         dismissedNotifications = dismissedNotifications.concat([String(notificationId)])
     }
     function retire() { destroy() }
-    function clearBrowsingData(dataTypes, since) { browsingDataClearCount += 1 }
+    function clearBrowsingData(dataTypes, since) {
+        browsingDataClearCount += 1
+        browsingDataCleared()
+        return untouchedCategories
+    }
 }

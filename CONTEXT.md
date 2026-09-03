@@ -76,6 +76,18 @@ _Avoid_: Backup, account
 A Space-specific decision that allows or blocks an origin from using a protected browser capability. A Private window retains its Site permissions only while the shared private session exists.
 _Avoid_: System permission, engine permission
 
+**Site information**:
+What Omaweb states about the site on show, for the Space it is on show in: its origin, the connection the engine reports, the requests Content blocking refused, the site data the Space holds, the origin's Site permissions, and the confirmed ways to clear that data or reset those decisions. Reached from the address trigger, which reports the connection from the engine's own facts and never from the address itself.
+_Avoid_: Site status, page info, security panel
+
+**Certificate exception**:
+A reader's decision to let one blocked certificate failure through. Omaweb offers it only for an engine-overridable, non-fatal failure in a Local-development site's own main frame, and writes nothing down, so a later session asks again. The engine holds the exception for the rest of the session and cannot be made to forget it, so Site information and the address trigger keep reporting the connection as in error for as long as it stands.
+_Avoid_: Trusted certificate, security exception, certificate override
+
+**Third-party cookie allowance**:
+A temporary permission for one origin to keep cookies and site storage while embedded in another site, granted for a named authentication or payment flow inside one Space. It is held in memory only, listed in Site information, and revocable there, so it cannot cross a Space or outlive the session that granted it.
+_Avoid_: Cookie exception, tracking allowance
+
 **Content blocking**:
 Omaweb's built-in removal of unwanted network requests and page elements using subscribed filter lists. Content blocking is a browser capability and does not depend on an installed extension.
 _Avoid_: Ad-blocking extension

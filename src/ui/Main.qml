@@ -82,6 +82,53 @@ ApplicationWindow {
     readonly property bool inlinePdfViewingAvailable: engineLoader.item !== null
         && (engineLoader.item.capabilities
             & engineLoader.item.inlinePdfViewingCapability) !== 0
+    // The two halves of a site's security contract an engine can be missing,
+    // and whether it keeps a Space's site data on disk at all. Site information
+    // says which of its lines the engine cannot answer for rather than drawing
+    // a reassuring blank.
+    readonly property bool certificateDecisionsAvailable: engineLoader.item !== null
+        && (engineLoader.item.capabilities
+            & engineLoader.item.certificateDecisionsCapability) !== 0
+    readonly property bool thirdPartyCookieControlAvailable: engineLoader.item !== null
+        && (engineLoader.item.capabilities
+            & engineLoader.item.thirdPartyCookieControlCapability) !== 0
+    readonly property bool siteDataOnDisk: engineLoader.item !== null
+        && (engineLoader.item.capabilities
+            & engineLoader.item.persistentProfilesCapability) !== 0
+    // The permission policies the core answers with, named here so nothing in
+    // the interface compares against a bare number.
+    readonly property int permissionRefused: 0
+    readonly property int permissionAskedEachTime: 1
+    readonly property int permissionRememberable: 2
+    // Bumped whenever the core's record of granted certificate exceptions
+    // changes, and read by the state below so that the state follows it. A
+    // binding cannot see into an invokable on its own.
+    property int certificateExceptionGeneration: 0
+    // Bumped when the engine reports it has finished clearing, so Site
+    // information re-reads a size that has actually moved.
+    property int siteDataGeneration: 0
+    // The categories the engine said it could not take, from the last clearing
+    // it was asked for.
+    property var untouchedDataCategories: []
+    // Every third party this page has had refused, and every one it has been
+    // allowed, as the rows the dialog offers.
+    property var thirdPartyRows: []
+    // What the connection to the page on show is, read off the engine drawing
+    // it — and then contradicted where Omaweb knows better. An engine keeps an
+    // accepted certificate for as long as its profile lives and offers no way
+    // back, so once the reader has waived a check the engine stops reporting
+    // it and starts calling the connection secure. Omaweb's own record of the
+    // waiver is what keeps the address trigger honest about it.
+    readonly property string connectionState: {
+        const generation = window.certificateExceptionGeneration
+        const reported = engineLoader.item
+            ? engineLoader.item.connectionState : "internal"
+        if (reported === "internal" || generation < 0) return reported
+        return window.windowBrowser.certificateExceptionInEffect(
+            window.windowBrowser.activeUrl) ? "certificate-error" : reported
+    }
+    readonly property bool insecureContentBlocked: engineLoader.item === null
+        || engineLoader.item.insecureContentBlocked
 
     // No page to show: the tab on show is blank and no engine is drawing it.
     // That covers a resting Space and an `about:blank` the reader navigated to
@@ -150,6 +197,13 @@ ApplicationWindow {
     property real pageMenuY: 0
     property var pageMenuActions: []
     property bool permissionOpen: false
+    // A certificate failure the engine is holding a load for. Refusing is the
+    // default and has already happened; what is decided here is only whether
+    // Omaweb will offer the reader a way past this one.
+    property var pendingCertificateFailure: ({})
+    property string pendingCertificateFailureId: ""
+    property var pendingCertificateResponder: null
+    property bool certificateQuestionOpen: false
     property var pendingBrowserPrompt: ({})
     property var pendingBrowserPromptResponder: null
     property string pendingBrowserPromptId: ""
@@ -767,6 +821,124 @@ ApplicationWindow {
         window.pendingPermissionResponder = null
     }
 
+    // The engine is blocking the load and waiting. An exception is offered only
+    // for what the core's rule allows: an overridable, non-fatal failure in the
+    // main frame of a Local-development site. Everything else is refused here,
+    // and nothing about an answer is written down.
+    function showCertificateError(engine, requestId, failure, inFront) {
+        // A question about a page nobody is looking at is a question the reader
+        // cannot answer, so it is refused: a retained tab in another Space
+        // reaches no bar. An Auxiliary window is in front of them by
+        // definition, and says so.
+        const visible = inFront === true || engine === engineLoader.item
+        const offerable = visible
+            && window.windowBrowser.mayOfferCertificateException(failure.url,
+                failure.overridable === true, failure.mainFrame === true,
+                failure.fatal === true)
+        if (!offerable) {
+            engine.respondToCertificateError(requestId, false)
+            return
+        }
+        window.pendingCertificateFailure = failure
+        window.pendingCertificateFailureId = requestId
+        window.pendingCertificateResponder = engine
+        window.certificateQuestionOpen = true
+    }
+
+    function respondToCertificateError(accepted) {
+        if (window.pendingCertificateResponder) {
+            window.pendingCertificateResponder.respondToCertificateError(
+                window.pendingCertificateFailureId, accepted)
+        }
+        // The engine will now keep the accepted certificate for as long as its
+        // profile lives and stop reporting the failure. Recording the waiver
+        // is what lets the address trigger keep saying the check was waived.
+        if (accepted) {
+            window.windowBrowser.recordCertificateException(
+                window.pendingCertificateFailure.url)
+        }
+        window.certificateQuestionOpen = false
+        window.pendingCertificateResponder = null
+        window.pendingCertificateFailureId = ""
+    }
+
+    // A third party a page had refused can be allowed for one named flow, and
+    // an allowance can be taken back. Both are rows rather than buttons: the
+    // reader is choosing among origins they cannot judge by name, so each row
+    // says the whole origin and what allowing it would be for.
+    function refreshThirdPartyRows() {
+        const rows = []
+        const allowances = window.windowBrowser.thirdPartyCookieAllowances()
+        for (let index = 0; index < allowances.length; ++index) {
+            rows.push({
+                "label": "stop allowing " + allowances[index].origin,
+                "note": "allowed for " + allowances[index].purpose,
+                "origin": allowances[index].origin,
+                "purpose": ""
+            })
+        }
+        // Read from the panel, which asked the engine's filter when it opened.
+        // Asking again here would be a second place that knows how to.
+        const refused = sidebar.refusedThirdParties
+        for (let index = 0; index < refused.length; ++index) {
+            rows.push({
+                "label": "allow " + refused[index] + " for a sign-in",
+                "note": "until this session ends",
+                "origin": refused[index],
+                "purpose": "authentication"
+            })
+            rows.push({
+                "label": "allow " + refused[index] + " for a payment",
+                "note": "until this session ends",
+                "origin": refused[index],
+                "purpose": "payment"
+            })
+        }
+        window.thirdPartyRows = rows
+    }
+
+    function answerThirdPartyRow(index) {
+        const row = window.thirdPartyRows[index]
+        if (!row) return
+        if (row.purpose.length === 0) {
+            if (window.windowBrowser.revokeThirdPartyCookieAllowance(row.origin)) {
+                window.showNotice("cookie", "Stopped allowing " + row.origin,
+                    "it is refused again from the next request", 4200)
+            }
+            return
+        }
+        if (window.windowBrowser.allowThirdPartyCookies(row.origin, row.purpose)) {
+            window.showNotice("cookie", "Allowing " + row.origin,
+                "for a " + (row.purpose === "payment" ? "payment" : "sign-in")
+                    + " · until this session ends · reload the page to use it", 4200)
+        }
+    }
+
+    function clearSpaceSiteData() {
+        const cleared = window.windowBrowser.clearBrowsingData(
+            ["cookies", "storage", "cache"], 0)
+        const stayed = window.untouchedDataCategories
+        window.showNotice(cleared ? "delete_sweep" : "block",
+            cleared
+                ? "Cleared this Space's cookies and cache"
+                : "Could not clear this Space's site data",
+            cleared && stayed.length > 0
+                ? stayed.join(" and ") + " stayed: this engine has no way to remove them"
+                : "")
+    }
+
+    function resetSitePermissions() {
+        const origin = window.windowBrowser.activeUrl
+        const reset = window.windowBrowser.resetSitePermissions(origin)
+        // Reloading does not take a capability off a page: the engine answers a
+        // granted one from a store keyed by the frame that asked, and a reload
+        // reuses that frame. Opening the site again is a new frame, and asks.
+        window.showNotice(reset ? "shield_person" : "block",
+            reset ? "Reset every decision for this site"
+                  : "Could not reset the decisions for this site",
+            reset ? "a page already holding one keeps it until you open the site again" : "")
+    }
+
     function showBrowserPrompt(engine, requestId, prompt) {
         if (engine !== engineLoader.item) {
             engine.respondToBrowserPrompt(requestId, false, {})
@@ -1055,7 +1227,8 @@ ApplicationWindow {
         sequence: "Esc"
         enabled: engineLoader.siteFullscreenActive && !window.omnibarOpen
             && !window.settingsOpen && !window.historyOpen && !window.pageMenuOpen
-            && !window.permissionOpen && window.dialogMode.length === 0
+            && !window.permissionOpen && !window.certificateQuestionOpen
+            && window.dialogMode.length === 0
         context: Qt.WindowShortcut
         onActivated: window.exitSiteFullscreen()
     }
@@ -1087,11 +1260,30 @@ ApplicationWindow {
                 privateWindow: window.privateWindow
                 collapsed: window.sidebarCollapsed
                 blockedRequestCount: window.visibleBlockedRequestCount
+                connectionState: window.connectionState
+                certificateDecisionsAvailable: window.certificateDecisionsAvailable
+                thirdPartyCookieControlAvailable: window.thirdPartyCookieControlAvailable
+                siteDataOnDisk: window.siteDataOnDisk
+                insecureContentBlocked: window.insecureContentBlocked
+                cookiePolicy: engineCookiePolicy
+                siteDataEntries: window.spaceProfileHost
+                    ? window.spaceProfileHost.siteDataEntries : []
+                retainedDataEntries: window.spaceProfileHost
+                    ? window.spaceProfileHost.retainedDataEntries : []
+                siteDataGeneration: window.siteDataGeneration
                 canGoBack: engineLoader.item ? engineLoader.item.canGoBack : false
                 canGoForward: engineLoader.item ? engineLoader.item.canGoForward : false
                 useFavicons: window.useFavicons
                 tintFavicons: window.tintFavicons
                 settingsAttention: settingsSurface.needsAttention
+
+                // The panel states; the window asks. Opening the dialog puts
+                // the panel away, so there is one surface holding the question.
+                onSiteActionRequested: function(action) {
+                    sidebar.statusOpen = false
+                    if (action === "third-party") window.refreshThirdPartyRows()
+                    window.dialogMode = action
+                }
 
                 // A drag is already following the pointer; easing it too
                 // would make the seam lag behind the hand holding it.
@@ -1252,6 +1444,30 @@ ApplicationWindow {
                         window.permissionOpen = true
                     }
 
+                    onCertificateErrorRaised: function(engine, requestId, failure) {
+                        window.showCertificateError(engine, requestId, failure)
+                    }
+
+                    // What the page managed to empty of its own storage. A page
+                    // that held nothing says so rather than reporting a success
+                    // the reader would read as having taken something.
+                    onPageSiteDataCleared: function(origin, cleared, error) {
+                        if (error.length > 0) {
+                            window.showNotice("block",
+                                "Could not empty " + origin + "'s storage", error, 4200)
+                            return
+                        }
+                        if (cleared.length === 0) {
+                            window.showNotice("delete_sweep",
+                                origin + " had nothing stored", "", 3000)
+                            return
+                        }
+                        window.showNotice("delete_sweep",
+                            "Emptied " + origin + "'s storage",
+                            cleared.join(", ") + " · cookies are cleared for the whole Space",
+                            4200)
+                    }
+
                     onBrowserPromptRequested: function(engine, requestId, prompt) {
                         window.showBrowserPrompt(engine, requestId, prompt)
                     }
@@ -1356,6 +1572,7 @@ ApplicationWindow {
                 }
 
                 PageQuestionBar {
+                    id: permissionBar
                     objectName: "sitePermissionBar"
                     anchors.left: parent.left
                     anchors.right: parent.right
@@ -1365,18 +1582,61 @@ ApplicationWindow {
                     iconFontFamily: materialSymbols.name
                     open: window.permissionOpen
                     glyph: "shield_person"
+                    // What Omaweb will do with the answer is the core's rule,
+                    // not the bar's: a capability whose use the reader cannot
+                    // see being spent is never offered a persistent answer, and
+                    // the bar says so instead of quietly dropping the button.
+                    readonly property int policy: window.pendingPermissionType.length > 0
+                        ? window.windowBrowser.permissionPolicy(window.pendingPermissionType)
+                        : 0
                     message: window.pendingPermissionOrigin
                         + " asked for a protected browser capability"
                     detail: window.pendingPermissionType
-                        + " · remembered for this Space only"
+                        + (permissionBar.policy === window.permissionRememberable
+                            ? " · remembered for this Space only"
+                            : " · asked every time, never remembered")
+                    actions: permissionBar.policy === window.permissionRememberable
+                        ? [
+                            {"label": "Allow once", "decision": 1},
+                            {"label": "Always allow", "decision": 2,
+                                "enabled": !window.privateWindow},
+                            {"label": "Block", "decision": 3}
+                        ]
+                        : [
+                            {"label": "Allow once", "decision": 1},
+                            {"label": "Block", "decision": 3}
+                        ]
+
+                    onActionTriggered: function(index) {
+                        window.respondToPermission(permissionBar.actions[index].decision)
+                    }
+                }
+
+                // A certificate failure the reader is being offered a way past.
+                // It reaches this bar only where the core's rule allows one, so
+                // the question is always about a Local-development site's own
+                // main frame and always about this load alone.
+                PageQuestionBar {
+                    objectName: "certificateQuestionBar"
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.top: parent.top
+                    z: 41
+                    colors: window.colors
+                    iconFontFamily: materialSymbols.name
+                    open: window.certificateQuestionOpen
+                    glyph: "warning"
+                    message: String(window.pendingCertificateFailure.origin || "")
+                        + " could not prove its certificate"
+                    detail: String(window.pendingCertificateFailure.description || "")
+                        + " · local development site · this load only, never remembered"
                     actions: [
-                        {"label": "Allow once"},
-                        {"label": "Always allow", "enabled": !window.privateWindow},
+                        {"label": "Continue once"},
                         {"label": "Block"}
                     ]
 
                     onActionTriggered: function(index) {
-                        window.respondToPermission(index + 1)
+                        window.respondToCertificateError(index === 0)
                     }
                 }
 
@@ -1498,8 +1758,15 @@ ApplicationWindow {
                         window.retireSpaceProfile(spaceId)
                     }
 
+                    // The engine answers straight away with what it could not
+                    // take, which is what the notice about it reports.
                     function onEngineDataClearRequested(spaceIds, dataTypes, since) {
-                        engineLoader.clearBrowsingData(spaceIds, dataTypes, since)
+                        window.untouchedDataCategories =
+                            engineLoader.clearBrowsingData(spaceIds, dataTypes, since)
+                    }
+
+                    function onEngineOriginPermissionsResetRequested(spaceId, origin) {
+                        engineLoader.resetOriginPermissions(spaceId, origin)
                     }
 
                     function onCloseWindowRequested() {
@@ -1623,6 +1890,10 @@ ApplicationWindow {
                 window.pendingPermissionType = permission
                 window.permissionOpen = true
             }
+
+            onCertificateErrorRaised: function(responder, requestId, failure) {
+                window.showCertificateError(responder, requestId, failure, true)
+            }
         }
     }
 
@@ -1638,7 +1909,13 @@ ApplicationWindow {
                     "downloadDirectory": windowManager.privateDownloadDirectory,
                     "acceptDownloads": windowManager.acceptPrivateDownloads,
                     "privateBrowsing": true,
-                    "engineContentBlocker": engineContentBlocker
+                    "engineContentBlocker": engineContentBlocker,
+                    // A Private window has no Space of its own, so its
+                    // third-party allowances key on the empty name its shared
+                    // session already uses for Site permissions.
+                    "engineCookiePolicy": engineCookiePolicy,
+                    "cookieController": controller,
+                    "cookieSpaceId": ""
                 })
                 // A Private page is not given the desktop's notification
                 // centre. A notification would put the origin into a list that
@@ -1672,6 +1949,9 @@ ApplicationWindow {
         target: window.windowBrowser
 
         function onRetainedTabsChanged() { window.refreshRetainedTabs() }
+        function onCertificateExceptionsChanged() {
+            window.certificateExceptionGeneration += 1
+        }
     }
 
     // A renderer's resident memory is a moving number, so the open list asks
@@ -1772,9 +2052,17 @@ ApplicationWindow {
         // Space's, so there is nothing here for it to build.
         profileSource: window.privateWindow ? "" : engineProfileSource
         contentBlocker: engineContentBlocker
+        cookiePolicy: engineCookiePolicy
         owner: window
 
         onCreated: function(spaceId, host) { window.adoptSpaceProfile(spaceId, host) }
+    }
+
+    Connections {
+        target: window.spaceProfileHost
+        ignoreUnknownSignals: true
+
+        function onBrowsingDataCleared() { window.siteDataGeneration += 1 }
     }
 
     SiteNotifications {
@@ -1834,6 +2122,7 @@ ApplicationWindow {
         colors: window.colors
         open: window.dialogMode.length > 0
         destructive: window.dialogMode === "delete" || window.dialogMode === "confirm-move"
+            || window.dialogMode === "space-data" || window.dialogMode === "site-storage"
         inputVisible: window.dialogMode === "new" || window.dialogMode === "rename"
             || window.dialogMode === "delete"
         selectPreset: window.dialogMode === "rename"
@@ -1846,6 +2135,10 @@ ApplicationWindow {
             case "delete": return "delete space"
             case "move": return "move tab to a space"
             case "confirm-move": return "discard edited form state"
+            case "site-storage": return "clear this site's storage"
+            case "space-data": return "clear this Space's site data"
+            case "reset-permissions": return "reset this site's permissions"
+            case "third-party": return "third parties on this page"
             }
             return ""
         }
@@ -1868,6 +2161,32 @@ ApplicationWindow {
                 return "This page has edited form state. Moving it reloads the page under the "
                     + "destination identity and discards those edits."
             }
+            // Each of these names its own scope, because the three of them are
+            // three different sizes and only the wording tells them apart.
+            if (window.dialogMode === "site-storage") {
+                return sidebar.siteOrigin + " loses the local storage, databases, caches and "
+                    + "service workers it kept in this Space. Its cookies are not included: "
+                    + "the engine can only take those for every site at once. The page may "
+                    + "misbehave until it is reloaded, and this cannot be undone."
+            }
+            if (window.dialogMode === "space-data") {
+                return "Every site in " + window.windowBrowser.activeSpaceName + " loses its "
+                    + "cookies and cached files, so open sessions there are signed out. "
+                    + "Storage and databases stay: this engine can only take those one site "
+                    + "at a time. This cannot be undone."
+            }
+            if (window.dialogMode === "reset-permissions") {
+                return sidebar.siteOrigin + " loses every decision made for it in this Space, "
+                    + "and is asked again the next time it wants one. A page already holding "
+                    + "a capability keeps it until the site is opened again — reloading is "
+                    + "not enough."
+            }
+            if (window.dialogMode === "third-party") {
+                return "Sites embedded in this page are refused cookies and storage. Allow "
+                    + "one only when a sign-in or a payment on this page is not working; an "
+                    + "embedded image or script host does not need it. Nothing allowed here "
+                    + "outlives this session."
+            }
             return ""
         }
 
@@ -1878,11 +2197,21 @@ ApplicationWindow {
             case "delete": return "⏎ delete " + window.windowBrowser.activeSpaceName
             case "move": return "↑↓ choose      ⏎ move the tab"
             case "confirm-move": return "⏎ discard the edits and move"
+            case "site-storage": return "⏎ clear " + sidebar.siteOrigin + "'s storage"
+            case "space-data": return "⏎ clear every site's cookies and cache"
+            case "reset-permissions": return "⏎ reset " + sidebar.siteOrigin + "'s permissions"
+            case "third-party": return "↑↓ choose      ⏎ answer for that site"
             }
             return ""
         }
 
-        rows: window.dialogMode === "move" ? window.moveTargets : []
+        rows: {
+            switch (window.dialogMode) {
+            case "move": return window.moveTargets
+            case "third-party": return window.thirdPartyRows
+            }
+            return []
+        }
 
         onDismissed: window.dialogMode = ""
 
@@ -1902,11 +2231,25 @@ ApplicationWindow {
                 window.windowBrowser.confirmTabMoveToSpace(
                     window.pendingMoveTabId, window.pendingMoveSpaceId)
                 break
+            case "site-storage":
+                engineLoader.clearPageSiteData()
+                break
+            case "space-data":
+                window.clearSpaceSiteData()
+                break
+            case "reset-permissions":
+                window.resetSitePermissions()
+                break
             }
             window.dialogMode = ""
         }
 
         onRowActivated: function(index) {
+            if (window.dialogMode === "third-party") {
+                window.dialogMode = ""
+                window.answerThirdPartyRow(index)
+                return
+            }
             const target = window.moveTargets[index]
             if (!target) return
             const tabId = window.windowBrowser.activeTabId

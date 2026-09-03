@@ -18,6 +18,9 @@ QtObject {
     // runs no engine, where nothing can be built and nothing asks.
     property url profileSource
     property var contentBlocker: null
+    // The engine's third-party filter. A profile is where the blocking is
+    // attached, and the Space is what the allowances are keyed by.
+    property var cookiePolicy: null
     // Where created profiles are parented, so they outlive the call that asked
     // for one and go away with the window rather than with a tab.
     property var owner: null
@@ -37,7 +40,10 @@ QtObject {
             "acceptDownloads": root.browser.acceptDownloads,
             "privateBrowsing": false,
             "downloadNamespace": spaceId,
-            "engineContentBlocker": root.contentBlocker
+            "engineContentBlocker": root.contentBlocker,
+            "engineCookiePolicy": root.cookiePolicy,
+            "cookieController": root.browser,
+            "cookieSpaceId": spaceId
         })
         if (!host) return null
         root.hosts[spaceId] = host

@@ -13,6 +13,7 @@ private slots:
     void refusesAPortNothingCanBeReachedOn();
     void refusesEngineDebuggingFlagsFromEitherRoute();
     void takesPrivateWindowsAwayFromADebuggedSession();
+    void refusesEveryRouteToAGlobalInsecureContentOverride();
 };
 
 // The whole of an ordinary launch: nothing asked for, nothing listening.
@@ -85,6 +86,37 @@ void DevelopmentLaunchTest::takesPrivateWindowsAwayFromADebuggedSession()
     const auto launch = readDevelopmentLaunch(
         {QStringLiteral("omaweb"), QStringLiteral("--remote-debugging=9333")});
     QVERIFY(!launch.privateWindowsAvailable);
+}
+
+// Active mixed content stays blocked, and there is no launch that turns the
+// blocking off browser-wide. A switch that lowers the web's own security
+// boundaries for every page is a refusal to start rather than a preference,
+// because nothing on the page can tell the reader it was given away.
+void DevelopmentLaunchTest::refusesEveryRouteToAGlobalInsecureContentOverride()
+{
+    static const QStringList overrides = {
+        QStringLiteral("--allow-running-insecure-content"),
+        QStringLiteral("--disable-web-security"),
+        QStringLiteral("--ignore-certificate-errors"),
+        QStringLiteral("--ignore-certificate-errors-spki-list=abc"),
+        QStringLiteral("--allow-insecure-localhost"),
+        QStringLiteral("--unsafely-treat-insecure-origin-as-secure=http://example.com"),
+        QStringLiteral("--reduce-security-for-testing"),
+        QStringLiteral("--disable-site-isolation-trials"),
+    };
+    for (const auto &override : overrides) {
+        const auto argument = readDevelopmentLaunch({QStringLiteral("omaweb"), override});
+        QVERIFY2(!argument.refusal.isEmpty(), qPrintable(override));
+        QVERIFY2(argument.refusal.contains(override.section(u'=', 0, 0)),
+            qPrintable(argument.refusal));
+
+        const auto environment = readDevelopmentLaunch({QStringLiteral("omaweb")}, {override});
+        QVERIFY2(!environment.refusal.isEmpty(), qPrintable(override));
+    }
+
+    // The blocking is the default, so an ordinary launch says nothing about it.
+    const auto ordinary = readDevelopmentLaunch({QStringLiteral("omaweb")});
+    QVERIFY(ordinary.refusal.isEmpty());
 }
 
 QTEST_GUILESS_MAIN(DevelopmentLaunchTest)

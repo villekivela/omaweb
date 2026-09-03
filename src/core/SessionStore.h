@@ -46,6 +46,8 @@ public:
         const QString &permission) const;
     bool savePermissionDecision(const QString &spaceId, const QString &origin,
         const QString &permission, int decision);
+    QVariantList permissionsForOrigin(const QString &spaceId, const QString &origin) const;
+    bool clearPermissionsForOrigin(const QString &spaceId, const QString &origin);
     bool recordDownload(const QString &id, const QUrl &url, const QString &path,
         const QString &state, qint64 receivedBytes, qint64 totalBytes);
     bool updateDownload(const QString &id, const QString &state,

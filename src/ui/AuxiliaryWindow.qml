@@ -13,6 +13,10 @@ ApplicationWindow {
     required property var contentBlocker
     required property var engineContentBlocker
     signal sitePermissionRequested(var responder, string requestId, string origin, string permission)
+    // An Auxiliary window is where an authentication or payment flow finishes,
+    // so it is exactly where a certificate failure must not be waved through.
+    // It asks the same question of the same rule as an ordinary tab.
+    signal certificateErrorRaised(var responder, string requestId, var failure)
 
     width: 720
     height: 640
@@ -58,6 +62,10 @@ ApplicationWindow {
         function onWindowCloseRequested() { auxiliary.close() }
         function onSitePermissionRequested(requestId, origin, permission) {
             auxiliary.sitePermissionRequested(engineLoader.item, requestId, origin, permission)
+        }
+
+        function onCertificateErrorRaised(requestId, failure) {
+            auxiliary.certificateErrorRaised(engineLoader.item, requestId, failure)
         }
     }
 }

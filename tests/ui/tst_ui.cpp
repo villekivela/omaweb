@@ -77,6 +77,10 @@ public slots:
             QStringLiteral("keyboardNavigation"), m_keyboardNavigation.get());
         engine->rootContext()->setContextProperty(
             QStringLiteral("engineContentBlocker"), QVariant::fromValue<QObject *>(nullptr));
+        // The lab runs no engine, so there is no third-party filter to attach.
+        // Site information reads the gap off the adapter's capabilities.
+        engine->rootContext()->setContextProperty(
+            QStringLiteral("engineCookiePolicy"), QVariant::fromValue<QObject *>(nullptr));
         engine->rootContext()->setContextProperty(QStringLiteral("theme"), m_theme.get());
         engine->rootContext()->setContextProperty(
             QStringLiteral("windowManager"), m_windowManager.get());

@@ -101,6 +101,8 @@ add_library(omaweb-core STATIC
     src/core/KeyboardNavigation.cpp
     src/core/KeyboardNavigation.h
     src/core/RetainedTab.h
+    src/core/SessionSiteState.cpp
+    src/core/SessionSiteState.h
     src/core/SessionStore.cpp
     src/core/SessionStore.h
     src/core/SpaceListModel.cpp
@@ -187,6 +189,8 @@ if(OMAWEB_BUILD_BROWSER)
     add_library(omaweb-engine-qt STATIC
         src/engine/qt/QtContentBlocker.cpp
         src/engine/qt/QtContentBlocker.h
+        src/engine/qt/QtCookiePolicy.cpp
+        src/engine/qt/QtCookiePolicy.h
     )
     target_sources(omaweb-engine-qt PUBLIC src/engine/qt/EngineView.qml)
     target_include_directories(omaweb-engine-qt PUBLIC src/engine/qt)
@@ -265,6 +269,7 @@ set(omaweb_ui_files
     src/ui/PagePromptBar.qml
     src/ui/RetainedEngines.qml
     src/ui/SectionLabel.qml
+    src/ui/SiteInformationPanel.qml
     src/ui/MultilineField.qml
     src/ui/SettingDropdown.qml
     src/ui/SettingField.qml
@@ -646,6 +651,8 @@ if(BUILD_TESTING)
             OMAWEB_QT_ENGINE_PROFILE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/src/engine/qt/EngineProfile.qml"
             OMAWEB_MOCK_ENGINE_PROFILE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/src/ui-lab/MockEngineProfile.qml"
             OMAWEB_KEYBOARD_NAVIGATION_SCRIPT_PATH="${CMAKE_CURRENT_SOURCE_DIR}/src/engine/api/keyboard-navigation.js"
+            OMAWEB_UNTRUSTED_CERTIFICATE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/tests/engine/certificates/untrusted-local.crt"
+            OMAWEB_UNTRUSTED_KEY_PATH="${CMAKE_CURRENT_SOURCE_DIR}/tests/engine/certificates/untrusted-local.key"
         )
         omaweb_strict_target(omaweb-qt-engine-contract-tests)
         add_test(NAME omaweb-qt-engine-contract COMMAND omaweb-qt-engine-contract-tests)

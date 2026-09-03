@@ -33,10 +33,36 @@ Rectangle {
     readonly property bool atRest: browser ? browser.atRest : false
 
     readonly property url activeUrl: browser ? browser.activeUrl : ""
-    readonly property bool secure: String(activeUrl).indexOf("https://") === 0
+    // What the connection is, as the engine drawing the page reports it. The
+    // outline never works this out from the address: an address is what was
+    // asked for, and a lock drawn from one is a claim nothing checked.
+    property string connectionState: "internal"
+    // What the engine can and cannot answer for. A gap is said out loud rather
+    // than drawn as a reassuring blank.
+    property bool certificateDecisionsAvailable: false
+    property bool thirdPartyCookieControlAvailable: false
+    property bool siteDataOnDisk: false
+    property bool insecureContentBlocked: true
+    // The engine's third-party filter, which is the only thing that knows
+    // which embedded origins a page has actually had refused.
+    property var cookiePolicy: null
+    property var siteDataEntries: []
+    property var retainedDataEntries: []
+    property int siteDataGeneration: 0
+    readonly property bool secure: root.connectionState === "secure"
+    readonly property bool certificateError: root.connectionState === "certificate-error"
     readonly property bool blank: String(activeUrl).length === 0 || String(activeUrl) === "about:blank"
+    // The site the panel is headed by, as the window's dialogs name it, and the
+    // third parties it had refused. The panel is the one place that asks the
+    // engine's filter, so the dialog reads the answer from here rather than
+    // asking again for itself.
+    readonly property string siteOrigin: sitePanel.originLabel
+    readonly property var refusedThirdParties: sitePanel.refusedThirdParties
 
     signal addressRequested()
+    // What the reader asked Site information for, on its way to the window's
+    // own dialog. The outline states; the window asks.
+    signal siteActionRequested(string action)
     signal tabActivated(string tabId)
     signal tabCloseRequested(string tabId)
     signal tabMuteToggled(string tabId)
@@ -362,12 +388,15 @@ Rectangle {
                 anchors.verticalCenter: parent.verticalCenter
                 width: 18
                 horizontalAlignment: Text.AlignHCenter
-                text: root.secure ? "lock" : "lock_open"
-                color: root.secure ? root.colors.text : root.colors.mutedText
+                text: root.certificateError
+                    ? "warning" : (root.secure ? "lock" : "lock_open")
+                color: root.certificateError
+                    ? root.colors.urgent
+                    : (root.secure ? root.colors.text : root.colors.mutedText)
                 font.family: root.iconFontFamily
                 font.pixelSize: Style.font.iconLarge
                 Accessible.role: Accessible.StaticText
-                Accessible.name: root.secure ? "Connection is encrypted" : "Connection is not encrypted"
+                Accessible.name: "Site information: " + sitePanel.connectionSentence
 
                 MouseArea {
                     anchors.fill: parent
@@ -698,52 +727,31 @@ Rectangle {
         onClicked: root.statusOpen = false
     }
 
-    Rectangle {
-        objectName: "siteStatusPanel"
-        visible: root.statusOpen
+    SiteInformationPanel {
+        id: sitePanel
+        objectName: "siteInformationPanel"
         anchors.left: parent.left
         anchors.leftMargin: 16
         y: outline.y + addressButton.y + addressButton.height + 8
-        width: Math.min(260, root.width - 32)
-        height: statusColumn.implicitHeight + 20
-        radius: 2
-        color: root.colors.overlay
-        border.width: 1
-        border.color: root.colors.accent
+        width: Math.min(320, Math.max(200, root.width - 32))
         z: 5
+        colors: root.colors
+        browser: root.browser
+        cookiePolicy: root.cookiePolicy
+        activeUrl: root.activeUrl
+        blank: root.blank
+        privateWindow: root.privateWindow
+        connectionState: root.connectionState
+        certificateDecisionsAvailable: root.certificateDecisionsAvailable
+        thirdPartyCookieControlAvailable: root.thirdPartyCookieControlAvailable
+        siteDataOnDisk: root.siteDataOnDisk
+        insecureContentBlocked: root.insecureContentBlocked
+        blockedRequestCount: root.blockedRequestCount
+        siteDataEntries: root.siteDataEntries
+        retainedDataEntries: root.retainedDataEntries
+        siteDataGeneration: root.siteDataGeneration
+        open: root.statusOpen
 
-        MouseArea { anchors.fill: parent }
-
-        Column {
-            id: statusColumn
-            anchors.fill: parent
-            anchors.margins: 10
-            spacing: 6
-
-            SectionLabel {
-                colors: root.colors
-                text: "site status"
-            }
-
-            Text {
-                width: parent.width
-                text: root.secure
-                    ? "· connection is encrypted"
-                    : "· connection is not encrypted"
-                color: root.colors.mutedText
-                wrapMode: Text.WordWrap
-                font.family: Style.font.family
-                font.pixelSize: Style.font.caption
-            }
-
-            Text {
-                width: parent.width
-                text: "· " + root.blockedRequestCount + " requests blocked in this window"
-                color: root.colors.mutedText
-                wrapMode: Text.WordWrap
-                font.family: Style.font.family
-                font.pixelSize: Style.font.caption
-            }
-        }
+        onActionRequested: function(action) { root.siteActionRequested(action) }
     }
 }
