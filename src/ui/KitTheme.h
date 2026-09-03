@@ -31,6 +31,8 @@ private slots:
     void apply();
 
 private:
+    // Ask the kit to re-read the theme files it only reads at startup.
+    void rereadKitSources();
     void followResets(QObject *target, const QStringList &properties);
 
     const ThemeController *m_theme = nullptr;

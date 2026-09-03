@@ -202,6 +202,8 @@ endif()
 add_library(omaweb-platform STATIC
     src/platform/ExternalProtocolHandler.cpp
     src/platform/ExternalProtocolHandler.h
+    src/platform/OmarchyTheme.cpp
+    src/platform/OmarchyTheme.h
     src/platform/PagePrinter.cpp
     src/platform/PagePrinter.h
     src/platform/ProcessResources.cpp
@@ -292,6 +294,7 @@ function(omaweb_configure_qml target engine_view engine_profile engine_directory
             OMAWEB_ENGINE_VIEW_URL="file://${CMAKE_CURRENT_SOURCE_DIR}/${engine_view}"
             OMAWEB_ENGINE_PROFILE_URL="file://${CMAKE_CURRENT_SOURCE_DIR}/${engine_profile}"
             OMAWEB_THEME_PATH="${CMAKE_CURRENT_SOURCE_DIR}/assets/themes/default.json"
+            OMAWEB_OMARCHY_TEMPLATE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/integrations/omarchy/omaweb.json.tpl"
             OMAWEB_ICON_FONT_URL="file://${CMAKE_CURRENT_SOURCE_DIR}/assets/fonts/material-symbols-rounded.ttf"
             OMAWEB_DEFAULT_KEYBINDINGS_PATH="${CMAKE_CURRENT_SOURCE_DIR}/assets/keybindings/default.json"
             OMAWEB_KEYBOARD_NAVIGATION_SCRIPT_PATH="${CMAKE_CURRENT_SOURCE_DIR}/src/engine/api/keyboard-navigation.js"
@@ -322,6 +325,13 @@ function(omaweb_configure_qml target engine_view engine_profile engine_directory
             BASE "${CMAKE_CURRENT_SOURCE_DIR}/assets/themes"
             FILES assets/themes/default.json
         )
+        # The Omarchy theme template travels in the binary, because the reader's
+        # copy of it is written on the first start of a new install.
+        qt_add_resources(${target} "omaweb_omarchy_template"
+            PREFIX "/omaweb/omarchy"
+            BASE "${CMAKE_CURRENT_SOURCE_DIR}/integrations/omarchy"
+            FILES integrations/omarchy/omaweb.json.tpl
+        )
         qt_add_resources(${target} "omaweb_fonts"
             PREFIX "/omaweb/fonts"
             BASE "${CMAKE_CURRENT_SOURCE_DIR}/assets/fonts"
@@ -343,6 +353,7 @@ function(omaweb_configure_qml target engine_view engine_profile engine_directory
             OMAWEB_ENGINE_VIEW_URL="qrc:/omaweb/engine/EngineView.qml"
             OMAWEB_ENGINE_PROFILE_URL="qrc:/omaweb/engine/EngineProfile.qml"
             OMAWEB_THEME_PATH=":/omaweb/themes/default.json"
+            OMAWEB_OMARCHY_TEMPLATE_PATH=":/omaweb/omarchy/omaweb.json.tpl"
             OMAWEB_ICON_FONT_URL="qrc:/omaweb/fonts/material-symbols-rounded.ttf"
             OMAWEB_DEFAULT_KEYBINDINGS_PATH=":/omaweb/keybindings/default.json"
             OMAWEB_KEYBOARD_NAVIGATION_SCRIPT_PATH=":/omaweb/engine-api/keyboard-navigation.js"
@@ -512,6 +523,18 @@ if(BUILD_TESTING)
     set_tests_properties(omaweb-platform-services PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
     )
+
+    # Following the desktop's theme writes into the reader's Omarchy
+    # configuration, so the seam takes its directories as arguments and the
+    # test hands it a temporary home. That runs on macOS too, which is where
+    # the shipped template is reviewed.
+    qt_add_executable(omaweb-omarchy-theme-tests tests/platform/tst_omarchytheme.cpp)
+    target_link_libraries(omaweb-omarchy-theme-tests PRIVATE omaweb-platform Qt6::Test)
+    target_compile_definitions(omaweb-omarchy-theme-tests PRIVATE
+        OMAWEB_OMARCHY_TEMPLATE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/integrations/omarchy/omaweb.json.tpl"
+    )
+    omaweb_strict_target(omaweb-omarchy-theme-tests)
+    add_test(NAME omaweb-omarchy-theme COMMAND omaweb-omarchy-theme-tests)
 
     qt_add_executable(omaweb-favicon-tint-tests tests/ui/tst_favicontint.cpp)
     target_link_libraries(omaweb-favicon-tint-tests PRIVATE omaweb-ui Qt6::Gui Qt6::Test)
