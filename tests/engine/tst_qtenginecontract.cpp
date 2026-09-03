@@ -1,4 +1,6 @@
+#include "BrowserController.h"
 #include "ContentBlocker.h"
+#include "QtCookiePolicy.h"
 #include "EngineCapabilities.h"
 #include "ExternalProtocolHandler.h"
 #include "QtContentBlocker.h"
@@ -15,16 +17,22 @@
 #include <QQuickItem>
 #include <QQuickWindow>
 #include <QSignalSpy>
+#include <QSslConfiguration>
+#include <QSslKey>
+#include <QSslServer>
 #include <QTcpServer>
 #include <QTcpSocket>
 #include <QTest>
 #include <QTemporaryDir>
 #include <QtWebEngineQuick/qtwebenginequickglobal.h>
+#include <QtWebEngineCore/QWebEngineCertificateError>
+#include <QtWebEngineCore/QWebEnginePermission>
 #include <QtWebEngineCore/QWebEngineNewWindowRequest>
 #include <QtWebEngineQuick/QQuickWebEngineProfile>
 
 #include <memory>
 
+using omaweb::BrowserController;
 using omaweb::validateEngineViewContract;
 using omaweb::EngineCapabilities;
 
@@ -84,6 +92,15 @@ private slots:
     void adaptersTakeTheShellsAutoplayDecision_data();
     void adaptersTakeTheShellsAutoplayDecision();
     void qtReportsTheProcessDrawingThePage();
+    void adaptersReportTheConnectionFromTheirOwnFacts_data();
+    void adaptersReportTheConnectionFromTheirOwnFacts();
+    void adaptersRefuseEveryInsecureContentOverride_data();
+    void adaptersRefuseEveryInsecureContentOverride();
+    void mockNamesTheFactsAboutACertificateFailure();
+    void mockReportsNothingWhereTheEngineCannotAnswer();
+    void qtDefersACertificateFailureWithTheEnginesOwnFacts();
+    void qtRefusesThirdPartyCookiesUntilAnOriginIsAllowed();
+    void qtNamesEveryPermissionTheShellHasAPolicyFor();
 };
 
 namespace {
@@ -128,6 +145,161 @@ void QtEngineContractTest::adaptersExposeSharedContract_data()
     QTest::addColumn<QString>("path");
     QTest::newRow("UI-lab mock") << QStringLiteral(OMAWEB_MOCK_ENGINE_VIEW_PATH);
     QTest::newRow("QtWebEngine") << QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH);
+}
+
+// An adapter says what the connection is; the shell never works it out from an
+// address of its own. Every state has to be reachable, and the state has to
+// follow the page as its origin changes.
+void QtEngineContractTest::adaptersReportTheConnectionFromTheirOwnFacts_data()
+{
+    adaptersExposeSharedContract_data();
+}
+
+void QtEngineContractTest::adaptersReportTheConnectionFromTheirOwnFacts()
+{
+    QFETCH(QString, path);
+    QQmlEngine engine;
+    QQmlComponent component(&engine, QUrl::fromLocalFile(path));
+    QVERIFY2(component.isReady(), qPrintable(component.errorString()));
+    const std::unique_ptr<QObject> adapter(component.create());
+    QVERIFY2(adapter, qPrintable(component.errorString()));
+
+    // Omaweb's own furniture is not a connection to anywhere.
+    QCOMPARE(adapter->property("connectionState").toString(), QStringLiteral("internal"));
+
+    QVERIFY(adapter->setProperty("currentUrl", QUrl(QStringLiteral("https://example.com/one"))));
+    QCOMPARE(adapter->property("connectionState").toString(), QStringLiteral("secure"));
+
+    // An origin change carries the answer with it, both ways.
+    QVERIFY(adapter->setProperty("currentUrl", QUrl(QStringLiteral("http://example.com/two"))));
+    QCOMPARE(adapter->property("connectionState").toString(), QStringLiteral("insecure"));
+    QVERIFY(adapter->setProperty("currentUrl", QUrl(QStringLiteral("https://other.example/"))));
+    QCOMPARE(adapter->property("connectionState").toString(), QStringLiteral("secure"));
+    QVERIFY(adapter->setProperty("currentUrl", QUrl(QStringLiteral("about:blank"))));
+    QCOMPARE(adapter->property("connectionState").toString(), QStringLiteral("internal"));
+}
+
+void QtEngineContractTest::adaptersRefuseEveryInsecureContentOverride_data()
+{
+    adaptersExposeSharedContract_data();
+}
+
+// Active mixed content stays blocked, and the adapter reports the engine's own
+// setting rather than an intention. There is nothing in the tree that turns it
+// off, which is what "no release path" has to mean.
+void QtEngineContractTest::adaptersRefuseEveryInsecureContentOverride()
+{
+    QFETCH(QString, path);
+    QQmlEngine engine;
+    QQmlComponent component(&engine, QUrl::fromLocalFile(path));
+    QVERIFY2(component.isReady(), qPrintable(component.errorString()));
+    const std::unique_ptr<QObject> adapter(component.create());
+    QVERIFY2(adapter, qPrintable(component.errorString()));
+    QVERIFY(adapter->property("insecureContentBlocked").toBool());
+
+    QFile source(path);
+    QVERIFY(source.open(QIODevice::ReadOnly));
+    const auto text = QString::fromUtf8(source.readAll());
+    QVERIFY2(!text.contains(QStringLiteral("allowRunningInsecureContent: true")),
+        qPrintable(path));
+}
+
+// The facts the shell decides on: the address, whether the engine would allow
+// an override at all, whether the failure was in the frame the reader is
+// looking at, and whether it is one no engine overrides.
+void QtEngineContractTest::mockNamesTheFactsAboutACertificateFailure()
+{
+    QQmlEngine engine;
+    QQmlComponent component(&engine, QUrl::fromLocalFile(
+        QStringLiteral(OMAWEB_MOCK_ENGINE_VIEW_PATH)));
+    const std::unique_ptr<QObject> adapter(component.create());
+    QVERIFY2(adapter, qPrintable(component.errorString()));
+    QVERIFY(adapter->setProperty("currentUrl",
+        QUrl(QStringLiteral("https://localhost:8443/app"))));
+
+    QSignalSpy raised(adapter.get(), SIGNAL(certificateErrorRaised(QString,QVariant)));
+    QVERIFY(raised.isValid());
+    QVERIFY(QMetaObject::invokeMethod(adapter.get(), "simulateCertificateError",
+        Q_ARG(QVariant, QVariantMap{})));
+    QCOMPARE(raised.count(), 1);
+    const auto failure = raised.first().at(1).toMap();
+    QCOMPARE(failure.value(QStringLiteral("origin")).toString(),
+        QStringLiteral("localhost:8443"));
+    QVERIFY(failure.value(QStringLiteral("overridable")).toBool());
+    QVERIFY(failure.value(QStringLiteral("mainFrame")).toBool());
+    QVERIFY(!failure.value(QStringLiteral("fatal")).toBool());
+    QVERIFY(!failure.value(QStringLiteral("description")).toString().isEmpty());
+
+    // The address trigger keeps saying so, whichever way the reader answered:
+    // an exception is a certificate check that was waived, not one that passed.
+    QCOMPARE(adapter->property("connectionState").toString(),
+        QStringLiteral("certificate-error"));
+    QVERIFY(QMetaObject::invokeMethod(adapter.get(), "respondToCertificateError",
+        Q_ARG(QVariant, raised.first().at(0)), Q_ARG(QVariant, true)));
+    QCOMPARE(adapter->property("connectionState").toString(),
+        QStringLiteral("certificate-error"));
+
+    // Leaving takes the report with it, and nothing remembered it: coming back
+    // is a failure to be reported again.
+    QVERIFY(adapter->setProperty("currentUrl", QUrl(QStringLiteral("https://example.com/"))));
+    QCOMPARE(adapter->property("connectionState").toString(), QStringLiteral("secure"));
+
+    // A failure inside a frame is reported as one. What the shell does with it
+    // is the shell's, and it cannot refuse what it was never told about.
+    const QVariantMap insideAFrame = {
+        {QStringLiteral("url"), QStringLiteral("https://tracker.example/pixel")},
+        {QStringLiteral("mainFrame"), false},
+    };
+    QVERIFY(QMetaObject::invokeMethod(adapter.get(), "simulateCertificateError",
+        Q_ARG(QVariant, insideAFrame)));
+    QCOMPARE(raised.count(), 2);
+    const auto subresource = raised.at(1).at(1).toMap();
+    QVERIFY(!subresource.value(QStringLiteral("mainFrame")).toBool());
+    // A frame's failure is not the page's connection state.
+    QCOMPARE(adapter->property("connectionState").toString(), QStringLiteral("secure"));
+
+    const QVariantMap fatalFailure = {{QStringLiteral("fatal"), true}};
+    QVERIFY(QMetaObject::invokeMethod(adapter.get(), "simulateCertificateError",
+        Q_ARG(QVariant, fatalFailure)));
+    QCOMPARE(raised.count(), 3);
+    QVERIFY(raised.at(2).at(1).toMap().value(QStringLiteral("fatal")).toBool());
+}
+
+// The three gaps a site's security contract can have. An engine that cannot
+// answer reports the capability off and stays silent, so the shell has to say
+// the answer is unknown rather than draw a reassuring one.
+void QtEngineContractTest::mockReportsNothingWhereTheEngineCannotAnswer()
+{
+    QQmlEngine engine;
+    QQmlComponent component(&engine, QUrl::fromLocalFile(
+        QStringLiteral(OMAWEB_MOCK_ENGINE_VIEW_PATH)));
+    const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
+        {QStringLiteral("certificateDecisionsAvailable"), false},
+        {QStringLiteral("thirdPartyCookieControlAvailable"), false},
+    }));
+    QVERIFY2(adapter, qPrintable(component.errorString()));
+
+    const auto capabilities = adapter->property("capabilities").toInt();
+    QVERIFY(!(capabilities & EngineCapabilities::CertificateDecisions));
+    QVERIFY(!(capabilities & EngineCapabilities::ThirdPartyCookieControl));
+    // The lab keeps nothing on disk either, so Site information has no size to
+    // show for it — an engine's own claim, not a guess the shell makes.
+    QVERIFY(!(capabilities & EngineCapabilities::PersistentProfiles));
+
+    QSignalSpy raised(adapter.get(), SIGNAL(certificateErrorRaised(QString,QVariant)));
+    QVERIFY(QMetaObject::invokeMethod(adapter.get(), "simulateCertificateError",
+        Q_ARG(QVariant, QVariantMap{})));
+    QCOMPARE(raised.count(), 0);
+    QVERIFY(adapter->setProperty("currentUrl", QUrl(QStringLiteral("https://example.com/"))));
+    QCOMPARE(adapter->property("connectionState").toString(), QStringLiteral("secure"));
+
+    // Every adapter answers for the connection and for mixed content: neither
+    // is a capability, because neither has an honest unknown.
+    const std::unique_ptr<QObject> complete(component.create());
+    QVERIFY(complete);
+    const auto full = complete->property("capabilities").toInt();
+    QVERIFY(full & EngineCapabilities::CertificateDecisions);
+    QVERIFY(full & EngineCapabilities::ThirdPartyCookieControl);
 }
 
 void QtEngineContractTest::adaptersExposeSharedContract()
@@ -2254,6 +2426,254 @@ void QtEngineContractTest::qtReportsTheProcessDrawingThePage()
     QVERIFY(resources.residentBytes(adapter->property("renderProcessPid").toInt()) > 0);
     // A process that is not there costs nothing, and is not guessed at.
     QCOMPARE(resources.residentBytes(0), 0);
+}
+
+
+namespace {
+
+// A page served over TLS with a certificate nothing trusts. Self-signed is the
+// everyday shape of a local development server's certificate, and Chromium
+// reports it as an overridable authority failure rather than a fatal one —
+// which is the only failure Omaweb will offer an exception for.
+class SecurePageServer final : public QSslServer {
+public:
+    explicit SecurePageServer(QByteArray body)
+        : m_body(std::move(body))
+    {
+        connect(this, &QTcpServer::pendingConnectionAvailable, this, [this] {
+            auto *socket = nextPendingConnection();
+            if (!socket) {
+                return;
+            }
+            connect(socket, &QIODevice::readyRead, socket, [this, socket] {
+                socket->readAll();
+                socket->write("HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: "
+                    + QByteArray::number(m_body.size())
+                    + "\r\nConnection: close\r\n\r\n" + m_body);
+                socket->flush();
+                socket->disconnectFromHost();
+            });
+        });
+    }
+
+    static QSslConfiguration untrustedConfiguration()
+    {
+        QSslConfiguration configuration = QSslConfiguration::defaultConfiguration();
+        QFile certificate(QStringLiteral(OMAWEB_UNTRUSTED_CERTIFICATE_PATH));
+        QFile key(QStringLiteral(OMAWEB_UNTRUSTED_KEY_PATH));
+        if (!certificate.open(QIODevice::ReadOnly) || !key.open(QIODevice::ReadOnly)) {
+            return {};
+        }
+        configuration.setLocalCertificate(QSslCertificate(&certificate, QSsl::Pem));
+        configuration.setPrivateKey(QSslKey(&key, QSsl::Rsa, QSsl::Pem));
+        return configuration;
+    }
+
+private:
+    QByteArray m_body;
+};
+
+} // namespace
+
+// The adapter reports what the engine knows and blocks while the shell decides.
+// Nothing here judges the failure: the facts travel, the load waits, and a
+// refusal leaves the page unreached.
+void QtEngineContractTest::qtDefersACertificateFailureWithTheEnginesOwnFacts()
+{
+    const auto configuration = SecurePageServer::untrustedConfiguration();
+    QVERIFY(!configuration.localCertificate().isNull());
+    SecurePageServer server(R"HTML(<!doctype html><title>reached</title>)HTML");
+    server.setSslConfiguration(configuration);
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    QQmlEngine engine;
+    QQmlComponent component(&engine, QUrl::fromLocalFile(
+        QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
+        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
+    }));
+    QVERIFY2(adapter, qPrintable(component.errorString()));
+    auto *view = qobject_cast<QQuickItem *>(adapter.get());
+    QVERIFY(view);
+    QQuickWindow window;
+    window.resize(640, 480);
+    view->setParentItem(window.contentItem());
+    view->setSize(QSizeF(640, 480));
+    window.show();
+
+    QSignalSpy raised(adapter.get(), SIGNAL(certificateErrorRaised(QString,QVariant)));
+    QVERIFY(raised.isValid());
+    const auto address = QStringLiteral("https://localhost:%1/page.html").arg(server.serverPort());
+    QVERIFY(adapter->setProperty("currentUrl", QUrl(address)));
+    QTRY_VERIFY_WITH_TIMEOUT(raised.count() > 0, 20000);
+
+    const auto failure = raised.first().at(1).toMap();
+    QCOMPARE(failure.value(QStringLiteral("origin")).toString(),
+        QStringLiteral("localhost:%1").arg(server.serverPort()));
+    // A certificate nobody signed is overridable, is the frame the reader is
+    // looking at, and is none of the failures no engine overrides.
+    QVERIFY(failure.value(QStringLiteral("overridable")).toBool());
+    QVERIFY(failure.value(QStringLiteral("mainFrame")).toBool());
+    QVERIFY(!failure.value(QStringLiteral("fatal")).toBool());
+    QVERIFY(!failure.value(QStringLiteral("description")).toString().isEmpty());
+    // The load is held, not finished: the page has not been reached while the
+    // question is open, and the address trigger already says the connection is
+    // in error.
+    QCOMPARE(adapter->property("pageTitle").toString() == QStringLiteral("reached"), false);
+    QCOMPARE(adapter->property("connectionState").toString(),
+        QStringLiteral("certificate-error"));
+
+    // Refusing it leaves the page unreached, and the state stays in error.
+    QVERIFY(QMetaObject::invokeMethod(adapter.get(), "respondToCertificateError",
+        Q_ARG(QVariant, raised.first().at(0)), Q_ARG(QVariant, false)));
+    QTRY_VERIFY(!adapter->property("loading").toBool());
+    QVERIFY(adapter->property("pageTitle").toString() != QStringLiteral("reached"));
+    QCOMPARE(adapter->property("connectionState").toString(),
+        QStringLiteral("certificate-error"));
+
+    // The classification of the failures no engine overrides is the adapter's
+    // to make, in the engine's own error codes.
+    const auto isFatal = [&adapter](int type) {
+        QVariant answer;
+        const auto invoked = QMetaObject::invokeMethod(adapter.get(), "fatalCertificateError",
+            Q_RETURN_ARG(QVariant, answer), Q_ARG(QVariant, QVariant::fromValue(type)));
+        return invoked && answer.toBool();
+    };
+    QVERIFY(isFatal(QWebEngineCertificateError::SslPinnedKeyNotInCertificateChain));
+    QVERIFY(isFatal(QWebEngineCertificateError::CertificateKnownInterceptionBlocked));
+    QVERIFY(isFatal(QWebEngineCertificateError::CertificateRevoked));
+    QVERIFY(!isFatal(QWebEngineCertificateError::CertificateAuthorityInvalid));
+    QVERIFY(!isFatal(QWebEngineCertificateError::CertificateDateInvalid));
+
+    // Leaving takes the report with it, because nothing wrote it down.
+    QVERIFY(adapter->setProperty("currentUrl", QUrl(QStringLiteral("about:blank"))));
+    QTRY_COMPARE(adapter->property("connectionState").toString(), QStringLiteral("internal"));
+}
+
+// Third-party state is refused by the engine's own filter, which governs a
+// site's storage as well as its cookies. The Space's allowance is what lifts
+// it, for the one origin the reader named and no other.
+void QtEngineContractTest::qtRefusesThirdPartyCookiesUntilAnOriginIsAllowed()
+{
+    PageServer frameServer(R"HTML(<!doctype html><html><body><script>
+        let outcome;
+        try {
+            localStorage.setItem('flow', 'kept');
+            outcome = 'allowed:' + localStorage.getItem('flow');
+        } catch (error) {
+            outcome = 'blocked';
+        }
+        parent.postMessage(outcome, '*');
+    </script></body></html>)HTML");
+    QVERIFY(frameServer.listen(QHostAddress::LocalHost));
+    // Two different hosts on the loopback interface: one the page, one a third
+    // party inside it.
+    const auto thirdParty = QStringLiteral("http://127.0.0.1:%1/frame.html")
+        .arg(frameServer.serverPort());
+    PageServer pageServer(QStringLiteral(R"HTML(<!doctype html><html><body>
+        <title>waiting</title>
+        <script>addEventListener('message', event => document.title = event.data);</script>
+        <iframe src="%1"></iframe>
+    </body></html>)HTML").arg(thirdParty).toUtf8());
+    QVERIFY(pageServer.listen(QHostAddress::LocalHost));
+    const QUrl page(QStringLiteral("http://localhost:%1/page.html").arg(pageServer.serverPort()));
+
+    QTemporaryDir dataRoot;
+    QVERIFY(dataRoot.isValid());
+    BrowserController browser(dataRoot.path(), QStringLiteral("qt"));
+    QVERIFY(browser.ready());
+    const auto spaceId = browser.activeSpaceId();
+    omaweb::QtCookiePolicy policy;
+
+    QTemporaryDir profileRoot;
+    QQmlEngine engine;
+    QQmlComponent profileComponent(&engine, QUrl::fromLocalFile(
+        QStringLiteral(OMAWEB_QT_ENGINE_PROFILE_PATH)));
+    const std::unique_ptr<QObject> host(profileComponent.createWithInitialProperties({
+        {QStringLiteral("profilePath"), profileRoot.filePath(QStringLiteral("space"))},
+        {QStringLiteral("privateBrowsing"), false},
+        {QStringLiteral("engineCookiePolicy"), QVariant::fromValue<QObject *>(&policy)},
+        {QStringLiteral("cookieController"), QVariant::fromValue<QObject *>(&browser)},
+        {QStringLiteral("cookieSpaceId"), spaceId},
+    }));
+    QVERIFY2(host, qPrintable(profileComponent.errorString()));
+    QVERIFY(host->property("thirdPartyCookiesBlocked").toBool());
+
+    QQmlComponent viewComponent(&engine, QUrl::fromLocalFile(
+        QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    const std::unique_ptr<QObject> adapter(viewComponent.createWithInitialProperties({
+        {QStringLiteral("sharedProfile"), host->property("profile")},
+    }));
+    QVERIFY2(adapter, qPrintable(viewComponent.errorString()));
+    QQuickWindow window;
+    window.resize(640, 480);
+    auto *view = qobject_cast<QQuickItem *>(adapter.get());
+    QVERIFY(view);
+    view->setParentItem(window.contentItem());
+    view->setSize(QSizeF(640, 480));
+    window.show();
+
+    QVERIFY(adapter->setProperty("currentUrl", page));
+    QTRY_COMPARE_WITH_TIMEOUT(adapter->property("pageTitle").toString(),
+        QStringLiteral("blocked"), 20000);
+    QVERIFY(policy.refusedCount() > 0);
+
+    // The reader gives the sign-in the allowance, and only that origin gets it.
+    QVERIFY(browser.allowThirdPartyCookies(QUrl(thirdParty), QStringLiteral("authentication")));
+    QVERIFY(QMetaObject::invokeMethod(adapter.get(), "reloadPage"));
+    QTRY_COMPARE_WITH_TIMEOUT(adapter->property("pageTitle").toString(),
+        QStringLiteral("allowed:kept"), 20000);
+
+    // Taking it back puts the refusal straight back.
+    QVERIFY(browser.revokeThirdPartyCookieAllowance(QUrl(thirdParty)));
+    QVERIFY(QMetaObject::invokeMethod(adapter.get(), "reloadPage"));
+    QTRY_COMPARE_WITH_TIMEOUT(adapter->property("pageTitle").toString(),
+        QStringLiteral("blocked"), 20000);
+}
+
+// The shell's policy is written in Omaweb's words, so an engine's own
+// permission numbers have to arrive as those words. A capability with no name
+// is refused rather than asked about, which is what makes the numbers the
+// adapter does not translate safe to leave alone.
+void QtEngineContractTest::qtNamesEveryPermissionTheShellHasAPolicyFor()
+{
+    QQmlEngine engine;
+    QQmlComponent component(&engine, QUrl::fromLocalFile(
+        QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    const std::unique_ptr<QObject> adapter(component.create());
+    QVERIFY2(adapter, qPrintable(component.errorString()));
+
+    const auto named = [&adapter](QWebEnginePermission::PermissionType type) {
+        QVariant answer;
+        const auto invoked = QMetaObject::invokeMethod(adapter.get(), "permissionName",
+            Q_RETURN_ARG(QVariant, answer),
+            Q_ARG(QVariant, QVariant::fromValue(static_cast<int>(type))));
+        return invoked ? answer.toString() : QStringLiteral("<not invoked>");
+    };
+    using Permission = QWebEnginePermission;
+    QCOMPARE(named(Permission::PermissionType::MediaAudioCapture),
+        QStringLiteral("microphone"));
+    QCOMPARE(named(Permission::PermissionType::MediaVideoCapture), QStringLiteral("camera"));
+    QCOMPARE(named(Permission::PermissionType::MediaAudioVideoCapture),
+        QStringLiteral("camera-and-microphone"));
+    QCOMPARE(named(Permission::PermissionType::Geolocation), QStringLiteral("geolocation"));
+    QCOMPARE(named(Permission::PermissionType::Notifications),
+        QStringLiteral("notifications"));
+    // Either desktop capture hands over whatever is on the screen at that
+    // instant, so both arrive as the one capability the shell asks about every
+    // time.
+    QCOMPARE(named(Permission::PermissionType::DesktopVideoCapture),
+        QStringLiteral("screen-sharing"));
+    QCOMPARE(named(Permission::PermissionType::DesktopAudioVideoCapture),
+        QStringLiteral("screen-sharing"));
+    QCOMPARE(named(Permission::PermissionType::ClipboardReadWrite),
+        QStringLiteral("clipboard-read"));
+    QCOMPARE(named(Permission::PermissionType::MouseLock), QStringLiteral("pointer-lock"));
+    QCOMPARE(named(Permission::PermissionType::LocalFontsAccess),
+        QStringLiteral("local-fonts"));
+    QCOMPARE(named(Permission::PermissionType::Unsupported), QString());
 }
 
 int main(int argc, char *argv[])

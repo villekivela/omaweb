@@ -45,6 +45,8 @@ Item {
     readonly property int printingCapability: 1 << 9
     readonly property int siteFullscreenCapability: 1 << 10
     readonly property int inlinePdfViewingCapability: 1 << 11
+    readonly property int certificateDecisionsCapability: 1 << 12
+    readonly property int thirdPartyCookieControlCapability: 1 << 13
     readonly property int capabilities: navigationCapability
         | persistentProfilesCapability
         | contentBlockingCapability
@@ -56,6 +58,8 @@ Item {
         | printingCapability
         | siteFullscreenCapability
         | inlinePdfViewingCapability
+        | certificateDecisionsCapability
+        | thirdPartyCookieControlCapability
     property int blockedRequestCount: 0
     property color pageBackgroundColor: "#16151d"
     property var keyboardNavigationConfiguration: ({})
@@ -136,6 +140,65 @@ Item {
     // The reader dealt with this page themselves. What that earns the origin is
     // the shell's to decide and remember; the adapter only reports it.
     signal userActivated()
+    // The origin whose certificate failed, and whether the reader let the load
+    // through anyway. Both are kept because the address trigger has to keep
+    // saying so: an exception the reader granted is still a certificate error,
+    // and there is nothing else on the page to tell them the check was waived.
+    property string certificateErrorOrigin: ""
+    // Whether the last committed load ended in a failure. Chromium draws its
+    // own error page in place of the document, and a page that never arrived
+    // is not a page reached over a verified connection.
+    property bool lastLoadFailed: false
+    // What the connection to the page on show is, from what the engine
+    // committed and what it reported about the certificate — never from an
+    // address the shell parsed for itself.
+    readonly property string connectionState: {
+        const address = String(webView.url)
+        const separator = address.indexOf("://")
+        const scheme = separator === -1 ? "" : address.substring(0, separator).toLowerCase()
+        if (root.certificateErrorOrigin.length > 0
+            && root.certificateErrorOrigin === root.originLabel(webView.url))
+            return "certificate-error"
+        if (scheme !== "http" && scheme !== "https") return "internal"
+        if (root.lastLoadFailed) return "insecure"
+        return scheme === "https" ? "secure" : "insecure"
+    }
+    // Chromium refuses active mixed content unless the embedder turns the
+    // refusal off. Omaweb never does, and reports the setting rather than the
+    // intention so the claim is checkable.
+    readonly property bool insecureContentBlocked:
+        !webView.settings.allowRunningInsecureContent
+    signal certificateErrorRaised(string requestId, var failure)
+    property var pendingCertificateErrors: ({})
+    property int nextCertificateErrorId: 0
+    // The failures Chromium never offers an override for, whatever else it
+    // says about them: a pinned key, an interception it recognised, a
+    // revocation, and the transparency and legacy-authority refusals. They are
+    // named here because classifying an engine's own error codes is the
+    // adapter's work, and the shell's refusal is written in its own terms.
+    function fatalCertificateError(type) {
+        switch (Number(type)) {
+        case WebEngineCertificateError.SslPinnedKeyNotInCertificateChain:
+        case WebEngineCertificateError.CertificateKnownInterceptionBlocked:
+        case WebEngineCertificateError.CertificateRevoked:
+        case WebEngineCertificateError.CertificateTransparencyRequired:
+        case WebEngineCertificateError.CertificateSymantecLegacy:
+            return true
+        default:
+            return false
+        }
+    }
+
+    // The reader's answer to one failure. Accepting it lets this load through
+    // and nothing else: Chromium is told about this certificate for this host,
+    // and the adapter keeps saying the connection is in error.
+    function respondToCertificateError(requestId, accepted) {
+        const error = root.pendingCertificateErrors[requestId]
+        if (!error) return
+        delete root.pendingCertificateErrors[requestId]
+        if (accepted) error.acceptCertificate()
+        else error.rejectCertificate()
+    }
     property var pendingPermissions: ({})
     property int nextPermissionRequestId: 0
     property var pendingBrowserPrompts: ({})
@@ -143,6 +206,41 @@ Item {
     property bool javaScriptDialogsBlocked: false
     property var pendingFileSelections: ({})
     property var externalProtocolOrigins: ({})
+
+    // Chromium's own permission numbers, in the words the shell's policy is
+    // written in. Translating an engine's events into the common contract is
+    // the adapter's work: the shell decides what may be remembered about a
+    // capability, and it cannot do that about an integer whose meaning is
+    // Chromium's. A capability with no name here is one this build has no
+    // policy for, and the shell refuses what it cannot name.
+    function permissionName(permissionType) {
+        switch (permissionType) {
+        case WebEnginePermission.PermissionType.MediaAudioCapture:
+            return "microphone"
+        case WebEnginePermission.PermissionType.MediaVideoCapture:
+            return "camera"
+        case WebEnginePermission.PermissionType.MediaAudioVideoCapture:
+            return "camera-and-microphone"
+        // Chromium tells the two desktop captures apart by whether the sound
+        // comes with the screen. Omaweb does not: either one hands over
+        // whatever is on the screen at that instant, and is asked every time.
+        case WebEnginePermission.PermissionType.DesktopVideoCapture:
+        case WebEnginePermission.PermissionType.DesktopAudioVideoCapture:
+            return "screen-sharing"
+        case WebEnginePermission.PermissionType.MouseLock:
+            return "pointer-lock"
+        case WebEnginePermission.PermissionType.Notifications:
+            return "notifications"
+        case WebEnginePermission.PermissionType.Geolocation:
+            return "geolocation"
+        case WebEnginePermission.PermissionType.ClipboardReadWrite:
+            return "clipboard-read"
+        case WebEnginePermission.PermissionType.LocalFontsAccess:
+            return "local-fonts"
+        default:
+            return ""
+        }
+    }
 
     function respondToPermission(requestId, decision) {
         const request = pendingPermissions[requestId]
@@ -1104,6 +1202,28 @@ Item {
             root.rendererFailed("Renderer stopped with exit code " + exitCode)
         }
 
+        // Deferred rather than answered: Chromium blocks the load while the
+        // shell decides, which is what makes blocking the default. A failure
+        // in a subresource or in a frame is reported with that fact attached
+        // rather than filtered out here — refusing it is the shell's rule to
+        // state, and the shell has to be able to say it refused one.
+        onCertificateError: function(error) {
+            error.defer()
+            if (error.isMainFrame) {
+                root.certificateErrorOrigin = root.originLabel(error.url)
+            }
+            const requestId = String(++root.nextCertificateErrorId)
+            root.pendingCertificateErrors[requestId] = error
+            root.certificateErrorRaised(requestId, {
+                "url": String(error.url),
+                "origin": root.originLabel(error.url),
+                "description": error.description,
+                "overridable": error.overridable,
+                "mainFrame": error.isMainFrame,
+                "fatal": root.fatalCertificateError(error.type)
+            })
+        }
+
         // Chromium keeps the node the menu was opened over, and Omaweb has to
         // know that it has one: nothing on the view reports it, and the action
         // that reads it crashes when there is none. Accepting the request is
@@ -1130,6 +1250,14 @@ Item {
             if (loadRequest.status === WebEngineView.LoadStartedStatus) {
                 root.pageGeneration += 1
                 root.javaScriptDialogsBlocked = false
+                root.lastLoadFailed = false
+                // The failure belonged to the origin being left. Leaving it
+                // takes the report with it; coming back asks again, because
+                // nothing about the exception was written down.
+                if (root.certificateErrorOrigin.length > 0
+                    && root.certificateErrorOrigin !== root.originLabel(loadRequest.url)) {
+                    root.certificateErrorOrigin = ""
+                }
                 // The node Chromium is holding belonged to the page being
                 // replaced. What is at those coordinates now is not what the
                 // reader pointed at, so the next keyboard request picks again.
@@ -1143,6 +1271,9 @@ Item {
             root.applyCosmeticRules()
             if (loadRequest.status === WebEngineView.LoadSucceededStatus) {
                 root.surveyGenericCosmeticRules()
+            }
+            if (loadRequest.status === WebEngineView.LoadFailedStatus) {
+                root.lastLoadFailed = true
             }
             if (!loading) root.applyKeyboardNavigationConfiguration()
         }
@@ -1215,7 +1346,7 @@ Item {
         }
 
         onPermissionRequested: function(request) {
-            const permission = String(request.permissionType)
+            const permission = root.permissionName(request.permissionType)
             const decision = root.permissionController
                 ? root.permissionController.permissionDecision(request.origin, permission)
                 : 0

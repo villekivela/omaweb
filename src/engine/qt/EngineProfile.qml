@@ -6,6 +6,15 @@ QtObject {
 
     property string profilePath: ""
     property var engineContentBlocker: null
+    // Third-party cookies are blocked by the engine's own filter, and whether
+    // an origin has been given an allowance is the core's answer for one Space.
+    // Both are handed in rather than reached for: a profile may be built for a
+    // Space nobody is looking at.
+    property var engineCookiePolicy: null
+    property var cookieController: null
+    property string cookieSpaceId: ""
+    readonly property bool thirdPartyCookiesBlocked: root.cookiePolicyAttached
+    property bool cookiePolicyAttached: false
     property string downloadDirectory: ""
     property bool acceptDownloads: false
     property bool privateBrowsing: true
@@ -169,5 +178,9 @@ QtObject {
     Component.onCompleted: {
         if (root.engineContentBlocker)
             root.engineContentBlocker.attachToProfile(root.profile)
+        if (root.engineCookiePolicy && root.cookieController) {
+            root.cookiePolicyAttached = root.engineCookiePolicy.attachToProfile(
+                root.profile, root.cookieController, root.cookieSpaceId)
+        }
     }
 }

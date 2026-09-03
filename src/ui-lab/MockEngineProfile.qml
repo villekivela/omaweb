@@ -3,6 +3,13 @@ import QtQuick
 QtObject {
     property string profilePath: ""
     property var engineContentBlocker: null
+    // The lab reaches no network and so blocks nothing. It says so rather than
+    // being trusted: an engine that cannot refuse a third party is one Site
+    // information has to name.
+    property var engineCookiePolicy: null
+    property var cookieController: null
+    property string cookieSpaceId: ""
+    readonly property bool thirdPartyCookiesBlocked: false
     property string downloadDirectory: ""
     property bool acceptDownloads: false
     property bool privateBrowsing: true

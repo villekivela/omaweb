@@ -52,6 +52,10 @@ Rectangle {
     property color pageBackgroundColor: "#16151d"
     readonly property bool pageHasFocus: root.activeFocus
     readonly property int navigationCapability: 1 << 0
+    // Named but never claimed: the lab keeps nothing on disk, so Site
+    // information has no size to show for it. The bit has to be nameable for
+    // the shell to read the gap off the adapter.
+    readonly property int persistentProfilesCapability: 1 << 1
     readonly property int contentBlockingCapability: 1 << 3
     readonly property int keyboardPageCommandsCapability: 1 << 4
     readonly property int developerToolsCapability: 1 << 5
@@ -61,6 +65,8 @@ Rectangle {
     readonly property int printingCapability: 1 << 9
     readonly property int siteFullscreenCapability: 1 << 10
     readonly property int inlinePdfViewingCapability: 1 << 11
+    readonly property int certificateDecisionsCapability: 1 << 12
+    readonly property int thirdPartyCookieControlCapability: 1 << 13
     // The lab is also the engine that cannot do everything. Each everyday page
     // operation is switchable on its own, because the shell has to be
     // reviewable against an adapter that reports the gap rather than only
@@ -70,6 +76,12 @@ Rectangle {
     property bool printingAvailable: true
     property bool siteFullscreenAvailable: true
     property bool inlinePdfViewingAvailable: true
+    // The two parts of a site's security contract an engine can be missing.
+    // Each is switchable on its own so the shell can be reviewed against an
+    // adapter that says it cannot report a certificate failure, and against one
+    // that cannot refuse a third-party cookie.
+    property bool certificateDecisionsAvailable: true
+    property bool thirdPartyCookieControlAvailable: true
     readonly property int capabilities: navigationCapability
         | contentBlockingCapability
         | keyboardPageCommandsCapability
@@ -80,6 +92,8 @@ Rectangle {
         | (root.printingAvailable ? printingCapability : 0)
         | (root.siteFullscreenAvailable ? siteFullscreenCapability : 0)
         | (root.inlinePdfViewingAvailable ? inlinePdfViewingCapability : 0)
+        | (root.certificateDecisionsAvailable ? certificateDecisionsCapability : 0)
+        | (root.thirdPartyCookieControlAvailable ? thirdPartyCookieControlCapability : 0)
 
     // The lab renders nothing, so find counts the plain occurrences of the
     // query in a body of text a test names. That is enough for the interface:
@@ -91,6 +105,73 @@ Rectangle {
     property real zoomFactor: 1.0
     property bool siteFullscreenActive: false
     property string siteFullscreenOrigin: ""
+
+    // The lab reaches no network, so what a connection is has to be named. The
+    // address alone is what the adapter would know: an https page is reached
+    // securely unless a certificate failure has been reported for its origin,
+    // and anything that is not http or https is Omaweb's own furniture.
+    property string certificateErrorOrigin: ""
+    property bool lastLoadFailed: false
+    readonly property string connectionState: {
+        const address = String(root.currentUrl)
+        const separator = address.indexOf("://")
+        const scheme = separator === -1 ? "" : address.substring(0, separator).toLowerCase()
+        if (root.certificateErrorOrigin.length > 0
+            && root.certificateErrorOrigin === root.originLabel(root.currentUrl))
+            return "certificate-error"
+        if (scheme !== "http" && scheme !== "https") return "internal"
+        if (root.lastLoadFailed) return "insecure"
+        return scheme === "https" ? "secure" : "insecure"
+    }
+    // The lab enables no override, and says so the same way the engine adapter
+    // does rather than by being trusted not to.
+    readonly property bool insecureContentBlocked: true
+
+    function originLabel(origin) {
+        const address = String(origin)
+        const scheme = address.indexOf("://")
+        const authority = (scheme === -1 ? address : address.substring(scheme + 3))
+            .split("/")[0]
+        return authority.length > 0 ? authority : address
+    }
+
+    signal certificateErrorRaised(string requestId, var failure)
+    property var pendingCertificateErrors: ({})
+    property int nextCertificateErrorId: 0
+    property var certificateDecisions: ({})
+
+    // The lab has no certificate to fail, so a failure is named. An engine
+    // that cannot report one reports nothing at all, which is what the
+    // capability being off has to mean.
+    function simulateCertificateError(failure) {
+        if (!root.certificateDecisionsAvailable) return ""
+        const named = failure || ({})
+        const url = String(named.url !== undefined ? named.url : root.currentUrl)
+        const requestId = String(++root.nextCertificateErrorId)
+        const mainFrame = named.mainFrame !== false
+        if (mainFrame) root.certificateErrorOrigin = root.originLabel(url)
+        root.pendingCertificateErrors[requestId] = {"url": url, "mainFrame": mainFrame}
+        root.certificateErrorRaised(requestId, {
+            "url": url,
+            "origin": root.originLabel(url),
+            "description": String(named.description !== undefined
+                ? named.description : "The certificate could not be verified"),
+            "overridable": named.overridable !== false,
+            "mainFrame": mainFrame,
+            "fatal": named.fatal === true
+        })
+        return requestId
+    }
+
+    function respondToCertificateError(requestId, accepted) {
+        const pending = root.pendingCertificateErrors[requestId]
+        if (!pending) return
+        delete root.pendingCertificateErrors[requestId]
+        root.certificateDecisions[requestId] = accepted === true
+        // A refused failure is a load that never arrived; an accepted one is
+        // this load let through, and the connection stays in error either way.
+        if (!accepted && pending.mainFrame) root.lastLoadFailed = true
+    }
 
     // The lab runs no engine and so has no inspector. It reports the capability
     // and hands back a drawn stand-in, which is what makes the dock, its width
@@ -131,7 +212,26 @@ Rectangle {
         root.pageAudible = !root.audioMuted
         return true
     }
-    function respondToPermission(requestId, decision) {}
+    // The lab has no capability to ask for, so a request is named. The engine's
+    // part is to ask and to hear the answer; which answers may be remembered is
+    // the core's, and the request goes straight through where one already was.
+    property int nextPermissionRequestId: 0
+    property var permissionAnswers: ({})
+    property int permissionsSettledWithoutAsking: 0
+    function simulateSitePermission(origin, permission) {
+        const decision = root.permissionController
+            ? root.permissionController.permissionDecision(origin, permission) : 0
+        if (decision !== 0) {
+            root.permissionsSettledWithoutAsking += 1
+            return ""
+        }
+        const requestId = String(++root.nextPermissionRequestId)
+        root.sitePermissionRequested(requestId, String(origin), String(permission))
+        return requestId
+    }
+    function respondToPermission(requestId, decision) {
+        root.permissionAnswers[requestId] = decision
+    }
     property bool javaScriptDialogsBlocked: false
     property bool lastPromptAccepted: false
     property var lastPromptResponse: ({})
@@ -216,6 +316,13 @@ Rectangle {
     onCurrentUrlChanged: {
         root.pageGeneration += 1
         root.javaScriptDialogsBlocked = false
+        root.lastLoadFailed = false
+        // The failure belonged to the origin being left, and nothing wrote the
+        // exception down, so arriving somewhere else clears the report.
+        if (root.certificateErrorOrigin.length > 0
+            && root.certificateErrorOrigin !== root.originLabel(root.currentUrl)) {
+            root.certificateErrorOrigin = ""
+        }
         pageLocalState = ""
         // The matches were in the page that has just been replaced. The query
         // is the reader's and stays.

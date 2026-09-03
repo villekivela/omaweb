@@ -27,6 +27,15 @@ public:
         // A PDF drawn inside the engine's own sandbox. Without it a PDF is a
         // download, which is what an adapter that cannot show one does instead.
         InlinePdfViewing = 1 << 11,
+        // The two parts of a site's security contract an engine can be
+        // missing. Each is named on its own because Site information has to
+        // say the engine cannot answer rather than show a reassuring blank:
+        // whether a certificate failure can be reported and decided about at
+        // all, and whether a third-party cookie can be refused. How much site
+        // data a Space holds is not one of these — it is on disk wherever
+        // PersistentProfiles says the engine keeps it.
+        CertificateDecisions = 1 << 12,
+        ThirdPartyCookieControl = 1 << 13,
     };
     Q_DECLARE_FLAGS(Capabilities, Capability)
     Q_FLAG(Capabilities)

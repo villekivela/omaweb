@@ -58,6 +58,15 @@ QStringList validateEngineViewContract(const QObject &adapter)
         // the screen.
         {"siteFullscreenActive", QMetaType::Bool},
         {"siteFullscreenOrigin", QMetaType::QString},
+        // What the connection to the page on show actually is, as one of
+        // "secure", "insecure", "certificate-error" or "internal". The shell
+        // draws the address trigger from this and from nothing else: an
+        // address it parsed itself is not evidence about a connection.
+        {"connectionState", QMetaType::QString},
+        // Whether active mixed content is still refused. Omaweb has no release
+        // path that turns this off, so an adapter reporting false is one the
+        // shell must say so about rather than quietly draw a lock over.
+        {"insecureContentBlocked", QMetaType::Bool},
     };
     struct RequiredMethod {
         const char *name;
@@ -87,12 +96,17 @@ QStringList validateEngineViewContract(const QObject &adapter)
         {"inspectElement", false, 0},
         {"requestPageContextMenu", false, 0},
         {"respondToBrowserPrompt", false, 3},
+        // A certificate failure and the answer to it. The adapter reports the
+        // engine's own facts — overridable, main frame, fatal — and waits;
+        // deciding what may be offered for them is the shell's.
+        {"respondToCertificateError", false, 2},
         {"respondToFileSelection", false, 2},
         {"performPageContextAction", false, 2},
         {"developerToolsClosed", true, 0},
         {"printFinished", true, 2, QMetaType::QString},
         {"pageContextRequested", true, 1},
         {"browserPromptRequested", true, 2},
+        {"certificateErrorRaised", true, 2},
         {"fileSelectionRequested", true, 2},
         {"rendererFailed", true, 1, QMetaType::QString},
         {"newTabRequested", true, 2},
