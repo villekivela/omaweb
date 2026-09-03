@@ -12,7 +12,7 @@ Legibility is Omaweb's rather than the theme's. A palette derived from a termina
 
 Borders are graphical content. Omaweb applies the same rule at the WCAG AA 3:1 non-text threshold against every surface a border separates. A named border keeps its hue while its lightness moves, and a Private window receives a separately derived `privateBorder` so neither palette weakens the other.
 
-A palette whose surface luminances make either threshold impossible is internally contradictory: no single semantic colour could honour it. Omaweb rejects that palette as a unit and uses its built-in palette rather than silently returning a colour below the documented floor.
+Some palettes make a threshold unreachable: a Private window whose sidebar is the theme's accent and whose background is the desktop's dark one has no colour that is 3:1 against both, and the palette Omarchy renders from Omaweb's own template is such a palette. That is the ordinary case rather than a broken theme, so the floor is a repair and not a gate. Where no colour clears it against every surface at once, the role takes whichever candidate reads best on the surface it reads worst on, and every other colour the theme named stays exactly as it named it. Discarding a whole palette for one unreachable role would stop the browser following the desktop at all, which costs the reader far more than the role does.
 
 Every theme also defines a distinct Private-window treatment. Omaweb enforces a minimum visual difference so a custom palette cannot make private and persistent browsing indistinguishable.
 
