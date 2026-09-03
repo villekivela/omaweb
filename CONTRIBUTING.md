@@ -1,9 +1,9 @@
 # Contributing
 
-Omaweb is pre-alpha. macOS is a development and CI platform, while Linux and
-Wayland are the distribution target. The Ladybird build stays experimental
-until its embedding and security contracts are ready. Patches for the macOS and
-Linux Qt builds are the most useful thing to send.
+Omaweb is pre-alpha. macOS is a development platform, while Linux and Wayland
+are the distribution target and the only platform CI builds. The Ladybird
+build stays experimental until its embedding and security contracts are ready.
+Patches for the macOS and Linux Qt builds are the most useful thing to send.
 
 ## Before you write code
 
@@ -49,8 +49,9 @@ render a frame to a PNG, which works headlessly and is the easiest way to show
 a chrome change in a pull request.
 
 `ctest --preset dev` must pass before you open a pull request. CI then runs the
-`ci` preset on both Arch Linux and macOS, and builds the `release` preset to
-check that the embedded QML still loads.
+`ci` preset on Arch Linux and builds the `release` preset to check that the
+embedded QML still loads. Nothing builds macOS for you, so a patch that touches
+`src/platform` or the bundle needs a local run there before it is sent.
 
 ## Things that will fail the build
 
