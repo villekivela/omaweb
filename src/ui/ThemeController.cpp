@@ -9,8 +9,41 @@
 #include <QJsonObject>
 
 #include <algorithm>
+#include <cmath>
 
 namespace omaweb {
+namespace {
+
+// WCAG relative luminance and contrast ratio. Omaweb needs them for one
+// decision — whether text can be read on the surface it is drawn on — and the
+// theme palette is the only place that decision is made, so they live here
+// rather than becoming a colour utility of their own.
+double relativeLuminance(const QColor &colour)
+{
+    const auto channel = [](double value) {
+        return value <= 0.04045 ? value / 12.92 : std::pow((value + 0.055) / 1.055, 2.4);
+    };
+    return 0.2126 * channel(colour.redF()) + 0.7152 * channel(colour.greenF())
+        + 0.0722 * channel(colour.blueF());
+}
+
+double contrastRatio(const QColor &one, const QColor &other)
+{
+    const auto first = relativeLuminance(one);
+    const auto second = relativeLuminance(other);
+    return (std::max(first, second) + 0.05) / (std::min(first, second) + 0.05);
+}
+
+QColor blended(const QColor &from, const QColor &to, double amount)
+{
+    const auto channel = [amount](int start, int end) {
+        return qRound(start + (end - start) * amount);
+    };
+    return QColor::fromRgb(channel(from.red(), to.red()), channel(from.green(), to.green()),
+        channel(from.blue(), to.blue()));
+}
+
+} // namespace
 
 ThemeController::ThemeController(QString themePath, QObject *parent)
     : ThemeController(QStringList{std::move(themePath)}, parent)
@@ -167,6 +200,9 @@ QString ThemeController::installedFamily(const QStringList &candidates)
 
 QVariantMap ThemeController::normalizedPalette(QVariantMap palette) const
 {
+    // Asked before the defaults are filled in, because a colour Omaweb
+    // supplied is not a colour the theme asked for.
+    const auto themeNamedMutedText = palette.contains(QStringLiteral("mutedText"));
     const auto fallback = fallbackPalette();
     for (auto it = fallback.cbegin(); it != fallback.cend(); ++it) {
         if (!palette.contains(it.key())) {
@@ -222,6 +258,65 @@ QVariantMap ThemeController::normalizedPalette(QVariantMap palette) const
     };
     inheritSidebarColor(QStringLiteral("sheet"), QStringLiteral("sidebar"));
     inheritSidebarColor(QStringLiteral("privateSheet"), QStringLiteral("privateSidebar"));
+
+    // Muted text is not decoration. It is a tab's title, a Space's letters,
+    // the footer's controls — content the reader has to read, drawn quieter
+    // than the rest so the rest can lead. A palette derived from a terminal's
+    // sixteen colours has nothing to say about it: Omarchy offers
+    // `dark_foreground`, which its own templates spend on
+    // `disabledForeground`, and for a theme that names none of the extended
+    // colours that is ANSI bright black — the value Omaweb also draws its
+    // borders in. Drawn as text on the sidebar it lands below the disabled
+    // rendering of ordinary text, so everything quiet reads as unavailable and
+    // the two states the interface most needs to keep apart collapse into one.
+    //
+    // So the theme's colour is a preference and legibility is Omaweb's. The
+    // named colour is taken toward `text` until it clears 4.5:1 — WCAG AA for
+    // body text — against every Omaweb surface muted text is read on. A theme
+    // whose colour already reads keeps it exactly; the rest keep their hue and
+    // lose only the part that was unreadable. A theme that names no muted text
+    // starts from the surface instead of from `text`, so what it gets is the
+    // quietest tint of its own text colour that still reads, which is dark on
+    // a light theme and light on a dark one without either being special-cased.
+    //
+    // A disabled control is `text` at 0.35 alpha, which cannot reach 3:1
+    // against the ground it is composited over, so anything clearing this
+    // floor also stays clearly ahead of disabled. One threshold does both jobs.
+    const QColor text(palette.value(QStringLiteral("text")).toString());
+    QList<QColor> grounds;
+    for (const auto &key : {QStringLiteral("sidebar"), QStringLiteral("surface"),
+             QStringLiteral("overlay"), QStringLiteral("sheet")}) {
+        const QColor ground(palette.value(key).toString());
+        if (ground.isValid()) {
+            grounds.append(ground);
+        }
+    }
+    const QColor named(palette.value(QStringLiteral("mutedText")).toString());
+    const QColor quietest(themeNamedMutedText && named.isValid()
+            ? named
+            : QColor(palette.value(QStringLiteral("sidebar")).toString()));
+    if (text.isValid() && quietest.isValid() && !grounds.isEmpty()) {
+        constexpr auto minimumContrast = 4.5;
+        constexpr auto steps = 32;
+        const auto reads = [&grounds](const QColor &candidate) {
+            return std::all_of(grounds.cbegin(), grounds.cend(), [&candidate](const QColor &g) {
+                return contrastRatio(candidate, g) >= minimumContrast;
+            });
+        };
+        // Ending on `text` itself: a theme whose ordinary text cannot be read
+        // on its own surfaces has a problem no muted colour can fix, and
+        // drawing the quiet parts in the same colour as the rest at least
+        // stops them being the quietest thing on a page nobody can read.
+        auto resolved = text;
+        for (auto step = 0; step <= steps; ++step) {
+            const auto candidate = blended(quietest, text, static_cast<double>(step) / steps);
+            if (reads(candidate)) {
+                resolved = candidate;
+                break;
+            }
+        }
+        palette.insert(QStringLiteral("mutedText"), resolved.name(QColor::HexRgb));
+    }
 
     // Semantic opacity is the single source of truth for how much of the desktop
     // shows through a Omaweb-owned surface, so a theme that also bakes alpha into
