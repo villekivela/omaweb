@@ -11,6 +11,35 @@
 
 The canonical macOS Qt SDK comes from Qt's official Apple Silicon distribution. Homebrew Qt is a convenience option only when it meets the approved security patch level.
 
+### Virtual machines
+
+A guest with virtualized graphics — `Mesa virgl` on virtio-gpu, say — runs Qt Quick
+fine but can leave the page transparent: the window's chrome paints and the desktop
+shows through where the web view should be. Qt asks Chromium for ANGLE, ANGLE asks
+the driver for a context version it does not have, and nothing is composited. The
+log says so under `QT_LOGGING_RULES='qt.webenginecontext.debug=true'`:
+
+```
+EGL Driver message (Error) eglCreateContext: Requested version is not supported
+```
+
+Give Chromium a rendering path the guest can serve:
+
+```sh
+QTWEBENGINE_CHROMIUM_FLAGS=--disable-gpu ./build/dev/omaweb
+```
+
+`--use-angle=gl`, which would have kept the acceleration virgl can offer, does not
+work here — the whole `--disable-gpu` hammer is the one that lands. The flag has to
+come through the environment: QtWebEngine builds Chromium's command line from
+`QTWEBENGINE_CHROMIUM_FLAGS`, and the same flag on Omaweb's own argv is ignored.
+
+This is a property of the guest's graphics rather than of Omaweb, so it stays an
+environment variable rather than something the build decides. Omaweb refuses
+`--no-sandbox`, `--single-process`, `--in-process-gpu`, and
+`--in-process-network-service` (see [Security rules](#security-rules)); the
+rendering flags above are not among them.
+
 ## Presets
 
 ```sh
