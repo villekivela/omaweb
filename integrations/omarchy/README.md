@@ -76,7 +76,9 @@ This is a rule the reader adds, not one Omaweb installs. Omaweb writes into
 meant to render from; `~/.config/hypr/` is the reader's own window management,
 and a browser that quietly edited it would be doing something else entirely.
 Upstreaming a `default/hypr/apps/omaweb.lua` into Omarchy is the fix that would
-reach every install, and it depends on an external pull request.
+reach every install, and it depends on an external pull request. That is
+tracked in villekivela/omaweb#75, and waits on Omaweb being something an
+Omarchy user can install.
 
 ## Overrides
 
