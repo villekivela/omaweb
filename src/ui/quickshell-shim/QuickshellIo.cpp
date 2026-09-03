@@ -4,10 +4,19 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QFileSystemWatcher>
+#include <QLoggingCategory>
 #include <QMetaObject>
 #include <QTextStream>
 
 namespace omaweb::quickshell {
+
+// Every file the vendored kit reads, and whether it got it. The kit asks for
+// four -- a theme's colours and shell tokens, a machine-level override, a
+// Hyprland toggle -- with `printErrors` off on the ones that matter most, and
+// installs empty values when a read fails. A palette that came out wrong is
+// then indistinguishable from one that never arrived, so the shim says.
+Q_LOGGING_CATEGORY(fileViewLog, "omaweb.quickshell.fileview")
+
 
 StdioCollector::StdioCollector(QObject *parent)
     : QObject(parent)
@@ -223,11 +232,13 @@ void FileView::reload()
         if (m_printErrors && !m_path.isEmpty()) {
             qWarning("FileView could not read %s", qPrintable(m_path));
         }
+        qCDebug(fileViewLog, "could not read %s", qPrintable(m_path));
         emit loadFailed();
         return;
     }
     QTextStream stream(&file);
     m_text = stream.readAll();
+    qCDebug(fileViewLog, "read %lld bytes from %s", qint64(m_text.size()), qPrintable(m_path));
     emit loaded();
 }
 
