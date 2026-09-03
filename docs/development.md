@@ -152,6 +152,25 @@ Omaweb copies `assets/keybindings/default.json` to `keybindings.json` in the con
 
 Site rules match the named host and its subdomains. Omaweb rejects unknown schema versions and command names instead of loading part of the file.
 
+## Releases
+
+The version comes from the nearest `v*` tag, so cutting a release is a tag and a
+push:
+
+```sh
+git tag v0.2.0
+git push origin v0.2.0
+```
+
+The `Release` workflow refuses a tag that is not on `main`, generates notes from
+the Conventional Commit subjects since the previous tag with
+`scripts/release_notes.sh`, and publishes them. Every `v0.*` tag is marked a
+prerelease. No binaries are attached. See
+[ADR 0028](adr/0028-derive-the-version-from-the-release-tag.md).
+
+`cmake --preset dev` prints the version it derived. A tree with no tags falls
+back to `OMAWEB_FALLBACK_VERSION` in `cmake/OmawebVersion.cmake`.
+
 ## Performance
 
 Build and startup budgets are recorded in [ADR 0007](adr/0007-keep-dependencies-out-of-the-fast-build.md). Run `scripts/benchmark_build.sh dev` to measure configure, clean build, incremental C++ rebuild, and a no-op build with the same preset. Record launch time separately when updating the baseline.
