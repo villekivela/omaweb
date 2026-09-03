@@ -98,6 +98,11 @@ Item {
     property string findQuery: ""
     property int findMatchCount: 0
     property int findActiveMatch: 0
+    // The page the outstanding search was issued against. Chromium answers a
+    // search asynchronously, and the answer can arrive after a navigation has
+    // already taken the matches away, so a result is only the current page's
+    // if the page has not turned over since the search was asked.
+    property int findGeneration: -1
 
     // How large this tab's page is drawn. The shell owns the value — it is the
     // tab's, and outlives the page in it — and the view is told what it is.
@@ -403,6 +408,7 @@ Item {
 
     function findText(query, forward) {
         root.findQuery = String(query)
+        root.findGeneration = root.pageGeneration
         if (root.findQuery.length === 0) {
             root.forgetFindMatches()
             webView.findText("")
@@ -413,6 +419,7 @@ Item {
 
     function clearFind() {
         root.findQuery = ""
+        root.findGeneration = root.pageGeneration
         root.forgetFindMatches()
         webView.findText("")
     }
@@ -1163,6 +1170,9 @@ Item {
         onWindowCloseRequested: root.windowCloseRequested()
 
         onFindTextFinished: function(result) {
+            // A result for the page being replaced would otherwise report
+            // matches against the page that replaced it.
+            if (root.findGeneration !== root.pageGeneration) return
             root.findMatchCount = result.numberOfMatches
             root.findActiveMatch = result.activeMatch
         }
