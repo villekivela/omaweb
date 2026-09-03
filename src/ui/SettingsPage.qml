@@ -48,7 +48,7 @@ Rectangle {
     readonly property bool needsAttention: keyboardReport.length > 0
 
     readonly property var sections: ["tabs", "keyboard", "content blocking", "network",
-        "downloads", "search", "privacy"]
+        "downloads", "search", "privacy", "about"]
 
     // about:blank and other opaque addresses have no host to name, and saying
     // "blocked on about" would be worse than saying nothing.
@@ -813,6 +813,79 @@ Rectangle {
                             clearEverySpaceConfirmation.text = ""
                             root.refresh()
                         }
+                    }
+                }
+
+                Column {
+                    width: pane.width
+                    visible: root.section === 7
+                    spacing: 8
+
+                    Text {
+                        objectName: "aboutName"
+                        text: "Omaweb"
+                        color: root.colors.text
+                        font.family: Style.font.family
+                        font.pixelSize: Style.font.display
+                    }
+
+                    // The version carries the git description, so a build made
+                    // past a tag reads 0.2.0-14-gabc1234 and a bug report names
+                    // the commit it came from.
+                    Text {
+                        objectName: "aboutVersion"
+                        text: "Version " + Qt.application.version
+                        color: root.colors.mutedText
+                        font.family: Style.font.family
+                        font.pixelSize: Style.font.body
+                    }
+
+                    Item { width: 1; height: 4 }
+
+                    Text {
+                        width: pane.width
+                        text: "Pre-alpha. Do not use it for sensitive browsing yet."
+                        color: root.colors.mutedText
+                        wrapMode: Text.WordWrap
+                        font.family: Style.font.family
+                        font.pixelSize: Style.font.caption
+                    }
+
+                    Item { width: 1; height: 12 }
+                    SectionLabel { colors: root.colors; text: "project" }
+
+                    Text {
+                        objectName: "aboutLinks"
+                        width: pane.width
+                        textFormat: Text.StyledText
+                        text: '<a href="https://omaweb.app">omaweb.app</a> · '
+                            + '<a href="https://github.com/villekivela/omaweb">source</a> · '
+                            + '<a href="https://github.com/villekivela/omaweb/issues">issues</a>'
+                        linkColor: root.colors.accent
+                        color: root.colors.mutedText
+                        wrapMode: Text.WordWrap
+                        font.family: Style.font.family
+                        font.pixelSize: Style.font.body
+                        onLinkActivated: function(link) { Qt.openUrlExternally(link) }
+
+                        HoverHandler {
+                            cursorShape: parent.hoveredLink !== ""
+                                ? Qt.PointingHandCursor : Qt.ArrowCursor
+                        }
+                    }
+
+                    Item { width: 1; height: 12 }
+                    SectionLabel { colors: root.colors; text: "license" }
+
+                    Text {
+                        width: pane.width
+                        text: "Omaweb is under the Mozilla Public License 2.0. It bundles "
+                            + "third-party components under their own licenses, which "
+                            + "THIRD_PARTY_NOTICES.md in the source tree lists."
+                        color: root.colors.mutedText
+                        wrapMode: Text.WordWrap
+                        font.family: Style.font.family
+                        font.pixelSize: Style.font.caption
                     }
                 }
             }

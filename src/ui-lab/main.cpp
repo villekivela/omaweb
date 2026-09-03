@@ -71,6 +71,9 @@ int main(int argc, char *argv[])
     omaweb::installWindowChrome(&application);
     QCoreApplication::setOrganizationName(QStringLiteral("Omaweb"));
     QCoreApplication::setApplicationName(QStringLiteral("Omaweb UI Lab"));
+    // The settings page reads Qt.application.version for its about section, so
+    // the lab has to carry the same version the browser does.
+    QCoreApplication::setApplicationVersion(QStringLiteral(OMAWEB_VERSION));
 
     QTemporaryDir dataRoot;
     if (!dataRoot.isValid()) {
