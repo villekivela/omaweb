@@ -13,7 +13,7 @@ jobs:
   commit-messages:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -24,7 +24,7 @@ jobs:
     runs-on: macos-15
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Install toolchain
         env:
           HOMEBREW_NO_AUTO_UPDATE: "1"
@@ -65,7 +65,7 @@ jobs:
         # macOS runner ships one in its image; this container ships nothing it
         # is not told to.
         run: pacman -Syu --noconfirm git cmake ninja clang ccache rust qt6-base qt6-declarative qt6-webengine
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Take the build off root
         # A container runs as root, and Chromium refuses to start as root
         # unless its sandbox is turned off. Omaweb does not build or test with
