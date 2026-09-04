@@ -2458,17 +2458,18 @@ TestCase {
         findChild(window.contentItem, "closeSettingsButton").clicked()
     }
 
-    // Every clear-dialog test below presses keys, and a key only reaches this
-    // window while the platform calls it the active one — an auxiliary window
-    // from a test above may have taken that, and then nothing in here has
-    // active focus at all. The dialog is also reset first: it disables the page
-    // under it, so a test inheriting one from a failure above would fail for
+    // The dialog's own contract — its tab order, its keys, what it refuses —
+    // is asserted in `tst_clearbrowsingdata.qml`, against a dialog standing on
+    // its own in that test case's window. It cannot be asserted here: this
+    // window is shared by a hundred tests, `activeFocus` is false throughout a
+    // window the platform does not call active, and which window that is gets
+    // decided by whichever test opened one last. What is left here is what
+    // needs the browser around it.
+    //
+    // The dialog is reset first either way, because it disables the page under
+    // it: a test inheriting an open one from a failure above would fail for
     // that reason rather than its own.
     function readyForBrowsingData() {
-        if (!window.active) {
-            window.requestActivate()
-            tryVerify(function() { return window.active })
-        }
         findChild(window.contentItem, "settingsSurface").clearDataOpen = false
         window.requestSettings()
         findChild(window.contentItem, "settingsSection6").Accessible.pressAction()
@@ -2497,10 +2498,17 @@ TestCase {
         // Opening composes; it does not act.
         compare(window.spaceProfileHost.browsingDataClearCount, cleared)
 
+        // A dialog is modal, so the page under it takes neither a click nor a
+        // Tab while it stands. Qt has no tab fence a QML item can raise, so
+        // taking the page out of the ring is what keeps the ring in the dialog.
+        compare(findChild(window.contentItem, "settingsSection0").enabled, false)
+        compare(findChild(window.contentItem, "closeSettingsButton").enabled, false)
+
         // Neither does dismissing it.
-        keyClick(Qt.Key_Escape)
+        dialog.dismissed()
         tryVerify(function() { return !dialog.visible })
         compare(window.spaceProfileHost.browsingDataClearCount, cleared)
+        compare(findChild(window.contentItem, "settingsSection0").enabled, true)
 
         openButton.clicked()
         tryVerify(function() { return dialog.visible })
@@ -2511,51 +2519,6 @@ TestCase {
         // Confirming is the whole act: nothing asks a second time.
         verify(!dialog.visible)
 
-        leaveBrowsingData()
-    }
-
-    // An empty selection used to be a press that silently did nothing, because
-    // the core refuses an empty `dataTypes` and the call site ignored the
-    // answer. The button says so instead.
-    function test_clearingIsRefusedBeforeItIsPressedWhenNothingIsTicked() {
-        readyForBrowsingData()
-        findChild(window.contentItem, "clearBrowsingDataButton").clicked()
-        const dialog = findChild(window.contentItem, "clearBrowsingDataDialog")
-        const confirm = findChild(window.contentItem, "clearBrowsingDataConfirm")
-        tryVerify(function() { return dialog.visible })
-        compare(confirm.enabled, true)
-
-        const categories = ["cookies", "storage", "cache", "permissions", "history"]
-        for (let index = 0; index < categories.length; ++index) {
-            const box = findChild(window.contentItem, "clearCategory-" + categories[index])
-            verify(box !== null)
-            compare(box.checked, true)
-            box.clicked()
-            compare(box.checked, false)
-        }
-        compare(dialog.categories.length, 0)
-        compare(confirm.enabled, false)
-
-        // Every Space asks for the typed guard the core enforces, and the field
-        // that supplies it lives here rather than on the page behind.
-        const confirmation = findChild(window.contentItem, "clearEverySpaceConfirmation")
-        verify(!confirmation.visible)
-        dialog.everySpace = true
-        verify(confirmation.visible)
-        // The kit's field does not take Tab by itself, and the confirm button
-        // now depends on what is typed in this one.
-        compare(confirmation.activeFocusOnTab, true)
-        findChild(window.contentItem, "clearCategory-cookies").clicked()
-        compare(confirm.enabled, false)
-        confirmation.text = "CLEAR ALL"
-        compare(confirm.enabled, true)
-
-        // Leave the selection as a first run has it.
-        const rest = ["storage", "cache", "permissions", "history"]
-        for (let back = 0; back < rest.length; ++back)
-            findChild(window.contentItem, "clearCategory-" + rest[back]).clicked()
-        keyClick(Qt.Key_Escape)
-        tryVerify(function() { return !dialog.visible })
         leaveBrowsingData()
     }
 
@@ -2583,71 +2546,6 @@ TestCase {
         const hintCentre = hint.mapToItem(dialog, 0, hint.height / 2).y
         verify(Math.abs(nameCentre - hintCentre) <= 1)
 
-        keyClick(Qt.Key_Escape)
-        tryVerify(function() { return !dialog.visible })
-        leaveBrowsingData()
-    }
-
-    // Omaweb's first dialog with a real tab order, so the order is asserted
-    // rather than assumed — including that the ring does not walk out onto the
-    // page the dialog is standing on.
-    function test_theClearDialogWalksItsOwnControlsAndConfirmsOnEnter() {
-        openPage("https://tab-order.example/page")
-        readyForBrowsingData()
-        findChild(window.contentItem, "clearBrowsingDataButton").clicked()
-        const dialog = findChild(window.contentItem, "clearBrowsingDataDialog")
-        tryVerify(function() { return dialog.visible })
-
-        // Tab opens on the first argument and walks the five of them.
-        const cookies = findChild(window.contentItem, "clearCategory-cookies")
-        const history = findChild(window.contentItem, "clearCategory-history")
-        tryVerify(function() { return cookies.activeFocus })
-        for (let step = 0; step < 4; ++step) keyClick(Qt.Key_Tab)
-        verify(history.activeFocus)
-
-        // Space ticks the one under the cursor; nothing else moves.
-        compare(history.checked, true)
-        keyClick(Qt.Key_Space)
-        compare(history.checked, false)
-        verify(history.activeFocus)
-        keyClick(Qt.Key_Space)
-        compare(history.checked, true)
-
-        // Shift+Tab walks back the way it came, and never onto the page: the
-        // settings rail behind the scrim takes no Tab while the dialog stands.
-        keyClick(Qt.Key_Backtab)
-        verify(findChild(window.contentItem, "clearCategory-permissions").activeFocus)
-        compare(findChild(window.contentItem, "settingsSection0").enabled, false)
-        compare(findChild(window.contentItem, "closeSettingsButton").enabled, false)
-
-        // Enter confirms from wherever the reader is standing.
-        const cleared = window.spaceProfileHost.browsingDataClearCount
-        keyClick(Qt.Key_Return)
-        tryVerify(function() {
-            return window.spaceProfileHost.browsingDataClearCount === cleared + 1
-        })
-        tryVerify(function() { return !dialog.visible })
-        compare(findChild(window.contentItem, "settingsSection0").enabled, true)
-        leaveBrowsingData()
-    }
-
-    // The part that is always wrong: two controls want Escape, and the one the
-    // reader is standing in has to answer first.
-    function test_escapeClosesAnOpenListBeforeItClosesTheDialog() {
-        readyForBrowsingData()
-        findChild(window.contentItem, "clearBrowsingDataButton").clicked()
-        const dialog = findChild(window.contentItem, "clearBrowsingDataDialog")
-        const range = findChild(window.contentItem, "clearTimeRange")
-        tryVerify(function() { return dialog.visible })
-
-        range.open()
-        tryVerify(function() { return range.popupOpen })
-        keyClick(Qt.Key_Escape)
-        tryVerify(function() { return !range.popupOpen })
-        verify(dialog.visible)
-
-        keyClick(Qt.Key_Escape)
-        tryVerify(function() { return !dialog.visible })
         leaveBrowsingData()
     }
 
@@ -2667,7 +2565,7 @@ TestCase {
             "cookies,storage,permissions,history")
         compare(browser.preference("clear-data-range", ""), "0")
 
-        keyClick(Qt.Key_Escape)
+        dialog.dismissed()
         tryVerify(function() { return !dialog.visible })
         leaveBrowsingData()
 
