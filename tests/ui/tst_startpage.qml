@@ -139,49 +139,25 @@ TestCase {
         font.bold: true
     }
 
-    property var savedFontOverrides: ({})
-    property real savedSpacingScale: 1
+    // Both axes the theme can move the sheet along, shared with the other
+    // pages that ask the same question of their own layouts.
+    ThemeAxis { id: theme }
+
     property var liveSheet: null
 
     function initTestCase() {
-        savedFontOverrides = Style.fontOverrides
-        savedSpacingScale = Style.spacingScale
+        theme.remember()
     }
 
     // A failing verify() throws, so nothing after it in the test body runs. The
     // sheet and the singleton it moved are put back here instead, where one
     // test's failure cannot leave the next one reading a shell it did not set.
     function cleanup() {
-        Style.fontOverrides = savedFontOverrides
-        Style.spacingScale = savedSpacingScale
+        theme.restore()
         if (liveSheet !== null) {
             liveSheet.destroy()
             liveSheet = null
         }
-    }
-
-    // The type the theme sets. shell.toml pins these tokens directly, and
-    // Omaweb's own theme sets the base size the kit derives them from; either
-    // way the sheet has to re-measure. `fontBaseSize` itself cannot be driven
-    // from here, because Omaweb's theme owns it and writes it straight back.
-    function useTypeTokens(scale) {
-        Style.fontOverrides = ({
-            "caption": Math.round(10 * scale),
-            "body-small": Math.round(11 * scale),
-            "body": Math.round(12 * scale),
-            "subtitle": Math.round(13 * scale),
-            "title": Math.round(14 * scale),
-            "heading": Math.round(16 * scale),
-            "display": Math.round(24 * scale),
-            "display-large": Math.round(28 * scale)
-        })
-    }
-
-    // The rhythm the theme sets, which is the other half of the same question:
-    // `[spacing] scale` makes the whole shell denser or roomier without
-    // touching the type.
-    function useSpacingScale(scale) {
-        Style.spacingScale = scale
     }
 
     function makeSheet() {
@@ -211,7 +187,7 @@ TestCase {
         const smallColumn = sheet.minimumColumnWidth
         const smallRow = sheet.rowHeight
 
-        useTypeTokens(2)
+        theme.useTypeTokens(2)
         verify(sheet.keyColumnWidth > smallKeys)
         verify(sheet.minimumColumnWidth > smallColumn)
         verify(sheet.rowHeight > smallRow)
@@ -232,7 +208,7 @@ TestCase {
 
         sheet.width = testCase.wideViewport
         compare(sheet.columnCount, wide)
-        useTypeTokens(2)
+        theme.useTypeTokens(2)
         verify(sheet.columnCount < wide)
         verify(sheet.columnCount >= 1)
     }
@@ -312,7 +288,7 @@ TestCase {
         const gap = sheet.columnGap
         verify(margin > 0)
 
-        useSpacingScale(2)
+        theme.useSpacingScale(2)
         verify(sheet.sideMargin > margin)
         verify(sheet.topInset > inset)
         verify(sheet.columnGap > gap)
