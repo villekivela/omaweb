@@ -2491,6 +2491,36 @@ TestCase {
         findChild(window.contentItem, "closeSettingsButton").clicked()
     }
 
+    // The kit's section label leans low on purpose: in a scrolling pane it
+    // belongs to the rows that follow it. A dialog head is a bar with one line
+    // in it, where that lean only drops the name below the hint beside it. Both
+    // dialogs share this head, so a lean here is a lean in every question the
+    // browser asks.
+    function test_theDialogHeadCentresItsNameAgainstItsHint() {
+        window.requestSettings()
+        findChild(window.contentItem, "settingsSection6").Accessible.pressAction()
+        findChild(window.contentItem, "clearBrowsingDataButton").clicked()
+        const dialog = findChild(window.contentItem, "clearBrowsingDataDialog")
+        tryVerify(function() { return dialog.visible })
+
+        const name = findChild(dialog, "dialogPanelLabel")
+        const hint = findChild(dialog, "dialogPanelCancelHint")
+        verify(name !== null)
+        verify(hint !== null)
+        compare(name.text, "clear browsing data")
+
+        // The centre is the glyphs' own rather than a padded box's, which is
+        // the whole of the fix: `verticalCenter` centres what it is given.
+        compare(name.topPadding, name.bottomPadding)
+        const nameCentre = name.mapToItem(dialog, 0, name.height / 2).y
+        const hintCentre = hint.mapToItem(dialog, 0, hint.height / 2).y
+        verify(Math.abs(nameCentre - hintCentre) <= 1)
+
+        keyClick(Qt.Key_Escape)
+        tryVerify(function() { return !dialog.visible })
+        findChild(window.contentItem, "closeSettingsButton").clicked()
+    }
+
     // Omaweb's first dialog with a real tab order, so the order is asserted
     // rather than assumed — including that the ring does not walk out onto the
     // page the dialog is standing on.

@@ -67,6 +67,7 @@ Item {
             height: 38
 
             SectionLabel {
+                objectName: "dialogPanelLabel"
                 anchors.left: parent.left
                 anchors.leftMargin: 16
                 anchors.verticalCenter: parent.verticalCenter
@@ -76,9 +77,17 @@ Item {
                 // dialog hands it the private accent to mute rather than a
                 // finished colour to paint.
                 foreground: root.destructive ? root.colors.privateAccent : root.colors.text
+                // A section label carries more room above it than below,
+                // because in a scrolling pane it belongs to the rows that
+                // follow it. A head is a bar of its own with one line in it, so
+                // that lean would only push the name below the hint beside it.
+                // The kit's own overshoot reserve is kept, on both sides.
+                topPadding: Math.ceil(fontSize * 0.15)
+                bottomPadding: topPadding
             }
 
             Text {
+                objectName: "dialogPanelCancelHint"
                 anchors.right: parent.right
                 anchors.rightMargin: 16
                 anchors.verticalCenter: parent.verticalCenter
