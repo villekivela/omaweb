@@ -29,7 +29,11 @@ Item {
     onOpenChanged: {
         if (!open) return
         selected = root.firstRunnable()
-        Qt.callLater(function() { root.forceActiveFocus() })
+        // Deferred so the menu is laid out before it takes the keyboard, and
+        // checked again on the way in: a menu dismissed inside that gap would
+        // otherwise take the keyboard back off whatever replaced it, and go on
+        // answering keys while invisible.
+        Qt.callLater(function() { if (root.open) root.forceActiveFocus() })
     }
 
     // A separator and a row that cannot be run are both passed over: the

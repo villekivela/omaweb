@@ -9,6 +9,9 @@ TestCase {
     when: true
 
     property var window: null
+    // `browser` is a context property, and a component that declares one of its
+    // own cannot name it: the declaration shadows the context.
+    readonly property var browserController: browser
 
     Component {
         id: windowComponent
@@ -31,6 +34,22 @@ TestCase {
             keyboard: QtObject { property string errorMessage: reportingSettings.report }
             open: true
             section: 1
+            width: 900
+            height: 700
+        }
+    }
+
+    // A settings page stood up fresh against the same preference store, which
+    // is what a restart looks like from the page's side.
+    Component {
+        id: restartedSettingsComponent
+
+        Omaweb.SettingsPage {
+            colors: testCase.window.colors
+            iconFontFamily: ""
+            browser: testCase.browserController
+            open: true
+            section: 6
             width: 900
             height: 700
         }
@@ -230,6 +249,28 @@ TestCase {
         verify(window.commands.run("open-page-context-menu", -1))
         tryVerify(function() { return menu.visible })
         compare(engine.contextMenuRequestCount, 2)
+    }
+
+    // A menu takes the keyboard one turn after it opens, so it is laid out
+    // before it is stepped through. Dismissed inside that gap, it used to take
+    // the keyboard anyway — off whatever had replaced it, and while invisible.
+    function test_aDismissedMenuDoesNotTakeTheKeyboardBackAfterwards() {
+        const engine = openPage("https://dismissed-menu.example/page")
+        const menu = findChild(window.contentItem, "pageMenu")
+        verify(menu !== null)
+
+        // Opened and dismissed inside one turn, so the deferred grab is still
+        // pending when the menu stops being on screen.
+        engine.simulateContextMenu({"linkUrl": "https://dismissed-menu.example/link"})
+        window.pageMenuOpen = false
+
+        // Long enough for the grab to have run had it not been checked. What
+        // holds the keyboard afterwards is the page's business; what must not
+        // hold it is a menu nobody can see.
+        wait(50)
+        verify(!menu.visible)
+        verify(!menu.activeFocus)
+        verify(window.activeFocusItem !== menu)
     }
 
     function test_pageContextMenuRejectsAStaleTarget() {
@@ -852,6 +893,33 @@ TestCase {
         compare(connection.text,
             "· certificate could not be verified · waived for this session")
         keyClick(Qt.Key_Escape)
+        tryVerify(function() { return !panel.visible })
+    }
+
+    // A section label leans away from what precedes it. The panel's own name is
+    // the first thing in it, so there is nothing to lean away from and the lean
+    // would read as dead space between the border and the name.
+    function test_siteInformationDoesNotLeanItsNameAwayFromNothing() {
+        openPage("https://panel-leading-label.example/page")
+        const sidebar = findChild(window.contentItem, "sidebar")
+        const panel = findChild(window.contentItem, "siteInformationPanel")
+        sidebar.statusOpen = true
+        tryVerify(function() { return panel.visible })
+
+        const name = findChild(panel, "siteInformationName")
+        const origin = findChild(window.contentItem, "siteInformationOrigin")
+        verify(name !== null)
+        compare(name.topPadding, name.overshoot)
+        // The gap under it is still the label's own, so the name is no closer
+        // to the origin it introduces than a section label ever is — the lean
+        // is reversed rather than the padding flattened.
+        verify(name.bottomPadding > name.topPadding)
+        // And the name starts where the panel's own padding puts it, not a
+        // section's worth of separation below it.
+        verify(name.mapToItem(panel, 0, 0).y < origin.mapToItem(panel, 0, 0).y)
+        verify(name.mapToItem(panel, 0, name.topPadding).y <= 14)
+
+        sidebar.statusOpen = false
         tryVerify(function() { return !panel.visible })
     }
 
@@ -2374,21 +2442,145 @@ TestCase {
         verify(addProvider !== null)
         verify(providerPicker.count >= 5)
 
+        // Privacy is one row and one button. The five category switches and the
+        // scope switch that used to stand here were arguments to that button,
+        // and a switch promises the browser changed when it was flipped (#84).
         dataSection.Accessible.pressAction()
-        verify(findChild(window.contentItem, "clearCookies") !== null)
-        verify(findChild(window.contentItem, "clearStorage") !== null)
-        verify(findChild(window.contentItem, "clearCache") !== null)
-        verify(findChild(window.contentItem, "clearPermissions") !== null)
-        verify(findChild(window.contentItem, "clearHistory") !== null)
-        const everySpace = findChild(window.contentItem, "clearEverySpace")
-        const confirmation = findChild(window.contentItem, "clearEverySpaceConfirmation")
-        verify(everySpace !== null)
-        verify(confirmation !== null)
-        compare(confirmation.visible, false)
-        everySpace.clicked()
-        compare(confirmation.visible, true)
+        verify(findChild(window.contentItem, "clearBrowsingDataRow") !== null)
+        verify(findChild(window.contentItem, "clearBrowsingDataButton") !== null)
+        verify(findChild(window.contentItem, "clearCookies") === null)
+        verify(findChild(window.contentItem, "clearStorage") === null)
+        verify(findChild(window.contentItem, "clearCache") === null)
+        verify(findChild(window.contentItem, "clearPermissions") === null)
+        verify(findChild(window.contentItem, "clearHistory") === null)
+        verify(findChild(window.contentItem, "clearEverySpace") === null)
 
         findChild(window.contentItem, "closeSettingsButton").clicked()
+    }
+
+    // The dialog's own contract — its tab order, its keys, what it refuses —
+    // is asserted in `tst_clearbrowsingdata.qml`, against a dialog standing on
+    // its own in that test case's window. It cannot be asserted here: this
+    // window is shared by a hundred tests, `activeFocus` is false throughout a
+    // window the platform does not call active, and which window that is gets
+    // decided by whichever test opened one last. What is left here is what
+    // needs the browser around it.
+    //
+    // The dialog is reset first either way, because it disables the page under
+    // it: a test inheriting an open one from a failure above would fail for
+    // that reason rather than its own.
+    function readyForBrowsingData() {
+        findChild(window.contentItem, "settingsSurface").clearDataOpen = false
+        window.requestSettings()
+        findChild(window.contentItem, "settingsSection6").Accessible.pressAction()
+    }
+
+    function leaveBrowsingData() {
+        findChild(window.contentItem, "settingsSurface").clearDataOpen = false
+        findChild(window.contentItem, "closeSettingsButton").clicked()
+    }
+
+    // The contract the switches could not state: the arguments are composed in
+    // the dialog, and only confirming it takes anything.
+    function test_browsingDataIsTakenOnlyByConfirmingItsDialog() {
+        // The engine profile is what counts a clear, so there has to be one.
+        openPage("https://browsing-data.example/page")
+        readyForBrowsingData()
+        const dialog = findChild(window.contentItem, "clearBrowsingDataDialog")
+        const openButton = findChild(window.contentItem, "clearBrowsingDataButton")
+        verify(dialog !== null)
+        verify(openButton !== null)
+        verify(!dialog.visible)
+
+        const cleared = window.spaceProfileHost.browsingDataClearCount
+        openButton.clicked()
+        tryVerify(function() { return dialog.visible })
+        // Opening composes; it does not act.
+        compare(window.spaceProfileHost.browsingDataClearCount, cleared)
+
+        // A dialog is modal, so the page under it takes neither a click nor a
+        // Tab while it stands. Qt has no tab fence a QML item can raise, so
+        // taking the page out of the ring is what keeps the ring in the dialog.
+        compare(findChild(window.contentItem, "settingsSection0").enabled, false)
+        compare(findChild(window.contentItem, "closeSettingsButton").enabled, false)
+
+        // Neither does dismissing it.
+        dialog.dismissed()
+        tryVerify(function() { return !dialog.visible })
+        compare(window.spaceProfileHost.browsingDataClearCount, cleared)
+        compare(findChild(window.contentItem, "settingsSection0").enabled, true)
+
+        openButton.clicked()
+        tryVerify(function() { return dialog.visible })
+        findChild(window.contentItem, "clearBrowsingDataConfirm").clicked()
+        tryVerify(function() {
+            return window.spaceProfileHost.browsingDataClearCount === cleared + 1
+        })
+        // Confirming is the whole act: nothing asks a second time.
+        verify(!dialog.visible)
+
+        leaveBrowsingData()
+    }
+
+    // The kit's section label leans low on purpose: in a scrolling pane it
+    // belongs to the rows that follow it. A dialog head is a bar with one line
+    // in it, where that lean only drops the name below the hint beside it. Both
+    // dialogs share this head, so a lean here is a lean in every question the
+    // browser asks.
+    function test_theDialogHeadCentresItsNameAgainstItsHint() {
+        readyForBrowsingData()
+        findChild(window.contentItem, "clearBrowsingDataButton").clicked()
+        const dialog = findChild(window.contentItem, "clearBrowsingDataDialog")
+        tryVerify(function() { return dialog.visible })
+
+        const name = findChild(dialog, "dialogPanelLabel")
+        const hint = findChild(dialog, "dialogPanelCancelHint")
+        verify(name !== null)
+        verify(hint !== null)
+        compare(name.text, "clear browsing data")
+
+        // The centre is the glyphs' own rather than a padded box's, which is
+        // the whole of the fix: `verticalCenter` centres what it is given.
+        compare(name.topPadding, name.bottomPadding)
+        const nameCentre = name.mapToItem(dialog, 0, name.height / 2).y
+        const hintCentre = hint.mapToItem(dialog, 0, hint.height / 2).y
+        verify(Math.abs(nameCentre - hintCentre) <= 1)
+
+        leaveBrowsingData()
+    }
+
+    // A selection is remembered because a reader who took the same things last
+    // month means the same things now. Scope is not: it is the one argument
+    // with no prior art to borrow, so it is asked for every time.
+    function test_theSelectionSurvivesARestartAndTheScopeDoesNot() {
+        readyForBrowsingData()
+        findChild(window.contentItem, "clearBrowsingDataButton").clicked()
+        const dialog = findChild(window.contentItem, "clearBrowsingDataDialog")
+        tryVerify(function() { return dialog.visible })
+
+        findChild(window.contentItem, "clearCategory-cache").clicked()
+        findChild(window.contentItem, "clearTimeRange").changed("0")
+        dialog.everySpace = true
+        compare(browser.preference("clear-data-categories", ""),
+            "cookies,storage,permissions,history")
+        compare(browser.preference("clear-data-range", ""), "0")
+
+        dialog.dismissed()
+        tryVerify(function() { return !dialog.visible })
+        leaveBrowsingData()
+
+        // A second launch of the page against the same preferences.
+        const restarted = restartedSettingsComponent.createObject(testCase)
+        verify(restarted !== null)
+        compare(restarted.clearCategories.join(","), "cookies,storage,permissions,history")
+        compare(restarted.clearRange, "0")
+        const restartedDialog = findChild(restarted, "clearBrowsingDataDialog")
+        compare(restartedDialog.everySpace, false)
+        restarted.destroy()
+
+        // Leave the store as the rest of the suite expects to find it.
+        findChild(window.contentItem, "settingsSurface").toggleClearCategory("cache")
+        findChild(window.contentItem, "settingsSurface").chooseClearRange("86400000")
     }
 
     function test_theSidebarOpensAndClosesSettings() {
