@@ -244,6 +244,12 @@ TestCase {
         // is still the label as the call site set it.
         compare(label.text, "pinned")
         compare(label.Accessible.name, "pinned")
+        // The label carries its own separation, because the containers it sits
+        // in cannot: a Column's spacing is the same gap on both sides, and the
+        // settings pane sets none at all. It belongs to what follows it, so
+        // there is more room above it than below.
+        verify(label.topPadding > label.bottomPadding)
+        verify(label.bottomPadding > 0)
     }
 
     // A Qt Quick Controls native style refuses the kit's replaced `background`
