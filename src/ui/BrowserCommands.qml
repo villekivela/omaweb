@@ -59,6 +59,7 @@ QtObject {
         case "shortcuts": window.requestShortcuts(); return true
         case "history": window.requestHistory(); return true
         case "settings": window.requestSettings(); return true
+        case "downloads": window.requestDownloads(); return true
         case "private-window": windowManager.openPrivateWindow(); return true
         case "minimize-window": window.showMinimized(); return true
         }
@@ -124,6 +125,11 @@ QtObject {
         "shortcuts": { group: "interface", title: "Keyboard shortcuts" },
         "history": { group: "interface", title: "History", requires: "ordinary-window" },
         "settings": { group: "interface", title: "Settings and downloads" },
+        // Settings at the downloads, which is what the outline footer's mark
+        // opens and what a reader looking for a download asks for by name.
+        // A Private window downloads too — it records none, and the section
+        // lists what is running either way.
+        "downloads": { group: "interface", title: "Downloads" },
         "private-window": { group: "interface", title: "New Private window",
             requires: "private-windows" },
         "minimize-window": { group: "interface", title: "Minimize window" }

@@ -104,6 +104,10 @@ _Avoid_: Dangerous file, malware, unsafe download
 A download Omaweb has taken off the engine while a question about it stands. Nothing has been written for it, because the engine decides a download's fate inside one synchronous handler and cannot keep one waiting: the request is cancelled and the page is asked for the same file again once the reader answers.
 _Avoid_: Paused download, pending download, blocked download
 
+**Download mark**:
+The outline footer's one control for every download in flight: how many there are, how far through the whole of them the bytes have got, and, when the reader asks it, which file is which. It is derived from the downloads the window is running rather than from a Space's records, so it works in a Private window, which records none. It appears when a download starts, holds a finished state for as long as the notice naming the saved file stands, and then leaves — the footer says nothing about downloads on the days there are none. It opens the downloads section it is the summary of.
+_Avoid_: Download badge, progress bar, download indicator, download tray
+
 **Engine security baseline**:
 The QtWebEngine version a supported Omaweb build runs on, and the Chromium release whose security fixes that engine carries. One file names both; the build reads it to say whether it meets it, and CI reads it weekly to say whether it has gone stale. A build below the baseline is an unsupported preview and says so.
 _Avoid_: Minimum Qt version, supported engine

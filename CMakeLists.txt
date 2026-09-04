@@ -279,6 +279,7 @@ set(omaweb_ui_files
     src/ui/ChromeMenu.qml
     src/ui/CommandPanel.qml
     src/ui/DeveloperToolsDock.qml
+    src/ui/DownloadMark.qml
     src/ui/FindBar.qml
     src/ui/HistoryPage.qml
     src/ui/KeyHint.qml

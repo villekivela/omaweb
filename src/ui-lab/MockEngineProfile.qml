@@ -94,6 +94,16 @@ QtObject {
         return runtimeId
     }
 
+    // Bytes arriving, which is the only thing the footer's download mark has to
+    // go on. `totalBytes` of 0 is the case a server sent no length: the shell
+    // has to say something honest about a download it cannot put a percentage
+    // on, so the lab can hand it one.
+    function simulateDownloadProgress(runtimeId, receivedBytes, totalBytes) {
+        if (downloadRequests[runtimeId] === undefined) return false
+        downloadUpdated(runtimeId, "in-progress", receivedBytes, totalBytes, "")
+        return true
+    }
+
     // The download finishing, which is when the shell marks the file with where
     // it came from.
     function simulateDownloadFinished(runtimeId) {

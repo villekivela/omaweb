@@ -187,6 +187,29 @@ ApplicationWindow {
     // that owns the engine's request and where the file is going, so cancelling,
     // retrying, revealing and marking the finished file all reach the right one.
     property var runningDownloads: ({})
+    // What the outline's footer states about downloads: how many are in flight
+    // and how far through the whole of them the bytes have got. Derived from
+    // `runningDownloads` and nothing else, because that map is in memory:
+    // `visibleDownloads` reads the Space's records to build itself, which is a
+    // query, and progress arrives byte by byte. A fraction of -1 is no
+    // percentage rather than nought percent — see `refreshDownloadActivity`.
+    property var downloadActivity: ({ "running": 0, "fraction": -1, "finished": 0,
+        "downloads": [] })
+    // How many downloads have finished since the mark last had nothing to
+    // show. It is what lets the mark hold a finished state after the last
+    // download rather than blinking out mid-glance, and it counts finished
+    // ones only: a cancelled download ended the way the reader asked it to and
+    // has nothing left to say.
+    property int finishedDownloadCount: 0
+    // Whether the footer is being asked which file is which. Naming them costs
+    // an object per download per byte, so they are only built while something
+    // is reading them — the same bargain the retained-tab list makes.
+    readonly property bool downloadDetailOpen: sidebar.downloadDetailWanted
+    // How long the notice naming a saved file stands, and therefore how long
+    // the footer's mark holds its finished state: the two say the same thing
+    // about the same download and stopping at different moments would read as
+    // two different claims.
+    readonly property int savedDownloadNoticeMilliseconds: 4200
     // The held downloads waiting on the reader, oldest first. Nothing has been
     // written for any of them. One question stands at a time and the rest wait,
     // because a stack of bars over the page would be answered by whichever one
@@ -449,6 +472,16 @@ ApplicationWindow {
 
     function requestSettings() {
         window.historyOpen = false
+        window.settingsOpen = true
+    }
+
+    // Settings at the section the downloads are listed in, rather than wherever
+    // settings was last left: the reader asked for the downloads. The section
+    // is found by name, so re-ordering the rail cannot land this on another one.
+    function requestDownloads() {
+        window.historyOpen = false
+        const downloads = settingsSurface.sections.indexOf("downloads")
+        if (downloads >= 0) settingsSurface.section = downloads
         window.settingsOpen = true
     }
 
@@ -1238,6 +1271,12 @@ ApplicationWindow {
 
     function handleDownloadStarted(host, runtimeId, sourceUrl, path, state,
             receivedBytes, totalBytes) {
+        // Whether this download starts a fresh burst. Read before the download
+        // joins the others, and read off what is in flight rather than off the
+        // map's size: an interrupted download stays in the map to be retried,
+        // and one of those lingering would otherwise keep every later burst
+        // reporting the downloads that finished before it.
+        const wasIdle = window.downloadActivity.running === 0
         const recordId = window.windowBrowser.recordDownload(runtimeId, sourceUrl, path,
             state, receivedBytes, totalBytes)
         if (recordId.length > 0) window.downloadRecordIds[runtimeId] = recordId
@@ -1259,6 +1298,10 @@ ApplicationWindow {
             "totalBytes": totalBytes
         }
         window.runningDownloads = running
+        // The finished downloads the mark was still holding belong to the last
+        // burst, not to this one.
+        if (wasIdle) window.finishedDownloadCount = 0
+        window.refreshDownloadActivity()
         // The list is only read while the downloads section is open, and it
         // reads the Space's records to build itself: rebuilding it behind a
         // closed page would be a query for every download that starts.
@@ -1286,7 +1329,8 @@ ApplicationWindow {
                 download.sourceUrl, download.pageUrl)
             window.showNotice("download_done", "Saved " + download.fileName,
                 marked ? download.path
-                    : download.path + " · this filesystem carries no origin metadata", 4200)
+                    : download.path + " · this filesystem carries no origin metadata",
+                window.savedDownloadNoticeMilliseconds)
         } else if (state === "interrupted") {
             window.showNotice("error", "Download failed",
                 download.fileName + (download.error.length > 0
@@ -1295,7 +1339,9 @@ ApplicationWindow {
         // An interrupted download stays listed: it is the one the reader can
         // still retry. A cancelled or completed one has nothing left to do.
         if (state === "completed" || state === "cancelled") delete running[runtimeId]
+        if (state === "completed") window.finishedDownloadCount += 1
         window.runningDownloads = running
+        window.refreshDownloadActivity()
         // Progress arrives byte by byte, so the list is rebuilt only where
         // something is reading it.
         if (window.settingsOpen) window.refreshVisibleDownloads()
@@ -1316,6 +1362,54 @@ ApplicationWindow {
             String(path).lastIndexOf("\\"))
         return separator >= 0 ? String(path).substring(separator + 1) : String(path)
     }
+
+    // The footer's aggregate, recomputed whenever the live downloads move. It
+    // walks a map that is already in memory and reads no records, so it is
+    // cheap enough to run on every byte the engine reports.
+    //
+    // A server that sent no length leaves its download with no total, and a
+    // download with no total cannot be weighed against the ones that have one:
+    // one of them takes the percentage away from the whole aggregate rather
+    // than being counted as nothing and quietly flattering the rest. An
+    // interrupted download is not in flight — it is waiting on a retry the
+    // downloads list offers — so it is not counted here; its failure was said
+    // out loud when it happened.
+    function refreshDownloadActivity() {
+        let running = 0
+        let received = 0
+        let total = 0
+        // The names, so the footer can say which file is nearly done when the
+        // reader asks it. They come off the same in-memory map — the file name
+        // was worked out when the download started and is not read again here —
+        // but only while the reader is asking: a list rebuilt on every byte
+        // behind a closed panel is an object per download per byte for nobody.
+        const detailed = window.downloadDetailOpen
+        const downloads = []
+        for (const runtimeId in window.runningDownloads) {
+            const download = window.runningDownloads[runtimeId]
+            if (download.state === "interrupted") continue
+            running += 1
+            received += download.receivedBytes
+            if (total >= 0 && download.totalBytes > 0) total += download.totalBytes
+            else total = -1
+            if (detailed) downloads.push({
+                "name": download.fileName,
+                "fraction": download.totalBytes > 0
+                    ? Math.min(1, download.receivedBytes / download.totalBytes) : -1
+            })
+        }
+        window.downloadActivity = {
+            "running": running,
+            "fraction": total > 0 ? Math.min(1, received / total) : -1,
+            "finished": window.finishedDownloadCount,
+            "downloads": downloads
+        }
+    }
+
+    // The reader pointing at the mark is the moment the names are wanted, and
+    // the next byte may be a while off, so the aggregate is rebuilt now rather
+    // than opening a panel with nothing in it.
+    onDownloadDetailOpenChanged: window.refreshDownloadActivity()
 
     // What the downloads section shows: the running downloads first, because
     // they are the ones with anything left to decide, then what the Space has
@@ -1529,6 +1623,9 @@ ApplicationWindow {
                 useFavicons: window.useFavicons
                 tintFavicons: window.tintFavicons
                 settingsAttention: settingsSurface.needsAttention
+                downloadActivity: window.downloadActivity
+                downloadDwellMilliseconds: window.savedDownloadNoticeMilliseconds
+                onDownloadsRequested: window.requestDownloads()
 
                 // The panel states; the window asks. Opening the dialog puts
                 // the panel away, so there is one surface holding the question.

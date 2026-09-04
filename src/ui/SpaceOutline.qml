@@ -22,6 +22,17 @@ Rectangle {
     // rather than the outline growing a line for it: settings is a place, and
     // what is wrong is stated there, where it can be acted on.
     property bool settingsAttention: false
+    // How many downloads are in flight and how far through them the bytes have
+    // got, as the window derives it from the downloads it is actually running.
+    // The outline never reads the Space's download records for this: those are
+    // a query, a Private window has none, and this is drawn on every byte.
+    property var downloadActivity: null
+    // How long the mark holds a finished download, which the window sets to the
+    // span the notice naming the saved file stands for.
+    property int downloadDwellMilliseconds: 4200
+    // Whether the reader is asking the mark which file is which. The window
+    // reads this to know whether the names are worth building.
+    readonly property bool downloadDetailWanted: downloadMark.detailRequested
 
     // An empty pinned section takes no room at all.
     property int pinnedCount: browser ? browser.pinnedTabs.rowCount() : 0
@@ -60,6 +71,9 @@ Rectangle {
     readonly property var refusedThirdParties: sitePanel.refusedThirdParties
 
     signal addressRequested()
+    // The reader asking for the downloads the footer's mark stands for. The
+    // outline states; the window opens the place they are listed.
+    signal downloadsRequested()
     // What the reader asked Site information for, on its way to the window's
     // own dialog. The outline states; the window asks.
     signal siteActionRequested(string action)
@@ -667,10 +681,28 @@ Rectangle {
             Accessible.name: "Private window"
         }
 
+        // Downloads sit beside settings because settings is where they are
+        // listed: the mark and the place it stands for read as one pair, the
+        // way the settings button's own attention dot does.
+        DownloadMark {
+            id: downloadMark
+            objectName: "downloadMark"
+            anchors.right: settingsButton.left
+            anchors.rightMargin: 4
+            anchors.verticalCenter: parent.verticalCenter
+            width: 26
+            height: 26
+            colors: root.colors
+            iconFontFamily: root.iconFontFamily
+            activity: root.downloadActivity
+            dwellMilliseconds: root.downloadDwellMilliseconds
+            onClicked: root.downloadsRequested()
+        }
+
         ChromeButton {
             id: spacesButton
             objectName: "manageSpacesButton"
-            anchors.right: settingsButton.left
+            anchors.right: downloadMark.visible ? downloadMark.left : settingsButton.left
             anchors.rightMargin: 4
             anchors.verticalCenter: parent.verticalCenter
             width: 28
@@ -718,6 +750,93 @@ Rectangle {
                 visible: root.settingsAttention
                 color: root.colors.urgent
                 Accessible.ignored: true
+            }
+        }
+    }
+
+    // Which file is which, for as long as the reader is asking. The mark is one
+    // aggregate and an aggregate cannot say that a small file is nearly done
+    // while a large one has barely started; this is where that is said, without
+    // the reader having to open settings to read it.
+    //
+    // It belongs to the outline rather than to the mark because the outline
+    // clips its children: a panel parented to a 26px control in the footer
+    // would be cut off at the control's own edges.
+    Rectangle {
+        id: downloadDetail
+        objectName: "downloadDetail"
+        anchors.right: parent.right
+        anchors.rightMargin: 16
+        anchors.bottom: footer.top
+        anchors.bottomMargin: 8
+        width: Math.min(280, Math.max(180, root.width - 32))
+        height: detailLines.height + 16
+        radius: 2
+        z: 5
+        // A mark holding a finished download has no names left to give, and an
+        // empty bordered box over the outline states nothing.
+        visible: downloadMark.detailRequested && downloadMark.downloads.length > 0
+        color: root.colors.overlay
+        border.width: 1
+        border.color: root.colors.accent
+
+        Column {
+            id: detailLines
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.top: parent.top
+            anchors.leftMargin: 8
+            anchors.rightMargin: 8
+            anchors.topMargin: 8
+            spacing: 4
+
+            Repeater {
+                model: downloadMark.downloads
+
+                Item {
+                    id: detailLine
+                    required property int index
+                    required property var modelData
+
+                    objectName: "downloadDetail-" + index
+                    readonly property string name: modelData.name
+                    // The same sentence the mark itself says, asked of one
+                    // download: a percentage where there is a total, and the
+                    // absence of one named where there is not.
+                    readonly property string progressLabel:
+                        downloadMark.progressLabelFor(modelData.fraction)
+                    width: detailLines.width
+                    height: lineName.implicitHeight
+
+                    Text {
+                        id: lineProgress
+                        anchors.right: parent.right
+                        anchors.baseline: lineName.baseline
+                        text: detailLine.progressLabel
+                        color: root.colors.mutedText
+                        font.family: Style.font.family
+                        font.pixelSize: Style.font.caption
+                        Accessible.ignored: true
+                    }
+
+                    // The name is elided rather than wrapped: a download's file
+                    // name can be a whole sentence, and a panel that grows a
+                    // line per name would cover the outline it stands over.
+                    Text {
+                        id: lineName
+                        anchors.left: parent.left
+                        anchors.right: lineProgress.left
+                        anchors.rightMargin: 8
+                        anchors.top: parent.top
+                        text: detailLine.name
+                        elide: Text.ElideMiddle
+                        color: root.colors.text
+                        font.family: Style.font.family
+                        font.pixelSize: Style.font.caption
+                        Accessible.role: Accessible.StaticText
+                        Accessible.name: detailLine.name + " · " + detailLine.progressLabel
+                    }
+                }
             }
         }
     }
