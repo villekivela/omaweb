@@ -73,11 +73,12 @@ DialogPanel {
         if (!open) return
         root.everySpace = false
         confirmation.text = ""
-        // The first argument, so Tab walks the form from its top.
-        Qt.callLater(function() {
-            const first = categoryList.itemAt(0)
-            if (first) first.forceActiveFocus()
-        })
+        // The first argument, so Tab walks the form from its top. Set now
+        // rather than deferred: `forceActiveFocus` claims the panel's own scope
+        // on the way up, so there is no moment where the dialog is open and the
+        // keyboard is somewhere behind it.
+        const first = categoryList.itemAt(0)
+        if (first) first.forceActiveFocus()
     }
 
     function confirm() {

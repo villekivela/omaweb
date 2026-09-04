@@ -10,7 +10,15 @@ import qs.Commons
 // with Up and Down, `ClearBrowsingDataDialog` walks a form with Tab, and a
 // container that owned those keys itself could not host both. One grammar, a
 // dialog per shape, no container.
-Item {
+//
+// A `FocusScope` rather than a plain `Item`, because a dialog with a form in it
+// has to remember which of its controls the keyboard is in. Focus is otherwise
+// flat across the window: whichever item claims it last wins outright, so the
+// control a dialog focuses when it opens loses the race against the page behind
+// it settling its own `focus` binding — reliably so on a slower machine. A
+// scope keeps its inner focus item and hands it back every time the scope
+// itself becomes active.
+FocusScope {
     id: root
 
     property var colors

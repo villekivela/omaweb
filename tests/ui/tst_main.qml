@@ -251,6 +251,28 @@ TestCase {
         compare(engine.contextMenuRequestCount, 2)
     }
 
+    // A menu takes the keyboard one turn after it opens, so it is laid out
+    // before it is stepped through. Dismissed inside that gap, it used to take
+    // the keyboard anyway — off whatever had replaced it, and while invisible.
+    function test_aDismissedMenuDoesNotTakeTheKeyboardBackAfterwards() {
+        const engine = openPage("https://dismissed-menu.example/page")
+        const menu = findChild(window.contentItem, "pageMenu")
+        verify(menu !== null)
+
+        // Opened and dismissed inside one turn, so the deferred grab is still
+        // pending when the menu stops being on screen.
+        engine.simulateContextMenu({"linkUrl": "https://dismissed-menu.example/link"})
+        window.pageMenuOpen = false
+
+        // Long enough for the grab to have run had it not been checked. What
+        // holds the keyboard afterwards is the page's business; what must not
+        // hold it is a menu nobody can see.
+        wait(50)
+        verify(!menu.visible)
+        verify(!menu.activeFocus)
+        verify(window.activeFocusItem !== menu)
+    }
+
     function test_pageContextMenuRejectsAStaleTarget() {
         const engine = openPage("https://stale-target.example/before")
         SystemClipboard.copyText("keep this")
