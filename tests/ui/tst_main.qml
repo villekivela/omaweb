@@ -2416,6 +2416,43 @@ TestCase {
         tryVerify(function() { return !settingsSurface.visible })
     }
 
+    // The rail is as wide as the longest section name it draws, measured in the
+    // bold face the current section takes. A pixel count was right at one theme
+    // font size and clipped "Content Blocking" at the next, and a rail that
+    // widened when the selection moved would shift the pane beside it.
+    function test_settingsRailIsAsWideAsTheNamesItDraws() {
+        const settingsSurface = findChild(window.contentItem, "settingsSurface")
+        verify(settingsSurface !== null)
+        window.requestSettings()
+        tryVerify(function() { return settingsSurface.visible })
+
+        let longest = 0
+        for (let index = 0; index < settingsSurface.sections.length; ++index) {
+            const entry = findChild(window.contentItem, "settingsSection" + index)
+            verify(entry !== null)
+            verify(entry.implicitWidth <= settingsSurface.railWidth)
+            if (entry.implicitWidth > longest) {
+                longest = entry.implicitWidth
+                settingsSurface.section = index
+            }
+        }
+        verify(longest > 0)
+
+        // The longest name is now the current one, so it is drawn bold. The
+        // rail was measured in that face, so it still fits — in a proportional
+        // family bold is wider than the regular the loop above measured, and in
+        // a monospace one it is the same. Either way the pane does not shift.
+        const current = findChild(window.contentItem,
+            "settingsSection" + settingsSurface.section)
+        verify(current.font.bold)
+        verify(current.implicitWidth >= longest)
+        verify(current.implicitWidth <= settingsSurface.railWidth)
+
+        settingsSurface.section = 0
+        window.settingsOpen = false
+        tryVerify(function() { return !settingsSurface.visible })
+    }
+
     function test_theKeymapOpensSettings() {
         const settingsSurface = findChild(window.contentItem, "settingsSurface")
         verify(settingsSurface !== null)

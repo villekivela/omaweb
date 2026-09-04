@@ -50,6 +50,35 @@ Rectangle {
     readonly property var sections: ["tabs", "keyboard", "content blocking", "network",
         "downloads", "search", "privacy", "about"]
 
+    // The rail is as wide as the longest section name it draws, measured in the
+    // bold face the current section takes so the pane beside it does not shift
+    // when the selection moves. A pixel count here would be right at one theme
+    // font size and clip the longest name at the next.
+    FontMetrics {
+        id: railMetrics
+        font.family: Style.font.family
+        font.pixelSize: Style.font.subtitle
+        font.bold: true
+    }
+
+    // What `Font.Capitalize` will actually draw. In a proportional theme family
+    // a capital is wider than the letter it replaces, so the lowercase name the
+    // model holds is not what the rail has to fit.
+    function railLabel(name) {
+        return name.replace(/(^|\s)\S/g, function(first) { return first.toUpperCase() })
+    }
+
+    readonly property int railWidth: {
+        // Read for the dependency alone: advanceWidth() measures in C++ off a
+        // font this binding never otherwise touches.
+        void (railMetrics.font.pixelSize)
+        void (railMetrics.font.family)
+        let widest = 0
+        for (let index = 0; index < root.sections.length; ++index)
+            widest = Math.max(widest, railMetrics.advanceWidth(root.railLabel(root.sections[index])))
+        return Math.ceil(widest)
+    }
+
     // about:blank and other opaque addresses have no host to name, and saying
     // "blocked on about" would be worse than saying nothing.
     readonly property string activeHost: {
@@ -175,6 +204,7 @@ Rectangle {
     }
 
     Row {
+        id: body
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.top: header.bottom
@@ -187,7 +217,7 @@ Rectangle {
 
         Column {
             id: rail
-            width: 150
+            width: root.railWidth
             spacing: 2
 
             Repeater {
@@ -235,7 +265,7 @@ Rectangle {
 
         ScrollView {
             id: scroll
-            width: parent.width - rail.width - 40
+            width: body.width - rail.width - body.spacing
             height: parent.height
             contentWidth: availableWidth
             clip: true
