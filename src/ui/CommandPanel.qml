@@ -247,6 +247,11 @@ Item {
                 anchors.verticalCenter: parent.verticalCenter
                 colors: root.colors
                 text: root.commandMode ? "command" : (root.newTabIntent ? "new tab" : "this tab")
+                // Centred in a bar of its own rather than stacked over rows, so
+                // it is centred on its glyphs: the lean a section label carries
+                // in a scrolling pane would drop it below the address beside it.
+                topPadding: overshoot
+                bottomPadding: overshoot
             }
 
             Rectangle {
@@ -312,6 +317,10 @@ Item {
                         colors: root.colors
                         text: parent.startsGroup ? modelData.group : ""
                         elide: Text.ElideRight
+                        // Centred against the command name beside it, so the
+                        // stacked lean would drop the group below its own row.
+                        topPadding: overshoot
+                        bottomPadding: overshoot
                     }
 
                     Text {

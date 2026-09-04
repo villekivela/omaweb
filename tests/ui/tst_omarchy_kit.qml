@@ -269,6 +269,14 @@ TestCase {
         // there is more room above it than below.
         verify(label.topPadding > label.bottomPadding)
         verify(label.bottomPadding > 0)
+
+        // That lean is separation from what precedes the label, so a call site
+        // with nothing above it — or one centring the label in a bar of its own
+        // — asks for `overshoot` instead of for zero: the kit reserves that
+        // sliver so a tall glyph is not clipped, and no placement gives it up.
+        verify(label.overshoot > 0)
+        verify(label.topPadding > label.overshoot)
+        compare(label.topPadding, Style.spacing.huge + label.overshoot)
     }
 
     // A Qt Quick Controls native style refuses the kit's replaced `background`

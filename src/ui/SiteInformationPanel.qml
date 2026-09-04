@@ -150,8 +150,13 @@ Rectangle {
         spacing: 6
 
         SectionLabel {
+            objectName: "siteInformationName"
             colors: root.colors
             text: "site information"
+            // The first thing in the panel, so there is nothing above it to
+            // lean away from and the lean would read as dead space under the
+            // border.
+            topPadding: overshoot
         }
 
         // The origin first: every line under it is about this site inside this

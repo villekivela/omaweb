@@ -874,6 +874,33 @@ TestCase {
         tryVerify(function() { return !panel.visible })
     }
 
+    // A section label leans away from what precedes it. The panel's own name is
+    // the first thing in it, so there is nothing to lean away from and the lean
+    // would read as dead space between the border and the name.
+    function test_siteInformationDoesNotLeanItsNameAwayFromNothing() {
+        openPage("https://panel-leading-label.example/page")
+        const sidebar = findChild(window.contentItem, "sidebar")
+        const panel = findChild(window.contentItem, "siteInformationPanel")
+        sidebar.statusOpen = true
+        tryVerify(function() { return panel.visible })
+
+        const name = findChild(panel, "siteInformationName")
+        const origin = findChild(window.contentItem, "siteInformationOrigin")
+        verify(name !== null)
+        compare(name.topPadding, name.overshoot)
+        // The gap under it is still the label's own, so the name is no closer
+        // to the origin it introduces than a section label ever is — the lean
+        // is reversed rather than the padding flattened.
+        verify(name.bottomPadding > name.topPadding)
+        // And the name starts where the panel's own padding puts it, not a
+        // section's worth of separation below it.
+        verify(name.mapToItem(panel, 0, 0).y < origin.mapToItem(panel, 0, 0).y)
+        verify(name.mapToItem(panel, 0, name.topPadding).y <= 14)
+
+        sidebar.statusOpen = false
+        tryVerify(function() { return !panel.visible })
+    }
+
     // Nothing in the panel may reach past its own border. Every answer it
     // offers is a button the reader has to be able to hit, and a button drawn
     // outside the panel is drawn over the page behind it.

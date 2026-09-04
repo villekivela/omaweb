@@ -77,13 +77,11 @@ Item {
                 // dialog hands it the private accent to mute rather than a
                 // finished colour to paint.
                 foreground: root.destructive ? root.colors.privateAccent : root.colors.text
-                // A section label carries more room above it than below,
-                // because in a scrolling pane it belongs to the rows that
-                // follow it. A head is a bar of its own with one line in it, so
-                // that lean would only push the name below the hint beside it.
-                // The kit's own overshoot reserve is kept, on both sides.
-                topPadding: Math.ceil(fontSize * 0.15)
-                bottomPadding: topPadding
+                // A head is a bar of its own with one line in it, so the
+                // label is centred on its glyphs rather than on the lean it
+                // carries in a scrolling pane.
+                topPadding: overshoot
+                bottomPadding: overshoot
             }
 
             Text {

@@ -170,6 +170,7 @@ int main(int argc, char *argv[])
             {QStringLiteral("settings:privacy:clear"),
                 {{"", "settingsOpen", true}, {"settingsSurface", "section", 6},
                     {"settingsSurface", "clearDataOpen", true}}},
+            {QStringLiteral("site"), {{"sidebar", "statusOpen", true}}},
             {QStringLiteral("history"), {{"", "historyOpen", true}}},
             {QStringLiteral("shortcuts"), {{"", "shortcutsOpen", true}}},
         };
