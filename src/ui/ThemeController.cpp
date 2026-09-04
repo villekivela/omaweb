@@ -7,6 +7,7 @@
 #include <QFontDatabase>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QMap>
 
 #include <algorithm>
 #include <cmath>
@@ -15,16 +16,33 @@
 namespace omaweb {
 namespace {
 
+// sRGB's transfer function, both ways. Every derivation below reasons about
+// light rather than about the numbers a hex colour is written in, so this is
+// where the encoding stops.
+double toLinear(double channel)
+{
+    return channel <= 0.04045 ? channel / 12.92 : std::pow((channel + 0.055) / 1.055, 2.4);
+}
+
+// Back to an eight-bit channel rather than to a float, because a palette is
+// hex colours in a JSON file and every derivation here has to land on the same
+// value the importer's does. QColor's own float constructor quantises through
+// sixteen bits and can round a channel a step past where it belongs.
+int fromLinear(double channel)
+{
+    const auto encoded = channel <= 0.0031308
+        ? 12.92 * channel
+        : 1.055 * std::pow(channel, 1.0 / 2.4) - 0.055;
+    return qRound(std::clamp(encoded, 0.0, 1.0) * 255.0);
+}
+
 // WCAG relative luminance and contrast ratio. The theme palette decides
 // whether text can be read and borders can be seen on their surfaces, so the
 // calculation lives here rather than becoming a general colour utility.
 double relativeLuminance(const QColor &colour)
 {
-    const auto channel = [](double value) {
-        return value <= 0.04045 ? value / 12.92 : std::pow((value + 0.055) / 1.055, 2.4);
-    };
-    return 0.2126 * channel(colour.redF()) + 0.7152 * channel(colour.greenF())
-        + 0.0722 * channel(colour.blueF());
+    return 0.2126 * toLinear(colour.redF()) + 0.7152 * toLinear(colour.greenF())
+        + 0.0722 * toLinear(colour.blueF());
 }
 
 double contrastRatio(const QColor &one, const QColor &other)
@@ -41,6 +59,151 @@ QColor blended(const QColor &from, const QColor &to, double amount)
     };
     return QColor::fromRgb(channel(from.red(), to.red()), channel(from.green(), to.green()),
         channel(from.blue(), to.blue()));
+}
+
+// OKLab, which the private grounds are derived in rather than in sRGB: an
+// even step towards a colour has to look like an even step, and the chroma a
+// mix loses has to be nameable to put some of it back. The transform is
+// Ottosson's, and `scripts/import_terminal_theme.py` builds a theme from a
+// terminal's colours through the same transform, and takes the same rungs — so
+// a palette imported once and a palette rendered on every theme switch climb
+// alike. Only the climbing below is Omaweb's own, because only Omaweb knows
+// whether the first rung landed far enough from the window it was measured
+// from.
+struct Oklab {
+    double lightness = 0.0;
+    double greenRed = 0.0;
+    double blueYellow = 0.0;
+};
+
+Oklab toOklab(const QColor &colour)
+{
+    const auto red = toLinear(colour.redF());
+    const auto green = toLinear(colour.greenF());
+    const auto blue = toLinear(colour.blueF());
+    const auto long_ = std::cbrt(0.4122214708 * red + 0.5363325363 * green + 0.0514459929 * blue);
+    const auto medium
+        = std::cbrt(0.2119034982 * red + 0.6806995451 * green + 0.1073969566 * blue);
+    const auto short_ = std::cbrt(0.0883024619 * red + 0.2817188376 * green + 0.6299787005 * blue);
+    return {
+        0.2104542553 * long_ + 0.7936177850 * medium - 0.0040720468 * short_,
+        1.9779984951 * long_ - 2.4285922050 * medium + 0.4505937099 * short_,
+        0.0259040371 * long_ + 0.7827717662 * medium - 0.8086757660 * short_,
+    };
+}
+
+QColor fromOklab(const Oklab &colour)
+{
+    const auto cubed = [](double value) { return value * value * value; };
+    const auto long_ = cubed(
+        colour.lightness + 0.3963377774 * colour.greenRed + 0.2158037573 * colour.blueYellow);
+    const auto medium = cubed(
+        colour.lightness - 0.1055613458 * colour.greenRed - 0.0638541728 * colour.blueYellow);
+    const auto short_ = cubed(
+        colour.lightness - 0.0894841775 * colour.greenRed - 1.2914855480 * colour.blueYellow);
+    // Out of gamut clamps per channel, as an sRGB display does with it.
+    return QColor::fromRgb(
+        fromLinear(4.0767416621 * long_ - 3.3077115913 * medium + 0.2309699292 * short_),
+        fromLinear(-1.2684380046 * long_ + 2.6097574011 * medium - 0.3413193965 * short_),
+        fromLinear(-0.0041960863 * long_ - 0.7034186147 * medium + 1.7076147010 * short_));
+}
+
+QColor mixedPerceptually(const QColor &from, const QColor &to, double amount)
+{
+    const auto start = toOklab(from);
+    const auto end = toOklab(to);
+    const auto channel = [amount](double one, double other) {
+        return one + (other - one) * amount;
+    };
+    return fromOklab({channel(start.lightness, end.lightness),
+        channel(start.greenRed, end.greenRed), channel(start.blueYellow, end.blueYellow)});
+}
+
+QColor scaledChroma(const QColor &colour, double gain)
+{
+    const auto oklab = toOklab(colour);
+    return fromOklab({oklab.lightness, oklab.greenRed * gain, oklab.blueYellow * gain});
+}
+
+// How far apart two colours are as the palette measures a private surface
+// against its ordinary counterpart: the straight line between them in OKLab,
+// so a cast of colour at the same lightness counts for what the reader
+// actually sees. Measured in RGB it barely counts at all near a desktop's
+// black, where the only way to move far enough is to make the private window
+// paler than anything else in the theme.
+double perceptualDistance(const QColor &one, const QColor &other)
+{
+    const auto first = toOklab(one);
+    const auto second = toOklab(other);
+    const auto lightness = first.lightness - second.lightness;
+    const auto greenRed = first.greenRed - second.greenRed;
+    const auto blueYellow = first.blueYellow - second.blueYellow;
+    return std::sqrt(lightness * lightness + greenRed * greenRed + blueYellow * blueYellow);
+}
+
+// A glance has to tell a private window from an ordinary one, so this is how
+// far its colour has to be from its counterpart before the two are different
+// windows rather than the same window in two lights. Deliberately a low bar:
+// the ground is not the only thing saying which window this is — the private
+// accent, the mask on the sidebar and the window's own title say it too — and
+// a floor high enough to carry that on its own would have to make the private
+// chrome paler than anything else in the reader's theme.
+constexpr auto minimumPrivateDifference = 0.04;
+
+// A private window is the reader's own chrome with a private cast on it
+// rather than a palette of its own, so every ground it is drawn on is the
+// ordinary ground it stands in for, pulled towards the colour that says the
+// window is private. That is what keeps a dark desktop's private window dark
+// and a light one light. Deriving each ground by mixing the window towards
+// the accent instead — a ladder of its own — climbs towards the accent's
+// lightness rather than the theme's, and hands a desktop whose window is
+// nearly black a browser several shades paler than everything around it.
+//
+// A theme is not asked for the grounds: a palette rendered from a desktop's
+// sixteen terminal colours has nothing to say about the surfaces under its
+// magenta, and a desktop that named none used to be handed Omaweb's own
+// purple, which is a browser that has stopped following the desktop on the
+// windows the reader most wants to recognise. A theme that does name one
+// keeps it.
+QColor privateTinted(const QColor &ground, const QColor &accent, double amount)
+{
+    // A straight mix lands greyer than either end, so the result keeps a
+    // little more chroma than the mix gives it, or a muted desktop's cast
+    // washes out to the grey it was mixed from.
+    constexpr auto chromaGain = 1.15;
+    return scaledChroma(mixedPerceptually(ground, accent, amount), chromaGain);
+}
+
+// One amount for every ground, so the private surfaces keep the spacing the
+// theme gave the ordinary ones. This is the strength a private window is
+// tinted at: enough to be seen as a cast rather than as a rendering fault,
+// and light enough that the chrome keeps the darkness the theme drew it in.
+// Pulling harder lifts every ground towards the accent's own lightness, and a
+// private window as bright as the desktop behind it stops reading as a window
+// at all.
+constexpr auto privateTintStrength = 0.12;
+
+// Where a theme's private accent is so close to its window that the tint
+// cannot be seen at all, the tint strengthens until it can — as far as the
+// accent itself, past which there is nothing left to pull towards. A palette
+// with no private hue to speak of has the difference enforced after this
+// instead.
+double privateTintAmount(const QColor &window, const QColor &accent)
+{
+    if (perceptualDistance(window, privateTinted(window, accent, privateTintStrength))
+        >= minimumPrivateDifference) {
+        return privateTintStrength;
+    }
+    constexpr auto steps = 256;
+    for (auto step = 1; step <= steps; ++step) {
+        const auto amount
+            = privateTintStrength + (1.0 - privateTintStrength) * step / steps;
+        if (perceptualDistance(window, privateTinted(window, accent, amount))
+            >= minimumPrivateDifference) {
+            return amount;
+        }
+    }
+    return 1.0;
 }
 
 // The colour a role settles on: what the theme named where that already
@@ -202,11 +365,11 @@ QVariantMap ThemeController::fallbackPalette() const
         // private accent, which says whose window this is and not that
         // something is wrong.
         {QStringLiteral("urgent"), QStringLiteral("#e06c75")},
+        // The one private colour named here. The grounds it is drawn on are
+        // the climb's, from this and the window above, so a palette that
+        // names a private accent and no grounds — every palette a desktop
+        // renders — gets the same private window this one does.
         {QStringLiteral("privateAccent"), QStringLiteral("#c678dd")},
-        {QStringLiteral("privateWindow"), QStringLiteral("#362640")},
-        {QStringLiteral("privateSidebar"), QStringLiteral("#3f2c4c")},
-        {QStringLiteral("privateSurface"), QStringLiteral("#4a3057")},
-        {QStringLiteral("privateSurfaceHover"), QStringLiteral("#5f3b6e")},
         {QStringLiteral("font"), defaultFont()},
         {QStringLiteral("opacity"), defaultOpacity()},
         {QStringLiteral("syntax"), defaultSyntax()},
@@ -285,6 +448,9 @@ QVariantMap ThemeController::normalizedPalette(QVariantMap palette) const
     const auto themeNamedBorder = palette.contains(QStringLiteral("border"));
     const auto themeNamedSeparator = palette.contains(QStringLiteral("separator"));
     const auto themeNamedSurfaceHover = palette.contains(QStringLiteral("surfaceHover"));
+    const auto themeNamedPrivateWindow = palette.contains(QStringLiteral("privateWindow"));
+    const auto themeNamedPrivateSidebar = palette.contains(QStringLiteral("privateSidebar"));
+    const auto themeNamedPrivateSurface = palette.contains(QStringLiteral("privateSurface"));
     const auto themeNamedPrivateSurfaceHover
         = palette.contains(QStringLiteral("privateSurfaceHover"));
     const auto fallback = fallbackPalette();
@@ -294,39 +460,92 @@ QVariantMap ThemeController::normalizedPalette(QVariantMap palette) const
         }
     }
 
-    const auto enforceDifference = [&palette, &fallback](const QString &normalKey,
-                                       const QString &privateKey) {
-        const QColor normal(palette.value(normalKey).toString());
-        QColor privateColor(palette.value(privateKey).toString());
-        const auto distanceSquared = [&normal](const QColor &candidate) {
-            const auto red = normal.red() - candidate.red();
-            const auto green = normal.green() - candidate.green();
-            const auto blue = normal.blue() - candidate.blue();
-            return red * red + green * green + blue * blue;
-        };
-        constexpr auto minimumDistanceSquared = 48 * 48;
-        if (normal.isValid() && privateColor.isValid()
-            && distanceSquared(privateColor) >= minimumDistanceSquared) {
-            return;
-        }
+    // A theme is entitled to name its own private colours, and one that names
+    // a private window its ordinary window is a theme whose private windows
+    // cannot be recognised. So a colour too close to its counterpart is
+    // replaced by the nearest thing Omaweb has that is far enough: the colour
+    // this palette would have derived, and where even that cannot be told
+    // apart — a private accent that is the ordinary window's own colour, so
+    // there is no cast to be had -- that colour taken towards black or white
+    // only as far as it has to go. Not to black or white outright: a palette
+    // with no private hue to offer still has a lightness of its own, and a
+    // white window on a dark desktop is not the reader's theme any more.
+    const auto enforceDifference
+        = [&palette](const QString &normalKey, const QString &privateKey, const QColor &derived) {
+              const QColor normal(palette.value(normalKey).toString());
+              const QColor named(palette.value(privateKey).toString());
+              const auto clears = [&normal](const QColor &candidate) {
+                  return normal.isValid() && candidate.isValid()
+                      && perceptualDistance(normal, candidate) >= minimumPrivateDifference;
+              };
+              if (clears(named)) {
+                  return;
+              }
+              if (clears(derived)) {
+                  palette.insert(privateKey, derived.name(QColor::HexRgb));
+                  return;
+              }
 
-        privateColor = QColor(fallback.value(privateKey).toString());
-        if (normal.isValid() && privateColor.isValid()
-            && distanceSquared(privateColor) >= minimumDistanceSquared) {
-            palette.insert(privateKey, fallback.value(privateKey));
-            return;
-        }
+              const auto from = derived.isValid() ? derived : named;
+              if (!from.isValid() || !normal.isValid()) {
+                  return;
+              }
+              constexpr auto steps = 256;
+              for (auto step = 1; step <= steps; ++step) {
+                  const auto amount = static_cast<double>(step) / steps;
+                  for (const auto &endpoint : {QColor(Qt::black), QColor(Qt::white)}) {
+                      const auto candidate = blended(from, endpoint, amount);
+                      if (clears(candidate)) {
+                          palette.insert(privateKey, candidate.name(QColor::HexRgb));
+                          return;
+                      }
+                  }
+              }
+          };
 
-        const QColor black(Qt::black);
-        const QColor white(Qt::white);
-        palette.insert(privateKey,
-            distanceSquared(black) > distanceSquared(white)
-                ? black.name(QColor::HexRgb)
-                : white.name(QColor::HexRgb));
+    // Before the tint, which pulls towards the private accent: a private
+    // window cast in the colour the ordinary chrome is already accented with
+    // says nothing about which window it is.
+    enforceDifference(QStringLiteral("accent"), QStringLiteral("privateAccent"),
+        QColor(fallback.value(QStringLiteral("privateAccent")).toString()));
+
+    // Resolved here rather than with the other surfaces below, because the
+    // private hover fill is this colour tinted.
+    if (!themeNamedSurfaceHover) {
+        palette.insert(QStringLiteral("surfaceHover"), palette.value(QStringLiteral("surface")));
+    }
+
+    const QColor window(palette.value(QStringLiteral("window")).toString());
+    const QColor privateAccent(palette.value(QStringLiteral("privateAccent")).toString());
+    const auto tint = (window.isValid() && privateAccent.isValid())
+        ? privateTintAmount(window, privateAccent)
+        : 0.0;
+    const auto tinted = [&palette, &privateAccent, tint](const QString &ordinaryKey) {
+        const QColor ground(palette.value(ordinaryKey).toString());
+        if (tint <= 0.0 || !ground.isValid() || !privateAccent.isValid()) {
+            return QColor{};
+        }
+        return privateTinted(ground, privateAccent, tint);
     };
+    const auto derivePrivateGround
+        = [&palette, &tinted](const QString &privateKey, const QString &ordinaryKey) {
+              const auto ground = tinted(ordinaryKey);
+              if (ground.isValid()) {
+                  palette.insert(privateKey, ground.name(QColor::HexRgb));
+              }
+          };
+    if (!themeNamedPrivateWindow) {
+        derivePrivateGround(QStringLiteral("privateWindow"), QStringLiteral("window"));
+    }
+    if (!themeNamedPrivateSidebar) {
+        derivePrivateGround(QStringLiteral("privateSidebar"), QStringLiteral("sidebar"));
+    }
+    if (!themeNamedPrivateSurface) {
+        derivePrivateGround(QStringLiteral("privateSurface"), QStringLiteral("surface"));
+    }
 
-    enforceDifference(QStringLiteral("window"), QStringLiteral("privateWindow"));
-    enforceDifference(QStringLiteral("accent"), QStringLiteral("privateAccent"));
+    enforceDifference(QStringLiteral("window"), QStringLiteral("privateWindow"),
+        tinted(QStringLiteral("window")));
 
     // A Omaweb surface that takes the whole page area — the shortcut sheet
     // summoned over a page, the settings page — is the same material as the
@@ -343,12 +562,18 @@ QVariantMap ThemeController::normalizedPalette(QVariantMap palette) const
     inheritSidebarColor(QStringLiteral("sheet"), QStringLiteral("sidebar"));
     inheritSidebarColor(QStringLiteral("privateSheet"), QStringLiteral("privateSidebar"));
     inheritSidebarColor(QStringLiteral("privateOverlay"), QStringLiteral("privateSidebar"));
-    if (!themeNamedSurfaceHover) {
-        palette.insert(QStringLiteral("surfaceHover"), palette.value(QStringLiteral("surface")));
-    }
     if (!themeNamedPrivateSurfaceHover) {
-        palette.insert(QStringLiteral("privateSurfaceHover"),
-            palette.value(QStringLiteral("privateSurface")));
+        // A theme that named the private surface but not the fill over it
+        // gets the surface, as the ordinary pair does. A theme that named
+        // neither gets the ordinary fill tinted, which keeps the difference
+        // the theme itself drew between a surface and the fill over it.
+        if (themeNamedPrivateSurface) {
+            palette.insert(QStringLiteral("privateSurfaceHover"),
+                palette.value(QStringLiteral("privateSurface")));
+        } else {
+            derivePrivateGround(
+                QStringLiteral("privateSurfaceHover"), QStringLiteral("surfaceHover"));
+        }
     }
 
     // Muted text is not decoration. It is a tab's title, a Space's letters,

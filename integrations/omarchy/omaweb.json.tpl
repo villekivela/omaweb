@@ -11,10 +11,6 @@
   "border": "{{ muted }}",
   "urgent": "{{ red }}",
   "privateAccent": "{{ magenta }}",
-  "privateWindow": "{{ dark_background }}",
-  "privateSidebar": "{{ magenta }}",
-  "privateSurface": "{{ magenta }}40",
-  "privateSurfaceHover": "{{ magenta }}55",
   "syntax": {
     "keyword": "{{ magenta }}",
     "string": "{{ green }}",

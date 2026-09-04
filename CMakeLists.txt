@@ -554,6 +554,12 @@ if(BUILD_TESTING)
 
     qt_add_executable(omaweb-theme-tests tests/ui/tst_themecontroller.cpp)
     target_link_libraries(omaweb-theme-tests PRIVATE omaweb-ui Qt6::Gui Qt6::Test)
+    # The palette an Omarchy desktop hands Omaweb is the shipped template
+    # rendered, so the suite reads the template rather than a copy of what it
+    # is believed to say.
+    target_compile_definitions(omaweb-theme-tests PRIVATE
+        OMAWEB_OMARCHY_TEMPLATE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/integrations/omarchy/omaweb.json.tpl"
+    )
     omaweb_strict_target(omaweb-theme-tests)
     add_test(NAME omaweb-theme COMMAND omaweb-theme-tests)
     # Resolving the theme's type family reads the host's font database, which

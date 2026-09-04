@@ -80,20 +80,6 @@ SYNTAX_MINIMUM_CONTRAST = 4.5
 # step it reads as an interface label, and code wants it quieter than that.
 COMMENT_STEP = 0.52
 
-# The private-window ladder is the same climb taken towards the private accent
-# instead of the foreground, measured off the shipped default theme. A straight
-# mix lands too grey to read as private at a glance, so the result keeps a
-# little more of its chroma than the mix produces. The first step also has to
-# clear the distance ThemeController demands between a window and its private
-# counterpart, which is what keeps the two apart on a muted palette.
-PRIVATE_STEPS = {
-    "privateWindow": 0.20,
-    "privateSidebar": 0.26,
-    "privateSurface": 0.32,
-    "privateSurfaceHover": 0.44,
-}
-PRIVATE_CHROMA_GAIN = 1.15
-
 # xterm's palette, for a terminal that leaves some slots at their built-in value
 # and so never writes them to a config file.
 FALLBACK_PALETTE = [
@@ -165,11 +151,6 @@ def mix(first, second, amount):
 def chroma(rgb):
     _, green_red, blue_yellow = to_oklab(rgb)
     return (green_red ** 2 + blue_yellow ** 2) ** 0.5
-
-
-def scale_chroma(rgb, gain):
-    lightness, green_red, blue_yellow = to_oklab(rgb)
-    return from_oklab((lightness, green_red * gain, blue_yellow * gain))
 
 
 def rotate_hue(rgb, degrees, gain=1.0):
@@ -454,8 +435,10 @@ def derive(source):
     }
     for key, step in SURFACE_STEPS.items():
         derived[key] = to_hex(mix(window, text, step))
-    for key, step in PRIVATE_STEPS.items():
-        derived[key] = to_hex(scale_chroma(mix(window, private_accent, step), PRIVATE_CHROMA_GAIN))
+    # No private grounds. They are each of the surfaces above with the private
+    # accent cast over them, and ThemeController derives them that way for
+    # every theme it loads -- so naming them here would be a second copy of
+    # one decision, drifting the moment either side is calibrated again.
     return derived
 
 

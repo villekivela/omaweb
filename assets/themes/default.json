@@ -11,10 +11,6 @@
   "border": "#4a4658",
   "urgent": "#e06c75",
   "privateAccent": "#c678dd",
-  "privateWindow": "#362640",
-  "privateSidebar": "#3f2c4c",
-  "privateSurface": "#4a3057",
-  "privateSurfaceHover": "#5f3b6e",
   "syntax": {
     "keyword": "#c678dd",
     "string": "#98c379",
