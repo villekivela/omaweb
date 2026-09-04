@@ -9,6 +9,9 @@ TestCase {
     when: true
 
     property var window: null
+    // `browser` is a context property, and a component that declares one of its
+    // own cannot name it: the declaration shadows the context.
+    readonly property var browserController: browser
 
     Component {
         id: windowComponent
@@ -31,6 +34,22 @@ TestCase {
             keyboard: QtObject { property string errorMessage: reportingSettings.report }
             open: true
             section: 1
+            width: 900
+            height: 700
+        }
+    }
+
+    // A settings page stood up fresh against the same preference store, which
+    // is what a restart looks like from the page's side.
+    Component {
+        id: restartedSettingsComponent
+
+        Omaweb.SettingsPage {
+            colors: testCase.window.colors
+            iconFontFamily: ""
+            browser: testCase.browserController
+            open: true
+            section: 6
             width: 900
             height: 700
         }
@@ -2374,21 +2393,202 @@ TestCase {
         verify(addProvider !== null)
         verify(providerPicker.count >= 5)
 
+        // Privacy is one row and one button. The five category switches and the
+        // scope switch that used to stand here were arguments to that button,
+        // and a switch promises the browser changed when it was flipped (#84).
         dataSection.Accessible.pressAction()
-        verify(findChild(window.contentItem, "clearCookies") !== null)
-        verify(findChild(window.contentItem, "clearStorage") !== null)
-        verify(findChild(window.contentItem, "clearCache") !== null)
-        verify(findChild(window.contentItem, "clearPermissions") !== null)
-        verify(findChild(window.contentItem, "clearHistory") !== null)
-        const everySpace = findChild(window.contentItem, "clearEverySpace")
-        const confirmation = findChild(window.contentItem, "clearEverySpaceConfirmation")
-        verify(everySpace !== null)
-        verify(confirmation !== null)
-        compare(confirmation.visible, false)
-        everySpace.clicked()
-        compare(confirmation.visible, true)
+        verify(findChild(window.contentItem, "clearBrowsingDataRow") !== null)
+        verify(findChild(window.contentItem, "clearBrowsingDataButton") !== null)
+        verify(findChild(window.contentItem, "clearCookies") === null)
+        verify(findChild(window.contentItem, "clearStorage") === null)
+        verify(findChild(window.contentItem, "clearCache") === null)
+        verify(findChild(window.contentItem, "clearPermissions") === null)
+        verify(findChild(window.contentItem, "clearHistory") === null)
+        verify(findChild(window.contentItem, "clearEverySpace") === null)
 
         findChild(window.contentItem, "closeSettingsButton").clicked()
+    }
+
+    // The contract the switches could not state: the arguments are composed in
+    // the dialog, and only confirming it takes anything.
+    function test_browsingDataIsTakenOnlyByConfirmingItsDialog() {
+        // The engine profile is what counts a clear, so there has to be one.
+        openPage("https://browsing-data.example/page")
+        window.requestSettings()
+        findChild(window.contentItem, "settingsSection6").Accessible.pressAction()
+        const dialog = findChild(window.contentItem, "clearBrowsingDataDialog")
+        const openButton = findChild(window.contentItem, "clearBrowsingDataButton")
+        verify(dialog !== null)
+        verify(openButton !== null)
+        verify(!dialog.visible)
+
+        const cleared = window.spaceProfileHost.browsingDataClearCount
+        openButton.clicked()
+        tryVerify(function() { return dialog.visible })
+        // Opening composes; it does not act.
+        compare(window.spaceProfileHost.browsingDataClearCount, cleared)
+
+        // Neither does dismissing it.
+        keyClick(Qt.Key_Escape)
+        tryVerify(function() { return !dialog.visible })
+        compare(window.spaceProfileHost.browsingDataClearCount, cleared)
+
+        openButton.clicked()
+        tryVerify(function() { return dialog.visible })
+        findChild(window.contentItem, "clearBrowsingDataConfirm").clicked()
+        tryVerify(function() {
+            return window.spaceProfileHost.browsingDataClearCount === cleared + 1
+        })
+        // Confirming is the whole act: nothing asks a second time.
+        verify(!dialog.visible)
+
+        findChild(window.contentItem, "closeSettingsButton").clicked()
+    }
+
+    // An empty selection used to be a press that silently did nothing, because
+    // the core refuses an empty `dataTypes` and the call site ignored the
+    // answer. The button says so instead.
+    function test_clearingIsRefusedBeforeItIsPressedWhenNothingIsTicked() {
+        window.requestSettings()
+        findChild(window.contentItem, "settingsSection6").Accessible.pressAction()
+        findChild(window.contentItem, "clearBrowsingDataButton").clicked()
+        const dialog = findChild(window.contentItem, "clearBrowsingDataDialog")
+        const confirm = findChild(window.contentItem, "clearBrowsingDataConfirm")
+        tryVerify(function() { return dialog.visible })
+        compare(confirm.enabled, true)
+
+        const categories = ["cookies", "storage", "cache", "permissions", "history"]
+        for (let index = 0; index < categories.length; ++index) {
+            const box = findChild(window.contentItem, "clearCategory-" + categories[index])
+            verify(box !== null)
+            compare(box.checked, true)
+            box.clicked()
+            compare(box.checked, false)
+        }
+        compare(dialog.categories.length, 0)
+        compare(confirm.enabled, false)
+
+        // Every Space asks for the typed guard the core enforces, and the field
+        // that supplies it lives here rather than on the page behind.
+        const confirmation = findChild(window.contentItem, "clearEverySpaceConfirmation")
+        verify(!confirmation.visible)
+        dialog.everySpace = true
+        verify(confirmation.visible)
+        // The kit's field does not take Tab by itself, and the confirm button
+        // now depends on what is typed in this one.
+        compare(confirmation.activeFocusOnTab, true)
+        findChild(window.contentItem, "clearCategory-cookies").clicked()
+        compare(confirm.enabled, false)
+        confirmation.text = "CLEAR ALL"
+        compare(confirm.enabled, true)
+
+        // Leave the selection as a first run has it.
+        const rest = ["storage", "cache", "permissions", "history"]
+        for (let back = 0; back < rest.length; ++back)
+            findChild(window.contentItem, "clearCategory-" + rest[back]).clicked()
+        keyClick(Qt.Key_Escape)
+        tryVerify(function() { return !dialog.visible })
+        findChild(window.contentItem, "closeSettingsButton").clicked()
+    }
+
+    // Omaweb's first dialog with a real tab order, so the order is asserted
+    // rather than assumed — including that the ring does not walk out onto the
+    // page the dialog is standing on.
+    function test_theClearDialogWalksItsOwnControlsAndConfirmsOnEnter() {
+        openPage("https://tab-order.example/page")
+        window.requestSettings()
+        findChild(window.contentItem, "settingsSection6").Accessible.pressAction()
+        findChild(window.contentItem, "clearBrowsingDataButton").clicked()
+        const dialog = findChild(window.contentItem, "clearBrowsingDataDialog")
+        tryVerify(function() { return dialog.visible })
+
+        // Tab opens on the first argument and walks the five of them.
+        const cookies = findChild(window.contentItem, "clearCategory-cookies")
+        const history = findChild(window.contentItem, "clearCategory-history")
+        tryVerify(function() { return cookies.activeFocus })
+        for (let step = 0; step < 4; ++step) keyClick(Qt.Key_Tab)
+        verify(history.activeFocus)
+
+        // Space ticks the one under the cursor; nothing else moves.
+        compare(history.checked, true)
+        keyClick(Qt.Key_Space)
+        compare(history.checked, false)
+        verify(history.activeFocus)
+        keyClick(Qt.Key_Space)
+        compare(history.checked, true)
+
+        // Shift+Tab walks back the way it came, and never onto the page: the
+        // settings rail behind the scrim takes no Tab while the dialog stands.
+        keyClick(Qt.Key_Backtab)
+        verify(findChild(window.contentItem, "clearCategory-permissions").activeFocus)
+        compare(findChild(window.contentItem, "settingsSection0").enabled, false)
+        compare(findChild(window.contentItem, "closeSettingsButton").enabled, false)
+
+        // Enter confirms from wherever the reader is standing.
+        const cleared = window.spaceProfileHost.browsingDataClearCount
+        keyClick(Qt.Key_Return)
+        tryVerify(function() {
+            return window.spaceProfileHost.browsingDataClearCount === cleared + 1
+        })
+        tryVerify(function() { return !dialog.visible })
+        compare(findChild(window.contentItem, "settingsSection0").enabled, true)
+        findChild(window.contentItem, "closeSettingsButton").clicked()
+    }
+
+    // The part that is always wrong: two controls want Escape, and the one the
+    // reader is standing in has to answer first.
+    function test_escapeClosesAnOpenListBeforeItClosesTheDialog() {
+        window.requestSettings()
+        findChild(window.contentItem, "settingsSection6").Accessible.pressAction()
+        findChild(window.contentItem, "clearBrowsingDataButton").clicked()
+        const dialog = findChild(window.contentItem, "clearBrowsingDataDialog")
+        const range = findChild(window.contentItem, "clearTimeRange")
+        tryVerify(function() { return dialog.visible })
+
+        range.open()
+        tryVerify(function() { return range.popupOpen })
+        keyClick(Qt.Key_Escape)
+        tryVerify(function() { return !range.popupOpen })
+        verify(dialog.visible)
+
+        keyClick(Qt.Key_Escape)
+        tryVerify(function() { return !dialog.visible })
+        findChild(window.contentItem, "closeSettingsButton").clicked()
+    }
+
+    // A selection is remembered because a reader who took the same things last
+    // month means the same things now. Scope is not: it is the one argument
+    // with no prior art to borrow, so it is asked for every time.
+    function test_theSelectionSurvivesARestartAndTheScopeDoesNot() {
+        window.requestSettings()
+        findChild(window.contentItem, "settingsSection6").Accessible.pressAction()
+        findChild(window.contentItem, "clearBrowsingDataButton").clicked()
+        const dialog = findChild(window.contentItem, "clearBrowsingDataDialog")
+        tryVerify(function() { return dialog.visible })
+
+        findChild(window.contentItem, "clearCategory-cache").clicked()
+        findChild(window.contentItem, "clearTimeRange").changed("0")
+        dialog.everySpace = true
+        compare(browser.preference("clear-data-categories", ""),
+            "cookies,storage,permissions,history")
+        compare(browser.preference("clear-data-range", ""), "0")
+
+        keyClick(Qt.Key_Escape)
+        tryVerify(function() { return !dialog.visible })
+        findChild(window.contentItem, "closeSettingsButton").clicked()
+
+        // A second launch of the page against the same preferences.
+        const restarted = restartedSettingsComponent.createObject(testCase)
+        verify(restarted !== null)
+        compare(restarted.clearCategories.join(","), "cookies,storage,permissions,history")
+        compare(restarted.clearRange, "0")
+        const restartedDialog = findChild(restarted, "clearBrowsingDataDialog")
+        compare(restartedDialog.everySpace, false)
+        restarted.destroy()
+
+        // Leave the store as the rest of the suite expects to find it.
+        findChild(window.contentItem, "settingsSurface").toggleClearCategory("cache")
+        findChild(window.contentItem, "settingsSurface").chooseClearRange("86400000")
     }
 
     function test_theSidebarOpensAndClosesSettings() {

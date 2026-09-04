@@ -9,6 +9,11 @@ import qs.Ui as Omarchy
 // `accessibleName` vocabulary and its palette, and Omaweb keeps the
 // accessibility annotations the kit does not carry.
 //
+// The role is `Switch`, not `CheckBox`: a switch says the browser changed when
+// it was flipped, and `SettingCheckbox` is what an argument to a pending action
+// takes instead (ADR 0031). Qt's QML `Accessible` attached type does expose
+// `Switch`, which `tst_omarchy_kit.qml` pins by its QAccessible value.
+//
 // The kit is stateless about the value — it reports the click and leaves
 // `checked` bound to the model — so a call site flips the setting itself
 // rather than reading a control that already flipped. Its switch does not fill
@@ -26,7 +31,7 @@ Omarchy.Toggle {
     foreground: colors.text
     accent: colors.accent
 
-    Accessible.role: Accessible.CheckBox
+    Accessible.role: Accessible.Switch
     Accessible.name: accessibleName
     Accessible.checked: checked
     Accessible.onPressAction: root.clicked()

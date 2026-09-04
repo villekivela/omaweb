@@ -148,20 +148,48 @@ int main(int argc, char *argv[])
     // The chromeless state and the two places — settings and history — are
     // reached by a key or a click in the browser, which a capture cannot
     // press. Naming the state is how the lab reviews them.
+    //
+    // A state is a list of properties rather than one flag, because settings is
+    // eight sections deep and a section can have a dialog standing over it. An
+    // empty object name means the window; anything else is found by the name
+    // the surface already carries, so naming a state costs the browser nothing.
+    // "settings" alone still opens the page on whatever section it was left on.
+    struct ShowProperty
+    {
+        const char *object;
+        const char *property;
+        QVariant value;
+    };
     const auto showIndex = arguments.indexOf(QStringLiteral("--show"));
     if (showIndex >= 0 && showIndex + 1 < arguments.size() && !engine.rootObjects().isEmpty()) {
-        static const QHash<QString, const char *> states = {
-            {QStringLiteral("collapsed"), "sidebarCollapsed"},
-            {QStringLiteral("settings"), "settingsOpen"},
-            {QStringLiteral("history"), "historyOpen"},
-            {QStringLiteral("shortcuts"), "shortcutsOpen"},
+        static const QHash<QString, QList<ShowProperty>> states = {
+            {QStringLiteral("collapsed"), {{"", "sidebarCollapsed", true}}},
+            {QStringLiteral("settings"), {{"", "settingsOpen", true}}},
+            {QStringLiteral("settings:privacy"),
+                {{"", "settingsOpen", true}, {"settingsSurface", "section", 6}}},
+            {QStringLiteral("settings:privacy:clear"),
+                {{"", "settingsOpen", true}, {"settingsSurface", "section", 6},
+                    {"settingsSurface", "clearDataOpen", true}}},
+            {QStringLiteral("history"), {{"", "historyOpen", true}}},
+            {QStringLiteral("shortcuts"), {{"", "shortcutsOpen", true}}},
         };
-        const auto property = states.value(arguments.at(showIndex + 1));
-        if (property == nullptr) {
+        const auto state = states.value(arguments.at(showIndex + 1));
+        if (state.isEmpty()) {
             qCritical("Unknown --show state %s", qPrintable(arguments.at(showIndex + 1)));
             return 1;
         }
-        engine.rootObjects().constFirst()->setProperty(property, true);
+        auto *root = engine.rootObjects().constFirst();
+        for (const auto &property : state) {
+            auto *target = *property.object == '\0'
+                ? root
+                : root->findChild<QObject *>(QString::fromLatin1(property.object));
+            if (target == nullptr) {
+                qCritical("No %s to show %s on", property.object,
+                    qPrintable(arguments.at(showIndex + 1)));
+                return 1;
+            }
+            target->setProperty(property.property, property.value);
+        }
     }
     const auto captureIndex = arguments.indexOf(QStringLiteral("--capture"));
     if (captureIndex >= 0 && captureIndex + 1 < arguments.size()) {

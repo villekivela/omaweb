@@ -27,12 +27,13 @@ Rectangle {
     // has to be able to show them the whole list.
     property var retainedTabs: []
     property var enginePresets: []
-    property bool clearCookiesSelected: true
-    property bool clearStorageSelected: true
-    property bool clearCacheSelected: true
-    property bool clearPermissionsSelected: true
-    property bool clearHistorySelected: true
-    property bool clearEverySpaceSelected: false
+    // A selection, not a setting: nothing is cleared until the dialog these
+    // arguments belong to is confirmed (ADR 0031). It is remembered anyway,
+    // because a reader who took the same categories last month means the same
+    // ones now. Scope is not remembered, and the dialog owns it.
+    property var clearCategories: ["cookies", "storage", "cache", "permissions", "history"]
+    property string clearRange: "86400000"
+    property bool clearDataOpen: false
 
     // The page to blur behind the settings, when there is one. Must not be an
     // ancestor of this item.
@@ -107,7 +108,9 @@ Rectangle {
     // stays visible through it: blurred, under the same translucency the
     // sidebar beside it has.
     color: "transparent"
-    focus: open
+    // The dialog over this page owns the keyboard while it is open, so Escape
+    // there closes the dialog rather than the place behind it.
+    focus: open && !clearDataOpen
 
     Keys.onPressed: function(event) {
         if (event.key === Qt.Key_Escape) {
@@ -125,6 +128,33 @@ Rectangle {
         root.blockedRequestCount = root.blocker
             ? root.blocker.blockedRequestCount(root.browser.activeUrl) : 0
         userRules.text = root.blocker ? root.blocker.userRules : ""
+        root.loadBrowsingDataSelection()
+    }
+
+    // The categories and the range are remembered through the same preference
+    // store `use-favicons` uses. Scope is not: it is the one argument with no
+    // prior art to borrow, and a choice inherited from a config file written
+    // weeks ago is a default rather than a choice.
+    function loadBrowsingDataSelection() {
+        if (!root.browser) return
+        const saved = root.browser.preference("clear-data-categories",
+            "cookies,storage,cache,permissions,history")
+        root.clearCategories = saved.length > 0 ? saved.split(",") : []
+        root.clearRange = root.browser.preference("clear-data-range", "86400000")
+    }
+
+    function toggleClearCategory(value) {
+        const next = root.clearCategories.slice()
+        const at = next.indexOf(value)
+        if (at >= 0) next.splice(at, 1)
+        else next.push(value)
+        root.clearCategories = next
+        if (root.browser) root.browser.setPreference("clear-data-categories", next.join(","))
+    }
+
+    function chooseClearRange(value) {
+        root.clearRange = value
+        if (root.browser) root.browser.setPreference("clear-data-range", value)
     }
 
     function makeDefaultSearchEngine(id) {
@@ -140,6 +170,9 @@ Rectangle {
     }
 
     onOpenChanged: if (open) refresh()
+    // The selection is state the page holds whether or not it has been opened,
+    // so it is read once rather than on the first visit.
+    Component.onCompleted: loadBrowsingDataSelection()
 
     PageBackdrop {
         objectName: "settingsBackdrop"
@@ -156,6 +189,7 @@ Rectangle {
         anchors.leftMargin: 48
         anchors.rightMargin: 48
         anchors.topMargin: 40
+        enabled: !root.clearDataOpen
         height: settingsEyebrow.height + Style.spacing.md + settingsHeading.height
 
         // Settings is a place, so it is titled like one: what this is, and the
@@ -214,6 +248,11 @@ Rectangle {
         anchors.topMargin: 28
         anchors.bottomMargin: 24
         spacing: 40
+        // A dialog over this page is modal, so the page under it takes neither
+        // a click nor a Tab while it stands. Qt has no tab fence a QML item can
+        // raise, so the way to keep the ring inside the dialog is to take the
+        // rest of the page out of it.
+        enabled: !root.clearDataOpen
 
         Column {
             id: rail
@@ -726,125 +765,37 @@ Rectangle {
 
                 // ---- privacy -----------------------------------------------
 
+                // The section is named for what it will hold rather than for
+                // its one row: the reputation protection, proxy reporting and
+                // third-party cookie allowances the requirements describe are
+                // privacy and are not browsing data.
                 SectionLabel {
                     visible: root.section === 6
                     colors: root.colors
-                    text: "clear browsing data"
+                    text: "privacy"
                 }
 
-                SettingToggle {
-                    objectName: "clearCookies"
-                    width: pane.width
-                    visible: root.section === 6
-                    colors: root.colors
-                    title: "Cookies"
-                    checked: root.clearCookiesSelected
-                    onClicked: root.clearCookiesSelected = !checked
-                }
-                SettingToggle {
-                    objectName: "clearStorage"
-                    width: pane.width
-                    visible: root.section === 6
-                    colors: root.colors
-                    title: "Site storage"
-                    checked: root.clearStorageSelected
-                    onClicked: root.clearStorageSelected = !checked
-                }
-                SettingToggle {
-                    objectName: "clearCache"
-                    width: pane.width
-                    visible: root.section === 6
-                    colors: root.colors
-                    title: "Cache"
-                    checked: root.clearCacheSelected
-                    onClicked: root.clearCacheSelected = !checked
-                }
-                SettingToggle {
-                    objectName: "clearPermissions"
-                    width: pane.width
-                    visible: root.section === 6
-                    colors: root.colors
-                    title: "Site permissions"
-                    checked: root.clearPermissionsSelected
-                    onClicked: root.clearPermissionsSelected = !checked
-                }
-                SettingToggle {
-                    objectName: "clearHistory"
-                    width: pane.width
-                    visible: root.section === 6
-                    colors: root.colors
-                    title: "History"
-                    checked: root.clearHistorySelected
-                    onClicked: root.clearHistorySelected = !checked
-                }
-
+                // One row and one button, which is the shape Chrome and Firefox
+                // both settled on. What used to be five switches and a scope
+                // switch on this page were arguments to that button, and they
+                // now sit in the dialog it opens (ADR 0031). The section has
+                // room to grow into the reputation protection, proxy reporting
+                // and third-party cookie allowances Omaweb has not built.
                 SettingRow {
+                    objectName: "clearBrowsingDataRow"
                     width: pane.width
                     visible: root.section === 6
                     colors: root.colors
-                    title: "Time range"
-                    note: "Applied within the selected Space by default."
+                    title: "Browsing data"
+                    note: "Cookies, site storage, cache, site permissions and history — "
+                        + "for the Spaces and the time range chosen when clearing."
 
-                    SettingDropdown {
-                        id: clearRange
-                        objectName: "clearTimeRange"
+                    ActionButton {
+                        objectName: "clearBrowsingDataButton"
                         colors: root.colors
-                        options: [
-                            { value: "3600000", label: "last hour" },
-                            { value: "86400000", label: "last day" },
-                            { value: "604800000", label: "last week" },
-                            { value: "0", label: "all time" }
-                        ]
-                        value: "86400000"
-                        accessibleName: "Browsing data time range"
-                    }
-                }
-
-                SettingToggle {
-                    objectName: "clearEverySpace"
-                    width: pane.width
-                    visible: root.section === 6
-                    colors: root.colors
-                    title: "Every Space"
-                    note: "Off clears only " + (root.browser ? root.browser.activeSpaceName : "this Space") + "."
-                    checked: root.clearEverySpaceSelected
-                    onClicked: root.clearEverySpaceSelected = !checked
-                }
-
-                SettingField {
-                    id: clearEverySpaceConfirmation
-                    objectName: "clearEverySpaceConfirmation"
-                    width: pane.width
-                    visible: root.section === 6 && root.clearEverySpaceSelected
-                    colors: root.colors
-                    destructive: true
-                    placeholder: "type CLEAR ALL"
-                    accessibleName: "Confirm clearing every Space"
-                }
-
-                ActionButton {
-                    objectName: "clearBrowsingDataButton"
-                    visible: root.section === 6
-                    colors: root.colors
-                    label: root.clearEverySpaceSelected ? "Clear every Space" : "Clear this Space"
-                    destructive: true
-                    enabled: !root.clearEverySpaceSelected
-                        || clearEverySpaceConfirmation.text === "CLEAR ALL"
-                    onClicked: {
-                        const selected = []
-                        if (root.clearCookiesSelected) selected.push("cookies")
-                        if (root.clearStorageSelected) selected.push("storage")
-                        if (root.clearCacheSelected) selected.push("cache")
-                        if (root.clearPermissionsSelected) selected.push("permissions")
-                        if (root.clearHistorySelected) selected.push("history")
-                        const duration = Number(clearRange.value)
-                        const since = duration === 0 ? 0 : Date.now() - duration
-                        if (root.browser.clearBrowsingData(selected, since,
-                                root.clearEverySpaceSelected,
-                                clearEverySpaceConfirmation.text)) {
-                            clearEverySpaceConfirmation.text = ""
-                            root.refresh()
-                        }
+                        destructive: true
+                        label: "Clear browsing data…"
+                        onClicked: root.clearDataOpen = true
                     }
                 }
 
@@ -921,6 +872,27 @@ Rectangle {
                     }
                 }
             }
+        }
+    }
+
+    ClearBrowsingDataDialog {
+        id: clearDataDialog
+        objectName: "clearBrowsingDataDialog"
+        anchors.fill: parent
+        z: 10
+        colors: root.colors
+        open: root.open && root.clearDataOpen
+        spaceName: root.browser ? root.browser.activeSpaceName : ""
+        categories: root.clearCategories
+        range: root.clearRange
+
+        onCategoryToggled: function(value) { root.toggleClearCategory(value) }
+        onRangeChosen: function(value) { root.chooseClearRange(value) }
+        onDismissed: root.clearDataOpen = false
+        onConfirmed: function(categories, since, everySpace, confirmation) {
+            root.clearDataOpen = false
+            if (root.browser.clearBrowsingData(categories, since, everySpace, confirmation))
+                root.refresh()
         }
     }
 }

@@ -272,6 +272,8 @@ set(omaweb_ui_files
     src/ui/SectionLabel.qml
     src/ui/SiteInformationPanel.qml
     src/ui/MultilineField.qml
+    src/ui/ClearBrowsingDataDialog.qml
+    src/ui/SettingCheckbox.qml
     src/ui/SettingDropdown.qml
     src/ui/SettingField.qml
     src/ui/SettingRow.qml

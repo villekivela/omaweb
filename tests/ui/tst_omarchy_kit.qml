@@ -75,6 +75,25 @@ TestCase {
     }
 
     Component {
+        id: settingToggleComponent
+
+        Omaweb.SettingToggle {
+            colors: testCase.colorsFixture
+            title: "Use site favicons"
+        }
+    }
+
+    Component {
+        id: settingCheckboxComponent
+
+        Omaweb.SettingCheckbox {
+            colors: testCase.colorsFixture
+            title: "Cookies"
+            note: "Signs out of sites that kept you signed in."
+        }
+    }
+
+    Component {
         id: toggleComponent
 
         Omarchy.Toggle {
@@ -297,6 +316,72 @@ TestCase {
         verify(field.implicitHeight > Style.font.body * 4)
         field.text = "||ads.example.com^\n##.banner"
         compare(field.lineCount, 2)
+    }
+
+    // The kit ships no standalone checkbox, so `SettingCheckbox` lifts the one
+    // `MultiSelect` draws as a popup-list delegate. A sync that restyles the
+    // kit's checkbox has to be seen here rather than in a dialog nobody opens.
+    function test_settingCheckboxKeepsTheKitsCheckboxShape() {
+        const checkbox = createTemporaryObject(settingCheckboxComponent, testCase,
+            { width: 300 })
+        verify(checkbox !== null)
+        const box = findChild(checkbox, "settingCheckboxBox")
+        const tick = findChild(checkbox, "settingCheckboxTick")
+        verify(box !== null)
+        verify(tick !== null)
+
+        compare(box.width, Style.space(16))
+        compare(box.height, Style.space(16))
+        compare(box.radius, Math.max(2, Style.cornerRadius / 2))
+        compare(tick.text, "\u2713")
+
+        // The two states are told apart by the box's own fill and border,
+        // which is what a kit sync would restyle. Nothing here asserts
+        // `visible`: the test case is not on screen, so every item in it
+        // reports false whatever its binding says.
+        const foreground = testCase.colorsFixture.text
+        const accent = testCase.colorsFixture.accent
+        compare(String(box.color), "#00000000")
+        compare(String(Border.color(box.borderSpec)),
+            String(Border.color(Border.controlSpec("normal", foreground, accent))))
+
+        checkbox.checked = true
+        compare(String(box.color), String(Style.selectedFillFor(foreground, accent)))
+        compare(String(tick.color), String(Style.selectedStateColor(foreground, accent)))
+        compare(String(Border.color(box.borderSpec)),
+            String(Border.color(Border.controlSpec("selected", foreground, accent))))
+    }
+
+    // Stateless about the value, as the kit's Toggle is. `Space` ticks it and
+    // `Return` does not: a form of these sits in a dialog whose Return confirms
+    // the whole form.
+    function test_settingCheckboxLeavesTheValueToTheCallSiteAndOnlyAnswersSpace() {
+        let clicks = 0
+        const checkbox = createTemporaryObject(settingCheckboxComponent, testCase,
+            { width: 300 })
+        checkbox.clicked.connect(function() { clicks += 1 })
+        checkbox.forceActiveFocus()
+        verify(checkbox.activeFocus)
+        keyClick(Qt.Key_Space)
+        compare(clicks, 1)
+        compare(checkbox.checked, false)
+        keyClick(Qt.Key_Return)
+        compare(clicks, 1)
+    }
+
+    // One control per contract, and the two say so to a screen reader as well
+    // as on the screen: a switch changed the browser, a checkbox is an argument
+    // to something that has not happened yet (ADR 0031).
+    function test_aSettingIsASwitchAndASelectionIsACheckbox() {
+        const setting = createTemporaryObject(settingToggleComponent, testCase)
+        const selection = createTemporaryObject(settingCheckboxComponent, testCase)
+        // QAccessible::Switch is 0x87. Naming the number rather than the
+        // enumerator is the point: if the QML attached type ever stops
+        // exposing `Accessible.Switch`, an assertion against `undefined` would
+        // pass against `undefined`.
+        compare(setting.Accessible.role, 0x87)
+        compare(selection.Accessible.role, Accessible.CheckBox)
+        verify(setting.Accessible.role !== selection.Accessible.role)
     }
 
     // The kit's Toggle is stateless about the value: it reports the click and
