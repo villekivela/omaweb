@@ -229,14 +229,21 @@ TestCase {
     function test_sectionLabelIsTheKitsPanelSectionHeader() {
         const label = createTemporaryObject(sectionLabelComponent, testCase)
         verify(label !== null)
-        compare(label.fontSize, Style.font.caption)
+        // Omaweb sets the label larger than the kit's caption size and in
+        // capitals, so a section reads as what divides the rows rather than as
+        // one more row.
+        compare(label.fontSize, Style.font.subtitle)
+        compare(label.font.capitalization, Font.AllUppercase)
         compare(String(label.foreground), "#f3f1fa")
         // The kit derives its own muting from `foreground` rather than reading
-        // a separate muted role, and it neither letter-spaces nor upper-cases.
+        // a separate muted role, and Omaweb does not letter-space on top of the
+        // capitals.
         verify(String(label.color) !== String(label.foreground))
-        compare(label.font.capitalization, Font.MixedCase)
         compare(label.font.letterSpacing, 0)
+        // The capitals are drawn, not written: what a screen reader is handed
+        // is still the label as the call site set it.
         compare(label.text, "pinned")
+        compare(label.Accessible.name, "pinned")
     }
 
     // A Qt Quick Controls native style refuses the kit's replaced `background`
