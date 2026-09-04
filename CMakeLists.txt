@@ -263,6 +263,7 @@ set(omaweb_ui_files
     src/ui/NoticeBox.qml
     src/ui/ActionButton.qml
     src/ui/CommandDialog.qml
+    src/ui/DialogPanel.qml
     src/ui/PageBackdrop.qml
     src/ui/PageNotice.qml
     src/ui/PageQuestionBar.qml
