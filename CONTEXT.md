@@ -76,6 +76,10 @@ _Avoid_: Backup, account
 A Space-specific decision that allows or blocks an origin from using a protected browser capability. A Private window retains its Site permissions only while the shared private session exists.
 _Avoid_: System permission, engine permission
 
+**Browsing data**:
+What a Space accumulates as it is used and can be cleared without unmaking the Space: its cookies, site storage, cache, Site permissions and history. Browsing data is cleared by category and time range, and clearing it leaves the Space itself, its Pinned tabs, its name and colour, and everything the reader configured about the browser. Deleting a Space is the separate act that removes the Space as well.
+_Avoid_: History, cache, site data, user data
+
 **Site information**:
 What Omaweb states about the site on show, for the Space it is on show in: its origin, the connection the engine reports, the requests Content blocking refused, the site data the Space holds, the origin's Site permissions, and the confirmed ways to clear that data or reset those decisions. Reached from the address trigger, which reports the connection from the engine's own facts and never from the address itself.
 _Avoid_: Site status, page info, security panel
