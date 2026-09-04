@@ -1,19 +1,23 @@
-# Defer a URL reputation provider
+# Ship without URL reputation
 
 See #59.
 
-Omaweb does not yet approve a URL reputation provider. Public daily-driver
-status remains blocked. Google Safe Browsing v5 in Local List Mode is the
-closest technical fit, but Omaweb must not ship it until Google confirms in
-writing that the public, free Linux package is a permitted non-commercial API
-client and agrees on a credential model suitable for software whose source and
-binary are public. Google Web Risk is the fallback if Omaweb can fund it and
-operate a credential-holding service that never receives full URLs.
+Omaweb will ship without a phishing, malware, or download-reputation provider.
+That omission does not block daily-driver status. The browser documents the
+missing protection and does not imply that Content blocking provides an
+equivalent service. The privacy-focused Helium fork makes the same trade-off by
+setting Chromium's `safe_browsing_mode` to zero. Omaweb avoids a credential
+service, recurring cost, and provider terms that a small project cannot
+support. [Helium build flags](https://github.com/imputnet/helium/blob/main/flags.gn)
 
-An early alpha continues to say that reputation protection is unavailable, as
-required by [Product requirements](../product/requirements.md#privacy-and-security).
-This decision records the contract to implement once the provider and
-credentials are settled, so the engine-neutral work need not be rediscovered.
+Google Safe Browsing v5 in Local List Mode remains the closest technical fit if
+Omaweb revisits the choice. It must not ship until Google confirms in writing
+that the public, free Linux package is a permitted non-commercial API client
+and agrees on a credential model suitable for software whose source and binary
+are public. Google Web Risk remains an option only if Omaweb can fund it and
+operate a credential-holding service that never receives full URLs. The rest
+of this decision preserves the researched integration contract so that work
+does not need to be repeated.
 
 ## Provider comparison
 
@@ -21,7 +25,7 @@ credentials are settled, so the engine-neutral work need not be rediscovered.
 | --- | --- | --- | --- |
 | Google Safe Browsing v5, Local List Mode | Google's lists cover malware and social engineering, including phishing. A client keeps SHA-256 prefixes locally and asks for full hashes only after a prefix collision. The v5 REST service exposes `hashLists:batchGet` and `hashes:search`. [Threat types](https://developers.google.com/safe-browsing/reference/rest/v5/hashList#ThreatType), [Local List Mode](https://developers.google.com/safe-browsing/reference/Local.List.Mode), [REST methods](https://developers.google.com/safe-browsing/reference/rest) | Free, but only for non-commercial use unless Google makes a separate agreement. The general API terms also forbid permanent copies, overlong caches, and redistribution of returned content unless permission applies. [Safe Browsing terms](https://developers.google.com/safe-browsing/terms), [Google API terms, section 5](https://developers.google.com/terms/#5_content) | Best protocol fit, not approved until use and credential terms are confirmed. |
 | Google Web Risk Update API | The required classes are available as `MALWARE` and `SOCIAL_ENGINEERING`. A client downloads variable-length SHA-256 prefixes with `threatLists:computeDiff`, then confirms collisions through `hashes:search`. [Web Risk overview](https://docs.cloud.google.com/web-risk/docs/overview), [Update API](https://docs.cloud.google.com/web-risk/docs/update-api) | Google says Web Risk information must not be redistributed. Diff calls are free, but every hash confirmation costs USD 50 per 1,000 calls at the first published tier. [Web Risk overview](https://docs.cloud.google.com/web-risk/docs/overview), [pricing](https://cloud.google.com/web-risk/pricing) | Technically viable only with a commercial agreement, a budget, and a credential service. |
-| PhishTank plus URLhaus community feeds | PhishTank publishes verified, online phishing URLs in XML, CSV, JSON, and PHP formats each hour. URLhaus publishes full-URL malware feeds and five-minute CSV/JSON dumps, but it accepts only URLs that directly distribute malware. Neither feed alone covers both release-gate classes. [PhishTank developer information](https://phishtank.org/developer_info.php), [URLhaus API](https://urlhaus.abuse.ch/api/) | PhishTank now points users to the Cisco EULA; its older page says API data was free for commercial use under CC BY-SA 2.5, but labels that text archived. URLhaus offers its community API under fair-use terms and says commercial or for-profit users may need a paid subscription. Neither current source grants an unambiguous right to redistribute a snapshot inside Omaweb packages. [PhishTank terms](https://phishtank.org/terms.php), [URLhaus API terms](https://urlhaus.abuse.ch/api/) | Rejected as the release-gate provider. The pair has a coverage seam, carries full URLs, and leaves current redistribution rights and production reliability unsettled. |
+| PhishTank plus URLhaus community feeds | PhishTank publishes verified, online phishing URLs in XML, CSV, JSON, and PHP formats each hour. URLhaus publishes full-URL malware feeds and five-minute CSV/JSON dumps, but it accepts only URLs that directly distribute malware. Neither feed alone covers both threat classes. [PhishTank developer information](https://phishtank.org/developer_info.php), [URLhaus API](https://urlhaus.abuse.ch/api/) | PhishTank now points users to the Cisco EULA; its older page says API data was free for commercial use under CC BY-SA 2.5, but labels that text archived. URLhaus offers its community API under fair-use terms and says commercial or for-profit users may need a paid subscription. Neither current source grants an unambiguous right to redistribute a snapshot inside Omaweb packages. [PhishTank terms](https://phishtank.org/terms.php), [URLhaus API terms](https://urlhaus.abuse.ch/api/) | Rejected as the default provider. The pair has a coverage seam, carries full URLs, and leaves current redistribution rights and production reliability unsettled. |
 
 The Safe Browsing and Web Risk restrictions concern provider data, not the
 MPL-2.0 code that implements the client. The Linux package may contain that
@@ -131,7 +135,8 @@ provider dependency with a relay service and is not part of the first contract.
 No Space identifier, tab identifier, complete URL, full hash, stable device
 identifier, crash report, or Omaweb telemetry may be added to any request. The
 production implementation must add its destinations and triggers to
-[Automatic network requests](../network-requests.md) before release.
+[Automatic network requests](../network-requests.md) before enabling the
+provider in a release.
 
 ## Verdict, false positives, and offline policy
 
@@ -161,7 +166,7 @@ credentials:
 
 | Property | Measured result for the proposed contract |
 | --- | --- |
-| False positives | No candidate publishes a browser-relevant false-positive rate or a correction-time guarantee. Google states that both false positives and false negatives occur. PhishTank requires community verification, and URLhaus accepts false-positive reports in its web interface. The measurable rate and correction time therefore remain unknown, which blocks release qualification rather than becoming an assumed zero. |
+| False positives | No candidate publishes a browser-relevant false-positive rate or a correction-time guarantee. Google states that both false positives and false negatives occur. PhishTank requires community verification, and URLhaus accepts false-positive reports in its web interface. The measurable rate and correction time therefore remain unknown, which prevents selecting a candidate rather than becoming an assumed zero. |
 | Bypass | One exact canonical URL, one navigation, and zero bytes of durable bypass state. A reload, redirect, other tab, or Private window gets no reuse. |
 | Safe Browsing staleness | A verdict becomes unusable 30 minutes after the last applicable Google update, even when a longer local cache duration remains. |
 | Web Risk staleness | A confirmed full-hash verdict becomes unusable at its returned expiry time. |
@@ -185,9 +190,9 @@ the confirming full-hash response is unexpired. After that point, offline or
 failed-refresh operation is fail-open and visibly unprotected, not silently
 based on stale data. [Safe Browsing terms](https://developers.google.com/safe-browsing/terms), [Web Risk warning rules](https://docs.cloud.google.com/web-risk/docs/user-warnings)
 
-This stale policy is one reason a public daily-driver release remains blocked.
-The product can still load pages offline, but it cannot honestly describe that
-session as protected when provider terms prohibit acting on the stored verdict.
+This stale policy makes a future integration operationally demanding. The
+product can still load pages offline, but it could not describe that session as
+protected when provider terms prohibit acting on the stored verdict.
 
 ## Linux packaging
 
@@ -204,7 +209,7 @@ credentials identify the API client, must remain confidential, and may not be
 embedded in an open-source project. Its security guidance also says client code
 should send requests through a credential-adding server. User-supplied Cloud
 credentials would turn a default safety feature into setup work and expose
-readers to provider billing, so that is not a daily-driver answer. The viable
+readers to provider billing, so that is not a default answer. The viable
 choices are a provider-approved public-client credential or an Omaweb-operated
 narrow proxy. The proxy may authenticate only list and prefix requests, must
 not accept full URLs, and must
@@ -276,7 +281,7 @@ Approve Safe Browsing v5 only after all of these are written down:
    days on both supported engine contracts.
 
 If Google does not resolve those points, price Web Risk from measured collision
-traffic and negotiate terms for a public desktop client. The community-feed
-pair is not the fallback for public daily-driver status unless both operators
-grant current redistribution rights and an independent coverage evaluation
-shows that the pair can replace a browser-grade phishing and malware service.
+traffic and negotiate terms for a public desktop client. Do not make the
+community-feed pair the default unless both operators grant current
+redistribution rights and an independent coverage evaluation shows that the
+pair can replace a browser-grade phishing and malware service.

@@ -43,8 +43,9 @@ The current Qt build includes:
   engine-free UI lab
 
 Omaweb is still pre-alpha. Do not use it for sensitive browsing. It does not yet
-have the complete certificate, download, sandbox-health, URL-reputation, and
-Linux release work required for daily-driver status.
+have the complete certificate, download, sandbox-health, and Linux release work
+required for daily-driver status. Omaweb does not provide phishing, malware, or
+download-reputation verdicts.
 
 ## Build and run
 
@@ -172,7 +173,7 @@ Start with [the architecture](docs/architecture.md),
 The remaining Qt daily-driver work is tracked by
 [#50](https://github.com/villekivela/omaweb/issues/50). It covers browser prompts,
 History and data controls, tab management, certificate and cookie policy,
-download hardening, native notifications, and phishing and malware protection.
+download hardening, and native notifications.
 
 [#8](https://github.com/villekivela/omaweb/issues/8) carries the browser to its
 Linux and Wayland distribution target. macOS remains available for development
@@ -190,6 +191,9 @@ feature list waiting for a checkbox.
 Omaweb has no telemetry, advertising identifier, browser account, cloud sync,
 Google push service, or automatic crash upload. Every automatic request made by
 the browser is listed in [the network request ledger](docs/network-requests.md).
+Omaweb does not use a URL-reputation provider. Content blocking may refuse some
+known malicious addresses, but it is not complete phishing, malware, or
+download-reputation protection.
 
 Ordinary sessions open no debugging listener. The explicit
 `--remote-debugging[=port]` development option binds to loopback, prints a
