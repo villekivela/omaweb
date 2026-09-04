@@ -4,12 +4,14 @@
 #include "EngineCapabilities.h"
 #include "ExternalProtocolHandler.h"
 #include "QtContentBlocker.h"
+#include "QtHeldDownloads.h"
 #include "EngineViewContract.h"
 #include "ProcessResources.h"
 
 #include <QGuiApplication>
 #include <QDir>
 #include <QDirIterator>
+#include <QFileInfo>
 #include <QFile>
 #include <QMetaMethod>
 #include <QQmlComponent>
@@ -105,6 +107,7 @@ private slots:
     void qtAsksTheShellAboutEveryPermissionRequest();
     void qtEmptiesTheCacheItWasAskedToClear();
     void qtEmptiesOneOriginsStorageFromInsideItsPage();
+    void qtHoldsARiskyDownloadUntilTheShellHasAnswered();
 };
 
 namespace {
@@ -2996,3 +2999,147 @@ int main(int argc, char *argv[])
 }
 
 #include "tst_qtenginecontract.moc"
+
+namespace {
+
+// A page and one attachment beside it. The attachment is what a server hands
+// over when it means the browser to save a file rather than show it.
+class DownloadServer final : public QTcpServer {
+public:
+    DownloadServer()
+    {
+        connect(this, &QTcpServer::newConnection, this, [this] {
+            auto *socket = nextPendingConnection();
+            connect(socket, &QTcpSocket::readyRead, socket, [socket] {
+                const auto request = socket->readAll();
+                const auto fields = request.split(' ');
+                const auto path = fields.size() > 1 ? fields.at(1) : QByteArray();
+                QByteArray headers;
+                QByteArray body;
+                if (path.startsWith("/install.sh")) {
+                    body = "#!/bin/sh\nexit 0\n";
+                    headers = "Content-Type: application/x-shellscript\r\n"
+                              "Content-Disposition: attachment; filename=\"install.sh\"\r\n";
+                } else {
+                    body = "<!doctype html><title>downloads</title>"
+                           "<a href=\"/install.sh\">install</a>";
+                    headers = "Content-Type: text/html\r\n";
+                }
+                socket->write("HTTP/1.1 200 OK\r\n" + headers + "Content-Length: "
+                    + QByteArray::number(body.size())
+                    + "\r\nConnection: close\r\n\r\n" + body);
+                socket->flush();
+                socket->disconnectFromHost();
+            });
+        });
+    }
+};
+
+} // namespace
+
+// The engine decides a download's fate inside its own signal handler, so there
+// is no request to hold open while a question is on screen. What there is, is
+// the page: cancelling before a byte is written costs nothing, and the same
+// page can be asked for the same file once the reader has answered. This is
+// that round trip against the real engine, because nothing else can prove the
+// second request arrives as an ordinary download.
+void QtEngineContractTest::qtHoldsARiskyDownloadUntilTheShellHasAnswered()
+{
+    DownloadServer server;
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+    const auto base = QStringLiteral("http://127.0.0.1:%1").arg(server.serverPort());
+
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    const auto downloads = root.filePath(QStringLiteral("downloads"));
+    QVERIFY(QDir().mkpath(downloads));
+
+    BrowserController controller(root.filePath(QStringLiteral("data")), QStringLiteral("qt"));
+    // The reader dealt with the site, so nothing here is the page helping
+    // itself: what they are being asked is only whether to have the file.
+    controller.recordOriginInteraction(QUrl(base));
+    omaweb::QtHeldDownloads heldDownloads;
+
+    QQmlEngine engine;
+    QQmlComponent profileComponent(&engine, QUrl::fromLocalFile(
+        QStringLiteral(OMAWEB_QT_ENGINE_PROFILE_PATH)));
+    const std::unique_ptr<QObject> profile(profileComponent.createWithInitialProperties({
+        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
+        {QStringLiteral("privateBrowsing"), false},
+        {QStringLiteral("acceptDownloads"), true},
+        {QStringLiteral("downloadDirectory"), downloads},
+        {QStringLiteral("downloadNamespace"), QStringLiteral("space-1")},
+        {QStringLiteral("downloadController"), QVariant::fromValue<QObject *>(&controller)},
+        {QStringLiteral("downloadHolds"), QVariant::fromValue<QObject *>(&heldDownloads)},
+    }));
+    QVERIFY2(profile, qPrintable(profileComponent.errorString()));
+
+    QQmlComponent viewComponent(&engine, QUrl::fromLocalFile(
+        QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    const std::unique_ptr<QObject> view(viewComponent.createWithInitialProperties({
+        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
+        {QStringLiteral("sharedProfile"), profile->property("profile")},
+    }));
+    QVERIFY2(view, qPrintable(viewComponent.errorString()));
+
+    QQuickWindow window;
+    window.resize(640, 480);
+    qobject_cast<QQuickItem *>(view.get())->setParentItem(window.contentItem());
+    window.show();
+
+    QSignalSpy heldSpy(profile.get(),
+        SIGNAL(downloadHeld(QString, QString, QString, QUrl, QString, QString)));
+    QVERIFY(heldSpy.isValid());
+    QSignalSpy startedSpy(profile.get(),
+        SIGNAL(downloadStarted(QString, QUrl, QString, QString, double, double)));
+    QVERIFY(startedSpy.isValid());
+
+    QVERIFY(view->setProperty("currentUrl", QUrl(base + QStringLiteral("/page"))));
+    QTRY_COMPARE(view->property("pageTitle").toString(), QStringLiteral("downloads"));
+
+    QVERIFY(view->setProperty("currentUrl", QUrl(base + QStringLiteral("/install.sh"))));
+    QTRY_COMPARE(heldSpy.count(), 1);
+    // Nothing has started and nothing is on disk while the question stands.
+    QCOMPARE(startedSpy.count(), 0);
+    QCOMPARE(QDir(downloads).entryList(QDir::Files | QDir::NoDotAndDotDot), QStringList{});
+    QCOMPARE(heldDownloads.heldCount(), 1);
+
+    const auto held = heldSpy.first();
+    QCOMPARE(held.at(1).toString(), QStringLiteral("confirm"));
+    QCOMPARE(held.at(2).toString(), base);
+    QCOMPARE(held.at(4).toString(), QStringLiteral("install.sh"));
+    QCOMPARE(held.at(5).toString(), QStringLiteral("script"));
+
+    // Answered. The page is asked again, the request that comes back is an
+    // ordinary download, and it is not held a second time.
+    QVERIFY(QMetaObject::invokeMethod(profile.get(), "releaseHeldDownload",
+        Q_ARG(QVariant, held.at(0).toString()), Q_ARG(QVariant, QString())));
+    QTRY_COMPARE(startedSpy.count(), 1);
+    QCOMPARE(heldSpy.count(), 1);
+    QCOMPARE(heldDownloads.heldCount(), 0);
+    const auto landed = QDir(downloads).filePath(QStringLiteral("install.sh"));
+    QTRY_VERIFY(QFileInfo::exists(landed));
+
+    // The same file again. Agreeing to have a program is not agreeing to
+    // overwrite the copy already there, and the reader is asked both questions
+    // in turn: whether to have it, and then — because the name is now taken —
+    // where it goes.
+    QVERIFY(view->setProperty("currentUrl", QUrl(base + QStringLiteral("/install.sh"))));
+    QTRY_COMPARE(heldSpy.count(), 2);
+    QCOMPARE(heldSpy.at(1).at(1).toString(), QStringLiteral("confirm"));
+    QVERIFY(QMetaObject::invokeMethod(profile.get(), "releaseHeldDownload",
+        Q_ARG(QVariant, heldSpy.at(1).at(0).toString()), Q_ARG(QVariant, QString())));
+    QTRY_COMPARE(heldSpy.count(), 3);
+    QCOMPARE(heldSpy.at(2).at(1).toString(), QStringLiteral("save-as"));
+    QCOMPARE(startedSpy.count(), 1);
+
+    // Answered with a path, it goes there and nothing is asked again.
+    const auto chosen = QDir(downloads).filePath(QStringLiteral("install-2.sh"));
+    QVERIFY(QMetaObject::invokeMethod(profile.get(), "releaseHeldDownload",
+        Q_ARG(QVariant, heldSpy.at(2).at(0).toString()), Q_ARG(QVariant, chosen)));
+    QTRY_COMPARE(startedSpy.count(), 2);
+    QCOMPARE(heldSpy.count(), 3);
+    QTRY_VERIFY(QFileInfo::exists(chosen));
+    // And the copy the reader already had is where it was.
+    QVERIFY(QFileInfo::exists(landed));
+}

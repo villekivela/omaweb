@@ -3337,4 +3337,175 @@ TestCase {
         engine.inlinePdfViewingAvailable = true
         notice.dismiss()
     }
+
+    // A file that will be run, installed or mounted is a question before it is
+    // a download: nothing is written while the bar stands, and the reader is
+    // told which kind of file they are being handed rather than a risk score.
+    function test_aProgramIsNotWrittenDownUntilTheReaderSaysSo() {
+        openPage("https://tools.example/releases")
+        const host = window.spaceProfileHost
+        const question = findChild(window.contentItem, "downloadQuestionBar")
+        verify(question !== null)
+        // The reader dealt with the site, so this is not the page helping itself.
+        browser.recordOriginInteraction("https://tools.example/releases")
+
+        const started = host.simulateDownloadRequest("https://tools.example/releases",
+            "https://tools.example/install.sh", "omaweb-test-install.sh", "text/plain")
+        compare(started, "")
+        tryCompare(question, "open", true)
+        verify(question.message.indexOf("https://tools.example") === 0)
+        verify(question.message.indexOf("omaweb-test-install.sh") > 0)
+        verify(question.detail.indexOf("script") === 0)
+        // Whatever else the bar says, it never promises to open the thing.
+        verify(question.detail.indexOf("never runs") > 0)
+        compare(question.actions.length, 2)
+        compare(question.actions[0].label, "Download")
+        compare(question.actions[1].label, "Discard")
+
+        // Discarding writes nothing and says so.
+        const notice = findChild(window.contentItem, "pageNotice")
+        question.actionTriggered(1)
+        tryCompare(question, "open", false)
+        tryCompare(notice, "message", "Download discarded")
+        compare(Object.keys(window.runningDownloads).length, 0)
+        notice.dismiss()
+
+        // Asked again and answered, the same page is asked for the same file
+        // and it lands where downloads go.
+        compare(host.simulateDownloadRequest("https://tools.example/releases",
+            "https://tools.example/install.sh", "omaweb-test-install.sh", "text/plain"), "")
+        tryCompare(question, "open", true)
+        question.actionTriggered(0)
+        tryCompare(question, "open", false)
+        tryVerify(function() { return Object.keys(window.runningDownloads).length === 1 })
+        const runtimeId = Object.keys(window.runningDownloads)[0]
+        verify(String(window.runningDownloads[runtimeId].path)
+            .indexOf("omaweb-test-install.sh") > 0)
+        host.simulateDownloadFinished(runtimeId)
+        tryVerify(function() { return notice.message === "Saved omaweb-test-install.sh" })
+        notice.dismiss()
+    }
+
+    // A page that starts a download nobody asked for is asking for a Site
+    // permission, and a refused origin never gets to ask again in this Space.
+    function test_aPageThatDownloadsByItselfTakesASitePermission() {
+        openPage("https://auto.example/page")
+        const host = window.spaceProfileHost
+        const question = findChild(window.contentItem, "downloadQuestionBar")
+        const notice = findChild(window.contentItem, "pageNotice")
+
+        compare(host.simulateDownloadRequest("https://auto.example/page",
+            "https://auto.example/tracker.pdf", "omaweb-test-tracker.pdf",
+            "application/pdf"), "")
+        tryCompare(question, "open", true)
+        verify(question.message.indexOf("by itself") > 0)
+        compare(question.actions.length, 3)
+        compare(question.actions[0].label, "Allow once")
+        compare(question.actions[1].label, "Always allow")
+        compare(question.actions[2].label, "Block")
+        verify(question.detail.indexOf("this Space only") > 0)
+
+        // Blocked, and the decision is one Site information can list.
+        question.actionTriggered(2)
+        tryCompare(question, "open", false)
+        compare(Object.keys(window.runningDownloads).length, 0)
+        const decisions = browser.sitePermissions("https://auto.example/page")
+        let blocked = false
+        for (let index = 0; index < decisions.length; ++index)
+            blocked = blocked || (decisions[index].permission === "automatic-downloads"
+                && decisions[index].decision === 3)
+        verify(blocked)
+
+        // Asked again, the reader is not asked again: the origin was refused.
+        compare(host.simulateDownloadRequest("https://auto.example/page",
+            "https://auto.example/tracker.pdf", "omaweb-test-tracker.pdf",
+            "application/pdf"), "")
+        compare(question.open, false)
+        tryCompare(notice, "message", "Download refused")
+        notice.dismiss()
+        verify(browser.resetSitePermissions("https://auto.example/page"))
+    }
+
+    // An ordinary download begins in the configured directory and is listed
+    // with everything still open to the reader: cancel while it runs, then show
+    // where it landed and remove it from the history.
+    function test_anOrdinaryDownloadIsListedWithWhatCanStillBeDoneToIt() {
+        openPage("https://files.example/library")
+        const host = window.spaceProfileHost
+        browser.recordOriginInteraction("https://files.example/library")
+        compare(host.downloadDirectory, browser.downloadDirectory)
+
+        const runtimeId = host.simulateDownloadRequest("https://files.example/library",
+            "https://files.example/notes.pdf", "omaweb-test-notes.pdf", "application/pdf")
+        verify(runtimeId.length > 0)
+        window.settingsOpen = true
+        const settings = findChild(window.contentItem, "settingsSurface")
+        settings.section = 4
+        tryVerify(function() { return window.visibleDownloads.length > 0 })
+        compare(window.visibleDownloads[0].runtimeId, runtimeId)
+        compare(window.visibleDownloads[0].state, "in-progress")
+
+        const row = findChild(settings, "recordedDownload-0")
+        verify(row !== null)
+        verify(findChild(settings, "cancelDownload-0").visible)
+        verify(!findChild(settings, "revealDownload-0").visible)
+
+        // Cancelling reaches the engine's own request rather than the record.
+        findChild(settings, "cancelDownload-0").clicked()
+        tryVerify(function() { return host.cancelledDownloads.length === 1 })
+        compare(host.cancelledDownloads[0], runtimeId)
+
+        // What the Space recorded stays listed, and the reader can stop it
+        // being listed without the file going anywhere.
+        window.refreshVisibleDownloads()
+        tryVerify(function() { return window.visibleDownloads.length > 0 })
+        const recordId = window.visibleDownloads[0].id
+        verify(String(recordId).length > 0)
+        const listed = window.visibleDownloads.length
+        window.forgetDownload(recordId)
+        tryVerify(function() { return window.visibleDownloads.length === listed - 1 })
+
+        // A download that stopped short in a session that has since ended has
+        // no request left to resume, so Retry is still offered and asks the
+        // address again rather than being quietly withheld.
+        const interrupted = browser.recordDownload("gone:1",
+            "https://files.example/interrupted.pdf", "/nowhere/interrupted.pdf",
+            "interrupted", 5, 100)
+        verify(interrupted.length > 0)
+        window.refreshVisibleDownloads()
+        let interruptedRow = -1
+        for (let index = 0; index < window.visibleDownloads.length; ++index)
+            if (window.visibleDownloads[index].id === interrupted) interruptedRow = index
+        verify(interruptedRow >= 0)
+        compare(window.visibleDownloads[interruptedRow].runtimeId, "")
+        verify(findChild(settings, "retryDownload-" + interruptedRow).visible)
+
+        findChild(settings, "retryDownload-" + interruptedRow).clicked()
+        tryVerify(function() {
+            return String(browser.activeUrl) === "https://files.example/interrupted.pdf"
+        })
+        verify(browser.forgetDownload(interrupted))
+        window.settingsOpen = false
+    }
+
+    // The two isolations are not one sentence. Each page's renderer is
+    // sandboxed by the operating system; QtWebEngine's network service is not a
+    // process of its own, and the page says that rather than leaving the reader
+    // to assume Chromium's arrangement.
+    function test_settingsSeparatesRendererIsolationFromTheNetworkService() {
+        window.settingsOpen = true
+        const settings = findChild(window.contentItem, "settingsSurface")
+        settings.section = 6
+        const renderer = findChild(settings, "rendererIsolationRow")
+        const network = findChild(settings, "networkServiceRow")
+        const baseline = findChild(settings, "securityBaselineRow")
+        verify(renderer !== null)
+        verify(network !== null)
+        verify(baseline !== null)
+        verify(renderer.note !== network.note)
+        verify(network.title.indexOf("browser process") > 0)
+        verify(network.note.indexOf("not") > 0)
+        verify(network.note.indexOf("is sandboxed") === -1)
+        window.settingsOpen = false
+    }
 }

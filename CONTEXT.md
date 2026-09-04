@@ -96,6 +96,18 @@ _Avoid_: Trusted certificate, security exception, certificate override
 A temporary permission for one origin to keep cookies and site storage while embedded in another site, granted for a named authentication or payment flow inside one Space. It is held in memory only, listed in Site information, and revocable there, so it cannot cross a Space or outlive the session that granted it.
 _Avoid_: Cookie exception, tracking allowance
 
+**High-risk download**:
+A file a browser would be handing over to be run, installed or mounted rather than read: an executable, a script, an installer, a disk image, or an archive that may carry any of them. Omaweb names the kind to the reader before writing one down, never opens one afterwards, and takes its execute bits off.
+_Avoid_: Dangerous file, malware, unsafe download
+
+**Held download**:
+A download Omaweb has taken off the engine while a question about it stands. Nothing has been written for it, because the engine decides a download's fate inside one synchronous handler and cannot keep one waiting: the request is cancelled and the page is asked for the same file again once the reader answers.
+_Avoid_: Paused download, pending download, blocked download
+
+**Engine security baseline**:
+The QtWebEngine version a supported Omaweb build runs on, and the Chromium release whose security fixes that engine carries. One file names both; the build reads it to say whether it meets it, and CI reads it weekly to say whether it has gone stale. A build below the baseline is an unsupported preview and says so.
+_Avoid_: Minimum Qt version, supported engine
+
 **Content blocking**:
 Omaweb's built-in removal of unwanted network requests and page elements using subscribed filter lists. Content blocking is a browser capability and does not depend on an installed extension.
 _Avoid_: Ad-blocking extension

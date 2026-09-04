@@ -14,6 +14,7 @@ private slots:
     void refusesEngineDebuggingFlagsFromEitherRoute();
     void takesPrivateWindowsAwayFromADebuggedSession();
     void refusesEveryRouteToAGlobalInsecureContentOverride();
+    void refusesEveryRouteToATurnedOffRendererSandbox();
 };
 
 // The whole of an ordinary launch: nothing asked for, nothing listening.
@@ -117,6 +118,43 @@ void DevelopmentLaunchTest::refusesEveryRouteToAGlobalInsecureContentOverride()
     // The blocking is the default, so an ordinary launch says nothing about it.
     const auto ordinary = readDevelopmentLaunch({QStringLiteral("omaweb")});
     QVERIFY(ordinary.refusal.isEmpty());
+}
+
+// There is no Omaweb that runs page code outside a sandbox, so a switch that
+// would is a refusal to start — and the environment is as much a route to one
+// as the command line, because whatever set the variable is not the reader.
+void DevelopmentLaunchTest::refusesEveryRouteToATurnedOffRendererSandbox()
+{
+    static const QStringList switches = {
+        QStringLiteral("--no-sandbox"),
+        QStringLiteral("--disable-sandbox"),
+        QStringLiteral("--disable-gpu-sandbox"),
+        QStringLiteral("--disable-setuid-sandbox"),
+        QStringLiteral("--disable-namespace-sandbox"),
+        QStringLiteral("--disable-seccomp-filter-sandbox"),
+        QStringLiteral("--no-zygote"),
+        QStringLiteral("--single-process"),
+        QStringLiteral("--in-process-gpu"),
+        QStringLiteral("--in-process-network-service"),
+    };
+    for (const auto &disabling : switches) {
+        const auto argument = readDevelopmentLaunch({QStringLiteral("omaweb"), disabling});
+        QVERIFY2(!argument.refusal.isEmpty(), qPrintable(disabling));
+        QVERIFY2(argument.refusal.contains(disabling), qPrintable(argument.refusal));
+
+        const auto environment = readDevelopmentLaunch({QStringLiteral("omaweb")}, {disabling});
+        QVERIFY2(!environment.refusal.isEmpty(), qPrintable(disabling));
+        // A refused launch asks for nothing else: no listener, no Private
+        // windows, nothing but the reason.
+        QVERIFY(!environment.remoteDebugging);
+        QVERIFY(environment.listenAddress.isEmpty());
+    }
+
+    // A switch that only happens to contain one of those words is not one of
+    // them: the refusal is a list, not a substring search.
+    const auto unrelated = readDevelopmentLaunch(
+        {QStringLiteral("omaweb"), QStringLiteral("--enable-sandbox-logging")});
+    QVERIFY(unrelated.refusal.isEmpty());
 }
 
 QTEST_GUILESS_MAIN(DevelopmentLaunchTest)

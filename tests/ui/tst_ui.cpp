@@ -6,6 +6,8 @@
 #include "KitTheme.h"
 #include "PagePrinter.h"
 #include "ProcessResources.h"
+#include "RuntimeSecurity.h"
+#include "SavedDownload.h"
 #include "SystemNotifier.h"
 #include "Quickshell.h"
 #include "SystemClipboard.h"
@@ -59,6 +61,12 @@ public slots:
         omaweb::registerPagePrinter();
         omaweb::registerSystemNotifier();
         omaweb::registerProcessResources();
+        omaweb::registerSavedDownload();
+        // The lab links no engine, so there is no sandbox of its own to verify
+        // and no engine version to hold against the baseline.
+        m_runtimeSecurity = std::make_unique<omaweb::RuntimeSecurity>(
+            omaweb::SandboxHost{}, omaweb::RuntimeSecurity::EngineBuild{});
+        omaweb::registerRuntimeSecurity(m_runtimeSecurity.get());
         m_dataRoot = std::make_unique<QTemporaryDir>();
         m_browser = std::make_unique<omaweb::BrowserController>(
             m_dataRoot->path(), QStringLiteral("mock"));
@@ -81,6 +89,10 @@ public slots:
         // Site information reads the gap off the adapter's capabilities.
         engine->rootContext()->setContextProperty(
             QStringLiteral("engineCookiePolicy"), QVariant::fromValue<QObject *>(nullptr));
+        // Nor is there an engine request to hold a download away from: the mock
+        // profile keeps its held downloads itself.
+        engine->rootContext()->setContextProperty(
+            QStringLiteral("engineHeldDownloads"), QVariant::fromValue<QObject *>(nullptr));
         engine->rootContext()->setContextProperty(QStringLiteral("theme"), m_theme.get());
         engine->rootContext()->setContextProperty(
             QStringLiteral("windowManager"), m_windowManager.get());
@@ -112,6 +124,7 @@ public slots:
     void cleanupTestCase()
     {
         m_kitTheme.reset();
+        m_runtimeSecurity.reset();
         m_theme.reset();
         m_windowManager.reset();
         m_browser.reset();
@@ -128,6 +141,7 @@ private:
     std::unique_ptr<omaweb::ThemeController> m_theme;
     std::unique_ptr<omaweb::KitTheme> m_kitTheme;
     std::unique_ptr<omaweb::WindowManager> m_windowManager;
+    std::unique_ptr<omaweb::RuntimeSecurity> m_runtimeSecurity;
 };
 
 QUICK_TEST_MAIN_WITH_SETUP(omaweb_ui, UiTestSetup)

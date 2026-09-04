@@ -106,7 +106,7 @@ The default page commands include:
 - No telemetry, advertising identifier, browser account, cloud sync, Google push service, or automatic crash upload.
 - Account and Sync are optional first-party Feature modules. A daily-driver build remains local-only without either.
 - Every automatic network request is documented.
-- Release builds refuse to start when the renderer sandbox is explicitly disabled. A Linux host that cannot meet its sandbox prerequisites receives a blocking diagnostic. Omaweb claims renderer isolation only where it can verify it and never describes QtWebEngine's in-process network service as sandboxed.
+- Every build refuses to start when the renderer sandbox is explicitly disabled, through Omaweb's own command line or through the environment Chromium reads its switches from. A Linux host that cannot meet its sandbox prerequisites receives a blocking diagnostic naming the setting and what to set it to. Omaweb claims renderer isolation only where it can verify it and never describes QtWebEngine's in-process network service as sandboxed.
 - The Ladybird variant is experimental and unsuitable for sensitive browsing while Ladybird remains pre-alpha.
 - Site permissions belong to an origin within one Space and support allow once, persistent allow, and block.
 - Camera, microphone, geolocation, and notifications use the three Site-permission decisions. Clipboard read and screen sharing require approval each time. USB, Bluetooth, serial, and MIDI remain outside the first daily-driver contract.
@@ -117,8 +117,10 @@ The default page commands include:
 - Active mixed content remains blocked. Omaweb never enables an engine-wide insecure-content override.
 - Public daily-driver builds require engine-neutral phishing and malware URL reputation. Provider selection must resolve licensing, update format, privacy, false positives, bypass behavior, and offline operation. An alpha without reputation protection labels that omission conspicuously.
 - Site data is cleared at whichever scope the engine can reach, and the panel names which that is: cookies and cache for a whole Space, and one origin's storage, databases, caches and service workers emptied from inside its own page.
-- Executables, scripts, installers, disk images, and common archives require confirmation before download. Omaweb never opens them automatically and applies operating-system quarantine metadata. Automatic and multiple downloads require a Site permission.
-- CI checks the approved QtWebEngine and Chromium security baseline weekly. A security-bearing Qt patch produces a Omaweb update within seven days; a build below the approved baseline remains an unsupported preview.
+- Executables, scripts, installers, disk images, and common archives require confirmation before download, and the reader is told which of those kinds it is. Omaweb never opens a download and never leaves one executable, and it marks every finished download with the address it came from in the metadata the operating system already reads. Automatic and multiple downloads require a Site permission, so a page that downloads without being asked and a page starting a second download while its first runs both take a decision the reader can see and take back.
+- Ordinary downloads begin in the configured directory, which is the reader's configuration rather than one Space's browsing data: every window reads the same answer and a Private window cannot change it. Each download is listed with its progress and whatever is still open to it — cancel while it runs, retry an interrupted one, show where a finished one landed, and remove it from the history without deleting the file.
+- Save link as, and a download whose name is already taken, use the native save dialog.
+- CI checks the approved QtWebEngine and Chromium security baseline weekly, against one file the build reads too. A security-bearing Qt patch produces a Omaweb update within seven days; a build below the approved baseline remains an unsupported preview and says so in Settings.
 - Public builds do not enable proprietary media codecs until distribution rights receive review.
 
 ## Distribution

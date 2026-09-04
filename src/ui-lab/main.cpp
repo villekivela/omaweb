@@ -7,6 +7,8 @@
 #include "PagePrinter.h"
 #include "ProcessResources.h"
 #include "Quickshell.h"
+#include "RuntimeSecurity.h"
+#include "SavedDownload.h"
 #include "SystemClipboard.h"
 #include "SystemNotifier.h"
 #include "ThemeController.h"
@@ -105,6 +107,12 @@ int main(int argc, char *argv[])
     omaweb::registerPagePrinter();
     omaweb::registerSystemNotifier();
     omaweb::registerProcessResources();
+    omaweb::registerSavedDownload();
+    // The lab links no engine, so there is nothing to verify a sandbox for and
+    // no engine version to hold against a baseline. It says so rather than
+    // borrowing the browser build's answer.
+    static omaweb::RuntimeSecurity runtimeSecurity({}, {});
+    omaweb::registerRuntimeSecurity(&runtimeSecurity);
     QQmlApplicationEngine engine;
     omaweb::quickshell::installShim(engine);
     engine.rootContext()->setContextProperty(QStringLiteral("browser"), &browser);
@@ -117,6 +125,10 @@ int main(int argc, char *argv[])
     // Site information reads the gap off the adapter's capabilities.
     engine.rootContext()->setContextProperty(
         QStringLiteral("engineCookiePolicy"), QVariant::fromValue<QObject *>(nullptr));
+    // Nor is there an engine request to hold a download away from: the mock
+    // profile keeps its held downloads itself.
+    engine.rootContext()->setContextProperty(
+        QStringLiteral("engineHeldDownloads"), QVariant::fromValue<QObject *>(nullptr));
     engine.rootContext()->setContextProperty(QStringLiteral("theme"), &theme);
     engine.rootContext()->setContextProperty(QStringLiteral("windowManager"), &windowManager);
     engine.rootContext()->setContextProperty(

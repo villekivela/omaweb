@@ -21,11 +21,26 @@ QtObject {
     // The engine's third-party filter. A profile is where the blocking is
     // attached, and the Space is what the allowances are keyed by.
     property var cookiePolicy: null
+    // The engine-side hold that keeps a download off the disk while the reader
+    // is asked about it. Empty in a window that runs no engine.
+    property var downloadHolds: null
     // Where created profiles are parented, so they outlive the call that asked
     // for one and go away with the window rather than with a tab.
     property var owner: null
 
     signal created(string spaceId, var host)
+
+    // Where downloads go is the reader's configuration, and a profile that was
+    // built before they changed it would keep putting files in the old place.
+    property Connections downloadDirectoryConnections: Connections {
+        target: root.browser
+        ignoreUnknownSignals: true
+
+        function onDownloadDirectoryChanged() {
+            for (const spaceId in root.hosts)
+                root.hosts[spaceId].downloadDirectory = root.browser.downloadDirectory
+        }
+    }
 
     readonly property var hosts: ({})
 
@@ -43,7 +58,9 @@ QtObject {
             "engineContentBlocker": root.contentBlocker,
             "engineCookiePolicy": root.cookiePolicy,
             "cookieController": root.browser,
-            "cookieSpaceId": spaceId
+            "cookieSpaceId": spaceId,
+            "downloadController": root.browser,
+            "downloadHolds": root.downloadHolds
         })
         if (!host) return null
         root.hosts[spaceId] = host

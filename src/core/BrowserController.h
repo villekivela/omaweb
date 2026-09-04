@@ -69,7 +69,10 @@ class BrowserController final : public QObject {
     Q_PROPERTY(bool privateBrowsing READ privateBrowsing CONSTANT)
     Q_PROPERTY(bool ready READ ready CONSTANT)
     Q_PROPERTY(QString errorMessage READ errorMessage CONSTANT)
-    Q_PROPERTY(QString downloadDirectory READ downloadDirectory CONSTANT)
+    // Where an ordinary download begins. The reader's configuration rather
+    // than one Space's browsing data, so every window — Private ones included
+    // — reads the same answer.
+    Q_PROPERTY(QString downloadDirectory READ downloadDirectory NOTIFY downloadDirectoryChanged)
     Q_PROPERTY(bool acceptDownloads READ acceptDownloads CONSTANT)
 
 public:
@@ -91,6 +94,34 @@ public:
         Rememberable = 2,
     };
     Q_ENUM(PermissionPolicy)
+
+    // What Omaweb does with a download the engine is offering it. Accepting is
+    // the ordinary answer; the other four are the cases where writing the file
+    // down without a word would be answering for the reader.
+    //
+    // The engine adapters and the shell read this as the name below rather than
+    // as the number: a disposition crosses the engine-view contract into QML,
+    // where an integer would be a magic constant repeated in every adapter and
+    // silently wrong the day the order here changes.
+    enum DownloadDisposition {
+        AcceptDownload = 0,
+        // A program, script, installer, disk image or archive: the reader is
+        // asked whether to have it at all, before anything is written.
+        ConfirmDownload = 1,
+        // The page helped itself — nothing was touched on it, or it already has
+        // a download running. That takes a Site permission.
+        AskDownloadPermission = 2,
+        // The reader already refused this origin's downloads.
+        RefuseDownload = 3,
+        // Something is already at that name, so the desktop's save dialog is
+        // what decides where this one goes.
+        SaveDownloadAs = 4,
+    };
+    Q_ENUM(DownloadDisposition)
+
+    // The name a disposition travels under: "accept", "confirm", "permission",
+    // "refuse" or "save-as".
+    static QString dispositionName(DownloadDisposition disposition);
 
     BrowserController(QString dataRoot, QString engineName, QObject *parent = nullptr);
     BrowserController(QString dataRoot, QString engineName, QString configRoot,
@@ -300,6 +331,29 @@ public:
     Q_INVOKABLE bool updateDownload(const QString &id, const QString &state,
         qint64 receivedBytes, qint64 totalBytes, const QString &error);
     Q_INVOKABLE QVariantList downloadHistory() const;
+    // Stops listing one download. The file stays where it is: the reader asked
+    // the browser to forget it, not to delete their file.
+    Q_INVOKABLE bool forgetDownload(const QString &id);
+    // What Omaweb will do with the download the engine is offering, decided
+    // before a byte is written. The engine names what it knows — where the
+    // download came from, the name it settled on, the type the server
+    // declared, and the directory it would land in — and reads back a
+    // disposition, the kind of file it is, and whether the page helped itself.
+    //
+    // `answered` says the reader has already been asked about this one. The
+    // engine cannot keep a download waiting, so an answered download arrives as
+    // a fresh request and must not be asked about twice; whether its name is
+    // already taken is still an open question, which is why the rule is asked
+    // again rather than skipped.
+    Q_INVOKABLE QVariantMap downloadDisposition(const QUrl &origin, const QString &fileName,
+        const QString &mimeType, const QString &directory, bool answered = false) const;
+    // A download that has started and one that has stopped. What this counts is
+    // whether an origin already has one running, which is the difference
+    // between a download and a page downloading things by itself.
+    Q_INVOKABLE void noteDownloadStarted(const QUrl &origin, const QString &runtimeId);
+    Q_INVOKABLE void noteDownloadSettled(const QString &runtimeId);
+    Q_INVOKABLE int activeDownloadCount(const QUrl &origin) const;
+    Q_INVOKABLE bool setDownloadDirectory(const QString &path);
     Q_INVOKABLE QString preference(const QString &name, const QString &fallback = {}) const;
     Q_INVOKABLE bool setPreference(const QString &name, const QString &value);
 
@@ -309,6 +363,7 @@ signals:
     void atRestChanged();
     void developerToolsChanged();
     void closedTabsChanged();
+    void downloadDirectoryChanged();
     void retainedTabsChanged();
     // The Space being put away, and the tabs inside it that keep running
     // anyway. Named together because the exceptions are only knowable while
@@ -360,6 +415,7 @@ private:
     QUrl resolveConfiguredInput(const QString &input) const;
     bool loadSearchEngines();
     bool saveSearchEngines(const QVariantList &engines, const QString &defaultEngineId);
+    void loadDownloadDirectory();
     static QString normalizedOrigin(const QUrl &url);
     QString sessionPermissionKey(const QString &origin, const QString &permission) const;
     static bool localDevelopmentHost(const QString &host);
@@ -386,6 +442,10 @@ private:
     QVector<TabState> m_closedTabs;
     QVector<RetainedTab> m_retainedTabs;
     QSet<QString> m_interactedOrigins;
+    QString m_downloadDirectory;
+    // The downloads still running, by the engine's own identifier, each
+    // remembering which origin started it.
+    QHash<QString, QString> m_activeDownloadOrigins;
     bool m_ready = false;
     bool m_atRest = false;
     bool m_privateBrowsing = false;

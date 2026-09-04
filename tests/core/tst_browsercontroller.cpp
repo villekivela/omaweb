@@ -15,6 +15,7 @@
 #include <QSqlDatabase>
 #include <QSqlQuery>
 #include <QTemporaryDir>
+#include <QStandardPaths>
 #include <QTest>
 #include <QUrlQuery>
 
@@ -67,6 +68,11 @@ private slots:
     void measuresTheSiteDataHeldForOneSpace();
     void scopesExternalProtocolDecisionsToOriginSchemeSpaceAndPrivateSession();
     void persistsOnlyNonPrivateDownloadHistory();
+    void asksBeforeWritingDownAProgram();
+    void takesAPermissionForAutomaticAndMultipleDownloads();
+    void sendsAConflictingNameToTheSaveDialog();
+    void configuresOneDownloadDirectoryForEveryWindow();
+    void forgetsOneDownloadWithoutForgettingTheRest();
     void persistsInterfacePreferencesOutsidePrivateBrowsing();
     void attachesOneInspectorToOneTab();
     void keepsTheInspectorThroughASpaceSwitch();
@@ -587,9 +593,15 @@ void BrowserControllerTest::sharesPrivateIdentityUntilLastWindowCloses()
     QCOMPARE(second->spaces()->rowCount(), 0);
     QVERIFY(first->activeSpaceId().isEmpty());
     QVERIFY(first->activeProfilePath().isEmpty());
-    QVERIFY(manager.acceptPrivateDownloads());
-    QVERIFY(!manager.recordPrivateDownloads());
-    QVERIFY(!manager.privateDownloadDirectory().isEmpty());
+    // A Private window puts downloads where every other window does — the
+    // reader's configured directory, which it reads and cannot change — and
+    // records none of them.
+    QVERIFY(first->acceptDownloads());
+    QCOMPARE(first->downloadDirectory(),
+        QStandardPaths::writableLocation(QStandardPaths::DownloadLocation));
+    QTemporaryDir elsewhere;
+    QVERIFY(!first->setDownloadDirectory(elsewhere.path()));
+    QVERIFY(first->downloadHistory().isEmpty());
     QVERIFY(first->setPermissionDecision(QUrl(QStringLiteral("https://camera.example")),
         QStringLiteral("camera"), BrowserController::AllowOnce));
     QCOMPARE(second->permissionDecision(QUrl(QStringLiteral("https://camera.example/path")),
@@ -914,6 +926,221 @@ void BrowserControllerTest::persistsOnlyNonPrivateDownloadHistory()
     QVERIFY(!record.value(QStringLiteral("id")).toString().isEmpty());
     QCOMPARE(record.value(QStringLiteral("state")).toString(), QStringLiteral("completed"));
     QCOMPARE(record.value(QStringLiteral("receivedBytes")).toLongLong(), 100);
+}
+
+// A download the reader asked for and can read with something is written
+// straight down. One that will be run, installed or mounted is a question
+// first: the kind is named to them, because "installer" is what they can judge
+// and a risk score is not.
+void BrowserControllerTest::asksBeforeWritingDownAProgram()
+{
+    QTemporaryDir root;
+    QTemporaryDir downloads;
+    BrowserController controller(root.path(), QStringLiteral("test"));
+    const QUrl origin(QStringLiteral("https://files.example/page"));
+    // The reader dealt with the site, so nothing here is the page acting alone.
+    controller.recordOriginInteraction(origin);
+
+    const auto document = controller.downloadDisposition(origin,
+        QStringLiteral("notes.pdf"), QStringLiteral("application/pdf"), downloads.path());
+    QCOMPARE(document.value(QStringLiteral("disposition")).toString(),
+        QStringLiteral("accept"));
+    QVERIFY(document.value(QStringLiteral("risk")).toString().isEmpty());
+
+    const auto script = controller.downloadDisposition(origin,
+        QStringLiteral("install.sh"), QStringLiteral("text/plain"), downloads.path());
+    QCOMPARE(script.value(QStringLiteral("disposition")).toString(),
+        QStringLiteral("confirm"));
+    // The name it travels under is what the adapters and the shell read, so a
+    // disposition is never a number crossing the engine-view contract.
+    QCOMPARE(BrowserController::dispositionName(BrowserController::ConfirmDownload),
+        QStringLiteral("confirm"));
+    QCOMPARE(script.value(QStringLiteral("risk")).toString(), QStringLiteral("script"));
+    QCOMPARE(script.value(QStringLiteral("fileName")).toString(), QStringLiteral("install.sh"));
+    QCOMPARE(script.value(QStringLiteral("origin")).toString(),
+        QStringLiteral("https://files.example"));
+    QVERIFY(!script.value(QStringLiteral("automatic")).toBool());
+}
+
+// A download nobody asked for, and a second one while the first is still
+// running, are the page helping itself. Both take the same Space-scoped
+// decision, and it is one the reader can see afterwards and take back.
+void BrowserControllerTest::takesAPermissionForAutomaticAndMultipleDownloads()
+{
+    QTemporaryDir root;
+    QTemporaryDir downloads;
+    BrowserController controller(root.path(), QStringLiteral("test"));
+    const auto personalSpaceId = controller.activeSpaceId();
+    const QUrl origin(QStringLiteral("https://files.example/page"));
+    const auto disposition = [&] {
+        return controller.downloadDisposition(origin, QStringLiteral("notes.pdf"),
+            QStringLiteral("application/pdf"), downloads.path());
+    };
+
+    // Nothing on the page has been touched: the download started itself.
+    QCOMPARE(disposition().value(QStringLiteral("disposition")).toString(),
+        QStringLiteral("permission"));
+    QVERIFY(disposition().value(QStringLiteral("automatic")).toBool());
+
+    QCOMPARE(controller.permissionPolicy(QStringLiteral("automatic-downloads")),
+        static_cast<int>(BrowserController::Rememberable));
+    QVERIFY(controller.setPermissionDecision(origin,
+        QStringLiteral("automatic-downloads"), BrowserController::Block));
+    QCOMPARE(disposition().value(QStringLiteral("disposition")).toString(),
+        QStringLiteral("refuse"));
+
+    QVERIFY(controller.setPermissionDecision(origin,
+        QStringLiteral("automatic-downloads"), BrowserController::AllowPersistently));
+    QCOMPARE(disposition().value(QStringLiteral("disposition")).toString(),
+        QStringLiteral("accept"));
+
+    // The decision belongs to one Space, like every other Site permission.
+    const auto workSpaceId = controller.createSpace(QStringLiteral("Work"));
+    QVERIFY(controller.switchSpace(workSpaceId));
+    QCOMPARE(disposition().value(QStringLiteral("disposition")).toString(),
+        QStringLiteral("permission"));
+    QVERIFY(controller.switchSpace(personalSpaceId));
+
+    // A second origin the reader did deal with is not automatic — until it
+    // starts a second download while its first is still running.
+    const QUrl clicked(QStringLiteral("https://other.example/page"));
+    controller.recordOriginInteraction(clicked);
+    const auto clickedDisposition = [&] {
+        return controller.downloadDisposition(clicked, QStringLiteral("notes.pdf"),
+            QStringLiteral("application/pdf"), downloads.path()).value(
+                QStringLiteral("disposition")).toString();
+    };
+    QCOMPARE(clickedDisposition(), QStringLiteral("accept"));
+    controller.noteDownloadStarted(clicked, QStringLiteral("runtime-1"));
+    QCOMPARE(clickedDisposition(), QStringLiteral("permission"));
+    // Another origin's running download is not this one's doing.
+    QCOMPARE(controller.downloadDisposition(QUrl(QStringLiteral("https://third.example/page")),
+        QStringLiteral("notes.pdf"), QStringLiteral("application/pdf"), downloads.path())
+            .value(QStringLiteral("automatic")).toBool(), true);
+    controller.noteDownloadSettled(QStringLiteral("runtime-1"));
+    QCOMPARE(clickedDisposition(), QStringLiteral("accept"));
+    // A download that has already settled does not settle twice.
+    controller.noteDownloadSettled(QStringLiteral("runtime-1"));
+    QCOMPARE(clickedDisposition(), QStringLiteral("accept"));
+}
+
+// Overwriting a file the reader already has is not the browser's decision to
+// make quietly, so the name goes to the desktop's own save dialog.
+void BrowserControllerTest::sendsAConflictingNameToTheSaveDialog()
+{
+    QTemporaryDir root;
+    QTemporaryDir downloads;
+    BrowserController controller(root.path(), QStringLiteral("test"));
+    const QUrl origin(QStringLiteral("https://files.example/page"));
+    controller.recordOriginInteraction(origin);
+
+    QFile existing(QDir(downloads.path()).filePath(QStringLiteral("notes.pdf")));
+    QVERIFY(existing.open(QIODevice::WriteOnly));
+    existing.close();
+
+    QCOMPARE(controller.downloadDisposition(origin, QStringLiteral("notes.pdf"),
+        QStringLiteral("application/pdf"), downloads.path())
+            .value(QStringLiteral("disposition")).toString(),
+        QStringLiteral("save-as"));
+    // A name nothing is holding lands where it was going.
+    QCOMPARE(controller.downloadDisposition(origin, QStringLiteral("other.pdf"),
+        QStringLiteral("application/pdf"), downloads.path())
+            .value(QStringLiteral("disposition")).toString(),
+        QStringLiteral("accept"));
+
+    // Being a program is the earlier question: the reader is asked whether to
+    // have it at all before being asked where to put it. Answering the first
+    // question does not answer the second — the engine cannot keep a download
+    // waiting, so an agreed one comes back as a fresh request and the name it
+    // would take is still someone else's.
+    QFile program(QDir(downloads.path()).filePath(QStringLiteral("install.sh")));
+    QVERIFY(program.open(QIODevice::WriteOnly));
+    program.close();
+    QCOMPARE(controller.downloadDisposition(origin, QStringLiteral("install.sh"),
+        QStringLiteral("text/plain"), downloads.path())
+            .value(QStringLiteral("disposition")).toString(),
+        QStringLiteral("confirm"));
+    QCOMPARE(controller.downloadDisposition(origin, QStringLiteral("install.sh"),
+        QStringLiteral("text/plain"), downloads.path(), true)
+            .value(QStringLiteral("disposition")).toString(),
+        QStringLiteral("save-as"));
+    // And an answered download whose name is free is simply written down: the
+    // reader is never asked the same question twice.
+    QCOMPARE(controller.downloadDisposition(origin, QStringLiteral("free.sh"),
+        QStringLiteral("text/plain"), downloads.path(), true)
+            .value(QStringLiteral("disposition")).toString(),
+        QStringLiteral("accept"));
+    // Nor asked for a permission they have already been asked for: an answered
+    // download is not the page helping itself, whatever it looks like.
+    QCOMPARE(controller.downloadDisposition(QUrl(QStringLiteral("https://untouched.example/x")),
+        QStringLiteral("free.pdf"), QStringLiteral("application/pdf"), downloads.path(), true)
+            .value(QStringLiteral("disposition")).toString(),
+        QStringLiteral("accept"));
+}
+
+// Where downloads go is the reader's configuration rather than one Space's
+// browsing data, so it lives beside their other configuration and a Private
+// window reads the same answer without being able to change it.
+void BrowserControllerTest::configuresOneDownloadDirectoryForEveryWindow()
+{
+    QTemporaryDir root;
+    QTemporaryDir config;
+    QTemporaryDir chosen;
+    {
+        BrowserController controller(root.path(), QStringLiteral("test"), config.path());
+        QCOMPARE(controller.downloadDirectory(),
+            QStandardPaths::writableLocation(QStandardPaths::DownloadLocation));
+        QSignalSpy spy(&controller, &BrowserController::downloadDirectoryChanged);
+        QVERIFY(controller.setDownloadDirectory(chosen.path()));
+        QCOMPARE(controller.downloadDirectory(), chosen.path());
+        QCOMPARE(spy.count(), 1);
+        // A place that is not there is not a place to put a download.
+        QVERIFY(!controller.setDownloadDirectory(
+            QDir(root.path()).filePath(QStringLiteral("nowhere"))));
+        QVERIFY(!controller.setDownloadDirectory(QString()));
+        QCOMPARE(controller.downloadDirectory(), chosen.path());
+        QCOMPARE(spy.count(), 1);
+    }
+
+    BrowserController restored(root.path(), QStringLiteral("test"), config.path());
+    QCOMPARE(restored.downloadDirectory(), chosen.path());
+
+    const auto decisions = QSharedPointer<QHash<QString, int>>::create();
+    BrowserController privateWindow(root.path(), QStringLiteral("test"), true,
+        decisions, config.path());
+    QCOMPARE(privateWindow.downloadDirectory(), chosen.path());
+    QTemporaryDir elsewhere;
+    QVERIFY(!privateWindow.setDownloadDirectory(elsewhere.path()));
+    QCOMPARE(privateWindow.downloadDirectory(), chosen.path());
+}
+
+void BrowserControllerTest::forgetsOneDownloadWithoutForgettingTheRest()
+{
+    QTemporaryDir root;
+    BrowserController controller(root.path(), QStringLiteral("test"));
+    const auto first = controller.recordDownload(QStringLiteral("runtime-1"),
+        QUrl(QStringLiteral("https://files.example/first.zip")),
+        QStringLiteral("/Downloads/first.zip"), QStringLiteral("completed"), 10, 10);
+    const auto second = controller.recordDownload(QStringLiteral("runtime-2"),
+        QUrl(QStringLiteral("https://files.example/second.zip")),
+        QStringLiteral("/Downloads/second.zip"), QStringLiteral("completed"), 20, 20);
+    QCOMPARE(controller.downloadHistory().size(), 2);
+
+    QVERIFY(controller.forgetDownload(first));
+    const auto remaining = controller.downloadHistory();
+    QCOMPARE(remaining.size(), 1);
+    QCOMPARE(remaining.first().toMap().value(QStringLiteral("id")).toString(), second);
+    // Forgetting a record twice removes nothing the second time, and the
+    // reader is told rather than left to believe something happened.
+    QVERIFY(!controller.forgetDownload(first));
+    QVERIFY(!controller.forgetDownload(QString()));
+
+    // Removing a record from the history leaves the file where it is: the
+    // reader asked the browser to stop listing it, not to delete their file.
+    const auto privateDecisions = QSharedPointer<QHash<QString, int>>::create();
+    BrowserController privateWindow(root.path(), QStringLiteral("test"), true,
+        privateDecisions);
+    QVERIFY(!privateWindow.forgetDownload(second));
 }
 
 void BrowserControllerTest::persistsInterfacePreferencesOutsidePrivateBrowsing()

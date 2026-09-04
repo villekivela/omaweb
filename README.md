@@ -35,16 +35,18 @@ The current Qt build includes:
   printing, and inline PDF viewing
 - A Omaweb-drawn page menu with link, image, media, selection, navigation, and
   inspection commands
-- Session restoration, renderer recovery, downloads, searchable Space-local
-  History, browsing-data controls, and Site permissions
+- Session restoration, renderer recovery, searchable Space-local History,
+  browsing-data controls, and Site permissions
+- Downloads that ask before writing a program down, mark what they saved with
+  where it came from, and never run it
 - Built-in content blocking with EasyList, EasyPrivacy, cosmetic rules,
   scriptlets, and substitute resources
 - Runtime themes, terminal-theme import, Private-window styling, and an
   engine-free UI lab
 
 Omaweb is still pre-alpha. Do not use it for sensitive browsing. It does not yet
-have the complete certificate, download, sandbox-health, URL-reputation, and
-Linux release work required for daily-driver status.
+have the complete certificate, URL-reputation, and Linux release work required
+for daily-driver status.
 
 ## Build and run
 
@@ -172,7 +174,7 @@ Start with [the architecture](docs/architecture.md),
 The remaining Qt daily-driver work is tracked by
 [#50](https://github.com/villekivela/omaweb/issues/50). It covers browser prompts,
 History and data controls, tab management, certificate and cookie policy,
-download hardening, native notifications, and phishing and malware protection.
+native notifications, and phishing and malware protection.
 
 [#8](https://github.com/villekivela/omaweb/issues/8) carries the browser to its
 Linux and Wayland distribution target. macOS remains available for development

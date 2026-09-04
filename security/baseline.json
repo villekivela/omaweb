@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "reviewed": "2026-09-04",
+  "qtwebengine": "6.11.2",
+  "chromium": "140.0.7339.225",
+  "chromiumSecurityPatch": "151.0.7922.71",
+  "notes": [
+    "The approved engine for a supported Omaweb build. A build below any of",
+    "these versions is an unsupported preview and says so at runtime.",
+    "`chromiumSecurityPatch` is the Chromium release whose security fixes the",
+    "approved QtWebEngine carries, which is what a security baseline is",
+    "written against; `chromium` is only the release it is built on.",
+    "scripts/check_security_baseline.py compares this against upstream weekly.",
+    "Raising it is the last step of a security response: see SECURITY.md."
+  ]
+}
