@@ -2458,13 +2458,33 @@ TestCase {
         findChild(window.contentItem, "closeSettingsButton").clicked()
     }
 
+    // Every clear-dialog test below presses keys, and a key only reaches this
+    // window while the platform calls it the active one — an auxiliary window
+    // from a test above may have taken that, and then nothing in here has
+    // active focus at all. The dialog is also reset first: it disables the page
+    // under it, so a test inheriting one from a failure above would fail for
+    // that reason rather than its own.
+    function readyForBrowsingData() {
+        if (!window.active) {
+            window.requestActivate()
+            tryVerify(function() { return window.active })
+        }
+        findChild(window.contentItem, "settingsSurface").clearDataOpen = false
+        window.requestSettings()
+        findChild(window.contentItem, "settingsSection6").Accessible.pressAction()
+    }
+
+    function leaveBrowsingData() {
+        findChild(window.contentItem, "settingsSurface").clearDataOpen = false
+        findChild(window.contentItem, "closeSettingsButton").clicked()
+    }
+
     // The contract the switches could not state: the arguments are composed in
     // the dialog, and only confirming it takes anything.
     function test_browsingDataIsTakenOnlyByConfirmingItsDialog() {
         // The engine profile is what counts a clear, so there has to be one.
         openPage("https://browsing-data.example/page")
-        window.requestSettings()
-        findChild(window.contentItem, "settingsSection6").Accessible.pressAction()
+        readyForBrowsingData()
         const dialog = findChild(window.contentItem, "clearBrowsingDataDialog")
         const openButton = findChild(window.contentItem, "clearBrowsingDataButton")
         verify(dialog !== null)
@@ -2491,15 +2511,14 @@ TestCase {
         // Confirming is the whole act: nothing asks a second time.
         verify(!dialog.visible)
 
-        findChild(window.contentItem, "closeSettingsButton").clicked()
+        leaveBrowsingData()
     }
 
     // An empty selection used to be a press that silently did nothing, because
     // the core refuses an empty `dataTypes` and the call site ignored the
     // answer. The button says so instead.
     function test_clearingIsRefusedBeforeItIsPressedWhenNothingIsTicked() {
-        window.requestSettings()
-        findChild(window.contentItem, "settingsSection6").Accessible.pressAction()
+        readyForBrowsingData()
         findChild(window.contentItem, "clearBrowsingDataButton").clicked()
         const dialog = findChild(window.contentItem, "clearBrowsingDataDialog")
         const confirm = findChild(window.contentItem, "clearBrowsingDataConfirm")
@@ -2537,7 +2556,7 @@ TestCase {
             findChild(window.contentItem, "clearCategory-" + rest[back]).clicked()
         keyClick(Qt.Key_Escape)
         tryVerify(function() { return !dialog.visible })
-        findChild(window.contentItem, "closeSettingsButton").clicked()
+        leaveBrowsingData()
     }
 
     // The kit's section label leans low on purpose: in a scrolling pane it
@@ -2546,8 +2565,7 @@ TestCase {
     // dialogs share this head, so a lean here is a lean in every question the
     // browser asks.
     function test_theDialogHeadCentresItsNameAgainstItsHint() {
-        window.requestSettings()
-        findChild(window.contentItem, "settingsSection6").Accessible.pressAction()
+        readyForBrowsingData()
         findChild(window.contentItem, "clearBrowsingDataButton").clicked()
         const dialog = findChild(window.contentItem, "clearBrowsingDataDialog")
         tryVerify(function() { return dialog.visible })
@@ -2567,7 +2585,7 @@ TestCase {
 
         keyClick(Qt.Key_Escape)
         tryVerify(function() { return !dialog.visible })
-        findChild(window.contentItem, "closeSettingsButton").clicked()
+        leaveBrowsingData()
     }
 
     // Omaweb's first dialog with a real tab order, so the order is asserted
@@ -2575,8 +2593,7 @@ TestCase {
     // page the dialog is standing on.
     function test_theClearDialogWalksItsOwnControlsAndConfirmsOnEnter() {
         openPage("https://tab-order.example/page")
-        window.requestSettings()
-        findChild(window.contentItem, "settingsSection6").Accessible.pressAction()
+        readyForBrowsingData()
         findChild(window.contentItem, "clearBrowsingDataButton").clicked()
         const dialog = findChild(window.contentItem, "clearBrowsingDataDialog")
         tryVerify(function() { return dialog.visible })
@@ -2611,14 +2628,13 @@ TestCase {
         })
         tryVerify(function() { return !dialog.visible })
         compare(findChild(window.contentItem, "settingsSection0").enabled, true)
-        findChild(window.contentItem, "closeSettingsButton").clicked()
+        leaveBrowsingData()
     }
 
     // The part that is always wrong: two controls want Escape, and the one the
     // reader is standing in has to answer first.
     function test_escapeClosesAnOpenListBeforeItClosesTheDialog() {
-        window.requestSettings()
-        findChild(window.contentItem, "settingsSection6").Accessible.pressAction()
+        readyForBrowsingData()
         findChild(window.contentItem, "clearBrowsingDataButton").clicked()
         const dialog = findChild(window.contentItem, "clearBrowsingDataDialog")
         const range = findChild(window.contentItem, "clearTimeRange")
@@ -2632,15 +2648,14 @@ TestCase {
 
         keyClick(Qt.Key_Escape)
         tryVerify(function() { return !dialog.visible })
-        findChild(window.contentItem, "closeSettingsButton").clicked()
+        leaveBrowsingData()
     }
 
     // A selection is remembered because a reader who took the same things last
     // month means the same things now. Scope is not: it is the one argument
     // with no prior art to borrow, so it is asked for every time.
     function test_theSelectionSurvivesARestartAndTheScopeDoesNot() {
-        window.requestSettings()
-        findChild(window.contentItem, "settingsSection6").Accessible.pressAction()
+        readyForBrowsingData()
         findChild(window.contentItem, "clearBrowsingDataButton").clicked()
         const dialog = findChild(window.contentItem, "clearBrowsingDataDialog")
         tryVerify(function() { return dialog.visible })
@@ -2654,7 +2669,7 @@ TestCase {
 
         keyClick(Qt.Key_Escape)
         tryVerify(function() { return !dialog.visible })
-        findChild(window.contentItem, "closeSettingsButton").clicked()
+        leaveBrowsingData()
 
         // A second launch of the page against the same preferences.
         const restarted = restartedSettingsComponent.createObject(testCase)
