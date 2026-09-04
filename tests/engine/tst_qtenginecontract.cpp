@@ -1979,6 +1979,13 @@ void QtEngineContractTest::qtFindsInThePageAndKeepsTheQueryAcrossNavigation()
     view->setParentItem(window.contentItem());
     view->setSize(QSizeF(640, 480));
     window.show();
+    // The page has to be shown before it is loaded, not merely at some point
+    // after. Chromium only lays a document out once the widget drawing it is
+    // on screen, and find-in-page searches the layout: a page that finished
+    // loading into a window that was not up yet is answered "nothing found",
+    // once, and that answer is final. Waiting for the window here is what puts
+    // the layout inside the load rather than in a race with it.
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
 
     QVERIFY(adapter->setProperty("currentUrl", QUrl(QStringLiteral(
         "data:text/html,<title>Findable</title>"
