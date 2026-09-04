@@ -14,6 +14,14 @@
   font-display: swap;
 }
 
+@font-face {
+  font-family: "Space Grotesk";
+  src: url("assets/fonts/SpaceGrotesk.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 300 700;
+  font-display: swap;
+}
+
 /* ===================================================================
    OMARCHY TOKEN SYSTEM
    Structure copied from qs/Commons/Style.qml. `--base-n` is the rem
@@ -81,6 +89,7 @@ body {
   --line-quiet: color-mix(in srgb, var(--fg) 14%, transparent);
 
   --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --display: "Space Grotesk", system-ui, sans-serif;
 
   margin: 0;
   min-height: 100vh;
@@ -229,10 +238,11 @@ body[data-theme="vantablack"] {
 .t-hero h1 {
   max-width: 26ch;
   margin: var(--panel-gap) 0 0;
+  font-family: var(--display);
   font-size: clamp(var(--fs-display), 4.4vw, calc(var(--fs-display-lg) * 1.9));
-  font-weight: 800;
+  font-weight: 700;
   line-height: 1.02;
-  letter-spacing: -0.05em;
+  letter-spacing: -0.02em;
 }
 .t-hero h1 em { font-style: normal; color: var(--accent); }
 .t-hero p {
