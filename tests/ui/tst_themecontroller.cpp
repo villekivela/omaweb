@@ -422,8 +422,6 @@ void ThemeControllerTest::drawsThePrivatePaletteTheOmarchyTemplateRenders()
     // And every private ground is the desktop's own ground with the
     // desktop's own private accent cast over it, so the roles resolved
     // against them are not compromising between two unrelated hues.
-    const auto privateGrounds = {"privateWindowOpaque", "privateSidebarOpaque", "privateSurface",
-        "privateSurfaceHover", "privateOverlayOpaque", "privateSheetOpaque"};
     const QList<std::pair<const char *, const char *>> tintedPairs{
         {"windowOpaque", "privateWindowOpaque"}, {"sidebarOpaque", "privateSidebarOpaque"},
         {"surface", "privateSurface"}, {"surfaceHover", "privateSurfaceHover"}};
