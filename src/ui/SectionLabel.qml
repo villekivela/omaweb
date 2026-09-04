@@ -22,6 +22,15 @@ Omarchy.PanelSectionHeader {
     foreground: colors.text
     fontSize: Style.font.subtitle
     font.capitalization: Font.AllUppercase
+
+    // A label belongs to what follows it, so it sits nearer that than the
+    // section it ends. The container's own row spacing cannot say this — it is
+    // the same gap on both sides — and at this size an even gap leaves the
+    // label reading as part of whatever it happens to fall between. The kit's
+    // own top padding reserves the sliver a tall glyph paints above its box;
+    // that is kept and the separation added on top of it.
+    topPadding: Style.spacing.huge + Math.ceil(fontSize * 0.15)
+    bottomPadding: Style.spacing.lg
     Accessible.role: Accessible.StaticText
     Accessible.name: text
 }

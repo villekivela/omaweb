@@ -203,7 +203,9 @@ Rectangle {
                     topPadding: 6
                     bottomPadding: 6
                     font.family: Style.font.family
-                    font.pixelSize: Style.font.body
+                    // The rail names the sections, so it is set like the labels
+                    // that name them in the pane rather than like a row.
+                    font.pixelSize: Style.font.subtitle
                     font.bold: index === root.section
                     font.capitalization: Font.Capitalize
                     activeFocusOnTab: true

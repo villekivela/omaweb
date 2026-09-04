@@ -120,7 +120,8 @@ Rectangle {
     readonly property int sideMargin: Style.space(40)
     readonly property int topInset: Style.space(56)
     readonly property int columnGap: Style.space(40)
-    readonly property int groupGap: Style.space(26)
+    // The gap a group adds on top of the one its own label reserves.
+    readonly property int groupGap: Style.space(10)
     readonly property int entryGap: Style.space(5)
     readonly property int closeSize: Style.space(30)
     readonly property int headingGap: Style.space(28)
