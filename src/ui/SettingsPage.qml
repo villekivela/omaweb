@@ -80,6 +80,69 @@ Rectangle {
         return Math.ceil(widest)
     }
 
+    // -------------------------------------------------------------- geometry
+    //
+    // Nothing about this page's frame is written down. `Style.space()` keeps
+    // the proportions the page already had while letting the theme make the
+    // shell denser or roomier, and `Style.spacing.*` is the shared rhythm
+    // everything else in the kit is set on. A pixel count here would be right
+    // at one theme font size and crowd or clip at the next (#85).
+    readonly property int sideMargin: Style.space(48)
+    readonly property int topInset: Style.space(40)
+    readonly property int headerGap: Style.space(28)
+    readonly property int bottomInset: Style.space(24)
+    readonly property int railGap: Style.space(40)
+    readonly property int closeSize: Style.space(30)
+
+    // A line of explanation is a measure rather than a pixel count: the
+    // readable one is written in characters, and the box that holds it is that
+    // many characters of whatever face the theme sets the caption in. The 260
+    // pixels this replaces was the same measure at one font size only, and
+    // wrapped the same words into twice the lines at the next.
+    FontMetrics {
+        id: noteMetrics
+        font.family: Style.font.family
+        font.pixelSize: Style.font.caption
+    }
+
+    // Forty-four, which is 264 pixels of the default theme's caption face —
+    // the measure this replaces, to within a rounding.
+    readonly property int noteCharacters: 44
+    readonly property int noteMeasure: Math.ceil(
+        noteMetrics.averageCharacterWidth * root.noteCharacters)
+
+    // What the four fields of the subscription form ask to be called, in one
+    // place, because the room a pair of them needs is measured from the
+    // longest of them.
+    readonly property var subscriptionPlaceholders: ({
+        title: "list name",
+        license: "license",
+        source: "source page",
+        update: "update address"
+    })
+
+    FontMetrics {
+        id: fieldMetrics
+        font.family: Style.font.family
+        font.pixelSize: Style.font.body
+    }
+
+    // The width below which a field can no longer hold the words it is asking
+    // for: its longest placeholder in the face the kit's field draws in, plus
+    // the padding that field keeps on either side.
+    readonly property int fieldFloor: {
+        // The font is read for the dependency alone: advanceWidth() measures in
+        // C++, so a theme that changed the type would otherwise leave the floor
+        // at the size it was last measured at.
+        void (fieldMetrics.font.pixelSize)
+        void (fieldMetrics.font.family)
+        let widest = 0
+        for (const field in root.subscriptionPlaceholders)
+            widest = Math.max(widest,
+                fieldMetrics.advanceWidth(root.subscriptionPlaceholders[field]))
+        return Math.ceil(widest) + Style.spacing.controlPaddingX * 2
+    }
+
     // about:blank and other opaque addresses have no host to name, and saying
     // "blocked on about" would be worse than saying nothing.
     readonly property string activeHost: {
@@ -186,9 +249,9 @@ Rectangle {
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.top: parent.top
-        anchors.leftMargin: 48
-        anchors.rightMargin: 48
-        anchors.topMargin: 40
+        anchors.leftMargin: root.sideMargin
+        anchors.rightMargin: root.sideMargin
+        anchors.topMargin: root.topInset
         enabled: !root.clearDataOpen
         height: settingsEyebrow.height + Style.spacing.md + settingsHeading.height
 
@@ -226,8 +289,8 @@ Rectangle {
             objectName: "closeSettingsButton"
             anchors.right: parent.right
             anchors.verticalCenter: settingsHeading.verticalCenter
-            width: 30
-            height: 30
+            width: root.closeSize
+            height: root.closeSize
             icon: "close"
             accessibleName: "Close settings"
             fontFamily: root.iconFontFamily
@@ -243,11 +306,11 @@ Rectangle {
         anchors.right: parent.right
         anchors.top: header.bottom
         anchors.bottom: parent.bottom
-        anchors.leftMargin: 48
-        anchors.rightMargin: 48
-        anchors.topMargin: 28
-        anchors.bottomMargin: 24
-        spacing: 40
+        anchors.leftMargin: root.sideMargin
+        anchors.rightMargin: root.sideMargin
+        anchors.topMargin: root.headerGap
+        anchors.bottomMargin: root.bottomInset
+        spacing: root.railGap
         // A dialog over this page is modal, so the page under it takes neither
         // a click nor a Tab while it stands. Qt has no tab fence a QML item can
         // raise, so the way to keep the ring inside the dialog is to take the
@@ -257,7 +320,7 @@ Rectangle {
         Column {
             id: rail
             width: root.railWidth
-            spacing: 2
+            spacing: Style.spacing.xxs
 
             Repeater {
                 model: root.sections
@@ -269,8 +332,11 @@ Rectangle {
                     objectName: "settingsSection" + index
                     text: modelData
                     color: index === root.section ? root.colors.accent : root.colors.mutedText
-                    topPadding: 6
-                    bottomPadding: 6
+                    // A name in the rail leans on nothing: it belongs to the
+                    // rail rather than to what follows it, so it takes the same
+                    // room above and below.
+                    topPadding: Style.spacing.md
+                    bottomPadding: Style.spacing.md
                     font.family: Style.font.family
                     // The rail names the sections, so it is set like the labels
                     // that name them in the pane rather than like a row.
@@ -311,187 +377,223 @@ Rectangle {
 
             Column {
                 id: pane
+                objectName: "settingsPane"
                 width: scroll.availableWidth
+                // The gap between the blocks a section is made of — its cards,
+                // its labelled lists, its forms. It is written here rather than
+                // left to whatever the children happen to carry, so adding a
+                // row to one block cannot change the rhythm of the block under
+                // it. Inside a ruled list the rows abut instead: each draws the
+                // rule that divides it from the row above, and a gap there
+                // would break one list into a stack of cards.
+                spacing: Style.spacing.lg
 
                 // ---- tabs ---------------------------------------------------
 
-                SettingToggle {
-                    objectName: "useFavicons"
+                Column {
                     width: pane.width
                     visible: root.section === 0
-                    colors: root.colors
-                    title: "Use site favicons"
-                    note: "When off, tabs show a two-letter tile in the favicon's colour."
-                    accessibleName: "Use site favicons"
-                    checked: root.useFavicons
-                    onClicked: root.useFaviconsToggled(!checked)
-                }
+                    spacing: pane.spacing
 
-                SettingToggle {
-                    objectName: "tintFavicons"
-                    width: pane.width
-                    visible: root.section === 0
-                    colors: root.colors
-                    title: "Tint favicons"
-                    note: "Recolor site artwork to match the sidebar palette."
-                    accessibleName: "Tint favicons"
-                    enabled: root.useFavicons
-                    checked: root.tintFavicons
-                    onClicked: root.tintFaviconsToggled(!checked)
-                }
-
-                SectionLabel {
-                    visible: root.section === 0
-                    colors: root.colors
-                    text: "kept active"
-                }
-
-                Repeater {
-                    model: root.section === 0 ? root.retainedTabs : []
-
-                    SettingRow {
-                        required property var modelData
-
-                        objectName: "retainedTab-" + modelData.tabId
+                    SettingToggle {
+                        objectName: "useFavicons"
                         width: pane.width
                         colors: root.colors
-                        title: modelData.title.length > 0 ? modelData.title : String(modelData.url)
-                        note: modelData.spaceName + " · "
-                            + (modelData.inspected ? "Developer tools" : "Keep active")
-                            + " · " + (modelData.running
-                                ? root.resourceLabel(modelData.residentBytes)
-                                : "not running")
+                        title: "Use site favicons"
+                        note: "When off, tabs show a two-letter tile in the favicon's colour."
+                        accessibleName: "Use site favicons"
+                        checked: root.useFavicons
+                        onClicked: root.useFaviconsToggled(!checked)
+                    }
 
-                        ActionButton {
-                            visible: !modelData.inspected
+                    SettingToggle {
+                        objectName: "tintFavicons"
+                        width: pane.width
+                        colors: root.colors
+                        title: "Tint favicons"
+                        note: "Recolor site artwork to match the sidebar palette."
+                        accessibleName: "Tint favicons"
+                        enabled: root.useFavicons
+                        checked: root.tintFavicons
+                        onClicked: root.tintFaviconsToggled(!checked)
+                    }
+
+                    // The label and the list it heads are one block: the label
+                    // already leans toward what follows it, and the rows under
+                    // it abut so that their own rules divide them.
+                    Column {
+                        width: pane.width
+                        spacing: 0
+
+                        SectionLabel {
                             colors: root.colors
-                            label: "stop"
-                            accessibleName: "Stop keeping " + modelData.title + " active"
-                            onClicked: root.retainedTabReleased(modelData.tabId)
+                            text: "kept active"
+                        }
+
+                        Repeater {
+                            model: root.section === 0 ? root.retainedTabs : []
+
+                            SettingRow {
+                                required property var modelData
+
+                                objectName: "retainedTab-" + modelData.tabId
+                                width: pane.width
+                                colors: root.colors
+                                title: modelData.title.length > 0
+                                    ? modelData.title : String(modelData.url)
+                                note: modelData.spaceName + " · "
+                                    + (modelData.inspected ? "Developer tools" : "Keep active")
+                                    + " · " + (modelData.running
+                                        ? root.resourceLabel(modelData.residentBytes)
+                                        : "not running")
+
+                                ActionButton {
+                                    visible: !modelData.inspected
+                                    colors: root.colors
+                                    label: "stop"
+                                    accessibleName: "Stop keeping " + modelData.title + " active"
+                                    onClicked: root.retainedTabReleased(modelData.tabId)
+                                }
+                            }
+                        }
+
+                        SettingRow {
+                            width: pane.width
+                            visible: root.retainedTabs.length === 0
+                            colors: root.colors
+                            title: "Nothing is kept active"
+                            note: "A Pinned tab set to Keep active, or a tab with Developer tools attached, keeps running while its Space is inactive and is listed here with what it costs."
                         }
                     }
                 }
 
-                SettingRow {
-                    width: pane.width
-                    visible: root.section === 0 && root.retainedTabs.length === 0
-                    colors: root.colors
-                    title: "Nothing is kept active"
-                    note: "A Pinned tab set to Keep active, or a tab with Developer tools attached, keeps running while its Space is inactive and is listed here with what it costs."
-                }
-
                 // ---- keyboard ----------------------------------------------
 
-                SettingToggle {
-                    objectName: "keyboardNavigationEnabled"
+                Column {
                     width: pane.width
                     visible: root.section === 1
-                    colors: root.colors
-                    title: "Keyboard navigation"
-                    note: "Omaweb's own command layer. It gives the same commands with every "
-                        + "engine, and lets sites receive the keys they need."
-                    accessibleName: "Enable Keyboard navigation"
-                    checked: root.keyboard ? root.keyboard.enabled === true : false
-                    onClicked: if (root.keyboard) root.keyboard.setEnabled(!checked)
-                }
-                // A binding this build cannot honour is dropped rather than
-                // taking the whole keymap with it, so this notice is the only
-                // thing that says a configured key is missing. It waits beside
-                // the setting it is about: over the page it would be a banner
-                // the reader cannot dismiss and cannot act on while browsing.
-                NoticeBox {
-                    objectName: "keyboardBindingNotice"
-                    width: pane.width
-                    visible: root.section === 1 && root.keyboardReport.length > 0
-                    colors: root.colors
-                    iconFontFamily: root.iconFontFamily
-                    glyph: "keyboard_alt"
-                    title: "Some bindings were ignored"
-                    detail: root.keyboardReport
+                    spacing: pane.spacing
+
+                    SettingToggle {
+                        objectName: "keyboardNavigationEnabled"
+                        width: pane.width
+                        colors: root.colors
+                        title: "Keyboard navigation"
+                        note: "Omaweb's own command layer. It gives the same commands with every "
+                            + "engine, and lets sites receive the keys they need."
+                        accessibleName: "Enable Keyboard navigation"
+                        checked: root.keyboard ? root.keyboard.enabled === true : false
+                        onClicked: if (root.keyboard) root.keyboard.setEnabled(!checked)
+                    }
+
+                    // A binding this build cannot honour is dropped rather than
+                    // taking the whole keymap with it, so this notice is the
+                    // only thing that says a configured key is missing. It
+                    // waits beside the setting it is about: over the page it
+                    // would be a banner the reader cannot dismiss and cannot
+                    // act on while browsing.
+                    NoticeBox {
+                        objectName: "keyboardBindingNotice"
+                        width: pane.width
+                        visible: root.keyboardReport.length > 0
+                        colors: root.colors
+                        iconFontFamily: root.iconFontFamily
+                        glyph: "keyboard_alt"
+                        title: "Some bindings were ignored"
+                        detail: root.keyboardReport
+                    }
                 }
 
                 // ---- content blocking --------------------------------------
 
-                SettingToggle {
-                    objectName: "siteBlockingEnabled"
-                    width: pane.width
-                    visible: root.section === 2
-                    colors: root.colors
-                    title: "Block requests on this site"
-                    note: root.blockedRequestCount + " requests blocked"
-                        + (root.activeHost.length > 0 ? " on " + root.activeHost : "")
-                        + " so far."
-                    accessibleName: "Enable content blocking for this site"
-                    checked: root.blocker && root.browser
-                        ? root.blocker.siteEnabled(root.browser.activeUrl) : false
-                    onClicked: if (root.blocker) root.blocker.setSiteEnabled(
-                        root.browser.activeUrl, !checked)
-                }
-
-                Repeater {
-                    model: root.section === 2 ? root.subscriptions : []
-
-                    SettingToggle {
-                        required property var modelData
-
-                        width: pane.width
-                        colors: root.colors
-                        title: modelData.title
-                        note: modelData.updateStatus + " · " + modelData.license
-                            + "\nSource " + modelData.source
-                            + "\nUpdates from " + modelData.updateAddress
-                        accessibleName: "Enable " + modelData.title
-                        checked: modelData.enabled
-                        onClicked: root.blocker.setSubscriptionEnabled(modelData.id, !checked)
-                    }
-                }
-
-                Item { width: 1; height: root.section === 2 ? 28 : 0; visible: root.section === 2 }
-
                 Column {
                     width: pane.width
                     visible: root.section === 2
-                    spacing: 8
+                    spacing: pane.spacing
+
+                    SettingToggle {
+                        objectName: "siteBlockingEnabled"
+                        width: pane.width
+                        colors: root.colors
+                        title: "Block requests on this site"
+                        note: root.blockedRequestCount + " requests blocked"
+                            + (root.activeHost.length > 0 ? " on " + root.activeHost : "")
+                            + " so far."
+                        accessibleName: "Enable content blocking for this site"
+                        checked: root.blocker && root.browser
+                            ? root.blocker.siteEnabled(root.browser.activeUrl) : false
+                        onClicked: if (root.blocker) root.blocker.setSiteEnabled(
+                            root.browser.activeUrl, !checked)
+                    }
+
+                    Repeater {
+                        model: root.section === 2 ? root.subscriptions : []
+
+                        SettingToggle {
+                            required property var modelData
+
+                            width: pane.width
+                            colors: root.colors
+                            title: modelData.title
+                            note: modelData.updateStatus + " · " + modelData.license
+                                + "\nSource " + modelData.source
+                                + "\nUpdates from " + modelData.updateAddress
+                            accessibleName: "Enable " + modelData.title
+                            checked: modelData.enabled
+                            onClicked: root.blocker.setSubscriptionEnabled(modelData.id, !checked)
+                        }
+                    }
 
                     SectionLabel {
                         colors: root.colors
                         text: "add a list"
                     }
 
+                    // Two fields to a row while a pair still fits the words
+                    // they ask for, one to a row when it does not: a pair the
+                    // theme has made too narrow to read stops being a pairing
+                    // and starts being a clip, so how many share a row is
+                    // derived rather than fixed at two (#82).
                     Grid {
-                        columns: 2
-                        columnSpacing: 10
-                        rowSpacing: 8
+                        id: subscriptionFields
+                        objectName: "subscriptionFields"
+                        columns: pane.width >= root.fieldFloor * 2 + columnSpacing ? 2 : 1
+                        columnSpacing: Style.spacing.xl
+                        rowSpacing: Style.spacing.lg
+
+                        readonly property int fieldWidth: subscriptionFields.columns === 2
+                            ? Math.max(1, (pane.width - columnSpacing) / 2)
+                            : pane.width
 
                         SettingField {
                             id: subscriptionTitle
-                            width: (pane.width - 10) / 2
+                            width: subscriptionFields.fieldWidth
                             colors: root.colors
-                            placeholder: "list name"
+                            placeholder: root.subscriptionPlaceholders.title
                             accessibleName: "Subscription name"
                         }
 
                         SettingField {
                             id: subscriptionLicense
-                            width: (pane.width - 10) / 2
+                            width: subscriptionFields.fieldWidth
                             colors: root.colors
-                            placeholder: "license"
+                            placeholder: root.subscriptionPlaceholders.license
                             accessibleName: "Subscription license"
                         }
 
                         SettingField {
                             id: subscriptionSource
-                            width: (pane.width - 10) / 2
+                            width: subscriptionFields.fieldWidth
                             colors: root.colors
-                            placeholder: "source page"
+                            placeholder: root.subscriptionPlaceholders.source
                             accessibleName: "Subscription source page"
                         }
 
                         SettingField {
                             id: subscriptionUpdate
-                            width: (pane.width - 10) / 2
+                            width: subscriptionFields.fieldWidth
                             colors: root.colors
-                            placeholder: "update address"
+                            placeholder: root.subscriptionPlaceholders.update
                             accessibleName: "Subscription update address"
                         }
                     }
@@ -507,8 +609,6 @@ Rectangle {
                             root.refresh()
                         }
                     }
-
-                    Item { width: 1; height: 20 }
 
                     SectionLabel {
                         colors: root.colors
@@ -567,139 +667,161 @@ Rectangle {
 
                 // ---- network -----------------------------------------------
 
-                SettingRow {
+                Column {
                     width: pane.width
                     visible: root.section === 3
-                    colors: root.colors
-                    separated: false
-                    title: "Remote search suggestions"
-                    note: "Typing in the Omnibar never leaves the machine. Suggestions come "
-                        + "from this Space's own history."
+                    spacing: 0
 
-                    Text {
-                        objectName: "remoteSuggestionsStatus"
-                        text: "Remote search suggestions: Off"
-                        color: root.colors.mutedText
-                        font.family: Style.font.family
-                        font.pixelSize: Style.font.body
+                    SettingRow {
+                        width: pane.width
+                        colors: root.colors
+                        separated: false
+                        title: "Remote search suggestions"
+                        note: "Typing in the Omnibar never leaves the machine. Suggestions come "
+                            + "from this Space's own history."
+
+                        Text {
+                            objectName: "remoteSuggestionsStatus"
+                            text: "Remote search suggestions: Off"
+                            color: root.colors.mutedText
+                            font.family: Style.font.family
+                            font.pixelSize: Style.font.body
+                        }
                     }
-                }
 
-                SettingRow {
-                    width: pane.width
-                    visible: root.section === 3
-                    colors: root.colors
-                    title: "Filter-list updates"
+                    SettingRow {
+                        width: pane.width
+                        colors: root.colors
+                        title: "Filter-list updates"
 
-                    Text {
-                        objectName: "automaticRequestsStatus"
-                        width: Math.min(260, pane.width / 2)
-                        text: "Enabled filter-list subscriptions make automatic network requests "
-                            + "to their displayed update address when Omaweb starts. Remote search "
-                            + "suggestions remain off."
-                        color: root.colors.mutedText
-                        wrapMode: Text.WordWrap
-                        font.family: Style.font.family
-                        font.pixelSize: Style.font.caption
+                        Text {
+                            objectName: "automaticRequestsStatus"
+                            width: Math.min(root.noteMeasure, pane.width / 2)
+                            text: "Enabled filter-list subscriptions make automatic network requests "
+                                + "to their displayed update address when Omaweb starts. Remote search "
+                                + "suggestions remain off."
+                            color: root.colors.mutedText
+                            wrapMode: Text.WordWrap
+                            font.family: Style.font.family
+                            font.pixelSize: Style.font.caption
+                        }
                     }
                 }
 
                 // ---- downloads ---------------------------------------------
 
-                SettingRow {
+                Column {
                     width: pane.width
                     visible: root.section === 4
-                    colors: root.colors
-                    separated: false
-                    title: "Download directory"
-                    note: root.browser ? root.browser.downloadDirectory : ""
-
-                    Text {
-                        text: root.browser && root.browser.acceptDownloads
-                            ? "accepting" : "blocked"
-                        color: root.colors.mutedText
-                        font.family: Style.font.family
-                        font.pixelSize: Style.font.body
-                    }
-                }
-
-                Repeater {
-                    model: root.section === 4 ? root.downloads : []
+                    spacing: 0
 
                     SettingRow {
-                        required property var modelData
-
                         width: pane.width
                         colors: root.colors
-                        title: modelData.path
-                        note: modelData.state
-                            + (modelData.error.length > 0 ? " · " + modelData.error : "")
-                    }
-                }
+                        separated: false
+                        title: "Download directory"
+                        note: root.browser ? root.browser.downloadDirectory : ""
 
-                SettingRow {
-                    width: pane.width
-                    visible: root.section === 4 && root.downloads.length === 0
-                    colors: root.colors
-                    title: "No recorded downloads"
-                    note: "Downloads Omaweb has recorded in this Space appear here."
+                        Text {
+                            text: root.browser && root.browser.acceptDownloads
+                                ? "accepting" : "blocked"
+                            color: root.colors.mutedText
+                            font.family: Style.font.family
+                            font.pixelSize: Style.font.body
+                        }
+                    }
+
+                    Repeater {
+                        model: root.section === 4 ? root.downloads : []
+
+                        SettingRow {
+                            required property int index
+                            required property var modelData
+
+                            objectName: "recordedDownload-" + index
+                            width: pane.width
+                            colors: root.colors
+                            title: modelData.path
+                            note: modelData.state
+                                + (modelData.error.length > 0 ? " · " + modelData.error : "")
+                        }
+                    }
+
+                    SettingRow {
+                        width: pane.width
+                        visible: root.downloads.length === 0
+                        colors: root.colors
+                        title: "No recorded downloads"
+                        note: "Downloads Omaweb has recorded in this Space appear here."
+                    }
                 }
 
                 // ---- search ------------------------------------------------
 
-                Repeater {
-                    id: searchEngineList
-                    objectName: "searchEngineList"
-                    model: root.section === 5 ? root.engines : []
-
-                    SettingRow {
-                        required property var modelData
-                        width: pane.width
-                        colors: root.colors
-                        title: modelData.name + (modelData.default ? " · default" : "")
-                        note: modelData.queryUrl
-
-                        Row {
-                            spacing: 8
-                            Text {
-                                anchors.verticalCenter: parent.verticalCenter
-                                text: modelData.keyword.length > 0
-                                    ? "keyword " + modelData.keyword : "no keyword"
-                                color: root.colors.mutedText
-                                font.family: Style.font.family
-                                font.pixelSize: Style.font.caption
-                            }
-                            ActionButton {
-                                colors: root.colors
-                                label: "Default"
-                                visible: !modelData.default
-                                onClicked: root.makeDefaultSearchEngine(modelData.id)
-                            }
-                            ActionButton {
-                                colors: root.colors
-                                label: "Delete"
-                                destructive: true
-                                enabled: root.engines.length > 1
-                                onClicked: root.deleteSearchEngine(modelData.id)
-                            }
-                        }
-                    }
-                }
-
                 Column {
                     width: pane.width
                     visible: root.section === 5
-                    spacing: 8
+                    spacing: pane.spacing
+
+                    Column {
+                        width: pane.width
+                        spacing: 0
+
+                        Repeater {
+                            id: searchEngineList
+                            objectName: "searchEngineList"
+                            model: root.section === 5 ? root.engines : []
+
+                            SettingRow {
+                                required property var modelData
+
+                                width: pane.width
+                                colors: root.colors
+                                title: modelData.name + (modelData.default ? " · default" : "")
+                                note: modelData.queryUrl
+
+                                Row {
+                                    spacing: Style.spacing.lg
+
+                                    Text {
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        text: modelData.keyword.length > 0
+                                            ? "keyword " + modelData.keyword : "no keyword"
+                                        color: root.colors.mutedText
+                                        font.family: Style.font.family
+                                        font.pixelSize: Style.font.caption
+                                    }
+
+                                    ActionButton {
+                                        colors: root.colors
+                                        label: "Default"
+                                        visible: !modelData.default
+                                        onClicked: root.makeDefaultSearchEngine(modelData.id)
+                                    }
+
+                                    ActionButton {
+                                        colors: root.colors
+                                        label: "Delete"
+                                        destructive: true
+                                        enabled: root.engines.length > 1
+                                        onClicked: root.deleteSearchEngine(modelData.id)
+                                    }
+                                }
+                            }
+                        }
+                    }
 
                     SectionLabel { colors: root.colors; text: "add a provider" }
+
                     Row {
-                        width: parent.width
-                        spacing: 8
+                        id: providerRow
+                        width: pane.width
+                        spacing: Style.spacing.lg
 
                         SettingDropdown {
                             id: providerPreset
                             objectName: "searchProviderPreset"
-                            width: parent.width - addProvider.width - 8
+                            width: providerRow.width - addProvider.width - providerRow.spacing
                             colors: root.colors
                             options: root.enginePresets.map(function(engine) {
                                 return { value: engine.id, label: engine.name }
@@ -723,29 +845,32 @@ Rectangle {
                         }
                     }
 
-                    Item { width: 1; height: 12 }
                     SectionLabel { colors: root.colors; text: "add a custom engine" }
+
                     SettingField {
                         id: engineName
-                        width: parent.width
+                        width: pane.width
                         colors: root.colors
                         placeholder: "name"
                         accessibleName: "Search engine name"
                     }
+
                     SettingField {
                         id: engineQueryUrl
-                        width: parent.width
+                        width: pane.width
                         colors: root.colors
                         placeholder: "query URL with {query}"
                         accessibleName: "Search engine query URL"
                     }
+
                     SettingField {
                         id: engineKeyword
-                        width: parent.width
+                        width: pane.width
                         colors: root.colors
                         placeholder: "optional keyword"
                         accessibleName: "Search engine keyword"
                     }
+
                     ActionButton {
                         colors: root.colors
                         label: "Add and make default"
@@ -765,44 +890,59 @@ Rectangle {
 
                 // ---- privacy -----------------------------------------------
 
-                // The section is named for what it will hold rather than for
-                // its one row: the reputation protection, proxy reporting and
-                // third-party cookie allowances the requirements describe are
-                // privacy and are not browsing data.
-                SectionLabel {
-                    visible: root.section === 6
-                    colors: root.colors
-                    text: "privacy"
-                }
-
-                // One row and one button, which is the shape Chrome and Firefox
-                // both settled on. What used to be five switches and a scope
-                // switch on this page were arguments to that button, and they
-                // now sit in the dialog it opens (ADR 0031). The section has
-                // room to grow into the reputation protection, proxy reporting
-                // and third-party cookie allowances Omaweb has not built.
-                SettingRow {
-                    objectName: "clearBrowsingDataRow"
+                Column {
                     width: pane.width
                     visible: root.section === 6
-                    colors: root.colors
-                    title: "Browsing data"
-                    note: "Cookies, site storage, cache, site permissions and history — "
-                        + "for the Spaces and the time range chosen when clearing."
+                    spacing: 0
 
-                    ActionButton {
-                        objectName: "clearBrowsingDataButton"
+                    // The section is named for what it will hold rather than
+                    // for its one row: the reputation protection, proxy
+                    // reporting and third-party cookie allowances the
+                    // requirements describe are privacy and are not browsing
+                    // data.
+                    //
+                    // It opens the section, so it takes only the sliver a tall
+                    // glyph paints above its box: the lean the label carries by
+                    // default is separation from what precedes it, and leaning
+                    // away from nothing is dead space.
+                    SectionLabel {
+                        id: privacyLabel
                         colors: root.colors
-                        destructive: true
-                        label: "Clear browsing data…"
-                        onClicked: root.clearDataOpen = true
+                        topPadding: privacyLabel.overshoot
+                        text: "privacy"
+                    }
+
+                    // One row and one button, which is the shape Chrome and
+                    // Firefox both settled on. What used to be five switches
+                    // and a scope switch on this page were arguments to that
+                    // button, and they now sit in the dialog it opens (ADR
+                    // 0031). The section has room to grow into the reputation
+                    // protection, proxy reporting and third-party cookie
+                    // allowances Omaweb has not built.
+                    SettingRow {
+                        objectName: "clearBrowsingDataRow"
+                        width: pane.width
+                        colors: root.colors
+                        title: "Browsing data"
+                        note: "Cookies, site storage, cache, site permissions and history — "
+                            + "for the Spaces and the time range chosen when clearing."
+
+                        ActionButton {
+                            objectName: "clearBrowsingDataButton"
+                            colors: root.colors
+                            destructive: true
+                            label: "Clear browsing data…"
+                            onClicked: root.clearDataOpen = true
+                        }
                     }
                 }
+
+                // ---- about -------------------------------------------------
 
                 Column {
                     width: pane.width
                     visible: root.section === 7
-                    spacing: 8
+                    spacing: pane.spacing
 
                     Text {
                         objectName: "aboutName"
@@ -823,8 +963,6 @@ Rectangle {
                         font.pixelSize: Style.font.body
                     }
 
-                    Item { width: 1; height: 4 }
-
                     Text {
                         width: pane.width
                         text: "Pre-alpha. Do not use it for sensitive browsing yet."
@@ -834,7 +972,6 @@ Rectangle {
                         font.pixelSize: Style.font.caption
                     }
 
-                    Item { width: 1; height: 12 }
                     SectionLabel { colors: root.colors; text: "project" }
 
                     Text {
@@ -857,7 +994,6 @@ Rectangle {
                         }
                     }
 
-                    Item { width: 1; height: 12 }
                     SectionLabel { colors: root.colors; text: "license" }
 
                     Text {

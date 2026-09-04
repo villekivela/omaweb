@@ -165,28 +165,59 @@ int main(int argc, char *argv[])
         static const QHash<QString, QList<ShowProperty>> states = {
             {QStringLiteral("collapsed"), {{"", "sidebarCollapsed", true}}},
             {QStringLiteral("settings"), {{"", "settingsOpen", true}}},
-            {QStringLiteral("settings:privacy"),
-                {{"", "settingsOpen", true}, {"settingsSurface", "section", 6}}},
-            {QStringLiteral("settings:privacy:clear"),
-                {{"", "settingsOpen", true}, {"settingsSurface", "section", 6},
-                    {"settingsSurface", "clearDataOpen", true}}},
+            {QStringLiteral("settings:clear"),
+                {{"", "settingsOpen", true}, {"settingsSurface", "clearDataOpen", true}}},
             {QStringLiteral("site"), {{"sidebar", "statusOpen", true}}},
             {QStringLiteral("history"), {{"", "historyOpen", true}}},
             {QStringLiteral("shortcuts"), {{"", "shortcutsOpen", true}}},
         };
-        const auto state = states.value(arguments.at(showIndex + 1));
+        const auto requested = arguments.at(showIndex + 1);
+        auto *root = engine.rootObjects().constFirst();
+
+        // Settings is eight sections deep, and a review of its layout wants a
+        // capture of each. The rail's own list is what names them, so the
+        // section is looked up there rather than written down again here:
+        // adding a section, or moving one, cannot leave the lab pointing at
+        // the wrong page. `settings:privacy:clear` still stands the dialog on
+        // the section it names.
+        auto state = states.value(requested);
+        auto parts = requested.split(QLatin1Char(':'));
+        if (state.isEmpty() && parts.size() >= 2 && parts.first() == QLatin1String("settings")) {
+            auto *surface = root->findChild<QObject *>(QStringLiteral("settingsSurface"));
+            if (surface == nullptr) {
+                qCritical("No settingsSurface to show %s on", qPrintable(requested));
+                return 1;
+            }
+            const auto sections = surface->property("sections").toStringList();
+            // The rail draws "content blocking"; a command line spells it
+            // "content-blocking".
+            auto wanted = parts.at(1);
+            wanted.replace(QLatin1Char('-'), QLatin1Char(' '));
+            const auto section = sections.indexOf(wanted);
+            if (section < 0) {
+                qCritical("No settings section named %s", qPrintable(parts.at(1)));
+                return 1;
+            }
+            state = {{"", "settingsOpen", true}, {"settingsSurface", "section", section}};
+            if (parts.size() > 2) {
+                const auto rest = states.value(QStringLiteral("settings:") + parts.at(2));
+                if (rest.isEmpty()) {
+                    qCritical("Unknown --show state %s", qPrintable(requested));
+                    return 1;
+                }
+                state.append(rest);
+            }
+        }
         if (state.isEmpty()) {
-            qCritical("Unknown --show state %s", qPrintable(arguments.at(showIndex + 1)));
+            qCritical("Unknown --show state %s", qPrintable(requested));
             return 1;
         }
-        auto *root = engine.rootObjects().constFirst();
         for (const auto &property : state) {
             auto *target = *property.object == '\0'
                 ? root
                 : root->findChild<QObject *>(QString::fromLatin1(property.object));
             if (target == nullptr) {
-                qCritical("No %s to show %s on", property.object,
-                    qPrintable(arguments.at(showIndex + 1)));
+                qCritical("No %s to show %s on", property.object, qPrintable(requested));
                 return 1;
             }
             target->setProperty(property.property, property.value);
