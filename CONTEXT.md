@@ -40,6 +40,10 @@ _Avoid_: Home page, new tab page, about:blank, cheat sheet
 A temporary browser window whose browsing identity is separate from every Space and whose distinct appearance identifies it as private. Private windows share temporary state with each other only while at least one private window remains open.
 _Avoid_: Private Space, incognito Space
 
+**Private accent**:
+The one colour a theme names for its Private windows. Omaweb derives the grounds it is cast over — the Private window, sidebar, surface and hover fill — by tinting each of the theme's own surfaces towards it, so a theme identifies private browsing by naming a hue rather than by naming a palette, and a Private window keeps the darkness the theme drew its chrome in. A theme that names a ground itself keeps it.
+_Avoid_: Private colour, incognito accent
+
 **Auxiliary window**:
 A temporary, minimally framed window requested by a site to complete a flow such as authentication or payment. It inherits the browsing identity of its opener and is not an ordinary Omaweb browsing window.
 _Avoid_: Browser window, pop-up tab

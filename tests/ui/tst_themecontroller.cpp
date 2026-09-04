@@ -5,11 +5,13 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QFontDatabase>
+#include <QMap>
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QTest>
 
 #include <cmath>
+#include <utility>
 
 using omaweb::ThemeController;
 
@@ -18,6 +20,10 @@ class ThemeControllerTest final : public QObject {
 
 private slots:
     void enforcesDistinctPrivateColors();
+    void tintsTheThemesOwnSurfacesTowardsThePrivateAccent();
+    void tintsAPrivateWindowHarderWhenTheAccentBarelyRegisters();
+    void keepsThePrivateGroundsTheSpacingTheThemeGaveTheOrdinaryOnes();
+    void drawsThePrivatePaletteTheOmarchyTemplateRenders();
     void appliesSemanticOpacityToChromeSurfaces();
     void givesFullPageSurfacesTheSidebarsColourAndTheirOwnTranslucency();
     void namesOneColourForSomethingBeingWrong();
@@ -127,6 +133,54 @@ double contrastRatio(const QColor &one, const QColor &other)
     return (std::max(first, second) + 0.05) / (std::min(first, second) + 0.05);
 }
 
+// OKLab, and the two measurements the private palette is held to: how far
+// apart two colours are, and how much colour a surface carries. The palette
+// measures a private surface against its ordinary counterpart perceptually --
+// an RGB measure barely counts a cast of colour near a desktop's black -- so
+// the tests measure it the same way. The floor below is ThemeController's own.
+constexpr auto minimumPrivateDifference = 0.04;
+
+struct Oklab {
+    double lightness = 0.0;
+    double greenRed = 0.0;
+    double blueYellow = 0.0;
+};
+
+Oklab oklab(const QColor &colour)
+{
+    const auto linear = [](double channel) {
+        return channel <= 0.04045 ? channel / 12.92 : std::pow((channel + 0.055) / 1.055, 2.4);
+    };
+    const auto red = linear(colour.redF());
+    const auto green = linear(colour.greenF());
+    const auto blue = linear(colour.blueF());
+    const auto long_ = std::cbrt(0.4122214708 * red + 0.5363325363 * green + 0.0514459929 * blue);
+    const auto medium
+        = std::cbrt(0.2119034982 * red + 0.6806995451 * green + 0.1073969566 * blue);
+    const auto short_ = std::cbrt(0.0883024619 * red + 0.2817188376 * green + 0.6299787005 * blue);
+    return {
+        0.2104542553 * long_ + 0.7936177850 * medium - 0.0040720468 * short_,
+        1.9779984951 * long_ - 2.4285922050 * medium + 0.4505937099 * short_,
+        0.0259040371 * long_ + 0.7827717662 * medium - 0.8086757660 * short_,
+    };
+}
+
+double perceptualDistance(const QColor &one, const QColor &other)
+{
+    const auto first = oklab(one);
+    const auto second = oklab(other);
+    const auto lightness = first.lightness - second.lightness;
+    const auto greenRed = first.greenRed - second.greenRed;
+    const auto blueYellow = first.blueYellow - second.blueYellow;
+    return std::sqrt(lightness * lightness + greenRed * greenRed + blueYellow * blueYellow);
+}
+
+double chroma(const QColor &colour)
+{
+    const auto value = oklab(colour);
+    return std::sqrt(value.greenRed * value.greenRed + value.blueYellow * value.blueYellow);
+}
+
 // What the reader actually sees where a control is drawn at reduced opacity:
 // the colour composited over the surface behind it.
 QColor composited(const QColor &colour, double alpha, const QColor &ground)
@@ -139,6 +193,270 @@ QColor composited(const QColor &colour, double alpha, const QColor &ground)
 }
 
 } // namespace
+
+// A theme names the colour that says a window is private; the grounds that
+// colour is cast over are Omaweb's to derive, and each one is the ordinary
+// ground it stands in for with the cast on it. So a private window is the
+// reader's own chrome recognisably tinted rather than a palette of its own,
+// which is what keeps a dark desktop's private window dark: derived by mixing
+// the window towards the accent instead, every ground climbs towards the
+// accent's own lightness and a near-black desktop gets a browser several
+// shades paler than everything around it.
+void ThemeControllerTest::tintsTheThemesOwnSurfacesTowardsThePrivateAccent()
+{
+    QTemporaryDir root;
+    QFile theme(root.filePath(QStringLiteral("theme.json")));
+    QVERIFY(theme.open(QIODevice::WriteOnly));
+    theme.write(R"JSON({
+        "window": "#16151d",
+        "sidebar": "#1d1b29",
+        "overlay": "#282634",
+        "surface": "#302e3d",
+        "surfaceHover": "#3d394e",
+        "text": "#f3f1fa",
+        "accent": "#9b87ff",
+        "privateAccent": "#c678dd"
+    })JSON");
+    theme.close();
+
+    ThemeController controller(theme.fileName());
+    const auto palette = controller.palette();
+    const auto colour = [&palette](const char *key) {
+        return QColor(palette.value(QString::fromLatin1(key)).toString());
+    };
+    QCOMPARE(colour("privateWindowOpaque"), QColor(QStringLiteral("#291f32")));
+    QCOMPARE(colour("privateSidebarOpaque"), QColor(QStringLiteral("#30243f")));
+    QCOMPARE(colour("privateSurface"), QColor(QStringLiteral("#413651")));
+    QCOMPARE(colour("privateSurfaceHover"), QColor(QStringLiteral("#4d4061")));
+
+    const QColor privateAccent(palette.value(QStringLiteral("privateAccent")).toString());
+    const QList<std::pair<const char *, const char *>> pairs{
+        {"windowOpaque", "privateWindowOpaque"}, {"sidebarOpaque", "privateSidebarOpaque"},
+        {"surface", "privateSurface"}, {"surfaceHover", "privateSurfaceHover"}};
+    // The window is what the reader recognises the whole window by, so it is
+    // the ground held to the difference. The surfaces inside it are never
+    // seen beside their ordinary counterparts and only have to belong to the
+    // same tinted family.
+    QVERIFY(perceptualDistance(colour("windowOpaque"), colour("privateWindowOpaque"))
+        >= minimumPrivateDifference);
+    for (const auto &[ordinaryKey, privateKey] : pairs) {
+        const auto ordinary = colour(ordinaryKey);
+        const auto tinted = colour(privateKey);
+        // Nearer its counterpart than the accent it was cast with: the
+        // theme's own colour is what shows, and the accent is what tints it.
+        QVERIFY2(perceptualDistance(ordinary, tinted) < perceptualDistance(tinted, privateAccent),
+            privateKey);
+        QVERIFY2(perceptualDistance(tinted, privateAccent)
+                < perceptualDistance(ordinary, privateAccent),
+            privateKey);
+        // A ground is a ground: the alpha a surface is drawn at is the
+        // semantic opacity's to say, and a derived colour carries none.
+        QCOMPARE(tinted.alpha(), 255);
+    }
+
+    // A theme that does name a ground keeps it. The tint fills what is
+    // missing rather than overruling what is there.
+    QFile named(root.filePath(QStringLiteral("named.json")));
+    QVERIFY(named.open(QIODevice::WriteOnly));
+    named.write(R"JSON({
+        "window": "#16151d",
+        "text": "#f3f1fa",
+        "accent": "#9b87ff",
+        "privateAccent": "#c678dd",
+        "privateSurface": "#503a20"
+    })JSON");
+    named.close();
+    ThemeController namedColours(named.fileName());
+    QCOMPARE(QColor(namedColours.palette().value(QStringLiteral("privateSurface")).toString()),
+        QColor(QStringLiteral("#503a20")));
+}
+
+// A desktop whose private accent is barely off its own background has a cast
+// nobody can see at the strength the rest of the palette is tinted at, so the
+// tint strengthens until the two windows are different windows. It still
+// comes from the desktop's own colour: a private window drawn in something
+// Omaweb brought with it does not read as this desktop's private window.
+void ThemeControllerTest::tintsAPrivateWindowHarderWhenTheAccentBarelyRegisters()
+{
+    QTemporaryDir root;
+    QFile theme(root.filePath(QStringLiteral("theme.json")));
+    QVERIFY(theme.open(QIODevice::WriteOnly));
+    theme.write(R"JSON({
+        "window": "#12141a",
+        "sidebar": "#181b22",
+        "overlay": "#181b22",
+        "surface": "#20242d",
+        "surfaceHover": "#2c313c",
+        "text": "#d8dbe3",
+        "accent": "#7d8590",
+        "privateAccent": "#211a24"
+    })JSON");
+    theme.close();
+
+    ThemeController controller(theme.fileName());
+    const auto palette = controller.palette();
+    const QColor window(palette.value(QStringLiteral("windowOpaque")).toString());
+    const QColor privateWindow(palette.value(QStringLiteral("privateWindowOpaque")).toString());
+    QVERIFY(perceptualDistance(window, privateWindow) >= minimumPrivateDifference);
+    // Not black, not white, and not Omaweb's own private purple.
+    QVERIFY(privateWindow != QColor(Qt::black));
+    QVERIFY(privateWindow != QColor(Qt::white));
+    QVERIFY(chroma(privateWindow) > chroma(window));
+}
+
+// The private grounds are the ordinary grounds tinted, so whatever the theme
+// drew between a surface and the fill over it survives the tint. A hover fill
+// the reader cannot tell from the surface under it is the symptom the palette
+// is here to avoid.
+void ThemeControllerTest::keepsThePrivateGroundsTheSpacingTheThemeGaveTheOrdinaryOnes()
+{
+    QTemporaryDir root;
+    QFile theme(root.filePath(QStringLiteral("theme.json")));
+    QVERIFY(theme.open(QIODevice::WriteOnly));
+    theme.write(R"JSON({
+        "window": "#090a0e",
+        "sidebar": "#0d0f14",
+        "overlay": "#0d0f14",
+        "surface": "#1a1d26",
+        "surfaceHover": "#7e8892",
+        "text": "#d8dbe3",
+        "accent": "#9aa3ad",
+        "privateAccent": "#8a5a62"
+    })JSON");
+    theme.close();
+
+    ThemeController controller(theme.fileName());
+    const auto palette = controller.palette();
+    const auto colour = [&palette](const char *key) {
+        return QColor(palette.value(QString::fromLatin1(key)).toString());
+    };
+    const QList<std::pair<const char *, const char *>> pairs{
+        {"windowOpaque", "privateWindowOpaque"}, {"sidebarOpaque", "privateSidebarOpaque"},
+        {"surface", "privateSurface"}, {"surfaceHover", "privateSurfaceHover"}};
+    for (auto index = 1; index < pairs.size(); ++index) {
+        const auto [previousOrdinary, previousPrivate] = pairs.at(index - 1);
+        const auto [ordinaryKey, privateKey] = pairs.at(index);
+        // Every step the theme drew between two of its own grounds is still
+        // there between their private counterparts, and in the same
+        // direction, so the private chrome reads as the same chrome.
+        const auto ordinaryStep
+            = oklab(colour(ordinaryKey)).lightness - oklab(colour(previousOrdinary)).lightness;
+        const auto privateStep
+            = oklab(colour(privateKey)).lightness - oklab(colour(previousPrivate)).lightness;
+        QVERIFY2(ordinaryStep * privateStep > 0.0, privateKey);
+        QVERIFY2(std::abs(privateStep) >= std::abs(ordinaryStep) * 0.5, privateKey);
+    }
+}
+
+// The palette an Omarchy desktop actually hands Omaweb, rendered from the
+// template the repository ships through the colours of a real theme. The
+// template is substituted here rather than mocked: a colour name Omarchy does
+// not define leaves its own token in the output, and a palette that is not
+// JSON is a browser that has stopped following the desktop.
+void ThemeControllerTest::drawsThePrivatePaletteTheOmarchyTemplateRenders()
+{
+    QFile shipped(QStringLiteral(OMAWEB_OMARCHY_TEMPLATE_PATH));
+    QVERIFY(shipped.open(QIODevice::ReadOnly));
+    auto rendered = QString::fromUtf8(shipped.readAll());
+    shipped.close();
+
+    // Omarchy's own `colors.toml` names, with the values of a muted desktop
+    // theme. Every name a template may spend is defined here, so a token left
+    // in the output is a template naming something the desktop does not.
+    const QMap<QString, QString> colours{
+        {QStringLiteral("accent"), QStringLiteral("#9aa3ad")},
+        {QStringLiteral("selection"), QStringLiteral("#2a3038")},
+        {QStringLiteral("muted"), QStringLiteral("#7e8892")},
+        {QStringLiteral("background"), QStringLiteral("#12141a")},
+        {QStringLiteral("dark_background"), QStringLiteral("#0d0f14")},
+        {QStringLiteral("darker_background"), QStringLiteral("#090a0e")},
+        {QStringLiteral("lighter_background"), QStringLiteral("#1a1d26")},
+        {QStringLiteral("foreground"), QStringLiteral("#d8dbe3")},
+        {QStringLiteral("dark_foreground"), QStringLiteral("#929ca6")},
+        {QStringLiteral("light_foreground"), QStringLiteral("#e4e7ee")},
+        {QStringLiteral("bright_foreground"), QStringLiteral("#f0f2f6")},
+        {QStringLiteral("cursor"), QStringLiteral("#d8dbe3")},
+        {QStringLiteral("red"), QStringLiteral("#7a2e2e")},
+        {QStringLiteral("orange"), QStringLiteral("#8a6a5c")},
+        {QStringLiteral("yellow"), QStringLiteral("#c5c0b4")},
+        {QStringLiteral("green"), QStringLiteral("#7a8f88")},
+        {QStringLiteral("cyan"), QStringLiteral("#8a9aaa")},
+        {QStringLiteral("blue"), QStringLiteral("#8296ac")},
+        {QStringLiteral("magenta"), QStringLiteral("#8a5a62")},
+        {QStringLiteral("brown"), QStringLiteral("#4a4040")},
+        {QStringLiteral("font_family"), QStringLiteral("CaskaydiaMono Nerd Font")},
+    };
+    for (auto it = colours.cbegin(); it != colours.cend(); ++it) {
+        rendered.replace(QStringLiteral("{{ %1 }}").arg(it.key()), it.value());
+    }
+    QVERIFY2(!rendered.contains(QStringLiteral("{{")),
+        qPrintable(QStringLiteral("the template names a colour Omarchy does not: %1")
+                       .arg(rendered)));
+
+    QTemporaryDir root;
+    QFile theme(root.filePath(QStringLiteral("omaweb.json")));
+    QVERIFY(theme.open(QIODevice::WriteOnly));
+    theme.write(rendered.toUtf8());
+    theme.close();
+
+    ThemeController controller(theme.fileName());
+    const auto palette = controller.palette();
+    // The desktop's own colours, which is the evidence the palette parsed at
+    // all: a template that renders to something else leaves Omaweb's built-in
+    // palette on show.
+    QCOMPARE(QColor(palette.value(QStringLiteral("windowOpaque")).toString()),
+        QColor(QStringLiteral("#090a0e")));
+
+    // No surface carries an alpha of its own. A colour with an eight-digit
+    // suffix is read as `#AARRGGBB`, so a template writing one gets neither
+    // the alpha it asked for nor the colour it named.
+    const QColor privateAccent(palette.value(QStringLiteral("privateAccent")).toString());
+    QCOMPARE(privateAccent, QColor(QStringLiteral("#8a5a62")));
+    for (const auto &key : {"surface", "surfaceHover", "privateSurface", "privateSurfaceHover",
+             "windowOpaque", "sidebarOpaque", "privateWindowOpaque", "privateSidebarOpaque"}) {
+        const QColor ground(palette.value(QString::fromLatin1(key)).toString());
+        QVERIFY2(ground.isValid(), key);
+        QCOMPARE(ground.alpha(), 255);
+    }
+
+    // And every private ground is the desktop's own ground with the
+    // desktop's own private accent cast over it, so the roles resolved
+    // against them are not compromising between two unrelated hues.
+    const QList<std::pair<const char *, const char *>> tintedPairs{
+        {"windowOpaque", "privateWindowOpaque"}, {"sidebarOpaque", "privateSidebarOpaque"},
+        {"surface", "privateSurface"}, {"surfaceHover", "privateSurfaceHover"}};
+    QVERIFY(perceptualDistance(QColor(palette.value(QStringLiteral("windowOpaque")).toString()),
+                QColor(palette.value(QStringLiteral("privateWindowOpaque")).toString()))
+        >= minimumPrivateDifference);
+    for (const auto &[ordinaryKey, privateKey] : tintedPairs) {
+        const QColor ordinary(palette.value(QString::fromLatin1(ordinaryKey)).toString());
+        const QColor tinted(palette.value(QString::fromLatin1(privateKey)).toString());
+        QVERIFY2(perceptualDistance(ordinary, tinted) < perceptualDistance(tinted, privateAccent),
+            privateKey);
+        QVERIFY2(perceptualDistance(tinted, privateAccent)
+                < perceptualDistance(ordinary, privateAccent),
+            privateKey);
+    }
+    // Quiet text reads on every private ground at rest. The hover fill is
+    // left out of this one because this desktop spends its own `muted` on it:
+    // the ordinary palette has the same mid-grey fill over the same near-black
+    // sidebar, so no colour is 4.5:1 against both, and the role takes the
+    // compromise the palette promises rather than the floor.
+    const QColor privateMuted(palette.value(QStringLiteral("privateMutedText")).toString());
+    for (const auto &key : {"privateWindowOpaque", "privateSidebarOpaque", "privateSurface",
+             "privateOverlayOpaque", "privateSheetOpaque"}) {
+        const QColor ground(palette.value(QString::fromLatin1(key)).toString());
+        QVERIFY2(contrastRatio(privateMuted, ground) >= minimumContrast, key);
+    }
+    // A border is drawn on the surfaces at rest rather than on a hover fill,
+    // which is the only ground it is not asked to clear.
+    const QColor privateBorder(palette.value(QStringLiteral("privateBorder")).toString());
+    for (const auto &key : {"privateWindowOpaque", "privateSidebarOpaque", "privateSurface",
+             "privateOverlayOpaque", "privateSheetOpaque"}) {
+        const QColor ground(palette.value(QString::fromLatin1(key)).toString());
+        QVERIFY2(contrastRatio(privateBorder, ground) >= minimumGraphicContrast, key);
+    }
+}
 
 // Muted text is content — tab titles, Space letters, the footer's controls —
 // so it holds WCAG AA for body text against every surface it is drawn on, not
@@ -515,12 +833,11 @@ void ThemeControllerTest::keepsAPaletteWhoseSurfacesCannotShareReadableRoles()
     QVERIFY(worst(QColor(QStringLiteral("#800000"))));
 }
 
-// The palette Omarchy renders from the shipped template gives the private
-// window the desktop's dark background and the private sidebar its accent, and
-// no colour is 3:1 against both. That is the ordinary case, not a broken
-// theme: the desktop's own colours have to survive it, or every theme switch
-// lands on Omaweb's built-in palette and the browser stops following the
-// desktop at all.
+// A theme is entitled to draw its private windows in its accent outright, and
+// then no colour is 3:1 against both a near-black window and that sidebar.
+// That is a palette to honour rather than a broken theme: the desktop's own
+// colours have to survive it, or the palette lands on Omaweb's built-in one
+// and the browser stops following the desktop at all.
 void ThemeControllerTest::keepsTheDesktopsOwnColoursWhenAPrivateSurfaceIsAnAccent()
 {
     QTemporaryDir root;
@@ -539,8 +856,8 @@ void ThemeControllerTest::keepsTheDesktopsOwnColoursWhenAPrivateSurfaceIsAnAccen
         "privateAccent": "#d3869b",
         "privateWindow": "#1e1e1e",
         "privateSidebar": "#d3869b",
-        "privateSurface": "#d3869b40",
-        "privateSurfaceHover": "#d3869b55"
+        "privateSurface": "#d3869b",
+        "privateSurfaceHover": "#dc93a6"
     })JSON");
     theme.close();
 
