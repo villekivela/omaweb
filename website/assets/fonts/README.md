@@ -8,6 +8,13 @@ version 2.304.
 
 JetBrains Mono is licensed under the SIL Open Font License 1.1. See `OFL.txt`.
 
+## Space Grotesk
+
+`SpaceGrotesk.woff2` is the Space Grotesk variable font from the
+[Space Grotesk project](https://github.com/floriankarsten/space-grotesk).
+
+Space Grotesk is licensed under the SIL Open Font License 1.1. See `OFL.txt`.
+
 ## Material Symbols Rounded
 
 `material-symbols-subset.woff2` holds only the icons the product UI on the page
