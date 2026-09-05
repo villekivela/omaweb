@@ -116,6 +116,10 @@ _Avoid_: Minimum Qt version, supported engine
 Omaweb's built-in removal of unwanted network requests and page elements using subscribed filter lists. Content blocking is a browser capability and does not depend on an installed extension.
 _Avoid_: Ad-blocking extension
 
+**URL reputation**:
+An optional browser capability that checks an address or download against a provider's current phishing, malware, or software-reputation data. Content blocking may refuse some known malicious addresses but is not URL reputation. URL reputation is not part of Omaweb's daily-driver contract.
+_Avoid_: Safe Browsing, malicious-site blocking
+
 **Substitute resource**:
 A small stand-in body from the vendored uBlock Origin library that Omaweb serves in place of a request a filter list's rule names with `$redirect`. A filter list names a Substitute resource and never supplies its body.
 _Avoid_: Redirect resource, stub, mock response
