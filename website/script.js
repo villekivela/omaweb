@@ -87,8 +87,7 @@
       // +1 while the desktop is entering, -1 as it leaves. Clamped: the raw
       // ratio overshoots 1 at both ends, which would push a layer past its
       // headroom and expose a strip of bare background.
-      var progress = 1 - 2 * ((box.top + box.height / 2) /
-        (innerHeight + box.height));
+      var progress = 1 - 2 * ((box.top + box.height / 2) / (innerHeight + box.height));
       progress = Math.max(-1, Math.min(1, progress));
 
       var shift = progress * RANGE;

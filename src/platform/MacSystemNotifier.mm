@@ -9,23 +9,23 @@
 namespace omaweb {
 namespace {
 
-// The delegate is the notification centre's, one per process, and it outlives
-// any single notifier. It reports to whichever notifier is current, and to
-// none once that notifier is gone.
-QPointer<SystemNotifier> currentNotifier;
+    // The delegate is the notification centre's, one per process, and it outlives
+    // any single notifier. It reports to whichever notifier is current, and to
+    // none once that notifier is gone.
+    QPointer<SystemNotifier> currentNotifier;
 
-// UNUserNotificationCenter is a bundle service: it identifies the notifying
-// application by its bundle identifier, and asking for the centre without one
-// raises. A window server is needed too, so an offscreen or minimal platform
-// plugin has nothing to present with.
-bool notificationCentreUsable()
-{
-    if (QGuiApplication::platformName() != QLatin1String("cocoa")) {
-        return false;
+    // UNUserNotificationCenter is a bundle service: it identifies the notifying
+    // application by its bundle identifier, and asking for the centre without one
+    // raises. A window server is needed too, so an offscreen or minimal platform
+    // plugin has nothing to present with.
+    bool notificationCentreUsable()
+    {
+        if (QGuiApplication::platformName() != QLatin1String("cocoa")) {
+            return false;
+        }
+        NSString *identifier = [[NSBundle mainBundle] bundleIdentifier];
+        return identifier != nil && identifier.length > 0;
     }
-    NSString *identifier = [[NSBundle mainBundle] bundleIdentifier];
-    return identifier != nil && identifier.length > 0;
-}
 
 } // namespace
 } // namespace omaweb
@@ -47,8 +47,8 @@ bool notificationCentreUsable()
 {
     (void)center;
     (void)notification;
-    completionHandler(UNNotificationPresentationOptionBanner
-        | UNNotificationPresentationOptionList);
+    completionHandler(
+        UNNotificationPresentationOptionBanner | UNNotificationPresentationOptionList);
 }
 
 - (void)userNotificationCenter:(UNUserNotificationCenter *)center
@@ -97,9 +97,9 @@ SystemNotifier::SystemNotifier(QObject *parent)
         // unanswered, which is what a refusal means.
         [centre requestAuthorizationWithOptions:UNAuthorizationOptionAlert
                               completionHandler:^(BOOL granted, NSError *error) {
-            (void)granted;
-            (void)error;
-        }];
+                                  (void)granted;
+                                  (void)error;
+                              }];
     }
 }
 
@@ -110,10 +110,7 @@ SystemNotifier::~SystemNotifier()
     }
 }
 
-bool SystemNotifier::available() const
-{
-    return notificationCentreUsable();
-}
+bool SystemNotifier::available() const { return notificationCentreUsable(); }
 
 bool SystemNotifier::present(const QString &key, const QString &title, const QString &body)
 {
@@ -128,9 +125,8 @@ bool SystemNotifier::present(const QString &key, const QString &title, const QSt
             [UNNotificationRequest requestWithIdentifier:key.toNSString()
                                                  content:content
                                                  trigger:nil];
-        [[UNUserNotificationCenter currentNotificationCenter]
-            addNotificationRequest:request
-             withCompletionHandler:nil];
+        [[UNUserNotificationCenter currentNotificationCenter] addNotificationRequest:request
+                                                               withCompletionHandler:nil];
         [content release];
     }
     return true;
@@ -142,7 +138,7 @@ void SystemNotifier::withdraw(const QString &key)
         return;
     }
     @autoreleasepool {
-        NSArray<NSString *> *identifiers = @[key.toNSString()];
+        NSArray<NSString *> *identifiers = @[ key.toNSString() ];
         UNUserNotificationCenter *centre = [UNUserNotificationCenter currentNotificationCenter];
         [centre removePendingNotificationRequestsWithIdentifiers:identifiers];
         [centre removeDeliveredNotificationsWithIdentifiers:identifiers];

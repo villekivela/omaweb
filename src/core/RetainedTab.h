@@ -33,14 +33,14 @@ struct RetainedTab {
     QVariantMap toVariantMap() const
     {
         return {
-            {QStringLiteral("tabId"), tabId},
-            {QStringLiteral("spaceId"), spaceId},
-            {QStringLiteral("spaceName"), spaceName},
-            {QStringLiteral("title"), title},
-            {QStringLiteral("url"), url},
-            {QStringLiteral("zoom"), zoom},
-            {QStringLiteral("muted"), muted},
-            {QStringLiteral("inspected"), inspected},
+            { QStringLiteral("tabId"), tabId },
+            { QStringLiteral("spaceId"), spaceId },
+            { QStringLiteral("spaceName"), spaceName },
+            { QStringLiteral("title"), title },
+            { QStringLiteral("url"), url },
+            { QStringLiteral("zoom"), zoom },
+            { QStringLiteral("muted"), muted },
+            { QStringLiteral("inspected"), inspected },
         };
     }
 };

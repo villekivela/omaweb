@@ -28,7 +28,7 @@ Item {
     readonly property color foreground: colors.text
     readonly property color accent: colors.accent
 
-    signal clicked()
+    signal clicked
 
     activeFocusOnTab: true
     Keys.onSpacePressed: root.clicked()
@@ -56,15 +56,14 @@ Item {
             height: Style.space(16)
             radius: Math.max(2, Style.cornerRadius / 2)
             anchors.verticalCenter: parent.verticalCenter
-            color: root.checked
-                ? Style.selectedFillFor(root.foreground, root.accent)
-                : "transparent"
+            color: root.checked ? Style.selectedFillFor(root.foreground, root.accent) :
+                                  "transparent"
             // Focus is the box's own border rather than a ring around the row:
             // the row is a line of text, and a ring around text reads as a
             // second control.
-            borderSpec: Border.controlSpec(
-                root.activeFocus ? "focus" : (root.checked ? "selected" : "normal"),
-                root.foreground, root.accent)
+            borderSpec: Border.controlSpec(root.activeFocus ? "focus" : (root.checked ? "selected" :
+                                                                                        "normal"),
+                                           root.foreground, root.accent)
 
             Text {
                 objectName: "settingCheckboxTick"

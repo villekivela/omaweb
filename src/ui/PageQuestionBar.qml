@@ -23,7 +23,7 @@ Item {
     height: open ? bar.implicitHeight + 26 : 0
     focus: open
 
-    Keys.onPressed: function(event) {
+    Keys.onPressed: function (event) {
         if (event.key === Qt.Key_Escape && root.actions.length > 0) {
             root.actionTriggered(root.actions.length - 1)
             event.accepted = true

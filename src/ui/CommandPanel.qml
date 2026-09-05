@@ -24,7 +24,7 @@ Item {
     property var results: []
     property int selected: 0
 
-    signal dismissed()
+    signal dismissed
     signal committed(string text)
     signal queryChanged(string text)
 
@@ -47,7 +47,7 @@ Item {
         }
         input.text = commandMode ? "" : presetText
         refresh()
-        Qt.callLater(function() {
+        Qt.callLater(function () {
             input.forceActiveFocus()
             input.selectAll()
         })
@@ -62,15 +62,15 @@ Item {
     // selection at -1: the list is what you step into, not what you start in.
     function step(delta) {
         if (commandMode) {
-            if (results.length === 0) return
+            if (results.length === 0)
+                return
             selected = (selected + delta + results.length) % results.length
             return
         }
-        if (suggestions.length === 0) return
+        if (suggestions.length === 0)
+            return
         const next = selected + delta
-        selected = next < -1
-            ? suggestions.length - 1
-            : (next >= suggestions.length ? -1 : next)
+        selected = next < -1 ? suggestions.length - 1 : (next >= suggestions.length ? -1 : next)
     }
 
     function accept() {
@@ -130,13 +130,13 @@ Item {
             // Only the slice of the window the panel covers, in the source's
             // coordinates. The source fills the same area as this overlay, so
             // the panel's own position is that mapping.
-            sourceRect: root.blurActive
-                ? Qt.rect(panel.x, panel.y, panel.width, panel.height)
-                : Qt.rect(0, 0, 0, 0)
+            sourceRect: root.blurActive ? Qt.rect(panel.x, panel.y, panel.width, panel.height) :
+                                          Qt.rect(0, 0, 0, 0)
             width: Math.max(1, panel.width)
             height: Math.max(1, panel.height)
-            textureSize: Qt.size(Math.max(1, Math.round(panel.width / 2)),
-                                 Math.max(1, Math.round(panel.height / 2)))
+            textureSize: Qt.size(Math.max(1, Math.round(panel.width / 2)), Math.max(1, Math.round(
+                                                                                        panel.height
+                                                                                        / 2)))
         }
 
         MultiEffect {
@@ -208,9 +208,9 @@ Item {
                 padding: 0
                 verticalAlignment: TextInput.AlignVCenter
                 color: root.colors.text
-                placeholderText: root.commandMode
-                    ? "search every action"
-                    : (root.newTabIntent ? "address or search — opens in a new tab" : "address or search")
+                placeholderText: root.commandMode ? "search every action" : (root.newTabIntent
+                                                                             ? "address or search — opens in a new tab" :
+                                                                               "address or search")
                 placeholderTextColor: root.colors.mutedText
                 font.family: Style.font.family
                 font.pixelSize: 17
@@ -224,17 +224,17 @@ Item {
 
                 onAccepted: root.accept()
 
-                Keys.onEscapePressed: function(event) {
+                Keys.onEscapePressed: function (event) {
                     root.dismissed()
                     event.accepted = true
                 }
 
-                Keys.onDownPressed: function(event) {
+                Keys.onDownPressed: function (event) {
                     root.step(1)
                     event.accepted = true
                 }
 
-                Keys.onUpPressed: function(event) {
+                Keys.onUpPressed: function (event) {
                     root.step(-1)
                     event.accepted = true
                 }
@@ -270,9 +270,10 @@ Item {
             anchors.leftMargin: panel.border.width
             anchors.rightMargin: panel.border.width
             anchors.top: header.bottom
-            height: root.commandMode
-                ? Math.min(commandList.contentHeight, 336) + 8
-                : (root.suggestions.length > 0 ? Math.min(suggestionList.contentHeight, 200) + 8 : 0)
+            height: root.commandMode ? Math.min(commandList.contentHeight, 336) + 8 : (
+                                           root.suggestions.length > 0 ? Math.min(
+                                                                             suggestionList.contentHeight,
+                                                                             200) + 8 : 0)
 
             ListView {
                 id: commandList
@@ -293,8 +294,9 @@ Item {
                     width: commandList.width
                     height: 30
 
-                    readonly property bool startsGroup: index === 0
-                        || commandList.model[index - 1].group !== modelData.group
+                    readonly property bool startsGroup: index === 0 || commandList.model[index
+                                                                                         - 1].group
+                                                        !== modelData.group
 
                     Rectangle {
                         anchors.fill: parent
@@ -384,7 +386,7 @@ Item {
                     Rectangle {
                         anchors.fill: parent
                         color: index === root.selected || suggestionMouse.containsMouse
-                            ? root.colors.surface : "transparent"
+                               ? root.colors.surface : "transparent"
                     }
 
                     Rectangle {

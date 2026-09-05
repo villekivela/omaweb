@@ -10,10 +10,10 @@
 namespace omaweb {
 namespace {
 
-// How many refused third parties one page is remembered by. Enough to name the
-// embedded flows a page actually has, and bounded so the table cannot become a
-// record of everywhere the reader has been.
-constexpr qsizetype refusedOriginsPerPage = 16;
+    // How many refused third parties one page is remembered by. Enough to name the
+    // embedded flows a page actually has, and bounded so the table cannot become a
+    // record of everywhere the reader has been.
+    constexpr qsizetype refusedOriginsPerPage = 16;
 
 } // namespace
 
@@ -50,8 +50,7 @@ QString QtCookiePolicy::cookieOrigin(const QUrl &url)
     return origin.toString(QUrl::FullyEncoded);
 }
 
-bool QtCookiePolicy::attachToProfile(QObject *profile, QObject *controller,
-    const QString &spaceId)
+bool QtCookiePolicy::attachToProfile(QObject *profile, QObject *controller, const QString &spaceId)
 {
     auto *engineProfile = qobject_cast<QQuickWebEngineProfile *>(profile);
     auto *browser = qobject_cast<BrowserController *>(controller);
@@ -63,7 +62,7 @@ bool QtCookiePolicy::attachToProfile(QObject *profile, QObject *controller,
         return false;
     }
 
-    m_attachments.insert(store, Attachment{browser, spaceId});
+    m_attachments.insert(store, Attachment { browser, spaceId });
     connect(store, &QObject::destroyed, this, [this, store] {
         m_attachments.remove(store);
         refreshAllowances();
@@ -98,10 +97,7 @@ bool QtCookiePolicy::deleteAllCookies(QObject *profile)
     return true;
 }
 
-int QtCookiePolicy::refusedCount() const
-{
-    return m_refused.loadRelaxed();
-}
+int QtCookiePolicy::refusedCount() const { return m_refused.loadRelaxed(); }
 
 QStringList QtCookiePolicy::refusedOrigins(const QUrl &firstParty) const
 {
@@ -149,8 +145,8 @@ void QtCookiePolicy::refreshAllowances()
         if (!attachment.controller) {
             continue;
         }
-        const auto origins =
-            attachment.controller->allowedThirdPartyCookieOrigins(attachment.spaceId);
+        const auto origins
+            = attachment.controller->allowedThirdPartyCookieOrigins(attachment.spaceId);
         allowed[attachment.spaceId] = QSet<QString>(origins.cbegin(), origins.cend());
     }
     const QMutexLocker locker(&m_guard);

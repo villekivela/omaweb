@@ -30,13 +30,15 @@ DialogPanel {
     panelObjectName: "commandDialogPanel"
 
     onOpenChanged: {
-        if (!open) return
+        if (!open)
+            return
         selected = 0
         field.text = presetText
-        Qt.callLater(function() {
+        Qt.callLater(function () {
             if (root.inputVisible) {
                 field.focusInput()
-                if (root.selectPreset) field.selectAllText()
+                if (root.selectPreset)
+                    field.selectAllText()
             } else {
                 root.forceActiveFocus()
             }
@@ -44,7 +46,8 @@ DialogPanel {
     }
 
     function step(delta) {
-        if (rows.length === 0) return
+        if (rows.length === 0)
+            return
         selected = (selected + delta + rows.length) % rows.length
     }
 
@@ -56,7 +59,7 @@ DialogPanel {
         root.accepted(field.text)
     }
 
-    Keys.onPressed: function(event) {
+    Keys.onPressed: function (event) {
         if (event.key === Qt.Key_Escape) {
             root.dismissed()
             event.accepted = true
@@ -106,10 +109,14 @@ DialogPanel {
             Accessible.role: Accessible.EditableText
             Accessible.name: root.label
 
-            function focusInput() { field.forceActiveFocus() }
-            function selectAllText() { field.selectAll() }
+            function focusInput() {
+                field.forceActiveFocus()
+            }
+            function selectAllText() {
+                field.selectAll()
+            }
 
-            Keys.onPressed: function(event) {
+            Keys.onPressed: function (event) {
                 if (event.key === Qt.Key_Escape) {
                     root.dismissed()
                     event.accepted = true

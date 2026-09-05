@@ -58,8 +58,8 @@ QtObject {
         if (Qt.platform.os !== "osx") {
             return binding.replace("Primary+", "Ctrl+")
         }
-        return binding.replace("Primary+", primaryLabel)
-            .replace("Alt+", altLabel).replace("Shift+", shiftLabel)
+        return binding.replace("Primary+", primaryLabel).replace("Alt+", altLabel).replace("Shift+",
+                                                                                           shiftLabel)
     }
 
     // Every binding that invokes a command, formatted for the command panel.

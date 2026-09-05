@@ -15,15 +15,15 @@ TestCase {
     when: windowShown
 
     property var colorsFixture: ({
-        text: "#f3f1fa",
-        mutedText: "#8d88a3",
-        accent: "#9b87ff",
-        privateAccent: "#dc6bce",
-        border: "#4a4658",
-        surface: "#26232f",
-        surfaceHover: "#3d394e",
-        windowOpaque: "#16151d"
-    })
+                                     text: "#f3f1fa",
+                                     mutedText: "#8d88a3",
+                                     accent: "#9b87ff",
+                                     privateAccent: "#dc6bce",
+                                     border: "#4a4658",
+                                     surface: "#26232f",
+                                     surfaceHover: "#3d394e",
+                                     windowOpaque: "#16151d"
+                                 })
 
     Component {
         id: actionButtonComponent
@@ -156,12 +156,12 @@ TestCase {
     function test_theKitCannotOutlastOmawebsPalette() {
         Color.loadColors("foreground = \"#ff0000\"\naccent = \"#00ff00\"")
         compare(String(Color.foreground), String(theme.palette.text))
-        compare(String(Color.accent), String(theme.palette.accent))
+        compare(String(Color.accent), String(theme.palette.accent));
 
         // A shell.toml reaching Style resets the type base size along with
         // everything else it owns.
         Color.loadUserShell("[font]\nbase-size = 20\n")
-        compare(Style.font.baseSize, theme.palette.font.size)
+        compare(Style.font.baseSize, theme.palette.font.size);
 
         // Leave the kit as the rest of the suite expects to find it. The
         // palette is restored by the seam; the parsed dicts are not.
@@ -201,15 +201,18 @@ TestCase {
     }
 
     function test_destructiveActionButtonTakesThePrivateAccent() {
-        const button = createTemporaryObject(actionButtonComponent, testCase,
-            { destructive: true })
+        const button = createTemporaryObject(actionButtonComponent, testCase, {
+                                                 destructive: true
+                                             })
         compare(String(button.accent), "#dc6bce")
     }
 
     function test_actionButtonClickReachesTheCallSite() {
         let clicks = 0
         const button = createTemporaryObject(actionButtonComponent, testCase)
-        button.clicked.connect(function() { clicks += 1 })
+        button.clicked.connect(function () {
+            clicks += 1
+        })
         // Omaweb is keyboard-driven, and the activation keys are the kit's.
         button.forceActiveFocus()
         verify(button.activeFocus)
@@ -237,7 +240,9 @@ TestCase {
     function test_chromeButtonClickReachesTheCallSite() {
         let clicks = 0
         const button = createTemporaryObject(chromeButtonComponent, testCase)
-        button.clicked.connect(function() { clicks += 1 })
+        button.clicked.connect(function () {
+            clicks += 1
+        })
         button.forceActiveFocus()
         verify(button.activeFocus)
         keyClick(Qt.Key_Return)
@@ -268,7 +273,7 @@ TestCase {
         // settings pane sets none at all. It belongs to what follows it, so
         // there is more room above it than below.
         verify(label.topPadding > label.bottomPadding)
-        verify(label.bottomPadding > 0)
+        verify(label.bottomPadding > 0);
 
         // That lean is separation from what precedes the label, so a call site
         // with nothing above it — or one centring the label in a bar of its own
@@ -293,7 +298,7 @@ TestCase {
         compare(field.placeholderText, "list name")
         compare(String(field.foreground), "#f3f1fa")
         compare(String(field.accent), "#9b87ff")
-        compare(field.font.pixelSize, Style.font.body)
+        compare(field.font.pixelSize, Style.font.body);
 
         // The dialogs drive the field by name, so the two calls they make have
         // to survive the swap.
@@ -305,8 +310,9 @@ TestCase {
     }
 
     function test_destructiveSettingFieldTakesThePrivateAccent() {
-        const field = createTemporaryObject(settingFieldComponent, testCase,
-            { destructive: true })
+        const field = createTemporaryObject(settingFieldComponent, testCase, {
+                                                destructive: true
+                                            })
         compare(String(field.accent), "#dc6bce")
     }
 
@@ -330,8 +336,9 @@ TestCase {
     // `MultiSelect` draws as a popup-list delegate. A sync that restyles the
     // kit's checkbox has to be seen here rather than in a dialog nobody opens.
     function test_settingCheckboxKeepsTheKitsCheckboxShape() {
-        const checkbox = createTemporaryObject(settingCheckboxComponent, testCase,
-            { width: 300 })
+        const checkbox = createTemporaryObject(settingCheckboxComponent, testCase, {
+                                                   width: 300
+                                               })
         verify(checkbox !== null)
         const box = findChild(checkbox, "settingCheckboxBox")
         const tick = findChild(checkbox, "settingCheckboxTick")
@@ -341,7 +348,7 @@ TestCase {
         compare(box.width, Style.space(16))
         compare(box.height, Style.space(16))
         compare(box.radius, Math.max(2, Style.cornerRadius / 2))
-        compare(tick.text, "\u2713")
+        compare(tick.text, "\u2713");
 
         // The two states are told apart by the box's own fill and border,
         // which is what a kit sync would restyle. Nothing here asserts
@@ -350,14 +357,16 @@ TestCase {
         const foreground = testCase.colorsFixture.text
         const accent = testCase.colorsFixture.accent
         compare(String(box.color), "#00000000")
-        compare(String(Border.color(box.borderSpec)),
-            String(Border.color(Border.controlSpec("normal", foreground, accent))))
+        compare(String(Border.color(box.borderSpec)), String(Border.color(Border.controlSpec(
+                                                                              "normal", foreground,
+                                                                              accent))))
 
         checkbox.checked = true
         compare(String(box.color), String(Style.selectedFillFor(foreground, accent)))
         compare(String(tick.color), String(Style.selectedStateColor(foreground, accent)))
-        compare(String(Border.color(box.borderSpec)),
-            String(Border.color(Border.controlSpec("selected", foreground, accent))))
+        compare(String(Border.color(box.borderSpec)), String(Border.color(Border.controlSpec(
+                                                                              "selected", foreground,
+                                                                              accent))))
     }
 
     // Stateless about the value, as the kit's Toggle is. `Space` ticks it and
@@ -365,9 +374,12 @@ TestCase {
     // the whole form.
     function test_settingCheckboxLeavesTheValueToTheCallSiteAndOnlyAnswersSpace() {
         let clicks = 0
-        const checkbox = createTemporaryObject(settingCheckboxComponent, testCase,
-            { width: 300 })
-        checkbox.clicked.connect(function() { clicks += 1 })
+        const checkbox = createTemporaryObject(settingCheckboxComponent, testCase, {
+                                                   width: 300
+                                               })
+        checkbox.clicked.connect(function () {
+            clicks += 1
+        })
         checkbox.forceActiveFocus()
         verify(checkbox.activeFocus)
         keyClick(Qt.Key_Space)
@@ -382,7 +394,7 @@ TestCase {
     // to something that has not happened yet (ADR 0031).
     function test_aSettingIsASwitchAndASelectionIsACheckbox() {
         const setting = createTemporaryObject(settingToggleComponent, testCase)
-        const selection = createTemporaryObject(settingCheckboxComponent, testCase)
+        const selection = createTemporaryObject(settingCheckboxComponent, testCase);
         // QAccessible::Switch is 0x87. Naming the number rather than the
         // enumerator is the point: if the QML attached type ever stops
         // exposing `Accessible.Switch`, an assertion against `undefined` would
@@ -399,7 +411,9 @@ TestCase {
         let clicks = 0
         const toggle = createTemporaryObject(toggleComponent, testCase)
         verify(toggle !== null)
-        toggle.clicked.connect(function() { clicks += 1 })
+        toggle.clicked.connect(function () {
+            clicks += 1
+        })
         compare(toggle.checked, false)
         toggle.forceActiveFocus()
         verify(toggle.activeFocus)

@@ -23,34 +23,54 @@ TestCase {
     height: 900
 
     readonly property var colorsFixture: ({
-        text: "#f3f1fa",
-        mutedText: "#8d88a3",
-        accent: "#9b87ff",
-        privateAccent: "#ffb37a",
-        urgent: "#ff6f7d",
-        separator: "#4a4658",
-        border: "#4a4658",
-        surface: "#26232f",
-        sidebar: "#26232fcc",
-        sheet: "#26232f99",
-        overlay: "#1f1d27f2",
-        windowOpaque: "#16151d"
-    })
+                                              text: "#f3f1fa",
+                                              mutedText: "#8d88a3",
+                                              accent: "#9b87ff",
+                                              privateAccent: "#ffb37a",
+                                              urgent: "#ff6f7d",
+                                              separator: "#4a4658",
+                                              border: "#4a4658",
+                                              surface: "#26232f",
+                                              sidebar: "#26232fcc",
+                                              sheet: "#26232f99",
+                                              overlay: "#1f1d27f2",
+                                              windowOpaque: "#16151d"
+                                          })
 
     // Two of everything the page lists, so a gap between one row and the next
     // is a thing this test can measure rather than a thing it has to imagine.
     readonly property var retainedTabsFixture: [
-        {tabId: "kept-one", title: "First kept tab", url: "https://one.example",
-            spaceName: "Personal", inspected: false, running: true,
-            residentBytes: 120 * 1024 * 1024},
-        {tabId: "kept-two", title: "Second kept tab", url: "https://two.example",
-            spaceName: "Work", inspected: true, running: false, residentBytes: 0}
+        {
+            tabId: "kept-one",
+            title: "First kept tab",
+            url: "https://one.example",
+            spaceName: "Personal",
+            inspected: false,
+            running: true,
+            residentBytes: 120 * 1024 * 1024
+        },
+        {
+            tabId: "kept-two",
+            title: "Second kept tab",
+            url: "https://two.example",
+            spaceName: "Work",
+            inspected: true,
+            running: false,
+            residentBytes: 0
+        }
     ]
 
     readonly property var downloadsFixture: [
-        {path: "/home/reader/Downloads/first.zip", state: "completed", error: ""},
-        {path: "/home/reader/Downloads/second.zip", state: "interrupted",
-            error: "the connection was lost"}
+        {
+            path: "/home/reader/Downloads/first.zip",
+            state: "completed",
+            error: ""
+        },
+        {
+            path: "/home/reader/Downloads/second.zip",
+            state: "interrupted",
+            error: "the connection was lost"
+        }
     ]
 
     Component {
@@ -69,7 +89,9 @@ TestCase {
 
     // Both axes the theme can move the page along, shared with the other pages
     // that ask the same question of their own layouts.
-    ThemeAxis { id: theme }
+    ThemeAxis {
+        id: theme
+    }
 
     property var livePage: null
 
@@ -98,8 +120,8 @@ TestCase {
     // in the page's own coordinates, so a gap is read off what is drawn rather
     // than off the container that spaced it.
     function gapBetween(page, above, below) {
-        return Math.round(below.mapToItem(page, 0, 0).y
-            - (above.mapToItem(page, 0, 0).y + above.height))
+        return Math.round(below.mapToItem(page, 0, 0).y - (above.mapToItem(page, 0, 0).y
+                                                           + above.height))
     }
 
     // The page's own frame is the kit's rhythm rather than a pixel count, so a
@@ -107,8 +129,7 @@ TestCase {
     // else.
     function test_theFrameFollowsTheThemeSpacingScale() {
         const page = makePage()
-        const frame = ["sideMargin", "topInset", "headerGap", "bottomInset",
-            "railGap", "closeSize"]
+        const frame = ["sideMargin", "topInset", "headerGap", "bottomInset", "railGap", "closeSize"]
         const before = ({})
         for (let index = 0; index < frame.length; ++index) {
             verify(page[frame[index]] > 0)
@@ -133,8 +154,7 @@ TestCase {
         compare(eyebrow.mapToItem(page, 0, 0).y, page.topInset)
         compare(close.width, page.closeSize)
         compare(close.height, page.closeSize)
-        compare(Math.round(close.mapToItem(page, close.width, 0).x),
-            page.width - page.sideMargin)
+        compare(Math.round(close.mapToItem(page, close.width, 0).x), page.width - page.sideMargin)
 
         theme.useSpacingScale(2)
         compare(eyebrow.mapToItem(page, 0, 0).x, page.sideMargin)
@@ -151,7 +171,7 @@ TestCase {
         const first = findChild(page, "settingsSection0")
         const second = findChild(page, "settingsSection1")
         verify(first !== null)
-        verify(second !== null)
+        verify(second !== null);
 
         // A name leans on nothing: it belongs to the rail, not to what follows.
         compare(first.topPadding, first.bottomPadding)
@@ -162,14 +182,18 @@ TestCase {
         }
 
         const padding = first.topPadding
-        tryVerify(function() { return railGapBetweenNames() > 0 })
+        tryVerify(function () {
+            return railGapBetweenNames() > 0
+        })
         const gap = railGapBetweenNames()
 
         theme.useSpacingScale(3)
         verify(first.topPadding > padding)
         // A Column repositions on the next polish, so the gap is read back
         // rather than sampled the instant the singleton moved.
-        tryVerify(function() { return railGapBetweenNames() > gap })
+        tryVerify(function () {
+            return railGapBetweenNames() > gap
+        })
     }
 
     // The gap between the blocks a section is made of belongs to the pane, so
@@ -180,11 +204,11 @@ TestCase {
         const page = makePage()
         const pane = findChild(page, "settingsPane")
         verify(pane !== null)
-        verify(pane.spacing > 0)
+        verify(pane.spacing > 0);
 
         // Two cards, which want the pane's gap between them.
         const favicons = findChild(page, "useFavicons")
-        const tint = findChild(page, "tintFavicons")
+        const tint = findChild(page, "tintFavicons");
         // Two rows of a ruled list, which do not.
         const firstKept = findChild(page, "retainedTab-kept-one")
         const secondKept = findChild(page, "retainedTab-kept-two")
@@ -193,17 +217,29 @@ TestCase {
         verify(firstKept !== null)
         verify(secondKept !== null)
 
-        function cardGap() { return testCase.gapBetween(page, favicons, tint) }
-        function ruledGap() { return testCase.gapBetween(page, firstKept, secondKept) }
+        function cardGap() {
+            return testCase.gapBetween(page, favicons, tint)
+        }
+        function ruledGap() {
+            return testCase.gapBetween(page, firstKept, secondKept)
+        }
 
-        tryVerify(function() { return cardGap() === pane.spacing })
-        tryVerify(function() { return ruledGap() === 0 })
+        tryVerify(function () {
+            return cardGap() === pane.spacing
+        })
+        tryVerify(function () {
+            return ruledGap() === 0
+        })
 
         const spacing = pane.spacing
         theme.useSpacingScale(3)
         verify(pane.spacing > spacing)
-        tryVerify(function() { return cardGap() === pane.spacing })
-        tryVerify(function() { return ruledGap() === 0 })
+        tryVerify(function () {
+            return cardGap() === pane.spacing
+        })
+        tryVerify(function () {
+            return ruledGap() === 0
+        })
     }
 
     // And a ruled list is a ruled list wherever it is, not a rule the tabs
@@ -218,7 +254,7 @@ TestCase {
         for (let index = 0; index < rows.length; ++index)
             verify(rows[index] !== null)
 
-        tryVerify(function() {
+        tryVerify(function () {
             return testCase.gapBetween(page, rows[0], rows[1]) === 0
         })
     }
@@ -245,9 +281,11 @@ TestCase {
     function findLabel(item, text) {
         for (let index = 0; index < item.children.length; ++index) {
             const child = item.children[index]
-            if (child.text === text && child.overshoot !== undefined) return child
+            if (child.text === text && child.overshoot !== undefined)
+                return child
             const deeper = findLabel(child, text)
-            if (deeper !== null) return deeper
+            if (deeper !== null)
+                return deeper
         }
         return null
     }
@@ -263,18 +301,24 @@ TestCase {
         verify(fields !== null)
         verify(page.fieldFloor > 0)
 
-        tryVerify(function() { return fields.columns === 2 })
+        tryVerify(function () {
+            return fields.columns === 2
+        })
         verify(fields.fieldWidth >= page.fieldFloor)
 
         const roomy = page.width
-        page.width = page.sideMargin * 2 + page.railWidth + page.railGap
-            + page.fieldFloor * 2 - Style.spacing.huge
-        tryVerify(function() { return fields.columns === 1 })
-        verify(fields.fieldWidth >= page.fieldFloor)
+        page.width = page.sideMargin * 2 + page.railWidth + page.railGap + page.fieldFloor * 2
+                - Style.spacing.huge
+        tryVerify(function () {
+            return fields.columns === 1
+        })
+        verify(fields.fieldWidth >= page.fieldFloor);
 
         // And back, by the same arithmetic rather than by a remembered state.
         page.width = roomy
-        tryVerify(function() { return fields.columns === 2 })
+        tryVerify(function () {
+            return fields.columns === 2
+        })
     }
 
     // A line of explanation beside a row is a measure, not a pixel count: the
@@ -283,23 +327,29 @@ TestCase {
     // the same words into twice the lines and pushed the row it explains off
     // the pane.
     function test_theExplanationIsMeasuredInTheFaceItIsDrawnIn() {
-        const page = makePage()
+        const page = makePage();
         // Network, which is where the longest of these explanations sits.
         page.section = 3
         const status = findChild(page, "automaticRequestsStatus")
         verify(status !== null)
         verify(page.noteMeasure > 0)
 
-        tryVerify(function() { return status.lineCount > 1 })
+        tryVerify(function () {
+            return status.lineCount > 1
+        })
         const measure = page.noteMeasure
         const width = status.width
         const lines = status.lineCount
 
         theme.useTypeTokens(2)
         verify(page.noteMeasure > measure)
-        tryVerify(function() { return status.width > width })
+        tryVerify(function () {
+            return status.width > width
+        })
         // The words did not gain a paragraph's worth of lines on the way.
-        tryVerify(function() { return status.lineCount <= lines + 1 })
+        tryVerify(function () {
+            return status.lineCount <= lines + 1
+        })
     }
 
     // The first item under the pane that runs past its right edge, or that had
@@ -308,14 +358,17 @@ TestCase {
     function overflowingItem(pane, item) {
         for (let index = 0; index < item.children.length; ++index) {
             const child = item.children[index]
-            if (child.visible === false) continue
+            if (child.visible === false)
+                continue
             if (child.width > 0 && child.mapToItem(pane, child.width, 0).x > pane.width + 1)
                 return child
             // A row that had to elide its own text is crowded even though it
             // fits, which is the other half of what a fixed count costs.
-            if (child.truncated === true) return child
+            if (child.truncated === true)
+                return child
             const deeper = overflowingItem(pane, child)
-            if (deeper !== null) return deeper
+            if (deeper !== null)
+                return deeper
         }
         return null
     }
@@ -332,11 +385,14 @@ TestCase {
         theme.useTypeTokens(2)
         for (let section = 0; section < page.sections.length; ++section) {
             page.section = section
-            tryVerify(function() { return testCase.overflowingItem(pane, pane) === null },
-                5000, "section " + page.sections[section] + " overflows the pane")
+            tryVerify(function () {
+                return testCase.overflowingItem(pane, pane) === null
+            }, 5000, "section " + page.sections[section] + " overflows the pane")
             // And the section put something in the pane to begin with, so a
             // section that drew nothing cannot pass by being empty.
-            tryVerify(function() { return pane.height > 0 })
+            tryVerify(function () {
+                return pane.height > 0
+            })
         }
     }
 }

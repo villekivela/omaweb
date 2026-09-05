@@ -88,26 +88,36 @@ Item {
     readonly property point grabbedAt: hoverArea.grabbedAt
     z: lifted ? 20 : 0
     opacity: lifted ? 0.92 : 1.0
-    transform: Translate { x: root.carry.x; y: root.carry.y }
+    transform: Translate {
+        x: root.carry.x
+        y: root.carry.y
+    }
 
     // A row settles into an opened place rather than jumping into it. The one
     // in the hand is not eased: it is already following the pointer.
     Behavior on carry {
         enabled: !root.lifted
-        PropertyAnimation { duration: 110; easing.type: Easing.OutCubic }
+        PropertyAnimation {
+            duration: 110
+            easing.type: Easing.OutCubic
+        }
     }
 
     height: pinned ? 44 : 36
     activeFocusOnTab: true
     Accessible.role: Accessible.PageTab
-    Accessible.name: (pinned ? "Pinned: " + tabTitle : tabTitle)
-        + (tabMuted ? " (muted)"
-            : (tabSoundSuppressed && tabAudible ? " (playing silently)"
-                : (tabAudible ? " (playing audio)" : "")))
+    Accessible.name: (pinned ? "Pinned: " + tabTitle : tabTitle) + (tabMuted ? " (muted)" : (
+                                                                                   tabSoundSuppressed
+                                                                                   && tabAudible
+                                                                                   ? " (playing silently)" :
+                                                                                     (tabAudible
+                                                                                      ? " (playing audio)" :
+                                                                                        "")))
     Accessible.onPressAction: root.activated(root.tabId)
 
-    Keys.onPressed: function(event) {
-        if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Space) {
+    Keys.onPressed: function (event) {
+        if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key
+                === Qt.Key_Space) {
             root.activated(root.tabId)
             event.accepted = true
         }
@@ -144,13 +154,13 @@ Item {
         // is; an ordinary row takes its border only when it is the current tab,
         // which is what makes one row in the list read as the page on show.
         bordered: root.pinned || root.active
-        foreground: root.siteColored && root.active ? root.siteColor
-            : (root.pinned ? root.colors.mutedText : root.colors.text)
+        foreground: root.siteColored && root.active ? root.siteColor : (root.pinned
+                                                                        ? root.colors.mutedText :
+                                                                          root.colors.text)
         // A pin is a control rather than a line of text, so it carries the
         // kit's control fill instead of sitting on the sidebar unfilled.
-        background: root.pinned
-            ? Style.normalFillFor(root.colors.text, root.colors.accent)
-            : "transparent"
+        background: root.pinned ? Style.normalFillFor(root.colors.text, root.colors.accent) :
+                                  "transparent"
         accent: root.siteColored && root.active ? root.siteColor : root.colors.accent
         horizontalPadding: 0
         verticalPadding: 0
@@ -220,47 +230,52 @@ Item {
             root.dragMoved(root.tabId, scene.x, scene.y)
         }
 
-        onPressed: function(mouse) {
+        onPressed: function (mouse) {
             hoverArea.grabbedAt = Qt.point(mouse.x, mouse.y)
             hoverArea.pressedAt = root.mapToItem(null, mouse.x, mouse.y)
         }
 
-        onPositionChanged: function(mouse) {
+        onPositionChanged: function (mouse) {
             // The area's own record of what is held, not the event's: a
             // synthesized move carries no buttons, and a right-press opening
             // the menu must not drag the row on the way.
-            if (!(hoverArea.pressedButtons & Qt.LeftButton)) return
+            if (!(hoverArea.pressedButtons & Qt.LeftButton))
+                return
             const scene = root.mapToItem(null, mouse.x, mouse.y)
             if (!root.lifted) {
-                const travelled = Math.max(Math.abs(scene.x - hoverArea.pressedAt.x),
-                    Math.abs(scene.y - hoverArea.pressedAt.y))
-                if (travelled < hoverArea.liftThreshold) return
+                const travelled = Math.max(Math.abs(scene.x - hoverArea.pressedAt.x), Math.abs(
+                                               scene.y - hoverArea.pressedAt.y))
+                if (travelled < hoverArea.liftThreshold)
+                    return
                 root.dragStarted(root.tabId)
             }
             hoverArea.report(mouse)
         }
 
-        onReleased: function(mouse) {
-            if (!root.lifted) return
+        onReleased: function (mouse) {
+            if (!root.lifted)
+                return
             root.dragEnded(root.tabId)
         }
 
         // A gesture the window took away — the pointer leaving the window, or
         // something above claiming it — leaves the row where the list has
         // already put it rather than holding it in the air.
-        onCanceled: if (root.lifted) root.dragEnded(root.tabId)
+        onCanceled: if (root.lifted)
+                        root.dragEnded(root.tabId)
 
-        onClicked: function(mouse) {
+        onClicked: function (mouse) {
             if (mouse.button === Qt.RightButton) {
                 root.forceActiveFocus()
                 root.openMenu(mouse.x, mouse.y)
                 return
             }
             // A row that has just been carried into place was not clicked.
-            if (root.lifted) return
+            if (root.lifted)
+                return
             root.forceActiveFocus()
-            const overClose = !root.pinned
-                && mouse.x >= root.width - closeButton.width - closeButton.anchors.rightMargin
+            const overClose = !root.pinned && mouse.x >= root.width - closeButton.width
+                  - closeButton.anchors.rightMargin
             if (audioButton.covers(mouse.x, mouse.y)) {
                 root.muteToggled(root.tabId)
             } else if (overClose) {
@@ -276,15 +291,17 @@ Item {
             id: audioButton
             objectName: "audio-" + root.tabId
             function covers(x, y) {
-                return audioButton.visible
-                    && x >= audioButton.x && x < audioButton.x + audioButton.width
-                    && y >= audioButton.y && y < audioButton.y + audioButton.height
+                return audioButton.visible && x >= audioButton.x && x < audioButton.x
+                        + audioButton.width && y >= audioButton.y && y < audioButton.y
+                        + audioButton.height
             }
-            readonly property bool hot: hoverArea.containsMouse
-                && covers(hoverArea.mouseX, hoverArea.mouseY)
-            readonly property color foreground: root.siteColored && root.active
-                ? root.siteColor
-                : (root.silenced || !root.active ? root.colors.mutedText : root.colors.text)
+            readonly property bool hot: hoverArea.containsMouse && covers(hoverArea.mouseX,
+                                                                          hoverArea.mouseY)
+            readonly property color foreground: root.siteColored && root.active ? root.siteColor : (
+                                                                                      root.silenced
+                                                                                      || !root.active
+                                                                                      ? root.colors.mutedText :
+                                                                                        root.colors.text)
             anchors.left: root.pinned ? undefined : parent.left
             anchors.leftMargin: root.chipInset
             anchors.verticalCenter: root.pinned ? undefined : parent.verticalCenter
@@ -296,14 +313,14 @@ Item {
             height: root.chipSize
             visible: root.showsAudio
             radius: Style.cornerRadius
-            color: hot ? Style.hoverFillFor(audioButton.foreground, root.colors.accent)
-                : "transparent"
-            borderSpec: hot
-                ? Border.controlSpec("hover-cursor", audioButton.foreground, root.colors.accent)
-                : Border.none()
+            color: hot ? Style.hoverFillFor(audioButton.foreground, root.colors.accent) :
+                         "transparent"
+            borderSpec: hot ? Border.controlSpec("hover-cursor", audioButton.foreground,
+                                                 root.colors.accent) : Border.none()
             Accessible.role: Accessible.Button
-            Accessible.name: (root.tabMuted ? "Unmute "
-                : (root.tabSoundSuppressed ? "Allow sound from " : "Mute ")) + root.tabTitle
+            Accessible.name: (root.tabMuted ? "Unmute " : (root.tabSoundSuppressed
+                                                           ? "Allow sound from " : "Mute "))
+                             + root.tabTitle
             Accessible.onPressAction: root.muteToggled(root.tabId)
 
             Text {
@@ -319,10 +336,10 @@ Item {
             id: closeButton
             objectName: "close-" + root.tabId
             property string accessibleName: "Close " + root.tabTitle
-            readonly property bool hot: hoverArea.containsMouse
-                && hoverArea.mouseX >= root.width - width - anchors.rightMargin
-            property color foreground: hoverArea.containsMouse
-                ? root.colors.mutedText : "transparent"
+            readonly property bool hot: hoverArea.containsMouse && hoverArea.mouseX >= root.width
+                                        - width - anchors.rightMargin
+            property color foreground: hoverArea.containsMouse ? root.colors.mutedText :
+                                                                 "transparent"
             anchors.right: parent.right
             anchors.rightMargin: 4
             anchors.verticalCenter: parent.verticalCenter
@@ -330,11 +347,11 @@ Item {
             height: 28
             visible: !root.pinned
             radius: Style.cornerRadius
-            color: hot ? Style.hoverFillFor(root.colors.mutedText, root.colors.accent)
-                : "transparent"
-            borderSpec: hot
-                ? Border.controlSpec("hover-cursor", root.colors.mutedText, root.colors.accent)
-                : Border.none()
+            color: hot ? Style.hoverFillFor(root.colors.mutedText, root.colors.accent) :
+                         "transparent"
+
+            borderSpec: hot ? Border.controlSpec("hover-cursor", root.colors.mutedText,
+                                                 root.colors.accent) : Border.none()
             Accessible.role: Accessible.Button
             Accessible.name: accessibleName
             Accessible.onPressAction: root.closeRequested(root.tabId)
@@ -348,5 +365,4 @@ Item {
             }
         }
     }
-
 }

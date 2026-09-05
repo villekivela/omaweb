@@ -53,10 +53,10 @@ void KeyboardNavigationTest::loadsVersionedBindingsDisabledByDefault()
 
     QVERIFY(navigation.valid());
     QVERIFY(!navigation.enabled());
-    QCOMPARE(navigation.bindings().value(QStringLiteral("gg")).toString(),
-        QStringLiteral("scroll-top"));
-    const auto configuration = navigation.configurationForUrl(
-        QUrl(QStringLiteral("https://example.com")));
+    QCOMPARE(
+        navigation.bindings().value(QStringLiteral("gg")).toString(), QStringLiteral("scroll-top"));
+    const auto configuration
+        = navigation.configurationForUrl(QUrl(QStringLiteral("https://example.com")));
     QCOMPARE(configuration.value(QStringLiteral("version")).toInt(), 1);
     QVERIFY(!configuration.value(QStringLiteral("enabled")).toBool());
 }
@@ -75,18 +75,18 @@ void KeyboardNavigationTest::resolvesSitePassthroughForHostsAndSubdomains()
     })JSON");
     KeyboardNavigation navigation(path);
 
-    const auto youtube = navigation.configurationForUrl(
-        QUrl(QStringLiteral("https://www.youtube.com/watch?v=1")));
+    const auto youtube
+        = navigation.configurationForUrl(QUrl(QStringLiteral("https://www.youtube.com/watch?v=1")));
     QCOMPARE(youtube.value(QStringLiteral("passthroughKeys")).toStringList(),
-        QStringList{QStringLiteral("k")});
+        QStringList { QStringLiteral("k") });
     QVERIFY(!youtube.value(QStringLiteral("passthroughAll")).toBool());
 
-    const auto editor = navigation.configurationForUrl(
-        QUrl(QStringLiteral("https://editor.example/document")));
+    const auto editor
+        = navigation.configurationForUrl(QUrl(QStringLiteral("https://editor.example/document")));
     QVERIFY(editor.value(QStringLiteral("passthroughAll")).toBool());
 
-    const auto unrelated = navigation.configurationForUrl(
-        QUrl(QStringLiteral("https://notyoutube.com")));
+    const auto unrelated
+        = navigation.configurationForUrl(QUrl(QStringLiteral("https://notyoutube.com")));
     QVERIFY(unrelated.value(QStringLiteral("passthroughKeys")).toStringList().isEmpty());
 }
 
@@ -137,8 +137,8 @@ void KeyboardNavigationTest::dropsBindingsThisBuildDoesNotKnowAndKeepsTheRest()
 
     QVERIFY(navigation.valid());
     QVERIFY(navigation.enabled());
-    QCOMPARE(navigation.bindings().value(QStringLiteral("j")).toString(),
-        QStringLiteral("scroll-down"));
+    QCOMPARE(
+        navigation.bindings().value(QStringLiteral("j")).toString(), QStringLiteral("scroll-down"));
     QVERIFY(!navigation.bindings().contains(QStringLiteral("z")));
     QCOMPARE(navigation.browserBindings().size(), 2);
     QCOMPARE(navigation.browserBindings().value(QStringLiteral("Primary+W")).toString(),
@@ -218,8 +218,8 @@ void KeyboardNavigationTest::adoptsNewDefaultsOnceWithoutResurrectingRemovedBind
     // A whole missing section arrives, and so does a binding inside a section
     // the file already had.
     QCOMPARE(settings.value(QStringLiteral("browser")).toObject().size(), 2);
-    QCOMPARE(settings.value(QStringLiteral("bindings")).toObject()
-                 .value(QStringLiteral("k")).toString(),
+    QCOMPARE(
+        settings.value(QStringLiteral("bindings")).toObject().value(QStringLiteral("k")).toString(),
         QStringLiteral("scroll-up"));
 
     // Nothing left to adopt, so nothing is rewritten.
@@ -234,15 +234,16 @@ void KeyboardNavigationTest::adoptsNewDefaultsOnceWithoutResurrectingRemovedBind
     auto browser = settings.value(QStringLiteral("browser")).toObject();
     browser.remove(QStringLiteral("Primary+B"));
     settings.insert(QStringLiteral("browser"), browser);
-    QVERIFY(writeConfiguration(root.path(),
-        QJsonDocument(settings).toJson(QJsonDocument::Indented)).size() > 0);
+    QVERIFY(writeConfiguration(root.path(), QJsonDocument(settings).toJson(QJsonDocument::Indented))
+                .size()
+        > 0);
 
     QVERIFY(!KeyboardNavigation::adoptDefaults(path, defaults));
     settings = readConfiguration(path);
-    QVERIFY(!settings.value(QStringLiteral("bindings")).toObject()
-                 .contains(QStringLiteral("k")));
-    QVERIFY(!settings.value(QStringLiteral("browser")).toObject()
-                 .contains(QStringLiteral("Primary+B")));
+    QVERIFY(!settings.value(QStringLiteral("bindings")).toObject().contains(QStringLiteral("k")));
+    QVERIFY(!settings.value(QStringLiteral("browser"))
+            .toObject()
+            .contains(QStringLiteral("Primary+B")));
 
     // A binding a later release introduces still arrives.
     auto laterDefaults = readConfiguration(defaults);
@@ -258,8 +259,8 @@ void KeyboardNavigationTest::adoptsNewDefaultsOnceWithoutResurrectingRemovedBind
     QVERIFY(KeyboardNavigation::adoptDefaults(path, defaults));
     settings = readConfiguration(path);
     browser = settings.value(QStringLiteral("browser")).toObject();
-    QCOMPARE(browser.value(QStringLiteral("Primary+E")).toString(),
-        QStringLiteral("focus-sidebar"));
+    QCOMPARE(
+        browser.value(QStringLiteral("Primary+E")).toString(), QStringLiteral("focus-sidebar"));
     QVERIFY(!browser.contains(QStringLiteral("Primary+B")));
 
     // The file still loads, ledger and all.
@@ -309,17 +310,15 @@ void KeyboardNavigationTest::replacesRetiredDefaultWithoutChangingCustomBindings
     const auto settings = readConfiguration(path);
     const auto pageBindings = settings.value(QStringLiteral("bindings")).toObject();
     const auto browserBindings = settings.value(QStringLiteral("browser")).toObject();
-    QCOMPARE(pageBindings.value(QStringLiteral("u")).toString(),
-        QStringLiteral("scroll-half-page-up"));
+    QCOMPARE(
+        pageBindings.value(QStringLiteral("u")).toString(), QStringLiteral("scroll-half-page-up"));
     QVERIFY(!browserBindings.contains(QStringLiteral("u")));
     QVERIFY(!browserBindings.contains(QStringLiteral("gt")));
     QVERIFY(!browserBindings.contains(QStringLiteral("gT")));
     QVERIFY(!browserBindings.contains(QStringLiteral("gs")));
     QVERIFY(!browserBindings.contains(QStringLiteral("gn")));
-    QCOMPARE(browserBindings.value(QStringLiteral("X")).toString(),
-        QStringLiteral("reopen-tab"));
-    QCOMPARE(browserBindings.value(QStringLiteral("q")).toString(),
-        QStringLiteral("close-tab"));
+    QCOMPARE(browserBindings.value(QStringLiteral("X")).toString(), QStringLiteral("reopen-tab"));
+    QCOMPARE(browserBindings.value(QStringLiteral("q")).toString(), QStringLiteral("close-tab"));
     // A key Omaweb has repurposed follows the new default rather than keeping
     // the command Omaweb itself put there. Adoption cannot do this on its own:
     // it never argues with a key the file already binds.

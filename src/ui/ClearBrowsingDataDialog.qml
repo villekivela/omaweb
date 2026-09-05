@@ -31,18 +31,50 @@ DialogPanel {
     property bool everySpace: false
 
     readonly property var categoryOptions: [
-        { value: "cookies", label: "Cookies", note: "Signs out of sites that kept you signed in." },
-        { value: "storage", label: "Site storage", note: "Local storage, databases and service workers." },
-        { value: "cache", label: "Cache", note: "Files kept to load pages faster." },
-        { value: "permissions", label: "Site permissions", note: "Decisions sites are asked for again." },
-        { value: "history", label: "History", note: "Pages visited, and what the address bar suggests." }
+        {
+            value: "cookies",
+            label: "Cookies",
+            note: "Signs out of sites that kept you signed in."
+        },
+        {
+            value: "storage",
+            label: "Site storage",
+            note: "Local storage, databases and service workers."
+        },
+        {
+            value: "cache",
+            label: "Cache",
+            note: "Files kept to load pages faster."
+        },
+        {
+            value: "permissions",
+            label: "Site permissions",
+            note: "Decisions sites are asked for again."
+        },
+        {
+            value: "history",
+            label: "History",
+            note: "Pages visited, and what the address bar suggests."
+        }
     ]
 
     readonly property var rangeOptions: [
-        { value: "3600000", label: "the last hour" },
-        { value: "86400000", label: "the last day" },
-        { value: "604800000", label: "the last week" },
-        { value: "0", label: "all time" }
+        {
+            value: "3600000",
+            label: "the last hour"
+        },
+        {
+            value: "86400000",
+            label: "the last day"
+        },
+        {
+            value: "604800000",
+            label: "the last week"
+        },
+        {
+            value: "0",
+            label: "all time"
+        }
     ]
 
     function holds(value) {
@@ -57,8 +89,9 @@ DialogPanel {
     function trackOpenLists() {
         root.anyListOpen = scope.popupOpen || timeRange.popupOpen
     }
-    readonly property bool confirmable: root.categories.length > 0
-        && (!root.everySpace || confirmation.text === "CLEAR ALL")
+    readonly property bool confirmable: root.categories.length > 0 && (!root.everySpace
+                                                                       || confirmation.text
+                                                                       === "CLEAR ALL")
 
     signal categoryToggled(string value)
     signal rangeChosen(string value)
@@ -70,7 +103,8 @@ DialogPanel {
     confirmHint: "⏎ clear · tab moves · space ticks"
 
     onOpenChanged: {
-        if (!open) return
+        if (!open)
+            return
         root.everySpace = false
         confirmation.text = ""
         // The first argument, so Tab walks the form from its top. Set now
@@ -78,17 +112,19 @@ DialogPanel {
         // on the way up, so there is no moment where the dialog is open and the
         // keyboard is somewhere behind it.
         const first = categoryList.itemAt(0)
-        if (first) first.forceActiveFocus()
+        if (first)
+            first.forceActiveFocus()
     }
 
     function confirm() {
-        if (!root.confirmable) return
+        if (!root.confirmable)
+            return
         const duration = Number(root.range)
         const since = duration === 0 ? 0 : Date.now() - duration
         root.confirmed(root.categories, since, root.everySpace, confirmation.text)
     }
 
-    Keys.onPressed: function(event) {
+    Keys.onPressed: function (event) {
         // A dropdown that is open answers Escape itself, and having answered it
         // keeps it: the first Escape closes the list, the second closes this.
         if (event.key === Qt.Key_Escape) {
@@ -121,9 +157,10 @@ DialogPanel {
             Text {
                 width: parent.width
                 text: root.everySpace
-                    ? "Every Space loses what is ticked below. This cannot be undone."
-                    : "Clears the ticked data from " + (root.spaceName.length > 0
-                        ? root.spaceName : "this Space") + ". This cannot be undone."
+                      ? "Every Space loses what is ticked below. This cannot be undone." :
+                        "Clears the ticked data from " + (root.spaceName.length > 0
+                                                          ? root.spaceName : "this Space")
+                        + ". This cannot be undone."
                 color: root.colors.text
                 wrapMode: Text.WordWrap
                 font.family: Style.font.family
@@ -160,14 +197,21 @@ DialogPanel {
                     showLabel: true
                     label: "Clear from"
                     options: [
-                        { value: "space", label: root.spaceName.length > 0
-                            ? root.spaceName : "this Space" },
-                        { value: "every", label: "every Space" }
+                        {
+                            value: "space",
+                            label: root.spaceName.length > 0 ? root.spaceName : "this Space"
+                        },
+                        {
+                            value: "every",
+                            label: "every Space"
+                        }
                     ]
                     value: root.everySpace ? "every" : "space"
                     accessibleName: "Which Spaces to clear"
                     onPopupOpenChanged: root.trackOpenLists()
-                    onChanged: function(value) { root.everySpace = value === "every" }
+                    onChanged: function (value) {
+                        root.everySpace = value === "every"
+                    }
                 }
 
                 SettingDropdown {
@@ -181,7 +225,9 @@ DialogPanel {
                     value: root.range
                     accessibleName: "Browsing data time range"
                     onPopupOpenChanged: root.trackOpenLists()
-                    onChanged: function(value) { root.rangeChosen(value) }
+                    onChanged: function (value) {
+                        root.rangeChosen(value)
+                    }
                 }
             }
 

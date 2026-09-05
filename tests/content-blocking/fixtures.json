@@ -260,10 +260,7 @@
     {
       "name": "generic class rule reaches a page carrying it",
       "url": "https://other.example/",
-      "classes": [
-        "generic-ad",
-        "headline"
-      ],
+      "classes": ["generic-ad", "headline"],
       "ids": [],
       "contains": ".generic-ad",
       "hidden": true
@@ -271,9 +268,7 @@
     {
       "name": "generic class rule stays off a page without it",
       "url": "https://other.example/",
-      "classes": [
-        "headline"
-      ],
+      "classes": ["headline"],
       "ids": [],
       "contains": ".generic-ad",
       "hidden": false
@@ -282,18 +277,14 @@
       "name": "generic id rule reaches a page carrying it",
       "url": "https://other.example/",
       "classes": [],
-      "ids": [
-        "banner-ad"
-      ],
+      "ids": ["banner-ad"],
       "contains": "#banner-ad",
       "hidden": true
     },
     {
       "name": "site exception keeps a generic rule off that site",
       "url": "https://site.example/",
-      "classes": [
-        "generic-ad"
-      ],
+      "classes": ["generic-ad"],
       "ids": [],
       "contains": ".generic-ad",
       "hidden": false
@@ -301,12 +292,8 @@
     {
       "name": "a $generichide site is not surveyed",
       "url": "https://nogeneric.example/",
-      "classes": [
-        "generic-ad"
-      ],
-      "ids": [
-        "banner-ad"
-      ],
+      "classes": ["generic-ad"],
+      "ids": ["banner-ad"],
       "contains": ".generic-ad",
       "hidden": false
     }

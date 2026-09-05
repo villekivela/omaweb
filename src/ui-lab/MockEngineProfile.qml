@@ -22,13 +22,10 @@ QtObject {
     function resetOriginPermissions(origin) {
         resetPermissionOrigins = resetPermissionOrigins.concat([String(origin)])
     }
-    signal browsingDataCleared()
+    signal browsingDataCleared
     property string downloadDirectory: ""
     property bool acceptDownloads: false
     property var downloadController: null
-    // The lab has no engine to hold a download away from, so a held one is a
-    // token in a table here. What the shell has to get right is the same
-    // either way: nothing is written until the reader has answered.
     property var downloadHolds: null
     property var answeredDownloads: ({})
     property var downloadRequests: ({})
@@ -44,29 +41,28 @@ QtObject {
     property bool notificationObserversConnected: false
     readonly property var profile: this
     signal downloadStarted(string runtimeId, url sourceUrl, string path, string state,
-        double receivedBytes, double totalBytes)
-    signal downloadUpdated(string runtimeId, string state, double receivedBytes,
-        double totalBytes, string error)
+                           double receivedBytes, double totalBytes)
+    signal downloadUpdated(string runtimeId, string state, double receivedBytes, double totalBytes,
+                           string error)
     signal downloadHeld(string token, string disposition, string origin, url sourceUrl,
-        string fileName, string risk)
+                        string fileName, string risk)
     signal downloadRefused(url sourceUrl, string fileName, string origin)
 
-    // A page asking for a file, put through the same rule the Qt profile puts
-    // one through, so the shell's side of the question can be driven without an
-    // engine. Returns the identifier the download would be known by, or an
-    // empty string where it was held or refused.
     function simulateDownloadRequest(pageUrl, sourceUrl, fileName, mimeType) {
-        if (!acceptDownloads) return ""
+        if (!acceptDownloads)
+            return ""
         const sourceKey = String(sourceUrl)
         const answer = answeredDownloads[sourceKey]
         const answered = answer !== undefined
-        if (answered) delete answeredDownloads[sourceKey]
+        if (answered)
+            delete answeredDownloads[sourceKey]
         let chosenPath = answered && answer.length > 0 ? answer : ""
         if (chosenPath.length === 0) {
-            const rule = downloadController
-                ? downloadController.downloadDisposition(pageUrl, fileName, mimeType,
-                    downloadDirectory, answered)
-                : null
+            const rule = downloadController ? downloadController.downloadDisposition(pageUrl,
+                                                                                     fileName, mimeType,
+                                                                                     downloadDirectory,
+                                                                                     answered) :
+                                              null
             const disposition = rule ? rule.disposition : "accept"
             if (disposition === "refuse") {
                 downloadRefused(sourceUrl, fileName, rule.origin)
@@ -85,31 +81,28 @@ QtObject {
             }
         }
         const runtimeId = downloadNamespace + ":" + String(++nextHeldDownload)
-        const path = chosenPath.length > 0
-            ? chosenPath : downloadDirectory + "/" + String(fileName)
+        const path = chosenPath.length > 0 ? chosenPath : downloadDirectory + "/" + String(fileName)
         downloadRequests[runtimeId] = path
         activeDownloadCount += 1
-        if (downloadController) downloadController.noteDownloadStarted(pageUrl, runtimeId)
+        if (downloadController)
+            downloadController.noteDownloadStarted(pageUrl, runtimeId)
         downloadStarted(runtimeId, sourceUrl, path, "in-progress", 0, 100)
         return runtimeId
     }
 
-    // Bytes arriving, which is the only thing the footer's download mark has to
-    // go on. `totalBytes` of 0 is the case a server sent no length: the shell
-    // has to say something honest about a download it cannot put a percentage
-    // on, so the lab can hand it one.
     function simulateDownloadProgress(runtimeId, receivedBytes, totalBytes) {
-        if (downloadRequests[runtimeId] === undefined) return false
+        if (downloadRequests[runtimeId] === undefined)
+            return false
         downloadUpdated(runtimeId, "in-progress", receivedBytes, totalBytes, "")
         return true
     }
 
-    // The download finishing, which is when the shell marks the file with where
-    // it came from.
     function simulateDownloadFinished(runtimeId) {
-        if (downloadRequests[runtimeId] === undefined) return false
+        if (downloadRequests[runtimeId] === undefined)
+            return false
         activeDownloadCount -= 1
-        if (downloadController) downloadController.noteDownloadSettled(runtimeId)
+        if (downloadController)
+            downloadController.noteDownloadSettled(runtimeId)
         delete downloadRequests[runtimeId]
         downloadUpdated(runtimeId, "completed", 100, 100, "")
         return true
@@ -117,35 +110,38 @@ QtObject {
 
     function releaseHeldDownload(token, path) {
         const details = heldDownloads[token]
-        if (!details) return false
+        if (!details)
+            return false
         delete heldDownloads[token]
         answeredDownloads[details.sourceUrl] = path ? String(path) : ""
         simulateDownloadRequest(details.pageUrl, details.sourceUrl, details.fileName,
-            details.mimeType)
+                                details.mimeType)
         return true
     }
 
     function discardHeldDownload(token) {
-        if (heldDownloads[token] === undefined) return false
+        if (heldDownloads[token] === undefined)
+            return false
         delete heldDownloads[token]
         return true
     }
 
     function cancelDownload(runtimeId) {
-        if (downloadRequests[runtimeId] === undefined) return false
+        if (downloadRequests[runtimeId] === undefined)
+            return false
         cancelledDownloads = cancelledDownloads.concat([String(runtimeId)])
         downloadUpdated(runtimeId, "cancelled", 0, 100, "")
         return true
     }
 
     function retryDownload(runtimeId) {
-        if (downloadRequests[runtimeId] === undefined) return false
+        if (downloadRequests[runtimeId] === undefined)
+            return false
         retriedDownloads = retriedDownloads.concat([String(runtimeId)])
         downloadUpdated(runtimeId, "in-progress", 0, 100, "")
         return true
     }
-    signal notificationPresented(string notificationId, url origin, string title,
-        string message)
+    signal notificationPresented(string notificationId, url origin, string title, string message)
     // The lab has no page to ask, so a notification is named. What the shell
     // did with it is counted here, because refusing one is as much of an answer
     // as showing it.
@@ -163,7 +159,9 @@ QtObject {
     function dismissNotification(notificationId) {
         dismissedNotifications = dismissedNotifications.concat([String(notificationId)])
     }
-    function retire() { destroy() }
+    function retire() {
+        destroy()
+    }
     function clearBrowsingData(dataTypes, since) {
         browsingDataClearCount += 1
         browsingDataCleared()

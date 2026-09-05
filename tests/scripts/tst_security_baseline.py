@@ -77,8 +77,6 @@ class BaselineReport(unittest.TestCase):
         self.assertFalse(result["behind"])
         self.assertEqual(result["reasons"], [])
 
-    # Chromium moves on its own schedule and no change in this repository
-    # answers it until Qt ships the fixes, so it is reported rather than raised.
     def test_chromium_moving_on_is_reported_but_opens_nothing(self):
         result = report(chromium="151.0.7922.80")
 
@@ -93,7 +91,6 @@ class BaselineReport(unittest.TestCase):
                 result = baseline.baseline_report(dict(APPROVED), unreadable,
                                                   "151.0.7922.71")
                 self.assertFalse(result["behind"])
-        # An answer that came back empty says so rather than reading as green.
         self.assertTrue(any("incomplete" in reason
                             for reason in report(engine="").get("reasons", [])))
 
@@ -132,8 +129,6 @@ class TrackingIssue(unittest.TestCase):
         self.assertIn(baseline.TRIAGE_LABEL, created[0])
         body = created[0][created[0].index("--body") + 1]
         self.assertIn(baseline.MARKER, body)
-        # The seven-day response is the requirement the issue exists to meet,
-        # so the date it is due by is in the body rather than in someone's head.
         self.assertIn("2026-09-11", body)
         self.assertIn("security/baseline.json", body)
         self.assertIn("Raise the engine security baseline", output)
@@ -159,8 +154,6 @@ class TrackingIssue(unittest.TestCase):
         self.assertIn("Closed #42", output)
 
 
-# The file the runtime and the check both read. A baseline that has lost a
-# field would have the browser claim a baseline nobody wrote.
 class BaselineFile(unittest.TestCase):
     def test_the_approved_baseline_names_every_version_it_promises(self):
         approved = json.loads(baseline.BASELINE.read_text())
@@ -170,8 +163,6 @@ class BaselineFile(unittest.TestCase):
             self.assertIn(field, approved)
             self.assertTrue(baseline.version(approved[field])
                             or field == "reviewed", field)
-        # The security patch level is a later Chromium than the one the engine
-        # is built on, which is the whole reason both are recorded.
         self.assertTrue(baseline.newer(approved["chromiumSecurityPatch"],
                                        approved["chromium"]))
 

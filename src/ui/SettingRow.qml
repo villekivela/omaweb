@@ -24,9 +24,10 @@ Item {
 
     readonly property int verticalPadding: Style.spacing.huge
 
-    implicitHeight: verticalPadding + titleText.implicitHeight
-        + (note.length > 0 ? Style.spacing.md + noteText.implicitHeight : 0)
-        + verticalPadding
+    implicitHeight: verticalPadding + titleText.implicitHeight + (note.length > 0
+                                                                  ? Style.spacing.md
+                                                                    + noteText.implicitHeight : 0)
+                    + verticalPadding
     height: implicitHeight
 
     Rectangle {

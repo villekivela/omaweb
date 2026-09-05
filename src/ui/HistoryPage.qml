@@ -13,7 +13,7 @@ Rectangle {
     property Item pageSource: null
     property var rows: []
 
-    signal closed()
+    signal closed
 
     visible: open
     color: "transparent"
@@ -28,17 +28,20 @@ Rectangle {
     }
 
     onOpenChanged: if (open) {
-        search.text = ""
-        refresh()
-        search.forceActiveFocus()
-    }
+                       search.text = ""
+                       refresh()
+                       search.forceActiveFocus()
+                   }
 
     Connections {
         target: root.browser
-        function onActiveSpaceChanged() { if (root.open) root.refresh() }
+        function onActiveSpaceChanged() {
+            if (root.open)
+                root.refresh()
+        }
     }
 
-    Keys.onPressed: function(event) {
+    Keys.onPressed: function (event) {
         if (event.key === Qt.Key_Escape) {
             root.closed()
             event.accepted = true

@@ -14,12 +14,12 @@ ApplicationWindow {
     minimumWidth: 840
     minimumHeight: 560
     color: "transparent"
-    flags: Qt.platform.os === "osx"
-        ? Qt.Window | Qt.ExpandedClientAreaHint | Qt.NoTitleBarBackgroundHint
-        : Qt.Window | Qt.FramelessWindowHint
+    flags: Qt.platform.os === "osx" ? Qt.Window | Qt.ExpandedClientAreaHint | Qt.NoTitleBarBackgroundHint :
+                                      Qt.Window | Qt.FramelessWindowHint
     topPadding: 0
     visible: true
-    title: window.privateWindow ? "Private — Omaweb" : window.windowBrowser.activeTitle + " — Omaweb"
+    title: window.privateWindow ? "Private — Omaweb" : window.windowBrowser.activeTitle
+                                  + " — Omaweb"
 
     property var windowBrowser: browser
     // The native backdrop reads this to mask its blur to the same rounded rect,
@@ -27,8 +27,8 @@ ApplicationWindow {
     // the screen has no corners to round, and rounding them there would notch
     // the desktop through at all four.
     readonly property real shellCornerRadius: 14
-    property real cornerRadius: window.visibility === Window.FullScreen
-        ? 0 : window.shellCornerRadius
+    property real cornerRadius: window.visibility === Window.FullScreen ? 0 :
+                                                                          window.shellCornerRadius
     property bool privateWindow: false
     property string profilePathOverride: ""
     property var sharedEngineProfile: null
@@ -40,16 +40,17 @@ ApplicationWindow {
     // narrow and a tab row stops being readable, too wide and the page it is
     // an outline of loses the window.
     readonly property real sidebarMinimumWidth: 220
-    readonly property real sidebarMaximumWidth:
-        Math.max(sidebarMinimumWidth, Math.min(560, window.width * 0.5))
+    readonly property real sidebarMaximumWidth: Math.max(sidebarMinimumWidth, Math.min(560,
+                                                                                       window.width
+                                                                                       * 0.5))
     readonly property real sidebarDefaultWidth: 292
     property real sidebarWidth: sidebarDefaultWidth
     // Developer tools are docked to the right of the page they inspect, and the
     // reader owns that seam as they own the sidebar's. The floor is what the
     // inspector's own toolbar needs before its panels start collapsing.
     readonly property real developerToolsMinimumWidth: 320
-    readonly property real developerToolsMaximumWidth:
-        Math.max(developerToolsMinimumWidth, Math.min(920, window.width * 0.6))
+    readonly property real developerToolsMaximumWidth: Math.max(developerToolsMinimumWidth, Math.min(
+                                                                    920, window.width * 0.6))
     readonly property real developerToolsDefaultWidth: 480
     property real developerToolsWidth: developerToolsDefaultWidth
     // The dock stands only for the tab on show, and only once the engine has
@@ -57,44 +58,52 @@ ApplicationWindow {
     // screen before the next Space's arrive, and the inspector goes with them
     // rather than hanging over an empty viewport.
     readonly property bool developerToolsOpen: window.windowBrowser.activeTabInspected
-        && engineLoader.item !== null
-        && engineLoader.developerToolsView !== null
+                                               && engineLoader.item !== null
+                                               && engineLoader.developerToolsView !== null
     // An engine without an inspector leaves the command unavailable rather than
     // offering a dock nothing can fill.
-    readonly property bool developerToolsAvailable: engineLoader.item !== null
-        && (engineLoader.item.capabilities
-            & engineLoader.item.developerToolsCapability) !== 0
+    readonly property bool developerToolsAvailable: engineLoader.item !== null && (
+                                                        engineLoader.item.capabilities
+                                                        & engineLoader.item.developerToolsCapability)
+                                                    !== 0
     // The everyday page operations an engine may or may not have. Each is read
     // off the adapter itself, so a command Omaweb cannot carry out here is listed
     // and unavailable rather than doing nothing when it is run.
-    readonly property bool findAvailable: engineLoader.item !== null
-        && (engineLoader.item.capabilities & engineLoader.item.pageFindCapability) !== 0
-    readonly property bool zoomAvailable: engineLoader.item !== null
-        && (engineLoader.item.capabilities & engineLoader.item.pageZoomCapability) !== 0
+    readonly property bool findAvailable: engineLoader.item !== null && (
+                                              engineLoader.item.capabilities
+                                              & engineLoader.item.pageFindCapability) !== 0
+    readonly property bool zoomAvailable: engineLoader.item !== null && (
+                                              engineLoader.item.capabilities
+                                              & engineLoader.item.pageZoomCapability) !== 0
     // Two halves have to hold: an engine that can render the page for printing,
     // and a desktop with a print dialog to answer.
-    readonly property bool printingAvailable: engineLoader.item !== null
-        && (engineLoader.item.capabilities & engineLoader.item.printingCapability) !== 0
-        && PagePrinter.available
+    readonly property bool printingAvailable: engineLoader.item !== null && (
+                                                  engineLoader.item.capabilities
+                                                  & engineLoader.item.printingCapability) !== 0
+                                              && PagePrinter.available
     // A PDF the engine draws in its own sandbox, with find, zoom, print and
     // download inside it. An engine without one downloads the document, and
     // says so.
-    readonly property bool inlinePdfViewingAvailable: engineLoader.item !== null
-        && (engineLoader.item.capabilities
-            & engineLoader.item.inlinePdfViewingCapability) !== 0
+    readonly property bool inlinePdfViewingAvailable: engineLoader.item !== null && (
+                                                          engineLoader.item.capabilities
+                                                          & engineLoader.item.inlinePdfViewingCapability)
+                                                      !== 0
     // The two halves of a site's security contract an engine can be missing,
     // and whether it keeps a Space's site data on disk at all. Site information
     // says which of its lines the engine cannot answer for rather than drawing
     // a reassuring blank.
-    readonly property bool certificateDecisionsAvailable: engineLoader.item !== null
-        && (engineLoader.item.capabilities
-            & engineLoader.item.certificateDecisionsCapability) !== 0
-    readonly property bool thirdPartyCookieControlAvailable: engineLoader.item !== null
-        && (engineLoader.item.capabilities
-            & engineLoader.item.thirdPartyCookieControlCapability) !== 0
-    readonly property bool siteDataOnDisk: engineLoader.item !== null
-        && (engineLoader.item.capabilities
-            & engineLoader.item.persistentProfilesCapability) !== 0
+    readonly property bool certificateDecisionsAvailable: engineLoader.item !== null && (
+                                                              engineLoader.item.capabilities
+                                                              & engineLoader.item.certificateDecisionsCapability)
+                                                          !== 0
+    readonly property bool thirdPartyCookieControlAvailable: engineLoader.item !== null && (
+                                                                 engineLoader.item.capabilities
+                                                                 & engineLoader.item.thirdPartyCookieControlCapability)
+                                                             !== 0
+    readonly property bool siteDataOnDisk: engineLoader.item !== null && (
+                                               engineLoader.item.capabilities
+                                               & engineLoader.item.persistentProfilesCapability)
+                                           !== 0
     // The permission policies the core answers with, named here so nothing in
     // the interface compares against a bare number.
     readonly property int permissionRefused: 0
@@ -121,21 +130,21 @@ ApplicationWindow {
     // waiver is what keeps the address trigger honest about it.
     readonly property string connectionState: {
         const generation = window.certificateExceptionGeneration
-        const reported = engineLoader.item
-            ? engineLoader.item.connectionState : "internal"
-        if (reported === "internal" || generation < 0) return reported
-        return window.windowBrowser.certificateExceptionInEffect(
-            window.windowBrowser.activeUrl) ? "certificate-error" : reported
+        const reported = engineLoader.item ? engineLoader.item.connectionState : "internal"
+        if (reported === "internal" || generation < 0)
+            return reported
+        return window.windowBrowser.certificateExceptionInEffect(window.windowBrowser.activeUrl)
+                ? "certificate-error" : reported
     }
     readonly property bool insecureContentBlocked: engineLoader.item === null
-        || engineLoader.item.insecureContentBlocked
+                                                   || engineLoader.item.insecureContentBlocked
 
     // No page to show: the tab on show is blank and no engine is drawing it.
     // That covers a resting Space and an `about:blank` the reader navigated to
     // — and leaves out the blank tab a page opened, which has its engine
     // already and is about to be a page.
-    readonly property bool pagelessViewport: window.windowBrowser.activeTabBlank
-        && !engineLoader.item
+    readonly property bool pagelessViewport: window.windowBrowser.activeTabBlank &&
+                                             !engineLoader.item
     property bool omnibarOpen: false
     property bool newTabIntent: false
     // Which tabs have the find bar showing, by tab id. Find belongs to a tab,
@@ -183,40 +192,17 @@ ApplicationWindow {
     property string pendingPermissionType: ""
     property var pendingPermissionResponder: null
     property var downloadRecordIds: ({})
-    // The downloads still running in this window, each remembering the profile
-    // that owns the engine's request and where the file is going, so cancelling,
-    // retrying, revealing and marking the finished file all reach the right one.
     property var runningDownloads: ({})
-    // What the outline's footer states about downloads: how many are in flight
-    // and how far through the whole of them the bytes have got. Derived from
-    // `runningDownloads` and nothing else, because that map is in memory:
-    // `visibleDownloads` reads the Space's records to build itself, which is a
-    // query, and progress arrives byte by byte. A fraction of -1 is no
-    // percentage rather than nought percent — see `refreshDownloadActivity`.
-    property var downloadActivity: ({ "running": 0, "fraction": -1, "finished": 0,
-        "downloads": [] })
-    // How many downloads have finished since the mark last had nothing to
-    // show. It is what lets the mark hold a finished state after the last
-    // download rather than blinking out mid-glance, and it counts finished
-    // ones only: a cancelled download ended the way the reader asked it to and
-    // has nothing left to say.
+    property var downloadActivity: ({
+                                        "running": 0,
+                                        "fraction": -1,
+                                        "finished": 0,
+                                        "downloads": []
+                                    })
     property int finishedDownloadCount: 0
-    // Whether the footer is being asked which file is which. Naming them costs
-    // an object per download per byte, so they are only built while something
-    // is reading them — the same bargain the retained-tab list makes.
     readonly property bool downloadDetailOpen: sidebar.downloadDetailWanted
-    // How long the notice naming a saved file stands, and therefore how long
-    // the footer's mark holds its finished state: the two say the same thing
-    // about the same download and stopping at different moments would read as
-    // two different claims.
     readonly property int savedDownloadNoticeMilliseconds: 4200
-    // The held downloads waiting on the reader, oldest first. Nothing has been
-    // written for any of them. One question stands at a time and the rest wait,
-    // because a stack of bars over the page would be answered by whichever one
-    // the reader could see.
     property var heldDownloadQueue: []
-    // The held download the bar is asking about. "Held", not pending: nothing
-    // has been written for it, which is the whole difference (see CONTEXT.md).
     property var downloadQuestion: null
     property bool downloadQuestionOpen: false
     property bool settingsOpen: false
@@ -304,7 +290,8 @@ ApplicationWindow {
         objectName: "openFileDialog"
         title: "Open file"
         fileMode: Dialogs.FileDialog.OpenFile
-        nameFilters: ["Web pages, text, images, and PDF (*.html *.htm *.txt *.png *.jpg *.jpeg *.gif *.webp *.svg *.pdf)"]
+        nameFilters:
+            ["Web pages, text, images, and PDF (*.html *.htm *.txt *.png *.jpg *.jpeg *.gif *.webp *.svg *.pdf)"]
         onAccepted: window.openLocalFile(selectedFile)
     }
 
@@ -330,8 +317,6 @@ ApplicationWindow {
         onRejected: window.respondToFileSelection([])
     }
 
-    // Where a download whose name is already taken goes. The reader is asked
-    // in the desktop's own dialog, and nothing has been written while it stands.
     Dialogs.FileDialog {
         id: downloadTargetDialog
         objectName: "downloadTargetDialog"
@@ -371,29 +356,65 @@ ApplicationWindow {
     // are offered different lists: a pin has no close and no rows below it, and
     // Keep active is a pin's setting alone.
     function tabMenuActionsFor(tabId) {
-        if (tabId.length === 0) return []
+        if (tabId.length === 0)
+            return []
         if (window.windowBrowser.tabPinned(tabId)) {
             const keptActive = window.windowBrowser.tabKeepActive(tabId)
             return [
-                {"label": "Duplicate tab", "command": "duplicate-tab"},
-                {"label": keptActive ? "Stop keeping active" : "Keep active",
-                    "command": "keep-tab-active"},
-                {"label": "Unpin tab", "command": "pin-tab"},
-                {"separator": true},
-                {"label": "Move to another Space", "command": "move-tab",
-                    "enabled": !window.privateWindow}
-            ]
+                        {
+                            "label": "Duplicate tab",
+                            "command": "duplicate-tab"
+                        },
+                        {
+                            "label": keptActive ? "Stop keeping active" : "Keep active",
+                            "command": "keep-tab-active"
+                        },
+                        {
+                            "label": "Unpin tab",
+                            "command": "pin-tab"
+                        },
+                        {
+                            "separator": true
+                        },
+                        {
+                            "label": "Move to another Space",
+                            "command": "move-tab",
+                            "enabled": !window.privateWindow
+                        }
+                    ]
         }
         return [
-            {"label": "Duplicate tab", "command": "duplicate-tab"},
-            {"label": "Pin tab", "command": "pin-tab", "enabled": !window.privateWindow},
-            {"label": "Move to another Space", "command": "move-tab",
-                "enabled": !window.privateWindow},
-            {"separator": true},
-            {"label": "Close other tabs", "command": "close-other-tabs"},
-            {"label": "Close tabs below", "command": "close-tabs-below"},
-            {"label": "Close tab", "command": "close-tab", "destructive": true}
-        ]
+                    {
+                        "label": "Duplicate tab",
+                        "command": "duplicate-tab"
+                    },
+                    {
+                        "label": "Pin tab",
+                        "command": "pin-tab",
+                        "enabled": !window.privateWindow
+                    },
+                    {
+                        "label": "Move to another Space",
+                        "command": "move-tab",
+                        "enabled": !window.privateWindow
+                    },
+                    {
+                        "separator": true
+                    },
+                    {
+                        "label": "Close other tabs",
+                        "command": "close-other-tabs"
+                    },
+                    {
+                        "label": "Close tabs below",
+                        "command": "close-tabs-below"
+                    },
+                    {
+                        "label": "Close tab",
+                        "command": "close-tab",
+                        "destructive": true
+                    }
+                ]
     }
 
     // The command panel's way in: the menu belongs to the tab on show, and
@@ -404,8 +425,7 @@ ApplicationWindow {
             row.openMenu(0, row.height)
             return
         }
-        window.openTabMenu(window.windowBrowser.activeTabId,
-            window.width / 2, window.height / 2)
+        window.openTabMenu(window.windowBrowser.activeTabId, window.width / 2, window.height / 2)
     }
 
     function openTabMenu(tabId, anchorX, anchorY) {
@@ -423,15 +443,23 @@ ApplicationWindow {
         const action = actions[index]
         const tabId = window.tabMenuTabId
         window.tabMenuOpen = false
-        if (!action || tabId.length === 0) return
+        if (!action || tabId.length === 0)
+            return
         switch (action.command) {
-        case "duplicate-tab": window.windowBrowser.duplicateTab(tabId); break
-        case "close-other-tabs": window.windowBrowser.closeOtherTabs(tabId); break
-        case "close-tabs-below": window.windowBrowser.closeTabsBelow(tabId); break
-        case "close-tab": window.windowBrowser.closeTab(tabId); break
+        case "duplicate-tab":
+            window.windowBrowser.duplicateTab(tabId)
+            break
+        case "close-other-tabs":
+            window.windowBrowser.closeOtherTabs(tabId)
+            break
+        case "close-tabs-below":
+            window.windowBrowser.closeTabsBelow(tabId)
+            break
+        case "close-tab":
+            window.windowBrowser.closeTab(tabId)
+            break
         case "keep-tab-active":
-            window.windowBrowser.setTabKeepActive(tabId,
-                !window.windowBrowser.tabKeepActive(tabId))
+            window.windowBrowser.setTabKeepActive(tabId, !window.windowBrowser.tabKeepActive(tabId))
             break
         default:
             window.windowBrowser.activateTab(tabId)
@@ -453,21 +481,27 @@ ApplicationWindow {
     }
 
     function requestMoveTab() {
-        if (privateWindow) return
+        if (privateWindow)
+            return
         const spaces = window.windowBrowser.spaces
         const targets = []
         for (let row = 0; row < spaces.rowCount(); ++row) {
             const index = spaces.index(row, 0)
             const spaceId = spaces.data(index, Qt.UserRole + 1)
-            if (spaceId === window.windowBrowser.activeSpaceId) continue
-            targets.push({"id": spaceId, "label": spaces.data(index, Qt.UserRole + 2)})
+            if (spaceId === window.windowBrowser.activeSpaceId)
+                continue
+            targets.push({
+                             "id": spaceId,
+                             "label": spaces.data(index, Qt.UserRole + 2)
+                         })
         }
         window.moveTargets = targets
         window.dialogMode = targets.length > 0 ? "move" : ""
     }
 
     function requestNewSpace() {
-        if (!privateWindow) window.dialogMode = "new"
+        if (!privateWindow)
+            window.dialogMode = "new"
     }
 
     function requestSettings() {
@@ -475,18 +509,17 @@ ApplicationWindow {
         window.settingsOpen = true
     }
 
-    // Settings at the section the downloads are listed in, rather than wherever
-    // settings was last left: the reader asked for the downloads. The section
-    // is found by name, so re-ordering the rail cannot land this on another one.
     function requestDownloads() {
         window.historyOpen = false
         const downloads = settingsSurface.sections.indexOf("downloads")
-        if (downloads >= 0) settingsSurface.section = downloads
+        if (downloads >= 0)
+            settingsSurface.section = downloads
         window.settingsOpen = true
     }
 
     function requestHistory() {
-        if (window.privateWindow) return
+        if (window.privateWindow)
+            return
         window.settingsOpen = false
         window.shortcutsOpen = false
         window.historyOpen = true
@@ -496,7 +529,8 @@ ApplicationWindow {
     // it is already standing in for the page has nothing to add and nothing to
     // toggle off.
     function requestShortcuts() {
-        if (window.pagelessViewport) return
+        if (window.pagelessViewport)
+            return
         window.shortcutsOpen = !window.shortcutsOpen
     }
 
@@ -528,38 +562,93 @@ ApplicationWindow {
         const media = context.mediaUrl ? String(context.mediaUrl) : ""
         const selection = String(context.selectedText || "")
         if (link.length > 0) {
-            rows.push({"label": "Open link in new tab", "run": "open-link"})
-            rows.push({"label": "Open link in background", "run": "open-link-background"})
-            rows.push({"label": "Copy link address", "run": "copy-link"})
-            rows.push({"label": "Save link as", "run": "save-link"})
-            rows.push({"separator": true})
+            rows.push({
+                          "label": "Open link in new tab",
+                          "run": "open-link"
+                      })
+            rows.push({
+                          "label": "Open link in background",
+                          "run": "open-link-background"
+                      })
+            rows.push({
+                          "label": "Copy link address",
+                          "run": "copy-link"
+                      })
+            rows.push({
+                          "label": "Save link as",
+                          "run": "save-link"
+                      })
+            rows.push({
+                          "separator": true
+                      })
         }
         if (media.length > 0) {
-            rows.push({"label": "Open " + context.mediaType + " in new tab", "run": "open-media"})
-            rows.push({"label": "Copy " + context.mediaType + " address", "run": "copy-media"})
+            rows.push({
+                          "label": "Open " + context.mediaType + " in new tab",
+                          "run": "open-media"
+                      })
+            rows.push({
+                          "label": "Copy " + context.mediaType + " address",
+                          "run": "copy-media"
+                      })
             if (context.mediaType === "image")
-                rows.push({"label": "Copy image", "run": "copy-image"})
-            rows.push({"label": "Save " + context.mediaType + " as", "run": "save-media"})
-            rows.push({"separator": true})
+                rows.push({
+                              "label": "Copy image",
+                              "run": "copy-image"
+                          })
+            rows.push({
+                          "label": "Save " + context.mediaType + " as",
+                          "run": "save-media"
+                      })
+            rows.push({
+                          "separator": true
+                      })
         }
         if (selection.length > 0) {
-            rows.push({"label": "Copy", "run": "copy-selection"})
-            rows.push({"separator": true})
+            rows.push({
+                          "label": "Copy",
+                          "run": "copy-selection"
+                      })
+            rows.push({
+                          "separator": true
+                      })
         }
-        rows.push({"label": "Back", "command": "back",
-            "enabled": engineLoader.item ? engineLoader.item.canGoBack : false})
-        rows.push({"label": "Forward", "command": "forward",
-            "enabled": engineLoader.item ? engineLoader.item.canGoForward : false})
-        rows.push({"label": "Reload", "command": "reload"})
+        rows.push({
+                      "label": "Back",
+                      "command": "back",
+                      "enabled": engineLoader.item ? engineLoader.item.canGoBack : false
+                  })
+        rows.push({
+                      "label": "Forward",
+                      "command": "forward",
+                      "enabled": engineLoader.item ? engineLoader.item.canGoForward : false
+                  })
+        rows.push({
+                      "label": "Reload",
+                      "command": "reload"
+                  })
         if (String(window.windowBrowser.activeUrl).startsWith("https://")) {
-            rows.push({"label": "Retry over insecure HTTP", "run": "retry-insecure"})
+            rows.push({
+                          "label": "Retry over insecure HTTP",
+                          "run": "retry-insecure"
+                      })
         }
-        rows.push({"separator": true})
-        rows.push({"label": "Copy address", "command": "copy-address",
-            "enabled": !window.windowBrowser.activeTabBlank})
-        rows.push({"separator": true})
-        rows.push({"label": "Inspect element", "command": "inspect-element",
-            "enabled": window.developerToolsAvailable})
+        rows.push({
+                      "separator": true
+                  })
+        rows.push({
+                      "label": "Copy address",
+                      "command": "copy-address",
+                      "enabled": !window.windowBrowser.activeTabBlank
+                  })
+        rows.push({
+                      "separator": true
+                  })
+        rows.push({
+                      "label": "Inspect element",
+                      "command": "inspect-element",
+                      "enabled": window.developerToolsAvailable
+                  })
         return rows
     }
 
@@ -580,31 +669,50 @@ ApplicationWindow {
         const context = window.pageContext
         const engine = window.pageContextEngine
         window.pageMenuOpen = false
-        if (!action || !context || engine !== engineLoader.item
-            || Number(context.pageGeneration) !== Number(engine.pageGeneration)) return
+        if (!action || !context || engine !== engineLoader.item || Number(context.pageGeneration)
+                !== Number(engine.pageGeneration))
+            return
         if (action.command) {
             browserCommands.run(action.command, -1)
             return
         }
         switch (action.run) {
         case "open-link":
-            window.windowBrowser.openInput(String(context.linkUrl), true); break
+            window.windowBrowser.openInput(String(context.linkUrl), true)
+            break
         case "open-link-background":
-            window.windowBrowser.openInputInBackground(context.linkUrl); break
-        case "copy-link": SystemClipboard.copyText(String(context.linkUrl)); break
+            window.windowBrowser.openInputInBackground(context.linkUrl)
+            break
+        case "copy-link":
+            SystemClipboard.copyText(String(context.linkUrl))
+            break
         case "open-media":
-            window.windowBrowser.openInput(String(context.mediaUrl), true); break
-        case "copy-media": SystemClipboard.copyText(String(context.mediaUrl)); break
-        case "copy-selection": SystemClipboard.copyText(String(context.selectedText)); break
-        case "copy-image": engine.performPageContextAction("copy-image", ""); break
-        case "save-link": window.requestTargetSave(engine, "save-link", context.linkUrl); break
-        case "save-media": window.requestTargetSave(engine, "save-media", context.mediaUrl); break
-        case "retry-insecure": window.windowBrowser.retryActiveUrlInsecurely(); break
+            window.windowBrowser.openInput(String(context.mediaUrl), true)
+            break
+        case "copy-media":
+            SystemClipboard.copyText(String(context.mediaUrl))
+            break
+        case "copy-selection":
+            SystemClipboard.copyText(String(context.selectedText))
+            break
+        case "copy-image":
+            engine.performPageContextAction("copy-image", "")
+            break
+        case "save-link":
+            window.requestTargetSave(engine, "save-link", context.linkUrl)
+            break
+        case "save-media":
+            window.requestTargetSave(engine, "save-media", context.mediaUrl)
+            break
+        case "retry-insecure":
+            window.windowBrowser.retryActiveUrlInsecurely()
+            break
         }
     }
 
     function copyAddress() {
-        if (window.windowBrowser.activeTabBlank) return
+        if (window.windowBrowser.activeTabBlank)
+            return
         SystemClipboard.copyText(window.windowBrowser.activeUrl.toString())
     }
 
@@ -618,10 +726,8 @@ ApplicationWindow {
     // the reader to guess whether the key reached the browser. A tab with no
     // page is not an engine that lacks something, and does not say it is.
     function reportUnavailable(what) {
-        window.showNotice("block", what + " is not available",
-            engineLoader.item
-                ? "This engine does not offer it"
-                : "There is no page here")
+        window.showNotice("block", what + " is not available", engineLoader.item
+                          ? "This engine does not offer it" : "There is no page here")
     }
 
     // Find belongs to one tab. The bar's openness is per tab, and the query and
@@ -632,7 +738,8 @@ ApplicationWindow {
         const showing = ({})
         for (let row = 0; row < tabs.rowCount(); ++row) {
             const tabId = tabs.data(tabs.index(row, 0), Qt.UserRole + 1)
-            if (window.tabsShowingFind[tabId] === true) showing[tabId] = true
+            if (window.tabsShowingFind[tabId] === true)
+                showing[tabId] = true
         }
         window.tabsShowingFind = showing
         window.findOpen = showing[window.windowBrowser.activeTabId] === true
@@ -685,9 +792,8 @@ ApplicationWindow {
     }
 
     function showZoomNotice() {
-        window.showNotice("zoom_in", "Page zoom "
-            + Math.round(window.windowBrowser.activeTabZoom * 100) + "%",
-            "this tab only")
+        window.showNotice("zoom_in", "Page zoom " + Math.round(window.windowBrowser.activeTabZoom
+                                                               * 100) + "%", "this tab only")
     }
 
     // A PDF is drawn inside the engine's own sandbox where there is one, and
@@ -696,16 +802,17 @@ ApplicationWindow {
     property string reportedPdfAddress: ""
 
     function reportPdfHandling(url) {
-        if (!engineLoader.item) return
+        if (!engineLoader.item)
+            return
         const address = String(url).split("?")[0].split("#")[0]
-        if (!address.toLowerCase().endsWith(".pdf")
-            || address === window.reportedPdfAddress) {
+        if (!address.toLowerCase().endsWith(".pdf") || address === window.reportedPdfAddress) {
             return
         }
         window.reportedPdfAddress = address
-        if (window.inlinePdfViewingAvailable) return
+        if (window.inlinePdfViewingAvailable)
+            return
         window.showNotice("download", "This engine cannot show PDFs",
-            "The document was downloaded instead", 4200)
+                          "The document was downloaded instead", 4200)
     }
 
     function reloadBypassingCache() {
@@ -729,16 +836,15 @@ ApplicationWindow {
     function printPage() {
         if (!window.printingAvailable) {
             // Two halves, and the reader is told which one is missing.
-            window.showNotice("block", "Print is not available",
-                PagePrinter.available
-                    ? "This engine cannot render a page for printing"
-                    : "This desktop has no print dialog to answer")
+            window.showNotice("block", "Print is not available", PagePrinter.available
+                              ? "This engine cannot render a page for printing" :
+                                "This desktop has no print dialog to answer")
             return
         }
         const destination = PagePrinter.reserveDestination(window.windowBrowser.activeTitle)
         if (destination.length === 0) {
             window.showNotice("print_disabled", "Printing failed",
-                "Omaweb could not make a file to render the page into")
+                              "Omaweb could not make a file to render the page into")
             return
         }
         engineLoader.printPage(destination)
@@ -748,12 +854,12 @@ ApplicationWindow {
         if (!succeeded) {
             PagePrinter.discard(destination)
             window.showNotice("print_disabled", "Printing failed",
-                "The page could not be rendered for printing")
+                              "The page could not be rendered for printing")
             return
         }
         if (!PagePrinter.present(destination, window.windowBrowser.activeTitle)) {
             window.showNotice("print_disabled", "Printing failed",
-                "This desktop has no print dialog to present")
+                              "This desktop has no print dialog to present")
         }
     }
 
@@ -766,7 +872,7 @@ ApplicationWindow {
 
     function applyFullscreen() {
         window.visibility = (window.browserFullscreen || engineLoader.siteFullscreenActive)
-            ? Window.FullScreen : Window.Windowed
+                ? Window.FullScreen : Window.Windowed
     }
 
     // The window is also the desktop's to move: a menu command, ⌃⌘F, or the
@@ -792,31 +898,34 @@ ApplicationWindow {
     }
 
     function toggleDeveloperTools() {
-        if (!window.developerToolsAvailable) return
+        if (!window.developerToolsAvailable)
+            return
         window.windowBrowser.toggleDeveloperTools()
     }
 
     function inspectElement() {
-        if (!window.developerToolsAvailable) return
+        if (!window.developerToolsAvailable)
+            return
         engineLoader.inspectElement()
     }
 
     function setDeveloperToolsWidth(width) {
-        window.developerToolsWidth = Math.round(
-            Math.max(window.developerToolsMinimumWidth,
-                Math.min(window.developerToolsMaximumWidth, width)))
+        window.developerToolsWidth = Math.round(Math.max(window.developerToolsMinimumWidth, Math.min(
+                                                             window.developerToolsMaximumWidth,
+                                                             width)))
     }
 
     function setSidebarWidth(width) {
-        window.sidebarWidth = Math.round(Math.max(window.sidebarMinimumWidth,
-            Math.min(window.sidebarMaximumWidth, width)))
+        window.sidebarWidth = Math.round(Math.max(window.sidebarMinimumWidth, Math.min(
+                                                      window.sidebarMaximumWidth, width)))
     }
 
     // Widening is also the way back from a hidden sidebar: asking for more of
     // something that is not there means show it.
     function nudgeSidebar(step) {
         if (window.sidebarCollapsed) {
-            if (step < 0) return
+            if (step < 0)
+                return
             window.sidebarCollapsed = false
         }
         window.setSidebarWidth(window.sidebarWidth + step)
@@ -825,21 +934,21 @@ ApplicationWindow {
     // A window narrow enough to break the clamp pulls the sidebar back in
     // with it, so the page is never squeezed out of its own window.
     onSidebarMaximumWidthChanged: window.setSidebarWidth(window.sidebarWidth)
-    onDeveloperToolsMaximumWidthChanged:
-        window.setDeveloperToolsWidth(window.developerToolsWidth)
+    onDeveloperToolsMaximumWidthChanged: window.setDeveloperToolsWidth(window.developerToolsWidth)
 
     // A width the reader chose outlives the session that chose it. The clamp
     // runs on the way back in, so a saved width from a wider window or an older
     // build still lands somewhere usable.
     function restoreSidebarWidth() {
         const saved = parseFloat(window.windowBrowser.preference("sidebar-width", ""))
-        if (!isNaN(saved)) window.setSidebarWidth(saved)
+        if (!isNaN(saved))
+            window.setSidebarWidth(saved)
     }
 
     function restoreDeveloperToolsWidth() {
-        const saved = parseFloat(
-            window.windowBrowser.preference("developer-tools-width", ""))
-        if (!isNaN(saved)) window.setDeveloperToolsWidth(saved)
+        const saved = parseFloat(window.windowBrowser.preference("developer-tools-width", ""))
+        if (!isNaN(saved))
+            window.setDeveloperToolsWidth(saved)
     }
 
     function restoreTabAppearance() {
@@ -865,25 +974,25 @@ ApplicationWindow {
     Timer {
         id: sidebarWidthWriter
         interval: 400
-        onTriggered: window.windowBrowser.setPreference("sidebar-width",
-            String(window.sidebarWidth))
+        onTriggered: window.windowBrowser.setPreference("sidebar-width", String(
+                                                            window.sidebarWidth))
     }
 
     Timer {
         id: developerToolsWidthWriter
         interval: 400
-        onTriggered: window.windowBrowser.setPreference("developer-tools-width",
-            String(window.developerToolsWidth))
+        onTriggered: window.windowBrowser.setPreference("developer-tools-width", String(
+                                                            window.developerToolsWidth))
     }
 
     // 1 allow once, 2 always allow, 3 block — the decisions BrowserController
     // stores, in the order the bar offers them.
     function respondToPermission(decision) {
-        window.windowBrowser.setPermissionDecision(
-            window.pendingPermissionOrigin, window.pendingPermissionType, decision)
+        window.windowBrowser.setPermissionDecision(window.pendingPermissionOrigin,
+                                                   window.pendingPermissionType, decision)
         if (window.pendingPermissionResponder) {
-            window.pendingPermissionResponder.respondToPermission(
-                window.pendingPermissionRequest, decision)
+            window.pendingPermissionResponder.respondToPermission(window.pendingPermissionRequest,
+                                                                  decision)
         }
         window.permissionOpen = false
         window.pendingPermissionResponder = null
@@ -899,10 +1008,11 @@ ApplicationWindow {
         // reaches no bar. An Auxiliary window is in front of them by
         // definition, and says so.
         const visible = inFront === true || engine === engineLoader.item
-        const offerable = visible
-            && window.windowBrowser.mayOfferCertificateException(failure.url,
-                failure.overridable === true, failure.mainFrame === true,
-                failure.fatal === true)
+        const offerable = visible && window.windowBrowser.mayOfferCertificateException(failure.url,
+                                                                                       failure.overridable
+                                                                                       === true, failure.mainFrame
+                                                                                       === true, failure.fatal
+                                                                                       === true)
         if (!offerable) {
             engine.respondToCertificateError(requestId, false)
             return
@@ -916,14 +1026,13 @@ ApplicationWindow {
     function respondToCertificateError(accepted) {
         if (window.pendingCertificateResponder) {
             window.pendingCertificateResponder.respondToCertificateError(
-                window.pendingCertificateFailureId, accepted)
+                        window.pendingCertificateFailureId, accepted)
         }
         // The engine will now keep the accepted certificate for as long as its
         // profile lives and stop reporting the failure. Recording the waiver
         // is what lets the address trigger keep saying the check was waived.
         if (accepted) {
-            window.windowBrowser.recordCertificateException(
-                window.pendingCertificateFailure.url)
+            window.windowBrowser.recordCertificateException(window.pendingCertificateFailure.url)
         }
         window.certificateQuestionOpen = false
         window.pendingCertificateResponder = null
@@ -939,72 +1048,73 @@ ApplicationWindow {
         const allowances = window.windowBrowser.thirdPartyCookieAllowances()
         for (let index = 0; index < allowances.length; ++index) {
             rows.push({
-                "label": "stop allowing " + allowances[index].origin,
-                "note": "allowed for " + allowances[index].purpose,
-                "origin": allowances[index].origin,
-                "purpose": ""
-            })
+                          "label": "stop allowing " + allowances[index].origin,
+                          "note": "allowed for " + allowances[index].purpose,
+                          "origin": allowances[index].origin,
+                          "purpose": ""
+                      })
         }
         // Read from the panel, which asked the engine's filter when it opened.
         // Asking again here would be a second place that knows how to.
         const refused = sidebar.refusedThirdParties
         for (let index = 0; index < refused.length; ++index) {
             rows.push({
-                "label": "allow " + refused[index] + " for a sign-in",
-                "note": "until this session ends",
-                "origin": refused[index],
-                "purpose": "authentication"
-            })
+                          "label": "allow " + refused[index] + " for a sign-in",
+                          "note": "until this session ends",
+                          "origin": refused[index],
+                          "purpose": "authentication"
+                      })
             rows.push({
-                "label": "allow " + refused[index] + " for a payment",
-                "note": "until this session ends",
-                "origin": refused[index],
-                "purpose": "payment"
-            })
+                          "label": "allow " + refused[index] + " for a payment",
+                          "note": "until this session ends",
+                          "origin": refused[index],
+                          "purpose": "payment"
+                      })
         }
         window.thirdPartyRows = rows
     }
 
     function answerThirdPartyRow(index) {
         const row = window.thirdPartyRows[index]
-        if (!row) return
+        if (!row)
+            return
         if (row.purpose.length === 0) {
             if (window.windowBrowser.revokeThirdPartyCookieAllowance(row.origin)) {
                 window.showNotice("cookie", "Stopped allowing " + row.origin,
-                    "it is refused again from the next request", 4200)
+                                  "it is refused again from the next request", 4200)
             }
             return
         }
         if (window.windowBrowser.allowThirdPartyCookies(row.origin, row.purpose)) {
-            window.showNotice("cookie", "Allowing " + row.origin,
-                "for a " + (row.purpose === "payment" ? "payment" : "sign-in")
-                    + " · until this session ends · reload the page to use it", 4200)
+            window.showNotice("cookie", "Allowing " + row.origin, "for a " + (row.purpose
+                                                                              === "payment"
+                                                                              ? "payment" :
+                                                                                "sign-in")
+                              + " · until this session ends · reload the page to use it", 4200)
         }
     }
 
     function clearSpaceSiteData() {
-        const cleared = window.windowBrowser.clearBrowsingData(
-            ["cookies", "storage", "cache"], 0)
+        const cleared = window.windowBrowser.clearBrowsingData(["cookies", "storage", "cache"], 0)
         const stayed = window.untouchedDataCategories
-        window.showNotice(cleared ? "delete_sweep" : "block",
-            cleared
-                ? "Cleared this Space's cookies and cache"
-                : "Could not clear this Space's site data",
-            cleared && stayed.length > 0
-                ? stayed.join(" and ") + " stayed: this engine has no way to remove them"
-                : "")
+        window.showNotice(cleared ? "delete_sweep" : "block", cleared
+                          ? "Cleared this Space's cookies and cache" :
+                            "Could not clear this Space's site data", cleared && stayed.length > 0
+                          ? stayed.join(" and ") + " stayed: this engine has no way to remove them" :
+                            "")
     }
 
     function resetSitePermissions() {
         const origin = window.windowBrowser.activeUrl
-        const reset = window.windowBrowser.resetSitePermissions(origin)
+        const reset = window.windowBrowser.resetSitePermissions(origin);
         // Reloading does not take a capability off a page: the engine answers a
         // granted one from a store keyed by the frame that asked, and a reload
         // reuses that frame. Opening the site again is a new frame, and asks.
-        window.showNotice(reset ? "shield_person" : "block",
-            reset ? "Reset every decision for this site"
-                  : "Could not reset the decisions for this site",
-            reset ? "a page already holding one keeps it until you open the site again" : "")
+        window.showNotice(reset ? "shield_person" : "block", reset
+                          ? "Reset every decision for this site" :
+                            "Could not reset the decisions for this site", reset
+                          ? "a page already holding one keeps it until you open the site again" :
+                            "")
     }
 
     function showBrowserPrompt(engine, requestId, prompt) {
@@ -1035,8 +1145,8 @@ ApplicationWindow {
             window.pendingBrowserPrompt = ({})
             return
         }
-        if (!pending.responder
-            || Number(pending.generation) !== Number(pending.responder.pageGeneration)) {
+        if (!pending.responder || Number(pending.generation) !== Number(
+                    pending.responder.pageGeneration)) {
             const prompts = Object.assign({}, window.browserPromptsByTab)
             delete prompts[tabId]
             window.browserPromptsByTab = prompts
@@ -1057,12 +1167,12 @@ ApplicationWindow {
         const tabId = window.pendingBrowserPromptTabId
         if (responder) {
             responder.respondToBrowserPrompt(window.pendingBrowserPromptId, accepted, {
-                "text": text,
-                "user": user,
-                "password": password,
-                "stopPrompts": stopPrompts,
-                "remember": remember
-            })
+                                                 "text": text,
+                                                 "user": user,
+                                                 "password": password,
+                                                 "stopPrompts": stopPrompts,
+                                                 "remember": remember
+                                             })
         }
         const prompts = Object.assign({}, window.browserPromptsByTab)
         delete prompts[tabId]
@@ -1072,7 +1182,8 @@ ApplicationWindow {
 
     function openLocalFile(fileUrl) {
         const address = String(fileUrl)
-        if (!address.startsWith("file:")) return
+        if (!address.startsWith("file:"))
+            return
         window.windowBrowser.openInput(address, false)
     }
 
@@ -1093,10 +1204,10 @@ ApplicationWindow {
             pageFolderDialog.open()
             return
         }
-        pageFileDialog.fileMode = selection.mode === "open-multiple"
-            ? Dialogs.FileDialog.OpenFiles
-            : (selection.mode === "save"
-                ? Dialogs.FileDialog.SaveFile : Dialogs.FileDialog.OpenFile)
+        pageFileDialog.fileMode = selection.mode === "open-multiple" ? Dialogs.FileDialog.OpenFiles :
+                                                                       (selection.mode === "save"
+                                                                        ? Dialogs.FileDialog.SaveFile :
+                                                                          Dialogs.FileDialog.OpenFile)
         pageFileDialog.open()
     }
 
@@ -1107,9 +1218,12 @@ ApplicationWindow {
         window.pendingFileSelectionId = ""
         window.pendingFileSelectionTabId = ""
         window.pendingFileSelection = ({})
-        if (responder) responder.respondToFileSelection(requestId, files)
-        if (pageFileDialog.visible) pageFileDialog.close()
-        if (pageFolderDialog.visible) pageFolderDialog.close()
+        if (responder)
+            responder.respondToFileSelection(requestId, files)
+        if (pageFileDialog.visible)
+            pageFileDialog.close()
+        if (pageFolderDialog.visible)
+            pageFolderDialog.close()
     }
 
     function cancelTabModalRequests() {
@@ -1122,21 +1236,22 @@ ApplicationWindow {
         window.pendingSaveAction = ""
         window.pendingSaveTabId = ""
         window.pendingSaveGeneration = -1
-        if (saveTargetDialog.visible) saveTargetDialog.close()
+        if (saveTargetDialog.visible)
+            saveTargetDialog.close()
     }
 
     function reconcileTabModalRequests() {
         const active = window.windowBrowser.activeTabId
         window.presentBrowserPromptForActiveTab()
-        if (window.pendingFileSelectionResponder
-            && window.pendingFileSelectionTabId !== active)
+        if (window.pendingFileSelectionResponder && window.pendingFileSelectionTabId !== active)
             window.respondToFileSelection([])
         if (window.pendingSaveEngine && window.pendingSaveTabId !== active) {
             window.pendingSaveEngine = null
             window.pendingSaveAction = ""
             window.pendingSaveTabId = ""
             window.pendingSaveGeneration = -1
-            if (saveTargetDialog.visible) saveTargetDialog.close()
+            if (saveTargetDialog.visible)
+                saveTargetDialog.close()
         }
         window.pageMenuOpen = false
     }
@@ -1148,29 +1263,31 @@ ApplicationWindow {
         window.pendingSaveGeneration = Number(engine.pageGeneration)
         const address = String(url).split("?")[0].split("#")[0]
         const slash = address.lastIndexOf("/")
-        const suggested = slash >= 0 && slash + 1 < address.length
-            ? address.substring(slash + 1) : "download"
-        saveTargetDialog.currentFile = "file://" + window.windowBrowser.downloadDirectory
-            + "/" + suggested
+        const suggested = slash >= 0 && slash + 1 < address.length ? address.substring(slash + 1) :
+                                                                     "download"
+        saveTargetDialog.currentFile = "file://" + window.windowBrowser.downloadDirectory + "/"
+                + suggested
         saveTargetDialog.open()
     }
 
     function completeTargetSave(fileUrl) {
         const engine = window.pendingSaveEngine
-        if (engine && engine === engineLoader.item
-            && window.pendingSaveGeneration === Number(engine.pageGeneration))
+        if (engine && engine === engineLoader.item && window.pendingSaveGeneration === Number(
+                    engine.pageGeneration))
             engine.performPageContextAction(window.pendingSaveAction, String(fileUrl))
         window.pendingSaveEngine = null
         window.pendingSaveAction = ""
         window.pendingSaveTabId = ""
         window.pendingSaveGeneration = -1
-        if (saveTargetDialog.visible) saveTargetDialog.close()
+        if (saveTargetDialog.visible)
+            saveTargetDialog.close()
     }
 
     function stepTab(delta) {
         const tabs = window.windowBrowser.tabs
         const count = tabs.rowCount()
-        if (count === 0) return
+        if (count === 0)
+            return
         let current = 0
         for (let row = 0; row < count; ++row) {
             if (tabs.data(tabs.index(row, 0), Qt.UserRole + 6)) {
@@ -1184,15 +1301,18 @@ ApplicationWindow {
 
     function activateTabAt(position) {
         const tabs = window.windowBrowser.tabs
-        if (position < 0 || position >= tabs.rowCount()) return
+        if (position < 0 || position >= tabs.rowCount())
+            return
         window.windowBrowser.activateTab(tabs.data(tabs.index(position, 0), Qt.UserRole + 1))
     }
 
     function stepSpace(delta) {
-        if (privateWindow) return
+        if (privateWindow)
+            return
         const spaces = window.windowBrowser.spaces
         const count = spaces.rowCount()
-        if (count === 0) return
+        if (count === 0)
+            return
         let current = 0
         for (let row = 0; row < count; ++row) {
             if (spaces.data(spaces.index(row, 0), Qt.UserRole + 4)) {
@@ -1205,17 +1325,19 @@ ApplicationWindow {
     }
 
     function activateSpaceAt(position) {
-        if (privateWindow) return
+        if (privateWindow)
+            return
         const spaces = window.windowBrowser.spaces
-        if (position < 0 || position >= spaces.rowCount()) return
+        if (position < 0 || position >= spaces.rowCount())
+            return
         window.windowBrowser.switchSpace(spaces.data(spaces.index(position, 0), Qt.UserRole + 1))
     }
 
     function openOmnibar(forNewTab) {
         newTabIntent = forNewTab
         const preset = forNewTab ? "" : window.windowBrowser.activeUrl.toString()
-        omnibarSuggestions = window.privateWindow
-            ? [] : window.windowBrowser.historySuggestions(preset)
+        omnibarSuggestions = window.privateWindow ? [] : window.windowBrowser.historySuggestions(
+                                                        preset)
         commandPanel.beginAddress(preset, forNewTab)
         omnibarOpen = true
     }
@@ -1224,9 +1346,11 @@ ApplicationWindow {
     // other Space's profile is in, so coming back to a Space finds the one it
     // was left with rather than a new one.
     function createSpaceProfile() {
-        if (window.privateWindow) return
+        if (window.privateWindow)
+            return
         const host = spaceProfiles.hostFor(window.windowBrowser.activeSpaceId)
-        if (host) window.spaceProfileHost = host
+        if (host)
+            window.spaceProfileHost = host
     }
 
     // Whoever built a Space's profile — this window on the way to showing that
@@ -1234,30 +1358,22 @@ ApplicationWindow {
     // downloads and notifications that come out of it are the window's to
     // route, so every profile passes through here once.
     function adoptSpaceProfile(spaceId, host) {
-        if (!host) return
+        if (!host)
+            return
         if (!host.downloadObserversConnected) {
-            // The profile is bound into every one of these: a download belongs
-            // to the Space it started in, which is not necessarily the Space on
-            // show, and cancelling or retrying has to reach that profile's own
-            // request rather than whichever one is in front of the reader.
-            host.downloadStarted.connect(function(runtimeId, sourceUrl, path, state,
-                    receivedBytes, totalBytes) {
-                window.handleDownloadStarted(host, runtimeId, sourceUrl, path, state,
-                    receivedBytes, totalBytes)
+            host.downloadStarted.connect(function (runtimeId, sourceUrl, path, state, receivedBytes,
+                                                   totalBytes) {
+                window.handleDownloadStarted(host, runtimeId, sourceUrl, path, state, receivedBytes,
+                                             totalBytes)
             })
             host.downloadUpdated.connect(window.handleDownloadUpdated)
-            // A held download is a question, and a question needs the profile
-            // it came from to answer it: the token is only good against that
-            // profile's own hold. So the profile is bound in here rather than
-            // looked up when the reader answers.
-            host.downloadHeld.connect(function(token, disposition, origin, sourceUrl,
-                    fileName, risk) {
-                window.holdDownload(host, token, disposition, origin, sourceUrl,
-                    fileName, risk)
+            host.downloadHeld.connect(function (token, disposition, origin, sourceUrl, fileName,
+                                                risk) {
+                window.holdDownload(host, token, disposition, origin, sourceUrl, fileName, risk)
             })
-            host.downloadRefused.connect(function(sourceUrl, fileName, origin) {
-                window.showNotice("block", "Download refused",
-                    fileName + " · " + origin + " may not download here", 4200)
+            host.downloadRefused.connect(function (sourceUrl, fileName, origin) {
+                window.showNotice("block", "Download refused", fileName + " · " + origin
+                                  + " may not download here", 4200)
             })
             host.downloadObserversConnected = true
         }
@@ -1266,29 +1382,23 @@ ApplicationWindow {
 
     function retireSpaceProfile(spaceId) {
         const retired = spaceProfiles.retire(spaceId)
-        if (retired && window.spaceProfileHost === retired) window.spaceProfileHost = null
+        if (retired && window.spaceProfileHost === retired)
+            window.spaceProfileHost = null
     }
 
-    function handleDownloadStarted(host, runtimeId, sourceUrl, path, state,
-            receivedBytes, totalBytes) {
-        // Whether this download starts a fresh burst. Read before the download
-        // joins the others, and read off what is in flight rather than off the
-        // map's size: an interrupted download stays in the map to be retried,
-        // and one of those lingering would otherwise keep every later burst
-        // reporting the downloads that finished before it.
+    function handleDownloadStarted(host, runtimeId, sourceUrl, path, state, receivedBytes,
+                                   totalBytes) {
         const wasIdle = window.downloadActivity.running === 0
-        const recordId = window.windowBrowser.recordDownload(runtimeId, sourceUrl, path,
-            state, receivedBytes, totalBytes)
-        if (recordId.length > 0) window.downloadRecordIds[runtimeId] = recordId
+        const recordId = window.windowBrowser.recordDownload(runtimeId, sourceUrl, path, state,
+                                                             receivedBytes, totalBytes)
+        if (recordId.length > 0)
+            window.downloadRecordIds[runtimeId] = recordId
         const running = window.runningDownloads
         running[runtimeId] = {
             "host": host,
             "runtimeId": runtimeId,
             "recordId": recordId,
             "sourceUrl": String(sourceUrl),
-            // The page the reader was on when it started, kept now rather than
-            // read at the end: the finished file is marked with where it came
-            // from, and by then they may be somewhere else entirely.
             "pageUrl": String(window.windowBrowser.activeUrl),
             "path": String(path),
             "fileName": window.downloadFileName(path),
@@ -1298,57 +1408,48 @@ ApplicationWindow {
             "totalBytes": totalBytes
         }
         window.runningDownloads = running
-        // The finished downloads the mark was still holding belong to the last
-        // burst, not to this one.
-        if (wasIdle) window.finishedDownloadCount = 0
+        if (wasIdle)
+            window.finishedDownloadCount = 0
         window.refreshDownloadActivity()
-        // The list is only read while the downloads section is open, and it
-        // reads the Space's records to build itself: rebuilding it behind a
-        // closed page would be a query for every download that starts.
-        if (window.settingsOpen) window.refreshVisibleDownloads()
-        window.showNotice("download", "Downloading " + window.downloadFileName(path),
-            String(sourceUrl), 3000)
+        if (window.settingsOpen)
+            window.refreshVisibleDownloads()
+        window.showNotice("download", "Downloading " + window.downloadFileName(path), String(
+                              sourceUrl), 3000)
     }
 
     function handleDownloadUpdated(runtimeId, state, receivedBytes, totalBytes, error) {
         const recordId = window.downloadRecordIds[runtimeId]
-        if (recordId) window.windowBrowser.updateDownload(recordId, state,
-            receivedBytes, totalBytes, error)
+        if (recordId)
+            window.windowBrowser.updateDownload(recordId, state, receivedBytes, totalBytes, error)
         const running = window.runningDownloads
         const download = running[runtimeId]
-        if (!download) return
+        if (!download)
+            return
         download.state = state
         download.error = String(error || "")
         download.receivedBytes = receivedBytes
         download.totalBytes = totalBytes
         if (state === "completed") {
-            // The file exists now, and this is the moment the operating system
-            // can be told where it came from. Nothing is opened: a download is
-            // the reader's to start.
-            const marked = SavedDownload.quarantine(download.path,
-                download.sourceUrl, download.pageUrl)
-            window.showNotice("download_done", "Saved " + download.fileName,
-                marked ? download.path
-                    : download.path + " · this filesystem carries no origin metadata",
-                window.savedDownloadNoticeMilliseconds)
+            const marked = SavedDownload.quarantine(download.path, download.sourceUrl,
+                                                    download.pageUrl)
+            window.showNotice("download_done", "Saved " + download.fileName, marked ? download.path :
+                                                                                      download.path
+                                                                                      + " · this filesystem carries no origin metadata",
+                              window.savedDownloadNoticeMilliseconds)
         } else if (state === "interrupted") {
-            window.showNotice("error", "Download failed",
-                download.fileName + (download.error.length > 0
-                    ? " · " + download.error : ""), 4200)
+            window.showNotice("error", "Download failed", download.fileName + (
+                                  download.error.length > 0 ? " · " + download.error : ""), 4200)
         }
-        // An interrupted download stays listed: it is the one the reader can
-        // still retry. A cancelled or completed one has nothing left to do.
-        if (state === "completed" || state === "cancelled") delete running[runtimeId]
-        if (state === "completed") window.finishedDownloadCount += 1
+        if (state === "completed" || state === "cancelled")
+            delete running[runtimeId]
+        if (state === "completed")
+            window.finishedDownloadCount += 1
         window.runningDownloads = running
         window.refreshDownloadActivity()
-        // Progress arrives byte by byte, so the list is rebuilt only where
-        // something is reading it.
-        if (window.settingsOpen) window.refreshVisibleDownloads()
+        if (window.settingsOpen)
+            window.refreshVisibleDownloads()
     }
 
-    // A dialog speaks file URLs and the engine speaks filesystem paths, so the
-    // crossing happens here rather than at every call site.
     function localPath(fileUrl) {
         return String(fileUrl).replace(/^file:\/\//, "")
     }
@@ -1358,45 +1459,34 @@ ApplicationWindow {
     }
 
     function downloadFileName(path) {
-        const separator = Math.max(String(path).lastIndexOf("/"),
-            String(path).lastIndexOf("\\"))
+        const separator = Math.max(String(path).lastIndexOf("/"), String(path).lastIndexOf("\\"))
         return separator >= 0 ? String(path).substring(separator + 1) : String(path)
     }
 
-    // The footer's aggregate, recomputed whenever the live downloads move. It
-    // walks a map that is already in memory and reads no records, so it is
-    // cheap enough to run on every byte the engine reports.
-    //
-    // A server that sent no length leaves its download with no total, and a
-    // download with no total cannot be weighed against the ones that have one:
-    // one of them takes the percentage away from the whole aggregate rather
-    // than being counted as nothing and quietly flattering the rest. An
-    // interrupted download is not in flight — it is waiting on a retry the
-    // downloads list offers — so it is not counted here; its failure was said
-    // out loud when it happened.
     function refreshDownloadActivity() {
         let running = 0
         let received = 0
         let total = 0
-        // The names, so the footer can say which file is nearly done when the
-        // reader asks it. They come off the same in-memory map — the file name
-        // was worked out when the download started and is not read again here —
-        // but only while the reader is asking: a list rebuilt on every byte
-        // behind a closed panel is an object per download per byte for nobody.
         const detailed = window.downloadDetailOpen
         const downloads = []
         for (const runtimeId in window.runningDownloads) {
             const download = window.runningDownloads[runtimeId]
-            if (download.state === "interrupted") continue
+            if (download.state === "interrupted")
+                continue
             running += 1
             received += download.receivedBytes
-            if (total >= 0 && download.totalBytes > 0) total += download.totalBytes
-            else total = -1
-            if (detailed) downloads.push({
-                "name": download.fileName,
-                "fraction": download.totalBytes > 0
-                    ? Math.min(1, download.receivedBytes / download.totalBytes) : -1
-            })
+            if (total >= 0 && download.totalBytes > 0)
+                total += download.totalBytes
+            else
+                total = -1
+            if (detailed)
+                downloads.push({
+                                   "name": download.fileName,
+                                   "fraction": download.totalBytes > 0 ? Math.min(1,
+                                                                                  download.receivedBytes
+                                                                                  / download.totalBytes) :
+                                                                         -1
+                               })
         }
         window.downloadActivity = {
             "running": running,
@@ -1406,29 +1496,23 @@ ApplicationWindow {
         }
     }
 
-    // The reader pointing at the mark is the moment the names are wanted, and
-    // the next byte may be a while off, so the aggregate is rebuilt now rather
-    // than opening a panel with nothing in it.
     onDownloadDetailOpenChanged: window.refreshDownloadActivity()
 
-    // What the downloads section shows: the running downloads first, because
-    // they are the ones with anything left to decide, then what the Space has
-    // recorded. A Private window records none and lists only what is running.
     function refreshVisibleDownloads() {
         const running = []
         for (const runtimeId in window.runningDownloads) {
             const download = window.runningDownloads[runtimeId]
             running.push({
-                "runtimeId": runtimeId,
-                "id": download.recordId,
-                "url": download.sourceUrl,
-                "path": download.path,
-                "state": download.state,
-                "error": download.error,
-                "receivedBytes": download.receivedBytes,
-                "totalBytes": download.totalBytes,
-                "running": true
-            })
+                             "runtimeId": runtimeId,
+                             "id": download.recordId,
+                             "url": download.sourceUrl,
+                             "path": download.path,
+                             "state": download.state,
+                             "error": download.error,
+                             "receivedBytes": download.receivedBytes,
+                             "totalBytes": download.totalBytes,
+                             "running": true
+                         })
         }
         const recorded = []
         const history = window.windowBrowser.downloadHistory()
@@ -1437,77 +1521,74 @@ ApplicationWindow {
             let live = false
             for (let position = 0; position < running.length; ++position)
                 live = live || running[position].id === record.id
-            if (live) continue
+            if (live)
+                continue
             recorded.push({
-                "runtimeId": "",
-                "id": record.id,
-                "url": String(record.url),
-                "path": record.path,
-                "state": record.state,
-                "error": record.error,
-                "receivedBytes": record.receivedBytes,
-                "totalBytes": record.totalBytes,
-                "running": false
-            })
+                              "runtimeId": "",
+                              "id": record.id,
+                              "url": String(record.url),
+                              "path": record.path,
+                              "state": record.state,
+                              "error": record.error,
+                              "receivedBytes": record.receivedBytes,
+                              "totalBytes": record.totalBytes,
+                              "running": false
+                          })
         }
         window.visibleDownloads = running.concat(recorded)
     }
 
     function cancelDownload(runtimeId) {
         const download = window.runningDownloads[runtimeId]
-        if (!download || !download.host) return
+        if (!download || !download.host)
+            return
         download.host.cancelDownload(runtimeId)
     }
 
-    // An interrupted download the engine still holds is resumed where it
-    // stopped. One it no longer holds — a record from a session that has since
-    // ended — is asked for again at its own address, which is the only thing
-    // left to ask: the request it was is gone. That address is a download, so
-    // the navigation leaves the page the reader is on where it is.
     function retryDownload(runtimeId, sourceUrl) {
         const download = window.runningDownloads[runtimeId]
-        if (download && download.host && download.host.retryDownload(runtimeId)) return
+        if (download && download.host && download.host.retryDownload(runtimeId))
+            return
         if (String(sourceUrl).length > 0) {
             window.windowBrowser.openInput(String(sourceUrl), false)
             return
         }
-        window.showNotice("block", "This download cannot be retried",
-            "Ask the page for it again", 4200)
+        window.showNotice("block", "This download cannot be retried", "Ask the page for it again",
+                          4200)
     }
 
     function revealDownload(path) {
         if (!SavedDownload.reveal(path))
             window.showNotice("block", "Nothing to show",
-                "The file is no longer where Omaweb put it", 4200)
+                              "The file is no longer where Omaweb put it", 4200)
     }
 
     function forgetDownload(recordId) {
-        if (window.windowBrowser.forgetDownload(recordId)) window.refreshVisibleDownloads()
+        if (window.windowBrowser.forgetDownload(recordId))
+            window.refreshVisibleDownloads()
     }
 
-    // A download nothing has been written for, waiting on the reader.
     function holdDownload(host, token, disposition, origin, sourceUrl, fileName, risk) {
         window.heldDownloadQueue.push({
-            "host": host,
-            "token": token,
-            "disposition": disposition,
-            "origin": origin,
-            "sourceUrl": String(sourceUrl),
-            "fileName": String(fileName),
-            "risk": String(risk)
-        })
+                                          "host": host,
+                                          "token": token,
+                                          "disposition": disposition,
+                                          "origin": origin,
+                                          "sourceUrl": String(sourceUrl),
+                                          "fileName": String(fileName),
+                                          "risk": String(risk)
+                                      })
         window.presentHeldDownload()
     }
 
     function presentHeldDownload() {
-        if (window.downloadQuestion || window.heldDownloadQueue.length === 0) return
+        if (window.downloadQuestion || window.heldDownloadQueue.length === 0)
+            return
         const held = window.heldDownloadQueue.shift()
         window.downloadQuestion = held
-        // A name already taken is not a question with two answers: the desktop's
-        // own save dialog is where the reader says where it goes instead.
         if (held.disposition === "save-as") {
             downloadTargetDialog.currentFile = window.fileUrl(
-                window.windowBrowser.downloadDirectory + "/" + held.fileName)
+                        window.windowBrowser.downloadDirectory + "/" + held.fileName)
             downloadTargetDialog.open()
             return
         }
@@ -1520,23 +1601,22 @@ ApplicationWindow {
         window.downloadQuestion = null
         if (held) {
             if (permissionDecision > 0)
-                window.windowBrowser.setPermissionDecision(held.origin,
-                    "automatic-downloads", permissionDecision)
-            if (keep) held.host.releaseHeldDownload(held.token, path ? String(path) : "")
+                window.windowBrowser.setPermissionDecision(held.origin, "automatic-downloads",
+                                                           permissionDecision)
+            if (keep)
+                held.host.releaseHeldDownload(held.token, path ? String(path) : "")
             else {
                 held.host.discardHeldDownload(held.token)
                 window.showNotice("block", "Download discarded", held.fileName, 3000)
             }
         }
-        // Whatever is behind it in the queue is asked next.
         window.presentHeldDownload()
     }
 
     function chooseDownloadDirectory(folderUrl) {
         const path = window.localPath(folderUrl)
         if (!window.windowBrowser.setDownloadDirectory(path))
-            window.showNotice("block", "That directory cannot take downloads",
-                path, 4200)
+            window.showNotice("block", "That directory cannot take downloads", path, 4200)
     }
 
     function closeOmnibar() {
@@ -1557,12 +1637,11 @@ ApplicationWindow {
 
             Shortcut {
                 sequence: keymap.keySequence(modelData)
-                enabled: keymap.isChord(modelData)
-                    || (keymap.pageCommandsEnabled && !engineLoader.hintModeActive)
+                enabled: keymap.isChord(modelData) || (keymap.pageCommandsEnabled &&
+                                                       !engineLoader.hintModeActive)
                 context: Qt.WindowShortcut
-                onActivated: browserCommands.run(
-                    keymap.commandFor(modelData),
-                    parseInt(modelData.slice(-1), 10) - 1)
+                onActivated: browserCommands.run(keymap.commandFor(modelData), parseInt(
+                                                     modelData.slice(-1), 10) - 1)
             }
         }
     }
@@ -1572,10 +1651,9 @@ ApplicationWindow {
     // window to a page must not have to know what their keymap says.
     Shortcut {
         sequence: "Esc"
-        enabled: engineLoader.siteFullscreenActive && !window.omnibarOpen
-            && !window.settingsOpen && !window.historyOpen && !window.pageMenuOpen
-            && !window.permissionOpen && !window.certificateQuestionOpen
-            && window.dialogMode.length === 0
+        enabled: engineLoader.siteFullscreenActive && !window.omnibarOpen && !window.settingsOpen
+                 && !window.historyOpen && !window.pageMenuOpen && !window.permissionOpen &&
+                 !window.certificateQuestionOpen && window.dialogMode.length === 0
         context: Qt.WindowShortcut
         onActivated: window.exitSiteFullscreen()
     }
@@ -1613,10 +1691,10 @@ ApplicationWindow {
                 siteDataOnDisk: window.siteDataOnDisk
                 insecureContentBlocked: window.insecureContentBlocked
                 cookiePolicy: engineCookiePolicy
-                siteDataEntries: window.spaceProfileHost
-                    ? window.spaceProfileHost.siteDataEntries : []
+                siteDataEntries: window.spaceProfileHost ? window.spaceProfileHost.siteDataEntries :
+                                                           []
                 retainedDataEntries: window.spaceProfileHost
-                    ? window.spaceProfileHost.retainedDataEntries : []
+                                     ? window.spaceProfileHost.retainedDataEntries : []
                 siteDataGeneration: window.siteDataGeneration
                 canGoBack: engineLoader.item ? engineLoader.item.canGoBack : false
                 canGoForward: engineLoader.item ? engineLoader.item.canGoForward : false
@@ -1629,9 +1707,10 @@ ApplicationWindow {
 
                 // The panel states; the window asks. Opening the dialog puts
                 // the panel away, so there is one surface holding the question.
-                onSiteActionRequested: function(action) {
+                onSiteActionRequested: function (action) {
                     sidebar.statusOpen = false
-                    if (action === "third-party") window.refreshThirdPartyRows()
+                    if (action === "third-party")
+                        window.refreshThirdPartyRows()
                     window.dialogMode = action
                 }
 
@@ -1639,30 +1718,39 @@ ApplicationWindow {
                 // would make the seam lag behind the hand holding it.
                 Behavior on Layout.preferredWidth {
                     enabled: !sidebarResizer.dragging
-                    NumberAnimation { duration: 120; easing.type: Easing.OutCubic }
+                    NumberAnimation {
+                        duration: 120
+                        easing.type: Easing.OutCubic
+                    }
                 }
 
                 onAddressRequested: window.openOmnibar(false)
-                onTabActivated: function(tabId) { window.windowBrowser.activateTab(tabId) }
-                onTabCloseRequested: function(tabId) { window.windowBrowser.closeTab(tabId) }
+                onTabActivated: function (tabId) {
+                    window.windowBrowser.activateTab(tabId)
+                }
+                onTabCloseRequested: function (tabId) {
+                    window.windowBrowser.closeTab(tabId)
+                }
                 // The speaker is the one place a row's sound can be given
                 // back, so it answers for both reasons a tab is silent: the
                 // reader's own muting, and an origin they have not dealt with.
-                onTabMuteToggled: function(tabId) {
+                onTabMuteToggled: function (tabId) {
                     if (window.windowBrowser.tabSoundSuppressed(tabId)) {
                         window.windowBrowser.grantTabSound(tabId)
                         return
                     }
                     window.windowBrowser.toggleTabMuted(tabId)
                 }
-                onTabDropped: function(tabId, destination) {
+                onTabDropped: function (tabId, destination) {
                     window.windowBrowser.moveTab(tabId, destination)
                 }
-                onTabMenuRequested: function(tabId, anchorX, anchorY) {
+                onTabMenuRequested: function (tabId, anchorX, anchorY) {
                     window.openTabMenu(tabId, anchorX, anchorY)
                 }
-                onSpaceActivated: function(spaceId) { window.windowBrowser.switchSpace(spaceId) }
-                onSpacesMenuRequested: function(anchorX, anchorY) {
+                onSpaceActivated: function (spaceId) {
+                    window.windowBrowser.switchSpace(spaceId)
+                }
+                onSpacesMenuRequested: function (anchorX, anchorY) {
                     window.spacesMenuX = anchorX
                     window.spacesMenuY = anchorY
                     window.spacesMenuOpen = true
@@ -1704,18 +1792,18 @@ ApplicationWindow {
                     // The page gives up the width the dock takes rather than
                     // being covered by it, so nothing the inspector points at
                     // is hidden behind the inspector.
-                    anchors.right: developerToolsDock.visible
-                        ? developerToolsDock.left : parent.right
+                    anchors.right: developerToolsDock.visible ? developerToolsDock.left :
+                                                                parent.right
                     focus: true
                     browserController: window.windowBrowser
                     engineSource: engineViewSource
                     spaceProfiles: spaceProfiles
-                    profilePath: window.profilePathOverride.length > 0
-                        ? window.profilePathOverride
-                        : window.windowBrowser.activeProfilePath
-                    sharedProfile: window.privateWindow
-                        ? window.sharedEngineProfile
-                        : (window.spaceProfileHost ? window.spaceProfileHost.profile : null)
+                    profilePath: window.profilePathOverride.length > 0 ? window.profilePathOverride :
+                                                                         window.windowBrowser.activeProfilePath
+                    sharedProfile: window.privateWindow ? window.sharedEngineProfile : (
+                                                              window.spaceProfileHost
+                                                              ? window.spaceProfileHost.profile :
+                                                                null)
                     permissionController: window.windowBrowser
                     blocker: contentBlocker
                     engineBlocker: engineContentBlocker
@@ -1727,18 +1815,17 @@ ApplicationWindow {
                     pageBackgroundColor: window.colors.windowOpaque
                     spaceId: window.windowBrowser.activeSpaceId
 
-                    onAuxiliaryWindowRequested: function(engine, request, requestedUrl) {
+                    onAuxiliaryWindowRequested: function (engine, request, requestedUrl) {
                         auxiliaryWindowComponent.createObject(window, {
-                            "openerEngine": engine,
-                            "request": request,
-                            "requestedUrl": requestedUrl
-                        })
+                                                                  "openerEngine": engine,
+                                                                  "request": request,
+                                                                  "requestedUrl": requestedUrl
+                                                              })
                     }
 
-                    onNewTabRequested: function(engine, request, requestedUrl) {
+                    onNewTabRequested: function (engine, request, requestedUrl) {
                         const destination = requestedUrl.toString().length > 0
-                            ? requestedUrl.toString()
-                            : "about:blank"
+                              ? requestedUrl.toString() : "about:blank"
                         window.windowBrowser.openInput(request ? "about:blank" : destination, true)
                         // The tab the request opened is the active one, and it
                         // is named rather than left to `item`: the tab starts
@@ -1746,20 +1833,20 @@ ApplicationWindow {
                         // request has to reach that tab's engine and not
                         // whichever page happened to be showing.
                         if (request) {
-                            engineLoader.adoptNewWindowRequest(
-                                window.windowBrowser.activeTabId, request)
+                            engineLoader.adoptNewWindowRequest(window.windowBrowser.activeTabId,
+                                                               request)
                         }
                     }
 
-                    onBackgroundTabRequested: function(requestedUrl) {
+                    onBackgroundTabRequested: function (requestedUrl) {
                         window.windowBrowser.openInputInBackground(requestedUrl)
                     }
 
-                    onPageContextRequested: function(engine, context) {
+                    onPageContextRequested: function (engine, context) {
                         window.openPageMenu(engine, context)
                     }
 
-                    onPrintFinished: function(destination, succeeded) {
+                    onPrintFinished: function (destination, succeeded) {
                         window.presentPrint(destination, succeeded)
                     }
 
@@ -1772,10 +1859,9 @@ ApplicationWindow {
                             window.sidebarHiddenForFullscreen = !window.sidebarCollapsed
                             window.sidebarCollapsed = true
                             window.applyFullscreen()
-                            window.showNotice("fullscreen",
-                                engineLoader.siteFullscreenOrigin
-                                    + " is showing this page fullscreen",
-                                "press esc to leave", 4200)
+                            window.showNotice("fullscreen", engineLoader.siteFullscreenOrigin
+                                              + " is showing this page fullscreen",
+                                              "press esc to leave", 4200)
                             return
                         }
                         window.applyFullscreen()
@@ -1786,7 +1872,7 @@ ApplicationWindow {
                         pageNotice.dismiss()
                     }
 
-                    onSitePermissionRequested: function(engine, requestId, origin, permission) {
+                    onSitePermissionRequested: function (engine, requestId, origin, permission) {
                         window.pendingPermissionRequest = requestId
                         window.pendingPermissionResponder = engine
                         window.pendingPermissionOrigin = origin
@@ -1794,35 +1880,34 @@ ApplicationWindow {
                         window.permissionOpen = true
                     }
 
-                    onCertificateErrorRaised: function(engine, requestId, failure) {
+                    onCertificateErrorRaised: function (engine, requestId, failure) {
                         window.showCertificateError(engine, requestId, failure)
                     }
 
                     // What the page managed to empty of its own storage. A page
                     // that held nothing says so rather than reporting a success
                     // the reader would read as having taken something.
-                    onPageSiteDataCleared: function(origin, cleared, error) {
+                    onPageSiteDataCleared: function (origin, cleared, error) {
                         if (error.length > 0) {
-                            window.showNotice("block",
-                                "Could not empty " + origin + "'s storage", error, 4200)
+                            window.showNotice("block", "Could not empty " + origin + "'s storage",
+                                              error, 4200)
                             return
                         }
                         if (cleared.length === 0) {
-                            window.showNotice("delete_sweep",
-                                origin + " had nothing stored", "", 3000)
+                            window.showNotice("delete_sweep", origin + " had nothing stored", "",
+                                              3000)
                             return
                         }
-                        window.showNotice("delete_sweep",
-                            "Emptied " + origin + "'s storage",
-                            cleared.join(", ") + " · cookies are cleared for the whole Space",
-                            4200)
+                        window.showNotice("delete_sweep", "Emptied " + origin + "'s storage",
+                                          cleared.join(", ")
+                                          + " · cookies are cleared for the whole Space", 4200)
                     }
 
-                    onBrowserPromptRequested: function(engine, requestId, prompt) {
+                    onBrowserPromptRequested: function (engine, requestId, prompt) {
                         window.showBrowserPrompt(engine, requestId, prompt)
                     }
 
-                    onFileSelectionRequested: function(engine, requestId, selection) {
+                    onFileSelectionRequested: function (engine, requestId, selection) {
                         window.showFileSelection(engine, requestId, selection)
                     }
                 }
@@ -1834,8 +1919,8 @@ ApplicationWindow {
                     anchors.top: parent.top
                     anchors.bottom: parent.bottom
                     width: window.developerToolsWidth
-                    visible: window.developerToolsOpen && !window.settingsOpen
-                        && !window.historyOpen
+                    visible: window.developerToolsOpen && !window.settingsOpen &&
+                             !window.historyOpen
                     z: 4
                     colors: window.colors
                     developerToolsView: engineLoader.developerToolsView
@@ -1857,7 +1942,7 @@ ApplicationWindow {
                     maximumWidth: window.developerToolsMaximumWidth
                     defaultWidth: window.developerToolsDefaultWidth
 
-                    onWidthRequested: function(width) {
+                    onWidthRequested: function (width) {
                         window.setDeveloperToolsWidth(width)
                     }
                     onPageFocusRequested: window.focusPage()
@@ -1872,8 +1957,8 @@ ApplicationWindow {
                     commands: browserCommands
                     keymap: keymap
                     privateWindow: window.privateWindow
-                    open: (window.pagelessViewport || window.shortcutsOpen)
-                        && !window.settingsOpen && !window.historyOpen
+                    open: (window.pagelessViewport || window.shortcutsOpen) && !window.settingsOpen
+                          && !window.historyOpen
                     overPage: !window.pagelessViewport
                     // The page behind the sheet, not the viewport that owns
                     // both, so the blur never samples itself. There is nothing
@@ -1898,13 +1983,13 @@ ApplicationWindow {
                     iconFontFamily: materialSymbols.name
                     // The bar stands for the tab on show, and only where there
                     // is a page to search.
-                    open: window.findOpen && window.findAvailable
-                        && !window.settingsOpen && !window.historyOpen
+                    open: window.findOpen && window.findAvailable && !window.settingsOpen &&
+                          !window.historyOpen
                     query: engineLoader.item ? engineLoader.item.findQuery : ""
                     matchCount: engineLoader.item ? engineLoader.item.findMatchCount : 0
                     activeMatch: engineLoader.item ? engineLoader.item.findActiveMatch : 0
 
-                    onSearchRequested: function(text, forward) {
+                    onSearchRequested: function (text, forward) {
                         engineLoader.findText(text, forward)
                     }
                     onClosed: window.closeFind()
@@ -1937,27 +2022,46 @@ ApplicationWindow {
                     // see being spent is never offered a persistent answer, and
                     // the bar says so instead of quietly dropping the button.
                     readonly property int policy: window.pendingPermissionType.length > 0
-                        ? window.windowBrowser.permissionPolicy(window.pendingPermissionType)
-                        : 0
+                                                  ? window.windowBrowser.permissionPolicy(
+                                                        window.pendingPermissionType) : 0
                     message: window.pendingPermissionOrigin
-                        + " asked for a protected browser capability"
-                    detail: window.pendingPermissionType
-                        + (permissionBar.policy === window.permissionRememberable
-                            ? " · remembered for this Space only"
-                            : " · asked every time, never remembered")
-                    actions: permissionBar.policy === window.permissionRememberable
-                        ? [
-                            {"label": "Allow once", "decision": 1},
-                            {"label": "Always allow", "decision": 2,
-                                "enabled": !window.privateWindow},
-                            {"label": "Block", "decision": 3}
-                        ]
-                        : [
-                            {"label": "Allow once", "decision": 1},
-                            {"label": "Block", "decision": 3}
-                        ]
+                             + " asked for a protected browser capability"
+                    detail: window.pendingPermissionType + (permissionBar.policy
+                                                            === window.permissionRememberable
+                                                            ? " · remembered for this Space only" :
+                                                              " · asked every time, never remembered")
+                    actions: permissionBar.policy === window.permissionRememberable ? [
+                                                                                          {
+                                                                                              "label": "Allow once",
+                                                                                              "decision":
+                                                                                              1
+                                                                                          },
+                                                                                          {
+                                                                                              "label": "Always allow",
+                                                                                              "decision":
+                                                                                              2,
+                                                                                              "enabled":
+                                                                                                  !window.privateWindow
+                                                                                          },
+                                                                                          {
+                                                                                              "label": "Block",
+                                                                                              "decision":
+                                                                                              3
+                                                                                          }
+                                                                                      ] : [
+                                                                                          {
+                                                                                              "label": "Allow once",
+                                                                                              "decision":
+                                                                                              1
+                                                                                          },
+                                                                                          {
+                                                                                              "label": "Block",
+                                                                                              "decision":
+                                                                                              3
+                                                                                          }
+                                                                                      ]
 
-                    onActionTriggered: function(index) {
+                    onActionTriggered: function (index) {
                         window.respondToPermission(permissionBar.actions[index].decision)
                     }
                 }
@@ -1977,24 +2081,23 @@ ApplicationWindow {
                     open: window.certificateQuestionOpen
                     glyph: "warning"
                     message: String(window.pendingCertificateFailure.origin || "")
-                        + " could not prove its certificate"
+                             + " could not prove its certificate"
                     detail: String(window.pendingCertificateFailure.description || "")
-                        + " · local development site · this load only, never remembered"
+                            + " · local development site · this load only, never remembered"
                     actions: [
-                        {"label": "Continue once"},
-                        {"label": "Block"}
+                        {
+                            "label": "Continue once"
+                        },
+                        {
+                            "label": "Block"
+                        }
                     ]
 
-                    onActionTriggered: function(index) {
+                    onActionTriggered: function (index) {
                         window.respondToCertificateError(index === 0)
                     }
                 }
 
-                // A download nothing has been written for. Either it is a
-                // program, script, installer, disk image or archive — which
-                // Omaweb will not put on the reader's disk without asking, and
-                // will not run afterwards — or the page is downloading by
-                // itself, which is a Site permission for this Space.
                 PageQuestionBar {
                     id: downloadQuestionBar
                     objectName: "downloadQuestionBar"
@@ -2007,29 +2110,48 @@ ApplicationWindow {
                     open: window.downloadQuestionOpen
                     glyph: "download"
                     readonly property var held: window.downloadQuestion || ({})
-                    readonly property bool automatic:
-                        String(held.disposition) === "permission"
-                    message: downloadQuestionBar.automatic
-                        ? String(held.origin || "") + " wants to download files by itself"
-                        : String(held.origin || "") + " wants to download "
-                            + String(held.fileName || "")
-                    detail: downloadQuestionBar.automatic
-                        ? String(held.fileName || "")
-                            + " · remembered for this Space only"
-                        : String(held.risk || "") + " · Omaweb never runs a download"
-                    actions: downloadQuestionBar.automatic
-                        ? [
-                            {"label": "Allow once", "keep": true, "decision": 1},
-                            {"label": "Always allow", "keep": true, "decision": 2,
-                                "enabled": !window.privateWindow},
-                            {"label": "Block", "keep": false, "decision": 3}
-                        ]
-                        : [
-                            {"label": "Download", "keep": true, "decision": 0},
-                            {"label": "Discard", "keep": false, "decision": 0}
-                        ]
+                    readonly property bool automatic: String(held.disposition) === "permission"
+                    message: downloadQuestionBar.automatic ? String(held.origin || "")
+                                                             + " wants to download files by itself" :
+                                                             String(held.origin || "")
+                                                             + " wants to download " + String(
+                                                                 held.fileName || "")
+                    detail: downloadQuestionBar.automatic ? String(held.fileName || "")
+                                                            + " · remembered for this Space only" :
+                                                            String(held.risk || "")
+                                                            + " · Omaweb never runs a download"
+                    actions: downloadQuestionBar.automatic ? [
+                                                                 {
+                                                                     "label": "Allow once",
+                                                                     "keep": true,
+                                                                     "decision": 1
+                                                                 },
+                                                                 {
+                                                                     "label": "Always allow",
+                                                                     "keep": true,
+                                                                     "decision": 2,
+                                                                     "enabled":
+                                                                         !window.privateWindow
+                                                                 },
+                                                                 {
+                                                                     "label": "Block",
+                                                                     "keep": false,
+                                                                     "decision": 3
+                                                                 }
+                                                             ] : [
+                                                                 {
+                                                                     "label": "Download",
+                                                                     "keep": true,
+                                                                     "decision": 0
+                                                                 },
+                                                                 {
+                                                                     "label": "Discard",
+                                                                     "keep": false,
+                                                                     "decision": 0
+                                                                 }
+                                                             ]
 
-                    onActionTriggered: function(index) {
+                    onActionTriggered: function (index) {
                         const action = downloadQuestionBar.actions[index]
                         window.answerHeldDownload(action.keep, "", action.decision)
                     }
@@ -2044,9 +2166,9 @@ ApplicationWindow {
                     open: window.browserPromptOpen
                     prompt: window.pendingBrowserPrompt
 
-                    onAnswered: function(accepted, text, user, password, stopPrompts, remember) {
-                        window.respondToBrowserPrompt(
-                            accepted, text, user, password, stopPrompts, remember)
+                    onAnswered: function (accepted, text, user, password, stopPrompts, remember) {
+                        window.respondToBrowserPrompt(accepted, text, user, password, stopPrompts,
+                                                      remember)
                     }
                 }
 
@@ -2071,21 +2193,29 @@ ApplicationWindow {
                     downloads: window.visibleDownloads
 
                     onClosed: window.settingsOpen = false
-                    onRetainedTabReleased: function(tabId) {
+                    onRetainedTabReleased: function (tabId) {
                         window.releaseRetainedTab(tabId)
                     }
                     onDownloadsRequested: window.refreshVisibleDownloads()
                     onDownloadDirectoryRequested: downloadDirectoryDialog.open()
-                    onDownloadCancelled: function(runtimeId) {
+                    onDownloadCancelled: function (runtimeId) {
                         window.cancelDownload(runtimeId)
                     }
-                    onDownloadRetried: function(runtimeId, sourceUrl) {
+                    onDownloadRetried: function (runtimeId, sourceUrl) {
                         window.retryDownload(runtimeId, sourceUrl)
                     }
-                    onDownloadRevealed: function(path) { window.revealDownload(path) }
-                    onDownloadForgotten: function(id) { window.forgetDownload(id) }
-                    onUseFaviconsToggled: function(enabled) { window.setUseFavicons(enabled) }
-                    onTintFaviconsToggled: function(enabled) { window.setTintFavicons(enabled) }
+                    onDownloadRevealed: function (path) {
+                        window.revealDownload(path)
+                    }
+                    onDownloadForgotten: function (id) {
+                        window.forgetDownload(id)
+                    }
+                    onUseFaviconsToggled: function (enabled) {
+                        window.setUseFavicons(enabled)
+                    }
+                    onTintFaviconsToggled: function (enabled) {
+                        window.setTintFavicons(enabled)
+                    }
                 }
 
                 HistoryPage {
@@ -2105,9 +2235,8 @@ ApplicationWindow {
                 // where a site has been given the screen, which is the one
                 // state that has no browser chrome over it at all.
                 NavigationCluster {
-                    visible: !window.settingsOpen && !window.historyOpen
-                        && window.sidebarCollapsed
-                        && !engineLoader.siteFullscreenActive
+                    visible: !window.settingsOpen && !window.historyOpen && window.sidebarCollapsed
+                             && !engineLoader.siteFullscreenActive
                     // Where the outline's own controls were: the strip stands
                     // in for the top of the sidebar, so hiding the sidebar
                     // leaves the commands where the reader was already
@@ -2153,7 +2282,7 @@ ApplicationWindow {
 
                     function onSpaceRestored(spaceId) {
                         if (spaceId === window.windowBrowser.activeSpaceId) {
-                            Qt.callLater(function() {
+                            Qt.callLater(function () {
                                 window.createSpaceProfile()
                                 engineLoader.resume()
                             })
@@ -2168,8 +2297,9 @@ ApplicationWindow {
                     // The engine answers straight away with what it could not
                     // take, which is what the notice about it reports.
                     function onEngineDataClearRequested(spaceIds, dataTypes, since) {
-                        window.untouchedDataCategories =
-                            engineLoader.clearBrowsingData(spaceIds, dataTypes, since)
+                        window.untouchedDataCategories = engineLoader.clearBrowsingData(spaceIds,
+                                                                                        dataTypes,
+                                                                                        since)
                     }
 
                     function onEngineOriginPermissionsResetRequested(spaceId, origin) {
@@ -2177,7 +2307,8 @@ ApplicationWindow {
                     }
 
                     function onCloseWindowRequested() {
-                        if (window.privateWindow) window.close()
+                        if (window.privateWindow)
+                            window.close()
                     }
 
                     // The find bar stands for one tab, so it comes and goes
@@ -2229,7 +2360,6 @@ ApplicationWindow {
                     }
                 }
 
-
                 Rectangle {
                     objectName: "browserErrorBanner"
                     anchors.top: parent.top
@@ -2277,7 +2407,9 @@ ApplicationWindow {
             maximumWidth: window.sidebarMaximumWidth
             defaultWidth: window.sidebarDefaultWidth
 
-            onWidthRequested: function(width) { window.setSidebarWidth(width) }
+            onWidthRequested: function (width) {
+                window.setSidebarWidth(width)
+            }
             onPageFocusRequested: window.focusPage()
         }
     }
@@ -2290,7 +2422,7 @@ ApplicationWindow {
             permissionController: window.windowBrowser
             contentBlocker: contentBlocker
             engineContentBlocker: engineContentBlocker
-            onSitePermissionRequested: function(responder, requestId, origin, permission) {
+            onSitePermissionRequested: function (responder, requestId, origin, permission) {
                 window.pendingPermissionRequest = requestId
                 window.pendingPermissionResponder = responder
                 window.pendingPermissionOrigin = origin
@@ -2298,7 +2430,7 @@ ApplicationWindow {
                 window.permissionOpen = true
             }
 
-            onCertificateErrorRaised: function(responder, requestId, failure) {
+            onCertificateErrorRaised: function (responder, requestId, failure) {
                 window.showCertificateError(responder, requestId, failure, true)
             }
         }
@@ -2308,27 +2440,34 @@ ApplicationWindow {
         target: windowManager
 
         function onPrivateWindowRequested(controller, profilePath) {
-            if (window.privateWindow) return
+            if (window.privateWindow)
+                return
             if (!window.privateProfileHost) {
                 const profileComponent = Qt.createComponent(engineProfileSource)
                 window.privateProfileHost = profileComponent.createObject(window, {
-                    "profilePath": profilePath,
-                    "downloadDirectory": controller.downloadDirectory,
-                    "acceptDownloads": controller.acceptDownloads,
-                    // The rule is the private window's own: a download from a
-                    // Private page takes that window's decisions, and they go
-                    // when the private session does.
-                    "downloadController": controller,
-                    "downloadHolds": engineHeldDownloads,
-                    "privateBrowsing": true,
-                    "engineContentBlocker": engineContentBlocker,
-                    // A Private window has no Space of its own, so its
-                    // third-party allowances key on the empty name its shared
-                    // session already uses for Site permissions.
-                    "engineCookiePolicy": engineCookiePolicy,
-                    "cookieController": controller,
-                    "cookieSpaceId": ""
-                })
+                                                                              "profilePath":
+                                                                              profilePath,
+                                                                              "downloadDirectory":
+                                                                              controller.downloadDirectory,
+                                                                              "acceptDownloads":
+                                                                              controller.acceptDownloads,
+                                                                              "downloadController":
+                                                                              controller,
+                                                                              "downloadHolds":
+                                                                              engineHeldDownloads,
+                                                                              "privateBrowsing":
+                                                                              true,
+                                                                              "engineContentBlocker":
+                                                                              engineContentBlocker,
+                                                                              // A Private window has no Space of its own, so its
+                                                                              // third-party allowances key on the empty name its shared
+                                                                              // session already uses for Site permissions.
+                                                                              "engineCookiePolicy":
+                                                                              engineCookiePolicy,
+                                                                              "cookieController":
+                                                                              controller,
+                                                                              "cookieSpaceId": ""
+                                                                          })
                 // A Private page is not given the desktop's notification
                 // centre. A notification would put the origin into a list that
                 // outlives the private session and is read by whoever is at
@@ -2340,24 +2479,23 @@ ApplicationWindow {
             }
             const component = Qt.createComponent(Qt.resolvedUrl("Main.qml"))
             const opened = component.createObject(null, {
-                "windowBrowser": controller,
-                "privateWindow": true,
-                "opener": window,
-                "profilePathOverride": profilePath,
-                "sharedEngineProfile": window.privateProfileHost.profile,
-                // The profile is built here and used there, so the window that
-                // shows the pages is the one that routes their downloads. A
-                // second Private window shares the session's one profile and
-                // therefore its questions, as it already shares its
-                // notifications.
-                "privateProfileHost": window.privateProfileHost
-            })
-            if (opened) window.privateWindows.push(opened)
+                                                      "windowBrowser": controller,
+                                                      "privateWindow": true,
+                                                      "opener": window,
+                                                      "profilePathOverride": profilePath,
+                                                      "sharedEngineProfile":
+                                                      window.privateProfileHost.profile,
+                                                      "privateProfileHost":
+                                                      window.privateProfileHost
+                                                  })
+            if (opened)
+                window.privateWindows.push(opened)
         }
 
         function onPrivateSessionEnding() {
-            if (window.privateWindow || windowManager.privateWindowCount > 0
-                    || !window.privateProfileHost) return
+            if (window.privateWindow || windowManager.privateWindowCount > 0 ||
+                    !window.privateProfileHost)
+                return
             window.privateProfileHost.retire()
             window.privateProfileHost = null
         }
@@ -2366,7 +2504,9 @@ ApplicationWindow {
     Connections {
         target: window.windowBrowser
 
-        function onRetainedTabsChanged() { window.refreshRetainedTabs() }
+        function onRetainedTabsChanged() {
+            window.refreshRetainedTabs()
+        }
         function onCertificateExceptionsChanged() {
             window.certificateExceptionGeneration += 1
         }
@@ -2388,7 +2528,7 @@ ApplicationWindow {
 
         function refreshBlockedRequestCount() {
             window.visibleBlockedRequestCount = contentBlocker.blockedRequestCount(
-                window.windowBrowser.activeUrl)
+                        window.windowBrowser.activeUrl)
         }
 
         // Rebuilding the subscription list means copying every list's title,
@@ -2398,8 +2538,12 @@ ApplicationWindow {
             window.visibleSubscriptions = contentBlocker.subscriptions
         }
 
-        function onBlockedRequestCountChanged(siteUrl) { refreshBlockedRequestCount() }
-        function onRulesChanged() { refreshBlockedRequestCount() }
+        function onBlockedRequestCountChanged(siteUrl) {
+            refreshBlockedRequestCount()
+        }
+        function onRulesChanged() {
+            refreshBlockedRequestCount()
+        }
     }
 
     Component.onCompleted: {
@@ -2417,20 +2561,24 @@ ApplicationWindow {
 
     function forgetPrivateWindow(instance) {
         const index = window.privateWindows.indexOf(instance)
-        if (index !== -1) window.privateWindows.splice(index, 1)
+        if (index !== -1)
+            window.privateWindows.splice(index, 1)
     }
 
-    onClosing: function(close) {
+    onClosing: function (close) {
         // Parentless windows outlive their opener unless they are asked not to.
         if (!window.privateWindow) {
-            for (const openWindow of window.privateWindows.slice()) openWindow.close()
+            for (const openWindow of window.privateWindows.slice())
+                openWindow.close()
             return
         }
-        if (!window.windowBrowser) return
+        if (!window.windowBrowser)
+            return
         const controller = window.windowBrowser
         const opener = window.opener
-        Qt.callLater(function() {
-            if (opener) opener.forgetPrivateWindow(window)
+        Qt.callLater(function () {
+            if (opener)
+                opener.forgetPrivateWindow(window)
             window.destroy()
             windowManager.releasePrivateWindow(controller)
         })
@@ -2446,21 +2594,38 @@ ApplicationWindow {
         anchorX: window.spacesMenuX
         anchorY: window.spacesMenuY
         items: [
-            {"label": "New Space"},
-            {"label": "Rename " + window.windowBrowser.activeSpaceName},
-            {"label": "Move this tab to a Space"},
-            {"label": "Delete " + window.windowBrowser.activeSpaceName, "destructive": true}
+            {
+                "label": "New Space"
+            },
+            {
+                "label": "Rename " + window.windowBrowser.activeSpaceName
+            },
+            {
+                "label": "Move this tab to a Space"
+            },
+            {
+                "label": "Delete " + window.windowBrowser.activeSpaceName,
+                "destructive": true
+            }
         ]
 
         onDismissed: window.spacesMenuOpen = false
 
-        onTriggered: function(index) {
+        onTriggered: function (index) {
             window.spacesMenuOpen = false
             switch (index) {
-            case 0: window.requestNewSpace(); break
-            case 1: window.dialogMode = "rename"; break
-            case 2: window.requestMoveTab(); break
-            case 3: window.dialogMode = "delete"; break
+            case 0:
+                window.requestNewSpace()
+                break
+            case 1:
+                window.dialogMode = "rename"
+                break
+            case 2:
+                window.requestMoveTab()
+                break
+            case 3:
+                window.dialogMode = "delete"
+                break
             }
         }
     }
@@ -2476,14 +2641,18 @@ ApplicationWindow {
         downloadHolds: engineHeldDownloads
         owner: window
 
-        onCreated: function(spaceId, host) { window.adoptSpaceProfile(spaceId, host) }
+        onCreated: function (spaceId, host) {
+            window.adoptSpaceProfile(spaceId, host)
+        }
     }
 
     Connections {
         target: window.spaceProfileHost
         ignoreUnknownSignals: true
 
-        function onBrowsingDataCleared() { window.siteDataGeneration += 1 }
+        function onBrowsingDataCleared() {
+            window.siteDataGeneration += 1
+        }
     }
 
     SiteNotifications {
@@ -2491,7 +2660,7 @@ ApplicationWindow {
         browser: window.windowBrowser
         allowed: !window.privateWindow
 
-        onActivationRequested: function(spaceId, tabId) {
+        onActivationRequested: function (spaceId, tabId) {
             window.windowBrowser.activateNotificationTarget(spaceId, tabId)
             window.raise()
             window.requestActivate()
@@ -2512,7 +2681,9 @@ ApplicationWindow {
         items: window.tabMenuActionsFor(window.tabMenuTabId)
 
         onDismissed: window.tabMenuOpen = false
-        onTriggered: function(index) { window.runTabMenu(index) }
+        onTriggered: function (index) {
+            window.runTabMenu(index)
+        }
     }
 
     ChromeMenu {
@@ -2532,7 +2703,9 @@ ApplicationWindow {
             window.pageMenuOpen = false
             window.focusPage()
         }
-        onTriggered: function(index) { window.runPageMenu(index) }
+        onTriggered: function (index) {
+            window.runPageMenu(index)
+        }
     }
 
     CommandDialog {
@@ -2543,32 +2716,44 @@ ApplicationWindow {
         colors: window.colors
         open: window.dialogMode.length > 0
         destructive: window.dialogMode === "delete" || window.dialogMode === "confirm-move"
-            || window.dialogMode === "space-data" || window.dialogMode === "site-storage"
+                     || window.dialogMode === "space-data" || window.dialogMode === "site-storage"
         inputVisible: window.dialogMode === "new" || window.dialogMode === "rename"
-            || window.dialogMode === "delete"
+                      || window.dialogMode === "delete"
         selectPreset: window.dialogMode === "rename"
         presetText: window.dialogMode === "rename" ? window.windowBrowser.activeSpaceName : ""
 
         label: {
             switch (window.dialogMode) {
-            case "new": return "new space"
-            case "rename": return "rename space"
-            case "delete": return "delete space"
-            case "move": return "move tab to a space"
-            case "confirm-move": return "discard edited form state"
-            case "site-storage": return "clear this site's storage"
-            case "space-data": return "clear this Space's site data"
-            case "reset-permissions": return "reset this site's permissions"
-            case "third-party": return "third parties on this page"
+            case "new":
+                return "new space"
+            case "rename":
+                return "rename space"
+            case "delete":
+                return "delete space"
+            case "move":
+                return "move tab to a space"
+            case "confirm-move":
+                return "discard edited form state"
+            case "site-storage":
+                return "clear this site's storage"
+            case "space-data":
+                return "clear this Space's site data"
+            case "reset-permissions":
+                return "reset this site's permissions"
+            case "third-party":
+                return "third parties on this page"
             }
             return ""
         }
 
         placeholder: {
             switch (window.dialogMode) {
-            case "new": return "name the Space"
-            case "rename": return window.windowBrowser.activeSpaceName
-            case "delete": return "type " + window.windowBrowser.activeSpaceName + " to delete it"
+            case "new":
+                return "name the Space"
+            case "rename":
+                return window.windowBrowser.activeSpaceName
+            case "delete":
+                return "type " + window.windowBrowser.activeSpaceName + " to delete it"
             }
             return ""
         }
@@ -2576,71 +2761,83 @@ ApplicationWindow {
         message: {
             if (window.dialogMode === "delete") {
                 return window.windowBrowser.activeSpaceName + " keeps its tabs, its session, "
-                    + "its logins and its engine data. Deleting it cannot be undone."
+                        + "its logins and its engine data. Deleting it cannot be undone."
             }
             if (window.dialogMode === "confirm-move") {
                 return "This page has edited form state. Moving it reloads the page under the "
-                    + "destination identity and discards those edits."
+                        + "destination identity and discards those edits."
             }
             // Each of these names its own scope, because the three of them are
             // three different sizes and only the wording tells them apart.
             if (window.dialogMode === "site-storage") {
                 return sidebar.siteOrigin + " loses the local storage, databases, caches and "
-                    + "service workers it kept in this Space. Its cookies are not included: "
-                    + "the engine can only take those for every site at once. The page may "
-                    + "misbehave until it is reloaded, and this cannot be undone."
+                        + "service workers it kept in this Space. Its cookies are not included: "
+                        + "the engine can only take those for every site at once. The page may "
+                        + "misbehave until it is reloaded, and this cannot be undone."
             }
             if (window.dialogMode === "space-data") {
                 return "Every site in " + window.windowBrowser.activeSpaceName + " loses its "
-                    + "cookies and cached files, so open sessions there are signed out. "
-                    + "Storage and databases stay: this engine can only take those one site "
-                    + "at a time. This cannot be undone."
+                        + "cookies and cached files, so open sessions there are signed out. "
+                        + "Storage and databases stay: this engine can only take those one site "
+                        + "at a time. This cannot be undone."
             }
             if (window.dialogMode === "reset-permissions") {
                 return sidebar.siteOrigin + " loses every decision made for it in this Space, "
-                    + "and is asked again the next time it wants one. A page already holding "
-                    + "a capability keeps it until the site is opened again — reloading is "
-                    + "not enough."
+                        + "and is asked again the next time it wants one. A page already holding "
+                        + "a capability keeps it until the site is opened again — reloading is "
+                        + "not enough."
             }
             if (window.dialogMode === "third-party") {
                 return "Sites embedded in this page are refused cookies and storage. Allow "
-                    + "one only when a sign-in or a payment on this page is not working; an "
-                    + "embedded image or script host does not need it. Nothing allowed here "
-                    + "outlives this session."
+                        + "one only when a sign-in or a payment on this page is not working; an "
+                        + "embedded image or script host does not need it. Nothing allowed here "
+                        + "outlives this session."
             }
             return ""
         }
 
         confirmHint: {
             switch (window.dialogMode) {
-            case "new": return "⏎ create the Space"
-            case "rename": return "⏎ rename the Space"
-            case "delete": return "⏎ delete " + window.windowBrowser.activeSpaceName
-            case "move": return "↑↓ choose      ⏎ move the tab"
-            case "confirm-move": return "⏎ discard the edits and move"
-            case "site-storage": return "⏎ clear " + sidebar.siteOrigin + "'s storage"
-            case "space-data": return "⏎ clear every site's cookies and cache"
-            case "reset-permissions": return "⏎ reset " + sidebar.siteOrigin + "'s permissions"
-            case "third-party": return "↑↓ choose      ⏎ answer for that site"
+            case "new":
+                return "⏎ create the Space"
+            case "rename":
+                return "⏎ rename the Space"
+            case "delete":
+                return "⏎ delete " + window.windowBrowser.activeSpaceName
+            case "move":
+                return "↑↓ choose      ⏎ move the tab"
+            case "confirm-move":
+                return "⏎ discard the edits and move"
+            case "site-storage":
+                return "⏎ clear " + sidebar.siteOrigin + "'s storage"
+            case "space-data":
+                return "⏎ clear every site's cookies and cache"
+            case "reset-permissions":
+                return "⏎ reset " + sidebar.siteOrigin + "'s permissions"
+            case "third-party":
+                return "↑↓ choose      ⏎ answer for that site"
             }
             return ""
         }
 
         rows: {
             switch (window.dialogMode) {
-            case "move": return window.moveTargets
-            case "third-party": return window.thirdPartyRows
+            case "move":
+                return window.moveTargets
+            case "third-party":
+                return window.thirdPartyRows
             }
             return []
         }
 
         onDismissed: window.dialogMode = ""
 
-        onAccepted: function(text) {
+        onAccepted: function (text) {
             switch (window.dialogMode) {
             case "new":
                 const spaceId = window.windowBrowser.createSpace(text)
-                if (spaceId.length > 0) window.windowBrowser.switchSpace(spaceId)
+                if (spaceId.length > 0)
+                    window.windowBrowser.switchSpace(spaceId)
                 break
             case "rename":
                 window.windowBrowser.renameSpace(window.windowBrowser.activeSpaceId, text)
@@ -2649,8 +2846,8 @@ ApplicationWindow {
                 window.windowBrowser.deleteSpace(window.windowBrowser.activeSpaceId, text)
                 break
             case "confirm-move":
-                window.windowBrowser.confirmTabMoveToSpace(
-                    window.pendingMoveTabId, window.pendingMoveSpaceId)
+                window.windowBrowser.confirmTabMoveToSpace(window.pendingMoveTabId,
+                                                           window.pendingMoveSpaceId)
                 break
             case "site-storage":
                 engineLoader.clearPageSiteData()
@@ -2665,19 +2862,19 @@ ApplicationWindow {
             window.dialogMode = ""
         }
 
-        onRowActivated: function(index) {
+        onRowActivated: function (index) {
             if (window.dialogMode === "third-party") {
                 window.dialogMode = ""
                 window.answerThirdPartyRow(index)
                 return
             }
             const target = window.moveTargets[index]
-            if (!target) return
+            if (!target)
+                return
             const tabId = window.windowBrowser.activeTabId
             window.dialogMode = ""
-            engineLoader.checkForEditedFormState(function(hasEditedFormState) {
-                window.windowBrowser.requestTabMoveToSpace(
-                    tabId, target.id, hasEditedFormState)
+            engineLoader.checkForEditedFormState(function (hasEditedFormState) {
+                window.windowBrowser.requestTabMoveToSpace(tabId, target.id, hasEditedFormState)
             })
         }
     }
@@ -2695,12 +2892,14 @@ ApplicationWindow {
         suggestions: window.omnibarSuggestions
 
         onDismissed: window.closeOmnibar()
-        onQueryChanged: function(text) {
-            if (commandPanel.commandMode) return
-            window.omnibarSuggestions = window.privateWindow
-                ? [] : window.windowBrowser.historySuggestions(text)
+        onQueryChanged: function (text) {
+            if (commandPanel.commandMode)
+                return
+            window.omnibarSuggestions = window.privateWindow ? [] :
+                                                               window.windowBrowser.historySuggestions(
+                                                                   text)
         }
-        onCommitted: function(text) {
+        onCommitted: function (text) {
             window.windowBrowser.openInput(text, window.newTabIntent)
             window.closeOmnibar()
         }

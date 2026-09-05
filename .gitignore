@@ -1,4 +1,5 @@
 /build/
+/node_modules/
 /.cache/
 /.qt/
 compile_commands.json

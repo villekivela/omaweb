@@ -19,8 +19,12 @@ Omarchy.TextField {
     property bool destructive: false
     property string accessibleName: ""
 
-    function focusInput() { root.forceActiveFocus() }
-    function selectAllText() { root.selectAll() }
+    function focusInput() {
+        root.forceActiveFocus()
+    }
+    function selectAllText() {
+        root.selectAll()
+    }
 
     placeholderText: placeholder
     foreground: colors.text

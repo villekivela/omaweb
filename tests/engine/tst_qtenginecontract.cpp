@@ -36,8 +36,8 @@
 #include <memory>
 
 using omaweb::BrowserController;
-using omaweb::validateEngineViewContract;
 using omaweb::EngineCapabilities;
+using omaweb::validateEngineViewContract;
 
 static QString keyboardNavigationPageScript()
 {
@@ -117,31 +117,33 @@ namespace {
 QVariantMap inspectorPalette()
 {
     return {
-        {QStringLiteral("windowOpaque"), QStringLiteral("#0b1a0b")},
-        {QStringLiteral("sidebarOpaque"), QStringLiteral("#112b11")},
-        {QStringLiteral("surface"), QStringLiteral("#1a3d1a")},
-        {QStringLiteral("surfaceHover"), QStringLiteral("#245224")},
-        {QStringLiteral("border"), QStringLiteral("#2f6b2f")},
-        {QStringLiteral("text"), QStringLiteral("#e8ffe8")},
-        {QStringLiteral("mutedText"), QStringLiteral("#9dc79d")},
-        {QStringLiteral("accent"), QStringLiteral("#00ff88")},
-        {QStringLiteral("urgent"), QStringLiteral("#ff0044")},
-        {QStringLiteral("syntax"), QVariantMap{
-            {QStringLiteral("keyword"), QStringLiteral("#123456")},
-            {QStringLiteral("string"), QStringLiteral("#654321")},
-            {QStringLiteral("number"), QStringLiteral("#abcdef")},
-            {QStringLiteral("comment"), QStringLiteral("#fedcba")},
-            {QStringLiteral("tag"), QStringLiteral("#010203")},
-            {QStringLiteral("attribute"), QStringLiteral("#040506")},
-            {QStringLiteral("variable"), QStringLiteral("#0a0b0c")},
-            {QStringLiteral("function"), QStringLiteral("#0d0e0f")},
-            {QStringLiteral("type"), QStringLiteral("#101112")},
-            {QStringLiteral("punctuation"), QStringLiteral("#778899")},
-        }},
-        {QStringLiteral("font"), QVariantMap{
-            {QStringLiteral("family"), QStringLiteral("Menlo")},
-            {QStringLiteral("size"), 12},
-        }},
+        { QStringLiteral("windowOpaque"), QStringLiteral("#0b1a0b") },
+        { QStringLiteral("sidebarOpaque"), QStringLiteral("#112b11") },
+        { QStringLiteral("surface"), QStringLiteral("#1a3d1a") },
+        { QStringLiteral("surfaceHover"), QStringLiteral("#245224") },
+        { QStringLiteral("border"), QStringLiteral("#2f6b2f") },
+        { QStringLiteral("text"), QStringLiteral("#e8ffe8") },
+        { QStringLiteral("mutedText"), QStringLiteral("#9dc79d") },
+        { QStringLiteral("accent"), QStringLiteral("#00ff88") },
+        { QStringLiteral("urgent"), QStringLiteral("#ff0044") },
+        { QStringLiteral("syntax"),
+            QVariantMap {
+                { QStringLiteral("keyword"), QStringLiteral("#123456") },
+                { QStringLiteral("string"), QStringLiteral("#654321") },
+                { QStringLiteral("number"), QStringLiteral("#abcdef") },
+                { QStringLiteral("comment"), QStringLiteral("#fedcba") },
+                { QStringLiteral("tag"), QStringLiteral("#010203") },
+                { QStringLiteral("attribute"), QStringLiteral("#040506") },
+                { QStringLiteral("variable"), QStringLiteral("#0a0b0c") },
+                { QStringLiteral("function"), QStringLiteral("#0d0e0f") },
+                { QStringLiteral("type"), QStringLiteral("#101112") },
+                { QStringLiteral("punctuation"), QStringLiteral("#778899") },
+            } },
+        { QStringLiteral("font"),
+            QVariantMap {
+                { QStringLiteral("family"), QStringLiteral("Menlo") },
+                { QStringLiteral("size"), 12 },
+            } },
     };
 }
 
@@ -175,8 +177,7 @@ void QtEngineContractTest::adaptersRefuseEveryInsecureContentOverride()
     QFile source(path);
     QVERIFY(source.open(QIODevice::ReadOnly));
     const auto text = QString::fromUtf8(source.readAll());
-    QVERIFY2(!text.contains(QStringLiteral("allowRunningInsecureContent: true")),
-        qPrintable(path));
+    QVERIFY2(!text.contains(QStringLiteral("allowRunningInsecureContent: true")), qPrintable(path));
 }
 
 // The facts the shell decides on: the address, whether the engine would allow
@@ -185,21 +186,19 @@ void QtEngineContractTest::adaptersRefuseEveryInsecureContentOverride()
 void QtEngineContractTest::mockNamesTheFactsAboutACertificateFailure()
 {
     QQmlEngine engine;
-    QQmlComponent component(&engine, QUrl::fromLocalFile(
-        QStringLiteral(OMAWEB_MOCK_ENGINE_VIEW_PATH)));
+    QQmlComponent component(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_MOCK_ENGINE_VIEW_PATH)));
     const std::unique_ptr<QObject> adapter(component.create());
     QVERIFY2(adapter, qPrintable(component.errorString()));
-    QVERIFY(adapter->setProperty("currentUrl",
-        QUrl(QStringLiteral("https://localhost:8443/app"))));
+    QVERIFY(adapter->setProperty("currentUrl", QUrl(QStringLiteral("https://localhost:8443/app"))));
 
-    QSignalSpy raised(adapter.get(), SIGNAL(certificateErrorRaised(QString,QVariant)));
+    QSignalSpy raised(adapter.get(), SIGNAL(certificateErrorRaised(QString, QVariant)));
     QVERIFY(raised.isValid());
-    QVERIFY(QMetaObject::invokeMethod(adapter.get(), "simulateCertificateError",
-        Q_ARG(QVariant, QVariantMap{})));
+    QVERIFY(QMetaObject::invokeMethod(
+        adapter.get(), "simulateCertificateError", Q_ARG(QVariant, QVariantMap {})));
     QCOMPARE(raised.count(), 1);
     const auto failure = raised.first().at(1).toMap();
-    QCOMPARE(failure.value(QStringLiteral("origin")).toString(),
-        QStringLiteral("localhost:8443"));
+    QCOMPARE(failure.value(QStringLiteral("origin")).toString(), QStringLiteral("localhost:8443"));
     QVERIFY(failure.value(QStringLiteral("overridable")).toBool());
     QVERIFY(failure.value(QStringLiteral("mainFrame")).toBool());
     QVERIFY(!failure.value(QStringLiteral("fatal")).toBool());
@@ -207,12 +206,10 @@ void QtEngineContractTest::mockNamesTheFactsAboutACertificateFailure()
 
     // The address trigger keeps saying so, whichever way the reader answered:
     // an exception is a certificate check that was waived, not one that passed.
-    QCOMPARE(adapter->property("connectionState").toString(),
-        QStringLiteral("certificate-error"));
+    QCOMPARE(adapter->property("connectionState").toString(), QStringLiteral("certificate-error"));
     QVERIFY(QMetaObject::invokeMethod(adapter.get(), "respondToCertificateError",
         Q_ARG(QVariant, raised.first().at(0)), Q_ARG(QVariant, true)));
-    QCOMPARE(adapter->property("connectionState").toString(),
-        QStringLiteral("certificate-error"));
+    QCOMPARE(adapter->property("connectionState").toString(), QStringLiteral("certificate-error"));
 
     // Leaving takes the report with it, and nothing remembered it: coming back
     // is a failure to be reported again.
@@ -222,20 +219,20 @@ void QtEngineContractTest::mockNamesTheFactsAboutACertificateFailure()
     // A failure inside a frame is reported as one. What the shell does with it
     // is the shell's, and it cannot refuse what it was never told about.
     const QVariantMap insideAFrame = {
-        {QStringLiteral("url"), QStringLiteral("https://tracker.example/pixel")},
-        {QStringLiteral("mainFrame"), false},
+        { QStringLiteral("url"), QStringLiteral("https://tracker.example/pixel") },
+        { QStringLiteral("mainFrame"), false },
     };
-    QVERIFY(QMetaObject::invokeMethod(adapter.get(), "simulateCertificateError",
-        Q_ARG(QVariant, insideAFrame)));
+    QVERIFY(QMetaObject::invokeMethod(
+        adapter.get(), "simulateCertificateError", Q_ARG(QVariant, insideAFrame)));
     QCOMPARE(raised.count(), 2);
     const auto subresource = raised.at(1).at(1).toMap();
     QVERIFY(!subresource.value(QStringLiteral("mainFrame")).toBool());
     // A frame's failure is not the page's connection state.
     QCOMPARE(adapter->property("connectionState").toString(), QStringLiteral("secure"));
 
-    const QVariantMap fatalFailure = {{QStringLiteral("fatal"), true}};
-    QVERIFY(QMetaObject::invokeMethod(adapter.get(), "simulateCertificateError",
-        Q_ARG(QVariant, fatalFailure)));
+    const QVariantMap fatalFailure = { { QStringLiteral("fatal"), true } };
+    QVERIFY(QMetaObject::invokeMethod(
+        adapter.get(), "simulateCertificateError", Q_ARG(QVariant, fatalFailure)));
     QCOMPARE(raised.count(), 3);
     QVERIFY(raised.at(2).at(1).toMap().value(QStringLiteral("fatal")).toBool());
 }
@@ -246,11 +243,11 @@ void QtEngineContractTest::mockNamesTheFactsAboutACertificateFailure()
 void QtEngineContractTest::mockReportsNothingWhereTheEngineCannotAnswer()
 {
     QQmlEngine engine;
-    QQmlComponent component(&engine, QUrl::fromLocalFile(
-        QStringLiteral(OMAWEB_MOCK_ENGINE_VIEW_PATH)));
+    QQmlComponent component(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_MOCK_ENGINE_VIEW_PATH)));
     const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
-        {QStringLiteral("certificateDecisionsAvailable"), false},
-        {QStringLiteral("thirdPartyCookieControlAvailable"), false},
+        { QStringLiteral("certificateDecisionsAvailable"), false },
+        { QStringLiteral("thirdPartyCookieControlAvailable"), false },
     }));
     QVERIFY2(adapter, qPrintable(component.errorString()));
 
@@ -261,9 +258,9 @@ void QtEngineContractTest::mockReportsNothingWhereTheEngineCannotAnswer()
     // show for it — an engine's own claim, not a guess the shell makes.
     QVERIFY(!(capabilities & EngineCapabilities::PersistentProfiles));
 
-    QSignalSpy raised(adapter.get(), SIGNAL(certificateErrorRaised(QString,QVariant)));
-    QVERIFY(QMetaObject::invokeMethod(adapter.get(), "simulateCertificateError",
-        Q_ARG(QVariant, QVariantMap{})));
+    QSignalSpy raised(adapter.get(), SIGNAL(certificateErrorRaised(QString, QVariant)));
+    QVERIFY(QMetaObject::invokeMethod(
+        adapter.get(), "simulateCertificateError", Q_ARG(QVariant, QVariantMap {})));
     QCOMPARE(raised.count(), 0);
     QVERIFY(adapter->setProperty("currentUrl", QUrl(QStringLiteral("https://example.com/"))));
     QCOMPARE(adapter->property("connectionState").toString(), QStringLiteral("secure"));
@@ -296,8 +293,8 @@ void QtEngineContractTest::adaptersExposeSharedContract()
 void QtEngineContractTest::mockReportsLifecycleEvents()
 {
     QQmlEngine engine;
-    QQmlComponent component(&engine, QUrl::fromLocalFile(
-        QStringLiteral(OMAWEB_MOCK_ENGINE_VIEW_PATH)));
+    QQmlComponent component(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_MOCK_ENGINE_VIEW_PATH)));
     const std::unique_ptr<QObject> adapter(component.create());
     QVERIFY2(adapter, qPrintable(component.errorString()));
 
@@ -313,12 +310,12 @@ void QtEngineContractTest::mockReportsLifecycleEvents()
 void QtEngineContractTest::mockReportsNewWindowPurpose()
 {
     QQmlEngine engine;
-    QQmlComponent component(&engine, QUrl::fromLocalFile(
-        QStringLiteral(OMAWEB_MOCK_ENGINE_VIEW_PATH)));
+    QQmlComponent component(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_MOCK_ENGINE_VIEW_PATH)));
     const std::unique_ptr<QObject> adapter(component.create());
     QVERIFY2(adapter, qPrintable(component.errorString()));
 
-    QSignalSpy requestSpy(adapter.get(), SIGNAL(auxiliaryWindowRequested(QVariant,QUrl)));
+    QSignalSpy requestSpy(adapter.get(), SIGNAL(auxiliaryWindowRequested(QVariant, QUrl)));
     QVERIFY(requestSpy.isValid());
     QVERIFY(QMetaObject::invokeMethod(adapter.get(), "simulateNewWindowRequest",
         Q_ARG(QVariant, QVariant::fromValue(QUrl(QStringLiteral("https://example.com/popup")))),
@@ -341,29 +338,28 @@ void QtEngineContractTest::adaptersExposeKeyboardNavigationCommands()
     QVERIFY2(adapter, qPrintable(component.errorString()));
 
     const QVariantMap configuration = {
-        {QStringLiteral("version"), 1},
-        {QStringLiteral("enabled"), true},
-        {QStringLiteral("bindings"), QVariantMap{
-            {QStringLiteral("j"), QStringLiteral("scroll-down")},
-            {QStringLiteral("f"), QStringLiteral("open-link")},
-        }},
-        {QStringLiteral("passthroughAll"), false},
-        {QStringLiteral("passthroughKeys"), QStringList{}},
+        { QStringLiteral("version"), 1 },
+        { QStringLiteral("enabled"), true },
+        { QStringLiteral("bindings"),
+            QVariantMap {
+                { QStringLiteral("j"), QStringLiteral("scroll-down") },
+                { QStringLiteral("f"), QStringLiteral("open-link") },
+            } },
+        { QStringLiteral("passthroughAll"), false },
+        { QStringLiteral("passthroughKeys"), QStringList {} },
     };
-    QVERIFY(QMetaObject::invokeMethod(adapter.get(), "configureKeyboardNavigation",
-        Q_ARG(QVariant, configuration)));
+    QVERIFY(QMetaObject::invokeMethod(
+        adapter.get(), "configureKeyboardNavigation", Q_ARG(QVariant, configuration)));
     QCOMPARE(adapter->property("keyboardNavigationConfiguration").toMap(), configuration);
-    QVERIFY(adapter->setProperty("keyboardNavigationScriptSource",
-        keyboardNavigationPageScript()));
-    QVERIFY(adapter->property("capabilities").toInt()
-        & EngineCapabilities::KeyboardPageCommands);
+    QVERIFY(adapter->setProperty("keyboardNavigationScriptSource", keyboardNavigationPageScript()));
+    QVERIFY(adapter->property("capabilities").toInt() & EngineCapabilities::KeyboardPageCommands);
 }
 
 void QtEngineContractTest::qtAdapterPropagatesPageState()
 {
     QQmlEngine engine;
-    QQmlComponent component(&engine, QUrl::fromLocalFile(
-        QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    QQmlComponent component(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
     const std::unique_ptr<QObject> adapter(component.create());
     QVERIFY2(adapter, qPrintable(component.errorString()));
 
@@ -379,13 +375,13 @@ void QtEngineContractTest::qtAdapterPropagatesPageState()
     QTRY_VERIFY(adapter->property("pageHasFocus").toBool());
 
     QSignalSpy loadingSpy(adapter.get(), SIGNAL(loadingChanged()));
-    QVERIFY(adapter->setProperty("currentUrl", QUrl(QStringLiteral(
-        "data:text/html,<title>First page</title><p>first</p>"))));
+    QVERIFY(adapter->setProperty("currentUrl",
+        QUrl(QStringLiteral("data:text/html,<title>First page</title><p>first</p>"))));
     QTRY_COMPARE(adapter->property("pageTitle").toString(), QStringLiteral("First page"));
     QTRY_VERIFY(!adapter->property("loading").toBool());
 
-    QVERIFY(adapter->setProperty("currentUrl", QUrl(QStringLiteral(
-        "data:text/html,<title>Second page</title><p>second</p>"))));
+    QVERIFY(adapter->setProperty("currentUrl",
+        QUrl(QStringLiteral("data:text/html,<title>Second page</title><p>second</p>"))));
     QTRY_COMPARE(adapter->property("pageTitle").toString(), QStringLiteral("Second page"));
     QTRY_VERIFY(adapter->property("canGoBack").toBool());
     QVERIFY(QMetaObject::invokeMethod(adapter.get(), "goBack"));
@@ -434,13 +430,13 @@ void QtEngineContractTest::qtProfilesIsolateSiteStorage()
     page.close();
 
     QQmlEngine engine;
-    QQmlComponent component(&engine, QUrl::fromLocalFile(
-        QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    QQmlComponent component(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
     const std::unique_ptr<QObject> personal(component.createWithInitialProperties({
-        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("personal"))},
+        { QStringLiteral("profilePath"), root.filePath(QStringLiteral("personal")) },
     }));
     const std::unique_ptr<QObject> work(component.createWithInitialProperties({
-        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("work"))},
+        { QStringLiteral("profilePath"), root.filePath(QStringLiteral("work")) },
     }));
     QVERIFY2(personal, qPrintable(component.errorString()));
     QVERIFY2(work, qPrintable(component.errorString()));
@@ -482,22 +478,22 @@ void QtEngineContractTest::qtPrivateWindowsShareOneProfile()
     page.close();
 
     QQmlEngine engine;
-    QQmlComponent profileComponent(&engine, QUrl::fromLocalFile(
-        QStringLiteral(OMAWEB_QT_ENGINE_PROFILE_PATH)));
+    QQmlComponent profileComponent(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_PROFILE_PATH)));
     const std::unique_ptr<QObject> profileHost(profileComponent.createWithInitialProperties({
-        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("private"))},
+        { QStringLiteral("profilePath"), root.filePath(QStringLiteral("private")) },
     }));
     QVERIFY2(profileHost, qPrintable(profileComponent.errorString()));
     const auto sharedProfile = profileHost->property("profile");
     QVERIFY(sharedProfile.isValid());
 
-    QQmlComponent viewComponent(&engine, QUrl::fromLocalFile(
-        QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    QQmlComponent viewComponent(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
     const std::unique_ptr<QObject> first(viewComponent.createWithInitialProperties({
-        {QStringLiteral("sharedProfile"), sharedProfile},
+        { QStringLiteral("sharedProfile"), sharedProfile },
     }));
     const std::unique_ptr<QObject> second(viewComponent.createWithInitialProperties({
-        {QStringLiteral("sharedProfile"), sharedProfile},
+        { QStringLiteral("sharedProfile"), sharedProfile },
     }));
     QVERIFY2(first, qPrintable(viewComponent.errorString()));
     QVERIFY2(second, qPrintable(viewComponent.errorString()));
@@ -531,11 +527,11 @@ void QtEngineContractTest::qtSpaceProfilesKeepSiteStorageOnDisk()
     const auto spacePath = root.filePath(QStringLiteral("space"));
 
     QQmlEngine engine;
-    QQmlComponent profileComponent(&engine, QUrl::fromLocalFile(
-        QStringLiteral(OMAWEB_QT_ENGINE_PROFILE_PATH)));
+    QQmlComponent profileComponent(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_PROFILE_PATH)));
     const std::unique_ptr<QObject> spaceHost(profileComponent.createWithInitialProperties({
-        {QStringLiteral("profilePath"), spacePath},
-        {QStringLiteral("privateBrowsing"), false},
+        { QStringLiteral("profilePath"), spacePath },
+        { QStringLiteral("privateBrowsing"), false },
     }));
     QVERIFY2(spaceHost, qPrintable(profileComponent.errorString()));
     auto *spaceProfile = spaceHost->property("profile").value<QObject *>();
@@ -547,7 +543,7 @@ void QtEngineContractTest::qtSpaceProfilesKeepSiteStorageOnDisk()
         static_cast<int>(QQuickWebEngineProfile::ForcePersistentCookies));
 
     const std::unique_ptr<QObject> privateHost(profileComponent.createWithInitialProperties({
-        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("private"))},
+        { QStringLiteral("profilePath"), root.filePath(QStringLiteral("private")) },
     }));
     QVERIFY2(privateHost, qPrintable(profileComponent.errorString()));
     auto *privateProfile = privateHost->property("profile").value<QObject *>();
@@ -562,10 +558,10 @@ void QtEngineContractTest::qtSpaceProfilesKeepSiteStorageOnDisk()
     </script>)HTML");
     page.close();
 
-    QQmlComponent viewComponent(&engine, QUrl::fromLocalFile(
-        QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    QQmlComponent viewComponent(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
     const std::unique_ptr<QObject> view(viewComponent.createWithInitialProperties({
-        {QStringLiteral("sharedProfile"), spaceHost->property("profile")},
+        { QStringLiteral("sharedProfile"), spaceHost->property("profile") },
     }));
     QVERIFY2(view, qPrintable(viewComponent.errorString()));
     QQuickWindow window;
@@ -574,15 +570,15 @@ void QtEngineContractTest::qtSpaceProfilesKeepSiteStorageOnDisk()
 
     QVERIFY(view->setProperty("currentUrl", QUrl::fromLocalFile(page.fileName())));
     QTRY_COMPARE(view->property("pageTitle").toString(), QStringLiteral("kept"));
-    QTRY_VERIFY(!QDir(spacePath).entryList(QDir::Files | QDir::Dirs | QDir::NoDotAndDotDot)
-        .isEmpty());
+    QTRY_VERIFY(
+        !QDir(spacePath).entryList(QDir::Files | QDir::Dirs | QDir::NoDotAndDotDot).isEmpty());
 }
 
 void QtEngineContractTest::qtRoutesOnlyDialogDestinationsToAuxiliaryWindows()
 {
     QQmlEngine engine;
-    QQmlComponent component(&engine, QUrl::fromLocalFile(
-        QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    QQmlComponent component(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
     const std::unique_ptr<QObject> adapter(component.create());
     QVERIFY2(adapter, qPrintable(component.errorString()));
 
@@ -613,7 +609,7 @@ void QtEngineContractTest::qtKeyboardNavigationHonorsInputContracts_data()
             <input autofocus aria-label="Editor">
             <script>document.querySelector('input').addEventListener('input',
                 event => document.title = event.target.value);</script>)HTML")
-        << int(Qt::Key_J) << QStringLiteral("j") << false << QStringList{};
+        << int(Qt::Key_J) << QStringLiteral("j") << false << QStringList {};
     QTest::newRow("IME composition passes through")
         << QByteArray(R"HTML(<!doctype html><title>ready</title><script>
             addEventListener('keydown', event => setTimeout(() =>
@@ -622,7 +618,7 @@ void QtEngineContractTest::qtKeyboardNavigationHonorsInputContracts_data()
                 key: 'j', isComposing: true, bubbles: true, cancelable: true
             })), 250);
         </script>)HTML")
-        << int(Qt::Key_unknown) << QStringLiteral("composing-passed") << false << QStringList{};
+        << int(Qt::Key_unknown) << QStringLiteral("composing-passed") << false << QStringList {};
     QTest::newRow("non-English keys pass through")
         << QByteArray(R"HTML(<!doctype html><title>ready</title><script>
             addEventListener('keydown', event => setTimeout(() =>
@@ -631,9 +627,8 @@ void QtEngineContractTest::qtKeyboardNavigationHonorsInputContracts_data()
                 key: 'å', bubbles: true, cancelable: true
             })), 250);
         </script>)HTML")
-        << int(Qt::Key_unknown) << QString::fromUtf8("å") << false << QStringList{};
-    QTest::newRow("j scrolls down")
-        << QByteArray(R"HTML(<!doctype html><title>ready</title>
+        << int(Qt::Key_unknown) << QString::fromUtf8("å") << false << QStringList {};
+    QTest::newRow("j scrolls down") << QByteArray(R"HTML(<!doctype html><title>ready</title>
             <div style="height:3000px"></div><script>
                 addEventListener('scroll', () => {
                     if (scrollY > 0) document.title = 'down';
@@ -641,10 +636,9 @@ void QtEngineContractTest::qtKeyboardNavigationHonorsInputContracts_data()
                 setTimeout(() => dispatchEvent(new KeyboardEvent('keydown', {
                     key: 'j', bubbles: true, cancelable: true
                 })), 300);
-            </script>)HTML")
-        << int(Qt::Key_unknown) << QStringLiteral("down") << false << QStringList{};
-    QTest::newRow("k scrolls up")
-        << QByteArray(R"HTML(<!doctype html><title>loading</title>
+            </script>)HTML") << int(Qt::Key_unknown)
+                                    << QStringLiteral("down") << false << QStringList {};
+    QTest::newRow("k scrolls up") << QByteArray(R"HTML(<!doctype html><title>loading</title>
             <div style="height:3000px"></div><script>
                 scrollTo(0, 600); document.title = 'ready';
                 addEventListener('scroll', () => {
@@ -653,8 +647,8 @@ void QtEngineContractTest::qtKeyboardNavigationHonorsInputContracts_data()
                 setTimeout(() => dispatchEvent(new KeyboardEvent('keydown', {
                     key: 'k', bubbles: true, cancelable: true
                 })), 300);
-            </script>)HTML")
-        << int(Qt::Key_unknown) << QStringLiteral("up") << false << QStringList{};
+            </script>)HTML") << int(Qt::Key_unknown)
+                                  << QStringLiteral("up") << false << QStringList {};
     QTest::newRow("d scrolls down half a page")
         << QByteArray(R"HTML(<!doctype html><title>ready</title>
             <div style="height:3000px"></div><script>
@@ -665,7 +659,7 @@ void QtEngineContractTest::qtKeyboardNavigationHonorsInputContracts_data()
                     key: 'd', bubbles: true, cancelable: true
                 })), 300);
             </script>)HTML")
-        << int(Qt::Key_unknown) << QStringLiteral("half-down") << false << QStringList{};
+        << int(Qt::Key_unknown) << QStringLiteral("half-down") << false << QStringList {};
     QTest::newRow("u scrolls up half a page")
         << QByteArray(R"HTML(<!doctype html><title>loading</title>
             <div style="height:3000px"></div><script>
@@ -680,7 +674,7 @@ void QtEngineContractTest::qtKeyboardNavigationHonorsInputContracts_data()
                     })), 300);
                 }, 300);
             </script>)HTML")
-        << int(Qt::Key_unknown) << QStringLiteral("half-up") << false << QStringList{};
+        << int(Qt::Key_unknown) << QStringLiteral("half-up") << false << QStringList {};
     QTest::newRow("gg scrolls to the top")
         << QByteArray(R"HTML(<!doctype html><title>loading</title>
             <div style="height:3000px"></div><script>
@@ -693,7 +687,7 @@ void QtEngineContractTest::qtKeyboardNavigationHonorsInputContracts_data()
                     dispatchEvent(new KeyboardEvent('keydown', { key: 'g', bubbles: true, cancelable: true }));
                 }, 1000);
             </script>)HTML")
-        << int(Qt::Key_unknown) << QStringLiteral("top") << false << QStringList{};
+        << int(Qt::Key_unknown) << QStringLiteral("top") << false << QStringList {};
     QTest::newRow("G scrolls to the bottom")
         << QByteArray(R"HTML(<!doctype html><title>ready</title>
             <div style="height:3000px"></div><script>
@@ -705,7 +699,7 @@ void QtEngineContractTest::qtKeyboardNavigationHonorsInputContracts_data()
                     key: 'G', shiftKey: true, bubbles: true, cancelable: true
                 })), 300);
             </script>)HTML")
-        << int(Qt::Key_unknown) << QStringLiteral("bottom") << false << QStringList{};
+        << int(Qt::Key_unknown) << QStringLiteral("bottom") << false << QStringList {};
     QTest::newRow("link hints expose readable screen-reader text")
         << QByteArray(R"HTML(<!doctype html><title>ready</title>
             <a href="#target" aria-label="Read documentation">Docs</a>
@@ -725,7 +719,7 @@ void QtEngineContractTest::qtKeyboardNavigationHonorsInputContracts_data()
                     key: 'f', bubbles: true, cancelable: true
                 })), 300);
             </script>)HTML")
-        << int(Qt::Key_unknown) << QStringLiteral("accessible") << false << QStringList{};
+        << int(Qt::Key_unknown) << QStringLiteral("accessible") << false << QStringList {};
     QTest::newRow("link hints take editable keyboard focus")
         << QByteArray(R"HTML(<!doctype html><title>ready</title>
             <a href="#target">Target</a><script>
@@ -738,7 +732,7 @@ void QtEngineContractTest::qtKeyboardNavigationHonorsInputContracts_data()
                     key: 'f', bubbles: true, cancelable: true
                 })), 300);
             </script>)HTML")
-        << int(Qt::Key_unknown) << QStringLiteral("hint-focus") << false << QStringList{};
+        << int(Qt::Key_unknown) << QStringLiteral("hint-focus") << false << QStringList {};
     QTest::newRow("link hints use theme colors and font")
         << QByteArray(R"HTML(<!doctype html><title>ready</title>
             <a href="#target">Target</a><script>
@@ -760,7 +754,7 @@ void QtEngineContractTest::qtKeyboardNavigationHonorsInputContracts_data()
                     key: 'f', bubbles: true, cancelable: true
                 })), 300);
             </script>)HTML")
-        << int(Qt::Key_unknown) << QStringLiteral("themed") << false << QStringList{};
+        << int(Qt::Key_unknown) << QStringLiteral("themed") << false << QStringList {};
     QTest::newRow("Shift+F selects only background-capable targets")
         << QByteArray(R"HTML(<!doctype html><title>ready</title>
             <button aria-label="Not a link">Button</button>
@@ -788,7 +782,7 @@ void QtEngineContractTest::qtKeyboardNavigationHonorsInputContracts_data()
                 };
                 activateBackgroundHint();
             </script>)HTML")
-        << int(Qt::Key_unknown) << QStringLiteral("background") << false << QStringList{};
+        << int(Qt::Key_unknown) << QStringLiteral("background") << false << QStringList {};
     QTest::newRow("short hints remain selectable beside long hints")
         << QByteArray(R"HTML(<!doctype html><title>ready</title>
             <script>
@@ -820,7 +814,7 @@ void QtEngineContractTest::qtKeyboardNavigationHonorsInputContracts_data()
                     }));
                 }, 300);
             </script>)HTML")
-        << int(Qt::Key_unknown) << QStringLiteral("short-selected") << false << QStringList{};
+        << int(Qt::Key_unknown) << QStringLiteral("short-selected") << false << QStringList {};
     QTest::newRow("per-key passthrough keeps site shortcuts")
         << QByteArray(R"HTML(<!doctype html><title>ready</title><script>
             addEventListener('keydown', event => document.title =
@@ -830,7 +824,7 @@ void QtEngineContractTest::qtKeyboardNavigationHonorsInputContracts_data()
             })), 300);
         </script>)HTML")
         << int(Qt::Key_unknown) << QStringLiteral("site-key") << false
-        << QStringList{QStringLiteral("k")};
+        << QStringList { QStringLiteral("k") };
     QTest::newRow("all-page passthrough keeps site shortcuts")
         << QByteArray(R"HTML(<!doctype html><title>ready</title><script>
             addEventListener('keydown', event => document.title =
@@ -839,7 +833,7 @@ void QtEngineContractTest::qtKeyboardNavigationHonorsInputContracts_data()
                 key: 'j', bubbles: true, cancelable: true
             })), 300);
         </script>)HTML")
-        << int(Qt::Key_unknown) << QStringLiteral("site-page") << true << QStringList{};
+        << int(Qt::Key_unknown) << QStringLiteral("site-page") << true << QStringList {};
 }
 
 void QtEngineContractTest::qtLinkHintsOwnSingleKeyShortcuts()
@@ -848,8 +842,8 @@ void QtEngineContractTest::qtLinkHintsOwnSingleKeyShortcuts()
     QFile page(root.filePath(QStringLiteral("hint-shortcut.html")));
     QVERIFY(page.open(QIODevice::WriteOnly));
     QByteArray html("<!doctype html><title>ready</title><script>"
-        "addEventListener('click',event=>{if(event.target.matches('a')){"
-        "event.preventDefault();document.title='hint-selected';}},true);</script>");
+                    "addEventListener('click',event=>{if(event.target.matches('a')){"
+                    "event.preventDefault();document.title='hint-selected';}},true);</script>");
     for (auto index = 0; index < 26; ++index) {
         html += "<a href='#" + QByteArray::number(index) + "'>link</a> ";
     }
@@ -857,21 +851,22 @@ void QtEngineContractTest::qtLinkHintsOwnSingleKeyShortcuts()
     page.close();
 
     QQmlEngine engine;
-    QQmlComponent component(&engine, QUrl::fromLocalFile(
-        QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    QQmlComponent component(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
     const QVariantMap configuration = {
-        {QStringLiteral("version"), 1},
-        {QStringLiteral("enabled"), true},
-        {QStringLiteral("bindings"), QVariantMap{
-            {QStringLiteral("f"), QStringLiteral("open-link")},
-        }},
-        {QStringLiteral("passthroughAll"), false},
-        {QStringLiteral("passthroughKeys"), QStringList{}},
+        { QStringLiteral("version"), 1 },
+        { QStringLiteral("enabled"), true },
+        { QStringLiteral("bindings"),
+            QVariantMap {
+                { QStringLiteral("f"), QStringLiteral("open-link") },
+            } },
+        { QStringLiteral("passthroughAll"), false },
+        { QStringLiteral("passthroughKeys"), QStringList {} },
     };
     const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
-        {QStringLiteral("currentUrl"), QUrl::fromLocalFile(page.fileName())},
-        {QStringLiteral("keyboardNavigationConfiguration"), configuration},
-        {QStringLiteral("keyboardNavigationScriptSource"), keyboardNavigationPageScript()},
+        { QStringLiteral("currentUrl"), QUrl::fromLocalFile(page.fileName()) },
+        { QStringLiteral("keyboardNavigationConfiguration"), configuration },
+        { QStringLiteral("keyboardNavigationScriptSource"), keyboardNavigationPageScript() },
     }));
     QVERIFY2(adapter, qPrintable(component.errorString()));
 
@@ -893,7 +888,8 @@ void QtEngineContractTest::qtLinkHintsOwnSingleKeyShortcuts()
                 onActivated: root.activations++
             }
         }
-    )QML", QUrl());
+    )QML",
+        QUrl());
     const std::unique_ptr<QObject> shortcutHost(shortcutComponent.create());
     QVERIFY2(shortcutHost, qPrintable(shortcutComponent.errorString()));
     auto *hostItem = qobject_cast<QQuickItem *>(shortcutHost.get());
@@ -920,7 +916,8 @@ void QtEngineContractTest::qtLinkHintsOwnSingleKeyShortcuts()
             QTest::keyClick(&window, Qt::Key_F);
         }
         return adapter->property("keyboardNavigationHintModeActive").toBool();
-    }()), 15000);
+    }()),
+        15000);
     QTest::keyClick(&window, Qt::Key_M);
 
     QTRY_COMPARE(adapter->property("pageTitle").toString(), QStringLiteral("hint-selected"));
@@ -941,38 +938,41 @@ void QtEngineContractTest::qtKeyboardNavigationHonorsInputContracts()
     page.close();
 
     QQmlEngine engine;
-    QQmlComponent component(&engine, QUrl::fromLocalFile(
-        QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    QQmlComponent component(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
     const QVariantMap configuration = {
-        {QStringLiteral("version"), 1},
-        {QStringLiteral("enabled"), true},
-        {QStringLiteral("bindings"), QVariantMap{
-            {QStringLiteral("j"), QStringLiteral("scroll-down")},
-            {QStringLiteral("k"), QStringLiteral("scroll-up")},
-            {QStringLiteral("d"), QStringLiteral("scroll-half-page-down")},
-            {QStringLiteral("u"), QStringLiteral("scroll-half-page-up")},
-            {QStringLiteral("gg"), QStringLiteral("scroll-top")},
-            {QStringLiteral("G"), QStringLiteral("scroll-bottom")},
-            {QStringLiteral("f"), QStringLiteral("open-link")},
-            {QStringLiteral("Shift+F"), QStringLiteral("open-link-background")},
-        }},
-        {QStringLiteral("passthroughAll"), passthroughAll},
-        {QStringLiteral("passthroughKeys"), passthroughKeys},
-        {QStringLiteral("hintTheme"), QVariantMap{
-            {QStringLiteral("surface"), QStringLiteral("#123456")},
-            {QStringLiteral("text"), QStringLiteral("#eeeeee")},
-            {QStringLiteral("mutedText"), QStringLiteral("#999999")},
-            {QStringLiteral("accent"), QStringLiteral("#654321")},
-            {QStringLiteral("font"), QVariantMap{
-                {QStringLiteral("family"), QStringLiteral("Courier")},
-                {QStringLiteral("size"), 17},
-            }},
-        }},
+        { QStringLiteral("version"), 1 },
+        { QStringLiteral("enabled"), true },
+        { QStringLiteral("bindings"),
+            QVariantMap {
+                { QStringLiteral("j"), QStringLiteral("scroll-down") },
+                { QStringLiteral("k"), QStringLiteral("scroll-up") },
+                { QStringLiteral("d"), QStringLiteral("scroll-half-page-down") },
+                { QStringLiteral("u"), QStringLiteral("scroll-half-page-up") },
+                { QStringLiteral("gg"), QStringLiteral("scroll-top") },
+                { QStringLiteral("G"), QStringLiteral("scroll-bottom") },
+                { QStringLiteral("f"), QStringLiteral("open-link") },
+                { QStringLiteral("Shift+F"), QStringLiteral("open-link-background") },
+            } },
+        { QStringLiteral("passthroughAll"), passthroughAll },
+        { QStringLiteral("passthroughKeys"), passthroughKeys },
+        { QStringLiteral("hintTheme"),
+            QVariantMap {
+                { QStringLiteral("surface"), QStringLiteral("#123456") },
+                { QStringLiteral("text"), QStringLiteral("#eeeeee") },
+                { QStringLiteral("mutedText"), QStringLiteral("#999999") },
+                { QStringLiteral("accent"), QStringLiteral("#654321") },
+                { QStringLiteral("font"),
+                    QVariantMap {
+                        { QStringLiteral("family"), QStringLiteral("Courier") },
+                        { QStringLiteral("size"), 17 },
+                    } },
+            } },
     };
     const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
-        {QStringLiteral("currentUrl"), QUrl::fromLocalFile(page.fileName())},
-        {QStringLiteral("keyboardNavigationConfiguration"), configuration},
-        {QStringLiteral("keyboardNavigationScriptSource"), keyboardNavigationPageScript()},
+        { QStringLiteral("currentUrl"), QUrl::fromLocalFile(page.fileName()) },
+        { QStringLiteral("keyboardNavigationConfiguration"), configuration },
+        { QStringLiteral("keyboardNavigationScriptSource"), keyboardNavigationPageScript() },
     }));
     QVERIFY2(adapter, qPrintable(component.errorString()));
 
@@ -993,8 +993,8 @@ void QtEngineContractTest::qtKeyboardNavigationHonorsInputContracts()
     // waited for here, not one particular thing the title says.
     QTRY_VERIFY(adapter->property("pageTitle").toString() == QStringLiteral("ready")
         || adapter->property("pageTitle").toString() == expectedTitle);
-    QVERIFY(QMetaObject::invokeMethod(adapter.get(), "configureKeyboardNavigation",
-        Q_ARG(QVariant, configuration)));
+    QVERIFY(QMetaObject::invokeMethod(
+        adapter.get(), "configureKeyboardNavigation", Q_ARG(QVariant, configuration)));
     QTest::qWait(50);
 
     if (key != Qt::Key_unknown) {
@@ -1005,7 +1005,6 @@ void QtEngineContractTest::qtKeyboardNavigationHonorsInputContracts()
     }
     QTRY_COMPARE_WITH_TIMEOUT(adapter->property("pageTitle").toString(), expectedTitle, 15000);
 }
-
 
 // One page served over HTTP, because cosmetic rules are written against a
 // hostname and a file:// page has none.
@@ -1027,8 +1026,7 @@ public:
                     m_requested.append(QString::fromUtf8(fields.at(1)));
                 }
                 socket->write("HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: "
-                    + QByteArray::number(m_body.size())
-                    + "\r\nConnection: close\r\n\r\n" + m_body);
+                    + QByteArray::number(m_body.size()) + "\r\nConnection: close\r\n\r\n" + m_body);
                 socket->flush();
                 socket->disconnectFromHost();
             });
@@ -1071,39 +1069,36 @@ void QtEngineContractTest::qtHidesCosmeticRulesBeforeThePageRuns()
 
     QTemporaryDir root;
     QVERIFY(root.isValid());
-    omaweb::ContentBlocker contentBlocker(
-        root.path(), omaweb::ContentBlocker::DefaultLists::None);
+    omaweb::ContentBlocker contentBlocker(root.path(), omaweb::ContentBlocker::DefaultLists::None);
     contentBlocker.setUserRules(QStringLiteral("127.0.0.1##.local-ad\n##.generic-ad"));
     QTRY_VERIFY_WITH_TIMEOUT(!contentBlocker.compiling(), 5000);
 
     QQmlEngine engine;
-    QQmlComponent component(&engine, QUrl::fromLocalFile(
-        QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    QQmlComponent component(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
     const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
-        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
-        {QStringLiteral("contentBlocker"), QVariant::fromValue<QObject *>(&contentBlocker)},
+        { QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile")) },
+        { QStringLiteral("contentBlocker"), QVariant::fromValue<QObject *>(&contentBlocker) },
     }));
     QVERIFY2(adapter, qPrintable(component.errorString()));
     QQuickWindow window;
     qobject_cast<QQuickItem *>(adapter.get())->setParentItem(window.contentItem());
     window.show();
 
-    const QUrl pageUrl(QStringLiteral("http://127.0.0.1:%1/page.html")
-                           .arg(server.serverPort()));
+    const QUrl pageUrl(QStringLiteral("http://127.0.0.1:%1/page.html").arg(server.serverPort()));
     QVERIFY(adapter->setProperty("currentUrl", pageUrl));
 
     // The hostname rule is in the document before the page's own script runs;
     // the generic rule arrives with the survey, once there is a DOM to survey.
-    QTRY_COMPARE_WITH_TIMEOUT(adapter->property("pageTitle").toString(),
-        QStringLiteral("S--|SG-"), 15000);
+    QTRY_COMPARE_WITH_TIMEOUT(
+        adapter->property("pageTitle").toString(), QStringLiteral("S--|SG-"), 15000);
 
     // Turning the site off gives both back without a reload, the surveyed
     // rules included.
     contentBlocker.setSiteEnabled(pageUrl, false);
-    QTRY_COMPARE_WITH_TIMEOUT(adapter->property("pageTitle").toString(),
-        QStringLiteral("S--|---"), 15000);
+    QTRY_COMPARE_WITH_TIMEOUT(
+        adapter->property("pageTitle").toString(), QStringLiteral("S--|---"), 15000);
 }
-
 
 // A `##+js(...)` rule is worth something only if its scriptlet has already run
 // when the page's own first script does: neutralising an anti-adblock check
@@ -1118,37 +1113,35 @@ void QtEngineContractTest::qtRunsScriptletsBeforeThePageRuns()
 
     QTemporaryDir root;
     QVERIFY(root.isValid());
-    omaweb::ContentBlocker contentBlocker(
-        root.path(), omaweb::ContentBlocker::DefaultLists::None);
+    omaweb::ContentBlocker contentBlocker(root.path(), omaweb::ContentBlocker::DefaultLists::None);
     contentBlocker.setUserRules(
         QStringLiteral("127.0.0.1##+js(set-constant, omawebScriptletRan, true)"));
     QTRY_VERIFY_WITH_TIMEOUT(!contentBlocker.compiling(), 5000);
 
     QQmlEngine engine;
-    QQmlComponent component(&engine, QUrl::fromLocalFile(
-        QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    QQmlComponent component(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
     const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
-        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
-        {QStringLiteral("contentBlocker"), QVariant::fromValue<QObject *>(&contentBlocker)},
+        { QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile")) },
+        { QStringLiteral("contentBlocker"), QVariant::fromValue<QObject *>(&contentBlocker) },
     }));
     QVERIFY2(adapter, qPrintable(component.errorString()));
     QQuickWindow window;
     qobject_cast<QQuickItem *>(adapter.get())->setParentItem(window.contentItem());
     window.show();
 
-    const QUrl pageUrl(QStringLiteral("http://127.0.0.1:%1/page.html")
-                           .arg(server.serverPort()));
+    const QUrl pageUrl(QStringLiteral("http://127.0.0.1:%1/page.html").arg(server.serverPort()));
     QVERIFY(adapter->setProperty("currentUrl", pageUrl));
 
-    QTRY_COMPARE_WITH_TIMEOUT(adapter->property("pageTitle").toString(),
-        QStringLiteral("true"), 15000);
+    QTRY_COMPARE_WITH_TIMEOUT(
+        adapter->property("pageTitle").toString(), QStringLiteral("true"), 15000);
 
     // A scriptlet is list-named code running in the page, so a site the user
     // turned blocking off for runs none of it.
     contentBlocker.setSiteEnabled(pageUrl, false);
     QVERIFY(QMetaObject::invokeMethod(adapter.get(), "reloadPage"));
-    QTRY_COMPARE_WITH_TIMEOUT(adapter->property("pageTitle").toString(),
-        QStringLiteral("undefined"), 15000);
+    QTRY_COMPARE_WITH_TIMEOUT(
+        adapter->property("pageTitle").toString(), QStringLiteral("undefined"), 15000);
 }
 
 // A page that asks for a tracker and is handed nothing waits forever, which is
@@ -1175,35 +1168,33 @@ void QtEngineContractTest::qtServesTheSubstitutesTheListsName()
 
     QTemporaryDir root;
     QVERIFY(root.isValid());
-    omaweb::ContentBlocker contentBlocker(
-        root.path(), omaweb::ContentBlocker::DefaultLists::None);
-    contentBlocker.setUserRules(QStringLiteral(
-        "/tracker.gif$image,redirect=1x1.gif\n"
-        "/banner.gif$image"));
+    omaweb::ContentBlocker contentBlocker(root.path(), omaweb::ContentBlocker::DefaultLists::None);
+    contentBlocker.setUserRules(QStringLiteral("/tracker.gif$image,redirect=1x1.gif\n"
+                                               "/banner.gif$image"));
     QTRY_VERIFY_WITH_TIMEOUT(!contentBlocker.compiling(), 5000);
     omaweb::QtContentBlocker engineContentBlocker(&contentBlocker);
 
     QQmlEngine engine;
-    QQmlComponent component(&engine, QUrl::fromLocalFile(
-        QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    QQmlComponent component(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
     const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
-        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
-        {QStringLiteral("contentBlocker"), QVariant::fromValue<QObject *>(&contentBlocker)},
-        {QStringLiteral("engineContentBlocker"),
-            QVariant::fromValue<QObject *>(&engineContentBlocker)},
+        { QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile")) },
+        { QStringLiteral("contentBlocker"), QVariant::fromValue<QObject *>(&contentBlocker) },
+        { QStringLiteral("engineContentBlocker"),
+            QVariant::fromValue<QObject *>(&engineContentBlocker) },
     }));
     QVERIFY2(adapter, qPrintable(component.errorString()));
     QQuickWindow window;
     qobject_cast<QQuickItem *>(adapter.get())->setParentItem(window.contentItem());
     window.show();
 
-    QVERIFY(adapter->setProperty("currentUrl", QUrl(
-        QStringLiteral("http://127.0.0.1:%1/page.html").arg(server.serverPort()))));
+    QVERIFY(adapter->setProperty("currentUrl",
+        QUrl(QStringLiteral("http://127.0.0.1:%1/page.html").arg(server.serverPort()))));
 
     // The substitute stood in for the first request; the second was refused
     // outright, because no rule named anything to put in its place.
-    QTRY_COMPARE_WITH_TIMEOUT(adapter->property("pageTitle").toString(),
-        QStringLiteral("S-"), 15000);
+    QTRY_COMPARE_WITH_TIMEOUT(
+        adapter->property("pageTitle").toString(), QStringLiteral("S-"), 15000);
 
     // Neither image reached the site: the substitute came out of the vendored
     // library rather than off the network, and the refusal was a refusal.
@@ -1232,31 +1223,30 @@ void QtEngineContractTest::qtStripsTheParametersTheListsName()
 
     QTemporaryDir root;
     QVERIFY(root.isValid());
-    omaweb::ContentBlocker contentBlocker(
-        root.path(), omaweb::ContentBlocker::DefaultLists::None);
+    omaweb::ContentBlocker contentBlocker(root.path(), omaweb::ContentBlocker::DefaultLists::None);
     contentBlocker.setUserRules(QStringLiteral("$removeparam=utm_source"));
     QTRY_VERIFY_WITH_TIMEOUT(!contentBlocker.compiling(), 5000);
     omaweb::QtContentBlocker engineContentBlocker(&contentBlocker);
 
     QQmlEngine engine;
-    QQmlComponent component(&engine, QUrl::fromLocalFile(
-        QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    QQmlComponent component(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
     const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
-        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
-        {QStringLiteral("contentBlocker"), QVariant::fromValue<QObject *>(&contentBlocker)},
-        {QStringLiteral("engineContentBlocker"),
-            QVariant::fromValue<QObject *>(&engineContentBlocker)},
+        { QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile")) },
+        { QStringLiteral("contentBlocker"), QVariant::fromValue<QObject *>(&contentBlocker) },
+        { QStringLiteral("engineContentBlocker"),
+            QVariant::fromValue<QObject *>(&engineContentBlocker) },
     }));
     QVERIFY2(adapter, qPrintable(component.errorString()));
     QQuickWindow window;
     qobject_cast<QQuickItem *>(adapter.get())->setParentItem(window.contentItem());
     window.show();
 
-    QVERIFY(adapter->setProperty("currentUrl", QUrl(
-        QStringLiteral("http://127.0.0.1:%1/page.html").arg(server.serverPort()))));
+    QVERIFY(adapter->setProperty("currentUrl",
+        QUrl(QStringLiteral("http://127.0.0.1:%1/page.html").arg(server.serverPort()))));
 
-    QTRY_COMPARE_WITH_TIMEOUT(adapter->property("pageTitle").toString(),
-        QStringLiteral("asked"), 15000);
+    QTRY_COMPARE_WITH_TIMEOUT(
+        adapter->property("pageTitle").toString(), QStringLiteral("asked"), 15000);
     QVERIFY2(server.requested().contains(QStringLiteral("/frame.html?id=7")),
         qPrintable(server.requested().join(QStringLiteral(", "))));
 }
@@ -1269,46 +1259,45 @@ void QtEngineContractTest::qtRefusesTheWindowsTheListsNameAndNoOthers()
 {
     QTemporaryDir root;
     QVERIFY(root.isValid());
-    omaweb::ContentBlocker contentBlocker(
-        root.path(), omaweb::ContentBlocker::DefaultLists::None);
+    omaweb::ContentBlocker contentBlocker(root.path(), omaweb::ContentBlocker::DefaultLists::None);
     contentBlocker.setUserRules(QStringLiteral("||popads.example^$popup"));
     QTRY_VERIFY_WITH_TIMEOUT(!contentBlocker.compiling(), 5000);
 
     QQmlEngine engine;
-    QQmlComponent component(&engine, QUrl::fromLocalFile(
-        QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    QQmlComponent component(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
     const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
-        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
-        {QStringLiteral("contentBlocker"), QVariant::fromValue<QObject *>(&contentBlocker)},
+        { QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile")) },
+        { QStringLiteral("contentBlocker"), QVariant::fromValue<QObject *>(&contentBlocker) },
     }));
     QVERIFY2(adapter, qPrintable(component.errorString()));
     const QUrl opener(QStringLiteral("https://site.example/article"));
     QVERIFY(adapter->setProperty("currentUrl", opener));
 
-    const auto refused = [&adapter](QWebEngineNewWindowRequest::DestinationType destination,
-                             const QString &url) {
-        QVariant result;
-        const auto invoked = QMetaObject::invokeMethod(adapter.get(), "popupRefused",
-            Q_RETURN_ARG(QVariant, result),
-            Q_ARG(QVariant, QVariant::fromValue(static_cast<int>(destination))),
-            Q_ARG(QVariant, QVariant::fromValue(QUrl(url))));
-        return invoked && result.toBool();
-    };
+    const auto refused
+        = [&adapter](QWebEngineNewWindowRequest::DestinationType destination, const QString &url) {
+              QVariant result;
+              const auto invoked = QMetaObject::invokeMethod(adapter.get(), "popupRefused",
+                  Q_RETURN_ARG(QVariant, result),
+                  Q_ARG(QVariant, QVariant::fromValue(static_cast<int>(destination))),
+                  Q_ARG(QVariant, QVariant::fromValue(QUrl(url))));
+              return invoked && result.toBool();
+          };
 
-    QVERIFY(refused(QWebEngineNewWindowRequest::InNewWindow,
-        QStringLiteral("https://popads.example/win")));
-    QVERIFY(refused(QWebEngineNewWindowRequest::InNewDialog,
-        QStringLiteral("https://popads.example/win")));
-    QVERIFY(refused(QWebEngineNewWindowRequest::InNewTab,
-        QStringLiteral("https://popads.example/win")));
+    QVERIFY(refused(
+        QWebEngineNewWindowRequest::InNewWindow, QStringLiteral("https://popads.example/win")));
+    QVERIFY(refused(
+        QWebEngineNewWindowRequest::InNewDialog, QStringLiteral("https://popads.example/win")));
+    QVERIFY(refused(
+        QWebEngineNewWindowRequest::InNewTab, QStringLiteral("https://popads.example/win")));
     QVERIFY(!refused(QWebEngineNewWindowRequest::InNewBackgroundTab,
         QStringLiteral("https://popads.example/win")));
-    QVERIFY(!refused(QWebEngineNewWindowRequest::InNewDialog,
-        QStringLiteral("https://pay.example/checkout")));
+    QVERIFY(!refused(
+        QWebEngineNewWindowRequest::InNewDialog, QStringLiteral("https://pay.example/checkout")));
 
     contentBlocker.setSiteEnabled(opener, false);
-    QVERIFY(!refused(QWebEngineNewWindowRequest::InNewWindow,
-        QStringLiteral("https://popads.example/win")));
+    QVERIFY(!refused(
+        QWebEngineNewWindowRequest::InNewWindow, QStringLiteral("https://popads.example/win")));
 }
 
 // QML's WebEngineProfile is QQuickWebEngineProfile, a different class from the
@@ -1321,14 +1310,13 @@ void QtEngineContractTest::qtAttachesBlockingToTheProfileQmlCreates()
 {
     QTemporaryDir root;
     QVERIFY(root.isValid());
-    omaweb::ContentBlocker contentBlocker(
-        root.path(), omaweb::ContentBlocker::DefaultLists::None);
+    omaweb::ContentBlocker contentBlocker(root.path(), omaweb::ContentBlocker::DefaultLists::None);
     omaweb::QtContentBlocker engineContentBlocker(&contentBlocker);
 
     QQmlEngine engine;
     QQmlComponent component(&engine);
-    component.setData("import QtWebEngine\nWebEngineProfile { storageName: \"omaweb-attach\" }",
-        QUrl());
+    component.setData(
+        "import QtWebEngine\nWebEngineProfile { storageName: \"omaweb-attach\" }", QUrl());
     const std::unique_ptr<QObject> profile(component.create());
     QVERIFY2(profile, qPrintable(component.errorString()));
     QVERIFY(engineContentBlocker.attachToProfile(profile.get()));
@@ -1383,11 +1371,11 @@ void QtEngineContractTest::qtDocksAnInspectorDrawnInOmawebsColours()
     QTemporaryDir root;
     QVERIFY(root.isValid());
     QQmlEngine engine;
-    QQmlComponent component(&engine, QUrl::fromLocalFile(
-        QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    QQmlComponent component(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
     const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
-        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
-        {QStringLiteral("developerToolsColors"), inspectorPalette()},
+        { QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile")) },
+        { QStringLiteral("developerToolsColors"), inspectorPalette() },
     }));
     QVERIFY2(adapter, qPrintable(component.errorString()));
 
@@ -1399,8 +1387,9 @@ void QtEngineContractTest::qtDocksAnInspectorDrawnInOmawebsColours()
     view->setSize(QSizeF(700, 800));
     window.show();
 
-    QVERIFY(adapter->setProperty("currentUrl", QUrl(QStringLiteral(
-        "data:text/html,<title>Inspected</title><p id=target>inspect me</p>"))));
+    QVERIFY(adapter->setProperty("currentUrl",
+        QUrl(
+            QStringLiteral("data:text/html,<title>Inspected</title><p id=target>inspect me</p>"))));
     QTRY_COMPARE(adapter->property("pageTitle").toString(), QStringLiteral("Inspected"));
 
     QVERIFY(QMetaObject::invokeMethod(adapter.get(), "attachDeveloperTools"));
@@ -1437,8 +1426,7 @@ void QtEngineContractTest::qtDocksAnInspectorDrawnInOmawebsColours()
     QVERIFY(consoleSpy.isValid());
 
     const auto reports = [&](const QString &expression, const QString &expected) {
-        const auto script = QStringLiteral("console.log('omaweb-token:' + (%1))")
-            .arg(expression);
+        const auto script = QStringLiteral("console.log('omaweb-token:' + (%1))").arg(expression);
         const auto wanted = QStringLiteral("omaweb-token:") + expected;
         consoleSpy.clear();
         for (int attempt = 0; attempt < 40; ++attempt) {
@@ -1455,7 +1443,7 @@ void QtEngineContractTest::qtDocksAnInspectorDrawnInOmawebsColours()
     const auto resolves = [&](const char *token, const QString &colour) {
         return reports(QStringLiteral("getComputedStyle(document.documentElement)"
                                       ".getPropertyValue('%1').trim()")
-                .arg(QString::fromLatin1(token)),
+                           .arg(QString::fromLatin1(token)),
             colour);
     };
 
@@ -1481,10 +1469,10 @@ void QtEngineContractTest::qtDocksAnInspectorDrawnInOmawebsColours()
 
     // The inspector's own interface takes the theme's type, not the platform's:
     // Omaweb's chrome is drawn in one family and the dock is part of it.
-    QVERIFY(reports(QStringLiteral(
-        "getComputedStyle(document.documentElement)"
-        ".getPropertyValue('--default-font-family').trim()"
-        ".includes('Menlo')"), QStringLiteral("true")));
+    QVERIFY(reports(QStringLiteral("getComputedStyle(document.documentElement)"
+                                   ".getPropertyValue('--default-font-family').trim()"
+                                   ".includes('Menlo')"),
+        QStringLiteral("true")));
     // The frontend has a light face and a dark one, and Omaweb's own window
     // colour is what decides which of the two this is.
     QVERIFY(reports(QStringLiteral("document.documentElement.classList"
@@ -1515,10 +1503,10 @@ void QtEngineContractTest::qtKeepsAnInspectedTabActiveOnlyWhileAttached()
     QTemporaryDir root;
     QVERIFY(root.isValid());
     QQmlEngine engine;
-    QQmlComponent component(&engine, QUrl::fromLocalFile(
-        QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    QQmlComponent component(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
     const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
-        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
+        { QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile")) },
     }));
     QVERIFY2(adapter, qPrintable(component.errorString()));
     auto *item = qobject_cast<QQuickItem *>(adapter.get());
@@ -1529,8 +1517,8 @@ void QtEngineContractTest::qtKeepsAnInspectedTabActiveOnlyWhileAttached()
     item->setSize(QSizeF(800, 600));
     window.show();
 
-    QVERIFY(adapter->setProperty("currentUrl", QUrl(QStringLiteral(
-        "data:text/html,<title>Retained</title><p>retained</p>"))));
+    QVERIFY(adapter->setProperty("currentUrl",
+        QUrl(QStringLiteral("data:text/html,<title>Retained</title><p>retained</p>"))));
     QTRY_COMPARE(adapter->property("pageTitle").toString(), QStringLiteral("Retained"));
 
     auto *webView = adapter->findChild<QObject *>(QStringLiteral("qtWebView"));
@@ -1564,16 +1552,15 @@ void QtEngineContractTest::qtInspectsAPrivateTabInItsOwnTemporaryProfile()
 {
     QQmlEngine engine;
     QQmlComponent profileComponent(&engine);
-    profileComponent.setData(
-        "import QtWebEngine\nWebEngineProfile { offTheRecord: true }", QUrl());
+    profileComponent.setData("import QtWebEngine\nWebEngineProfile { offTheRecord: true }", QUrl());
     const std::unique_ptr<QObject> privateProfile(profileComponent.create());
     QVERIFY2(privateProfile, qPrintable(profileComponent.errorString()));
     QVERIFY(privateProfile->property("offTheRecord").toBool());
 
-    QQmlComponent component(&engine, QUrl::fromLocalFile(
-        QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    QQmlComponent component(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
     const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
-        {QStringLiteral("sharedProfile"), QVariant::fromValue(privateProfile.get())},
+        { QStringLiteral("sharedProfile"), QVariant::fromValue(privateProfile.get()) },
     }));
     QVERIFY2(adapter, qPrintable(component.errorString()));
 
@@ -1596,10 +1583,10 @@ void QtEngineContractTest::qtPicksAnElementWhenNoContextMenuNamedOne()
     QTemporaryDir root;
     QVERIFY(root.isValid());
     QQmlEngine engine;
-    QQmlComponent component(&engine, QUrl::fromLocalFile(
-        QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    QQmlComponent component(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
     const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
-        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
+        { QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile")) },
     }));
     QVERIFY2(adapter, qPrintable(component.errorString()));
     auto *item = qobject_cast<QQuickItem *>(adapter.get());
@@ -1610,8 +1597,8 @@ void QtEngineContractTest::qtPicksAnElementWhenNoContextMenuNamedOne()
     item->setSize(QSizeF(700, 800));
     window.show();
 
-    QVERIFY(adapter->setProperty("currentUrl", QUrl(QStringLiteral(
-        "data:text/html,<title>Pick me</title><p id=target>pick me</p>"))));
+    QVERIFY(adapter->setProperty("currentUrl",
+        QUrl(QStringLiteral("data:text/html,<title>Pick me</title><p id=target>pick me</p>"))));
     QTRY_COMPARE(adapter->property("pageTitle").toString(), QStringLiteral("Pick me"));
     QVERIFY(!adapter->property("contextMenuTargetKnown").toBool());
 
@@ -1647,8 +1634,8 @@ void QtEngineContractTest::qtPicksAnElementWhenNoContextMenuNamedOne()
         QGenericArgument(contextMenuSignal.parameterMetaType(0).name(), &request)));
     QVERIFY(adapter->property("contextMenuTargetKnown").toBool());
 
-    QVERIFY(adapter->setProperty("currentUrl", QUrl(QStringLiteral(
-        "data:text/html,<title>Elsewhere</title><p>elsewhere</p>"))));
+    QVERIFY(adapter->setProperty("currentUrl",
+        QUrl(QStringLiteral("data:text/html,<title>Elsewhere</title><p>elsewhere</p>"))));
     QTRY_COMPARE(adapter->property("pageTitle").toString(), QStringLiteral("Elsewhere"));
     QVERIFY(!adapter->property("contextMenuTargetKnown").toBool());
 
@@ -1672,11 +1659,11 @@ void QtEngineContractTest::qtDrawsMarkupStructureQuieterThanItsContent()
     QTemporaryDir root;
     QVERIFY(root.isValid());
     QQmlEngine engine;
-    QQmlComponent component(&engine, QUrl::fromLocalFile(
-        QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    QQmlComponent component(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
     const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
-        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
-        {QStringLiteral("developerToolsColors"), inspectorPalette()},
+        { QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile")) },
+        { QStringLiteral("developerToolsColors"), inspectorPalette() },
     }));
     QVERIFY2(adapter, qPrintable(component.errorString()));
     auto *item = qobject_cast<QQuickItem *>(adapter.get());
@@ -1687,8 +1674,9 @@ void QtEngineContractTest::qtDrawsMarkupStructureQuieterThanItsContent()
     item->setSize(QSizeF(700, 800));
     window.show();
 
-    QVERIFY(adapter->setProperty("currentUrl", QUrl(QStringLiteral(
-        "data:text/html,<title>Markup</title><p id=target class=x>read me</p>"))));
+    QVERIFY(adapter->setProperty("currentUrl",
+        QUrl(QStringLiteral(
+            "data:text/html,<title>Markup</title><p id=target class=x>read me</p>"))));
     QTRY_COMPARE(adapter->property("pageTitle").toString(), QStringLiteral("Markup"));
 
     QVERIFY(QMetaObject::invokeMethod(adapter.get(), "attachDeveloperTools"));
@@ -1749,8 +1737,7 @@ void QtEngineContractTest::qtDrawsMarkupStructureQuieterThanItsContent()
     // The name carries the theme's tag colour; everything structural around it
     // carries the quieter one the theme names for punctuation.
     QVERIFY2(report.contains(QLatin1String("name=rgb(1, 2, 3)")), qPrintable(report));
-    QVERIFY2(report.contains(QLatin1String("punctuation=rgb(119, 136, 153)")),
-        qPrintable(report));
+    QVERIFY2(report.contains(QLatin1String("punctuation=rgb(119, 136, 153)")), qPrintable(report));
 
     QVERIFY(QMetaObject::invokeMethod(adapter.get(), "detachDeveloperTools"));
 }
@@ -1762,8 +1749,8 @@ void QtEngineContractTest::qtDrawsMarkupStructureQuieterThanItsContent()
 void QtEngineContractTest::qtReportsThePageContextAndDrawsNoMenuOfItsOwn()
 {
     QQmlEngine engine;
-    QQmlComponent component(&engine, QUrl::fromLocalFile(
-        QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    QQmlComponent component(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
     const std::unique_ptr<QObject> adapter(component.create());
     QVERIFY2(adapter, qPrintable(component.errorString()));
     auto *item = qobject_cast<QQuickItem *>(adapter.get());
@@ -1776,10 +1763,10 @@ void QtEngineContractTest::qtReportsThePageContextAndDrawsNoMenuOfItsOwn()
 
     QSignalSpy contextSpy(adapter.get(), SIGNAL(pageContextRequested(QVariant)));
     QVERIFY(contextSpy.isValid());
-    QVERIFY(adapter->setProperty("currentUrl", QUrl(QStringLiteral(
-        "data:text/html,<title>Context</title>"
-        "<a id=link href='https://example.com/target' "
-        "style='position:absolute;top:0;left:0;font-size:40px'>a link</a>"))));
+    QVERIFY(adapter->setProperty("currentUrl",
+        QUrl(QStringLiteral("data:text/html,<title>Context</title>"
+                            "<a id=link href='https://example.com/target' "
+                            "style='position:absolute;top:0;left:0;font-size:40px'>a link</a>"))));
     QTRY_COMPARE(adapter->property("pageTitle").toString(), QStringLiteral("Context"));
     QTest::qWait(500);
 
@@ -1816,17 +1803,17 @@ void QtEngineContractTest::qtReportsTargetsInsideCrossOriginFrames()
            style="display:block;width:240px;height:80px;font-size:24px">frame link</a>
         <script>document.querySelector('a').focus()</script>)HTML");
     QVERIFY(frameServer.listen(QHostAddress::LocalHost));
-    PageServer pageServer(QStringLiteral(
-        "<!doctype html><title>Cross-origin frame</title>"
-        "<style>body{margin:0}iframe{border:0;width:300px;height:120px}</style>"
-        "<iframe src=\"http://127.0.0.1:%1/frame.html\"></iframe>")
-                              .arg(frameServer.serverPort())
-                              .toUtf8());
+    PageServer pageServer(
+        QStringLiteral("<!doctype html><title>Cross-origin frame</title>"
+                       "<style>body{margin:0}iframe{border:0;width:300px;height:120px}</style>"
+                       "<iframe src=\"http://127.0.0.1:%1/frame.html\"></iframe>")
+            .arg(frameServer.serverPort())
+            .toUtf8());
     QVERIFY(pageServer.listen(QHostAddress::LocalHost));
 
     QQmlEngine engine;
-    QQmlComponent component(&engine, QUrl::fromLocalFile(
-        QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    QQmlComponent component(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
     const std::unique_ptr<QObject> adapter(component.create());
     QVERIFY2(adapter, qPrintable(component.errorString()));
     auto *item = qobject_cast<QQuickItem *>(adapter.get());
@@ -1838,10 +1825,10 @@ void QtEngineContractTest::qtReportsTargetsInsideCrossOriginFrames()
     window.show();
 
     QSignalSpy contextSpy(adapter.get(), SIGNAL(pageContextRequested(QVariant)));
-    QVERIFY(adapter->setProperty("currentUrl", QUrl(QStringLiteral(
-        "http://127.0.0.1:%1/page.html").arg(pageServer.serverPort()))));
-    QTRY_COMPARE_WITH_TIMEOUT(adapter->property("pageTitle").toString(),
-        QStringLiteral("Cross-origin frame"), 10000);
+    QVERIFY(adapter->setProperty("currentUrl",
+        QUrl(QStringLiteral("http://127.0.0.1:%1/page.html").arg(pageServer.serverPort()))));
+    QTRY_COMPARE_WITH_TIMEOUT(
+        adapter->property("pageTitle").toString(), QStringLiteral("Cross-origin frame"), 10000);
     // A click is a one-shot event. Sent before the frame inside the page is up,
     // it lands on a document that has no link to report, and no amount of
     // waiting afterwards brings the gesture back — the count simply stays at
@@ -1852,9 +1839,8 @@ void QtEngineContractTest::qtReportsTargetsInsideCrossOriginFrames()
         QTest::mouseClick(&window, Qt::RightButton, {}, QPoint(40, 30));
         QTest::qWait(200);
         return contextSpy.count() > 0
-            && contextSpy.last().first().toMap()
-                    .value(QStringLiteral("linkUrl")).toUrl()
-                == QUrl(QStringLiteral("https://target.example/from-frame"));
+            && contextSpy.last().first().toMap().value(QStringLiteral("linkUrl")).toUrl()
+            == QUrl(QStringLiteral("https://target.example/from-frame"));
     };
     QTRY_VERIFY_WITH_TIMEOUT(rightClickReportsTheFrameLink(), 10000);
 
@@ -1868,8 +1854,8 @@ void QtEngineContractTest::qtReportsTargetsInsideCrossOriginFrames()
 void QtEngineContractTest::qtOwnsJavaScriptPromptsAndReturnsTheirAnswer()
 {
     QQmlEngine engine;
-    QQmlComponent component(&engine, QUrl::fromLocalFile(
-        QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    QQmlComponent component(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
     const std::unique_ptr<QObject> adapter(component.create());
     QVERIFY2(adapter, qPrintable(component.errorString()));
     auto *item = qobject_cast<QQuickItem *>(adapter.get());
@@ -1880,24 +1866,22 @@ void QtEngineContractTest::qtOwnsJavaScriptPromptsAndReturnsTheirAnswer()
     item->setSize(QSizeF(640, 480));
     window.show();
 
-    QSignalSpy promptSpy(adapter.get(), SIGNAL(browserPromptRequested(QString,QVariant)));
+    QSignalSpy promptSpy(adapter.get(), SIGNAL(browserPromptRequested(QString, QVariant)));
     QVERIFY(promptSpy.isValid());
-    QVERIFY(adapter->setProperty("currentUrl", QUrl(QStringLiteral(
-        "data:text/html,<title>waiting</title><script>setTimeout(()=>{"
-        "document.title=prompt('Name','suggested')===null?'cancelled':'accepted'},0)"
-        "</script>"))));
+    QVERIFY(adapter->setProperty("currentUrl",
+        QUrl(QStringLiteral(
+            "data:text/html,<title>waiting</title><script>setTimeout(()=>{"
+            "document.title=prompt('Name','suggested')===null?'cancelled':'accepted'},0)"
+            "</script>"))));
     QTRY_VERIFY_WITH_TIMEOUT(promptSpy.count() > 0, 10000);
     const auto request = promptSpy.takeFirst();
     const auto prompt = request.at(1).toMap();
-    QCOMPARE(prompt.value(QStringLiteral("kind")).toString(),
-        QStringLiteral("javascript-prompt"));
-    QCOMPARE(prompt.value(QStringLiteral("defaultText")).toString(),
-        QStringLiteral("suggested"));
+    QCOMPARE(prompt.value(QStringLiteral("kind")).toString(), QStringLiteral("javascript-prompt"));
+    QCOMPARE(prompt.value(QStringLiteral("defaultText")).toString(), QStringLiteral("suggested"));
     QVERIFY(QMetaObject::invokeMethod(adapter.get(), "respondToBrowserPrompt",
-        Q_ARG(QVariant, request.at(0)), Q_ARG(QVariant, false),
-        Q_ARG(QVariant, QVariantMap{})));
-    QTRY_COMPARE_WITH_TIMEOUT(adapter->property("pageTitle").toString(),
-        QStringLiteral("cancelled"), 10000);
+        Q_ARG(QVariant, request.at(0)), Q_ARG(QVariant, false), Q_ARG(QVariant, QVariantMap {})));
+    QTRY_COMPARE_WITH_TIMEOUT(
+        adapter->property("pageTitle").toString(), QStringLiteral("cancelled"), 10000);
 }
 
 void QtEngineContractTest::qtOpensOneLocalFileWithoutDirectoryWideAccess()
@@ -1916,8 +1900,8 @@ void QtEngineContractTest::qtOpensOneLocalFileWithoutDirectoryWideAccess()
     page.close();
 
     QQmlEngine engine;
-    QQmlComponent component(&engine, QUrl::fromLocalFile(
-        QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    QQmlComponent component(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
     const std::unique_ptr<QObject> adapter(component.create());
     QVERIFY2(adapter, qPrintable(component.errorString()));
     auto *item = qobject_cast<QQuickItem *>(adapter.get());
@@ -1929,8 +1913,8 @@ void QtEngineContractTest::qtOpensOneLocalFileWithoutDirectoryWideAccess()
     window.show();
 
     QVERIFY(adapter->setProperty("currentUrl", QUrl::fromLocalFile(page.fileName())));
-    QTRY_COMPARE_WITH_TIMEOUT(adapter->property("pageTitle").toString(),
-        QStringLiteral("isolated"), 10000);
+    QTRY_COMPARE_WITH_TIMEOUT(
+        adapter->property("pageTitle").toString(), QStringLiteral("isolated"), 10000);
 }
 
 void QtEngineContractTest::adaptersAnswerForEveryEverydayPageOperation_data()
@@ -1959,7 +1943,7 @@ void QtEngineContractTest::adaptersAnswerForEveryEverydayPageOperation()
 
     // Every tab starts at 100 percent and searching for nothing.
     QCOMPARE(adapter->property("zoomFactor").toDouble(), 1.0);
-    QCOMPARE(adapter->property("findQuery").toString(), QString{});
+    QCOMPARE(adapter->property("findQuery").toString(), QString {});
     QCOMPARE(adapter->property("findMatchCount").toInt(), 0);
     QVERIFY(!adapter->property("siteFullscreenActive").toBool());
 }
@@ -1970,8 +1954,8 @@ void QtEngineContractTest::adaptersAnswerForEveryEverydayPageOperation()
 void QtEngineContractTest::qtFindsInThePageAndKeepsTheQueryAcrossNavigation()
 {
     QQmlEngine engine;
-    QQmlComponent component(&engine, QUrl::fromLocalFile(
-        QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    QQmlComponent component(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
     const std::unique_ptr<QObject> adapter(component.create());
     QVERIFY2(adapter, qPrintable(component.errorString()));
 
@@ -1990,9 +1974,9 @@ void QtEngineContractTest::qtFindsInThePageAndKeepsTheQueryAcrossNavigation()
     // the layout inside the load rather than in a race with it.
     QVERIFY(QTest::qWaitForWindowExposed(&window));
 
-    QVERIFY(adapter->setProperty("currentUrl", QUrl(QStringLiteral(
-        "data:text/html,<title>Findable</title>"
-        "<p>alpha beta alpha gamma alpha</p>"))));
+    QVERIFY(adapter->setProperty("currentUrl",
+        QUrl(QStringLiteral("data:text/html,<title>Findable</title>"
+                            "<p>alpha beta alpha gamma alpha</p>"))));
     QTRY_COMPARE(adapter->property("pageTitle").toString(), QStringLiteral("Findable"));
     // A title arrives before the document is finished, and a search is answered
     // once against whatever is there when it is asked: a query issued mid-load
@@ -2012,8 +1996,8 @@ void QtEngineContractTest::qtFindsInThePageAndKeepsTheQueryAcrossNavigation()
     QTRY_COMPARE(adapter->property("findActiveMatch").toInt(), 2);
 
     // The matches were in the page being replaced; the query is the reader's.
-    QVERIFY(adapter->setProperty("currentUrl", QUrl(QStringLiteral(
-        "data:text/html,<title>Elsewhere</title><p>nothing here</p>"))));
+    QVERIFY(adapter->setProperty("currentUrl",
+        QUrl(QStringLiteral("data:text/html,<title>Elsewhere</title><p>nothing here</p>"))));
     QTRY_COMPARE(adapter->property("pageTitle").toString(), QStringLiteral("Elsewhere"));
     QTRY_VERIFY(!adapter->property("loading").toBool());
     // Chromium answers a search asynchronously, so the answer for the page
@@ -2025,7 +2009,7 @@ void QtEngineContractTest::qtFindsInThePageAndKeepsTheQueryAcrossNavigation()
     QCOMPARE(adapter->property("findQuery").toString(), QStringLiteral("alpha"));
 
     QVERIFY(QMetaObject::invokeMethod(adapter.get(), "clearFind"));
-    QCOMPARE(adapter->property("findQuery").toString(), QString{});
+    QCOMPARE(adapter->property("findQuery").toString(), QString {});
     QCOMPARE(adapter->property("findMatchCount").toInt(), 0);
 }
 
@@ -2034,8 +2018,8 @@ void QtEngineContractTest::qtFindsInThePageAndKeepsTheQueryAcrossNavigation()
 void QtEngineContractTest::qtKeepsTheZoomItIsGivenAcrossNavigation()
 {
     QQmlEngine engine;
-    QQmlComponent component(&engine, QUrl::fromLocalFile(
-        QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    QQmlComponent component(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
     const std::unique_ptr<QObject> adapter(component.create());
     QVERIFY2(adapter, qPrintable(component.errorString()));
 
@@ -2047,16 +2031,15 @@ void QtEngineContractTest::qtKeepsTheZoomItIsGivenAcrossNavigation()
     view->setSize(QSizeF(640, 480));
     window.show();
 
-    QVERIFY(adapter->setProperty("currentUrl", QUrl(QStringLiteral(
-        "data:text/html,<title>Zoomed</title><p>page</p>"))));
+    QVERIFY(adapter->setProperty(
+        "currentUrl", QUrl(QStringLiteral("data:text/html,<title>Zoomed</title><p>page</p>"))));
     QTRY_COMPARE(adapter->property("pageTitle").toString(), QStringLiteral("Zoomed"));
 
-    QVERIFY(QMetaObject::invokeMethod(adapter.get(), "setZoomFactor",
-        Q_ARG(QVariant, 1.5)));
+    QVERIFY(QMetaObject::invokeMethod(adapter.get(), "setZoomFactor", Q_ARG(QVariant, 1.5)));
     QCOMPARE(adapter->property("zoomFactor").toDouble(), 1.5);
 
-    QVERIFY(adapter->setProperty("currentUrl", QUrl(QStringLiteral(
-        "data:text/html,<title>Still zoomed</title><p>next</p>"))));
+    QVERIFY(adapter->setProperty("currentUrl",
+        QUrl(QStringLiteral("data:text/html,<title>Still zoomed</title><p>next</p>"))));
     QTRY_COMPARE(adapter->property("pageTitle").toString(), QStringLiteral("Still zoomed"));
     QCOMPARE(adapter->property("zoomFactor").toDouble(), 1.5);
 
@@ -2096,8 +2079,7 @@ public:
                     headers = "Content-Type: text/html\r\nCache-Control: no-store\r\n";
                 }
                 socket->write("HTTP/1.1 200 OK\r\n" + headers + "Content-Length: "
-                    + QByteArray::number(body.size())
-                    + "\r\nConnection: close\r\n\r\n" + body);
+                    + QByteArray::number(body.size()) + "\r\nConnection: close\r\n\r\n" + body);
                 socket->flush();
                 socket->disconnectFromHost();
             });
@@ -2120,10 +2102,10 @@ void QtEngineContractTest::qtSeparatesReloadBypassingCacheFromReloadAndStop()
     QTemporaryDir root;
     QVERIFY(root.isValid());
     QQmlEngine engine;
-    QQmlComponent component(&engine, QUrl::fromLocalFile(
-        QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    QQmlComponent component(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
     const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
-        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
+        { QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile")) },
     }));
     QVERIFY2(adapter, qPrintable(component.errorString()));
 
@@ -2135,23 +2117,22 @@ void QtEngineContractTest::qtSeparatesReloadBypassingCacheFromReloadAndStop()
     view->setSize(QSizeF(640, 480));
     window.show();
 
-    const QUrl pageUrl(QStringLiteral("http://127.0.0.1:%1/page.html")
-                           .arg(server.serverPort()));
+    const QUrl pageUrl(QStringLiteral("http://127.0.0.1:%1/page.html").arg(server.serverPort()));
     QVERIFY(adapter->setProperty("currentUrl", pageUrl));
-    QTRY_COMPARE_WITH_TIMEOUT(adapter->property("pageTitle").toString(),
-        QStringLiteral("1"), 15000);
+    QTRY_COMPARE_WITH_TIMEOUT(
+        adapter->property("pageTitle").toString(), QStringLiteral("1"), 15000);
 
     // Reading the page again keeps what the cache already holds.
     QVERIFY(QMetaObject::invokeMethod(adapter.get(), "reloadPage"));
     QTRY_VERIFY_WITH_TIMEOUT(!adapter->property("loading").toBool(), 15000);
-    QTRY_COMPARE_WITH_TIMEOUT(adapter->property("pageTitle").toString(),
-        QStringLiteral("1"), 15000);
+    QTRY_COMPARE_WITH_TIMEOUT(
+        adapter->property("pageTitle").toString(), QStringLiteral("1"), 15000);
     QCOMPARE(server.scriptRequests(), 1);
 
     // Reading it again from the network does not.
     QVERIFY(QMetaObject::invokeMethod(adapter.get(), "reloadPageBypassingCache"));
-    QTRY_COMPARE_WITH_TIMEOUT(adapter->property("pageTitle").toString(),
-        QStringLiteral("2"), 15000);
+    QTRY_COMPARE_WITH_TIMEOUT(
+        adapter->property("pageTitle").toString(), QStringLiteral("2"), 15000);
     QCOMPARE(server.scriptRequests(), 2);
 
     // Stopping ends the load and leaves the page that was there standing.
@@ -2171,8 +2152,8 @@ void QtEngineContractTest::qtRendersAPageForPrintingAndDrawsPdfsInline()
     QTemporaryDir root;
     QVERIFY(root.isValid());
     QQmlEngine engine;
-    QQmlComponent component(&engine, QUrl::fromLocalFile(
-        QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    QQmlComponent component(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
     const std::unique_ptr<QObject> adapter(component.create());
     QVERIFY2(adapter, qPrintable(component.errorString()));
 
@@ -2184,21 +2165,20 @@ void QtEngineContractTest::qtRendersAPageForPrintingAndDrawsPdfsInline()
     view->setSize(QSizeF(640, 480));
     window.show();
 
-    QVERIFY(adapter->setProperty("currentUrl", QUrl(QStringLiteral(
-        "data:text/html,<title>Printable</title><h1>Invoice</h1>"))));
+    QVERIFY(adapter->setProperty("currentUrl",
+        QUrl(QStringLiteral("data:text/html,<title>Printable</title><h1>Invoice</h1>"))));
     QTRY_COMPARE(adapter->property("pageTitle").toString(), QStringLiteral("Printable"));
 
-    QSignalSpy printSpy(adapter.get(), SIGNAL(printFinished(QString,bool)));
+    QSignalSpy printSpy(adapter.get(), SIGNAL(printFinished(QString, bool)));
     QVERIFY(printSpy.isValid());
 
     // A render with nowhere to go is reported rather than attempted.
-    QVERIFY(QMetaObject::invokeMethod(adapter.get(), "printPage", Q_ARG(QVariant, QString{})));
+    QVERIFY(QMetaObject::invokeMethod(adapter.get(), "printPage", Q_ARG(QVariant, QString {})));
     QCOMPARE(printSpy.count(), 1);
     QVERIFY(!printSpy.takeFirst().at(1).toBool());
 
     const auto destination = root.filePath(QStringLiteral("page.pdf"));
-    QVERIFY(QMetaObject::invokeMethod(adapter.get(), "printPage",
-        Q_ARG(QVariant, destination)));
+    QVERIFY(QMetaObject::invokeMethod(adapter.get(), "printPage", Q_ARG(QVariant, destination)));
     QTRY_VERIFY_WITH_TIMEOUT(printSpy.count() == 1, 15000);
     const auto rendered = printSpy.takeFirst();
     QCOMPARE(rendered.at(0).toString(), destination);
@@ -2248,10 +2228,10 @@ void QtEngineContractTest::qtReportsSiteFullscreenWithItsOrigin()
     QTemporaryDir root;
     QVERIFY(root.isValid());
     QQmlEngine engine;
-    QQmlComponent component(&engine, QUrl::fromLocalFile(
-        QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    QQmlComponent component(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
     const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
-        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
+        { QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile")) },
     }));
     QVERIFY2(adapter, qPrintable(component.errorString()));
 
@@ -2267,8 +2247,8 @@ void QtEngineContractTest::qtReportsSiteFullscreenWithItsOrigin()
 
     QVERIFY(adapter->setProperty("currentUrl",
         QUrl(QStringLiteral("http://127.0.0.1:%1/page.html").arg(server.serverPort()))));
-    QTRY_COMPARE_WITH_TIMEOUT(adapter->property("pageTitle").toString(),
-        QStringLiteral("ready"), 15000);
+    QTRY_COMPARE_WITH_TIMEOUT(
+        adapter->property("pageTitle").toString(), QStringLiteral("ready"), 15000);
     QVERIFY(QMetaObject::invokeMethod(adapter.get(), "focusPage"));
     QTRY_VERIFY(adapter->property("pageHasFocus").toBool());
 
@@ -2282,22 +2262,23 @@ void QtEngineContractTest::qtReportsSiteFullscreenWithItsOrigin()
             QTest::keyClick(&window, Qt::Key_F);
         }
         return adapter->property("siteFullscreenActive").toBool();
-    }()), 15000);
+    }()),
+        15000);
 
     // The shell hears that a page took the screen, and whose page it was.
     QVERIFY(adapter->property("siteFullscreenActive").toBool());
     QCOMPARE(adapter->property("siteFullscreenOrigin").toString(),
         QStringLiteral("127.0.0.1:%1").arg(server.serverPort()));
-    QTRY_COMPARE_WITH_TIMEOUT(adapter->property("pageTitle").toString(),
-        QStringLiteral("full"), 15000);
+    QTRY_COMPARE_WITH_TIMEOUT(
+        adapter->property("pageTitle").toString(), QStringLiteral("full"), 15000);
 
     // A page that gives the screen back of its own accord is the same request
     // the other way, and the shell has to leave the state with it.
     QTest::keyClick(&window, Qt::Key_F);
     QTRY_VERIFY_WITH_TIMEOUT(!adapter->property("siteFullscreenActive").toBool(), 15000);
-    QCOMPARE(adapter->property("siteFullscreenOrigin").toString(), QString{});
-    QTRY_COMPARE_WITH_TIMEOUT(adapter->property("pageTitle").toString(),
-        QStringLiteral("windowed"), 15000);
+    QCOMPARE(adapter->property("siteFullscreenOrigin").toString(), QString {});
+    QTRY_COMPARE_WITH_TIMEOUT(
+        adapter->property("pageTitle").toString(), QStringLiteral("windowed"), 15000);
 
     // And the page is told when the reader takes it back instead.
     QTRY_VERIFY_WITH_TIMEOUT(([&] {
@@ -2305,12 +2286,13 @@ void QtEngineContractTest::qtReportsSiteFullscreenWithItsOrigin()
             QTest::keyClick(&window, Qt::Key_F);
         }
         return adapter->property("siteFullscreenActive").toBool();
-    }()), 15000);
+    }()),
+        15000);
     QVERIFY(QMetaObject::invokeMethod(adapter.get(), "exitSiteFullscreen"));
     QVERIFY(!adapter->property("siteFullscreenActive").toBool());
-    QCOMPARE(adapter->property("siteFullscreenOrigin").toString(), QString{});
-    QTRY_COMPARE_WITH_TIMEOUT(adapter->property("pageTitle").toString(),
-        QStringLiteral("windowed"), 15000);
+    QCOMPARE(adapter->property("siteFullscreenOrigin").toString(), QString {});
+    QTRY_COMPARE_WITH_TIMEOUT(
+        adapter->property("pageTitle").toString(), QStringLiteral("windowed"), 15000);
 }
 
 void QtEngineContractTest::profileAdaptersHandOverNotifications_data()
@@ -2335,8 +2317,8 @@ void QtEngineContractTest::profileAdaptersHandOverNotifications()
     QVERIFY2(profile, qPrintable(component.errorString()));
 
     const auto *metaObject = profile->metaObject();
-    const auto presented = metaObject->indexOfSignal(
-        "notificationPresented(QString,QUrl,QString,QString)");
+    const auto presented
+        = metaObject->indexOfSignal("notificationPresented(QString,QUrl,QString,QString)");
     QVERIFY2(presented >= 0, "profile does not report notifications to the shell");
     QVERIFY(metaObject->indexOfMethod("activateNotification(QVariant)") >= 0);
     QVERIFY(metaObject->indexOfMethod("dismissNotification(QVariant)") >= 0);
@@ -2382,8 +2364,8 @@ void QtEngineContractTest::adaptersTakeTheShellsAutoplayDecision()
 void QtEngineContractTest::qtReportsTheProcessDrawingThePage()
 {
     QQmlEngine engine;
-    QQmlComponent component(&engine, QUrl::fromLocalFile(
-        QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    QQmlComponent component(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
     const std::unique_ptr<QObject> adapter(component.create());
     QVERIFY2(adapter, qPrintable(component.errorString()));
 
@@ -2398,8 +2380,8 @@ void QtEngineContractTest::qtReportsTheProcessDrawingThePage()
     // Nothing is loaded, so nothing is drawing and there is no process to name.
     QCOMPARE(adapter->property("renderProcessPid").toInt(), 0);
 
-    QVERIFY(adapter->setProperty("currentUrl", QUrl(QStringLiteral(
-        "data:text/html,<title>Costed</title><p>page</p>"))));
+    QVERIFY(adapter->setProperty(
+        "currentUrl", QUrl(QStringLiteral("data:text/html,<title>Costed</title><p>page</p>"))));
     QTRY_COMPARE(adapter->property("pageTitle").toString(), QStringLiteral("Costed"));
     QTRY_VERIFY(adapter->property("renderProcessPid").toInt() > 0);
 
@@ -2409,7 +2391,6 @@ void QtEngineContractTest::qtReportsTheProcessDrawingThePage()
     // A process that is not there costs nothing, and is not guessed at.
     QCOMPARE(resources.residentBytes(0), 0);
 }
-
 
 namespace {
 
@@ -2430,8 +2411,7 @@ public:
             connect(socket, &QIODevice::readyRead, socket, [this, socket] {
                 socket->readAll();
                 socket->write("HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: "
-                    + QByteArray::number(m_body.size())
-                    + "\r\nConnection: close\r\n\r\n" + m_body);
+                    + QByteArray::number(m_body.size()) + "\r\nConnection: close\r\n\r\n" + m_body);
                 socket->flush();
                 socket->disconnectFromHost();
             });
@@ -2471,10 +2451,10 @@ void QtEngineContractTest::qtDefersACertificateFailureWithTheEnginesOwnFacts()
     QTemporaryDir root;
     QVERIFY(root.isValid());
     QQmlEngine engine;
-    QQmlComponent component(&engine, QUrl::fromLocalFile(
-        QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    QQmlComponent component(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
     const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
-        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
+        { QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile")) },
     }));
     QVERIFY2(adapter, qPrintable(component.errorString()));
     auto *view = qobject_cast<QQuickItem *>(adapter.get());
@@ -2485,7 +2465,7 @@ void QtEngineContractTest::qtDefersACertificateFailureWithTheEnginesOwnFacts()
     view->setSize(QSizeF(640, 480));
     window.show();
 
-    QSignalSpy raised(adapter.get(), SIGNAL(certificateErrorRaised(QString,QVariant)));
+    QSignalSpy raised(adapter.get(), SIGNAL(certificateErrorRaised(QString, QVariant)));
     QVERIFY(raised.isValid());
     const auto address = QStringLiteral("https://localhost:%1/page.html").arg(server.serverPort());
     QVERIFY(adapter->setProperty("currentUrl", QUrl(address)));
@@ -2504,16 +2484,14 @@ void QtEngineContractTest::qtDefersACertificateFailureWithTheEnginesOwnFacts()
     // question is open, and the address trigger already says the connection is
     // in error.
     QCOMPARE(adapter->property("pageTitle").toString() == QStringLiteral("reached"), false);
-    QCOMPARE(adapter->property("connectionState").toString(),
-        QStringLiteral("certificate-error"));
+    QCOMPARE(adapter->property("connectionState").toString(), QStringLiteral("certificate-error"));
 
     // Refusing it leaves the page unreached, and the state stays in error.
     QVERIFY(QMetaObject::invokeMethod(adapter.get(), "respondToCertificateError",
         Q_ARG(QVariant, raised.first().at(0)), Q_ARG(QVariant, false)));
     QTRY_VERIFY(!adapter->property("loading").toBool());
     QVERIFY(adapter->property("pageTitle").toString() != QStringLiteral("reached"));
-    QCOMPARE(adapter->property("connectionState").toString(),
-        QStringLiteral("certificate-error"));
+    QCOMPARE(adapter->property("connectionState").toString(), QStringLiteral("certificate-error"));
 
     // The classification of the failures no engine overrides is the adapter's
     // to make, in the engine's own error codes.
@@ -2540,12 +2518,11 @@ void QtEngineContractTest::qtDefersACertificateFailureWithTheEnginesOwnFacts()
     QTRY_VERIFY_WITH_TIMEOUT(raised.count() > 1, 20000);
     QVERIFY(QMetaObject::invokeMethod(adapter.get(), "respondToCertificateError",
         Q_ARG(QVariant, raised.at(1).at(0)), Q_ARG(QVariant, true)));
-    QTRY_COMPARE_WITH_TIMEOUT(adapter->property("pageTitle").toString(),
-        QStringLiteral("reached"), 20000);
+    QTRY_COMPARE_WITH_TIMEOUT(
+        adapter->property("pageTitle").toString(), QStringLiteral("reached"), 20000);
     // Accepted, and still reported as an error: the check was waived, not
     // passed.
-    QCOMPARE(adapter->property("connectionState").toString(),
-        QStringLiteral("certificate-error"));
+    QCOMPARE(adapter->property("connectionState").toString(), QStringLiteral("certificate-error"));
 
     // The engine keeps what it was told. An accepted certificate goes into
     // Chromium's per-profile SSL host state, which has no public way back, so
@@ -2582,13 +2559,15 @@ void QtEngineContractTest::qtRefusesThirdPartyCookiesUntilAnOriginIsAllowed()
     QVERIFY(frameServer.listen(QHostAddress::LocalHost));
     // Two different hosts on the loopback interface: one the page, one a third
     // party inside it.
-    const auto thirdParty = QStringLiteral("http://127.0.0.1:%1/frame.html")
-        .arg(frameServer.serverPort());
+    const auto thirdParty
+        = QStringLiteral("http://127.0.0.1:%1/frame.html").arg(frameServer.serverPort());
     PageServer pageServer(QStringLiteral(R"HTML(<!doctype html><html><body>
         <title>waiting</title>
         <script>addEventListener('message', event => document.title = event.data);</script>
         <iframe src="%1"></iframe>
-    </body></html>)HTML").arg(thirdParty).toUtf8());
+    </body></html>)HTML")
+            .arg(thirdParty)
+            .toUtf8());
     QVERIFY(pageServer.listen(QHostAddress::LocalHost));
     const QUrl page(QStringLiteral("http://localhost:%1/page.html").arg(pageServer.serverPort()));
 
@@ -2601,22 +2580,22 @@ void QtEngineContractTest::qtRefusesThirdPartyCookiesUntilAnOriginIsAllowed()
 
     QTemporaryDir profileRoot;
     QQmlEngine engine;
-    QQmlComponent profileComponent(&engine, QUrl::fromLocalFile(
-        QStringLiteral(OMAWEB_QT_ENGINE_PROFILE_PATH)));
+    QQmlComponent profileComponent(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_PROFILE_PATH)));
     const std::unique_ptr<QObject> host(profileComponent.createWithInitialProperties({
-        {QStringLiteral("profilePath"), profileRoot.filePath(QStringLiteral("space"))},
-        {QStringLiteral("privateBrowsing"), false},
-        {QStringLiteral("engineCookiePolicy"), QVariant::fromValue<QObject *>(&policy)},
-        {QStringLiteral("cookieController"), QVariant::fromValue<QObject *>(&browser)},
-        {QStringLiteral("cookieSpaceId"), spaceId},
+        { QStringLiteral("profilePath"), profileRoot.filePath(QStringLiteral("space")) },
+        { QStringLiteral("privateBrowsing"), false },
+        { QStringLiteral("engineCookiePolicy"), QVariant::fromValue<QObject *>(&policy) },
+        { QStringLiteral("cookieController"), QVariant::fromValue<QObject *>(&browser) },
+        { QStringLiteral("cookieSpaceId"), spaceId },
     }));
     QVERIFY2(host, qPrintable(profileComponent.errorString()));
     QVERIFY(host->property("thirdPartyCookiesBlocked").toBool());
 
-    QQmlComponent viewComponent(&engine, QUrl::fromLocalFile(
-        QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    QQmlComponent viewComponent(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
     const std::unique_ptr<QObject> adapter(viewComponent.createWithInitialProperties({
-        {QStringLiteral("sharedProfile"), host->property("profile")},
+        { QStringLiteral("sharedProfile"), host->property("profile") },
     }));
     QVERIFY2(adapter, qPrintable(viewComponent.errorString()));
     QQuickWindow window;
@@ -2628,21 +2607,21 @@ void QtEngineContractTest::qtRefusesThirdPartyCookiesUntilAnOriginIsAllowed()
     window.show();
 
     QVERIFY(adapter->setProperty("currentUrl", page));
-    QTRY_COMPARE_WITH_TIMEOUT(adapter->property("pageTitle").toString(),
-        QStringLiteral("blocked"), 20000);
+    QTRY_COMPARE_WITH_TIMEOUT(
+        adapter->property("pageTitle").toString(), QStringLiteral("blocked"), 20000);
     QVERIFY(policy.refusedCount() > 0);
 
     // The reader gives the sign-in the allowance, and only that origin gets it.
     QVERIFY(browser.allowThirdPartyCookies(QUrl(thirdParty), QStringLiteral("authentication")));
     QVERIFY(QMetaObject::invokeMethod(adapter.get(), "reloadPage"));
-    QTRY_COMPARE_WITH_TIMEOUT(adapter->property("pageTitle").toString(),
-        QStringLiteral("allowed:kept"), 20000);
+    QTRY_COMPARE_WITH_TIMEOUT(
+        adapter->property("pageTitle").toString(), QStringLiteral("allowed:kept"), 20000);
 
     // Taking it back puts the refusal straight back.
     QVERIFY(browser.revokeThirdPartyCookieAllowance(QUrl(thirdParty)));
     QVERIFY(QMetaObject::invokeMethod(adapter.get(), "reloadPage"));
-    QTRY_COMPARE_WITH_TIMEOUT(adapter->property("pageTitle").toString(),
-        QStringLiteral("blocked"), 20000);
+    QTRY_COMPARE_WITH_TIMEOUT(
+        adapter->property("pageTitle").toString(), QStringLiteral("blocked"), 20000);
 }
 
 // The shell's policy is written in Omaweb's words, so an engine's own
@@ -2652,8 +2631,8 @@ void QtEngineContractTest::qtRefusesThirdPartyCookiesUntilAnOriginIsAllowed()
 void QtEngineContractTest::qtNamesEveryPermissionTheShellHasAPolicyFor()
 {
     QQmlEngine engine;
-    QQmlComponent component(&engine, QUrl::fromLocalFile(
-        QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    QQmlComponent component(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
     const std::unique_ptr<QObject> adapter(component.create());
     QVERIFY2(adapter, qPrintable(component.errorString()));
 
@@ -2665,26 +2644,23 @@ void QtEngineContractTest::qtNamesEveryPermissionTheShellHasAPolicyFor()
         return invoked ? answer.toString() : QStringLiteral("<not invoked>");
     };
     using Permission = QWebEnginePermission;
-    QCOMPARE(named(Permission::PermissionType::MediaAudioCapture),
-        QStringLiteral("microphone"));
+    QCOMPARE(named(Permission::PermissionType::MediaAudioCapture), QStringLiteral("microphone"));
     QCOMPARE(named(Permission::PermissionType::MediaVideoCapture), QStringLiteral("camera"));
     QCOMPARE(named(Permission::PermissionType::MediaAudioVideoCapture),
         QStringLiteral("camera-and-microphone"));
     QCOMPARE(named(Permission::PermissionType::Geolocation), QStringLiteral("geolocation"));
-    QCOMPARE(named(Permission::PermissionType::Notifications),
-        QStringLiteral("notifications"));
+    QCOMPARE(named(Permission::PermissionType::Notifications), QStringLiteral("notifications"));
     // Either desktop capture hands over whatever is on the screen at that
     // instant, so both arrive as the one capability the shell asks about every
     // time.
-    QCOMPARE(named(Permission::PermissionType::DesktopVideoCapture),
-        QStringLiteral("screen-sharing"));
+    QCOMPARE(
+        named(Permission::PermissionType::DesktopVideoCapture), QStringLiteral("screen-sharing"));
     QCOMPARE(named(Permission::PermissionType::DesktopAudioVideoCapture),
         QStringLiteral("screen-sharing"));
-    QCOMPARE(named(Permission::PermissionType::ClipboardReadWrite),
-        QStringLiteral("clipboard-read"));
+    QCOMPARE(
+        named(Permission::PermissionType::ClipboardReadWrite), QStringLiteral("clipboard-read"));
     QCOMPARE(named(Permission::PermissionType::MouseLock), QStringLiteral("pointer-lock"));
-    QCOMPARE(named(Permission::PermissionType::LocalFontsAccess),
-        QStringLiteral("local-fonts"));
+    QCOMPARE(named(Permission::PermissionType::LocalFontsAccess), QStringLiteral("local-fonts"));
     QCOMPARE(named(Permission::PermissionType::Unsupported), QString());
 }
 
@@ -2715,16 +2691,16 @@ void QtEngineContractTest::adaptersReportTheConnectionFromTheirOwnFacts()
 
     QVERIFY(adapter->setProperty("currentUrl",
         QUrl(QStringLiteral("http://127.0.0.1:%1/page.html").arg(server.serverPort()))));
-    QTRY_COMPARE_WITH_TIMEOUT(adapter->property("connectionState").toString(),
-        QStringLiteral("insecure"), 20000);
+    QTRY_COMPARE_WITH_TIMEOUT(
+        adapter->property("connectionState").toString(), QStringLiteral("insecure"), 20000);
 
     // An origin change carries the answer with it. An https address nothing
     // answers on is a page that never arrived, and no connection to report.
     QVERIFY(adapter->setProperty("currentUrl",
         QUrl(QStringLiteral("https://127.0.0.1:%1/page.html").arg(server.serverPort()))));
     QVERIFY(adapter->setProperty("lastLoadFailed", true));
-    QTRY_COMPARE_WITH_TIMEOUT(adapter->property("connectionState").toString(),
-        QStringLiteral("internal"), 20000);
+    QTRY_COMPARE_WITH_TIMEOUT(
+        adapter->property("connectionState").toString(), QStringLiteral("internal"), 20000);
 
     // A committed https load is the one state that says the connection was
     // verified, and only the engine can put the adapter in it.
@@ -2757,11 +2733,11 @@ void QtEngineContractTest::qtAsksTheShellAboutEveryPermissionRequest()
     QTemporaryDir root;
     QVERIFY(root.isValid());
     QQmlEngine engine;
-    QQmlComponent profileComponent(&engine, QUrl::fromLocalFile(
-        QStringLiteral(OMAWEB_QT_ENGINE_PROFILE_PATH)));
+    QQmlComponent profileComponent(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_PROFILE_PATH)));
     const std::unique_ptr<QObject> host(profileComponent.createWithInitialProperties({
-        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("space"))},
-        {QStringLiteral("privateBrowsing"), false},
+        { QStringLiteral("profilePath"), root.filePath(QStringLiteral("space")) },
+        { QStringLiteral("privateBrowsing"), false },
     }));
     QVERIFY2(host, qPrintable(profileComponent.errorString()));
     auto *profile = host->property("profile").value<QObject *>();
@@ -2770,13 +2746,13 @@ void QtEngineContractTest::qtAsksTheShellAboutEveryPermissionRequest()
     // is one whose grants Omaweb cannot reach.
     QCOMPARE(profile->property("persistentPermissionsPolicy").toInt(),
         static_cast<int>(QQuickWebEngineProfile::PersistentPermissionsPolicy::AskEveryTime));
-    QVERIFY(qobject_cast<QQuickWebEngineProfile *>(profile)
-            ->listPermissionsForOrigin(page).isEmpty());
+    QVERIFY(
+        qobject_cast<QQuickWebEngineProfile *>(profile)->listPermissionsForOrigin(page).isEmpty());
 
-    QQmlComponent viewComponent(&engine, QUrl::fromLocalFile(
-        QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    QQmlComponent viewComponent(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
     const std::unique_ptr<QObject> adapter(viewComponent.createWithInitialProperties({
-        {QStringLiteral("sharedProfile"), host->property("profile")},
+        { QStringLiteral("sharedProfile"), host->property("profile") },
     }));
     QVERIFY2(adapter, qPrintable(viewComponent.errorString()));
     QQuickWindow window;
@@ -2787,7 +2763,7 @@ void QtEngineContractTest::qtAsksTheShellAboutEveryPermissionRequest()
     view->setSize(QSizeF(640, 480));
     window.show();
 
-    QSignalSpy asked(adapter.get(), SIGNAL(sitePermissionRequested(QString,QString,QString)));
+    QSignalSpy asked(adapter.get(), SIGNAL(sitePermissionRequested(QString, QString, QString)));
     QVERIFY(asked.isValid());
     QVERIFY(adapter->setProperty("currentUrl", page));
     QTRY_VERIFY_WITH_TIMEOUT(asked.count() > 0, 20000);
@@ -2797,8 +2773,8 @@ void QtEngineContractTest::qtAsksTheShellAboutEveryPermissionRequest()
     // Omaweb cannot see or take back.
     QVERIFY(QMetaObject::invokeMethod(adapter.get(), "respondToPermission",
         Q_ARG(QVariant, asked.first().at(0)), Q_ARG(QVariant, 2)));
-    QVERIFY(qobject_cast<QQuickWebEngineProfile *>(profile)
-            ->listPermissionsForOrigin(page).isEmpty());
+    QVERIFY(
+        qobject_cast<QQuickWebEngineProfile *>(profile)->listPermissionsForOrigin(page).isEmpty());
 
     // What it takes for the question to come back, which the interface has to
     // state correctly. Chromium answers a granted capability from a transient
@@ -2815,8 +2791,8 @@ void QtEngineContractTest::qtAsksTheShellAboutEveryPermissionRequest()
     QVERIFY(elsewhere.listen(QHostAddress::LocalHost));
     QVERIFY(adapter->setProperty("currentUrl",
         QUrl(QStringLiteral("http://localhost:%1/page.html").arg(elsewhere.serverPort()))));
-    QTRY_COMPARE_WITH_TIMEOUT(adapter->property("pageTitle").toString(),
-        QStringLiteral("elsewhere"), 20000);
+    QTRY_COMPARE_WITH_TIMEOUT(
+        adapter->property("pageTitle").toString(), QStringLiteral("elsewhere"), 20000);
     const auto askedBeforeReturn = asked.count();
     QVERIFY(adapter->setProperty("currentUrl", page));
     QTRY_VERIFY_WITH_TIMEOUT(asked.count() > askedBeforeReturn, 20000);
@@ -2827,8 +2803,8 @@ namespace {
 double bytesUnder(const QString &path)
 {
     double bytes = 0;
-    QDirIterator files(path, QDir::Files | QDir::Hidden | QDir::NoDotAndDotDot,
-        QDirIterator::Subdirectories);
+    QDirIterator files(
+        path, QDir::Files | QDir::Hidden | QDir::NoDotAndDotDot, QDirIterator::Subdirectories);
     while (files.hasNext()) {
         files.next();
         bytes += double(files.fileInfo().size());
@@ -2853,18 +2829,18 @@ void QtEngineContractTest::qtEmptiesTheCacheItWasAskedToClear()
     QVERIFY(root.isValid());
     const auto profilePath = root.filePath(QStringLiteral("space"));
     QQmlEngine engine;
-    QQmlComponent profileComponent(&engine, QUrl::fromLocalFile(
-        QStringLiteral(OMAWEB_QT_ENGINE_PROFILE_PATH)));
+    QQmlComponent profileComponent(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_PROFILE_PATH)));
     const std::unique_ptr<QObject> host(profileComponent.createWithInitialProperties({
-        {QStringLiteral("profilePath"), profilePath},
-        {QStringLiteral("privateBrowsing"), false},
+        { QStringLiteral("profilePath"), profilePath },
+        { QStringLiteral("privateBrowsing"), false },
     }));
     QVERIFY2(host, qPrintable(profileComponent.errorString()));
 
-    QQmlComponent viewComponent(&engine, QUrl::fromLocalFile(
-        QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    QQmlComponent viewComponent(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
     const std::unique_ptr<QObject> adapter(viewComponent.createWithInitialProperties({
-        {QStringLiteral("sharedProfile"), host->property("profile")},
+        { QStringLiteral("sharedProfile"), host->property("profile") },
     }));
     QVERIFY2(adapter, qPrintable(viewComponent.errorString()));
     QQuickWindow window;
@@ -2877,8 +2853,8 @@ void QtEngineContractTest::qtEmptiesTheCacheItWasAskedToClear()
 
     QVERIFY(adapter->setProperty("currentUrl",
         QUrl(QStringLiteral("http://127.0.0.1:%1/page.html").arg(server.serverPort()))));
-    QTRY_COMPARE_WITH_TIMEOUT(adapter->property("pageTitle").toString(),
-        QStringLiteral("cached"), 20000);
+    QTRY_COMPARE_WITH_TIMEOUT(
+        adapter->property("pageTitle").toString(), QStringLiteral("cached"), 20000);
 
     // The cache the engine keeps beside the profile, which is what the reader
     // is shown a size for.
@@ -2892,8 +2868,9 @@ void QtEngineContractTest::qtEmptiesTheCacheItWasAskedToClear()
     QVariant untouched;
     QVERIFY(QMetaObject::invokeMethod(host.get(), "clearBrowsingData",
         Q_RETURN_ARG(QVariant, untouched),
-        Q_ARG(QVariant, QVariant(QStringList{QStringLiteral("cookies"),
-            QStringLiteral("storage"), QStringLiteral("cache")})),
+        Q_ARG(QVariant,
+            QVariant(QStringList {
+                QStringLiteral("cookies"), QStringLiteral("storage"), QStringLiteral("cache") })),
         Q_ARG(QVariant, QVariant(qint64(0)))));
     // Local storage has no remover at this boundary, and the engine says so
     // instead of letting the browser claim it went.
@@ -2938,18 +2915,18 @@ void QtEngineContractTest::qtEmptiesOneOriginsStorageFromInsideItsPage()
     QTemporaryDir root;
     QVERIFY(root.isValid());
     QQmlEngine engine;
-    QQmlComponent profileComponent(&engine, QUrl::fromLocalFile(
-        QStringLiteral(OMAWEB_QT_ENGINE_PROFILE_PATH)));
+    QQmlComponent profileComponent(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_PROFILE_PATH)));
     const std::unique_ptr<QObject> host(profileComponent.createWithInitialProperties({
-        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("space"))},
-        {QStringLiteral("privateBrowsing"), false},
+        { QStringLiteral("profilePath"), root.filePath(QStringLiteral("space")) },
+        { QStringLiteral("privateBrowsing"), false },
     }));
     QVERIFY2(host, qPrintable(profileComponent.errorString()));
 
-    QQmlComponent viewComponent(&engine, QUrl::fromLocalFile(
-        QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    QQmlComponent viewComponent(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
     const std::unique_ptr<QObject> adapter(viewComponent.createWithInitialProperties({
-        {QStringLiteral("sharedProfile"), host->property("profile")},
+        { QStringLiteral("sharedProfile"), host->property("profile") },
     }));
     QVERIFY2(adapter, qPrintable(viewComponent.errorString()));
     QQuickWindow window;
@@ -2960,7 +2937,7 @@ void QtEngineContractTest::qtEmptiesOneOriginsStorageFromInsideItsPage()
     view->setSize(QSizeF(640, 480));
     window.show();
 
-    QSignalSpy report(adapter.get(), SIGNAL(pageSiteDataCleared(QString,QVariant,QString)));
+    QSignalSpy report(adapter.get(), SIGNAL(pageSiteDataCleared(QString, QVariant, QString)));
     QVERIFY(report.isValid());
 
     // A page with nothing to clear is answered rather than left waiting.
@@ -2969,14 +2946,14 @@ void QtEngineContractTest::qtEmptiesOneOriginsStorageFromInsideItsPage()
     QVERIFY(!report.takeFirst().at(2).toString().isEmpty());
 
     QVERIFY(adapter->setProperty("currentUrl", QUrl(address)));
-    QTRY_COMPARE_WITH_TIMEOUT(adapter->property("pageTitle").toString(),
-        QStringLiteral("stored:1:1"), 20000);
+    QTRY_COMPARE_WITH_TIMEOUT(
+        adapter->property("pageTitle").toString(), QStringLiteral("stored:1:1"), 20000);
 
     QVERIFY(QMetaObject::invokeMethod(adapter.get(), "clearPageSiteData"));
     QTRY_VERIFY_WITH_TIMEOUT(report.count() > 0, 20000);
     const auto answered = report.takeFirst();
-    QCOMPARE(answered.at(0).toString(), QStringLiteral("http://127.0.0.1:%1").arg(
-        server.serverPort()));
+    QCOMPARE(
+        answered.at(0).toString(), QStringLiteral("http://127.0.0.1:%1").arg(server.serverPort()));
     const auto cleared = answered.at(1).toStringList();
     QVERIFY2(cleared.contains(QStringLiteral("local storage")), qPrintable(cleared.join(u',')));
     QVERIFY2(cleared.contains(QStringLiteral("databases")), qPrintable(cleared.join(u',')));
@@ -2984,8 +2961,8 @@ void QtEngineContractTest::qtEmptiesOneOriginsStorageFromInsideItsPage()
 
     // The page says so itself: asking it to look again finds nothing left.
     QVERIFY(adapter->setProperty("currentUrl", QUrl(address + QStringLiteral("#again"))));
-    QTRY_COMPARE_WITH_TIMEOUT(adapter->property("pageTitle").toString(),
-        QStringLiteral("stored:0:0"), 20000);
+    QTRY_COMPARE_WITH_TIMEOUT(
+        adapter->property("pageTitle").toString(), QStringLiteral("stored:0:0"), 20000);
 }
 
 int main(int argc, char *argv[])
@@ -3002,8 +2979,6 @@ int main(int argc, char *argv[])
 
 namespace {
 
-// A page and one attachment beside it. The attachment is what a server hands
-// over when it means the browser to save a file rather than show it.
 class DownloadServer final : public QTcpServer {
 public:
     DownloadServer()
@@ -3026,8 +3001,7 @@ public:
                     headers = "Content-Type: text/html\r\n";
                 }
                 socket->write("HTTP/1.1 200 OK\r\n" + headers + "Content-Length: "
-                    + QByteArray::number(body.size())
-                    + "\r\nConnection: close\r\n\r\n" + body);
+                    + QByteArray::number(body.size()) + "\r\nConnection: close\r\n\r\n" + body);
                 socket->flush();
                 socket->disconnectFromHost();
             });
@@ -3037,12 +3011,6 @@ public:
 
 } // namespace
 
-// The engine decides a download's fate inside its own signal handler, so there
-// is no request to hold open while a question is on screen. What there is, is
-// the page: cancelling before a byte is written costs nothing, and the same
-// page can be asked for the same file once the reader has answered. This is
-// that round trip against the real engine, because nothing else can prove the
-// second request arrives as an ordinary download.
 void QtEngineContractTest::qtHoldsARiskyDownloadUntilTheShellHasAnswered()
 {
     DownloadServer server;
@@ -3055,30 +3023,28 @@ void QtEngineContractTest::qtHoldsARiskyDownloadUntilTheShellHasAnswered()
     QVERIFY(QDir().mkpath(downloads));
 
     BrowserController controller(root.filePath(QStringLiteral("data")), QStringLiteral("qt"));
-    // The reader dealt with the site, so nothing here is the page helping
-    // itself: what they are being asked is only whether to have the file.
     controller.recordOriginInteraction(QUrl(base));
     omaweb::QtHeldDownloads heldDownloads;
 
     QQmlEngine engine;
-    QQmlComponent profileComponent(&engine, QUrl::fromLocalFile(
-        QStringLiteral(OMAWEB_QT_ENGINE_PROFILE_PATH)));
+    QQmlComponent profileComponent(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_PROFILE_PATH)));
     const std::unique_ptr<QObject> profile(profileComponent.createWithInitialProperties({
-        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
-        {QStringLiteral("privateBrowsing"), false},
-        {QStringLiteral("acceptDownloads"), true},
-        {QStringLiteral("downloadDirectory"), downloads},
-        {QStringLiteral("downloadNamespace"), QStringLiteral("space-1")},
-        {QStringLiteral("downloadController"), QVariant::fromValue<QObject *>(&controller)},
-        {QStringLiteral("downloadHolds"), QVariant::fromValue<QObject *>(&heldDownloads)},
+        { QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile")) },
+        { QStringLiteral("privateBrowsing"), false },
+        { QStringLiteral("acceptDownloads"), true },
+        { QStringLiteral("downloadDirectory"), downloads },
+        { QStringLiteral("downloadNamespace"), QStringLiteral("space-1") },
+        { QStringLiteral("downloadController"), QVariant::fromValue<QObject *>(&controller) },
+        { QStringLiteral("downloadHolds"), QVariant::fromValue<QObject *>(&heldDownloads) },
     }));
     QVERIFY2(profile, qPrintable(profileComponent.errorString()));
 
-    QQmlComponent viewComponent(&engine, QUrl::fromLocalFile(
-        QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    QQmlComponent viewComponent(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
     const std::unique_ptr<QObject> view(viewComponent.createWithInitialProperties({
-        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
-        {QStringLiteral("sharedProfile"), profile->property("profile")},
+        { QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile")) },
+        { QStringLiteral("sharedProfile"), profile->property("profile") },
     }));
     QVERIFY2(view, qPrintable(viewComponent.errorString()));
 
@@ -3087,11 +3053,11 @@ void QtEngineContractTest::qtHoldsARiskyDownloadUntilTheShellHasAnswered()
     qobject_cast<QQuickItem *>(view.get())->setParentItem(window.contentItem());
     window.show();
 
-    QSignalSpy heldSpy(profile.get(),
-        SIGNAL(downloadHeld(QString, QString, QString, QUrl, QString, QString)));
+    QSignalSpy heldSpy(
+        profile.get(), SIGNAL(downloadHeld(QString, QString, QString, QUrl, QString, QString)));
     QVERIFY(heldSpy.isValid());
-    QSignalSpy startedSpy(profile.get(),
-        SIGNAL(downloadStarted(QString, QUrl, QString, QString, double, double)));
+    QSignalSpy startedSpy(
+        profile.get(), SIGNAL(downloadStarted(QString, QUrl, QString, QString, double, double)));
     QVERIFY(startedSpy.isValid());
 
     QVERIFY(view->setProperty("currentUrl", QUrl(base + QStringLiteral("/page"))));
@@ -3099,9 +3065,8 @@ void QtEngineContractTest::qtHoldsARiskyDownloadUntilTheShellHasAnswered()
 
     QVERIFY(view->setProperty("currentUrl", QUrl(base + QStringLiteral("/install.sh"))));
     QTRY_COMPARE(heldSpy.count(), 1);
-    // Nothing has started and nothing is on disk while the question stands.
     QCOMPARE(startedSpy.count(), 0);
-    QCOMPARE(QDir(downloads).entryList(QDir::Files | QDir::NoDotAndDotDot), QStringList{});
+    QCOMPARE(QDir(downloads).entryList(QDir::Files | QDir::NoDotAndDotDot), QStringList {});
     QCOMPARE(heldDownloads.heldCount(), 1);
 
     const auto held = heldSpy.first();
@@ -3110,8 +3075,6 @@ void QtEngineContractTest::qtHoldsARiskyDownloadUntilTheShellHasAnswered()
     QCOMPARE(held.at(4).toString(), QStringLiteral("install.sh"));
     QCOMPARE(held.at(5).toString(), QStringLiteral("script"));
 
-    // Answered. The page is asked again, the request that comes back is an
-    // ordinary download, and it is not held a second time.
     QVERIFY(QMetaObject::invokeMethod(profile.get(), "releaseHeldDownload",
         Q_ARG(QVariant, held.at(0).toString()), Q_ARG(QVariant, QString())));
     QTRY_COMPARE(startedSpy.count(), 1);
@@ -3120,10 +3083,6 @@ void QtEngineContractTest::qtHoldsARiskyDownloadUntilTheShellHasAnswered()
     const auto landed = QDir(downloads).filePath(QStringLiteral("install.sh"));
     QTRY_VERIFY(QFileInfo::exists(landed));
 
-    // The same file again. Agreeing to have a program is not agreeing to
-    // overwrite the copy already there, and the reader is asked both questions
-    // in turn: whether to have it, and then — because the name is now taken —
-    // where it goes.
     QVERIFY(view->setProperty("currentUrl", QUrl(base + QStringLiteral("/install.sh"))));
     QTRY_COMPARE(heldSpy.count(), 2);
     QCOMPARE(heldSpy.at(1).at(1).toString(), QStringLiteral("confirm"));
@@ -3133,13 +3092,11 @@ void QtEngineContractTest::qtHoldsARiskyDownloadUntilTheShellHasAnswered()
     QCOMPARE(heldSpy.at(2).at(1).toString(), QStringLiteral("save-as"));
     QCOMPARE(startedSpy.count(), 1);
 
-    // Answered with a path, it goes there and nothing is asked again.
     const auto chosen = QDir(downloads).filePath(QStringLiteral("install-2.sh"));
     QVERIFY(QMetaObject::invokeMethod(profile.get(), "releaseHeldDownload",
         Q_ARG(QVariant, heldSpy.at(2).at(0).toString()), Q_ARG(QVariant, chosen)));
     QTRY_COMPARE(startedSpy.count(), 2);
     QCOMPARE(heldSpy.count(), 3);
     QTRY_VERIFY(QFileInfo::exists(chosen));
-    // And the copy the reader already had is where it was.
     QVERIFY(QFileInfo::exists(landed));
 }

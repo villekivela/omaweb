@@ -28,8 +28,8 @@ public:
     bool spaceHasSavedContent(const QString &spaceId) const;
     bool deleteSpace(const QString &spaceId, const QString &replacementActiveSpaceId = {});
     bool saveTab(const TabState &tab, int position);
-    bool saveTabs(const QString &spaceId, const QVector<TabState> &tabs,
-        const QString &activeTabId);
+    bool saveTabs(
+        const QString &spaceId, const QVector<TabState> &tabs, const QString &activeTabId);
     bool saveSpaceMove(const QString &sourceSpaceId, const QVector<TabState> &sourceTabs,
         const QString &sourceActiveTabId, const QString &destinationSpaceId,
         const QVector<TabState> &destinationTabs, const QString &destinationActiveTabId);
@@ -42,16 +42,16 @@ public:
     bool deleteHistoryOrigin(const QString &spaceId, const QString &origin);
     bool deleteHistorySince(const QString &spaceId, qint64 since);
     bool clearPermissionsSince(const QString &spaceId, qint64 since);
-    int permissionDecision(const QString &spaceId, const QString &origin,
-        const QString &permission) const;
-    bool savePermissionDecision(const QString &spaceId, const QString &origin,
-        const QString &permission, int decision);
+    int permissionDecision(
+        const QString &spaceId, const QString &origin, const QString &permission) const;
+    bool savePermissionDecision(
+        const QString &spaceId, const QString &origin, const QString &permission, int decision);
     QVariantList permissionsForOrigin(const QString &spaceId, const QString &origin) const;
     bool clearPermissionsForOrigin(const QString &spaceId, const QString &origin);
     bool recordDownload(const QString &id, const QUrl &url, const QString &path,
         const QString &state, qint64 receivedBytes, qint64 totalBytes);
-    bool updateDownload(const QString &id, const QString &state,
-        qint64 receivedBytes, qint64 totalBytes, const QString &error);
+    bool updateDownload(const QString &id, const QString &state, qint64 receivedBytes,
+        qint64 totalBytes, const QString &error);
     QVariantList downloadHistory() const;
     bool forgetDownload(const QString &id);
 

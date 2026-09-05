@@ -2,8 +2,6 @@
 
 namespace omaweb {
 
-void installWindowChrome(QGuiApplication *)
-{
-}
+void installWindowChrome(QGuiApplication *) { }
 
 } // namespace omaweb

@@ -47,7 +47,8 @@ Item {
         id: hold
         interval: root.duration
         onTriggered: fade.opacity = 0
-        onRunningChanged: if (running) fade.opacity = 1
+        onRunningChanged: if (running)
+                              fade.opacity = 1
     }
 
     Omarchy.BorderSurface {
@@ -66,7 +67,10 @@ Item {
         Accessible.name: root.message + (root.detail.length > 0 ? ". " + root.detail : "")
 
         Behavior on opacity {
-            NumberAnimation { duration: 160; easing.type: Easing.OutCubic }
+            NumberAnimation {
+                duration: 160
+                easing.type: Easing.OutCubic
+            }
         }
 
         Row {

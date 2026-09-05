@@ -37,8 +37,8 @@ qint64 ProcessResources::residentBytes(qint64 pid) const
     // The engine's renderers are Omaweb's own children and so run as the same
     // user, which is all this call needs; it answers for no one else's.
     rusage_info_current usage {};
-    if (proc_pid_rusage(static_cast<int>(pid), RUSAGE_INFO_CURRENT,
-            reinterpret_cast<rusage_info_t *>(&usage))
+    if (proc_pid_rusage(
+            static_cast<int>(pid), RUSAGE_INFO_CURRENT, reinterpret_cast<rusage_info_t *>(&usage))
         != 0) {
         return 0;
     }

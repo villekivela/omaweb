@@ -54,8 +54,8 @@ class Process : public QObject {
     Q_OBJECT
     Q_PROPERTY(QStringList command READ command WRITE setCommand NOTIFY commandChanged)
     Q_PROPERTY(bool running READ isRunning WRITE setRunning NOTIFY runningChanged)
-    Q_PROPERTY(StdioCollector *stdout READ standardOutput WRITE setStandardOutput
-        NOTIFY standardOutputChanged)
+    Q_PROPERTY(StdioCollector *stdout READ standardOutput WRITE setStandardOutput NOTIFY
+            standardOutputChanged)
 
 public:
     explicit Process(QObject *parent = nullptr);

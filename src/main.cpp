@@ -67,11 +67,11 @@ QStringList themePaths()
     const auto override = qEnvironmentVariable("OMAWEB_THEME_FILE");
     if (!override.isEmpty()) {
         // An override names one file, and nothing overtakes it.
-        return {override};
+        return { override };
     }
     // A theme the user dropped in their own config directory outranks a
     // desktop-managed one; both outrank the built-in.
-    QStringList paths{QDir(configRoot()).filePath(QStringLiteral("theme.json"))};
+    QStringList paths { QDir(configRoot()).filePath(QStringLiteral("theme.json")) };
 #if defined(Q_OS_LINUX)
     paths.append(omaweb::OmarchyThemePaths::fromEnvironment().renderedTheme());
 #endif
@@ -92,17 +92,17 @@ QString keybindingsPath()
         // Earlier versions kept the file under the data directory. Carry an
         // existing one over so a user's edited bindings survive the move.
         const auto legacy = QDir(QDir(dataRoot()).filePath(QStringLiteral("settings")))
-            .filePath(QStringLiteral("keybindings.json"));
+                                .filePath(QStringLiteral("keybindings.json"));
         if (QFileInfo::exists(legacy) && QFile::rename(legacy, path)) {
-            omaweb::KeyboardNavigation::adoptDefaults(path,
-                QStringLiteral(OMAWEB_DEFAULT_KEYBINDINGS_PATH));
+            omaweb::KeyboardNavigation::adoptDefaults(
+                path, QStringLiteral(OMAWEB_DEFAULT_KEYBINDINGS_PATH));
             return path;
         }
         QFile::copy(QStringLiteral(OMAWEB_DEFAULT_KEYBINDINGS_PATH), path);
         return path;
     }
-    omaweb::KeyboardNavigation::adoptDefaults(path,
-        QStringLiteral(OMAWEB_DEFAULT_KEYBINDINGS_PATH));
+    omaweb::KeyboardNavigation::adoptDefaults(
+        path, QStringLiteral(OMAWEB_DEFAULT_KEYBINDINGS_PATH));
     return path;
 }
 
@@ -120,14 +120,6 @@ int main(int argc, char *argv[])
         return 2;
     }
 
-    // Chromium reads both the listener and its own switches out of the
-    // environment at initialization, so every decision that depends on them is
-    // made here and nowhere later. An ordinary launch clears the listener
-    // variable rather than trusting it: whatever set it, Omaweb opens no
-    // listener it was not asked for on its own command line. The engine flags
-    // are read from the same place they would reach Chromium from, so a
-    // sandbox-disabling switch is refused through the environment as well as
-    // through the command line.
     const auto engineFlags
         = QProcess::splitCommand(qEnvironmentVariable("QTWEBENGINE_CHROMIUM_FLAGS"));
     const auto launch = omaweb::readDevelopmentLaunch(arguments, engineFlags);
@@ -136,14 +128,10 @@ int main(int argc, char *argv[])
         return 2;
     }
 
-    // A host that cannot isolate a renderer is told so and stopped, rather
-    // than started with an isolation the interface would go on claiming. The
-    // engine's own facts about its version come from the engine and are read
-    // once, here, because this is the only build that links one.
     omaweb::RuntimeSecurity runtimeSecurity(omaweb::SandboxHost::fromEnvironment(),
-        {QString::fromLatin1(qWebEngineVersion()),
+        { QString::fromLatin1(qWebEngineVersion()),
             QString::fromLatin1(qWebEngineChromiumVersion()),
-            QString::fromLatin1(qWebEngineChromiumSecurityPatchVersion())});
+            QString::fromLatin1(qWebEngineChromiumSecurityPatchVersion()) });
     if (!runtimeSecurity.rendererIsolated()) {
         qCritical("Omaweb refuses to start: %s", qPrintable(runtimeSecurity.sandboxDiagnostic()));
         return 2;
@@ -188,15 +176,12 @@ int main(int argc, char *argv[])
     // built. Third-party cookies are blocked by it; whether an origin has been
     // given an allowance is the core's answer, read per Space.
     omaweb::QtCookiePolicy engineCookiePolicy;
-    // The downloads taken off the engine while the reader is asked about them.
-    // One table for the process, because a held download belongs to the page
-    // that asked rather than to a Space.
     omaweb::QtHeldDownloads engineHeldDownloads;
 #if defined(Q_OS_LINUX)
     // Omarchy is the desktop Omaweb is built for, so following its theme is
     // the default rather than a template the reader has to install by hand.
-    omaweb::followOmarchyTheme(omaweb::OmarchyThemePaths::fromEnvironment(),
-        QStringLiteral(OMAWEB_OMARCHY_TEMPLATE_PATH));
+    omaweb::followOmarchyTheme(
+        omaweb::OmarchyThemePaths::fromEnvironment(), QStringLiteral(OMAWEB_OMARCHY_TEMPLATE_PATH));
 #endif
     omaweb::ThemeController theme(themePaths());
     omaweb::WindowManager windowManager(
@@ -238,8 +223,9 @@ int main(int argc, char *argv[])
     // once the engine can resolve them.
     omaweb::KitTheme kitTheme(&engine, &theme);
 
-    QObject::connect(&engine, &QQmlApplicationEngine::objectCreationFailed,
-        &application, [] { QCoreApplication::exit(1); }, Qt::QueuedConnection);
+    QObject::connect(
+        &engine, &QQmlApplicationEngine::objectCreationFailed, &application,
+        [] { QCoreApplication::exit(1); }, Qt::QueuedConnection);
     engine.load(QUrl(QStringLiteral(OMAWEB_MAIN_QML_URL)));
 
     if (arguments.contains(QStringLiteral("--validate-qml"))) {

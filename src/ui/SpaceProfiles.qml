@@ -21,8 +21,6 @@ QtObject {
     // The engine's third-party filter. A profile is where the blocking is
     // attached, and the Space is what the allowances are keyed by.
     property var cookiePolicy: null
-    // The engine-side hold that keeps a download off the disk while the reader
-    // is asked about it. Empty in a window that runs no engine.
     property var downloadHolds: null
     // Where created profiles are parented, so they outlive the call that asked
     // for one and go away with the window rather than with a tab.
@@ -30,8 +28,6 @@ QtObject {
 
     signal created(string spaceId, var host)
 
-    // Where downloads go is the reader's configuration, and a profile that was
-    // built before they changed it would keep putting files in the old place.
     property Connections downloadDirectoryConnections: Connections {
         target: root.browser
         ignoreUnknownSignals: true
@@ -46,23 +42,27 @@ QtObject {
 
     function hostFor(spaceId) {
         const existing = root.hosts[spaceId]
-        if (existing) return existing
-        if (!root.profileSource || String(root.profileSource).length === 0) return null
+        if (existing)
+            return existing
+        if (!root.profileSource || String(root.profileSource).length === 0)
+            return null
         const component = Qt.createComponent(root.profileSource)
         const host = component.createObject(root.owner ? root.owner : root, {
-            "profilePath": root.browser.profilePathForSpace(spaceId),
-            "downloadDirectory": root.browser.downloadDirectory,
-            "acceptDownloads": root.browser.acceptDownloads,
-            "privateBrowsing": false,
-            "downloadNamespace": spaceId,
-            "engineContentBlocker": root.contentBlocker,
-            "engineCookiePolicy": root.cookiePolicy,
-            "cookieController": root.browser,
-            "cookieSpaceId": spaceId,
-            "downloadController": root.browser,
-            "downloadHolds": root.downloadHolds
-        })
-        if (!host) return null
+                                                "profilePath": root.browser.profilePathForSpace(
+                                                                   spaceId),
+                                                "downloadDirectory": root.browser.downloadDirectory,
+                                                "acceptDownloads": root.browser.acceptDownloads,
+                                                "privateBrowsing": false,
+                                                "downloadNamespace": spaceId,
+                                                "engineContentBlocker": root.contentBlocker,
+                                                "engineCookiePolicy": root.cookiePolicy,
+                                                "cookieController": root.browser,
+                                                "cookieSpaceId": spaceId,
+                                                "downloadController": root.browser,
+                                                "downloadHolds": root.downloadHolds
+                                            })
+        if (!host)
+            return null
         root.hosts[spaceId] = host
         root.created(spaceId, host)
         return host
@@ -72,7 +72,8 @@ QtObject {
     // takes itself away once the downloads it is still carrying are finished.
     function retire(spaceId) {
         const host = root.hosts[spaceId]
-        if (!host) return null
+        if (!host)
+            return null
         delete root.hosts[spaceId]
         host.retire()
         return host

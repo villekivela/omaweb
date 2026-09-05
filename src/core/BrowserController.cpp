@@ -23,93 +23,95 @@
 namespace omaweb {
 namespace {
 
-constexpr int persistTabsDelayMilliseconds = 400;
-// How many closes a Space remembers. Deep enough that a reader who shut a row
-// of tabs can walk all of them back, bounded so the store does not grow into a
-// second history of everywhere they have been.
-constexpr qsizetype retainedClosedTabs = 25;
-// Zoom factors arrive back from an engine as the doubles it rounded them to, so
-// a rung is recognised by nearness rather than by equality.
-constexpr double zoomTolerance = 0.001;
+    constexpr int persistTabsDelayMilliseconds = 400;
+    // How many closes a Space remembers. Deep enough that a reader who shut a row
+    // of tabs can walk all of them back, bounded so the store does not grow into a
+    // second history of everywhere they have been.
+    constexpr qsizetype retainedClosedTabs = 25;
+    // Zoom factors arrive back from an engine as the doubles it rounded them to, so
+    // a rung is recognised by nearness rather than by equality.
+    constexpr double zoomTolerance = 0.001;
 
-QVariantList predefinedSearchEngines()
-{
-    return {
-        QVariantMap{{QStringLiteral("id"), QStringLiteral("duckduckgo")},
-            {QStringLiteral("name"), QStringLiteral("DuckDuckGo")},
-            {QStringLiteral("queryUrl"), QStringLiteral("https://duckduckgo.com/?q={query}")},
-            {QStringLiteral("keyword"), QStringLiteral("d")}},
-        QVariantMap{{QStringLiteral("id"), QStringLiteral("google")},
-            {QStringLiteral("name"), QStringLiteral("Google")},
-            {QStringLiteral("queryUrl"), QStringLiteral("https://www.google.com/search?q={query}")},
-            {QStringLiteral("keyword"), QStringLiteral("g")}},
-        QVariantMap{{QStringLiteral("id"), QStringLiteral("bing")},
-            {QStringLiteral("name"), QStringLiteral("Bing")},
-            {QStringLiteral("queryUrl"), QStringLiteral("https://www.bing.com/search?q={query}")},
-            {QStringLiteral("keyword"), QStringLiteral("b")}},
-        QVariantMap{{QStringLiteral("id"), QStringLiteral("brave")},
-            {QStringLiteral("name"), QStringLiteral("Brave Search")},
-            {QStringLiteral("queryUrl"), QStringLiteral("https://search.brave.com/search?q={query}")},
-            {QStringLiteral("keyword"), QStringLiteral("br")}},
-        QVariantMap{{QStringLiteral("id"), QStringLiteral("kagi")},
-            {QStringLiteral("name"), QStringLiteral("Kagi")},
-            {QStringLiteral("queryUrl"), QStringLiteral("https://kagi.com/search?q={query}")},
-            {QStringLiteral("keyword"), QStringLiteral("k")}},
-        QVariantMap{{QStringLiteral("id"), QStringLiteral("ecosia")},
-            {QStringLiteral("name"), QStringLiteral("Ecosia")},
-            {QStringLiteral("queryUrl"), QStringLiteral("https://www.ecosia.org/search?q={query}")},
-            {QStringLiteral("keyword"), QStringLiteral("e")}},
-        QVariantMap{{QStringLiteral("id"), QStringLiteral("startpage")},
-            {QStringLiteral("name"), QStringLiteral("Startpage")},
-            {QStringLiteral("queryUrl"),
-                QStringLiteral("https://www.startpage.com/sp/search?query={query}")},
-            {QStringLiteral("keyword"), QStringLiteral("sp")}},
-    };
-}
+    QVariantList predefinedSearchEngines()
+    {
+        return {
+            QVariantMap { { QStringLiteral("id"), QStringLiteral("duckduckgo") },
+                { QStringLiteral("name"), QStringLiteral("DuckDuckGo") },
+                { QStringLiteral("queryUrl"), QStringLiteral("https://duckduckgo.com/?q={query}") },
+                { QStringLiteral("keyword"), QStringLiteral("d") } },
+            QVariantMap { { QStringLiteral("id"), QStringLiteral("google") },
+                { QStringLiteral("name"), QStringLiteral("Google") },
+                { QStringLiteral("queryUrl"),
+                    QStringLiteral("https://www.google.com/search?q={query}") },
+                { QStringLiteral("keyword"), QStringLiteral("g") } },
+            QVariantMap { { QStringLiteral("id"), QStringLiteral("bing") },
+                { QStringLiteral("name"), QStringLiteral("Bing") },
+                { QStringLiteral("queryUrl"),
+                    QStringLiteral("https://www.bing.com/search?q={query}") },
+                { QStringLiteral("keyword"), QStringLiteral("b") } },
+            QVariantMap { { QStringLiteral("id"), QStringLiteral("brave") },
+                { QStringLiteral("name"), QStringLiteral("Brave Search") },
+                { QStringLiteral("queryUrl"),
+                    QStringLiteral("https://search.brave.com/search?q={query}") },
+                { QStringLiteral("keyword"), QStringLiteral("br") } },
+            QVariantMap { { QStringLiteral("id"), QStringLiteral("kagi") },
+                { QStringLiteral("name"), QStringLiteral("Kagi") },
+                { QStringLiteral("queryUrl"), QStringLiteral("https://kagi.com/search?q={query}") },
+                { QStringLiteral("keyword"), QStringLiteral("k") } },
+            QVariantMap { { QStringLiteral("id"), QStringLiteral("ecosia") },
+                { QStringLiteral("name"), QStringLiteral("Ecosia") },
+                { QStringLiteral("queryUrl"),
+                    QStringLiteral("https://www.ecosia.org/search?q={query}") },
+                { QStringLiteral("keyword"), QStringLiteral("e") } },
+            QVariantMap { { QStringLiteral("id"), QStringLiteral("startpage") },
+                { QStringLiteral("name"), QStringLiteral("Startpage") },
+                { QStringLiteral("queryUrl"),
+                    QStringLiteral("https://www.startpage.com/sp/search?query={query}") },
+                { QStringLiteral("keyword"), QStringLiteral("sp") } },
+        };
+    }
 
 } // namespace
 
 BrowserController::BrowserController(QString dataRoot, QString engineName, QObject *parent)
     : BrowserController(dataRoot, std::move(engineName), false,
-        QSharedPointer<QHash<QString, int>>::create(), {}, parent)
+          QSharedPointer<QHash<QString, int>>::create(), {}, parent)
 {
 }
 
-BrowserController::BrowserController(QString dataRoot, QString engineName, QString configRoot,
-    QObject *parent)
+BrowserController::BrowserController(
+    QString dataRoot, QString engineName, QString configRoot, QObject *parent)
     : BrowserController(std::move(dataRoot), std::move(engineName), false,
-        QSharedPointer<QHash<QString, int>>::create(), std::move(configRoot), parent)
+          QSharedPointer<QHash<QString, int>>::create(), std::move(configRoot), parent)
 {
 }
 
-BrowserController::BrowserController(QString dataRoot, QString engineName,
-    bool privateBrowsing, QObject *parent)
+BrowserController::BrowserController(
+    QString dataRoot, QString engineName, bool privateBrowsing, QObject *parent)
     : BrowserController(dataRoot, std::move(engineName), privateBrowsing,
-        QSharedPointer<QHash<QString, int>>::create(), {}, parent)
+          QSharedPointer<QHash<QString, int>>::create(), {}, parent)
 {
 }
 
-BrowserController::BrowserController(QString dataRoot, QString engineName,
-    bool privateBrowsing, QSharedPointer<QHash<QString, int>> sessionPermissionDecisions,
+BrowserController::BrowserController(QString dataRoot, QString engineName, bool privateBrowsing,
+    QSharedPointer<QHash<QString, int>> sessionPermissionDecisions, QObject *parent)
+    : BrowserController(dataRoot, std::move(engineName), privateBrowsing,
+          std::move(sessionPermissionDecisions), {}, parent)
+{
+}
+
+BrowserController::BrowserController(QString dataRoot, QString engineName, bool privateBrowsing,
+    QSharedPointer<QHash<QString, int>> sessionPermissionDecisions, QString configRoot,
     QObject *parent)
-    : BrowserController(dataRoot, std::move(engineName), privateBrowsing,
-        std::move(sessionPermissionDecisions), {}, parent)
-{
-}
-
-BrowserController::BrowserController(QString dataRoot, QString engineName,
-    bool privateBrowsing, QSharedPointer<QHash<QString, int>> sessionPermissionDecisions,
-    QString configRoot, QObject *parent)
     : BrowserController(std::move(dataRoot), std::move(engineName), privateBrowsing,
-        std::move(sessionPermissionDecisions), QSharedPointer<SessionSiteState>::create(),
-        std::move(configRoot), parent)
+          std::move(sessionPermissionDecisions), QSharedPointer<SessionSiteState>::create(),
+          std::move(configRoot), parent)
 {
 }
 
-BrowserController::BrowserController(QString dataRoot, QString engineName,
-    bool privateBrowsing, QSharedPointer<QHash<QString, int>> sessionPermissionDecisions,
-    QSharedPointer<SessionSiteState> sessionSiteState,
-    QString configRoot, QObject *parent)
+BrowserController::BrowserController(QString dataRoot, QString engineName, bool privateBrowsing,
+    QSharedPointer<QHash<QString, int>> sessionPermissionDecisions,
+    QSharedPointer<SessionSiteState> sessionSiteState, QString configRoot, QObject *parent)
     : QObject(parent)
     , m_store(std::move(dataRoot))
     , m_engineName(std::move(engineName))
@@ -148,43 +150,22 @@ BrowserController::~BrowserController()
     }
 }
 
-QAbstractItemModel *BrowserController::spaces()
-{
-    return &m_spaces;
-}
+QAbstractItemModel *BrowserController::spaces() { return &m_spaces; }
 
-QAbstractItemModel *BrowserController::tabs()
-{
-    return &m_tabs;
-}
+QAbstractItemModel *BrowserController::tabs() { return &m_tabs; }
 
 // The sidebar renders pinned and ordinary tabs as two lists rather than hiding
 // rows: a positioner does not reliably re-place children whose visibility
 // changes, so filtering belongs in the model.
-QAbstractItemModel *BrowserController::pinnedTabs()
-{
-    return &m_pinnedTabs;
-}
+QAbstractItemModel *BrowserController::pinnedTabs() { return &m_pinnedTabs; }
 
-QAbstractItemModel *BrowserController::unpinnedTabs()
-{
-    return &m_unpinnedTabs;
-}
+QAbstractItemModel *BrowserController::unpinnedTabs() { return &m_unpinnedTabs; }
 
-QString BrowserController::activeSpaceId() const
-{
-    return m_activeSpaceId;
-}
+QString BrowserController::activeSpaceId() const { return m_activeSpaceId; }
 
-QString BrowserController::activeSpaceName() const
-{
-    return m_activeSpaceName;
-}
+QString BrowserController::activeSpaceName() const { return m_activeSpaceName; }
 
-QString BrowserController::activeTabId() const
-{
-    return m_activeTabId;
-}
+QString BrowserController::activeTabId() const { return m_activeTabId; }
 
 QUrl BrowserController::activeUrl() const
 {
@@ -243,10 +224,7 @@ bool BrowserController::activeTabKeepActive() const
     return tab && tab->pinned && tab->keepActive;
 }
 
-int BrowserController::closedTabCount() const
-{
-    return static_cast<int>(m_closedTabs.size());
-}
+int BrowserController::closedTabCount() const { return static_cast<int>(m_closedTabs.size()); }
 
 // The one place the retained tabs are spoken of in strings: QML reads a list
 // of maps, and everything inside the core reads the type.
@@ -260,15 +238,9 @@ QVariantList BrowserController::retainedTabs() const
     return tabs;
 }
 
-bool BrowserController::atRest() const
-{
-    return m_atRest;
-}
+bool BrowserController::atRest() const { return m_atRest; }
 
-QString BrowserController::developerToolsTabId() const
-{
-    return m_developerToolsTabId;
-}
+QString BrowserController::developerToolsTabId() const { return m_developerToolsTabId; }
 
 bool BrowserController::activeTabInspected() const
 {
@@ -284,33 +256,17 @@ bool BrowserController::activeRendererFailed() const
 QString BrowserController::activeRendererFailureReason() const
 {
     const auto *tab = m_tabs.find(m_activeTabId);
-    return tab ? tab->rendererFailureReason : QString{};
+    return tab ? tab->rendererFailureReason : QString {};
 }
 
-bool BrowserController::privateBrowsing() const
-{
-    return m_privateBrowsing;
-}
+bool BrowserController::privateBrowsing() const { return m_privateBrowsing; }
 
-bool BrowserController::ready() const
-{
-    return m_ready;
-}
+bool BrowserController::ready() const { return m_ready; }
 
-QString BrowserController::errorMessage() const
-{
-    return m_errorMessage;
-}
+QString BrowserController::errorMessage() const { return m_errorMessage; }
 
-QString BrowserController::downloadDirectory() const
-{
-    return m_downloadDirectory;
-}
+QString BrowserController::downloadDirectory() const { return m_downloadDirectory; }
 
-// Configuring where downloads go is the reader's, so it is kept beside their
-// other configuration rather than inside a Space's session: a Private window
-// has no session to read and still has to put a download somewhere the reader
-// expects to find it.
 void BrowserController::loadDownloadDirectory()
 {
     m_downloadDirectory = QStandardPaths::writableLocation(QStandardPaths::DownloadLocation);
@@ -321,11 +277,11 @@ void BrowserController::loadDownloadDirectory()
     if (!file.open(QIODevice::ReadOnly)) {
         return;
     }
-    const auto configured = QJsonDocument::fromJson(file.readAll()).object()
-        .value(QStringLiteral("directory")).toString().trimmed();
-    // A directory that has since been moved or removed is not somewhere a
-    // download can begin, so the default answers again rather than every
-    // download failing at the last moment.
+    const auto configured = QJsonDocument::fromJson(file.readAll())
+                                .object()
+                                .value(QStringLiteral("directory"))
+                                .toString()
+                                .trimmed();
     if (!configured.isEmpty() && QFileInfo(configured).isDir()) {
         m_downloadDirectory = configured;
     }
@@ -334,7 +290,6 @@ void BrowserController::loadDownloadDirectory()
 bool BrowserController::setDownloadDirectory(const QString &path)
 {
     const auto chosen = path.trimmed();
-    // A Private window browses on the configuration; it does not write it.
     if (m_privateBrowsing || m_configRoot.isEmpty() || chosen.isEmpty()
         || !QFileInfo(chosen).isDir() || chosen == m_downloadDirectory) {
         return false;
@@ -346,8 +301,9 @@ bool BrowserController::setDownloadDirectory(const QString &path)
     if (!file.open(QIODevice::WriteOnly)) {
         return false;
     }
-    file.write(QJsonDocument(QJsonObject{{QStringLiteral("version"), 1},
-        {QStringLiteral("directory"), chosen}}).toJson(QJsonDocument::Indented));
+    file.write(QJsonDocument(
+        QJsonObject { { QStringLiteral("version"), 1 }, { QStringLiteral("directory"), chosen } })
+            .toJson(QJsonDocument::Indented));
     if (!file.commit()) {
         return false;
     }
@@ -356,10 +312,7 @@ bool BrowserController::setDownloadDirectory(const QString &path)
     return true;
 }
 
-bool BrowserController::acceptDownloads() const
-{
-    return true;
-}
+bool BrowserController::acceptDownloads() const { return true; }
 
 void BrowserController::activateTab(const QString &tabId)
 {
@@ -505,7 +458,7 @@ bool BrowserController::deleteSpace(const QString &spaceId, const QString &confi
         // Nothing in a Space that is being deleted is worth keeping running.
         emit spaceSuspended(spaceId, {});
     }
-    if (!m_store.deleteSpace(spaceId, deletingActiveSpace ? replacementId : QString{})) {
+    if (!m_store.deleteSpace(spaceId, deletingActiveSpace ? replacementId : QString {})) {
         if (deletingActiveSpace) {
             emit spaceRestored(spaceId);
         }
@@ -536,8 +489,8 @@ bool BrowserController::deleteSpace(const QString &spaceId, const QString &confi
     return true;
 }
 
-bool BrowserController::requestTabMoveToSpace(const QString &tabId,
-    const QString &destinationSpaceId, bool hasEditedFormState)
+bool BrowserController::requestTabMoveToSpace(
+    const QString &tabId, const QString &destinationSpaceId, bool hasEditedFormState)
 {
     if (m_privateBrowsing) {
         return false;
@@ -557,8 +510,8 @@ bool BrowserController::requestTabMoveToSpace(const QString &tabId,
     return false;
 }
 
-bool BrowserController::confirmTabMoveToSpace(const QString &tabId,
-    const QString &destinationSpaceId)
+bool BrowserController::confirmTabMoveToSpace(
+    const QString &tabId, const QString &destinationSpaceId)
 {
     if (m_privateBrowsing) {
         return false;
@@ -604,8 +557,8 @@ bool BrowserController::confirmTabMoveToSpace(const QString &tabId,
         destinationActiveTabId = movedTab.id;
     }
 
-    if (!m_store.saveSpaceMove(m_activeSpaceId, sourceTabs, sourceActiveTabId,
-            destinationSpaceId, destinationTabs, destinationActiveTabId)) {
+    if (!m_store.saveSpaceMove(m_activeSpaceId, sourceTabs, sourceActiveTabId, destinationSpaceId,
+            destinationTabs, destinationActiveTabId)) {
         return false;
     }
 
@@ -631,7 +584,7 @@ void BrowserController::openInput(const QString &input, bool inNewTab)
     if (inNewTab) {
         if (auto *current = m_tabs.find(m_activeTabId)) {
             current->active = false;
-            m_tabs.notifyChanged(current->id, {TabListModel::ActiveRole});
+            m_tabs.notifyChanged(current->id, { TabListModel::ActiveRole });
         }
 
         TabState tab;
@@ -646,7 +599,7 @@ void BrowserController::openInput(const QString &input, bool inNewTab)
         tab->url = url;
         tab->title = url.host().isEmpty() ? url.toDisplayString() : url.host();
         tab->rendererFailureReason.clear();
-        m_tabs.notifyChanged(tab->id, {TabListModel::UrlRole, TabListModel::TitleRole});
+        m_tabs.notifyChanged(tab->id, { TabListModel::UrlRole, TabListModel::TitleRole });
     }
 
     refreshSoundSuppression();
@@ -681,10 +634,7 @@ void BrowserController::openInputInBackground(const QUrl &url)
     schedulePersistTabs();
 }
 
-void BrowserController::closeActiveTab()
-{
-    closeTab(m_activeTabId);
-}
+void BrowserController::closeActiveTab() { closeTab(m_activeTabId); }
 
 void BrowserController::closeTab(const QString &tabId)
 {
@@ -713,13 +663,14 @@ void BrowserController::closeTab(const QString &tabId)
         tab->muted = false;
         tab->zoom = 1.0;
         tab->rendererFailureReason.clear();
-        m_tabs.notifyChanged(tab->id, {
-            TabListModel::UrlRole,
-            TabListModel::TitleRole,
-            TabListModel::LoadingRole,
-            TabListModel::MutedRole,
-            TabListModel::ZoomRole,
-        });
+        m_tabs.notifyChanged(tab->id,
+            {
+                TabListModel::UrlRole,
+                TabListModel::TitleRole,
+                TabListModel::LoadingRole,
+                TabListModel::MutedRole,
+                TabListModel::ZoomRole,
+            });
         refreshSoundSuppression();
         schedulePersistTabs();
         emit activeTabChanged();
@@ -818,8 +769,8 @@ void BrowserController::rememberClosedTab(const TabState &tab)
 
 void BrowserController::loadClosedTabs()
 {
-    m_closedTabs = m_privateBrowsing ? QVector<TabState>{}
-        : m_store.loadClosedTabs(m_activeSpaceId);
+    m_closedTabs
+        = m_privateBrowsing ? QVector<TabState> {} : m_store.loadClosedTabs(m_activeSpaceId);
     while (m_closedTabs.size() > retainedClosedTabs) {
         m_closedTabs.removeLast();
     }
@@ -863,7 +814,7 @@ void BrowserController::reopenClosedTab()
 
     if (auto *current = m_tabs.find(m_activeTabId)) {
         current->active = false;
-        m_tabs.notifyChanged(current->id, {TabListModel::ActiveRole});
+        m_tabs.notifyChanged(current->id, { TabListModel::ActiveRole });
     }
 
     // A tab that was pinned comes back into the Pinned section, at its end,
@@ -896,13 +847,11 @@ QString BrowserController::duplicateTab(const QString &tabId)
     // A pin is the Space's furniture rather than something a copy inherits, and
     // zoom and muting are decisions about the tab the reader made, not about
     // the address. So the duplicate is an ordinary tab at 100 percent, unmuted.
-    const auto destination = source->pinned
-        ? m_tabs.items().size()
-        : tabRow(tabId) + 1;
+    const auto destination = source->pinned ? m_tabs.items().size() : tabRow(tabId) + 1;
 
     if (auto *current = m_tabs.find(m_activeTabId)) {
         current->active = false;
-        m_tabs.notifyChanged(current->id, {TabListModel::ActiveRole});
+        m_tabs.notifyChanged(current->id, { TabListModel::ActiveRole });
     }
     m_tabs.insert(tab, destination);
     m_activeTabId = tab.id;
@@ -960,7 +909,7 @@ bool BrowserController::moveTab(const QString &tabId, int destinationIndex)
         return false;
     }
     const auto pinned = pinnedTabCount();
-    const auto sectionStart = tab->pinned ? qsizetype{0} : pinned;
+    const auto sectionStart = tab->pinned ? qsizetype { 0 } : pinned;
     const auto sectionCount = tabSectionCount(tabId);
     if (destinationIndex < 0 || destinationIndex >= sectionCount) {
         return false;
@@ -1012,9 +961,9 @@ void BrowserController::toggleActivePinned()
     if (lostKeepActive) {
         tab->keepActive = false;
     }
-    m_tabs.notifyChanged(tab->id, lostKeepActive
-        ? QList<int>{TabListModel::PinnedRole, TabListModel::KeepActiveRole}
-        : QList<int>{TabListModel::PinnedRole});
+    m_tabs.notifyChanged(tab->id,
+        lostKeepActive ? QList<int> { TabListModel::PinnedRole, TabListModel::KeepActiveRole }
+                       : QList<int> { TabListModel::PinnedRole });
     persistTabs();
     emit activeTabChanged();
 }
@@ -1032,7 +981,7 @@ bool BrowserController::setTabKeepActive(const QString &tabId, bool keepActive)
         return true;
     }
     tab->keepActive = keepActive;
-    m_tabs.notifyChanged(tab->id, {TabListModel::KeepActiveRole});
+    m_tabs.notifyChanged(tab->id, { TabListModel::KeepActiveRole });
     persistTabs();
     if (tabId == m_activeTabId) {
         emit activeTabChanged();
@@ -1131,7 +1080,7 @@ void BrowserController::refreshRetainedTabs()
                 if (!retains(tab, m_developerToolsTabId)) {
                     continue;
                 }
-                retained.append(RetainedTab{
+                retained.append(RetainedTab {
                     .tabId = tab.id,
                     .spaceId = space.id,
                     .spaceName = space.name,
@@ -1161,8 +1110,7 @@ const RetainedTab *BrowserController::findRetainedTab(const QString &tabId) cons
     return nullptr;
 }
 
-QVariantMap BrowserController::notificationTarget(const QString &spaceId,
-    const QUrl &origin) const
+QVariantMap BrowserController::notificationTarget(const QString &spaceId, const QUrl &origin) const
 {
     const auto wanted = normalizedOrigin(origin);
     if (wanted.isEmpty()) {
@@ -1178,13 +1126,13 @@ QVariantMap BrowserController::notificationTarget(const QString &spaceId,
     }
 
     const auto answer = [&](const QString &tabId, const QString &title) {
-        return QVariantMap{
-            {QStringLiteral("tabId"), tabId},
-            {QStringLiteral("spaceId"), spaceId},
-            {QStringLiteral("spaceName"), m_privateBrowsing
-                ? QStringLiteral("Private") : spaceName},
-            {QStringLiteral("origin"), wanted},
-            {QStringLiteral("title"), title},
+        return QVariantMap {
+            { QStringLiteral("tabId"), tabId },
+            { QStringLiteral("spaceId"), spaceId },
+            { QStringLiteral("spaceName"),
+                m_privateBrowsing ? QStringLiteral("Private") : spaceName },
+            { QStringLiteral("origin"), wanted },
+            { QStringLiteral("title"), title },
         };
     };
 
@@ -1210,8 +1158,7 @@ QVariantMap BrowserController::notificationTarget(const QString &spaceId,
 
 // Activating a notification is asking to be taken to the page that sent it,
 // which may mean changing Space first.
-bool BrowserController::activateNotificationTarget(const QString &spaceId,
-    const QString &tabId)
+bool BrowserController::activateNotificationTarget(const QString &spaceId, const QString &tabId)
 {
     if (!spaceId.isEmpty() && spaceId != m_activeSpaceId && !switchSpace(spaceId)) {
         return false;
@@ -1226,7 +1173,7 @@ bool BrowserController::activateNotificationTarget(const QString &spaceId,
 QString BrowserController::originInteractionKey(const QUrl &url) const
 {
     const auto origin = normalizedOrigin(url);
-    return origin.isEmpty() ? QString{} : m_activeSpaceId + QLatin1Char('|') + origin;
+    return origin.isEmpty() ? QString {} : m_activeSpaceId + QLatin1Char('|') + origin;
 }
 
 void BrowserController::recordOriginInteraction(const QUrl &url)
@@ -1261,7 +1208,7 @@ void BrowserController::refreshSoundSuppression()
             continue;
         }
         tab->soundSuppressed = suppressed;
-        m_tabs.notifyChanged(tab->id, {TabListModel::SoundSuppressedRole});
+        m_tabs.notifyChanged(tab->id, { TabListModel::SoundSuppressedRole });
     }
 }
 
@@ -1293,9 +1240,8 @@ void BrowserController::updateTab(const QString &tabId, const QUrl &url, const Q
         return;
     }
 
-    const auto normalizedTitle = title.isEmpty()
-        ? (url.host().isEmpty() ? QStringLiteral("New tab") : url.host())
-        : title;
+    const auto normalizedTitle
+        = title.isEmpty() ? (url.host().isEmpty() ? QStringLiteral("New tab") : url.host()) : title;
     if (tab->url == url && tab->title == normalizedTitle) {
         return;
     }
@@ -1313,9 +1259,10 @@ void BrowserController::updateTab(const QString &tabId, const QUrl &url, const Q
     if (isBlank(url) && tabId == m_developerToolsTabId) {
         closeDeveloperTools();
     }
-    m_tabs.notifyChanged(tab->id, changedHost
-        ? QList<int>{TabListModel::UrlRole, TabListModel::TitleRole, TabListModel::IconUrlRole}
-        : QList<int>{TabListModel::UrlRole, TabListModel::TitleRole});
+    m_tabs.notifyChanged(tab->id,
+        changedHost ? QList<int> { TabListModel::UrlRole, TabListModel::TitleRole,
+                          TabListModel::IconUrlRole }
+                    : QList<int> { TabListModel::UrlRole, TabListModel::TitleRole });
     refreshSoundSuppression();
     schedulePersistTabs();
     if (tabId == m_activeTabId) {
@@ -1332,7 +1279,7 @@ void BrowserController::setTabIcon(const QString &tabId, const QUrl &iconUrl)
         return;
     }
     tab->iconUrl = iconUrl;
-    m_tabs.notifyChanged(tab->id, {TabListModel::IconUrlRole});
+    m_tabs.notifyChanged(tab->id, { TabListModel::IconUrlRole });
 }
 
 void BrowserController::setTabLoading(const QString &tabId, bool loading)
@@ -1342,7 +1289,7 @@ void BrowserController::setTabLoading(const QString &tabId, bool loading)
         return;
     }
     tab->loading = loading;
-    m_tabs.notifyChanged(tab->id, {TabListModel::LoadingRole});
+    m_tabs.notifyChanged(tab->id, { TabListModel::LoadingRole });
 }
 
 // Whether a page is making sound is the page's to say, and it says it only
@@ -1355,7 +1302,7 @@ void BrowserController::setTabAudible(const QString &tabId, bool audible)
         return;
     }
     tab->audible = audible;
-    m_tabs.notifyChanged(tab->id, {TabListModel::AudibleRole});
+    m_tabs.notifyChanged(tab->id, { TabListModel::AudibleRole });
 }
 
 // Muting is a standing decision about the tab rather than about the page in
@@ -1370,7 +1317,7 @@ void BrowserController::setTabMuted(const QString &tabId, bool muted)
         return;
     }
     tab->muted = muted;
-    m_tabs.notifyChanged(tab->id, {TabListModel::MutedRole});
+    m_tabs.notifyChanged(tab->id, { TabListModel::MutedRole });
 }
 
 void BrowserController::toggleTabMuted(const QString &tabId)
@@ -1389,7 +1336,7 @@ void BrowserController::setTabZoom(const QString &tabId, double zoom)
         return;
     }
     tab->zoom = zoom;
-    m_tabs.notifyChanged(tab->id, {TabListModel::ZoomRole});
+    m_tabs.notifyChanged(tab->id, { TabListModel::ZoomRole });
     schedulePersistTabs();
     if (tabId == m_activeTabId) {
         emit activeTabChanged();
@@ -1402,7 +1349,21 @@ void BrowserController::setTabZoom(const QString &tabId, double zoom)
 double BrowserController::steppedZoom(double zoom, int direction)
 {
     static constexpr double ladder[] = {
-        0.25, 0.33, 0.5, 0.67, 0.75, 0.8, 0.9, 1.0, 1.1, 1.25, 1.5, 1.75, 2.0, 2.5, 3.0,
+        0.25,
+        0.33,
+        0.5,
+        0.67,
+        0.75,
+        0.8,
+        0.9,
+        1.0,
+        1.1,
+        1.25,
+        1.5,
+        1.75,
+        2.0,
+        2.5,
+        3.0,
     };
     static constexpr int rungs = static_cast<int>(std::size(ladder));
     if (direction == 0) {
@@ -1429,10 +1390,7 @@ void BrowserController::stepActiveZoom(int direction)
     setTabZoom(m_activeTabId, steppedZoom(activeTabZoom(), direction));
 }
 
-void BrowserController::resetActiveZoom()
-{
-    setTabZoom(m_activeTabId, 1.0);
-}
+void BrowserController::resetActiveZoom() { setTabZoom(m_activeTabId, 1.0); }
 
 void BrowserController::reportTabRendererFailure(const QString &tabId, const QString &reason)
 {
@@ -1441,10 +1399,9 @@ void BrowserController::reportTabRendererFailure(const QString &tabId, const QSt
         return;
     }
     tab->loading = false;
-    tab->rendererFailureReason = reason.isEmpty()
-        ? QStringLiteral("The page renderer stopped unexpectedly.")
-        : reason;
-    m_tabs.notifyChanged(tab->id, {TabListModel::LoadingRole});
+    tab->rendererFailureReason
+        = reason.isEmpty() ? QStringLiteral("The page renderer stopped unexpectedly.") : reason;
+    m_tabs.notifyChanged(tab->id, { TabListModel::LoadingRole });
     if (tabId == m_activeTabId) {
         emit activeTabChanged();
     }
@@ -1480,10 +1437,7 @@ void BrowserController::toggleDeveloperTools()
     openDeveloperTools();
 }
 
-void BrowserController::closeDeveloperTools()
-{
-    setDeveloperToolsTab({}, {});
-}
+void BrowserController::closeDeveloperTools() { setDeveloperToolsTab({}, {}); }
 
 void BrowserController::setDeveloperToolsTab(const QString &tabId, const QString &spaceId)
 {
@@ -1502,30 +1456,15 @@ void BrowserController::setDeveloperToolsTab(const QString &tabId, const QString
     emit activeTabChanged();
 }
 
-void BrowserController::requestBack()
-{
-    emit backRequested();
-}
+void BrowserController::requestBack() { emit backRequested(); }
 
-void BrowserController::requestForward()
-{
-    emit forwardRequested();
-}
+void BrowserController::requestForward() { emit forwardRequested(); }
 
-void BrowserController::requestReload()
-{
-    emit reloadRequested();
-}
+void BrowserController::requestReload() { emit reloadRequested(); }
 
-void BrowserController::requestReloadBypassingCache()
-{
-    emit reloadBypassingCacheRequested();
-}
+void BrowserController::requestReloadBypassingCache() { emit reloadBypassingCacheRequested(); }
 
-void BrowserController::requestStopLoading()
-{
-    emit stopLoadingRequested();
-}
+void BrowserController::requestStopLoading() { emit stopLoadingRequested(); }
 
 void BrowserController::recordVisit(const QUrl &url, const QString &title)
 {
@@ -1533,8 +1472,7 @@ void BrowserController::recordVisit(const QUrl &url, const QString &title)
         || normalizedOrigin(url).isEmpty()) {
         return;
     }
-    m_store.recordVisit(m_activeSpaceId, url,
-        title.isEmpty() ? url.host() : title);
+    m_store.recordVisit(m_activeSpaceId, url, title.isEmpty() ? url.host() : title);
 }
 
 QVariantList BrowserController::historySuggestions(const QString &query, int limit) const
@@ -1582,10 +1520,7 @@ QVariantList BrowserController::searchEngines() const
     return engines;
 }
 
-QVariantList BrowserController::searchEnginePresets() const
-{
-    return predefinedSearchEngines();
-}
+QVariantList BrowserController::searchEnginePresets() const { return predefinedSearchEngines(); }
 
 bool BrowserController::addSearchEnginePreset(const QString &id)
 {
@@ -1605,8 +1540,8 @@ bool BrowserController::addSearchEnginePreset(const QString &id)
     return false;
 }
 
-bool BrowserController::addSearchEngine(const QString &name, const QString &queryUrl,
-    const QString &keyword)
+bool BrowserController::addSearchEngine(
+    const QString &name, const QString &queryUrl, const QString &keyword)
 {
     const auto normalizedName = name.trimmed();
     auto id = normalizedName.toLower();
@@ -1625,10 +1560,10 @@ bool BrowserController::addSearchEngine(const QString &name, const QString &quer
         id = QStringLiteral("%1-%2").arg(baseId).arg(suffix++);
     }
     auto engines = m_searchEngines;
-    engines.append(QVariantMap{{QStringLiteral("id"), id},
-        {QStringLiteral("name"), normalizedName},
-        {QStringLiteral("queryUrl"), queryUrl.trimmed()},
-        {QStringLiteral("keyword"), keyword.trimmed()}});
+    engines.append(
+        QVariantMap { { QStringLiteral("id"), id }, { QStringLiteral("name"), normalizedName },
+            { QStringLiteral("queryUrl"), queryUrl.trimmed() },
+            { QStringLiteral("keyword"), keyword.trimmed() } });
     return saveSearchEngines(engines, id);
 }
 
@@ -1657,8 +1592,8 @@ bool BrowserController::setDefaultSearchEngine(const QString &id)
     return saveSearchEngines(m_searchEngines, id);
 }
 
-bool BrowserController::saveSearchEngines(const QVariantList &engines,
-    const QString &defaultEngineId)
+bool BrowserController::saveSearchEngines(
+    const QVariantList &engines, const QString &defaultEngineId)
 {
     if (m_privateBrowsing || engines.isEmpty()) {
         return false;
@@ -1683,9 +1618,9 @@ bool BrowserController::saveSearchEngines(const QVariantList &engines,
             keywords.insert(keyword);
         }
         foundDefault = foundDefault || id == defaultEngineId;
-        jsonEngines.append(QJsonObject{{QStringLiteral("id"), id},
-            {QStringLiteral("name"), name}, {QStringLiteral("queryUrl"), queryUrl},
-            {QStringLiteral("keyword"), keyword}});
+        jsonEngines.append(
+            QJsonObject { { QStringLiteral("id"), id }, { QStringLiteral("name"), name },
+                { QStringLiteral("queryUrl"), queryUrl }, { QStringLiteral("keyword"), keyword } });
     }
     if (!foundDefault || !QDir().mkpath(m_configRoot)) {
         return false;
@@ -1694,9 +1629,10 @@ bool BrowserController::saveSearchEngines(const QVariantList &engines,
     if (!file.open(QIODevice::WriteOnly)) {
         return false;
     }
-    file.write(QJsonDocument(QJsonObject{{QStringLiteral("version"), 1},
-        {QStringLiteral("default"), defaultEngineId},
-        {QStringLiteral("engines"), jsonEngines}}).toJson(QJsonDocument::Indented));
+    file.write(QJsonDocument(QJsonObject { { QStringLiteral("version"), 1 },
+                                 { QStringLiteral("default"), defaultEngineId },
+                                 { QStringLiteral("engines"), jsonEngines } })
+            .toJson(QJsonDocument::Indented));
     if (!file.commit()) {
         return false;
     }
@@ -1705,12 +1641,11 @@ bool BrowserController::saveSearchEngines(const QVariantList &engines,
     return true;
 }
 
-bool BrowserController::clearBrowsingData(const QStringList &dataTypes, qint64 since,
-    bool everySpace, const QString &confirmation)
+bool BrowserController::clearBrowsingData(
+    const QStringList &dataTypes, qint64 since, bool everySpace, const QString &confirmation)
 {
-    static const QSet<QString> allowedTypes{QStringLiteral("cookies"),
-        QStringLiteral("storage"), QStringLiteral("cache"),
-        QStringLiteral("permissions"), QStringLiteral("history")};
+    static const QSet<QString> allowedTypes { QStringLiteral("cookies"), QStringLiteral("storage"),
+        QStringLiteral("cache"), QStringLiteral("permissions"), QStringLiteral("history") };
     if (m_privateBrowsing || dataTypes.isEmpty() || since < 0
         || (everySpace && confirmation != QStringLiteral("CLEAR ALL"))) {
         return false;
@@ -1720,7 +1655,7 @@ bool BrowserController::clearBrowsingData(const QStringList &dataTypes, qint64 s
             return false;
         }
     }
-    QStringList spaceIds{m_activeSpaceId};
+    QStringList spaceIds { m_activeSpaceId };
     if (everySpace) {
         spaceIds.clear();
         for (const auto &space : m_store.loadSpaces()) {
@@ -1752,21 +1687,18 @@ int BrowserController::permissionPolicy(const QString &permission) const
     // The capabilities whose answer belongs to the origin rather than to the
     // moment: the reader can see afterwards that a site holds one, and take it
     // back where Site information lists it.
-    static const QSet<QString> rememberable{
+    static const QSet<QString> rememberable {
         QStringLiteral("camera"),
         QStringLiteral("microphone"),
         QStringLiteral("camera-and-microphone"),
         QStringLiteral("geolocation"),
         QStringLiteral("notifications"),
-        // A page downloading things by itself is a use the reader can see
-        // afterwards — the files are on their disk — and take back where Site
-        // information lists it.
         QStringLiteral("automatic-downloads"),
     };
     // Reading the clipboard and sharing a screen hand over whatever happens to
     // be there at that instant, which no earlier answer could have covered. So
     // they are asked every time and no answer is written down.
-    static const QSet<QString> eachTime{
+    static const QSet<QString> eachTime {
         QStringLiteral("clipboard-read"),
         QStringLiteral("screen-sharing"),
         QStringLiteral("pointer-lock"),
@@ -1807,13 +1739,13 @@ int BrowserController::permissionDecision(const QUrl &url, const QString &permis
     return m_store.permissionDecision(m_activeSpaceId, origin, normalizedPermission);
 }
 
-bool BrowserController::setPermissionDecision(const QUrl &url, const QString &permission,
-    int decision)
+bool BrowserController::setPermissionDecision(
+    const QUrl &url, const QString &permission, int decision)
 {
     const auto origin = normalizedOrigin(url);
     const auto normalizedPermission = permission.trimmed().toLower();
-    if (origin.isEmpty() || normalizedPermission.isEmpty()
-        || decision < AllowOnce || decision > Block) {
+    if (origin.isEmpty() || normalizedPermission.isEmpty() || decision < AllowOnce
+        || decision > Block) {
         return false;
     }
     const auto policy = permissionPolicy(normalizedPermission);
@@ -1831,8 +1763,7 @@ bool BrowserController::setPermissionDecision(const QUrl &url, const QString &pe
             sessionPermissionKey(origin, normalizedPermission), decision);
         return true;
     }
-    return m_store.savePermissionDecision(
-        m_activeSpaceId, origin, normalizedPermission, decision);
+    return m_store.savePermissionDecision(m_activeSpaceId, origin, normalizedPermission, decision);
 }
 
 QVariantList BrowserController::sitePermissions(const QUrl &url) const
@@ -1854,7 +1785,7 @@ QVariantList BrowserController::sitePermissions(const QUrl &url) const
     // the site asking to use it.
     const auto prefix = m_activeSpaceId + QChar(0x1f) + origin + QChar(0x1f);
     for (auto it = m_sessionPermissionDecisions->cbegin();
-         it != m_sessionPermissionDecisions->cend(); ++it) {
+        it != m_sessionPermissionDecisions->cend(); ++it) {
         if (!it.key().startsWith(prefix)) {
             continue;
         }
@@ -1862,9 +1793,9 @@ QVariantList BrowserController::sitePermissions(const QUrl &url) const
         if (listed.contains(permission)) {
             continue;
         }
-        permissions.append(QVariantMap{
-            {QStringLiteral("permission"), permission},
-            {QStringLiteral("decision"), it.value()},
+        permissions.append(QVariantMap {
+            { QStringLiteral("permission"), permission },
+            { QStringLiteral("decision"), it.value() },
         });
     }
     std::sort(permissions.begin(), permissions.end(), [](const auto &left, const auto &right) {
@@ -1911,13 +1842,12 @@ bool BrowserController::localDevelopmentHost(const QString &host)
             && literal.setAddress(name.mid(1, name.size() - 2)))) {
         return true;
     }
-    return name == QStringLiteral("localhost")
-        || name.endsWith(QStringLiteral(".localhost"))
+    return name == QStringLiteral("localhost") || name.endsWith(QStringLiteral(".localhost"))
         || name.endsWith(QStringLiteral(".test"));
 }
 
-bool BrowserController::mayOfferCertificateException(const QUrl &url, bool overridable,
-    bool mainFrame, bool fatal) const
+bool BrowserController::mayOfferCertificateException(
+    const QUrl &url, bool overridable, bool mainFrame, bool fatal) const
 {
     // Fatal and non-overridable are the engine's own refusals, and Omaweb does
     // not reach past them. A subresource leaves the reader nothing to decide
@@ -1931,8 +1861,7 @@ bool BrowserController::mayOfferCertificateException(const QUrl &url, bool overr
     return localDevelopmentSite(url);
 }
 
-bool BrowserController::thirdPartyCookiesAllowed(const QString &spaceId,
-    const QUrl &origin) const
+bool BrowserController::thirdPartyCookiesAllowed(const QString &spaceId, const QUrl &origin) const
 {
     // A Private window has no Space of its own, so its allowances key on the
     // empty name its shared session already uses for Site permissions.
@@ -1941,8 +1870,8 @@ bool BrowserController::thirdPartyCookiesAllowed(const QString &spaceId,
 
 bool BrowserController::allowThirdPartyCookies(const QUrl &origin, const QString &purpose)
 {
-    if (!m_sessionSiteState->allowThirdPartyCookies(m_activeSpaceId,
-            normalizedOrigin(origin), purpose.trimmed().toLower())) {
+    if (!m_sessionSiteState->allowThirdPartyCookies(
+            m_activeSpaceId, normalizedOrigin(origin), purpose.trimmed().toLower())) {
         return false;
     }
     emit thirdPartyCookieAllowancesChanged();
@@ -1951,8 +1880,7 @@ bool BrowserController::allowThirdPartyCookies(const QUrl &origin, const QString
 
 bool BrowserController::revokeThirdPartyCookieAllowance(const QUrl &origin)
 {
-    if (!m_sessionSiteState->revokeThirdPartyCookies(
-            m_activeSpaceId, normalizedOrigin(origin))) {
+    if (!m_sessionSiteState->revokeThirdPartyCookies(m_activeSpaceId, normalizedOrigin(origin))) {
         return false;
     }
     emit thirdPartyCookieAllowancesChanged();
@@ -1990,8 +1918,7 @@ QStringList BrowserController::allowedThirdPartyCookieOrigins(const QString &spa
     return m_sessionSiteState->allowedThirdPartyCookieOrigins(spaceId);
 }
 
-double BrowserController::siteDataBytes(const QString &spaceId,
-    const QStringList &entries) const
+double BrowserController::siteDataBytes(const QString &spaceId, const QStringList &entries) const
 {
     const auto path = profilePathForSpace(spaceId);
     if (path.isEmpty() || entries.isEmpty() || !QFileInfo::exists(path)) {
@@ -2028,18 +1955,16 @@ bool BrowserController::externalProtocolAllowed(const QUrl &url, const QString &
         return false;
     }
     const auto permission = QStringLiteral("external-protocol/%1").arg(normalizedScheme);
-    const auto sessionDecision = m_sessionPermissionDecisions->value(
-        sessionPermissionKey(origin, permission), Ask);
+    const auto sessionDecision
+        = m_sessionPermissionDecisions->value(sessionPermissionKey(origin, permission), Ask);
     if (sessionDecision == AllowPersistently) {
         return true;
     }
     return !m_privateBrowsing
-        && m_store.permissionDecision(m_activeSpaceId, origin, permission)
-            == AllowPersistently;
+        && m_store.permissionDecision(m_activeSpaceId, origin, permission) == AllowPersistently;
 }
 
-bool BrowserController::rememberExternalProtocolDecision(const QUrl &url,
-    const QString &scheme)
+bool BrowserController::rememberExternalProtocolDecision(const QUrl &url, const QString &scheme)
 {
     const auto origin = normalizedOrigin(url);
     const auto normalizedScheme = scheme.trimmed().toLower();
@@ -2052,8 +1977,7 @@ bool BrowserController::rememberExternalProtocolDecision(const QUrl &url,
             sessionPermissionKey(origin, permission), AllowPersistently);
         return true;
     }
-    return m_store.savePermissionDecision(
-        m_activeSpaceId, origin, permission, AllowPersistently);
+    return m_store.savePermissionDecision(m_activeSpaceId, origin, permission, AllowPersistently);
 }
 
 QString BrowserController::recordDownload(const QString &runtimeId, const QUrl &url,
@@ -2064,7 +1988,8 @@ QString BrowserController::recordDownload(const QString &runtimeId, const QUrl &
     }
     const auto recordId = QUuid::createUuid().toString(QUuid::WithoutBraces);
     return m_store.recordDownload(recordId, url, path, state, receivedBytes, totalBytes)
-        ? recordId : QString{};
+        ? recordId
+        : QString {};
 }
 
 bool BrowserController::updateDownload(const QString &id, const QString &state,
@@ -2114,32 +2039,24 @@ QVariantMap BrowserController::downloadDisposition(const QUrl &origin, const QSt
 {
     const auto normalized = normalizedOrigin(origin);
     const auto kind = DownloadPolicy::riskKind(fileName, mimeType);
-    // A download nobody asked for, and a second one while this origin's first
-    // is still running, are both the page acting rather than the reader. An
-    // address with no origin to name — a local file the reader opened — is the
-    // reader either way.
     const auto automatic = !answered && !normalized.isEmpty()
         && (!originInteracted(origin) || activeDownloadCount(origin) > 0);
-    QVariantMap answer{
-        {QStringLiteral("risk"), kind},
-        {QStringLiteral("fileName"), fileName},
-        {QStringLiteral("origin"), normalized},
-        {QStringLiteral("automatic"), automatic},
+    QVariantMap answer {
+        { QStringLiteral("risk"), kind },
+        { QStringLiteral("fileName"), fileName },
+        { QStringLiteral("origin"), normalized },
+        { QStringLiteral("automatic"), automatic },
     };
     const auto decide = [&answer](DownloadDisposition disposition) {
         answer.insert(QStringLiteral("disposition"), dispositionName(disposition));
         return answer;
     };
     if (automatic) {
-        // `permissionDecision` spends an allow-once answer, and this is a
-        // question about a download rather than the reader being asked one, so
-        // the store and the session are read directly.
-        const auto key = sessionPermissionKey(normalized,
-            QStringLiteral("automatic-downloads"));
+        const auto key = sessionPermissionKey(normalized, QStringLiteral("automatic-downloads"));
         auto decision = m_sessionPermissionDecisions->value(key, Ask);
         if (decision == Ask && !m_privateBrowsing) {
-            decision = m_store.permissionDecision(m_activeSpaceId, normalized,
-                QStringLiteral("automatic-downloads"));
+            decision = m_store.permissionDecision(
+                m_activeSpaceId, normalized, QStringLiteral("automatic-downloads"));
         }
         if (decision == Block) {
             return decide(RefuseDownload);
@@ -2148,9 +2065,6 @@ QVariantMap BrowserController::downloadDisposition(const QUrl &origin, const QSt
             return decide(AskDownloadPermission);
         }
     }
-    // Whether to have the file at all comes before where to put it, and is
-    // asked once: a download the reader has already agreed to have is only
-    // still a question about where it goes.
     if (!kind.isEmpty() && !answered) {
         return decide(ConfirmDownload);
     }
@@ -2181,8 +2095,8 @@ int BrowserController::activeDownloadCount(const QUrl &origin) const
     if (normalized.isEmpty()) {
         return 0;
     }
-    return static_cast<int>(std::count(m_activeDownloadOrigins.cbegin(),
-        m_activeDownloadOrigins.cend(), normalized));
+    return static_cast<int>(
+        std::count(m_activeDownloadOrigins.cbegin(), m_activeDownloadOrigins.cend(), normalized));
 }
 
 // A Private window has no store to read or write, so it browses on the
@@ -2208,7 +2122,7 @@ void BrowserController::initialize()
     if (m_privateBrowsing) {
         auto tab = makeBlankTab({});
         m_activeTabId = tab.id;
-        m_tabs.reset({tab});
+        m_tabs.reset({ tab });
         loadSearchEngines();
         m_ready = true;
         return;
@@ -2301,7 +2215,7 @@ void BrowserController::setActiveTab(const QString &tabId)
             const auto shouldBeActive = tab->id == tabId;
             if (tab->active != shouldBeActive) {
                 tab->active = shouldBeActive;
-                m_tabs.notifyChanged(tab->id, {TabListModel::ActiveRole});
+                m_tabs.notifyChanged(tab->id, { TabListModel::ActiveRole });
             }
         }
     }
@@ -2313,24 +2227,24 @@ void BrowserController::setActiveTab(const QString &tabId)
 bool BrowserController::loadSearchEngines()
 {
     auto duckDuckGo = predefinedSearchEngines().first().toMap();
-    duckDuckGo.insert(QStringLiteral("keyword"), QString{});
+    duckDuckGo.insert(QStringLiteral("keyword"), QString {});
     const auto path = QDir(m_configRoot).filePath(QStringLiteral("search-engines.json"));
     if (m_configRoot.isEmpty()) {
-        m_searchEngines = {duckDuckGo};
+        m_searchEngines = { duckDuckGo };
         m_defaultSearchEngineId = QStringLiteral("duckduckgo");
         return true;
     }
     QFile file(path);
     if (!file.exists()) {
         if (m_privateBrowsing) {
-            m_searchEngines = {duckDuckGo};
+            m_searchEngines = { duckDuckGo };
             m_defaultSearchEngineId = QStringLiteral("duckduckgo");
             return true;
         }
-        return saveSearchEngines({duckDuckGo}, QStringLiteral("duckduckgo"));
+        return saveSearchEngines({ duckDuckGo }, QStringLiteral("duckduckgo"));
     }
     if (!file.open(QIODevice::ReadOnly)) {
-        m_searchEngines = {duckDuckGo};
+        m_searchEngines = { duckDuckGo };
         m_defaultSearchEngineId = QStringLiteral("duckduckgo");
         return false;
     }
@@ -2358,7 +2272,7 @@ bool BrowserController::loadSearchEngines()
     }
     const auto defaultId = object.value(QStringLiteral("default")).toString();
     if (!valid || engines.isEmpty() || !ids.contains(defaultId)) {
-        m_searchEngines = {duckDuckGo};
+        m_searchEngines = { duckDuckGo };
         m_defaultSearchEngineId = QStringLiteral("duckduckgo");
         return false;
     }
@@ -2377,8 +2291,7 @@ QUrl BrowserController::resolveConfiguredInput(const QString &input) const
         return {};
     }
 
-    static const QRegularExpression explicitScheme(
-        QStringLiteral("^[A-Za-z][A-Za-z0-9+.-]*:"));
+    static const QRegularExpression explicitScheme(QStringLiteral("^[A-Za-z][A-Za-z0-9+.-]*:"));
     static const QRegularExpression hostWithPort(QStringLiteral("^[^/\\s:]+:[0-9]+(?:/|$)"));
     if (explicitScheme.match(value).hasMatch() && !hostWithPort.match(value).hasMatch()) {
         return QUrl(value);
@@ -2392,8 +2305,8 @@ QUrl BrowserController::resolveConfiguredInput(const QString &input) const
         host = host.section(':', 0, 0);
     }
     QHostAddress literal;
-    const auto explicitPort = authority.contains(QRegularExpression(
-        QStringLiteral("(?:\\]|[^:]):[0-9]+$")));
+    const auto explicitPort
+        = authority.contains(QRegularExpression(QStringLiteral("(?:\\]|[^:]):[0-9]+$")));
     literal.setAddress(host);
     // The same hosts a Local-development site is recognised by, so an address
     // that resolves as local is the one a certificate exception may be offered
@@ -2407,8 +2320,8 @@ QUrl BrowserController::resolveConfiguredInput(const QString &input) const
         if (literal.protocol() == QAbstractSocket::IPv6Protocol && !authority.startsWith('[')) {
             address = QStringLiteral("[%1]%2").arg(authority, value.mid(authority.size()));
         }
-        return QUrl((insecureLocal ? QStringLiteral("http://") : QStringLiteral("https://"))
-            + address);
+        return QUrl(
+            (insecureLocal ? QStringLiteral("http://") : QStringLiteral("https://")) + address);
     }
 
     auto terms = value;
@@ -2468,8 +2381,8 @@ QString BrowserController::normalizedOrigin(const QUrl &url)
     return origin.toString(QUrl::FullyEncoded);
 }
 
-QString BrowserController::sessionPermissionKey(const QString &origin,
-    const QString &permission) const
+QString BrowserController::sessionPermissionKey(
+    const QString &origin, const QString &permission) const
 {
     return m_activeSpaceId + QChar(0x1f) + origin + QChar(0x1f) + permission;
 }

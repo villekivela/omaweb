@@ -54,26 +54,23 @@ QVariant TabListModel::data(const QModelIndex &index, int role) const
 QHash<int, QByteArray> TabListModel::roleNames() const
 {
     return {
-        {IdRole, "tabId"},
-        {SpaceIdRole, "spaceId"},
-        {UrlRole, "tabUrl"},
-        {TitleRole, "tabTitle"},
-        {IconUrlRole, "tabIconUrl"},
-        {PinnedRole, "pinned"},
-        {ActiveRole, "active"},
-        {LoadingRole, "loading"},
-        {AudibleRole, "tabAudible"},
-        {MutedRole, "tabMuted"},
-        {ZoomRole, "tabZoom"},
-        {KeepActiveRole, "tabKeepActive"},
-        {SoundSuppressedRole, "tabSoundSuppressed"},
+        { IdRole, "tabId" },
+        { SpaceIdRole, "spaceId" },
+        { UrlRole, "tabUrl" },
+        { TitleRole, "tabTitle" },
+        { IconUrlRole, "tabIconUrl" },
+        { PinnedRole, "pinned" },
+        { ActiveRole, "active" },
+        { LoadingRole, "loading" },
+        { AudibleRole, "tabAudible" },
+        { MutedRole, "tabMuted" },
+        { ZoomRole, "tabZoom" },
+        { KeepActiveRole, "tabKeepActive" },
+        { SoundSuppressedRole, "tabSoundSuppressed" },
     };
 }
 
-const QVector<TabState> &TabListModel::items() const
-{
-    return m_tabs;
-}
+const QVector<TabState> &TabListModel::items() const { return m_tabs; }
 
 const TabState *TabListModel::find(const QString &id) const
 {
@@ -112,7 +109,7 @@ void TabListModel::append(TabState tab)
 
 void TabListModel::insert(TabState tab, qsizetype row)
 {
-    const auto destination = qBound(qsizetype{0}, row, m_tabs.size());
+    const auto destination = qBound(qsizetype { 0 }, row, m_tabs.size());
     beginInsertRows({}, destination, destination);
     m_tabs.insert(destination, std::move(tab));
     endInsertRows();
@@ -144,8 +141,8 @@ bool TabListModel::move(const QString &id, qsizetype destinationRow)
         if (sourceRow == destinationRow) {
             return true;
         }
-        const auto destinationChild = destinationRow > sourceRow
-            ? destinationRow + 1 : destinationRow;
+        const auto destinationChild
+            = destinationRow > sourceRow ? destinationRow + 1 : destinationRow;
         beginMoveRows({}, sourceRow, sourceRow, {}, destinationChild);
         m_tabs.move(sourceRow, destinationRow);
         endMoveRows();

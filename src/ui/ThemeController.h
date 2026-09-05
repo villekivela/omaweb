@@ -4,6 +4,7 @@
 #include <QHash>
 #include <QObject>
 #include <QStringList>
+#include <QTimer>
 #include <QVariantMap>
 
 namespace omaweb {
@@ -39,6 +40,7 @@ private:
     // in whatever face Qt substitutes.
     static QString installedFamily(const QStringList &candidates);
     QVariantMap fallbackPalette() const;
+    QStringList themeSourceState() const;
     void apply(QVariantMap palette);
     QVariantMap normalizedPalette(QVariantMap palette) const;
     void refreshWatchPaths();
@@ -48,6 +50,8 @@ private:
     // relinked directory can be noticed and the watch re-pointed.
     QHash<QString, QString> m_watchedTargets;
     QFileSystemWatcher m_watcher;
+    QTimer m_sourcePoll;
+    QStringList m_sourceState;
     QVariantMap m_palette;
 };
 

@@ -16,9 +16,7 @@ private slots:
         omaweb::installWindowChrome(qGuiApp);
 
         QQuickWindow window;
-        window.setFlags(Qt::Window
-            | Qt::ExpandedClientAreaHint
-            | Qt::NoTitleBarBackgroundHint);
+        window.setFlags(Qt::Window | Qt::ExpandedClientAreaHint | Qt::NoTitleBarBackgroundHint);
         window.setTitle(QStringLiteral("Omaweb window chrome test"));
         window.resize(480, 320);
         window.show();
@@ -45,9 +43,7 @@ private slots:
 
         QQuickWindow window;
         window.setColor(QColor(0, 0, 0, 0));
-        window.setFlags(Qt::Window
-            | Qt::ExpandedClientAreaHint
-            | Qt::NoTitleBarBackgroundHint);
+        window.setFlags(Qt::Window | Qt::ExpandedClientAreaHint | Qt::NoTitleBarBackgroundHint);
         window.resize(480, 320);
         window.show();
         QVERIFY(QTest::qWaitForWindowExposed(&window));
@@ -67,9 +63,7 @@ private slots:
         QQuickWindow window;
         window.setColor(QColor(0, 0, 0, 0));
         window.setProperty("cornerRadius", 14.0);
-        window.setFlags(Qt::Window
-            | Qt::ExpandedClientAreaHint
-            | Qt::NoTitleBarBackgroundHint);
+        window.setFlags(Qt::Window | Qt::ExpandedClientAreaHint | Qt::NoTitleBarBackgroundHint);
         window.resize(480, 320);
         window.show();
         QVERIFY(QTest::qWaitForWindowExposed(&window));
@@ -110,9 +104,7 @@ private slots:
         QQuickWindow window;
         window.setColor(QColor(0, 0, 0, 0));
         window.setProperty("cornerRadius", 14.0);
-        window.setFlags(Qt::Window
-            | Qt::ExpandedClientAreaHint
-            | Qt::NoTitleBarBackgroundHint);
+        window.setFlags(Qt::Window | Qt::ExpandedClientAreaHint | Qt::NoTitleBarBackgroundHint);
         window.resize(480, 320);
         window.show();
         QVERIFY(QTest::qWaitForWindowExposed(&window));
@@ -180,9 +172,7 @@ private slots:
         NSWindow *nativeWindow = nil;
         {
             QQuickWindow window;
-            window.setFlags(Qt::Window
-                | Qt::ExpandedClientAreaHint
-                | Qt::NoTitleBarBackgroundHint);
+            window.setFlags(Qt::Window | Qt::ExpandedClientAreaHint | Qt::NoTitleBarBackgroundHint);
             window.resize(480, 320);
             window.show();
             QVERIFY(QTest::qWaitForWindowExposed(&window));

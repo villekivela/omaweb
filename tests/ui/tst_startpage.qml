@@ -21,16 +21,16 @@ TestCase {
     readonly property int narrowViewport: 320
 
     readonly property var colorsFixture: ({
-        text: "#f3f1fa",
-        mutedText: "#8d88a3",
-        accent: "#9b87ff",
-        separator: "#4a4658",
-        border: "#4a4658",
-        surface: "#26232f",
-        sidebar: "#26232fcc",
-        sheet: "#26232f99",
-        windowOpaque: "#16151d"
-    })
+                                              text: "#f3f1fa",
+                                              mutedText: "#8d88a3",
+                                              accent: "#9b87ff",
+                                              separator: "#4a4658",
+                                              border: "#4a4658",
+                                              surface: "#26232f",
+                                              sidebar: "#26232fcc",
+                                              sheet: "#26232f99",
+                                              windowOpaque: "#16151d"
+                                          })
 
     // The shape of the real registry: six groups of very different sizes, so a
     // layout that reserves a fifteen-entry row for a two-entry group shows up
@@ -38,12 +38,16 @@ TestCase {
     // named as the registry names them, because those are the ones a Private
     // window drops.
     readonly property var groupSizes: ({
-        "navigation": 8, "page": 9, "tabs": 15,
-        "spaces": 4, "interface": 13, "developer": 2
-    })
+                                           "navigation": 8,
+                                           "page": 9,
+                                           "tabs": 15,
+                                           "spaces": 4,
+                                           "interface": 13,
+                                           "developer": 2
+                                       })
 
-    readonly property var privateExclusions: ["pin-tab", "move-tab", "next-space",
-        "select-space", "new-space"]
+    readonly property var privateExclusions: ["pin-tab", "move-tab", "next-space", "select-space",
+        "new-space"]
 
     readonly property string longestTitle: "Keep this Pinned tab active"
     readonly property string longestKeys: "Ctrl+Shift+Alt+Backspace"
@@ -64,11 +68,11 @@ TestCase {
         for (const group in testCase.groupSizes) {
             const count = testCase.groupSizes[group]
             for (let index = 0; index < count; ++index) {
-                const title = (index === 0)
-                    ? testCase.longestTitle
-                    : group + " command " + index
-                descriptions[testCase.commandName(group, index)]
-                    = {"group": group, "title": title}
+                const title = (index === 0) ? testCase.longestTitle : group + " command " + index
+                descriptions[testCase.commandName(group, index)] = {
+                    "group": group,
+                    "title": title
+                }
             }
         }
         return descriptions
@@ -104,14 +108,17 @@ TestCase {
 
             commands: QtObject {
                 readonly property var descriptions: testCase.buildDescriptions()
-                function available(command) { return true }
+                function available(command) {
+                    return true
+                }
             }
 
             keymap: QtObject {
                 readonly property var browserBindings: sheet.bindings
                 function keysFor(command) {
                     for (const binding in sheet.bindings) {
-                        if (sheet.bindings[binding] === command) return binding
+                        if (sheet.bindings[binding] === command)
+                            return binding
                     }
                     return ""
                 }
@@ -141,7 +148,9 @@ TestCase {
 
     // Both axes the theme can move the sheet along, shared with the other
     // pages that ask the same question of their own layouts.
-    ThemeAxis { id: theme }
+    ThemeAxis {
+        id: theme
+    }
 
     property var liveSheet: null
 
@@ -174,8 +183,8 @@ TestCase {
         verify(sheet.keyColumnWidth >= Math.ceil(keyProbe.implicitWidth))
         // And no wider than that binding needs: the rest of the row is title.
         // One body glyph of slack is the most a rounded measurement can add.
-        verify(sheet.keyColumnWidth
-            <= Math.ceil(keyMetrics.advanceWidth(testCase.longestKeys)) + Style.font.body)
+        verify(sheet.keyColumnWidth <= Math.ceil(keyMetrics.advanceWidth(testCase.longestKeys))
+               + Style.font.body)
     }
 
     // Everything on the row grows with the type, so the column that holds it
@@ -229,7 +238,7 @@ TestCase {
         const sheet = makeSheet()
         const columns = sheet.layoutColumns
         compare(columns.length, sheet.columnCount)
-        verify(sheet.columnCount > 1)
+        verify(sheet.columnCount > 1);
 
         // Group order is meaningful, so the packing may only cut it, never
         // reorder it.
@@ -246,7 +255,7 @@ TestCase {
         }
         compare(flattened.length, sheet.sections.length)
         for (let section = 0; section < sheet.sections.length; ++section)
-            compare(flattened[section], sheet.sections[section].group)
+            compare(flattened[section], sheet.sections[section].group);
 
         // Row-wise flow through a Grid pairs the largest group with the
         // smallest and pays for the difference twice: each row costs its
@@ -259,8 +268,8 @@ TestCase {
         let rowWise = 0
         for (let index = 0; index < sheet.sections.length; index += sheet.columnCount) {
             let row = 0
-            for (let offset = 0; offset < sheet.columnCount
-                && index + offset < sheet.sections.length; ++offset) {
+            for (let offset = 0; offset < sheet.columnCount && index + offset
+                 < sheet.sections.length; ++offset) {
                 row = Math.max(row, sheet.sections[index + offset].entries.length + 1)
             }
             rowWise += row
@@ -343,7 +352,8 @@ TestCase {
         const shortened = ({})
         const bindings = sheet.bindings
         for (const binding in bindings) {
-            if (binding === testCase.longestKeys) continue
+            if (binding === testCase.longestKeys)
+                continue
             shortened[binding] = bindings[binding]
         }
         sheet.bindings = shortened

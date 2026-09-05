@@ -24,20 +24,19 @@ TestCase {
     height: 700
 
     property var colorsFixture: ({
-        text: "#f3f1fa",
-        mutedText: "#8d88a3",
-        accent: "#9b87ff",
-        privateAccent: "#dc6bce",
-        border: "#4a4658",
-        separator: "#332f3f",
-        surface: "#26232f",
-        surfaceHover: "#3d394e",
-        overlay: "#1c1a24",
-        windowOpaque: "#16151d"
-    })
+                                     text: "#f3f1fa",
+                                     mutedText: "#8d88a3",
+                                     accent: "#9b87ff",
+                                     privateAccent: "#dc6bce",
+                                     border: "#4a4658",
+                                     separator: "#332f3f",
+                                     surface: "#26232f",
+                                     surfaceHover: "#3d394e",
+                                     overlay: "#1c1a24",
+                                     windowOpaque: "#16151d"
+                                 })
 
-    readonly property var everyCategory: ["cookies", "storage", "cache",
-        "permissions", "history"]
+    readonly property var everyCategory: ["cookies", "storage", "cache", "permissions", "history"]
 
     Component {
         id: dialogComponent
@@ -57,15 +56,19 @@ TestCase {
             categories: testCase.everyCategory
             range: "86400000"
 
-            onCategoryToggled: function(value) {
+            onCategoryToggled: function (value) {
                 const next = dialog.categories.slice()
                 const at = next.indexOf(value)
-                if (at >= 0) next.splice(at, 1)
-                else next.push(value)
+                if (at >= 0)
+                    next.splice(at, 1)
+                else
+                    next.push(value)
                 dialog.categories = next
             }
-            onRangeChosen: function(value) { dialog.range = value }
-            onConfirmed: function(categories, since, everySpace, confirmation) {
+            onRangeChosen: function (value) {
+                dialog.range = value
+            }
+            onConfirmed: function (categories, since, everySpace, confirmation) {
                 dialog.confirmCount += 1
                 dialog.lastConfirm = {
                     "categories": categories,
@@ -83,7 +86,9 @@ TestCase {
         const dialog = createTemporaryObject(dialogComponent, testCase, properties)
         verify(dialog !== null)
         dialog.open = true
-        tryVerify(function() { return dialog.visible })
+        tryVerify(function () {
+            return dialog.visible
+        })
         return dialog
     }
 
@@ -93,13 +98,17 @@ TestCase {
 
     function test_theDialogOpensOnItsFirstArgument() {
         const dialog = openDialog({})
-        tryVerify(function() { return category(dialog, "cookies").activeFocus })
+        tryVerify(function () {
+            return category(dialog, "cookies").activeFocus
+        })
     }
 
     // The order the form reads in, walked both ways.
     function test_tabWalksTheFormAndShiftTabWalksItBack() {
         const dialog = openDialog({})
-        tryVerify(function() { return category(dialog, "cookies").activeFocus })
+        tryVerify(function () {
+            return category(dialog, "cookies").activeFocus
+        })
 
         const order = testCase.everyCategory
         for (let step = 1; step < order.length; ++step) {
@@ -117,7 +126,9 @@ TestCase {
     function test_spaceTicksTheControlUnderTheKeyboardAndClearsNothing() {
         const dialog = openDialog({})
         const cookies = category(dialog, "cookies")
-        tryVerify(function() { return cookies.activeFocus })
+        tryVerify(function () {
+            return cookies.activeFocus
+        })
 
         compare(cookies.checked, true)
         keyClick(Qt.Key_Space)
@@ -134,7 +145,9 @@ TestCase {
     // would confirm from four of its controls and not from the other two.
     function test_enterConfirmsFromWhereverTheKeyboardIs() {
         const dialog = openDialog({})
-        tryVerify(function() { return category(dialog, "cookies").activeFocus })
+        tryVerify(function () {
+            return category(dialog, "cookies").activeFocus
+        })
 
         keyClick(Qt.Key_Return)
         compare(dialog.confirmCount, 1)
@@ -155,15 +168,23 @@ TestCase {
     function test_escapeClosesAnOpenListBeforeItClosesTheDialog() {
         const dialog = openDialog({})
         const range = findChild(dialog, "clearTimeRange")
-        tryVerify(function() { return category(dialog, "cookies").activeFocus })
+        tryVerify(function () {
+            return category(dialog, "cookies").activeFocus
+        })
 
         let dismissals = 0
-        dialog.dismissed.connect(function() { dismissals += 1 })
+        dialog.dismissed.connect(function () {
+            dismissals += 1
+        })
 
         range.open()
-        tryVerify(function() { return range.popupOpen })
+        tryVerify(function () {
+            return range.popupOpen
+        })
         keyClick(Qt.Key_Escape)
-        tryVerify(function() { return !range.popupOpen })
+        tryVerify(function () {
+            return !range.popupOpen
+        })
         compare(dismissals, 0)
 
         keyClick(Qt.Key_Escape)
@@ -185,7 +206,7 @@ TestCase {
         for (let index = 0; index < order.length; ++index)
             category(dialog, order[index]).clicked()
         compare(dialog.categories.length, 0)
-        compare(confirm.enabled, false)
+        compare(confirm.enabled, false);
 
         // And a refused confirm is refused by the key as well as by the button.
         keyClick(Qt.Key_Return)
@@ -213,13 +234,15 @@ TestCase {
         keyClick(Qt.Key_Return)
         compare(dialog.confirmCount, 1)
         compare(dialog.lastConfirm.everySpace, true)
-        compare(dialog.lastConfirm.confirmation, "CLEAR ALL")
+        compare(dialog.lastConfirm.confirmation, "CLEAR ALL");
 
         // Closed and opened again, the scope is back to the one Space and the
         // guard is empty: it is the one argument the dialog never inherits.
         dialog.open = false
         dialog.open = true
-        tryVerify(function() { return dialog.visible })
+        tryVerify(function () {
+            return dialog.visible
+        })
         compare(dialog.everySpace, false)
         compare(confirmation.text, "")
     }

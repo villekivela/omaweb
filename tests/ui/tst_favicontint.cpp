@@ -302,8 +302,8 @@ private:
     // so these have to be the engine's own objects rather than stack ones.
     FaviconTint *createTint(QQmlEngine &engine, const QString &source)
     {
-        const auto qml = QStringLiteral(
-            "import Omaweb\nFaviconTint { source: \"%1\" }").arg(source);
+        const auto qml
+            = QStringLiteral("import Omaweb\nFaviconTint { source: \"%1\" }").arg(source);
         auto *component = new QQmlComponent(&engine, &engine);
         component->setData(qml.toUtf8(), QUrl());
         if (component->isError()) {

@@ -71,26 +71,35 @@ Rectangle {
     readonly property string originLabel: {
         const address = String(root.activeUrl)
         const separator = address.indexOf("://")
-        if (separator === -1) return address
+        if (separator === -1)
+            return address
         const authority = address.substring(separator + 3).split("/")[0]
         return authority.length > 0 ? authority : address
     }
 
     readonly property string connectionSentence: {
         switch (root.connectionState) {
-        case "secure": return "connection is encrypted"
-        case "certificate-error": return "certificate could not be verified"
-        case "insecure": return "connection is not encrypted"
-        default: return "no page is loaded"
+        case "secure":
+            return "connection is encrypted"
+        case "certificate-error":
+            return "certificate could not be verified"
+        case "insecure":
+            return "connection is not encrypted"
+        default:
+            return "no page is loaded"
         }
     }
 
     function permissionDecisionName(decision) {
         switch (Number(decision)) {
-        case root.allowedOnce: return "allowed once"
-        case root.allowedPersistently: return "always allowed"
-        case root.blocked: return "blocked"
-        default: return "asked each time"
+        case root.allowedOnce:
+            return "allowed once"
+        case root.allowedPersistently:
+            return "always allowed"
+        case root.blocked:
+            return "blocked"
+        default:
+            return "asked each time"
         }
     }
 
@@ -118,21 +127,24 @@ Rectangle {
     }
 
     function refreshSiteInformation() {
-        if (!root.browser) return
+        if (!root.browser)
+            return
         root.sitePermissionRows = root.browser.sitePermissions(root.activeUrl)
         root.cookieAllowanceRows = root.browser.thirdPartyCookieAllowances()
-        root.refusedThirdParties = root.cookiePolicy
-            ? root.cookiePolicy.refusedOrigins(root.activeUrl) : []
-        root.siteDataBytes = root.siteDataOnDisk
-            ? root.browser.siteDataBytes(root.browser.activeSpaceId, root.siteDataEntries)
-            : -1
-        root.retainedDataBytes = root.siteDataOnDisk
-            ? root.browser.siteDataBytes(root.browser.activeSpaceId, root.retainedDataEntries)
-            : -1
+        root.refusedThirdParties = root.cookiePolicy ? root.cookiePolicy.refusedOrigins(
+                                                           root.activeUrl) : []
+        root.siteDataBytes = root.siteDataOnDisk ? root.browser.siteDataBytes(
+                                                       root.browser.activeSpaceId,
+                                                       root.siteDataEntries) : -1
+        root.retainedDataBytes = root.siteDataOnDisk ? root.browser.siteDataBytes(
+                                                           root.browser.activeSpaceId,
+                                                           root.retainedDataEntries) : -1
     }
 
-    onOpenChanged: if (root.open) root.refreshSiteInformation()
-    onSiteDataGenerationChanged: if (root.open) root.refreshSiteInformation()
+    onOpenChanged: if (root.open)
+                       root.refreshSiteInformation()
+    onSiteDataGenerationChanged: if (root.open)
+                                     root.refreshSiteInformation()
 
     visible: root.open
     height: statusColumn.implicitHeight + 20
@@ -141,7 +153,9 @@ Rectangle {
     border.width: 1
     border.color: root.colors.accent
 
-    MouseArea { anchors.fill: parent }
+    MouseArea {
+        anchors.fill: parent
+    }
 
     Column {
         id: statusColumn
@@ -174,11 +188,10 @@ Rectangle {
         Text {
             objectName: "siteInformationConnection"
             width: parent.width
-            text: "· " + root.connectionSentence
-                + (root.connectionState === "certificate-error"
-                    ? " · waived for this session" : "")
-            color: root.connectionState === "certificate-error"
-                ? root.colors.urgent : root.colors.mutedText
+            text: "· " + root.connectionSentence + (root.connectionState === "certificate-error"
+                                                    ? " · waived for this session" : "")
+            color: root.connectionState === "certificate-error" ? root.colors.urgent :
+                                                                  root.colors.mutedText
             wrapMode: Text.WordWrap
             font.family: Style.font.family
             font.pixelSize: Style.font.caption
@@ -236,8 +249,7 @@ Rectangle {
             objectName: "siteInformationRetainedData"
             width: parent.width
             visible: root.siteDataOnDisk && root.retainedDataBytes > 0
-            text: "· " + root.formatBytes(root.retainedDataBytes)
-                + " of storage and databases"
+            text: "· " + root.formatBytes(root.retainedDataBytes) + " of storage and databases"
             color: root.colors.mutedText
             wrapMode: Text.WordWrap
             font.family: Style.font.family
@@ -248,10 +260,10 @@ Rectangle {
             objectName: "siteInformationCookies"
             width: parent.width
             text: root.thirdPartyCookieControlAvailable
-                ? "· third-party cookies and storage are blocked"
-                : "· this engine cannot refuse a third party"
-            color: root.thirdPartyCookieControlAvailable
-                ? root.colors.mutedText : root.colors.urgent
+                  ? "· third-party cookies and storage are blocked" :
+                    "· this engine cannot refuse a third party"
+            color: root.thirdPartyCookieControlAvailable ? root.colors.mutedText :
+                                                           root.colors.urgent
             wrapMode: Text.WordWrap
             font.family: Style.font.family
             font.pixelSize: Style.font.caption
@@ -262,8 +274,9 @@ Rectangle {
         // asset host has no way to judge it from its name alone, and a row of
         // buttons beside each one invites a decision nobody can make.
         Repeater {
-            model: root.thirdPartyCookieControlAvailable
-                ? root.refusedThirdParties.slice(0, root.listedThirdParties) : []
+            model: root.thirdPartyCookieControlAvailable ? root.refusedThirdParties.slice(0,
+                                                                                          root.listedThirdParties) :
+                                                           []
 
             Text {
                 required property int index
@@ -282,10 +295,10 @@ Rectangle {
         Text {
             objectName: "refusedThirdPartyOverflow"
             width: parent.width
-            visible: root.thirdPartyCookieControlAvailable
-                && root.refusedThirdParties.length > root.listedThirdParties
+            visible: root.thirdPartyCookieControlAvailable && root.refusedThirdParties.length
+                     > root.listedThirdParties
             text: "· and " + (root.refusedThirdParties.length - root.listedThirdParties)
-                + " more, listed under third parties"
+                  + " more, listed under third parties"
             color: root.colors.mutedText
             wrapMode: Text.WordWrap
             font.family: Style.font.family
@@ -318,9 +331,8 @@ Rectangle {
             objectName: "siteInformationNoPermissions"
             width: parent.width
             visible: root.sitePermissionRows.length === 0
-            text: root.privateWindow
-                ? "· nothing decided in this private session"
-                : "· nothing decided for this site"
+            text: root.privateWindow ? "· nothing decided in this private session" :
+                                       "· nothing decided for this site"
             color: root.colors.mutedText
             wrapMode: Text.WordWrap
             font.family: Style.font.family
@@ -336,8 +348,8 @@ Rectangle {
 
                 objectName: "sitePermission" + index
                 width: statusColumn.width
-                text: "· " + modelData.permission + " — "
-                    + root.permissionDecisionName(modelData.decision)
+                text: "· " + modelData.permission + " — " + root.permissionDecisionName(
+                          modelData.decision)
                 color: root.colors.mutedText
                 wrapMode: Text.WordWrap
                 font.family: Style.font.family
@@ -380,9 +392,9 @@ Rectangle {
                 objectName: "manageThirdParties"
                 colors: root.colors
                 label: "third parties"
-                enabled: root.thirdPartyCookieControlAvailable
-                    && (root.refusedThirdParties.length > 0
-                        || root.cookieAllowanceRows.length > 0)
+                enabled: root.thirdPartyCookieControlAvailable && (root.refusedThirdParties.length
+                                                                   > 0 || root.cookieAllowanceRows.length
+                                                                   > 0)
                 onClicked: root.actionRequested("third-party")
             }
         }

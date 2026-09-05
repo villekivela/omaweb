@@ -39,8 +39,7 @@ bool PagePrinter::present(const QString &path, const QString &jobName)
                                          scalingMode:kPDFPrintPageScaleDownToFit
                                           autoRotate:YES];
             if (operation) {
-                operation.jobTitle = jobName.isEmpty()
-                    ? @"Omaweb" : jobName.toNSString();
+                operation.jobTitle = jobName.isEmpty() ? @"Omaweb" : jobName.toNSString();
                 operation.showsPrintPanel = YES;
                 operation.showsProgressPanel = YES;
                 // Modal by design: the reader is answering a question about

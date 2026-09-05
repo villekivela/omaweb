@@ -24,7 +24,9 @@ Rectangle {
     }
 
     readonly property string code: {
-        const parts = host.split(".").filter(function(part) { return part !== "www" })
+        const parts = host.split(".").filter(function (part) {
+            return part !== "www"
+        })
         const name = parts.length > 1 ? parts[parts.length - 2] : parts[0]
         return name.length > 0 ? name.substring(0, 2).toUpperCase() : "··"
     }
@@ -32,9 +34,9 @@ Rectangle {
     // The theme owns how strong a site colour may be; only the hue is the
     // site's to choose, so every tab stays one palette.
     readonly property real tintSaturation: colors.tint && colors.tint.saturation !== undefined
-        ? colors.tint.saturation : 0.32
+                                           ? colors.tint.saturation : 0.32
     readonly property real tintLightness: colors.tint && colors.tint.lightness !== undefined
-        ? colors.tint.lightness : 0.62
+                                          ? colors.tint.lightness : 0.62
 
     // Site identity for artwork: the hue comes from the host, which is the only
     // thing available before the artwork itself has loaded.
@@ -50,9 +52,8 @@ Rectangle {
     // site's own colour: the hue of the favicon Omaweb is not drawing. An icon
     // with no colour to give — a white or black mark, or none at all — leaves
     // the chip neutral rather than inventing one.
-    readonly property color chipTint: useArtwork
-        ? hostTint
-        : (faviconTint.valid ? faviconTint.color : colors.mutedText)
+    readonly property color chipTint: useArtwork ? hostTint : (faviconTint.valid ? faviconTint.color :
+                                                                                   colors.mutedText)
 
     readonly property bool showsArtwork: useArtwork && artwork.status === Image.Ready
 
@@ -78,9 +79,10 @@ Rectangle {
     radius: 2
     // The chip is the stand-in for missing artwork. Real artwork needs no
     // plate behind it: tinted, its own shape already reads against the sidebar.
-    color: showsArtwork || siteColoredMark
-        ? "transparent"
-        : (highlighted ? chipTint : Qt.rgba(chipTint.r, chipTint.g, chipTint.b, 0.18))
+    color: showsArtwork || siteColoredMark ? "transparent" : (highlighted ? chipTint : Qt.rgba(chipTint.r,
+                                                                                               chipTint.g,
+                                                                                               chipTint.b,
+                                                                                               0.18))
     Accessible.ignored: true
 
     Image {
@@ -112,9 +114,9 @@ Rectangle {
         anchors.centerIn: parent
         visible: !root.showsArtwork
         text: root.code
-        color: root.siteColoredMark
-            ? (root.hasSiteColor ? root.siteTint : root.colors.mutedText)
-            : (root.highlighted ? root.colors.windowOpaque : root.chipTint)
+        color: root.siteColoredMark ? (root.hasSiteColor ? root.siteTint : root.colors.mutedText) : (
+                                          root.highlighted ? root.colors.windowOpaque :
+                                                             root.chipTint)
         font.family: Style.font.family
         font.pixelSize: Style.font.caption
         font.weight: Font.DemiBold

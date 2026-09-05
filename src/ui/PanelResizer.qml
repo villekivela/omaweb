@@ -26,7 +26,7 @@ Item {
     signal widthRequested(real width)
     // The handle reads as part of the panel, so it leaves like the rest of it:
     // Escape hands the keyboard back to the page.
-    signal pageFocusRequested()
+    signal pageFocusRequested
 
     width: 10
     activeFocusOnTab: enabled
@@ -38,7 +38,7 @@ Item {
         root.widthRequested(Math.max(root.minimumWidth, Math.min(root.maximumWidth, width)))
     }
 
-    Keys.onPressed: function(event) {
+    Keys.onPressed: function (event) {
         const distance = (event.modifiers & Qt.ShiftModifier) ? root.coarseStep : root.step
         const widen = root.measureFromRight ? -distance : distance
         switch (event.key) {
@@ -78,7 +78,9 @@ Item {
         color: root.dragging || root.activeFocus ? root.colors.accent : root.colors.border
 
         Behavior on opacity {
-            NumberAnimation { duration: 90 }
+            NumberAnimation {
+                duration: 90
+            }
         }
     }
 
@@ -99,13 +101,13 @@ Item {
             return root.measureFromRight ? root.parent.width - x : x
         }
 
-        onPressed: function(mouse) {
+        onPressed: function (mouse) {
             root.forceActiveFocus()
             grabOffset = pointerWidth(mouse) - root.currentWidth
             root.dragging = true
         }
 
-        onPositionChanged: function(mouse) {
+        onPositionChanged: function (mouse) {
             if (root.dragging) {
                 root.request(pointerWidth(mouse) - grabOffset)
             }

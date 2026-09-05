@@ -1,11 +1,8 @@
 name: Engine security baseline
 
-# `security/baseline.json` names the QtWebEngine a supported Omaweb build runs
-# on and the Chromium release whose security fixes it carries. Both go stale on
-# someone else's schedule, and nothing in this repository changes when they do.
-# This looks weekly and leaves one issue behind. It never raises the baseline:
-# reading a Qt release's security notes and qualifying a build is a human's
-# work, and the seven-day response in SECURITY.md starts from this issue.
+# Check weekly because Qt and Chromium releases do not change this repository.
+# Keep one issue open while the approved engine baseline is outdated. Updating
+# the baseline still requires release-note review and a qualified build.
 on:
   schedule:
     - cron: "0 6 * * 2"
@@ -22,8 +19,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Compare the approved baseline against upstream
-        # `tee` would otherwise report the step's status, so a check that gave
-        # up on a fetch would pass as green.
+        # Preserve the check's exit status through the `tee` pipeline.
         shell: bash
         run: |
           echo '### Engine security baseline' >> "$GITHUB_STEP_SUMMARY"

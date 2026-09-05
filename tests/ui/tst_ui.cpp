@@ -40,7 +40,7 @@ QUrl writeFavicon(const QString &path, const QColor &mark)
     painter.setBrush(mark);
     painter.drawRect(6, 6, 20, 20);
     painter.end();
-    return icon.save(path) ? QUrl::fromLocalFile(path) : QUrl{};
+    return icon.save(path) ? QUrl::fromLocalFile(path) : QUrl {};
 }
 
 } // namespace
@@ -62,10 +62,8 @@ public slots:
         omaweb::registerSystemNotifier();
         omaweb::registerProcessResources();
         omaweb::registerSavedDownload();
-        // The lab links no engine, so there is no sandbox of its own to verify
-        // and no engine version to hold against the baseline.
         m_runtimeSecurity = std::make_unique<omaweb::RuntimeSecurity>(
-            omaweb::SandboxHost{}, omaweb::RuntimeSecurity::EngineBuild{});
+            omaweb::SandboxHost {}, omaweb::RuntimeSecurity::EngineBuild {});
         omaweb::registerRuntimeSecurity(m_runtimeSecurity.get());
         m_dataRoot = std::make_unique<QTemporaryDir>();
         m_browser = std::make_unique<omaweb::BrowserController>(
@@ -73,8 +71,7 @@ public slots:
         m_contentBlocker = std::make_unique<omaweb::ContentBlocker>(m_dataRoot->path());
         const auto keybindingsPath = m_dataRoot->filePath(QStringLiteral("keybindings.json"));
         QFile::copy(QStringLiteral(OMAWEB_DEFAULT_KEYBINDINGS_PATH), keybindingsPath);
-        QFile::setPermissions(keybindingsPath,
-            QFileDevice::ReadOwner | QFileDevice::WriteOwner);
+        QFile::setPermissions(keybindingsPath, QFileDevice::ReadOwner | QFileDevice::WriteOwner);
         m_keyboardNavigation = std::make_unique<omaweb::KeyboardNavigation>(keybindingsPath);
         m_theme = std::make_unique<omaweb::ThemeController>(QStringLiteral(OMAWEB_THEME_PATH));
         m_windowManager = std::make_unique<omaweb::WindowManager>(QStringLiteral("mock"));
@@ -89,8 +86,6 @@ public slots:
         // Site information reads the gap off the adapter's capabilities.
         engine->rootContext()->setContextProperty(
             QStringLiteral("engineCookiePolicy"), QVariant::fromValue<QObject *>(nullptr));
-        // Nor is there an engine request to hold a download away from: the mock
-        // profile keeps its held downloads itself.
         engine->rootContext()->setContextProperty(
             QStringLiteral("engineHeldDownloads"), QVariant::fromValue<QObject *>(nullptr));
         engine->rootContext()->setContextProperty(QStringLiteral("theme"), m_theme.get());
@@ -105,10 +100,10 @@ public slots:
         // The mock engine reports no icon of its own here; the tests that care
         // about artwork set one themselves.
         engine->rootContext()->setContextProperty(
-            QStringLiteral("mockFaviconUrls"), QVariantList{});
+            QStringLiteral("mockFaviconUrls"), QVariantList {});
         engine->rootContext()->setContextProperty(QStringLiteral("colouredFaviconUrl"),
-            writeFavicon(m_dataRoot->filePath(QStringLiteral("coloured.png")),
-                QColor(0x2f, 0x5c, 0xe6)));
+            writeFavicon(
+                m_dataRoot->filePath(QStringLiteral("coloured.png")), QColor(0x2f, 0x5c, 0xe6)));
         engine->rootContext()->setContextProperty(QStringLiteral("colourlessFaviconUrl"),
             writeFavicon(m_dataRoot->filePath(QStringLiteral("colourless.png")), Qt::white));
         // The shim picks the Qt Quick Controls style the vendored kit needs; a

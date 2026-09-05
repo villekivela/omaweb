@@ -48,14 +48,14 @@ public:
     // built into the binary, so this answers without a compiled rule set.
     static Substitute substitute(const QString &name);
 
-    RequestDecision check(const QUrl &requestUrl, const QUrl &sourceUrl,
-        const QString &resourceType) const;
+    RequestDecision check(
+        const QUrl &requestUrl, const QUrl &sourceUrl, const QString &resourceType) const;
     bool shouldBlockPopup(const QUrl &requestUrl, const QUrl &openerUrl) const;
     QString cosmeticStyleSheet(const QUrl &url) const;
     QString scriptletSource(const QUrl &url) const;
     bool cosmeticSurveyWanted(const QUrl &url) const;
-    QString genericCosmeticStyleSheet(const QUrl &url, const QStringList &classes,
-        const QStringList &ids) const;
+    QString genericCosmeticStyleSheet(
+        const QUrl &url, const QStringList &classes, const QStringList &ids) const;
 
 private:
     class Private;

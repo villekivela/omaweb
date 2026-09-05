@@ -17,21 +17,14 @@ namespace omaweb::quickshell {
 // then indistinguishable from one that never arrived, so the shim says.
 Q_LOGGING_CATEGORY(fileViewLog, "omaweb.quickshell.fileview")
 
-
 StdioCollector::StdioCollector(QObject *parent)
     : QObject(parent)
 {
 }
 
-QString StdioCollector::text() const
-{
-    return m_text;
-}
+QString StdioCollector::text() const { return m_text; }
 
-bool StdioCollector::waitForEnd() const
-{
-    return m_waitForEnd;
-}
+bool StdioCollector::waitForEnd() const { return m_waitForEnd; }
 
 void StdioCollector::setWaitForEnd(bool waitForEnd)
 {
@@ -60,10 +53,7 @@ void StdioCollector::append(const QByteArray &data)
     emit textChanged();
 }
 
-void StdioCollector::finish()
-{
-    emit streamFinished();
-}
+void StdioCollector::finish() { emit streamFinished(); }
 
 Process::Process(QObject *parent)
     : QObject(parent)
@@ -94,10 +84,7 @@ Process::~Process()
     }
 }
 
-QStringList Process::command() const
-{
-    return m_command;
-}
+QStringList Process::command() const { return m_command; }
 
 void Process::setCommand(const QStringList &command)
 {
@@ -108,10 +95,7 @@ void Process::setCommand(const QStringList &command)
     emit commandChanged();
 }
 
-bool Process::isRunning() const
-{
-    return m_running;
-}
+bool Process::isRunning() const { return m_running; }
 
 void Process::setRunning(bool running)
 {
@@ -127,10 +111,7 @@ void Process::setRunning(bool running)
     emit runningChanged();
 }
 
-StdioCollector *Process::standardOutput() const
-{
-    return m_standardOutput;
-}
+StdioCollector *Process::standardOutput() const { return m_standardOutput; }
 
 void Process::setStandardOutput(StdioCollector *collector)
 {
@@ -172,10 +153,7 @@ FileView::FileView(QObject *parent)
 {
 }
 
-QString FileView::path() const
-{
-    return m_path;
-}
+QString FileView::path() const { return m_path; }
 
 void FileView::setPath(const QString &path)
 {
@@ -190,10 +168,7 @@ void FileView::setPath(const QString &path)
     QMetaObject::invokeMethod(this, &FileView::reload, Qt::QueuedConnection);
 }
 
-bool FileView::watchChanges() const
-{
-    return m_watchChanges;
-}
+bool FileView::watchChanges() const { return m_watchChanges; }
 
 void FileView::setWatchChanges(bool watchChanges)
 {
@@ -205,10 +180,7 @@ void FileView::setWatchChanges(bool watchChanges)
     refreshWatch();
 }
 
-bool FileView::printErrors() const
-{
-    return m_printErrors;
-}
+bool FileView::printErrors() const { return m_printErrors; }
 
 void FileView::setPrintErrors(bool printErrors)
 {
@@ -219,10 +191,7 @@ void FileView::setPrintErrors(bool printErrors)
     emit printErrorsChanged();
 }
 
-QString FileView::text() const
-{
-    return m_text;
-}
+QString FileView::text() const { return m_text; }
 
 void FileView::reload()
 {

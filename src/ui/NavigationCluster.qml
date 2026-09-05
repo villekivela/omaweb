@@ -17,11 +17,11 @@ Rectangle {
 
     readonly property bool blurActive: backdropSource !== null && backdropSource.visible
 
-    signal backRequested()
-    signal forwardRequested()
-    signal reloadRequested()
-    signal sidebarToggled()
-    signal commandPanelRequested()
+    signal backRequested
+    signal forwardRequested
+    signal reloadRequested
+    signal sidebarToggled
+    signal commandPanelRequested
 
     width: row.implicitWidth + 16
     height: 34
@@ -32,7 +32,9 @@ Rectangle {
     border.width: 1
     border.color: colors.border
 
-    HoverHandler { id: hover }
+    HoverHandler {
+        id: hover
+    }
 
     ShaderEffectSource {
         id: backdropTexture
@@ -44,13 +46,13 @@ Rectangle {
         // Only the slice of the page the strip covers, in the source's
         // coordinates. The strip is a sibling of the source, so its own
         // position is that mapping.
-        sourceRect: root.blurActive
-            ? Qt.rect(root.x, root.y, root.width, root.height)
-            : Qt.rect(0, 0, 0, 0)
+        sourceRect: root.blurActive ? Qt.rect(root.x, root.y, root.width, root.height) : Qt.rect(0, 0,
+                                                                                                 0, 0)
         width: Math.max(1, root.width)
         height: Math.max(1, root.height)
-        textureSize: Qt.size(Math.max(1, Math.round(root.width / 2)),
-                             Math.max(1, Math.round(root.height / 2)))
+        textureSize: Qt.size(Math.max(1, Math.round(root.width / 2)), Math.max(1, Math.round(
+                                                                                   root.height
+                                                                                   / 2)))
     }
 
     MultiEffect {
@@ -97,7 +99,9 @@ Rectangle {
         opacity: hover.hovered || row.activeFocus ? 1 : 0.55
 
         Behavior on opacity {
-            NumberAnimation { duration: 130 }
+            NumberAnimation {
+                duration: 130
+            }
         }
 
         ChromeButton {

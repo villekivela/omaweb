@@ -17,8 +17,8 @@ class KeyboardNavigation final : public QObject {
 
 public:
     explicit KeyboardNavigation(QString configurationPath, QObject *parent = nullptr);
-    KeyboardNavigation(QString configurationPath, QString pageScriptPath,
-        QObject *parent = nullptr);
+    KeyboardNavigation(
+        QString configurationPath, QString pageScriptPath, QObject *parent = nullptr);
 
     bool enabled() const;
     bool valid() const;

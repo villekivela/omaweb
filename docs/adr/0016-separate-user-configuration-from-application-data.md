@@ -1,7 +1,24 @@
 # Separate user configuration from application data
 
-Omaweb keeps user-editable configuration in a configuration directory, `$XDG_CONFIG_HOME/omaweb` or `~/.config/omaweb` when that variable is unset, and keeps browsing data, engine profiles, caches, and blocklists in the application data directory. Keybindings and an optional theme palette live in the configuration directory on both macOS and Linux, so the path a user edits matches every other developer tool rather than a platform-specific application-support location. `OMAWEB_CONFIG_ROOT` relocates the directory. A keybindings file left by an earlier version under the application data directory moves to the new location on first launch, so edited bindings survive the change.
+Omaweb keeps user-editable configuration in a configuration directory, `$XDG_CONFIG_HOME/omaweb` or
+`~/.config/omaweb` when that variable is unset, and keeps browsing data, engine profiles, caches,
+and blocklists in the application data directory. Keybindings and an optional theme palette live in
+the configuration directory on both macOS and Linux, so the path a user edits matches every other
+developer tool rather than a platform-specific application-support location. `OMAWEB_CONFIG_ROOT`
+relocates the directory. A keybindings file left by an earlier version under the application data
+directory moves to the new location on first launch, so edited bindings survive the change.
 
-Omaweb resolves the theme palette in a fixed order: the `OMAWEB_THEME_FILE` override, then `theme.json` in the configuration directory, then a desktop-rendered theme, then the built-in palette. A hand-written theme outranks a desktop theme manager because it is the more explicit statement of intent. The order is resolved continuously rather than once at startup: every candidate is watched, and a higher-ranked file that appears while Omaweb is running takes over without a restart. That is what lets a desktop theme rendered moments after launch reach the browser on the first start of a new install. An explicit `OMAWEB_THEME_FILE` is the exception — it names one file and nothing overtakes it.
+Omaweb resolves the theme palette in a fixed order: the `OMAWEB_THEME_FILE` override, then
+`theme.json` in the configuration directory, then a desktop-rendered theme, then the built-in
+palette. A hand-written theme outranks a desktop theme manager because it is the more explicit
+statement of intent. The order is resolved continuously rather than once at startup: every candidate
+is watched, and a higher-ranked file that appears while Omaweb is running takes over without a
+restart. That is what lets a desktop theme rendered moments after launch reach the browser on the
+first start of a new install. An explicit `OMAWEB_THEME_FILE` is the exception — it names one file
+and nothing overtakes it.
 
-That order makes a generated theme dangerous on a desktop that themes Omaweb already: importing one would silently stop Omarchy theme switching from reaching Omaweb, and nothing on screen would explain why the palette had stopped following the desktop. The terminal theme importer therefore refuses to write into the configuration directory while an Omarchy-rendered theme is present, rather than the lookup order making an exception for it.
+That order makes a generated theme dangerous on a desktop that themes Omaweb already: importing one
+would silently stop Omarchy theme switching from reaching Omaweb, and nothing on screen would
+explain why the palette had stopped following the desktop. The terminal theme importer therefore
+refuses to write into the configuration directory while an Omarchy-rendered theme is present, rather
+than the lookup order making an exception for it.

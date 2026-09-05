@@ -13,35 +13,39 @@ Item {
     readonly property bool asksForText: kind === "javascript-prompt"
     readonly property bool asksForCredentials: kind === "http-authentication"
     readonly property bool canStop: kind.startsWith("javascript-")
-    readonly property bool canRemember: kind === "external-protocol"
-        && prompt.rememberable !== false
+    readonly property bool canRemember: kind === "external-protocol" && prompt.rememberable
+                                        !== false
 
-    signal answered(bool accepted, string text, string user, string password,
-        bool stopPrompts, bool remember)
+    signal answered(bool accepted, string text, string user, string password, bool stopPrompts,
+                    bool remember)
 
     visible: open
     focus: open
 
     onOpenChanged: {
-        if (!open) return
+        if (!open)
+            return
         answer.text = String(prompt.defaultText || "")
         user.text = ""
         password.text = ""
         stopPrompts.checked = false
         remember.checked = false
-        Qt.callLater(function() {
-            if (root.asksForCredentials) user.forceActiveFocus()
-            else if (root.asksForText) answer.forceActiveFocus()
-            else root.forceActiveFocus()
+        Qt.callLater(function () {
+            if (root.asksForCredentials)
+                user.forceActiveFocus()
+            else if (root.asksForText)
+                answer.forceActiveFocus()
+            else
+                root.forceActiveFocus()
         })
     }
 
     function submit(accepted) {
-        root.answered(accepted, answer.text, user.text, password.text,
-            stopPrompts.checked, remember.checked)
+        root.answered(accepted, answer.text, user.text, password.text, stopPrompts.checked,
+                      remember.checked)
     }
 
-    Keys.onPressed: function(event) {
+    Keys.onPressed: function (event) {
         if (event.key === Qt.Key_Escape) {
             root.submit(false)
             event.accepted = true
@@ -140,8 +144,9 @@ Item {
 
                 ActionButton {
                     colors: root.colors
-                    label: root.kind === "external-protocol" ? "Open"
-                        : (root.kind === "http-authentication" ? "Sign in" : "OK")
+                    label: root.kind === "external-protocol" ? "Open" : (root.kind
+                                                                         === "http-authentication"
+                                                                         ? "Sign in" : "OK")
                     primary: true
                     onClicked: root.submit(true)
                 }

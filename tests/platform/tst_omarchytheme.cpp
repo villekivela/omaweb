@@ -41,10 +41,7 @@ OmarchyThemePaths omarchyIn(const QTemporaryDir &home)
     return paths;
 }
 
-QString shippedTemplate()
-{
-    return QStringLiteral(OMAWEB_OMARCHY_TEMPLATE_PATH);
-}
+QString shippedTemplate() { return QStringLiteral(OMAWEB_OMARCHY_TEMPLATE_PATH); }
 
 } // namespace
 
@@ -68,10 +65,7 @@ private:
     QByteArray m_path;
 };
 
-void OmarchyThemeTest::init()
-{
-    m_path = qgetenv("PATH");
-}
+void OmarchyThemeTest::init() { m_path = qgetenv("PATH"); }
 
 void OmarchyThemeTest::cleanup()
 {
@@ -112,8 +106,9 @@ void OmarchyThemeTest::keepsATemplateSomeoneElseWrote()
 
     // Left in place *and* said out loud: a reader chasing a colour the shipped
     // template names has no other way to learn theirs is the one being used.
-    QTest::ignoreMessage(QtInfoMsg, QRegularExpression(
-        QStringLiteral("^Omaweb kept the Omarchy theme template already at .*, which differs")));
+    QTest::ignoreMessage(QtInfoMsg,
+        QRegularExpression(QStringLiteral(
+            "^Omaweb kept the Omarchy theme template already at .*, which differs")));
     QCOMPARE(followOmarchyTheme(paths, shippedTemplate()), OmarchyTemplateOutcome::Kept);
     QCOMPARE(contentsOf(paths.userTemplate()), mine);
 }
@@ -152,13 +147,15 @@ void OmarchyThemeTest::asksOmarchyToRenderTheActiveTheme()
     QTemporaryDir home;
     const auto paths = omarchyIn(home);
     const auto binary = home.filePath(QStringLiteral("bin/omarchy"));
-    write(binary, QByteArray("#!/bin/sh\n"
-                             "[ \"$2\" = current ] && { echo matte-black; exit 0; }\n"
-                             "printf '{\"window\": \"#101010\"}' > \"$OMARCHY_RENDERED\"\n"));
-    QVERIFY(QFile::setPermissions(binary,
-        QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ExeOwner));
-    qputenv("PATH", (QFileInfo(binary).absolutePath() + QStringLiteral(":")
-        + QString::fromLocal8Bit(m_path)).toLocal8Bit());
+    write(binary,
+        QByteArray("#!/bin/sh\n"
+                   "[ \"$2\" = current ] && { echo matte-black; exit 0; }\n"
+                   "printf '{\"window\": \"#101010\"}' > \"$OMARCHY_RENDERED\"\n"));
+    QVERIFY(QFile::setPermissions(
+        binary, QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ExeOwner));
+    qputenv("PATH",
+        (QFileInfo(binary).absolutePath() + QStringLiteral(":") + QString::fromLocal8Bit(m_path))
+            .toLocal8Bit());
     qputenv("OMARCHY_RENDERED", paths.renderedTheme().toLocal8Bit());
 
     QCOMPARE(followOmarchyTheme(paths, shippedTemplate()), OmarchyTemplateOutcome::Installed);
@@ -178,10 +175,11 @@ void OmarchyThemeTest::leavesAnAlreadyRenderedThemeAlone()
     const auto asked = home.filePath(QStringLiteral("asked"));
     const auto binary = home.filePath(QStringLiteral("bin/omarchy"));
     write(binary, QByteArray("#!/bin/sh\ntouch \"$OMARCHY_ASKED\"\n"));
-    QVERIFY(QFile::setPermissions(binary,
-        QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ExeOwner));
-    qputenv("PATH", (QFileInfo(binary).absolutePath() + QStringLiteral(":")
-        + QString::fromLocal8Bit(m_path)).toLocal8Bit());
+    QVERIFY(QFile::setPermissions(
+        binary, QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ExeOwner));
+    qputenv("PATH",
+        (QFileInfo(binary).absolutePath() + QStringLiteral(":") + QString::fromLocal8Bit(m_path))
+            .toLocal8Bit());
     qputenv("OMARCHY_ASKED", asked.toLocal8Bit());
 
     QCOMPARE(followOmarchyTheme(paths, shippedTemplate()), OmarchyTemplateOutcome::Kept);
@@ -200,13 +198,15 @@ void OmarchyThemeTest::rendersAgainForATemplateJustInstalled()
     const auto paths = omarchyIn(home);
     write(paths.renderedTheme(), QByteArray(R"({"window": "#101010"})"));
     const auto binary = home.filePath(QStringLiteral("bin/omarchy"));
-    write(binary, QByteArray("#!/bin/sh\n"
-                             "[ \"$2\" = current ] && { echo matte-black; exit 0; }\n"
-                             "printf '{\"window\": \"#202020\"}' > \"$OMARCHY_RENDERED\"\n"));
-    QVERIFY(QFile::setPermissions(binary,
-        QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ExeOwner));
-    qputenv("PATH", (QFileInfo(binary).absolutePath() + QStringLiteral(":")
-        + QString::fromLocal8Bit(m_path)).toLocal8Bit());
+    write(binary,
+        QByteArray("#!/bin/sh\n"
+                   "[ \"$2\" = current ] && { echo matte-black; exit 0; }\n"
+                   "printf '{\"window\": \"#202020\"}' > \"$OMARCHY_RENDERED\"\n"));
+    QVERIFY(QFile::setPermissions(
+        binary, QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ExeOwner));
+    qputenv("PATH",
+        (QFileInfo(binary).absolutePath() + QStringLiteral(":") + QString::fromLocal8Bit(m_path))
+            .toLocal8Bit());
     qputenv("OMARCHY_RENDERED", paths.renderedTheme().toLocal8Bit());
 
     QCOMPARE(followOmarchyTheme(paths, shippedTemplate()), OmarchyTemplateOutcome::Installed);

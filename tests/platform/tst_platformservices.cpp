@@ -56,9 +56,6 @@ void PlatformServicesTest::refusesToPresentWithoutANotificationService()
     notifier.withdraw(QStringLiteral("space:1"));
 }
 
-// Whatever opens the file later — an archive manager, a file manager, the
-// reader's own scanner — reads the origin from the file itself, so it is
-// written where those tools already look.
 void PlatformServicesTest::marksAFinishedDownloadWithWhereItCameFrom()
 {
     QTemporaryDir directory;
@@ -92,8 +89,6 @@ void PlatformServicesTest::marksAFinishedDownloadWithWhereItCameFrom()
     QCOMPARE(attribute("user.xdg.referrer.url"), "https://files.example/downloads");
 }
 
-// A browser writes documents. Nothing it downloads is left in a state where the
-// desktop will run it on a double-click, whatever the server called it.
 void PlatformServicesTest::takesTheExecuteBitsOffEveryDownload()
 {
     QTemporaryDir directory;
@@ -113,7 +108,6 @@ void PlatformServicesTest::takesTheExecuteBitsOffEveryDownload()
     QVERIFY(!permissions.testFlag(QFileDevice::ExeOwner));
     QVERIFY(!permissions.testFlag(QFileDevice::ExeGroup));
     QVERIFY(!permissions.testFlag(QFileDevice::ExeOther));
-    // What the reader can still do with it is untouched.
     QVERIFY(permissions.testFlag(QFileDevice::ReadOwner));
     QVERIFY(permissions.testFlag(QFileDevice::WriteOwner));
 }
@@ -126,8 +120,6 @@ void PlatformServicesTest::refusesToTouchWhatIsNotAFinishedDownload()
     const auto missing = QDir(directory.path()).filePath(QStringLiteral("nothing.zip"));
     QVERIFY(!saved.quarantine(missing, QUrl(QStringLiteral("https://files.example/x")), {}));
     QVERIFY(!saved.quarantine(QString(), {}, {}));
-    // A directory is not a download, and showing the reader one they did not
-    // download would be showing them something they did not ask about.
     QVERIFY(!saved.quarantine(directory.path(), {}, {}));
     QVERIFY(!saved.reveal(missing));
     QVERIFY(!saved.reveal(QString()));

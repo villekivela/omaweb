@@ -28,8 +28,8 @@ public:
     // gives, so a purpose outside this list is refused.
     static bool namedPurpose(const QString &purpose);
 
-    bool allowThirdPartyCookies(const QString &spaceId, const QString &origin,
-        const QString &purpose);
+    bool allowThirdPartyCookies(
+        const QString &spaceId, const QString &origin, const QString &purpose);
     bool revokeThirdPartyCookies(const QString &spaceId, const QString &origin);
     bool thirdPartyCookiesAllowed(const QString &spaceId, const QString &origin) const;
     // Origin and purpose, in origin order, for Site information to list.

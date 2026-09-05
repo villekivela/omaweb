@@ -31,15 +31,15 @@ QtObject {
     // from here, because Omaweb's theme owns it and writes it straight back.
     function useTypeTokens(scale) {
         Style.fontOverrides = ({
-            "caption": Math.round(10 * scale),
-            "body-small": Math.round(11 * scale),
-            "body": Math.round(12 * scale),
-            "subtitle": Math.round(13 * scale),
-            "title": Math.round(14 * scale),
-            "heading": Math.round(16 * scale),
-            "display": Math.round(24 * scale),
-            "display-large": Math.round(28 * scale)
-        })
+                                   "caption": Math.round(10 * scale),
+                                   "body-small": Math.round(11 * scale),
+                                   "body": Math.round(12 * scale),
+                                   "subtitle": Math.round(13 * scale),
+                                   "title": Math.round(14 * scale),
+                                   "heading": Math.round(16 * scale),
+                                   "display": Math.round(24 * scale),
+                                   "display-large": Math.round(28 * scale)
+                               })
     }
 
     // The rhythm the theme sets, which is the other half of the same question:
