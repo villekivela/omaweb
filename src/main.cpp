@@ -1,5 +1,6 @@
 #include "BrowserController.h"
 #include "ContentBlocker.h"
+#include "DefaultBrowser.h"
 #include "DevelopmentLaunch.h"
 #include "ExternalProtocolHandler.h"
 #include "FaviconTint.h"
@@ -206,6 +207,7 @@ int main(int argc, char *argv[])
         QStringLiteral("qt"), configRoot(), launch.privateWindowsAvailable);
 
     omaweb::registerFaviconTint();
+    omaweb::registerDefaultBrowser();
     omaweb::registerSystemClipboard();
     omaweb::registerExternalProtocolHandler();
     omaweb::registerPagePrinter();

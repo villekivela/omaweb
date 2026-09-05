@@ -145,6 +145,13 @@ Addresses from outside the browser are read strictly and only `http`, `https` an
 A desktop passes on whatever it was given, so a scheme that would run in a page is refused rather
 than resolved.
 
+Being the default browser is the desktop's setting, so Settings reads it and offers to change it,
+under About. Omaweb never takes it because it happened to start: the reader is the only one who
+knows what they were using before. `xdg-settings` is what the offer goes through, rather than
+`mimeapps.list` being edited here, because that file is only where most desktops keep the answer and
+a browser editing a shared file would have to understand everything else in it. A desktop without
+that tool is offered nothing rather than offered something that fails.
+
 ## Security rules
 
 Never use Chromium's `--no-sandbox`, `--single-process`, in-process network-service flags, or

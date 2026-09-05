@@ -229,6 +229,8 @@ if(OMAWEB_BUILD_BROWSER)
 endif()
 
 add_library(omaweb-platform STATIC
+    src/platform/DefaultBrowser.cpp
+    src/platform/DefaultBrowser.h
     src/platform/ExternalProtocolHandler.cpp
     src/platform/ExternalProtocolHandler.h
     src/platform/OmarchyTheme.cpp
@@ -278,6 +280,7 @@ if(APPLE)
     )
 else()
     target_sources(omaweb-platform PRIVATE
+        src/platform/LinuxDefaultBrowser.cpp
         src/platform/LinuxPagePrinter.cpp
         src/platform/LinuxRunningBrowser.cpp
         src/platform/LinuxSystemNotifier.cpp
