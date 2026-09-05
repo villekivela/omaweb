@@ -90,17 +90,23 @@ the Rust wrapper, its manifest, or its lockfile.
 
 ### Platform gaps on Linux
 
-`omaweb-platform` supplies the window-system services the browser cannot supply itself, and three of
-them are still macOS-only: the native blur backdrop `installWindowChrome` installs, the print
-dialog, and the notification service. They arrive with the Wayland port
-([#8](https://github.com/villekivela/omaweb/issues/8)). Until then the Linux implementations report
-their capability off, the commands are listed and unavailable, and a page asking to notify is told
-its notification closed rather than left waiting.
+`omaweb-platform` supplies the window-system services the browser cannot supply itself, and two of
+them are still macOS-only: the print dialog and the notification service. They arrive with the
+Wayland port ([#8](https://github.com/villekivela/omaweb/issues/8)). Until then the Linux
+implementations report their capability off, the commands are listed and unavailable, and a page
+asking to notify is told its notification closed rather than left waiting.
 
-The frameless window itself is not among them. `Main.qml` asks for `Qt.FramelessWindowHint` off
-macOS, so a Main or Private window is already frameless under Hyprland, and the transparent surfaces
-fall back to alpha over the desktop as ADR 0002 describes. What Linux lacks is the blur behind them,
-so review a blur change on macOS.
+Two things that look like gaps are not. The frameless window is one: `Main.qml` asks for
+`Qt.FramelessWindowHint` off macOS, so a Main or Private window is already frameless under Hyprland.
+
+The blur behind a transparent surface is the other, and `installWindowChrome` is empty on Linux
+because there is nothing for it to do. Hyprland implements no client-side blur protocol, so a client
+cannot ask for blur; the compositor blurs the desktop behind a surface's translucent pixels
+according to its own `decoration:blur` setting. Omarchy ships that setting off, so a stock desktop
+shows the wallpaper sharp through Omaweb's surfaces, which is the desktop's decision rather than a
+missing implementation. `integrations/omarchy/README.md` has the rule that turns it on. macOS is the
+platform where blur is the application's to install, so an `installWindowChrome` change is reviewed
+there.
 
 ## Security rules
 
