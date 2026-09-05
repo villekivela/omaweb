@@ -7,9 +7,10 @@ platform integration the Wayland port carries, and a package to install it with.
 [#8](https://github.com/villekivela/omaweb/issues/8) is the only gate left before daily-driver
 status.
 
-Three parts of the contract are satisfied on macOS alone, and the Wayland port is what supplies them
-on Linux: the frameless window chrome and its blur, printing, and native notifications. Until then
-the Linux platform layer reports those capabilities off and the commands say so.
+The frameless window is Qt window flags rather than platform code, so it already works on Wayland.
+Three services in `omaweb-platform` are macOS-only, and the Wayland port is what supplies them on
+Linux: the native blur backdrop, the print dialog, and the notification service. Until then the
+Linux platform layer reports those capabilities off and the commands say so.
 
 ## Remaining
 
@@ -18,7 +19,7 @@ the Linux platform layer reports those capabilities off and the commands say so.
 Tracking issue: [#8](https://github.com/villekivela/omaweb/issues/8)
 
 - Validate the completed browser contract under native Wayland on Omarchy and Hyprland
-- Supply the Linux window chrome, printing, and notifications the platform layer still reports
+- Supply the Linux blur backdrop, printing, and notifications the platform layer still reports
   unavailable
 - Add compositor-specific blur with transparent and opaque fallbacks
 - Ship an Arch `PKGBUILD` using system Qt packages

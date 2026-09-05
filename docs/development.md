@@ -91,12 +91,16 @@ the Rust wrapper, its manifest, or its lockfile.
 ### Platform gaps on Linux
 
 `omaweb-platform` supplies the window-system services the browser cannot supply itself, and three of
-them are still macOS-only: the frameless window chrome and its blur, the print dialog, and the
-notification service. They arrive with the Wayland port
+them are still macOS-only: the native blur backdrop `installWindowChrome` installs, the print
+dialog, and the notification service. They arrive with the Wayland port
 ([#8](https://github.com/villekivela/omaweb/issues/8)). Until then the Linux implementations report
 their capability off, the commands are listed and unavailable, and a page asking to notify is told
-its notification closed rather than left waiting. A Linux window therefore has ordinary decorations,
-so review a chrome change in the UI lab or on macOS.
+its notification closed rather than left waiting.
+
+The frameless window itself is not among them. `Main.qml` asks for `Qt.FramelessWindowHint` off
+macOS, so a Main or Private window is already frameless under Hyprland, and the transparent surfaces
+fall back to alpha over the desktop as ADR 0002 describes. What Linux lacks is the blur behind them,
+so review a blur change on macOS.
 
 ## Security rules
 
