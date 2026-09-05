@@ -578,6 +578,16 @@ if(BUILD_TESTING)
     target_link_libraries(omaweb-runtime-security-tests PRIVATE omaweb-platform Qt6::Test)
     omaweb_strict_target(omaweb-runtime-security-tests)
     add_test(NAME omaweb-runtime-security COMMAND omaweb-runtime-security-tests)
+    # The suite links the platform seams and so builds a GUI application, which
+    # takes a platform plugin before it runs a line. A build host has no window
+    # server, and one that cannot find a plugin aborts before the first test
+    # rather than failing one, so the whole file's results go missing.
+    # A desktop's own platform theme is loaded in the same breath, and the GTK
+    # one opens a display of its own whatever Qt was told to draw on, so the
+    # suite is left to Qt's built-in theme rather than the developer's.
+    set_tests_properties(omaweb-runtime-security PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QPA_PLATFORMTHEME="
+    )
 
     qt_add_executable(omaweb-omarchy-theme-tests tests/platform/tst_omarchytheme.cpp)
     target_link_libraries(omaweb-omarchy-theme-tests PRIVATE omaweb-platform Qt6::Test)
