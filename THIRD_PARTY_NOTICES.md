@@ -39,8 +39,8 @@ and `docs/adr/0026-serve-substitutes-under-an-omaweb-scheme.md`.
 Omaweb subscribes to two filter lists on a first run and fetches them from https://easylist.to/.
 Neither list ships in the repository or in a build.
 
-- EasyList — https://easylist.to/easylist/easylist.txt
-- EasyPrivacy — https://easylist.to/easylist/easyprivacy.txt
+- EasyList: https://easylist.to/easylist/easylist.txt
+- EasyPrivacy: https://easylist.to/easylist/easyprivacy.txt
 
 Both are published by the EasyList authors under the GNU General Public License version 3 or
 Creative Commons Attribution-ShareAlike 3.0 Unported, as stated at

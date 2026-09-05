@@ -29,9 +29,9 @@ theme color. Webpage viewports remain opaque, and transparent surfaces continue 
 input.
 
 Legibility is Omaweb's rather than the theme's. A palette derived from a terminal's sixteen colours
-has no colour for quiet text — Omarchy offers `dark_foreground`, which its own templates spend on
+has no colour for quiet text. Omarchy offers `dark_foreground`, which its own templates spend on
 `disabledForeground`, and for a theme naming none of the extended colours that is ANSI bright black,
-the value Omaweb also draws borders in — so a theme is free to name muted text that reads fainter
+the value Omaweb also draws borders in. So a theme is free to name muted text that reads fainter
 than the disabled rendering of ordinary text, and most do. Omaweb changes only the named colour's
 lightness until it clears 4.5:1 against every surface muted text is read on. A theme whose colour
 already reads keeps it exactly; one that names none gets the quietest tint of its own text colour
@@ -51,13 +51,13 @@ other.
 A rule drawn inside a surface is not a border around one, and the palette keeps them apart. The
 vendored kit draws a panel divider as its foreground colour at a low alpha and a control's edge as
 that same colour at a much higher one, so nothing the border role can hold reads as quietly as the
-separators in the desktop's own bar. Omaweb's hairlines are those dividers — the seam down the
-sidebar, the rule above a browsing identity, the bands across a panel — so the palette derives a
+separators in the desktop's own bar. Omaweb's hairlines are those dividers: the seam down the
+sidebar, the rule above a browsing identity, the bands across a panel. So the palette derives a
 `separator` from the theme's text colour at the kit's own strength, and the browser draws them in
 that rather than in the border colour. It is deliberately below every threshold above: a divider
 that clears 3:1 is a frame, and a browser drawn in frames is the thing this avoids. A theme that
-names `separator` itself keeps exactly what it named. Borders proper — the window's frame, a card's
-edge — keep the border role and its floor.
+names `separator` itself keeps exactly what it named. Borders proper, the window's frame and a
+card's edge, keep the border role and its floor.
 
 Some palettes make a threshold unreachable: a Private window whose sidebar is the theme's accent and
 whose background is the desktop's dark one has no colour that is 3:1 against both, and a theme is
@@ -67,14 +67,14 @@ whichever candidate reads best on the surface it reads worst on, and every other
 named stays exactly as it named it. Discarding a whole palette for one unreachable role would stop
 the browser following the desktop at all, which costs the reader far more than the role does.
 
-Every theme also defines a distinct Private-window treatment. A theme names one colour for it — the
-private accent — and Omaweb derives the grounds that colour is cast over: each private ground is the
+Every theme also defines a distinct Private-window treatment. A theme names one colour for it, the
+private accent, and Omaweb derives the grounds that colour is cast over: each private ground is the
 ordinary ground it stands in for, mixed towards the accent in OKLab by one small amount the whole
 palette shares, keeping a little more chroma than the mix gives so a muted desktop's cast does not
 wash out to the grey it was mixed from. A Private window is therefore the reader's own chrome
 recognisably tinted rather than a palette of its own, and the private grounds keep the spacing the
-theme gave the ordinary ones. Deriving each ground by mixing the window towards the accent instead —
-a ladder of its own — was tried and rejected: every ground then climbs towards the accent's
+theme gave the ordinary ones. Deriving each ground by mixing the window towards the accent instead,
+as a ladder of its own, was tried and rejected: every ground then climbs towards the accent's
 lightness rather than the theme's, and a desktop whose window is nearly black gets a browser several
 shades paler than everything around it. Neither `assets/themes/default.json` nor
 `scripts/import_terminal_theme.py` names private grounds, so this is the one place they are decided.
@@ -84,7 +84,7 @@ The difference a Private window keeps from an ordinary one is measured in OKLab,
 at the same lightness counts for what the reader sees; measured in RGB it barely counts at all near
 a desktop's black, where the only way to move far enough is to make the private chrome paler than
 the rest of the theme. The floor is deliberately low, because the ground is not the only thing
-saying which window this is — the private accent, the mask on the sidebar and the window's own title
+saying which window this is. The private accent, the mask on the sidebar and the window's own title
 say it too. The tint strengthens where a theme's private accent is so close to its window that no
 cast is visible at the shared amount. A named colour too close to its counterpart is replaced by the
 tint, and where even that cannot be told apart, by that colour taken towards black or white only as
@@ -92,7 +92,7 @@ far as it has to go: a palette with no private hue to offer still has a lightnes
 white window on a dark desktop is not the reader's theme any more.
 
 Alpha is not part of a colour a theme names. Semantic opacity is the single source of truth for how
-much of the desktop shows through a Omaweb-owned surface, and an eight-digit hex colour is read as
+much of the desktop shows through an Omaweb-owned surface, and an eight-digit hex colour is read as
 `#AARRGGBB`, so a suffix meant as alpha displaces the colour instead of fading it.
 
 System reduced-motion, increased-contrast, and reduced-transparency preferences override the active

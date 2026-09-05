@@ -51,18 +51,18 @@ reports the gap and remains experimental rather than imitating behavior it canno
   promise a key the window does not answer. That covers a Space at rest and an `about:blank` the
   reader navigated to. Standing in for a page, the Start page takes the sidebar's fill and
   translucency rather than the opaque backing a webpage needs, and no engine is spent behind it.
-- A Space at rest — one whose only ordinary tab is blank — also lists no ordinary tab row. Any other
+- A Space at rest, one whose only ordinary tab is blank, also lists no ordinary tab row. Any other
   blank tab is a tab in its own right and keeps its row, its close button, and the engine a page's
   new-window request was handed to.
 - The same sheet answers the Keyboard shortcuts command on demand, from the command panel or
   `Primary+/` and `?`. Summoned over a live page it closes with `Escape` or its close button; asking
   for it while it already stands in for the page does nothing.
-- A Omaweb surface that takes the whole page area — the Start page summoned over a page, and the
-  settings page — blurs the page beneath it rather than sealing it off, so the reader can still see
+- An Omaweb surface that takes the whole page area, the Start page summoned over a page and the
+  settings page, blurs the page beneath it rather than sealing it off, so the reader can still see
   the place they left without being asked to read a webpage through it. It takes the sidebar's
   colour but its own semantic opacity: the sidebar is read against the desktop, and a sheet is read
   against a page whose contrast is unknown, so at the sidebar's value a dark page shows through as
-  nothing. Where there is no page to blur — a Space at rest — the surface takes the sidebar's
+  nothing. Where there is no page to blur, as in a Space at rest, the surface takes the sidebar's
   translucency instead, and the window's own native backdrop blurs the desktop behind it as it does
   behind the sidebar.
 - Tabs can show site favicons or a two-character host code. The reader can turn favicons off and can
@@ -94,7 +94,7 @@ reports the gap and remains experimental rather than imitating behavior it canno
 - `Primary+K` opens the same panel in command mode: every action Omaweb can perform is
   fuzzy-searchable there, and each result shows the keys that invoke it, so the panel is also how
   the keymap is learned. An action that cannot be reached from the panel is a defect.
-- Target-specific page actions are the exception to the command-panel rule. A Omaweb-owned page
+- Target-specific page actions are the exception to the command-panel rule. An Omaweb-owned page
   context menu opens by pointer or `Shift+F10`; the command panel exposes Open page context menu,
   while actions such as copy link, save image, and Inspect element remain inside the menu because
   they require its target.
@@ -107,7 +107,7 @@ reports the gap and remains experimental rather than imitating behavior it canno
   transparent surfaces. Native blur falls back to alpha transparency and then an opaque color.
 - Quiet text is content, not decoration: a tab's title, a Space's letters, the footer's controls.
   Whatever a theme names for it, Omaweb holds it to WCAG AA against every ordinary and Private
-  surface it is drawn on, and therefore clear of the disabled rendering of ordinary text — a reader
+  surface it is drawn on, and therefore clear of the disabled rendering of ordinary text. A reader
   must never have to guess whether something is merely quiet or actually unavailable. Borders clear
   the WCAG AA non-text threshold against every surface they separate. Contrast repair keeps a
   colour's theme-supplied hue. Where a palette's own surfaces put a threshold out of reach, the
@@ -171,19 +171,19 @@ reports the gap and remains experimental rather than imitating behavior it canno
   `Primary+Alt+C` does the same from the keyboard. Private tabs may be inspected, and their
   Developer-tools storage expires with the Private session.
 - Developer tools are drawn in the active theme: the interface, its type, and the colours source,
-  markup, and stylesheets are read in. Markup structure — brackets, separators, quotes — is drawn
-  quieter than the names between it, as an editor draws them. The theme names the syntax colours;
-  the rest of the inspector follows the same palette. An inspector Omaweb cannot colour is left in
-  the engine's own palette rather than approximated.
+  markup, and stylesheets are read in. Markup structure, its brackets, separators and quotes, is
+  drawn quieter than the names between it, as an editor draws them. The theme names the syntax
+  colours; the rest of the inspector follows the same palette. An inspector Omaweb cannot colour is
+  left in the engine's own palette rather than approximated.
 - Remote debugging is available only through the explicit `--remote-debugging[=port]` launch option,
   bound to loopback. Omaweb prints its address and a warning, never enables it during an ordinary
   release session, and disables Private windows for that launch.
 
 ## Page context menu
 
-- Right-clicking a page opens a Omaweb-drawn menu in the active theme. The engine reports what was
-  under the pointer as plain values — a position, the addresses under it, the selection, whether the
-  target takes typing — and draws no menu of its own.
+- Right-clicking a page opens an Omaweb-drawn menu in the active theme. The engine reports what was
+  under the pointer as plain values, a position, the addresses under it, the selection and whether
+  the target takes typing, and draws no menu of its own.
 - The menu offers what Omaweb can do with what was pointed at: a link opens in a new or background
   tab and its address copies; an image or media address opens and copies; a selection copies.
   Navigation, the page address, and Inspect element are always listed.

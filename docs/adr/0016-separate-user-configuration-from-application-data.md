@@ -14,7 +14,7 @@ palette. A hand-written theme outranks a desktop theme manager because it is the
 statement of intent. The order is resolved continuously rather than once at startup: every candidate
 is watched, and a higher-ranked file that appears while Omaweb is running takes over without a
 restart. That is what lets a desktop theme rendered moments after launch reach the browser on the
-first start of a new install. An explicit `OMAWEB_THEME_FILE` is the exception — it names one file
+first start of a new install. An explicit `OMAWEB_THEME_FILE` is the exception: it names one file
 and nothing overtakes it.
 
 That order makes a generated theme dangerous on a desktop that themes Omaweb already: importing one

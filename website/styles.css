@@ -80,7 +80,7 @@ body {
   --urgent: #f7768e;
   --muted: #9aa5ce;
 
-  /* State tokens — kit alphas exactly, including the hover border
+  /* State tokens. Kit alphas exactly, including the hover border
      dropping BELOW normal (0.25 vs 0.40). */
   --fill-normal: color-mix(in srgb, var(--fg) 4%, transparent);
   --fill-hover: color-mix(in srgb, var(--fg) 8%, transparent);
@@ -174,7 +174,7 @@ img {
 /* ===================================================================
    THEMES
    The page and the product UI are drawn from the same palette tokens,
-   so picking a theme restyles both at once — which is what
+   so picking a theme restyles both at once, which is what
    `omarchy theme set` does to the real browser.
    These approximate the palettes Omarchy ships. When a theme changes
    upstream, regenerate the values here from its own colors.toml.

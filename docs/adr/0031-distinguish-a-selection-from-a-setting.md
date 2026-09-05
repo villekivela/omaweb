@@ -4,18 +4,17 @@ The settings page used one control, `SettingToggle`, for three different contrac
 eleven call sites were settings: flipping "Use site favicons" changes the browser now and it stays.
 Five were not. Privacy's Cookies, Site storage, Cache, Site permissions and History built an array
 that only the _Clear this Space_ button read, so flipping one changed nothing at all until a
-different control was pressed. "Every Space" was a third meaning again — action scope, quietly
-gating a confirmation field, relabelling the button and widening what the action destroyed. The
-adapter already half-admitted it: `SettingToggle.qml` declared
-`Accessible.role: Accessible.CheckBox` on a control drawn as a switch, and it was the only
-`Accessible.CheckBox` in `src/`.
+different control was pressed. "Every Space" was a third meaning again: action scope, quietly gating
+a confirmation field, relabelling the button and widening what the action destroyed. The adapter
+already half-admitted it: `SettingToggle.qml` declared `Accessible.role: Accessible.CheckBox` on a
+control drawn as a switch, and it was the only `Accessible.CheckBox` in `src/`.
 
 So the interface now names four kinds and holds them apart. A **setting** is a switch: the browser
 changes now and stays changed. A **selection** is a checkbox: an argument to an action that has not
 happened yet. A **scope** is a dropdown: how far an action reaches. An **action** is a button that
 opens a dialog, and a destructive action composes its arguments inside that dialog rather than on
 the page. Persistence is orthogonal to all of this. A selection that survives a restart is still a
-selection, because nothing happens until the button is pressed — a future reader who finds a
+selection, because nothing happens until the button is pressed. A future reader who finds a
 persisted checkbox and concludes it should have been a switch would be undoing the decision, not
 tidying it.
 
@@ -33,7 +32,7 @@ That is also the stronger reading of the claim `CommandDialog.qml` already makes
 question about the browser itself arrives in the same shape. Deleting a Space had honoured it;
 clearing browsing data had not. But `CommandDialog` is a fixed three-part shape whose body is a
 message, one optional field and an optional row list, and whose root `Keys.onPressed` owns Up, Down,
-Enter and Escape — a form of checkboxes and dropdowns cannot live inside it, because `Down` means
+Enter and Escape. A form of checkboxes and dropdowns cannot live inside it, because `Down` means
 "step the rows" to the dialog and "open the list" to a dropdown. Giving it a content slot would have
 made a component that owns those keys also host children that need them, and a second caller does
 not make that conflict better. So the grammar was moved down a level: `DialogPanel` holds the scrim,
