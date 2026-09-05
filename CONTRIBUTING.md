@@ -1,9 +1,9 @@
 # Contributing
 
-Omaweb is pre-alpha. macOS is a development platform, while Linux and Wayland are the distribution
-target and the only platform CI builds. The Ladybird build stays experimental until its embedding
-and security contracts are ready. Patches for the macOS and Linux Qt builds are the most useful
-thing to send.
+Omaweb is pre-alpha. Linux and Wayland are the distribution target and the only platform CI builds.
+macOS is a development platform whose bundles are never distributed. The Ladybird build stays
+experimental until its embedding and security contracts are ready. Patches for the Linux and macOS
+Qt builds are the most useful thing to send.
 
 ## Before you write code
 
@@ -38,11 +38,13 @@ seconds and runs a lab that can open one interface state directly:
 ```sh
 cmake --preset ui
 cmake --build --preset ui
-./build/ui/omaweb-ui-lab.app/Contents/MacOS/omaweb-ui-lab
+./build/ui/omaweb-ui-lab
 ```
 
-On Linux that binary is `./build/ui/omaweb-ui-lab`. Pass `--capture <path>` to render a frame to a
-PNG, which works headlessly and is the easiest way to show a chrome change in a pull request.
+On macOS that binary is inside the bundle, at
+`./build/ui/omaweb-ui-lab.app/Contents/MacOS/omaweb-ui-lab`. Pass `--capture <path>` to render a
+frame to a PNG, which works headlessly and is the easiest way to show a chrome change in a pull
+request.
 
 `ctest --preset dev` must pass before you open a pull request. CI then runs the `ci` preset on Arch
 Linux and builds the `release` preset to check that the embedded QML still loads. Nothing builds

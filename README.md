@@ -1,53 +1,76 @@
 # `</>` Omaweb
 
-Omaweb is a keyboard-driven web browser. It uses one ordinary window, vertical tabs, and isolated
-browsing Spaces.
+Omaweb is a keyboard-driven web browser for developers. One window, tabs down the side, Spaces that
+keep logins apart, and a palette that follows the desktop's own theme.
 
-The Qt build runs on macOS as a development build. Omaweb is distributed for Linux, with first-class
-Wayland support. Ladybird is the target engine, but it remains a separate experimental build until
-its embedding and security contracts are ready.
+Linux with first-class Wayland support is the distribution platform, and the only one CI builds. The
+Qt build also runs on macOS as a development and test platform; those bundles are never distributed.
+QtWebEngine is the development engine. Ladybird is the target engine and stays a separate
+experimental build until its embedding and security contracts are ready.
+
+Omaweb is pre-alpha. Do not put anything sensitive through it.
+
+## Status
+
+The browser contract is complete on the Qt build: Spaces, tabs, the Omnibar, Keyboard navigation,
+docked Developer tools, page commands, History and Settings, Site information, Content blocking, and
+download hardening all work.
+
+Three things are not finished:
+
+- **Linux platform integration.** Frameless window chrome, compositor blur, printing, and native
+  notifications land with the Wayland port ([#8](https://github.com/villekivela/omaweb/issues/8)).
+  On Linux today those commands are listed and report themselves unavailable rather than pretending.
+- **Linux packaging.** There is no Arch package, no default-browser registration, and no update
+  delivery yet. Tracked by [#8](https://github.com/villekivela/omaweb/issues/8) as well.
+- **The Ladybird adapter.** Tracked by [#7](https://github.com/villekivela/omaweb/issues/7).
+
+[The roadmap](docs/roadmap.md) has the ordered breakdown.
+
+## What the browser does
+
+- Spaces with separate cookies, logins, history, permissions, sessions, and tabs
+- Ordinary and Pinned tabs, Keep active for a Pinned tab, Private windows, and site-requested
+  Auxiliary windows
+- A centered Omnibar for addresses, search, tabs, Spaces, and browser commands
+- Keyboard navigation, configurable bindings, link hints, and a Start page that reads its shortcut
+  sheet from the running keymap
+- Docked Chromium DevTools, Inspect element, and loopback-only remote debugging behind an explicit
+  launch option
+- Find, per-tab zoom, normal and cache-bypassing reload, Stop loading, fullscreen, printing, and
+  inline PDF viewing
+- An Omaweb-drawn page context menu, tab-modal JavaScript and HTTP-authentication prompts, and
+  external-protocol confirmation
+- Tab reordering, duplication, bulk closing, and a per-Space stack of the 25 most recently closed
+  tabs
+- Searchable Space-local History, browsing-data controls, Site permissions, and a site-information
+  panel carrying connection state, certificate errors, and the third-party-cookie allowance
+- Downloads that ask before writing a program down, mark what they saved with where it came from,
+  strip its execute bits, and never open it, with what is still running shown in the sidebar footer
+- Content blocking with EasyList, EasyPrivacy, cosmetic rules, Scriptlets, and Substitute resources
+- Runtime themes, terminal-theme import, Omarchy theme following, Private-window styling, and an
+  engine-free UI lab
+
+Everything the browser can do is reachable from the command panel. An action that is not is a
+defect.
 
 ## Developer tools
 
-Developer tools belong to the tab being inspected. Omaweb docks the inspector provided by the
-current engine beside that tab, keeps it attached across navigation and Space switches, and hides it
-when another tab is on show. The Qt build uses Chromium DevTools and draws it in the active Omaweb
-theme. Inspect element is available from Omaweb's page menu and from the keyboard.
+Developer tools belong to the tab being inspected. Omaweb docks the inspector the current engine
+provides beside that tab, keeps it attached across navigation and Space switches, and hides it while
+another tab is on show. The Qt build docks Chromium DevTools and draws it in the active theme,
+syntax colours included. Inspect element is in the page context menu and on `Primary+Alt+C`.
 
-Omaweb does not add a diagnostics protocol, agent gateway, terminal, or source editor. Local
-addresses resolve as addresses, reload can bypass cache, page commands are keyboard-accessible, and
-the engine's real inspector is close at hand.
-
-## What works now
-
-The current Qt build includes:
-
-- A frameless macOS window with a resizable vertical sidebar
-- Spaces with separate cookies, logins, history, permissions, sessions, and tabs
-- Ordinary and Pinned tabs, Private windows, and site-requested Auxiliary windows
-- A centered Omnibar for addresses, search, tabs, Spaces, and browser commands
-- Keyboard navigation, configurable bindings, link hints, and a live shortcut sheet
-- Docked Chromium DevTools, Inspect element, and loopback-only development debugging
-- Find, per-tab zoom, normal and cache-bypassing reload, Stop loading, fullscreen, printing, and
-  inline PDF viewing
-- A Omaweb-drawn page menu with link, image, media, selection, navigation, and inspection commands
-- Session restoration, renderer recovery, searchable Space-local History, browsing-data controls,
-  and Site permissions
-- Downloads that require confirmation for programs and archives, record their source in file
-  metadata, remove execute permissions, and show active progress in the sidebar footer
-- Built-in content blocking with EasyList, EasyPrivacy, cosmetic rules, scriptlets, and substitute
-  resources
-- Runtime themes, terminal-theme import, Private-window styling, and an engine-free UI lab
-
-Omaweb is still pre-alpha. Do not use it for sensitive browsing. It does not yet have the complete
-certificate, URL-reputation, and Linux release work required for daily-driver status. Omaweb does
-not provide phishing, malware, or download-reputation verdicts.
+Omaweb adds no diagnostics protocol, agent gateway, terminal, or source editor
+([ADR 0027](docs/adr/0027-use-engine-provided-developer-tools.md)). Local addresses resolve as
+addresses rather than searches, reload can bypass cache, page commands are keyboard-accessible, and
+the engine's real inspector is a keystroke away.
 
 ## Build and run
 
-You need macOS 13 or newer with Xcode 15 or newer, or a current Linux development environment. The
-build also requires Qt 6.11 at the repository's approved patch level, CMake 3.30 or newer, Ninja,
-Clang with C++23 support, and ccache. See [the development guide](docs/development.md) for the full
+You need Qt 6.11 at or above the repository's approved patch level, CMake 3.30 or newer, Ninja,
+Clang with C++23 support, and ccache. Linux needs a current development environment; macOS needs 13
+or newer with Xcode 15 or newer. See [the development guide](docs/development.md) for the full
 setup.
 
 Build the pinned content-blocking library once before the first configure:
@@ -56,7 +79,7 @@ Build the pinned content-blocking library once before the first configure:
 scripts/bootstrap_content_blocker.sh
 ```
 
-Then configure, build, and test Omaweb:
+Then configure, build, and test:
 
 ```sh
 cmake --preset dev
@@ -64,36 +87,33 @@ cmake --build --preset dev
 ctest --preset dev
 ```
 
-Run the browser on macOS:
+Run the browser with `./build/dev/omaweb`. On macOS the binary is inside the bundle, at
+`./build/dev/omaweb.app/Contents/MacOS/omaweb`.
 
-```sh
-./build/dev/omaweb.app/Contents/MacOS/omaweb
-```
-
-On Linux, run `./build/dev/omaweb`.
-
-Development builds load QML, themes, and the icon font from the source tree. Those edits need an
-application restart but no recompile. The `asan`, `release`, `ci`, and `ladybird` presets cover
-their named builds. The Ladybird preset does not enter the default Qt build graph.
+Development builds load QML, themes, and the icon font from the source tree, so editing those needs
+an application restart but no compile. The `asan`, `release`, `ci`, and `ladybird` presets cover
+their named builds. The Ladybird preset stays outside the default Qt build graph.
 
 ### UI work without a web engine
 
-The UI lab draws the same QML against fake browser state:
+The UI lab draws the same QML against fake browser state, so QML changes do not cost a web-engine
+build:
 
 ```sh
 cmake --preset ui
 cmake --build --preset ui
-./build/ui/omaweb-ui-lab.app/Contents/MacOS/omaweb-ui-lab
+./build/ui/omaweb-ui-lab
 ```
 
-Linux uses `./build/ui/omaweb-ui-lab`. Pass `--private` to inspect the Private palette or
-`--capture <path>` to render one frame and exit. Headless capture works with
-`QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software`.
+macOS again puts the binary in a bundle. `--private` paints the window in the Private palette,
+`--show <state>` opens a state a capture cannot press a key to reach, and `--capture <path>` renders
+one frame and exits. Headless capture works under
+`QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software`, which is the easiest way to put a chrome
+change in a pull request.
 
 ## Keyboard model
 
-Every browser action is available through the command panel. `Primary` means Command on macOS and
-Control on Linux. These are the main defaults:
+`Primary` is Control on Linux and Command on macOS. The defaults:
 
 | Keys                                  | Action                                    |
 | ------------------------------------- | ----------------------------------------- |
@@ -111,11 +131,11 @@ Control on Linux. These are the main defaults:
 | `Primary+B`                           | Hide or show the sidebar                  |
 | `Primary+E`                           | Focus the sidebar                         |
 | `f`, `Shift+F`                        | Follow a link here or in a background tab |
-| `j`, `k`, `gg`, `G`                   | Scroll the page                           |
+| `j`, `k`, `d`, `u`, `gg`, `G`         | Scroll the page                           |
 | `Primary+/` or `?`                    | Show every current binding                |
 
 Single-key browser and page commands follow the Keyboard navigation setting. Editable controls still
-receive typing, and sites can keep selected conflicting keys. The complete default map is in
+receive typing, and a site can keep selected conflicting keys. The complete default map is
 [`assets/keybindings/default.json`](assets/keybindings/default.json).
 
 ## Configuration
@@ -123,74 +143,83 @@ receive typing, and sites can keep selected conflicting keys. The complete defau
 User-editable files live in `$XDG_CONFIG_HOME/omaweb`, or `~/.config/omaweb` when that variable is
 unset.
 
-- `keybindings.json` contains browser and page bindings plus per-site key passthrough rules. Omaweb
-  writes it on first launch.
-- `theme.json` can replace the built-in palette, typography, semantic opacity, and Developer-tools
-  syntax colours.
-- `search-engines.json` contains the versioned local search-engine list, its optional keywords, and
-  the default engine. Omaweb creates it with DuckDuckGo as the default and keeps remote suggestions
-  off.
+- `keybindings.json` holds browser bindings, page bindings, and per-site key passthrough rules.
+  Omaweb writes it on first launch.
+- `theme.json` replaces the built-in palette: colours, typography, semantic opacity, and
+  Developer-tools syntax colours.
+- `search-engines.json` holds the versioned local search-engine list, its optional keywords, and the
+  default engine. Omaweb creates it with DuckDuckGo as the default and keeps remote suggestions off.
 
-`OMAWEB_CONFIG_ROOT` relocates the configuration directory. `OMAWEB_KEYBINDINGS_FILE` and
-`OMAWEB_THEME_FILE` select individual files during development.
+`OMAWEB_CONFIG_ROOT` relocates the whole directory. `OMAWEB_KEYBINDINGS_FILE` and
+`OMAWEB_THEME_FILE` point at individual files during development.
 
-On Linux, Omaweb follows the Omarchy theme without being set up for it: the first start installs the
-template it ships to `~/.config/omarchy/themed/` and asks Omarchy to render the active theme through
-it. A template already there is kept. `OMAWEB_NO_OMARCHY_TEMPLATE` stops Omaweb writing into that
-directory at all — see [`integrations/omarchy/README.md`](integrations/omarchy/README.md).
+On Linux, following the desktop's theme needs no setup. The first start on a machine with Omarchy
+installs the template Omaweb ships to `~/.config/omarchy/themed/` and asks Omarchy to render the
+active theme through it, so `omarchy theme set` repaints the browser along with the bar and the
+terminal. A template already there is kept, and `OMAWEB_NO_OMARCHY_TEMPLATE` stops Omaweb writing
+into that directory at all. See [`integrations/omarchy/README.md`](integrations/omarchy/README.md).
 
-Run `scripts/import_terminal_theme.py` from Ghostty, iTerm2, kitty, Alacritty, or Terminal.app to
-derive `theme.json` from that terminal. A running Omaweb watches the file and repaints when it
-changes. Use `--print` to inspect the result without writing it.
+`scripts/import_terminal_theme.py` derives `theme.json` from the terminal it runs in. It reads
+Ghostty, iTerm2, kitty, Alacritty, and Terminal.app. A running Omaweb watches the file and repaints
+without a restart. `--print` shows the result instead of writing it.
 
 ## Project layout
 
 - `src/core` owns Spaces, tabs, sessions, commands, and persistence.
-- `src/ui` contains the shared QML chrome.
+- `src/ui` holds the shared QML chrome.
 - `src/ui-lab` runs that chrome without a web engine.
-- `src/engine` defines the engine contract and contains the Qt adapter.
+- `src/engine` defines the engine contract and holds the Qt adapter.
 - `src/content-blocking` wraps the separately built Rust matcher.
-- `src/platform` contains macOS and Linux window integration.
-- `modules` is reserved for optional first-party Account and Sync modules.
-- `docs/adr` records architectural decisions.
-- `third_party` contains pinned dependencies and their manifests.
+- `src/platform` holds macOS and Linux window-system integration.
+- `modules` is reserved for the optional Account and Sync Feature modules.
+- `third_party` holds pinned dependencies and their manifests. Both vendored trees are byte-for-byte
+  copies and `ctest` fails on any local edit.
+- `docs/adr` records architecture decisions.
 
-Start with [the architecture](docs/architecture.md),
+Read [the architecture](docs/architecture.md),
 [the product requirements](docs/product/requirements.md), and the [domain glossary](CONTEXT.md)
-before changing a browser contract.
+before changing a browser contract. The glossary is the one to read first: this project is strict
+about its nouns, and a review will be too. [CONTRIBUTING.md](CONTRIBUTING.md) covers the rest of the
+workflow.
 
-## Roadmap
-
-The remaining Qt daily-driver work is tracked by
-[#50](https://github.com/villekivela/omaweb/issues/50). It covers browser prompts, History and data
-controls, tab management, certificate and cookie policy, and native notifications.
-
-[#8](https://github.com/villekivela/omaweb/issues/8) carries the browser to its Linux and Wayland
-distribution target. macOS remains available for development and testing, but macOS builds are not
-distributed. [#7](https://github.com/villekivela/omaweb/issues/7) tracks the Ladybird adapter.
-[The roadmap](docs/roadmap.md) keeps the ordered breakdown.
+## Deliberate non-goals
 
 Bookmarks, password management, third-party WebExtensions, Account, Sync, installed web
-applications, Reader mode, translation, and DRM are outside the current daily-driver contract. This
-is deliberate scope, not an implemented feature list waiting for a checkbox.
+applications, Reader mode, translation, browser data import, View source, spellchecking, DRM, and
+additional ordinary browser windows are outside the daily-driver contract. So is macOS distribution.
+These are settled scope decisions rather than an unimplemented feature list, and a pull request
+adding one will be declined on scope however good the code is.
+
+URL reputation is a non-goal too, and the one worth stating plainly: Omaweb ships no phishing,
+malware, or download-reputation provider ([ADR 0032](docs/adr/0032-ship-without-url-reputation.md)).
+Content blocking refuses some known malicious addresses. That is not the same protection, and Omaweb
+does not present it as such.
 
 ## Privacy and security
 
 Omaweb has no telemetry, advertising identifier, browser account, cloud sync, Google push service,
-or automatic crash upload. Every automatic request made by the browser is listed in
-[the network request ledger](docs/network-requests.md). Omaweb does not use a URL-reputation
-provider. Content blocking may refuse some known malicious addresses, but it is not complete
-phishing, malware, or download-reputation protection.
+or automatic crash upload. Every automatic request the browser makes is listed in
+[the network request ledger](docs/network-requests.md).
 
-Ordinary sessions open no debugging listener. The explicit `--remote-debugging[=port]` development
-option binds to loopback, prints a warning, and disables Private windows for that launch. Project
-scripts may not disable the Chromium renderer sandbox.
+Every page runs in its own sandboxed renderer. Omaweb refuses to start when the sandbox is
+explicitly disabled through its own command line or through `QTWEBENGINE_CHROMIUM_FLAGS`, and
+refuses to start on a Linux host whose kernel cannot meet the sandbox's prerequisites. There is no
+flag that turns that check off. QtWebEngine runs the network service inside the browser process
+rather than in a sandboxed process of its own, and Omaweb does not describe it as isolated.
 
-The current build is still a preview. The missing daily-driver security work is listed above and
-specified in [the product requirements](docs/product/requirements.md#privacy-and-security).
+An ordinary session opens no listening socket. The `--remote-debugging[=port]` development option
+binds to loopback, prints a warning, and disables Private windows for that launch.
+
+`security/baseline.json` names the approved QtWebEngine and the Chromium release whose security
+fixes it carries. The build reads it, so Settings reports whether the running engine meets the
+baseline, and CI compares it against upstream weekly. A build below the baseline says it is an
+unsupported preview.
+
+[SECURITY.md](SECURITY.md) has the vulnerability reporting form and the response commitment.
+[The product requirements](docs/product/requirements.md#privacy-and-security) specify the full
+contract.
 
 ## License
 
-Omaweb's own code is licensed under MPL 2.0. Engines, filter data, interface components, and other
-third-party material retain their own licenses. See
-[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+Omaweb's own code is under MPL 2.0. Engines, filter data, interface components, and other
+third-party material keep their own licenses. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

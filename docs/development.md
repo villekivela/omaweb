@@ -2,7 +2,7 @@
 
 ## Requirements
 
-- macOS 13 or newer with Xcode 15 or newer, or a current Linux development environment
+- A current Linux development environment, or macOS 13 or newer with Xcode 15 or newer
 - Qt 6.11 at or above the repository's approved patch, including Qt Quick, Qt SQL, and Qt WebEngine
 - CMake 3.30 or newer
 - Ninja
@@ -14,10 +14,10 @@ convenience option only when it meets the approved security patch level.
 
 ### Virtual machines
 
-A guest with virtualized graphics — `Mesa virgl` on virtio-gpu, say — runs Qt Quick fine but can
-leave the page transparent: the window's chrome paints and the desktop shows through where the web
-view should be. Qt asks Chromium for ANGLE, ANGLE asks the driver for a context version it does not
-have, and nothing is composited. The log says so under
+A guest with virtualized graphics, for example `Mesa virgl` on virtio-gpu, runs Qt Quick fine but
+can leave the page transparent: the window's chrome paints and the desktop shows through where the
+web view should be. Qt asks Chromium for ANGLE, ANGLE asks the driver for a context version it does
+not have, and nothing is composited. The log says so under
 `QT_LOGGING_RULES='qt.webenginecontext.debug=true'`:
 
 ```
@@ -30,7 +30,7 @@ Give Chromium a rendering path the guest can serve:
 QTWEBENGINE_CHROMIUM_FLAGS=--disable-gpu ./build/dev/omaweb
 ```
 
-`--use-angle=gl`, which would have kept the acceleration virgl can offer, does not work here — the
+`--use-angle=gl`, which would have kept the acceleration virgl can offer, does not work here. The
 whole `--disable-gpu` hammer is the one that lands. The flag has to come through the environment:
 QtWebEngine builds Chromium's command line from `QTWEBENGINE_CHROMIUM_FLAGS`, and the same flag on
 Omaweb's own argv is ignored.
@@ -53,11 +53,12 @@ Use the engine-free UI runner for QML work:
 ```sh
 cmake --preset ui
 cmake --build --preset ui
-./build/ui/omaweb-ui-lab.app/Contents/MacOS/omaweb-ui-lab
+./build/ui/omaweb-ui-lab
 ```
 
-On Linux, the executable is `./build/ui/omaweb-ui-lab`. Pass `--private` to paint the window in the
-private palette, which is the only way to review that chrome without opening a private window.
+On macOS the executable is inside the bundle, at
+`./build/ui/omaweb-ui-lab.app/Contents/MacOS/omaweb-ui-lab`. Pass `--private` to paint the window in
+the private palette, which is the only way to review that chrome without opening a private window.
 `OMAWEB_THEME_FILE` points the lab at one theme file, as it does the browser, so a palette can be
 reviewed without installing it. Pass `--show collapsed`, `--show settings`, `--show history` or
 `--show shortcuts` to open the state a capture cannot press a key to reach. A state can name a
@@ -86,6 +87,16 @@ The script uses `third_party/content-blocker/Cargo.lock`, records the shared lib
 pins `adblock` 0.12.5 to Ladybird revision `e5a41dfb6930fe5471c2c203d2dc32a1a782e816`. CMake
 verifies the cached artifact but never invokes Cargo. Run the bootstrap again only after changing
 the Rust wrapper, its manifest, or its lockfile.
+
+### Platform gaps on Linux
+
+`omaweb-platform` supplies the window-system services the browser cannot supply itself, and three of
+them are still macOS-only: the frameless window chrome and its blur, the print dialog, and the
+notification service. They arrive with the Wayland port
+([#8](https://github.com/villekivela/omaweb/issues/8)). Until then the Linux implementations report
+their capability off, the commands are listed and unavailable, and a page asking to notify is told
+its notification closed rather than left waiting. A Linux window therefore has ordinary decorations,
+so review a chrome change in the UI lab or on macOS.
 
 ## Security rules
 
@@ -121,14 +132,14 @@ Omarchy to render the active theme through it. A template already there stands. 
 `OMAWEB_NO_OMARCHY_TEMPLATE`.
 
 `scripts/import_terminal_theme.py` derives that file from the terminal it runs in. Run it from the
-terminal whose colours you want — `TERM_PROGRAM` identifies that terminal exactly — and it writes
-`theme.json` into the configuration directory, which `ThemeController` is watching, so a running
-Omaweb repaints without a restart. It reads Ghostty (via `ghostty +show-config`, which resolves a
-named theme into concrete colours), iTerm2, kitty, Alacritty, and a customised Terminal.app profile.
-`--print` shows the result instead of writing it, `--terminal` overrides detection, and `--force`
-replaces an existing theme. On a Linux desktop that already renders Omaweb's template, the script
-refuses to write and says so: a theme in the configuration directory outranks the desktop-rendered
-one, so importing would freeze the palette at whatever the terminal looked like that day.
+terminal whose colours you want, which `TERM_PROGRAM` identifies exactly, and it writes `theme.json`
+into the configuration directory, which `ThemeController` is watching, so a running Omaweb repaints
+without a restart. It reads Ghostty (via `ghostty +show-config`, which resolves a named theme into
+concrete colours), iTerm2, kitty, Alacritty, and a customised Terminal.app profile. `--print` shows
+the result instead of writing it, `--terminal` overrides detection, and `--force` replaces an
+existing theme. On a Linux desktop that already renders Omaweb's template, the script refuses to
+write and says so: a theme in the configuration directory outranks the desktop-rendered one, so
+importing would freeze the palette at whatever the terminal looked like that day.
 
 The derivation takes the terminal's background, foreground and sixteen ANSI colours and builds the
 chrome ladder by mixing in OKLab, with the step sizes measured off the default theme. The accent is
@@ -139,14 +150,14 @@ Red, green and yellow are left alone because they already mean error, success an
 private accent is the magenta the accent did not take, or the accent turned 32 degrees towards
 magenta when it did; the grounds it is cast over are not written out, because Omaweb tints them from
 the theme's own surfaces when it loads any palette. The type base size, tint and the semantic
-opacities stay as the default theme sets them — a terminal's `background-opacity` is a window-wide
-setting and does not translate to Omaweb's per-surface opacity.
+opacities stay as the default theme sets them, because a terminal's `background-opacity` is a
+window-wide setting and does not translate to Omaweb's per-surface opacity.
 
 `theme.json`'s `font` block is `families` and `size`. `families` is a preference order and the first
 family the host actually has installed wins, so a theme can name a font it would like without
 breaking a machine that lacks it; nothing is ever handed to Qt that Qt cannot find, because a
 missing family costs a font-alias sweep at startup and then draws in whatever face Qt substitutes.
-`size` is the root the whole type scale grows from — every size the interface asks for is derived
+`size` is the root the whole type scale grows from: every size the interface asks for is derived
 from it by the Omarchy kit, which `ThemeController` drives. See
 [ADR 0018](adr/0018-drive-the-kit-from-the-theme-palette.md).
 
@@ -156,7 +167,7 @@ Shared controls come from the Omarchy shell's QML kit, vendored under `third_par
 and pinned by `MANIFEST.json`. Both projects are QML on Qt 6, so the kit is used as-is rather than
 reimplemented.
 
-Vendored files are byte-for-byte copies and are never edited — `ctest` fails on any local change.
+Vendored files are byte-for-byte copies and are never edited. `ctest` fails on any local change.
 Omaweb meets the kit from three sides: `src/ui/quickshell-shim` registers the `Quickshell` and
 `Quickshell.Io` types the kit's singletons import, the QML in `src/ui` adapts components to Omaweb's
 call sites, keeping Omaweb's property names and its accessibility annotations, and
@@ -183,7 +194,7 @@ API change fails there.
 Nothing moves the pin on its own, so the `Omarchy kit drift` workflow does the looking: every Monday
 it runs `--check-upstream --report drift.json` and hands the report to
 `scripts/report_omarchy_drift.py`, which keeps one `omarchy-drift` issue listing the added, removed,
-and changed files with a compare link, and closes it once the pin catches up. It never syncs — an
+and changed files with a compare link, and closes it once the pin catches up. It never syncs. An
 upstream API change lands on Omaweb's adapters, so the diff wants a reader.
 `ctest -R omaweb-omarchy-drift` covers both halves with GitHub stubbed out.
 
@@ -216,7 +227,7 @@ Both vendored trees share one integrity test, `tests/cmake/check_vendored_tree.c
 ## Keyboard navigation configuration
 
 Omaweb copies `assets/keybindings/default.json` to `keybindings.json` in the configuration directory
-on first launch — `$XDG_CONFIG_HOME/omaweb`, or `~/.config/omaweb` when that is unset. A file left
+on first launch, at `$XDG_CONFIG_HOME/omaweb` or `~/.config/omaweb` when that is unset. A file left
 by an earlier version under the application data directory is moved there. Set `OMAWEB_CONFIG_ROOT`
 to relocate the whole directory, or `OMAWEB_KEYBINDINGS_FILE` to load one specific file during
 development. The version 1 format maps key sequences to the supported commands and may give a site

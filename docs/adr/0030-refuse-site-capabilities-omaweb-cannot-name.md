@@ -7,7 +7,7 @@ new capability must not be able to reach the reader through Omaweb before Omaweb
 the answer means.
 
 This refines [ADR 0009](0009-separate-browser-policy-from-engine-mechanics.md). The three
-Site-permission decisions there — allow once, persistent allow, block — remain, but they are what a
+Site-permission decisions there, allow once, persistent allow and block, remain, but they are what a
 _rememberable_ capability offers. Camera, microphone, geolocation and notifications are
 rememberable. Clipboard read and screen sharing are asked every time and no answer is written down,
 because each hands over whatever is on the screen or on the clipboard at that instant, which no
@@ -18,20 +18,20 @@ rather than asked about.
 
 Certificate failures block. Omaweb offers the reader an exception only where the engine reports the
 failure as overridable and not fatal, in the main frame, for a Local-development site. Everything
-else — a fatal failure, a subresource or a frame, a public site, a page nobody is looking at — is
-refused without a question, and Omaweb never offers to remember one: nothing about a granted
-exception reaches a disk, so the next session asks again. There is no remembered-exception store to
-add later; adding one would be reversing this decision, not extending it.
+else is refused without a question: a fatal failure, a subresource or a frame, a public site, a page
+nobody is looking at. and Omaweb never offers to remember one: nothing about a granted exception
+reaches a disk, so the next session asks again. There is no remembered-exception store to add later;
+adding one would be reversing this decision, not extending it.
 
 Within a session, the exception is the engine's to hold and Omaweb cannot take it back. QtWebEngine
 records an accepted certificate in its profile's own SSL host state and exposes no way to revoke it,
 so from the next load onward the engine raises nothing and reports the connection as secure. Omaweb
-therefore keeps its own record of which origins have a waived check — in memory, for one Space, for
-one session — and the address trigger reports a certificate error for as long as that record stands,
-in every tab of that Space. The alternative is an adapter's silence being read as a check that
-passed, which is the one reading a security indicator must never allow. An adapter clears its own
-report when a load arrives with no failure raised for it, because a certificate that has since been
-fixed is not a waived one; distinguishing the two is the shell's, from its record, not the
+therefore keeps its own record of which origins have a waived check, in memory, for one Space and
+for one session, and the address trigger reports a certificate error for as long as that record
+stands, in every tab of that Space. The alternative is an adapter's silence being read as a check
+that passed, which is the one reading a security indicator must never allow. An adapter clears its
+own report when a load arrives with no failure raised for it, because a certificate that has since
+been fixed is not a waived one; distinguishing the two is the shell's, from its record, not the
 adapter's.
 
 Third-party cookies and third-party site storage are blocked. An authentication or payment flow may
@@ -39,7 +39,7 @@ be given one origin's allowance inside one Space: it lives in memory beside the 
 shared private session already passes between its windows, is listed in Site information with the
 flow it was granted for, and is revocable there. Nothing about it is written to disk, so it cannot
 cross a Space or outlive the session that granted it, and Omaweb never infers that a flow is a
-sign-in — the reader names the origin and the purpose.
+sign-in: the reader names the origin and the purpose.
 
 Active mixed content stays blocked and there is no release path that turns the blocking off. A
 launch switch that would lower a web security boundary browser-wide is a refusal to start, whether
@@ -57,8 +57,8 @@ information says that opening the site again is what takes it back rather than o
 that would not.
 
 Site data is cleared at whichever scope the engine can actually reach, and the reader is told which
-that is. Engines expose no per-origin removal at their embedding boundary — QtWebEngine wires
-Chromium's own remover for the cache alone — so cookies and cache are taken for a whole Space, and
+that is. Engines expose no per-origin removal at their embedding boundary, and QtWebEngine wires
+Chromium's own remover for the cache alone, so cookies and cache are taken for a whole Space, and
 the confirmation says so before it happens. One origin's storage, databases, caches and service
 workers are reachable from inside its own document, so that clearing is asked of the page and
 reports what it managed to empty; cookies are not, because the ones that matter are unreadable from
