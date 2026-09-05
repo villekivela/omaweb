@@ -25,11 +25,14 @@ public:
         const auto path = QDir(m_root).filePath(relativePath);
         QDir().mkpath(QFileInfo(path).absolutePath());
         QFile file(path);
-        // A tree this cannot write is a test that would go on asserting against
-        // a host nobody described, and read whatever an absent file is taken to
-        // mean. It stops here instead.
+        // A tree this cannot write leaves the test asserting against a host
+        // nobody described, reading whatever an absent file is taken to mean.
+        // It says so rather than dropping the answer silently, and says it
+        // without taking the process down: a suite that aborts here reports
+        // nothing at all about the tests that had already run.
         if (!file.open(QIODevice::WriteOnly)) {
-            qFatal("cannot write the stand-in proc file %s", qPrintable(path));
+            qWarning("cannot write the stand-in proc file %s", qPrintable(path));
+            return;
         }
         file.write(value.toUtf8() + '\n');
     }

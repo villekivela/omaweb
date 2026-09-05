@@ -3644,12 +3644,14 @@ TestCase {
         compare(fill.width, track.width)
         // Nothing is running, so there are no names to give: asking the held
         // mark which file is which opens no panel rather than an empty one.
-        mark.forceActiveFocus()
-        compare(mark.detailRequested, true)
+        mouseMove(mark, mark.width / 2, mark.height / 2)
+        tryCompare(mark, "detailRequested", true)
         compare(findChild(outline, "downloadDetail").visible, false)
-        // The window outlives this test, so the keyboard is handed back: a mark
-        // left focused would go on answering the next test's downloads.
-        findChild(outline, "settingsButton").forceActiveFocus()
+        // The window outlives this test, so the pointer is taken back off the
+        // mark: one left resting there would go on asking the next test's
+        // downloads to name themselves.
+        mouseMove(outline, 4, 4)
+        tryCompare(mark, "detailRequested", false)
         tryCompare(mark, "visible", false)
         findChild(window.contentItem, "pageNotice").dismiss()
 
@@ -3725,7 +3727,7 @@ TestCase {
         tryCompare(mark, "visible", false)
         const detail = findChild(outline, "downloadDetail")
         verify(detail !== null)
-        findChild(outline, "settingsButton").forceActiveFocus()
+        mouseMove(outline, 4, 4)
         compare(detail.visible, false)
 
         const first = host.simulateDownloadRequest("https://atlas.example/box",
@@ -3744,7 +3746,7 @@ TestCase {
 
         // The detail is not on show until it is asked for.
         compare(detail.visible, false)
-        mark.forceActiveFocus()
+        mouseMove(mark, mark.width / 2, mark.height / 2)
         tryCompare(detail, "visible", true)
         const northRow = findChild(detail, "downloadDetail-0")
         const southRow = findChild(detail, "downloadDetail-1")
@@ -3756,6 +3758,14 @@ TestCase {
         // rather than borrowing the other download's percentage.
         compare(southRow.name, "omaweb-test-south.pdf")
         compare(southRow.progressLabel, "size unknown")
+
+        // The keyboard reaching the mark is the same question asked without a
+        // pointer, and it wants the window a reader would have been in.
+        mouseMove(outline, 4, 4)
+        tryCompare(detail, "visible", false)
+        window.requestActivate()
+        mark.forceActiveFocus()
+        tryCompare(detail, "visible", true)
 
         findChild(outline, "settingsButton").forceActiveFocus()
         tryCompare(detail, "visible", false)
