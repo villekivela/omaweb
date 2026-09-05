@@ -16,10 +16,7 @@ SystemNotifier::SystemNotifier(QObject *parent)
 
 SystemNotifier::~SystemNotifier() = default;
 
-bool SystemNotifier::available() const
-{
-    return false;
-}
+bool SystemNotifier::available() const { return false; }
 
 bool SystemNotifier::present(const QString &key, const QString &title, const QString &body)
 {
@@ -29,10 +26,7 @@ bool SystemNotifier::present(const QString &key, const QString &title, const QSt
     return false;
 }
 
-void SystemNotifier::withdraw(const QString &key)
-{
-    Q_UNUSED(key)
-}
+void SystemNotifier::withdraw(const QString &key) { Q_UNUSED(key) }
 
 #endif
 

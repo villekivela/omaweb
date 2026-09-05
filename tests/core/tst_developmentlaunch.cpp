@@ -36,8 +36,8 @@ void DevelopmentLaunchTest::bindsTheAskedForListenerToLoopback()
     QVERIFY(named.refusal.isEmpty());
 
     // Asking without naming a port is asking for Chromium's own.
-    const auto bare = readDevelopmentLaunch(
-        {QStringLiteral("omaweb"), QStringLiteral("--remote-debugging")});
+    const auto bare
+        = readDevelopmentLaunch({QStringLiteral("omaweb"), QStringLiteral("--remote-debugging")});
     QVERIFY(bare.remoteDebugging);
     QCOMPARE(bare.listenAddress, QStringLiteral("127.0.0.1:9222"));
 }
@@ -64,20 +64,20 @@ void DevelopmentLaunchTest::refusesEngineDebuggingFlagsFromEitherRoute()
     QVERIFY(!argument.remoteDebugging);
     QVERIFY(argument.privateWindowsAvailable);
 
-    const auto environment = readDevelopmentLaunch({QStringLiteral("omaweb")},
-        {QStringLiteral("--remote-debugging-pipe")});
+    const auto environment = readDevelopmentLaunch(
+        {QStringLiteral("omaweb")}, {QStringLiteral("--remote-debugging-pipe")});
     QVERIFY(!environment.refusal.isEmpty());
 
     // A flag that only configures a channel Omaweb never opened is not a
     // refusal: with no listener there is nothing for it to widen.
-    const auto harmless = readDevelopmentLaunch({QStringLiteral("omaweb")},
-        {QStringLiteral("--remote-allow-origins=https://example.com")});
+    const auto harmless = readDevelopmentLaunch(
+        {QStringLiteral("omaweb")}, {QStringLiteral("--remote-allow-origins=https://example.com")});
     QVERIFY(harmless.refusal.isEmpty());
     QVERIFY(!harmless.remoteDebugging);
 
-    const auto address = readDevelopmentLaunch({QStringLiteral("omaweb"),
-        QStringLiteral("--remote-debugging=9333"),
-        QStringLiteral("--remote-debugging-address=0.0.0.0")});
+    const auto address = readDevelopmentLaunch(
+        {QStringLiteral("omaweb"), QStringLiteral("--remote-debugging=9333"),
+            QStringLiteral("--remote-debugging-address=0.0.0.0")});
     QVERIFY(!address.refusal.isEmpty());
     QVERIFY(!address.remoteDebugging);
 }
@@ -108,8 +108,8 @@ void DevelopmentLaunchTest::refusesEveryRouteToAGlobalInsecureContentOverride()
     for (const auto &override : overrides) {
         const auto argument = readDevelopmentLaunch({QStringLiteral("omaweb"), override});
         QVERIFY2(!argument.refusal.isEmpty(), qPrintable(override));
-        QVERIFY2(argument.refusal.contains(override.section(u'=', 0, 0)),
-            qPrintable(argument.refusal));
+        QVERIFY2(
+            argument.refusal.contains(override.section(u'=', 0, 0)), qPrintable(argument.refusal));
 
         const auto environment = readDevelopmentLaunch({QStringLiteral("omaweb")}, {override});
         QVERIFY2(!environment.refusal.isEmpty(), qPrintable(override));
@@ -120,9 +120,6 @@ void DevelopmentLaunchTest::refusesEveryRouteToAGlobalInsecureContentOverride()
     QVERIFY(ordinary.refusal.isEmpty());
 }
 
-// There is no Omaweb that runs page code outside a sandbox, so a switch that
-// would is a refusal to start — and the environment is as much a route to one
-// as the command line, because whatever set the variable is not the reader.
 void DevelopmentLaunchTest::refusesEveryRouteToATurnedOffRendererSandbox()
 {
     static const QStringList switches = {
@@ -144,14 +141,10 @@ void DevelopmentLaunchTest::refusesEveryRouteToATurnedOffRendererSandbox()
 
         const auto environment = readDevelopmentLaunch({QStringLiteral("omaweb")}, {disabling});
         QVERIFY2(!environment.refusal.isEmpty(), qPrintable(disabling));
-        // A refused launch asks for nothing else: no listener, no Private
-        // windows, nothing but the reason.
         QVERIFY(!environment.remoteDebugging);
         QVERIFY(environment.listenAddress.isEmpty());
     }
 
-    // A switch that only happens to contain one of those words is not one of
-    // them: the refusal is a list, not a substring search.
     const auto unrelated = readDevelopmentLaunch(
         {QStringLiteral("omaweb"), QStringLiteral("--enable-sandbox-logging")});
     QVERIFY(unrelated.refusal.isEmpty());

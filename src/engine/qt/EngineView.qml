@@ -47,36 +47,30 @@ Item {
     readonly property int inlinePdfViewingCapability: 1 << 11
     readonly property int certificateDecisionsCapability: 1 << 12
     readonly property int thirdPartyCookieControlCapability: 1 << 13
-    readonly property int capabilities: navigationCapability
-        | persistentProfilesCapability
-        | contentBlockingCapability
-        | keyboardPageCommandsCapability
-        | developerToolsCapability
-        | rendererRecoveryCapability
-        | pageFindCapability
-        | pageZoomCapability
-        | printingCapability
-        | siteFullscreenCapability
-        | inlinePdfViewingCapability
-        | certificateDecisionsCapability
-        | thirdPartyCookieControlCapability
+    readonly property int capabilities: navigationCapability | persistentProfilesCapability
+                                        | contentBlockingCapability
+                                        | keyboardPageCommandsCapability | developerToolsCapability
+                                        | rendererRecoveryCapability | pageFindCapability
+                                        | pageZoomCapability | printingCapability
+                                        | siteFullscreenCapability | inlinePdfViewingCapability
+                                        | certificateDecisionsCapability
+                                        | thirdPartyCookieControlCapability
     property int blockedRequestCount: 0
     property color pageBackgroundColor: "#16151d"
     property var keyboardNavigationConfiguration: ({})
     property string keyboardNavigationScriptSource: ""
     property bool keyboardNavigationHintModeActive: false
     property var editedStateScript: {
-        const script = WebEngine.script()
-        script.name = "Omaweb edited form state"
-        script.injectionPoint = WebEngineScript.DocumentReady
-        script.worldId = WebEngineScript.MainWorld
-        script.runsOnSubFrames = false
+        const script = WebEngine.script();
+        script.name = "Omaweb edited form state";
+        script.injectionPoint = WebEngineScript.DocumentReady;
+        script.worldId = WebEngineScript.MainWorld;
+        script.runsOnSubFrames = false;
         script.sourceCode = "globalThis.__omawebContentEditableEdited = false;"
-            + "document.addEventListener('input', event => {"
-            + "if (event.target && event.target.isContentEditable) "
-            + "globalThis.__omawebContentEditableEdited = true;"
-            + "}, true);"
-        return script
+                + "document.addEventListener('input', event => {"
+                + "if (event.target && event.target.isContentEditable) "
+                + "globalThis.__omawebContentEditableEdited = true;" + "}, true);";
+        return script;
     }
 
     // The inspector Chromium supplies, and the palette it is drawn in. The
@@ -124,11 +118,11 @@ Item {
     // the engine's own never appears and nothing about Chromium's menu model
     // crosses this line.
     signal pageContextRequested(var context)
-    signal developerToolsClosed()
+    signal developerToolsClosed
     signal rendererFailed(string reason)
     signal newTabRequested(var request, url requestedUrl)
     signal auxiliaryWindowRequested(var request, url requestedUrl)
-    signal windowCloseRequested()
+    signal windowCloseRequested
     signal backgroundTabRequested(url requestedUrl)
     signal sitePermissionRequested(string requestId, string origin, string permission)
     signal browserPromptRequested(string requestId, var prompt)
@@ -139,7 +133,7 @@ Item {
     signal printFinished(string destination, bool succeeded)
     // The reader dealt with this page themselves. What that earns the origin is
     // the shell's to decide and remember; the adapter only reports it.
-    signal userActivated()
+    signal userActivated
     // The origin whose certificate failed, and whether the reader let the load
     // through anyway. Both are kept because the address trigger has to keep
     // saying so: an exception the reader granted is still a certificate error,
@@ -157,23 +151,24 @@ Item {
     // committed and what it reported about the certificate — never from an
     // address the shell parsed for itself.
     readonly property string connectionState: {
-        const address = String(webView.url)
-        const separator = address.indexOf("://")
-        const scheme = separator === -1 ? "" : address.substring(0, separator).toLowerCase()
-        if (root.certificateErrorOrigin.length > 0
-            && root.certificateErrorOrigin === root.originLabel(webView.url))
-            return "certificate-error"
+        const address = String(webView.url);
+        const separator = address.indexOf("://");
+        const scheme = separator === -1 ? "" : address.substring(0, separator).toLowerCase();
+        if (root.certificateErrorOrigin.length > 0 && root.certificateErrorOrigin
+                === root.originLabel(webView.url))
+            return "certificate-error";
         // A page that never arrived is not a page reached over an unencrypted
         // connection: there is no connection to report either way.
-        if (root.lastLoadFailed) return "internal"
-        if (scheme !== "http" && scheme !== "https") return "internal"
-        return scheme === "https" ? "secure" : "insecure"
+        if (root.lastLoadFailed)
+            return "internal";
+        if (scheme !== "http" && scheme !== "https")
+            return "internal";
+        return scheme === "https" ? "secure" : "insecure";
     }
     // Chromium refuses active mixed content unless the embedder turns the
     // refusal off. Omaweb never does, and reports the setting rather than the
     // intention so the claim is checkable.
-    readonly property bool insecureContentBlocked:
-        !webView.settings.allowRunningInsecureContent
+    readonly property bool insecureContentBlocked: !webView.settings.allowRunningInsecureContent
     signal certificateErrorRaised(string requestId, var failure)
     // The origin whose data was asked for, what the page managed to empty, and
     // why it could not — one of the three is always the useful one.
@@ -192,9 +187,9 @@ Item {
         case WebEngineCertificateError.CertificateRevoked:
         case WebEngineCertificateError.CertificateTransparencyRequired:
         case WebEngineCertificateError.CertificateSymantecLegacy:
-            return true
+            return true;
         default:
-            return false
+            return false;
         }
     }
 
@@ -211,10 +206,10 @@ Item {
     // so the page reports back through the console the way the rest of this
     // adapter's page reports do.
     function clearPageSiteData() {
-        const address = String(webView.url)
+        const address = String(webView.url);
         if (address.length === 0 || address.startsWith("about:")) {
-            root.pageSiteDataCleared("", [], "there is no page to clear")
-            return
+            root.pageSiteDataCleared("", [], "there is no page to clear");
+            return;
         }
         webView.runJavaScript(`(async () => {
             const cleared = [];
@@ -253,15 +248,18 @@ Item {
             console.info('__omaweb_site_data_cleared__' + JSON.stringify({
                 origin: location.origin, cleared: cleared, refused: refused
             }));
-        })()`)
+        })()`);
     }
 
     function respondToCertificateError(requestId, accepted) {
-        const error = root.pendingCertificateErrors[requestId]
-        if (!error) return
-        delete root.pendingCertificateErrors[requestId]
-        if (accepted) error.acceptCertificate()
-        else error.rejectCertificate()
+        const error = root.pendingCertificateErrors[requestId];
+        if (!error)
+            return;
+        delete root.pendingCertificateErrors[requestId];
+        if (accepted)
+            error.acceptCertificate();
+        else
+            error.rejectCertificate();
     }
     property var pendingPermissions: ({})
     property int nextPermissionRequestId: 0
@@ -280,139 +278,147 @@ Item {
     function permissionName(permissionType) {
         switch (permissionType) {
         case WebEnginePermission.PermissionType.MediaAudioCapture:
-            return "microphone"
+            return "microphone";
         case WebEnginePermission.PermissionType.MediaVideoCapture:
-            return "camera"
+            return "camera";
         case WebEnginePermission.PermissionType.MediaAudioVideoCapture:
-            return "camera-and-microphone"
-        // Chromium tells the two desktop captures apart by whether the sound
-        // comes with the screen. Omaweb does not: either one hands over
-        // whatever is on the screen at that instant, and is asked every time.
+            return "camera-and-microphone";
+            // Chromium tells the two desktop captures apart by whether the sound
+            // comes with the screen. Omaweb does not: either one hands over
+            // whatever is on the screen at that instant, and is asked every time.
         case WebEnginePermission.PermissionType.DesktopVideoCapture:
         case WebEnginePermission.PermissionType.DesktopAudioVideoCapture:
-            return "screen-sharing"
+            return "screen-sharing";
         case WebEnginePermission.PermissionType.MouseLock:
-            return "pointer-lock"
+            return "pointer-lock";
         case WebEnginePermission.PermissionType.Notifications:
-            return "notifications"
+            return "notifications";
         case WebEnginePermission.PermissionType.Geolocation:
-            return "geolocation"
+            return "geolocation";
         case WebEnginePermission.PermissionType.ClipboardReadWrite:
-            return "clipboard-read"
+            return "clipboard-read";
         case WebEnginePermission.PermissionType.LocalFontsAccess:
-            return "local-fonts"
+            return "local-fonts";
         default:
-            return ""
+            return "";
         }
     }
 
     function respondToPermission(requestId, decision) {
-        const request = pendingPermissions[requestId]
-        if (!request) return
-        delete pendingPermissions[requestId]
-        if (decision === 1 || decision === 2) request.grant()
-        else request.deny()
+        const request = pendingPermissions[requestId];
+        if (!request)
+            return;
+        delete pendingPermissions[requestId];
+        if (decision === 1 || decision === 2)
+            request.grant();
+        else
+            request.deny();
     }
 
     function respondToBrowserPrompt(requestId, accepted, response) {
-        const pending = root.pendingBrowserPrompts[requestId]
-        if (!pending) return
-        delete root.pendingBrowserPrompts[requestId]
+        const pending = root.pendingBrowserPrompts[requestId];
+        if (!pending)
+            return;
+        delete root.pendingBrowserPrompts[requestId];
         if (pending.kind.startsWith("javascript-") && response.stopPrompts === true)
-            root.javaScriptDialogsBlocked = true
+            root.javaScriptDialogsBlocked = true;
         if (pending.kind === "external-protocol") {
             if (accepted) {
                 if (response.remember === true && root.permissionController)
-                    root.permissionController.rememberExternalProtocolDecision(
-                        pending.origin, pending.scheme)
-                ExternalProtocolHandler.open(pending.destination)
+                    root.permissionController.rememberExternalProtocolDecision(pending.origin,
+                                                                               pending.scheme);
+                ExternalProtocolHandler.open(pending.destination);
             }
         } else if (!accepted) {
-            pending.request.dialogReject()
+            pending.request.dialogReject();
         } else if (pending.kind === "http-authentication") {
-            pending.request.dialogAccept(String(response.user || ""),
-                String(response.password || ""))
+            pending.request.dialogAccept(String(response.user || ""), String(response.password
+                                                                             || ""));
         } else {
-            pending.request.dialogAccept(String(response.text || ""))
+            pending.request.dialogAccept(String(response.text || ""));
         }
     }
 
     function originAddress(url) {
-        const match = String(url).match(/^([a-z][a-z0-9+.-]*:\/\/[^/]+)/i)
-        return match ? match[1] : String(url)
+        const match = String(url).match(/^([a-z][a-z0-9+.-]*:\/\/[^/]+)/i);
+        return match ? match[1] : String(url);
     }
 
     function requestExternalProtocol(destination, mainFrame) {
-        const address = String(destination)
-        const separator = address.indexOf(":")
-        const scheme = separator > 0 ? address.substring(0, separator).toLowerCase() : ""
-        const rememberedOrigin = root.externalProtocolOrigins[address]
-        delete root.externalProtocolOrigins[address]
-        const origin = mainFrame ? root.originAddress(webView.url) : String(rememberedOrigin || "")
-        if (scheme.length === 0) return
-        if (root.permissionController
-            && origin.length > 0
-            && root.permissionController.externalProtocolAllowed(origin, scheme)) {
-            ExternalProtocolHandler.open(address)
-            return
+        const address = String(destination);
+        const separator = address.indexOf(":");
+        const scheme = separator > 0 ? address.substring(0, separator).toLowerCase() : "";
+        const rememberedOrigin = root.externalProtocolOrigins[address];
+        delete root.externalProtocolOrigins[address];
+        const origin = mainFrame ? root.originAddress(webView.url) : String(rememberedOrigin || "");
+        if (scheme.length === 0)
+            return;
+        if (root.permissionController && origin.length > 0
+                && root.permissionController.externalProtocolAllowed(origin, scheme)) {
+            ExternalProtocolHandler.open(address);
+            return;
         }
-        const requestId = String(++root.nextBrowserPromptId)
-        const application = ExternalProtocolHandler.applicationName(address)
-        const displayOrigin = origin.length > 0 ? origin : "Unknown embedded origin"
+        const requestId = String(++root.nextBrowserPromptId);
+        const application = ExternalProtocolHandler.applicationName(address);
+        const displayOrigin = origin.length > 0 ? origin : "Unknown embedded origin";
         root.pendingBrowserPrompts[requestId] = {
             "kind": "external-protocol",
             "origin": origin,
             "scheme": scheme,
             "destination": address
-        }
+        };
         root.browserPromptRequested(requestId, {
-            "kind": "external-protocol",
-            "application": application,
-            "scheme": scheme,
-            "origin": displayOrigin,
-            "destination": address,
-            "rememberable": origin.length > 0,
-            "message": "Open " + application + "?",
-            "detail": scheme + " · " + displayOrigin + " · " + address
-        })
+                                        "kind": "external-protocol",
+                                        "application": application,
+                                        "scheme": scheme,
+                                        "origin": displayOrigin,
+                                        "destination": address,
+                                        "rememberable": origin.length > 0,
+                                        "message": "Open " + application + "?",
+                                        "detail": scheme + " · " + displayOrigin + " · " + address
+                                    });
     }
 
     function respondToFileSelection(requestId, files) {
-        const request = root.pendingFileSelections[requestId]
-        if (!request) return
-        delete root.pendingFileSelections[requestId]
+        const request = root.pendingFileSelections[requestId];
+        if (!request)
+            return;
+        delete root.pendingFileSelections[requestId];
         if (files.length === 0) {
-            request.dialogReject()
-            return
+            request.dialogReject();
+            return;
         }
-        const paths = []
+        const paths = [];
         for (let index = 0; index < files.length; ++index)
-            paths.push(root.localPath(files[index]))
-        request.dialogAccept(paths)
+            paths.push(root.localPath(files[index]));
+        request.dialogAccept(paths);
     }
 
     function localPath(fileUrl) {
-        let path = decodeURIComponent(String(fileUrl).replace(/^file:\/\//, ""))
-        if (Qt.platform.os === "windows" && path.startsWith("/")) path = path.substring(1)
-        return path
+        let path = decodeURIComponent(String(fileUrl).replace(/^file:\/\//, ""));
+        if (Qt.platform.os === "windows" && path.startsWith("/"))
+            path = path.substring(1);
+        return path;
     }
 
     function performPageContextAction(action, destination) {
         if (action === "copy-image") {
-            webView.triggerWebAction(WebEngineView.CopyImageToClipboard)
-            return
+            webView.triggerWebAction(WebEngineView.CopyImageToClipboard);
+            return;
         }
-        const path = root.localPath(destination)
-        if (path.length === 0) return
-        const profile = root.resolvedProfile()
-        if (!profile || profile.preparedDownloadPath === undefined) return
-        profile.preparedDownloadPath = path
+        const path = root.localPath(destination);
+        if (path.length === 0)
+            return;
+        const profile = root.resolvedProfile();
+        if (!profile || profile.preparedDownloadPath === undefined)
+            return;
+        profile.preparedDownloadPath = path;
         if (action === "save-link")
-            webView.triggerWebAction(WebEngineView.DownloadLinkToDisk)
+            webView.triggerWebAction(WebEngineView.DownloadLinkToDisk);
         else if (action === "save-media") {
             const webAction = root.lastContextMediaType === "image"
-                ? WebEngineView.DownloadImageToDisk : WebEngineView.DownloadMediaToDisk
-            webView.triggerWebAction(webAction)
+                  ? WebEngineView.DownloadImageToDisk : WebEngineView.DownloadMediaToDisk;
+            webView.triggerWebAction(webAction);
         }
     }
 
@@ -432,33 +438,38 @@ Item {
             // is the reader saying they are finished with it.
             onWindowCloseRequested: root.developerToolsClosed()
 
-            onLoadingChanged: function(loadRequest) {
-                if (loadRequest.status !== WebEngineView.LoadSucceededStatus) return
-                root.applyDeveloperToolsTheme()
-                root.pickElement()
+            onLoadingChanged: function (loadRequest) {
+                if (loadRequest.status !== WebEngineView.LoadSucceededStatus)
+                    return;
+                root.applyDeveloperToolsTheme();
+                root.pickElement();
             }
         }
     }
 
     function attachDeveloperTools() {
-        if (root.developerToolsAttached) return
-        const view = root.developerToolsComponent.createObject(root)
-        if (!view) return
-        root.developerToolsView = view
-        webView.devToolsView = view
-        root.developerToolsAttached = true
+        if (root.developerToolsAttached)
+            return;
+        const view = root.developerToolsComponent.createObject(root);
+        if (!view)
+            return;
+        root.developerToolsView = view;
+        webView.devToolsView = view;
+        root.developerToolsAttached = true;
     }
 
     function detachDeveloperTools() {
-        if (!root.developerToolsAttached) return
-        root.developerToolsAttached = false
-        root.elementPickPending = false
-        webView.devToolsView = null
-        const view = root.developerToolsView
-        root.developerToolsView = null
+        if (!root.developerToolsAttached)
+            return;
+        root.developerToolsAttached = false;
+        root.elementPickPending = false;
+        webView.devToolsView = null;
+        const view = root.developerToolsView;
+        root.developerToolsView = null;
         // The shell has taken the view as a child by now, so nothing else
         // would ever take it away.
-        if (view) view.destroy()
+        if (view)
+            view.destroy();
     }
 
     // Two ways to name what to inspect, and the reader has already chosen
@@ -468,48 +479,57 @@ Item {
     // answers: the reader points at what they meant, which is what the key does
     // in every other browser.
     function inspectElement() {
-        const alreadyOpen = root.developerToolsAttached
-        root.attachDeveloperTools()
-        if (!root.developerToolsAttached) return
+        const alreadyOpen = root.developerToolsAttached;
+        root.attachDeveloperTools();
+        if (!root.developerToolsAttached)
+            return;
         if (!root.contextMenuTargetKnown) {
-            root.elementPickPending = true
-            if (alreadyOpen) root.pickElement()
-            return
+            root.elementPickPending = true;
+            if (alreadyOpen)
+                root.pickElement();
+            return;
         }
         if (alreadyOpen) {
-            webView.triggerWebAction(WebEngineView.InspectElement)
-            return
+            webView.triggerWebAction(WebEngineView.InspectElement);
+            return;
         }
         // The inspector has to exist before the page can be told to reveal a
         // node in it.
-        Qt.callLater(function() {
+        Qt.callLater(function () {
             if (root.developerToolsAttached && root.contextMenuTargetKnown)
-                webView.triggerWebAction(WebEngineView.InspectElement)
-        })
+                webView.triggerWebAction(WebEngineView.InspectElement);
+        });
     }
 
     // The frontend's own picker, asked for the way its host asks for it. It
     // waits for the frontend to finish loading, because a page that has not run
     // its scripts has no picker to enter.
     function pickElement() {
-        if (!root.elementPickPending || !root.developerToolsView) return
-        if (root.developerToolsView.loading) return
-        root.elementPickPending = false
+        if (!root.elementPickPending || !root.developerToolsView)
+            return;
+        if (root.developerToolsView.loading)
+            return;
+        root.elementPickPending = false;
         root.developerToolsView.runJavaScript(
-            "globalThis.DevToolsAPI && globalThis.DevToolsAPI.enterInspectElementMode();")
+                    "globalThis.DevToolsAPI && globalThis.DevToolsAPI.enterInspectElementMode();");
     }
 
     // The engine's own enumeration never leaves the adapter; the shell reads a
     // name, and an engine with a kind Omaweb has no name for reports none.
     function mediaTypeName(mediaType) {
         switch (mediaType) {
-        case ContextMenuRequest.MediaTypeImage: return "image"
-        case ContextMenuRequest.MediaTypeVideo: return "video"
-        case ContextMenuRequest.MediaTypeAudio: return "audio"
-        case ContextMenuRequest.MediaTypeCanvas: return "canvas"
-        case ContextMenuRequest.MediaTypeFile: return "file"
+        case ContextMenuRequest.MediaTypeImage:
+            return "image";
+        case ContextMenuRequest.MediaTypeVideo:
+            return "video";
+        case ContextMenuRequest.MediaTypeAudio:
+            return "audio";
+        case ContextMenuRequest.MediaTypeCanvas:
+            return "canvas";
+        case ContextMenuRequest.MediaTypeFile:
+            return "file";
         }
-        return "none"
+        return "none";
     }
 
     function requestContextFromFrame(frame, generation) {
@@ -533,72 +553,84 @@ Item {
                 editable: Boolean(target && (target.isContentEditable
                     || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)))
             };
-        })()`, function(context) {
-            if (!context || generation !== root.pageGeneration) return
-            context.pageGeneration = generation
-            root.pageContextRequested(context)
-        })
+        })()`, function (context) {
+    if (!context || generation !== root.pageGeneration)
+        return;
+    context.pageGeneration = generation;
+    root.pageContextRequested(context);
+});
         for (let index = 0; index < frame.children.length; ++index)
-            root.requestContextFromFrame(frame.children[index], generation)
+            root.requestContextFromFrame(frame.children[index], generation);
     }
 
     // Qt runs the query inside each frame, so a focused element keeps its own
     // origin's DOM even when the embedding page cannot read it.
     function requestPageContextMenu() {
-        root.contextMenuTargetKnown = false
-        root.requestContextFromFrame(webView.mainFrame, root.pageGeneration)
+        root.contextMenuTargetKnown = false;
+        root.requestContextFromFrame(webView.mainFrame, root.pageGeneration);
     }
 
-    function goBack() { webView.goBack() }
-    function goForward() { webView.goForward() }
-    function focusPage() { webView.forceActiveFocus() }
-    function reloadPage() { webView.reload() }
+    function goBack() {
+        webView.goBack();
+    }
+    function goForward() {
+        webView.goForward();
+    }
+    function focusPage() {
+        webView.forceActiveFocus();
+    }
+    function reloadPage() {
+        webView.reload();
+    }
     // Reading the page again and reading it again from the network are two
     // different asks, and so is stopping: a stopped load leaves the page and
     // everything typed into it exactly where it was.
     function reloadPageBypassingCache() {
-        webView.triggerWebAction(WebEngineView.ReloadAndBypassCache)
+        webView.triggerWebAction(WebEngineView.ReloadAndBypassCache);
     }
-    function stopLoading() { webView.stop() }
+    function stopLoading() {
+        webView.stop();
+    }
 
     // The matches, and not the query: a navigation invalidates where the search
     // had reached, but not what the reader was looking for.
     function forgetFindMatches() {
-        root.findMatchCount = 0
-        root.findActiveMatch = 0
+        root.findMatchCount = 0;
+        root.findActiveMatch = 0;
     }
 
     function findText(query, forward) {
-        root.findQuery = String(query)
-        root.findGeneration = root.pageGeneration
+        root.findQuery = String(query);
+        root.findGeneration = root.pageGeneration;
         if (root.findQuery.length === 0) {
-            root.forgetFindMatches()
-            webView.findText("")
-            return
+            root.forgetFindMatches();
+            webView.findText("");
+            return;
         }
-        webView.findText(root.findQuery, forward ? 0 : WebEngineView.FindBackward)
+        webView.findText(root.findQuery, forward ? 0 : WebEngineView.FindBackward);
     }
 
     function clearFind() {
-        root.findQuery = ""
-        root.findGeneration = root.pageGeneration
-        root.forgetFindMatches()
-        webView.findText("")
+        root.findQuery = "";
+        root.findGeneration = root.pageGeneration;
+        root.forgetFindMatches();
+        webView.findText("");
     }
 
     function setZoomFactor(factor) {
-        const wanted = Number(factor)
-        if (!(wanted > 0)) return
-        webView.zoomFactor = wanted
+        const wanted = Number(factor);
+        if (!(wanted > 0))
+            return;
+        webView.zoomFactor = wanted;
     }
 
     function printPage(destination) {
-        const path = String(destination)
+        const path = String(destination);
         if (path.length === 0) {
-            root.printFinished("", false)
-            return
+            root.printFinished("", false);
+            return;
         }
-        webView.printToPdf(path)
+        webView.printToPdf(path);
     }
 
     // Who a request came from, as the reader would recognise them. The engine
@@ -607,33 +639,34 @@ Item {
     // host, and the port where there is one, because two development servers
     // on one host are two different sites.
     function originLabel(origin) {
-        const address = String(origin)
-        const scheme = address.indexOf("://")
-        const authority = (scheme === -1 ? address : address.substring(scheme + 3))
-            .split("/")[0]
-        return authority.length > 0 ? authority : address
+        const address = String(origin);
+        const scheme = address.indexOf("://");
+        const authority = (scheme === -1 ? address : address.substring(scheme + 3)).split("/")[0];
+        return authority.length > 0 ? authority : address;
     }
 
     function exitSiteFullscreen() {
-        if (!root.siteFullscreenActive) return
-        root.siteFullscreenActive = false
-        root.siteFullscreenOrigin = ""
-        webView.fullScreenCancelled()
+        if (!root.siteFullscreenActive)
+            return;
+        root.siteFullscreenActive = false;
+        root.siteFullscreenOrigin = "";
+        webView.fullScreenCancelled();
     }
     function configureKeyboardNavigation(configuration) {
-        keyboardNavigationHintModeActive = false
-        keyboardNavigationConfiguration = configuration
-        applyKeyboardNavigationConfiguration()
+        keyboardNavigationHintModeActive = false;
+        keyboardNavigationConfiguration = configuration;
+        applyKeyboardNavigationConfiguration();
     }
     function applyKeyboardNavigationConfiguration() {
-        if (!webView || !keyboardNavigationConfiguration.version) return
+        if (!webView || !keyboardNavigationConfiguration.version)
+            return;
         webView.runJavaScript("globalThis.__omawebKeyboardNavigation && "
-            + "globalThis.__omawebKeyboardNavigation.configure("
-            + JSON.stringify(keyboardNavigationConfiguration) + ");")
+                              + "globalThis.__omawebKeyboardNavigation.configure(" + JSON.stringify(
+                                  keyboardNavigationConfiguration) + ");");
     }
     function refreshBlockedRequestCount() {
-        root.blockedRequestCount = root.contentBlocker
-            ? root.contentBlocker.blockedRequestCount(root.currentUrl) : 0
+        root.blockedRequestCount = root.contentBlocker ? root.contentBlocker.blockedRequestCount(
+                                                             root.currentUrl) : 0;
     }
     property bool cosmeticRulesInjected: false
     property bool genericCosmeticRulesInjected: false
@@ -646,26 +679,15 @@ Item {
     // anything is painted. Re-application into a document that is already open
     // takes the same path and appends immediately.
     function styleSheetSnippet(elementId, css) {
-        return "(() => {"
-            + "const id = " + JSON.stringify(elementId) + ";"
-            + "const css = " + JSON.stringify(css) + ";"
-            + "const apply = () => {"
-            + "const parent = document.head || document.documentElement;"
-            + "if (!parent) return false;"
-            + "let style = document.getElementById(id);"
-            + "if (!style) {"
-            + "style = document.createElement('style'); style.id = id;"
-            + "parent.append(style);"
-            + "}"
-            + "style.textContent = css;"
-            + "return true;"
-            + "};"
-            + "if (apply()) return;"
-            + "const observer = new MutationObserver(() => {"
-            + "if (apply()) observer.disconnect();"
-            + "});"
-            + "observer.observe(document, { childList: true, subtree: true });"
-            + "})()"
+        return "(() => {" + "const id = " + JSON.stringify(elementId) + ";" + "const css = "
+                + JSON.stringify(css) + ";" + "const apply = () => {"
+                + "const parent = document.head || document.documentElement;"
+                + "if (!parent) return false;" + "let style = document.getElementById(id);"
+                + "if (!style) {" + "style = document.createElement('style'); style.id = id;"
+                + "parent.append(style);" + "}" + "style.textContent = css;" + "return true;"
+                + "};" + "if (apply()) return;" + "const observer = new MutationObserver(() => {"
+                + "if (apply()) observer.disconnect();" + "});"
+                + "observer.observe(document, { childList: true, subtree: true });" + "})()";
     }
 
     // A scriptlet is a function from the vendored uBlock Origin library that a
@@ -681,8 +703,9 @@ Item {
     // object, which is what says "no web-accessible resources, no logging
     // channel" — the library reads it defensively and builds the rest itself.
     function scriptletSnippet(source) {
-        if (source.length === 0) return ""
-        return "(() => {\nconst scriptletGlobals = {};\n" + source + "\n})();\n"
+        if (source.length === 0)
+            return "";
+        return "(() => {\nconst scriptletGlobals = {};\n" + source + "\n})();\n";
     }
 
     // Hiding rules have to be in the document before its own markup renders,
@@ -693,27 +716,27 @@ Item {
     // navigation because both depend on the host being loaded.
     property var blockingScript: null
     function installBlockingScript(url) {
-        if (!contentBlocker) return
-        const css = contentBlocker.cosmeticStyleSheet(url)
-        const scriptlets = contentBlocker.scriptletSource(url)
-        const script = WebEngine.script()
-        script.name = "Omaweb content blocking"
-        script.injectionPoint = WebEngineScript.DocumentCreation
-        script.worldId = WebEngineScript.MainWorld
-        script.runsOnSubFrames = false
+        if (!contentBlocker)
+            return;
+        const css = contentBlocker.cosmeticStyleSheet(url);
+        const scriptlets = contentBlocker.scriptletSource(url);
+        const script = WebEngine.script();
+        script.name = "Omaweb content blocking";
+        script.injectionPoint = WebEngineScript.DocumentCreation;
+        script.worldId = WebEngineScript.MainWorld;
+        script.runsOnSubFrames = false;
         // The stylesheet goes first: hiding what the page is about to render
         // does not depend on a scriptlet, and a scriptlet that throws must not
         // take the hiding with it.
-        script.sourceCode = (css.length > 0
-                ? root.styleSheetSnippet(root.cosmeticElementId, css) + ";\n" : "")
-            + root.scriptletSnippet(scriptlets)
-        root.blockingScript = script
-        webView.userScripts.collection = [
-            root.editedStateScript, root.keyboardNavigationScript, script]
+        script.sourceCode = (css.length > 0 ? root.styleSheetSnippet(root.cosmeticElementId, css)
+                                              + ";\n" : "") + root.scriptletSnippet(scriptlets);
+        root.blockingScript = script;
+        webView.userScripts.collection = [root.editedStateScript, root.keyboardNavigationScript,
+                                          script];
         // The document about to be created carries whatever this script adds
         // and nothing else, so what the last one had is no longer there.
-        root.cosmeticRulesInjected = css.length > 0
-        root.genericCosmeticRulesInjected = false
+        root.cosmeticRulesInjected = css.length > 0;
+        root.genericCosmeticRulesInjected = false;
     }
 
     // Re-application into a document that is already open, for a rule set or a
@@ -723,13 +746,15 @@ Item {
     // intercept, and one already run cannot be taken back, so both directions
     // wait for the next navigation.
     function applyCosmeticRules() {
-        if (!contentBlocker || loading) return
-        const css = contentBlocker.cosmeticStyleSheet(currentUrl)
+        if (!contentBlocker || loading)
+            return;
+        const css = contentBlocker.cosmeticStyleSheet(currentUrl);
         // With no cosmetic rules for this site there is nothing to add and, if
         // nothing was ever added, nothing to clear either — so skip the script.
-        if (css.length === 0 && !cosmeticRulesInjected) return
-        cosmeticRulesInjected = css.length > 0
-        webView.runJavaScript(root.styleSheetSnippet(root.cosmeticElementId, css))
+        if (css.length === 0 && !cosmeticRulesInjected)
+            return;
+        cosmeticRulesInjected = css.length > 0;
+        webView.runJavaScript(root.styleSheetSnippet(root.cosmeticElementId, css));
     }
 
     // The generic rules are the ones written against no particular site, and
@@ -738,62 +763,59 @@ Item {
     // rules those could trigger come back. A site with a $generichide
     // exception is surveyed not at all.
     function clearGenericCosmeticRules() {
-        if (!genericCosmeticRulesInjected) return
-        root.genericCosmeticRulesInjected = false
-        webView.runJavaScript(root.styleSheetSnippet(root.genericCosmeticElementId, ""))
+        if (!genericCosmeticRulesInjected)
+            return;
+        root.genericCosmeticRulesInjected = false;
+        webView.runJavaScript(root.styleSheetSnippet(root.genericCosmeticElementId, ""));
     }
     function surveyGenericCosmeticRules() {
         // Turning blocking off for a site, or a rule set that no longer hides
         // anything here, has to take back what the last survey hid.
         if (!contentBlocker || !contentBlocker.cosmeticSurveyWanted(currentUrl)) {
-            root.clearGenericCosmeticRules()
-            return
+            root.clearGenericCosmeticRules();
+            return;
         }
-        const surveyed = currentUrl
-        webView.runJavaScript(
-            "(() => {"
-            + "const classes = new Set(), ids = new Set();"
-            + "for (const element of document.querySelectorAll('[class], [id]')) {"
-            + "if (element.id) ids.add(element.id);"
-            + "for (const name of element.classList) classes.add(name);"
-            + "}"
-            + "return { classes: Array.from(classes), ids: Array.from(ids) };"
-            + "})()",
-            function(survey) {
-                // The page can navigate away while the survey is in flight,
-                // and its classes say nothing about where the view landed.
-                if (!survey || !root.contentBlocker || surveyed !== root.currentUrl) return
-                const css = root.contentBlocker.genericCosmeticStyleSheet(
-                    surveyed, survey.classes, survey.ids)
-                if (css.length === 0) {
-                    root.clearGenericCosmeticRules()
-                    return
-                }
-                root.genericCosmeticRulesInjected = true
-                webView.runJavaScript(
-                    root.styleSheetSnippet(root.genericCosmeticElementId, css))
-            })
+        const surveyed = currentUrl;
+        webView.runJavaScript("(() => {" + "const classes = new Set(), ids = new Set();"
+                              + "for (const element of document.querySelectorAll('[class], [id]')) {"
+                              + "if (element.id) ids.add(element.id);"
+                              + "for (const name of element.classList) classes.add(name);" + "}"
+                              + "return { classes: Array.from(classes), ids: Array.from(ids) };"
+                              + "})()", function (survey) {
+                                  // The page can navigate away while the survey is in flight,
+                                  // and its classes say nothing about where the view landed.
+                                  if (!survey || !root.contentBlocker || surveyed
+                                          !== root.currentUrl)
+                                      return;
+                                  const css = root.contentBlocker.genericCosmeticStyleSheet(surveyed,
+                                                                                            survey.classes,
+                                                                                            survey.ids);
+                                  if (css.length === 0) {
+                                      root.clearGenericCosmeticRules();
+                                      return;
+                                  }
+                                  root.genericCosmeticRulesInjected = true;
+                                  webView.runJavaScript(root.styleSheetSnippet(
+                                                            root.genericCosmeticElementId, css));
+                              });
     }
     function checkForEditedFormState(callback) {
-        webView.runJavaScript(
-            "(() => {"
-            + "for (const field of document.querySelectorAll('input, textarea')) {"
-            + "if (field.type === 'checkbox' || field.type === 'radio') {"
-            + "if (field.checked !== field.defaultChecked) return true;"
-            + "} else if (field.value !== field.defaultValue) return true;"
-            + "}"
-            + "for (const option of document.querySelectorAll('select option')) {"
-            + "if (option.selected !== option.defaultSelected) return true;"
-            + "}"
-            + "return Boolean(globalThis.__omawebContentEditableEdited);"
-            + "})()",
-            callback)
+        webView.runJavaScript("(() => {"
+                              + "for (const field of document.querySelectorAll('input, textarea')) {"
+                              + "if (field.type === 'checkbox' || field.type === 'radio') {"
+                              + "if (field.checked !== field.defaultChecked) return true;"
+                              + "} else if (field.value !== field.defaultValue) return true;" + "}"
+                              + "for (const option of document.querySelectorAll('select option')) {"
+                              + "if (option.selected !== option.defaultSelected) return true;"
+                              + "}" + "return Boolean(globalThis.__omawebContentEditableEdited);"
+                              + "})()", callback);
     }
     function acceptNewWindowRequest(request) {
-        if (request) request.openIn(webView)
+        if (request)
+            request.openIn(webView);
     }
     function isAuxiliaryDestination(destination) {
-        return destination === WebEngineNewWindowRequest.InNewDialog
+        return destination === WebEngineNewWindowRequest.InNewDialog;
     }
 
     // A $popup rule is written against the windows a page opens, which is most
@@ -801,9 +823,8 @@ Item {
     // ad link opens. A background tab does not, because it takes a middle- or
     // ctrl-click to produce one and that is the user asking, not the page.
     function popupRefused(destination, requestedUrl) {
-        return destination !== WebEngineNewWindowRequest.InNewBackgroundTab
-            && root.contentBlocker
-            && root.contentBlocker.shouldBlockPopup(requestedUrl, root.currentUrl)
+        return destination !== WebEngineNewWindowRequest.InNewBackgroundTab && root.contentBlocker
+                && root.contentBlocker.shouldBlockPopup(requestedUrl, root.currentUrl);
     }
 
     // A Chromium profile is expensive and owns the Space's cache and cookie
@@ -826,23 +847,26 @@ Item {
     // A plain object rather than a property: the view reads the profile from
     // here while creating it, and a QML property would make that read a
     // dependency of the write and report a binding loop.
-    readonly property var ownProfileHolder: ({ instance: null })
+    readonly property var ownProfileHolder: ({
+                                                 instance: null
+                                             })
 
     function resolvedProfile() {
-        if (root.sharedProfile) return root.sharedProfile
-        const holder = root.ownProfileHolder
+        if (root.sharedProfile)
+            return root.sharedProfile;
+        const holder = root.ownProfileHolder;
         if (!holder.instance) {
-            holder.instance = root.ownProfileComponent.createObject(root)
+            holder.instance = root.ownProfileComponent.createObject(root);
             if (root.engineContentBlocker)
-                root.engineContentBlocker.attachToProfile(holder.instance)
+                root.engineContentBlocker.attachToProfile(holder.instance);
         }
-        return holder.instance
+        return holder.instance;
     }
 
     Component.onCompleted: {
         if (root.contentBlocker)
-            root.blockedRequestCount = root.contentBlocker.blockedRequestCount(root.currentUrl)
-        Qt.callLater(root.applyKeyboardNavigationConfiguration)
+            root.blockedRequestCount = root.contentBlocker.blockedRequestCount(root.currentUrl);
+        Qt.callLater(root.applyKeyboardNavigationConfiguration);
     }
 
     Connections {
@@ -855,20 +879,21 @@ Item {
         // request cost a rule lookup and a script round trip hundreds of times
         // over a single page load, in every open tab at once.
         function onBlockedRequestCountChanged(siteUrl) {
-            if (siteUrl.toString().length > 0 && siteUrl.host !== root.currentUrl.host) return
-            root.refreshBlockedRequestCount()
+            if (siteUrl.toString().length > 0 && siteUrl.host !== root.currentUrl.host)
+                return;
+            root.refreshBlockedRequestCount();
         }
 
         function onConfigurationChanged() {
-            root.refreshBlockedRequestCount()
-            root.applyCosmeticRules()
-            root.surveyGenericCosmeticRules()
+            root.refreshBlockedRequestCount();
+            root.applyCosmeticRules();
+            root.surveyGenericCosmeticRules();
         }
 
         function onRulesChanged() {
-            root.refreshBlockedRequestCount()
-            root.applyCosmeticRules()
-            root.surveyGenericCosmeticRules()
+            root.refreshBlockedRequestCount();
+            root.applyCosmeticRules();
+            root.surveyGenericCosmeticRules();
         }
     }
 
@@ -877,21 +902,21 @@ Item {
     // The palette arrives from the shell and may be empty until the theme has
     // loaded, so every colour read here names what to draw with instead.
     function paletteColor(source, name, fallback) {
-        const value = source ? source[name] : undefined
-        return (value === undefined || String(value).length === 0) ? fallback : String(value)
+        const value = source ? source[name] : undefined;
+        return (value === undefined || String(value).length === 0) ? fallback : String(value);
     }
 
     function developerToolsColor(name, fallback) {
-        return root.paletteColor(root.developerToolsColors, name, fallback)
+        return root.paletteColor(root.developerToolsColors, name, fallback);
     }
 
     function developerToolsSyntaxColor(name, fallback) {
-        return root.paletteColor(root.developerToolsColors
-            ? root.developerToolsColors.syntax : null, name, fallback)
+        return root.paletteColor(root.developerToolsColors ? root.developerToolsColors.syntax : null,
+                                 name, fallback);
     }
 
     function developerToolsBackgroundColor() {
-        return root.developerToolsColor("windowOpaque", String(root.pageBackgroundColor))
+        return root.developerToolsColor("windowOpaque", String(root.pageBackgroundColor));
     }
 
     // The frontend ships a light face and a dark one and picks between them
@@ -899,8 +924,8 @@ Item {
     // about Omaweb's own window, so it is answered from the window's colour and
     // the answer is written onto the frontend's root element.
     function developerToolsDark() {
-        const surface = Qt.color(root.developerToolsBackgroundColor())
-        return (0.2126 * surface.r + 0.7152 * surface.g + 0.0722 * surface.b) < 0.5
+        const surface = Qt.color(root.developerToolsBackgroundColor());
+        return (0.2126 * surface.r + 0.7152 * surface.g + 0.0722 * surface.b) < 0.5;
     }
 
     // Chromium's inspector is a webpage, and its whole design system is custom
@@ -915,25 +940,25 @@ Item {
     // An attribute's value is drawn as the string it is, which is what every
     // editor does and what keeps the inspector reading like the one beside it.
     function developerToolsTokens() {
-        const text = root.developerToolsColor("text", "#f3f1fa")
-        const muted = root.developerToolsColor("mutedText", "#aaa5b7")
-        const body = root.developerToolsBackgroundColor()
-        const panel = root.developerToolsColor("sidebarOpaque", body)
-        const surface = root.developerToolsColor("surface", "#302e3d")
-        const hover = root.developerToolsColor("surfaceHover", "#3d394e")
-        const border = root.developerToolsColor("border", "#4a4658")
-        const accent = root.developerToolsColor("accent", "#9b87ff")
-        const urgent = root.developerToolsColor("urgent", "#e06c75")
-        const keyword = root.developerToolsSyntaxColor("keyword", accent)
-        const string = root.developerToolsSyntaxColor("string", text)
-        const number = root.developerToolsSyntaxColor("number", text)
-        const comment = root.developerToolsSyntaxColor("comment", muted)
-        const tag = root.developerToolsSyntaxColor("tag", text)
-        const attribute = root.developerToolsSyntaxColor("attribute", text)
-        const variable = root.developerToolsSyntaxColor("variable", text)
-        const method = root.developerToolsSyntaxColor("function", accent)
-        const type = root.developerToolsSyntaxColor("type", text)
-        const punctuation = root.developerToolsSyntaxColor("punctuation", muted)
+        const text = root.developerToolsColor("text", "#f3f1fa");
+        const muted = root.developerToolsColor("mutedText", "#aaa5b7");
+        const body = root.developerToolsBackgroundColor();
+        const panel = root.developerToolsColor("sidebarOpaque", body);
+        const surface = root.developerToolsColor("surface", "#302e3d");
+        const hover = root.developerToolsColor("surfaceHover", "#3d394e");
+        const border = root.developerToolsColor("border", "#4a4658");
+        const accent = root.developerToolsColor("accent", "#9b87ff");
+        const urgent = root.developerToolsColor("urgent", "#e06c75");
+        const keyword = root.developerToolsSyntaxColor("keyword", accent);
+        const string = root.developerToolsSyntaxColor("string", text);
+        const number = root.developerToolsSyntaxColor("number", text);
+        const comment = root.developerToolsSyntaxColor("comment", muted);
+        const tag = root.developerToolsSyntaxColor("tag", text);
+        const attribute = root.developerToolsSyntaxColor("attribute", text);
+        const variable = root.developerToolsSyntaxColor("variable", text);
+        const method = root.developerToolsSyntaxColor("function", accent);
+        const type = root.developerToolsSyntaxColor("type", text);
+        const punctuation = root.developerToolsSyntaxColor("punctuation", muted);
         return {
             // The panel bodies, the toolbars above them, and the raised
             // surfaces the frontend stacks on top.
@@ -1003,8 +1028,8 @@ Item {
             "--sys-color-token-definition": method,
             "--sys-color-token-builtin": variable,
             "--sys-color-token-variable-special": method,
-            "--sys-color-token-type": type,
-        }
+            "--sys-color-token-type": type
+        };
     }
 
     // Chromium themes its own inspector through the palette underneath the
@@ -1020,29 +1045,27 @@ Item {
     // A tone is a lightness: tone 0 is black and tone 100 is white, whatever
     // hue the family carries. So each family keeps its colour's hue and
     // saturation and takes its lightness from the tone.
-    readonly property var developerToolsToneLadder: [0, 10, 15, 20, 25, 30, 35, 40, 50, 60,
-        70, 80, 90, 94, 95, 98, 99, 100]
+    readonly property var developerToolsToneLadder: [0, 10, 15, 20, 25, 30, 35, 40, 50, 60, 70, 80,
+        90, 94, 95, 98, 99, 100]
 
     function developerToolsTone(base, tone, saturationCeiling) {
-        const colour = Qt.color(base)
+        const colour = Qt.color(base);
         // A grey has no hue to keep, and Qt reports it as none rather than as
         // zero. Asking for a tone of it can only mean a grey of that lightness.
-        const achromatic = colour.hslHue < 0
-        const hue = achromatic ? 0 : colour.hslHue
-        const saturation = achromatic
-            ? 0
-            : Math.min(colour.hslSaturation,
-                saturationCeiling === undefined ? 1 : saturationCeiling)
-        return String(Qt.hsla(hue, saturation, tone / 100, 1))
+        const achromatic = colour.hslHue < 0;
+        const hue = achromatic ? 0 : colour.hslHue;
+        const saturation = achromatic ? 0 : Math.min(colour.hslSaturation, saturationCeiling === undefined
+                                                     ? 1 : saturationCeiling);
+        return String(Qt.hsla(hue, saturation, tone / 100, 1));
     }
 
     // Which of Omaweb's colours each of the frontend's palette families is a
     // ramp of. The neutrals carry the window's own tint and little more of it
     // than that, or every surface in the inspector would be tinted twice.
     function developerToolsRamps() {
-        const accent = root.developerToolsColor("accent", "#9b87ff")
-        const keyword = root.developerToolsSyntaxColor("keyword", accent)
-        const window = root.developerToolsBackgroundColor()
+        const accent = root.developerToolsColor("accent", "#9b87ff");
+        const keyword = root.developerToolsSyntaxColor("keyword", accent);
+        const window = root.developerToolsBackgroundColor();
         return {
             "neutral": [window, 0.08],
             "neutral-variant": [window, 0.12],
@@ -1057,50 +1080,51 @@ Item {
             "pink": [root.developerToolsSyntaxColor("tag", accent), undefined],
             "purple": [keyword, undefined],
             "indigo": [keyword, undefined],
-            "cyan": [root.developerToolsSyntaxColor("type", accent), undefined],
-        }
+            "cyan": [root.developerToolsSyntaxColor("type", accent), undefined]
+        };
     }
 
     function developerToolsPaletteDeclarations() {
-        const ramps = root.developerToolsRamps()
-        let declarations = ""
+        const ramps = root.developerToolsRamps();
+        let declarations = "";
         for (const family in ramps) {
-            const base = ramps[family][0]
-            const ceiling = ramps[family][1]
+            const base = ramps[family][0];
+            const ceiling = ramps[family][1];
             for (const tone of root.developerToolsToneLadder) {
-                declarations += "--ref-palette-" + family + tone + ":"
-                    + root.developerToolsTone(base, tone, ceiling) + " !important;"
+                declarations += "--ref-palette-" + family + tone + ":" + root.developerToolsTone(
+                            base, tone, ceiling) + " !important;";
             }
         }
-        return declarations
+        return declarations;
     }
 
     function developerToolsStyleSheet() {
-        const tokens = root.developerToolsTokens()
-        let declarations = root.developerToolsPaletteDeclarations()
-        for (const name in tokens) declarations += name + ":" + tokens[name] + " !important;"
+        const tokens = root.developerToolsTokens();
+        let declarations = root.developerToolsPaletteDeclarations();
+        for (const name in tokens)
+            declarations += name + ":" + tokens[name] + " !important;";
         // The frontend names its type per platform, at a selector of its own
         // that an ordinary `:root` rule would lose to, so these are marked as
         // the rest are. Omaweb's whole interface is drawn in one family, and the
         // inspector docked inside it is part of that window: its panel labels
         // take the family too, not only the source it lists. The sizes stay the
         // frontend's own above, because its layout is built around them.
-        const font = (root.developerToolsColors && root.developerToolsColors.font) || ({})
-        const family = String(font.family || "")
+        const font = (root.developerToolsColors && root.developerToolsColors.font) || ({});
+        const family = String(font.family || "");
         if (family.length > 0) {
-            const quoted = JSON.stringify(family) + ", monospace"
+            const quoted = JSON.stringify(family) + ", monospace";
             for (const name of ["--default-font-family", "--monospace-font-family",
-                    "--source-code-font-family", "--report-font-family",
-                    "--report-font-family-monospace"]) {
-                declarations += name + ":" + quoted + " !important;"
+                                "--source-code-font-family", "--report-font-family",
+                                "--report-font-family-monospace"]) {
+                declarations += name + ":" + quoted + " !important;";
             }
         }
-        const size = parseInt(font.size, 10)
+        const size = parseInt(font.size, 10);
         if (!isNaN(size) && size > 0) {
-            declarations += "--monospace-font-size:" + size + "px !important;"
-            declarations += "--source-code-font-size:" + size + "px !important;"
+            declarations += "--monospace-font-size:" + size + "px !important;";
+            declarations += "--source-code-font-size:" + size + "px !important;";
         }
-        return ":root{" + declarations + "}"
+        return ":root{" + declarations + "}";
     }
 
     // The frontend's DOM tree draws every bracket, equals sign and quote in the
@@ -1115,44 +1139,35 @@ Item {
     // stylesheet. Nothing is rewritten and nothing is read back: the frontend
     // builds exactly what it would have built, in Omaweb's colours.
     function developerToolsMarkupStyleSheet() {
-        const punctuation = root.developerToolsSyntaxColor("punctuation",
-            root.developerToolsColor("mutedText", "#aaa5b7"))
-        const tag = root.developerToolsSyntaxColor("tag",
-            root.developerToolsColor("text", "#f3f1fa"))
+        const punctuation = root.developerToolsSyntaxColor("punctuation", root.developerToolsColor(
+                                                               "mutedText", "#aaa5b7"));
+        const tag = root.developerToolsSyntaxColor("tag", root.developerToolsColor("text",
+                                                                                   "#f3f1fa"));
         return ".webkit-html-tag{color:" + punctuation + " !important}"
-            + ".webkit-html-tag-name,.webkit-html-close-tag-name{color:"
-            + tag + " !important}"
+                + ".webkit-html-tag-name,.webkit-html-close-tag-name{color:" + tag + " !important}";
     }
 
     function developerToolsShadowSnippet() {
-        return "(() => {"
-            + "const css = " + JSON.stringify(root.developerToolsMarkupStyleSheet()) + ";"
-            + "const host = globalThis.__omawebDeveloperToolsShadow;"
-            + "if (host) { host.sheet.replaceSync(css); return; }"
-            + "if (typeof CSSStyleSheet !== 'function') return;"
-            + "let sheet;"
-            + "try { sheet = new CSSStyleSheet(); sheet.replaceSync(css); }"
-            + "catch (error) { return; }"
-            + "globalThis.__omawebDeveloperToolsShadow = { sheet: sheet };"
-            + "const attachShadow = Element.prototype.attachShadow;"
-            + "Element.prototype.attachShadow = function(options) {"
-            + "const shadow = attachShadow.call(this, options);"
-            + "try { shadow.adoptedStyleSheets = [...shadow.adoptedStyleSheets, sheet]; }"
-            + "catch (error) {}"
-            + "return shadow;"
-            + "};"
-            + "})();\n"
+        return "(() => {" + "const css = " + JSON.stringify(root.developerToolsMarkupStyleSheet())
+                + ";" + "const host = globalThis.__omawebDeveloperToolsShadow;"
+                + "if (host) { host.sheet.replaceSync(css); return; }"
+                + "if (typeof CSSStyleSheet !== 'function') return;" + "let sheet;"
+                + "try { sheet = new CSSStyleSheet(); sheet.replaceSync(css); }"
+                + "catch (error) { return; }"
+                + "globalThis.__omawebDeveloperToolsShadow = { sheet: sheet };"
+                + "const attachShadow = Element.prototype.attachShadow;"
+                + "Element.prototype.attachShadow = function(options) {"
+                + "const shadow = attachShadow.call(this, options);"
+                + "try { shadow.adoptedStyleSheets = [...shadow.adoptedStyleSheets, sheet]; }"
+                + "catch (error) {}" + "return shadow;" + "};" + "})();\n";
     }
 
     function developerToolsThemeSnippet() {
-        return "(() => {"
-            + "const element = document.documentElement;"
-            + "if (element) element.classList.toggle('theme-with-dark-background', "
-            + (root.developerToolsDark() ? "true" : "false") + ");"
-            + "})();\n"
-            + root.developerToolsShadowSnippet()
-            + root.styleSheetSnippet(root.developerToolsElementId,
-                root.developerToolsStyleSheet())
+        return "(() => {" + "const element = document.documentElement;"
+                + "if (element) element.classList.toggle('theme-with-dark-background', " + (
+                    root.developerToolsDark() ? "true" : "false") + ");" + "})();\n"
+                + root.developerToolsShadowSnippet() + root.styleSheetSnippet(
+                    root.developerToolsElementId, root.developerToolsStyleSheet());
     }
 
     // The frontend has to open in Omaweb's colours rather than arrive in
@@ -1160,44 +1175,45 @@ Item {
     // frontend's own scripts run. It is re-applied on a live theme change,
     // which is the only time the colours move under an open inspector.
     property var developerToolsThemeScript: {
-        const script = WebEngine.script()
-        script.name = "Omaweb developer tools theme"
-        script.injectionPoint = WebEngineScript.DocumentCreation
-        script.worldId = WebEngineScript.MainWorld
-        script.runsOnSubFrames = true
-        script.sourceCode = root.developerToolsThemeSnippet()
-        return script
+        const script = WebEngine.script();
+        script.name = "Omaweb developer tools theme";
+        script.injectionPoint = WebEngineScript.DocumentCreation;
+        script.worldId = WebEngineScript.MainWorld;
+        script.runsOnSubFrames = true;
+        script.sourceCode = root.developerToolsThemeSnippet();
+        return script;
     }
 
     function applyDeveloperToolsTheme() {
-        if (!root.developerToolsView) return
-        root.developerToolsView.runJavaScript(root.developerToolsThemeSnippet())
+        if (!root.developerToolsView)
+            return;
+        root.developerToolsView.runJavaScript(root.developerToolsThemeSnippet());
     }
 
     onDeveloperToolsColorsChanged: root.applyDeveloperToolsTheme()
 
     property var keyboardNavigationScript: {
-        const script = WebEngine.script()
-        script.name = "Omaweb Keyboard navigation"
-        script.injectionPoint = WebEngineScript.DocumentReady
-        script.worldId = WebEngineScript.MainWorld
-        script.runsOnSubFrames = false
+        const script = WebEngine.script();
+        script.name = "Omaweb Keyboard navigation";
+        script.injectionPoint = WebEngineScript.DocumentReady;
+        script.worldId = WebEngineScript.MainWorld;
+        script.runsOnSubFrames = false;
         script.sourceCode = root.keyboardNavigationScriptSource
-            + "\nglobalThis.__omawebKeyboardNavigation && "
-            + "globalThis.__omawebKeyboardNavigation.configure("
-            + JSON.stringify(root.keyboardNavigationConfiguration) + ");"
-        return script
+                + "\nglobalThis.__omawebKeyboardNavigation && "
+                + "globalThis.__omawebKeyboardNavigation.configure(" + JSON.stringify(
+                    root.keyboardNavigationConfiguration) + ");";
+        return script;
     }
 
     // A first-hand gesture on the page, reported once per document. Chromium
     // has its own record of user activation but does not hand it out, and the
     // shell needs it per origin rather than per page, so the page says so.
     property var userActivationScript: {
-        const script = WebEngine.script()
-        script.name = "Omaweb user activation"
-        script.injectionPoint = WebEngineScript.DocumentReady
-        script.worldId = WebEngineScript.MainWorld
-        script.runsOnSubFrames = false
+        const script = WebEngine.script();
+        script.name = "Omaweb user activation";
+        script.injectionPoint = WebEngineScript.DocumentReady;
+        script.worldId = WebEngineScript.MainWorld;
+        script.runsOnSubFrames = false;
         script.sourceCode = `(() => {
             let reported = false;
             const report = () => {
@@ -1207,16 +1223,17 @@ Item {
             };
             for (const name of ['pointerdown', 'keydown', 'touchstart'])
                 document.addEventListener(name, report, {capture: true, passive: true});
-        })();`
-        return script
+        })();`;
+
+        return script;
     }
 
     property var externalProtocolOriginScript: {
-        const script = WebEngine.script()
-        script.name = "Omaweb external protocol origin"
-        script.injectionPoint = WebEngineScript.DocumentReady
-        script.worldId = WebEngineScript.MainWorld
-        script.runsOnSubFrames = true
+        const script = WebEngine.script();
+        script.name = "Omaweb external protocol origin";
+        script.injectionPoint = WebEngineScript.DocumentReady;
+        script.worldId = WebEngineScript.MainWorld;
+        script.runsOnSubFrames = true;
         script.sourceCode = `document.addEventListener('click', event => {
             const link = event.target && event.target.closest
                 ? event.target.closest('a[href]') : null;
@@ -1226,8 +1243,9 @@ Item {
             console.info('__omaweb_external_protocol__' + JSON.stringify({
                 destination: link.href, origin: location.origin
             }));
-        }, true);`
-        return script
+        }, true);`;
+
+        return script;
     }
 
     WebEngineView {
@@ -1262,8 +1280,8 @@ Item {
         // already dealt with the origin.
         settings.playbackRequiresUserGesture: !root.autoplayAllowed
 
-        onRenderProcessTerminated: function(terminationStatus, exitCode) {
-            root.rendererFailed("Renderer stopped with exit code " + exitCode)
+        onRenderProcessTerminated: function (terminationStatus, exitCode) {
+            root.rendererFailed("Renderer stopped with exit code " + exitCode);
         }
 
         // Deferred rather than answered: Chromium blocks the load while the
@@ -1271,68 +1289,68 @@ Item {
         // in a subresource or in a frame is reported with that fact attached
         // rather than filtered out here — refusing it is the shell's rule to
         // state, and the shell has to be able to say it refused one.
-        onCertificateError: function(error) {
-            error.defer()
+        onCertificateError: function (error) {
+            error.defer();
             if (error.isMainFrame) {
-                root.certificateErrorRaisedForLoad = true
-                root.certificateErrorOrigin = root.originLabel(error.url)
+                root.certificateErrorRaisedForLoad = true;
+                root.certificateErrorOrigin = root.originLabel(error.url);
             }
-            const requestId = String(++root.nextCertificateErrorId)
-            root.pendingCertificateErrors[requestId] = error
+            const requestId = String(++root.nextCertificateErrorId);
+            root.pendingCertificateErrors[requestId] = error;
             root.certificateErrorRaised(requestId, {
-                "url": String(error.url),
-                "origin": root.originLabel(error.url),
-                "description": error.description,
-                "overridable": error.overridable,
-                "mainFrame": error.isMainFrame,
-                "fatal": root.fatalCertificateError(error.type)
-            })
+                                            "url": String(error.url),
+                                            "origin": root.originLabel(error.url),
+                                            "description": error.description,
+                                            "overridable": error.overridable,
+                                            "mainFrame": error.isMainFrame,
+                                            "fatal": root.fatalCertificateError(error.type)
+                                        });
         }
 
         // Chromium keeps the node the menu was opened over, and Omaweb has to
         // know that it has one: nothing on the view reports it, and the action
         // that reads it crashes when there is none. Accepting the request is
         // what stops the engine drawing a menu of its own over Omaweb's.
-        onContextMenuRequested: function(request) {
-            root.contextMenuTargetKnown = true
-            root.lastContextMediaType = root.mediaTypeName(request.mediaType)
-            request.accepted = true
+        onContextMenuRequested: function (request) {
+            root.contextMenuTargetKnown = true;
+            root.lastContextMediaType = root.mediaTypeName(request.mediaType);
+            request.accepted = true;
             root.pageContextRequested({
-                "x": request.position.x,
-                "y": request.position.y,
-                "selectedText": request.selectedText,
-                "linkText": request.linkText,
-                "linkUrl": request.linkUrl,
-                "mediaUrl": request.mediaUrl,
-                "mediaType": root.mediaTypeName(request.mediaType),
-                "editable": request.isContentEditable,
-                "pageGeneration": root.pageGeneration
-            })
+                                          "x": request.position.x,
+                                          "y": request.position.y,
+                                          "selectedText": request.selectedText,
+                                          "linkText": request.linkText,
+                                          "linkUrl": request.linkUrl,
+                                          "mediaUrl": request.mediaUrl,
+                                          "mediaType": root.mediaTypeName(request.mediaType),
+                                          "editable": request.isContentEditable,
+                                          "pageGeneration": root.pageGeneration
+                                      });
         }
 
-        onLoadingChanged: function(loadRequest) {
-            root.refreshBlockedRequestCount()
+        onLoadingChanged: function (loadRequest) {
+            root.refreshBlockedRequestCount();
             if (loadRequest.status === WebEngineView.LoadStartedStatus) {
-                root.pageGeneration += 1
-                root.javaScriptDialogsBlocked = false
-                root.lastLoadFailed = false
-                root.certificateErrorRaisedForLoad = false
+                root.pageGeneration += 1;
+                root.javaScriptDialogsBlocked = false;
+                root.lastLoadFailed = false;
+                root.certificateErrorRaisedForLoad = false;
                 // The node Chromium is holding belonged to the page being
                 // replaced. What is at those coordinates now is not what the
                 // reader pointed at, so the next keyboard request picks again.
-                root.contextMenuTargetKnown = false
+                root.contextMenuTargetKnown = false;
                 // The matches were in the page being replaced. The query is the
                 // reader's and stays, ready to run against what arrives.
-                root.forgetFindMatches()
-                root.installBlockingScript(loadRequest.url)
-                return
+                root.forgetFindMatches();
+                root.installBlockingScript(loadRequest.url);
+                return;
             }
-            root.applyCosmeticRules()
+            root.applyCosmeticRules();
             if (loadRequest.status === WebEngineView.LoadSucceededStatus) {
-                root.surveyGenericCosmeticRules()
+                root.surveyGenericCosmeticRules();
             }
             if (loadRequest.status === WebEngineView.LoadFailedStatus) {
-                root.lastLoadFailed = true
+                root.lastLoadFailed = true;
             }
             // A load that arrived without a certificate failure clears the
             // report. The certificate that failed may since have been fixed,
@@ -1340,45 +1358,48 @@ Item {
             // own memory of an accepted certificate is the shell's to carry,
             // because the adapter cannot tell a fixed certificate from a
             // waived one and must not guess.
-            if (loadRequest.status === WebEngineView.LoadSucceededStatus
-                && !root.certificateErrorRaisedForLoad) {
-                root.certificateErrorOrigin = ""
+            if (loadRequest.status === WebEngineView.LoadSucceededStatus &&
+                    !root.certificateErrorRaisedForLoad) {
+                root.certificateErrorOrigin = "";
             }
-            if (!loading) root.applyKeyboardNavigationConfiguration()
+            if (!loading)
+                root.applyKeyboardNavigationConfiguration();
         }
 
-        onNewWindowRequested: function(request) {
+        onNewWindowRequested: function (request) {
             if (root.popupRefused(request.destination, request.requestedUrl))
-                return
+                return;
             if (request.destination === WebEngineNewWindowRequest.InNewBackgroundTab)
-                root.backgroundTabRequested(request.requestedUrl)
+                root.backgroundTabRequested(request.requestedUrl);
             else if (root.isAuxiliaryDestination(request.destination))
-                root.auxiliaryWindowRequested(request, request.requestedUrl)
+                root.auxiliaryWindowRequested(request, request.requestedUrl);
             else
-                root.newTabRequested(request, request.requestedUrl)
+                root.newTabRequested(request, request.requestedUrl);
         }
 
-        onNavigationRequested: function(request) {
-            const address = String(request.url)
-            const scheme = address.substring(0, address.indexOf(":")).toLowerCase()
-            if (scheme === "http" || scheme === "https" || scheme === "file"
-                || scheme === "about" || scheme === "data" || scheme === "omaweb") return
-            request.reject()
-            root.requestExternalProtocol(request.url, request.isMainFrame)
+        onNavigationRequested: function (request) {
+            const address = String(request.url);
+            const scheme = address.substring(0, address.indexOf(":")).toLowerCase();
+            if (scheme === "http" || scheme === "https" || scheme === "file" || scheme === "about"
+                    || scheme === "data" || scheme === "omaweb")
+                return;
+            request.reject();
+            root.requestExternalProtocol(request.url, request.isMainFrame);
         }
 
         onWindowCloseRequested: root.windowCloseRequested()
 
-        onFindTextFinished: function(result) {
+        onFindTextFinished: function (result) {
             // A result for the page being replaced would otherwise report
             // matches against the page that replaced it.
-            if (root.findGeneration !== root.pageGeneration) return
-            root.findMatchCount = result.numberOfMatches
-            root.findActiveMatch = result.activeMatch
+            if (root.findGeneration !== root.pageGeneration)
+                return;
+            root.findMatchCount = result.numberOfMatches;
+            root.findActiveMatch = result.activeMatch;
         }
 
-        onPdfPrintingFinished: function(filePath, success) {
-            root.printFinished(filePath, success)
+        onPdfPrintingFinished: function (filePath, success) {
+            root.printFinished(filePath, success);
         }
 
         // Accepted here and reported to the shell, which is what makes site
@@ -1388,109 +1409,117 @@ Item {
         // first would leave a page laid out for a screen it has been promised
         // and not given if anything here failed, and the reader looking at a
         // broken page in a window that never changed.
-        onFullScreenRequested: function(request) {
+        onFullScreenRequested: function (request) {
             // The origin is named before the state changes: the shell reports
             // who took the screen the moment it hears that someone did.
-            root.siteFullscreenOrigin = request.toggleOn
-                ? root.originLabel(request.origin) : ""
-            root.siteFullscreenActive = request.toggleOn
-            request.accept()
+            root.siteFullscreenOrigin = request.toggleOn ? root.originLabel(request.origin) : "";
+            root.siteFullscreenActive = request.toggleOn;
+            request.accept();
         }
 
-        onJavaScriptConsoleMessage: function(level, message, lineNumber, sourceId) {
+        onJavaScriptConsoleMessage: function (level, message, lineNumber, sourceId) {
             if (message.startsWith("__omaweb_site_data_cleared__")) {
                 try {
                     const report = JSON.parse(message.substring(
-                        "__omaweb_site_data_cleared__".length))
+                                                  "__omaweb_site_data_cleared__".length));
                     root.pageSiteDataCleared(String(report.origin), report.cleared,
-                        report.refused.length > 0
-                            ? report.refused.join(" and ") + " could not be emptied" : "")
+                                             report.refused.length > 0 ? report.refused.join(
+                                                                             " and ")
+                                                                         + " could not be emptied" :
+                                                                         "");
                 } catch (error) {
-                    root.pageSiteDataCleared("", [], "the page did not answer")
+                    root.pageSiteDataCleared("", [], "the page did not answer");
                 }
             } else if (message.startsWith("__omaweb_external_protocol__")) {
                 try {
                     const report = JSON.parse(message.substring(
-                        "__omaweb_external_protocol__".length))
-                    root.externalProtocolOrigins[String(report.destination)] = String(report.origin)
+                                                  "__omaweb_external_protocol__".length));
+                    root.externalProtocolOrigins[String(report.destination)] = String(
+                                report.origin);
                 } catch (error) {
-                    console.warn("Could not read external protocol origin: " + error)
+                    console.warn("Could not read external protocol origin: " + error);
                 }
             } else if (message === "__omaweb_user_activation__") {
-                root.userActivated()
+                root.userActivated();
             } else if (message === "__omaweb_keyboard_hint_mode__:1")
-                root.keyboardNavigationHintModeActive = true
+                root.keyboardNavigationHintModeActive = true;
             else if (message === "__omaweb_keyboard_hint_mode__:0")
-                root.keyboardNavigationHintModeActive = false
+                root.keyboardNavigationHintModeActive = false;
         }
 
-        onPermissionRequested: function(request) {
-            const permission = root.permissionName(request.permissionType)
+        onPermissionRequested: function (request) {
+            const permission = root.permissionName(request.permissionType);
             const decision = root.permissionController
-                ? root.permissionController.permissionDecision(request.origin, permission)
-                : 0
+                  ? root.permissionController.permissionDecision(request.origin, permission) : 0;
             if (decision === 1 || decision === 2)
-                request.grant()
+                request.grant();
             else if (decision === 3)
-                request.deny()
+                request.deny();
             else {
-                const requestId = String(++root.nextPermissionRequestId)
-                root.pendingPermissions[requestId] = request
-                root.sitePermissionRequested(requestId, request.origin.toString(), permission)
+                const requestId = String(++root.nextPermissionRequestId);
+                root.pendingPermissions[requestId] = request;
+                root.sitePermissionRequested(requestId, request.origin.toString(), permission);
             }
         }
 
-
-        onJavaScriptDialogRequested: function(request) {
-            request.accepted = true
+        onJavaScriptDialogRequested: function (request) {
+            request.accepted = true;
             if (root.javaScriptDialogsBlocked) {
-                request.dialogReject()
-                return
+                request.dialogReject();
+                return;
             }
-            let suffix = "alert"
-            if (request.type === JavaScriptDialogRequest.DialogTypeConfirm) suffix = "confirm"
-            else if (request.type === JavaScriptDialogRequest.DialogTypePrompt) suffix = "prompt"
+            let suffix = "alert";
+            if (request.type === JavaScriptDialogRequest.DialogTypeConfirm)
+                suffix = "confirm";
+            else if (request.type === JavaScriptDialogRequest.DialogTypePrompt)
+                suffix = "prompt";
             else if (request.type === JavaScriptDialogRequest.DialogTypeBeforeUnload)
-                suffix = "before-unload"
-            const requestId = String(++root.nextBrowserPromptId)
-            const kind = "javascript-" + suffix
-            root.pendingBrowserPrompts[requestId] = {"request": request, "kind": kind}
-            root.browserPromptRequested(requestId, {
-                "kind": kind,
-                "origin": request.securityOrigin.toString(),
-                "message": request.message,
-                "defaultText": request.defaultText
-            })
-        }
-
-        onAuthenticationDialogRequested: function(request) {
-            request.accepted = true
-            const requestId = String(++root.nextBrowserPromptId)
+                suffix = "before-unload";
+            const requestId = String(++root.nextBrowserPromptId);
+            const kind = "javascript-" + suffix;
             root.pendingBrowserPrompts[requestId] = {
-                "request": request, "kind": "http-authentication"
-            }
+                "request": request,
+                "kind": kind
+            };
             root.browserPromptRequested(requestId, {
-                "kind": "http-authentication",
-                "origin": request.url.toString(),
-                "message": "Sign in to " + root.originLabel(request.url),
-                "detail": request.realm
-            })
+                                            "kind": kind,
+                                            "origin": request.securityOrigin.toString(),
+                                            "message": request.message,
+                                            "defaultText": request.defaultText
+                                        });
         }
 
+        onAuthenticationDialogRequested: function (request) {
+            request.accepted = true;
+            const requestId = String(++root.nextBrowserPromptId);
+            root.pendingBrowserPrompts[requestId] = {
+                "request": request,
+                "kind": "http-authentication"
+            };
+            root.browserPromptRequested(requestId, {
+                                            "kind": "http-authentication",
+                                            "origin": request.url.toString(),
+                                            "message": "Sign in to " + root.originLabel(request.url),
+                                            "detail": request.realm
+                                        });
+        }
 
-        onFileDialogRequested: function(request) {
-            request.accepted = true
-            const requestId = String(++root.nextBrowserPromptId)
-            let mode = "open"
-            if (request.mode === FileDialogRequest.FileModeOpenMultiple) mode = "open-multiple"
-            else if (request.mode === FileDialogRequest.FileModeUploadFolder) mode = "folder"
-            else if (request.mode === FileDialogRequest.FileModeSave) mode = "save"
-            root.pendingFileSelections[requestId] = request
+        onFileDialogRequested: function (request) {
+            request.accepted = true;
+            const requestId = String(++root.nextBrowserPromptId);
+            let mode = "open";
+            if (request.mode === FileDialogRequest.FileModeOpenMultiple)
+                mode = "open-multiple";
+            else if (request.mode === FileDialogRequest.FileModeUploadFolder)
+                mode = "folder";
+            else if (request.mode === FileDialogRequest.FileModeSave)
+                mode = "save";
+            root.pendingFileSelections[requestId] = request;
             root.fileSelectionRequested(requestId, {
-                "mode": mode,
-                "mimeTypes": request.acceptedMimeTypes,
-                "suggestedName": request.defaultFileName
-            })
+                                            "mode": mode,
+                                            "mimeTypes": request.acceptedMimeTypes,
+                                            "suggestedName": request.defaultFileName
+                                        });
         }
     }
 }

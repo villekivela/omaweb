@@ -33,31 +33,30 @@ QtObject {
     // engine host — a Space whose pages are only being retained may never have
     // been visited — so whoever builds one brings it here.
     function watch(spaceId, host) {
-        if (!host || host.notificationObserversConnected) return
-        host.notificationObserversConnected = true
-        host.notificationPresented.connect(
-            function(notificationId, origin, title, message) {
-                root.present(spaceId, host, notificationId, origin, title, message)
-            })
+        if (!host || host.notificationObserversConnected)
+            return;
+        host.notificationObserversConnected = true;
+        host.notificationPresented.connect(function (notificationId, origin, title, message) {
+            root.present(spaceId, host, notificationId, origin, title, message);
+        });
     }
 
     function present(spaceId, host, notificationId, origin, title, message) {
-        const target = root.allowed
-            ? root.browser.notificationTarget(spaceId, origin) : null
+        const target = root.allowed ? root.browser.notificationTarget(spaceId, origin) : null;
         // A page whose Space has been put away, and which nothing is keeping
         // running, has no business interrupting: only a retained tab can speak
         // for an inactive Space.
         if (!target || !target.tabId) {
-            host.dismissNotification(notificationId)
-            return
+            host.dismissNotification(notificationId);
+            return;
         }
-        const key = spaceId + ":" + notificationId
+        const key = spaceId + ":" + notificationId;
         // Origin and Space, always and first: which site is asking, and which
         // browsing identity it is asking in. The page's own words follow.
-        const heading = target.origin + " · " + target.spaceName
-        const detail = title.length > 0 && message.length > 0
-            ? title + " — " + message
-            : (title.length > 0 ? title : message)
+        const heading = target.origin + " · " + target.spaceName;
+        const detail = title.length > 0 && message.length > 0 ? title + " — " + message : (
+                                                                    title.length > 0 ? title :
+                                                                                       message);
         root.pending[key] = {
             "spaceId": spaceId,
             "tabId": target.tabId,
@@ -65,11 +64,11 @@ QtObject {
             "notificationId": notificationId,
             "heading": heading,
             "detail": detail
-        }
+        };
         // Nothing on this desktop to show it with. The reader will not see it,
         // so the page is told it closed rather than left waiting.
         if (!SystemNotifier.present(key, heading, detail)) {
-            host.dismissNotification(notificationId)
+            host.dismissNotification(notificationId);
         }
     }
 
@@ -77,21 +76,26 @@ QtObject {
     // desktop's notifications reach every window in the process. A key this
     // window never handed out is not this window's to answer.
     function answer(key, activated) {
-        const waiting = root.pending[key]
-        if (!waiting) return
-        delete root.pending[key]
+        const waiting = root.pending[key];
+        if (!waiting)
+            return;
+        delete root.pending[key];
         if (!activated) {
-            waiting.host.dismissNotification(waiting.notificationId)
-            return
+            waiting.host.dismissNotification(waiting.notificationId);
+            return;
         }
-        waiting.host.activateNotification(waiting.notificationId)
-        root.activationRequested(waiting.spaceId, waiting.tabId)
+        waiting.host.activateNotification(waiting.notificationId);
+        root.activationRequested(waiting.spaceId, waiting.tabId);
     }
 
     property Connections desktop: Connections {
         target: SystemNotifier
 
-        function onActivated(key) { root.answer(key, true) }
-        function onDismissed(key) { root.answer(key, false) }
+        function onActivated(key) {
+            root.answer(key, true);
+        }
+        function onDismissed(key) {
+            root.answer(key, false);
+        }
     }
 }

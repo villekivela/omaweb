@@ -11,8 +11,8 @@ bool SessionSiteState::namedPurpose(const QString &purpose)
     return purpose == QStringLiteral("authentication") || purpose == QStringLiteral("payment");
 }
 
-bool SessionSiteState::allowThirdPartyCookies(const QString &spaceId, const QString &origin,
-    const QString &purpose)
+bool SessionSiteState::allowThirdPartyCookies(
+    const QString &spaceId, const QString &origin, const QString &purpose)
 {
     if (origin.isEmpty() || !namedPurpose(purpose)) {
         return false;
@@ -33,8 +33,7 @@ bool SessionSiteState::revokeThirdPartyCookies(const QString &spaceId, const QSt
     return true;
 }
 
-bool SessionSiteState::thirdPartyCookiesAllowed(const QString &spaceId,
-    const QString &origin) const
+bool SessionSiteState::thirdPartyCookiesAllowed(const QString &spaceId, const QString &origin) const
 {
     return !origin.isEmpty() && m_cookieAllowances.value(spaceId).contains(origin);
 }
@@ -47,7 +46,7 @@ QVariantList SessionSiteState::thirdPartyCookieAllowances(const QString &spaceId
     QVariantList allowances;
     allowances.reserve(origins.size());
     for (const auto &origin : origins) {
-        allowances.append(QVariantMap{
+        allowances.append(QVariantMap {
             {QStringLiteral("origin"), origin},
             {QStringLiteral("purpose"), granted.value(origin)},
         });

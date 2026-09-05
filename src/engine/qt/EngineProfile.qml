@@ -19,25 +19,9 @@ QtObject {
     property bool thirdPartyCookiesBlocked: false
     property string downloadDirectory: ""
     property bool acceptDownloads: false
-    // The shell's rule about a download, and the engine-side hold that lets the
-    // reader be asked before anything is written. Both are handed in: a profile
-    // may be built for a Space nobody is looking at, and the rule is the
-    // browser's rather than the engine's.
     property var downloadController: null
     property var downloadHolds: null
-    // The downloads the reader has already answered for, by address, each
-    // carrying the path they chose or an empty string to keep the name it came
-    // with. The engine cannot hold a request open while a question is on
-    // screen, so an answered download is a fresh request from the same page —
-    // and this is what stops it being asked about all over again.
-    //
-    // An entry is spent by the first request for that address and then gone, so
-    // an answer covers one download rather than opening the address up. The
-    // most a page can do with one is fetch the file the reader has just agreed
-    // to have, a moment before their own copy of it arrives.
     property var answeredDownloads: ({})
-    // The downloads still running, by the identifier the shell knows them by,
-    // so cancelling and retrying reach the request rather than the record.
     property var downloadRequests: ({})
     property bool privateBrowsing: true
     property string downloadNamespace: ""
@@ -56,112 +40,92 @@ QtObject {
     // for local storage, databases or service workers at this boundary, so
     // their size is reported separately rather than folded into a number the
     // action cannot move.
-    readonly property var retainedDataEntries: [
-        "Local Storage", "Session Storage", "IndexedDB", "databases",
-        "File System", "Service Worker", "Shared Storage", "blob_storage"
-    ]
+    readonly property var retainedDataEntries: ["Local Storage", "Session Storage", "IndexedDB",
+        "databases", "File System", "Service Worker", "Shared Storage", "blob_storage"]
     // The engine has finished taking what it was asked to take. Site
     // information re-reads on this rather than guessing at a delay: Chromium
     // clears asynchronously, and a size that has not moved yet reads as an
     // action that did nothing.
-    signal browsingDataCleared()
+    signal browsingDataCleared
     readonly property var profile: privateProfile
     signal downloadStarted(string runtimeId, url sourceUrl, string path, string state,
-        double receivedBytes, double totalBytes)
-    signal downloadUpdated(string runtimeId, string state, double receivedBytes,
-        double totalBytes, string error)
-    // A download nothing has been written for, waiting on the reader. The
-    // disposition says what they are being asked — whether to have a program at
-    // all, whether this page may download by itself, or where to put a file
-    // whose name is already taken — and the token is how the answer gets back.
-    // The disposition is the name the core's rule travels under — "confirm",
-    // "permission" or "save-as" — rather than a number the shell and every
-    // adapter would each have to spell the same way.
+                           double receivedBytes, double totalBytes)
+    signal downloadUpdated(string runtimeId, string state, double receivedBytes, double totalBytes,
+                           string error)
     signal downloadHeld(string token, string disposition, string origin, url sourceUrl,
-        string fileName, string risk)
-    // A download that was never offered to the reader, because they have
-    // already refused this origin's.
+                        string fileName, string risk)
     signal downloadRefused(url sourceUrl, string fileName, string origin)
 
-    // The reader answered: the page is asked for the same file again, with the
-    // path they chose or the name it came with. `path` is a filesystem path
-    // rather than a URL, because that is what the engine takes.
-    //
-    // The asking is a link to the same address, clicked in the page. Qt's Quick
-    // web view carries no page object to call `download` on, and re-navigating
-    // the browser to the address would move the tab's address to a file the
-    // reader is only saving — while a link click is what the first request
-    // usually was anyway.
     function releaseHeldDownload(token, path) {
-        if (!root.downloadHolds) return false
-        const details = root.downloadHolds.held(token)
-        if (!details || !details.sourceUrl || !details.view) return false
-        root.answeredDownloads[String(details.sourceUrl)] = path ? String(path) : ""
-        root.downloadHolds.discard(token)
-        // Both halves come from the page, so neither is pasted into the script
-        // as it stands.
-        details.view.runJavaScript(
-            "(function(){var link=document.createElement('a');link.href="
-                + JSON.stringify(String(details.sourceUrl)) + ";link.download="
-                + JSON.stringify(String(details.fileName)) + ";link.rel='noopener';"
-                + "(document.body||document.documentElement).appendChild(link);"
-                + "link.click();link.remove();})()")
-        return true
+        if (!root.downloadHolds)
+            return false;
+        const details = root.downloadHolds.held(token);
+        if (!details || !details.sourceUrl || !details.view)
+            return false;
+        // The next matching request consumes this answer.
+        root.answeredDownloads[String(details.sourceUrl)] = path ? String(path) : "";
+        root.downloadHolds.discard(token);
+        details.view.runJavaScript("(function(){var link=document.createElement('a');link.href="
+                                   + JSON.stringify(String(details.sourceUrl)) + ";link.download="
+                                   + JSON.stringify(String(details.fileName))
+                                   + ";link.rel='noopener';"
+                                   + "(document.body||document.documentElement).appendChild(link);"
+                                   + "link.click();link.remove();})()");
+        return true;
     }
 
     function discardHeldDownload(token) {
-        return root.downloadHolds ? root.downloadHolds.discard(token) : false
+        return root.downloadHolds ? root.downloadHolds.discard(token) : false;
     }
 
     function cancelDownload(runtimeId) {
-        const request = root.downloadRequests[runtimeId]
-        if (!request) return false
-        request.cancel()
-        return true
+        const request = root.downloadRequests[runtimeId];
+        if (!request)
+            return false;
+        request.cancel();
+        return true;
     }
 
-    // A download that stopped short of finishing. The engine keeps an
-    // interrupted request resumable, so a retry is that same request going
-    // back on the wire rather than a new one from the top. A download that
-    // completed or was cancelled is not retried: there is nothing left to
-    // resume, and the reader asks the page again.
     function retryDownload(runtimeId) {
-        const request = root.downloadRequests[runtimeId]
-        if (!request) return false
-        if (request.state !== WebEngineDownloadRequest.DownloadInterrupted
-            && !request.isPaused) return false
-        request.resume()
-        return true
+        const request = root.downloadRequests[runtimeId];
+        if (!request)
+            return false;
+        if (request.state !== WebEngineDownloadRequest.DownloadInterrupted && !request.isPaused)
+            return false;
+        request.resume();
+        return true;
     }
     // A notification arrives from a Space's profile rather than from one page,
     // so the origin is all there is to say who sent it. The shell decides
     // whether that origin has a tab entitled to interrupt, presents the
     // desktop's own notification, and asks for it back by id.
-    signal notificationPresented(string notificationId, url origin, string title,
-        string message)
+    signal notificationPresented(string notificationId, url origin, string title, string message)
     property var pendingNotifications: ({})
     property int nextNotificationId: 0
 
     // The reader answered the notification: the page hears the click, and the
     // shell takes them to the tab.
     function activateNotification(notificationId) {
-        const notification = root.pendingNotifications[notificationId]
-        if (!notification) return
-        delete root.pendingNotifications[notificationId]
-        notification.click()
-        notification.close()
+        const notification = root.pendingNotifications[notificationId];
+        if (!notification)
+            return;
+        delete root.pendingNotifications[notificationId];
+        notification.click();
+        notification.close();
     }
 
     function dismissNotification(notificationId) {
-        const notification = root.pendingNotifications[notificationId]
-        if (!notification) return
-        delete root.pendingNotifications[notificationId]
-        notification.close()
+        const notification = root.pendingNotifications[notificationId];
+        if (!notification)
+            return;
+        delete root.pendingNotifications[notificationId];
+        notification.close();
     }
 
     function retire() {
-        retired = true
-        if (activeDownloadCount === 0) root.destroy()
+        retired = true;
+        if (activeDownloadCount === 0)
+            root.destroy();
     }
 
     // The reader took an origin's decisions back, so the engine's own record of
@@ -170,15 +134,14 @@ QtObject {
     // no public API reaches, so a page already holding one keeps it until the
     // site is opened again.
     function resetOriginPermissions(origin) {
-        const persistentTypes = [
-            WebEnginePermission.PermissionType.Notifications,
-            WebEnginePermission.PermissionType.Geolocation,
-            WebEnginePermission.PermissionType.ClipboardReadWrite,
-            WebEnginePermission.PermissionType.LocalFontsAccess
-        ]
+        const persistentTypes = [WebEnginePermission.PermissionType.Notifications,
+                                 WebEnginePermission.PermissionType.Geolocation,
+                                 WebEnginePermission.PermissionType.ClipboardReadWrite,
+                                 WebEnginePermission.PermissionType.LocalFontsAccess];
         for (let index = 0; index < persistentTypes.length; ++index) {
-            const permission = privateProfile.queryPermission(origin, persistentTypes[index])
-            if (permission.isValid) permission.reset()
+            const permission = privateProfile.queryPermission(origin, persistentTypes[index]);
+            if (permission.isValid)
+                permission.reset();
         }
     }
 
@@ -190,16 +153,19 @@ QtObject {
     // local storage, databases or service workers, nor any time filter. The
     // reader is told what stayed rather than left to believe it went.
     function clearBrowsingData(dataTypes, since) {
-        const untouched = []
+        const untouched = [];
         if (dataTypes.indexOf("cookies") >= 0) {
-            const deleted = root.engineCookiePolicy
-                && root.engineCookiePolicy.deleteAllCookies(root.profile)
-            if (!deleted) untouched.push("cookies")
+            const deleted = root.engineCookiePolicy && root.engineCookiePolicy.deleteAllCookies(
+                      root.profile);
+            if (!deleted)
+                untouched.push("cookies");
         }
-        if (dataTypes.indexOf("storage") >= 0) untouched.push("storage")
-        if (dataTypes.indexOf("cache") >= 0) privateProfile.clearHttpCache()
-        root.browsingDataCleared()
-        return untouched
+        if (dataTypes.indexOf("storage") >= 0)
+            untouched.push("storage");
+        if (dataTypes.indexOf("cache") >= 0)
+            privateProfile.clearHttpCache();
+        root.browsingDataCleared();
+        return untouched;
     }
 
     property Component downloadObserver: Component {
@@ -207,79 +173,82 @@ QtObject {
             id: observer
             required property var download
             required property string downloadNamespace
-            // The page it came from, kept because a retry has to be counted
-            // against the same origin the first attempt was.
             property string pageUrl: ""
-            // Whether this download has stopped counting against the origin
-            // that started it. An interrupted one has; a retry puts it back.
             property bool settled: false
 
             function stateName() {
                 switch (download.state) {
-                case WebEngineDownloadRequest.DownloadRequested: return "requested"
-                case WebEngineDownloadRequest.DownloadInProgress: return "in-progress"
-                case WebEngineDownloadRequest.DownloadCompleted: return "completed"
-                case WebEngineDownloadRequest.DownloadCancelled: return "cancelled"
-                case WebEngineDownloadRequest.DownloadInterrupted: return "interrupted"
-                default: return "unknown"
+                case WebEngineDownloadRequest.DownloadRequested:
+                    return "requested";
+                case WebEngineDownloadRequest.DownloadInProgress:
+                    return "in-progress";
+                case WebEngineDownloadRequest.DownloadCompleted:
+                    return "completed";
+                case WebEngineDownloadRequest.DownloadCancelled:
+                    return "cancelled";
+                case WebEngineDownloadRequest.DownloadInterrupted:
+                    return "interrupted";
+                default:
+                    return "unknown";
                 }
             }
 
             function path() {
-                return download.downloadDirectory + "/" + download.downloadFileName
+                return download.downloadDirectory + "/" + download.downloadFileName;
             }
 
             function runtimeId() {
-                return downloadNamespace + ":" + String(download.id)
+                return downloadNamespace + ":" + String(download.id);
             }
 
             function running() {
                 return download.state === WebEngineDownloadRequest.DownloadInProgress
-                    || download.state === WebEngineDownloadRequest.DownloadRequested
+                        || download.state === WebEngineDownloadRequest.DownloadRequested;
             }
 
             function updateRecord() {
-                root.downloadUpdated(runtimeId(), stateName(),
-                    download.receivedBytes, download.totalBytes,
-                    download.interruptReasonString || "")
+                root.downloadUpdated(runtimeId(), stateName(), download.receivedBytes,
+                                     download.totalBytes, download.interruptReasonString || "");
                 if (!running() && !settled) {
-                    settled = true
-                    root.activeDownloadCount -= 1
-                    // A page whose downloads have all settled is asking for the
-                    // next one on its own account again.
+                    settled = true;
+                    root.activeDownloadCount -= 1;
                     if (root.downloadController)
-                        root.downloadController.noteDownloadSettled(runtimeId())
+                        root.downloadController.noteDownloadSettled(runtimeId());
                 } else if (running() && settled) {
-                    // A retry put it back on the wire.
-                    settled = false
-                    root.activeDownloadCount += 1
+                    settled = false;
+                    root.activeDownloadCount += 1;
                     if (root.downloadController)
-                        root.downloadController.noteDownloadStarted(observer.pageUrl,
-                            runtimeId())
+                        root.downloadController.noteDownloadStarted(observer.pageUrl, runtimeId());
                 }
-                // Only a request the engine will never touch again is let go
-                // of: an interrupted one is still resumable, and dropping it
-                // would leave the reader a retry that reaches nothing.
-                if (download.state === WebEngineDownloadRequest.DownloadCompleted
-                    || download.state === WebEngineDownloadRequest.DownloadCancelled) {
-                    delete root.downloadRequests[runtimeId()]
-                    if (root.retired && root.activeDownloadCount === 0) root.destroy()
-                    observer.destroy()
+                if (download.state === WebEngineDownloadRequest.DownloadCompleted || download.state
+                        === WebEngineDownloadRequest.DownloadCancelled) {
+                    delete root.downloadRequests[runtimeId()];
+                    if (root.retired && root.activeDownloadCount === 0)
+                        root.destroy();
+                    observer.destroy();
                 }
             }
 
             Component.onCompleted: {
-                root.downloadRequests[runtimeId()] = download
-                root.downloadStarted(runtimeId(), download.url,
-                    path(), stateName(), download.receivedBytes, download.totalBytes)
+                root.downloadRequests[runtimeId()] = download;
+                root.downloadStarted(runtimeId(), download.url, path(), stateName(), download.receivedBytes,
+                                     download.totalBytes);
             }
 
             property Connections downloadConnections: Connections {
                 target: observer.download
-                function onStateChanged() { observer.updateRecord() }
-                function onReceivedBytesChanged() { observer.updateRecord() }
-                function onTotalBytesChanged() { observer.updateRecord() }
-                function onInterruptReasonChanged() { observer.updateRecord() }
+                function onStateChanged() {
+                    observer.updateRecord();
+                }
+                function onReceivedBytesChanged() {
+                    observer.updateRecord();
+                }
+                function onTotalBytesChanged() {
+                    observer.updateRecord();
+                }
+                function onInterruptReasonChanged() {
+                    observer.updateRecord();
+                }
             }
         }
     }
@@ -295,12 +264,10 @@ QtObject {
         offTheRecord: root.privateBrowsing
         persistentStoragePath: root.profilePath
         cachePath: root.profilePath + "/cache"
-        persistentCookiesPolicy: root.privateBrowsing
-            ? WebEngineProfile.NoPersistentCookies
-            : WebEngineProfile.ForcePersistentCookies
-        httpCacheType: root.privateBrowsing
-            ? WebEngineProfile.MemoryHttpCache
-            : WebEngineProfile.DiskHttpCache
+        persistentCookiesPolicy: root.privateBrowsing ? WebEngineProfile.NoPersistentCookies :
+                                                        WebEngineProfile.ForcePersistentCookies
+        httpCacheType: root.privateBrowsing ? WebEngineProfile.MemoryHttpCache :
+                                              WebEngineProfile.DiskHttpCache
         // Chromium keeps a permission store of its own and, left to itself,
         // answers a second request from it without ever asking the embedder.
         // That would put a decision beyond the reach of everything Omaweb
@@ -308,107 +275,93 @@ QtObject {
         // and is never asked again. Asking every time makes Omaweb's own store
         // the only place a site's decisions live, which is also what lets
         // allow-once mean once and clipboard read mean every time.
-        persistentPermissionsPolicy:
-            WebEngineProfile.PersistentPermissionsPolicy.AskEveryTime
+        persistentPermissionsPolicy: WebEngineProfile.PersistentPermissionsPolicy.AskEveryTime
 
         // Chromium hands the notification over and waits: nothing is shown
         // until `show` is called, and a page that is never told otherwise has
         // simply not been answered. That is what lets the shell refuse one from
         // a Space it has put away.
-        onPresentNotification: function(notification) {
-            const notificationId = String(++root.nextNotificationId)
-            root.pendingNotifications[notificationId] = notification
-            notification.closed.connect(function() {
-                delete root.pendingNotifications[notificationId]
-            })
-            root.notificationPresented(notificationId, notification.origin,
-                notification.title, notification.message)
+        onPresentNotification: function (notification) {
+            const notificationId = String(++root.nextNotificationId);
+            root.pendingNotifications[notificationId] = notification;
+            notification.closed.connect(function () {
+                delete root.pendingNotifications[notificationId];
+            });
+            root.notificationPresented(notificationId, notification.origin, notification.title,
+                                       notification.message);
         }
 
         // Chromium reports the cache removal separately because it finishes
         // separately, and it is the largest part of what was taken.
         onClearHttpCacheCompleted: root.browsingDataCleared()
 
-        // Every decision about a download is made here, before a byte is
-        // written, because the engine takes no other moment: a request that is
-        // neither accepted nor cancelled by the time this returns is thrown
-        // away, and one that has been accepted can no longer be renamed. So the
-        // rule is asked synchronously and a question the reader has to answer
-        // becomes a held download instead of a paused one.
-        onDownloadRequested: function(download) {
+        onDownloadRequested: function (download) {
             if (!root.acceptDownloads) {
-                download.cancel()
-                return
+                download.cancel();
+                return;
             }
-            // The page the download came from. The reader's dealings are with
-            // that origin rather than with the file server, so it is what the
-            // rule is asked about and what the question names.
-            const pageUrl = download.view ? download.view.url : ""
-            const sourceKey = String(download.url)
-            const answer = root.answeredDownloads[sourceKey]
-            const answered = answer !== undefined
-            if (answered) delete root.answeredDownloads[sourceKey]
-            // A path the reader chose in a save dialog is the last word: there
-            // is nothing left to decide about where this one goes.
-            let chosenPath = answered && answer.length > 0 ? answer : preparedDownloadPath
+            const pageUrl = download.view ? download.view.url : "";
+            const sourceKey = String(download.url);
+            const answer = root.answeredDownloads[sourceKey];
+            const answered = answer !== undefined;
+            if (answered)
+                delete root.answeredDownloads[sourceKey];
+            let chosenPath = answered && answer.length > 0 ? answer : preparedDownloadPath;
             if (chosenPath.length === 0) {
-                const fileName = download.downloadFileName.length > 0
-                    ? download.downloadFileName : download.suggestedFileName
-                const rule = root.downloadController
-                    ? root.downloadController.downloadDisposition(pageUrl, fileName,
-                        download.mimeType, root.downloadDirectory, answered)
-                    : null
-                const disposition = rule ? rule.disposition : "accept"
+                const fileName = download.downloadFileName.length > 0 ? download.downloadFileName :
+                                                                        download.suggestedFileName;
+                const rule = root.downloadController ? root.downloadController.downloadDisposition(
+                                                           pageUrl, fileName, download.mimeType,
+                                                           root.downloadDirectory, answered) : null;
+                const disposition = rule ? rule.disposition : "accept";
                 if (disposition === "refuse") {
-                    download.cancel()
-                    root.downloadRefused(download.url, fileName, rule.origin)
-                    return
+                    download.cancel();
+                    root.downloadRefused(download.url, fileName, rule.origin);
+                    return;
                 }
                 if (disposition !== "accept") {
-                    // Holding cancels the request, so nothing is on disk while
-                    // the question stands. A download with no page left to ask
-                    // again is refused instead of held.
-                    const token = root.downloadHolds
-                        ? root.downloadHolds.hold(download) : ""
+                    const token = root.downloadHolds ? root.downloadHolds.hold(download) : "";
                     if (token.length === 0) {
-                        download.cancel()
-                        root.downloadRefused(download.url, fileName, rule ? rule.origin : "")
-                        return
+                        download.cancel();
+                        root.downloadRefused(download.url, fileName, rule ? rule.origin : "");
+                        return;
                     }
-                    root.downloadHeld(token, disposition, rule.origin, download.url,
-                        fileName, rule.risk)
-                    return
+                    root.downloadHeld(token, disposition, rule.origin, download.url, fileName,
+                                      rule.risk);
+                    return;
                 }
             }
             if (chosenPath.length > 0) {
-                const separator = Math.max(chosenPath.lastIndexOf("/"),
-                    chosenPath.lastIndexOf("\\"))
-                download.downloadDirectory = chosenPath.substring(0, separator)
-                download.downloadFileName = chosenPath.substring(separator + 1)
-                preparedDownloadPath = ""
+                const separator = Math.max(chosenPath.lastIndexOf("/"), chosenPath.lastIndexOf(
+                                               "\\"));
+                download.downloadDirectory = chosenPath.substring(0, separator);
+                download.downloadFileName = chosenPath.substring(separator + 1);
+                preparedDownloadPath = "";
             } else if (root.downloadDirectory.length > 0) {
-                download.downloadDirectory = root.downloadDirectory
+                download.downloadDirectory = root.downloadDirectory;
             }
             if (download.downloadFileName.length === 0)
-                download.downloadFileName = download.suggestedFileName
-            root.activeDownloadCount += 1
+                download.downloadFileName = download.suggestedFileName;
+            root.activeDownloadCount += 1;
             const observer = root.downloadObserver.createObject(root, {
-                "download": download,
-                "downloadNamespace": root.downloadNamespace,
-                "pageUrl": String(pageUrl)
-            })
+                                                                    "download": download,
+                                                                    "downloadNamespace":
+                                                                    root.downloadNamespace,
+                                                                    "pageUrl": String(pageUrl)
+                                                                });
             if (root.downloadController)
-                root.downloadController.noteDownloadStarted(pageUrl, observer.runtimeId())
-            download.accept()
+                root.downloadController.noteDownloadStarted(pageUrl, observer.runtimeId());
+            download.accept();
         }
     }
 
     Component.onCompleted: {
         if (root.engineContentBlocker)
-            root.engineContentBlocker.attachToProfile(root.profile)
+            root.engineContentBlocker.attachToProfile(root.profile);
         if (root.engineCookiePolicy && root.cookieController) {
-            root.thirdPartyCookiesBlocked = root.engineCookiePolicy.attachToProfile(
-                root.profile, root.cookieController, root.cookieSpaceId)
+            root.thirdPartyCookiesBlocked = root.engineCookiePolicy.attachToProfile(root.profile,
+                                                                                    root.cookieController,
+                                                                                    root.cookieSpaceId);
         }
     }
 }

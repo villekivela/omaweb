@@ -1,0 +1,10 @@
+BasedOnStyle: WebKit
+ColumnLimit: 100
+IndentWidth: 4
+ContinuationIndentWidth: 4
+Cpp11BracedListStyle: true
+DerivePointerAlignment: false
+PointerAlignment: Right
+ReferenceAlignment: Right
+SortIncludes: Never
+SpaceBeforeCpp11BracedList: true

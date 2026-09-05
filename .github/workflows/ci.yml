@@ -10,6 +10,31 @@ permissions:
   contents: read
 
 jobs:
+  style:
+    runs-on: ubuntu-latest
+    container: archlinux:base-devel
+    steps:
+      - name: Install formatters
+        run: pacman -Syu --noconfirm git clang qt6-declarative nodejs npm
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Trust checkout in container
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+      - name: Install formatting dependencies
+        run: npm ci
+      - name: Check changed files
+        env:
+          STYLE_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if [ -n "$STYLE_BASE" ] && git rev-parse --verify "$STYLE_BASE^{commit}" >/dev/null 2>&1; then
+            scripts/check_changed.sh "$STYLE_BASE"
+          else
+            scripts/check_format.sh --all
+            scripts/check_qml.sh --all
+            git diff --check
+          fi
+
   commit-messages:
     runs-on: ubuntu-latest
     steps:
@@ -31,7 +56,9 @@ jobs:
       - name: Install toolchain
         # `rust` carries cargo, which the content-blocker bootstrap needs. This
         # container ships nothing it is not told to.
-        run: pacman -Syu --noconfirm git cmake ninja clang ccache rust qt6-base qt6-declarative qt6-webengine
+        run:
+          pacman -Syu --noconfirm git cmake ninja clang ccache rust qt6-base qt6-declarative
+          qt6-webengine
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Take the build off root
         # A container runs as root, and Chromium refuses to start as root
@@ -63,4 +90,5 @@ jobs:
         # The release preset embeds QML instead of loading it from source, so
         # these two guard the packaged form. Both are platform-neutral: one is
         # a CMake script check, the other loads QML offscreen.
-        run: su builder -c "ctest --preset release -R '^(omaweb-shared-qml-boundary|omaweb-qml-load)$'"
+        run:
+          su builder -c "ctest --preset release -R '^(omaweb-shared-qml-boundary|omaweb-qml-load)$'"

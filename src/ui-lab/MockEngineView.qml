@@ -4,20 +4,21 @@ Rectangle {
     id: root
 
     property url currentUrl: "about:blank"
-    property string pageTitle: currentUrl.toString() === "about:blank" ? "New tab" : currentUrl.toString()
+    property string pageTitle: currentUrl.toString() === "about:blank" ? "New tab" :
+                                                                         currentUrl.toString()
     // The lab runs no engine and so has no icon store. Handing every host one
     // of the drawn stand-ins is what makes the sidebar's chips reviewable
     // without the QtWebEngine build.
     property url pageIconUrl: {
         if (!mockFaviconUrls || mockFaviconUrls.length === 0)
-            return ""
-        const address = String(root.currentUrl)
+            return "";
+        const address = String(root.currentUrl);
         if (address.length === 0 || address.startsWith("about:"))
-            return ""
-        let hash = 0
+            return "";
+        let hash = 0;
         for (let index = 0; index < address.length; ++index)
-            hash = (hash * 31 + address.charCodeAt(index)) % 104729
-        return mockFaviconUrls[hash % mockFaviconUrls.length]
+            hash = (hash * 31 + address.charCodeAt(index)) % 104729;
+        return mockFaviconUrls[hash % mockFaviconUrls.length];
     }
     property bool loading: false
     // The lab plays nothing, so both sides of the tab's speaker are set by
@@ -43,8 +44,8 @@ Rectangle {
     property var engineContentBlocker: null
     property var permissionController: null
     readonly property var browserProfile: root.sharedProfile ? root.sharedProfile : root
-    readonly property int blockedRequestCount: contentBlocker
-        ? contentBlocker.blockedRequestCount(currentUrl) : 0
+    readonly property int blockedRequestCount: contentBlocker ? contentBlocker.blockedRequestCount(
+                                                                    currentUrl) : 0
     property var keyboardNavigationConfiguration: ({})
     property string keyboardNavigationScriptSource: ""
     property bool keyboardNavigationHintModeActive: false
@@ -83,19 +84,23 @@ Rectangle {
     // Site information has no size to show. A test that needs the shell stood
     // up against an engine that does keep a profile turns it on.
     property bool persistentProfilesAvailable: false
-    readonly property int capabilities: navigationCapability
-        | contentBlockingCapability
-        | keyboardPageCommandsCapability
-        | (root.inspectorAvailable ? developerToolsCapability : 0)
-        | rendererRecoveryCapability
-        | (root.findAvailable ? pageFindCapability : 0)
-        | (root.zoomAvailable ? pageZoomCapability : 0)
-        | (root.printingAvailable ? printingCapability : 0)
-        | (root.siteFullscreenAvailable ? siteFullscreenCapability : 0)
-        | (root.inlinePdfViewingAvailable ? inlinePdfViewingCapability : 0)
-        | (root.persistentProfilesAvailable ? persistentProfilesCapability : 0)
-        | (root.certificateDecisionsAvailable ? certificateDecisionsCapability : 0)
-        | (root.thirdPartyCookieControlAvailable ? thirdPartyCookieControlCapability : 0)
+    readonly property int capabilities: navigationCapability | contentBlockingCapability
+                                        | keyboardPageCommandsCapability | (root.inspectorAvailable
+                                                                            ? developerToolsCapability :
+                                                                              0) | rendererRecoveryCapability
+                                        | (root.findAvailable ? pageFindCapability : 0) | (
+                                            root.zoomAvailable ? pageZoomCapability : 0) | (
+                                            root.printingAvailable ? printingCapability : 0) | (
+                                            root.siteFullscreenAvailable ? siteFullscreenCapability :
+                                                                           0) | (root.inlinePdfViewingAvailable
+                                                                                 ? inlinePdfViewingCapability :
+                                                                                   0) | (root.persistentProfilesAvailable
+                                                                                         ? persistentProfilesCapability :
+                                                                                           0) | (root.certificateDecisionsAvailable
+                                                                                                 ? certificateDecisionsCapability :
+                                                                                                   0) | (root.thirdPartyCookieControlAvailable
+                                                                                                         ? thirdPartyCookieControlCapability :
+                                                                                                           0)
 
     // The lab renders nothing, so find counts the plain occurrences of the
     // query in a body of text a test names. That is enough for the interface:
@@ -115,28 +120,29 @@ Rectangle {
     property string certificateErrorOrigin: ""
     property bool lastLoadFailed: false
     readonly property string connectionState: {
-        const address = String(root.currentUrl)
-        const separator = address.indexOf("://")
-        const scheme = separator === -1 ? "" : address.substring(0, separator).toLowerCase()
-        if (root.certificateErrorOrigin.length > 0
-            && root.certificateErrorOrigin === root.originLabel(root.currentUrl))
-            return "certificate-error"
+        const address = String(root.currentUrl);
+        const separator = address.indexOf("://");
+        const scheme = separator === -1 ? "" : address.substring(0, separator).toLowerCase();
+        if (root.certificateErrorOrigin.length > 0 && root.certificateErrorOrigin
+                === root.originLabel(root.currentUrl))
+            return "certificate-error";
         // A page that never arrived is not a page reached over an unencrypted
         // connection: there is no connection to report either way.
-        if (root.lastLoadFailed) return "internal"
-        if (scheme !== "http" && scheme !== "https") return "internal"
-        return scheme === "https" ? "secure" : "insecure"
+        if (root.lastLoadFailed)
+            return "internal";
+        if (scheme !== "http" && scheme !== "https")
+            return "internal";
+        return scheme === "https" ? "secure" : "insecure";
     }
     // The lab enables no override, and says so the same way the engine adapter
     // does rather than by being trusted not to.
     readonly property bool insecureContentBlocked: true
 
     function originLabel(origin) {
-        const address = String(origin)
-        const scheme = address.indexOf("://")
-        const authority = (scheme === -1 ? address : address.substring(scheme + 3))
-            .split("/")[0]
-        return authority.length > 0 ? authority : address
+        const address = String(origin);
+        const scheme = address.indexOf("://");
+        const authority = (scheme === -1 ? address : address.substring(scheme + 3)).split("/")[0];
+        return authority.length > 0 ? authority : address;
     }
 
     signal certificateErrorRaised(string requestId, var failure)
@@ -147,15 +153,14 @@ Rectangle {
     property string pageSiteDataRefusal: ""
     property int pageSiteDataClearCount: 0
     function clearPageSiteData() {
-        const address = String(root.currentUrl)
+        const address = String(root.currentUrl);
         if (address.length === 0 || address.startsWith("about:")) {
-            root.pageSiteDataCleared("", [], "there is no page to clear")
-            return
+            root.pageSiteDataCleared("", [], "there is no page to clear");
+            return;
         }
-        root.pageSiteDataClearCount += 1
-        root.pageSiteDataCleared(root.originLabel(root.currentUrl),
-            root.pageSiteDataRefusal.length > 0 ? [] : root.pageSiteData,
-            root.pageSiteDataRefusal)
+        root.pageSiteDataClearCount += 1;
+        root.pageSiteDataCleared(root.originLabel(root.currentUrl), root.pageSiteDataRefusal.length
+                                 > 0 ? [] : root.pageSiteData, root.pageSiteDataRefusal);
     }
     property var pendingCertificateErrors: ({})
     property int nextCertificateErrorId: 0
@@ -165,33 +170,41 @@ Rectangle {
     // that cannot report one reports nothing at all, which is what the
     // capability being off has to mean.
     function simulateCertificateError(failure) {
-        if (!root.certificateDecisionsAvailable) return ""
-        const named = failure || ({})
-        const url = String(named.url !== undefined ? named.url : root.currentUrl)
-        const requestId = String(++root.nextCertificateErrorId)
-        const mainFrame = named.mainFrame !== false
-        if (mainFrame) root.certificateErrorOrigin = root.originLabel(url)
-        root.pendingCertificateErrors[requestId] = {"url": url, "mainFrame": mainFrame}
-        root.certificateErrorRaised(requestId, {
+        if (!root.certificateDecisionsAvailable)
+            return "";
+        const named = failure || ({});
+        const url = String(named.url !== undefined ? named.url : root.currentUrl);
+        const requestId = String(++root.nextCertificateErrorId);
+        const mainFrame = named.mainFrame !== false;
+        if (mainFrame)
+            root.certificateErrorOrigin = root.originLabel(url);
+        root.pendingCertificateErrors[requestId] = {
             "url": url,
-            "origin": root.originLabel(url),
-            "description": String(named.description !== undefined
-                ? named.description : "The certificate could not be verified"),
-            "overridable": named.overridable !== false,
-            "mainFrame": mainFrame,
-            "fatal": named.fatal === true
-        })
-        return requestId
+            "mainFrame": mainFrame
+        };
+        root.certificateErrorRaised(requestId, {
+                                        "url": url,
+                                        "origin": root.originLabel(url),
+                                        "description": String(named.description !== undefined
+                                                              ? named.description :
+                                                                "The certificate could not be verified"),
+                                        "overridable": named.overridable !== false,
+                                        "mainFrame": mainFrame,
+                                        "fatal": named.fatal === true
+                                    });
+        return requestId;
     }
 
     function respondToCertificateError(requestId, accepted) {
-        const pending = root.pendingCertificateErrors[requestId]
-        if (!pending) return
-        delete root.pendingCertificateErrors[requestId]
-        root.certificateDecisions[requestId] = accepted === true
+        const pending = root.pendingCertificateErrors[requestId];
+        if (!pending)
+            return;
+        delete root.pendingCertificateErrors[requestId];
+        root.certificateDecisions[requestId] = accepted === true;
         // A refused failure is a load that never arrived; an accepted one is
         // this load let through, and the connection stays in error either way.
-        if (!accepted && pending.mainFrame) root.lastLoadFailed = true
+        if (!accepted && pending.mainFrame)
+            root.lastLoadFailed = true;
     }
 
     // The lab runs no engine and so has no inspector. It reports the capability
@@ -211,27 +224,29 @@ Rectangle {
     property int pageGeneration: 0
 
     signal pageContextRequested(var context)
-    signal developerToolsClosed()
+    signal developerToolsClosed
     signal rendererFailed(string reason)
     signal newTabRequested(var request, url requestedUrl)
     signal auxiliaryWindowRequested(var request, url requestedUrl)
-    signal windowCloseRequested()
+    signal windowCloseRequested
     signal backgroundTabRequested(url requestedUrl)
     signal sitePermissionRequested(string requestId, string origin, string permission)
     signal browserPromptRequested(string requestId, var prompt)
     signal fileSelectionRequested(string requestId, var selection)
     signal printFinished(string destination, bool succeeded)
-    signal userActivated()
-    function simulateUserActivation() { root.userActivated() }
+    signal userActivated
+    function simulateUserActivation() {
+        root.userActivated();
+    }
     // A page trying to play of its own accord. It gets the sound only where the
     // shell has already said it may.
     function simulateAutoplay() {
         if (!root.autoplayAllowed) {
-            root.autoplayBlockedCount += 1
-            return false
+            root.autoplayBlockedCount += 1;
+            return false;
         }
-        root.pageAudible = !root.audioMuted
-        return true
+        root.pageAudible = !root.audioMuted;
+        return true;
     }
     // The lab has no capability to ask for, so a request is named. The engine's
     // part is to ask and to hear the answer; which answers may be remembered is
@@ -240,18 +255,18 @@ Rectangle {
     property var permissionAnswers: ({})
     property int permissionsSettledWithoutAsking: 0
     function simulateSitePermission(origin, permission) {
-        const decision = root.permissionController
-            ? root.permissionController.permissionDecision(origin, permission) : 0
+        const decision = root.permissionController ? root.permissionController.permissionDecision(
+                                                         origin, permission) : 0;
         if (decision !== 0) {
-            root.permissionsSettledWithoutAsking += 1
-            return ""
+            root.permissionsSettledWithoutAsking += 1;
+            return "";
         }
-        const requestId = String(++root.nextPermissionRequestId)
-        root.sitePermissionRequested(requestId, String(origin), String(permission))
-        return requestId
+        const requestId = String(++root.nextPermissionRequestId);
+        root.sitePermissionRequested(requestId, String(origin), String(permission));
+        return requestId;
     }
     function respondToPermission(requestId, decision) {
-        root.permissionAnswers[requestId] = decision
+        root.permissionAnswers[requestId] = decision;
     }
     property bool javaScriptDialogsBlocked: false
     property bool lastPromptAccepted: false
@@ -264,113 +279,124 @@ Rectangle {
     property string lastContextAction: ""
     property string lastContextDestination: ""
     function respondToBrowserPrompt(requestId, accepted, response) {
-        root.lastPromptAccepted = accepted
-        root.lastPromptResponse = response
-        if (response.stopPrompts === true) root.javaScriptDialogsBlocked = true
-        const external = root.pendingExternalProtocols[requestId]
+        root.lastPromptAccepted = accepted;
+        root.lastPromptResponse = response;
+        if (response.stopPrompts === true)
+            root.javaScriptDialogsBlocked = true;
+        const external = root.pendingExternalProtocols[requestId];
         if (external) {
-            delete root.pendingExternalProtocols[requestId]
+            delete root.pendingExternalProtocols[requestId];
             if (accepted) {
                 if (response.remember === true && root.permissionController)
-                    root.permissionController.rememberExternalProtocolDecision(
-                        external.origin, external.scheme)
-                root.externalOpenCount += 1
+                    root.permissionController.rememberExternalProtocolDecision(external.origin,
+                                                                               external.scheme);
+                root.externalOpenCount += 1;
             }
         }
     }
     function simulateJavaScriptPrompt(type, origin, message, defaultText) {
-        if (root.javaScriptDialogsBlocked) return
+        if (root.javaScriptDialogsBlocked)
+            return;
         root.browserPromptRequested(String(++root.nextBrowserPromptId), {
-            "kind": "javascript-" + type,
-            "origin": String(origin),
-            "message": String(message),
-            "defaultText": String(defaultText || "")
-        })
+                                        "kind": "javascript-" + type,
+                                        "origin": String(origin),
+                                        "message": String(message),
+                                        "defaultText": String(defaultText || "")
+                                    });
     }
     function simulateHttpAuthentication(origin, realm) {
         root.browserPromptRequested(String(++root.nextBrowserPromptId), {
-            "kind": "http-authentication",
-            "origin": String(origin),
-            "message": "Sign in to " + String(origin),
-            "detail": String(realm)
-        })
+                                        "kind": "http-authentication",
+                                        "origin": String(origin),
+                                        "message": "Sign in to " + String(origin),
+                                        "detail": String(realm)
+                                    });
     }
     function simulateExternalProtocol(application, destination) {
-        const address = String(destination)
-        const scheme = address.substring(0, address.indexOf(":"))
-        if (root.permissionController
-            && root.permissionController.externalProtocolAllowed(root.currentUrl, scheme)) {
-            root.externalOpenCount += 1
-            return
+        const address = String(destination);
+        const scheme = address.substring(0, address.indexOf(":"));
+        if (root.permissionController && root.permissionController.externalProtocolAllowed(
+                    root.currentUrl, scheme)) {
+            root.externalOpenCount += 1;
+            return;
         }
-        const requestId = String(++root.nextBrowserPromptId)
-        const page = String(root.currentUrl)
-        const match = page.match(/^([a-z][a-z0-9+.-]*:\/\/[^/]+)/i)
-        const origin = match ? match[1] : page
+        const requestId = String(++root.nextBrowserPromptId);
+        const page = String(root.currentUrl);
+        const match = page.match(/^([a-z][a-z0-9+.-]*:\/\/[^/]+)/i);
+        const origin = match ? match[1] : page;
         root.pendingExternalProtocols[requestId] = {
-            "origin": origin, "scheme": scheme, "destination": address
-        }
-        root.browserPromptRequested(requestId, {
-            "kind": "external-protocol",
-            "application": String(application),
-            "scheme": scheme,
             "origin": origin,
-            "destination": address,
-            "message": "Open " + String(application) + "?",
-            "detail": scheme + " · " + origin + " · " + address
-        })
+            "scheme": scheme,
+            "destination": address
+        };
+        root.browserPromptRequested(requestId, {
+                                        "kind": "external-protocol",
+                                        "application": String(application),
+                                        "scheme": scheme,
+                                        "origin": origin,
+                                        "destination": address,
+                                        "message": "Open " + String(application) + "?",
+                                        "detail": scheme + " · " + origin + " · " + address
+                                    });
     }
     function simulateFileSelection(mode, mimeTypes) {
         root.fileSelectionRequested(String(++root.nextBrowserPromptId), {
-            "mode": String(mode), "mimeTypes": mimeTypes || [], "suggestedName": ""
-        })
+                                        "mode": String(mode),
+                                        "mimeTypes": mimeTypes || [],
+                                        "suggestedName": ""
+                                    });
     }
     function respondToFileSelection(requestId, files) {
-        root.lastSelectedFiles = files
-        root.fileSelectionCancelled = files.length === 0
+        root.lastSelectedFiles = files;
+        root.fileSelectionCancelled = files.length === 0;
     }
     function performPageContextAction(action, destination) {
-        root.lastContextAction = String(action)
-        root.lastContextDestination = String(destination)
+        root.lastContextAction = String(action);
+        root.lastContextDestination = String(destination);
     }
 
     onCurrentUrlChanged: {
-        root.pageGeneration += 1
-        root.javaScriptDialogsBlocked = false
-        root.lastLoadFailed = false
+        root.pageGeneration += 1;
+        root.javaScriptDialogsBlocked = false;
+        root.lastLoadFailed = false;
         // The failure belonged to the origin being left, and nothing wrote the
         // exception down, so arriving somewhere else clears the report.
-        if (root.certificateErrorOrigin.length > 0
-            && root.certificateErrorOrigin !== root.originLabel(root.currentUrl)) {
-            root.certificateErrorOrigin = ""
+        if (root.certificateErrorOrigin.length > 0 && root.certificateErrorOrigin
+                !== root.originLabel(root.currentUrl)) {
+            root.certificateErrorOrigin = "";
         }
-        pageLocalState = ""
+        pageLocalState = "";
         // The matches were in the page that has just been replaced. The query
         // is the reader's and stays.
-        root.forgetFindMatches()
+        root.forgetFindMatches();
     }
 
     color: root.pageBackgroundColor
 
-    Keys.onPressed: function(event) {
-        if (event.text.length > 0) root.keyboardInput += event.text.toLowerCase()
+    Keys.onPressed: function (event) {
+        if (event.text.length > 0)
+            root.keyboardInput += event.text.toLowerCase();
     }
 
-    function goBack() {}
-    function goForward() {}
-    function focusPage() { root.forceActiveFocus() }
+    function goBack() {
+    }
+    function goForward() {
+    }
+    function focusPage() {
+        root.forceActiveFocus();
+    }
     function reloadPage() {
-        loading = true
-        settle.restart()
+        loading = true;
+        settle.restart();
     }
     function reloadPageBypassingCache() {
-        root.bypassedCacheCount += 1
-        root.reloadPage()
+        root.bypassedCacheCount += 1;
+        root.reloadPage();
     }
     function stopLoading() {
-        root.stoppedLoadCount += 1
-        root.loading = false
-        settle.stop()
+        root.stoppedLoadCount += 1;
+        root.loading = false;
+        settle.stop();
     }
     // How many times the page was asked to be read again from the network, and
     // to stop reading: three asks that look alike from outside have to be told
@@ -379,119 +405,134 @@ Rectangle {
     property int stoppedLoadCount: 0
 
     function forgetFindMatches() {
-        root.findMatchCount = 0
-        root.findActiveMatch = 0
+        root.findMatchCount = 0;
+        root.findActiveMatch = 0;
     }
 
     function findText(query, forward) {
-        root.findQuery = String(query)
+        root.findQuery = String(query);
         if (root.findQuery.length === 0) {
-            root.forgetFindMatches()
-            return
+            root.forgetFindMatches();
+            return;
         }
-        const haystack = root.pageText.toLowerCase()
-        const needle = root.findQuery.toLowerCase()
-        let matches = 0
-        for (let at = haystack.indexOf(needle); at !== -1;
-                at = haystack.indexOf(needle, at + 1)) {
-            matches += 1
+        const haystack = root.pageText.toLowerCase();
+        const needle = root.findQuery.toLowerCase();
+        let matches = 0;
+        for (let at = haystack.indexOf(needle); at !== -1; at = haystack.indexOf(needle, at + 1)) {
+            matches += 1;
         }
-        root.findMatchCount = matches
+        root.findMatchCount = matches;
         if (matches === 0) {
-            root.findActiveMatch = 0
-            return
+            root.findActiveMatch = 0;
+            return;
         }
-        const step = forward ? 1 : -1
-        const next = root.findActiveMatch === 0
-            ? (forward ? 1 : matches)
-            : ((root.findActiveMatch - 1 + step + matches) % matches) + 1
-        root.findActiveMatch = next
+        const step = forward ? 1 : -1;
+        const next = root.findActiveMatch === 0 ? (forward ? 1 : matches) : ((root.findActiveMatch
+                                                                              - 1 + step + matches)
+                                                                             % matches) + 1;
+        root.findActiveMatch = next;
     }
 
     function clearFind() {
-        root.findQuery = ""
-        root.forgetFindMatches()
+        root.findQuery = "";
+        root.forgetFindMatches();
     }
 
     function setZoomFactor(factor) {
-        const wanted = Number(factor)
-        if (!(wanted > 0)) return
-        root.zoomFactor = wanted
+        const wanted = Number(factor);
+        if (!(wanted > 0))
+            return;
+        root.zoomFactor = wanted;
     }
 
     // The lab has no printing system, so rendering is reported rather than
     // done: what the shell has to get right is naming a destination and hearing
     // the answer.
     function printPage(destination) {
-        const path = String(destination)
-        root.printFinished(path, path.length > 0)
+        const path = String(destination);
+        root.printFinished(path, path.length > 0);
     }
 
     function exitSiteFullscreen() {
-        if (!root.siteFullscreenActive) return
-        root.siteFullscreenActive = false
-        root.siteFullscreenOrigin = ""
+        if (!root.siteFullscreenActive)
+            return;
+        root.siteFullscreenActive = false;
+        root.siteFullscreenOrigin = "";
     }
 
     // The lab has no page to ask for the screen, so a request is named.
     function simulateSiteFullscreen(origin) {
         // The origin is named before the state changes: the shell reports who
         // took the screen the moment it hears that someone did.
-        const named = String(origin || "")
-        root.siteFullscreenOrigin = named
-        root.siteFullscreenActive = named.length > 0
+        const named = String(origin || "");
+        root.siteFullscreenOrigin = named;
+        root.siteFullscreenActive = named.length > 0;
     }
     function configureKeyboardNavigation(configuration) {
-        keyboardNavigationConfiguration = configuration
+        keyboardNavigationConfiguration = configuration;
     }
-    function checkForEditedFormState(callback) { callback(false) }
+    function checkForEditedFormState(callback) {
+        callback(false);
+    }
     function attachDeveloperTools() {
-        if (!root.inspectorAvailable || root.developerToolsAttached) return
-        const view = root.mockDeveloperToolsComponent.createObject(root)
-        if (!view) return
-        root.developerToolsView = view
-        root.developerToolsAttached = true
+        if (!root.inspectorAvailable || root.developerToolsAttached)
+            return;
+        const view = root.mockDeveloperToolsComponent.createObject(root);
+        if (!view)
+            return;
+        root.developerToolsView = view;
+        root.developerToolsAttached = true;
     }
     function detachDeveloperTools() {
-        if (!root.developerToolsAttached) return
-        root.developerToolsAttached = false
-        const view = root.developerToolsView
-        root.developerToolsView = null
-        if (view) view.destroy()
+        if (!root.developerToolsAttached)
+            return;
+        root.developerToolsAttached = false;
+        const view = root.developerToolsView;
+        root.developerToolsView = null;
+        if (view)
+            view.destroy();
     }
     function inspectElement() {
-        if (!root.inspectorAvailable) return
-        root.attachDeveloperTools()
-        root.inspectedElementCount += 1
+        if (!root.inspectorAvailable)
+            return;
+        root.attachDeveloperTools();
+        root.inspectedElementCount += 1;
     }
-    function simulateDeveloperToolsClose() { root.developerToolsClosed() }
+    function simulateDeveloperToolsClose() {
+        root.developerToolsClosed();
+    }
     // The lab has no engine to right-click, so a context is handed over by
     // name. Anything the caller leaves out is what a click on bare page
     // background reports.
     function simulateContextMenu(context) {
-        const named = context || ({})
+        const named = context || ({});
         root.pageContextRequested({
-            "x": named.x !== undefined ? named.x : 40,
-            "y": named.y !== undefined ? named.y : 30,
-            "selectedText": named.selectedText !== undefined ? named.selectedText : "",
-            "linkText": named.linkText !== undefined ? named.linkText : "",
-            "linkUrl": named.linkUrl !== undefined ? named.linkUrl : "",
-            "mediaUrl": named.mediaUrl !== undefined ? named.mediaUrl : "",
-            "mediaType": named.mediaType !== undefined ? named.mediaType : "none",
-            "editable": named.editable === true
-            , "pageGeneration": root.pageGeneration
-        })
+                                      "x": named.x !== undefined ? named.x : 40,
+                                      "y": named.y !== undefined ? named.y : 30,
+                                      "selectedText": named.selectedText !== undefined
+                                                      ? named.selectedText : "",
+                                      "linkText": named.linkText !== undefined ? named.linkText : "",
+                                      "linkUrl": named.linkUrl !== undefined ? named.linkUrl : "",
+                                      "mediaUrl": named.mediaUrl !== undefined ? named.mediaUrl : "",
+                                      "mediaType": named.mediaType !== undefined ? named.mediaType :
+                                                                                   "none",
+                                      "editable": named.editable === true,
+                                      "pageGeneration": root.pageGeneration
+                                  });
     }
     function requestPageContextMenu() {
-        root.contextMenuRequestCount += 1
-        root.simulateContextMenu({"x": root.width / 2, "y": root.height / 2})
+        root.contextMenuRequestCount += 1;
+        root.simulateContextMenu({
+                                     "x": root.width / 2,
+                                     "y": root.height / 2
+                                 });
     }
 
     property Component mockDeveloperToolsComponent: Component {
         Rectangle {
             objectName: "mockDeveloperToolsView"
             color: root.developerToolsColors.windowOpaque !== undefined
-                ? root.developerToolsColors.windowOpaque : "#16151d"
+                   ? root.developerToolsColors.windowOpaque : "#16151d"
 
             Text {
                 anchors.centerIn: parent
@@ -500,29 +541,36 @@ Rectangle {
                 wrapMode: Text.WordWrap
                 text: "No inspector: this engine is the UI lab's stand-in"
                 color: root.developerToolsColors.mutedText !== undefined
-                    ? root.developerToolsColors.mutedText : "#aaa5b7"
+                       ? root.developerToolsColors.mutedText : "#aaa5b7"
                 font.pixelSize: 12
             }
         }
     }
     function acceptNewWindowRequest(request) {
-        if (request && request.requestedUrl) currentUrl = request.requestedUrl
+        if (request && request.requestedUrl)
+            currentUrl = request.requestedUrl;
     }
-    function simulateAudible(audible) { root.pageAudible = audible }
+    function simulateAudible(audible) {
+        root.pageAudible = audible;
+    }
     function simulateRendererFailure() {
-        rendererFailed("Renderer exited unexpectedly")
+        rendererFailed("Renderer exited unexpectedly");
     }
     function simulateNewWindowRequest(requestedUrl, auxiliary) {
-        const request = {"requestedUrl": requestedUrl}
+        const request = {
+            "requestedUrl": requestedUrl
+        };
         if (auxiliary)
-            auxiliaryWindowRequested(request, requestedUrl)
+            auxiliaryWindowRequested(request, requestedUrl);
         else
-            newTabRequested(request, requestedUrl)
+            newTabRequested(request, requestedUrl);
     }
     function simulateBackgroundTabRequest(requestedUrl) {
-        backgroundTabRequested(requestedUrl)
+        backgroundTabRequested(requestedUrl);
     }
-    function simulateWindowCloseRequest() { windowCloseRequested() }
+    function simulateWindowCloseRequest() {
+        windowCloseRequested();
+    }
 
     Timer {
         id: settle

@@ -3,84 +3,79 @@
 namespace omaweb {
 namespace {
 
-constexpr auto debuggingOption = "--remote-debugging";
-constexpr int defaultPort = 9222;
+    constexpr auto debuggingOption = "--remote-debugging";
+    constexpr int defaultPort = 9222;
 
-// Every way Chromium can be told to open a debugging channel that is not
-// Omaweb's own option. Passing one of these means the channel would be opened
-// behind Omaweb's back: on whatever interface the flag named, with Private
-// windows still on offer.
-bool isEngineDebuggingFlag(const QString &argument)
-{
-    static const QStringList flags = {
-        QStringLiteral("--remote-debugging-port"),
-        QStringLiteral("--remote-debugging-address"),
-        QStringLiteral("--remote-debugging-pipe"),
-    };
-    for (const auto &flag : flags) {
-        if (argument == flag || argument.startsWith(flag + QStringLiteral("="))) {
-            return true;
+    // Every way Chromium can be told to open a debugging channel that is not
+    // Omaweb's own option. Passing one of these means the channel would be opened
+    // behind Omaweb's back: on whatever interface the flag named, with Private
+    // windows still on offer.
+    bool isEngineDebuggingFlag(const QString &argument)
+    {
+        static const QStringList flags = {
+            QStringLiteral("--remote-debugging-port"),
+            QStringLiteral("--remote-debugging-address"),
+            QStringLiteral("--remote-debugging-pipe"),
+        };
+        for (const auto &flag : flags) {
+            if (argument == flag || argument.startsWith(flag + QStringLiteral("="))) {
+                return true;
+            }
         }
+        return false;
     }
-    return false;
-}
 
-// Every switch that lowers the web's own security boundaries for every page in
-// the browser: mixed content that would otherwise be blocked, origins that
-// would otherwise be separated, certificates that would otherwise be refused.
-// None of them is a preference, because nothing the reader can see on a page
-// would tell them the boundary was given away.
-bool isSecurityLoweringFlag(const QString &argument)
-{
-    static const QStringList flags = {
-        QStringLiteral("--allow-running-insecure-content"),
-        QStringLiteral("--disable-web-security"),
-        QStringLiteral("--ignore-certificate-errors"),
-        QStringLiteral("--ignore-certificate-errors-spki-list"),
-        QStringLiteral("--allow-insecure-localhost"),
-        QStringLiteral("--unsafely-treat-insecure-origin-as-secure"),
-        QStringLiteral("--reduce-security-for-testing"),
-        QStringLiteral("--disable-site-isolation-trials"),
-    };
-    for (const auto &flag : flags) {
-        if (argument == flag || argument.startsWith(flag + QStringLiteral("="))) {
-            return true;
+    // Every switch that lowers the web's own security boundaries for every page in
+    // the browser: mixed content that would otherwise be blocked, origins that
+    // would otherwise be separated, certificates that would otherwise be refused.
+    // None of them is a preference, because nothing the reader can see on a page
+    // would tell them the boundary was given away.
+    bool isSecurityLoweringFlag(const QString &argument)
+    {
+        static const QStringList flags = {
+            QStringLiteral("--allow-running-insecure-content"),
+            QStringLiteral("--disable-web-security"),
+            QStringLiteral("--ignore-certificate-errors"),
+            QStringLiteral("--ignore-certificate-errors-spki-list"),
+            QStringLiteral("--allow-insecure-localhost"),
+            QStringLiteral("--unsafely-treat-insecure-origin-as-secure"),
+            QStringLiteral("--reduce-security-for-testing"),
+            QStringLiteral("--disable-site-isolation-trials"),
+        };
+        for (const auto &flag : flags) {
+            if (argument == flag || argument.startsWith(flag + QStringLiteral("="))) {
+                return true;
+            }
         }
+        return false;
     }
-    return false;
-}
 
-// Every switch that takes the renderer sandbox away, and every one that
-// collapses the processes it separates. `--single-process`, `--in-process-gpu`
-// and `--in-process-network-service` are not named as sandbox switches by
-// Chromium, but each puts code that was in a sandboxed process of its own into
-// the browser process, which is the same thing arrived at differently.
-bool isSandboxDisablingFlag(const QString &argument)
-{
-    static const QStringList flags = {
-        QStringLiteral("--no-sandbox"),
-        QStringLiteral("--disable-sandbox"),
-        QStringLiteral("--disable-gpu-sandbox"),
-        QStringLiteral("--disable-setuid-sandbox"),
-        QStringLiteral("--disable-namespace-sandbox"),
-        QStringLiteral("--disable-seccomp-filter-sandbox"),
-        QStringLiteral("--no-zygote"),
-        QStringLiteral("--single-process"),
-        QStringLiteral("--in-process-gpu"),
-        QStringLiteral("--in-process-network-service"),
-    };
-    for (const auto &flag : flags) {
-        if (argument == flag || argument.startsWith(flag + QStringLiteral("="))) {
-            return true;
+    bool isSandboxDisablingFlag(const QString &argument)
+    {
+        static const QStringList flags = {
+            QStringLiteral("--no-sandbox"),
+            QStringLiteral("--disable-sandbox"),
+            QStringLiteral("--disable-gpu-sandbox"),
+            QStringLiteral("--disable-setuid-sandbox"),
+            QStringLiteral("--disable-namespace-sandbox"),
+            QStringLiteral("--disable-seccomp-filter-sandbox"),
+            QStringLiteral("--no-zygote"),
+            QStringLiteral("--single-process"),
+            QStringLiteral("--in-process-gpu"),
+            QStringLiteral("--in-process-network-service"),
+        };
+        for (const auto &flag : flags) {
+            if (argument == flag || argument.startsWith(flag + QStringLiteral("="))) {
+                return true;
+            }
         }
+        return false;
     }
-    return false;
-}
 
 } // namespace
 
-DevelopmentLaunch readDevelopmentLaunch(const QStringList &arguments,
-    const QStringList &engineFlags)
+DevelopmentLaunch readDevelopmentLaunch(
+    const QStringList &arguments, const QStringList &engineFlags)
 {
     DevelopmentLaunch launch;
     const auto refuse = [&launch](const QString &reason) {

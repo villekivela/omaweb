@@ -26,7 +26,7 @@ struct DevelopmentLaunch {
 // web security boundary browser-wide — insecure content, origin separation,
 // certificate checking — is a refusal through either route as well: there is no
 // release path that turns one of those off.
-DevelopmentLaunch readDevelopmentLaunch(const QStringList &arguments,
-    const QStringList &engineFlags = {});
+DevelopmentLaunch readDevelopmentLaunch(
+    const QStringList &arguments, const QStringList &engineFlags = {});
 
 } // namespace omaweb

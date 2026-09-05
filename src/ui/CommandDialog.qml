@@ -30,45 +30,48 @@ DialogPanel {
     panelObjectName: "commandDialogPanel"
 
     onOpenChanged: {
-        if (!open) return
-        selected = 0
-        field.text = presetText
-        Qt.callLater(function() {
+        if (!open)
+            return;
+        selected = 0;
+        field.text = presetText;
+        Qt.callLater(function () {
             if (root.inputVisible) {
-                field.focusInput()
-                if (root.selectPreset) field.selectAllText()
+                field.focusInput();
+                if (root.selectPreset)
+                    field.selectAllText();
             } else {
-                root.forceActiveFocus()
+                root.forceActiveFocus();
             }
-        })
+        });
     }
 
     function step(delta) {
-        if (rows.length === 0) return
-        selected = (selected + delta + rows.length) % rows.length
+        if (rows.length === 0)
+            return;
+        selected = (selected + delta + rows.length) % rows.length;
     }
 
     function accept() {
         if (rows.length > 0) {
-            root.rowActivated(root.selected)
-            return
+            root.rowActivated(root.selected);
+            return;
         }
-        root.accepted(field.text)
+        root.accepted(field.text);
     }
 
-    Keys.onPressed: function(event) {
+    Keys.onPressed: function (event) {
         if (event.key === Qt.Key_Escape) {
-            root.dismissed()
-            event.accepted = true
+            root.dismissed();
+            event.accepted = true;
         } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
-            root.accept()
-            event.accepted = true
+            root.accept();
+            event.accepted = true;
         } else if (event.key === Qt.Key_Down) {
-            root.step(1)
-            event.accepted = true
+            root.step(1);
+            event.accepted = true;
         } else if (event.key === Qt.Key_Up) {
-            root.step(-1)
-            event.accepted = true
+            root.step(-1);
+            event.accepted = true;
         }
     }
 
@@ -106,16 +109,20 @@ DialogPanel {
             Accessible.role: Accessible.EditableText
             Accessible.name: root.label
 
-            function focusInput() { field.forceActiveFocus() }
-            function selectAllText() { field.selectAll() }
+            function focusInput() {
+                field.forceActiveFocus();
+            }
+            function selectAllText() {
+                field.selectAll();
+            }
 
-            Keys.onPressed: function(event) {
+            Keys.onPressed: function (event) {
                 if (event.key === Qt.Key_Escape) {
-                    root.dismissed()
-                    event.accepted = true
+                    root.dismissed();
+                    event.accepted = true;
                 } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
-                    root.accept()
-                    event.accepted = true
+                    root.accept();
+                    event.accepted = true;
                 }
             }
         }

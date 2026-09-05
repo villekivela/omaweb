@@ -31,8 +31,8 @@ public:
     // fresh data directory from reaching the network for them.
     enum class DefaultLists { Seed, None };
 
-    explicit ContentBlocker(QString dataRoot, DefaultLists defaults = DefaultLists::Seed,
-        QObject *parent = nullptr);
+    explicit ContentBlocker(
+        QString dataRoot, DefaultLists defaults = DefaultLists::Seed, QObject *parent = nullptr);
 
     QString userRules() const;
     void setUserRules(const QString &rules);
@@ -52,15 +52,15 @@ public:
     Q_INVOKABLE QString cosmeticStyleSheet(const QUrl &url) const;
     Q_INVOKABLE QString scriptletSource(const QUrl &url) const;
     Q_INVOKABLE bool cosmeticSurveyWanted(const QUrl &url) const;
-    Q_INVOKABLE QString genericCosmeticStyleSheet(const QUrl &url, const QStringList &classes,
-        const QStringList &ids) const;
+    Q_INVOKABLE QString genericCosmeticStyleSheet(
+        const QUrl &url, const QStringList &classes, const QStringList &ids) const;
 
     // The window a page asked for is refused from QML, where the request
     // arrives, so unlike checkRequest this one is invokable.
     Q_INVOKABLE bool shouldBlockPopup(const QUrl &requestUrl, const QUrl &openerUrl) const;
 
-    RequestDecision checkRequest(const QUrl &requestUrl, const QUrl &sourceUrl,
-        const QString &resourceType) const;
+    RequestDecision checkRequest(
+        const QUrl &requestUrl, const QUrl &sourceUrl, const QString &resourceType) const;
 
 signals:
     void configurationChanged();

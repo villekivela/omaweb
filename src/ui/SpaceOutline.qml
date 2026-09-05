@@ -22,16 +22,8 @@ Rectangle {
     // rather than the outline growing a line for it: settings is a place, and
     // what is wrong is stated there, where it can be acted on.
     property bool settingsAttention: false
-    // How many downloads are in flight and how far through them the bytes have
-    // got, as the window derives it from the downloads it is actually running.
-    // The outline never reads the Space's download records for this: those are
-    // a query, a Private window has none, and this is drawn on every byte.
     property var downloadActivity: null
-    // How long the mark holds a finished download, which the window sets to the
-    // span the notice naming the saved file stands for.
     property int downloadDwellMilliseconds: 4200
-    // Whether the reader is asking the mark which file is which. The window
-    // reads this to know whether the names are worth building.
     readonly property bool downloadDetailWanted: downloadMark.detailRequested
 
     // An empty pinned section takes no room at all.
@@ -62,7 +54,8 @@ Rectangle {
     property int siteDataGeneration: 0
     readonly property bool secure: root.connectionState === "secure"
     readonly property bool certificateError: root.connectionState === "certificate-error"
-    readonly property bool blank: String(activeUrl).length === 0 || String(activeUrl) === "about:blank"
+    readonly property bool blank: String(activeUrl).length === 0 || String(activeUrl)
+                                  === "about:blank"
     // The site the panel is headed by, as the window's dialogs name it, and the
     // third parties it had refused. The panel is the one place that asks the
     // engine's filter, so the dialog reads the answer from here rather than
@@ -70,10 +63,8 @@ Rectangle {
     readonly property string siteOrigin: sitePanel.originLabel
     readonly property var refusedThirdParties: sitePanel.refusedThirdParties
 
-    signal addressRequested()
-    // The reader asking for the downloads the footer's mark stands for. The
-    // outline states; the window opens the place they are listed.
-    signal downloadsRequested()
+    signal addressRequested
+    signal downloadsRequested
     // What the reader asked Site information for, on its way to the window's
     // own dialog. The outline states; the window asks.
     signal siteActionRequested(string action)
@@ -87,14 +78,14 @@ Rectangle {
     signal tabDropped(string tabId, int destination)
     signal spaceActivated(string spaceId)
     signal spacesMenuRequested(real anchorX, real anchorY)
-    signal settingsRequested()
-    signal backRequested()
-    signal forwardRequested()
-    signal reloadRequested()
-    signal sidebarToggled()
-    signal commandPanelRequested()
-    signal windowMoveRequested()
-    signal pageFocusRequested()
+    signal settingsRequested
+    signal backRequested
+    signal forwardRequested
+    signal reloadRequested
+    signal sidebarToggled
+    signal commandPanelRequested
+    signal windowMoveRequested
+    signal pageFocusRequested
 
     // Where "focus the sidebar" lands: the row the reader is already reading,
     // so the keyboard arrives where their attention is.
@@ -111,28 +102,29 @@ Rectangle {
     // positioner are in no particular order, and a Repeater is among them, so
     // each row is asked which place it is in rather than counted off.
     function sectionRows(container) {
-        const rows = []
+        const rows = [];
         for (let index = 0; index < container.children.length; ++index) {
-            const child = container.children[index]
-            if (child.tabId !== undefined) rows[child.placeInSection] = child
+            const child = container.children[index];
+            if (child.tabId !== undefined)
+                rows[child.placeInSection] = child;
         }
-        return rows
+        return rows;
     }
 
     function rowsFor(row) {
-        return root.sectionRows(row.pinned ? pinnedSection : ordinarySection)
+        return root.sectionRows(row.pinned ? pinnedSection : ordinarySection);
     }
 
     // Where the list put a row, whatever the hand has since done with it.
     function homeOf(row) {
-        const at = row.mapToItem(root, 0, 0)
-        return Qt.point(at.x - row.carry.x, at.y - row.carry.y)
+        const at = row.mapToItem(root, 0, 0);
+        return Qt.point(at.x - row.carry.x, at.y - row.carry.y);
     }
 
     function beginTabDrag(row) {
-        root.draggedRow = row
-        root.dropDestination = row.placeInSection
-        row.lifted = true
+        root.draggedRow = row;
+        root.dropDestination = row.placeInSection;
+        row.lifted = true;
     }
 
     // The hand's position decides two things: where the held row is drawn, and
@@ -140,102 +132,111 @@ Rectangle {
     // other rows, so a wrapped row of pins answers as truthfully as a stack of
     // ordinary rows.
     function updateTabDrag(row, sceneX, sceneY) {
-        if (root.draggedRow !== row) return
-        const pointer = root.mapFromItem(null, sceneX, sceneY)
-        const home = root.homeOf(row)
-        const wanted = Qt.point(pointer.x - row.grabbedAt.x, pointer.y - row.grabbedAt.y)
+        if (root.draggedRow !== row)
+            return;
+        const pointer = root.mapFromItem(null, sceneX, sceneY);
+        const home = root.homeOf(row);
+        const wanted = Qt.point(pointer.x - row.grabbedAt.x, pointer.y - row.grabbedAt.y);
         // An ordinary row is carried along the list it is in; a pin is laid out
         // across the section as well as down it.
-        row.carry = row.pinned
-            ? Qt.point(wanted.x - home.x, wanted.y - home.y)
-            : Qt.point(0, wanted.y - home.y)
+        row.carry = row.pinned ? Qt.point(wanted.x - home.x, wanted.y - home.y) : Qt.point(0,
+                                                                                           wanted.y
+                                                                                           - home.y);
 
-        const rows = root.rowsFor(row)
-        let destination = row.placeInSection
+        const rows = root.rowsFor(row);
+        let destination = row.placeInSection;
         for (let place = 0; place < rows.length; ++place) {
-            const other = rows[place]
-            if (!other) continue
-            const at = root.homeOf(other)
+            const other = rows[place];
+            if (!other)
+                continue;
+            const at = root.homeOf(other);
             if (pointer.x < at.x || pointer.x >= at.x + other.width) {
                 // Outside this row's column: only its band decides, so a
                 // stacked list ignores the horizontal miss entirely.
-                if (other.pinned) continue
+                if (other.pinned)
+                    continue;
             }
-            if (pointer.y < at.y || pointer.y >= at.y + other.height) continue
-            destination = place
-            break
+            if (pointer.y < at.y || pointer.y >= at.y + other.height)
+                continue;
+            destination = place;
+            break;
         }
         // Past the end of the section in either direction, the nearest place is
         // the one the hand meant.
         if (destination === row.placeInSection && rows.length > 0) {
-            const first = rows[0] ? root.homeOf(rows[0]) : null
-            const last = rows[rows.length - 1]
-                ? root.homeOf(rows[rows.length - 1]) : null
-            if (first && pointer.y < first.y) destination = 0
+            const first = rows[0] ? root.homeOf(rows[0]) : null;
+            const last = rows[rows.length - 1] ? root.homeOf(rows[rows.length - 1]) : null;
+            if (first && pointer.y < first.y)
+                destination = 0;
             else if (last && pointer.y >= last.y + rows[rows.length - 1].height)
-                destination = rows.length - 1
+                destination = rows.length - 1;
         }
-        root.dropDestination = destination
-        root.openTheDroppedPlace(row, rows, destination)
+        root.dropDestination = destination;
+        root.openTheDroppedPlace(row, rows, destination);
     }
 
     // Every row between where the held row came from and where it would land
     // moves up or down by one place — into the place the arrangement would give
     // it — which is what opens the gap the held row will drop into.
     function openTheDroppedPlace(row, rows, destination) {
-        const from = row.placeInSection
+        const from = row.placeInSection;
         for (let place = 0; place < rows.length; ++place) {
-            const other = rows[place]
-            if (!other || other === row) continue
-            let shifted = place
-            if (from < destination && place > from && place <= destination) shifted = place - 1
-            else if (destination < from && place >= destination && place < from) shifted = place + 1
-            const target = rows[shifted]
+            const other = rows[place];
+            if (!other || other === row)
+                continue;
+            let shifted = place;
+            if (from < destination && place > from && place <= destination)
+                shifted = place - 1;
+            else if (destination < from && place >= destination && place < from)
+                shifted = place + 1;
+            const target = rows[shifted];
             if (!target || shifted === place) {
-                other.carry = Qt.point(0, 0)
-                continue
+                other.carry = Qt.point(0, 0);
+                continue;
             }
-            const here = root.homeOf(other)
-            const there = root.homeOf(target)
-            other.carry = Qt.point(there.x - here.x, there.y - here.y)
+            const here = root.homeOf(other);
+            const there = root.homeOf(target);
+            other.carry = Qt.point(there.x - here.x, there.y - here.y);
         }
     }
 
     function endTabDrag(row) {
-        if (root.draggedRow !== row) return
-        const destination = root.dropDestination
-        const rows = root.rowsFor(row)
-        root.draggedRow = null
-        root.dropDestination = -1
-        row.lifted = false
+        if (root.draggedRow !== row)
+            return;
+        const destination = root.dropDestination;
+        const rows = root.rowsFor(row);
+        root.draggedRow = null;
+        root.dropDestination = -1;
+        row.lifted = false;
         // Every row goes back to the place the list gives it, and the list is
         // told the one thing the drag decided.
         for (let place = 0; place < rows.length; ++place) {
-            if (rows[place]) rows[place].carry = Qt.point(0, 0)
+            if (rows[place])
+                rows[place].carry = Qt.point(0, 0);
         }
         if (destination >= 0 && destination !== row.placeInSection) {
-            root.tabDropped(row.tabId, destination)
+            root.tabDropped(row.tabId, destination);
         }
     }
 
     function focusOutline() {
         if (activeTabItem !== null && activeTabItem.visible) {
-            activeTabItem.forceActiveFocus()
+            activeTabItem.forceActiveFocus();
         } else {
-            addressButton.forceActiveFocus()
+            addressButton.forceActiveFocus();
         }
     }
 
     // Key events climb from the focused row to here, so one handler covers the
     // whole outline: Escape is the way back to the page.
-    Keys.onEscapePressed: function(event) {
+    Keys.onEscapePressed: function (event) {
         if (root.statusOpen) {
-            root.statusOpen = false
-            event.accepted = true
-            return
+            root.statusOpen = false;
+            event.accepted = true;
+            return;
         }
-        root.pageFocusRequested()
-        event.accepted = true
+        root.pageFocusRequested();
+        event.accepted = true;
     }
 
     Shortcut {
@@ -250,9 +251,15 @@ Rectangle {
 
     Connections {
         target: root.browser ? root.browser.pinnedTabs : null
-        function onRowsInserted() { root.pinnedCount = root.browser.pinnedTabs.rowCount() }
-        function onRowsRemoved() { root.pinnedCount = root.browser.pinnedTabs.rowCount() }
-        function onModelReset() { root.pinnedCount = root.browser.pinnedTabs.rowCount() }
+        function onRowsInserted() {
+            root.pinnedCount = root.browser.pinnedTabs.rowCount();
+        }
+        function onRowsRemoved() {
+            root.pinnedCount = root.browser.pinnedTabs.rowCount();
+        }
+        function onModelReset() {
+            root.pinnedCount = root.browser.pinnedTabs.rowCount();
+        }
     }
 
     // The seam down the sidebar is a divider rather than a frame, so it is
@@ -284,7 +291,8 @@ Rectangle {
 
             DragHandler {
                 target: null
-                onActiveChanged: if (active) root.windowMoveRequested()
+                onActiveChanged: if (active)
+                                     root.windowMoveRequested()
             }
 
             Row {
@@ -377,20 +385,21 @@ Rectangle {
             height: 34
             radius: 2
             color: Style.controlFill(addressButton.focused, addressMouse.containsMouse,
-                root.colors.text, root.colors.accent)
-            borderSpec: Border.controlSpec(
-                addressButton.focused ? "focus"
-                    : (addressMouse.containsMouse ? "hover-cursor" : "normal"),
-                root.colors.text, root.colors.accent)
+                                     root.colors.text, root.colors.accent)
+            borderSpec: Border.controlSpec(addressButton.focused ? "focus" : (
+                                                                       addressMouse.containsMouse
+                                                                       ? "hover-cursor" : "normal"),
+                                           root.colors.text, root.colors.accent)
             activeFocusOnTab: true
             Accessible.role: Accessible.Button
             Accessible.name: addressButton.accessibleName
             Accessible.onPressAction: root.addressRequested()
 
-            Keys.onPressed: function(event) {
-                if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Space) {
-                    root.addressRequested()
-                    event.accepted = true
+            Keys.onPressed: function (event) {
+                if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key
+                        === Qt.Key_Space) {
+                    root.addressRequested();
+                    event.accepted = true;
                 }
             }
 
@@ -404,11 +413,9 @@ Rectangle {
                 anchors.verticalCenter: parent.verticalCenter
                 width: 18
                 horizontalAlignment: Text.AlignHCenter
-                text: root.certificateError
-                    ? "warning" : (root.secure ? "lock" : "lock_open")
-                color: root.certificateError
-                    ? root.colors.urgent
-                    : (root.secure ? root.colors.text : root.colors.mutedText)
+                text: root.certificateError ? "warning" : (root.secure ? "lock" : "lock_open")
+                color: root.certificateError ? root.colors.urgent : (root.secure ? root.colors.text :
+                                                                                   root.colors.mutedText)
                 font.family: root.iconFontFamily
                 font.pixelSize: Style.font.iconLarge
                 Accessible.role: Accessible.StaticText
@@ -429,9 +436,8 @@ Rectangle {
                 anchors.right: blockedCount.left
                 anchors.rightMargin: 8
                 anchors.verticalCenter: parent.verticalCenter
-                text: root.blank
-                    ? "search or enter address"
-                    : String(root.activeUrl).replace(/^[a-z]+:\/\//, "")
+                text: root.blank ? "search or enter address" : String(root.activeUrl).replace(
+                                       /^[a-z]+:\/\//, "")
                 color: root.blank ? root.colors.mutedText : root.colors.text
                 elide: Text.ElideMiddle
                 font.family: Style.font.family
@@ -473,12 +479,11 @@ Rectangle {
                 hoverEnabled: true
                 cursorShape: Qt.IBeamCursor
                 onClicked: {
-                    addressButton.forceActiveFocus()
-                    root.addressRequested()
+                    addressButton.forceActiveFocus();
+                    root.addressRequested();
                 }
             }
         }
-
     }
 
     // The section stands between the address and the tab list on anchors of
@@ -498,8 +503,7 @@ Rectangle {
         anchors.topMargin: visible ? 12 : 0
         height: childrenRect.height
         visible: !root.privateWindow && root.pinnedCount > 0
-        readonly property int capacity: Math.max(3,
-            Math.min(5, Math.floor(width / 56)))
+        readonly property int capacity: Math.max(3, Math.min(5, Math.floor(width / 56)))
         readonly property int columns: Math.min(root.pinnedCount, capacity)
         spacing: 4
 
@@ -510,29 +514,36 @@ Rectangle {
                 id: pinnedRow
                 required property int index
                 placeInSection: index
-                readonly property int rowStart: Math.floor(index
-                    / pinnedSection.capacity) * pinnedSection.capacity
-                readonly property int tabsInRow: Math.min(pinnedSection.capacity,
-                    root.pinnedCount - rowStart)
-                width: (pinnedSection.width
-                    - pinnedSection.spacing * (tabsInRow - 1)) / tabsInRow
+                readonly property int rowStart: Math.floor(index / pinnedSection.capacity)
+                                                * pinnedSection.capacity
+                readonly property int tabsInRow: Math.min(pinnedSection.capacity, root.pinnedCount
+                                                          - rowStart)
+                width: (pinnedSection.width - pinnedSection.spacing * (tabsInRow - 1)) / tabsInRow
                 colors: root.colors
                 iconFontFamily: root.iconFontFamily
                 useFavicons: root.useFavicons
                 tintFavicons: root.tintFavicons
-                onActivated: function(id) { root.tabActivated(id) }
-                onCloseRequested: function(id) { root.tabCloseRequested(id) }
-                onMuteToggled: function(id) { root.tabMuteToggled(id) }
+                onActivated: function (id) {
+                    root.tabActivated(id);
+                }
+                onCloseRequested: function (id) {
+                    root.tabCloseRequested(id);
+                }
+                onMuteToggled: function (id) {
+                    root.tabMuteToggled(id);
+                }
                 onDragStarted: root.beginTabDrag(pinnedRow)
-                onDragMoved: function(id, sceneX, sceneY) {
-                    root.updateTabDrag(pinnedRow, sceneX, sceneY)
+                onDragMoved: function (id, sceneX, sceneY) {
+                    root.updateTabDrag(pinnedRow, sceneX, sceneY);
                 }
                 onDragEnded: root.endTabDrag(pinnedRow)
-                onMenuRequested: function(id, anchorX, anchorY) {
-                    root.tabMenuRequested(id, anchorX, anchorY)
+                onMenuRequested: function (id, anchorX, anchorY) {
+                    root.tabMenuRequested(id, anchorX, anchorY);
                 }
-                onActiveChanged: if (active) root.activeTabItem = this
-                Component.onCompleted: if (active) root.activeTabItem = this
+                onActiveChanged: if (active)
+                                     root.activeTabItem = this
+                Component.onCompleted: if (active)
+                                           root.activeTabItem = this
             }
         }
     }
@@ -567,19 +578,27 @@ Rectangle {
                     iconFontFamily: root.iconFontFamily
                     useFavicons: root.useFavicons
                     tintFavicons: root.tintFavicons
-                    onActivated: function(id) { root.tabActivated(id) }
-                    onCloseRequested: function(id) { root.tabCloseRequested(id) }
-                    onMuteToggled: function(id) { root.tabMuteToggled(id) }
+                    onActivated: function (id) {
+                        root.tabActivated(id);
+                    }
+                    onCloseRequested: function (id) {
+                        root.tabCloseRequested(id);
+                    }
+                    onMuteToggled: function (id) {
+                        root.tabMuteToggled(id);
+                    }
                     onDragStarted: root.beginTabDrag(ordinaryRow)
-                    onDragMoved: function(id, sceneX, sceneY) {
-                        root.updateTabDrag(ordinaryRow, sceneX, sceneY)
+                    onDragMoved: function (id, sceneX, sceneY) {
+                        root.updateTabDrag(ordinaryRow, sceneX, sceneY);
                     }
                     onDragEnded: root.endTabDrag(ordinaryRow)
-                    onMenuRequested: function(id, anchorX, anchorY) {
-                        root.tabMenuRequested(id, anchorX, anchorY)
+                    onMenuRequested: function (id, anchorX, anchorY) {
+                        root.tabMenuRequested(id, anchorX, anchorY);
                     }
-                    onActiveChanged: if (active) root.activeTabItem = this
-                    Component.onCompleted: if (active) root.activeTabItem = this
+                    onActiveChanged: if (active)
+                                         root.activeTabItem = this
+                    Component.onCompleted: if (active)
+                                               root.activeTabItem = this
                 }
             }
         }
@@ -614,7 +633,8 @@ Rectangle {
         anchors.bottomMargin: 16
         height: 30
         Accessible.role: Accessible.Heading
-        Accessible.name: root.privateWindow || !root.browser ? "Private" : root.browser.activeSpaceName
+        Accessible.name: root.privateWindow || !root.browser ? "Private" :
+                                                               root.browser.activeSpaceName
 
         // Every Space is one letter, the active one lit. The row is the
         // switcher: spelling the active name out again would say what the
@@ -641,9 +661,8 @@ Rectangle {
                     width: 30
                     height: 28
                     label: spaceName.length > 0 ? spaceName.charAt(0).toUpperCase() : "·"
-                    accessibleName: active
-                        ? "Current Space: " + spaceName
-                        : "Switch to " + spaceName
+                    accessibleName: active ? "Current Space: " + spaceName : "Switch to "
+                                             + spaceName
                     // The letter is the theme's, not the Space's own colour:
                     // the kit derives a control's fill and its border from its
                     // foreground, so a coloured Space painted the whole button
@@ -681,9 +700,6 @@ Rectangle {
             Accessible.name: "Private window"
         }
 
-        // Downloads sit beside settings because settings is where they are
-        // listed: the mark and the place it stands for read as one pair, the
-        // way the settings button's own attention dot does.
         DownloadMark {
             id: downloadMark
             objectName: "downloadMark"
@@ -715,8 +731,8 @@ Rectangle {
             accent: root.colors.accent
             onClicked: {
                 const corner = spacesButton.mapToItem(null, spacesButton.width,
-                    spacesButton.height)
-                root.spacesMenuRequested(corner.x, corner.y)
+                                                      spacesButton.height);
+                root.spacesMenuRequested(corner.x, corner.y);
             }
         }
 
@@ -729,8 +745,8 @@ Rectangle {
             height: 30
             icon: "settings"
             accessibleName: root.settingsAttention
-                ? "Browsing settings and downloads — needs attention"
-                : "Browsing settings and downloads"
+                            ? "Browsing settings and downloads — needs attention" :
+                              "Browsing settings and downloads"
             fontFamily: root.iconFontFamily
             foreground: root.settingsAttention ? root.colors.text : root.colors.mutedText
             accent: root.colors.accent
@@ -754,14 +770,6 @@ Rectangle {
         }
     }
 
-    // Which file is which, for as long as the reader is asking. The mark is one
-    // aggregate and an aggregate cannot say that a small file is nearly done
-    // while a large one has barely started; this is where that is said, without
-    // the reader having to open settings to read it.
-    //
-    // It belongs to the outline rather than to the mark because the outline
-    // clips its children: a panel parented to a 26px control in the footer
-    // would be cut off at the control's own edges.
     Rectangle {
         id: downloadDetail
         objectName: "downloadDetail"
@@ -773,8 +781,6 @@ Rectangle {
         height: detailLines.height + 16
         radius: 2
         z: 5
-        // A mark holding a finished download has no names left to give, and an
-        // empty bordered box over the outline states nothing.
         visible: downloadMark.detailRequested && downloadMark.downloads.length > 0
         color: root.colors.overlay
         border.width: 1
@@ -800,11 +806,8 @@ Rectangle {
 
                     objectName: "downloadDetail-" + index
                     readonly property string name: modelData.name
-                    // The same sentence the mark itself says, asked of one
-                    // download: a percentage where there is a total, and the
-                    // absence of one named where there is not.
-                    readonly property string progressLabel:
-                        downloadMark.progressLabelFor(modelData.fraction)
+                    readonly property string progressLabel: downloadMark.progressLabelFor(
+                                                                modelData.fraction)
                     width: detailLines.width
                     height: lineName.implicitHeight
 
@@ -819,9 +822,6 @@ Rectangle {
                         Accessible.ignored: true
                     }
 
-                    // The name is elided rather than wrapped: a download's file
-                    // name can be a whole sentence, and a panel that grows a
-                    // line per name would cover the outline it stands over.
                     Text {
                         id: lineName
                         anchors.left: parent.left
@@ -873,6 +873,8 @@ Rectangle {
         siteDataGeneration: root.siteDataGeneration
         open: root.statusOpen
 
-        onActionRequested: function(action) { root.siteActionRequested(action) }
+        onActionRequested: function (action) {
+            root.siteActionRequested(action);
+        }
     }
 }

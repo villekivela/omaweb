@@ -17,23 +17,23 @@
 namespace omaweb {
 namespace {
 
-// Enough of an icon to find its mark in. Real favicons are 16 to 64 pixels
-// square; anything larger is sampled rather than scaled, because smooth
-// scaling blends the transparent padding into the mark's edges.
-constexpr int maximumSamples = 48;
-constexpr int hueBuckets = 36;
-// A pixel this transparent is padding, not the mark.
-constexpr int opaqueEnough = 128;
-// Below this the pixel is a shade of grey and names no hue.
-constexpr qreal colourfulEnough = 0.2;
-// Near-black pixels do carry a hue, but only as rounding noise.
-constexpr qreal brightEnough = 0.16;
-// About one fully saturated, fully opaque pixel. Less than that is a stray.
-constexpr qreal enoughEvidence = 1.0;
+    // Enough of an icon to find its mark in. Real favicons are 16 to 64 pixels
+    // square; anything larger is sampled rather than scaled, because smooth
+    // scaling blends the transparent padding into the mark's edges.
+    constexpr int maximumSamples = 48;
+    constexpr int hueBuckets = 36;
+    // A pixel this transparent is padding, not the mark.
+    constexpr int opaqueEnough = 128;
+    // Below this the pixel is a shade of grey and names no hue.
+    constexpr qreal colourfulEnough = 0.2;
+    // Near-black pixels do carry a hue, but only as rounding noise.
+    constexpr qreal brightEnough = 0.16;
+    // About one fully saturated, fully opaque pixel. Less than that is a stray.
+    constexpr qreal enoughEvidence = 1.0;
 
-// What an image provider is asked for. Providers are free to hand back
-// whatever they have, so this is a hint, not a promise.
-constexpr QSize requestedIconSize{maximumSamples, maximumSamples};
+    // What an image provider is asked for. Providers are free to hand back
+    // whatever they have, so this is a hint, not a promise.
+    constexpr QSize requestedIconSize {maximumSamples, maximumSamples};
 
 } // namespace
 
@@ -43,12 +43,12 @@ std::optional<qreal> faviconHue(const QImage &icon)
         return std::nullopt;
     }
     const auto pixels = icon.convertToFormat(QImage::Format_ARGB32);
-    const auto stride = std::max(1,
-        (std::max(pixels.width(), pixels.height()) + maximumSamples - 1) / maximumSamples);
+    const auto stride = std::max(
+        1, (std::max(pixels.width(), pixels.height()) + maximumSamples - 1) / maximumSamples);
 
-    std::array<qreal, hueBuckets> weights{};
-    std::array<qreal, hueBuckets> horizontal{};
-    std::array<qreal, hueBuckets> vertical{};
+    std::array<qreal, hueBuckets> weights {};
+    std::array<qreal, hueBuckets> horizontal {};
+    std::array<qreal, hueBuckets> vertical {};
     for (int y = 0; y < pixels.height(); y += stride) {
         const auto *row = reinterpret_cast<const QRgb *>(pixels.constScanLine(y));
         for (int x = 0; x < pixels.width(); x += stride) {
@@ -79,8 +79,8 @@ std::optional<qreal> faviconHue(const QImage &icon)
     auto winner = 0;
     auto best = -1.0;
     for (int bucket = 0; bucket < hueBuckets; ++bucket) {
-        const auto score = weights[neighbour(bucket - 1)] + weights[bucket]
-            + weights[neighbour(bucket + 1)];
+        const auto score
+            = weights[neighbour(bucket - 1)] + weights[bucket] + weights[neighbour(bucket + 1)];
         if (score > best) {
             best = score;
             winner = bucket;
@@ -94,8 +94,7 @@ std::optional<qreal> faviconHue(const QImage &icon)
     const auto sumOf = [&winner, &neighbour](const std::array<qreal, hueBuckets> &axis) {
         return axis[neighbour(winner - 1)] + axis[winner] + axis[neighbour(winner + 1)];
     };
-    const auto mean
-        = std::atan2(sumOf(vertical), sumOf(horizontal)) / (2.0 * std::numbers::pi);
+    const auto mean = std::atan2(sumOf(vertical), sumOf(horizontal)) / (2.0 * std::numbers::pi);
     return mean < 0.0 ? mean + 1.0 : mean;
 }
 
@@ -104,15 +103,9 @@ FaviconTint::FaviconTint(QObject *parent)
 {
 }
 
-FaviconTint::~FaviconTint()
-{
-    abandonPendingRequest();
-}
+FaviconTint::~FaviconTint() { abandonPendingRequest(); }
 
-QUrl FaviconTint::source() const
-{
-    return m_source;
-}
+QUrl FaviconTint::source() const { return m_source; }
 
 void FaviconTint::setSource(const QUrl &source)
 {
@@ -124,10 +117,7 @@ void FaviconTint::setSource(const QUrl &source)
     resolve();
 }
 
-qreal FaviconTint::saturation() const
-{
-    return m_saturation;
-}
+qreal FaviconTint::saturation() const { return m_saturation; }
 
 void FaviconTint::setSaturation(qreal saturation)
 {
@@ -139,10 +129,7 @@ void FaviconTint::setSaturation(qreal saturation)
     emit colorChanged();
 }
 
-qreal FaviconTint::lightness() const
-{
-    return m_lightness;
-}
+qreal FaviconTint::lightness() const { return m_lightness; }
 
 void FaviconTint::setLightness(qreal lightness)
 {
@@ -159,14 +146,11 @@ QColor FaviconTint::color() const
     if (!m_hue.has_value()) {
         return {};
     }
-    return QColor::fromHslF(*m_hue, std::clamp(m_saturation, 0.0, 1.0),
-        std::clamp(m_lightness, 0.0, 1.0));
+    return QColor::fromHslF(
+        *m_hue, std::clamp(m_saturation, 0.0, 1.0), std::clamp(m_lightness, 0.0, 1.0));
 }
 
-bool FaviconTint::isValid() const
-{
-    return m_hue.has_value();
-}
+bool FaviconTint::isValid() const { return m_hue.has_value(); }
 
 void FaviconTint::abandonPendingRequest()
 {
@@ -194,12 +178,12 @@ void FaviconTint::resolve()
         // have to go and fetch — is left uncoloured on purpose.
         const auto path = QQmlFile::urlToLocalFileOrQrc(m_source);
         if (path.isEmpty()) {
-            applyHue( std::nullopt);
+            applyHue(std::nullopt);
             return;
         }
         QImageReader reader(path);
         reader.setAutoTransform(true);
-        applyHue( faviconHue(reader.read()));
+        applyHue(faviconHue(reader.read()));
         return;
     }
 
@@ -209,32 +193,29 @@ void FaviconTint::resolve()
     auto *engine = qmlEngine(this);
     auto *provider = engine ? engine->imageProvider(m_source.host()) : nullptr;
     if (!provider) {
-        applyHue( std::nullopt);
+        applyHue(std::nullopt);
         return;
     }
-    const auto identifier
-        = m_source.toString(QUrl::RemoveScheme | QUrl::RemoveAuthority).mid(1);
+    const auto identifier = m_source.toString(QUrl::RemoveScheme | QUrl::RemoveAuthority).mid(1);
     switch (provider->imageType()) {
     case QQmlImageProviderBase::Image: {
         QSize size;
-        applyHue(
-            faviconHue(static_cast<QQuickImageProvider *>(provider)->requestImage(
-                identifier, &size, requestedIconSize)));
+        applyHue(faviconHue(static_cast<QQuickImageProvider *>(provider)->requestImage(
+            identifier, &size, requestedIconSize)));
         return;
     }
     case QQmlImageProviderBase::Pixmap: {
         QSize size;
-        applyHue(
-            faviconHue(static_cast<QQuickImageProvider *>(provider)
-                    ->requestPixmap(identifier, &size, requestedIconSize)
-                    .toImage()));
+        applyHue(faviconHue(static_cast<QQuickImageProvider *>(provider)
+                ->requestPixmap(identifier, &size, requestedIconSize)
+                .toImage()));
         return;
     }
     case QQmlImageProviderBase::ImageResponse: {
-        auto *response = static_cast<QQuickAsyncImageProvider *>(provider)
-                             ->requestImageResponse(identifier, requestedIconSize);
+        auto *response = static_cast<QQuickAsyncImageProvider *>(provider)->requestImageResponse(
+            identifier, requestedIconSize);
         if (!response) {
-            applyHue( std::nullopt);
+            applyHue(std::nullopt);
             return;
         }
         m_response = response;
@@ -248,20 +229,19 @@ void FaviconTint::resolve()
                 if (response->errorString().isEmpty()) {
                     // The factory is the caller's to delete once it has been
                     // asked for its image.
-                    const std::unique_ptr<QQuickTextureFactory> factory(
-                        response->textureFactory());
+                    const std::unique_ptr<QQuickTextureFactory> factory(response->textureFactory());
                     if (factory) {
                         image = factory->image();
                     }
                 }
-                applyHue( faviconHue(image));
+                applyHue(faviconHue(image));
             }
             response->deleteLater();
         });
         return;
     }
     default:
-        applyHue( std::nullopt);
+        applyHue(std::nullopt);
         return;
     }
 }
@@ -275,9 +255,6 @@ void FaviconTint::applyHue(std::optional<qreal> hue)
     emit colorChanged();
 }
 
-void registerFaviconTint()
-{
-    qmlRegisterType<FaviconTint>("Omaweb", 1, 0, "FaviconTint");
-}
+void registerFaviconTint() { qmlRegisterType<FaviconTint>("Omaweb", 1, 0, "FaviconTint"); }
 
 } // namespace omaweb

@@ -28,13 +28,13 @@ void omaweb_blocker_check(const OmawebBlocker *blocker, const char *url, const c
     const char *resource_type, OmawebBlockerDecision *decision);
 void omaweb_blocker_decision_release(OmawebBlockerDecision *decision);
 char *omaweb_blocker_substitute(const char *name);
-bool omaweb_blocker_matches_popup(const OmawebBlocker *blocker, const char *url,
-    const char *opener_url);
+bool omaweb_blocker_matches_popup(
+    const OmawebBlocker *blocker, const char *url, const char *opener_url);
 char *omaweb_blocker_cosmetic_css(const OmawebBlocker *blocker, const char *url);
 char *omaweb_blocker_scriptlet_source(const OmawebBlocker *blocker, const char *url);
 bool omaweb_blocker_cosmetic_survey_wanted(const OmawebBlocker *blocker, const char *url);
-char *omaweb_blocker_generic_cosmetic_css(const OmawebBlocker *blocker, const char *url,
-    const char *classes, const char *ids);
+char *omaweb_blocker_generic_cosmetic_css(
+    const OmawebBlocker *blocker, const char *url, const char *classes, const char *ids);
 void omaweb_blocker_string_free(char *value);
 
 #ifdef __cplusplus

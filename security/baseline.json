@@ -5,12 +5,11 @@
   "chromium": "140.0.7339.225",
   "chromiumSecurityPatch": "151.0.7922.71",
   "notes": [
-    "The approved engine for a supported Omaweb build. A build below any of",
-    "these versions is an unsupported preview and says so at runtime.",
-    "`chromiumSecurityPatch` is the Chromium release whose security fixes the",
-    "approved QtWebEngine carries, which is what a security baseline is",
-    "written against; `chromium` is only the release it is built on.",
-    "scripts/check_security_baseline.py compares this against upstream weekly.",
-    "Raising it is the last step of a security response: see SECURITY.md."
+    "A supported Omaweb build uses this approved engine baseline.",
+    "Settings marks builds below it as unsupported previews.",
+    "`chromium` is the engine's Chromium version.",
+    "`chromiumSecurityPatch` is the latest Chromium security patch it includes.",
+    "scripts/check_security_baseline.py checks upstream releases each week.",
+    "See SECURITY.md for the update process."
   ]
 }

@@ -11,52 +11,53 @@ namespace omaweb {
 
 namespace {
 
-QString directoryFromEnvironment(const char *variable, const QString &fallback)
-{
-    const auto configured = qEnvironmentVariable(variable);
-    return configured.isEmpty() ? QDir::home().filePath(fallback) : configured;
-}
+    QString directoryFromEnvironment(const char *variable, const QString &fallback)
+    {
+        const auto configured = qEnvironmentVariable(variable);
+        return configured.isEmpty() ? QDir::home().filePath(fallback) : configured;
+    }
 
-QByteArray contentsOf(const QString &path)
-{
-    QFile file(path);
-    if (!file.open(QIODevice::ReadOnly)) {
-        return {};
+    QByteArray contentsOf(const QString &path)
+    {
+        QFile file(path);
+        if (!file.open(QIODevice::ReadOnly)) {
+            return {};
+        }
+        return file.readAll();
     }
-    return file.readAll();
-}
 
-// The template Omaweb ships can come out of the binary's own read-only
-// resources, so it is written rather than copied: a copy would carry the
-// resource's permissions onto disk and hand the reader a file they cannot edit.
-bool write(const QString &path, const QByteArray &contents)
-{
-    if (!QDir().mkpath(QFileInfo(path).absolutePath())) {
-        return false;
+    // The template Omaweb ships can come out of the binary's own read-only
+    // resources, so it is written rather than copied: a copy would carry the
+    // resource's permissions onto disk and hand the reader a file they cannot edit.
+    bool write(const QString &path, const QByteArray &contents)
+    {
+        if (!QDir().mkpath(QFileInfo(path).absolutePath())) {
+            return false;
+        }
+        QSaveFile file(path);
+        if (!file.open(QIODevice::WriteOnly)) {
+            return false;
+        }
+        if (file.write(contents) != contents.size() || !file.commit()) {
+            return false;
+        }
+        // A saved file keeps the private permissions of the temporary it was
+        // written through, and this one is the reader's to edit.
+        return QFile::setPermissions(path,
+            QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ReadGroup
+                | QFileDevice::ReadOther);
     }
-    QSaveFile file(path);
-    if (!file.open(QIODevice::WriteOnly)) {
-        return false;
-    }
-    if (file.write(contents) != contents.size() || !file.commit()) {
-        return false;
-    }
-    // A saved file keeps the private permissions of the temporary it was
-    // written through, and this one is the reader's to edit.
-    return QFile::setPermissions(path,
-        QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ReadGroup
-            | QFileDevice::ReadOther);
-}
 
 } // namespace
 
 OmarchyThemePaths OmarchyThemePaths::fromEnvironment()
 {
     OmarchyThemePaths paths;
-    paths.configuration = QDir(directoryFromEnvironment("XDG_CONFIG_HOME",
-        QStringLiteral(".config"))).filePath(QStringLiteral("omarchy"));
-    paths.state = QDir(directoryFromEnvironment("XDG_STATE_HOME",
-        QStringLiteral(".local/state"))).filePath(QStringLiteral("omarchy"));
+    paths.configuration
+        = QDir(directoryFromEnvironment("XDG_CONFIG_HOME", QStringLiteral(".config")))
+              .filePath(QStringLiteral("omarchy"));
+    paths.state = QDir(directoryFromEnvironment("XDG_STATE_HOME", QStringLiteral(".local/state")))
+                      .filePath(QStringLiteral("omarchy"));
     return paths;
 }
 
@@ -120,8 +121,8 @@ OmarchyTemplateOutcome followOmarchyTheme(
     // template into a palette. A template just installed always wants that,
     // even where an older one left a palette behind, because the palette on
     // disk was rendered from a template that is no longer there.
-    const auto wantsRender = outcome == OmarchyTemplateOutcome::Installed
-        || !QFileInfo::exists(paths.renderedTheme());
+    const auto wantsRender
+        = outcome == OmarchyTemplateOutcome::Installed || !QFileInfo::exists(paths.renderedTheme());
     const auto omarchy = QStandardPaths::findExecutable(QStringLiteral("omarchy"));
     if (wantsRender && !omarchy.isEmpty()) {
         // Detached, because Omarchy re-renders every template a desktop has

@@ -31,8 +31,8 @@ public:
         QWebEngineUrlRequestInfo::ResourceType resourceType) const;
     QString cosmeticStyleSheet(const QUrl &url) const;
     bool cosmeticSurveyWanted(const QUrl &url) const;
-    QString genericCosmeticStyleSheet(const QUrl &url, const QStringList &classes,
-        const QStringList &ids) const;
+    QString genericCosmeticStyleSheet(
+        const QUrl &url, const QStringList &classes, const QStringList &ids) const;
 
 private:
     ContentBlocker *m_contentBlocker;

@@ -35,8 +35,7 @@ public:
     // One Space's profile, the controller whose allowances govern it, and the
     // Space those allowances belong to. A Private window has no Space of its
     // own and passes the empty name its shared session already keys on.
-    Q_INVOKABLE bool attachToProfile(QObject *profile, QObject *controller,
-        const QString &spaceId);
+    Q_INVOKABLE bool attachToProfile(QObject *profile, QObject *controller, const QString &spaceId);
     // How many third-party accesses have been refused since the browser
     // started, so the blocking can be seen to be doing something rather than
     // taken on trust.

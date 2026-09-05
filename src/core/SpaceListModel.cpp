@@ -43,10 +43,7 @@ QHash<int, QByteArray> SpaceListModel::roleNames() const
     };
 }
 
-const QVector<SpaceState> &SpaceListModel::items() const
-{
-    return m_spaces;
-}
+const QVector<SpaceState> &SpaceListModel::items() const { return m_spaces; }
 
 void SpaceListModel::reset(QVector<SpaceState> spaces)
 {

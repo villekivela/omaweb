@@ -10,22 +10,22 @@
 namespace omaweb {
 namespace {
 
-// Writing only on a difference is what stops the re-apply from chasing its own
-// change signals.
-void assign(QObject *target, const QString &name, const QVariant &value)
-{
-    const auto key = name.toUtf8();
-    if (!value.isValid() || target->property(key.constData()) == value) {
-        return;
+    // Writing only on a difference is what stops the re-apply from chasing its own
+    // change signals.
+    void assign(QObject *target, const QString &name, const QVariant &value)
+    {
+        const auto key = name.toUtf8();
+        if (!value.isValid() || target->property(key.constData()) == value) {
+            return;
+        }
+        target->setProperty(key.constData(), value);
     }
-    target->setProperty(key.constData(), value);
-}
 
-QVariant colorFrom(const QVariantMap &palette, const QString &key)
-{
-    const QColor color(palette.value(key).toString());
-    return color.isValid() ? QVariant::fromValue(color) : QVariant{};
-}
+    QVariant colorFrom(const QVariantMap &palette, const QString &key)
+    {
+        const QColor color(palette.value(key).toString());
+        return color.isValid() ? QVariant::fromValue(color) : QVariant {};
+    }
 
 } // namespace
 
@@ -33,10 +33,10 @@ KitTheme::KitTheme(QQmlEngine *engine, const ThemeController *theme, QObject *pa
     : QObject(parent)
     , m_theme(theme)
 {
-    m_color = engine->singletonInstance<QObject *>(QStringLiteral("qs.Commons"),
-        QStringLiteral("Color"));
-    m_style = engine->singletonInstance<QObject *>(QStringLiteral("qs.Commons"),
-        QStringLiteral("Style"));
+    m_color = engine->singletonInstance<QObject *>(
+        QStringLiteral("qs.Commons"), QStringLiteral("Color"));
+    m_style = engine->singletonInstance<QObject *>(
+        QStringLiteral("qs.Commons"), QStringLiteral("Style"));
     if (!m_color || !m_style) {
         qWarning("The Omarchy kit's qs.Commons singletons are unavailable, so kit "
                  "components will draw with the kit's own colour and type.");
@@ -98,8 +98,8 @@ void KitTheme::apply()
     assign(m_color, QStringLiteral("foreground"), colorFrom(palette, QStringLiteral("text")));
     // The kit paints `background` as a solid surface, so it takes the opaque
     // window rather than the alpha Omaweb's own chrome lets the desktop through.
-    assign(m_color, QStringLiteral("background"),
-        colorFrom(palette, QStringLiteral("windowOpaque")));
+    assign(
+        m_color, QStringLiteral("background"), colorFrom(palette, QStringLiteral("windowOpaque")));
     // A private window's accent differs from the main window's, and the two
     // share this process. The singleton carries the ordinary palette; the
     // adapters in src/ui carry the per-window difference.

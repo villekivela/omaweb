@@ -36,7 +36,7 @@ FocusScope {
 
     readonly property color edge: destructive ? colors.privateAccent : colors.accent
 
-    signal dismissed()
+    signal dismissed
 
     visible: open
     focus: open

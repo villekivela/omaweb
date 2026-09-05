@@ -133,9 +133,9 @@ QStringList validateEngineViewContract(const QObject &adapter)
         const auto property = metaObject->property(index);
         if (property.metaType().id() != required.type) {
             missing.append(QStringLiteral("property %1 has type %2, expected %3")
-                .arg(QString::fromLatin1(required.name),
-                    QString::fromLatin1(property.typeName()),
-                    QString::fromLatin1(QMetaType(required.type).name())));
+                    .arg(QString::fromLatin1(required.name),
+                        QString::fromLatin1(property.typeName()),
+                        QString::fromLatin1(QMetaType(required.type).name())));
         }
     }
 
@@ -160,7 +160,7 @@ QStringList validateEngineViewContract(const QObject &adapter)
         }
         if (!found) {
             missing.append(QStringLiteral("method or signal %1 has the wrong signature")
-                .arg(QString::fromLatin1(required.name)));
+                    .arg(QString::fromLatin1(required.name)));
         }
     }
     return missing;

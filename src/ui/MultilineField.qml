@@ -20,8 +20,9 @@ TextArea {
     readonly property color foreground: colors.text
     readonly property color accent: colors.accent
     readonly property bool hot: hovered
-    readonly property var edge: Border.controlSpec(
-        activeFocus ? "focus" : (hot ? "hover-cursor" : "normal"), foreground, accent)
+    readonly property var edge: Border.controlSpec(activeFocus ? "focus" : (hot ? "hover-cursor" :
+                                                                                  "normal"),
+                                                   foreground, accent)
 
     // A rules editor is worth nothing at one line high. Five is enough to see a
     // rule in the company of its neighbours, and it is derived rather than

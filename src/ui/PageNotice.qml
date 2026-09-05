@@ -25,16 +25,16 @@ Item {
     readonly property bool showing: hold.running || fade.opacity > 0
 
     function show(noticeGlyph, noticeMessage, noticeDetail, noticeDuration) {
-        root.glyph = noticeGlyph
-        root.message = noticeMessage
-        root.detail = noticeDetail === undefined ? "" : noticeDetail
-        root.duration = noticeDuration === undefined ? 2400 : noticeDuration
-        hold.restart()
+        root.glyph = noticeGlyph;
+        root.message = noticeMessage;
+        root.detail = noticeDetail === undefined ? "" : noticeDetail;
+        root.duration = noticeDuration === undefined ? 2400 : noticeDuration;
+        hold.restart();
     }
 
     function dismiss() {
-        hold.stop()
-        fade.opacity = 0
+        hold.stop();
+        fade.opacity = 0;
     }
 
     visible: fade.opacity > 0
@@ -47,7 +47,8 @@ Item {
         id: hold
         interval: root.duration
         onTriggered: fade.opacity = 0
-        onRunningChanged: if (running) fade.opacity = 1
+        onRunningChanged: if (running)
+                              fade.opacity = 1
     }
 
     Omarchy.BorderSurface {
@@ -66,7 +67,10 @@ Item {
         Accessible.name: root.message + (root.detail.length > 0 ? ". " + root.detail : "")
 
         Behavior on opacity {
-            NumberAnimation { duration: 160; easing.type: Easing.OutCubic }
+            NumberAnimation {
+                duration: 160
+                easing.type: Easing.OutCubic
+            }
         }
 
         Row {

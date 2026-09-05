@@ -11,94 +11,94 @@ namespace omaweb {
 
 namespace {
 
-constexpr int supportedVersion = 1;
+    constexpr int supportedVersion = 1;
 
-// Every default binding this file has already been offered, so a binding the
-// user deleted is never handed back to them while a binding a later version
-// introduces still arrives. It travels inside the configuration file, because
-// the file is what a user copies to another machine.
-const auto adoptedDefaultsKey = QStringLiteral("adoptedDefaults");
+    // Every default binding this file has already been offered, so a binding the
+    // user deleted is never handed back to them while a binding a later version
+    // introduces still arrives. It travels inside the configuration file, because
+    // the file is what a user copies to another machine.
+    const auto adoptedDefaultsKey = QStringLiteral("adoptedDefaults");
 
-// The two maps that hold bindings. Other sections — "passthrough" — are site
-// rules, and are only ever adopted whole.
-const QStringList bindingSections = {
-    QStringLiteral("bindings"),
-    QStringLiteral("browser"),
-};
+    // The two maps that hold bindings. Other sections — "passthrough" — are site
+    // rules, and are only ever adopted whole.
+    const QStringList bindingSections = {
+        QStringLiteral("bindings"),
+        QStringLiteral("browser"),
+    };
 
-QJsonObject readJsonObject(const QString &path)
-{
-    QFile file(path);
-    if (!file.open(QIODevice::ReadOnly)) {
-        return {};
+    QJsonObject readJsonObject(const QString &path)
+    {
+        QFile file(path);
+        if (!file.open(QIODevice::ReadOnly)) {
+            return {};
+        }
+        return QJsonDocument::fromJson(file.readAll()).object();
     }
-    return QJsonDocument::fromJson(file.readAll()).object();
-}
 
-const QSet<QString> supportedCommands = {
-    QStringLiteral("scroll-down"),
-    QStringLiteral("scroll-up"),
-    QStringLiteral("scroll-half-page-down"),
-    QStringLiteral("scroll-half-page-up"),
-    QStringLiteral("scroll-top"),
-    QStringLiteral("scroll-bottom"),
-    QStringLiteral("open-link"),
-    QStringLiteral("open-link-background"),
-};
+    const QSet<QString> supportedCommands = {
+        QStringLiteral("scroll-down"),
+        QStringLiteral("scroll-up"),
+        QStringLiteral("scroll-half-page-down"),
+        QStringLiteral("scroll-half-page-up"),
+        QStringLiteral("scroll-top"),
+        QStringLiteral("scroll-bottom"),
+        QStringLiteral("open-link"),
+        QStringLiteral("open-link-background"),
+    };
 
-// Commands Omaweb itself performs. The page never sees these, so they may be
-// bound to chords as well as to single keys.
-const QSet<QString> supportedBrowserCommands = {
-    QStringLiteral("back"),
-    QStringLiteral("forward"),
-    QStringLiteral("reload"),
-    QStringLiteral("reload-bypassing-cache"),
-    QStringLiteral("stop-loading"),
-    QStringLiteral("open-address"),
-    QStringLiteral("open-file"),
-    QStringLiteral("command-panel"),
-    QStringLiteral("new-tab"),
-    QStringLiteral("close-tab"),
-    QStringLiteral("reopen-tab"),
-    QStringLiteral("next-tab"),
-    QStringLiteral("previous-tab"),
-    QStringLiteral("select-tab"),
-    QStringLiteral("pin-tab"),
-    QStringLiteral("keep-tab-active"),
-    QStringLiteral("duplicate-tab"),
-    QStringLiteral("move-tab-up"),
-    QStringLiteral("move-tab-down"),
-    QStringLiteral("close-other-tabs"),
-    QStringLiteral("close-tabs-below"),
-    QStringLiteral("tab-menu"),
-    QStringLiteral("move-tab"),
-    QStringLiteral("next-space"),
-    QStringLiteral("select-space"),
-    QStringLiteral("new-space"),
-    QStringLiteral("toggle-sidebar"),
-    QStringLiteral("widen-sidebar"),
-    QStringLiteral("narrow-sidebar"),
-    QStringLiteral("reset-sidebar"),
-    QStringLiteral("focus-sidebar"),
-    QStringLiteral("focus-page"),
-    QStringLiteral("copy-address"),
-    QStringLiteral("find"),
-    QStringLiteral("find-next"),
-    QStringLiteral("find-previous"),
-    QStringLiteral("zoom-in"),
-    QStringLiteral("zoom-out"),
-    QStringLiteral("zoom-reset"),
-    QStringLiteral("print"),
-    QStringLiteral("fullscreen"),
-    QStringLiteral("developer-tools"),
-    QStringLiteral("inspect-element"),
-    QStringLiteral("open-page-context-menu"),
-    QStringLiteral("shortcuts"),
-    QStringLiteral("history"),
-    QStringLiteral("settings"),
-    QStringLiteral("private-window"),
-    QStringLiteral("minimize-window"),
-};
+    // Commands Omaweb itself performs. The page never sees these, so they may be
+    // bound to chords as well as to single keys.
+    const QSet<QString> supportedBrowserCommands = {
+        QStringLiteral("back"),
+        QStringLiteral("forward"),
+        QStringLiteral("reload"),
+        QStringLiteral("reload-bypassing-cache"),
+        QStringLiteral("stop-loading"),
+        QStringLiteral("open-address"),
+        QStringLiteral("open-file"),
+        QStringLiteral("command-panel"),
+        QStringLiteral("new-tab"),
+        QStringLiteral("close-tab"),
+        QStringLiteral("reopen-tab"),
+        QStringLiteral("next-tab"),
+        QStringLiteral("previous-tab"),
+        QStringLiteral("select-tab"),
+        QStringLiteral("pin-tab"),
+        QStringLiteral("keep-tab-active"),
+        QStringLiteral("duplicate-tab"),
+        QStringLiteral("move-tab-up"),
+        QStringLiteral("move-tab-down"),
+        QStringLiteral("close-other-tabs"),
+        QStringLiteral("close-tabs-below"),
+        QStringLiteral("tab-menu"),
+        QStringLiteral("move-tab"),
+        QStringLiteral("next-space"),
+        QStringLiteral("select-space"),
+        QStringLiteral("new-space"),
+        QStringLiteral("toggle-sidebar"),
+        QStringLiteral("widen-sidebar"),
+        QStringLiteral("narrow-sidebar"),
+        QStringLiteral("reset-sidebar"),
+        QStringLiteral("focus-sidebar"),
+        QStringLiteral("focus-page"),
+        QStringLiteral("copy-address"),
+        QStringLiteral("find"),
+        QStringLiteral("find-next"),
+        QStringLiteral("find-previous"),
+        QStringLiteral("zoom-in"),
+        QStringLiteral("zoom-out"),
+        QStringLiteral("zoom-reset"),
+        QStringLiteral("print"),
+        QStringLiteral("fullscreen"),
+        QStringLiteral("developer-tools"),
+        QStringLiteral("inspect-element"),
+        QStringLiteral("open-page-context-menu"),
+        QStringLiteral("shortcuts"),
+        QStringLiteral("history"),
+        QStringLiteral("settings"),
+        QStringLiteral("private-window"),
+        QStringLiteral("minimize-window"),
+    };
 
 } // namespace
 
@@ -107,8 +107,8 @@ KeyboardNavigation::KeyboardNavigation(QString configurationPath, QObject *paren
 {
 }
 
-KeyboardNavigation::KeyboardNavigation(QString configurationPath, QString pageScriptPath,
-    QObject *parent)
+KeyboardNavigation::KeyboardNavigation(
+    QString configurationPath, QString pageScriptPath, QObject *parent)
     : QObject(parent)
     , m_configurationPath(std::move(configurationPath))
 {
@@ -121,35 +121,17 @@ KeyboardNavigation::KeyboardNavigation(QString configurationPath, QString pageSc
     load();
 }
 
-bool KeyboardNavigation::enabled() const
-{
-    return m_enabled;
-}
+bool KeyboardNavigation::enabled() const { return m_enabled; }
 
-bool KeyboardNavigation::valid() const
-{
-    return m_valid;
-}
+bool KeyboardNavigation::valid() const { return m_valid; }
 
-QVariantMap KeyboardNavigation::bindings() const
-{
-    return m_bindings;
-}
+QVariantMap KeyboardNavigation::bindings() const { return m_bindings; }
 
-QVariantMap KeyboardNavigation::browserBindings() const
-{
-    return m_browserBindings;
-}
+QVariantMap KeyboardNavigation::browserBindings() const { return m_browserBindings; }
 
-QString KeyboardNavigation::errorMessage() const
-{
-    return m_errorMessage;
-}
+QString KeyboardNavigation::errorMessage() const { return m_errorMessage; }
 
-QString KeyboardNavigation::pageScript() const
-{
-    return m_pageScript;
-}
+QString KeyboardNavigation::pageScript() const { return m_pageScript; }
 
 bool KeyboardNavigation::setEnabled(bool enabled)
 {
@@ -176,7 +158,7 @@ QVariantMap KeyboardNavigation::configurationForUrl(const QUrl &url) const
         {QStringLiteral("enabled"), m_valid && m_enabled},
         {QStringLiteral("bindings"), m_bindings},
         {QStringLiteral("passthroughAll"), false},
-        {QStringLiteral("passthroughKeys"), QStringList{}},
+        {QStringLiteral("passthroughKeys"), QStringList {}},
     };
     const auto host = url.host().toLower();
     qsizetype bestMatchLength = -1;
@@ -202,8 +184,8 @@ bool KeyboardNavigation::load()
     QJsonParseError parseError;
     const auto document = QJsonDocument::fromJson(file.readAll(), &parseError);
     if (parseError.error != QJsonParseError::NoError || !document.isObject()) {
-        m_errorMessage = QStringLiteral("Invalid Keyboard navigation JSON: %1")
-                             .arg(parseError.errorString());
+        m_errorMessage
+            = QStringLiteral("Invalid Keyboard navigation JSON: %1").arg(parseError.errorString());
         return false;
     }
     const auto root = document.object();
@@ -224,30 +206,30 @@ bool KeyboardNavigation::load()
     // would otherwise take the rest of the keymap down with it. What was
     // dropped is named in the error message rather than passed over in silence.
     QStringList ignored;
-    const auto parseSection = [&ignored](const QJsonObject &section,
-                                  const QSet<QString> &supported) {
-        QVariantMap parsed;
-        for (auto it = section.begin(); it != section.end(); ++it) {
-            const auto command = it.value().toString();
-            if (it.key().isEmpty() || !supported.contains(command)) {
-                ignored.append(QStringLiteral("%1 (%2)").arg(it.key(), command));
-                continue;
-            }
-            parsed.insert(it.key(), command);
-        }
-        return parsed;
-    };
+    const auto parseSection
+        = [&ignored](const QJsonObject &section, const QSet<QString> &supported) {
+              QVariantMap parsed;
+              for (auto it = section.begin(); it != section.end(); ++it) {
+                  const auto command = it.value().toString();
+                  if (it.key().isEmpty() || !supported.contains(command)) {
+                      ignored.append(QStringLiteral("%1 (%2)").arg(it.key(), command));
+                      continue;
+                  }
+                  parsed.insert(it.key(), command);
+              }
+              return parsed;
+          };
 
     const auto parsedBindings = parseSection(bindings, supportedCommands);
     if (parsedBindings.isEmpty()) {
-        m_errorMessage = QStringLiteral(
-            "Keyboard navigation recognised none of its page bindings: %1")
-                             .arg(ignored.join(QStringLiteral(", ")));
+        m_errorMessage
+            = QStringLiteral("Keyboard navigation recognised none of its page bindings: %1")
+                  .arg(ignored.join(QStringLiteral(", ")));
         return false;
     }
 
-    const auto parsedBrowserBindings = parseSection(
-        root.value(QStringLiteral("browser")).toObject(), supportedBrowserCommands);
+    const auto parsedBrowserBindings
+        = parseSection(root.value(QStringLiteral("browser")).toObject(), supportedBrowserCommands);
 
     QHash<QString, SiteRule> parsedRules;
     const auto passthrough = root.value(QStringLiteral("passthrough")).toObject();
@@ -277,7 +259,7 @@ bool KeyboardNavigation::load()
     m_enabled = root.value(QStringLiteral("enabled")).toBool(false);
     m_valid = true;
     m_errorMessage = ignored.isEmpty()
-        ? QString{}
+        ? QString {}
         : QStringLiteral("Ignored bindings this build does not know: %1")
               .arg(ignored.join(QStringLiteral(", ")));
     return true;
@@ -293,8 +275,8 @@ bool KeyboardNavigation::load()
 // this". The first run after it arrives has nothing to go on but the file
 // itself, so it offers every default that file lacks — once — and records the
 // whole of the current defaults. From then on a deletion sticks.
-bool KeyboardNavigation::adoptDefaults(const QString &configurationPath,
-    const QString &defaultsPath)
+bool KeyboardNavigation::adoptDefaults(
+    const QString &configurationPath, const QString &defaultsPath)
 {
     const auto defaults = readJsonObject(defaultsPath);
     auto settings = readJsonObject(configurationPath);
@@ -329,8 +311,7 @@ bool KeyboardNavigation::adoptDefaults(const QString &configurationPath,
         // inspecting an element moved to the one Chromium uses for it.
         {QStringLiteral("Primary+Shift+C"), QStringLiteral("inspect-element")},
     };
-    for (auto it = retiredBrowserDefaults.cbegin();
-         it != retiredBrowserDefaults.cend(); ++it) {
+    for (auto it = retiredBrowserDefaults.cbegin(); it != retiredBrowserDefaults.cend(); ++it) {
         if (browser.value(it.key()).toString() != it.value()) {
             continue;
         }

@@ -25,7 +25,7 @@ Item {
     readonly property bool searching: field.text.length > 0
 
     signal searchRequested(string text, bool forward)
-    signal closed()
+    signal closed
 
     // Writing the tab's own query into the field is not the reader typing, so
     // it must not run a search: the matches were cleared with the last page and
@@ -33,19 +33,21 @@ Item {
     property bool adopting: false
 
     function adopt(value) {
-        if (field.text === value) return
-        root.adopting = true
-        field.text = value
-        root.adopting = false
+        if (field.text === value)
+            return;
+        root.adopting = true;
+        field.text = value;
+        root.adopting = false;
     }
 
     function focusField() {
-        field.focusInput()
-        field.selectAllText()
+        field.focusInput();
+        field.selectAllText();
     }
 
     onQueryChanged: root.adopt(root.query)
-    onOpenChanged: if (open) root.adopt(root.query)
+    onOpenChanged: if (open)
+                       root.adopt(root.query)
 
     visible: open
     implicitHeight: surface.implicitHeight
@@ -86,16 +88,16 @@ Item {
             placeholder: "find in page"
             accessibleName: "Find in page"
 
-            onTextChanged: if (!root.adopting) root.searchRequested(field.text, true)
+            onTextChanged: if (!root.adopting)
+                               root.searchRequested(field.text, true)
 
-            Keys.onPressed: function(event) {
+            Keys.onPressed: function (event) {
                 if (event.key === Qt.Key_Escape) {
-                    root.closed()
-                    event.accepted = true
+                    root.closed();
+                    event.accepted = true;
                 } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
-                    root.searchRequested(field.text,
-                        (event.modifiers & Qt.ShiftModifier) === 0)
-                    event.accepted = true
+                    root.searchRequested(field.text, (event.modifiers & Qt.ShiftModifier) === 0);
+                    event.accepted = true;
                 }
             }
         }
@@ -108,12 +110,14 @@ Item {
             anchors.rightMargin: Style.spacing.md
             anchors.verticalCenter: parent.verticalCenter
             text: {
-                if (!root.searching) return ""
-                if (root.matchCount === 0) return "no matches"
-                return root.activeMatch + "/" + root.matchCount
+                if (!root.searching)
+                    return "";
+                if (root.matchCount === 0)
+                    return "no matches";
+                return root.activeMatch + "/" + root.matchCount;
             }
-            color: root.matchCount === 0 && root.searching
-                ? root.colors.urgent : root.colors.mutedText
+            color: root.matchCount === 0 && root.searching ? root.colors.urgent :
+                                                             root.colors.mutedText
             font.family: Style.font.family
             font.pixelSize: Style.font.caption
         }

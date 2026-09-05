@@ -32,10 +32,12 @@ void ContentBlockerTest::userRulesCompileOffTheCallerPath()
     QVERIFY(blocker.compiling());
     QTRY_VERIFY_WITH_TIMEOUT(!blocker.compiling(), 5000);
     QVERIFY(compiled.count() > 0);
-    QVERIFY(blocker.checkRequest(QUrl(QStringLiteral("https://ads.example/ad.js")),
-        QUrl(QStringLiteral("https://example.com/")), QStringLiteral("script")).blocked);
+    QVERIFY(blocker
+            .checkRequest(QUrl(QStringLiteral("https://ads.example/ad.js")),
+                QUrl(QStringLiteral("https://example.com/")), QStringLiteral("script"))
+            .blocked);
     QVERIFY(blocker.cosmeticStyleSheet(QUrl(QStringLiteral("https://example.com/")))
-        .contains(QStringLiteral(".sponsor")));
+            .contains(QStringLiteral(".sponsor")));
 }
 
 void ContentBlockerTest::disablingASiteBypassesMatchingAndCosmetics()
@@ -47,8 +49,10 @@ void ContentBlockerTest::disablingASiteBypassesMatchingAndCosmetics()
 
     blocker.setSiteEnabled(QUrl(QStringLiteral("https://example.com/page")), false);
     QVERIFY(!blocker.siteEnabled(QUrl(QStringLiteral("https://example.com/"))));
-    QVERIFY(!blocker.checkRequest(QUrl(QStringLiteral("https://ads.example/ad.js")),
-        QUrl(QStringLiteral("https://example.com/")), QStringLiteral("script")).blocked);
+    QVERIFY(!blocker
+            .checkRequest(QUrl(QStringLiteral("https://ads.example/ad.js")),
+                QUrl(QStringLiteral("https://example.com/")), QStringLiteral("script"))
+            .blocked);
     QVERIFY(blocker.cosmeticStyleSheet(QUrl(QStringLiteral("https://example.com/"))).isEmpty());
 }
 
@@ -81,8 +85,9 @@ void ContentBlockerTest::subscriptionsExposeRequiredProvenanceAndUpdateStatus()
         QUrl::fromLocalFile(list.fileName()));
     QVERIFY(!id.isEmpty());
     QTRY_VERIFY_WITH_TIMEOUT(!blocker.compiling(), 5000);
-    QTRY_COMPARE_WITH_TIMEOUT(blocker.subscriptions().first().toMap()
-        .value(QStringLiteral("updateStatus")).toString(), QStringLiteral("current"), 5000);
+    QTRY_COMPARE_WITH_TIMEOUT(
+        blocker.subscriptions().first().toMap().value(QStringLiteral("updateStatus")).toString(),
+        QStringLiteral("current"), 5000);
 
     const auto subscription = blocker.subscriptions().first().toMap();
     QCOMPARE(subscription.value(QStringLiteral("source")).toUrl(),
@@ -90,8 +95,10 @@ void ContentBlockerTest::subscriptionsExposeRequiredProvenanceAndUpdateStatus()
     QCOMPARE(subscription.value(QStringLiteral("license")).toString(), QStringLiteral("CC0-1.0"));
     QCOMPARE(subscription.value(QStringLiteral("updateAddress")).toUrl(),
         QUrl::fromLocalFile(list.fileName()));
-    QVERIFY(blocker.checkRequest(QUrl(QStringLiteral("https://tracker.example/pixel")),
-        QUrl(QStringLiteral("https://site.example/")), QStringLiteral("image")).blocked);
+    QVERIFY(blocker
+            .checkRequest(QUrl(QStringLiteral("https://tracker.example/pixel")),
+                QUrl(QStringLiteral("https://site.example/")), QStringLiteral("image"))
+            .blocked);
 }
 
 void ContentBlockerTest::invalidSubscriptionUpdateKeepsTheActiveRules()
@@ -106,20 +113,29 @@ void ContentBlockerTest::invalidSubscriptionUpdateKeepsTheActiveRules()
     const auto id = blocker.addSubscription(QStringLiteral("Test list"),
         QUrl(QStringLiteral("https://lists.example/about")), QStringLiteral("CC0-1.0"),
         QUrl::fromLocalFile(list.fileName()));
-    QTRY_COMPARE_WITH_TIMEOUT(blocker.subscriptions().first().toMap()
-        .value(QStringLiteral("updateStatus")).toString(), QStringLiteral("current"), 5000);
-    QVERIFY(blocker.checkRequest(QUrl(QStringLiteral("https://tracker.example/pixel")),
-        QUrl(QStringLiteral("https://site.example/")), QStringLiteral("image")).blocked);
+    QTRY_COMPARE_WITH_TIMEOUT(
+        blocker.subscriptions().first().toMap().value(QStringLiteral("updateStatus")).toString(),
+        QStringLiteral("current"), 5000);
+    QVERIFY(blocker
+            .checkRequest(QUrl(QStringLiteral("https://tracker.example/pixel")),
+                QUrl(QStringLiteral("https://site.example/")), QStringLiteral("image"))
+            .blocked);
 
     QVERIFY(list.open(QIODevice::WriteOnly | QIODevice::Truncate));
     list.write("||broken.example^$redirect=\n");
     list.close();
     blocker.updateSubscription(id);
-    QTRY_VERIFY_WITH_TIMEOUT(blocker.subscriptions().first().toMap()
-        .value(QStringLiteral("updateStatus")).toString().startsWith(QStringLiteral("failed:")),
+    QTRY_VERIFY_WITH_TIMEOUT(blocker.subscriptions()
+                                 .first()
+                                 .toMap()
+                                 .value(QStringLiteral("updateStatus"))
+                                 .toString()
+                                 .startsWith(QStringLiteral("failed:")),
         5000);
-    QVERIFY(blocker.checkRequest(QUrl(QStringLiteral("https://tracker.example/pixel")),
-        QUrl(QStringLiteral("https://site.example/")), QStringLiteral("image")).blocked);
+    QVERIFY(blocker
+            .checkRequest(QUrl(QStringLiteral("https://tracker.example/pixel")),
+                QUrl(QStringLiteral("https://site.example/")), QStringLiteral("image"))
+            .blocked);
 }
 
 // A published list always carries rules outside this contract, and a list that
@@ -138,10 +154,13 @@ void ContentBlockerTest::aListKeepsTheRulesThisContractParses()
     blocker.addSubscription(QStringLiteral("Mixed list"),
         QUrl(QStringLiteral("https://lists.example/about")), QStringLiteral("CC0-1.0"),
         QUrl::fromLocalFile(list.fileName()));
-    QTRY_COMPARE_WITH_TIMEOUT(blocker.subscriptions().first().toMap()
-        .value(QStringLiteral("updateStatus")).toString(), QStringLiteral("current"), 5000);
-    QVERIFY(blocker.checkRequest(QUrl(QStringLiteral("https://tracker.example/pixel")),
-        QUrl(QStringLiteral("https://site.example/")), QStringLiteral("image")).blocked);
+    QTRY_COMPARE_WITH_TIMEOUT(
+        blocker.subscriptions().first().toMap().value(QStringLiteral("updateStatus")).toString(),
+        QStringLiteral("current"), 5000);
+    QVERIFY(blocker
+            .checkRequest(QUrl(QStringLiteral("https://tracker.example/pixel")),
+                QUrl(QStringLiteral("https://site.example/")), QStringLiteral("image"))
+            .blocked);
     QVERIFY(blocker.shouldBlockPopup(QUrl(QStringLiteral("https://ads.example/?&popunder=1")),
         QUrl(QStringLiteral("https://site.example/"))));
 }
@@ -156,15 +175,14 @@ void ContentBlockerTest::aRefusedWindowCountsAsABlockedRequest()
     QTRY_VERIFY_WITH_TIMEOUT(!blocker.compiling(), 5000);
     const QUrl opener(QStringLiteral("https://site.example/article"));
 
-    QVERIFY(!blocker.shouldBlockPopup(QUrl(QStringLiteral("https://pay.example/checkout")),
-        opener));
+    QVERIFY(
+        !blocker.shouldBlockPopup(QUrl(QStringLiteral("https://pay.example/checkout")), opener));
     QVERIFY(blocker.shouldBlockPopup(QUrl(QStringLiteral("https://popads.example/win")), opener));
     QTRY_COMPARE_WITH_TIMEOUT(blocker.blockedRequestCount(opener), 1, 5000);
 
     // A site the user turned blocking off for opens its windows either way.
     blocker.setSiteEnabled(opener, false);
-    QVERIFY(!blocker.shouldBlockPopup(QUrl(QStringLiteral("https://popads.example/win")),
-        opener));
+    QVERIFY(!blocker.shouldBlockPopup(QUrl(QStringLiteral("https://popads.example/win")), opener));
 }
 
 void ContentBlockerTest::firstRunSubscribesToTheDefaultLists()

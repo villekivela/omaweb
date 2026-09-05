@@ -29,18 +29,19 @@ Item {
     // to take as a child. Null whenever nothing is attached.
     property var developerToolsView: null
     readonly property string inspectedTabId: root.browserController
-        ? root.browserController.developerToolsTabId : ""
+                                             ? root.browserController.developerToolsTabId : ""
     readonly property bool hintModeActive: root.activeEngine
-        ? root.activeEngine.keyboardNavigationHintModeActive : false
+                                           ? root.activeEngine.keyboardNavigationHintModeActive :
+                                             false
     property var activeEngine: null
     property bool suspended: true
 
     // What the page the reader is looking at is doing with the whole screen,
     // read off the engine that draws it rather than kept beside it.
     readonly property bool siteFullscreenActive: root.activeEngine
-        ? root.activeEngine.siteFullscreenActive : false
+                                                 ? root.activeEngine.siteFullscreenActive : false
     readonly property string siteFullscreenOrigin: root.activeEngine
-        ? root.activeEngine.siteFullscreenOrigin : ""
+                                                   ? root.activeEngine.siteFullscreenOrigin : ""
 
     signal printFinished(string destination, bool succeeded)
     signal auxiliaryWindowRequested(var engine, var request, url requestedUrl)
@@ -54,9 +55,9 @@ Item {
     signal fileSelectionRequested(var engine, string requestId, var selection)
 
     function keyboardConfiguration(url) {
-        const configuration = Object.assign({}, root.keyboardManager.configurationForUrl(url))
-        configuration.hintTheme = root.hintTheme
-        return configuration
+        const configuration = Object.assign({}, root.keyboardManager.configurationForUrl(url));
+        configuration.hintTheme = root.hintTheme;
+        return configuration;
     }
 
     // Engines belong to the host, not to the tab row that shows them.
@@ -84,62 +85,71 @@ Item {
     // to, and what a page's new window starts as, so it is the one address that
     // is never worth an engine.
     function blankAddress(url) {
-        const value = String(url)
-        return value.length === 0 || value === "about:blank"
+        const value = String(url);
+        return value.length === 0 || value === "about:blank";
     }
 
     function adoptNewWindowRequest(tabId, request) {
-        root.adoptingTabId = tabId
-        const engine = root.engines[tabId]
+        root.adoptingTabId = tabId;
+        const engine = root.engines[tabId];
         if (engine) {
-            root.adoptingTabId = ""
-            engine.acceptNewWindowRequest(request)
-            return
+            root.adoptingTabId = "";
+            engine.acceptNewWindowRequest(request);
+            return;
         }
-        Qt.callLater(function() {
-            const late = root.engines[tabId]
-            if (!late) return
-            root.adoptingTabId = ""
-            late.acceptNewWindowRequest(request)
-        })
+        Qt.callLater(function () {
+            const late = root.engines[tabId];
+            if (!late)
+                return;
+            root.adoptingTabId = "";
+            late.acceptNewWindowRequest(request);
+        });
     }
 
     function focusPage() {
-        if (activeEngine) activeEngine.focusPage()
+        if (activeEngine)
+            activeEngine.focusPage();
     }
 
     function requestPageContextMenu() {
-        if (activeEngine) activeEngine.requestPageContextMenu()
+        if (activeEngine)
+            activeEngine.requestPageContextMenu();
     }
 
     // The everyday page operations, each one addressed to the engine of the tab
     // on show. A tab with no engine has no page to find in, print or hand the
     // screen back, so nothing is asked of one — the shell has already said so.
     function findText(query, forward) {
-        if (root.activeEngine) root.activeEngine.findText(query, forward)
+        if (root.activeEngine)
+            root.activeEngine.findText(query, forward);
     }
 
     function printPage(destination) {
-        if (root.activeEngine) root.activeEngine.printPage(destination)
-        else root.printFinished(destination, false)
+        if (root.activeEngine)
+            root.activeEngine.printPage(destination);
+        else
+            root.printFinished(destination, false);
     }
 
     function exitSiteFullscreen() {
-        if (root.activeEngine) root.activeEngine.exitSiteFullscreen()
+        if (root.activeEngine)
+            root.activeEngine.exitSiteFullscreen();
     }
 
     // The core owns which tab is inspected; the engines are told about it here.
     // One inspector at a time, so every engine that is not the named one gives
     // its own up — including a tab that had the inspector before this one.
     function syncDeveloperTools() {
-        const wanted = root.inspectedTabId
+        const wanted = root.inspectedTabId;
         for (const tabId in root.engines) {
-            const engine = root.engines[tabId]
-            if (tabId !== wanted && engine.developerToolsAttached) engine.detachDeveloperTools()
+            const engine = root.engines[tabId];
+            if (tabId !== wanted && engine.developerToolsAttached)
+                engine.detachDeveloperTools();
         }
-        const inspected = wanted.length > 0 ? root.engines[wanted] : null
-        if (inspected && !inspected.developerToolsAttached) inspected.attachDeveloperTools()
-        root.developerToolsView = inspected ? inspected.developerToolsView : null
+        const inspected = wanted.length > 0 ? root.engines[wanted] : null;
+        if (inspected && !inspected.developerToolsAttached)
+            inspected.attachDeveloperTools();
+        root.developerToolsView = inspected ? inspected.developerToolsView : null;
     }
 
     onInspectedTabIdChanged: root.syncDeveloperTools()
@@ -150,15 +160,19 @@ Item {
     // blank one, which has no page — must not be handed an inspector the core
     // does not know about and would never take away again.
     function inspectElement() {
-        if (!root.activeEngine) return
-        root.browserController.openDeveloperTools()
-        if (root.inspectedTabId !== root.browserController.activeTabId) return
-        root.activeEngine.inspectElement()
+        if (!root.activeEngine)
+            return;
+        root.browserController.openDeveloperTools();
+        if (root.inspectedTabId !== root.browserController.activeTabId)
+            return;
+        root.activeEngine.inspectElement();
     }
 
     function checkForEditedFormState(callback) {
-        if (activeEngine) activeEngine.checkForEditedFormState(callback)
-        else callback(false)
+        if (activeEngine)
+            activeEngine.checkForEditedFormState(callback);
+        else
+            callback(false);
     }
 
     // Profile-wide data removal is an engine operation, and it reaches Spaces
@@ -167,16 +181,18 @@ Item {
     // Returns the categories the engine could not take, so the browser can say
     // what stayed rather than claim everything went.
     function clearBrowsingData(spaceIds, dataTypes, since) {
-        const untouched = []
+        const untouched = [];
         for (let index = 0; index < spaceIds.length; ++index) {
-            const host = root.spaceProfiles.hostFor(spaceIds[index])
-            if (!host) continue
-            const stayed = host.clearBrowsingData(dataTypes, since) || []
+            const host = root.spaceProfiles.hostFor(spaceIds[index]);
+            if (!host)
+                continue;
+            const stayed = host.clearBrowsingData(dataTypes, since) || [];
             for (let named = 0; named < stayed.length; ++named) {
-                if (untouched.indexOf(stayed[named]) === -1) untouched.push(stayed[named])
+                if (untouched.indexOf(stayed[named]) === -1)
+                    untouched.push(stayed[named]);
             }
         }
-        return untouched
+        return untouched;
     }
 
     // An origin's decisions are the browser's to keep, so the engine's own
@@ -184,101 +200,123 @@ Item {
     // The page empties its own storage, which is the only removal that is
     // about one origin rather than a whole Space.
     function clearPageSiteData() {
-        if (root.activeEngine) root.activeEngine.clearPageSiteData()
+        if (root.activeEngine)
+            root.activeEngine.clearPageSiteData();
     }
 
     function resetOriginPermissions(spaceId, origin) {
-        const host = root.spaceProfiles.hostFor(spaceId)
-        if (host) host.resetOriginPermissions(origin)
+        const host = root.spaceProfiles.hostFor(spaceId);
+        if (host)
+            host.resetOriginPermissions(origin);
     }
 
     // Putting a Space away costs it its pages, which is the memory policy the
     // browser is built on: only the Space on show keeps live ones. The named
     // tabs are the exceptions and keep theirs, hidden and still running.
     function suspend(spaceId, retainedTabIds) {
-        preservingEngines = true
-        suspended = true
-        activeEngine = null
-        const retained = retainedTabIds || []
+        preservingEngines = true;
+        suspended = true;
+        activeEngine = null;
+        const retained = retainedTabIds || [];
         for (const tabId in root.engineSpaces) {
-            if (root.engineSpaces[tabId] !== spaceId) continue
+            if (root.engineSpaces[tabId] !== spaceId)
+                continue;
             if (retained.indexOf(tabId) >= 0) {
-                retainedEngines.keep(tabId, spaceId)
-                const engine = root.engines[tabId]
-                if (engine) engine.visible = false
-                continue
+                retainedEngines.keep(tabId, spaceId);
+                const engine = root.engines[tabId];
+                if (engine)
+                    engine.visible = false;
+                continue;
             }
-            root.discardEngine(tabId)
+            root.discardEngine(tabId);
         }
     }
 
     function resume() {
-        suspended = false
-        preservingEngines = false
-        retainedEngines.releaseVisibleSpace()
+        suspended = false;
+        preservingEngines = false;
+        retainedEngines.releaseVisibleSpace();
         // Retained tabs come back after the visible Space, not with it: the
         // reader is waiting for the page in front of them, and a renderer
         // started for a Space they cannot see must not be in the way of it.
-        Qt.callLater(root.restoreRetainedTabs)
+        Qt.callLater(root.restoreRetainedTabs);
     }
 
     function restoreRetainedTabs() {
-        if (root.suspended) return
-        retainedEngines.reconcile()
+        if (root.suspended)
+            return;
+        retainedEngines.reconcile();
     }
 
     // A tab of the Space on show takes that Space's profile, which is what the
     // window handed down. A retained tab of another Space names its own: its
     // pages are that Space's browsing identity and nothing else's.
     function createEngine(tabId, tabUrl, spaceId, profilePath, sharedProfile) {
-        if (!engineComponent) engineComponent = Qt.createComponent(root.engineSource)
+        if (!engineComponent)
+            engineComponent = Qt.createComponent(root.engineSource);
         const engine = engineComponent.createObject(root, {
-            "profilePath": profilePath !== undefined ? profilePath : root.profilePath,
-            "currentUrl": tabUrl,
-            "sharedProfile": sharedProfile !== undefined ? sharedProfile : root.sharedProfile,
-            "permissionController": root.permissionController,
-            "contentBlocker": root.blocker,
-            "engineContentBlocker": root.engineBlocker,
-            "keyboardNavigationConfiguration": root.keyboardConfiguration(tabUrl),
-            "keyboardNavigationScriptSource": root.keyboardManager.pageScript,
-            "pageBackgroundColor": root.pageBackgroundColor,
-            "developerToolsColors": root.developerToolsColors,
-            "visible": false
-        })
-        if (!engine) return null
-        engine.anchors.fill = root
-        root.engines[tabId] = engine
-        root.engineSpaces[tabId] = spaceId !== undefined ? spaceId : root.spaceId
+                                                        "profilePath": profilePath !== undefined
+                                                                       ? profilePath :
+                                                                         root.profilePath,
+                                                        "currentUrl": tabUrl,
+                                                        "sharedProfile": sharedProfile
+                                                                         !== undefined
+                                                                         ? sharedProfile :
+                                                                           root.sharedProfile,
+                                                        "permissionController":
+                                                        root.permissionController,
+                                                        "contentBlocker": root.blocker,
+                                                        "engineContentBlocker": root.engineBlocker,
+                                                        "keyboardNavigationConfiguration":
+                                                        root.keyboardConfiguration(tabUrl),
+                                                        "keyboardNavigationScriptSource":
+                                                        root.keyboardManager.pageScript,
+                                                        "pageBackgroundColor":
+                                                        root.pageBackgroundColor,
+                                                        "developerToolsColors":
+                                                        root.developerToolsColors,
+                                                        "visible": false
+                                                    });
+        if (!engine)
+            return null;
+        engine.anchors.fill = root;
+        root.engines[tabId] = engine;
+        root.engineSpaces[tabId] = spaceId !== undefined ? spaceId : root.spaceId;
         // A tab can be named as the inspected one before it has an engine to
         // attach to — a Space coming back, or the tab being selected for the
         // first time — so the attachment is made as soon as there is one.
-        if (tabId === root.inspectedTabId) root.syncDeveloperTools()
-        return engine
+        if (tabId === root.inspectedTabId)
+            root.syncDeveloperTools();
+        return engine;
     }
 
     function discardEngine(tabId) {
-        const engine = root.engines[tabId]
-        if (!engine) return
+        const engine = root.engines[tabId];
+        if (!engine)
+            return;
         // The inspector is the engine's to destroy, and nothing else holds it:
         // the dock only borrowed it.
         if (engine.developerToolsAttached) {
-            engine.detachDeveloperTools()
-            if (tabId === root.inspectedTabId) root.developerToolsView = null
+            engine.detachDeveloperTools();
+            if (tabId === root.inspectedTabId)
+                root.developerToolsView = null;
         }
-        if (root.activeEngine === engine) root.activeEngine = null
-        delete root.engines[tabId]
-        delete root.engineSpaces[tabId]
+        if (root.activeEngine === engine)
+            root.activeEngine = null;
+        delete root.engines[tabId];
+        delete root.engineSpaces[tabId];
         // The page that was making the sound is going away with its renderer,
         // and nothing is left to report that it stopped.
-        root.browserController.setTabAudible(tabId, false)
-        engine.destroy()
+        root.browserController.setTabAudible(tabId, false);
+        engine.destroy();
     }
 
     function discardEnginesForSpace(spaceId) {
         for (const tabId in root.engineSpaces) {
-            if (root.engineSpaces[tabId] !== spaceId) continue
-            retainedEngines.forget(tabId)
-            discardEngine(tabId)
+            if (root.engineSpaces[tabId] !== spaceId)
+                continue;
+            retainedEngines.forget(tabId);
+            discardEngine(tabId);
         }
     }
 
@@ -286,7 +324,7 @@ Item {
     // Space, and takes it away for good when the tab itself is closed or the
     // core stops retaining it.
     function keepsEngineFor(tabId) {
-        return retainedEngines.keeps(tabId)
+        return retainedEngines.keeps(tabId);
     }
 
     // Which pages outlive their Space is a policy of its own, kept beside the
@@ -300,14 +338,15 @@ Item {
     }
 
     function retainedTabReport() {
-        return retainedEngines.report()
+        return retainedEngines.report();
     }
 
     Connections {
         target: root.browserController
 
         function onRetainedTabsChanged() {
-            if (!root.suspended) Qt.callLater(root.restoreRetainedTabs)
+            if (!root.suspended)
+                Qt.callLater(root.restoreRetainedTabs);
         }
     }
 
@@ -359,32 +398,35 @@ Item {
             // shows it, hides it or takes it away, left on top of the page the
             // reader came back to.
             function needsEngine() {
-                if (tabSlot.tabId.length === 0) return false
-                return !root.blankAddress(tabSlot.tabUrl)
-                    || root.adoptingTabId === tabSlot.tabId
+                if (tabSlot.tabId.length === 0)
+                    return false;
+                return !root.blankAddress(tabSlot.tabUrl) || root.adoptingTabId === tabSlot.tabId;
             }
 
-            readonly property bool wantsEngine: tabId.length > 0
-                && (!root.blankAddress(tabUrl) || root.adoptingTabId === tabId)
+            readonly property bool wantsEngine: tabId.length > 0 && (!root.blankAddress(tabUrl)
+                                                                     || root.adoptingTabId
+                                                                     === tabId)
 
             function showEngine() {
-                if (!engine) return
-                engine.visible = tabSlot.active
-                engine.z = tabSlot.active ? 1 : 0
+                if (!engine)
+                    return;
+                engine.visible = tabSlot.active;
+                engine.z = tabSlot.active ? 1 : 0;
                 if (tabSlot.active) {
-                    root.activeEngine = engine
-                    Qt.callLater(root.focusPage)
+                    root.activeEngine = engine;
+                    Qt.callLater(root.focusPage);
                 }
             }
 
             function loadEngine() {
-                if (root.suspended || !everActive || !needsEngine()) return
-                engine = root.engines[tabId] || root.createEngine(tabId, tabSlot.tabUrl)
+                if (root.suspended || !everActive || !needsEngine())
+                    return;
+                engine = root.engines[tabId] || root.createEngine(tabId, tabSlot.tabUrl);
                 if (engine) {
-                    engine.setZoomFactor(tabSlot.tabZoom)
-                    tabSlot.applySoundPolicy()
+                    engine.setZoomFactor(tabSlot.tabZoom);
+                    tabSlot.applySoundPolicy();
                 }
-                showEngine()
+                showEngine();
             }
 
             // A page may start playing on its own: a silent video interrupts
@@ -392,14 +434,16 @@ Item {
             // that work in every other browser. What waits is the sound — the
             // reader's own muting, and the origin they have not dealt with yet.
             function applySoundPolicy() {
-                if (!tabSlot.engine) return
-                tabSlot.engine.autoplayAllowed = true
-                tabSlot.engine.audioMuted = tabSlot.tabMuted || tabSlot.tabSoundSuppressed
+                if (!tabSlot.engine)
+                    return;
+                tabSlot.engine.autoplayAllowed = true;
+                tabSlot.engine.audioMuted = tabSlot.tabMuted || tabSlot.tabSoundSuppressed;
             }
 
             onTabMutedChanged: tabSlot.applySoundPolicy()
             onTabSoundSuppressedChanged: tabSlot.applySoundPolicy()
-            onTabZoomChanged: if (engine) engine.setZoomFactor(tabSlot.tabZoom)
+            onTabZoomChanged: if (engine)
+                                  engine.setZoomFactor(tabSlot.tabZoom)
 
             // Site artwork belongs to the loaded page rather than to the saved
             // session, so the core drops it when a Space switch reloads the
@@ -411,9 +455,10 @@ Item {
             // shows: a background tab keeps its engine too, and does not
             // reattach until it is next selected.
             function restoreReportedIcon() {
-                const retained = root.engines[tabId]
-                if (!retained || String(retained.pageIconUrl).length === 0) return
-                root.browserController.setTabIcon(tabId, retained.pageIconUrl)
+                const retained = root.engines[tabId];
+                if (!retained || String(retained.pageIconUrl).length === 0)
+                    return;
+                root.browserController.setTabIcon(tabId, retained.pageIconUrl);
             }
 
             // What a retained page is playing is in the same position as its
@@ -424,9 +469,10 @@ Item {
             // the engine's own is partly this policy's rather than the
             // reader's, so reading that back would silence the tab for good.
             function restoreEnginePlayback() {
-                const kept = root.engines[tabId]
-                if (!kept) return
-                root.browserController.setTabAudible(tabId, kept.pageAudible)
+                const kept = root.engines[tabId];
+                if (!kept)
+                    return;
+                root.browserController.setTabAudible(tabId, kept.pageAudible);
             }
 
             onTabUrlChanged: {
@@ -435,36 +481,40 @@ Item {
                 // sheet that stands in for it.
                 if (!needsEngine()) {
                     if (engine) {
-                        root.discardEngine(tabId)
-                        engine = null
+                        root.discardEngine(tabId);
+                        engine = null;
                     }
-                    return
+                    return;
                 }
-                if (!engine) loadEngine()
-                else if (engine.currentUrl !== tabUrl) engine.currentUrl = tabUrl
+                if (!engine)
+                    loadEngine();
+                else if (engine.currentUrl !== tabUrl)
+                    engine.currentUrl = tabUrl;
             }
 
-            onWantsEngineChanged: if (wantsEngine) loadEngine()
+            onWantsEngineChanged: if (wantsEngine)
+                                      loadEngine()
 
             onActiveChanged: {
                 if (active) {
-                    everActive = true
-                    loadEngine()
+                    everActive = true;
+                    loadEngine();
                     // A tab with no engine is showing nothing, and the host has
                     // to say so. Leaving the last tab's engine as the active one
                     // would have the window believe a page is up: the sheet that
                     // stands in for a blank tab would stay away, and back and
                     // forward would answer for another tab's history.
-                    if (!engine) root.activeEngine = null
+                    if (!engine)
+                        root.activeEngine = null;
                 } else if (engine) {
-                    engine.visible = false
+                    engine.visible = false;
                 }
             }
 
             Component.onCompleted: {
-                restoreReportedIcon()
-                restoreEnginePlayback()
-                loadEngine()
+                restoreReportedIcon();
+                restoreEnginePlayback();
+                loadEngine();
             }
 
             // A retained tab's engine survives the Space switch that takes its
@@ -474,10 +524,12 @@ Item {
             // closed the tab, and the page goes with it.
             Component.onDestruction: {
                 if (root.preservingEngines) {
-                    if (root.engines[tabId]) root.engines[tabId].visible = false
-                    if (root.activeEngine === engine) root.activeEngine = null
+                    if (root.engines[tabId])
+                        root.engines[tabId].visible = false;
+                    if (root.activeEngine === engine)
+                        root.activeEngine = null;
                 } else {
-                    root.discardEngine(tabId)
+                    root.discardEngine(tabId);
                 }
             }
 
@@ -486,11 +538,12 @@ Item {
 
                 function onSuspendedChanged() {
                     if (root.suspended) {
-                        if (tabSlot.engine) tabSlot.engine.visible = false
+                        if (tabSlot.engine)
+                            tabSlot.engine.visible = false;
                     } else {
-                        tabSlot.restoreReportedIcon()
-                        tabSlot.restoreEnginePlayback()
-                        tabSlot.loadEngine()
+                        tabSlot.restoreReportedIcon();
+                        tabSlot.restoreEnginePlayback();
+                        tabSlot.loadEngine();
                     }
                 }
             }
@@ -504,9 +557,10 @@ Item {
             // engine with it, so the page a link opened would be torn down
             // while it loaded and the Start page left standing in its place.
             function reportPageState() {
-                if (!tabSlot.engine || String(tabSlot.engine.currentUrl).length === 0) return
-                root.browserController.updateTab(
-                    tabSlot.tabId, tabSlot.engine.currentUrl, tabSlot.engine.pageTitle)
+                if (!tabSlot.engine || String(tabSlot.engine.currentUrl).length === 0)
+                    return;
+                root.browserController.updateTab(tabSlot.tabId, tabSlot.engine.currentUrl,
+                                                 tabSlot.engine.pageTitle);
             }
 
             Connections {
@@ -514,10 +568,10 @@ Item {
                 ignoreUnknownSignals: true
 
                 function onCurrentUrlChanged() {
-                    tabSlot.reportPageState()
-                    tabSlot.applySoundPolicy()
-                    tabSlot.engine.configureKeyboardNavigation(
-                        root.keyboardConfiguration(tabSlot.engine.currentUrl))
+                    tabSlot.reportPageState();
+                    tabSlot.applySoundPolicy();
+                    tabSlot.engine.configureKeyboardNavigation(root.keyboardConfiguration(
+                                                                   tabSlot.engine.currentUrl));
                 }
 
                 // The reader dealt with the page themselves, which is what the
@@ -525,81 +579,80 @@ Item {
                 // origin, so the next tab showing the same site hears it too
                 // without being touched.
                 function onUserActivated() {
-                    root.browserController.recordOriginInteraction(tabSlot.engine.currentUrl)
+                    root.browserController.recordOriginInteraction(tabSlot.engine.currentUrl);
                 }
 
                 function onPageIconUrlChanged() {
-                    root.browserController.setTabIcon(tabSlot.tabId, tabSlot.engine.pageIconUrl)
+                    root.browserController.setTabIcon(tabSlot.tabId, tabSlot.engine.pageIconUrl);
                 }
 
                 function onPageTitleChanged() {
-                    tabSlot.reportPageState()
+                    tabSlot.reportPageState();
                 }
 
                 function onPageAudibleChanged() {
-                    root.browserController.setTabAudible(
-                        tabSlot.tabId, tabSlot.engine.pageAudible)
+                    root.browserController.setTabAudible(tabSlot.tabId, tabSlot.engine.pageAudible);
                 }
 
                 function onLoadingChanged() {
-                    root.browserController.setTabLoading(tabSlot.tabId, tabSlot.engine.loading)
+                    root.browserController.setTabLoading(tabSlot.tabId, tabSlot.engine.loading);
                     if (!tabSlot.engine.loading) {
-                        root.browserController.recordVisit(
-                            tabSlot.engine.currentUrl, tabSlot.engine.pageTitle)
+                        root.browserController.recordVisit(tabSlot.engine.currentUrl,
+                                                           tabSlot.engine.pageTitle);
                     }
                 }
 
                 function onRendererFailed(reason) {
-                    root.browserController.reportTabRendererFailure(tabSlot.tabId, reason)
+                    root.browserController.reportTabRendererFailure(tabSlot.tabId, reason);
                 }
 
                 function onAuxiliaryWindowRequested(request, requestedUrl) {
-                    root.auxiliaryWindowRequested(tabSlot.engine, request, requestedUrl)
+                    root.auxiliaryWindowRequested(tabSlot.engine, request, requestedUrl);
                 }
 
                 function onNewTabRequested(request, requestedUrl) {
-                    root.newTabRequested(tabSlot.engine, request, requestedUrl)
+                    root.newTabRequested(tabSlot.engine, request, requestedUrl);
                 }
 
                 function onBackgroundTabRequested(requestedUrl) {
-                    root.backgroundTabRequested(requestedUrl)
+                    root.backgroundTabRequested(requestedUrl);
                 }
 
                 function onPageContextRequested(context) {
-                    root.pageContextRequested(tabSlot.engine, context)
+                    root.pageContextRequested(tabSlot.engine, context);
                 }
 
                 function onPrintFinished(destination, succeeded) {
-                    root.printFinished(destination, succeeded)
+                    root.printFinished(destination, succeeded);
                 }
 
                 // The frontend's own close button, which is the reader saying
                 // they are finished with it rather than the tab going away.
                 function onDeveloperToolsClosed() {
-                    root.browserController.closeDeveloperTools()
+                    root.browserController.closeDeveloperTools();
                 }
 
                 function onSitePermissionRequested(requestId, origin, permission) {
-                    root.sitePermissionRequested(
-                        tabSlot.engine, requestId, origin, permission)
+                    root.sitePermissionRequested(tabSlot.engine, requestId, origin, permission);
                 }
 
                 function onCertificateErrorRaised(requestId, failure) {
-                    root.certificateErrorRaised(tabSlot.engine, requestId, failure)
+                    root.certificateErrorRaised(tabSlot.engine, requestId, failure);
                 }
 
                 function onPageSiteDataCleared(origin, cleared, error) {
                     // Only the page the reader asked about answers to them.
-                    if (tabSlot.engine !== root.activeEngine) return
-                    root.pageSiteDataCleared(origin, cleared, error)
+                    if (tabSlot.engine !== root.activeEngine)
+                        return;
+                    root.pageSiteDataCleared(origin, cleared, error);
                 }
 
                 function onBrowserPromptRequested(requestId, prompt) {
-                    root.browserPromptRequested(tabSlot.engine, requestId, prompt)
+                    root.browserPromptRequested(tabSlot.engine, requestId, prompt);
                 }
 
                 function onFileSelectionRequested(requestId, selection) {
-                    root.fileSelectionRequested(tabSlot.engine, requestId, selection)
+                    root.fileSelectionRequested(tabSlot.engine, requestId, selection);
                 }
             }
         }
@@ -609,23 +662,28 @@ Item {
         target: root.browserController
 
         function onBackRequested() {
-            if (root.activeEngine) root.activeEngine.goBack()
+            if (root.activeEngine)
+                root.activeEngine.goBack();
         }
 
         function onForwardRequested() {
-            if (root.activeEngine) root.activeEngine.goForward()
+            if (root.activeEngine)
+                root.activeEngine.goForward();
         }
 
         function onReloadRequested() {
-            if (root.activeEngine) root.activeEngine.reloadPage()
+            if (root.activeEngine)
+                root.activeEngine.reloadPage();
         }
 
         function onReloadBypassingCacheRequested() {
-            if (root.activeEngine) root.activeEngine.reloadPageBypassingCache()
+            if (root.activeEngine)
+                root.activeEngine.reloadPageBypassingCache();
         }
 
         function onStopLoadingRequested() {
-            if (root.activeEngine) root.activeEngine.stopLoading()
+            if (root.activeEngine)
+                root.activeEngine.stopLoading();
         }
     }
 
@@ -634,21 +692,21 @@ Item {
 
         function onConfigurationChanged() {
             if (root.activeEngine) {
-                root.activeEngine.configureKeyboardNavigation(
-                    root.keyboardConfiguration(root.activeEngine.currentUrl))
+                root.activeEngine.configureKeyboardNavigation(root.keyboardConfiguration(
+                                                                  root.activeEngine.currentUrl));
             }
         }
     }
 
     onDeveloperToolsColorsChanged: {
         for (const tabId in root.engines)
-            root.engines[tabId].developerToolsColors = root.developerToolsColors
+            root.engines[tabId].developerToolsColors = root.developerToolsColors;
     }
 
     onHintThemeChanged: {
         for (const tabId in root.engines) {
-            const engine = root.engines[tabId]
-            engine.configureKeyboardNavigation(root.keyboardConfiguration(engine.currentUrl))
+            const engine = root.engines[tabId];
+            engine.configureKeyboardNavigation(root.keyboardConfiguration(engine.currentUrl));
         }
     }
 }

@@ -18,8 +18,8 @@ WindowManager::WindowManager(QString engineName, bool privateWindowsAvailable, Q
 {
 }
 
-WindowManager::WindowManager(QString engineName, QString configRoot,
-    bool privateWindowsAvailable, QObject *parent)
+WindowManager::WindowManager(
+    QString engineName, QString configRoot, bool privateWindowsAvailable, QObject *parent)
     : QObject(parent)
     , m_engineName(std::move(engineName))
     , m_configRoot(std::move(configRoot))
@@ -35,8 +35,8 @@ BrowserController *WindowManager::createPrivateWindow()
         return nullptr;
     }
 
-    auto *controller = new BrowserController({}, m_engineName, true,
-        m_privatePermissionDecisions, m_privateSiteState, m_configRoot, this);
+    auto *controller = new BrowserController({}, m_engineName, true, m_privatePermissionDecisions,
+        m_privateSiteState, m_configRoot, this);
     if (!controller->ready()) {
         controller->deleteLater();
         return nullptr;
@@ -77,10 +77,7 @@ void WindowManager::releasePrivateWindow(QObject *controller)
     }
 }
 
-int WindowManager::privateWindowCount() const
-{
-    return m_privateWindows.size();
-}
+int WindowManager::privateWindowCount() const { return m_privateWindows.size(); }
 
 QString WindowManager::privateProfilePath() const
 {
@@ -90,10 +87,7 @@ QString WindowManager::privateProfilePath() const
     return QDir(m_privateRoot->path()).filePath(QStringLiteral("engine-profile"));
 }
 
-bool WindowManager::privateWindowsAvailable() const
-{
-    return m_privateWindowsAvailable;
-}
+bool WindowManager::privateWindowsAvailable() const { return m_privateWindowsAvailable; }
 
 bool WindowManager::ensurePrivateSession()
 {

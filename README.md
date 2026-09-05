@@ -1,25 +1,22 @@
 # `</>` Omaweb
 
-Omaweb is a keyboard-driven web browser. It uses one ordinary window, vertical
-tabs, and isolated browsing Spaces.
+Omaweb is a keyboard-driven web browser. It uses one ordinary window, vertical tabs, and isolated
+browsing Spaces.
 
-The Qt build runs on macOS as a development build. Omaweb is distributed for
-Linux, with first-class Wayland support. Ladybird is the target engine, but it
-remains a separate experimental build until its embedding and security
-contracts are ready.
+The Qt build runs on macOS as a development build. Omaweb is distributed for Linux, with first-class
+Wayland support. Ladybird is the target engine, but it remains a separate experimental build until
+its embedding and security contracts are ready.
 
 ## Developer tools
 
-Developer tools belong to the tab being inspected. Omaweb docks the inspector
-provided by the current engine beside that tab, keeps it attached across
-navigation and Space switches, and hides it when another tab is on show. The Qt
-build uses Chromium DevTools and draws it in the active Omaweb theme. Inspect
-element is available from Omaweb's page menu and from the keyboard.
+Developer tools belong to the tab being inspected. Omaweb docks the inspector provided by the
+current engine beside that tab, keeps it attached across navigation and Space switches, and hides it
+when another tab is on show. The Qt build uses Chromium DevTools and draws it in the active Omaweb
+theme. Inspect element is available from Omaweb's page menu and from the keyboard.
 
-Omaweb does not add a diagnostics protocol, agent gateway, terminal, or source
-editor. Local addresses resolve as addresses, reload can bypass cache, page
-commands are keyboard-accessible, and the engine's real inspector is close at
-hand.
+Omaweb does not add a diagnostics protocol, agent gateway, terminal, or source editor. Local
+addresses resolve as addresses, reload can bypass cache, page commands are keyboard-accessible, and
+the engine's real inspector is close at hand.
 
 ## What works now
 
@@ -31,31 +28,27 @@ The current Qt build includes:
 - A centered Omnibar for addresses, search, tabs, Spaces, and browser commands
 - Keyboard navigation, configurable bindings, link hints, and a live shortcut sheet
 - Docked Chromium DevTools, Inspect element, and loopback-only development debugging
-- Find, per-tab zoom, normal and cache-bypassing reload, Stop loading, fullscreen,
-  printing, and inline PDF viewing
-- A Omaweb-drawn page menu with link, image, media, selection, navigation, and
-  inspection commands
-- Session restoration, renderer recovery, searchable Space-local History,
-  browsing-data controls, and Site permissions
-- Downloads that ask before writing a program down, mark what they saved with
-  where it came from, and never run it, with what is still running marked in the
-  sidebar footer
-- Built-in content blocking with EasyList, EasyPrivacy, cosmetic rules,
-  scriptlets, and substitute resources
-- Runtime themes, terminal-theme import, Private-window styling, and an
-  engine-free UI lab
+- Find, per-tab zoom, normal and cache-bypassing reload, Stop loading, fullscreen, printing, and
+  inline PDF viewing
+- A Omaweb-drawn page menu with link, image, media, selection, navigation, and inspection commands
+- Session restoration, renderer recovery, searchable Space-local History, browsing-data controls,
+  and Site permissions
+- Downloads that require confirmation for programs and archives, record their source in file
+  metadata, remove execute permissions, and show active progress in the sidebar footer
+- Built-in content blocking with EasyList, EasyPrivacy, cosmetic rules, scriptlets, and substitute
+  resources
+- Runtime themes, terminal-theme import, Private-window styling, and an engine-free UI lab
 
-Omaweb is still pre-alpha. Do not use it for sensitive browsing. It does not yet
-have the complete certificate, URL-reputation, and Linux release work required
-for daily-driver status. Omaweb does not provide phishing, malware, or
-download-reputation verdicts.
+Omaweb is still pre-alpha. Do not use it for sensitive browsing. It does not yet have the complete
+certificate, URL-reputation, and Linux release work required for daily-driver status. Omaweb does
+not provide phishing, malware, or download-reputation verdicts.
 
 ## Build and run
 
-You need macOS 13 or newer with Xcode 15 or newer, or a current Linux
-development environment. The build also requires Qt 6.11 at the repository's
-approved patch level, CMake 3.30 or newer, Ninja, Clang with C++23 support, and
-ccache. See [the development guide](docs/development.md) for the full setup.
+You need macOS 13 or newer with Xcode 15 or newer, or a current Linux development environment. The
+build also requires Qt 6.11 at the repository's approved patch level, CMake 3.30 or newer, Ninja,
+Clang with C++23 support, and ccache. See [the development guide](docs/development.md) for the full
+setup.
 
 Build the pinned content-blocking library once before the first configure:
 
@@ -79,10 +72,9 @@ Run the browser on macOS:
 
 On Linux, run `./build/dev/omaweb`.
 
-Development builds load QML, themes, and the icon font from the source tree.
-Those edits need an application restart but no recompile. The `asan`, `release`,
-`ci`, and `ladybird` presets cover their named builds. The Ladybird preset does
-not enter the default Qt build graph.
+Development builds load QML, themes, and the icon font from the source tree. Those edits need an
+application restart but no recompile. The `asan`, `release`, `ci`, and `ladybird` presets cover
+their named builds. The Ladybird preset does not enter the default Qt build graph.
 
 ### UI work without a web engine
 
@@ -94,66 +86,62 @@ cmake --build --preset ui
 ./build/ui/omaweb-ui-lab.app/Contents/MacOS/omaweb-ui-lab
 ```
 
-Linux uses `./build/ui/omaweb-ui-lab`. Pass `--private` to inspect the Private
-palette or `--capture <path>` to render one frame and exit. Headless capture
-works with `QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software`.
+Linux uses `./build/ui/omaweb-ui-lab`. Pass `--private` to inspect the Private palette or
+`--capture <path>` to render one frame and exit. Headless capture works with
+`QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software`.
 
 ## Keyboard model
 
-Every browser action is available through the command panel. `Primary` means
-Command on macOS and Control on Linux. These are the main defaults:
+Every browser action is available through the command panel. `Primary` means Command on macOS and
+Control on Linux. These are the main defaults:
 
-| Keys | Action |
-| --- | --- |
-| `Primary+K` or `:` | Open the command panel |
-| `Primary+L` or `o` | Open an address or search |
-| `Primary+T` or `t` | Start a new tab |
-| `Primary+W` or `x` | Close the current tab |
-| `Primary+Shift+T` or `X` | Reopen the last closed tab |
-| `Primary+Shift+I` | Toggle Developer tools |
-| `Primary+Alt+C` | Inspect an element |
-| `Primary+F` or `/` | Find in the page |
-| `Primary+Y` | Open History for the active Space |
-| `Primary+=`, `Primary+-`, `Primary+0` | Change or reset tab zoom |
-| `Primary+Shift+R` or `R` | Reload without cache |
-| `Primary+B` | Hide or show the sidebar |
-| `Primary+E` | Focus the sidebar |
-| `f`, `Shift+F` | Follow a link here or in a background tab |
-| `j`, `k`, `gg`, `G` | Scroll the page |
-| `Primary+/` or `?` | Show every current binding |
+| Keys                                  | Action                                    |
+| ------------------------------------- | ----------------------------------------- |
+| `Primary+K` or `:`                    | Open the command panel                    |
+| `Primary+L` or `o`                    | Open an address or search                 |
+| `Primary+T` or `t`                    | Start a new tab                           |
+| `Primary+W` or `x`                    | Close the current tab                     |
+| `Primary+Shift+T` or `X`              | Reopen the last closed tab                |
+| `Primary+Shift+I`                     | Toggle Developer tools                    |
+| `Primary+Alt+C`                       | Inspect an element                        |
+| `Primary+F` or `/`                    | Find in the page                          |
+| `Primary+Y`                           | Open History for the active Space         |
+| `Primary+=`, `Primary+-`, `Primary+0` | Change or reset tab zoom                  |
+| `Primary+Shift+R` or `R`              | Reload without cache                      |
+| `Primary+B`                           | Hide or show the sidebar                  |
+| `Primary+E`                           | Focus the sidebar                         |
+| `f`, `Shift+F`                        | Follow a link here or in a background tab |
+| `j`, `k`, `gg`, `G`                   | Scroll the page                           |
+| `Primary+/` or `?`                    | Show every current binding                |
 
-Single-key browser and page commands follow the Keyboard navigation setting.
-Editable controls still receive typing, and sites can keep selected conflicting
-keys. The complete default map is in
+Single-key browser and page commands follow the Keyboard navigation setting. Editable controls still
+receive typing, and sites can keep selected conflicting keys. The complete default map is in
 [`assets/keybindings/default.json`](assets/keybindings/default.json).
 
 ## Configuration
 
-User-editable files live in `$XDG_CONFIG_HOME/omaweb`, or `~/.config/omaweb` when
-that variable is unset.
+User-editable files live in `$XDG_CONFIG_HOME/omaweb`, or `~/.config/omaweb` when that variable is
+unset.
 
-- `keybindings.json` contains browser and page bindings plus per-site key
-  passthrough rules. Omaweb writes it on first launch.
-- `theme.json` can replace the built-in palette, typography, semantic opacity,
-  and Developer-tools syntax colours.
-- `search-engines.json` contains the versioned local search-engine list, its
-  optional keywords, and the default engine. Omaweb creates it with DuckDuckGo
-  as the default and keeps remote suggestions off.
+- `keybindings.json` contains browser and page bindings plus per-site key passthrough rules. Omaweb
+  writes it on first launch.
+- `theme.json` can replace the built-in palette, typography, semantic opacity, and Developer-tools
+  syntax colours.
+- `search-engines.json` contains the versioned local search-engine list, its optional keywords, and
+  the default engine. Omaweb creates it with DuckDuckGo as the default and keeps remote suggestions
+  off.
 
-`OMAWEB_CONFIG_ROOT` relocates the configuration directory.
-`OMAWEB_KEYBINDINGS_FILE` and `OMAWEB_THEME_FILE` select individual files during
-development.
+`OMAWEB_CONFIG_ROOT` relocates the configuration directory. `OMAWEB_KEYBINDINGS_FILE` and
+`OMAWEB_THEME_FILE` select individual files during development.
 
-On Linux, Omaweb follows the Omarchy theme without being set up for it: the
-first start installs the template it ships to `~/.config/omarchy/themed/` and
-asks Omarchy to render the active theme through it. A template already there is
-kept. `OMAWEB_NO_OMARCHY_TEMPLATE` stops Omaweb writing into that directory at
-all — see [`integrations/omarchy/README.md`](integrations/omarchy/README.md).
+On Linux, Omaweb follows the Omarchy theme without being set up for it: the first start installs the
+template it ships to `~/.config/omarchy/themed/` and asks Omarchy to render the active theme through
+it. A template already there is kept. `OMAWEB_NO_OMARCHY_TEMPLATE` stops Omaweb writing into that
+directory at all — see [`integrations/omarchy/README.md`](integrations/omarchy/README.md).
 
-Run `scripts/import_terminal_theme.py` from Ghostty, iTerm2, kitty, Alacritty,
-or Terminal.app to derive `theme.json` from that terminal. A running Omaweb
-watches the file and repaints when it changes. Use `--print` to inspect the
-result without writing it.
+Run `scripts/import_terminal_theme.py` from Ghostty, iTerm2, kitty, Alacritty, or Terminal.app to
+derive `theme.json` from that terminal. A running Omaweb watches the file and repaints when it
+changes. Use `--print` to inspect the result without writing it.
 
 ## Project layout
 
@@ -168,47 +156,41 @@ result without writing it.
 - `third_party` contains pinned dependencies and their manifests.
 
 Start with [the architecture](docs/architecture.md),
-[the product requirements](docs/product/requirements.md), and the
-[domain glossary](CONTEXT.md) before changing a browser contract.
+[the product requirements](docs/product/requirements.md), and the [domain glossary](CONTEXT.md)
+before changing a browser contract.
 
 ## Roadmap
 
 The remaining Qt daily-driver work is tracked by
-[#50](https://github.com/villekivela/omaweb/issues/50). It covers browser prompts,
-History and data controls, tab management, certificate and cookie policy, and
-native notifications.
+[#50](https://github.com/villekivela/omaweb/issues/50). It covers browser prompts, History and data
+controls, tab management, certificate and cookie policy, and native notifications.
 
-[#8](https://github.com/villekivela/omaweb/issues/8) carries the browser to its
-Linux and Wayland distribution target. macOS remains available for development
-and testing, but macOS builds are not distributed.
-[#7](https://github.com/villekivela/omaweb/issues/7) tracks the Ladybird adapter.
+[#8](https://github.com/villekivela/omaweb/issues/8) carries the browser to its Linux and Wayland
+distribution target. macOS remains available for development and testing, but macOS builds are not
+distributed. [#7](https://github.com/villekivela/omaweb/issues/7) tracks the Ladybird adapter.
 [The roadmap](docs/roadmap.md) keeps the ordered breakdown.
 
-Bookmarks, password management, third-party WebExtensions, Account, Sync,
-installed web applications, Reader mode, translation, and DRM are outside the
-current daily-driver contract. This is deliberate scope, not an implemented
-feature list waiting for a checkbox.
+Bookmarks, password management, third-party WebExtensions, Account, Sync, installed web
+applications, Reader mode, translation, and DRM are outside the current daily-driver contract. This
+is deliberate scope, not an implemented feature list waiting for a checkbox.
 
 ## Privacy and security
 
-Omaweb has no telemetry, advertising identifier, browser account, cloud sync,
-Google push service, or automatic crash upload. Every automatic request made by
-the browser is listed in [the network request ledger](docs/network-requests.md).
-Omaweb does not use a URL-reputation provider. Content blocking may refuse some
-known malicious addresses, but it is not complete phishing, malware, or
-download-reputation protection.
+Omaweb has no telemetry, advertising identifier, browser account, cloud sync, Google push service,
+or automatic crash upload. Every automatic request made by the browser is listed in
+[the network request ledger](docs/network-requests.md). Omaweb does not use a URL-reputation
+provider. Content blocking may refuse some known malicious addresses, but it is not complete
+phishing, malware, or download-reputation protection.
 
-Ordinary sessions open no debugging listener. The explicit
-`--remote-debugging[=port]` development option binds to loopback, prints a
-warning, and disables Private windows for that launch. Project scripts may not
-disable the Chromium renderer sandbox.
+Ordinary sessions open no debugging listener. The explicit `--remote-debugging[=port]` development
+option binds to loopback, prints a warning, and disables Private windows for that launch. Project
+scripts may not disable the Chromium renderer sandbox.
 
-The current build is still a preview. The missing daily-driver security work is
-listed above and specified in
-[the product requirements](docs/product/requirements.md#privacy-and-security).
+The current build is still a preview. The missing daily-driver security work is listed above and
+specified in [the product requirements](docs/product/requirements.md#privacy-and-security).
 
 ## License
 
-Omaweb's own code is licensed under MPL 2.0. Engines, filter data, interface
-components, and other third-party material retain their own licenses. See
+Omaweb's own code is licensed under MPL 2.0. Engines, filter data, interface components, and other
+third-party material retain their own licenses. See
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

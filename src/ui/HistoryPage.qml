@@ -13,35 +13,38 @@ Rectangle {
     property Item pageSource: null
     property var rows: []
 
-    signal closed()
+    signal closed
 
     visible: open
     color: "transparent"
     focus: open
 
     function refresh() {
-        rows = browser ? browser.history(search.text) : []
+        rows = browser ? browser.history(search.text) : [];
     }
 
     function origin(address) {
-        return String(address).replace(/^(https?:\/\/[^/]+).*$/, "$1")
+        return String(address).replace(/^(https?:\/\/[^/]+).*$/, "$1");
     }
 
     onOpenChanged: if (open) {
-        search.text = ""
-        refresh()
-        search.forceActiveFocus()
-    }
+                       search.text = "";
+                       refresh();
+                       search.forceActiveFocus();
+                   }
 
     Connections {
         target: root.browser
-        function onActiveSpaceChanged() { if (root.open) root.refresh() }
+        function onActiveSpaceChanged() {
+            if (root.open)
+                root.refresh();
+        }
     }
 
-    Keys.onPressed: function(event) {
+    Keys.onPressed: function (event) {
         if (event.key === Qt.Key_Escape) {
-            root.closed()
-            event.accepted = true
+            root.closed();
+            event.accepted = true;
         }
     }
 
@@ -125,8 +128,8 @@ Rectangle {
                 label: "Clear this Space"
                 destructive: true
                 onClicked: {
-                    root.browser.deleteHistorySince(0)
-                    root.refresh()
+                    root.browser.deleteHistorySince(0);
+                    root.refresh();
                 }
             }
         }
@@ -138,8 +141,8 @@ Rectangle {
                 label: "Delete last hour"
                 destructive: true
                 onClicked: {
-                    root.browser.deleteHistorySince(Date.now() - 3600000)
-                    root.refresh()
+                    root.browser.deleteHistorySince(Date.now() - 3600000);
+                    root.refresh();
                 }
             }
             ActionButton {
@@ -147,8 +150,8 @@ Rectangle {
                 label: "Delete last day"
                 destructive: true
                 onClicked: {
-                    root.browser.deleteHistorySince(Date.now() - 86400000)
-                    root.refresh()
+                    root.browser.deleteHistorySince(Date.now() - 86400000);
+                    root.refresh();
                 }
             }
             ActionButton {
@@ -156,8 +159,8 @@ Rectangle {
                 label: "Delete last week"
                 destructive: true
                 onClicked: {
-                    root.browser.deleteHistorySince(Date.now() - 604800000)
-                    root.refresh()
+                    root.browser.deleteHistorySince(Date.now() - 604800000);
+                    root.refresh();
                 }
             }
         }
@@ -218,8 +221,8 @@ Rectangle {
                         label: "Origin"
                         accessibleName: "Delete visits to " + root.origin(modelData.url)
                         onClicked: {
-                            root.browser.deleteHistoryOrigin(modelData.url)
-                            root.refresh()
+                            root.browser.deleteHistoryOrigin(modelData.url);
+                            root.refresh();
                         }
                     }
                     ActionButton {
@@ -228,8 +231,8 @@ Rectangle {
                         destructive: true
                         accessibleName: "Delete this visit"
                         onClicked: {
-                            root.browser.deleteHistoryVisit(modelData.id)
-                            root.refresh()
+                            root.browser.deleteHistoryVisit(modelData.id);
+                            root.refresh();
                         }
                     }
                 }

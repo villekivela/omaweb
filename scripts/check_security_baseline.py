@@ -33,8 +33,6 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 BASELINE = ROOT / "security" / "baseline.json"
 
-# The Linux distribution Omaweb is packaged for (ADR 0029), so its packaged
-# QtWebEngine is the engine a supported build would actually be built on.
 ARCH_PACKAGE = ("https://archlinux.org/packages/search/json/"
                 "?name=qt6-webengine&repo=Extra")
 CHROMIUM_STABLE = ("https://chromiumdash.appspot.com/fetch_releases"
@@ -44,13 +42,10 @@ LABEL = "engine-security-baseline"
 LABEL_COLOR = "b60205"
 LABEL_DESCRIPTION = "The approved QtWebEngine baseline is behind upstream"
 
-# Reviewing a Qt release and qualifying a build is not an agent's work.
 TRIAGE_LABEL = "ready-for-human"
 
-# Kept in the body so the issue can be found again even if the label is lost.
 MARKER = "<!-- omaweb:engine-security-baseline -->"
 
-# The requirement the issue exists to meet.
 RESPONSE_DAYS = 7
 
 
@@ -108,9 +103,6 @@ def baseline_report(baseline: dict, packaged_engine: str,
         "reviewed": baseline.get("reviewed", ""),
         "engineBehind": engine_behind,
         "chromiumBehind": chromium_behind,
-        # Only a newer engine is something the repository can act on. Chromium
-        # moving on its own is reported, not raised: there is no Omaweb change
-        # that answers it until Qt ships the fixes.
         "behind": engine_behind,
         "reasons": reasons,
     }
@@ -135,7 +127,6 @@ def gh(*arguments: str) -> str:
     result = subprocess.run(["gh", *arguments], capture_output=True, text=True,
                             check=False)
     if result.returncode != 0:
-        # gh says why on stderr; a traceback would say only that it failed.
         sys.exit(f"gh {' '.join(arguments[:2])} failed: {result.stderr.strip()}")
     return result.stdout
 
@@ -167,8 +158,8 @@ def issue_body(report: dict, today: datetime.date | None = None) -> str:
         "### What closes this", "",
         "1. Read the Qt release notes for the security fixes it carries.",
         "2. Build and run the suite against the new engine.",
-        "3. Raise `security/baseline.json` — `qtwebengine`, `chromium`, "
-        "`chromiumSecurityPatch` and `reviewed`.",
+        "3. Update `qtwebengine`, `chromium`, `chromiumSecurityPatch`, and "
+        "`reviewed` in `security/baseline.json`.",
         "",
         f"A security-bearing Qt patch produces a tested Omaweb update within "
         f"{RESPONSE_DAYS} days (SECURITY.md), so this is due by `{due}`.",
@@ -243,9 +234,6 @@ def main() -> int:
                              "again")
     arguments = parser.parse_args()
 
-    # Opening the issue is the second half of one weekly run, so it reads the
-    # report the first half wrote rather than fetching a second, possibly
-    # different, pair of versions.
     if arguments.issue_from:
         return sync_issue(json.loads(arguments.issue_from.read_text()))
 

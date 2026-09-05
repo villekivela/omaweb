@@ -17,21 +17,21 @@ QtObject {
     // Chords are always live: they cannot be confused with typing on a page.
     // Single keys follow the Keyboard navigation setting.
     function isChord(binding) {
-        return binding.indexOf("+") !== -1
+        return binding.indexOf("+") !== -1;
     }
 
     function sequences() {
-        const out = []
+        const out = [];
         for (const binding in browserBindings) {
             if (!isChord(binding) && binding.length > 1) {
-                out.push(binding)
+                out.push(binding);
             }
         }
-        return out
+        return out;
     }
 
     function commandFor(binding) {
-        return browserBindings[binding] !== undefined ? browserBindings[binding] : ""
+        return browserBindings[binding] !== undefined ? browserBindings[binding] : "";
     }
 
     // Bindings become QKeySequences so Qt dispatches them window-wide, before
@@ -44,52 +44,52 @@ QtObject {
     // here, or the window binds ⌃L while the hints promise ⌘L.
     function keySequence(binding) {
         if (isChord(binding)) {
-            return binding.replace("Primary", "Ctrl")
+            return binding.replace("Primary", "Ctrl");
         }
-        const steps = []
+        const steps = [];
         for (let index = 0; index < binding.length; ++index) {
-            const key = binding.charAt(index)
-            steps.push(key >= "A" && key <= "Z" ? "Shift+" + key : key)
+            const key = binding.charAt(index);
+            steps.push(key >= "A" && key <= "Z" ? "Shift+" + key : key);
         }
-        return steps.join(",")
+        return steps.join(",");
     }
 
     function displayFor(binding) {
         if (Qt.platform.os !== "osx") {
-            return binding.replace("Primary+", "Ctrl+")
+            return binding.replace("Primary+", "Ctrl+");
         }
-        return binding.replace("Primary+", primaryLabel)
-            .replace("Alt+", altLabel).replace("Shift+", shiftLabel)
+        return binding.replace("Primary+", primaryLabel).replace("Alt+", altLabel).replace("Shift+",
+                                                                                           shiftLabel);
     }
 
     // Every binding that invokes a command, formatted for the command panel.
     function keysFor(command) {
-        const chords = []
-        const keys = []
+        const chords = [];
+        const keys = [];
         for (const binding in browserBindings) {
             if (browserBindings[binding] !== command) {
-                continue
+                continue;
             }
             if (isChord(binding)) {
-                chords.push(displayFor(binding))
+                chords.push(displayFor(binding));
             } else {
-                keys.push(binding)
+                keys.push(binding);
             }
         }
         if (command === "select-tab" || command === "select-space") {
-            return chords.length > 0 ? chords[0].replace(/[0-9]$/, "N") : "1…9"
+            return chords.length > 0 ? chords[0].replace(/[0-9]$/, "N") : "1…9";
         }
-        return chords.concat(keys).join("  ·  ")
+        return chords.concat(keys).join("  ·  ");
     }
 
     function pageKeysFor(command) {
-        const bindings = configuration ? configuration.bindings : ({})
-        const keys = []
+        const bindings = configuration ? configuration.bindings : ({});
+        const keys = [];
         for (const binding in bindings) {
             if (bindings[binding] === command) {
-                keys.push(binding)
+                keys.push(binding);
             }
         }
-        return keys.join("  ·  ")
+        return keys.join("  ·  ");
     }
 }

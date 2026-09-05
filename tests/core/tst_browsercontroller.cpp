@@ -149,8 +149,8 @@ void BrowserControllerTest::closesRequestedBackgroundTab()
     const auto activeTabId = controller.activeTabId();
     controller.openInputInBackground(QUrl(QStringLiteral("https://example.com/background")));
     const auto backgroundIndex = controller.tabs()->index(1, 0);
-    const auto backgroundTabId = controller.tabs()->data(
-        backgroundIndex, TabListModel::IdRole).toString();
+    const auto backgroundTabId
+        = controller.tabs()->data(backgroundIndex, TabListModel::IdRole).toString();
 
     controller.closeTab(backgroundTabId);
 
@@ -190,7 +190,7 @@ void BrowserControllerTest::requiresNameToDeletePopulatedSpace()
     QVERIFY(QFileInfo::exists(workProfilePath));
     QVERIFY(controller.switchSpace(personalSpaceId));
 
-    QVERIFY(!controller.deleteSpace(workSpaceId, QString{}));
+    QVERIFY(!controller.deleteSpace(workSpaceId, QString {}));
     QVERIFY(!controller.deleteSpace(workSpaceId, QStringLiteral("work")));
     QVERIFY(controller.deleteSpace(workSpaceId, QStringLiteral("Work")));
     QCOMPARE(controller.spaces()->rowCount(), 1);
@@ -214,7 +214,7 @@ void BrowserControllerTest::treatsEngineStateAsPopulatedSpaceData()
     cookieState.close();
     QVERIFY(controller.switchSpace(personalSpaceId));
 
-    QVERIFY(!controller.deleteSpace(workSpaceId, QString{}));
+    QVERIFY(!controller.deleteSpace(workSpaceId, QString {}));
     QVERIFY(controller.deleteSpace(workSpaceId, QStringLiteral("Work")));
 }
 
@@ -313,17 +313,16 @@ void BrowserControllerTest::migratesLegacyGlobalTabsWithoutLockingSchema()
         database.setDatabaseName(root.filePath(QStringLiteral("state.sqlite")));
         QVERIFY(database.open());
         QSqlQuery query(database);
-        QVERIFY(query.exec(QStringLiteral(
-            "CREATE TABLE spaces (id TEXT PRIMARY KEY, name TEXT NOT NULL, "
-            "color TEXT NOT NULL, active INTEGER NOT NULL DEFAULT 0, "
-            "position INTEGER NOT NULL DEFAULT 0)")));
+        QVERIFY(query.exec(
+            QStringLiteral("CREATE TABLE spaces (id TEXT PRIMARY KEY, name TEXT NOT NULL, "
+                           "color TEXT NOT NULL, active INTEGER NOT NULL DEFAULT 0, "
+                           "position INTEGER NOT NULL DEFAULT 0)")));
         QVERIFY(query.exec(QStringLiteral(
             "CREATE TABLE tabs (id TEXT PRIMARY KEY, space_id TEXT NOT NULL, "
             "url TEXT NOT NULL, title TEXT NOT NULL, pinned INTEGER NOT NULL DEFAULT 0, "
             "active INTEGER NOT NULL DEFAULT 0, position INTEGER NOT NULL DEFAULT 0)")));
-        QVERIFY(query.exec(QStringLiteral(
-            "INSERT INTO spaces(id, name, color, active, position) "
-            "VALUES('personal', 'Personal', '#7c6cff', 1, 0)")));
+        QVERIFY(query.exec(QStringLiteral("INSERT INTO spaces(id, name, color, active, position) "
+                                          "VALUES('personal', 'Personal', '#7c6cff', 1, 0)")));
         QVERIFY(query.exec(QStringLiteral(
             "INSERT INTO tabs(id, space_id, url, title, pinned, active, position) "
             "VALUES('legacy-tab', 'personal', 'https://example.com', 'Example', 0, 1, 0)")));
@@ -377,23 +376,26 @@ void BrowserControllerTest::pinningMovesTabIntoPinnedBlock()
         controller.openInput(QStringLiteral("https://first.example"), false);
         controller.toggleActivePinned();
         for (int index = 2; index <= 5; ++index) {
-            controller.openInput(
-                QStringLiteral("https://tab-%1.example").arg(index), true);
+            controller.openInput(QStringLiteral("https://tab-%1.example").arg(index), true);
         }
         newlyPinnedId = controller.activeTabId();
 
-        QCOMPARE(controller.tabs()->data(
-            controller.tabs()->index(4, 0), TabListModel::IdRole).toString(), newlyPinnedId);
+        QCOMPARE(controller.tabs()
+                     ->data(controller.tabs()->index(4, 0), TabListModel::IdRole)
+                     .toString(),
+            newlyPinnedId);
         controller.toggleActivePinned();
 
-        QCOMPARE(controller.tabs()->data(
-            controller.tabs()->index(1, 0), TabListModel::IdRole).toString(), newlyPinnedId);
+        QCOMPARE(controller.tabs()
+                     ->data(controller.tabs()->index(1, 0), TabListModel::IdRole)
+                     .toString(),
+            newlyPinnedId);
         QCOMPARE(controller.pinnedTabs()->rowCount(), 2);
     }
 
     BrowserController restored(root.path(), QStringLiteral("test"));
-    QCOMPARE(restored.tabs()->data(
-        restored.tabs()->index(1, 0), TabListModel::IdRole).toString(), newlyPinnedId);
+    QCOMPARE(restored.tabs()->data(restored.tabs()->index(1, 0), TabListModel::IdRole).toString(),
+        newlyPinnedId);
 }
 
 void BrowserControllerTest::keepsFinalTabAsBlankTab()
@@ -453,7 +455,8 @@ void BrowserControllerTest::keepsRendererFailureOnAffectedTab()
     controller.reportTabRendererFailure(
         failedTabId, QStringLiteral("Renderer exited unexpectedly"));
     QVERIFY(controller.activeRendererFailed());
-    QCOMPARE(controller.activeRendererFailureReason(), QStringLiteral("Renderer exited unexpectedly"));
+    QCOMPARE(
+        controller.activeRendererFailureReason(), QStringLiteral("Renderer exited unexpectedly"));
 
     controller.openInput(QStringLiteral("https://example.com"), true);
     QVERIFY(!controller.activeRendererFailed());
@@ -593,9 +596,6 @@ void BrowserControllerTest::sharesPrivateIdentityUntilLastWindowCloses()
     QCOMPARE(second->spaces()->rowCount(), 0);
     QVERIFY(first->activeSpaceId().isEmpty());
     QVERIFY(first->activeProfilePath().isEmpty());
-    // A Private window puts downloads where every other window does — the
-    // reader's configured directory, which it reads and cannot change — and
-    // records none of them.
     QVERIFY(first->acceptDownloads());
     QCOMPARE(first->downloadDirectory(),
         QStandardPaths::writableLocation(QStandardPaths::DownloadLocation));
@@ -604,11 +604,12 @@ void BrowserControllerTest::sharesPrivateIdentityUntilLastWindowCloses()
     QVERIFY(first->downloadHistory().isEmpty());
     QVERIFY(first->setPermissionDecision(QUrl(QStringLiteral("https://camera.example")),
         QStringLiteral("camera"), BrowserController::AllowOnce));
-    QCOMPARE(second->permissionDecision(QUrl(QStringLiteral("https://camera.example/path")),
-                 QStringLiteral("camera")),
+    QCOMPARE(second->permissionDecision(
+                 QUrl(QStringLiteral("https://camera.example/path")), QStringLiteral("camera")),
         BrowserController::AllowOnce);
-    QCOMPARE(second->permissionDecision(QUrl(QStringLiteral("https://camera.example/path")),
-                 QStringLiteral("camera")), BrowserController::Ask);
+    QCOMPARE(second->permissionDecision(
+                 QUrl(QStringLiteral("https://camera.example/path")), QStringLiteral("camera")),
+        BrowserController::Ask);
 
     QSignalSpy closeSpy(first, &BrowserController::closeWindowRequested);
     first->closeActiveTab();
@@ -626,8 +627,8 @@ void BrowserControllerTest::sharesPrivateIdentityUntilLastWindowCloses()
     QVERIFY(fresh);
     QVERIFY(manager.privateProfilePath() != sharedProfilePath);
     QCOMPARE(fresh->activeUrl(), QUrl(QStringLiteral("about:blank")));
-    QCOMPARE(fresh->permissionDecision(QUrl(QStringLiteral("https://camera.example")),
-                 QStringLiteral("camera")),
+    QCOMPARE(fresh->permissionDecision(
+                 QUrl(QStringLiteral("https://camera.example")), QStringLiteral("camera")),
         BrowserController::Ask);
     manager.releasePrivateWindow(fresh);
 }
@@ -641,8 +642,8 @@ void BrowserControllerTest::keepsHistorySuggestionsInsideActiveSpace()
         QStringLiteral("Personal documentation"));
     const auto workSpaceId = controller.createSpace(QStringLiteral("Work"));
     QVERIFY(controller.switchSpace(workSpaceId));
-    controller.recordVisit(QUrl(QStringLiteral("https://docs.example/work")),
-        QStringLiteral("Work documentation"));
+    controller.recordVisit(
+        QUrl(QStringLiteral("https://docs.example/work")), QStringLiteral("Work documentation"));
 
     const auto workSuggestions = controller.historySuggestions(QStringLiteral("docs"));
     QCOMPARE(workSuggestions.size(), 1);
@@ -660,15 +661,15 @@ void BrowserControllerTest::filtersAndDeletesHistoryAtRequestedBoundaries()
 {
     QTemporaryDir root;
     BrowserController controller(root.path(), QStringLiteral("test"));
-    controller.recordVisit(QUrl(QStringLiteral("https://one.example/first")),
-        QStringLiteral("First visit"));
+    controller.recordVisit(
+        QUrl(QStringLiteral("https://one.example/first")), QStringLiteral("First visit"));
     QTest::qWait(2);
     const auto boundary = QDateTime::currentMSecsSinceEpoch();
     QTest::qWait(2);
-    controller.recordVisit(QUrl(QStringLiteral("https://one.example/second")),
-        QStringLiteral("Second visit"));
-    controller.recordVisit(QUrl(QStringLiteral("https://two.example/keep")),
-        QStringLiteral("Keep this"));
+    controller.recordVisit(
+        QUrl(QStringLiteral("https://one.example/second")), QStringLiteral("Second visit"));
+    controller.recordVisit(
+        QUrl(QStringLiteral("https://two.example/keep")), QStringLiteral("Keep this"));
 
     auto rows = controller.history(QStringLiteral("one.example"));
     QCOMPARE(rows.size(), 2);
@@ -686,8 +687,13 @@ void BrowserControllerTest::filtersAndDeletesHistoryAtRequestedBoundaries()
     controller.recordVisit(QUrl(QStringLiteral("https://other.example/c")), QStringLiteral("C"));
     QVERIFY(controller.deleteHistoryOrigin(QUrl(QStringLiteral("https://one.example/path"))));
     QCOMPARE(controller.history(QStringLiteral("one.example")).size(), 1);
-    QCOMPARE(controller.history(QStringLiteral("one.example")).first().toMap()
-                 .value(QStringLiteral("url")).toUrl().port(), 444);
+    QCOMPARE(controller.history(QStringLiteral("one.example"))
+                 .first()
+                 .toMap()
+                 .value(QStringLiteral("url"))
+                 .toUrl()
+                 .port(),
+        444);
 }
 
 void BrowserControllerTest::resolvesAddressesBeforeSearches()
@@ -724,17 +730,18 @@ void BrowserControllerTest::migratesAndUsesSearchEngineConfiguration()
     QVERIFY(QDir().mkpath(configRoot));
     QFile legacy(QDir(configRoot).filePath(QStringLiteral("search-engines.json")));
     QVERIFY(legacy.open(QIODevice::WriteOnly));
-    QVERIFY(legacy.write(R"JSON({
+    const auto written = legacy.write(R"JSON({
         "default": "docs",
         "engines": [{
             "id": "docs", "name": "Docs", "queryUrl": "https://docs.example/?q={query}",
             "keyword": "d"
         }]
-    })JSON") > 0);
+    })JSON");
+    QVERIFY(written > 0);
     legacy.close();
 
-    BrowserController controller(root.filePath(QStringLiteral("data")),
-        QStringLiteral("test"), configRoot);
+    BrowserController controller(
+        root.filePath(QStringLiteral("data")), QStringLiteral("test"), configRoot);
     QVERIFY(controller.ready());
     QCOMPARE(controller.searchEngines().size(), 1);
     controller.openInput(QStringLiteral("migration guide"), false);
@@ -757,8 +764,8 @@ void BrowserControllerTest::migratesAndUsesSearchEngineConfiguration()
 void BrowserControllerTest::addsPredefinedSearchEngineProviders()
 {
     QTemporaryDir root;
-    BrowserController controller(root.filePath(QStringLiteral("data")),
-        QStringLiteral("test"), root.filePath(QStringLiteral("config")));
+    BrowserController controller(root.filePath(QStringLiteral("data")), QStringLiteral("test"),
+        root.filePath(QStringLiteral("config")));
 
     const auto presets = controller.searchEnginePresets();
     QVERIFY(presets.size() >= 5);
@@ -787,15 +794,14 @@ void BrowserControllerTest::clearsSelectedBrowsingDataWithinConfirmedScope()
     QTemporaryDir root;
     BrowserController controller(root.path(), QStringLiteral("test"));
     const auto personalSpaceId = controller.activeSpaceId();
-    controller.recordVisit(QUrl(QStringLiteral("https://personal-clear.example")),
-        QStringLiteral("Personal"));
-    QVERIFY(controller.setPermissionDecision(
-        QUrl(QStringLiteral("https://personal-clear.example")), QStringLiteral("camera"),
-        BrowserController::Block));
+    controller.recordVisit(
+        QUrl(QStringLiteral("https://personal-clear.example")), QStringLiteral("Personal"));
+    QVERIFY(controller.setPermissionDecision(QUrl(QStringLiteral("https://personal-clear.example")),
+        QStringLiteral("camera"), BrowserController::Block));
     const auto workSpaceId = controller.createSpace(QStringLiteral("Work"));
     QVERIFY(controller.switchSpace(workSpaceId));
-    controller.recordVisit(QUrl(QStringLiteral("https://work-clear.example")),
-        QStringLiteral("Work"));
+    controller.recordVisit(
+        QUrl(QStringLiteral("https://work-clear.example")), QStringLiteral("Work"));
     QSignalSpy clearSpy(&controller, &BrowserController::engineDataClearRequested);
 
     QVERIFY(controller.clearBrowsingData({QStringLiteral("history")}, 0, false, {}));
@@ -803,16 +809,19 @@ void BrowserControllerTest::clearsSelectedBrowsingDataWithinConfirmedScope()
     QCOMPARE(clearSpy.count(), 1);
     QVERIFY(controller.switchSpace(personalSpaceId));
     QCOMPARE(controller.history({}).size(), 1);
-    QCOMPARE(controller.permissionDecision(QUrl(QStringLiteral("https://personal-clear.example")),
-                 QStringLiteral("camera")), BrowserController::Block);
+    QCOMPARE(controller.permissionDecision(
+                 QUrl(QStringLiteral("https://personal-clear.example")), QStringLiteral("camera")),
+        BrowserController::Block);
 
-    QVERIFY(!controller.clearBrowsingData({QStringLiteral("history"),
-        QStringLiteral("permissions")}, 0, true, QStringLiteral("clear all")));
-    QVERIFY(controller.clearBrowsingData({QStringLiteral("history"),
-        QStringLiteral("permissions")}, 0, true, QStringLiteral("CLEAR ALL")));
+    QVERIFY(
+        !controller.clearBrowsingData({QStringLiteral("history"), QStringLiteral("permissions")}, 0,
+            true, QStringLiteral("clear all")));
+    QVERIFY(controller.clearBrowsingData({QStringLiteral("history"), QStringLiteral("permissions")},
+        0, true, QStringLiteral("CLEAR ALL")));
     QCOMPARE(controller.history({}).size(), 0);
-    QCOMPARE(controller.permissionDecision(QUrl(QStringLiteral("https://personal-clear.example")),
-                 QStringLiteral("camera")), BrowserController::Ask);
+    QCOMPARE(controller.permissionDecision(
+                 QUrl(QStringLiteral("https://personal-clear.example")), QStringLiteral("camera")),
+        BrowserController::Ask);
 }
 
 void BrowserControllerTest::scopesPermissionDecisionsToOriginSpaceAndLifetime()
@@ -826,20 +835,17 @@ void BrowserControllerTest::scopesPermissionDecisionsToOriginSpaceAndLifetime()
         QVERIFY(controller.setPermissionDecision(
             QUrl(QStringLiteral("https://EXAMPLE.com/path?ignored=1")),
             QStringLiteral("geolocation"), BrowserController::AllowPersistently));
-        QCOMPARE(controller.permissionDecision(
-                     QUrl(QStringLiteral("https://example.com/another")),
+        QCOMPARE(controller.permissionDecision(QUrl(QStringLiteral("https://example.com/another")),
                      QStringLiteral("geolocation")),
             BrowserController::AllowPersistently);
         QCOMPARE(controller.permissionDecision(
                      QUrl(QStringLiteral("https://example.com:443/default-port")),
                      QStringLiteral("geolocation")),
             BrowserController::AllowPersistently);
-        QCOMPARE(controller.permissionDecision(
-                     QUrl(QStringLiteral("https://sub.example.com")),
+        QCOMPARE(controller.permissionDecision(QUrl(QStringLiteral("https://sub.example.com")),
                      QStringLiteral("geolocation")),
             BrowserController::Ask);
-        QCOMPARE(controller.permissionDecision(
-                     QUrl(QStringLiteral("https://example.com:444")),
+        QCOMPARE(controller.permissionDecision(QUrl(QStringLiteral("https://example.com:444")),
                      QStringLiteral("geolocation")),
             BrowserController::Ask);
 
@@ -847,18 +853,18 @@ void BrowserControllerTest::scopesPermissionDecisionsToOriginSpaceAndLifetime()
             QStringLiteral("notifications"), BrowserController::AllowOnce));
         workSpaceId = controller.createSpace(QStringLiteral("Work"));
         QVERIFY(controller.switchSpace(workSpaceId));
-        QCOMPARE(controller.permissionDecision(QUrl(QStringLiteral("https://example.com")),
-                     QStringLiteral("geolocation")),
+        QCOMPARE(controller.permissionDecision(
+                     QUrl(QStringLiteral("https://example.com")), QStringLiteral("geolocation")),
             BrowserController::Ask);
     }
 
     BrowserController restored(root.path(), QStringLiteral("test"));
     QVERIFY(restored.switchSpace(personalSpaceId));
-    QCOMPARE(restored.permissionDecision(QUrl(QStringLiteral("https://example.com")),
-                 QStringLiteral("geolocation")),
+    QCOMPARE(restored.permissionDecision(
+                 QUrl(QStringLiteral("https://example.com")), QStringLiteral("geolocation")),
         BrowserController::AllowPersistently);
-    QCOMPARE(restored.permissionDecision(QUrl(QStringLiteral("https://once.example")),
-                 QStringLiteral("notifications")),
+    QCOMPARE(restored.permissionDecision(
+                 QUrl(QStringLiteral("https://once.example")), QStringLiteral("notifications")),
         BrowserController::Ask);
 }
 
@@ -910,13 +916,14 @@ void BrowserControllerTest::persistsOnlyNonPrivateDownloadHistory()
             QStringLiteral("/Downloads/archive.zip"), QStringLiteral("in-progress"), 12, 100);
         QVERIFY(!downloadId.isEmpty());
         controller.closeActiveTab();
-        QVERIFY(controller.updateDownload(
-            downloadId, QStringLiteral("completed"), 100, 100, {}));
+        QVERIFY(controller.updateDownload(downloadId, QStringLiteral("completed"), 100, 100, {}));
 
         BrowserController privateController(root.path(), QStringLiteral("test"), true);
-        QVERIFY(privateController.recordDownload(QStringLiteral("private-download"),
-            QUrl(QStringLiteral("https://files.example/private.zip")),
-            QStringLiteral("/Downloads/private.zip"), QStringLiteral("completed"), 5, 5).isEmpty());
+        QVERIFY(privateController
+                .recordDownload(QStringLiteral("private-download"),
+                    QUrl(QStringLiteral("https://files.example/private.zip")),
+                    QStringLiteral("/Downloads/private.zip"), QStringLiteral("completed"), 5, 5)
+                .isEmpty());
     }
 
     BrowserController restored(root.path(), QStringLiteral("test"));
@@ -928,43 +935,31 @@ void BrowserControllerTest::persistsOnlyNonPrivateDownloadHistory()
     QCOMPARE(record.value(QStringLiteral("receivedBytes")).toLongLong(), 100);
 }
 
-// A download the reader asked for and can read with something is written
-// straight down. One that will be run, installed or mounted is a question
-// first: the kind is named to them, because "installer" is what they can judge
-// and a risk score is not.
 void BrowserControllerTest::asksBeforeWritingDownAProgram()
 {
     QTemporaryDir root;
     QTemporaryDir downloads;
     BrowserController controller(root.path(), QStringLiteral("test"));
     const QUrl origin(QStringLiteral("https://files.example/page"));
-    // The reader dealt with the site, so nothing here is the page acting alone.
     controller.recordOriginInteraction(origin);
 
-    const auto document = controller.downloadDisposition(origin,
-        QStringLiteral("notes.pdf"), QStringLiteral("application/pdf"), downloads.path());
-    QCOMPARE(document.value(QStringLiteral("disposition")).toString(),
-        QStringLiteral("accept"));
+    const auto document = controller.downloadDisposition(
+        origin, QStringLiteral("notes.pdf"), QStringLiteral("application/pdf"), downloads.path());
+    QCOMPARE(document.value(QStringLiteral("disposition")).toString(), QStringLiteral("accept"));
     QVERIFY(document.value(QStringLiteral("risk")).toString().isEmpty());
 
-    const auto script = controller.downloadDisposition(origin,
-        QStringLiteral("install.sh"), QStringLiteral("text/plain"), downloads.path());
-    QCOMPARE(script.value(QStringLiteral("disposition")).toString(),
-        QStringLiteral("confirm"));
-    // The name it travels under is what the adapters and the shell read, so a
-    // disposition is never a number crossing the engine-view contract.
+    const auto script = controller.downloadDisposition(
+        origin, QStringLiteral("install.sh"), QStringLiteral("text/plain"), downloads.path());
+    QCOMPARE(script.value(QStringLiteral("disposition")).toString(), QStringLiteral("confirm"));
     QCOMPARE(BrowserController::dispositionName(BrowserController::ConfirmDownload),
         QStringLiteral("confirm"));
     QCOMPARE(script.value(QStringLiteral("risk")).toString(), QStringLiteral("script"));
     QCOMPARE(script.value(QStringLiteral("fileName")).toString(), QStringLiteral("install.sh"));
-    QCOMPARE(script.value(QStringLiteral("origin")).toString(),
-        QStringLiteral("https://files.example"));
+    QCOMPARE(
+        script.value(QStringLiteral("origin")).toString(), QStringLiteral("https://files.example"));
     QVERIFY(!script.value(QStringLiteral("automatic")).toBool());
 }
 
-// A download nobody asked for, and a second one while the first is still
-// running, are the page helping itself. Both take the same Space-scoped
-// decision, and it is one the reader can see afterwards and take back.
 void BrowserControllerTest::takesAPermissionForAutomaticAndMultipleDownloads()
 {
     QTemporaryDir root;
@@ -977,55 +972,53 @@ void BrowserControllerTest::takesAPermissionForAutomaticAndMultipleDownloads()
             QStringLiteral("application/pdf"), downloads.path());
     };
 
-    // Nothing on the page has been touched: the download started itself.
     QCOMPARE(disposition().value(QStringLiteral("disposition")).toString(),
         QStringLiteral("permission"));
     QVERIFY(disposition().value(QStringLiteral("automatic")).toBool());
 
     QCOMPARE(controller.permissionPolicy(QStringLiteral("automatic-downloads")),
         static_cast<int>(BrowserController::Rememberable));
-    QVERIFY(controller.setPermissionDecision(origin,
-        QStringLiteral("automatic-downloads"), BrowserController::Block));
-    QCOMPARE(disposition().value(QStringLiteral("disposition")).toString(),
-        QStringLiteral("refuse"));
+    QVERIFY(controller.setPermissionDecision(
+        origin, QStringLiteral("automatic-downloads"), BrowserController::Block));
+    QCOMPARE(
+        disposition().value(QStringLiteral("disposition")).toString(), QStringLiteral("refuse"));
 
-    QVERIFY(controller.setPermissionDecision(origin,
-        QStringLiteral("automatic-downloads"), BrowserController::AllowPersistently));
-    QCOMPARE(disposition().value(QStringLiteral("disposition")).toString(),
-        QStringLiteral("accept"));
+    QVERIFY(controller.setPermissionDecision(
+        origin, QStringLiteral("automatic-downloads"), BrowserController::AllowPersistently));
+    QCOMPARE(
+        disposition().value(QStringLiteral("disposition")).toString(), QStringLiteral("accept"));
 
-    // The decision belongs to one Space, like every other Site permission.
     const auto workSpaceId = controller.createSpace(QStringLiteral("Work"));
     QVERIFY(controller.switchSpace(workSpaceId));
     QCOMPARE(disposition().value(QStringLiteral("disposition")).toString(),
         QStringLiteral("permission"));
     QVERIFY(controller.switchSpace(personalSpaceId));
 
-    // A second origin the reader did deal with is not automatic — until it
-    // starts a second download while its first is still running.
     const QUrl clicked(QStringLiteral("https://other.example/page"));
     controller.recordOriginInteraction(clicked);
     const auto clickedDisposition = [&] {
-        return controller.downloadDisposition(clicked, QStringLiteral("notes.pdf"),
-            QStringLiteral("application/pdf"), downloads.path()).value(
-                QStringLiteral("disposition")).toString();
+        return controller
+            .downloadDisposition(clicked, QStringLiteral("notes.pdf"),
+                QStringLiteral("application/pdf"), downloads.path())
+            .value(QStringLiteral("disposition"))
+            .toString();
     };
     QCOMPARE(clickedDisposition(), QStringLiteral("accept"));
     controller.noteDownloadStarted(clicked, QStringLiteral("runtime-1"));
     QCOMPARE(clickedDisposition(), QStringLiteral("permission"));
-    // Another origin's running download is not this one's doing.
-    QCOMPARE(controller.downloadDisposition(QUrl(QStringLiteral("https://third.example/page")),
-        QStringLiteral("notes.pdf"), QStringLiteral("application/pdf"), downloads.path())
-            .value(QStringLiteral("automatic")).toBool(), true);
+    QCOMPARE(
+        controller
+            .downloadDisposition(QUrl(QStringLiteral("https://third.example/page")),
+                QStringLiteral("notes.pdf"), QStringLiteral("application/pdf"), downloads.path())
+            .value(QStringLiteral("automatic"))
+            .toBool(),
+        true);
     controller.noteDownloadSettled(QStringLiteral("runtime-1"));
     QCOMPARE(clickedDisposition(), QStringLiteral("accept"));
-    // A download that has already settled does not settle twice.
     controller.noteDownloadSettled(QStringLiteral("runtime-1"));
     QCOMPARE(clickedDisposition(), QStringLiteral("accept"));
 }
 
-// Overwriting a file the reader already has is not the browser's decision to
-// make quietly, so the name goes to the desktop's own save dialog.
 void BrowserControllerTest::sendsAConflictingNameToTheSaveDialog()
 {
     QTemporaryDir root;
@@ -1038,49 +1031,49 @@ void BrowserControllerTest::sendsAConflictingNameToTheSaveDialog()
     QVERIFY(existing.open(QIODevice::WriteOnly));
     existing.close();
 
-    QCOMPARE(controller.downloadDisposition(origin, QStringLiteral("notes.pdf"),
-        QStringLiteral("application/pdf"), downloads.path())
-            .value(QStringLiteral("disposition")).toString(),
+    QCOMPARE(controller
+                 .downloadDisposition(origin, QStringLiteral("notes.pdf"),
+                     QStringLiteral("application/pdf"), downloads.path())
+                 .value(QStringLiteral("disposition"))
+                 .toString(),
         QStringLiteral("save-as"));
-    // A name nothing is holding lands where it was going.
-    QCOMPARE(controller.downloadDisposition(origin, QStringLiteral("other.pdf"),
-        QStringLiteral("application/pdf"), downloads.path())
-            .value(QStringLiteral("disposition")).toString(),
+    QCOMPARE(controller
+                 .downloadDisposition(origin, QStringLiteral("other.pdf"),
+                     QStringLiteral("application/pdf"), downloads.path())
+                 .value(QStringLiteral("disposition"))
+                 .toString(),
         QStringLiteral("accept"));
 
-    // Being a program is the earlier question: the reader is asked whether to
-    // have it at all before being asked where to put it. Answering the first
-    // question does not answer the second — the engine cannot keep a download
-    // waiting, so an agreed one comes back as a fresh request and the name it
-    // would take is still someone else's.
     QFile program(QDir(downloads.path()).filePath(QStringLiteral("install.sh")));
     QVERIFY(program.open(QIODevice::WriteOnly));
     program.close();
-    QCOMPARE(controller.downloadDisposition(origin, QStringLiteral("install.sh"),
-        QStringLiteral("text/plain"), downloads.path())
-            .value(QStringLiteral("disposition")).toString(),
+    QCOMPARE(controller
+                 .downloadDisposition(origin, QStringLiteral("install.sh"),
+                     QStringLiteral("text/plain"), downloads.path())
+                 .value(QStringLiteral("disposition"))
+                 .toString(),
         QStringLiteral("confirm"));
-    QCOMPARE(controller.downloadDisposition(origin, QStringLiteral("install.sh"),
-        QStringLiteral("text/plain"), downloads.path(), true)
-            .value(QStringLiteral("disposition")).toString(),
+    QCOMPARE(controller
+                 .downloadDisposition(origin, QStringLiteral("install.sh"),
+                     QStringLiteral("text/plain"), downloads.path(), true)
+                 .value(QStringLiteral("disposition"))
+                 .toString(),
         QStringLiteral("save-as"));
-    // And an answered download whose name is free is simply written down: the
-    // reader is never asked the same question twice.
-    QCOMPARE(controller.downloadDisposition(origin, QStringLiteral("free.sh"),
-        QStringLiteral("text/plain"), downloads.path(), true)
-            .value(QStringLiteral("disposition")).toString(),
+    QCOMPARE(controller
+                 .downloadDisposition(origin, QStringLiteral("free.sh"),
+                     QStringLiteral("text/plain"), downloads.path(), true)
+                 .value(QStringLiteral("disposition"))
+                 .toString(),
         QStringLiteral("accept"));
-    // Nor asked for a permission they have already been asked for: an answered
-    // download is not the page helping itself, whatever it looks like.
-    QCOMPARE(controller.downloadDisposition(QUrl(QStringLiteral("https://untouched.example/x")),
-        QStringLiteral("free.pdf"), QStringLiteral("application/pdf"), downloads.path(), true)
-            .value(QStringLiteral("disposition")).toString(),
+    QCOMPARE(controller
+                 .downloadDisposition(QUrl(QStringLiteral("https://untouched.example/x")),
+                     QStringLiteral("free.pdf"), QStringLiteral("application/pdf"),
+                     downloads.path(), true)
+                 .value(QStringLiteral("disposition"))
+                 .toString(),
         QStringLiteral("accept"));
 }
 
-// Where downloads go is the reader's configuration rather than one Space's
-// browsing data, so it lives beside their other configuration and a Private
-// window reads the same answer without being able to change it.
 void BrowserControllerTest::configuresOneDownloadDirectoryForEveryWindow()
 {
     QTemporaryDir root;
@@ -1094,7 +1087,6 @@ void BrowserControllerTest::configuresOneDownloadDirectoryForEveryWindow()
         QVERIFY(controller.setDownloadDirectory(chosen.path()));
         QCOMPARE(controller.downloadDirectory(), chosen.path());
         QCOMPARE(spy.count(), 1);
-        // A place that is not there is not a place to put a download.
         QVERIFY(!controller.setDownloadDirectory(
             QDir(root.path()).filePath(QStringLiteral("nowhere"))));
         QVERIFY(!controller.setDownloadDirectory(QString()));
@@ -1106,8 +1098,8 @@ void BrowserControllerTest::configuresOneDownloadDirectoryForEveryWindow()
     QCOMPARE(restored.downloadDirectory(), chosen.path());
 
     const auto decisions = QSharedPointer<QHash<QString, int>>::create();
-    BrowserController privateWindow(root.path(), QStringLiteral("test"), true,
-        decisions, config.path());
+    BrowserController privateWindow(
+        root.path(), QStringLiteral("test"), true, decisions, config.path());
     QCOMPARE(privateWindow.downloadDirectory(), chosen.path());
     QTemporaryDir elsewhere;
     QVERIFY(!privateWindow.setDownloadDirectory(elsewhere.path()));
@@ -1130,16 +1122,11 @@ void BrowserControllerTest::forgetsOneDownloadWithoutForgettingTheRest()
     const auto remaining = controller.downloadHistory();
     QCOMPARE(remaining.size(), 1);
     QCOMPARE(remaining.first().toMap().value(QStringLiteral("id")).toString(), second);
-    // Forgetting a record twice removes nothing the second time, and the
-    // reader is told rather than left to believe something happened.
     QVERIFY(!controller.forgetDownload(first));
     QVERIFY(!controller.forgetDownload(QString()));
 
-    // Removing a record from the history leaves the file where it is: the
-    // reader asked the browser to stop listing it, not to delete their file.
     const auto privateDecisions = QSharedPointer<QHash<QString, int>>::create();
-    BrowserController privateWindow(root.path(), QStringLiteral("test"), true,
-        privateDecisions);
+    BrowserController privateWindow(root.path(), QStringLiteral("test"), true, privateDecisions);
     QVERIFY(!privateWindow.forgetDownload(second));
 }
 
@@ -1148,8 +1135,8 @@ void BrowserControllerTest::persistsInterfacePreferencesOutsidePrivateBrowsing()
     QTemporaryDir root;
     {
         BrowserController controller(root.path(), QStringLiteral("test"));
-        QCOMPARE(controller.preference(QStringLiteral("sidebar-width"),
-            QStringLiteral("292")), QStringLiteral("292"));
+        QCOMPARE(controller.preference(QStringLiteral("sidebar-width"), QStringLiteral("292")),
+            QStringLiteral("292"));
         QVERIFY(controller.setPreference(QStringLiteral("sidebar-width"), QStringLiteral("360")));
         QVERIFY(controller.setPreference(QStringLiteral("sidebar-width"), QStringLiteral("412")));
     }
@@ -1160,10 +1147,10 @@ void BrowserControllerTest::persistsInterfacePreferencesOutsidePrivateBrowsing()
 
     // A Private window browses on the defaults and writes nothing back.
     BrowserController privateController(root.path(), QStringLiteral("test"), true);
-    QCOMPARE(privateController.preference(QStringLiteral("sidebar-width"),
-        QStringLiteral("292")), QStringLiteral("292"));
-    QVERIFY(!privateController.setPreference(QStringLiteral("sidebar-width"),
-        QStringLiteral("500")));
+    QCOMPARE(privateController.preference(QStringLiteral("sidebar-width"), QStringLiteral("292")),
+        QStringLiteral("292"));
+    QVERIFY(
+        !privateController.setPreference(QStringLiteral("sidebar-width"), QStringLiteral("500")));
     QCOMPARE(restored.preference(QStringLiteral("sidebar-width"), QStringLiteral("292")),
         QStringLiteral("412"));
 }
@@ -1176,8 +1163,7 @@ void BrowserControllerTest::attachesOneInspectorToOneTab()
     BrowserController controller(root.path(), QStringLiteral("test"));
 
     controller.openDeveloperTools();
-    QVERIFY2(controller.developerToolsTabId().isEmpty(),
-        "a blank tab has no page to inspect");
+    QVERIFY2(controller.developerToolsTabId().isEmpty(), "a blank tab has no page to inspect");
 
     controller.openInput(QStringLiteral("https://first.example"), false);
     const auto firstTabId = controller.activeTabId();
@@ -1217,8 +1203,9 @@ void BrowserControllerTest::keepsTheInspectorThroughASpaceSwitch()
     QCOMPARE(controller.developerToolsTabId(), inspectedTabId);
     QVERIFY(!controller.activeTabInspected());
 
-    QVERIFY(controller.switchSpace(controller.spaces()->data(
-        controller.spaces()->index(0, 0), SpaceListModel::IdRole).toString()));
+    QVERIFY(controller.switchSpace(controller.spaces()
+            ->data(controller.spaces()->index(0, 0), SpaceListModel::IdRole)
+            .toString()));
     QCOMPARE(controller.activeTabId(), inspectedTabId);
     QVERIFY(controller.activeTabInspected());
 }
@@ -1245,8 +1232,8 @@ void BrowserControllerTest::detachesTheInspectorWithTheTabItInspects()
 
     controller.openInput(QStringLiteral("https://navigated.example"), false);
     controller.openDeveloperTools();
-    controller.updateTab(controller.activeTabId(), QUrl(QStringLiteral("about:blank")),
-        QStringLiteral("New tab"));
+    controller.updateTab(
+        controller.activeTabId(), QUrl(QStringLiteral("about:blank")), QStringLiteral("New tab"));
     QVERIFY(controller.developerToolsTabId().isEmpty());
 
     controller.openInput(QStringLiteral("https://moved.example"), false);
@@ -1262,8 +1249,10 @@ void BrowserControllerTest::detachesTheInspectorWithTheTabItInspects()
     QCOMPARE(controller.activeTabId(), movedTabId);
     controller.openDeveloperTools();
     QCOMPARE(controller.developerToolsTabId(), movedTabId);
-    const auto personalSpaceId = controller.spaces()->data(
-        controller.spaces()->index(0, 0), SpaceListModel::IdRole).toString();
+    const auto personalSpaceId
+        = controller.spaces()
+              ->data(controller.spaces()->index(0, 0), SpaceListModel::IdRole)
+              .toString();
     QVERIFY(controller.switchSpace(personalSpaceId));
     QVERIFY(controller.deleteSpace(destinationSpaceId, QStringLiteral("Work")));
     QVERIFY(controller.developerToolsTabId().isEmpty());
@@ -1621,8 +1610,7 @@ void BrowserControllerTest::namesEverySuspensionExceptionAndNothingElse()
     const auto inspectedId = controller.activeTabId();
     controller.openDeveloperTools();
 
-    QCOMPARE(controller.retainedTabIds(),
-        QStringList({keptId, inspectedId}));
+    QCOMPARE(controller.retainedTabIds(), QStringList({keptId, inspectedId}));
     // Nothing is being retained while the Space holding these tabs is the one
     // on show: its pages are live because the reader is looking at them.
     QVERIFY(controller.retainedTabs().isEmpty());
@@ -1640,8 +1628,8 @@ void BrowserControllerTest::namesEverySuspensionExceptionAndNothingElse()
         const auto retained = entry.toMap();
         retainedIds.insert(retained.value(QStringLiteral("tabId")).toString());
         QCOMPARE(retained.value(QStringLiteral("spaceId")).toString(), personalSpaceId);
-        QCOMPARE(retained.value(QStringLiteral("spaceName")).toString(),
-            QStringLiteral("Personal"));
+        QCOMPARE(
+            retained.value(QStringLiteral("spaceName")).toString(), QStringLiteral("Personal"));
     }
     QVERIFY(retainedIds.contains(keptId));
     QVERIFY(retainedIds.contains(inspectedId));
@@ -1650,8 +1638,8 @@ void BrowserControllerTest::namesEverySuspensionExceptionAndNothingElse()
     // Detaching the inspector puts its tab back under ordinary suspension.
     controller.closeDeveloperTools();
     QCOMPARE(controller.retainedTabs().size(), 1);
-    QCOMPARE(controller.retainedTabs().first().toMap()
-                 .value(QStringLiteral("tabId")).toString(), keptId);
+    QCOMPARE(controller.retainedTabs().first().toMap().value(QStringLiteral("tabId")).toString(),
+        keptId);
 }
 
 // A Pinned tab marked Keep active is running before its Space has ever been
@@ -1767,27 +1755,31 @@ void BrowserControllerTest::routesNotificationsToTheOriginatingTab()
     controller.openInput(QStringLiteral("https://quiet.example"), true);
     const auto quietId = controller.activeTabId();
 
-    const auto target = controller.notificationTarget(personalSpaceId,
-        QUrl(QStringLiteral("https://chat.example")));
+    const auto target = controller.notificationTarget(
+        personalSpaceId, QUrl(QStringLiteral("https://chat.example")));
     QCOMPARE(target.value(QStringLiteral("tabId")).toString(), chatId);
     QCOMPARE(target.value(QStringLiteral("spaceName")).toString(), QStringLiteral("Personal"));
-    QCOMPARE(target.value(QStringLiteral("origin")).toString(),
-        QStringLiteral("https://chat.example"));
+    QCOMPARE(
+        target.value(QStringLiteral("origin")).toString(), QStringLiteral("https://chat.example"));
 
     // A Space with no page at that origin has no tab to speak for it.
-    QVERIFY(controller.notificationTarget(personalSpaceId,
-        QUrl(QStringLiteral("https://elsewhere.example"))).isEmpty());
+    QVERIFY(controller
+            .notificationTarget(personalSpaceId, QUrl(QStringLiteral("https://elsewhere.example")))
+            .isEmpty());
 
     const auto workSpaceId = controller.createSpace(QStringLiteral("Work"));
     QVERIFY(controller.switchSpace(workSpaceId));
 
     // The retained tab may still say something while its Space is away; the
     // suspended one beside it may not.
-    QCOMPARE(controller.notificationTarget(personalSpaceId,
-        QUrl(QStringLiteral("https://chat.example")))
-            .value(QStringLiteral("tabId")).toString(), chatId);
-    QVERIFY(controller.notificationTarget(personalSpaceId,
-        QUrl(QStringLiteral("https://quiet.example"))).isEmpty());
+    QCOMPARE(
+        controller.notificationTarget(personalSpaceId, QUrl(QStringLiteral("https://chat.example")))
+            .value(QStringLiteral("tabId"))
+            .toString(),
+        chatId);
+    QVERIFY(controller
+            .notificationTarget(personalSpaceId, QUrl(QStringLiteral("https://quiet.example")))
+            .isEmpty());
     Q_UNUSED(quietId)
 
     QVERIFY(controller.activateNotificationTarget(personalSpaceId, chatId));
@@ -1882,48 +1874,42 @@ void BrowserControllerTest::remembersOnlyThePermissionsThatMayBeRemembered()
     QTemporaryDir root;
     BrowserController controller(root.path(), QStringLiteral("test"));
 
-    for (const auto *rememberable : {"camera", "microphone", "camera-and-microphone",
-             "geolocation", "notifications"}) {
+    for (const auto *rememberable :
+        {"camera", "microphone", "camera-and-microphone", "geolocation", "notifications"}) {
         const auto permission = QString::fromLatin1(rememberable);
         const QUrl origin(QStringLiteral("https://%1.example").arg(permission));
-        QCOMPARE(controller.permissionPolicy(permission),
-            int(BrowserController::Rememberable));
-        QVERIFY2(controller.setPermissionDecision(origin, permission,
-                     BrowserController::AllowPersistently),
+        QCOMPARE(controller.permissionPolicy(permission), int(BrowserController::Rememberable));
+        QVERIFY2(controller.setPermissionDecision(
+                     origin, permission, BrowserController::AllowPersistently),
             rememberable);
         QCOMPARE(controller.permissionDecision(origin, permission),
             BrowserController::AllowPersistently);
-        QVERIFY(controller.setPermissionDecision(origin, permission,
-            BrowserController::Block));
+        QVERIFY(controller.setPermissionDecision(origin, permission, BrowserController::Block));
         QCOMPARE(controller.permissionDecision(origin, permission), BrowserController::Block);
     }
 
     for (const auto *eachTime : {"clipboard-read", "screen-sharing"}) {
         const auto permission = QString::fromLatin1(eachTime);
         const QUrl origin(QStringLiteral("https://%1.example").arg(permission));
-        QCOMPARE(controller.permissionPolicy(permission),
-            int(BrowserController::AskedEachTime));
+        QCOMPARE(controller.permissionPolicy(permission), int(BrowserController::AskedEachTime));
         // Answering once is answering this request, and the next one asks
         // again — whichever way the reader answered.
-        QVERIFY2(controller.setPermissionDecision(origin, permission,
-                     BrowserController::AllowOnce),
+        QVERIFY2(controller.setPermissionDecision(origin, permission, BrowserController::AllowOnce),
             eachTime);
         QCOMPARE(controller.permissionDecision(origin, permission), BrowserController::Ask);
-        QVERIFY(!controller.setPermissionDecision(origin, permission,
-            BrowserController::AllowPersistently));
+        QVERIFY(!controller.setPermissionDecision(
+            origin, permission, BrowserController::AllowPersistently));
         QCOMPARE(controller.permissionDecision(origin, permission), BrowserController::Ask);
-        QVERIFY(controller.setPermissionDecision(origin, permission,
-            BrowserController::Block));
+        QVERIFY(controller.setPermissionDecision(origin, permission, BrowserController::Block));
         QCOMPARE(controller.permissionDecision(origin, permission), BrowserController::Ask);
     }
 
     for (const auto *outside : {"usb", "bluetooth", "serial", "midi", "unsupported", ""}) {
         const auto permission = QString::fromLatin1(outside);
         const QUrl origin(QStringLiteral("https://outside.example"));
-        QCOMPARE(controller.permissionPolicy(permission),
-            int(BrowserController::Refused));
-        QVERIFY2(!controller.setPermissionDecision(origin, permission,
-                     BrowserController::AllowPersistently),
+        QCOMPARE(controller.permissionPolicy(permission), int(BrowserController::Refused));
+        QVERIFY2(!controller.setPermissionDecision(
+                     origin, permission, BrowserController::AllowPersistently),
             outside);
         QCOMPARE(controller.permissionDecision(origin, permission), BrowserController::Block);
     }
@@ -1937,10 +1923,10 @@ void BrowserControllerTest::listsAndResetsOneSitesPermissionsWithinItsSpace()
     BrowserController controller(root.path(), QStringLiteral("test"));
     const auto personalSpaceId = controller.activeSpaceId();
     const QUrl site(QStringLiteral("https://site.example/page"));
-    QVERIFY(controller.setPermissionDecision(site, QStringLiteral("camera"),
-        BrowserController::AllowPersistently));
-    QVERIFY(controller.setPermissionDecision(site, QStringLiteral("geolocation"),
-        BrowserController::Block));
+    QVERIFY(controller.setPermissionDecision(
+        site, QStringLiteral("camera"), BrowserController::AllowPersistently));
+    QVERIFY(controller.setPermissionDecision(
+        site, QStringLiteral("geolocation"), BrowserController::Block));
     QVERIFY(controller.setPermissionDecision(QUrl(QStringLiteral("https://other.example")),
         QStringLiteral("camera"), BrowserController::AllowPersistently));
 
@@ -1954,8 +1940,8 @@ void BrowserControllerTest::listsAndResetsOneSitesPermissionsWithinItsSpace()
     }
     QCOMPARE(byPermission.value(QStringLiteral("camera")).toInt(),
         int(BrowserController::AllowPersistently));
-    QCOMPARE(byPermission.value(QStringLiteral("geolocation")).toInt(),
-        int(BrowserController::Block));
+    QCOMPARE(
+        byPermission.value(QStringLiteral("geolocation")).toInt(), int(BrowserController::Block));
 
     // A Space of its own knows nothing about the decisions made in the other.
     const auto workSpaceId = controller.createSpace(QStringLiteral("Work"));
@@ -1965,8 +1951,8 @@ void BrowserControllerTest::listsAndResetsOneSitesPermissionsWithinItsSpace()
 
     // An answer the session is holding is listed too — it is a decision the
     // site holds, and a Private window has no other kind.
-    QVERIFY(controller.setPermissionDecision(site, QStringLiteral("notifications"),
-        BrowserController::AllowOnce));
+    QVERIFY(controller.setPermissionDecision(
+        site, QStringLiteral("notifications"), BrowserController::AllowOnce));
     QCOMPARE(controller.sitePermissions(site).size(), 3);
     // Listing it does not spend it: the site has not asked to use it.
     QCOMPARE(controller.permissionDecision(site, QStringLiteral("notifications")),
@@ -1974,11 +1960,10 @@ void BrowserControllerTest::listsAndResetsOneSitesPermissionsWithinItsSpace()
 
     QVERIFY(controller.resetSitePermissions(site));
     QVERIFY(controller.sitePermissions(site).isEmpty());
-    QCOMPARE(controller.permissionDecision(site, QStringLiteral("camera")),
-        BrowserController::Ask);
+    QCOMPARE(controller.permissionDecision(site, QStringLiteral("camera")), BrowserController::Ask);
     // The reset was this site's. The site beside it keeps what it was given.
-    QCOMPARE(controller.permissionDecision(QUrl(QStringLiteral("https://other.example")),
-                 QStringLiteral("camera")),
+    QCOMPARE(controller.permissionDecision(
+                 QUrl(QStringLiteral("https://other.example")), QStringLiteral("camera")),
         BrowserController::AllowPersistently);
 }
 
@@ -1990,9 +1975,9 @@ void BrowserControllerTest::refusesEveryCertificateExceptionButAnOverridableLoca
     QTemporaryDir root;
     BrowserController controller(root.path(), QStringLiteral("test"));
 
-    for (const auto *local : {"https://localhost:8443/app", "https://app.localhost/",
-             "https://api.test/v1", "https://127.0.0.1:3000/", "https://[::1]:8080/",
-             "https://192.168.1.20:8443/"}) {
+    for (const auto *local :
+        {"https://localhost:8443/app", "https://app.localhost/", "https://api.test/v1",
+            "https://127.0.0.1:3000/", "https://[::1]:8080/", "https://192.168.1.20:8443/"}) {
         const QUrl url(QString::fromLatin1(local));
         QVERIFY2(controller.localDevelopmentSite(url), local);
         QVERIFY2(controller.mayOfferCertificateException(url, true, true, false), local);
@@ -2027,8 +2012,8 @@ void BrowserControllerTest::keepsCertificateExceptionsOutOfEveryStoreAndSession(
         QVERIFY(controller.mayOfferCertificateException(local, true, true, false));
         // Answering it is answering one request. There is no decision to store
         // and no permission the answer becomes.
-        QVERIFY(!controller.setPermissionDecision(local,
-            QStringLiteral("certificate-exception"), BrowserController::AllowPersistently));
+        QVERIFY(!controller.setPermissionDecision(
+            local, QStringLiteral("certificate-exception"), BrowserController::AllowPersistently));
         QCOMPARE(controller.permissionPolicy(QStringLiteral("certificate-exception")),
             int(BrowserController::Refused));
         QVERIFY(controller.sitePermissions(local).isEmpty());
@@ -2067,7 +2052,7 @@ void BrowserControllerTest::keepsAGrantedCertificateExceptionVisibleForItsSessio
         QVERIFY(!controller.certificateExceptionInEffect(
             QUrl(QStringLiteral("https://localhost:9443/app"))));
         QCOMPARE(controller.certificateExceptionOrigins(),
-            QStringList{QStringLiteral("https://localhost:8443")});
+            QStringList {QStringLiteral("https://localhost:8443")});
 
         // The Space beside it shares no engine profile, so it shares no waived
         // check either.
@@ -2122,10 +2107,10 @@ void BrowserControllerTest::blocksThirdPartyCookiesUntilAFlowIsGivenAVisibleAllo
     QCOMPARE(changed.count(), 1);
     QVERIFY(controller.thirdPartyCookiesAllowed(spaceId, identity));
     // The allowance is the origin's, not the address's.
-    QVERIFY(controller.thirdPartyCookiesAllowed(spaceId,
-        QUrl(QStringLiteral("https://login.example/token"))));
-    QVERIFY(!controller.thirdPartyCookiesAllowed(spaceId,
-        QUrl(QStringLiteral("https://tracker.example/"))));
+    QVERIFY(controller.thirdPartyCookiesAllowed(
+        spaceId, QUrl(QStringLiteral("https://login.example/token"))));
+    QVERIFY(!controller.thirdPartyCookiesAllowed(
+        spaceId, QUrl(QStringLiteral("https://tracker.example/"))));
 
     const auto listed = controller.thirdPartyCookieAllowances();
     QCOMPARE(listed.size(), 1);
@@ -2191,8 +2176,8 @@ void BrowserControllerTest::endsThirdPartyCookieAllowancesWithTheirSpaceAndPriva
 // worse than none.
 void BrowserControllerTest::measuresTheSiteDataHeldForOneSpace()
 {
-    const QStringList named{QStringLiteral("Cookies"), QStringLiteral("Local Storage"),
-        QStringLiteral("cache")};
+    const QStringList named {
+        QStringLiteral("Cookies"), QStringLiteral("Local Storage"), QStringLiteral("cache")};
     QTemporaryDir root;
     BrowserController controller(root.path(), QStringLiteral("test"));
     const auto spaceId = controller.activeSpaceId();

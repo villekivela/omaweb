@@ -24,7 +24,7 @@ bool SystemClipboard::copyText(const QString &text)
 QString SystemClipboard::text() const
 {
     auto *clipboard = QGuiApplication::clipboard();
-    return clipboard ? clipboard->text() : QString{};
+    return clipboard ? clipboard->text() : QString {};
 }
 
 void registerSystemClipboard()

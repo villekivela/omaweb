@@ -42,15 +42,14 @@ void ContentMatcherTest::sharedConformanceFixtures()
 
     for (const auto &value : root.value(QStringLiteral("network")).toArray()) {
         const auto fixture = value.toObject();
-        const auto decision = compilation.matcher->check(
-            QUrl(fixture.value(QStringLiteral("url")).toString()),
-            QUrl(fixture.value(QStringLiteral("source")).toString()),
-            fixture.value(QStringLiteral("type")).toString());
+        const auto decision
+            = compilation.matcher->check(QUrl(fixture.value(QStringLiteral("url")).toString()),
+                QUrl(fixture.value(QStringLiteral("source")).toString()),
+                fixture.value(QStringLiteral("type")).toString());
         QCOMPARE(decision.blocked, fixture.value(QStringLiteral("blocked")).toBool());
-        QCOMPARE(decision.substitute,
-            fixture.value(QStringLiteral("substitute")).toString());
-        QCOMPARE(decision.rewrittenUrl,
-            QUrl(fixture.value(QStringLiteral("rewritten")).toString()));
+        QCOMPARE(decision.substitute, fixture.value(QStringLiteral("substitute")).toString());
+        QCOMPARE(
+            decision.rewrittenUrl, QUrl(fixture.value(QStringLiteral("rewritten")).toString()));
     }
     for (const auto &value : root.value(QStringLiteral("popup")).toArray()) {
         const auto fixture = value.toObject();
@@ -80,11 +79,11 @@ void ContentMatcherTest::sharedConformanceFixtures()
 // the code, which is what keeps a filter list data rather than a program.
 void ContentMatcherTest::scriptletsCallTheLibraryFunctionTheRuleNames()
 {
-    const auto compilation = ContentMatcher::compile(QStringLiteral(
-        "site.example##+js(set-constant, omawebScriptletRan, true)"));
+    const auto compilation = ContentMatcher::compile(
+        QStringLiteral("site.example##+js(set-constant, omawebScriptletRan, true)"));
     QVERIFY(compilation.matcher);
-    const auto source = compilation.matcher->scriptletSource(
-        QUrl(QStringLiteral("https://site.example/")));
+    const auto source
+        = compilation.matcher->scriptletSource(QUrl(QStringLiteral("https://site.example/")));
 
     // The dependency's source, the scriptlet's own, and the call with the
     // rule's arguments.
@@ -97,14 +96,14 @@ void ContentMatcherTest::scriptletsCallTheLibraryFunctionTheRuleNames()
 // rule however many arguments it spells out.
 void ContentMatcherTest::scriptletExceptionsSurviveTheirArgumentCount()
 {
-    const auto compilation = ContentMatcher::compile(QStringLiteral(
-        "site.example##+js(set-attr, div, hidden, true)\n"
-        "site.example#@#+js(set-attr, div, hidden, true)"));
+    const auto compilation = ContentMatcher::compile(
+        QStringLiteral("site.example##+js(set-attr, div, hidden, true)\n"
+                       "site.example#@#+js(set-attr, div, hidden, true)"));
     QVERIFY(compilation.matcher);
     QCOMPARE(compilation.report.value(QStringLiteral("acceptedRuleCount")).toInt(), 2);
     QVERIFY(compilation.report.value(QStringLiteral("unsupported")).toObject().isEmpty());
-    QVERIFY(compilation.matcher->scriptletSource(
-        QUrl(QStringLiteral("https://site.example/"))).isEmpty());
+    QVERIFY(compilation.matcher->scriptletSource(QUrl(QStringLiteral("https://site.example/")))
+            .isEmpty());
 }
 
 // Generic rules reach a page through the survey, so the fixtures for them read
@@ -151,18 +150,17 @@ void ContentMatcherTest::sharedSurveyFixtures()
 // deliberate refusal.
 void ContentMatcherTest::reportsTheScriptletRulesThatWillNotRun()
 {
-    const auto compilation = ContentMatcher::compile(QStringLiteral(
-        "site.example##+js(set-constant, adsShown, false)\n"
-        "site.example##+js(trusted-set-cookie, consent, yes)\n"
-        "site.example##+js(no-such-scriptlet-anywhere, a)"));
+    const auto compilation = ContentMatcher::compile(
+        QStringLiteral("site.example##+js(set-constant, adsShown, false)\n"
+                       "site.example##+js(trusted-set-cookie, consent, yes)\n"
+                       "site.example##+js(no-such-scriptlet-anywhere, a)"));
     QVERIFY(compilation.matcher);
     QCOMPARE(compilation.report.value(QStringLiteral("acceptedRuleCount")).toInt(), 1);
     const auto unsupported = compilation.report.value(QStringLiteral("unsupported")).toObject();
     QCOMPARE(unsupported.value(QStringLiteral("scriptlets requiring trust")).toInt(), 1);
-    QCOMPARE(
-        unsupported.value(QStringLiteral("scriptlets this build does not carry")).toInt(), 1);
-    const auto source = compilation.matcher->scriptletSource(
-        QUrl(QStringLiteral("https://site.example/")));
+    QCOMPARE(unsupported.value(QStringLiteral("scriptlets this build does not carry")).toInt(), 1);
+    const auto source
+        = compilation.matcher->scriptletSource(QUrl(QStringLiteral("https://site.example/")));
     QVERIFY(source.contains(QStringLiteral("adsShown")));
     QVERIFY(!source.contains(QStringLiteral("trustedSetCookie")));
 }
@@ -172,28 +170,27 @@ void ContentMatcherTest::reportsTheScriptletRulesThatWillNotRun()
 // selector syntax would throw the rule away for the shape of its arguments.
 void ContentMatcherTest::scriptletArgumentsAreNotReadAsSelectorSyntax()
 {
-    const auto compilation = ContentMatcher::compile(QStringLiteral(
-        "site.example##+js(remove-node-text, script, :has-text(ad))"));
+    const auto compilation = ContentMatcher::compile(
+        QStringLiteral("site.example##+js(remove-node-text, script, :has-text(ad))"));
     QVERIFY(compilation.matcher);
     QCOMPARE(compilation.report.value(QStringLiteral("acceptedRuleCount")).toInt(), 1);
     QVERIFY(compilation.report.value(QStringLiteral("unsupported")).toObject().isEmpty());
-    QVERIFY(compilation.matcher->scriptletSource(
-        QUrl(QStringLiteral("https://site.example/"))).contains(
-        QStringLiteral("has-text")));
+    QVERIFY(compilation.matcher->scriptletSource(QUrl(QStringLiteral("https://site.example/")))
+            .contains(QStringLiteral("has-text")));
 }
 
 // The survey is what keeps a page from carrying every generic rule in the
 // lists: EasyList and EasyPrivacy together hold 13,634 of them.
 void ContentMatcherTest::sendsOnlyTheGenericRulesAPageCouldTrigger()
 {
-    const auto compilation = ContentMatcher::compile(QStringLiteral(
-        "##.first-ad\n##.second-ad\n##.third-ad"));
+    const auto compilation
+        = ContentMatcher::compile(QStringLiteral("##.first-ad\n##.second-ad\n##.third-ad"));
     QVERIFY(compilation.matcher);
     const QUrl url(QStringLiteral("https://site.example/"));
 
     QVERIFY(compilation.matcher->cosmeticStyleSheet(url).isEmpty());
     const auto css = compilation.matcher->genericCosmeticStyleSheet(
-        url, QStringList{QStringLiteral("second-ad")}, {});
+        url, QStringList {QStringLiteral("second-ad")}, {});
     QVERIFY(css.contains(QStringLiteral(".second-ad")));
     QVERIFY(!css.contains(QStringLiteral(".first-ad")));
     QVERIFY(!css.contains(QStringLiteral(".third-ad")));
@@ -201,14 +198,14 @@ void ContentMatcherTest::sendsOnlyTheGenericRulesAPageCouldTrigger()
 
 void ContentMatcherTest::reportsUnsupportedCategories()
 {
-    const auto compilation = ContentMatcher::compile(QStringLiteral(
-        "example.com##+js(abort-on-property-read, ad)\n"
-        "example.com#?#div:has(.ad)\n"
-        "&popunder=$popup\n"
-        "||example.com^$redirect=noopjs\n"
-        "||example.com^$replace=/ad//\n"
-        "$csp=script-src 'self',domain=example.com\n"
-        "||safe.example^"));
+    const auto compilation
+        = ContentMatcher::compile(QStringLiteral("example.com##+js(abort-on-property-read, ad)\n"
+                                                 "example.com#?#div:has(.ad)\n"
+                                                 "&popunder=$popup\n"
+                                                 "||example.com^$redirect=noopjs\n"
+                                                 "||example.com^$replace=/ad//\n"
+                                                 "$csp=script-src 'self',domain=example.com\n"
+                                                 "||safe.example^"));
     QVERIFY(compilation.matcher);
     // The popup, scriptlet and redirect rules count among the accepted: all
     // three are kept and answered for now.
@@ -230,13 +227,16 @@ void ContentMatcherTest::reportsUnsupportedCategories()
 // the same way a rule naming an absent scriptlet would.
 void ContentMatcherTest::reportsTheRedirectRulesThatCanServeNothing()
 {
-    const auto compilation = ContentMatcher::compile(QStringLiteral(
-        "||analytics.example^$script,redirect=noopjs\n"
-        "||other.example^$script,redirect=no-such-substitute.js"));
+    const auto compilation = ContentMatcher::compile(
+        QStringLiteral("||analytics.example^$script,redirect=noopjs\n"
+                       "||other.example^$script,redirect=no-such-substitute.js"));
     QVERIFY(compilation.matcher);
     QCOMPARE(compilation.report.value(QStringLiteral("acceptedRuleCount")).toInt(), 1);
-    QCOMPARE(compilation.report.value(QStringLiteral("unsupported")).toObject()
-                 .value(QStringLiteral("substitutes this build does not carry")).toInt(), 1);
+    QCOMPARE(compilation.report.value(QStringLiteral("unsupported"))
+                 .toObject()
+                 .value(QStringLiteral("substitutes this build does not carry"))
+                 .toInt(),
+        1);
 }
 
 // The name a `$redirect` rule spells may carry a `:priority` suffix, which
@@ -245,13 +245,14 @@ void ContentMatcherTest::reportsTheRedirectRulesThatCanServeNothing()
 // a number.
 void ContentMatcherTest::redirectPrioritiesAreNotPartOfTheName()
 {
-    const auto compilation = ContentMatcher::compile(
-        QStringLiteral("||analytics.example^$script,redirect=noopjs:5"));
+    const auto compilation
+        = ContentMatcher::compile(QStringLiteral("||analytics.example^$script,redirect=noopjs:5"));
     QVERIFY(compilation.matcher);
     QCOMPARE(compilation.report.value(QStringLiteral("acceptedRuleCount")).toInt(), 1);
     QVERIFY(compilation.report.value(QStringLiteral("unsupported")).toObject().isEmpty());
-    QCOMPARE(compilation.matcher->check(QUrl(QStringLiteral("https://analytics.example/t.js")),
-                 QUrl(QStringLiteral("https://site.example/")), QStringLiteral("script"))
+    QCOMPARE(compilation.matcher
+                 ->check(QUrl(QStringLiteral("https://analytics.example/t.js")),
+                     QUrl(QStringLiteral("https://site.example/")), QStringLiteral("script"))
                  .substitute,
         QStringLiteral("noop.js"));
 }
@@ -279,9 +280,9 @@ void ContentMatcherTest::substitutesCarryTheirOwnMimeType()
 // other rule, and they have to survive the option being stripped off.
 void ContentMatcherTest::popupRulesKeepTheirOtherConditions()
 {
-    const auto compilation = ContentMatcher::compile(QStringLiteral(
-        "&popunder=$popup\n"
-        "||ads.example^$popup,domain=site.example"));
+    const auto compilation
+        = ContentMatcher::compile(QStringLiteral("&popunder=$popup\n"
+                                                 "||ads.example^$popup,domain=site.example"));
     QVERIFY(compilation.matcher);
     const QUrl opener(QStringLiteral("https://site.example/article"));
 
@@ -300,15 +301,16 @@ void ContentMatcherTest::popupRulesKeepTheirOtherConditions()
 // keeps working rather than failing to parse and taking its blocking with it.
 void ContentMatcherTest::negatedPopupRulesStayOrdinaryRules()
 {
-    const auto compilation = ContentMatcher::compile(
-        QStringLiteral("||tracker.example^$~popup"));
+    const auto compilation = ContentMatcher::compile(QStringLiteral("||tracker.example^$~popup"));
     QVERIFY(compilation.matcher);
     QCOMPARE(compilation.report.value(QStringLiteral("invalidRuleCount")).toInt(), 0);
-    QVERIFY(compilation.matcher->check(QUrl(QStringLiteral("https://tracker.example/p")),
-        QUrl(QStringLiteral("https://site.example/")), QStringLiteral("image")).blocked);
-    QVERIFY(!compilation.matcher->shouldBlockPopup(
-        QUrl(QStringLiteral("https://tracker.example/p")),
-        QUrl(QStringLiteral("https://site.example/"))));
+    QVERIFY(compilation.matcher
+            ->check(QUrl(QStringLiteral("https://tracker.example/p")),
+                QUrl(QStringLiteral("https://site.example/")), QStringLiteral("image"))
+            .blocked);
+    QVERIFY(
+        !compilation.matcher->shouldBlockPopup(QUrl(QStringLiteral("https://tracker.example/p")),
+            QUrl(QStringLiteral("https://site.example/"))));
 }
 
 QTEST_APPLESS_MAIN(ContentMatcherTest)

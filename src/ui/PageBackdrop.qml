@@ -31,10 +31,10 @@ Item {
     // and a caller that insets this surface would otherwise get a sample
     // silently stretched to fit rather than the part it actually covers.
     readonly property rect sampleRect: {
-        if (!root.sampling) return Qt.rect(0, 0, 0, 0)
-        const origin = root.mapToItem(root.source, 0, 0)
-        return Qt.rect(origin.x, origin.y,
-            Math.max(1, root.width), Math.max(1, root.height))
+        if (!root.sampling)
+            return Qt.rect(0, 0, 0, 0);
+        const origin = root.mapToItem(root.source, 0, 0);
+        return Qt.rect(origin.x, origin.y, Math.max(1, root.width), Math.max(1, root.height));
     }
 
     ShaderEffectSource {

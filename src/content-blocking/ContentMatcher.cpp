@@ -14,10 +14,7 @@ public:
     {
     }
 
-    ~Private()
-    {
-        omaweb_blocker_destroy(blocker);
-    }
+    ~Private() { omaweb_blocker_destroy(blocker); }
 
     OmawebBlocker *blocker = nullptr;
 };
@@ -51,24 +48,21 @@ MatcherCompilation ContentMatcher::compile(const QString &rules)
 
 namespace {
 
-// The decision owns its strings until it is released, so these are copies
-// rather than a handover.
-QString decoded(const char *value)
-{
-    return value ? QString::fromUtf8(value) : QString();
-}
+    // The decision owns its strings until it is released, so these are copies
+    // rather than a handover.
+    QString decoded(const char *value) { return value ? QString::fromUtf8(value) : QString(); }
 
 } // namespace
 
-RequestDecision ContentMatcher::check(const QUrl &requestUrl, const QUrl &sourceUrl,
-    const QString &resourceType) const
+RequestDecision ContentMatcher::check(
+    const QUrl &requestUrl, const QUrl &sourceUrl, const QString &resourceType) const
 {
     const auto request = requestUrl.toString(QUrl::FullyEncoded).toUtf8();
     const auto source = sourceUrl.toString(QUrl::FullyEncoded).toUtf8();
     const auto type = resourceType.toUtf8();
-    OmawebBlockerDecision answer{};
-    omaweb_blocker_check(d->blocker, request.constData(), source.constData(), type.constData(),
-        &answer);
+    OmawebBlockerDecision answer {};
+    omaweb_blocker_check(
+        d->blocker, request.constData(), source.constData(), type.constData(), &answer);
     RequestDecision decision;
     decision.blocked = answer.blocked;
     decision.substitute = decoded(answer.substitute);
@@ -116,10 +110,10 @@ bool ContentMatcher::shouldBlockPopup(const QUrl &requestUrl, const QUrl &opener
 
 namespace {
 
-QByteArray encodedNames(const QStringList &names)
-{
-    return QJsonDocument(QJsonArray::fromStringList(names)).toJson(QJsonDocument::Compact);
-}
+    QByteArray encodedNames(const QStringList &names)
+    {
+        return QJsonDocument(QJsonArray::fromStringList(names)).toJson(QJsonDocument::Compact);
+    }
 
 } // namespace
 
@@ -159,14 +153,14 @@ bool ContentMatcher::cosmeticSurveyWanted(const QUrl &url) const
     return omaweb_blocker_cosmetic_survey_wanted(d->blocker, encodedUrl.constData());
 }
 
-QString ContentMatcher::genericCosmeticStyleSheet(const QUrl &url, const QStringList &classes,
-    const QStringList &ids) const
+QString ContentMatcher::genericCosmeticStyleSheet(
+    const QUrl &url, const QStringList &classes, const QStringList &ids) const
 {
     const auto encodedUrl = url.toString(QUrl::FullyEncoded).toUtf8();
     const auto encodedClasses = encodedNames(classes);
     const auto encodedIds = encodedNames(ids);
-    auto *css = omaweb_blocker_generic_cosmetic_css(d->blocker, encodedUrl.constData(),
-        encodedClasses.constData(), encodedIds.constData());
+    auto *css = omaweb_blocker_generic_cosmetic_css(
+        d->blocker, encodedUrl.constData(), encodedClasses.constData(), encodedIds.constData());
     if (!css) {
         return {};
     }

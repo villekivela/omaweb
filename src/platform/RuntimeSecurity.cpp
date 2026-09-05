@@ -12,35 +12,32 @@
 namespace omaweb {
 namespace {
 
-// A kernel setting, or an empty string where the file is not there at all. The
-// two answers are not the same: a setting that is absent is a kernel that never
-// had the knob, and one that reads zero is a kernel that has been told no.
-QString kernelSetting(const QString &procRoot, const QString &relativePath)
-{
-    QFile file(QDir(procRoot).filePath(relativePath));
-    if (!file.open(QIODevice::ReadOnly)) {
-        return {};
-    }
-    return QString::fromUtf8(file.readLine()).trimmed();
-}
-
-QList<int> versionComponents(const QString &version)
-{
-    QList<int> components;
-    const auto fields = version.trimmed().split(QLatin1Char('.'), Qt::SkipEmptyParts);
-    if (fields.isEmpty()) {
-        return components;
-    }
-    for (const auto &field : fields) {
-        auto valid = false;
-        const auto value = field.toInt(&valid);
-        if (!valid || value < 0) {
+    QString kernelSetting(const QString &procRoot, const QString &relativePath)
+    {
+        QFile file(QDir(procRoot).filePath(relativePath));
+        if (!file.open(QIODevice::ReadOnly)) {
             return {};
         }
-        components.append(value);
+        return QString::fromUtf8(file.readLine()).trimmed();
     }
-    return components;
-}
+
+    QList<int> versionComponents(const QString &version)
+    {
+        QList<int> components;
+        const auto fields = version.trimmed().split(QLatin1Char('.'), Qt::SkipEmptyParts);
+        if (fields.isEmpty()) {
+            return components;
+        }
+        for (const auto &field : fields) {
+            auto valid = false;
+            const auto value = field.toInt(&valid);
+            if (!valid || value < 0) {
+                return {};
+            }
+            components.append(value);
+        }
+        return components;
+    }
 
 } // namespace
 
@@ -62,8 +59,6 @@ QString sandboxDiagnostic(const SandboxHost &host)
             "root, and Omaweb does not run renderers without a sandbox. Start Omaweb as an "
             "ordinary user.");
     }
-    // No prerequisites to read: a platform that sandboxes without being
-    // configured to, not a host that failed.
     if (host.procRoot.isEmpty()) {
         return {};
     }
@@ -73,9 +68,6 @@ QString sandboxDiagnostic(const SandboxHost &host)
             "renderer. Mount proc, or run Omaweb outside a container that hides it.")
             .arg(host.procRoot);
     }
-    // Chromium's Linux sandbox puts each renderer in its own user namespace.
-    // Older kernels gate that behind a switch of their own; every kernel caps
-    // the number, and a cap of zero is the same as the switch being off.
     if (kernelSetting(host.procRoot, QStringLiteral("sys/kernel/unprivileged_userns_clone"))
         == QStringLiteral("0")) {
         return QStringLiteral(
@@ -89,9 +81,6 @@ QString sandboxDiagnostic(const SandboxHost &host)
             "This host allows no user namespaces (user.max_user_namespaces=0). Chromium's "
             "renderer sandbox needs them. Raise user.max_user_namespaces above zero.");
     }
-    // The second layer: the filter that decides which system calls a sandboxed
-    // renderer may make at all. A kernel built without it leaves the renderer
-    // holding the whole system-call surface.
     if (!QFileInfo::exists(
             QDir(host.procRoot).filePath(QStringLiteral("sys/kernel/seccomp/actions_avail")))) {
         return QStringLiteral(
@@ -103,9 +92,6 @@ QString sandboxDiagnostic(const SandboxHost &host)
 
 bool meetsBaseline(const QString &running, const QString &approved)
 {
-    // Nothing to meet: a build with no baseline written for it is not held
-    // against one. A baseline that is there but unreadable is a different
-    // thing — a corrupted file must not read as permission.
     if (approved.trimmed().isEmpty()) {
         return true;
     }
@@ -132,15 +118,9 @@ RuntimeSecurity::RuntimeSecurity(SandboxHost host, EngineBuild build, QObject *p
 {
 }
 
-QString RuntimeSecurity::sandboxDiagnostic() const
-{
-    return m_diagnostic;
-}
+QString RuntimeSecurity::sandboxDiagnostic() const { return m_diagnostic; }
 
-bool RuntimeSecurity::rendererIsolated() const
-{
-    return m_diagnostic.isEmpty();
-}
+bool RuntimeSecurity::rendererIsolated() const { return m_diagnostic.isEmpty(); }
 
 QString RuntimeSecurity::rendererIsolation() const
 {
@@ -159,15 +139,9 @@ QString RuntimeSecurity::networkService() const
         "not a sandboxed process of its own, and Omaweb does not describe it as isolated.");
 }
 
-QString RuntimeSecurity::engineVersion() const
-{
-    return m_build.engineVersion;
-}
+QString RuntimeSecurity::engineVersion() const { return m_build.engineVersion; }
 
-QString RuntimeSecurity::chromiumVersion() const
-{
-    return m_build.chromiumVersion;
-}
+QString RuntimeSecurity::chromiumVersion() const { return m_build.chromiumVersion; }
 
 QString RuntimeSecurity::chromiumSecurityPatchVersion() const
 {
@@ -187,8 +161,8 @@ QString RuntimeSecurity::approvedChromiumSecurityPatchVersion() const
 bool RuntimeSecurity::meetsSecurityBaseline() const
 {
     return meetsBaseline(m_build.engineVersion, approvedEngineVersion())
-        && meetsBaseline(m_build.chromiumSecurityPatchVersion,
-            approvedChromiumSecurityPatchVersion());
+        && meetsBaseline(
+            m_build.chromiumSecurityPatchVersion, approvedChromiumSecurityPatchVersion());
 }
 
 QString RuntimeSecurity::securityBaseline() const
@@ -207,9 +181,8 @@ QString RuntimeSecurity::securityBaseline() const
     return QStringLiteral(
         "QtWebEngine %1 on Chromium %2, carrying security fixes up to %3, meets the approved "
         "baseline of QtWebEngine %4 and Chromium %5.")
-        .arg(m_build.engineVersion, m_build.chromiumVersion,
-            m_build.chromiumSecurityPatchVersion, approvedEngineVersion(),
-            approvedChromiumSecurityPatchVersion());
+        .arg(m_build.engineVersion, m_build.chromiumVersion, m_build.chromiumSecurityPatchVersion,
+            approvedEngineVersion(), approvedChromiumSecurityPatchVersion());
 }
 
 void registerRuntimeSecurity(RuntimeSecurity *runtimeSecurity)

@@ -56,8 +56,7 @@ QVariantList drawMockFavicons(const QString &directory)
         painter.setBrush(marks.at(index));
         painter.drawRoundedRect(QRectF(4, 4, 24, 24), 7, 7);
         painter.end();
-        const auto path
-            = QDir(directory).filePath(QStringLiteral("favicon-%1.png").arg(index));
+        const auto path = QDir(directory).filePath(QStringLiteral("favicon-%1.png").arg(index));
         if (icon.save(path)) {
             urls.append(QUrl::fromLocalFile(path));
         }
@@ -96,9 +95,8 @@ int main(int argc, char *argv[])
     // the config directory, the desktop's theme — applies: a lab that read the
     // machine's theme would review a different palette on every machine.
     const auto themeOverride = qEnvironmentVariable("OMAWEB_THEME_FILE");
-    omaweb::ThemeController theme(themeOverride.isEmpty()
-            ? QStringLiteral(OMAWEB_THEME_PATH)
-            : themeOverride);
+    omaweb::ThemeController theme(
+        themeOverride.isEmpty() ? QStringLiteral(OMAWEB_THEME_PATH) : themeOverride);
     omaweb::WindowManager windowManager(QStringLiteral("mock"));
 
     omaweb::registerFaviconTint();
@@ -108,9 +106,6 @@ int main(int argc, char *argv[])
     omaweb::registerSystemNotifier();
     omaweb::registerProcessResources();
     omaweb::registerSavedDownload();
-    // The lab links no engine, so there is nothing to verify a sandbox for and
-    // no engine version to hold against a baseline. It says so rather than
-    // borrowing the browser build's answer.
     static omaweb::RuntimeSecurity runtimeSecurity({}, {});
     omaweb::registerRuntimeSecurity(&runtimeSecurity);
     QQmlApplicationEngine engine;
@@ -125,8 +120,6 @@ int main(int argc, char *argv[])
     // Site information reads the gap off the adapter's capabilities.
     engine.rootContext()->setContextProperty(
         QStringLiteral("engineCookiePolicy"), QVariant::fromValue<QObject *>(nullptr));
-    // Nor is there an engine request to hold a download away from: the mock
-    // profile keeps its held downloads itself.
     engine.rootContext()->setContextProperty(
         QStringLiteral("engineHeldDownloads"), QVariant::fromValue<QObject *>(nullptr));
     engine.rootContext()->setContextProperty(QStringLiteral("theme"), &theme);
@@ -147,8 +140,9 @@ int main(int argc, char *argv[])
     // once the engine can resolve them.
     omaweb::KitTheme kitTheme(&engine, &theme);
 
-    QObject::connect(&engine, &QQmlApplicationEngine::objectCreationFailed,
-        &application, [] { QCoreApplication::exit(1); }, Qt::QueuedConnection);
+    QObject::connect(
+        &engine, &QQmlApplicationEngine::objectCreationFailed, &application,
+        [] { QCoreApplication::exit(1); }, Qt::QueuedConnection);
     engine.load(QUrl(QStringLiteral(OMAWEB_MAIN_QML_URL)));
 
     const auto arguments = application.arguments();
@@ -166,8 +160,7 @@ int main(int argc, char *argv[])
     // empty object name means the window; anything else is found by the name
     // the surface already carries, so naming a state costs the browser nothing.
     // "settings" alone still opens the page on whatever section it was left on.
-    struct ShowProperty
-    {
+    struct ShowProperty {
         const char *object;
         const char *property;
         QVariant value;
