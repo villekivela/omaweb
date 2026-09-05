@@ -120,6 +120,31 @@ missing implementation. `integrations/omarchy/README.md` has the rule that turns
 platform where blur is the application's to install, so an `installWindowChrome` change is reviewed
 there.
 
+### Installing and opening links
+
+`cmake --install` puts the browser at `bin/omaweb`, the bootstrapped content-blocking library under
+`lib/omaweb`, and the desktop entry, icon and licences under `share`. The library carries no soname,
+so the build is told as much: without that, linking it by path records that path as the dependency
+itself and an installed copy would look for it in whatever directory happened to build it. The
+runpath is `$ORIGIN`-relative for the same reason, because a package chooses its prefix when it
+installs rather than when it configures.
+
+The desktop entry stays `omaweb.desktop` rather than taking the application's bus name, which the
+freedesktop convention would ask for. Qt reads the desktop file name as the Wayland app id and the
+X11 window class, and a desktop's window rules are written against that, so renaming it would break
+every rule pointing at `omaweb`. The cost is `DBusActivatable`, which needs the entry and the bus
+name to match; the launcher runs `Exec` instead.
+
+Opening a link runs the browser again, and the second process does not become a second browser.
+`RunningBrowser` claims `dev.omaweb.browser` on the session bus, and a launch that finds the name
+taken hands its address to the owner over `org.freedesktop.Application` and exits without building
+an engine, a session store or a filter set. Omaweb is one window with its tabs down the side, so a
+handed-over address arrives as a tab.
+
+Addresses from outside the browser are read strictly and only `http`, `https` and `file` are opened.
+A desktop passes on whatever it was given, so a scheme that would run in a page is refused rather
+than resolved.
+
 ## Security rules
 
 Never use Chromium's `--no-sandbox`, `--single-process`, in-process network-service flags, or

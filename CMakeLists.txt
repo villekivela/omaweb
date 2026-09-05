@@ -82,6 +82,12 @@ qt_standard_project_setup(REQUIRES 6.11)
 add_library(omaweb-adblock-rust SHARED IMPORTED GLOBAL)
 set_target_properties(omaweb-adblock-rust PROPERTIES
     IMPORTED_LOCATION "${omaweb_content_blocker_library}"
+    # The bootstrapped library carries no soname, so linking it by path would
+    # record that path as the dependency itself and no runpath would ever be
+    # consulted. An installed copy would then look for the library in whatever
+    # directory happened to build it. Saying so makes CMake link it by name and
+    # leave finding it to the runpath.
+    IMPORTED_NO_SONAME TRUE
 )
 
 add_library(omaweb-content-blocking STATIC
@@ -115,6 +121,8 @@ add_library(omaweb-core STATIC
     src/core/DownloadPolicy.h
     src/core/KeyboardNavigation.cpp
     src/core/KeyboardNavigation.h
+    src/core/LaunchRequest.cpp
+    src/core/LaunchRequest.h
     src/core/RetainedTab.h
     src/core/SessionSiteState.cpp
     src/core/SessionSiteState.h
@@ -229,6 +237,7 @@ add_library(omaweb-platform STATIC
     src/platform/PagePrinter.h
     src/platform/ProcessResources.cpp
     src/platform/ProcessResources.h
+    src/platform/RunningBrowser.h
     src/platform/RuntimeSecurity.cpp
     src/platform/RuntimeSecurity.h
     src/platform/SavedDownload.cpp
@@ -255,6 +264,7 @@ if(APPLE)
     # identifies the notifying application by its bundle identifier.
     find_library(OMAWEB_USER_NOTIFICATIONS_FRAMEWORK UserNotifications REQUIRED)
     target_sources(omaweb-platform PRIVATE
+        src/platform/RunningBrowser.cpp
         src/platform/MacExternalProtocolHandler.mm
         src/platform/MacPagePrinter.mm
         src/platform/MacSystemNotifier.mm
@@ -269,6 +279,7 @@ if(APPLE)
 else()
     target_sources(omaweb-platform PRIVATE
         src/platform/LinuxPagePrinter.cpp
+        src/platform/LinuxRunningBrowser.cpp
         src/platform/LinuxSystemNotifier.cpp
         src/platform/WindowChrome.cpp
     )
@@ -422,6 +433,36 @@ if(OMAWEB_BUILD_BROWSER)
         MACOSX_BUNDLE_BUNDLE_VERSION "${OMAWEB_BUILD_NUMBER}"
         WIN32_EXECUTABLE TRUE
     )
+
+    if(UNIX AND NOT APPLE)
+        include(GNUInstallDirs)
+
+        # The content blocker is a shared library the build resolves out of the
+        # bootstrap cache, so the binary's build-tree runpath names a directory
+        # on the machine that compiled it. An installed copy has to find it
+        # where the package puts it instead, or it loads nothing anywhere but
+        # here.
+        # Relative to the binary rather than to a prefix. `CMAKE_INSTALL_FULL_*`
+        # bakes in whatever prefix configuring used, and a package sets its own
+        # when it installs, which would leave the runpath naming a directory the
+        # package never wrote to.
+        set_target_properties(omaweb PROPERTIES
+            INSTALL_RPATH "$ORIGIN/../${CMAKE_INSTALL_LIBDIR}/omaweb")
+
+        install(TARGETS omaweb RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
+        install(FILES "${omaweb_content_blocker_library}"
+            DESTINATION "${CMAKE_INSTALL_LIBDIR}/omaweb")
+        # The entry's own name is the Wayland app id and X11 window class, which
+        # a desktop's window rules are written against, so it stays `omaweb`
+        # rather than taking the bus name the way a `DBusActivatable` entry
+        # would have to. See src/platform/LinuxRunningBrowser.cpp.
+        install(FILES packaging/omaweb.desktop
+            DESTINATION "${CMAKE_INSTALL_DATADIR}/applications")
+        install(FILES assets/icons/omaweb.svg
+            DESTINATION "${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps")
+        install(FILES LICENSE THIRD_PARTY_NOTICES.md
+            DESTINATION "${CMAKE_INSTALL_DATADIR}/licenses/omaweb")
+    endif()
 endif()
 
 if(OMAWEB_BUILD_UI_LAB)
@@ -510,6 +551,13 @@ if(BUILD_TESTING)
     target_link_libraries(omaweb-development-launch-tests PRIVATE omaweb-core Qt6::Test)
     omaweb_strict_target(omaweb-development-launch-tests)
     add_test(NAME omaweb-development-launch COMMAND omaweb-development-launch-tests)
+
+    qt_add_executable(omaweb-launch-request-tests
+        tests/core/tst_launchrequest.cpp
+    )
+    target_link_libraries(omaweb-launch-request-tests PRIVATE omaweb-core Qt6::Test)
+    omaweb_strict_target(omaweb-launch-request-tests)
+    add_test(NAME omaweb-launch-request COMMAND omaweb-launch-request-tests)
 
     qt_add_executable(omaweb-download-policy-tests
         tests/core/tst_downloadpolicy.cpp

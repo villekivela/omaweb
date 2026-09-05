@@ -5,6 +5,7 @@
 #include "FaviconTint.h"
 #include "KeyboardNavigation.h"
 #include "KitTheme.h"
+#include "LaunchRequest.h"
 #include "OmarchyTheme.h"
 #include "PagePrinter.h"
 #include "ProcessResources.h"
@@ -12,6 +13,7 @@
 #include "QtCookiePolicy.h"
 #include "QtHeldDownloads.h"
 #include "Quickshell.h"
+#include "RunningBrowser.h"
 #include "RuntimeSecurity.h"
 #include "SavedDownload.h"
 #include "SystemClipboard.h"
@@ -166,6 +168,23 @@ int main(int argc, char *argv[])
     // opaque and one that is nearly so.
     QGuiApplication::setDesktopFileName(QStringLiteral("omaweb"));
 
+    const auto launchUrl = omaweb::readLaunchUrl(arguments);
+    // Claimed before anything expensive is built, so a launch that only carries
+    // a link for the browser already running costs a D-Bus call rather than a
+    // second session store, a second filter set and a second engine.
+    //
+    // `--validate-qml` loads the shell and leaves; it is not a reader opening
+    // the browser, and handing it to another process would check nothing.
+    omaweb::RunningBrowser runningBrowser;
+    const auto validatingQml = arguments.contains(QStringLiteral("--validate-qml"));
+    if (!runningBrowser.isPrimary() && !validatingQml) {
+        if (runningBrowser.handOver(launchUrl)) {
+            return 0;
+        }
+        // Nothing took it. Opening the page here is worse than one browser and
+        // better than none, so this carries on as an ordinary launch.
+    }
+
     omaweb::BrowserController browser(dataRoot(), QStringLiteral("qt"), configRoot());
     omaweb::ContentBlocker contentBlocker(dataRoot());
     omaweb::KeyboardNavigation keyboardNavigation(
@@ -226,6 +245,20 @@ int main(int argc, char *argv[])
         &engine, &QQmlApplicationEngine::objectCreationFailed, &application,
         [] { QCoreApplication::exit(1); }, Qt::QueuedConnection);
     engine.load(QUrl(QStringLiteral(OMAWEB_MAIN_QML_URL)));
+
+    // The desktop asked for an address, so it goes on screen once the shell
+    // exists to put it on. Queued rather than called here: the shell restores
+    // the session while it loads, and an address opened before that would be
+    // buried under the tabs coming back.
+    if (launchUrl.isValid() && !engine.rootObjects().isEmpty()) {
+        QTimer::singleShot(
+            0, &browser, [&browser, launchUrl] { browser.openInput(launchUrl.toString(), true); });
+    }
+
+    // Every later launch arrives here instead, as the address it was asked to
+    // open rather than as a browser of its own.
+    QObject::connect(&runningBrowser, &omaweb::RunningBrowser::openRequested, &browser,
+        [&browser](const QUrl &url) { browser.openInput(url.toString(), true); });
 
     if (arguments.contains(QStringLiteral("--validate-qml"))) {
         if (engine.rootObjects().isEmpty()) {
