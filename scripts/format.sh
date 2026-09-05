@@ -82,13 +82,23 @@ if ! command -v "$clang_format" >/dev/null 2>&1; then
     fi
 fi
 
+qml_format=qmlformat
+if ! command -v "$qml_format" >/dev/null 2>&1; then
+    if [ -x /usr/lib/qt6/bin/qmlformat ]; then
+        qml_format=/usr/lib/qt6/bin/qmlformat
+    else
+        echo "qmlformat is required" >&2
+        exit 1
+    fi
+fi
+
 failed=0
 if [ "$action" = write ]; then
     while IFS= read -r file; do
         "$clang_format" -i "$file"
     done < "$cpp_files"
     while IFS= read -r file; do
-        qmlformat -i "$file"
+        "$qml_format" -i "$file"
     done < "$qml_files"
     if [ -s "$prettier_files" ]; then
         xargs npm exec -- prettier --write < "$prettier_files"
@@ -100,7 +110,7 @@ else
 
     formatted="$work/formatted.qml"
     while IFS= read -r file; do
-        if ! qmlformat "$file" > "$formatted" || ! cmp -s "$file" "$formatted"; then
+        if ! "$qml_format" "$file" > "$formatted" || ! cmp -s "$file" "$formatted"; then
             echo "$file: run scripts/format.sh --changed $base" >&2
             failed=1
         fi

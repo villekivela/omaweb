@@ -38,10 +38,20 @@ case "$scope" in
 esac
 
 failed=0
+qml_lint=qmllint
+if ! command -v "$qml_lint" >/dev/null 2>&1; then
+    if [ -x /usr/lib/qt6/bin/qmllint ]; then
+        qml_lint=/usr/lib/qt6/bin/qmllint
+    else
+        echo "qmllint is required" >&2
+        exit 1
+    fi
+fi
+
 while IFS= read -r file; do
-    if ! qmllint -I src/ui -I src/ui-lab -I src/engine/qt -I third_party/omarchy-shell \
+    if ! "$qml_lint" -I src/ui -I src/ui-lab -I src/engine/qt -I third_party/omarchy-shell \
         "$file" >/dev/null 2>&1; then
-        qmllint -I src/ui -I src/ui-lab -I src/engine/qt -I third_party/omarchy-shell "$file"
+        "$qml_lint" -I src/ui -I src/ui-lab -I src/engine/qt -I third_party/omarchy-shell "$file"
         failed=1
     fi
 done < "$files"
