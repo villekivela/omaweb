@@ -54,19 +54,19 @@ QVariant TabListModel::data(const QModelIndex &index, int role) const
 QHash<int, QByteArray> TabListModel::roleNames() const
 {
     return {
-        { IdRole, "tabId" },
-        { SpaceIdRole, "spaceId" },
-        { UrlRole, "tabUrl" },
-        { TitleRole, "tabTitle" },
-        { IconUrlRole, "tabIconUrl" },
-        { PinnedRole, "pinned" },
-        { ActiveRole, "active" },
-        { LoadingRole, "loading" },
-        { AudibleRole, "tabAudible" },
-        { MutedRole, "tabMuted" },
-        { ZoomRole, "tabZoom" },
-        { KeepActiveRole, "tabKeepActive" },
-        { SoundSuppressedRole, "tabSoundSuppressed" },
+        {IdRole, "tabId"},
+        {SpaceIdRole, "spaceId"},
+        {UrlRole, "tabUrl"},
+        {TitleRole, "tabTitle"},
+        {IconUrlRole, "tabIconUrl"},
+        {PinnedRole, "pinned"},
+        {ActiveRole, "active"},
+        {LoadingRole, "loading"},
+        {AudibleRole, "tabAudible"},
+        {MutedRole, "tabMuted"},
+        {ZoomRole, "tabZoom"},
+        {KeepActiveRole, "tabKeepActive"},
+        {SoundSuppressedRole, "tabSoundSuppressed"},
     };
 }
 
@@ -109,7 +109,7 @@ void TabListModel::append(TabState tab)
 
 void TabListModel::insert(TabState tab, qsizetype row)
 {
-    const auto destination = qBound(qsizetype { 0 }, row, m_tabs.size());
+    const auto destination = qBound(qsizetype {0}, row, m_tabs.size());
     beginInsertRows({}, destination, destination);
     m_tabs.insert(destination, std::move(tab));
     endInsertRows();

@@ -33,7 +33,7 @@ namespace {
 
     // What an image provider is asked for. Providers are free to hand back
     // whatever they have, so this is a hint, not a promise.
-    constexpr QSize requestedIconSize { maximumSamples, maximumSamples };
+    constexpr QSize requestedIconSize {maximumSamples, maximumSamples};
 
 } // namespace
 

@@ -129,12 +129,12 @@ ApplicationWindow {
     // it and starts calling the connection secure. Omaweb's own record of the
     // waiver is what keeps the address trigger honest about it.
     readonly property string connectionState: {
-        const generation = window.certificateExceptionGeneration
-        const reported = engineLoader.item ? engineLoader.item.connectionState : "internal"
+        const generation = window.certificateExceptionGeneration;
+        const reported = engineLoader.item ? engineLoader.item.connectionState : "internal";
         if (reported === "internal" || generation < 0)
-            return reported
+            return reported;
         return window.windowBrowser.certificateExceptionInEffect(window.windowBrowser.activeUrl)
-                ? "certificate-error" : reported
+                ? "certificate-error" : reported;
     }
     readonly property bool insecureContentBlocked: engineLoader.item === null
                                                    || engineLoader.item.insecureContentBlocked
@@ -246,21 +246,21 @@ ApplicationWindow {
     property var moveTargets: []
 
     function privatePalette(source) {
-        const palette = Object.assign({}, source)
-        palette.window = source.privateWindow
-        palette.windowOpaque = source.privateWindowOpaque
-        palette.sidebar = source.privateSidebar
-        palette.sidebarOpaque = source.privateSidebarOpaque
-        palette.sheet = source.privateSheet
-        palette.sheetOpaque = source.privateSheetOpaque
-        palette.overlay = source.privateOverlay
-        palette.overlayOpaque = source.privateOverlayOpaque
-        palette.surface = source.privateSurface
-        palette.surfaceHover = source.privateSurfaceHover
-        palette.mutedText = source.privateMutedText
-        palette.border = source.privateBorder
-        palette.accent = source.privateAccent
-        return palette
+        const palette = Object.assign({}, source);
+        palette.window = source.privateWindow;
+        palette.windowOpaque = source.privateWindowOpaque;
+        palette.sidebar = source.privateSidebar;
+        palette.sidebarOpaque = source.privateSidebarOpaque;
+        palette.sheet = source.privateSheet;
+        palette.sheetOpaque = source.privateSheetOpaque;
+        palette.overlay = source.privateOverlay;
+        palette.overlayOpaque = source.privateOverlayOpaque;
+        palette.surface = source.privateSurface;
+        palette.surfaceHover = source.privateSurfaceHover;
+        palette.mutedText = source.privateMutedText;
+        palette.border = source.privateBorder;
+        palette.accent = source.privateAccent;
+        return palette;
     }
 
     FontLoader {
@@ -301,10 +301,10 @@ ApplicationWindow {
         title: "Choose file"
         fileMode: Dialogs.FileDialog.OpenFile
         onAccepted: {
-            const files = []
+            const files = [];
             for (let index = 0; index < selectedFiles.length; ++index)
-                files.push(String(selectedFiles[index]))
-            window.respondToFileSelection(files)
+                files.push(String(selectedFiles[index]));
+            window.respondToFileSelection(files);
         }
         onRejected: window.respondToFileSelection([])
     }
@@ -340,16 +340,16 @@ ApplicationWindow {
         fileMode: Dialogs.FileDialog.SaveFile
         onAccepted: window.completeTargetSave(selectedFile)
         onRejected: {
-            window.pendingSaveEngine = null
-            window.pendingSaveAction = ""
-            window.pendingSaveTabId = ""
-            window.pendingSaveGeneration = -1
+            window.pendingSaveEngine = null;
+            window.pendingSaveAction = "";
+            window.pendingSaveTabId = "";
+            window.pendingSaveGeneration = -1;
         }
     }
 
     function openCommandPanel() {
-        commandPanel.beginCommand()
-        omnibarOpen = true
+        commandPanel.beginCommand();
+        omnibarOpen = true;
     }
 
     // Everything a row can be asked on its own. The ordinary rows and the pins
@@ -357,9 +357,9 @@ ApplicationWindow {
     // Keep active is a pin's setting alone.
     function tabMenuActionsFor(tabId) {
         if (tabId.length === 0)
-            return []
+            return [];
         if (window.windowBrowser.tabPinned(tabId)) {
-            const keptActive = window.windowBrowser.tabKeepActive(tabId)
+            const keptActive = window.windowBrowser.tabKeepActive(tabId);
             return [
                         {
                             "label": "Duplicate tab",
@@ -381,7 +381,7 @@ ApplicationWindow {
                             "command": "move-tab",
                             "enabled": !window.privateWindow
                         }
-                    ]
+                    ];
         }
         return [
                     {
@@ -414,61 +414,62 @@ ApplicationWindow {
                         "command": "close-tab",
                         "destructive": true
                     }
-                ]
+                ];
     }
 
     // The command panel's way in: the menu belongs to the tab on show, and
     // hangs off that tab's row where there is a row on screen to hang it off.
     function openActiveTabMenu() {
-        const row = sidebar.activeTabItem
+        const row = sidebar.activeTabItem;
         if (!window.sidebarCollapsed && row && row.visible) {
-            row.openMenu(0, row.height)
-            return
+            row.openMenu(0, row.height);
+            return;
         }
-        window.openTabMenu(window.windowBrowser.activeTabId, window.width / 2, window.height / 2)
+        window.openTabMenu(window.windowBrowser.activeTabId, window.width / 2, window.height / 2);
     }
 
     function openTabMenu(tabId, anchorX, anchorY) {
-        window.tabMenuTabId = tabId
-        window.tabMenuX = anchorX
-        window.tabMenuY = anchorY
-        window.tabMenuOpen = true
+        window.tabMenuTabId = tabId;
+        window.tabMenuX = anchorX;
+        window.tabMenuY = anchorY;
+        window.tabMenuOpen = true;
     }
 
     // A menu row names the command the registry names, so the vocabulary is
     // one vocabulary. Every command here is about a named tab, and the ones the
     // registry states as being about the tab on show are given that tab first.
     function runTabMenu(index) {
-        const actions = window.tabMenuActionsFor(window.tabMenuTabId)
-        const action = actions[index]
-        const tabId = window.tabMenuTabId
-        window.tabMenuOpen = false
+        const actions = window.tabMenuActionsFor(window.tabMenuTabId);
+        const action = actions[index];
+        const tabId = window.tabMenuTabId;
+        window.tabMenuOpen = false;
         if (!action || tabId.length === 0)
-            return
+            return;
         switch (action.command) {
         case "duplicate-tab":
-            window.windowBrowser.duplicateTab(tabId)
-            break
+            window.windowBrowser.duplicateTab(tabId);
+            break;
         case "close-other-tabs":
-            window.windowBrowser.closeOtherTabs(tabId)
-            break
+            window.windowBrowser.closeOtherTabs(tabId);
+            break;
         case "close-tabs-below":
-            window.windowBrowser.closeTabsBelow(tabId)
-            break
+            window.windowBrowser.closeTabsBelow(tabId);
+            break;
         case "close-tab":
-            window.windowBrowser.closeTab(tabId)
-            break
+            window.windowBrowser.closeTab(tabId);
+            break;
         case "keep-tab-active":
-            window.windowBrowser.setTabKeepActive(tabId, !window.windowBrowser.tabKeepActive(tabId))
-            break
+            window.windowBrowser.setTabKeepActive(tabId, !window.windowBrowser.tabKeepActive(
+                                                      tabId));
+            break;
         default:
-            window.windowBrowser.activateTab(tabId)
-            window.commands.run(action.command, -1)
+            window.windowBrowser.activateTab(tabId);
+            window.commands.run(action.command, -1);
         }
     }
 
     function refreshRetainedTabs() {
-        window.visibleRetainedTabs = engineLoader.retainedTabReport()
+        window.visibleRetainedTabs = engineLoader.retainedTabReport();
     }
 
     // Stopping one from the list is the same decision as the row's own Keep
@@ -476,53 +477,53 @@ ApplicationWindow {
     // is written to that Space's store rather than to the tab model, which
     // holds the Space the reader is looking at.
     function releaseRetainedTab(tabId) {
-        window.windowBrowser.releaseRetainedTab(tabId)
-        window.refreshRetainedTabs()
+        window.windowBrowser.releaseRetainedTab(tabId);
+        window.refreshRetainedTabs();
     }
 
     function requestMoveTab() {
         if (privateWindow)
-            return
-        const spaces = window.windowBrowser.spaces
-        const targets = []
+            return;
+        const spaces = window.windowBrowser.spaces;
+        const targets = [];
         for (let row = 0; row < spaces.rowCount(); ++row) {
-            const index = spaces.index(row, 0)
-            const spaceId = spaces.data(index, Qt.UserRole + 1)
+            const index = spaces.index(row, 0);
+            const spaceId = spaces.data(index, Qt.UserRole + 1);
             if (spaceId === window.windowBrowser.activeSpaceId)
-                continue
+                continue;
             targets.push({
                              "id": spaceId,
                              "label": spaces.data(index, Qt.UserRole + 2)
-                         })
+                         });
         }
-        window.moveTargets = targets
-        window.dialogMode = targets.length > 0 ? "move" : ""
+        window.moveTargets = targets;
+        window.dialogMode = targets.length > 0 ? "move" : "";
     }
 
     function requestNewSpace() {
         if (!privateWindow)
-            window.dialogMode = "new"
+            window.dialogMode = "new";
     }
 
     function requestSettings() {
-        window.historyOpen = false
-        window.settingsOpen = true
+        window.historyOpen = false;
+        window.settingsOpen = true;
     }
 
     function requestDownloads() {
-        window.historyOpen = false
-        const downloads = settingsSurface.sections.indexOf("downloads")
+        window.historyOpen = false;
+        const downloads = settingsSurface.sections.indexOf("downloads");
         if (downloads >= 0)
-            settingsSurface.section = downloads
-        window.settingsOpen = true
+            settingsSurface.section = downloads;
+        window.settingsOpen = true;
     }
 
     function requestHistory() {
         if (window.privateWindow)
-            return
-        window.settingsOpen = false
-        window.shortcutsOpen = false
-        window.historyOpen = true
+            return;
+        window.settingsOpen = false;
+        window.shortcutsOpen = false;
+        window.historyOpen = true;
     }
 
     // The sheet a resting Space shows is the same sheet, so asking for it while
@@ -530,23 +531,23 @@ ApplicationWindow {
     // toggle off.
     function requestShortcuts() {
         if (window.pagelessViewport)
-            return
-        window.shortcutsOpen = !window.shortcutsOpen
+            return;
+        window.shortcutsOpen = !window.shortcutsOpen;
     }
 
     // The two halves of the shell, each one key away from the other: the
     // outline of what is open, and the page itself.
     function focusSidebar() {
-        window.sidebarCollapsed = false
-        sidebar.focusOutline()
+        window.sidebarCollapsed = false;
+        sidebar.focusOutline();
     }
 
     function focusPage() {
-        engineLoader.focusPage()
+        engineLoader.focusPage();
     }
 
     function openPageContextMenu() {
-        engineLoader.requestPageContextMenu()
+        engineLoader.requestPageContextMenu();
     }
 
     // The address of the page on show, and nothing else with it. A blank tab
@@ -557,169 +558,169 @@ ApplicationWindow {
     // do comes last. Every row carries the command it runs, so the list and the
     // doing cannot drift apart.
     function pageMenuFor(context) {
-        const rows = []
-        const link = context.linkUrl ? String(context.linkUrl) : ""
-        const media = context.mediaUrl ? String(context.mediaUrl) : ""
-        const selection = String(context.selectedText || "")
+        const rows = [];
+        const link = context.linkUrl ? String(context.linkUrl) : "";
+        const media = context.mediaUrl ? String(context.mediaUrl) : "";
+        const selection = String(context.selectedText || "");
         if (link.length > 0) {
             rows.push({
                           "label": "Open link in new tab",
                           "run": "open-link"
-                      })
+                      });
             rows.push({
                           "label": "Open link in background",
                           "run": "open-link-background"
-                      })
+                      });
             rows.push({
                           "label": "Copy link address",
                           "run": "copy-link"
-                      })
+                      });
             rows.push({
                           "label": "Save link as",
                           "run": "save-link"
-                      })
+                      });
             rows.push({
                           "separator": true
-                      })
+                      });
         }
         if (media.length > 0) {
             rows.push({
                           "label": "Open " + context.mediaType + " in new tab",
                           "run": "open-media"
-                      })
+                      });
             rows.push({
                           "label": "Copy " + context.mediaType + " address",
                           "run": "copy-media"
-                      })
+                      });
             if (context.mediaType === "image")
                 rows.push({
                               "label": "Copy image",
                               "run": "copy-image"
-                          })
+                          });
             rows.push({
                           "label": "Save " + context.mediaType + " as",
                           "run": "save-media"
-                      })
+                      });
             rows.push({
                           "separator": true
-                      })
+                      });
         }
         if (selection.length > 0) {
             rows.push({
                           "label": "Copy",
                           "run": "copy-selection"
-                      })
+                      });
             rows.push({
                           "separator": true
-                      })
+                      });
         }
         rows.push({
                       "label": "Back",
                       "command": "back",
                       "enabled": engineLoader.item ? engineLoader.item.canGoBack : false
-                  })
+                  });
         rows.push({
                       "label": "Forward",
                       "command": "forward",
                       "enabled": engineLoader.item ? engineLoader.item.canGoForward : false
-                  })
+                  });
         rows.push({
                       "label": "Reload",
                       "command": "reload"
-                  })
+                  });
         if (String(window.windowBrowser.activeUrl).startsWith("https://")) {
             rows.push({
                           "label": "Retry over insecure HTTP",
                           "run": "retry-insecure"
-                      })
+                      });
         }
         rows.push({
                       "separator": true
-                  })
+                  });
         rows.push({
                       "label": "Copy address",
                       "command": "copy-address",
                       "enabled": !window.windowBrowser.activeTabBlank
-                  })
+                  });
         rows.push({
                       "separator": true
-                  })
+                  });
         rows.push({
                       "label": "Inspect element",
                       "command": "inspect-element",
                       "enabled": window.developerToolsAvailable
-                  })
-        return rows
+                  });
+        return rows;
     }
 
     function openPageMenu(engine, context) {
         // The engine reports the point in its own coordinates; the menu lives
         // in the window, so the point has to travel with it.
-        const point = engineLoader.mapToItem(shell, context.x, context.y)
-        window.pageContext = context
-        window.pageContextEngine = engine
-        window.pageMenuActions = window.pageMenuFor(context)
-        window.pageMenuX = point.x
-        window.pageMenuY = point.y
-        window.pageMenuOpen = true
+        const point = engineLoader.mapToItem(shell, context.x, context.y);
+        window.pageContext = context;
+        window.pageContextEngine = engine;
+        window.pageMenuActions = window.pageMenuFor(context);
+        window.pageMenuX = point.x;
+        window.pageMenuY = point.y;
+        window.pageMenuOpen = true;
     }
 
     function runPageMenu(index) {
-        const action = window.pageMenuActions[index]
-        const context = window.pageContext
-        const engine = window.pageContextEngine
-        window.pageMenuOpen = false
+        const action = window.pageMenuActions[index];
+        const context = window.pageContext;
+        const engine = window.pageContextEngine;
+        window.pageMenuOpen = false;
         if (!action || !context || engine !== engineLoader.item || Number(context.pageGeneration)
                 !== Number(engine.pageGeneration))
-            return
+            return;
         if (action.command) {
-            browserCommands.run(action.command, -1)
-            return
+            browserCommands.run(action.command, -1);
+            return;
         }
         switch (action.run) {
         case "open-link":
-            window.windowBrowser.openInput(String(context.linkUrl), true)
-            break
+            window.windowBrowser.openInput(String(context.linkUrl), true);
+            break;
         case "open-link-background":
-            window.windowBrowser.openInputInBackground(context.linkUrl)
-            break
+            window.windowBrowser.openInputInBackground(context.linkUrl);
+            break;
         case "copy-link":
-            SystemClipboard.copyText(String(context.linkUrl))
-            break
+            SystemClipboard.copyText(String(context.linkUrl));
+            break;
         case "open-media":
-            window.windowBrowser.openInput(String(context.mediaUrl), true)
-            break
+            window.windowBrowser.openInput(String(context.mediaUrl), true);
+            break;
         case "copy-media":
-            SystemClipboard.copyText(String(context.mediaUrl))
-            break
+            SystemClipboard.copyText(String(context.mediaUrl));
+            break;
         case "copy-selection":
-            SystemClipboard.copyText(String(context.selectedText))
-            break
+            SystemClipboard.copyText(String(context.selectedText));
+            break;
         case "copy-image":
-            engine.performPageContextAction("copy-image", "")
-            break
+            engine.performPageContextAction("copy-image", "");
+            break;
         case "save-link":
-            window.requestTargetSave(engine, "save-link", context.linkUrl)
-            break
+            window.requestTargetSave(engine, "save-link", context.linkUrl);
+            break;
         case "save-media":
-            window.requestTargetSave(engine, "save-media", context.mediaUrl)
-            break
+            window.requestTargetSave(engine, "save-media", context.mediaUrl);
+            break;
         case "retry-insecure":
-            window.windowBrowser.retryActiveUrlInsecurely()
-            break
+            window.windowBrowser.retryActiveUrlInsecurely();
+            break;
         }
     }
 
     function copyAddress() {
         if (window.windowBrowser.activeTabBlank)
-            return
-        SystemClipboard.copyText(window.windowBrowser.activeUrl.toString())
+            return;
+        SystemClipboard.copyText(window.windowBrowser.activeUrl.toString());
     }
 
     // A statement about the page, over the page, that takes itself away. What
     // Omaweb has just done, and what it could not do.
     function showNotice(glyph, message, detail, duration) {
-        pageNotice.show(glyph, message, detail, duration)
+        pageNotice.show(glyph, message, detail, duration);
     }
 
     // A command that cannot run here says so. Doing nothing at all would leave
@@ -727,73 +728,73 @@ ApplicationWindow {
     // page is not an engine that lacks something, and does not say it is.
     function reportUnavailable(what) {
         window.showNotice("block", what + " is not available", engineLoader.item
-                          ? "This engine does not offer it" : "There is no page here")
+                          ? "This engine does not offer it" : "There is no page here");
     }
 
     // Find belongs to one tab. The bar's openness is per tab, and the query and
     // the match position are the tab's engine's, so coming back to a tab finds
     // the search exactly where it was left.
     function refreshFindOpen() {
-        const tabs = window.windowBrowser.tabs
-        const showing = ({})
+        const tabs = window.windowBrowser.tabs;
+        const showing = ({});
         for (let row = 0; row < tabs.rowCount(); ++row) {
-            const tabId = tabs.data(tabs.index(row, 0), Qt.UserRole + 1)
+            const tabId = tabs.data(tabs.index(row, 0), Qt.UserRole + 1);
             if (window.tabsShowingFind[tabId] === true)
-                showing[tabId] = true
+                showing[tabId] = true;
         }
-        window.tabsShowingFind = showing
-        window.findOpen = showing[window.windowBrowser.activeTabId] === true
+        window.tabsShowingFind = showing;
+        window.findOpen = showing[window.windowBrowser.activeTabId] === true;
     }
 
     function openFind() {
         if (!window.findAvailable) {
-            window.reportUnavailable("Find")
-            return
+            window.reportUnavailable("Find");
+            return;
         }
-        window.tabsShowingFind[window.windowBrowser.activeTabId] = true
-        window.refreshFindOpen()
-        Qt.callLater(findBar.focusField)
+        window.tabsShowingFind[window.windowBrowser.activeTabId] = true;
+        window.refreshFindOpen();
+        Qt.callLater(findBar.focusField);
     }
 
     function closeFind() {
-        delete window.tabsShowingFind[window.windowBrowser.activeTabId]
-        window.refreshFindOpen()
-        window.focusPage()
+        delete window.tabsShowingFind[window.windowBrowser.activeTabId];
+        window.refreshFindOpen();
+        window.focusPage();
     }
 
     function stepFind(forward) {
         if (!window.findAvailable) {
-            window.reportUnavailable("Find")
-            return
+            window.reportUnavailable("Find");
+            return;
         }
         if (!window.findOpen || findBar.text.length === 0) {
-            window.openFind()
-            return
+            window.openFind();
+            return;
         }
-        engineLoader.findText(findBar.text, forward)
+        engineLoader.findText(findBar.text, forward);
     }
 
     function stepZoom(direction) {
         if (!window.zoomAvailable) {
-            window.reportUnavailable("Zoom")
-            return
+            window.reportUnavailable("Zoom");
+            return;
         }
-        window.windowBrowser.stepActiveZoom(direction)
-        window.showZoomNotice()
+        window.windowBrowser.stepActiveZoom(direction);
+        window.showZoomNotice();
     }
 
     function resetZoom() {
         if (!window.zoomAvailable) {
-            window.reportUnavailable("Zoom")
-            return
+            window.reportUnavailable("Zoom");
+            return;
         }
-        window.windowBrowser.resetActiveZoom()
-        window.showZoomNotice()
+        window.windowBrowser.resetActiveZoom();
+        window.showZoomNotice();
     }
 
     function showZoomNotice() {
         window.showNotice("zoom_in", "Page zoom " + Math.round(window.windowBrowser.activeTabZoom
-                                                               * 100) + "%", "this tab only")
+                                                               * 100) + "%", "this tab only");
     }
 
     // A PDF is drawn inside the engine's own sandbox where there is one, and
@@ -803,32 +804,32 @@ ApplicationWindow {
 
     function reportPdfHandling(url) {
         if (!engineLoader.item)
-            return
-        const address = String(url).split("?")[0].split("#")[0]
+            return;
+        const address = String(url).split("?")[0].split("#")[0];
         if (!address.toLowerCase().endsWith(".pdf") || address === window.reportedPdfAddress) {
-            return
+            return;
         }
-        window.reportedPdfAddress = address
+        window.reportedPdfAddress = address;
         if (window.inlinePdfViewingAvailable)
-            return
+            return;
         window.showNotice("download", "This engine cannot show PDFs",
-                          "The document was downloaded instead", 4200)
+                          "The document was downloaded instead", 4200);
     }
 
     function reloadBypassingCache() {
         if (!engineLoader.item) {
-            window.reportUnavailable("Reload bypassing cache")
-            return
+            window.reportUnavailable("Reload bypassing cache");
+            return;
         }
-        window.windowBrowser.requestReloadBypassingCache()
+        window.windowBrowser.requestReloadBypassingCache();
     }
 
     function stopLoading() {
         if (!engineLoader.item) {
-            window.reportUnavailable("Stop loading")
-            return
+            window.reportUnavailable("Stop loading");
+            return;
         }
-        window.windowBrowser.requestStopLoading()
+        window.windowBrowser.requestStopLoading();
     }
 
     // The engine renders the page into a file; the desktop's own print dialog,
@@ -838,41 +839,41 @@ ApplicationWindow {
             // Two halves, and the reader is told which one is missing.
             window.showNotice("block", "Print is not available", PagePrinter.available
                               ? "This engine cannot render a page for printing" :
-                                "This desktop has no print dialog to answer")
-            return
+                                "This desktop has no print dialog to answer");
+            return;
         }
-        const destination = PagePrinter.reserveDestination(window.windowBrowser.activeTitle)
+        const destination = PagePrinter.reserveDestination(window.windowBrowser.activeTitle);
         if (destination.length === 0) {
             window.showNotice("print_disabled", "Printing failed",
-                              "Omaweb could not make a file to render the page into")
-            return
+                              "Omaweb could not make a file to render the page into");
+            return;
         }
-        engineLoader.printPage(destination)
+        engineLoader.printPage(destination);
     }
 
     function presentPrint(destination, succeeded) {
         if (!succeeded) {
-            PagePrinter.discard(destination)
+            PagePrinter.discard(destination);
             window.showNotice("print_disabled", "Printing failed",
-                              "The page could not be rendered for printing")
-            return
+                              "The page could not be rendered for printing");
+            return;
         }
         if (!PagePrinter.present(destination, window.windowBrowser.activeTitle)) {
             window.showNotice("print_disabled", "Printing failed",
-                              "This desktop has no print dialog to present")
+                              "This desktop has no print dialog to present");
         }
     }
 
     // The reader's own fullscreen. A site's is `siteFullscreenActive`, and the
     // two are tracked apart so handing one back never takes the other away.
     function toggleBrowserFullscreen() {
-        window.browserFullscreen = !window.browserFullscreen
-        window.applyFullscreen()
+        window.browserFullscreen = !window.browserFullscreen;
+        window.applyFullscreen();
     }
 
     function applyFullscreen() {
         window.visibility = (window.browserFullscreen || engineLoader.siteFullscreenActive)
-                ? Window.FullScreen : Window.Windowed
+                ? Window.FullScreen : Window.Windowed;
     }
 
     // The window is also the desktop's to move: a menu command, ⌃⌘F, or the
@@ -882,42 +883,42 @@ ApplicationWindow {
     onVisibilityChanged: window.reconcileFullscreen()
 
     function reconcileFullscreen() {
-        const filling = window.visibility === Window.FullScreen
+        const filling = window.visibility === Window.FullScreen;
         if (!filling && engineLoader.siteFullscreenActive) {
             // The screen was handed back by a route the page knows nothing
             // about, and a page left believing it still has the screen draws
             // for one. Telling it is also what gives the outline back.
-            window.exitSiteFullscreen()
-            return
+            window.exitSiteFullscreen();
+            return;
         }
-        window.browserFullscreen = filling && !engineLoader.siteFullscreenActive
+        window.browserFullscreen = filling && !engineLoader.siteFullscreenActive;
     }
 
     function exitSiteFullscreen() {
-        engineLoader.exitSiteFullscreen()
+        engineLoader.exitSiteFullscreen();
     }
 
     function toggleDeveloperTools() {
         if (!window.developerToolsAvailable)
-            return
-        window.windowBrowser.toggleDeveloperTools()
+            return;
+        window.windowBrowser.toggleDeveloperTools();
     }
 
     function inspectElement() {
         if (!window.developerToolsAvailable)
-            return
-        engineLoader.inspectElement()
+            return;
+        engineLoader.inspectElement();
     }
 
     function setDeveloperToolsWidth(width) {
         window.developerToolsWidth = Math.round(Math.max(window.developerToolsMinimumWidth, Math.min(
                                                              window.developerToolsMaximumWidth,
-                                                             width)))
+                                                             width)));
     }
 
     function setSidebarWidth(width) {
         window.sidebarWidth = Math.round(Math.max(window.sidebarMinimumWidth, Math.min(
-                                                      window.sidebarMaximumWidth, width)))
+                                                      window.sidebarMaximumWidth, width)));
     }
 
     // Widening is also the way back from a hidden sidebar: asking for more of
@@ -925,10 +926,10 @@ ApplicationWindow {
     function nudgeSidebar(step) {
         if (window.sidebarCollapsed) {
             if (step < 0)
-                return
-            window.sidebarCollapsed = false
+                return;
+            window.sidebarCollapsed = false;
         }
-        window.setSidebarWidth(window.sidebarWidth + step)
+        window.setSidebarWidth(window.sidebarWidth + step);
     }
 
     // A window narrow enough to break the clamp pulls the sidebar back in
@@ -940,30 +941,30 @@ ApplicationWindow {
     // runs on the way back in, so a saved width from a wider window or an older
     // build still lands somewhere usable.
     function restoreSidebarWidth() {
-        const saved = parseFloat(window.windowBrowser.preference("sidebar-width", ""))
+        const saved = parseFloat(window.windowBrowser.preference("sidebar-width", ""));
         if (!isNaN(saved))
-            window.setSidebarWidth(saved)
+            window.setSidebarWidth(saved);
     }
 
     function restoreDeveloperToolsWidth() {
-        const saved = parseFloat(window.windowBrowser.preference("developer-tools-width", ""))
+        const saved = parseFloat(window.windowBrowser.preference("developer-tools-width", ""));
         if (!isNaN(saved))
-            window.setDeveloperToolsWidth(saved)
+            window.setDeveloperToolsWidth(saved);
     }
 
     function restoreTabAppearance() {
-        window.useFavicons = window.windowBrowser.preference("use-favicons", "true") === "true"
-        window.tintFavicons = window.windowBrowser.preference("tint-favicons", "true") === "true"
+        window.useFavicons = window.windowBrowser.preference("use-favicons", "true") === "true";
+        window.tintFavicons = window.windowBrowser.preference("tint-favicons", "true") === "true";
     }
 
     function setUseFavicons(enabled) {
-        window.useFavicons = enabled
-        window.windowBrowser.setPreference("use-favicons", enabled ? "true" : "false")
+        window.useFavicons = enabled;
+        window.windowBrowser.setPreference("use-favicons", enabled ? "true" : "false");
     }
 
     function setTintFavicons(enabled) {
-        window.tintFavicons = enabled
-        window.windowBrowser.setPreference("tint-favicons", enabled ? "true" : "false")
+        window.tintFavicons = enabled;
+        window.windowBrowser.setPreference("tint-favicons", enabled ? "true" : "false");
     }
 
     onSidebarWidthChanged: sidebarWidthWriter.restart()
@@ -989,13 +990,13 @@ ApplicationWindow {
     // stores, in the order the bar offers them.
     function respondToPermission(decision) {
         window.windowBrowser.setPermissionDecision(window.pendingPermissionOrigin,
-                                                   window.pendingPermissionType, decision)
+                                                   window.pendingPermissionType, decision);
         if (window.pendingPermissionResponder) {
             window.pendingPermissionResponder.respondToPermission(window.pendingPermissionRequest,
-                                                                  decision)
+                                                                  decision);
         }
-        window.permissionOpen = false
-        window.pendingPermissionResponder = null
+        window.permissionOpen = false;
+        window.pendingPermissionResponder = null;
     }
 
     // The engine is blocking the load and waiting. An exception is offered only
@@ -1007,36 +1008,36 @@ ApplicationWindow {
         // cannot answer, so it is refused: a retained tab in another Space
         // reaches no bar. An Auxiliary window is in front of them by
         // definition, and says so.
-        const visible = inFront === true || engine === engineLoader.item
+        const visible = inFront === true || engine === engineLoader.item;
         const offerable = visible && window.windowBrowser.mayOfferCertificateException(failure.url,
                                                                                        failure.overridable
                                                                                        === true, failure.mainFrame
                                                                                        === true, failure.fatal
-                                                                                       === true)
+                                                                                       === true);
         if (!offerable) {
-            engine.respondToCertificateError(requestId, false)
-            return
+            engine.respondToCertificateError(requestId, false);
+            return;
         }
-        window.pendingCertificateFailure = failure
-        window.pendingCertificateFailureId = requestId
-        window.pendingCertificateResponder = engine
-        window.certificateQuestionOpen = true
+        window.pendingCertificateFailure = failure;
+        window.pendingCertificateFailureId = requestId;
+        window.pendingCertificateResponder = engine;
+        window.certificateQuestionOpen = true;
     }
 
     function respondToCertificateError(accepted) {
         if (window.pendingCertificateResponder) {
             window.pendingCertificateResponder.respondToCertificateError(
-                        window.pendingCertificateFailureId, accepted)
+                        window.pendingCertificateFailureId, accepted);
         }
         // The engine will now keep the accepted certificate for as long as its
         // profile lives and stop reporting the failure. Recording the waiver
         // is what lets the address trigger keep saying the check was waived.
         if (accepted) {
-            window.windowBrowser.recordCertificateException(window.pendingCertificateFailure.url)
+            window.windowBrowser.recordCertificateException(window.pendingCertificateFailure.url);
         }
-        window.certificateQuestionOpen = false
-        window.pendingCertificateResponder = null
-        window.pendingCertificateFailureId = ""
+        window.certificateQuestionOpen = false;
+        window.pendingCertificateResponder = null;
+        window.pendingCertificateFailureId = "";
     }
 
     // A third party a page had refused can be allowed for one named flow, and
@@ -1044,68 +1045,68 @@ ApplicationWindow {
     // reader is choosing among origins they cannot judge by name, so each row
     // says the whole origin and what allowing it would be for.
     function refreshThirdPartyRows() {
-        const rows = []
-        const allowances = window.windowBrowser.thirdPartyCookieAllowances()
+        const rows = [];
+        const allowances = window.windowBrowser.thirdPartyCookieAllowances();
         for (let index = 0; index < allowances.length; ++index) {
             rows.push({
                           "label": "stop allowing " + allowances[index].origin,
                           "note": "allowed for " + allowances[index].purpose,
                           "origin": allowances[index].origin,
                           "purpose": ""
-                      })
+                      });
         }
         // Read from the panel, which asked the engine's filter when it opened.
         // Asking again here would be a second place that knows how to.
-        const refused = sidebar.refusedThirdParties
+        const refused = sidebar.refusedThirdParties;
         for (let index = 0; index < refused.length; ++index) {
             rows.push({
                           "label": "allow " + refused[index] + " for a sign-in",
                           "note": "until this session ends",
                           "origin": refused[index],
                           "purpose": "authentication"
-                      })
+                      });
             rows.push({
                           "label": "allow " + refused[index] + " for a payment",
                           "note": "until this session ends",
                           "origin": refused[index],
                           "purpose": "payment"
-                      })
+                      });
         }
-        window.thirdPartyRows = rows
+        window.thirdPartyRows = rows;
     }
 
     function answerThirdPartyRow(index) {
-        const row = window.thirdPartyRows[index]
+        const row = window.thirdPartyRows[index];
         if (!row)
-            return
+            return;
         if (row.purpose.length === 0) {
             if (window.windowBrowser.revokeThirdPartyCookieAllowance(row.origin)) {
                 window.showNotice("cookie", "Stopped allowing " + row.origin,
-                                  "it is refused again from the next request", 4200)
+                                  "it is refused again from the next request", 4200);
             }
-            return
+            return;
         }
         if (window.windowBrowser.allowThirdPartyCookies(row.origin, row.purpose)) {
             window.showNotice("cookie", "Allowing " + row.origin, "for a " + (row.purpose
                                                                               === "payment"
                                                                               ? "payment" :
                                                                                 "sign-in")
-                              + " · until this session ends · reload the page to use it", 4200)
+                              + " · until this session ends · reload the page to use it", 4200);
         }
     }
 
     function clearSpaceSiteData() {
-        const cleared = window.windowBrowser.clearBrowsingData(["cookies", "storage", "cache"], 0)
-        const stayed = window.untouchedDataCategories
+        const cleared = window.windowBrowser.clearBrowsingData(["cookies", "storage", "cache"], 0);
+        const stayed = window.untouchedDataCategories;
         window.showNotice(cleared ? "delete_sweep" : "block", cleared
                           ? "Cleared this Space's cookies and cache" :
                             "Could not clear this Space's site data", cleared && stayed.length > 0
                           ? stayed.join(" and ") + " stayed: this engine has no way to remove them" :
-                            "")
+                            "");
     }
 
     function resetSitePermissions() {
-        const origin = window.windowBrowser.activeUrl
+        const origin = window.windowBrowser.activeUrl;
         const reset = window.windowBrowser.resetSitePermissions(origin);
         // Reloading does not take a capability off a page: the engine answers a
         // granted one from a store keyed by the frame that asked, and a reload
@@ -1114,57 +1115,57 @@ ApplicationWindow {
                           ? "Reset every decision for this site" :
                             "Could not reset the decisions for this site", reset
                           ? "a page already holding one keeps it until you open the site again" :
-                            "")
+                            "");
     }
 
     function showBrowserPrompt(engine, requestId, prompt) {
         if (engine !== engineLoader.item) {
-            engine.respondToBrowserPrompt(requestId, false, {})
-            return
+            engine.respondToBrowserPrompt(requestId, false, {});
+            return;
         }
-        const tabId = window.windowBrowser.activeTabId
-        const prompts = Object.assign({}, window.browserPromptsByTab)
+        const tabId = window.windowBrowser.activeTabId;
+        const prompts = Object.assign({}, window.browserPromptsByTab);
         prompts[tabId] = {
             "responder": engine,
             "requestId": requestId,
             "prompt": prompt,
             "generation": engine.pageGeneration
-        }
-        window.browserPromptsByTab = prompts
-        window.presentBrowserPromptForActiveTab()
+        };
+        window.browserPromptsByTab = prompts;
+        window.presentBrowserPromptForActiveTab();
     }
 
     function presentBrowserPromptForActiveTab() {
-        const tabId = window.windowBrowser.activeTabId
-        const pending = window.browserPromptsByTab[tabId]
+        const tabId = window.windowBrowser.activeTabId;
+        const pending = window.browserPromptsByTab[tabId];
         if (!pending) {
-            window.browserPromptOpen = false
-            window.pendingBrowserPromptResponder = null
-            window.pendingBrowserPromptId = ""
-            window.pendingBrowserPromptTabId = ""
-            window.pendingBrowserPrompt = ({})
-            return
+            window.browserPromptOpen = false;
+            window.pendingBrowserPromptResponder = null;
+            window.pendingBrowserPromptId = "";
+            window.pendingBrowserPromptTabId = "";
+            window.pendingBrowserPrompt = ({});
+            return;
         }
         if (!pending.responder || Number(pending.generation) !== Number(
                     pending.responder.pageGeneration)) {
-            const prompts = Object.assign({}, window.browserPromptsByTab)
-            delete prompts[tabId]
-            window.browserPromptsByTab = prompts
+            const prompts = Object.assign({}, window.browserPromptsByTab);
+            delete prompts[tabId];
+            window.browserPromptsByTab = prompts;
             if (pending.responder)
-                pending.responder.respondToBrowserPrompt(pending.requestId, false, {})
-            window.presentBrowserPromptForActiveTab()
-            return
+                pending.responder.respondToBrowserPrompt(pending.requestId, false, {});
+            window.presentBrowserPromptForActiveTab();
+            return;
         }
-        window.pendingBrowserPromptResponder = pending.responder
-        window.pendingBrowserPromptId = pending.requestId
-        window.pendingBrowserPromptTabId = tabId
-        window.pendingBrowserPrompt = pending.prompt
-        window.browserPromptOpen = true
+        window.pendingBrowserPromptResponder = pending.responder;
+        window.pendingBrowserPromptId = pending.requestId;
+        window.pendingBrowserPromptTabId = tabId;
+        window.pendingBrowserPrompt = pending.prompt;
+        window.browserPromptOpen = true;
     }
 
     function respondToBrowserPrompt(accepted, text, user, password, stopPrompts, remember) {
-        const responder = window.pendingBrowserPromptResponder
-        const tabId = window.pendingBrowserPromptTabId
+        const responder = window.pendingBrowserPromptResponder;
+        const tabId = window.pendingBrowserPromptTabId;
         if (responder) {
             responder.respondToBrowserPrompt(window.pendingBrowserPromptId, accepted, {
                                                  "text": text,
@@ -1172,174 +1173,174 @@ ApplicationWindow {
                                                  "password": password,
                                                  "stopPrompts": stopPrompts,
                                                  "remember": remember
-                                             })
+                                             });
         }
-        const prompts = Object.assign({}, window.browserPromptsByTab)
-        delete prompts[tabId]
-        window.browserPromptsByTab = prompts
-        window.presentBrowserPromptForActiveTab()
+        const prompts = Object.assign({}, window.browserPromptsByTab);
+        delete prompts[tabId];
+        window.browserPromptsByTab = prompts;
+        window.presentBrowserPromptForActiveTab();
     }
 
     function openLocalFile(fileUrl) {
-        const address = String(fileUrl)
+        const address = String(fileUrl);
         if (!address.startsWith("file:"))
-            return
-        window.windowBrowser.openInput(address, false)
+            return;
+        window.windowBrowser.openInput(address, false);
     }
 
     function requestOpenFile() {
-        openFileDialog.open()
+        openFileDialog.open();
     }
 
     function showFileSelection(engine, requestId, selection) {
         if (engine !== engineLoader.item) {
-            engine.respondToFileSelection(requestId, [])
-            return
+            engine.respondToFileSelection(requestId, []);
+            return;
         }
-        window.pendingFileSelectionResponder = engine
-        window.pendingFileSelectionId = requestId
-        window.pendingFileSelectionTabId = window.windowBrowser.activeTabId
-        window.pendingFileSelection = selection
+        window.pendingFileSelectionResponder = engine;
+        window.pendingFileSelectionId = requestId;
+        window.pendingFileSelectionTabId = window.windowBrowser.activeTabId;
+        window.pendingFileSelection = selection;
         if (selection.mode === "folder") {
-            pageFolderDialog.open()
-            return
+            pageFolderDialog.open();
+            return;
         }
         pageFileDialog.fileMode = selection.mode === "open-multiple" ? Dialogs.FileDialog.OpenFiles :
                                                                        (selection.mode === "save"
                                                                         ? Dialogs.FileDialog.SaveFile :
-                                                                          Dialogs.FileDialog.OpenFile)
-        pageFileDialog.open()
+                                                                          Dialogs.FileDialog.OpenFile);
+        pageFileDialog.open();
     }
 
     function respondToFileSelection(files) {
-        const responder = window.pendingFileSelectionResponder
-        const requestId = window.pendingFileSelectionId
-        window.pendingFileSelectionResponder = null
-        window.pendingFileSelectionId = ""
-        window.pendingFileSelectionTabId = ""
-        window.pendingFileSelection = ({})
+        const responder = window.pendingFileSelectionResponder;
+        const requestId = window.pendingFileSelectionId;
+        window.pendingFileSelectionResponder = null;
+        window.pendingFileSelectionId = "";
+        window.pendingFileSelectionTabId = "";
+        window.pendingFileSelection = ({});
         if (responder)
-            responder.respondToFileSelection(requestId, files)
+            responder.respondToFileSelection(requestId, files);
         if (pageFileDialog.visible)
-            pageFileDialog.close()
+            pageFileDialog.close();
         if (pageFolderDialog.visible)
-            pageFolderDialog.close()
+            pageFolderDialog.close();
     }
 
     function cancelTabModalRequests() {
         if (window.browserPromptOpen)
-            window.respondToBrowserPrompt(false, "", "", "", false, false)
+            window.respondToBrowserPrompt(false, "", "", "", false, false);
         if (window.pendingFileSelectionResponder)
-            window.respondToFileSelection([])
-        window.pageMenuOpen = false
-        window.pendingSaveEngine = null
-        window.pendingSaveAction = ""
-        window.pendingSaveTabId = ""
-        window.pendingSaveGeneration = -1
+            window.respondToFileSelection([]);
+        window.pageMenuOpen = false;
+        window.pendingSaveEngine = null;
+        window.pendingSaveAction = "";
+        window.pendingSaveTabId = "";
+        window.pendingSaveGeneration = -1;
         if (saveTargetDialog.visible)
-            saveTargetDialog.close()
+            saveTargetDialog.close();
     }
 
     function reconcileTabModalRequests() {
-        const active = window.windowBrowser.activeTabId
-        window.presentBrowserPromptForActiveTab()
+        const active = window.windowBrowser.activeTabId;
+        window.presentBrowserPromptForActiveTab();
         if (window.pendingFileSelectionResponder && window.pendingFileSelectionTabId !== active)
-            window.respondToFileSelection([])
+            window.respondToFileSelection([]);
         if (window.pendingSaveEngine && window.pendingSaveTabId !== active) {
-            window.pendingSaveEngine = null
-            window.pendingSaveAction = ""
-            window.pendingSaveTabId = ""
-            window.pendingSaveGeneration = -1
+            window.pendingSaveEngine = null;
+            window.pendingSaveAction = "";
+            window.pendingSaveTabId = "";
+            window.pendingSaveGeneration = -1;
             if (saveTargetDialog.visible)
-                saveTargetDialog.close()
+                saveTargetDialog.close();
         }
-        window.pageMenuOpen = false
+        window.pageMenuOpen = false;
     }
 
     function requestTargetSave(engine, action, url) {
-        window.pendingSaveEngine = engine
-        window.pendingSaveAction = action
-        window.pendingSaveTabId = window.windowBrowser.activeTabId
-        window.pendingSaveGeneration = Number(engine.pageGeneration)
-        const address = String(url).split("?")[0].split("#")[0]
-        const slash = address.lastIndexOf("/")
+        window.pendingSaveEngine = engine;
+        window.pendingSaveAction = action;
+        window.pendingSaveTabId = window.windowBrowser.activeTabId;
+        window.pendingSaveGeneration = Number(engine.pageGeneration);
+        const address = String(url).split("?")[0].split("#")[0];
+        const slash = address.lastIndexOf("/");
         const suggested = slash >= 0 && slash + 1 < address.length ? address.substring(slash + 1) :
-                                                                     "download"
+                                                                     "download";
         saveTargetDialog.currentFile = "file://" + window.windowBrowser.downloadDirectory + "/"
-                + suggested
-        saveTargetDialog.open()
+                + suggested;
+        saveTargetDialog.open();
     }
 
     function completeTargetSave(fileUrl) {
-        const engine = window.pendingSaveEngine
+        const engine = window.pendingSaveEngine;
         if (engine && engine === engineLoader.item && window.pendingSaveGeneration === Number(
                     engine.pageGeneration))
-            engine.performPageContextAction(window.pendingSaveAction, String(fileUrl))
-        window.pendingSaveEngine = null
-        window.pendingSaveAction = ""
-        window.pendingSaveTabId = ""
-        window.pendingSaveGeneration = -1
+            engine.performPageContextAction(window.pendingSaveAction, String(fileUrl));
+        window.pendingSaveEngine = null;
+        window.pendingSaveAction = "";
+        window.pendingSaveTabId = "";
+        window.pendingSaveGeneration = -1;
         if (saveTargetDialog.visible)
-            saveTargetDialog.close()
+            saveTargetDialog.close();
     }
 
     function stepTab(delta) {
-        const tabs = window.windowBrowser.tabs
-        const count = tabs.rowCount()
+        const tabs = window.windowBrowser.tabs;
+        const count = tabs.rowCount();
         if (count === 0)
-            return
-        let current = 0
+            return;
+        let current = 0;
         for (let row = 0; row < count; ++row) {
             if (tabs.data(tabs.index(row, 0), Qt.UserRole + 6)) {
-                current = row
-                break
+                current = row;
+                break;
             }
         }
-        const next = (current + delta + count) % count
-        window.windowBrowser.activateTab(tabs.data(tabs.index(next, 0), Qt.UserRole + 1))
+        const next = (current + delta + count) % count;
+        window.windowBrowser.activateTab(tabs.data(tabs.index(next, 0), Qt.UserRole + 1));
     }
 
     function activateTabAt(position) {
-        const tabs = window.windowBrowser.tabs
+        const tabs = window.windowBrowser.tabs;
         if (position < 0 || position >= tabs.rowCount())
-            return
-        window.windowBrowser.activateTab(tabs.data(tabs.index(position, 0), Qt.UserRole + 1))
+            return;
+        window.windowBrowser.activateTab(tabs.data(tabs.index(position, 0), Qt.UserRole + 1));
     }
 
     function stepSpace(delta) {
         if (privateWindow)
-            return
-        const spaces = window.windowBrowser.spaces
-        const count = spaces.rowCount()
+            return;
+        const spaces = window.windowBrowser.spaces;
+        const count = spaces.rowCount();
         if (count === 0)
-            return
-        let current = 0
+            return;
+        let current = 0;
         for (let row = 0; row < count; ++row) {
             if (spaces.data(spaces.index(row, 0), Qt.UserRole + 4)) {
-                current = row
-                break
+                current = row;
+                break;
             }
         }
-        const next = (current + delta + count) % count
-        window.windowBrowser.switchSpace(spaces.data(spaces.index(next, 0), Qt.UserRole + 1))
+        const next = (current + delta + count) % count;
+        window.windowBrowser.switchSpace(spaces.data(spaces.index(next, 0), Qt.UserRole + 1));
     }
 
     function activateSpaceAt(position) {
         if (privateWindow)
-            return
-        const spaces = window.windowBrowser.spaces
+            return;
+        const spaces = window.windowBrowser.spaces;
         if (position < 0 || position >= spaces.rowCount())
-            return
-        window.windowBrowser.switchSpace(spaces.data(spaces.index(position, 0), Qt.UserRole + 1))
+            return;
+        window.windowBrowser.switchSpace(spaces.data(spaces.index(position, 0), Qt.UserRole + 1));
     }
 
     function openOmnibar(forNewTab) {
-        newTabIntent = forNewTab
-        const preset = forNewTab ? "" : window.windowBrowser.activeUrl.toString()
+        newTabIntent = forNewTab;
+        const preset = forNewTab ? "" : window.windowBrowser.activeUrl.toString();
         omnibarSuggestions = window.privateWindow ? [] : window.windowBrowser.historySuggestions(
-                                                        preset)
-        commandPanel.beginAddress(preset, forNewTab)
-        omnibarOpen = true
+                                                        preset);
+        commandPanel.beginAddress(preset, forNewTab);
+        omnibarOpen = true;
     }
 
     // The profile the Space on show runs in. Which is the same table every
@@ -1347,10 +1348,10 @@ ApplicationWindow {
     // was left with rather than a new one.
     function createSpaceProfile() {
         if (window.privateWindow)
-            return
-        const host = spaceProfiles.hostFor(window.windowBrowser.activeSpaceId)
+            return;
+        const host = spaceProfiles.hostFor(window.windowBrowser.activeSpaceId);
         if (host)
-            window.spaceProfileHost = host
+            window.spaceProfileHost = host;
     }
 
     // Whoever built a Space's profile — this window on the way to showing that
@@ -1359,41 +1360,41 @@ ApplicationWindow {
     // route, so every profile passes through here once.
     function adoptSpaceProfile(spaceId, host) {
         if (!host)
-            return
+            return;
         if (!host.downloadObserversConnected) {
             host.downloadStarted.connect(function (runtimeId, sourceUrl, path, state, receivedBytes,
                                                    totalBytes) {
                 window.handleDownloadStarted(host, runtimeId, sourceUrl, path, state, receivedBytes,
-                                             totalBytes)
-            })
-            host.downloadUpdated.connect(window.handleDownloadUpdated)
+                                             totalBytes);
+            });
+            host.downloadUpdated.connect(window.handleDownloadUpdated);
             host.downloadHeld.connect(function (token, disposition, origin, sourceUrl, fileName,
                                                 risk) {
-                window.holdDownload(host, token, disposition, origin, sourceUrl, fileName, risk)
-            })
+                window.holdDownload(host, token, disposition, origin, sourceUrl, fileName, risk);
+            });
             host.downloadRefused.connect(function (sourceUrl, fileName, origin) {
                 window.showNotice("block", "Download refused", fileName + " · " + origin
-                                  + " may not download here", 4200)
-            })
-            host.downloadObserversConnected = true
+                                  + " may not download here", 4200);
+            });
+            host.downloadObserversConnected = true;
         }
-        siteNotifications.watch(spaceId, host)
+        siteNotifications.watch(spaceId, host);
     }
 
     function retireSpaceProfile(spaceId) {
-        const retired = spaceProfiles.retire(spaceId)
+        const retired = spaceProfiles.retire(spaceId);
         if (retired && window.spaceProfileHost === retired)
-            window.spaceProfileHost = null
+            window.spaceProfileHost = null;
     }
 
     function handleDownloadStarted(host, runtimeId, sourceUrl, path, state, receivedBytes,
                                    totalBytes) {
-        const wasIdle = window.downloadActivity.running === 0
+        const wasIdle = window.downloadActivity.running === 0;
         const recordId = window.windowBrowser.recordDownload(runtimeId, sourceUrl, path, state,
-                                                             receivedBytes, totalBytes)
+                                                             receivedBytes, totalBytes);
         if (recordId.length > 0)
-            window.downloadRecordIds[runtimeId] = recordId
-        const running = window.runningDownloads
+            window.downloadRecordIds[runtimeId] = recordId;
+        const running = window.runningDownloads;
         running[runtimeId] = {
             "host": host,
             "runtimeId": runtimeId,
@@ -1406,79 +1407,79 @@ ApplicationWindow {
             "error": "",
             "receivedBytes": receivedBytes,
             "totalBytes": totalBytes
-        }
-        window.runningDownloads = running
+        };
+        window.runningDownloads = running;
         if (wasIdle)
-            window.finishedDownloadCount = 0
-        window.refreshDownloadActivity()
+            window.finishedDownloadCount = 0;
+        window.refreshDownloadActivity();
         if (window.settingsOpen)
-            window.refreshVisibleDownloads()
+            window.refreshVisibleDownloads();
         window.showNotice("download", "Downloading " + window.downloadFileName(path), String(
-                              sourceUrl), 3000)
+                              sourceUrl), 3000);
     }
 
     function handleDownloadUpdated(runtimeId, state, receivedBytes, totalBytes, error) {
-        const recordId = window.downloadRecordIds[runtimeId]
+        const recordId = window.downloadRecordIds[runtimeId];
         if (recordId)
-            window.windowBrowser.updateDownload(recordId, state, receivedBytes, totalBytes, error)
-        const running = window.runningDownloads
-        const download = running[runtimeId]
+            window.windowBrowser.updateDownload(recordId, state, receivedBytes, totalBytes, error);
+        const running = window.runningDownloads;
+        const download = running[runtimeId];
         if (!download)
-            return
-        download.state = state
-        download.error = String(error || "")
-        download.receivedBytes = receivedBytes
-        download.totalBytes = totalBytes
+            return;
+        download.state = state;
+        download.error = String(error || "");
+        download.receivedBytes = receivedBytes;
+        download.totalBytes = totalBytes;
         if (state === "completed") {
             const marked = SavedDownload.quarantine(download.path, download.sourceUrl,
-                                                    download.pageUrl)
+                                                    download.pageUrl);
             window.showNotice("download_done", "Saved " + download.fileName, marked ? download.path :
                                                                                       download.path
                                                                                       + " · this filesystem carries no origin metadata",
-                              window.savedDownloadNoticeMilliseconds)
+                              window.savedDownloadNoticeMilliseconds);
         } else if (state === "interrupted") {
             window.showNotice("error", "Download failed", download.fileName + (
-                                  download.error.length > 0 ? " · " + download.error : ""), 4200)
+                                  download.error.length > 0 ? " · " + download.error : ""), 4200);
         }
         if (state === "completed" || state === "cancelled")
-            delete running[runtimeId]
+            delete running[runtimeId];
         if (state === "completed")
-            window.finishedDownloadCount += 1
-        window.runningDownloads = running
-        window.refreshDownloadActivity()
+            window.finishedDownloadCount += 1;
+        window.runningDownloads = running;
+        window.refreshDownloadActivity();
         if (window.settingsOpen)
-            window.refreshVisibleDownloads()
+            window.refreshVisibleDownloads();
     }
 
     function localPath(fileUrl) {
-        return String(fileUrl).replace(/^file:\/\//, "")
+        return String(fileUrl).replace(/^file:\/\//, "");
     }
 
     function fileUrl(path) {
-        return "file://" + String(path)
+        return "file://" + String(path);
     }
 
     function downloadFileName(path) {
-        const separator = Math.max(String(path).lastIndexOf("/"), String(path).lastIndexOf("\\"))
-        return separator >= 0 ? String(path).substring(separator + 1) : String(path)
+        const separator = Math.max(String(path).lastIndexOf("/"), String(path).lastIndexOf("\\"));
+        return separator >= 0 ? String(path).substring(separator + 1) : String(path);
     }
 
     function refreshDownloadActivity() {
-        let running = 0
-        let received = 0
-        let total = 0
-        const detailed = window.downloadDetailOpen
-        const downloads = []
+        let running = 0;
+        let received = 0;
+        let total = 0;
+        const detailed = window.downloadDetailOpen;
+        const downloads = [];
         for (const runtimeId in window.runningDownloads) {
-            const download = window.runningDownloads[runtimeId]
+            const download = window.runningDownloads[runtimeId];
             if (download.state === "interrupted")
-                continue
-            running += 1
-            received += download.receivedBytes
+                continue;
+            running += 1;
+            received += download.receivedBytes;
             if (total >= 0 && download.totalBytes > 0)
-                total += download.totalBytes
+                total += download.totalBytes;
             else
-                total = -1
+                total = -1;
             if (detailed)
                 downloads.push({
                                    "name": download.fileName,
@@ -1486,22 +1487,22 @@ ApplicationWindow {
                                                                                   download.receivedBytes
                                                                                   / download.totalBytes) :
                                                                          -1
-                               })
+                               });
         }
         window.downloadActivity = {
             "running": running,
             "fraction": total > 0 ? Math.min(1, received / total) : -1,
             "finished": window.finishedDownloadCount,
             "downloads": downloads
-        }
+        };
     }
 
     onDownloadDetailOpenChanged: window.refreshDownloadActivity()
 
     function refreshVisibleDownloads() {
-        const running = []
+        const running = [];
         for (const runtimeId in window.runningDownloads) {
-            const download = window.runningDownloads[runtimeId]
+            const download = window.runningDownloads[runtimeId];
             running.push({
                              "runtimeId": runtimeId,
                              "id": download.recordId,
@@ -1512,17 +1513,17 @@ ApplicationWindow {
                              "receivedBytes": download.receivedBytes,
                              "totalBytes": download.totalBytes,
                              "running": true
-                         })
+                         });
         }
-        const recorded = []
-        const history = window.windowBrowser.downloadHistory()
+        const recorded = [];
+        const history = window.windowBrowser.downloadHistory();
         for (let index = 0; index < history.length; ++index) {
-            const record = history[index]
-            let live = false
+            const record = history[index];
+            let live = false;
             for (let position = 0; position < running.length; ++position)
-                live = live || running[position].id === record.id
+                live = live || running[position].id === record.id;
             if (live)
-                continue
+                continue;
             recorded.push({
                               "runtimeId": "",
                               "id": record.id,
@@ -1533,39 +1534,39 @@ ApplicationWindow {
                               "receivedBytes": record.receivedBytes,
                               "totalBytes": record.totalBytes,
                               "running": false
-                          })
+                          });
         }
-        window.visibleDownloads = running.concat(recorded)
+        window.visibleDownloads = running.concat(recorded);
     }
 
     function cancelDownload(runtimeId) {
-        const download = window.runningDownloads[runtimeId]
+        const download = window.runningDownloads[runtimeId];
         if (!download || !download.host)
-            return
-        download.host.cancelDownload(runtimeId)
+            return;
+        download.host.cancelDownload(runtimeId);
     }
 
     function retryDownload(runtimeId, sourceUrl) {
-        const download = window.runningDownloads[runtimeId]
+        const download = window.runningDownloads[runtimeId];
         if (download && download.host && download.host.retryDownload(runtimeId))
-            return
+            return;
         if (String(sourceUrl).length > 0) {
-            window.windowBrowser.openInput(String(sourceUrl), false)
-            return
+            window.windowBrowser.openInput(String(sourceUrl), false);
+            return;
         }
         window.showNotice("block", "This download cannot be retried", "Ask the page for it again",
-                          4200)
+                          4200);
     }
 
     function revealDownload(path) {
         if (!SavedDownload.reveal(path))
             window.showNotice("block", "Nothing to show",
-                              "The file is no longer where Omaweb put it", 4200)
+                              "The file is no longer where Omaweb put it", 4200);
     }
 
     function forgetDownload(recordId) {
         if (window.windowBrowser.forgetDownload(recordId))
-            window.refreshVisibleDownloads()
+            window.refreshVisibleDownloads();
     }
 
     function holdDownload(host, token, disposition, origin, sourceUrl, fileName, risk) {
@@ -1577,52 +1578,52 @@ ApplicationWindow {
                                           "sourceUrl": String(sourceUrl),
                                           "fileName": String(fileName),
                                           "risk": String(risk)
-                                      })
-        window.presentHeldDownload()
+                                      });
+        window.presentHeldDownload();
     }
 
     function presentHeldDownload() {
         if (window.downloadQuestion || window.heldDownloadQueue.length === 0)
-            return
-        const held = window.heldDownloadQueue.shift()
-        window.downloadQuestion = held
+            return;
+        const held = window.heldDownloadQueue.shift();
+        window.downloadQuestion = held;
         if (held.disposition === "save-as") {
             downloadTargetDialog.currentFile = window.fileUrl(
-                        window.windowBrowser.downloadDirectory + "/" + held.fileName)
-            downloadTargetDialog.open()
-            return
+                        window.windowBrowser.downloadDirectory + "/" + held.fileName);
+            downloadTargetDialog.open();
+            return;
         }
-        window.downloadQuestionOpen = true
+        window.downloadQuestionOpen = true;
     }
 
     function answerHeldDownload(keep, path, permissionDecision) {
-        const held = window.downloadQuestion
-        window.downloadQuestionOpen = false
-        window.downloadQuestion = null
+        const held = window.downloadQuestion;
+        window.downloadQuestionOpen = false;
+        window.downloadQuestion = null;
         if (held) {
             if (permissionDecision > 0)
                 window.windowBrowser.setPermissionDecision(held.origin, "automatic-downloads",
-                                                           permissionDecision)
+                                                           permissionDecision);
             if (keep)
-                held.host.releaseHeldDownload(held.token, path ? String(path) : "")
+                held.host.releaseHeldDownload(held.token, path ? String(path) : "");
             else {
-                held.host.discardHeldDownload(held.token)
-                window.showNotice("block", "Download discarded", held.fileName, 3000)
+                held.host.discardHeldDownload(held.token);
+                window.showNotice("block", "Download discarded", held.fileName, 3000);
             }
         }
-        window.presentHeldDownload()
+        window.presentHeldDownload();
     }
 
     function chooseDownloadDirectory(folderUrl) {
-        const path = window.localPath(folderUrl)
+        const path = window.localPath(folderUrl);
         if (!window.windowBrowser.setDownloadDirectory(path))
-            window.showNotice("block", "That directory cannot take downloads", path, 4200)
+            window.showNotice("block", "That directory cannot take downloads", path, 4200);
     }
 
     function closeOmnibar() {
-        omnibarOpen = false
-        newTabIntent = false
-        engineLoader.focusPage()
+        omnibarOpen = false;
+        newTabIntent = false;
+        engineLoader.focusPage();
     }
 
     // Every binding — chord, single key, or sequence — comes from the keyboard
@@ -1708,10 +1709,10 @@ ApplicationWindow {
                 // The panel states; the window asks. Opening the dialog puts
                 // the panel away, so there is one surface holding the question.
                 onSiteActionRequested: function (action) {
-                    sidebar.statusOpen = false
+                    sidebar.statusOpen = false;
                     if (action === "third-party")
-                        window.refreshThirdPartyRows()
-                    window.dialogMode = action
+                        window.refreshThirdPartyRows();
+                    window.dialogMode = action;
                 }
 
                 // A drag is already following the pointer; easing it too
@@ -1726,34 +1727,34 @@ ApplicationWindow {
 
                 onAddressRequested: window.openOmnibar(false)
                 onTabActivated: function (tabId) {
-                    window.windowBrowser.activateTab(tabId)
+                    window.windowBrowser.activateTab(tabId);
                 }
                 onTabCloseRequested: function (tabId) {
-                    window.windowBrowser.closeTab(tabId)
+                    window.windowBrowser.closeTab(tabId);
                 }
                 // The speaker is the one place a row's sound can be given
                 // back, so it answers for both reasons a tab is silent: the
                 // reader's own muting, and an origin they have not dealt with.
                 onTabMuteToggled: function (tabId) {
                     if (window.windowBrowser.tabSoundSuppressed(tabId)) {
-                        window.windowBrowser.grantTabSound(tabId)
-                        return
+                        window.windowBrowser.grantTabSound(tabId);
+                        return;
                     }
-                    window.windowBrowser.toggleTabMuted(tabId)
+                    window.windowBrowser.toggleTabMuted(tabId);
                 }
                 onTabDropped: function (tabId, destination) {
-                    window.windowBrowser.moveTab(tabId, destination)
+                    window.windowBrowser.moveTab(tabId, destination);
                 }
                 onTabMenuRequested: function (tabId, anchorX, anchorY) {
-                    window.openTabMenu(tabId, anchorX, anchorY)
+                    window.openTabMenu(tabId, anchorX, anchorY);
                 }
                 onSpaceActivated: function (spaceId) {
-                    window.windowBrowser.switchSpace(spaceId)
+                    window.windowBrowser.switchSpace(spaceId);
                 }
                 onSpacesMenuRequested: function (anchorX, anchorY) {
-                    window.spacesMenuX = anchorX
-                    window.spacesMenuY = anchorY
-                    window.spacesMenuOpen = true
+                    window.spacesMenuX = anchorX;
+                    window.spacesMenuY = anchorY;
+                    window.spacesMenuOpen = true;
                 }
                 onSettingsRequested: window.requestSettings()
                 onBackRequested: window.windowBrowser.requestBack()
@@ -1820,13 +1821,13 @@ ApplicationWindow {
                                                                   "openerEngine": engine,
                                                                   "request": request,
                                                                   "requestedUrl": requestedUrl
-                                                              })
+                                                              });
                     }
 
                     onNewTabRequested: function (engine, request, requestedUrl) {
                         const destination = requestedUrl.toString().length > 0
-                              ? requestedUrl.toString() : "about:blank"
-                        window.windowBrowser.openInput(request ? "about:blank" : destination, true)
+                              ? requestedUrl.toString() : "about:blank";
+                        window.windowBrowser.openInput(request ? "about:blank" : destination, true);
                         // The tab the request opened is the active one, and it
                         // is named rather than left to `item`: the tab starts
                         // blank, a blank tab is given no engine, and the
@@ -1834,20 +1835,20 @@ ApplicationWindow {
                         // whichever page happened to be showing.
                         if (request) {
                             engineLoader.adoptNewWindowRequest(window.windowBrowser.activeTabId,
-                                                               request)
+                                                               request);
                         }
                     }
 
                     onBackgroundTabRequested: function (requestedUrl) {
-                        window.windowBrowser.openInputInBackground(requestedUrl)
+                        window.windowBrowser.openInputInBackground(requestedUrl);
                     }
 
                     onPageContextRequested: function (engine, context) {
-                        window.openPageMenu(engine, context)
+                        window.openPageMenu(engine, context);
                     }
 
                     onPrintFinished: function (destination, succeeded) {
-                        window.presentPrint(destination, succeeded)
+                        window.presentPrint(destination, succeeded);
                     }
 
                     // A site taking the screen is a state the window is in, not
@@ -1856,32 +1857,32 @@ ApplicationWindow {
                     // reader is told whose page is holding it and how to leave.
                     onSiteFullscreenActiveChanged: {
                         if (engineLoader.siteFullscreenActive) {
-                            window.sidebarHiddenForFullscreen = !window.sidebarCollapsed
-                            window.sidebarCollapsed = true
-                            window.applyFullscreen()
+                            window.sidebarHiddenForFullscreen = !window.sidebarCollapsed;
+                            window.sidebarCollapsed = true;
+                            window.applyFullscreen();
                             window.showNotice("fullscreen", engineLoader.siteFullscreenOrigin
                                               + " is showing this page fullscreen",
-                                              "press esc to leave", 4200)
-                            return
+                                              "press esc to leave", 4200);
+                            return;
                         }
-                        window.applyFullscreen()
+                        window.applyFullscreen();
                         if (window.sidebarHiddenForFullscreen) {
-                            window.sidebarCollapsed = false
-                            window.sidebarHiddenForFullscreen = false
+                            window.sidebarCollapsed = false;
+                            window.sidebarHiddenForFullscreen = false;
                         }
-                        pageNotice.dismiss()
+                        pageNotice.dismiss();
                     }
 
                     onSitePermissionRequested: function (engine, requestId, origin, permission) {
-                        window.pendingPermissionRequest = requestId
-                        window.pendingPermissionResponder = engine
-                        window.pendingPermissionOrigin = origin
-                        window.pendingPermissionType = permission
-                        window.permissionOpen = true
+                        window.pendingPermissionRequest = requestId;
+                        window.pendingPermissionResponder = engine;
+                        window.pendingPermissionOrigin = origin;
+                        window.pendingPermissionType = permission;
+                        window.permissionOpen = true;
                     }
 
                     onCertificateErrorRaised: function (engine, requestId, failure) {
-                        window.showCertificateError(engine, requestId, failure)
+                        window.showCertificateError(engine, requestId, failure);
                     }
 
                     // What the page managed to empty of its own storage. A page
@@ -1890,25 +1891,25 @@ ApplicationWindow {
                     onPageSiteDataCleared: function (origin, cleared, error) {
                         if (error.length > 0) {
                             window.showNotice("block", "Could not empty " + origin + "'s storage",
-                                              error, 4200)
-                            return
+                                              error, 4200);
+                            return;
                         }
                         if (cleared.length === 0) {
                             window.showNotice("delete_sweep", origin + " had nothing stored", "",
-                                              3000)
-                            return
+                                              3000);
+                            return;
                         }
                         window.showNotice("delete_sweep", "Emptied " + origin + "'s storage",
                                           cleared.join(", ")
-                                          + " · cookies are cleared for the whole Space", 4200)
+                                          + " · cookies are cleared for the whole Space", 4200);
                     }
 
                     onBrowserPromptRequested: function (engine, requestId, prompt) {
-                        window.showBrowserPrompt(engine, requestId, prompt)
+                        window.showBrowserPrompt(engine, requestId, prompt);
                     }
 
                     onFileSelectionRequested: function (engine, requestId, selection) {
-                        window.showFileSelection(engine, requestId, selection)
+                        window.showFileSelection(engine, requestId, selection);
                     }
                 }
 
@@ -1943,7 +1944,7 @@ ApplicationWindow {
                     defaultWidth: window.developerToolsDefaultWidth
 
                     onWidthRequested: function (width) {
-                        window.setDeveloperToolsWidth(width)
+                        window.setDeveloperToolsWidth(width);
                     }
                     onPageFocusRequested: window.focusPage()
                 }
@@ -1966,8 +1967,8 @@ ApplicationWindow {
                     pageSource: window.pagelessViewport ? null : engineLoader
 
                     onClosed: {
-                        window.shortcutsOpen = false
-                        window.focusPage()
+                        window.shortcutsOpen = false;
+                        window.focusPage();
                     }
                 }
 
@@ -1990,7 +1991,7 @@ ApplicationWindow {
                     activeMatch: engineLoader.item ? engineLoader.item.findActiveMatch : 0
 
                     onSearchRequested: function (text, forward) {
-                        engineLoader.findText(text, forward)
+                        engineLoader.findText(text, forward);
                     }
                     onClosed: window.closeFind()
                 }
@@ -2062,7 +2063,7 @@ ApplicationWindow {
                                                                                       ]
 
                     onActionTriggered: function (index) {
-                        window.respondToPermission(permissionBar.actions[index].decision)
+                        window.respondToPermission(permissionBar.actions[index].decision);
                     }
                 }
 
@@ -2094,7 +2095,7 @@ ApplicationWindow {
                     ]
 
                     onActionTriggered: function (index) {
-                        window.respondToCertificateError(index === 0)
+                        window.respondToCertificateError(index === 0);
                     }
                 }
 
@@ -2152,8 +2153,8 @@ ApplicationWindow {
                                                              ]
 
                     onActionTriggered: function (index) {
-                        const action = downloadQuestionBar.actions[index]
-                        window.answerHeldDownload(action.keep, "", action.decision)
+                        const action = downloadQuestionBar.actions[index];
+                        window.answerHeldDownload(action.keep, "", action.decision);
                     }
                 }
 
@@ -2168,7 +2169,7 @@ ApplicationWindow {
 
                     onAnswered: function (accepted, text, user, password, stopPrompts, remember) {
                         window.respondToBrowserPrompt(accepted, text, user, password, stopPrompts,
-                                                      remember)
+                                                      remember);
                     }
                 }
 
@@ -2194,27 +2195,27 @@ ApplicationWindow {
 
                     onClosed: window.settingsOpen = false
                     onRetainedTabReleased: function (tabId) {
-                        window.releaseRetainedTab(tabId)
+                        window.releaseRetainedTab(tabId);
                     }
                     onDownloadsRequested: window.refreshVisibleDownloads()
                     onDownloadDirectoryRequested: downloadDirectoryDialog.open()
                     onDownloadCancelled: function (runtimeId) {
-                        window.cancelDownload(runtimeId)
+                        window.cancelDownload(runtimeId);
                     }
                     onDownloadRetried: function (runtimeId, sourceUrl) {
-                        window.retryDownload(runtimeId, sourceUrl)
+                        window.retryDownload(runtimeId, sourceUrl);
                     }
                     onDownloadRevealed: function (path) {
-                        window.revealDownload(path)
+                        window.revealDownload(path);
                     }
                     onDownloadForgotten: function (id) {
-                        window.forgetDownload(id)
+                        window.forgetDownload(id);
                     }
                     onUseFaviconsToggled: function (enabled) {
-                        window.setUseFavicons(enabled)
+                        window.setUseFavicons(enabled);
                     }
                     onTintFaviconsToggled: function (enabled) {
-                        window.setTintFavicons(enabled)
+                        window.setTintFavicons(enabled);
                     }
                 }
 
@@ -2266,9 +2267,9 @@ ApplicationWindow {
                     target: window.windowBrowser
 
                     function onTabMoveConfirmationRequested(tabId, destinationSpaceId) {
-                        window.pendingMoveTabId = tabId
-                        window.pendingMoveSpaceId = destinationSpaceId
-                        window.dialogMode = "confirm-move"
+                        window.pendingMoveTabId = tabId;
+                        window.pendingMoveSpaceId = destinationSpaceId;
+                        window.dialogMode = "confirm-move";
                     }
 
                     // Only the Space on show keeps live pages. Putting one away
@@ -2277,21 +2278,21 @@ ApplicationWindow {
                     // inspector is attached to. The profile stays, so coming
                     // back does not reopen the Space's cookies and cache.
                     function onSpaceSuspended(spaceId, retainedTabIds) {
-                        engineLoader.suspend(spaceId, retainedTabIds)
+                        engineLoader.suspend(spaceId, retainedTabIds);
                     }
 
                     function onSpaceRestored(spaceId) {
                         if (spaceId === window.windowBrowser.activeSpaceId) {
                             Qt.callLater(function () {
-                                window.createSpaceProfile()
-                                engineLoader.resume()
-                            })
+                                window.createSpaceProfile();
+                                engineLoader.resume();
+                            });
                         }
                     }
 
                     function onSpaceDiscarded(spaceId) {
-                        engineLoader.discardEnginesForSpace(spaceId)
-                        window.retireSpaceProfile(spaceId)
+                        engineLoader.discardEnginesForSpace(spaceId);
+                        window.retireSpaceProfile(spaceId);
                     }
 
                     // The engine answers straight away with what it could not
@@ -2299,24 +2300,24 @@ ApplicationWindow {
                     function onEngineDataClearRequested(spaceIds, dataTypes, since) {
                         window.untouchedDataCategories = engineLoader.clearBrowsingData(spaceIds,
                                                                                         dataTypes,
-                                                                                        since)
+                                                                                        since);
                     }
 
                     function onEngineOriginPermissionsResetRequested(spaceId, origin) {
-                        engineLoader.resetOriginPermissions(spaceId, origin)
+                        engineLoader.resetOriginPermissions(spaceId, origin);
                     }
 
                     function onCloseWindowRequested() {
                         if (window.privateWindow)
-                            window.close()
+                            window.close();
                     }
 
                     // The find bar stands for one tab, so it comes and goes
                     // with the tab it was opened on.
                     function onActiveTabChanged() {
-                        window.reconcileTabModalRequests()
-                        window.refreshFindOpen()
-                        window.reportPdfHandling(window.windowBrowser.activeUrl)
+                        window.reconcileTabModalRequests();
+                        window.refreshFindOpen();
+                        window.reportPdfHandling(window.windowBrowser.activeUrl);
                     }
                 }
 
@@ -2408,7 +2409,7 @@ ApplicationWindow {
             defaultWidth: window.sidebarDefaultWidth
 
             onWidthRequested: function (width) {
-                window.setSidebarWidth(width)
+                window.setSidebarWidth(width);
             }
             onPageFocusRequested: window.focusPage()
         }
@@ -2423,15 +2424,15 @@ ApplicationWindow {
             contentBlocker: contentBlocker
             engineContentBlocker: engineContentBlocker
             onSitePermissionRequested: function (responder, requestId, origin, permission) {
-                window.pendingPermissionRequest = requestId
-                window.pendingPermissionResponder = responder
-                window.pendingPermissionOrigin = origin
-                window.pendingPermissionType = permission
-                window.permissionOpen = true
+                window.pendingPermissionRequest = requestId;
+                window.pendingPermissionResponder = responder;
+                window.pendingPermissionOrigin = origin;
+                window.pendingPermissionType = permission;
+                window.permissionOpen = true;
             }
 
             onCertificateErrorRaised: function (responder, requestId, failure) {
-                window.showCertificateError(responder, requestId, failure, true)
+                window.showCertificateError(responder, requestId, failure, true);
             }
         }
     }
@@ -2441,9 +2442,9 @@ ApplicationWindow {
 
         function onPrivateWindowRequested(controller, profilePath) {
             if (window.privateWindow)
-                return
+                return;
             if (!window.privateProfileHost) {
-                const profileComponent = Qt.createComponent(engineProfileSource)
+                const profileComponent = Qt.createComponent(engineProfileSource);
                 window.privateProfileHost = profileComponent.createObject(window, {
                                                                               "profilePath":
                                                                               profilePath,
@@ -2467,7 +2468,7 @@ ApplicationWindow {
                                                                               "cookieController":
                                                                               controller,
                                                                               "cookieSpaceId": ""
-                                                                          })
+                                                                          });
                 // A Private page is not given the desktop's notification
                 // centre. A notification would put the origin into a list that
                 // outlives the private session and is read by whoever is at
@@ -2475,9 +2476,9 @@ ApplicationWindow {
                 // promises not to do. The shared private profile is watched
                 // like any other so that its pages hear their notifications
                 // close, and refused because the window refuses them.
-                siteNotifications.watch("", window.privateProfileHost)
+                siteNotifications.watch("", window.privateProfileHost);
             }
-            const component = Qt.createComponent(Qt.resolvedUrl("Main.qml"))
+            const component = Qt.createComponent(Qt.resolvedUrl("Main.qml"));
             const opened = component.createObject(null, {
                                                       "windowBrowser": controller,
                                                       "privateWindow": true,
@@ -2487,17 +2488,17 @@ ApplicationWindow {
                                                       window.privateProfileHost.profile,
                                                       "privateProfileHost":
                                                       window.privateProfileHost
-                                                  })
+                                                  });
             if (opened)
-                window.privateWindows.push(opened)
+                window.privateWindows.push(opened);
         }
 
         function onPrivateSessionEnding() {
             if (window.privateWindow || windowManager.privateWindowCount > 0 ||
                     !window.privateProfileHost)
-                return
-            window.privateProfileHost.retire()
-            window.privateProfileHost = null
+                return;
+            window.privateProfileHost.retire();
+            window.privateProfileHost = null;
         }
     }
 
@@ -2505,10 +2506,10 @@ ApplicationWindow {
         target: window.windowBrowser
 
         function onRetainedTabsChanged() {
-            window.refreshRetainedTabs()
+            window.refreshRetainedTabs();
         }
         function onCertificateExceptionsChanged() {
-            window.certificateExceptionGeneration += 1
+            window.certificateExceptionGeneration += 1;
         }
     }
 
@@ -2528,60 +2529,60 @@ ApplicationWindow {
 
         function refreshBlockedRequestCount() {
             window.visibleBlockedRequestCount = contentBlocker.blockedRequestCount(
-                        window.windowBrowser.activeUrl)
+                        window.windowBrowser.activeUrl);
         }
 
         // Rebuilding the subscription list means copying every list's title,
         // address and status into new values. That belongs to the settings
         // page, not to a counter that moves on every blocked request.
         function onSubscriptionsChanged() {
-            window.visibleSubscriptions = contentBlocker.subscriptions
+            window.visibleSubscriptions = contentBlocker.subscriptions;
         }
 
         function onBlockedRequestCountChanged(siteUrl) {
-            refreshBlockedRequestCount()
+            refreshBlockedRequestCount();
         }
         function onRulesChanged() {
-            refreshBlockedRequestCount()
+            refreshBlockedRequestCount();
         }
     }
 
     Component.onCompleted: {
         if (window.privateWindow && window.privateProfileHost)
-            window.adoptSpaceProfile("", window.privateProfileHost)
-        window.createSpaceProfile()
-        window.visibleSubscriptions = contentBlocker.subscriptions
-        engineLoader.resume()
+            window.adoptSpaceProfile("", window.privateProfileHost);
+        window.createSpaceProfile();
+        window.visibleSubscriptions = contentBlocker.subscriptions;
+        engineLoader.resume();
         // Last, and on its own: how wide a panel was left is never a reason
         // for the page not to come up.
-        window.restoreSidebarWidth()
-        window.restoreDeveloperToolsWidth()
-        window.restoreTabAppearance()
+        window.restoreSidebarWidth();
+        window.restoreDeveloperToolsWidth();
+        window.restoreTabAppearance();
     }
 
     function forgetPrivateWindow(instance) {
-        const index = window.privateWindows.indexOf(instance)
+        const index = window.privateWindows.indexOf(instance);
         if (index !== -1)
-            window.privateWindows.splice(index, 1)
+            window.privateWindows.splice(index, 1);
     }
 
     onClosing: function (close) {
         // Parentless windows outlive their opener unless they are asked not to.
         if (!window.privateWindow) {
             for (const openWindow of window.privateWindows.slice())
-                openWindow.close()
-            return
+                openWindow.close();
+            return;
         }
         if (!window.windowBrowser)
-            return
-        const controller = window.windowBrowser
-        const opener = window.opener
+            return;
+        const controller = window.windowBrowser;
+        const opener = window.opener;
         Qt.callLater(function () {
             if (opener)
-                opener.forgetPrivateWindow(window)
-            window.destroy()
-            windowManager.releasePrivateWindow(controller)
-        })
+                opener.forgetPrivateWindow(window);
+            window.destroy();
+            windowManager.releasePrivateWindow(controller);
+        });
     }
 
     ChromeMenu {
@@ -2612,20 +2613,20 @@ ApplicationWindow {
         onDismissed: window.spacesMenuOpen = false
 
         onTriggered: function (index) {
-            window.spacesMenuOpen = false
+            window.spacesMenuOpen = false;
             switch (index) {
             case 0:
-                window.requestNewSpace()
-                break
+                window.requestNewSpace();
+                break;
             case 1:
-                window.dialogMode = "rename"
-                break
+                window.dialogMode = "rename";
+                break;
             case 2:
-                window.requestMoveTab()
-                break
+                window.requestMoveTab();
+                break;
             case 3:
-                window.dialogMode = "delete"
-                break
+                window.dialogMode = "delete";
+                break;
             }
         }
     }
@@ -2642,7 +2643,7 @@ ApplicationWindow {
         owner: window
 
         onCreated: function (spaceId, host) {
-            window.adoptSpaceProfile(spaceId, host)
+            window.adoptSpaceProfile(spaceId, host);
         }
     }
 
@@ -2651,7 +2652,7 @@ ApplicationWindow {
         ignoreUnknownSignals: true
 
         function onBrowsingDataCleared() {
-            window.siteDataGeneration += 1
+            window.siteDataGeneration += 1;
         }
     }
 
@@ -2661,9 +2662,9 @@ ApplicationWindow {
         allowed: !window.privateWindow
 
         onActivationRequested: function (spaceId, tabId) {
-            window.windowBrowser.activateNotificationTarget(spaceId, tabId)
-            window.raise()
-            window.requestActivate()
+            window.windowBrowser.activateNotificationTarget(spaceId, tabId);
+            window.raise();
+            window.requestActivate();
         }
     }
 
@@ -2682,7 +2683,7 @@ ApplicationWindow {
 
         onDismissed: window.tabMenuOpen = false
         onTriggered: function (index) {
-            window.runTabMenu(index)
+            window.runTabMenu(index);
         }
     }
 
@@ -2700,11 +2701,11 @@ ApplicationWindow {
         items: window.pageMenuActions
 
         onDismissed: {
-            window.pageMenuOpen = false
-            window.focusPage()
+            window.pageMenuOpen = false;
+            window.focusPage();
         }
         onTriggered: function (index) {
-            window.runPageMenu(index)
+            window.runPageMenu(index);
         }
     }
 
@@ -2725,47 +2726,47 @@ ApplicationWindow {
         label: {
             switch (window.dialogMode) {
             case "new":
-                return "new space"
+                return "new space";
             case "rename":
-                return "rename space"
+                return "rename space";
             case "delete":
-                return "delete space"
+                return "delete space";
             case "move":
-                return "move tab to a space"
+                return "move tab to a space";
             case "confirm-move":
-                return "discard edited form state"
+                return "discard edited form state";
             case "site-storage":
-                return "clear this site's storage"
+                return "clear this site's storage";
             case "space-data":
-                return "clear this Space's site data"
+                return "clear this Space's site data";
             case "reset-permissions":
-                return "reset this site's permissions"
+                return "reset this site's permissions";
             case "third-party":
-                return "third parties on this page"
+                return "third parties on this page";
             }
-            return ""
+            return "";
         }
 
         placeholder: {
             switch (window.dialogMode) {
             case "new":
-                return "name the Space"
+                return "name the Space";
             case "rename":
-                return window.windowBrowser.activeSpaceName
+                return window.windowBrowser.activeSpaceName;
             case "delete":
-                return "type " + window.windowBrowser.activeSpaceName + " to delete it"
+                return "type " + window.windowBrowser.activeSpaceName + " to delete it";
             }
-            return ""
+            return "";
         }
 
         message: {
             if (window.dialogMode === "delete") {
                 return window.windowBrowser.activeSpaceName + " keeps its tabs, its session, "
-                        + "its logins and its engine data. Deleting it cannot be undone."
+                        + "its logins and its engine data. Deleting it cannot be undone.";
             }
             if (window.dialogMode === "confirm-move") {
                 return "This page has edited form state. Moving it reloads the page under the "
-                        + "destination identity and discards those edits."
+                        + "destination identity and discards those edits.";
             }
             // Each of these names its own scope, because the three of them are
             // three different sizes and only the wording tells them apart.
@@ -2773,61 +2774,61 @@ ApplicationWindow {
                 return sidebar.siteOrigin + " loses the local storage, databases, caches and "
                         + "service workers it kept in this Space. Its cookies are not included: "
                         + "the engine can only take those for every site at once. The page may "
-                        + "misbehave until it is reloaded, and this cannot be undone."
+                        + "misbehave until it is reloaded, and this cannot be undone.";
             }
             if (window.dialogMode === "space-data") {
                 return "Every site in " + window.windowBrowser.activeSpaceName + " loses its "
                         + "cookies and cached files, so open sessions there are signed out. "
                         + "Storage and databases stay: this engine can only take those one site "
-                        + "at a time. This cannot be undone."
+                        + "at a time. This cannot be undone.";
             }
             if (window.dialogMode === "reset-permissions") {
                 return sidebar.siteOrigin + " loses every decision made for it in this Space, "
                         + "and is asked again the next time it wants one. A page already holding "
                         + "a capability keeps it until the site is opened again — reloading is "
-                        + "not enough."
+                        + "not enough.";
             }
             if (window.dialogMode === "third-party") {
                 return "Sites embedded in this page are refused cookies and storage. Allow "
                         + "one only when a sign-in or a payment on this page is not working; an "
                         + "embedded image or script host does not need it. Nothing allowed here "
-                        + "outlives this session."
+                        + "outlives this session.";
             }
-            return ""
+            return "";
         }
 
         confirmHint: {
             switch (window.dialogMode) {
             case "new":
-                return "⏎ create the Space"
+                return "⏎ create the Space";
             case "rename":
-                return "⏎ rename the Space"
+                return "⏎ rename the Space";
             case "delete":
-                return "⏎ delete " + window.windowBrowser.activeSpaceName
+                return "⏎ delete " + window.windowBrowser.activeSpaceName;
             case "move":
-                return "↑↓ choose      ⏎ move the tab"
+                return "↑↓ choose      ⏎ move the tab";
             case "confirm-move":
-                return "⏎ discard the edits and move"
+                return "⏎ discard the edits and move";
             case "site-storage":
-                return "⏎ clear " + sidebar.siteOrigin + "'s storage"
+                return "⏎ clear " + sidebar.siteOrigin + "'s storage";
             case "space-data":
-                return "⏎ clear every site's cookies and cache"
+                return "⏎ clear every site's cookies and cache";
             case "reset-permissions":
-                return "⏎ reset " + sidebar.siteOrigin + "'s permissions"
+                return "⏎ reset " + sidebar.siteOrigin + "'s permissions";
             case "third-party":
-                return "↑↓ choose      ⏎ answer for that site"
+                return "↑↓ choose      ⏎ answer for that site";
             }
-            return ""
+            return "";
         }
 
         rows: {
             switch (window.dialogMode) {
             case "move":
-                return window.moveTargets
+                return window.moveTargets;
             case "third-party":
-                return window.thirdPartyRows
+                return window.thirdPartyRows;
             }
-            return []
+            return [];
         }
 
         onDismissed: window.dialogMode = ""
@@ -2835,47 +2836,47 @@ ApplicationWindow {
         onAccepted: function (text) {
             switch (window.dialogMode) {
             case "new":
-                const spaceId = window.windowBrowser.createSpace(text)
+                const spaceId = window.windowBrowser.createSpace(text);
                 if (spaceId.length > 0)
-                    window.windowBrowser.switchSpace(spaceId)
-                break
+                    window.windowBrowser.switchSpace(spaceId);
+                break;
             case "rename":
-                window.windowBrowser.renameSpace(window.windowBrowser.activeSpaceId, text)
-                break
+                window.windowBrowser.renameSpace(window.windowBrowser.activeSpaceId, text);
+                break;
             case "delete":
-                window.windowBrowser.deleteSpace(window.windowBrowser.activeSpaceId, text)
-                break
+                window.windowBrowser.deleteSpace(window.windowBrowser.activeSpaceId, text);
+                break;
             case "confirm-move":
                 window.windowBrowser.confirmTabMoveToSpace(window.pendingMoveTabId,
-                                                           window.pendingMoveSpaceId)
-                break
+                                                           window.pendingMoveSpaceId);
+                break;
             case "site-storage":
-                engineLoader.clearPageSiteData()
-                break
+                engineLoader.clearPageSiteData();
+                break;
             case "space-data":
-                window.clearSpaceSiteData()
-                break
+                window.clearSpaceSiteData();
+                break;
             case "reset-permissions":
-                window.resetSitePermissions()
-                break
+                window.resetSitePermissions();
+                break;
             }
-            window.dialogMode = ""
+            window.dialogMode = "";
         }
 
         onRowActivated: function (index) {
             if (window.dialogMode === "third-party") {
-                window.dialogMode = ""
-                window.answerThirdPartyRow(index)
-                return
+                window.dialogMode = "";
+                window.answerThirdPartyRow(index);
+                return;
             }
-            const target = window.moveTargets[index]
+            const target = window.moveTargets[index];
             if (!target)
-                return
-            const tabId = window.windowBrowser.activeTabId
-            window.dialogMode = ""
+                return;
+            const tabId = window.windowBrowser.activeTabId;
+            window.dialogMode = "";
             engineLoader.checkForEditedFormState(function (hasEditedFormState) {
-                window.windowBrowser.requestTabMoveToSpace(tabId, target.id, hasEditedFormState)
-            })
+                window.windowBrowser.requestTabMoveToSpace(tabId, target.id, hasEditedFormState);
+            });
         }
     }
 
@@ -2894,14 +2895,14 @@ ApplicationWindow {
         onDismissed: window.closeOmnibar()
         onQueryChanged: function (text) {
             if (commandPanel.commandMode)
-                return
+                return;
             window.omnibarSuggestions = window.privateWindow ? [] :
                                                                window.windowBrowser.historySuggestions(
-                                                                   text)
+                                                                   text);
         }
         onCommitted: function (text) {
-            window.windowBrowser.openInput(text, window.newTabIntent)
-            window.closeOmnibar()
+            window.windowBrowser.openInput(text, window.newTabIntent);
+            window.closeOmnibar();
         }
     }
 

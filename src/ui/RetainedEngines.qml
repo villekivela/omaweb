@@ -27,17 +27,17 @@ QtObject {
     readonly property var tabs: ({})
 
     function keeps(tabId) {
-        return root.tabs[tabId] !== undefined
+        return root.tabs[tabId] !== undefined;
     }
 
     // A tab of a Space being put away that keeps its engine anyway: hidden,
     // still running, and still identified.
     function keep(tabId, spaceId) {
-        root.tabs[tabId] = spaceId
+        root.tabs[tabId] = spaceId;
     }
 
     function forget(tabId) {
-        delete root.tabs[tabId]
+        delete root.tabs[tabId];
     }
 
     // The Space on show has its pages back, so nothing in it is being retained
@@ -45,7 +45,7 @@ QtObject {
     function releaseVisibleSpace() {
         for (const tabId in root.tabs) {
             if (root.tabs[tabId] === root.visibleSpaceId)
-                delete root.tabs[tabId]
+                delete root.tabs[tabId];
         }
     }
 
@@ -55,36 +55,36 @@ QtObject {
     // longer retains has no reason to keep a renderer, and loses it here.
     function reconcile() {
         if (!root.browser)
-            return
-        const wanted = root.browser.retainedTabs
+            return;
+        const wanted = root.browser.retainedTabs;
         for (let index = 0; index < wanted.length; ++index) {
-            const kept = wanted[index]
+            const kept = wanted[index];
             if (root.host.engines[kept.tabId])
-                continue
+                continue;
             if (root.host.blankAddress(kept.url))
-                continue
-            const profile = root.spaceProfiles.hostFor(kept.spaceId)
+                continue;
+            const profile = root.spaceProfiles.hostFor(kept.spaceId);
             if (!profile)
-                continue
+                continue;
             const engine = root.host.createEngine(kept.tabId, kept.url, kept.spaceId, root.browser.profilePathForSpace(
-                                                      kept.spaceId), profile.profile)
+                                                      kept.spaceId), profile.profile);
             if (!engine)
-                continue
-            engine.visible = false
-            engine.audioMuted = kept.muted === true
-            engine.setZoomFactor(kept.zoom !== undefined ? kept.zoom : 1.0)
-            root.tabs[kept.tabId] = kept.spaceId
+                continue;
+            engine.visible = false;
+            engine.audioMuted = kept.muted === true;
+            engine.setZoomFactor(kept.zoom !== undefined ? kept.zoom : 1.0);
+            root.tabs[kept.tabId] = kept.spaceId;
         }
         for (const tabId in root.tabs) {
             if (root.tabs[tabId] === root.visibleSpaceId)
-                continue
-            let stillWanted = false
+                continue;
+            let stillWanted = false;
             for (let index = 0; index < wanted.length; ++index)
-                stillWanted = stillWanted || wanted[index].tabId === tabId
+                stillWanted = stillWanted || wanted[index].tabId === tabId;
             if (stillWanted)
-                continue
-            delete root.tabs[tabId]
-            root.host.discardEngine(tabId)
+                continue;
+            delete root.tabs[tabId];
+            root.host.discardEngine(tabId);
         }
     }
 
@@ -92,13 +92,13 @@ QtObject {
     // reader cannot see, so what it holds is asked of the operating system
     // rather than estimated.
     function report() {
-        const report = []
+        const report = [];
         if (!root.browser)
-            return report
-        const wanted = root.browser.retainedTabs
+            return report;
+        const wanted = root.browser.retainedTabs;
         for (let index = 0; index < wanted.length; ++index) {
-            const kept = wanted[index]
-            const engine = root.host.engines[kept.tabId]
+            const kept = wanted[index];
+            const engine = root.host.engines[kept.tabId];
             report.push({
                             "tabId": kept.tabId,
                             "spaceId": kept.spaceId,
@@ -109,8 +109,8 @@ QtObject {
                             "running": engine !== undefined && engine !== null,
                             "residentBytes": engine ? ProcessResources.residentBytes(
                                                           engine.renderProcessPid) : 0
-                        })
+                        });
         }
-        return report
+        return report;
     }
 }

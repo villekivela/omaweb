@@ -78,7 +78,7 @@ void KeyboardNavigationTest::resolvesSitePassthroughForHostsAndSubdomains()
     const auto youtube
         = navigation.configurationForUrl(QUrl(QStringLiteral("https://www.youtube.com/watch?v=1")));
     QCOMPARE(youtube.value(QStringLiteral("passthroughKeys")).toStringList(),
-        QStringList { QStringLiteral("k") });
+        QStringList {QStringLiteral("k")});
     QVERIFY(!youtube.value(QStringLiteral("passthroughAll")).toBool());
 
     const auto editor

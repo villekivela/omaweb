@@ -69,37 +69,37 @@ Rectangle {
     property real siteDataBytes: -1
     property real retainedDataBytes: -1
     readonly property string originLabel: {
-        const address = String(root.activeUrl)
-        const separator = address.indexOf("://")
+        const address = String(root.activeUrl);
+        const separator = address.indexOf("://");
         if (separator === -1)
-            return address
-        const authority = address.substring(separator + 3).split("/")[0]
-        return authority.length > 0 ? authority : address
+            return address;
+        const authority = address.substring(separator + 3).split("/")[0];
+        return authority.length > 0 ? authority : address;
     }
 
     readonly property string connectionSentence: {
         switch (root.connectionState) {
         case "secure":
-            return "connection is encrypted"
+            return "connection is encrypted";
         case "certificate-error":
-            return "certificate could not be verified"
+            return "certificate could not be verified";
         case "insecure":
-            return "connection is not encrypted"
+            return "connection is not encrypted";
         default:
-            return "no page is loaded"
+            return "no page is loaded";
         }
     }
 
     function permissionDecisionName(decision) {
         switch (Number(decision)) {
         case root.allowedOnce:
-            return "allowed once"
+            return "allowed once";
         case root.allowedPersistently:
-            return "always allowed"
+            return "always allowed";
         case root.blocked:
-            return "blocked"
+            return "blocked";
         default:
-            return "asked each time"
+            return "asked each time";
         }
     }
 
@@ -108,37 +108,37 @@ Rectangle {
     // difference between a number the reader can act on and one they have to
     // guess the scope of.
     function formatBytes(bytes) {
-        const units = ["B", "kB", "MB", "GB"]
-        let size = bytes
-        let unit = 0
+        const units = ["B", "kB", "MB", "GB"];
+        let size = bytes;
+        let unit = 0;
         while (size >= 1024 && unit < units.length - 1) {
-            size = size / 1024
-            unit += 1
+            size = size / 1024;
+            unit += 1;
         }
-        return (unit === 0 ? Math.round(size) : Math.round(size * 10) / 10) + " " + units[unit]
+        return (unit === 0 ? Math.round(size) : Math.round(size * 10) / 10) + " " + units[unit];
     }
 
     function siteDataSentence() {
         if (!root.siteDataOnDisk)
-            return "this engine keeps no site data on disk"
+            return "this engine keeps no site data on disk";
         if (root.siteDataBytes < 0)
-            return "the site data in this Space could not be measured"
-        return root.formatBytes(root.siteDataBytes) + " of cookies and cache in this Space"
+            return "the site data in this Space could not be measured";
+        return root.formatBytes(root.siteDataBytes) + " of cookies and cache in this Space";
     }
 
     function refreshSiteInformation() {
         if (!root.browser)
-            return
-        root.sitePermissionRows = root.browser.sitePermissions(root.activeUrl)
-        root.cookieAllowanceRows = root.browser.thirdPartyCookieAllowances()
+            return;
+        root.sitePermissionRows = root.browser.sitePermissions(root.activeUrl);
+        root.cookieAllowanceRows = root.browser.thirdPartyCookieAllowances();
         root.refusedThirdParties = root.cookiePolicy ? root.cookiePolicy.refusedOrigins(
-                                                           root.activeUrl) : []
+                                                           root.activeUrl) : [];
         root.siteDataBytes = root.siteDataOnDisk ? root.browser.siteDataBytes(
                                                        root.browser.activeSpaceId,
-                                                       root.siteDataEntries) : -1
+                                                       root.siteDataEntries) : -1;
         root.retainedDataBytes = root.siteDataOnDisk ? root.browser.siteDataBytes(
                                                            root.browser.activeSpaceId,
-                                                           root.retainedDataEntries) : -1
+                                                           root.retainedDataEntries) : -1;
     }
 
     onOpenChanged: if (root.open)

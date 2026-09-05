@@ -102,29 +102,29 @@ Rectangle {
     // positioner are in no particular order, and a Repeater is among them, so
     // each row is asked which place it is in rather than counted off.
     function sectionRows(container) {
-        const rows = []
+        const rows = [];
         for (let index = 0; index < container.children.length; ++index) {
-            const child = container.children[index]
+            const child = container.children[index];
             if (child.tabId !== undefined)
-                rows[child.placeInSection] = child
+                rows[child.placeInSection] = child;
         }
-        return rows
+        return rows;
     }
 
     function rowsFor(row) {
-        return root.sectionRows(row.pinned ? pinnedSection : ordinarySection)
+        return root.sectionRows(row.pinned ? pinnedSection : ordinarySection);
     }
 
     // Where the list put a row, whatever the hand has since done with it.
     function homeOf(row) {
-        const at = row.mapToItem(root, 0, 0)
-        return Qt.point(at.x - row.carry.x, at.y - row.carry.y)
+        const at = row.mapToItem(root, 0, 0);
+        return Qt.point(at.x - row.carry.x, at.y - row.carry.y);
     }
 
     function beginTabDrag(row) {
-        root.draggedRow = row
-        root.dropDestination = row.placeInSection
-        row.lifted = true
+        root.draggedRow = row;
+        root.dropDestination = row.placeInSection;
+        row.lifted = true;
     }
 
     // The hand's position decides two things: where the held row is drawn, and
@@ -133,97 +133,97 @@ Rectangle {
     // ordinary rows.
     function updateTabDrag(row, sceneX, sceneY) {
         if (root.draggedRow !== row)
-            return
-        const pointer = root.mapFromItem(null, sceneX, sceneY)
-        const home = root.homeOf(row)
+            return;
+        const pointer = root.mapFromItem(null, sceneX, sceneY);
+        const home = root.homeOf(row);
         const wanted = Qt.point(pointer.x - row.grabbedAt.x, pointer.y - row.grabbedAt.y);
         // An ordinary row is carried along the list it is in; a pin is laid out
         // across the section as well as down it.
         row.carry = row.pinned ? Qt.point(wanted.x - home.x, wanted.y - home.y) : Qt.point(0,
                                                                                            wanted.y
-                                                                                           - home.y)
+                                                                                           - home.y);
 
-        const rows = root.rowsFor(row)
-        let destination = row.placeInSection
+        const rows = root.rowsFor(row);
+        let destination = row.placeInSection;
         for (let place = 0; place < rows.length; ++place) {
-            const other = rows[place]
+            const other = rows[place];
             if (!other)
-                continue
-            const at = root.homeOf(other)
+                continue;
+            const at = root.homeOf(other);
             if (pointer.x < at.x || pointer.x >= at.x + other.width) {
                 // Outside this row's column: only its band decides, so a
                 // stacked list ignores the horizontal miss entirely.
                 if (other.pinned)
-                    continue
+                    continue;
             }
             if (pointer.y < at.y || pointer.y >= at.y + other.height)
-                continue
-            destination = place
-            break
+                continue;
+            destination = place;
+            break;
         }
         // Past the end of the section in either direction, the nearest place is
         // the one the hand meant.
         if (destination === row.placeInSection && rows.length > 0) {
-            const first = rows[0] ? root.homeOf(rows[0]) : null
-            const last = rows[rows.length - 1] ? root.homeOf(rows[rows.length - 1]) : null
+            const first = rows[0] ? root.homeOf(rows[0]) : null;
+            const last = rows[rows.length - 1] ? root.homeOf(rows[rows.length - 1]) : null;
             if (first && pointer.y < first.y)
-                destination = 0
+                destination = 0;
             else if (last && pointer.y >= last.y + rows[rows.length - 1].height)
-                destination = rows.length - 1
+                destination = rows.length - 1;
         }
-        root.dropDestination = destination
-        root.openTheDroppedPlace(row, rows, destination)
+        root.dropDestination = destination;
+        root.openTheDroppedPlace(row, rows, destination);
     }
 
     // Every row between where the held row came from and where it would land
     // moves up or down by one place — into the place the arrangement would give
     // it — which is what opens the gap the held row will drop into.
     function openTheDroppedPlace(row, rows, destination) {
-        const from = row.placeInSection
+        const from = row.placeInSection;
         for (let place = 0; place < rows.length; ++place) {
-            const other = rows[place]
+            const other = rows[place];
             if (!other || other === row)
-                continue
-            let shifted = place
+                continue;
+            let shifted = place;
             if (from < destination && place > from && place <= destination)
-                shifted = place - 1
+                shifted = place - 1;
             else if (destination < from && place >= destination && place < from)
-                shifted = place + 1
-            const target = rows[shifted]
+                shifted = place + 1;
+            const target = rows[shifted];
             if (!target || shifted === place) {
-                other.carry = Qt.point(0, 0)
-                continue
+                other.carry = Qt.point(0, 0);
+                continue;
             }
-            const here = root.homeOf(other)
-            const there = root.homeOf(target)
-            other.carry = Qt.point(there.x - here.x, there.y - here.y)
+            const here = root.homeOf(other);
+            const there = root.homeOf(target);
+            other.carry = Qt.point(there.x - here.x, there.y - here.y);
         }
     }
 
     function endTabDrag(row) {
         if (root.draggedRow !== row)
-            return
-        const destination = root.dropDestination
-        const rows = root.rowsFor(row)
-        root.draggedRow = null
-        root.dropDestination = -1
-        row.lifted = false
+            return;
+        const destination = root.dropDestination;
+        const rows = root.rowsFor(row);
+        root.draggedRow = null;
+        root.dropDestination = -1;
+        row.lifted = false;
         // Every row goes back to the place the list gives it, and the list is
         // told the one thing the drag decided.
         for (let place = 0; place < rows.length; ++place) {
             if (rows[place])
-                rows[place].carry = Qt.point(0, 0)
+                rows[place].carry = Qt.point(0, 0);
         }
         if (destination >= 0 && destination !== row.placeInSection) {
-            root.tabDropped(row.tabId, destination)
+            root.tabDropped(row.tabId, destination);
         }
     }
 
     function focusOutline() {
         if (activeTabItem !== null && activeTabItem.visible) {
-            activeTabItem.forceActiveFocus()
+            activeTabItem.forceActiveFocus();
         } else {
-            addressButton.forceActiveFocus()
+            addressButton.forceActiveFocus();
         }
     }
 
@@ -231,12 +231,12 @@ Rectangle {
     // whole outline: Escape is the way back to the page.
     Keys.onEscapePressed: function (event) {
         if (root.statusOpen) {
-            root.statusOpen = false
-            event.accepted = true
-            return
+            root.statusOpen = false;
+            event.accepted = true;
+            return;
         }
-        root.pageFocusRequested()
-        event.accepted = true
+        root.pageFocusRequested();
+        event.accepted = true;
     }
 
     Shortcut {
@@ -252,13 +252,13 @@ Rectangle {
     Connections {
         target: root.browser ? root.browser.pinnedTabs : null
         function onRowsInserted() {
-            root.pinnedCount = root.browser.pinnedTabs.rowCount()
+            root.pinnedCount = root.browser.pinnedTabs.rowCount();
         }
         function onRowsRemoved() {
-            root.pinnedCount = root.browser.pinnedTabs.rowCount()
+            root.pinnedCount = root.browser.pinnedTabs.rowCount();
         }
         function onModelReset() {
-            root.pinnedCount = root.browser.pinnedTabs.rowCount()
+            root.pinnedCount = root.browser.pinnedTabs.rowCount();
         }
     }
 
@@ -398,8 +398,8 @@ Rectangle {
             Keys.onPressed: function (event) {
                 if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key
                         === Qt.Key_Space) {
-                    root.addressRequested()
-                    event.accepted = true
+                    root.addressRequested();
+                    event.accepted = true;
                 }
             }
 
@@ -479,8 +479,8 @@ Rectangle {
                 hoverEnabled: true
                 cursorShape: Qt.IBeamCursor
                 onClicked: {
-                    addressButton.forceActiveFocus()
-                    root.addressRequested()
+                    addressButton.forceActiveFocus();
+                    root.addressRequested();
                 }
             }
         }
@@ -524,21 +524,21 @@ Rectangle {
                 useFavicons: root.useFavicons
                 tintFavicons: root.tintFavicons
                 onActivated: function (id) {
-                    root.tabActivated(id)
+                    root.tabActivated(id);
                 }
                 onCloseRequested: function (id) {
-                    root.tabCloseRequested(id)
+                    root.tabCloseRequested(id);
                 }
                 onMuteToggled: function (id) {
-                    root.tabMuteToggled(id)
+                    root.tabMuteToggled(id);
                 }
                 onDragStarted: root.beginTabDrag(pinnedRow)
                 onDragMoved: function (id, sceneX, sceneY) {
-                    root.updateTabDrag(pinnedRow, sceneX, sceneY)
+                    root.updateTabDrag(pinnedRow, sceneX, sceneY);
                 }
                 onDragEnded: root.endTabDrag(pinnedRow)
                 onMenuRequested: function (id, anchorX, anchorY) {
-                    root.tabMenuRequested(id, anchorX, anchorY)
+                    root.tabMenuRequested(id, anchorX, anchorY);
                 }
                 onActiveChanged: if (active)
                                      root.activeTabItem = this
@@ -579,21 +579,21 @@ Rectangle {
                     useFavicons: root.useFavicons
                     tintFavicons: root.tintFavicons
                     onActivated: function (id) {
-                        root.tabActivated(id)
+                        root.tabActivated(id);
                     }
                     onCloseRequested: function (id) {
-                        root.tabCloseRequested(id)
+                        root.tabCloseRequested(id);
                     }
                     onMuteToggled: function (id) {
-                        root.tabMuteToggled(id)
+                        root.tabMuteToggled(id);
                     }
                     onDragStarted: root.beginTabDrag(ordinaryRow)
                     onDragMoved: function (id, sceneX, sceneY) {
-                        root.updateTabDrag(ordinaryRow, sceneX, sceneY)
+                        root.updateTabDrag(ordinaryRow, sceneX, sceneY);
                     }
                     onDragEnded: root.endTabDrag(ordinaryRow)
                     onMenuRequested: function (id, anchorX, anchorY) {
-                        root.tabMenuRequested(id, anchorX, anchorY)
+                        root.tabMenuRequested(id, anchorX, anchorY);
                     }
                     onActiveChanged: if (active)
                                          root.activeTabItem = this
@@ -730,8 +730,9 @@ Rectangle {
             foreground: root.colors.mutedText
             accent: root.colors.accent
             onClicked: {
-                const corner = spacesButton.mapToItem(null, spacesButton.width, spacesButton.height)
-                root.spacesMenuRequested(corner.x, corner.y)
+                const corner = spacesButton.mapToItem(null, spacesButton.width,
+                                                      spacesButton.height);
+                root.spacesMenuRequested(corner.x, corner.y);
             }
         }
 
@@ -873,7 +874,7 @@ Rectangle {
         open: root.statusOpen
 
         onActionRequested: function (action) {
-            root.siteActionRequested(action)
+            root.siteActionRequested(action);
         }
     }
 }

@@ -68,17 +68,17 @@ KitTheme::KitTheme(QQmlEngine *engine, const ThemeController *theme, QObject *pa
     // asynchronous, so being the first writer is not the same as being the
     // authority. Re-applying whenever one of them lands is.
     followResets(m_color,
-        { QStringLiteral("foreground"), QStringLiteral("background"), QStringLiteral("accent"),
-            QStringLiteral("muted"), QStringLiteral("urgent") });
+        {QStringLiteral("foreground"), QStringLiteral("background"), QStringLiteral("accent"),
+            QStringLiteral("muted"), QStringLiteral("urgent")});
     followResets(m_style,
-        { QStringLiteral("fontFamily"), QStringLiteral("resolvedFontFamily"),
-            QStringLiteral("fontBaseSize") });
+        {QStringLiteral("fontFamily"), QStringLiteral("resolvedFontFamily"),
+            QStringLiteral("fontBaseSize")});
     apply();
 }
 
 void KitTheme::rereadKitSources()
 {
-    for (const auto *name : { "colorsFile", "shellFile" }) {
+    for (const auto *name : {"colorsFile", "shellFile"}) {
         if (auto *view = m_color->property(name).value<QObject *>()) {
             // Synchronous in the shim, so the kit has re-parsed both files by
             // the time this returns and `apply()` can put Omaweb's palette

@@ -118,8 +118,8 @@ Item {
     Keys.onPressed: function (event) {
         if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key
                 === Qt.Key_Space) {
-            root.activated(root.tabId)
-            event.accepted = true
+            root.activated(root.tabId);
+            event.accepted = true;
         }
     }
 
@@ -128,8 +128,8 @@ Item {
     // menu, and a window shortcut takes a key before a focused row sees it.
 
     function openMenu(x, y) {
-        const point = root.mapToItem(null, x, y)
-        root.menuRequested(root.tabId, point.x, point.y)
+        const point = root.mapToItem(null, x, y);
+        root.menuRequested(root.tabId, point.x, point.y);
     }
 
     // The kit paints hover and focus as veils over the fill, so the wash sits
@@ -226,13 +226,13 @@ Item {
         readonly property real liftThreshold: 4
 
         function report(mouse) {
-            const scene = root.mapToItem(null, mouse.x, mouse.y)
-            root.dragMoved(root.tabId, scene.x, scene.y)
+            const scene = root.mapToItem(null, mouse.x, mouse.y);
+            root.dragMoved(root.tabId, scene.x, scene.y);
         }
 
         onPressed: function (mouse) {
-            hoverArea.grabbedAt = Qt.point(mouse.x, mouse.y)
-            hoverArea.pressedAt = root.mapToItem(null, mouse.x, mouse.y)
+            hoverArea.grabbedAt = Qt.point(mouse.x, mouse.y);
+            hoverArea.pressedAt = root.mapToItem(null, mouse.x, mouse.y);
         }
 
         onPositionChanged: function (mouse) {
@@ -240,22 +240,22 @@ Item {
             // synthesized move carries no buttons, and a right-press opening
             // the menu must not drag the row on the way.
             if (!(hoverArea.pressedButtons & Qt.LeftButton))
-                return
-            const scene = root.mapToItem(null, mouse.x, mouse.y)
+                return;
+            const scene = root.mapToItem(null, mouse.x, mouse.y);
             if (!root.lifted) {
                 const travelled = Math.max(Math.abs(scene.x - hoverArea.pressedAt.x), Math.abs(
-                                               scene.y - hoverArea.pressedAt.y))
+                                               scene.y - hoverArea.pressedAt.y));
                 if (travelled < hoverArea.liftThreshold)
-                    return
-                root.dragStarted(root.tabId)
+                    return;
+                root.dragStarted(root.tabId);
             }
-            hoverArea.report(mouse)
+            hoverArea.report(mouse);
         }
 
         onReleased: function (mouse) {
             if (!root.lifted)
-                return
-            root.dragEnded(root.tabId)
+                return;
+            root.dragEnded(root.tabId);
         }
 
         // A gesture the window took away — the pointer leaving the window, or
@@ -266,22 +266,22 @@ Item {
 
         onClicked: function (mouse) {
             if (mouse.button === Qt.RightButton) {
-                root.forceActiveFocus()
-                root.openMenu(mouse.x, mouse.y)
-                return
+                root.forceActiveFocus();
+                root.openMenu(mouse.x, mouse.y);
+                return;
             }
             // A row that has just been carried into place was not clicked.
             if (root.lifted)
-                return
-            root.forceActiveFocus()
+                return;
+            root.forceActiveFocus();
             const overClose = !root.pinned && mouse.x >= root.width - closeButton.width
-                  - closeButton.anchors.rightMargin
+                  - closeButton.anchors.rightMargin;
             if (audioButton.covers(mouse.x, mouse.y)) {
-                root.muteToggled(root.tabId)
+                root.muteToggled(root.tabId);
             } else if (overClose) {
-                root.closeRequested(root.tabId)
+                root.closeRequested(root.tabId);
             } else {
-                root.activated(root.tabId)
+                root.activated(root.tabId);
             }
         }
 
@@ -293,7 +293,7 @@ Item {
             function covers(x, y) {
                 return audioButton.visible && x >= audioButton.x && x < audioButton.x
                         + audioButton.width && y >= audioButton.y && y < audioButton.y
-                        + audioButton.height
+                        + audioButton.height;
             }
             readonly property bool hot: hoverArea.containsMouse && covers(hoverArea.mouseX,
                                                                           hoverArea.mouseY)

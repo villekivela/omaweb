@@ -17,8 +17,8 @@ cached, and archived files keep their upstream or historical formatting.
 
 - C++ uses C++23 and the repository's `.clang-format`. CMake enables `-Wall`, `-Wextra`, and
   `-Wpedantic` for first-party targets.
-- QML uses `.qmlformat.ini`. Qt's `qmllint` rejects syntax errors and the high-signal warning
-  categories configured in `.qmllint.ini`.
+- QML uses `.qmlformat.ini`, including semicolons for JavaScript statements. Qt's `qmllint` rejects
+  syntax errors and the high-signal warning categories configured in `.qmllint.ini`.
 - JavaScript uses the repository's Prettier configuration and strict equality.
 - Python follows PEP 8 with four-space indentation. Scripts must run with the supported Python 3
   interpreter and use only declared dependencies.

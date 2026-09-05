@@ -19,16 +19,16 @@ Rectangle {
     property bool siteColoredMark: false
 
     readonly property string host: {
-        const value = String(siteUrl).replace(/^[a-z]+:\/\//, "")
-        return value.split("/")[0].split(":")[0]
+        const value = String(siteUrl).replace(/^[a-z]+:\/\//, "");
+        return value.split("/")[0].split(":")[0];
     }
 
     readonly property string code: {
         const parts = host.split(".").filter(function (part) {
-            return part !== "www"
-        })
-        const name = parts.length > 1 ? parts[parts.length - 2] : parts[0]
-        return name.length > 0 ? name.substring(0, 2).toUpperCase() : "··"
+            return part !== "www";
+        });
+        const name = parts.length > 1 ? parts[parts.length - 2] : parts[0];
+        return name.length > 0 ? name.substring(0, 2).toUpperCase() : "··";
     }
 
     // The theme owns how strong a site colour may be; only the hue is the
@@ -41,11 +41,11 @@ Rectangle {
     // Site identity for artwork: the hue comes from the host, which is the only
     // thing available before the artwork itself has loaded.
     readonly property color hostTint: {
-        let hash = 0
+        let hash = 0;
         for (let index = 0; index < host.length; ++index) {
-            hash = (hash * 31 + host.charCodeAt(index)) % 3600
+            hash = (hash * 31 + host.charCodeAt(index)) % 3600;
         }
-        return Qt.hsla(hash / 3600, tintSaturation, tintLightness, 1)
+        return Qt.hsla(hash / 3600, tintSaturation, tintLightness, 1);
     }
 
     // With artwork switched off the chip is all the site gets, so it takes the

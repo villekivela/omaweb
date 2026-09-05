@@ -15,10 +15,10 @@ Item {
     // the tab on show changes.
     function adopt() {
         if (!root.developerToolsView)
-            return
-        root.developerToolsView.parent = root
-        root.developerToolsView.anchors.fill = root
-        root.developerToolsView.visible = true
+            return;
+        root.developerToolsView.parent = root;
+        root.developerToolsView.anchors.fill = root;
+        root.developerToolsView.visible = true;
     }
 
     onDeveloperToolsViewChanged: root.adopt()

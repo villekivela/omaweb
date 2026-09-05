@@ -20,10 +20,10 @@ Omarchy.TextField {
     property string accessibleName: ""
 
     function focusInput() {
-        root.forceActiveFocus()
+        root.forceActiveFocus();
     }
     function selectAllText() {
-        root.selectAll()
+        root.selectAll();
     }
 
     placeholderText: placeholder

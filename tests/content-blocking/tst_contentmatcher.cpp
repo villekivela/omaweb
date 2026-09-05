@@ -190,7 +190,7 @@ void ContentMatcherTest::sendsOnlyTheGenericRulesAPageCouldTrigger()
 
     QVERIFY(compilation.matcher->cosmeticStyleSheet(url).isEmpty());
     const auto css = compilation.matcher->genericCosmeticStyleSheet(
-        url, QStringList { QStringLiteral("second-ad") }, {});
+        url, QStringList {QStringLiteral("second-ad")}, {});
     QVERIFY(css.contains(QStringLiteral(".second-ad")));
     QVERIFY(!css.contains(QStringLiteral(".first-ad")));
     QVERIFY(!css.contains(QStringLiteral(".third-ad")));

@@ -168,13 +168,13 @@ int main(int argc, char *argv[])
     const auto showIndex = arguments.indexOf(QStringLiteral("--show"));
     if (showIndex >= 0 && showIndex + 1 < arguments.size() && !engine.rootObjects().isEmpty()) {
         static const QHash<QString, QList<ShowProperty>> states = {
-            { QStringLiteral("collapsed"), { { "", "sidebarCollapsed", true } } },
-            { QStringLiteral("settings"), { { "", "settingsOpen", true } } },
-            { QStringLiteral("settings:clear"),
-                { { "", "settingsOpen", true }, { "settingsSurface", "clearDataOpen", true } } },
-            { QStringLiteral("site"), { { "sidebar", "statusOpen", true } } },
-            { QStringLiteral("history"), { { "", "historyOpen", true } } },
-            { QStringLiteral("shortcuts"), { { "", "shortcutsOpen", true } } },
+            {QStringLiteral("collapsed"), {{"", "sidebarCollapsed", true}}},
+            {QStringLiteral("settings"), {{"", "settingsOpen", true}}},
+            {QStringLiteral("settings:clear"),
+                {{"", "settingsOpen", true}, {"settingsSurface", "clearDataOpen", true}}},
+            {QStringLiteral("site"), {{"sidebar", "statusOpen", true}}},
+            {QStringLiteral("history"), {{"", "historyOpen", true}}},
+            {QStringLiteral("shortcuts"), {{"", "shortcutsOpen", true}}},
         };
         const auto requested = arguments.at(showIndex + 1);
         auto *root = engine.rootObjects().constFirst();
@@ -203,7 +203,7 @@ int main(int argc, char *argv[])
                 qCritical("No settings section named %s", qPrintable(parts.at(1)));
                 return 1;
             }
-            state = { { "", "settingsOpen", true }, { "settingsSurface", "section", section } };
+            state = {{"", "settingsOpen", true}, {"settingsSurface", "section", section}};
             if (parts.size() > 2) {
                 const auto rest = states.value(QStringLiteral("settings:") + parts.at(2));
                 if (rest.isEmpty()) {

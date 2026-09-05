@@ -29,7 +29,7 @@ ApplicationWindow {
                                                                          "Omaweb"
 
     onClosing: Qt.callLater(function () {
-        auxiliary.destroy()
+        auxiliary.destroy();
     })
 
     Loader {
@@ -58,8 +58,8 @@ ApplicationWindow {
 
         onLoaded: {
             if (auxiliary.request)
-                item.acceptNewWindowRequest(auxiliary.request)
-            item.focusPage()
+                item.acceptNewWindowRequest(auxiliary.request);
+            item.focusPage();
         }
     }
 
@@ -68,14 +68,14 @@ ApplicationWindow {
         ignoreUnknownSignals: true
 
         function onWindowCloseRequested() {
-            auxiliary.close()
+            auxiliary.close();
         }
         function onSitePermissionRequested(requestId, origin, permission) {
-            auxiliary.sitePermissionRequested(engineLoader.item, requestId, origin, permission)
+            auxiliary.sitePermissionRequested(engineLoader.item, requestId, origin, permission);
         }
 
         function onCertificateErrorRaised(requestId, failure) {
-            auxiliary.certificateErrorRaised(engineLoader.item, requestId, failure)
+            auxiliary.certificateErrorRaised(engineLoader.item, requestId, failure);
         }
     }
 }

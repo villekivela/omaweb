@@ -2,7 +2,7 @@ BasedOnStyle: WebKit
 ColumnLimit: 100
 IndentWidth: 4
 ContinuationIndentWidth: 4
-Cpp11BracedListStyle: false
+Cpp11BracedListStyle: true
 DerivePointerAlignment: false
 PointerAlignment: Right
 ReferenceAlignment: Right

@@ -36,10 +36,10 @@ QVariant SpaceListModel::data(const QModelIndex &index, int role) const
 QHash<int, QByteArray> SpaceListModel::roleNames() const
 {
     return {
-        { IdRole, "spaceId" },
-        { NameRole, "spaceName" },
-        { ColorRole, "spaceColor" },
-        { ActiveRole, "active" },
+        {IdRole, "spaceId"},
+        {NameRole, "spaceName"},
+        {ColorRole, "spaceColor"},
+        {ActiveRole, "active"},
     };
 }
 

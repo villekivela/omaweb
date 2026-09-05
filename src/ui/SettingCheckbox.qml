@@ -110,8 +110,8 @@ Item {
         anchors.fill: parent
         cursorShape: Qt.PointingHandCursor
         onClicked: {
-            root.forceActiveFocus()
-            root.clicked()
+            root.forceActiveFocus();
+            root.clicked();
         }
     }
 }

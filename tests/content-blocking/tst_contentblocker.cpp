@@ -200,7 +200,7 @@ void ContentBlockerTest::firstRunSubscribesToTheDefaultLists()
         QVERIFY(subscription.value(QStringLiteral("updateAddress")).toUrl().isValid());
         QVERIFY(!subscription.value(QStringLiteral("license")).toString().isEmpty());
     }
-    QCOMPARE(titles, QStringList({ QStringLiteral("EasyList"), QStringLiteral("EasyPrivacy") }));
+    QCOMPARE(titles, QStringList({QStringLiteral("EasyList"), QStringLiteral("EasyPrivacy")}));
     QVERIFY(QFile::exists(root.filePath(QStringLiteral("content-blocking/settings.json"))));
 
     // A second run reads the stored subscriptions rather than seeding again.

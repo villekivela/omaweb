@@ -37,7 +37,7 @@ MatcherCompilation ContentMatcher::compile(const QString &rules)
         omaweb_blocker_string_free(encodedReport);
     }
     if (!blocker) {
-        return { {}, report };
+        return {{}, report};
     }
     return {
         std::shared_ptr<const ContentMatcher>(
@@ -96,7 +96,7 @@ Substitute ContentMatcher::substitute(const QString &name)
     if (mimeType.isEmpty()) {
         return {};
     }
-    return { mimeType, QByteArray::fromBase64(dataUrl.mid(mark + separator.size())) };
+    return {mimeType, QByteArray::fromBase64(dataUrl.mid(mark + separator.size()))};
 }
 
 // The lists' $popup rules, asked about with the window's address as the

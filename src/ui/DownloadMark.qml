@@ -29,16 +29,16 @@ ChromeButton {
     readonly property string progressLabel: root.progressLabelFor(root.fraction)
 
     function progressLabelFor(fraction) {
-        return fraction >= 0 ? Math.round(fraction * 100) + "%" : "size unknown"
+        return fraction >= 0 ? Math.round(fraction * 100) + "%" : "size unknown";
     }
 
     function fileSummary() {
-        const names = []
+        const names = [];
         for (let index = 0; index < root.downloads.length; ++index) {
             names.push(root.downloads[index].name + " · " + root.progressLabelFor(
-                           root.downloads[index].fraction))
+                           root.downloads[index].fraction));
         }
-        return names.join(", ")
+        return names.join(", ");
     }
 
     visible: root.running > 0 || root.holding
@@ -52,14 +52,14 @@ ChromeButton {
 
     onRunningChanged: {
         if (root.running > 0)
-            dwell.stop()
+            dwell.stop();
         else if (root.finished > 0)
-            dwell.restart()
+            dwell.restart();
     }
 
     onFinishedChanged: {
         if (root.running === 0 && root.finished > 0)
-            dwell.restart()
+            dwell.restart();
     }
 
     Timer {

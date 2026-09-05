@@ -44,8 +44,8 @@ private:
 
 RuntimeSecurity::EngineBuild approvedBuild()
 {
-    return { QStringLiteral(OMAWEB_APPROVED_QTWEBENGINE), QStringLiteral(OMAWEB_APPROVED_CHROMIUM),
-        QStringLiteral(OMAWEB_APPROVED_CHROMIUM_SECURITY_PATCH) };
+    return {QStringLiteral(OMAWEB_APPROVED_QTWEBENGINE), QStringLiteral(OMAWEB_APPROVED_CHROMIUM),
+        QStringLiteral(OMAWEB_APPROVED_CHROMIUM_SECURITY_PATCH)};
 }
 
 } // namespace
@@ -68,7 +68,7 @@ void RuntimeSecurityTest::saysNothingIsMissingOnAHostThatCanSandbox()
     QTemporaryDir root;
     QVERIFY(root.isValid());
     ProcTree(root.path()).writeSandboxableHost();
-    QCOMPARE(sandboxDiagnostic({ root.path(), false }), QString());
+    QCOMPARE(sandboxDiagnostic({root.path(), false}), QString());
 
     QCOMPARE(sandboxDiagnostic({}), QString());
     sandboxDiagnostic(SandboxHost::fromEnvironment());
@@ -106,11 +106,11 @@ void RuntimeSecurityTest::namesEverySandboxPrerequisiteItCannotFind()
         proc.write(setting, value);
     }
 
-    const auto diagnostic = sandboxDiagnostic({ root.path(), superuser });
+    const auto diagnostic = sandboxDiagnostic({root.path(), superuser});
     QVERIFY2(!diagnostic.isEmpty(), "a missing prerequisite is never silent");
     QVERIFY2(diagnostic.contains(expected), qPrintable(diagnostic));
 
-    RuntimeSecurity blocked({ root.path(), superuser }, approvedBuild());
+    RuntimeSecurity blocked({root.path(), superuser}, approvedBuild());
     QVERIFY(!blocked.rendererIsolated());
     QVERIFY(!blocked.rendererIsolation().contains(QStringLiteral("sandboxed")));
 }
@@ -154,7 +154,7 @@ void RuntimeSecurityTest::separatesRendererIsolationFromTheNetworkService()
     QTemporaryDir root;
     QVERIFY(root.isValid());
     ProcTree(root.path()).writeSandboxableHost();
-    RuntimeSecurity security({ root.path(), false }, approvedBuild());
+    RuntimeSecurity security({root.path(), false}, approvedBuild());
 
     QVERIFY(security.rendererIsolated());
     QVERIFY(security.rendererIsolation().contains(QStringLiteral("renderer process")));
@@ -173,7 +173,7 @@ void RuntimeSecurityTest::callsABuildBelowTheBaselineAnUnsupportedPreview()
     QTemporaryDir root;
     QVERIFY(root.isValid());
     ProcTree(root.path()).writeSandboxableHost();
-    const SandboxHost host { root.path(), false };
+    const SandboxHost host {root.path(), false};
 
     RuntimeSecurity approved(host, approvedBuild());
     QVERIFY(approved.meetsSecurityBaseline());
@@ -181,8 +181,7 @@ void RuntimeSecurityTest::callsABuildBelowTheBaselineAnUnsupportedPreview()
     QVERIFY(approved.securityBaseline().contains(approved.approvedEngineVersion()));
 
     RuntimeSecurity behind(host,
-        { QStringLiteral("6.99.0"), QStringLiteral("140.0.7339.225"),
-            QStringLiteral("100.0.1.1") });
+        {QStringLiteral("6.99.0"), QStringLiteral("140.0.7339.225"), QStringLiteral("100.0.1.1")});
     QVERIFY(!behind.meetsSecurityBaseline());
     QVERIFY(behind.securityBaseline().contains(QStringLiteral("unsupported preview")));
     QVERIFY(behind.securityBaseline().contains(QStringLiteral("100.0.1.1")));

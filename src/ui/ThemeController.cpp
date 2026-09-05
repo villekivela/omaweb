@@ -115,14 +115,14 @@ namespace {
         const auto end = toOklab(to);
         const auto channel
             = [amount](double one, double other) { return one + (other - one) * amount; };
-        return fromOklab({ channel(start.lightness, end.lightness),
-            channel(start.greenRed, end.greenRed), channel(start.blueYellow, end.blueYellow) });
+        return fromOklab({channel(start.lightness, end.lightness),
+            channel(start.greenRed, end.greenRed), channel(start.blueYellow, end.blueYellow)});
     }
 
     QColor scaledChroma(const QColor &colour, double gain)
     {
         const auto oklab = toOklab(colour);
-        return fromOklab({ oklab.lightness, oklab.greenRed * gain, oklab.blueYellow * gain });
+        return fromOklab({oklab.lightness, oklab.greenRed * gain, oklab.blueYellow * gain});
     }
 
     // How far apart two colours are as the palette measures a private surface
@@ -275,7 +275,7 @@ namespace {
         }
         for (auto step = 1; step <= steps; ++step) {
             const auto amount = static_cast<double>(step) / steps;
-            for (const auto &endpoint : { QColor(Qt::black), QColor(Qt::white) }) {
+            for (const auto &endpoint : {QColor(Qt::black), QColor(Qt::white)}) {
                 consider(blended(preferred, endpoint, amount), 1.0 + amount);
             }
         }
@@ -285,7 +285,7 @@ namespace {
 } // namespace
 
 ThemeController::ThemeController(QString themePath, QObject *parent)
-    : ThemeController(QStringList { std::move(themePath) }, parent)
+    : ThemeController(QStringList {std::move(themePath)}, parent)
 {
 }
 
@@ -372,28 +372,28 @@ void ThemeController::apply(QVariantMap palette)
 QVariantMap ThemeController::fallbackPalette() const
 {
     return {
-        { QStringLiteral("window"), QStringLiteral("#16151d") },
-        { QStringLiteral("sidebar"), QStringLiteral("#1d1b29") },
-        { QStringLiteral("overlay"), QStringLiteral("#282634") },
-        { QStringLiteral("surface"), QStringLiteral("#302e3d") },
-        { QStringLiteral("surfaceHover"), QStringLiteral("#3d394e") },
-        { QStringLiteral("text"), QStringLiteral("#f3f1fa") },
-        { QStringLiteral("mutedText"), QStringLiteral("#aaa5b7") },
-        { QStringLiteral("accent"), QStringLiteral("#9b87ff") },
-        { QStringLiteral("border"), QStringLiteral("#4a4658") },
+        {QStringLiteral("window"), QStringLiteral("#16151d")},
+        {QStringLiteral("sidebar"), QStringLiteral("#1d1b29")},
+        {QStringLiteral("overlay"), QStringLiteral("#282634")},
+        {QStringLiteral("surface"), QStringLiteral("#302e3d")},
+        {QStringLiteral("surfaceHover"), QStringLiteral("#3d394e")},
+        {QStringLiteral("text"), QStringLiteral("#f3f1fa")},
+        {QStringLiteral("mutedText"), QStringLiteral("#aaa5b7")},
+        {QStringLiteral("accent"), QStringLiteral("#9b87ff")},
+        {QStringLiteral("border"), QStringLiteral("#4a4658")},
         // What the reader has to be told rather than shown: a binding that
         // could not be honoured, a surface that failed. Distinct from the
         // private accent, which says whose window this is and not that
         // something is wrong.
-        { QStringLiteral("urgent"), QStringLiteral("#e06c75") },
+        {QStringLiteral("urgent"), QStringLiteral("#e06c75")},
         // The one private colour named here. The grounds it is drawn on are
         // the climb's, from this and the window above, so a palette that
         // names a private accent and no grounds — every palette a desktop
         // renders — gets the same private window this one does.
-        { QStringLiteral("privateAccent"), QStringLiteral("#c678dd") },
-        { QStringLiteral("font"), defaultFont() },
-        { QStringLiteral("opacity"), defaultOpacity() },
-        { QStringLiteral("syntax"), defaultSyntax() },
+        {QStringLiteral("privateAccent"), QStringLiteral("#c678dd")},
+        {QStringLiteral("font"), defaultFont()},
+        {QStringLiteral("opacity"), defaultOpacity()},
+        {QStringLiteral("syntax"), defaultSyntax()},
     };
 }
 
@@ -406,29 +406,29 @@ QVariantMap ThemeController::fallbackPalette() const
 QVariantMap ThemeController::defaultSyntax()
 {
     return {
-        { QStringLiteral("keyword"), QStringLiteral("#c678dd") },
-        { QStringLiteral("string"), QStringLiteral("#98c379") },
-        { QStringLiteral("number"), QStringLiteral("#d19a66") },
-        { QStringLiteral("comment"), QStringLiteral("#7f7a8c") },
-        { QStringLiteral("tag"), QStringLiteral("#e06c75") },
-        { QStringLiteral("attribute"), QStringLiteral("#e5c07b") },
-        { QStringLiteral("variable"), QStringLiteral("#e06c75") },
-        { QStringLiteral("function"), QStringLiteral("#61afef") },
-        { QStringLiteral("type"), QStringLiteral("#56b6c2") },
+        {QStringLiteral("keyword"), QStringLiteral("#c678dd")},
+        {QStringLiteral("string"), QStringLiteral("#98c379")},
+        {QStringLiteral("number"), QStringLiteral("#d19a66")},
+        {QStringLiteral("comment"), QStringLiteral("#7f7a8c")},
+        {QStringLiteral("tag"), QStringLiteral("#e06c75")},
+        {QStringLiteral("attribute"), QStringLiteral("#e5c07b")},
+        {QStringLiteral("variable"), QStringLiteral("#e06c75")},
+        {QStringLiteral("function"), QStringLiteral("#61afef")},
+        {QStringLiteral("type"), QStringLiteral("#56b6c2")},
     };
 }
 
 QVariantMap ThemeController::defaultOpacity()
 {
     return {
-        { QStringLiteral("sidebar"), 0.95 },
+        {QStringLiteral("sidebar"), 0.95},
         // A sheet is read against a webpage rather than against the desktop,
         // and a page's own contrast is unknown, so it lets more through than
         // the sidebar does: at the sidebar's own value a dark page shows as
         // nothing at all and the surface reads as solid.
-        { QStringLiteral("sheet"), 0.92 },
-        { QStringLiteral("overlay"), 0.96 },
-        { QStringLiteral("window"), 0.0 },
+        {QStringLiteral("sheet"), 0.92},
+        {QStringLiteral("overlay"), 0.96},
+        {QStringLiteral("window"), 0.0},
     };
 }
 
@@ -438,10 +438,10 @@ QVariantMap ThemeController::defaultFont()
     // a family, and the host's own fixed-pitch family is a better last resort
     // than asking Qt to substitute for a name it cannot find.
     return {
-        { QStringLiteral("families"),
-            QStringList { QStringLiteral("JetBrains Mono"), QStringLiteral("SF Mono"),
-                QStringLiteral("Menlo"), QStringLiteral("DejaVu Sans Mono") } },
-        { QStringLiteral("size"), 12 },
+        {QStringLiteral("families"),
+            QStringList {QStringLiteral("JetBrains Mono"), QStringLiteral("SF Mono"),
+                QStringLiteral("Menlo"), QStringLiteral("DejaVu Sans Mono")}},
+        {QStringLiteral("size"), 12},
     };
 }
 
@@ -514,7 +514,7 @@ QVariantMap ThemeController::normalizedPalette(QVariantMap palette) const
               constexpr auto steps = 256;
               for (auto step = 1; step <= steps; ++step) {
                   const auto amount = static_cast<double>(step) / steps;
-                  for (const auto &endpoint : { QColor(Qt::black), QColor(Qt::white) }) {
+                  for (const auto &endpoint : {QColor(Qt::black), QColor(Qt::white)}) {
                       const auto candidate = blended(from, endpoint, amount);
                       if (clears(candidate)) {
                           palette.insert(privateKey, candidate.name(QColor::HexRgb));
@@ -632,11 +632,11 @@ QVariantMap ThemeController::normalizedPalette(QVariantMap palette) const
         }
         return colours;
     };
-    const auto grounds = coloursFor({ QStringLiteral("sidebar"), QStringLiteral("surface"),
-        QStringLiteral("surfaceHover"), QStringLiteral("overlay"), QStringLiteral("sheet") });
-    const auto privateGrounds = coloursFor({ QStringLiteral("privateSidebar"),
+    const auto grounds = coloursFor({QStringLiteral("sidebar"), QStringLiteral("surface"),
+        QStringLiteral("surfaceHover"), QStringLiteral("overlay"), QStringLiteral("sheet")});
+    const auto privateGrounds = coloursFor({QStringLiteral("privateSidebar"),
         QStringLiteral("privateSurface"), QStringLiteral("privateSurfaceHover"),
-        QStringLiteral("privateOverlay"), QStringLiteral("privateSheet") });
+        QStringLiteral("privateOverlay"), QStringLiteral("privateSheet")});
     const QColor named(palette.value(QStringLiteral("mutedText")).toString());
     const auto hasNamedMutedText = themeNamedMutedText && named.isValid();
     const QColor quietest(
@@ -663,11 +663,11 @@ QVariantMap ThemeController::normalizedPalette(QVariantMap palette) const
     // costs the theme its colour for nothing — a palette naming one colour for
     // both, as the template Omarchy renders does, can never be 3:1 against
     // itself, so the repair walked every such border up to near-white.
-    const auto borderedSurfaces = coloursFor({ QStringLiteral("window"), QStringLiteral("sidebar"),
-        QStringLiteral("surface"), QStringLiteral("overlay"), QStringLiteral("sheet") });
-    const auto privateBorderedSurfaces = coloursFor({ QStringLiteral("privateWindow"),
+    const auto borderedSurfaces = coloursFor({QStringLiteral("window"), QStringLiteral("sidebar"),
+        QStringLiteral("surface"), QStringLiteral("overlay"), QStringLiteral("sheet")});
+    const auto privateBorderedSurfaces = coloursFor({QStringLiteral("privateWindow"),
         QStringLiteral("privateSidebar"), QStringLiteral("privateSurface"),
-        QStringLiteral("privateOverlay"), QStringLiteral("privateSheet") });
+        QStringLiteral("privateOverlay"), QStringLiteral("privateSheet")});
     const QColor namedBorder(palette.value(QStringLiteral("border")).toString());
     const auto hasNamedBorder = themeNamedBorder && namedBorder.isValid();
     const QColor faintestBorder(
@@ -744,9 +744,9 @@ QVariantMap ThemeController::normalizedPalette(QVariantMap palette) const
         : defaults.value(QStringLiteral("size")).toInt();
     palette.insert(QStringLiteral("font"),
         QVariantMap {
-            { QStringLiteral("families"), families },
-            { QStringLiteral("family"), installedFamily(families) },
-            { QStringLiteral("size"), size },
+            {QStringLiteral("families"), families},
+            {QStringLiteral("family"), installedFamily(families)},
+            {QStringLiteral("size"), size},
         });
 
     // Every token is named, whether the theme named it or not, and every one

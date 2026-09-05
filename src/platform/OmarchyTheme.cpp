@@ -131,8 +131,8 @@ OmarchyTemplateOutcome followOmarchyTheme(
         // the theme to set is the one Omarchy reports as current, and `$1` is
         // the executable already found rather than a second path lookup.
         QProcess::startDetached(QStringLiteral("/bin/sh"),
-            { QStringLiteral("-c"), QStringLiteral(R"SH("$1" theme set "$("$1" theme current)")SH"),
-                QStringLiteral("sh"), omarchy });
+            {QStringLiteral("-c"), QStringLiteral(R"SH("$1" theme set "$("$1" theme current)")SH"),
+                QStringLiteral("sh"), omarchy});
     }
     return outcome;
 }

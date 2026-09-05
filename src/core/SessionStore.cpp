@@ -600,8 +600,8 @@ QVariantList SessionStore::permissionsForOrigin(const QString &spaceId, const QS
     }
     while (query.next()) {
         permissions.append(QVariantMap {
-            { QStringLiteral("permission"), query.value(0).toString() },
-            { QStringLiteral("decision"), query.value(1).toInt() },
+            {QStringLiteral("permission"), query.value(0).toString()},
+            {QStringLiteral("decision"), query.value(1).toInt()},
         });
     }
     return permissions;

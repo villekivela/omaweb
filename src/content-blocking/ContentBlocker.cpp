@@ -125,14 +125,14 @@ QVariantList ContentBlocker::subscriptions() const
     QVariantList result;
     for (const auto &subscription : m_subscriptions) {
         result.append(QVariantMap {
-            { QStringLiteral("id"), subscription.id },
-            { QStringLiteral("title"), subscription.title },
-            { QStringLiteral("source"), subscription.source },
-            { QStringLiteral("license"), subscription.license },
-            { QStringLiteral("updateAddress"), subscription.updateAddress },
-            { QStringLiteral("updateStatus"), subscription.updateStatus },
-            { QStringLiteral("lastUpdated"), subscription.lastUpdated },
-            { QStringLiteral("enabled"), subscription.enabled },
+            {QStringLiteral("id"), subscription.id},
+            {QStringLiteral("title"), subscription.title},
+            {QStringLiteral("source"), subscription.source},
+            {QStringLiteral("license"), subscription.license},
+            {QStringLiteral("updateAddress"), subscription.updateAddress},
+            {QStringLiteral("updateStatus"), subscription.updateStatus},
+            {QStringLiteral("lastUpdated"), subscription.lastUpdated},
+            {QStringLiteral("enabled"), subscription.enabled},
         });
     }
     return result;
@@ -444,14 +444,14 @@ void ContentBlocker::save() const
     QJsonArray subscriptions;
     for (const auto &subscription : m_subscriptions) {
         subscriptions.append(QJsonObject {
-            { QStringLiteral("id"), subscription.id },
-            { QStringLiteral("title"), subscription.title },
-            { QStringLiteral("source"), subscription.source.toString() },
-            { QStringLiteral("license"), subscription.license },
-            { QStringLiteral("updateAddress"), subscription.updateAddress.toString() },
-            { QStringLiteral("updateStatus"), subscription.updateStatus },
-            { QStringLiteral("lastUpdated"), subscription.lastUpdated },
-            { QStringLiteral("enabled"), subscription.enabled },
+            {QStringLiteral("id"), subscription.id},
+            {QStringLiteral("title"), subscription.title},
+            {QStringLiteral("source"), subscription.source.toString()},
+            {QStringLiteral("license"), subscription.license},
+            {QStringLiteral("updateAddress"), subscription.updateAddress.toString()},
+            {QStringLiteral("updateStatus"), subscription.updateStatus},
+            {QStringLiteral("lastUpdated"), subscription.lastUpdated},
+            {QStringLiteral("enabled"), subscription.enabled},
         });
     }
     QJsonArray disabledSites;
@@ -464,10 +464,10 @@ void ContentBlocker::save() const
         return;
     }
     file.write(QJsonDocument(QJsonObject {
-                                 { QStringLiteral("version"), 1 },
-                                 { QStringLiteral("userRules"), m_userRules },
-                                 { QStringLiteral("disabledSites"), disabledSites },
-                                 { QStringLiteral("subscriptions"), subscriptions },
+                                 {QStringLiteral("version"), 1},
+                                 {QStringLiteral("userRules"), m_userRules},
+                                 {QStringLiteral("disabledSites"), disabledSites},
+                                 {QStringLiteral("subscriptions"), subscriptions},
                              })
             .toJson(QJsonDocument::Indented));
     file.commit();

@@ -34,19 +34,19 @@ QtObject {
 
         function onDownloadDirectoryChanged() {
             for (const spaceId in root.hosts)
-                root.hosts[spaceId].downloadDirectory = root.browser.downloadDirectory
+                root.hosts[spaceId].downloadDirectory = root.browser.downloadDirectory;
         }
     }
 
     readonly property var hosts: ({})
 
     function hostFor(spaceId) {
-        const existing = root.hosts[spaceId]
+        const existing = root.hosts[spaceId];
         if (existing)
-            return existing
+            return existing;
         if (!root.profileSource || String(root.profileSource).length === 0)
-            return null
-        const component = Qt.createComponent(root.profileSource)
+            return null;
+        const component = Qt.createComponent(root.profileSource);
         const host = component.createObject(root.owner ? root.owner : root, {
                                                 "profilePath": root.browser.profilePathForSpace(
                                                                    spaceId),
@@ -60,22 +60,22 @@ QtObject {
                                                 "cookieSpaceId": spaceId,
                                                 "downloadController": root.browser,
                                                 "downloadHolds": root.downloadHolds
-                                            })
+                                            });
         if (!host)
-            return null
-        root.hosts[spaceId] = host
-        root.created(spaceId, host)
-        return host
+            return null;
+        root.hosts[spaceId] = host;
+        root.created(spaceId, host);
+        return host;
     }
 
     // A Space that has been deleted takes its profile with it, and the profile
     // takes itself away once the downloads it is still carrying are finished.
     function retire(spaceId) {
-        const host = root.hosts[spaceId]
+        const host = root.hosts[spaceId];
         if (!host)
-            return null
-        delete root.hosts[spaceId]
-        host.retire()
-        return host
+            return null;
+        delete root.hosts[spaceId];
+        host.retire();
+        return host;
     }
 }

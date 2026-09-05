@@ -31,47 +31,47 @@ DialogPanel {
 
     onOpenChanged: {
         if (!open)
-            return
-        selected = 0
-        field.text = presetText
+            return;
+        selected = 0;
+        field.text = presetText;
         Qt.callLater(function () {
             if (root.inputVisible) {
-                field.focusInput()
+                field.focusInput();
                 if (root.selectPreset)
-                    field.selectAllText()
+                    field.selectAllText();
             } else {
-                root.forceActiveFocus()
+                root.forceActiveFocus();
             }
-        })
+        });
     }
 
     function step(delta) {
         if (rows.length === 0)
-            return
-        selected = (selected + delta + rows.length) % rows.length
+            return;
+        selected = (selected + delta + rows.length) % rows.length;
     }
 
     function accept() {
         if (rows.length > 0) {
-            root.rowActivated(root.selected)
-            return
+            root.rowActivated(root.selected);
+            return;
         }
-        root.accepted(field.text)
+        root.accepted(field.text);
     }
 
     Keys.onPressed: function (event) {
         if (event.key === Qt.Key_Escape) {
-            root.dismissed()
-            event.accepted = true
+            root.dismissed();
+            event.accepted = true;
         } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
-            root.accept()
-            event.accepted = true
+            root.accept();
+            event.accepted = true;
         } else if (event.key === Qt.Key_Down) {
-            root.step(1)
-            event.accepted = true
+            root.step(1);
+            event.accepted = true;
         } else if (event.key === Qt.Key_Up) {
-            root.step(-1)
-            event.accepted = true
+            root.step(-1);
+            event.accepted = true;
         }
     }
 
@@ -110,19 +110,19 @@ DialogPanel {
             Accessible.name: root.label
 
             function focusInput() {
-                field.forceActiveFocus()
+                field.forceActiveFocus();
             }
             function selectAllText() {
-                field.selectAll()
+                field.selectAll();
             }
 
             Keys.onPressed: function (event) {
                 if (event.key === Qt.Key_Escape) {
-                    root.dismissed()
-                    event.accepted = true
+                    root.dismissed();
+                    event.accepted = true;
                 } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
-                    root.accept()
-                    event.accepted = true
+                    root.accept();
+                    event.accepted = true;
                 }
             }
         }

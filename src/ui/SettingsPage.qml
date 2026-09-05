@@ -68,21 +68,22 @@ Rectangle {
     // model holds is not what the rail has to fit.
     function railLabel(name) {
         return name.replace(/(^|\s)\S/g, function (first) {
-            return first.toUpperCase()
-        })
+            return first.toUpperCase();
+        });
     }
 
     readonly property int railWidth: {
         // Read for the dependency alone: advanceWidth() measures in C++ off a
         // font this binding never otherwise touches.
-        void (railMetrics.font.pixelSize)
-        void (railMetrics.font.family)
-        let widest = 0
+        void (railMetrics.font.pixelSize);
+        void (railMetrics.font.family);
+        let widest = 0;
         for (let index = 0; index < root.sections.length; ++index)
             widest = Math.max(widest, railMetrics.advanceWidth(root.railLabel(
-                                                                   root.sections[index])))
+                                                                   root.sections[index])));
 
-        return Math.ceil(widest)
+
+        return Math.ceil(widest);
     }
 
     // -------------------------------------------------------------- geometry
@@ -139,33 +140,33 @@ Rectangle {
         // The font is read for the dependency alone: advanceWidth() measures in
         // C++, so a theme that changed the type would otherwise leave the floor
         // at the size it was last measured at.
-        void (fieldMetrics.font.pixelSize)
-        void (fieldMetrics.font.family)
-        let widest = 0
+        void (fieldMetrics.font.pixelSize);
+        void (fieldMetrics.font.family);
+        let widest = 0;
         for (const field in root.subscriptionPlaceholders)
             widest = Math.max(widest, fieldMetrics.advanceWidth(
-                                  root.subscriptionPlaceholders[field]))
-        return Math.ceil(widest) + Style.spacing.controlPaddingX * 2
+                                  root.subscriptionPlaceholders[field]));
+        return Math.ceil(widest) + Style.spacing.controlPaddingX * 2;
     }
 
     // about:blank and other opaque addresses have no host to name, and saying
     // "blocked on about" would be worse than saying nothing.
     readonly property string activeHost: {
         if (!browser)
-            return ""
-        const value = String(browser.activeUrl)
+            return "";
+        const value = String(browser.activeUrl);
         if (!/^[a-z]+:\/\//.test(value))
-            return ""
-        return value.replace(/^[a-z]+:\/\//, "").split("/")[0].split(":")[0]
+            return "";
+        return value.replace(/^[a-z]+:\/\//, "").split("/")[0].split(":")[0];
     }
 
     // Bytes as the reader reads them. A retained tab whose renderer the
     // platform cannot account for says so rather than claiming nothing.
     function resourceLabel(bytes) {
         if (!(bytes > 0))
-            return "size unavailable"
-        const megabytes = bytes / (1024 * 1024)
-        return (megabytes >= 100 ? Math.round(megabytes) : Math.round(megabytes * 10) / 10) + " MB"
+            return "size unavailable";
+        const megabytes = bytes / (1024 * 1024);
+        return (megabytes >= 100 ? Math.round(megabytes) : Math.round(megabytes * 10) / 10) + " MB";
     }
 
     signal closed
@@ -190,22 +191,22 @@ Rectangle {
 
     Keys.onPressed: function (event) {
         if (event.key === Qt.Key_Escape) {
-            root.closed()
-            event.accepted = true
+            root.closed();
+            event.accepted = true;
         }
     }
 
     function refresh() {
         if (!root.browser)
-            return
-        root.downloadsRequested()
-        root.engines = root.browser.searchEngines()
-        root.enginePresets = root.browser.searchEnginePresets()
-        root.subscriptions = root.blocker ? root.blocker.subscriptions : []
+            return;
+        root.downloadsRequested();
+        root.engines = root.browser.searchEngines();
+        root.enginePresets = root.browser.searchEnginePresets();
+        root.subscriptions = root.blocker ? root.blocker.subscriptions : [];
         root.blockedRequestCount = root.blocker ? root.blocker.blockedRequestCount(
-                                                      root.browser.activeUrl) : 0
-        userRules.text = root.blocker ? root.blocker.userRules : ""
-        root.loadBrowsingDataSelection()
+                                                      root.browser.activeUrl) : 0;
+        userRules.text = root.blocker ? root.blocker.userRules : "";
+        root.loadBrowsingDataSelection();
     }
 
     // The categories and the range are remembered through the same preference
@@ -214,45 +215,45 @@ Rectangle {
     // weeks ago is a default rather than a choice.
     function loadBrowsingDataSelection() {
         if (!root.browser)
-            return
+            return;
         const saved = root.browser.preference("clear-data-categories",
-                                              "cookies,storage,cache,permissions,history")
-        root.clearCategories = saved.length > 0 ? saved.split(",") : []
-        root.clearRange = root.browser.preference("clear-data-range", "86400000")
+                                              "cookies,storage,cache,permissions,history");
+        root.clearCategories = saved.length > 0 ? saved.split(",") : [];
+        root.clearRange = root.browser.preference("clear-data-range", "86400000");
     }
 
     function toggleClearCategory(value) {
-        const next = root.clearCategories.slice()
-        const at = next.indexOf(value)
+        const next = root.clearCategories.slice();
+        const at = next.indexOf(value);
         if (at >= 0)
-            next.splice(at, 1)
+            next.splice(at, 1);
         else
-            next.push(value)
-        root.clearCategories = next
+            next.push(value);
+        root.clearCategories = next;
         if (root.browser)
-            root.browser.setPreference("clear-data-categories", next.join(","))
+            root.browser.setPreference("clear-data-categories", next.join(","));
     }
 
     function chooseClearRange(value) {
-        root.clearRange = value
+        root.clearRange = value;
         if (root.browser)
-            root.browser.setPreference("clear-data-range", value)
+            root.browser.setPreference("clear-data-range", value);
     }
 
     function makeDefaultSearchEngine(id) {
         if (root.browser.setDefaultSearchEngine(id))
-            root.refresh()
+            root.refresh();
     }
 
     function deleteSearchEngine(id) {
         if (root.browser.deleteSearchEngine(id))
-            root.refresh()
+            root.refresh();
     }
 
     function searchEngineInstalled(id) {
         return root.engines.some(function (engine) {
-            return engine.id === id
-        })
+            return engine.id === id;
+        });
     }
 
     onOpenChanged: if (open)
@@ -375,8 +376,8 @@ Rectangle {
                     Keys.onPressed: function (event) {
                         if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key
                                 === Qt.Key_Space) {
-                            root.section = index
-                            event.accepted = true
+                            root.section = index;
+                            event.accepted = true;
                         }
                     }
 
@@ -384,8 +385,8 @@ Rectangle {
                         anchors.fill: parent
                         cursorShape: Qt.PointingHandCursor
                         onClicked: {
-                            parent.forceActiveFocus()
-                            root.section = index
+                            parent.forceActiveFocus();
+                            root.section = index;
                         }
                     }
                 }
@@ -632,8 +633,8 @@ Rectangle {
                             root.blocker.addSubscription(subscriptionTitle.text,
                                                          subscriptionSource.text,
                                                          subscriptionLicense.text,
-                                                         subscriptionUpdate.text)
-                            root.refresh()
+                                                         subscriptionUpdate.text);
+                            root.refresh();
                         }
                     }
 
@@ -771,18 +772,18 @@ Rectangle {
                             colors: root.colors
                             title: modelData.path
                             note: {
-                                const state = String(modelData.state)
-                                const error = String(modelData.error || "")
-                                const received = Number(modelData.receivedBytes || 0)
-                                const total = Number(modelData.totalBytes || 0)
-                                let line = state
+                                const state = String(modelData.state);
+                                const error = String(modelData.error || "");
+                                const received = Number(modelData.receivedBytes || 0);
+                                const total = Number(modelData.totalBytes || 0);
+                                let line = state;
                                 if (state === "in-progress" && total > 0)
-                                    line += " · " + Math.floor(received * 100 / total) + "%"
+                                    line += " · " + Math.floor(received * 100 / total) + "%";
                                 else if (state === "in-progress" && received > 0)
-                                    line += " · " + root.resourceLabel(received)
+                                    line += " · " + root.resourceLabel(received);
                                 if (error.length > 0)
-                                    line += " · " + error
-                                return line
+                                    line += " · " + error;
+                                return line;
                             }
 
                             Row {
@@ -915,7 +916,7 @@ Rectangle {
                                 return {
                                     value: engine.id,
                                     label: engine.name
-                                }
+                                };
                             })
                             value: options.length > 0 ? String(options[0].value) : ""
                             accessibleName: "Predefined search provider"
@@ -931,7 +932,7 @@ Rectangle {
                                          providerPreset.value)
                             onClicked: {
                                 if (root.browser.addSearchEnginePreset(providerPreset.value))
-                                    root.refresh()
+                                    root.refresh();
                             }
                         }
                     }
@@ -973,10 +974,10 @@ Rectangle {
                         onClicked: {
                             if (root.browser.addSearchEngine(engineName.text, engineQueryUrl.text,
                                                              engineKeyword.text)) {
-                                engineName.text = ""
-                                engineQueryUrl.text = ""
-                                engineKeyword.text = ""
-                                root.refresh()
+                                engineName.text = "";
+                                engineQueryUrl.text = "";
+                                engineKeyword.text = "";
+                                root.refresh();
                             }
                         }
                     }
@@ -1116,7 +1117,7 @@ Rectangle {
                         font.family: Style.font.family
                         font.pixelSize: Style.font.body
                         onLinkActivated: function (link) {
-                            Qt.openUrlExternally(link)
+                            Qt.openUrlExternally(link);
                         }
 
                         HoverHandler {
@@ -1157,16 +1158,16 @@ Rectangle {
         range: root.clearRange
 
         onCategoryToggled: function (value) {
-            root.toggleClearCategory(value)
+            root.toggleClearCategory(value);
         }
         onRangeChosen: function (value) {
-            root.chooseClearRange(value)
+            root.chooseClearRange(value);
         }
         onDismissed: root.clearDataOpen = false
         onConfirmed: function (categories, since, everySpace, confirmation) {
-            root.clearDataOpen = false
+            root.clearDataOpen = false;
             if (root.browser.clearBrowsingData(categories, since, everySpace, confirmation))
-                root.refresh()
+                root.refresh();
         }
     }
 }

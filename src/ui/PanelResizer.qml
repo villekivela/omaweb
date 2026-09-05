@@ -35,37 +35,37 @@ Item {
     Accessible.description: "Arrow keys resize the " + root.panelName.toLowerCase()
 
     function request(width) {
-        root.widthRequested(Math.max(root.minimumWidth, Math.min(root.maximumWidth, width)))
+        root.widthRequested(Math.max(root.minimumWidth, Math.min(root.maximumWidth, width)));
     }
 
     Keys.onPressed: function (event) {
-        const distance = (event.modifiers & Qt.ShiftModifier) ? root.coarseStep : root.step
-        const widen = root.measureFromRight ? -distance : distance
+        const distance = (event.modifiers & Qt.ShiftModifier) ? root.coarseStep : root.step;
+        const widen = root.measureFromRight ? -distance : distance;
         switch (event.key) {
         case Qt.Key_Left:
-            root.request(root.currentWidth - widen)
-            break
+            root.request(root.currentWidth - widen);
+            break;
         case Qt.Key_Right:
-            root.request(root.currentWidth + widen)
-            break
+            root.request(root.currentWidth + widen);
+            break;
         case Qt.Key_Home:
-            root.request(root.minimumWidth)
-            break
+            root.request(root.minimumWidth);
+            break;
         case Qt.Key_End:
-            root.request(root.maximumWidth)
-            break
+            root.request(root.maximumWidth);
+            break;
         case Qt.Key_Return:
         case Qt.Key_Enter:
         case Qt.Key_Space:
-            root.request(root.defaultWidth)
-            break
+            root.request(root.defaultWidth);
+            break;
         case Qt.Key_Escape:
-            root.pageFocusRequested()
-            break
+            root.pageFocusRequested();
+            break;
         default:
-            return
+            return;
         }
-        event.accepted = true
+        event.accepted = true;
     }
 
     // Only lit while it is being used: an idle window shows the border the
@@ -97,19 +97,19 @@ Item {
         // The distance from the panel's own edge of the window, which is the
         // width the seam is being dragged to.
         function pointerWidth(mouse) {
-            const x = root.mapToItem(root.parent, mouse.x, 0).x
-            return root.measureFromRight ? root.parent.width - x : x
+            const x = root.mapToItem(root.parent, mouse.x, 0).x;
+            return root.measureFromRight ? root.parent.width - x : x;
         }
 
         onPressed: function (mouse) {
-            root.forceActiveFocus()
-            grabOffset = pointerWidth(mouse) - root.currentWidth
-            root.dragging = true
+            root.forceActiveFocus();
+            grabOffset = pointerWidth(mouse) - root.currentWidth;
+            root.dragging = true;
         }
 
         onPositionChanged: function (mouse) {
             if (root.dragging) {
-                root.request(pointerWidth(mouse) - grabOffset)
+                root.request(pointerWidth(mouse) - grabOffset);
             }
         }
 

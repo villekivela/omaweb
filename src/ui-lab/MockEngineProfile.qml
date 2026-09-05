@@ -20,7 +20,7 @@ QtObject {
     // can be reviewed against an engine that falls short.
     property var untouchedCategories: []
     function resetOriginPermissions(origin) {
-        resetPermissionOrigins = resetPermissionOrigins.concat([String(origin)])
+        resetPermissionOrigins = resetPermissionOrigins.concat([String(origin)]);
     }
     signal browsingDataCleared
     property string downloadDirectory: ""
@@ -50,96 +50,98 @@ QtObject {
 
     function simulateDownloadRequest(pageUrl, sourceUrl, fileName, mimeType) {
         if (!acceptDownloads)
-            return ""
-        const sourceKey = String(sourceUrl)
-        const answer = answeredDownloads[sourceKey]
-        const answered = answer !== undefined
+            return "";
+        const sourceKey = String(sourceUrl);
+        const answer = answeredDownloads[sourceKey];
+        const answered = answer !== undefined;
         if (answered)
-            delete answeredDownloads[sourceKey]
-        let chosenPath = answered && answer.length > 0 ? answer : ""
+            delete answeredDownloads[sourceKey];
+        let chosenPath = answered && answer.length > 0 ? answer : "";
         if (chosenPath.length === 0) {
             const rule = downloadController ? downloadController.downloadDisposition(pageUrl,
                                                                                      fileName, mimeType,
                                                                                      downloadDirectory,
                                                                                      answered) :
-                                              null
-            const disposition = rule ? rule.disposition : "accept"
+                                              null;
+            const disposition = rule ? rule.disposition : "accept";
             if (disposition === "refuse") {
-                downloadRefused(sourceUrl, fileName, rule.origin)
-                return ""
+                downloadRefused(sourceUrl, fileName, rule.origin);
+                return "";
             }
             if (disposition !== "accept") {
-                const token = "held-" + String(++nextHeldDownload)
+                const token = "held-" + String(++nextHeldDownload);
                 heldDownloads[token] = {
                     "sourceUrl": String(sourceUrl),
                     "fileName": String(fileName),
                     "mimeType": String(mimeType),
                     "pageUrl": String(pageUrl)
-                }
-                downloadHeld(token, disposition, rule.origin, sourceUrl, fileName, rule.risk)
-                return ""
+                };
+                downloadHeld(token, disposition, rule.origin, sourceUrl, fileName, rule.risk);
+                return "";
             }
         }
-        const runtimeId = downloadNamespace + ":" + String(++nextHeldDownload)
-        const path = chosenPath.length > 0 ? chosenPath : downloadDirectory + "/" + String(fileName)
-        downloadRequests[runtimeId] = path
-        activeDownloadCount += 1
+        const runtimeId = downloadNamespace + ":" + String(++nextHeldDownload);
+        let path = chosenPath;
+        if (path.length === 0)
+            path = downloadDirectory + "/" + String(fileName);
+        downloadRequests[runtimeId] = path;
+        activeDownloadCount += 1;
         if (downloadController)
-            downloadController.noteDownloadStarted(pageUrl, runtimeId)
-        downloadStarted(runtimeId, sourceUrl, path, "in-progress", 0, 100)
-        return runtimeId
+            downloadController.noteDownloadStarted(pageUrl, runtimeId);
+        downloadStarted(runtimeId, sourceUrl, path, "in-progress", 0, 100);
+        return runtimeId;
     }
 
     function simulateDownloadProgress(runtimeId, receivedBytes, totalBytes) {
         if (downloadRequests[runtimeId] === undefined)
-            return false
-        downloadUpdated(runtimeId, "in-progress", receivedBytes, totalBytes, "")
-        return true
+            return false;
+        downloadUpdated(runtimeId, "in-progress", receivedBytes, totalBytes, "");
+        return true;
     }
 
     function simulateDownloadFinished(runtimeId) {
         if (downloadRequests[runtimeId] === undefined)
-            return false
-        activeDownloadCount -= 1
+            return false;
+        activeDownloadCount -= 1;
         if (downloadController)
-            downloadController.noteDownloadSettled(runtimeId)
-        delete downloadRequests[runtimeId]
-        downloadUpdated(runtimeId, "completed", 100, 100, "")
-        return true
+            downloadController.noteDownloadSettled(runtimeId);
+        delete downloadRequests[runtimeId];
+        downloadUpdated(runtimeId, "completed", 100, 100, "");
+        return true;
     }
 
     function releaseHeldDownload(token, path) {
-        const details = heldDownloads[token]
+        const details = heldDownloads[token];
         if (!details)
-            return false
-        delete heldDownloads[token]
-        answeredDownloads[details.sourceUrl] = path ? String(path) : ""
+            return false;
+        delete heldDownloads[token];
+        answeredDownloads[details.sourceUrl] = path ? String(path) : "";
         simulateDownloadRequest(details.pageUrl, details.sourceUrl, details.fileName,
-                                details.mimeType)
-        return true
+                                details.mimeType);
+        return true;
     }
 
     function discardHeldDownload(token) {
         if (heldDownloads[token] === undefined)
-            return false
-        delete heldDownloads[token]
-        return true
+            return false;
+        delete heldDownloads[token];
+        return true;
     }
 
     function cancelDownload(runtimeId) {
         if (downloadRequests[runtimeId] === undefined)
-            return false
-        cancelledDownloads = cancelledDownloads.concat([String(runtimeId)])
-        downloadUpdated(runtimeId, "cancelled", 0, 100, "")
-        return true
+            return false;
+        cancelledDownloads = cancelledDownloads.concat([String(runtimeId)]);
+        downloadUpdated(runtimeId, "cancelled", 0, 100, "");
+        return true;
     }
 
     function retryDownload(runtimeId) {
         if (downloadRequests[runtimeId] === undefined)
-            return false
-        retriedDownloads = retriedDownloads.concat([String(runtimeId)])
-        downloadUpdated(runtimeId, "in-progress", 0, 100, "")
-        return true
+            return false;
+        retriedDownloads = retriedDownloads.concat([String(runtimeId)]);
+        downloadUpdated(runtimeId, "in-progress", 0, 100, "");
+        return true;
     }
     signal notificationPresented(string notificationId, url origin, string title, string message)
     // The lab has no page to ask, so a notification is named. What the shell
@@ -149,22 +151,22 @@ QtObject {
     property var activatedNotifications: []
     property var dismissedNotifications: []
     function simulateNotification(origin, title, message) {
-        const notificationId = String(++nextNotificationId)
-        notificationPresented(notificationId, origin, String(title), String(message))
-        return notificationId
+        const notificationId = String(++nextNotificationId);
+        notificationPresented(notificationId, origin, String(title), String(message));
+        return notificationId;
     }
     function activateNotification(notificationId) {
-        activatedNotifications = activatedNotifications.concat([String(notificationId)])
+        activatedNotifications = activatedNotifications.concat([String(notificationId)]);
     }
     function dismissNotification(notificationId) {
-        dismissedNotifications = dismissedNotifications.concat([String(notificationId)])
+        dismissedNotifications = dismissedNotifications.concat([String(notificationId)]);
     }
     function retire() {
-        destroy()
+        destroy();
     }
     function clearBrowsingData(dataTypes, since) {
-        browsingDataClearCount += 1
-        browsingDataCleared()
-        return untouchedCategories
+        browsingDataClearCount += 1;
+        browsingDataCleared();
+        return untouchedCategories;
     }
 }

@@ -117,33 +117,33 @@ namespace {
 QVariantMap inspectorPalette()
 {
     return {
-        { QStringLiteral("windowOpaque"), QStringLiteral("#0b1a0b") },
-        { QStringLiteral("sidebarOpaque"), QStringLiteral("#112b11") },
-        { QStringLiteral("surface"), QStringLiteral("#1a3d1a") },
-        { QStringLiteral("surfaceHover"), QStringLiteral("#245224") },
-        { QStringLiteral("border"), QStringLiteral("#2f6b2f") },
-        { QStringLiteral("text"), QStringLiteral("#e8ffe8") },
-        { QStringLiteral("mutedText"), QStringLiteral("#9dc79d") },
-        { QStringLiteral("accent"), QStringLiteral("#00ff88") },
-        { QStringLiteral("urgent"), QStringLiteral("#ff0044") },
-        { QStringLiteral("syntax"),
+        {QStringLiteral("windowOpaque"), QStringLiteral("#0b1a0b")},
+        {QStringLiteral("sidebarOpaque"), QStringLiteral("#112b11")},
+        {QStringLiteral("surface"), QStringLiteral("#1a3d1a")},
+        {QStringLiteral("surfaceHover"), QStringLiteral("#245224")},
+        {QStringLiteral("border"), QStringLiteral("#2f6b2f")},
+        {QStringLiteral("text"), QStringLiteral("#e8ffe8")},
+        {QStringLiteral("mutedText"), QStringLiteral("#9dc79d")},
+        {QStringLiteral("accent"), QStringLiteral("#00ff88")},
+        {QStringLiteral("urgent"), QStringLiteral("#ff0044")},
+        {QStringLiteral("syntax"),
             QVariantMap {
-                { QStringLiteral("keyword"), QStringLiteral("#123456") },
-                { QStringLiteral("string"), QStringLiteral("#654321") },
-                { QStringLiteral("number"), QStringLiteral("#abcdef") },
-                { QStringLiteral("comment"), QStringLiteral("#fedcba") },
-                { QStringLiteral("tag"), QStringLiteral("#010203") },
-                { QStringLiteral("attribute"), QStringLiteral("#040506") },
-                { QStringLiteral("variable"), QStringLiteral("#0a0b0c") },
-                { QStringLiteral("function"), QStringLiteral("#0d0e0f") },
-                { QStringLiteral("type"), QStringLiteral("#101112") },
-                { QStringLiteral("punctuation"), QStringLiteral("#778899") },
-            } },
-        { QStringLiteral("font"),
+                {QStringLiteral("keyword"), QStringLiteral("#123456")},
+                {QStringLiteral("string"), QStringLiteral("#654321")},
+                {QStringLiteral("number"), QStringLiteral("#abcdef")},
+                {QStringLiteral("comment"), QStringLiteral("#fedcba")},
+                {QStringLiteral("tag"), QStringLiteral("#010203")},
+                {QStringLiteral("attribute"), QStringLiteral("#040506")},
+                {QStringLiteral("variable"), QStringLiteral("#0a0b0c")},
+                {QStringLiteral("function"), QStringLiteral("#0d0e0f")},
+                {QStringLiteral("type"), QStringLiteral("#101112")},
+                {QStringLiteral("punctuation"), QStringLiteral("#778899")},
+            }},
+        {QStringLiteral("font"),
             QVariantMap {
-                { QStringLiteral("family"), QStringLiteral("Menlo") },
-                { QStringLiteral("size"), 12 },
-            } },
+                {QStringLiteral("family"), QStringLiteral("Menlo")},
+                {QStringLiteral("size"), 12},
+            }},
     };
 }
 
@@ -219,8 +219,8 @@ void QtEngineContractTest::mockNamesTheFactsAboutACertificateFailure()
     // A failure inside a frame is reported as one. What the shell does with it
     // is the shell's, and it cannot refuse what it was never told about.
     const QVariantMap insideAFrame = {
-        { QStringLiteral("url"), QStringLiteral("https://tracker.example/pixel") },
-        { QStringLiteral("mainFrame"), false },
+        {QStringLiteral("url"), QStringLiteral("https://tracker.example/pixel")},
+        {QStringLiteral("mainFrame"), false},
     };
     QVERIFY(QMetaObject::invokeMethod(
         adapter.get(), "simulateCertificateError", Q_ARG(QVariant, insideAFrame)));
@@ -230,7 +230,7 @@ void QtEngineContractTest::mockNamesTheFactsAboutACertificateFailure()
     // A frame's failure is not the page's connection state.
     QCOMPARE(adapter->property("connectionState").toString(), QStringLiteral("secure"));
 
-    const QVariantMap fatalFailure = { { QStringLiteral("fatal"), true } };
+    const QVariantMap fatalFailure = {{QStringLiteral("fatal"), true}};
     QVERIFY(QMetaObject::invokeMethod(
         adapter.get(), "simulateCertificateError", Q_ARG(QVariant, fatalFailure)));
     QCOMPARE(raised.count(), 3);
@@ -246,8 +246,8 @@ void QtEngineContractTest::mockReportsNothingWhereTheEngineCannotAnswer()
     QQmlComponent component(
         &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_MOCK_ENGINE_VIEW_PATH)));
     const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
-        { QStringLiteral("certificateDecisionsAvailable"), false },
-        { QStringLiteral("thirdPartyCookieControlAvailable"), false },
+        {QStringLiteral("certificateDecisionsAvailable"), false},
+        {QStringLiteral("thirdPartyCookieControlAvailable"), false},
     }));
     QVERIFY2(adapter, qPrintable(component.errorString()));
 
@@ -338,15 +338,15 @@ void QtEngineContractTest::adaptersExposeKeyboardNavigationCommands()
     QVERIFY2(adapter, qPrintable(component.errorString()));
 
     const QVariantMap configuration = {
-        { QStringLiteral("version"), 1 },
-        { QStringLiteral("enabled"), true },
-        { QStringLiteral("bindings"),
+        {QStringLiteral("version"), 1},
+        {QStringLiteral("enabled"), true},
+        {QStringLiteral("bindings"),
             QVariantMap {
-                { QStringLiteral("j"), QStringLiteral("scroll-down") },
-                { QStringLiteral("f"), QStringLiteral("open-link") },
-            } },
-        { QStringLiteral("passthroughAll"), false },
-        { QStringLiteral("passthroughKeys"), QStringList {} },
+                {QStringLiteral("j"), QStringLiteral("scroll-down")},
+                {QStringLiteral("f"), QStringLiteral("open-link")},
+            }},
+        {QStringLiteral("passthroughAll"), false},
+        {QStringLiteral("passthroughKeys"), QStringList {}},
     };
     QVERIFY(QMetaObject::invokeMethod(
         adapter.get(), "configureKeyboardNavigation", Q_ARG(QVariant, configuration)));
@@ -433,10 +433,10 @@ void QtEngineContractTest::qtProfilesIsolateSiteStorage()
     QQmlComponent component(
         &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
     const std::unique_ptr<QObject> personal(component.createWithInitialProperties({
-        { QStringLiteral("profilePath"), root.filePath(QStringLiteral("personal")) },
+        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("personal"))},
     }));
     const std::unique_ptr<QObject> work(component.createWithInitialProperties({
-        { QStringLiteral("profilePath"), root.filePath(QStringLiteral("work")) },
+        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("work"))},
     }));
     QVERIFY2(personal, qPrintable(component.errorString()));
     QVERIFY2(work, qPrintable(component.errorString()));
@@ -481,7 +481,7 @@ void QtEngineContractTest::qtPrivateWindowsShareOneProfile()
     QQmlComponent profileComponent(
         &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_PROFILE_PATH)));
     const std::unique_ptr<QObject> profileHost(profileComponent.createWithInitialProperties({
-        { QStringLiteral("profilePath"), root.filePath(QStringLiteral("private")) },
+        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("private"))},
     }));
     QVERIFY2(profileHost, qPrintable(profileComponent.errorString()));
     const auto sharedProfile = profileHost->property("profile");
@@ -490,10 +490,10 @@ void QtEngineContractTest::qtPrivateWindowsShareOneProfile()
     QQmlComponent viewComponent(
         &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
     const std::unique_ptr<QObject> first(viewComponent.createWithInitialProperties({
-        { QStringLiteral("sharedProfile"), sharedProfile },
+        {QStringLiteral("sharedProfile"), sharedProfile},
     }));
     const std::unique_ptr<QObject> second(viewComponent.createWithInitialProperties({
-        { QStringLiteral("sharedProfile"), sharedProfile },
+        {QStringLiteral("sharedProfile"), sharedProfile},
     }));
     QVERIFY2(first, qPrintable(viewComponent.errorString()));
     QVERIFY2(second, qPrintable(viewComponent.errorString()));
@@ -530,8 +530,8 @@ void QtEngineContractTest::qtSpaceProfilesKeepSiteStorageOnDisk()
     QQmlComponent profileComponent(
         &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_PROFILE_PATH)));
     const std::unique_ptr<QObject> spaceHost(profileComponent.createWithInitialProperties({
-        { QStringLiteral("profilePath"), spacePath },
-        { QStringLiteral("privateBrowsing"), false },
+        {QStringLiteral("profilePath"), spacePath},
+        {QStringLiteral("privateBrowsing"), false},
     }));
     QVERIFY2(spaceHost, qPrintable(profileComponent.errorString()));
     auto *spaceProfile = spaceHost->property("profile").value<QObject *>();
@@ -543,7 +543,7 @@ void QtEngineContractTest::qtSpaceProfilesKeepSiteStorageOnDisk()
         static_cast<int>(QQuickWebEngineProfile::ForcePersistentCookies));
 
     const std::unique_ptr<QObject> privateHost(profileComponent.createWithInitialProperties({
-        { QStringLiteral("profilePath"), root.filePath(QStringLiteral("private")) },
+        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("private"))},
     }));
     QVERIFY2(privateHost, qPrintable(profileComponent.errorString()));
     auto *privateProfile = privateHost->property("profile").value<QObject *>();
@@ -561,7 +561,7 @@ void QtEngineContractTest::qtSpaceProfilesKeepSiteStorageOnDisk()
     QQmlComponent viewComponent(
         &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
     const std::unique_ptr<QObject> view(viewComponent.createWithInitialProperties({
-        { QStringLiteral("sharedProfile"), spaceHost->property("profile") },
+        {QStringLiteral("sharedProfile"), spaceHost->property("profile")},
     }));
     QVERIFY2(view, qPrintable(viewComponent.errorString()));
     QQuickWindow window;
@@ -824,7 +824,7 @@ void QtEngineContractTest::qtKeyboardNavigationHonorsInputContracts_data()
             })), 300);
         </script>)HTML")
         << int(Qt::Key_unknown) << QStringLiteral("site-key") << false
-        << QStringList { QStringLiteral("k") };
+        << QStringList {QStringLiteral("k")};
     QTest::newRow("all-page passthrough keeps site shortcuts")
         << QByteArray(R"HTML(<!doctype html><title>ready</title><script>
             addEventListener('keydown', event => document.title =
@@ -854,19 +854,19 @@ void QtEngineContractTest::qtLinkHintsOwnSingleKeyShortcuts()
     QQmlComponent component(
         &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
     const QVariantMap configuration = {
-        { QStringLiteral("version"), 1 },
-        { QStringLiteral("enabled"), true },
-        { QStringLiteral("bindings"),
+        {QStringLiteral("version"), 1},
+        {QStringLiteral("enabled"), true},
+        {QStringLiteral("bindings"),
             QVariantMap {
-                { QStringLiteral("f"), QStringLiteral("open-link") },
-            } },
-        { QStringLiteral("passthroughAll"), false },
-        { QStringLiteral("passthroughKeys"), QStringList {} },
+                {QStringLiteral("f"), QStringLiteral("open-link")},
+            }},
+        {QStringLiteral("passthroughAll"), false},
+        {QStringLiteral("passthroughKeys"), QStringList {}},
     };
     const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
-        { QStringLiteral("currentUrl"), QUrl::fromLocalFile(page.fileName()) },
-        { QStringLiteral("keyboardNavigationConfiguration"), configuration },
-        { QStringLiteral("keyboardNavigationScriptSource"), keyboardNavigationPageScript() },
+        {QStringLiteral("currentUrl"), QUrl::fromLocalFile(page.fileName())},
+        {QStringLiteral("keyboardNavigationConfiguration"), configuration},
+        {QStringLiteral("keyboardNavigationScriptSource"), keyboardNavigationPageScript()},
     }));
     QVERIFY2(adapter, qPrintable(component.errorString()));
 
@@ -941,38 +941,38 @@ void QtEngineContractTest::qtKeyboardNavigationHonorsInputContracts()
     QQmlComponent component(
         &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
     const QVariantMap configuration = {
-        { QStringLiteral("version"), 1 },
-        { QStringLiteral("enabled"), true },
-        { QStringLiteral("bindings"),
+        {QStringLiteral("version"), 1},
+        {QStringLiteral("enabled"), true},
+        {QStringLiteral("bindings"),
             QVariantMap {
-                { QStringLiteral("j"), QStringLiteral("scroll-down") },
-                { QStringLiteral("k"), QStringLiteral("scroll-up") },
-                { QStringLiteral("d"), QStringLiteral("scroll-half-page-down") },
-                { QStringLiteral("u"), QStringLiteral("scroll-half-page-up") },
-                { QStringLiteral("gg"), QStringLiteral("scroll-top") },
-                { QStringLiteral("G"), QStringLiteral("scroll-bottom") },
-                { QStringLiteral("f"), QStringLiteral("open-link") },
-                { QStringLiteral("Shift+F"), QStringLiteral("open-link-background") },
-            } },
-        { QStringLiteral("passthroughAll"), passthroughAll },
-        { QStringLiteral("passthroughKeys"), passthroughKeys },
-        { QStringLiteral("hintTheme"),
+                {QStringLiteral("j"), QStringLiteral("scroll-down")},
+                {QStringLiteral("k"), QStringLiteral("scroll-up")},
+                {QStringLiteral("d"), QStringLiteral("scroll-half-page-down")},
+                {QStringLiteral("u"), QStringLiteral("scroll-half-page-up")},
+                {QStringLiteral("gg"), QStringLiteral("scroll-top")},
+                {QStringLiteral("G"), QStringLiteral("scroll-bottom")},
+                {QStringLiteral("f"), QStringLiteral("open-link")},
+                {QStringLiteral("Shift+F"), QStringLiteral("open-link-background")},
+            }},
+        {QStringLiteral("passthroughAll"), passthroughAll},
+        {QStringLiteral("passthroughKeys"), passthroughKeys},
+        {QStringLiteral("hintTheme"),
             QVariantMap {
-                { QStringLiteral("surface"), QStringLiteral("#123456") },
-                { QStringLiteral("text"), QStringLiteral("#eeeeee") },
-                { QStringLiteral("mutedText"), QStringLiteral("#999999") },
-                { QStringLiteral("accent"), QStringLiteral("#654321") },
-                { QStringLiteral("font"),
+                {QStringLiteral("surface"), QStringLiteral("#123456")},
+                {QStringLiteral("text"), QStringLiteral("#eeeeee")},
+                {QStringLiteral("mutedText"), QStringLiteral("#999999")},
+                {QStringLiteral("accent"), QStringLiteral("#654321")},
+                {QStringLiteral("font"),
                     QVariantMap {
-                        { QStringLiteral("family"), QStringLiteral("Courier") },
-                        { QStringLiteral("size"), 17 },
-                    } },
-            } },
+                        {QStringLiteral("family"), QStringLiteral("Courier")},
+                        {QStringLiteral("size"), 17},
+                    }},
+            }},
     };
     const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
-        { QStringLiteral("currentUrl"), QUrl::fromLocalFile(page.fileName()) },
-        { QStringLiteral("keyboardNavigationConfiguration"), configuration },
-        { QStringLiteral("keyboardNavigationScriptSource"), keyboardNavigationPageScript() },
+        {QStringLiteral("currentUrl"), QUrl::fromLocalFile(page.fileName())},
+        {QStringLiteral("keyboardNavigationConfiguration"), configuration},
+        {QStringLiteral("keyboardNavigationScriptSource"), keyboardNavigationPageScript()},
     }));
     QVERIFY2(adapter, qPrintable(component.errorString()));
 
@@ -1077,8 +1077,8 @@ void QtEngineContractTest::qtHidesCosmeticRulesBeforeThePageRuns()
     QQmlComponent component(
         &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
     const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
-        { QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile")) },
-        { QStringLiteral("contentBlocker"), QVariant::fromValue<QObject *>(&contentBlocker) },
+        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
+        {QStringLiteral("contentBlocker"), QVariant::fromValue<QObject *>(&contentBlocker)},
     }));
     QVERIFY2(adapter, qPrintable(component.errorString()));
     QQuickWindow window;
@@ -1122,8 +1122,8 @@ void QtEngineContractTest::qtRunsScriptletsBeforeThePageRuns()
     QQmlComponent component(
         &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
     const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
-        { QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile")) },
-        { QStringLiteral("contentBlocker"), QVariant::fromValue<QObject *>(&contentBlocker) },
+        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
+        {QStringLiteral("contentBlocker"), QVariant::fromValue<QObject *>(&contentBlocker)},
     }));
     QVERIFY2(adapter, qPrintable(component.errorString()));
     QQuickWindow window;
@@ -1178,10 +1178,10 @@ void QtEngineContractTest::qtServesTheSubstitutesTheListsName()
     QQmlComponent component(
         &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
     const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
-        { QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile")) },
-        { QStringLiteral("contentBlocker"), QVariant::fromValue<QObject *>(&contentBlocker) },
-        { QStringLiteral("engineContentBlocker"),
-            QVariant::fromValue<QObject *>(&engineContentBlocker) },
+        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
+        {QStringLiteral("contentBlocker"), QVariant::fromValue<QObject *>(&contentBlocker)},
+        {QStringLiteral("engineContentBlocker"),
+            QVariant::fromValue<QObject *>(&engineContentBlocker)},
     }));
     QVERIFY2(adapter, qPrintable(component.errorString()));
     QQuickWindow window;
@@ -1232,10 +1232,10 @@ void QtEngineContractTest::qtStripsTheParametersTheListsName()
     QQmlComponent component(
         &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
     const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
-        { QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile")) },
-        { QStringLiteral("contentBlocker"), QVariant::fromValue<QObject *>(&contentBlocker) },
-        { QStringLiteral("engineContentBlocker"),
-            QVariant::fromValue<QObject *>(&engineContentBlocker) },
+        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
+        {QStringLiteral("contentBlocker"), QVariant::fromValue<QObject *>(&contentBlocker)},
+        {QStringLiteral("engineContentBlocker"),
+            QVariant::fromValue<QObject *>(&engineContentBlocker)},
     }));
     QVERIFY2(adapter, qPrintable(component.errorString()));
     QQuickWindow window;
@@ -1267,8 +1267,8 @@ void QtEngineContractTest::qtRefusesTheWindowsTheListsNameAndNoOthers()
     QQmlComponent component(
         &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
     const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
-        { QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile")) },
-        { QStringLiteral("contentBlocker"), QVariant::fromValue<QObject *>(&contentBlocker) },
+        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
+        {QStringLiteral("contentBlocker"), QVariant::fromValue<QObject *>(&contentBlocker)},
     }));
     QVERIFY2(adapter, qPrintable(component.errorString()));
     const QUrl opener(QStringLiteral("https://site.example/article"));
@@ -1374,8 +1374,8 @@ void QtEngineContractTest::qtDocksAnInspectorDrawnInOmawebsColours()
     QQmlComponent component(
         &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
     const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
-        { QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile")) },
-        { QStringLiteral("developerToolsColors"), inspectorPalette() },
+        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
+        {QStringLiteral("developerToolsColors"), inspectorPalette()},
     }));
     QVERIFY2(adapter, qPrintable(component.errorString()));
 
@@ -1506,7 +1506,7 @@ void QtEngineContractTest::qtKeepsAnInspectedTabActiveOnlyWhileAttached()
     QQmlComponent component(
         &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
     const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
-        { QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile")) },
+        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
     }));
     QVERIFY2(adapter, qPrintable(component.errorString()));
     auto *item = qobject_cast<QQuickItem *>(adapter.get());
@@ -1560,7 +1560,7 @@ void QtEngineContractTest::qtInspectsAPrivateTabInItsOwnTemporaryProfile()
     QQmlComponent component(
         &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
     const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
-        { QStringLiteral("sharedProfile"), QVariant::fromValue(privateProfile.get()) },
+        {QStringLiteral("sharedProfile"), QVariant::fromValue(privateProfile.get())},
     }));
     QVERIFY2(adapter, qPrintable(component.errorString()));
 
@@ -1586,7 +1586,7 @@ void QtEngineContractTest::qtPicksAnElementWhenNoContextMenuNamedOne()
     QQmlComponent component(
         &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
     const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
-        { QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile")) },
+        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
     }));
     QVERIFY2(adapter, qPrintable(component.errorString()));
     auto *item = qobject_cast<QQuickItem *>(adapter.get());
@@ -1662,8 +1662,8 @@ void QtEngineContractTest::qtDrawsMarkupStructureQuieterThanItsContent()
     QQmlComponent component(
         &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
     const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
-        { QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile")) },
-        { QStringLiteral("developerToolsColors"), inspectorPalette() },
+        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
+        {QStringLiteral("developerToolsColors"), inspectorPalette()},
     }));
     QVERIFY2(adapter, qPrintable(component.errorString()));
     auto *item = qobject_cast<QQuickItem *>(adapter.get());
@@ -2105,7 +2105,7 @@ void QtEngineContractTest::qtSeparatesReloadBypassingCacheFromReloadAndStop()
     QQmlComponent component(
         &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
     const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
-        { QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile")) },
+        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
     }));
     QVERIFY2(adapter, qPrintable(component.errorString()));
 
@@ -2231,7 +2231,7 @@ void QtEngineContractTest::qtReportsSiteFullscreenWithItsOrigin()
     QQmlComponent component(
         &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
     const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
-        { QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile")) },
+        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
     }));
     QVERIFY2(adapter, qPrintable(component.errorString()));
 
@@ -2454,7 +2454,7 @@ void QtEngineContractTest::qtDefersACertificateFailureWithTheEnginesOwnFacts()
     QQmlComponent component(
         &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
     const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
-        { QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile")) },
+        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
     }));
     QVERIFY2(adapter, qPrintable(component.errorString()));
     auto *view = qobject_cast<QQuickItem *>(adapter.get());
@@ -2583,11 +2583,11 @@ void QtEngineContractTest::qtRefusesThirdPartyCookiesUntilAnOriginIsAllowed()
     QQmlComponent profileComponent(
         &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_PROFILE_PATH)));
     const std::unique_ptr<QObject> host(profileComponent.createWithInitialProperties({
-        { QStringLiteral("profilePath"), profileRoot.filePath(QStringLiteral("space")) },
-        { QStringLiteral("privateBrowsing"), false },
-        { QStringLiteral("engineCookiePolicy"), QVariant::fromValue<QObject *>(&policy) },
-        { QStringLiteral("cookieController"), QVariant::fromValue<QObject *>(&browser) },
-        { QStringLiteral("cookieSpaceId"), spaceId },
+        {QStringLiteral("profilePath"), profileRoot.filePath(QStringLiteral("space"))},
+        {QStringLiteral("privateBrowsing"), false},
+        {QStringLiteral("engineCookiePolicy"), QVariant::fromValue<QObject *>(&policy)},
+        {QStringLiteral("cookieController"), QVariant::fromValue<QObject *>(&browser)},
+        {QStringLiteral("cookieSpaceId"), spaceId},
     }));
     QVERIFY2(host, qPrintable(profileComponent.errorString()));
     QVERIFY(host->property("thirdPartyCookiesBlocked").toBool());
@@ -2595,7 +2595,7 @@ void QtEngineContractTest::qtRefusesThirdPartyCookiesUntilAnOriginIsAllowed()
     QQmlComponent viewComponent(
         &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
     const std::unique_ptr<QObject> adapter(viewComponent.createWithInitialProperties({
-        { QStringLiteral("sharedProfile"), host->property("profile") },
+        {QStringLiteral("sharedProfile"), host->property("profile")},
     }));
     QVERIFY2(adapter, qPrintable(viewComponent.errorString()));
     QQuickWindow window;
@@ -2736,8 +2736,8 @@ void QtEngineContractTest::qtAsksTheShellAboutEveryPermissionRequest()
     QQmlComponent profileComponent(
         &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_PROFILE_PATH)));
     const std::unique_ptr<QObject> host(profileComponent.createWithInitialProperties({
-        { QStringLiteral("profilePath"), root.filePath(QStringLiteral("space")) },
-        { QStringLiteral("privateBrowsing"), false },
+        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("space"))},
+        {QStringLiteral("privateBrowsing"), false},
     }));
     QVERIFY2(host, qPrintable(profileComponent.errorString()));
     auto *profile = host->property("profile").value<QObject *>();
@@ -2752,7 +2752,7 @@ void QtEngineContractTest::qtAsksTheShellAboutEveryPermissionRequest()
     QQmlComponent viewComponent(
         &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
     const std::unique_ptr<QObject> adapter(viewComponent.createWithInitialProperties({
-        { QStringLiteral("sharedProfile"), host->property("profile") },
+        {QStringLiteral("sharedProfile"), host->property("profile")},
     }));
     QVERIFY2(adapter, qPrintable(viewComponent.errorString()));
     QQuickWindow window;
@@ -2832,15 +2832,15 @@ void QtEngineContractTest::qtEmptiesTheCacheItWasAskedToClear()
     QQmlComponent profileComponent(
         &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_PROFILE_PATH)));
     const std::unique_ptr<QObject> host(profileComponent.createWithInitialProperties({
-        { QStringLiteral("profilePath"), profilePath },
-        { QStringLiteral("privateBrowsing"), false },
+        {QStringLiteral("profilePath"), profilePath},
+        {QStringLiteral("privateBrowsing"), false},
     }));
     QVERIFY2(host, qPrintable(profileComponent.errorString()));
 
     QQmlComponent viewComponent(
         &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
     const std::unique_ptr<QObject> adapter(viewComponent.createWithInitialProperties({
-        { QStringLiteral("sharedProfile"), host->property("profile") },
+        {QStringLiteral("sharedProfile"), host->property("profile")},
     }));
     QVERIFY2(adapter, qPrintable(viewComponent.errorString()));
     QQuickWindow window;
@@ -2870,7 +2870,7 @@ void QtEngineContractTest::qtEmptiesTheCacheItWasAskedToClear()
         Q_RETURN_ARG(QVariant, untouched),
         Q_ARG(QVariant,
             QVariant(QStringList {
-                QStringLiteral("cookies"), QStringLiteral("storage"), QStringLiteral("cache") })),
+                QStringLiteral("cookies"), QStringLiteral("storage"), QStringLiteral("cache")})),
         Q_ARG(QVariant, QVariant(qint64(0)))));
     // Local storage has no remover at this boundary, and the engine says so
     // instead of letting the browser claim it went.
@@ -2918,15 +2918,15 @@ void QtEngineContractTest::qtEmptiesOneOriginsStorageFromInsideItsPage()
     QQmlComponent profileComponent(
         &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_PROFILE_PATH)));
     const std::unique_ptr<QObject> host(profileComponent.createWithInitialProperties({
-        { QStringLiteral("profilePath"), root.filePath(QStringLiteral("space")) },
-        { QStringLiteral("privateBrowsing"), false },
+        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("space"))},
+        {QStringLiteral("privateBrowsing"), false},
     }));
     QVERIFY2(host, qPrintable(profileComponent.errorString()));
 
     QQmlComponent viewComponent(
         &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
     const std::unique_ptr<QObject> adapter(viewComponent.createWithInitialProperties({
-        { QStringLiteral("sharedProfile"), host->property("profile") },
+        {QStringLiteral("sharedProfile"), host->property("profile")},
     }));
     QVERIFY2(adapter, qPrintable(viewComponent.errorString()));
     QQuickWindow window;
@@ -3030,21 +3030,21 @@ void QtEngineContractTest::qtHoldsARiskyDownloadUntilTheShellHasAnswered()
     QQmlComponent profileComponent(
         &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_PROFILE_PATH)));
     const std::unique_ptr<QObject> profile(profileComponent.createWithInitialProperties({
-        { QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile")) },
-        { QStringLiteral("privateBrowsing"), false },
-        { QStringLiteral("acceptDownloads"), true },
-        { QStringLiteral("downloadDirectory"), downloads },
-        { QStringLiteral("downloadNamespace"), QStringLiteral("space-1") },
-        { QStringLiteral("downloadController"), QVariant::fromValue<QObject *>(&controller) },
-        { QStringLiteral("downloadHolds"), QVariant::fromValue<QObject *>(&heldDownloads) },
+        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
+        {QStringLiteral("privateBrowsing"), false},
+        {QStringLiteral("acceptDownloads"), true},
+        {QStringLiteral("downloadDirectory"), downloads},
+        {QStringLiteral("downloadNamespace"), QStringLiteral("space-1")},
+        {QStringLiteral("downloadController"), QVariant::fromValue<QObject *>(&controller)},
+        {QStringLiteral("downloadHolds"), QVariant::fromValue<QObject *>(&heldDownloads)},
     }));
     QVERIFY2(profile, qPrintable(profileComponent.errorString()));
 
     QQmlComponent viewComponent(
         &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
     const std::unique_ptr<QObject> view(viewComponent.createWithInitialProperties({
-        { QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile")) },
-        { QStringLiteral("sharedProfile"), profile->property("profile") },
+        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
+        {QStringLiteral("sharedProfile"), profile->property("profile")},
     }));
     QVERIFY2(view, qPrintable(viewComponent.errorString()));
 

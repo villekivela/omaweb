@@ -16,9 +16,9 @@ QString QtHeldDownloads::hold(QObject *download)
     if (!request) {
         return {};
     }
-    HeldDownload held { request->property("view").value<QObject *>(), request->url(),
+    HeldDownload held {request->property("view").value<QObject *>(), request->url(),
         request->downloadFileName().isEmpty() ? request->suggestedFileName()
-                                              : request->downloadFileName() };
+                                              : request->downloadFileName()};
     request->cancel();
     if (!held.view || !held.sourceUrl.isValid()) {
         return {};
@@ -34,9 +34,9 @@ QVariantMap QtHeldDownloads::held(const QString &token) const
     if (it == m_held.cend() || !it->view) {
         return {};
     }
-    return { { QStringLiteral("sourceUrl"), it->sourceUrl },
-        { QStringLiteral("fileName"), it->fileName },
-        { QStringLiteral("view"), QVariant::fromValue(it->view.data()) } };
+    return {{QStringLiteral("sourceUrl"), it->sourceUrl},
+        {QStringLiteral("fileName"), it->fileName},
+        {QStringLiteral("view"), QVariant::fromValue(it->view.data())}};
 }
 
 bool QtHeldDownloads::discard(const QString &token) { return m_held.remove(token) > 0; }

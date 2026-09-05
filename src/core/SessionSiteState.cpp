@@ -47,8 +47,8 @@ QVariantList SessionSiteState::thirdPartyCookieAllowances(const QString &spaceId
     allowances.reserve(origins.size());
     for (const auto &origin : origins) {
         allowances.append(QVariantMap {
-            { QStringLiteral("origin"), origin },
-            { QStringLiteral("purpose"), granted.value(origin) },
+            {QStringLiteral("origin"), origin},
+            {QStringLiteral("purpose"), granted.value(origin)},
         });
     }
     return allowances;

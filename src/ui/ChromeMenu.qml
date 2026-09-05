@@ -28,32 +28,32 @@ Item {
 
     onOpenChanged: {
         if (!open)
-            return
-        selected = root.firstRunnable()
+            return;
+        selected = root.firstRunnable();
         // Deferred so the menu is laid out before it takes the keyboard, and
         // checked again on the way in: a menu dismissed inside that gap would
         // otherwise take the keyboard back off whatever replaced it, and go on
         // answering keys while invisible.
         Qt.callLater(function () {
             if (root.open)
-                root.forceActiveFocus()
-        })
+                root.forceActiveFocus();
+        });
     }
 
     // A separator and a row that cannot be run are both passed over: the
     // keyboard never lands somewhere pressing return would do nothing.
     function runnable(index) {
-        const item = root.items[index]
-        return item !== undefined && item.separator !== true && item.enabled !== false
+        const item = root.items[index];
+        return item !== undefined && item.separator !== true && item.enabled !== false;
     }
 
     function step(delta) {
         if (items.length === 0)
-            return
+            return;
         for (let count = 0; count < items.length; ++count) {
-            selected = (selected + delta + items.length) % items.length
+            selected = (selected + delta + items.length) % items.length;
             if (root.runnable(selected))
-                return
+                return;
         }
     }
 
@@ -61,25 +61,25 @@ Item {
     function firstRunnable() {
         for (let index = 0; index < root.items.length; ++index) {
             if (root.runnable(index))
-                return index
+                return index;
         }
-        return 0
+        return 0;
     }
 
     Keys.onPressed: function (event) {
         if (event.key === Qt.Key_Escape) {
-            root.dismissed()
+            root.dismissed();
         } else if (event.key === Qt.Key_Down) {
-            root.step(1)
+            root.step(1);
         } else if (event.key === Qt.Key_Up) {
-            root.step(-1)
+            root.step(-1);
         } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
             if (root.runnable(root.selected))
-                root.triggered(root.selected)
+                root.triggered(root.selected);
         } else {
-            return
+            return;
         }
-        event.accepted = true
+        event.accepted = true;
     }
 
     MouseArea {

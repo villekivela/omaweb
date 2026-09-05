@@ -784,7 +784,7 @@ void BrowserControllerTest::refusesPersistentBrowsingDataActionsInPrivateWindows
     QSignalSpy clearSpy(&controller, &BrowserController::engineDataClearRequested);
 
     QVERIFY(!controller.clearBrowsingData(
-        { QStringLiteral("cookies"), QStringLiteral("history") }, 0, false, {}));
+        {QStringLiteral("cookies"), QStringLiteral("history")}, 0, false, {}));
     QCOMPARE(clearSpy.count(), 0);
     QCOMPARE(controller.history({}).size(), 0);
 }
@@ -804,7 +804,7 @@ void BrowserControllerTest::clearsSelectedBrowsingDataWithinConfirmedScope()
         QUrl(QStringLiteral("https://work-clear.example")), QStringLiteral("Work"));
     QSignalSpy clearSpy(&controller, &BrowserController::engineDataClearRequested);
 
-    QVERIFY(controller.clearBrowsingData({ QStringLiteral("history") }, 0, false, {}));
+    QVERIFY(controller.clearBrowsingData({QStringLiteral("history")}, 0, false, {}));
     QCOMPARE(controller.history({}).size(), 0);
     QCOMPARE(clearSpy.count(), 1);
     QVERIFY(controller.switchSpace(personalSpaceId));
@@ -814,11 +814,10 @@ void BrowserControllerTest::clearsSelectedBrowsingDataWithinConfirmedScope()
         BrowserController::Block);
 
     QVERIFY(
-        !controller.clearBrowsingData({ QStringLiteral("history"), QStringLiteral("permissions") },
-            0, true, QStringLiteral("clear all")));
-    QVERIFY(
-        controller.clearBrowsingData({ QStringLiteral("history"), QStringLiteral("permissions") },
-            0, true, QStringLiteral("CLEAR ALL")));
+        !controller.clearBrowsingData({QStringLiteral("history"), QStringLiteral("permissions")}, 0,
+            true, QStringLiteral("clear all")));
+    QVERIFY(controller.clearBrowsingData({QStringLiteral("history"), QStringLiteral("permissions")},
+        0, true, QStringLiteral("CLEAR ALL")));
     QCOMPARE(controller.history({}).size(), 0);
     QCOMPARE(controller.permissionDecision(
                  QUrl(QStringLiteral("https://personal-clear.example")), QStringLiteral("camera")),
@@ -1611,7 +1610,7 @@ void BrowserControllerTest::namesEverySuspensionExceptionAndNothingElse()
     const auto inspectedId = controller.activeTabId();
     controller.openDeveloperTools();
 
-    QCOMPARE(controller.retainedTabIds(), QStringList({ keptId, inspectedId }));
+    QCOMPARE(controller.retainedTabIds(), QStringList({keptId, inspectedId}));
     // Nothing is being retained while the Space holding these tabs is the one
     // on show: its pages are live because the reader is looking at them.
     QVERIFY(controller.retainedTabs().isEmpty());
@@ -1621,7 +1620,7 @@ void BrowserControllerTest::namesEverySuspensionExceptionAndNothingElse()
     QVERIFY(controller.switchSpace(workSpaceId));
     QCOMPARE(suspendedSpy.count(), 1);
     QCOMPARE(suspendedSpy.first().at(0).toString(), personalSpaceId);
-    QCOMPARE(suspendedSpy.first().at(1).toStringList(), QStringList({ keptId, inspectedId }));
+    QCOMPARE(suspendedSpy.first().at(1).toStringList(), QStringList({keptId, inspectedId}));
 
     QCOMPARE(controller.retainedTabs().size(), 2);
     QSet<QString> retainedIds;
@@ -1876,7 +1875,7 @@ void BrowserControllerTest::remembersOnlyThePermissionsThatMayBeRemembered()
     BrowserController controller(root.path(), QStringLiteral("test"));
 
     for (const auto *rememberable :
-        { "camera", "microphone", "camera-and-microphone", "geolocation", "notifications" }) {
+        {"camera", "microphone", "camera-and-microphone", "geolocation", "notifications"}) {
         const auto permission = QString::fromLatin1(rememberable);
         const QUrl origin(QStringLiteral("https://%1.example").arg(permission));
         QCOMPARE(controller.permissionPolicy(permission), int(BrowserController::Rememberable));
@@ -1889,7 +1888,7 @@ void BrowserControllerTest::remembersOnlyThePermissionsThatMayBeRemembered()
         QCOMPARE(controller.permissionDecision(origin, permission), BrowserController::Block);
     }
 
-    for (const auto *eachTime : { "clipboard-read", "screen-sharing" }) {
+    for (const auto *eachTime : {"clipboard-read", "screen-sharing"}) {
         const auto permission = QString::fromLatin1(eachTime);
         const QUrl origin(QStringLiteral("https://%1.example").arg(permission));
         QCOMPARE(controller.permissionPolicy(permission), int(BrowserController::AskedEachTime));
@@ -1905,7 +1904,7 @@ void BrowserControllerTest::remembersOnlyThePermissionsThatMayBeRemembered()
         QCOMPARE(controller.permissionDecision(origin, permission), BrowserController::Ask);
     }
 
-    for (const auto *outside : { "usb", "bluetooth", "serial", "midi", "unsupported", "" }) {
+    for (const auto *outside : {"usb", "bluetooth", "serial", "midi", "unsupported", ""}) {
         const auto permission = QString::fromLatin1(outside);
         const QUrl origin(QStringLiteral("https://outside.example"));
         QCOMPARE(controller.permissionPolicy(permission), int(BrowserController::Refused));
@@ -1977,8 +1976,8 @@ void BrowserControllerTest::refusesEveryCertificateExceptionButAnOverridableLoca
     BrowserController controller(root.path(), QStringLiteral("test"));
 
     for (const auto *local :
-        { "https://localhost:8443/app", "https://app.localhost/", "https://api.test/v1",
-            "https://127.0.0.1:3000/", "https://[::1]:8080/", "https://192.168.1.20:8443/" }) {
+        {"https://localhost:8443/app", "https://app.localhost/", "https://api.test/v1",
+            "https://127.0.0.1:3000/", "https://[::1]:8080/", "https://192.168.1.20:8443/"}) {
         const QUrl url(QString::fromLatin1(local));
         QVERIFY2(controller.localDevelopmentSite(url), local);
         QVERIFY2(controller.mayOfferCertificateException(url, true, true, false), local);
@@ -2053,7 +2052,7 @@ void BrowserControllerTest::keepsAGrantedCertificateExceptionVisibleForItsSessio
         QVERIFY(!controller.certificateExceptionInEffect(
             QUrl(QStringLiteral("https://localhost:9443/app"))));
         QCOMPARE(controller.certificateExceptionOrigins(),
-            QStringList { QStringLiteral("https://localhost:8443") });
+            QStringList {QStringLiteral("https://localhost:8443")});
 
         // The Space beside it shares no engine profile, so it shares no waived
         // check either.
@@ -2177,8 +2176,8 @@ void BrowserControllerTest::endsThirdPartyCookieAllowancesWithTheirSpaceAndPriva
 // worse than none.
 void BrowserControllerTest::measuresTheSiteDataHeldForOneSpace()
 {
-    const QStringList named { QStringLiteral("Cookies"), QStringLiteral("Local Storage"),
-        QStringLiteral("cache") };
+    const QStringList named {
+        QStringLiteral("Cookies"), QStringLiteral("Local Storage"), QStringLiteral("cache")};
     QTemporaryDir root;
     BrowserController controller(root.path(), QStringLiteral("test"));
     const auto spaceId = controller.activeSpaceId();

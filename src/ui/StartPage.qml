@@ -58,39 +58,39 @@ Rectangle {
     readonly property var sections: {
         // Read for the dependency alone: the keys come from keysFor(), and a
         // function call is not something QML can watch for changes.
-        void (root.keymap ? root.keymap.browserBindings : null)
-        const descriptions = root.commands ? root.commands.descriptions : ({})
-        const list = []
+        void (root.keymap ? root.keymap.browserBindings : null);
+        const descriptions = root.commands ? root.commands.descriptions : ({});
+        const list = [];
         for (let group = 0; group < root.groups.length; ++group) {
-            const name = root.groups[group]
-            const entries = []
+            const name = root.groups[group];
+            const entries = [];
             for (const command in descriptions) {
                 if (descriptions[command].group !== name)
-                    continue
+                    continue;
                 if (root.privateWindow && root.privateExclusions.indexOf(command) !== -1)
-                    continue
+                    continue;
                 // A command the engine or the window cannot carry out here has
                 // no key worth promising. The command registry decides that,
                 // so the sheet and the command panel cannot disagree.
                 if (root.commands && !root.commands.available(command))
-                    continue
-                const keys = root.keymap ? root.keymap.keysFor(command) : ""
+                    continue;
+                const keys = root.keymap ? root.keymap.keysFor(command) : "";
                 // A command with no binding is reachable from the command
                 // panel and has nothing to say on a sheet of keys.
                 if (keys.length === 0)
-                    continue
+                    continue;
                 entries.push({
                                  "title": descriptions[command].title,
                                  "keys": keys
-                             })
+                             });
             }
             if (entries.length > 0)
                 list.push({
                               "group": name,
                               "entries": entries
-                          })
+                          });
         }
-        return list
+        return list;
     }
 
     // ------------------------------------------------------------- geometry
@@ -141,13 +141,13 @@ Rectangle {
     // and a guess is too narrow for a long chord and too wide for a keymap
     // without one.
     function widestOf(metrics, field) {
-        let widest = 0
+        let widest = 0;
         for (let group = 0; group < root.sections.length; ++group) {
-            const entries = root.sections[group].entries
+            const entries = root.sections[group].entries;
             for (let index = 0; index < entries.length; ++index)
-                widest = Math.max(widest, metrics.advanceWidth(entries[index][field]))
+                widest = Math.max(widest, metrics.advanceWidth(entries[index][field]));
         }
-        return Math.ceil(widest)
+        return Math.ceil(widest);
     }
 
     readonly property int keyColumnWidth: {
@@ -155,15 +155,15 @@ Rectangle {
         // measures in C++ off a font the binding never otherwise touches, so a
         // theme that changes the type would leave the column on the last size
         // it was measured at.
-        void (keyMetrics.font.pixelSize)
-        void (keyMetrics.font.family)
-        return root.widestOf(keyMetrics, "keys")
+        void (keyMetrics.font.pixelSize);
+        void (keyMetrics.font.family);
+        return root.widestOf(keyMetrics, "keys");
     }
 
     readonly property int titleColumnWidth: {
-        void (titleMetrics.font.pixelSize)
-        void (titleMetrics.font.family)
-        return root.widestOf(titleMetrics, "title")
+        void (titleMetrics.font.pixelSize);
+        void (titleMetrics.font.family);
+        return root.widestOf(titleMetrics, "title");
     }
 
     // A column is exactly as wide as the widest row it has to hold: a key, the
@@ -180,11 +180,11 @@ Rectangle {
     // in a narrow window by the same arithmetic rather than by a special case.
     readonly property int columnCount: {
         if (root.sections.length === 0)
-            return 1
+            return 1;
         const fits = Math.floor((root.availableWidth + root.columnGap) / Math.max(1,
                                                                                   root.minimumColumnWidth
-                                                                                  + root.columnGap))
-        return Math.max(1, Math.min(root.sections.length, fits))
+                                                                                  + root.columnGap));
+        return Math.max(1, Math.min(root.sections.length, fits));
     }
 
     readonly property int columnWidth: Math.max(1, Math.min(root.minimumColumnWidth,
@@ -216,15 +216,15 @@ Rectangle {
     // four-entry group reserving a fifteen-entry row, which is what row-wise
     // flow through a Grid did.
     function packColumns(sections, count) {
-        const total = sections.length
+        const total = sections.length;
         if (total === 0)
-            return []
+            return [];
         if (count <= 1)
-            return [sections.slice()]
+            return [sections.slice()];
         const columns = Math.min(count, total);
 
         // A group costs its entries plus the label above them.
-        const weights = []
+        const weights = [];
         for (let index = 0; index < total; ++index)
             weights.push(sections[index].entries.length + 1);
 
@@ -233,41 +233,41 @@ Rectangle {
         // split's last column starts, which is what turns the number back into
         // an answer. Six groups and at most six columns, so the cost of being
         // exact here is nothing.
-        const best = []
-        const cut = []
+        const best = [];
+        const cut = [];
         for (let k = 0; k <= columns; ++k) {
-            const row = []
-            const cuts = []
+            const row = [];
+            const cuts = [];
             for (let i = 0; i <= total; ++i) {
-                row.push(Number.MAX_VALUE)
-                cuts.push(0)
+                row.push(Number.MAX_VALUE);
+                cuts.push(0);
             }
-            best.push(row)
-            cut.push(cuts)
+            best.push(row);
+            cut.push(cuts);
         }
-        best[0][0] = 0
+        best[0][0] = 0;
         for (let k = 1; k <= columns; ++k) {
             for (let i = k; i <= total; ++i) {
-                let tail = 0
+                let tail = 0;
                 for (let j = i; j >= k; --j) {
-                    tail += weights[j - 1]
-                    const height = Math.max(best[k - 1][j - 1], tail)
+                    tail += weights[j - 1];
+                    const height = Math.max(best[k - 1][j - 1], tail);
                     if (height < best[k][i]) {
-                        best[k][i] = height
-                        cut[k][i] = j - 1
+                        best[k][i] = height;
+                        cut[k][i] = j - 1;
                     }
                 }
             }
         }
 
-        const packed = []
-        let end = total
+        const packed = [];
+        let end = total;
         for (let k = columns; k >= 1; --k) {
-            const start = cut[k][end]
-            packed.unshift(sections.slice(start, end))
-            end = start
+            const start = cut[k][end];
+            packed.unshift(sections.slice(start, end));
+            end = start;
         }
-        return packed
+        return packed;
     }
 
     readonly property var layoutColumns: root.packColumns(root.sections, root.columnCount)
@@ -285,8 +285,8 @@ Rectangle {
 
     Keys.onPressed: function (event) {
         if (event.key === Qt.Key_Escape) {
-            root.closed()
-            event.accepted = true
+            root.closed();
+            event.accepted = true;
         }
     }
 

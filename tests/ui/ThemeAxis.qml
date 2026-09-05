@@ -16,13 +16,13 @@ QtObject {
     property real savedSpacingScale: 1
 
     function remember() {
-        root.savedFontOverrides = Style.fontOverrides
-        root.savedSpacingScale = Style.spacingScale
+        root.savedFontOverrides = Style.fontOverrides;
+        root.savedSpacingScale = Style.spacingScale;
     }
 
     function restore() {
-        Style.fontOverrides = root.savedFontOverrides
-        Style.spacingScale = root.savedSpacingScale
+        Style.fontOverrides = root.savedFontOverrides;
+        Style.spacingScale = root.savedSpacingScale;
     }
 
     // The type the theme sets. shell.toml pins these tokens directly, and
@@ -39,13 +39,13 @@ QtObject {
                                    "heading": Math.round(16 * scale),
                                    "display": Math.round(24 * scale),
                                    "display-large": Math.round(28 * scale)
-                               })
+                               });
     }
 
     // The rhythm the theme sets, which is the other half of the same question:
     // `[spacing] scale` makes the whole shell denser or roomier without
     // touching the type.
     function useSpacingScale(scale) {
-        Style.spacingScale = scale
+        Style.spacingScale = scale;
     }
 }

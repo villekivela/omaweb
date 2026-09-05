@@ -232,9 +232,8 @@ void ThemeControllerTest::tintsTheThemesOwnSurfacesTowardsThePrivateAccent()
 
     const QColor privateAccent(palette.value(QStringLiteral("privateAccent")).toString());
     const QList<std::pair<const char *, const char *>> pairs {
-        { "windowOpaque", "privateWindowOpaque" }, { "sidebarOpaque", "privateSidebarOpaque" },
-        { "surface", "privateSurface" }, { "surfaceHover", "privateSurfaceHover" }
-    };
+        {"windowOpaque", "privateWindowOpaque"}, {"sidebarOpaque", "privateSidebarOpaque"},
+        {"surface", "privateSurface"}, {"surfaceHover", "privateSurfaceHover"}};
     // The window is what the reader recognises the whole window by, so it is
     // the ground held to the difference. The surfaces inside it are never
     // seen beside their ordinary counterparts and only have to belong to the
@@ -333,9 +332,8 @@ void ThemeControllerTest::keepsThePrivateGroundsTheSpacingTheThemeGaveTheOrdinar
         return QColor(palette.value(QString::fromLatin1(key)).toString());
     };
     const QList<std::pair<const char *, const char *>> pairs {
-        { "windowOpaque", "privateWindowOpaque" }, { "sidebarOpaque", "privateSidebarOpaque" },
-        { "surface", "privateSurface" }, { "surfaceHover", "privateSurfaceHover" }
-    };
+        {"windowOpaque", "privateWindowOpaque"}, {"sidebarOpaque", "privateSidebarOpaque"},
+        {"surface", "privateSurface"}, {"surfaceHover", "privateSurfaceHover"}};
     for (auto index = 1; index < pairs.size(); ++index) {
         const auto [previousOrdinary, previousPrivate] = pairs.at(index - 1);
         const auto [ordinaryKey, privateKey] = pairs.at(index);
@@ -367,27 +365,27 @@ void ThemeControllerTest::drawsThePrivatePaletteTheOmarchyTemplateRenders()
     // theme. Every name a template may spend is defined here, so a token left
     // in the output is a template naming something the desktop does not.
     const QMap<QString, QString> colours {
-        { QStringLiteral("accent"), QStringLiteral("#9aa3ad") },
-        { QStringLiteral("selection"), QStringLiteral("#2a3038") },
-        { QStringLiteral("muted"), QStringLiteral("#7e8892") },
-        { QStringLiteral("background"), QStringLiteral("#12141a") },
-        { QStringLiteral("dark_background"), QStringLiteral("#0d0f14") },
-        { QStringLiteral("darker_background"), QStringLiteral("#090a0e") },
-        { QStringLiteral("lighter_background"), QStringLiteral("#1a1d26") },
-        { QStringLiteral("foreground"), QStringLiteral("#d8dbe3") },
-        { QStringLiteral("dark_foreground"), QStringLiteral("#929ca6") },
-        { QStringLiteral("light_foreground"), QStringLiteral("#e4e7ee") },
-        { QStringLiteral("bright_foreground"), QStringLiteral("#f0f2f6") },
-        { QStringLiteral("cursor"), QStringLiteral("#d8dbe3") },
-        { QStringLiteral("red"), QStringLiteral("#7a2e2e") },
-        { QStringLiteral("orange"), QStringLiteral("#8a6a5c") },
-        { QStringLiteral("yellow"), QStringLiteral("#c5c0b4") },
-        { QStringLiteral("green"), QStringLiteral("#7a8f88") },
-        { QStringLiteral("cyan"), QStringLiteral("#8a9aaa") },
-        { QStringLiteral("blue"), QStringLiteral("#8296ac") },
-        { QStringLiteral("magenta"), QStringLiteral("#8a5a62") },
-        { QStringLiteral("brown"), QStringLiteral("#4a4040") },
-        { QStringLiteral("font_family"), QStringLiteral("CaskaydiaMono Nerd Font") },
+        {QStringLiteral("accent"), QStringLiteral("#9aa3ad")},
+        {QStringLiteral("selection"), QStringLiteral("#2a3038")},
+        {QStringLiteral("muted"), QStringLiteral("#7e8892")},
+        {QStringLiteral("background"), QStringLiteral("#12141a")},
+        {QStringLiteral("dark_background"), QStringLiteral("#0d0f14")},
+        {QStringLiteral("darker_background"), QStringLiteral("#090a0e")},
+        {QStringLiteral("lighter_background"), QStringLiteral("#1a1d26")},
+        {QStringLiteral("foreground"), QStringLiteral("#d8dbe3")},
+        {QStringLiteral("dark_foreground"), QStringLiteral("#929ca6")},
+        {QStringLiteral("light_foreground"), QStringLiteral("#e4e7ee")},
+        {QStringLiteral("bright_foreground"), QStringLiteral("#f0f2f6")},
+        {QStringLiteral("cursor"), QStringLiteral("#d8dbe3")},
+        {QStringLiteral("red"), QStringLiteral("#7a2e2e")},
+        {QStringLiteral("orange"), QStringLiteral("#8a6a5c")},
+        {QStringLiteral("yellow"), QStringLiteral("#c5c0b4")},
+        {QStringLiteral("green"), QStringLiteral("#7a8f88")},
+        {QStringLiteral("cyan"), QStringLiteral("#8a9aaa")},
+        {QStringLiteral("blue"), QStringLiteral("#8296ac")},
+        {QStringLiteral("magenta"), QStringLiteral("#8a5a62")},
+        {QStringLiteral("brown"), QStringLiteral("#4a4040")},
+        {QStringLiteral("font_family"), QStringLiteral("CaskaydiaMono Nerd Font")},
     };
     for (auto it = colours.cbegin(); it != colours.cend(); ++it) {
         rendered.replace(QStringLiteral("{{ %1 }}").arg(it.key()), it.value());
@@ -415,8 +413,8 @@ void ThemeControllerTest::drawsThePrivatePaletteTheOmarchyTemplateRenders()
     // the alpha it asked for nor the colour it named.
     const QColor privateAccent(palette.value(QStringLiteral("privateAccent")).toString());
     QCOMPARE(privateAccent, QColor(QStringLiteral("#8a5a62")));
-    for (const auto &key : { "surface", "surfaceHover", "privateSurface", "privateSurfaceHover",
-             "windowOpaque", "sidebarOpaque", "privateWindowOpaque", "privateSidebarOpaque" }) {
+    for (const auto &key : {"surface", "surfaceHover", "privateSurface", "privateSurfaceHover",
+             "windowOpaque", "sidebarOpaque", "privateWindowOpaque", "privateSidebarOpaque"}) {
         const QColor ground(palette.value(QString::fromLatin1(key)).toString());
         QVERIFY2(ground.isValid(), key);
         QCOMPARE(ground.alpha(), 255);
@@ -426,9 +424,8 @@ void ThemeControllerTest::drawsThePrivatePaletteTheOmarchyTemplateRenders()
     // desktop's own private accent cast over it, so the roles resolved
     // against them are not compromising between two unrelated hues.
     const QList<std::pair<const char *, const char *>> tintedPairs {
-        { "windowOpaque", "privateWindowOpaque" }, { "sidebarOpaque", "privateSidebarOpaque" },
-        { "surface", "privateSurface" }, { "surfaceHover", "privateSurfaceHover" }
-    };
+        {"windowOpaque", "privateWindowOpaque"}, {"sidebarOpaque", "privateSidebarOpaque"},
+        {"surface", "privateSurface"}, {"surfaceHover", "privateSurfaceHover"}};
     QVERIFY(perceptualDistance(QColor(palette.value(QStringLiteral("windowOpaque")).toString()),
                 QColor(palette.value(QStringLiteral("privateWindowOpaque")).toString()))
         >= minimumPrivateDifference);
@@ -447,16 +444,16 @@ void ThemeControllerTest::drawsThePrivatePaletteTheOmarchyTemplateRenders()
     // sidebar, so no colour is 4.5:1 against both, and the role takes the
     // compromise the palette promises rather than the floor.
     const QColor privateMuted(palette.value(QStringLiteral("privateMutedText")).toString());
-    for (const auto &key : { "privateWindowOpaque", "privateSidebarOpaque", "privateSurface",
-             "privateOverlayOpaque", "privateSheetOpaque" }) {
+    for (const auto &key : {"privateWindowOpaque", "privateSidebarOpaque", "privateSurface",
+             "privateOverlayOpaque", "privateSheetOpaque"}) {
         const QColor ground(palette.value(QString::fromLatin1(key)).toString());
         QVERIFY2(contrastRatio(privateMuted, ground) >= minimumContrast, key);
     }
     // A border is drawn on the surfaces at rest rather than on a hover fill,
     // which is the only ground it is not asked to clear.
     const QColor privateBorder(palette.value(QStringLiteral("privateBorder")).toString());
-    for (const auto &key : { "privateWindowOpaque", "privateSidebarOpaque", "privateSurface",
-             "privateOverlayOpaque", "privateSheetOpaque" }) {
+    for (const auto &key : {"privateWindowOpaque", "privateSidebarOpaque", "privateSurface",
+             "privateOverlayOpaque", "privateSheetOpaque"}) {
         const QColor ground(palette.value(QString::fromLatin1(key)).toString());
         QVERIFY2(contrastRatio(privateBorder, ground) >= minimumGraphicContrast, key);
     }
@@ -489,7 +486,7 @@ void ThemeControllerTest::keepsQuietTextReadableOnEverySurfaceItIsDrawnOn()
     // `surface` carries no semantic opacity, so it has no opaque variant to
     // read; the surfaces that do are checked underneath their translucency,
     // which is the colour the text is actually drawn over.
-    for (const auto &key : { "sidebarOpaque", "surface", "overlayOpaque", "sheetOpaque" }) {
+    for (const auto &key : {"sidebarOpaque", "surface", "overlayOpaque", "sheetOpaque"}) {
         const QColor ground(palette.value(QString::fromLatin1(key)).toString());
         QVERIFY2(ground.isValid(), key);
         QVERIFY2(contrastRatio(muted, ground) >= minimumContrast, key);
@@ -523,14 +520,14 @@ void ThemeControllerTest::keepsQuietTextReadableOnPrivateAndHoverSurfaces()
     const auto palette = controller.palette();
     const QColor muted(palette.value(QStringLiteral("mutedText")).toString());
     for (const auto &key :
-        { "sidebarOpaque", "surface", "surfaceHover", "overlayOpaque", "sheetOpaque" }) {
+        {"sidebarOpaque", "surface", "surfaceHover", "overlayOpaque", "sheetOpaque"}) {
         const QColor ground(palette.value(QString::fromLatin1(key)).toString());
         QVERIFY2(ground.isValid(), key);
         QVERIFY2(contrastRatio(muted, ground) >= minimumContrast, key);
     }
     const QColor privateMuted(palette.value(QStringLiteral("privateMutedText")).toString());
-    for (const auto &key : { "privateSidebarOpaque", "privateSurface", "privateSurfaceHover",
-             "privateOverlayOpaque", "privateSheetOpaque" }) {
+    for (const auto &key : {"privateSidebarOpaque", "privateSurface", "privateSurfaceHover",
+             "privateOverlayOpaque", "privateSheetOpaque"}) {
         const QColor ground(palette.value(QString::fromLatin1(key)).toString());
         QVERIFY2(ground.isValid(), key);
         QVERIFY2(contrastRatio(privateMuted, ground) >= minimumContrast, key);
@@ -544,14 +541,14 @@ void ThemeControllerTest::keepsQuietTextReadableOnPrivateAndHoverSurfaces()
 void ThemeControllerTest::keepsQuietTextAheadOfADisabledControl()
 {
     const QList<QPair<QByteArray, QByteArray>> themes {
-        { QByteArrayLiteral("dark"), QByteArrayLiteral(R"JSON({
+        {QByteArrayLiteral("dark"), QByteArrayLiteral(R"JSON({
             "sidebar": "#0e0e16", "overlay": "#0e0e16", "surface": "#13131d",
             "text": "#c8c8c8", "mutedText": "#434353"
-        })JSON") },
-        { QByteArrayLiteral("light"), QByteArrayLiteral(R"JSON({
+        })JSON")},
+        {QByteArrayLiteral("light"), QByteArrayLiteral(R"JSON({
             "sidebar": "#f5f5f5", "overlay": "#f5f5f5", "surface": "#c0c0c0",
             "text": "#000000", "mutedText": "#c0c0c0"
-        })JSON") },
+        })JSON")},
     };
 
     for (const auto &[name, contents] : themes) {
@@ -673,14 +670,14 @@ void ThemeControllerTest::keepsBordersVisibleOnEverySurfaceTheySeparate()
     // No hover fill among them: a rule or a frame is drawn on a surface at
     // rest, and the edge a control grows under the pointer is the kit's.
     for (const auto &key :
-        { "windowOpaque", "sidebarOpaque", "surface", "overlayOpaque", "sheetOpaque" }) {
+        {"windowOpaque", "sidebarOpaque", "surface", "overlayOpaque", "sheetOpaque"}) {
         const QColor ground(palette.value(QString::fromLatin1(key)).toString());
         QVERIFY2(ground.isValid(), key);
         QVERIFY2(contrastRatio(border, ground) >= minimumGraphicContrast, key);
     }
     const QColor privateBorder(palette.value(QStringLiteral("privateBorder")).toString());
-    for (const auto &key : { "privateWindowOpaque", "privateSidebarOpaque", "privateSurface",
-             "privateOverlayOpaque", "privateSheetOpaque" }) {
+    for (const auto &key : {"privateWindowOpaque", "privateSidebarOpaque", "privateSurface",
+             "privateOverlayOpaque", "privateSheetOpaque"}) {
         const QColor ground(palette.value(QString::fromLatin1(key)).toString());
         QVERIFY2(ground.isValid(), key);
         QVERIFY2(contrastRatio(privateBorder, ground) >= minimumGraphicContrast, key);
@@ -879,7 +876,7 @@ void ThemeControllerTest::keepsTheDesktopsOwnColoursWhenAPrivateSurfaceIsAnAccen
     // palette is satisfiable, so nothing there is allowed to be a compromise.
     const QColor muted(palette.value(QStringLiteral("mutedText")).toString());
     for (const auto &key :
-        { "sidebarOpaque", "surface", "surfaceHover", "overlayOpaque", "sheetOpaque" }) {
+        {"sidebarOpaque", "surface", "surfaceHover", "overlayOpaque", "sheetOpaque"}) {
         const QColor ground(palette.value(QString::fromLatin1(key)).toString());
         QVERIFY2(contrastRatio(muted, ground) >= minimumContrast, key);
     }
@@ -1085,7 +1082,7 @@ void ThemeControllerTest::fallsBackToAFamilyTheHostActuallyHas()
     }
     // An empty candidate is not a family, and it must not become the answer.
     QCOMPARE(font.value(QStringLiteral("families")).toStringList(),
-        QStringList { QStringLiteral("monospace") });
+        QStringList {QStringLiteral("monospace")});
 }
 
 void ThemeControllerTest::keepsTheTypeBaseSizeUsable()
@@ -1130,8 +1127,8 @@ void ThemeControllerTest::namesTheColoursCodeIsReadIn()
     QCOMPARE(QColor(syntax.value(QStringLiteral("punctuation")).toString()),
         QColor(controller.palette().value(QStringLiteral("mutedText")).toString()));
 
-    for (const auto &token : { "keyword", "string", "number", "comment", "tag", "attribute",
-             "variable", "function", "type", "punctuation" }) {
+    for (const auto &token : {"keyword", "string", "number", "comment", "tag", "attribute",
+             "variable", "function", "type", "punctuation"}) {
         const QColor colour(syntax.value(QString::fromLatin1(token)).toString());
         QVERIFY2(colour.isValid(), token);
         // Code is read against a solid surface, so a token carries no alpha of
@@ -1152,7 +1149,7 @@ void ThemeControllerTest::readsTheFirstPaletteOfferedThatIsThere()
     theme.write(R"JSON({ "window": "#101010", "opacity": { "window": 1.0 } })JSON");
     theme.close();
 
-    ThemeController controller(QStringList { absent, theme.fileName() });
+    ThemeController controller(QStringList {absent, theme.fileName()});
     QCOMPARE(QColor(controller.palette().value(QStringLiteral("window")).toString()),
         QColor(QStringLiteral("#101010")));
 }
@@ -1170,7 +1167,7 @@ void ThemeControllerTest::followsADesktopPaletteThatAppearsAfterStartup()
     builtIn.write(R"JSON({ "window": "#101010", "opacity": { "window": 1.0 } })JSON");
     builtIn.close();
 
-    ThemeController controller(QStringList { desktop, builtIn.fileName() });
+    ThemeController controller(QStringList {desktop, builtIn.fileName()});
     QCOMPARE(QColor(controller.palette().value(QStringLiteral("window")).toString()),
         QColor(QStringLiteral("#101010")));
 
@@ -1197,7 +1194,7 @@ void ThemeControllerTest::followsADesktopPaletteWhoseDirectoryAppearsAfterStartu
     builtIn.write(R"JSON({ "window": "#101010", "opacity": { "window": 1.0 } })JSON");
     builtIn.close();
 
-    ThemeController controller(QStringList { desktop, builtIn.fileName() });
+    ThemeController controller(QStringList {desktop, builtIn.fileName()});
     QCOMPARE(QColor(controller.palette().value(QStringLiteral("window")).toString()),
         QColor(QStringLiteral("#101010")));
 
@@ -1244,7 +1241,7 @@ void ThemeControllerTest::followsADesktopThatSwitchesThemeByRelinking()
     builtIn.close();
 
     ThemeController controller(
-        QStringList { QDir(link).filePath(QStringLiteral("omaweb.json")), builtIn.fileName() });
+        QStringList {QDir(link).filePath(QStringLiteral("omaweb.json")), builtIn.fileName()});
     QCOMPARE(QColor(controller.palette().value(QStringLiteral("window")).toString()),
         QColor(QStringLiteral("#101010")));
 

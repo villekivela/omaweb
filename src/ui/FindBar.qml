@@ -34,15 +34,15 @@ Item {
 
     function adopt(value) {
         if (field.text === value)
-            return
-        root.adopting = true
-        field.text = value
-        root.adopting = false
+            return;
+        root.adopting = true;
+        field.text = value;
+        root.adopting = false;
     }
 
     function focusField() {
-        field.focusInput()
-        field.selectAllText()
+        field.focusInput();
+        field.selectAllText();
     }
 
     onQueryChanged: root.adopt(root.query)
@@ -93,11 +93,11 @@ Item {
 
             Keys.onPressed: function (event) {
                 if (event.key === Qt.Key_Escape) {
-                    root.closed()
-                    event.accepted = true
+                    root.closed();
+                    event.accepted = true;
                 } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
-                    root.searchRequested(field.text, (event.modifiers & Qt.ShiftModifier) === 0)
-                    event.accepted = true
+                    root.searchRequested(field.text, (event.modifiers & Qt.ShiftModifier) === 0);
+                    event.accepted = true;
                 }
             }
         }
@@ -111,10 +111,10 @@ Item {
             anchors.verticalCenter: parent.verticalCenter
             text: {
                 if (!root.searching)
-                    return ""
+                    return "";
                 if (root.matchCount === 0)
-                    return "no matches"
-                return root.activeMatch + "/" + root.matchCount
+                    return "no matches";
+                return root.activeMatch + "/" + root.matchCount;
             }
             color: root.matchCount === 0 && root.searching ? root.colors.urgent :
                                                              root.colors.mutedText

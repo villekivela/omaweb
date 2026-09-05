@@ -67,11 +67,11 @@ QStringList themePaths()
     const auto override = qEnvironmentVariable("OMAWEB_THEME_FILE");
     if (!override.isEmpty()) {
         // An override names one file, and nothing overtakes it.
-        return { override };
+        return {override};
     }
     // A theme the user dropped in their own config directory outranks a
     // desktop-managed one; both outrank the built-in.
-    QStringList paths { QDir(configRoot()).filePath(QStringLiteral("theme.json")) };
+    QStringList paths {QDir(configRoot()).filePath(QStringLiteral("theme.json"))};
 #if defined(Q_OS_LINUX)
     paths.append(omaweb::OmarchyThemePaths::fromEnvironment().renderedTheme());
 #endif
@@ -129,9 +129,8 @@ int main(int argc, char *argv[])
     }
 
     omaweb::RuntimeSecurity runtimeSecurity(omaweb::SandboxHost::fromEnvironment(),
-        { QString::fromLatin1(qWebEngineVersion()),
-            QString::fromLatin1(qWebEngineChromiumVersion()),
-            QString::fromLatin1(qWebEngineChromiumSecurityPatchVersion()) });
+        {QString::fromLatin1(qWebEngineVersion()), QString::fromLatin1(qWebEngineChromiumVersion()),
+            QString::fromLatin1(qWebEngineChromiumSecurityPatchVersion())});
     if (!runtimeSecurity.rendererIsolated()) {
         qCritical("Omaweb refuses to start: %s", qPrintable(runtimeSecurity.sandboxDiagnostic()));
         return 2;

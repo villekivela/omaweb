@@ -25,16 +25,16 @@ Item {
     readonly property bool showing: hold.running || fade.opacity > 0
 
     function show(noticeGlyph, noticeMessage, noticeDetail, noticeDuration) {
-        root.glyph = noticeGlyph
-        root.message = noticeMessage
-        root.detail = noticeDetail === undefined ? "" : noticeDetail
-        root.duration = noticeDuration === undefined ? 2400 : noticeDuration
-        hold.restart()
+        root.glyph = noticeGlyph;
+        root.message = noticeMessage;
+        root.detail = noticeDetail === undefined ? "" : noticeDetail;
+        root.duration = noticeDuration === undefined ? 2400 : noticeDuration;
+        hold.restart();
     }
 
     function dismiss() {
-        hold.stop()
-        fade.opacity = 0
+        hold.stop();
+        fade.opacity = 0;
     }
 
     visible: fade.opacity > 0

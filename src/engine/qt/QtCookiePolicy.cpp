@@ -62,7 +62,7 @@ bool QtCookiePolicy::attachToProfile(QObject *profile, QObject *controller, cons
         return false;
     }
 
-    m_attachments.insert(store, Attachment { browser, spaceId });
+    m_attachments.insert(store, Attachment {browser, spaceId});
     connect(store, &QObject::destroyed, this, [this, store] {
         m_attachments.remove(store);
         refreshAllowances();

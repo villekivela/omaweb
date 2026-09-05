@@ -154,11 +154,11 @@ bool KeyboardNavigation::setEnabled(bool enabled)
 QVariantMap KeyboardNavigation::configurationForUrl(const QUrl &url) const
 {
     QVariantMap configuration = {
-        { QStringLiteral("version"), supportedVersion },
-        { QStringLiteral("enabled"), m_valid && m_enabled },
-        { QStringLiteral("bindings"), m_bindings },
-        { QStringLiteral("passthroughAll"), false },
-        { QStringLiteral("passthroughKeys"), QStringList {} },
+        {QStringLiteral("version"), supportedVersion},
+        {QStringLiteral("enabled"), m_valid && m_enabled},
+        {QStringLiteral("bindings"), m_bindings},
+        {QStringLiteral("passthroughAll"), false},
+        {QStringLiteral("passthroughKeys"), QStringList {}},
     };
     const auto host = url.host().toLower();
     qsizetype bestMatchLength = -1;
@@ -302,14 +302,14 @@ bool KeyboardNavigation::adoptDefaults(
     auto browser = settings.value(QStringLiteral("browser")).toObject();
     const auto defaultBrowser = defaults.value(QStringLiteral("browser")).toObject();
     const QHash<QString, QString> retiredBrowserDefaults = {
-        { QStringLiteral("u"), QStringLiteral("reopen-tab") },
-        { QStringLiteral("gt"), QStringLiteral("next-tab") },
-        { QStringLiteral("gT"), QStringLiteral("previous-tab") },
-        { QStringLiteral("gs"), QStringLiteral("next-space") },
-        { QStringLiteral("gn"), QStringLiteral("new-space") },
+        {QStringLiteral("u"), QStringLiteral("reopen-tab")},
+        {QStringLiteral("gt"), QStringLiteral("next-tab")},
+        {QStringLiteral("gT"), QStringLiteral("previous-tab")},
+        {QStringLiteral("gs"), QStringLiteral("next-space")},
+        {QStringLiteral("gn"), QStringLiteral("new-space")},
         // Copying the address is what this key does in every other browser, so
         // inspecting an element moved to the one Chromium uses for it.
-        { QStringLiteral("Primary+Shift+C"), QStringLiteral("inspect-element") },
+        {QStringLiteral("Primary+Shift+C"), QStringLiteral("inspect-element")},
     };
     for (auto it = retiredBrowserDefaults.cbegin(); it != retiredBrowserDefaults.cend(); ++it) {
         if (browser.value(it.key()).toString() != it.value()) {

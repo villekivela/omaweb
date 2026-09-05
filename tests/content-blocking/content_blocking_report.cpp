@@ -104,10 +104,10 @@ QJsonObject runFixtures(const QJsonObject &fixtures, const omaweb::QtContentBloc
         ++total;
     }
     return {
-        { QStringLiteral("passed"), passed },
-        { QStringLiteral("total"), total },
-        { QStringLiteral("status"),
-            passed == total ? QStringLiteral("pass") : QStringLiteral("fail") },
+        {QStringLiteral("passed"), passed},
+        {QStringLiteral("total"), total},
+        {QStringLiteral("status"),
+            passed == total ? QStringLiteral("pass") : QStringLiteral("fail")},
     };
 }
 
@@ -150,10 +150,10 @@ int main(int argc, char *argv[])
     const omaweb::QtContentBlocker qtAdapter(&contentBlocker);
     const auto result = runFixtures(fixtures, qtAdapter, contentBlocker);
     const auto report = QJsonObject {
-        { QStringLiteral("contract"), QStringLiteral("Omaweb content blocking v1") },
-        { QStringLiteral("adblockRustVersion"), QStringLiteral("0.12.5") },
-        { QStringLiteral("ladybirdRevision"), QStringLiteral(OMAWEB_LADYBIRD_REVISION) },
-        { QStringLiteral("unsupportedRuleCategories"),
+        {QStringLiteral("contract"), QStringLiteral("Omaweb content blocking v1")},
+        {QStringLiteral("adblockRustVersion"), QStringLiteral("0.12.5")},
+        {QStringLiteral("ladybirdRevision"), QStringLiteral(OMAWEB_LADYBIRD_REVISION)},
+        {QStringLiteral("unsupportedRuleCategories"),
             QJsonArray {
                 QStringLiteral("scriptlets requiring trust"),
                 QStringLiteral("scriptlets this build does not carry"),
@@ -164,20 +164,20 @@ int main(int argc, char *argv[])
                 QStringLiteral("CNAME uncloaking"),
                 QStringLiteral("content security policies"),
                 QStringLiteral("substitutes this build does not carry"),
-            } },
-        { QStringLiteral("sharedPinnedParser"),
+            }},
+        {QStringLiteral("sharedPinnedParser"),
             QJsonObject {
-                { QStringLiteral("status"), QStringLiteral("pass") },
-                { QStringLiteral("acceptedRules"),
-                    compilation.report.value(QStringLiteral("acceptedRuleCount")) },
-            } },
-        { QStringLiteral("qtAdapter"), result },
-        { QStringLiteral("ladybirdAdapter"),
+                {QStringLiteral("status"), QStringLiteral("pass")},
+                {QStringLiteral("acceptedRules"),
+                    compilation.report.value(QStringLiteral("acceptedRuleCount"))},
+            }},
+        {QStringLiteral("qtAdapter"), result},
+        {QStringLiteral("ladybirdAdapter"),
             QJsonObject {
-                { QStringLiteral("status"), QStringLiteral("not-run") },
-                { QStringLiteral("reason"),
-                    QStringLiteral("The Ladybird adapter is not present until issue #7") },
-            } },
+                {QStringLiteral("status"), QStringLiteral("not-run")},
+                {QStringLiteral("reason"),
+                    QStringLiteral("The Ladybird adapter is not present until issue #7")},
+            }},
     };
     QSaveFile output(application.arguments().at(1));
     if (!output.open(QIODevice::WriteOnly)) {

@@ -13,157 +13,157 @@ QtObject {
     function run(command, argument) {
         switch (command) {
         case "back":
-            browser.requestBack()
-            return true
+            browser.requestBack();
+            return true;
         case "forward":
-            browser.requestForward()
-            return true
+            browser.requestForward();
+            return true;
         case "reload":
-            browser.requestReload()
-            return true
+            browser.requestReload();
+            return true;
         case "reload-bypassing-cache":
-            window.reloadBypassingCache()
-            return true
+            window.reloadBypassingCache();
+            return true;
         case "stop-loading":
-            window.stopLoading()
-            return true
+            window.stopLoading();
+            return true;
         case "open-address":
-            window.openOmnibar(false)
-            return true
+            window.openOmnibar(false);
+            return true;
         case "command-panel":
-            window.openCommandPanel()
-            return true
+            window.openCommandPanel();
+            return true;
         case "new-tab":
-            window.openOmnibar(true)
-            return true
+            window.openOmnibar(true);
+            return true;
         case "close-tab":
-            browser.closeActiveTab()
-            return true
+            browser.closeActiveTab();
+            return true;
         case "reopen-tab":
-            browser.reopenClosedTab()
-            return true
+            browser.reopenClosedTab();
+            return true;
         case "next-tab":
-            window.stepTab(1)
-            return true
+            window.stepTab(1);
+            return true;
         case "previous-tab":
-            window.stepTab(-1)
-            return true
+            window.stepTab(-1);
+            return true;
         case "select-tab":
-            window.activateTabAt(argument)
-            return true
+            window.activateTabAt(argument);
+            return true;
         case "pin-tab":
-            browser.toggleActivePinned()
-            return true
+            browser.toggleActivePinned();
+            return true;
         case "keep-tab-active":
-            browser.toggleActiveKeepActive()
-            return true
+            browser.toggleActiveKeepActive();
+            return true;
         case "duplicate-tab":
-            browser.duplicateTab(browser.activeTabId)
-            return true
+            browser.duplicateTab(browser.activeTabId);
+            return true;
         case "move-tab-up":
-            browser.moveTabBy(browser.activeTabId, -1)
-            return true
+            browser.moveTabBy(browser.activeTabId, -1);
+            return true;
         case "move-tab-down":
-            browser.moveTabBy(browser.activeTabId, 1)
-            return true
+            browser.moveTabBy(browser.activeTabId, 1);
+            return true;
         case "close-other-tabs":
-            browser.closeOtherTabs(browser.activeTabId)
-            return true
+            browser.closeOtherTabs(browser.activeTabId);
+            return true;
         case "close-tabs-below":
-            browser.closeTabsBelow(browser.activeTabId)
-            return true
+            browser.closeTabsBelow(browser.activeTabId);
+            return true;
         case "tab-menu":
-            window.openActiveTabMenu()
-            return true
+            window.openActiveTabMenu();
+            return true;
         case "move-tab":
-            window.requestMoveTab()
-            return true
+            window.requestMoveTab();
+            return true;
         case "next-space":
-            window.stepSpace(1)
-            return true
+            window.stepSpace(1);
+            return true;
         case "select-space":
-            window.activateSpaceAt(argument)
-            return true
+            window.activateSpaceAt(argument);
+            return true;
         case "new-space":
-            window.requestNewSpace()
-            return true
+            window.requestNewSpace();
+            return true;
         case "toggle-sidebar":
-            window.sidebarCollapsed = !window.sidebarCollapsed
-            return true
+            window.sidebarCollapsed = !window.sidebarCollapsed;
+            return true;
         case "widen-sidebar":
-            window.nudgeSidebar(24)
-            return true
+            window.nudgeSidebar(24);
+            return true;
         case "narrow-sidebar":
-            window.nudgeSidebar(-24)
-            return true
+            window.nudgeSidebar(-24);
+            return true;
         case "reset-sidebar":
-            window.setSidebarWidth(window.sidebarDefaultWidth)
-            return true
+            window.setSidebarWidth(window.sidebarDefaultWidth);
+            return true;
         case "focus-sidebar":
-            window.focusSidebar()
-            return true
+            window.focusSidebar();
+            return true;
         case "focus-page":
-            window.focusPage()
-            return true
+            window.focusPage();
+            return true;
         case "copy-address":
-            window.copyAddress()
-            return true
+            window.copyAddress();
+            return true;
         case "find":
-            window.openFind()
-            return true
+            window.openFind();
+            return true;
         case "find-next":
-            window.stepFind(true)
-            return true
+            window.stepFind(true);
+            return true;
         case "find-previous":
-            window.stepFind(false)
-            return true
+            window.stepFind(false);
+            return true;
         case "zoom-in":
-            window.stepZoom(1)
-            return true
+            window.stepZoom(1);
+            return true;
         case "zoom-out":
-            window.stepZoom(-1)
-            return true
+            window.stepZoom(-1);
+            return true;
         case "zoom-reset":
-            window.resetZoom()
-            return true
+            window.resetZoom();
+            return true;
         case "print":
-            window.printPage()
-            return true
+            window.printPage();
+            return true;
         case "fullscreen":
-            window.toggleBrowserFullscreen()
-            return true
+            window.toggleBrowserFullscreen();
+            return true;
         case "developer-tools":
-            window.toggleDeveloperTools()
-            return true
+            window.toggleDeveloperTools();
+            return true;
         case "inspect-element":
-            window.inspectElement()
-            return true
+            window.inspectElement();
+            return true;
         case "open-page-context-menu":
-            window.openPageContextMenu()
-            return true
+            window.openPageContextMenu();
+            return true;
         case "open-file":
-            window.requestOpenFile()
-            return true
+            window.requestOpenFile();
+            return true;
         case "shortcuts":
-            window.requestShortcuts()
-            return true
+            window.requestShortcuts();
+            return true;
         case "history":
-            window.requestHistory()
-            return true
+            window.requestHistory();
+            return true;
         case "settings":
-            window.requestSettings()
-            return true
+            window.requestSettings();
+            return true;
         case "downloads":
-            window.requestDownloads()
-            return true
+            window.requestDownloads();
+            return true;
         case "private-window":
-            windowManager.openPrivateWindow()
-            return true
+            windowManager.openPrivateWindow();
+            return true;
         case "minimize-window":
-            window.showMinimized()
-            return true
+            window.showMinimized();
+            return true;
         }
-        return false
+        return false;
     }
 
     // Every command names what it needs to run here, so availability is read
@@ -408,41 +408,41 @@ QtObject {
     // unavailable rather than missing: the reader learns it exists, and why it
     // is not on offer here.
     function available(command) {
-        const description = descriptions[command]
+        const description = descriptions[command];
         switch (description ? description.requires : "") {
         case "page":
-            return !browser.activeTabBlank
+            return !browser.activeTabBlank;
         case "find":
-            return window.findAvailable
+            return window.findAvailable;
         case "zoom":
-            return window.zoomAvailable
+            return window.zoomAvailable;
         case "printing":
-            return window.printingAvailable
+            return window.printingAvailable;
         case "inspector":
-            return window.developerToolsAvailable
+            return window.developerToolsAvailable;
         case "private-windows":
-            return windowManager.privateWindowsAvailable
+            return windowManager.privateWindowsAvailable;
         case "ordinary-window":
-            return !window.privateWindow
+            return !window.privateWindow;
             // Keep active is a Pinned tab's setting, and the rows below a tab are
             // the ordinary list's.
         case "pinned-tab":
-            return browser.activeTabPinned && !window.privateWindow
+            return browser.activeTabPinned && !window.privateWindow;
         case "ordinary-tab":
-            return !browser.activeTabPinned
+            return !browser.activeTabPinned;
         }
-        return true
+        return true;
     }
 
     function actions() {
-        const list = []
+        const list = [];
 
         for (const command in descriptions) {
-            const description = descriptions[command]
+            const description = descriptions[command];
             if (window.privateWindow && (command === "pin-tab" || command === "move-tab" || command
                                          === "keep-tab-active" || command === "select-space"
                                          || command === "next-space" || command === "new-space")) {
-                continue
+                continue;
             }
             list.push({
                           group: description.group,
@@ -451,16 +451,16 @@ QtObject {
                           enabled: root.available(command),
                           command: command,
                           argument: -1
-                      })
+                      });
         }
 
-        const tabs = browser.tabs
+        const tabs = browser.tabs;
         for (let row = 0; row < tabs.rowCount(); ++row) {
-            const index = tabs.index(row, 0)
+            const index = tabs.index(row, 0);
             if (tabs.data(index, Qt.UserRole + 6)) {
-                continue
+                continue;
             }
-            const tabId = tabs.data(index, Qt.UserRole + 1)
+            const tabId = tabs.data(index, Qt.UserRole + 1);
             list.push({
                           group: "open tabs",
                           title: tabs.data(index, Qt.UserRole + 4),
@@ -471,15 +471,15 @@ QtObject {
                           enabled: true,
                           command: "activate-tab",
                           argument: tabId
-                      })
+                      });
         }
 
         if (!window.privateWindow) {
-            const spaces = browser.spaces
+            const spaces = browser.spaces;
             for (let row = 0; row < spaces.rowCount(); ++row) {
-                const index = spaces.index(row, 0)
+                const index = spaces.index(row, 0);
                 if (spaces.data(index, Qt.UserRole + 4)) {
-                    continue
+                    continue;
                 }
                 list.push({
                               group: "spaces",
@@ -488,7 +488,7 @@ QtObject {
                               enabled: true,
                               command: "switch-space",
                               argument: spaces.data(index, Qt.UserRole + 1)
-                          })
+                          });
             }
         }
 
@@ -500,90 +500,90 @@ QtObject {
                           enabled: keymap.pageCommandsEnabled,
                           command: "",
                           argument: -1
-                      })
+                      });
         }
 
-        return list
+        return list;
     }
 
     function invoke(action) {
         if (action.command === "activate-tab") {
-            browser.activateTab(action.argument)
-            return
+            browser.activateTab(action.argument);
+            return;
         }
         if (action.command === "switch-space") {
-            browser.switchSpace(action.argument)
-            return
+            browser.switchSpace(action.argument);
+            return;
         }
-        run(action.command, action.argument)
+        run(action.command, action.argument);
     }
 
     function score(text, query) {
         if (query.length === 0) {
-            return 1
+            return 1;
         }
-        const haystack = text.toLowerCase()
-        const needle = query.toLowerCase()
-        let cursor = 0
-        let points = 0
-        let previous = -2
+        const haystack = text.toLowerCase();
+        const needle = query.toLowerCase();
+        let cursor = 0;
+        let points = 0;
+        let previous = -2;
         for (let index = 0; index < needle.length; ++index) {
-            const found = haystack.indexOf(needle.charAt(index), cursor)
+            const found = haystack.indexOf(needle.charAt(index), cursor);
             if (found === -1) {
-                return 0
+                return 0;
             }
-            points += 1
+            points += 1;
             if (found === previous + 1) {
-                points += 3
+                points += 3;
             }
             if (found === 0 || haystack.charAt(found - 1) === " ") {
-                points += 2
+                points += 2;
             }
-            previous = found
-            cursor = found + 1
+            previous = found;
+            cursor = found + 1;
         }
-        return points
+        return points;
     }
 
     function highlight(text, query) {
         if (query.length === 0) {
-            return text
+            return text;
         }
-        const haystack = text.toLowerCase()
-        const needle = query.toLowerCase()
-        let cursor = 0
-        let out = ""
+        const haystack = text.toLowerCase();
+        const needle = query.toLowerCase();
+        let cursor = 0;
+        let out = "";
         for (let index = 0; index < needle.length; ++index) {
-            const found = haystack.indexOf(needle.charAt(index), cursor)
+            const found = haystack.indexOf(needle.charAt(index), cursor);
             if (found === -1) {
-                return text
+                return text;
             }
-            out += text.substring(cursor, found) + "<b>" + text.charAt(found) + "</b>"
-            cursor = found + 1
+            out += text.substring(cursor, found) + "<b>" + text.charAt(found) + "</b>";
+            cursor = found + 1;
         }
-        return out + text.substring(cursor)
+        return out + text.substring(cursor);
     }
 
     function search(query) {
-        const all = actions()
-        const matched = []
+        const all = actions();
+        const matched = [];
         for (let index = 0; index < all.length; ++index) {
-            const points = score(all[index].title, query)
+            const points = score(all[index].title, query);
             if (points > 0) {
                 matched.push({
                                  action: all[index],
                                  points: points,
                                  order: index
-                             })
+                             });
             }
         }
         matched.sort(function (left, right) {
-            return right.points - left.points || left.order - right.order
-        })
-        const result = []
+            return right.points - left.points || left.order - right.order;
+        });
+        const result = [];
         for (let index = 0; index < matched.length; ++index) {
-            result.push(matched[index].action)
+            result.push(matched[index].action);
         }
-        return result
+        return result;
     }
 }

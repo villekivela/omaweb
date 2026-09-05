@@ -58,42 +58,42 @@ QtObject {
 
     function releaseHeldDownload(token, path) {
         if (!root.downloadHolds)
-            return false
-        const details = root.downloadHolds.held(token)
+            return false;
+        const details = root.downloadHolds.held(token);
         if (!details || !details.sourceUrl || !details.view)
-            return false
+            return false;
         // The next matching request consumes this answer.
-        root.answeredDownloads[String(details.sourceUrl)] = path ? String(path) : ""
-        root.downloadHolds.discard(token)
+        root.answeredDownloads[String(details.sourceUrl)] = path ? String(path) : "";
+        root.downloadHolds.discard(token);
         details.view.runJavaScript("(function(){var link=document.createElement('a');link.href="
                                    + JSON.stringify(String(details.sourceUrl)) + ";link.download="
                                    + JSON.stringify(String(details.fileName))
                                    + ";link.rel='noopener';"
                                    + "(document.body||document.documentElement).appendChild(link);"
-                                   + "link.click();link.remove();})()")
-        return true
+                                   + "link.click();link.remove();})()");
+        return true;
     }
 
     function discardHeldDownload(token) {
-        return root.downloadHolds ? root.downloadHolds.discard(token) : false
+        return root.downloadHolds ? root.downloadHolds.discard(token) : false;
     }
 
     function cancelDownload(runtimeId) {
-        const request = root.downloadRequests[runtimeId]
+        const request = root.downloadRequests[runtimeId];
         if (!request)
-            return false
-        request.cancel()
-        return true
+            return false;
+        request.cancel();
+        return true;
     }
 
     function retryDownload(runtimeId) {
-        const request = root.downloadRequests[runtimeId]
+        const request = root.downloadRequests[runtimeId];
         if (!request)
-            return false
+            return false;
         if (request.state !== WebEngineDownloadRequest.DownloadInterrupted && !request.isPaused)
-            return false
-        request.resume()
-        return true
+            return false;
+        request.resume();
+        return true;
     }
     // A notification arrives from a Space's profile rather than from one page,
     // so the origin is all there is to say who sent it. The shell decides
@@ -106,26 +106,26 @@ QtObject {
     // The reader answered the notification: the page hears the click, and the
     // shell takes them to the tab.
     function activateNotification(notificationId) {
-        const notification = root.pendingNotifications[notificationId]
+        const notification = root.pendingNotifications[notificationId];
         if (!notification)
-            return
-        delete root.pendingNotifications[notificationId]
-        notification.click()
-        notification.close()
+            return;
+        delete root.pendingNotifications[notificationId];
+        notification.click();
+        notification.close();
     }
 
     function dismissNotification(notificationId) {
-        const notification = root.pendingNotifications[notificationId]
+        const notification = root.pendingNotifications[notificationId];
         if (!notification)
-            return
-        delete root.pendingNotifications[notificationId]
-        notification.close()
+            return;
+        delete root.pendingNotifications[notificationId];
+        notification.close();
     }
 
     function retire() {
-        retired = true
+        retired = true;
         if (activeDownloadCount === 0)
-            root.destroy()
+            root.destroy();
     }
 
     // The reader took an origin's decisions back, so the engine's own record of
@@ -137,11 +137,11 @@ QtObject {
         const persistentTypes = [WebEnginePermission.PermissionType.Notifications,
                                  WebEnginePermission.PermissionType.Geolocation,
                                  WebEnginePermission.PermissionType.ClipboardReadWrite,
-                                 WebEnginePermission.PermissionType.LocalFontsAccess]
+                                 WebEnginePermission.PermissionType.LocalFontsAccess];
         for (let index = 0; index < persistentTypes.length; ++index) {
-            const permission = privateProfile.queryPermission(origin, persistentTypes[index])
+            const permission = privateProfile.queryPermission(origin, persistentTypes[index]);
             if (permission.isValid)
-                permission.reset()
+                permission.reset();
         }
     }
 
@@ -153,19 +153,19 @@ QtObject {
     // local storage, databases or service workers, nor any time filter. The
     // reader is told what stayed rather than left to believe it went.
     function clearBrowsingData(dataTypes, since) {
-        const untouched = []
+        const untouched = [];
         if (dataTypes.indexOf("cookies") >= 0) {
             const deleted = root.engineCookiePolicy && root.engineCookiePolicy.deleteAllCookies(
-                      root.profile)
+                      root.profile);
             if (!deleted)
-                untouched.push("cookies")
+                untouched.push("cookies");
         }
         if (dataTypes.indexOf("storage") >= 0)
-            untouched.push("storage")
+            untouched.push("storage");
         if (dataTypes.indexOf("cache") >= 0)
-            privateProfile.clearHttpCache()
-        root.browsingDataCleared()
-        return untouched
+            privateProfile.clearHttpCache();
+        root.browsingDataCleared();
+        return untouched;
     }
 
     property Component downloadObserver: Component {
@@ -179,75 +179,75 @@ QtObject {
             function stateName() {
                 switch (download.state) {
                 case WebEngineDownloadRequest.DownloadRequested:
-                    return "requested"
+                    return "requested";
                 case WebEngineDownloadRequest.DownloadInProgress:
-                    return "in-progress"
+                    return "in-progress";
                 case WebEngineDownloadRequest.DownloadCompleted:
-                    return "completed"
+                    return "completed";
                 case WebEngineDownloadRequest.DownloadCancelled:
-                    return "cancelled"
+                    return "cancelled";
                 case WebEngineDownloadRequest.DownloadInterrupted:
-                    return "interrupted"
+                    return "interrupted";
                 default:
-                    return "unknown"
+                    return "unknown";
                 }
             }
 
             function path() {
-                return download.downloadDirectory + "/" + download.downloadFileName
+                return download.downloadDirectory + "/" + download.downloadFileName;
             }
 
             function runtimeId() {
-                return downloadNamespace + ":" + String(download.id)
+                return downloadNamespace + ":" + String(download.id);
             }
 
             function running() {
                 return download.state === WebEngineDownloadRequest.DownloadInProgress
-                        || download.state === WebEngineDownloadRequest.DownloadRequested
+                        || download.state === WebEngineDownloadRequest.DownloadRequested;
             }
 
             function updateRecord() {
                 root.downloadUpdated(runtimeId(), stateName(), download.receivedBytes,
-                                     download.totalBytes, download.interruptReasonString || "")
+                                     download.totalBytes, download.interruptReasonString || "");
                 if (!running() && !settled) {
-                    settled = true
-                    root.activeDownloadCount -= 1
+                    settled = true;
+                    root.activeDownloadCount -= 1;
                     if (root.downloadController)
-                        root.downloadController.noteDownloadSettled(runtimeId())
+                        root.downloadController.noteDownloadSettled(runtimeId());
                 } else if (running() && settled) {
-                    settled = false
-                    root.activeDownloadCount += 1
+                    settled = false;
+                    root.activeDownloadCount += 1;
                     if (root.downloadController)
-                        root.downloadController.noteDownloadStarted(observer.pageUrl, runtimeId())
+                        root.downloadController.noteDownloadStarted(observer.pageUrl, runtimeId());
                 }
                 if (download.state === WebEngineDownloadRequest.DownloadCompleted || download.state
                         === WebEngineDownloadRequest.DownloadCancelled) {
-                    delete root.downloadRequests[runtimeId()]
+                    delete root.downloadRequests[runtimeId()];
                     if (root.retired && root.activeDownloadCount === 0)
-                        root.destroy()
-                    observer.destroy()
+                        root.destroy();
+                    observer.destroy();
                 }
             }
 
             Component.onCompleted: {
-                root.downloadRequests[runtimeId()] = download
+                root.downloadRequests[runtimeId()] = download;
                 root.downloadStarted(runtimeId(), download.url, path(), stateName(), download.receivedBytes,
-                                     download.totalBytes)
+                                     download.totalBytes);
             }
 
             property Connections downloadConnections: Connections {
                 target: observer.download
                 function onStateChanged() {
-                    observer.updateRecord()
+                    observer.updateRecord();
                 }
                 function onReceivedBytesChanged() {
-                    observer.updateRecord()
+                    observer.updateRecord();
                 }
                 function onTotalBytesChanged() {
-                    observer.updateRecord()
+                    observer.updateRecord();
                 }
                 function onInterruptReasonChanged() {
-                    observer.updateRecord()
+                    observer.updateRecord();
                 }
             }
         }
@@ -282,13 +282,13 @@ QtObject {
         // simply not been answered. That is what lets the shell refuse one from
         // a Space it has put away.
         onPresentNotification: function (notification) {
-            const notificationId = String(++root.nextNotificationId)
-            root.pendingNotifications[notificationId] = notification
+            const notificationId = String(++root.nextNotificationId);
+            root.pendingNotifications[notificationId] = notification;
             notification.closed.connect(function () {
-                delete root.pendingNotifications[notificationId]
-            })
+                delete root.pendingNotifications[notificationId];
+            });
             root.notificationPresented(notificationId, notification.origin, notification.title,
-                                       notification.message)
+                                       notification.message);
         }
 
         // Chromium reports the cache removal separately because it finishes
@@ -297,71 +297,71 @@ QtObject {
 
         onDownloadRequested: function (download) {
             if (!root.acceptDownloads) {
-                download.cancel()
-                return
+                download.cancel();
+                return;
             }
-            const pageUrl = download.view ? download.view.url : ""
-            const sourceKey = String(download.url)
-            const answer = root.answeredDownloads[sourceKey]
-            const answered = answer !== undefined
+            const pageUrl = download.view ? download.view.url : "";
+            const sourceKey = String(download.url);
+            const answer = root.answeredDownloads[sourceKey];
+            const answered = answer !== undefined;
             if (answered)
-                delete root.answeredDownloads[sourceKey]
-            let chosenPath = answered && answer.length > 0 ? answer : preparedDownloadPath
+                delete root.answeredDownloads[sourceKey];
+            let chosenPath = answered && answer.length > 0 ? answer : preparedDownloadPath;
             if (chosenPath.length === 0) {
                 const fileName = download.downloadFileName.length > 0 ? download.downloadFileName :
-                                                                        download.suggestedFileName
+                                                                        download.suggestedFileName;
                 const rule = root.downloadController ? root.downloadController.downloadDisposition(
                                                            pageUrl, fileName, download.mimeType,
-                                                           root.downloadDirectory, answered) : null
-                const disposition = rule ? rule.disposition : "accept"
+                                                           root.downloadDirectory, answered) : null;
+                const disposition = rule ? rule.disposition : "accept";
                 if (disposition === "refuse") {
-                    download.cancel()
-                    root.downloadRefused(download.url, fileName, rule.origin)
-                    return
+                    download.cancel();
+                    root.downloadRefused(download.url, fileName, rule.origin);
+                    return;
                 }
                 if (disposition !== "accept") {
-                    const token = root.downloadHolds ? root.downloadHolds.hold(download) : ""
+                    const token = root.downloadHolds ? root.downloadHolds.hold(download) : "";
                     if (token.length === 0) {
-                        download.cancel()
-                        root.downloadRefused(download.url, fileName, rule ? rule.origin : "")
-                        return
+                        download.cancel();
+                        root.downloadRefused(download.url, fileName, rule ? rule.origin : "");
+                        return;
                     }
                     root.downloadHeld(token, disposition, rule.origin, download.url, fileName,
-                                      rule.risk)
-                    return
+                                      rule.risk);
+                    return;
                 }
             }
             if (chosenPath.length > 0) {
                 const separator = Math.max(chosenPath.lastIndexOf("/"), chosenPath.lastIndexOf(
-                                               "\\"))
-                download.downloadDirectory = chosenPath.substring(0, separator)
-                download.downloadFileName = chosenPath.substring(separator + 1)
-                preparedDownloadPath = ""
+                                               "\\"));
+                download.downloadDirectory = chosenPath.substring(0, separator);
+                download.downloadFileName = chosenPath.substring(separator + 1);
+                preparedDownloadPath = "";
             } else if (root.downloadDirectory.length > 0) {
-                download.downloadDirectory = root.downloadDirectory
+                download.downloadDirectory = root.downloadDirectory;
             }
             if (download.downloadFileName.length === 0)
-                download.downloadFileName = download.suggestedFileName
-            root.activeDownloadCount += 1
+                download.downloadFileName = download.suggestedFileName;
+            root.activeDownloadCount += 1;
             const observer = root.downloadObserver.createObject(root, {
                                                                     "download": download,
                                                                     "downloadNamespace":
                                                                     root.downloadNamespace,
                                                                     "pageUrl": String(pageUrl)
-                                                                })
+                                                                });
             if (root.downloadController)
-                root.downloadController.noteDownloadStarted(pageUrl, observer.runtimeId())
-            download.accept()
+                root.downloadController.noteDownloadStarted(pageUrl, observer.runtimeId());
+            download.accept();
         }
     }
 
     Component.onCompleted: {
         if (root.engineContentBlocker)
-            root.engineContentBlocker.attachToProfile(root.profile)
+            root.engineContentBlocker.attachToProfile(root.profile);
         if (root.engineCookiePolicy && root.cookieController) {
             root.thirdPartyCookiesBlocked = root.engineCookiePolicy.attachToProfile(root.profile,
                                                                                     root.cookieController,
-                                                                                    root.cookieSpaceId)
+                                                                                    root.cookieSpaceId);
         }
     }
 }

@@ -35,39 +35,39 @@ namespace {
     QVariantList predefinedSearchEngines()
     {
         return {
-            QVariantMap { { QStringLiteral("id"), QStringLiteral("duckduckgo") },
-                { QStringLiteral("name"), QStringLiteral("DuckDuckGo") },
-                { QStringLiteral("queryUrl"), QStringLiteral("https://duckduckgo.com/?q={query}") },
-                { QStringLiteral("keyword"), QStringLiteral("d") } },
-            QVariantMap { { QStringLiteral("id"), QStringLiteral("google") },
-                { QStringLiteral("name"), QStringLiteral("Google") },
-                { QStringLiteral("queryUrl"),
-                    QStringLiteral("https://www.google.com/search?q={query}") },
-                { QStringLiteral("keyword"), QStringLiteral("g") } },
-            QVariantMap { { QStringLiteral("id"), QStringLiteral("bing") },
-                { QStringLiteral("name"), QStringLiteral("Bing") },
-                { QStringLiteral("queryUrl"),
-                    QStringLiteral("https://www.bing.com/search?q={query}") },
-                { QStringLiteral("keyword"), QStringLiteral("b") } },
-            QVariantMap { { QStringLiteral("id"), QStringLiteral("brave") },
-                { QStringLiteral("name"), QStringLiteral("Brave Search") },
-                { QStringLiteral("queryUrl"),
-                    QStringLiteral("https://search.brave.com/search?q={query}") },
-                { QStringLiteral("keyword"), QStringLiteral("br") } },
-            QVariantMap { { QStringLiteral("id"), QStringLiteral("kagi") },
-                { QStringLiteral("name"), QStringLiteral("Kagi") },
-                { QStringLiteral("queryUrl"), QStringLiteral("https://kagi.com/search?q={query}") },
-                { QStringLiteral("keyword"), QStringLiteral("k") } },
-            QVariantMap { { QStringLiteral("id"), QStringLiteral("ecosia") },
-                { QStringLiteral("name"), QStringLiteral("Ecosia") },
-                { QStringLiteral("queryUrl"),
-                    QStringLiteral("https://www.ecosia.org/search?q={query}") },
-                { QStringLiteral("keyword"), QStringLiteral("e") } },
-            QVariantMap { { QStringLiteral("id"), QStringLiteral("startpage") },
-                { QStringLiteral("name"), QStringLiteral("Startpage") },
-                { QStringLiteral("queryUrl"),
-                    QStringLiteral("https://www.startpage.com/sp/search?query={query}") },
-                { QStringLiteral("keyword"), QStringLiteral("sp") } },
+            QVariantMap {{QStringLiteral("id"), QStringLiteral("duckduckgo")},
+                {QStringLiteral("name"), QStringLiteral("DuckDuckGo")},
+                {QStringLiteral("queryUrl"), QStringLiteral("https://duckduckgo.com/?q={query}")},
+                {QStringLiteral("keyword"), QStringLiteral("d")}},
+            QVariantMap {{QStringLiteral("id"), QStringLiteral("google")},
+                {QStringLiteral("name"), QStringLiteral("Google")},
+                {QStringLiteral("queryUrl"),
+                    QStringLiteral("https://www.google.com/search?q={query}")},
+                {QStringLiteral("keyword"), QStringLiteral("g")}},
+            QVariantMap {{QStringLiteral("id"), QStringLiteral("bing")},
+                {QStringLiteral("name"), QStringLiteral("Bing")},
+                {QStringLiteral("queryUrl"),
+                    QStringLiteral("https://www.bing.com/search?q={query}")},
+                {QStringLiteral("keyword"), QStringLiteral("b")}},
+            QVariantMap {{QStringLiteral("id"), QStringLiteral("brave")},
+                {QStringLiteral("name"), QStringLiteral("Brave Search")},
+                {QStringLiteral("queryUrl"),
+                    QStringLiteral("https://search.brave.com/search?q={query}")},
+                {QStringLiteral("keyword"), QStringLiteral("br")}},
+            QVariantMap {{QStringLiteral("id"), QStringLiteral("kagi")},
+                {QStringLiteral("name"), QStringLiteral("Kagi")},
+                {QStringLiteral("queryUrl"), QStringLiteral("https://kagi.com/search?q={query}")},
+                {QStringLiteral("keyword"), QStringLiteral("k")}},
+            QVariantMap {{QStringLiteral("id"), QStringLiteral("ecosia")},
+                {QStringLiteral("name"), QStringLiteral("Ecosia")},
+                {QStringLiteral("queryUrl"),
+                    QStringLiteral("https://www.ecosia.org/search?q={query}")},
+                {QStringLiteral("keyword"), QStringLiteral("e")}},
+            QVariantMap {{QStringLiteral("id"), QStringLiteral("startpage")},
+                {QStringLiteral("name"), QStringLiteral("Startpage")},
+                {QStringLiteral("queryUrl"),
+                    QStringLiteral("https://www.startpage.com/sp/search?query={query}")},
+                {QStringLiteral("keyword"), QStringLiteral("sp")}},
         };
     }
 
@@ -302,7 +302,7 @@ bool BrowserController::setDownloadDirectory(const QString &path)
         return false;
     }
     file.write(QJsonDocument(
-        QJsonObject { { QStringLiteral("version"), 1 }, { QStringLiteral("directory"), chosen } })
+        QJsonObject {{QStringLiteral("version"), 1}, {QStringLiteral("directory"), chosen}})
             .toJson(QJsonDocument::Indented));
     if (!file.commit()) {
         return false;
@@ -584,7 +584,7 @@ void BrowserController::openInput(const QString &input, bool inNewTab)
     if (inNewTab) {
         if (auto *current = m_tabs.find(m_activeTabId)) {
             current->active = false;
-            m_tabs.notifyChanged(current->id, { TabListModel::ActiveRole });
+            m_tabs.notifyChanged(current->id, {TabListModel::ActiveRole});
         }
 
         TabState tab;
@@ -599,7 +599,7 @@ void BrowserController::openInput(const QString &input, bool inNewTab)
         tab->url = url;
         tab->title = url.host().isEmpty() ? url.toDisplayString() : url.host();
         tab->rendererFailureReason.clear();
-        m_tabs.notifyChanged(tab->id, { TabListModel::UrlRole, TabListModel::TitleRole });
+        m_tabs.notifyChanged(tab->id, {TabListModel::UrlRole, TabListModel::TitleRole});
     }
 
     refreshSoundSuppression();
@@ -814,7 +814,7 @@ void BrowserController::reopenClosedTab()
 
     if (auto *current = m_tabs.find(m_activeTabId)) {
         current->active = false;
-        m_tabs.notifyChanged(current->id, { TabListModel::ActiveRole });
+        m_tabs.notifyChanged(current->id, {TabListModel::ActiveRole});
     }
 
     // A tab that was pinned comes back into the Pinned section, at its end,
@@ -851,7 +851,7 @@ QString BrowserController::duplicateTab(const QString &tabId)
 
     if (auto *current = m_tabs.find(m_activeTabId)) {
         current->active = false;
-        m_tabs.notifyChanged(current->id, { TabListModel::ActiveRole });
+        m_tabs.notifyChanged(current->id, {TabListModel::ActiveRole});
     }
     m_tabs.insert(tab, destination);
     m_activeTabId = tab.id;
@@ -909,7 +909,7 @@ bool BrowserController::moveTab(const QString &tabId, int destinationIndex)
         return false;
     }
     const auto pinned = pinnedTabCount();
-    const auto sectionStart = tab->pinned ? qsizetype { 0 } : pinned;
+    const auto sectionStart = tab->pinned ? qsizetype {0} : pinned;
     const auto sectionCount = tabSectionCount(tabId);
     if (destinationIndex < 0 || destinationIndex >= sectionCount) {
         return false;
@@ -962,8 +962,8 @@ void BrowserController::toggleActivePinned()
         tab->keepActive = false;
     }
     m_tabs.notifyChanged(tab->id,
-        lostKeepActive ? QList<int> { TabListModel::PinnedRole, TabListModel::KeepActiveRole }
-                       : QList<int> { TabListModel::PinnedRole });
+        lostKeepActive ? QList<int> {TabListModel::PinnedRole, TabListModel::KeepActiveRole}
+                       : QList<int> {TabListModel::PinnedRole});
     persistTabs();
     emit activeTabChanged();
 }
@@ -981,7 +981,7 @@ bool BrowserController::setTabKeepActive(const QString &tabId, bool keepActive)
         return true;
     }
     tab->keepActive = keepActive;
-    m_tabs.notifyChanged(tab->id, { TabListModel::KeepActiveRole });
+    m_tabs.notifyChanged(tab->id, {TabListModel::KeepActiveRole});
     persistTabs();
     if (tabId == m_activeTabId) {
         emit activeTabChanged();
@@ -1127,12 +1127,12 @@ QVariantMap BrowserController::notificationTarget(const QString &spaceId, const 
 
     const auto answer = [&](const QString &tabId, const QString &title) {
         return QVariantMap {
-            { QStringLiteral("tabId"), tabId },
-            { QStringLiteral("spaceId"), spaceId },
-            { QStringLiteral("spaceName"),
-                m_privateBrowsing ? QStringLiteral("Private") : spaceName },
-            { QStringLiteral("origin"), wanted },
-            { QStringLiteral("title"), title },
+            {QStringLiteral("tabId"), tabId},
+            {QStringLiteral("spaceId"), spaceId},
+            {QStringLiteral("spaceName"),
+                m_privateBrowsing ? QStringLiteral("Private") : spaceName},
+            {QStringLiteral("origin"), wanted},
+            {QStringLiteral("title"), title},
         };
     };
 
@@ -1208,7 +1208,7 @@ void BrowserController::refreshSoundSuppression()
             continue;
         }
         tab->soundSuppressed = suppressed;
-        m_tabs.notifyChanged(tab->id, { TabListModel::SoundSuppressedRole });
+        m_tabs.notifyChanged(tab->id, {TabListModel::SoundSuppressedRole});
     }
 }
 
@@ -1260,9 +1260,9 @@ void BrowserController::updateTab(const QString &tabId, const QUrl &url, const Q
         closeDeveloperTools();
     }
     m_tabs.notifyChanged(tab->id,
-        changedHost ? QList<int> { TabListModel::UrlRole, TabListModel::TitleRole,
-                          TabListModel::IconUrlRole }
-                    : QList<int> { TabListModel::UrlRole, TabListModel::TitleRole });
+        changedHost
+            ? QList<int> {TabListModel::UrlRole, TabListModel::TitleRole, TabListModel::IconUrlRole}
+            : QList<int> {TabListModel::UrlRole, TabListModel::TitleRole});
     refreshSoundSuppression();
     schedulePersistTabs();
     if (tabId == m_activeTabId) {
@@ -1279,7 +1279,7 @@ void BrowserController::setTabIcon(const QString &tabId, const QUrl &iconUrl)
         return;
     }
     tab->iconUrl = iconUrl;
-    m_tabs.notifyChanged(tab->id, { TabListModel::IconUrlRole });
+    m_tabs.notifyChanged(tab->id, {TabListModel::IconUrlRole});
 }
 
 void BrowserController::setTabLoading(const QString &tabId, bool loading)
@@ -1289,7 +1289,7 @@ void BrowserController::setTabLoading(const QString &tabId, bool loading)
         return;
     }
     tab->loading = loading;
-    m_tabs.notifyChanged(tab->id, { TabListModel::LoadingRole });
+    m_tabs.notifyChanged(tab->id, {TabListModel::LoadingRole});
 }
 
 // Whether a page is making sound is the page's to say, and it says it only
@@ -1302,7 +1302,7 @@ void BrowserController::setTabAudible(const QString &tabId, bool audible)
         return;
     }
     tab->audible = audible;
-    m_tabs.notifyChanged(tab->id, { TabListModel::AudibleRole });
+    m_tabs.notifyChanged(tab->id, {TabListModel::AudibleRole});
 }
 
 // Muting is a standing decision about the tab rather than about the page in
@@ -1317,7 +1317,7 @@ void BrowserController::setTabMuted(const QString &tabId, bool muted)
         return;
     }
     tab->muted = muted;
-    m_tabs.notifyChanged(tab->id, { TabListModel::MutedRole });
+    m_tabs.notifyChanged(tab->id, {TabListModel::MutedRole});
 }
 
 void BrowserController::toggleTabMuted(const QString &tabId)
@@ -1336,7 +1336,7 @@ void BrowserController::setTabZoom(const QString &tabId, double zoom)
         return;
     }
     tab->zoom = zoom;
-    m_tabs.notifyChanged(tab->id, { TabListModel::ZoomRole });
+    m_tabs.notifyChanged(tab->id, {TabListModel::ZoomRole});
     schedulePersistTabs();
     if (tabId == m_activeTabId) {
         emit activeTabChanged();
@@ -1401,7 +1401,7 @@ void BrowserController::reportTabRendererFailure(const QString &tabId, const QSt
     tab->loading = false;
     tab->rendererFailureReason
         = reason.isEmpty() ? QStringLiteral("The page renderer stopped unexpectedly.") : reason;
-    m_tabs.notifyChanged(tab->id, { TabListModel::LoadingRole });
+    m_tabs.notifyChanged(tab->id, {TabListModel::LoadingRole});
     if (tabId == m_activeTabId) {
         emit activeTabChanged();
     }
@@ -1560,10 +1560,9 @@ bool BrowserController::addSearchEngine(
         id = QStringLiteral("%1-%2").arg(baseId).arg(suffix++);
     }
     auto engines = m_searchEngines;
-    engines.append(
-        QVariantMap { { QStringLiteral("id"), id }, { QStringLiteral("name"), normalizedName },
-            { QStringLiteral("queryUrl"), queryUrl.trimmed() },
-            { QStringLiteral("keyword"), keyword.trimmed() } });
+    engines.append(QVariantMap {{QStringLiteral("id"), id},
+        {QStringLiteral("name"), normalizedName}, {QStringLiteral("queryUrl"), queryUrl.trimmed()},
+        {QStringLiteral("keyword"), keyword.trimmed()}});
     return saveSearchEngines(engines, id);
 }
 
@@ -1618,9 +1617,8 @@ bool BrowserController::saveSearchEngines(
             keywords.insert(keyword);
         }
         foundDefault = foundDefault || id == defaultEngineId;
-        jsonEngines.append(
-            QJsonObject { { QStringLiteral("id"), id }, { QStringLiteral("name"), name },
-                { QStringLiteral("queryUrl"), queryUrl }, { QStringLiteral("keyword"), keyword } });
+        jsonEngines.append(QJsonObject {{QStringLiteral("id"), id}, {QStringLiteral("name"), name},
+            {QStringLiteral("queryUrl"), queryUrl}, {QStringLiteral("keyword"), keyword}});
     }
     if (!foundDefault || !QDir().mkpath(m_configRoot)) {
         return false;
@@ -1629,9 +1627,9 @@ bool BrowserController::saveSearchEngines(
     if (!file.open(QIODevice::WriteOnly)) {
         return false;
     }
-    file.write(QJsonDocument(QJsonObject { { QStringLiteral("version"), 1 },
-                                 { QStringLiteral("default"), defaultEngineId },
-                                 { QStringLiteral("engines"), jsonEngines } })
+    file.write(QJsonDocument(
+        QJsonObject {{QStringLiteral("version"), 1}, {QStringLiteral("default"), defaultEngineId},
+            {QStringLiteral("engines"), jsonEngines}})
             .toJson(QJsonDocument::Indented));
     if (!file.commit()) {
         return false;
@@ -1644,8 +1642,8 @@ bool BrowserController::saveSearchEngines(
 bool BrowserController::clearBrowsingData(
     const QStringList &dataTypes, qint64 since, bool everySpace, const QString &confirmation)
 {
-    static const QSet<QString> allowedTypes { QStringLiteral("cookies"), QStringLiteral("storage"),
-        QStringLiteral("cache"), QStringLiteral("permissions"), QStringLiteral("history") };
+    static const QSet<QString> allowedTypes {QStringLiteral("cookies"), QStringLiteral("storage"),
+        QStringLiteral("cache"), QStringLiteral("permissions"), QStringLiteral("history")};
     if (m_privateBrowsing || dataTypes.isEmpty() || since < 0
         || (everySpace && confirmation != QStringLiteral("CLEAR ALL"))) {
         return false;
@@ -1655,7 +1653,7 @@ bool BrowserController::clearBrowsingData(
             return false;
         }
     }
-    QStringList spaceIds { m_activeSpaceId };
+    QStringList spaceIds {m_activeSpaceId};
     if (everySpace) {
         spaceIds.clear();
         for (const auto &space : m_store.loadSpaces()) {
@@ -1794,8 +1792,8 @@ QVariantList BrowserController::sitePermissions(const QUrl &url) const
             continue;
         }
         permissions.append(QVariantMap {
-            { QStringLiteral("permission"), permission },
-            { QStringLiteral("decision"), it.value() },
+            {QStringLiteral("permission"), permission},
+            {QStringLiteral("decision"), it.value()},
         });
     }
     std::sort(permissions.begin(), permissions.end(), [](const auto &left, const auto &right) {
@@ -2042,10 +2040,10 @@ QVariantMap BrowserController::downloadDisposition(const QUrl &origin, const QSt
     const auto automatic = !answered && !normalized.isEmpty()
         && (!originInteracted(origin) || activeDownloadCount(origin) > 0);
     QVariantMap answer {
-        { QStringLiteral("risk"), kind },
-        { QStringLiteral("fileName"), fileName },
-        { QStringLiteral("origin"), normalized },
-        { QStringLiteral("automatic"), automatic },
+        {QStringLiteral("risk"), kind},
+        {QStringLiteral("fileName"), fileName},
+        {QStringLiteral("origin"), normalized},
+        {QStringLiteral("automatic"), automatic},
     };
     const auto decide = [&answer](DownloadDisposition disposition) {
         answer.insert(QStringLiteral("disposition"), dispositionName(disposition));
@@ -2122,7 +2120,7 @@ void BrowserController::initialize()
     if (m_privateBrowsing) {
         auto tab = makeBlankTab({});
         m_activeTabId = tab.id;
-        m_tabs.reset({ tab });
+        m_tabs.reset({tab});
         loadSearchEngines();
         m_ready = true;
         return;
@@ -2215,7 +2213,7 @@ void BrowserController::setActiveTab(const QString &tabId)
             const auto shouldBeActive = tab->id == tabId;
             if (tab->active != shouldBeActive) {
                 tab->active = shouldBeActive;
-                m_tabs.notifyChanged(tab->id, { TabListModel::ActiveRole });
+                m_tabs.notifyChanged(tab->id, {TabListModel::ActiveRole});
             }
         }
     }
@@ -2230,21 +2228,21 @@ bool BrowserController::loadSearchEngines()
     duckDuckGo.insert(QStringLiteral("keyword"), QString {});
     const auto path = QDir(m_configRoot).filePath(QStringLiteral("search-engines.json"));
     if (m_configRoot.isEmpty()) {
-        m_searchEngines = { duckDuckGo };
+        m_searchEngines = {duckDuckGo};
         m_defaultSearchEngineId = QStringLiteral("duckduckgo");
         return true;
     }
     QFile file(path);
     if (!file.exists()) {
         if (m_privateBrowsing) {
-            m_searchEngines = { duckDuckGo };
+            m_searchEngines = {duckDuckGo};
             m_defaultSearchEngineId = QStringLiteral("duckduckgo");
             return true;
         }
-        return saveSearchEngines({ duckDuckGo }, QStringLiteral("duckduckgo"));
+        return saveSearchEngines({duckDuckGo}, QStringLiteral("duckduckgo"));
     }
     if (!file.open(QIODevice::ReadOnly)) {
-        m_searchEngines = { duckDuckGo };
+        m_searchEngines = {duckDuckGo};
         m_defaultSearchEngineId = QStringLiteral("duckduckgo");
         return false;
     }
@@ -2272,7 +2270,7 @@ bool BrowserController::loadSearchEngines()
     }
     const auto defaultId = object.value(QStringLiteral("default")).toString();
     if (!valid || engines.isEmpty() || !ids.contains(defaultId)) {
-        m_searchEngines = { duckDuckGo };
+        m_searchEngines = {duckDuckGo};
         m_defaultSearchEngineId = QStringLiteral("duckduckgo");
         return false;
     }

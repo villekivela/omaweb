@@ -31,31 +31,31 @@ Item {
     visible: open
 
     function beginAddress(preset, forNewTab) {
-        commandMode = false
-        newTabIntent = forNewTab
-        presetText = preset
+        commandMode = false;
+        newTabIntent = forNewTab;
+        presetText = preset;
     }
 
     function beginCommand() {
-        commandMode = true
-        newTabIntent = false
+        commandMode = true;
+        newTabIntent = false;
     }
 
     onOpenChanged: {
         if (!open) {
-            return
+            return;
         }
-        input.text = commandMode ? "" : presetText
-        refresh()
+        input.text = commandMode ? "" : presetText;
+        refresh();
         Qt.callLater(function () {
-            input.forceActiveFocus()
-            input.selectAll()
-        })
+            input.forceActiveFocus();
+            input.selectAll();
+        });
     }
 
     function refresh() {
-        results = commandMode ? commands.search(input.text) : []
-        selected = commandMode ? 0 : -1
+        results = commandMode ? commands.search(input.text) : [];
+        selected = commandMode ? 0 : -1;
     }
 
     // In address mode the typed text is itself a destination, so it is the
@@ -63,36 +63,36 @@ Item {
     function step(delta) {
         if (commandMode) {
             if (results.length === 0)
-                return
-            selected = (selected + delta + results.length) % results.length
-            return
+                return;
+            selected = (selected + delta + results.length) % results.length;
+            return;
         }
         if (suggestions.length === 0)
-            return
-        const next = selected + delta
-        selected = next < -1 ? suggestions.length - 1 : (next >= suggestions.length ? -1 : next)
+            return;
+        const next = selected + delta;
+        selected = next < -1 ? suggestions.length - 1 : (next >= suggestions.length ? -1 : next);
     }
 
     function accept() {
         if (!commandMode) {
             if (selected >= 0 && selected < suggestions.length) {
-                root.committed(suggestions[selected].url.toString())
-                return
+                root.committed(suggestions[selected].url.toString());
+                return;
             }
             if (input.text.trim().length > 0) {
-                root.committed(input.text)
+                root.committed(input.text);
             }
-            return
+            return;
         }
         if (results.length === 0) {
-            return
+            return;
         }
-        const action = results[selected]
+        const action = results[selected];
         if (!action.enabled) {
-            return
+            return;
         }
-        root.dismissed()
-        commands.invoke(action)
+        root.dismissed();
+        commands.invoke(action);
     }
 
     Rectangle {
@@ -218,25 +218,25 @@ Item {
                 Accessible.name: placeholderText
 
                 onTextChanged: {
-                    root.refresh()
-                    root.queryChanged(text)
+                    root.refresh();
+                    root.queryChanged(text);
                 }
 
                 onAccepted: root.accept()
 
                 Keys.onEscapePressed: function (event) {
-                    root.dismissed()
-                    event.accepted = true
+                    root.dismissed();
+                    event.accepted = true;
                 }
 
                 Keys.onDownPressed: function (event) {
-                    root.step(1)
-                    event.accepted = true
+                    root.step(1);
+                    event.accepted = true;
                 }
 
                 Keys.onUpPressed: function (event) {
-                    root.step(-1)
-                    event.accepted = true
+                    root.step(-1);
+                    event.accepted = true;
                 }
             }
 

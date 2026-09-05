@@ -24,31 +24,31 @@ Item {
 
     onOpenChanged: {
         if (!open)
-            return
-        answer.text = String(prompt.defaultText || "")
-        user.text = ""
-        password.text = ""
-        stopPrompts.checked = false
-        remember.checked = false
+            return;
+        answer.text = String(prompt.defaultText || "");
+        user.text = "";
+        password.text = "";
+        stopPrompts.checked = false;
+        remember.checked = false;
         Qt.callLater(function () {
             if (root.asksForCredentials)
-                user.forceActiveFocus()
+                user.forceActiveFocus();
             else if (root.asksForText)
-                answer.forceActiveFocus()
+                answer.forceActiveFocus();
             else
-                root.forceActiveFocus()
-        })
+                root.forceActiveFocus();
+        });
     }
 
     function submit(accepted) {
         root.answered(accepted, answer.text, user.text, password.text, stopPrompts.checked,
-                      remember.checked)
+                      remember.checked);
     }
 
     Keys.onPressed: function (event) {
         if (event.key === Qt.Key_Escape) {
-            root.submit(false)
-            event.accepted = true
+            root.submit(false);
+            event.accepted = true;
         }
     }
 
