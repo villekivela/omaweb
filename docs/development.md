@@ -90,11 +90,18 @@ the Rust wrapper, its manifest, or its lockfile.
 
 ### Platform gaps on Linux
 
-`omaweb-platform` supplies the window-system services the browser cannot supply itself, and two of
-them are still macOS-only: the print dialog and the notification service. They arrive with the
-Wayland port ([#8](https://github.com/villekivela/omaweb/issues/8)). Until then the Linux
-implementations report their capability off, the commands are listed and unavailable, and a page
-asking to notify is told its notification closed rather than left waiting.
+`omaweb-platform` supplies the window-system services the browser cannot supply itself, and one of
+them is still macOS-only: the print dialog. It arrives with the Wayland port
+([#8](https://github.com/villekivela/omaweb/issues/8)). Until then the Linux implementation reports
+its capability off and the print command is listed and unavailable.
+
+Notifications are a session-bus service on Linux rather than a window-server one, so
+`LinuxSystemNotifier.cpp` talks to `org.freedesktop.Notifications` and the browser needs no
+notification daemon of its own. A desktop running none reports the capability off, which is the same
+answer the macOS build gives without a window server, and a page's request is refused rather than
+left waiting. `omaweb-notification-service` covers the exchange against a stub daemon on a private
+bus, including the answer a reader gives, which is the one thing a live desktop cannot be asked for
+in a test.
 
 Two things that look like gaps are not. The frameless window is one: `Main.qml` asks for
 `Qt.FramelessWindowHint` off macOS, so a Main or Private window is already frameless under Hyprland.

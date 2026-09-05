@@ -18,11 +18,11 @@ download hardening all work.
 
 Three things are not finished:
 
-- **Linux platform integration.** The browser runs frameless on Wayland today, but printing and
-  native notifications are macOS-only and land with the Wayland port
-  ([#8](https://github.com/villekivela/omaweb/issues/8)). On Linux those commands are listed and
-  report themselves unavailable rather than pretending. Blur behind the browser's transparent
-  surfaces is the compositor's to apply and needs nothing from Omaweb.
+- **Linux platform integration.** The browser runs frameless on Wayland today and sends
+  notifications through the desktop's own service, but printing is macOS-only and lands with the
+  Wayland port ([#8](https://github.com/villekivela/omaweb/issues/8)). On Linux that command is
+  listed and reports itself unavailable rather than pretending. Blur behind the browser's
+  transparent surfaces is the compositor's to apply and needs nothing from Omaweb.
 - **Linux packaging.** There is no Arch package, no default-browser registration, and no update
   delivery yet. Tracked by [#8](https://github.com/villekivela/omaweb/issues/8) as well.
 - **The Ladybird adapter.** Tracked by [#7](https://github.com/villekivela/omaweb/issues/7).

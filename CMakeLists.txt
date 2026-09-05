@@ -64,6 +64,11 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 set(omaweb_qt_components Concurrent Core Gui Network Qml Quick QuickControls2 Sql)
+if(UNIX AND NOT APPLE)
+    # The desktop's notification service is a session-bus service, so the Linux
+    # platform layer needs D-Bus. macOS reaches its own through AppKit.
+    list(APPEND omaweb_qt_components DBus)
+endif()
 if(OMAWEB_BUILD_BROWSER)
     list(APPEND omaweb_qt_components WebEngineCore WebEngineQuick)
 endif()
@@ -263,8 +268,10 @@ if(APPLE)
     )
 else()
     target_sources(omaweb-platform PRIVATE
+        src/platform/LinuxSystemNotifier.cpp
         src/platform/WindowChrome.cpp
     )
+    target_link_libraries(omaweb-platform PRIVATE Qt6::DBus)
 endif()
 omaweb_strict_target(omaweb-platform)
 
@@ -559,11 +566,38 @@ if(BUILD_TESTING)
     )
     omaweb_strict_target(omaweb-platform-services-tests)
     add_test(NAME omaweb-platform-services COMMAND omaweb-platform-services-tests)
-    # The notification service is a window-server service, and the seam's
-    # contract is what it does without one.
+    # The seam's contract is what it does on a desktop that offers no
+    # notification service, so the test is given one. Which service is missing
+    # differs by platform: macOS asks a window server, Linux asks the session
+    # bus, so both are taken away rather than only the one this host uses.
     set_tests_properties(omaweb-platform-services PROPERTIES
-        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        ENVIRONMENT
+            "QT_QPA_PLATFORM=offscreen;DBUS_SESSION_BUS_ADDRESS=unix:path=/nonexistent/omaweb"
     )
+
+    if(UNIX AND NOT APPLE)
+        # The Linux notification seam talks to a session-bus service, so the
+        # test supplies one of its own and drives the answers a reader would
+        # give. `dbus-run-session` puts it on a private bus, which keeps the
+        # test off the developer's desktop and out of their notification
+        # history. Qt itself depends on D-Bus, so the binary is present
+        # wherever these tests build.
+        qt_add_executable(omaweb-notification-service-tests
+            tests/platform/tst_notificationservice.cpp
+        )
+        target_link_libraries(omaweb-notification-service-tests PRIVATE
+            omaweb-platform
+            Qt6::DBus
+            Qt6::Test
+        )
+        omaweb_strict_target(omaweb-notification-service-tests)
+        add_test(NAME omaweb-notification-service
+            COMMAND dbus-run-session -- $<TARGET_FILE:omaweb-notification-service-tests>
+        )
+        set_tests_properties(omaweb-notification-service PROPERTIES
+            ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        )
+    endif()
 
     # Following the desktop's theme writes into the reader's Omarchy
     # configuration, so the seam takes its directories as arguments and the
