@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls
+import Omaweb
 import qs.Commons
 
 // Settings is a place, not a dialog. It has outgrown a modal — filter lists, a
@@ -162,6 +163,12 @@ Rectangle {
     }
 
     signal closed()
+    signal downloadsRequested()
+    signal downloadDirectoryRequested()
+    signal downloadCancelled(string runtimeId)
+    signal downloadRetried(string runtimeId, string sourceUrl)
+    signal downloadRevealed(string path)
+    signal downloadForgotten(string id)
     signal retainedTabReleased(string tabId)
     signal useFaviconsToggled(bool enabled)
     signal tintFaviconsToggled(bool enabled)
@@ -184,7 +191,10 @@ Rectangle {
 
     function refresh() {
         if (!root.browser) return
-        root.downloads = root.browser.downloadHistory()
+        // The window owns the download list: what is running is only knowable
+        // there, and a list that showed only what was recorded would have no
+        // download the reader could still cancel.
+        root.downloadsRequested()
         root.engines = root.browser.searchEngines()
         root.enginePresets = root.browser.searchEnginePresets()
         root.subscriptions = root.blocker ? root.blocker.subscriptions : []
@@ -722,12 +732,13 @@ Rectangle {
                         title: "Download directory"
                         note: root.browser ? root.browser.downloadDirectory : ""
 
-                        Text {
-                            text: root.browser && root.browser.acceptDownloads
-                                ? "accepting" : "blocked"
-                            color: root.colors.mutedText
-                            font.family: Style.font.family
-                            font.pixelSize: Style.font.body
+                        ActionButton {
+                            objectName: "chooseDownloadDirectory"
+                            colors: root.colors
+                            label: "Change"
+                            accessibleName: "Change the download directory"
+                            enabled: root.browser ? !root.browser.privateBrowsing : false
+                            onClicked: root.downloadDirectoryRequested()
                         }
                     }
 
@@ -742,8 +753,71 @@ Rectangle {
                             width: pane.width
                             colors: root.colors
                             title: modelData.path
-                            note: modelData.state
-                                + (modelData.error.length > 0 ? " · " + modelData.error : "")
+                            // What it is doing, and how far it has got where
+                            // that is knowable. A total the server never sent
+                            // is not turned into a percentage nobody can trust.
+                            note: {
+                                const state = String(modelData.state)
+                                const error = String(modelData.error || "")
+                                const received = Number(modelData.receivedBytes || 0)
+                                const total = Number(modelData.totalBytes || 0)
+                                let line = state
+                                if (state === "in-progress" && total > 0)
+                                    line += " · " + Math.floor(received * 100 / total) + "%"
+                                else if (state === "in-progress" && received > 0)
+                                    line += " · " + root.resourceLabel(received)
+                                if (error.length > 0) line += " · " + error
+                                return line
+                            }
+
+                            Row {
+                                spacing: Style.spacing.md
+
+                                ActionButton {
+                                    objectName: "cancelDownload-" + index
+                                    colors: root.colors
+                                    label: "Cancel"
+                                    accessibleName: "Cancel this download"
+                                    visible: String(modelData.state) === "in-progress"
+                                        && String(modelData.runtimeId || "").length > 0
+                                    onClicked: root.downloadCancelled(
+                                        String(modelData.runtimeId))
+                                }
+
+                                // Offered for any download that stopped short,
+                                // including one recorded in an earlier session:
+                                // the engine no longer holds that request, but
+                                // its address is still somewhere to ask again.
+                                ActionButton {
+                                    objectName: "retryDownload-" + index
+                                    colors: root.colors
+                                    label: "Retry"
+                                    accessibleName: "Retry this download"
+                                    visible: String(modelData.state) === "interrupted"
+                                    onClicked: root.downloadRetried(
+                                        String(modelData.runtimeId || ""),
+                                        String(modelData.url || ""))
+                                }
+
+                                ActionButton {
+                                    objectName: "revealDownload-" + index
+                                    colors: root.colors
+                                    label: "Show"
+                                    accessibleName: "Show where this download landed"
+                                    visible: String(modelData.state) === "completed"
+                                    onClicked: root.downloadRevealed(String(modelData.path))
+                                }
+
+                                ActionButton {
+                                    objectName: "forgetDownload-" + index
+                                    colors: root.colors
+                                    label: "Remove"
+                                    accessibleName: "Remove this download from the history"
+                                    visible: String(modelData.id || "").length > 0
+                                        && String(modelData.state) !== "in-progress"
+                                    onClicked: root.downloadForgotten(String(modelData.id))
+                                }
+                            }
                         }
                     }
 
@@ -934,6 +1008,45 @@ Rectangle {
                             label: "Clear browsing data…"
                             onClicked: root.clearDataOpen = true
                         }
+                    }
+
+                    SectionLabel {
+                        colors: root.colors
+                        text: "process isolation"
+                    }
+
+                    // Two facts, kept apart. Each page's renderer is sandboxed
+                    // by the operating system, and Omaweb says so only where it
+                    // could verify the host can do it. QtWebEngine's network
+                    // service runs inside the browser process, which is not the
+                    // sandboxed service of its own that Chromium's own builds
+                    // have — so it is named separately rather than covered by
+                    // the same sentence.
+                    SettingRow {
+                        objectName: "rendererIsolationRow"
+                        width: pane.width
+                        colors: root.colors
+                        title: RuntimeSecurity.rendererIsolated
+                            ? "Renderer isolation verified" : "Renderer isolation unverified"
+                        note: RuntimeSecurity.rendererIsolation
+                    }
+
+                    SettingRow {
+                        objectName: "networkServiceRow"
+                        width: pane.width
+                        colors: root.colors
+                        title: "Network service in the browser process"
+                        note: RuntimeSecurity.networkService
+                    }
+
+                    SettingRow {
+                        objectName: "securityBaselineRow"
+                        width: pane.width
+                        colors: root.colors
+                        title: RuntimeSecurity.meetsSecurityBaseline
+                            ? "Engine at the approved security baseline"
+                            : "Unsupported preview: engine below the approved baseline"
+                        note: RuntimeSecurity.securityBaseline
                     }
                 }
 

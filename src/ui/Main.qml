@@ -183,6 +183,42 @@ ApplicationWindow {
     property string pendingPermissionType: ""
     property var pendingPermissionResponder: null
     property var downloadRecordIds: ({})
+    // The downloads still running in this window, each remembering the profile
+    // that owns the engine's request and where the file is going, so cancelling,
+    // retrying, revealing and marking the finished file all reach the right one.
+    property var runningDownloads: ({})
+    // What the outline's footer states about downloads: how many are in flight
+    // and how far through the whole of them the bytes have got. Derived from
+    // `runningDownloads` and nothing else, because that map is in memory:
+    // `visibleDownloads` reads the Space's records to build itself, which is a
+    // query, and progress arrives byte by byte. A fraction of -1 is no
+    // percentage rather than nought percent — see `refreshDownloadActivity`.
+    property var downloadActivity: ({ "running": 0, "fraction": -1, "finished": 0,
+        "downloads": [] })
+    // How many downloads have finished since the mark last had nothing to
+    // show. It is what lets the mark hold a finished state after the last
+    // download rather than blinking out mid-glance, and it counts finished
+    // ones only: a cancelled download ended the way the reader asked it to and
+    // has nothing left to say.
+    property int finishedDownloadCount: 0
+    // Whether the footer is being asked which file is which. Naming them costs
+    // an object per download per byte, so they are only built while something
+    // is reading them — the same bargain the retained-tab list makes.
+    readonly property bool downloadDetailOpen: sidebar.downloadDetailWanted
+    // How long the notice naming a saved file stands, and therefore how long
+    // the footer's mark holds its finished state: the two say the same thing
+    // about the same download and stopping at different moments would read as
+    // two different claims.
+    readonly property int savedDownloadNoticeMilliseconds: 4200
+    // The held downloads waiting on the reader, oldest first. Nothing has been
+    // written for any of them. One question stands at a time and the rest wait,
+    // because a stack of bars over the page would be answered by whichever one
+    // the reader could see.
+    property var heldDownloadQueue: []
+    // The held download the bar is asking about. "Held", not pending: nothing
+    // has been written for it, which is the whole difference (see CONTEXT.md).
+    property var downloadQuestion: null
+    property bool downloadQuestionOpen: false
     property bool settingsOpen: false
     property bool historyOpen: false
     property bool shortcutsOpen: false
@@ -292,6 +328,24 @@ ApplicationWindow {
         title: "Choose folder"
         onAccepted: window.respondToFileSelection([String(selectedFolder)])
         onRejected: window.respondToFileSelection([])
+    }
+
+    // Where a download whose name is already taken goes. The reader is asked
+    // in the desktop's own dialog, and nothing has been written while it stands.
+    Dialogs.FileDialog {
+        id: downloadTargetDialog
+        objectName: "downloadTargetDialog"
+        title: "Save download as"
+        fileMode: Dialogs.FileDialog.SaveFile
+        onAccepted: window.answerHeldDownload(true, window.localPath(selectedFile), 0)
+        onRejected: window.answerHeldDownload(false, "", 0)
+    }
+
+    Dialogs.FolderDialog {
+        id: downloadDirectoryDialog
+        objectName: "downloadDirectoryDialog"
+        title: "Download directory"
+        onAccepted: window.chooseDownloadDirectory(selectedFolder)
     }
 
     Dialogs.FileDialog {
@@ -418,6 +472,16 @@ ApplicationWindow {
 
     function requestSettings() {
         window.historyOpen = false
+        window.settingsOpen = true
+    }
+
+    // Settings at the section the downloads are listed in, rather than wherever
+    // settings was last left: the reader asked for the downloads. The section
+    // is found by name, so re-ordering the rail cannot land this on another one.
+    function requestDownloads() {
+        window.historyOpen = false
+        const downloads = settingsSurface.sections.indexOf("downloads")
+        if (downloads >= 0) settingsSurface.section = downloads
         window.settingsOpen = true
     }
 
@@ -1172,8 +1236,29 @@ ApplicationWindow {
     function adoptSpaceProfile(spaceId, host) {
         if (!host) return
         if (!host.downloadObserversConnected) {
-            host.downloadStarted.connect(window.handleDownloadStarted)
+            // The profile is bound into every one of these: a download belongs
+            // to the Space it started in, which is not necessarily the Space on
+            // show, and cancelling or retrying has to reach that profile's own
+            // request rather than whichever one is in front of the reader.
+            host.downloadStarted.connect(function(runtimeId, sourceUrl, path, state,
+                    receivedBytes, totalBytes) {
+                window.handleDownloadStarted(host, runtimeId, sourceUrl, path, state,
+                    receivedBytes, totalBytes)
+            })
             host.downloadUpdated.connect(window.handleDownloadUpdated)
+            // A held download is a question, and a question needs the profile
+            // it came from to answer it: the token is only good against that
+            // profile's own hold. So the profile is bound in here rather than
+            // looked up when the reader answers.
+            host.downloadHeld.connect(function(token, disposition, origin, sourceUrl,
+                    fileName, risk) {
+                window.holdDownload(host, token, disposition, origin, sourceUrl,
+                    fileName, risk)
+            })
+            host.downloadRefused.connect(function(sourceUrl, fileName, origin) {
+                window.showNotice("block", "Download refused",
+                    fileName + " · " + origin + " may not download here", 4200)
+            })
             host.downloadObserversConnected = true
         }
         siteNotifications.watch(spaceId, host)
@@ -1184,16 +1269,274 @@ ApplicationWindow {
         if (retired && window.spaceProfileHost === retired) window.spaceProfileHost = null
     }
 
-    function handleDownloadStarted(runtimeId, sourceUrl, path, state, receivedBytes, totalBytes) {
+    function handleDownloadStarted(host, runtimeId, sourceUrl, path, state,
+            receivedBytes, totalBytes) {
+        // Whether this download starts a fresh burst. Read before the download
+        // joins the others, and read off what is in flight rather than off the
+        // map's size: an interrupted download stays in the map to be retried,
+        // and one of those lingering would otherwise keep every later burst
+        // reporting the downloads that finished before it.
+        const wasIdle = window.downloadActivity.running === 0
         const recordId = window.windowBrowser.recordDownload(runtimeId, sourceUrl, path,
             state, receivedBytes, totalBytes)
         if (recordId.length > 0) window.downloadRecordIds[runtimeId] = recordId
+        const running = window.runningDownloads
+        running[runtimeId] = {
+            "host": host,
+            "runtimeId": runtimeId,
+            "recordId": recordId,
+            "sourceUrl": String(sourceUrl),
+            // The page the reader was on when it started, kept now rather than
+            // read at the end: the finished file is marked with where it came
+            // from, and by then they may be somewhere else entirely.
+            "pageUrl": String(window.windowBrowser.activeUrl),
+            "path": String(path),
+            "fileName": window.downloadFileName(path),
+            "state": state,
+            "error": "",
+            "receivedBytes": receivedBytes,
+            "totalBytes": totalBytes
+        }
+        window.runningDownloads = running
+        // The finished downloads the mark was still holding belong to the last
+        // burst, not to this one.
+        if (wasIdle) window.finishedDownloadCount = 0
+        window.refreshDownloadActivity()
+        // The list is only read while the downloads section is open, and it
+        // reads the Space's records to build itself: rebuilding it behind a
+        // closed page would be a query for every download that starts.
+        if (window.settingsOpen) window.refreshVisibleDownloads()
+        window.showNotice("download", "Downloading " + window.downloadFileName(path),
+            String(sourceUrl), 3000)
     }
 
     function handleDownloadUpdated(runtimeId, state, receivedBytes, totalBytes, error) {
         const recordId = window.downloadRecordIds[runtimeId]
         if (recordId) window.windowBrowser.updateDownload(recordId, state,
             receivedBytes, totalBytes, error)
+        const running = window.runningDownloads
+        const download = running[runtimeId]
+        if (!download) return
+        download.state = state
+        download.error = String(error || "")
+        download.receivedBytes = receivedBytes
+        download.totalBytes = totalBytes
+        if (state === "completed") {
+            // The file exists now, and this is the moment the operating system
+            // can be told where it came from. Nothing is opened: a download is
+            // the reader's to start.
+            const marked = SavedDownload.quarantine(download.path,
+                download.sourceUrl, download.pageUrl)
+            window.showNotice("download_done", "Saved " + download.fileName,
+                marked ? download.path
+                    : download.path + " · this filesystem carries no origin metadata",
+                window.savedDownloadNoticeMilliseconds)
+        } else if (state === "interrupted") {
+            window.showNotice("error", "Download failed",
+                download.fileName + (download.error.length > 0
+                    ? " · " + download.error : ""), 4200)
+        }
+        // An interrupted download stays listed: it is the one the reader can
+        // still retry. A cancelled or completed one has nothing left to do.
+        if (state === "completed" || state === "cancelled") delete running[runtimeId]
+        if (state === "completed") window.finishedDownloadCount += 1
+        window.runningDownloads = running
+        window.refreshDownloadActivity()
+        // Progress arrives byte by byte, so the list is rebuilt only where
+        // something is reading it.
+        if (window.settingsOpen) window.refreshVisibleDownloads()
+    }
+
+    // A dialog speaks file URLs and the engine speaks filesystem paths, so the
+    // crossing happens here rather than at every call site.
+    function localPath(fileUrl) {
+        return String(fileUrl).replace(/^file:\/\//, "")
+    }
+
+    function fileUrl(path) {
+        return "file://" + String(path)
+    }
+
+    function downloadFileName(path) {
+        const separator = Math.max(String(path).lastIndexOf("/"),
+            String(path).lastIndexOf("\\"))
+        return separator >= 0 ? String(path).substring(separator + 1) : String(path)
+    }
+
+    // The footer's aggregate, recomputed whenever the live downloads move. It
+    // walks a map that is already in memory and reads no records, so it is
+    // cheap enough to run on every byte the engine reports.
+    //
+    // A server that sent no length leaves its download with no total, and a
+    // download with no total cannot be weighed against the ones that have one:
+    // one of them takes the percentage away from the whole aggregate rather
+    // than being counted as nothing and quietly flattering the rest. An
+    // interrupted download is not in flight — it is waiting on a retry the
+    // downloads list offers — so it is not counted here; its failure was said
+    // out loud when it happened.
+    function refreshDownloadActivity() {
+        let running = 0
+        let received = 0
+        let total = 0
+        // The names, so the footer can say which file is nearly done when the
+        // reader asks it. They come off the same in-memory map — the file name
+        // was worked out when the download started and is not read again here —
+        // but only while the reader is asking: a list rebuilt on every byte
+        // behind a closed panel is an object per download per byte for nobody.
+        const detailed = window.downloadDetailOpen
+        const downloads = []
+        for (const runtimeId in window.runningDownloads) {
+            const download = window.runningDownloads[runtimeId]
+            if (download.state === "interrupted") continue
+            running += 1
+            received += download.receivedBytes
+            if (total >= 0 && download.totalBytes > 0) total += download.totalBytes
+            else total = -1
+            if (detailed) downloads.push({
+                "name": download.fileName,
+                "fraction": download.totalBytes > 0
+                    ? Math.min(1, download.receivedBytes / download.totalBytes) : -1
+            })
+        }
+        window.downloadActivity = {
+            "running": running,
+            "fraction": total > 0 ? Math.min(1, received / total) : -1,
+            "finished": window.finishedDownloadCount,
+            "downloads": downloads
+        }
+    }
+
+    // The reader pointing at the mark is the moment the names are wanted, and
+    // the next byte may be a while off, so the aggregate is rebuilt now rather
+    // than opening a panel with nothing in it.
+    onDownloadDetailOpenChanged: window.refreshDownloadActivity()
+
+    // What the downloads section shows: the running downloads first, because
+    // they are the ones with anything left to decide, then what the Space has
+    // recorded. A Private window records none and lists only what is running.
+    function refreshVisibleDownloads() {
+        const running = []
+        for (const runtimeId in window.runningDownloads) {
+            const download = window.runningDownloads[runtimeId]
+            running.push({
+                "runtimeId": runtimeId,
+                "id": download.recordId,
+                "url": download.sourceUrl,
+                "path": download.path,
+                "state": download.state,
+                "error": download.error,
+                "receivedBytes": download.receivedBytes,
+                "totalBytes": download.totalBytes,
+                "running": true
+            })
+        }
+        const recorded = []
+        const history = window.windowBrowser.downloadHistory()
+        for (let index = 0; index < history.length; ++index) {
+            const record = history[index]
+            let live = false
+            for (let position = 0; position < running.length; ++position)
+                live = live || running[position].id === record.id
+            if (live) continue
+            recorded.push({
+                "runtimeId": "",
+                "id": record.id,
+                "url": String(record.url),
+                "path": record.path,
+                "state": record.state,
+                "error": record.error,
+                "receivedBytes": record.receivedBytes,
+                "totalBytes": record.totalBytes,
+                "running": false
+            })
+        }
+        window.visibleDownloads = running.concat(recorded)
+    }
+
+    function cancelDownload(runtimeId) {
+        const download = window.runningDownloads[runtimeId]
+        if (!download || !download.host) return
+        download.host.cancelDownload(runtimeId)
+    }
+
+    // An interrupted download the engine still holds is resumed where it
+    // stopped. One it no longer holds — a record from a session that has since
+    // ended — is asked for again at its own address, which is the only thing
+    // left to ask: the request it was is gone. That address is a download, so
+    // the navigation leaves the page the reader is on where it is.
+    function retryDownload(runtimeId, sourceUrl) {
+        const download = window.runningDownloads[runtimeId]
+        if (download && download.host && download.host.retryDownload(runtimeId)) return
+        if (String(sourceUrl).length > 0) {
+            window.windowBrowser.openInput(String(sourceUrl), false)
+            return
+        }
+        window.showNotice("block", "This download cannot be retried",
+            "Ask the page for it again", 4200)
+    }
+
+    function revealDownload(path) {
+        if (!SavedDownload.reveal(path))
+            window.showNotice("block", "Nothing to show",
+                "The file is no longer where Omaweb put it", 4200)
+    }
+
+    function forgetDownload(recordId) {
+        if (window.windowBrowser.forgetDownload(recordId)) window.refreshVisibleDownloads()
+    }
+
+    // A download nothing has been written for, waiting on the reader.
+    function holdDownload(host, token, disposition, origin, sourceUrl, fileName, risk) {
+        window.heldDownloadQueue.push({
+            "host": host,
+            "token": token,
+            "disposition": disposition,
+            "origin": origin,
+            "sourceUrl": String(sourceUrl),
+            "fileName": String(fileName),
+            "risk": String(risk)
+        })
+        window.presentHeldDownload()
+    }
+
+    function presentHeldDownload() {
+        if (window.downloadQuestion || window.heldDownloadQueue.length === 0) return
+        const held = window.heldDownloadQueue.shift()
+        window.downloadQuestion = held
+        // A name already taken is not a question with two answers: the desktop's
+        // own save dialog is where the reader says where it goes instead.
+        if (held.disposition === "save-as") {
+            downloadTargetDialog.currentFile = window.fileUrl(
+                window.windowBrowser.downloadDirectory + "/" + held.fileName)
+            downloadTargetDialog.open()
+            return
+        }
+        window.downloadQuestionOpen = true
+    }
+
+    function answerHeldDownload(keep, path, permissionDecision) {
+        const held = window.downloadQuestion
+        window.downloadQuestionOpen = false
+        window.downloadQuestion = null
+        if (held) {
+            if (permissionDecision > 0)
+                window.windowBrowser.setPermissionDecision(held.origin,
+                    "automatic-downloads", permissionDecision)
+            if (keep) held.host.releaseHeldDownload(held.token, path ? String(path) : "")
+            else {
+                held.host.discardHeldDownload(held.token)
+                window.showNotice("block", "Download discarded", held.fileName, 3000)
+            }
+        }
+        // Whatever is behind it in the queue is asked next.
+        window.presentHeldDownload()
+    }
+
+    function chooseDownloadDirectory(folderUrl) {
+        const path = window.localPath(folderUrl)
+        if (!window.windowBrowser.setDownloadDirectory(path))
+            window.showNotice("block", "That directory cannot take downloads",
+                path, 4200)
     }
 
     function closeOmnibar() {
@@ -1280,6 +1623,9 @@ ApplicationWindow {
                 useFavicons: window.useFavicons
                 tintFavicons: window.tintFavicons
                 settingsAttention: settingsSurface.needsAttention
+                downloadActivity: window.downloadActivity
+                downloadDwellMilliseconds: window.savedDownloadNoticeMilliseconds
+                onDownloadsRequested: window.requestDownloads()
 
                 // The panel states; the window asks. Opening the dialog puts
                 // the panel away, so there is one surface holding the question.
@@ -1644,6 +1990,51 @@ ApplicationWindow {
                     }
                 }
 
+                // A download nothing has been written for. Either it is a
+                // program, script, installer, disk image or archive — which
+                // Omaweb will not put on the reader's disk without asking, and
+                // will not run afterwards — or the page is downloading by
+                // itself, which is a Site permission for this Space.
+                PageQuestionBar {
+                    id: downloadQuestionBar
+                    objectName: "downloadQuestionBar"
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.top: parent.top
+                    z: 42
+                    colors: window.colors
+                    iconFontFamily: materialSymbols.name
+                    open: window.downloadQuestionOpen
+                    glyph: "download"
+                    readonly property var held: window.downloadQuestion || ({})
+                    readonly property bool automatic:
+                        String(held.disposition) === "permission"
+                    message: downloadQuestionBar.automatic
+                        ? String(held.origin || "") + " wants to download files by itself"
+                        : String(held.origin || "") + " wants to download "
+                            + String(held.fileName || "")
+                    detail: downloadQuestionBar.automatic
+                        ? String(held.fileName || "")
+                            + " · remembered for this Space only"
+                        : String(held.risk || "") + " · Omaweb never runs a download"
+                    actions: downloadQuestionBar.automatic
+                        ? [
+                            {"label": "Allow once", "keep": true, "decision": 1},
+                            {"label": "Always allow", "keep": true, "decision": 2,
+                                "enabled": !window.privateWindow},
+                            {"label": "Block", "keep": false, "decision": 3}
+                        ]
+                        : [
+                            {"label": "Download", "keep": true, "decision": 0},
+                            {"label": "Discard", "keep": false, "decision": 0}
+                        ]
+
+                    onActionTriggered: function(index) {
+                        const action = downloadQuestionBar.actions[index]
+                        window.answerHeldDownload(action.keep, "", action.decision)
+                    }
+                }
+
                 PagePromptBar {
                     objectName: "browserPromptBar"
                     anchors.fill: parent
@@ -1677,10 +2068,22 @@ ApplicationWindow {
                     tintFavicons: window.tintFavicons
                     retainedTabs: window.visibleRetainedTabs
 
+                    downloads: window.visibleDownloads
+
                     onClosed: window.settingsOpen = false
                     onRetainedTabReleased: function(tabId) {
                         window.releaseRetainedTab(tabId)
                     }
+                    onDownloadsRequested: window.refreshVisibleDownloads()
+                    onDownloadDirectoryRequested: downloadDirectoryDialog.open()
+                    onDownloadCancelled: function(runtimeId) {
+                        window.cancelDownload(runtimeId)
+                    }
+                    onDownloadRetried: function(runtimeId, sourceUrl) {
+                        window.retryDownload(runtimeId, sourceUrl)
+                    }
+                    onDownloadRevealed: function(path) { window.revealDownload(path) }
+                    onDownloadForgotten: function(id) { window.forgetDownload(id) }
                     onUseFaviconsToggled: function(enabled) { window.setUseFavicons(enabled) }
                     onTintFaviconsToggled: function(enabled) { window.setTintFavicons(enabled) }
                 }
@@ -1910,8 +2313,13 @@ ApplicationWindow {
                 const profileComponent = Qt.createComponent(engineProfileSource)
                 window.privateProfileHost = profileComponent.createObject(window, {
                     "profilePath": profilePath,
-                    "downloadDirectory": windowManager.privateDownloadDirectory,
-                    "acceptDownloads": windowManager.acceptPrivateDownloads,
+                    "downloadDirectory": controller.downloadDirectory,
+                    "acceptDownloads": controller.acceptDownloads,
+                    // The rule is the private window's own: a download from a
+                    // Private page takes that window's decisions, and they go
+                    // when the private session does.
+                    "downloadController": controller,
+                    "downloadHolds": engineHeldDownloads,
                     "privateBrowsing": true,
                     "engineContentBlocker": engineContentBlocker,
                     // A Private window has no Space of its own, so its
@@ -1936,7 +2344,13 @@ ApplicationWindow {
                 "privateWindow": true,
                 "opener": window,
                 "profilePathOverride": profilePath,
-                "sharedEngineProfile": window.privateProfileHost.profile
+                "sharedEngineProfile": window.privateProfileHost.profile,
+                // The profile is built here and used there, so the window that
+                // shows the pages is the one that routes their downloads. A
+                // second Private window shares the session's one profile and
+                // therefore its questions, as it already shares its
+                // notifications.
+                "privateProfileHost": window.privateProfileHost
             })
             if (opened) window.privateWindows.push(opened)
         }
@@ -1989,6 +2403,8 @@ ApplicationWindow {
     }
 
     Component.onCompleted: {
+        if (window.privateWindow && window.privateProfileHost)
+            window.adoptSpaceProfile("", window.privateProfileHost)
         window.createSpaceProfile()
         window.visibleSubscriptions = contentBlocker.subscriptions
         engineLoader.resume()
@@ -2057,6 +2473,7 @@ ApplicationWindow {
         profileSource: window.privateWindow ? "" : engineProfileSource
         contentBlocker: engineContentBlocker
         cookiePolicy: engineCookiePolicy
+        downloadHolds: engineHeldDownloads
         owner: window
 
         onCreated: function(spaceId, host) { window.adoptSpaceProfile(spaceId, host) }

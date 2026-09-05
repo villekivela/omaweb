@@ -88,6 +88,10 @@ Cargo. Run the bootstrap again only after changing the Rust wrapper, its manifes
 
 Never use Chromium's `--no-sandbox`, `--single-process`, in-process network-service flags, or `QTWEBENGINE_DISABLE_SANDBOX` in project scripts. Fix the host configuration or packaging instead.
 
+Omaweb refuses to start on any of them, through its own command line or through `QTWEBENGINE_CHROMIUM_FLAGS` — the environment is the route Chromium actually reads its switches from, so a rule that only watched argv would watch the half nothing uses. It also refuses to start where the host's kernel cannot meet the renderer sandbox's prerequisites: unprivileged user namespaces turned off or capped at zero, seccomp-bpf missing, `/proc` unreadable, or Omaweb running as root. The message names the setting and what to set it to. Fix the host; there is no flag that turns the check off.
+
+`security/baseline.json` names the approved QtWebEngine and the Chromium release whose security fixes it carries. The build reads it, so Settings says whether the running engine meets it, and `.github/workflows/security-baseline.yml` compares it against upstream weekly. Raising it is the last step of a security response — see [`SECURITY.md`](../SECURITY.md).
+
 ## Theme
 
 Omaweb reads `theme.json` from the configuration directory when one is present, falling back to the desktop-managed theme (Omarchy, on Linux) and then the built-in palette. `OMAWEB_THEME_FILE` overrides all three. The order is not resolved once: every candidate is watched, so a file that outranks the one in use takes over the moment it appears, without a restart.

@@ -682,6 +682,16 @@ QVariantList SessionStore::downloadHistory() const
     return downloads;
 }
 
+bool SessionStore::forgetDownload(const QString &id)
+{
+    QSqlQuery query(m_database);
+    query.prepare(QStringLiteral("DELETE FROM downloads WHERE id = ?"));
+    query.addBindValue(id);
+    // A delete that matched nothing is not a record forgotten, and saying it
+    // was would have the interface remove a row the store still holds.
+    return query.exec() && query.numRowsAffected() > 0;
+}
+
 QString SessionStore::dataRoot() const
 {
     return m_dataRoot;

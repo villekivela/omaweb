@@ -41,8 +41,22 @@ Tracking issue: [#50](https://github.com/villekivela/omaweb/issues/50)
 - Browser prompts with native file dialogs
 - History sheet, configurable search engines, local-file opening, and browsing-data controls
 - Tab reordering, duplication, bulk closing, retained closed-tab stacks, and Keep active for selected Pinned tabs
-- Site information, certificate handling, third-party-cookie policy, safer downloads, and sandbox health
+- Site information, certificate handling, and third-party-cookie policy
 - Native notifications and external-protocol confirmation
+
+## Downloads and runtime security
+
+Tracking issue: [#57](https://github.com/villekivela/omaweb/issues/57)
+
+- A pure seam naming what a file is — executable, script, installer, disk image, archive — from the name that will land on disk
+- One rule in the core turning that, the reader's dealings with the origin, and the directory into a disposition the adapters read by name
+- A question that writes nothing: the request is cancelled before a byte lands and the page is asked for the same file again once the reader answers
+- A Site permission for a page that downloads without being touched, or starts a second download while its first runs
+- Finished downloads marked with where they came from and left without their execute bits, never opened
+- The download directory as the reader's configuration rather than one Space's browsing data
+- Downloads listed with their progress and whatever is still open to them, and the ones still running marked in the outline footer
+- Sandbox-disabling switches refused through `QTWEBENGINE_CHROMIUM_FLAGS` as well as `argv`, and a Linux host that cannot isolate a renderer named and stopped
+- An approved engine baseline the build reports against and CI reads weekly
 
 ## Linux and Wayland
 

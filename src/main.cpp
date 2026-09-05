@@ -10,7 +10,10 @@
 #include "ProcessResources.h"
 #include "QtContentBlocker.h"
 #include "QtCookiePolicy.h"
+#include "QtHeldDownloads.h"
 #include "Quickshell.h"
+#include "RuntimeSecurity.h"
+#include "SavedDownload.h"
 #include "SystemClipboard.h"
 #include "SystemNotifier.h"
 #include "ThemeController.h"
@@ -27,27 +30,10 @@
 #include <QQmlContext>
 #include <QStandardPaths>
 #include <QTimer>
+#include <QtWebEngineCore/qtwebenginecoreglobal.h>
 #include <QtWebEngineQuick/qtwebenginequickglobal.h>
 
 namespace {
-
-bool hasUnsafeEngineFlag(const QStringList &arguments)
-{
-    static const QStringList blocked = {
-        QStringLiteral("--no-sandbox"),
-        QStringLiteral("--single-process"),
-        QStringLiteral("--in-process-gpu"),
-        QStringLiteral("--in-process-network-service"),
-    };
-    for (const auto &argument : arguments) {
-        for (const auto &flag : blocked) {
-            if (argument == flag || argument.contains(flag)) {
-                return true;
-            }
-        }
-    }
-    return false;
-}
 
 QString dataRoot()
 {
@@ -128,20 +114,42 @@ int main(int argc, char *argv[])
     for (int index = 0; index < argc; ++index) {
         arguments.append(QString::fromLocal8Bit(argv[index]));
     }
-    if (qEnvironmentVariableIsSet("QTWEBENGINE_DISABLE_SANDBOX") || hasUnsafeEngineFlag(arguments)) {
-        qCritical("Omaweb refuses to start with browser sandbox-disabling or single-process flags.");
+    if (qEnvironmentVariableIsSet("QTWEBENGINE_DISABLE_SANDBOX")) {
+        qCritical("Omaweb refuses to start with QTWEBENGINE_DISABLE_SANDBOX set. There is no "
+                  "Omaweb that runs page code outside a sandbox.");
         return 2;
     }
 
-    // Chromium reads the listener out of the environment at initialization, so
-    // the decision is made here and nowhere later. An ordinary launch clears
-    // the variable rather than trusting it: whatever set it, Omaweb opens no
-    // listener it was not asked for on its own command line.
-    const auto launch = omaweb::readDevelopmentLaunch(arguments,
-        QProcess::splitCommand(qEnvironmentVariable("QTWEBENGINE_CHROMIUM_FLAGS")));
+    // Chromium reads both the listener and its own switches out of the
+    // environment at initialization, so every decision that depends on them is
+    // made here and nowhere later. An ordinary launch clears the listener
+    // variable rather than trusting it: whatever set it, Omaweb opens no
+    // listener it was not asked for on its own command line. The engine flags
+    // are read from the same place they would reach Chromium from, so a
+    // sandbox-disabling switch is refused through the environment as well as
+    // through the command line.
+    const auto engineFlags
+        = QProcess::splitCommand(qEnvironmentVariable("QTWEBENGINE_CHROMIUM_FLAGS"));
+    const auto launch = omaweb::readDevelopmentLaunch(arguments, engineFlags);
     if (!launch.refusal.isEmpty()) {
         qCritical("Omaweb refuses to start: %s", qPrintable(launch.refusal));
         return 2;
+    }
+
+    // A host that cannot isolate a renderer is told so and stopped, rather
+    // than started with an isolation the interface would go on claiming. The
+    // engine's own facts about its version come from the engine and are read
+    // once, here, because this is the only build that links one.
+    omaweb::RuntimeSecurity runtimeSecurity(omaweb::SandboxHost::fromEnvironment(),
+        {QString::fromLatin1(qWebEngineVersion()),
+            QString::fromLatin1(qWebEngineChromiumVersion()),
+            QString::fromLatin1(qWebEngineChromiumSecurityPatchVersion())});
+    if (!runtimeSecurity.rendererIsolated()) {
+        qCritical("Omaweb refuses to start: %s", qPrintable(runtimeSecurity.sandboxDiagnostic()));
+        return 2;
+    }
+    if (!runtimeSecurity.meetsSecurityBaseline()) {
+        qWarning("%s", qPrintable(runtimeSecurity.securityBaseline()));
     }
     if (launch.remoteDebugging) {
         qputenv("QTWEBENGINE_REMOTE_DEBUGGING", launch.listenAddress.toLocal8Bit());
@@ -180,6 +188,10 @@ int main(int argc, char *argv[])
     // built. Third-party cookies are blocked by it; whether an origin has been
     // given an allowance is the core's answer, read per Space.
     omaweb::QtCookiePolicy engineCookiePolicy;
+    // The downloads taken off the engine while the reader is asked about them.
+    // One table for the process, because a held download belongs to the page
+    // that asked rather than to a Space.
+    omaweb::QtHeldDownloads engineHeldDownloads;
 #if defined(Q_OS_LINUX)
     // Omarchy is the desktop Omaweb is built for, so following its theme is
     // the default rather than a template the reader has to install by hand.
@@ -196,6 +208,8 @@ int main(int argc, char *argv[])
     omaweb::registerPagePrinter();
     omaweb::registerSystemNotifier();
     omaweb::registerProcessResources();
+    omaweb::registerSavedDownload();
+    omaweb::registerRuntimeSecurity(&runtimeSecurity);
     QQmlApplicationEngine engine;
     omaweb::quickshell::installShim(engine);
     engine.rootContext()->setContextProperty(QStringLiteral("browser"), &browser);
@@ -206,6 +220,8 @@ int main(int argc, char *argv[])
         QStringLiteral("engineContentBlocker"), &engineContentBlocker);
     engine.rootContext()->setContextProperty(
         QStringLiteral("engineCookiePolicy"), &engineCookiePolicy);
+    engine.rootContext()->setContextProperty(
+        QStringLiteral("engineHeldDownloads"), &engineHeldDownloads);
     engine.rootContext()->setContextProperty(QStringLiteral("theme"), &theme);
     engine.rootContext()->setContextProperty(QStringLiteral("windowManager"), &windowManager);
     engine.rootContext()->setContextProperty(

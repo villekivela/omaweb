@@ -3337,4 +3337,495 @@ TestCase {
         engine.inlinePdfViewingAvailable = true
         notice.dismiss()
     }
+
+    // A file that will be run, installed or mounted is a question before it is
+    // a download: nothing is written while the bar stands, and the reader is
+    // told which kind of file they are being handed rather than a risk score.
+    function test_aProgramIsNotWrittenDownUntilTheReaderSaysSo() {
+        openPage("https://tools.example/releases")
+        const host = window.spaceProfileHost
+        const question = findChild(window.contentItem, "downloadQuestionBar")
+        verify(question !== null)
+        // The reader dealt with the site, so this is not the page helping itself.
+        browser.recordOriginInteraction("https://tools.example/releases")
+
+        const started = host.simulateDownloadRequest("https://tools.example/releases",
+            "https://tools.example/install.sh", "omaweb-test-install.sh", "text/plain")
+        compare(started, "")
+        tryCompare(question, "open", true)
+        verify(question.message.indexOf("https://tools.example") === 0)
+        verify(question.message.indexOf("omaweb-test-install.sh") > 0)
+        verify(question.detail.indexOf("script") === 0)
+        // Whatever else the bar says, it never promises to open the thing.
+        verify(question.detail.indexOf("never runs") > 0)
+        compare(question.actions.length, 2)
+        compare(question.actions[0].label, "Download")
+        compare(question.actions[1].label, "Discard")
+
+        // Discarding writes nothing and says so.
+        const notice = findChild(window.contentItem, "pageNotice")
+        question.actionTriggered(1)
+        tryCompare(question, "open", false)
+        tryCompare(notice, "message", "Download discarded")
+        compare(Object.keys(window.runningDownloads).length, 0)
+        notice.dismiss()
+
+        // Asked again and answered, the same page is asked for the same file
+        // and it lands where downloads go.
+        compare(host.simulateDownloadRequest("https://tools.example/releases",
+            "https://tools.example/install.sh", "omaweb-test-install.sh", "text/plain"), "")
+        tryCompare(question, "open", true)
+        question.actionTriggered(0)
+        tryCompare(question, "open", false)
+        tryVerify(function() { return Object.keys(window.runningDownloads).length === 1 })
+        const runtimeId = Object.keys(window.runningDownloads)[0]
+        verify(String(window.runningDownloads[runtimeId].path)
+            .indexOf("omaweb-test-install.sh") > 0)
+        host.simulateDownloadFinished(runtimeId)
+        tryVerify(function() { return notice.message === "Saved omaweb-test-install.sh" })
+        notice.dismiss()
+    }
+
+    // A page that starts a download nobody asked for is asking for a Site
+    // permission, and a refused origin never gets to ask again in this Space.
+    function test_aPageThatDownloadsByItselfTakesASitePermission() {
+        openPage("https://auto.example/page")
+        const host = window.spaceProfileHost
+        const question = findChild(window.contentItem, "downloadQuestionBar")
+        const notice = findChild(window.contentItem, "pageNotice")
+
+        compare(host.simulateDownloadRequest("https://auto.example/page",
+            "https://auto.example/tracker.pdf", "omaweb-test-tracker.pdf",
+            "application/pdf"), "")
+        tryCompare(question, "open", true)
+        verify(question.message.indexOf("by itself") > 0)
+        compare(question.actions.length, 3)
+        compare(question.actions[0].label, "Allow once")
+        compare(question.actions[1].label, "Always allow")
+        compare(question.actions[2].label, "Block")
+        verify(question.detail.indexOf("this Space only") > 0)
+
+        // Blocked, and the decision is one Site information can list.
+        question.actionTriggered(2)
+        tryCompare(question, "open", false)
+        compare(Object.keys(window.runningDownloads).length, 0)
+        const decisions = browser.sitePermissions("https://auto.example/page")
+        let blocked = false
+        for (let index = 0; index < decisions.length; ++index)
+            blocked = blocked || (decisions[index].permission === "automatic-downloads"
+                && decisions[index].decision === 3)
+        verify(blocked)
+
+        // Asked again, the reader is not asked again: the origin was refused.
+        compare(host.simulateDownloadRequest("https://auto.example/page",
+            "https://auto.example/tracker.pdf", "omaweb-test-tracker.pdf",
+            "application/pdf"), "")
+        compare(question.open, false)
+        tryCompare(notice, "message", "Download refused")
+        notice.dismiss()
+        verify(browser.resetSitePermissions("https://auto.example/page"))
+    }
+
+    // An ordinary download begins in the configured directory and is listed
+    // with everything still open to the reader: cancel while it runs, then show
+    // where it landed and remove it from the history.
+    function test_anOrdinaryDownloadIsListedWithWhatCanStillBeDoneToIt() {
+        openPage("https://files.example/library")
+        const host = window.spaceProfileHost
+        browser.recordOriginInteraction("https://files.example/library")
+        compare(host.downloadDirectory, browser.downloadDirectory)
+
+        const runtimeId = host.simulateDownloadRequest("https://files.example/library",
+            "https://files.example/notes.pdf", "omaweb-test-notes.pdf", "application/pdf")
+        verify(runtimeId.length > 0)
+        window.settingsOpen = true
+        const settings = findChild(window.contentItem, "settingsSurface")
+        settings.section = 4
+        tryVerify(function() { return window.visibleDownloads.length > 0 })
+        compare(window.visibleDownloads[0].runtimeId, runtimeId)
+        compare(window.visibleDownloads[0].state, "in-progress")
+
+        const row = findChild(settings, "recordedDownload-0")
+        verify(row !== null)
+        verify(findChild(settings, "cancelDownload-0").visible)
+        verify(!findChild(settings, "revealDownload-0").visible)
+
+        // Cancelling reaches the engine's own request rather than the record.
+        findChild(settings, "cancelDownload-0").clicked()
+        tryVerify(function() { return host.cancelledDownloads.length === 1 })
+        compare(host.cancelledDownloads[0], runtimeId)
+
+        // What the Space recorded stays listed, and the reader can stop it
+        // being listed without the file going anywhere.
+        window.refreshVisibleDownloads()
+        tryVerify(function() { return window.visibleDownloads.length > 0 })
+        const recordId = window.visibleDownloads[0].id
+        verify(String(recordId).length > 0)
+        const listed = window.visibleDownloads.length
+        window.forgetDownload(recordId)
+        tryVerify(function() { return window.visibleDownloads.length === listed - 1 })
+
+        // A download that stopped short in a session that has since ended has
+        // no request left to resume, so Retry is still offered and asks the
+        // address again rather than being quietly withheld.
+        const interrupted = browser.recordDownload("gone:1",
+            "https://files.example/interrupted.pdf", "/nowhere/interrupted.pdf",
+            "interrupted", 5, 100)
+        verify(interrupted.length > 0)
+        window.refreshVisibleDownloads()
+        let interruptedRow = -1
+        for (let index = 0; index < window.visibleDownloads.length; ++index)
+            if (window.visibleDownloads[index].id === interrupted) interruptedRow = index
+        verify(interruptedRow >= 0)
+        compare(window.visibleDownloads[interruptedRow].runtimeId, "")
+        verify(findChild(settings, "retryDownload-" + interruptedRow).visible)
+
+        findChild(settings, "retryDownload-" + interruptedRow).clicked()
+        tryVerify(function() {
+            return String(browser.activeUrl) === "https://files.example/interrupted.pdf"
+        })
+        verify(browser.forgetDownload(interrupted))
+        window.settingsOpen = false
+    }
+
+    // The two isolations are not one sentence. Each page's renderer is
+    // sandboxed by the operating system; QtWebEngine's network service is not a
+    // process of its own, and the page says that rather than leaving the reader
+    // to assume Chromium's arrangement.
+    function test_settingsSeparatesRendererIsolationFromTheNetworkService() {
+        window.settingsOpen = true
+        const settings = findChild(window.contentItem, "settingsSurface")
+        settings.section = 6
+        const renderer = findChild(settings, "rendererIsolationRow")
+        const network = findChild(settings, "networkServiceRow")
+        const baseline = findChild(settings, "securityBaselineRow")
+        verify(renderer !== null)
+        verify(network !== null)
+        verify(baseline !== null)
+        verify(renderer.note !== network.note)
+        verify(network.title.indexOf("browser process") > 0)
+        verify(network.note.indexOf("not") > 0)
+        verify(network.note.indexOf("is sandboxed") === -1)
+        window.settingsOpen = false
+    }
+
+    // A download that is running is invisible unless the reader goes looking:
+    // the transient notice takes itself away and the list is behind settings.
+    // The outline's footer carries one mark for all of them instead, driven by
+    // the live downloads rather than by the Space's records — those cost a
+    // query per byte and a Private window has none.
+    function test_theFooterMarksTheDownloadsStillRunning() {
+        openPage("https://mirror.example/library")
+        const host = window.spaceProfileHost
+        browser.recordOriginInteraction("https://mirror.example/library")
+        const outline = findChild(window.contentItem, "sidebar")
+        const mark = findChild(outline, "downloadMark")
+        verify(mark !== null)
+        // The mark holds a finished download for a few seconds, which the test
+        // beside this one may still be inside. Shortening the dwell is what
+        // makes what is on screen here this test's own doing.
+        mark.dwellMilliseconds = 200
+        tryCompare(mark, "visible", false)
+
+        const first = host.simulateDownloadRequest("https://mirror.example/library",
+            "https://mirror.example/omaweb-test-atlas.pdf", "omaweb-test-atlas.pdf",
+            "application/pdf")
+        verify(first.length > 0)
+        tryCompare(mark, "visible", true)
+        compare(mark.running, 1)
+        host.simulateDownloadProgress(first, 250, 1000)
+        tryCompare(mark, "fraction", 0.25)
+
+        // A second download makes the mark one aggregate rather than two marks:
+        // the footer states the whole of what is in flight, and the count is
+        // what says there is more than one of them. It comes from another site,
+        // because a site starting a second download while its first runs is a
+        // question in its own right and this test is not about that one.
+        openPage("https://archive.example/set")
+        browser.recordOriginInteraction("https://archive.example/set")
+        const second = host.simulateDownloadRequest("https://archive.example/set",
+            "https://archive.example/omaweb-test-plates.pdf", "omaweb-test-plates.pdf",
+            "application/pdf")
+        verify(second.length > 0)
+        tryCompare(mark, "running", 2)
+        host.simulateDownloadProgress(second, 250, 3000)
+        // 500 bytes of the 4000 both downloads together are.
+        tryCompare(mark, "fraction", 0.125)
+
+        host.simulateDownloadFinished(first)
+        host.simulateDownloadFinished(second)
+        tryCompare(mark, "running", 0)
+        tryCompare(mark, "visible", false)
+        mark.dwellMilliseconds = 4200
+        const notice = findChild(window.contentItem, "pageNotice")
+        notice.dismiss()
+    }
+
+    // A server that sent no length leaves nothing to draw a percentage from,
+    // and the mark says so rather than showing a bar that means nothing. One
+    // such download takes the percentage away from the whole aggregate: the
+    // others cannot be weighed against a total that does not exist.
+    function test_theFooterMarkNeverInventsAPercentage() {
+        openPage("https://stream.example/feed")
+        const host = window.spaceProfileHost
+        browser.recordOriginInteraction("https://stream.example/feed")
+        const mark = findChild(findChild(window.contentItem, "sidebar"), "downloadMark")
+        mark.dwellMilliseconds = 200
+        tryCompare(mark, "visible", false)
+
+        const measured = host.simulateDownloadRequest("https://stream.example/feed",
+            "https://stream.example/omaweb-test-reel.pdf", "omaweb-test-reel.pdf",
+            "application/pdf")
+        verify(measured.length > 0)
+        host.simulateDownloadProgress(measured, 400, 800)
+        tryCompare(mark, "fraction", 0.5)
+        compare(mark.measured, true)
+        // What a reader who cannot see the bar is told, which is the same
+        // sentence the bar draws.
+        compare(mark.Accessible.name, "1 download · 50%")
+        const fill = findChild(mark, "downloadMarkFill")
+        const track = findChild(mark, "downloadMarkTrack")
+        verify(fill.width > 0)
+        verify(fill.width < track.width)
+
+        openPage("https://tape.example/feed")
+        browser.recordOriginInteraction("https://tape.example/feed")
+        const unmeasured = host.simulateDownloadRequest("https://tape.example/feed",
+            "https://tape.example/omaweb-test-tape.pdf", "omaweb-test-tape.pdf",
+            "application/pdf")
+        verify(unmeasured.length > 0)
+        host.simulateDownloadProgress(unmeasured, 100, 0)
+        tryCompare(mark, "measured", false)
+        compare(mark.fraction, -1)
+        compare(fill.width, 0)
+        // The track stays: something is being fetched, and how far along is
+        // the part that is unknown.
+        verify(track.visible)
+        compare(mark.Accessible.name, "2 downloads · size unknown")
+
+        host.simulateDownloadFinished(measured)
+        host.simulateDownloadFinished(unmeasured)
+        tryCompare(mark, "running", 0)
+        tryCompare(mark, "visible", false)
+        mark.dwellMilliseconds = 4200
+        findChild(window.contentItem, "pageNotice").dismiss()
+    }
+
+
+    // The mark holds a finished state for as long as the notice that names the
+    // saved file stands, so a reader watching the track rather than the notice
+    // sees the download end rather than the mark vanishing mid-glance. Then it
+    // takes itself away: the footer says nothing about downloads on the days
+    // there are none. A cancelled download is not a finished one and gets no
+    // held state — the reader who cancelled it knows how it ended.
+    function test_theFooterMarkHoldsAFinishedDownloadThenLeaves() {
+        openPage("https://vault.example/box")
+        const host = window.spaceProfileHost
+        browser.recordOriginInteraction("https://vault.example/box")
+        const outline = findChild(window.contentItem, "sidebar")
+        const mark = findChild(outline, "downloadMark")
+        mark.dwellMilliseconds = 200
+        tryCompare(mark, "visible", false)
+
+        const saved = host.simulateDownloadRequest("https://vault.example/box",
+            "https://vault.example/omaweb-test-ledger.pdf", "omaweb-test-ledger.pdf",
+            "application/pdf")
+        verify(saved.length > 0)
+        tryCompare(mark, "running", 1)
+        host.simulateDownloadFinished(saved)
+        tryCompare(mark, "running", 0)
+        compare(mark.holding, true)
+        compare(mark.visible, true)
+        compare(mark.Accessible.name, "1 download finished")
+        // A finished download is a full track, not the last percentage the
+        // bytes happened to report.
+        const fill = findChild(mark, "downloadMarkFill")
+        const track = findChild(mark, "downloadMarkTrack")
+        compare(fill.width, track.width)
+        // Nothing is running, so there are no names to give: asking the held
+        // mark which file is which opens no panel rather than an empty one.
+        mouseMove(mark, mark.width / 2, mark.height / 2)
+        tryCompare(mark, "detailRequested", true)
+        compare(findChild(outline, "downloadDetail").visible, false)
+        // The window outlives this test, so the pointer is taken back off the
+        // mark: one left resting there would go on asking the next test's
+        // downloads to name themselves.
+        mouseMove(outline, 4, 4)
+        tryCompare(mark, "detailRequested", false)
+        tryCompare(mark, "visible", false)
+        findChild(window.contentItem, "pageNotice").dismiss()
+
+        // Cancelling leaves nothing to hold.
+        openPage("https://crate.example/box")
+        browser.recordOriginInteraction("https://crate.example/box")
+        const dropped = host.simulateDownloadRequest("https://crate.example/box",
+            "https://crate.example/omaweb-test-crate.pdf", "omaweb-test-crate.pdf",
+            "application/pdf")
+        verify(dropped.length > 0)
+        tryCompare(mark, "visible", true)
+        window.cancelDownload(dropped)
+        tryCompare(mark, "running", 0)
+        compare(mark.holding, false)
+        compare(mark.visible, false)
+        mark.dwellMilliseconds = 4200
+    }
+
+    // The mark is a way in, not only a report: it opens the one place the
+    // downloads are listed, at the downloads section rather than wherever
+    // settings was left. Being an action, it is also in the command panel —
+    // an action reachable only by pointer is a defect (ADR 0011).
+    function test_theFooterMarkOpensTheDownloadsItStandsFor() {
+        openPage("https://depot.example/box")
+        const host = window.spaceProfileHost
+        browser.recordOriginInteraction("https://depot.example/box")
+        const mark = findChild(findChild(window.contentItem, "sidebar"), "downloadMark")
+        mark.dwellMilliseconds = 200
+        tryCompare(mark, "visible", false)
+        const settings = findChild(window.contentItem, "settingsSurface")
+        settings.section = 0
+
+        const running = host.simulateDownloadRequest("https://depot.example/box",
+            "https://depot.example/omaweb-test-depot.pdf", "omaweb-test-depot.pdf",
+            "application/pdf")
+        verify(running.length > 0)
+        tryCompare(mark, "visible", true)
+        mark.clicked()
+        tryCompare(window, "settingsOpen", true)
+        compare(settings.sections[settings.section], "downloads")
+
+        // The same action from the panel, which is where it is learned.
+        window.settingsOpen = false
+        settings.section = 0
+        verify(window.commands.run("downloads"))
+        tryCompare(window, "settingsOpen", true)
+        compare(settings.sections[settings.section], "downloads")
+        const listed = window.commands.actions().filter(function(action) {
+            return action.command === "downloads"
+        })
+        compare(listed.length, 1)
+        compare(listed[0].title, "Downloads")
+        verify(listed[0].enabled)
+        window.settingsOpen = false
+
+        host.simulateDownloadFinished(running)
+        tryCompare(mark, "visible", false)
+        mark.dwellMilliseconds = 4200
+        findChild(window.contentItem, "pageNotice").dismiss()
+    }
+
+    // One mark for all of them is a summary, and a summary hides which file is
+    // nearly done. Pointing at the mark — or reaching it with the keyboard,
+    // which is the same question asked without a pointer — names each download
+    // and how far that one has got, without opening settings for it.
+    function test_theFooterMarkNamesEachDownloadOnDemand() {
+        openPage("https://atlas.example/box")
+        const host = window.spaceProfileHost
+        browser.recordOriginInteraction("https://atlas.example/box")
+        const outline = findChild(window.contentItem, "sidebar")
+        const mark = findChild(outline, "downloadMark")
+        mark.dwellMilliseconds = 200
+        tryCompare(mark, "visible", false)
+        const detail = findChild(outline, "downloadDetail")
+        verify(detail !== null)
+        mouseMove(outline, 4, 4)
+        compare(detail.visible, false)
+
+        const first = host.simulateDownloadRequest("https://atlas.example/box",
+            "https://atlas.example/omaweb-test-north.pdf", "omaweb-test-north.pdf",
+            "application/pdf")
+        openPage("https://globe.example/box")
+        browser.recordOriginInteraction("https://globe.example/box")
+        const second = host.simulateDownloadRequest("https://globe.example/box",
+            "https://globe.example/omaweb-test-south.pdf", "omaweb-test-south.pdf",
+            "application/pdf")
+        verify(first.length > 0)
+        verify(second.length > 0)
+        host.simulateDownloadProgress(first, 600, 1000)
+        host.simulateDownloadProgress(second, 100, 0)
+        tryCompare(mark, "running", 2)
+
+        // The detail is not on show until it is asked for.
+        compare(detail.visible, false)
+        mouseMove(mark, mark.width / 2, mark.height / 2)
+        tryCompare(detail, "visible", true)
+        const northRow = findChild(detail, "downloadDetail-0")
+        const southRow = findChild(detail, "downloadDetail-1")
+        verify(northRow !== null)
+        verify(southRow !== null)
+        compare(northRow.name, "omaweb-test-north.pdf")
+        compare(northRow.progressLabel, "60%")
+        // The one the server sent no length for is named as such here too,
+        // rather than borrowing the other download's percentage.
+        compare(southRow.name, "omaweb-test-south.pdf")
+        compare(southRow.progressLabel, "size unknown")
+
+        // The keyboard reaching the mark is the same question asked without a
+        // pointer, and it wants the window a reader would have been in.
+        mouseMove(outline, 4, 4)
+        tryCompare(detail, "visible", false)
+        window.requestActivate()
+        mark.forceActiveFocus()
+        tryCompare(detail, "visible", true)
+
+        findChild(outline, "settingsButton").forceActiveFocus()
+        tryCompare(detail, "visible", false)
+
+        host.simulateDownloadFinished(first)
+        host.simulateDownloadFinished(second)
+        tryCompare(mark, "visible", false)
+        mark.dwellMilliseconds = 4200
+        findChild(window.contentItem, "pageNotice").dismiss()
+    }
+
+    // A download that stopped short is not in flight: it is waiting on a retry
+    // the downloads list offers, and its failure was said out loud when it
+    // happened. The mark counts what is moving, so it leaves rather than
+    // standing over a track that will never fill — and it does not claim the
+    // download finished either.
+    function test_theFooterMarkDropsADownloadThatStoppedShort() {
+        openPage("https://cliff.example/box")
+        const host = window.spaceProfileHost
+        browser.recordOriginInteraction("https://cliff.example/box")
+        const outline = findChild(window.contentItem, "sidebar")
+        const mark = findChild(outline, "downloadMark")
+        mark.dwellMilliseconds = 200
+        tryCompare(mark, "visible", false)
+
+        const cut = host.simulateDownloadRequest("https://cliff.example/box",
+            "https://cliff.example/omaweb-test-cliff.pdf", "omaweb-test-cliff.pdf",
+            "application/pdf")
+        verify(cut.length > 0)
+        host.simulateDownloadProgress(cut, 300, 1000)
+        tryCompare(mark, "fraction", 0.3)
+
+        host.downloadUpdated(cut, "interrupted", 300, 1000, "network changed")
+        tryCompare(mark, "running", 0)
+        compare(mark.holding, false)
+        compare(mark.visible, false)
+        // The download itself is still there to be retried; only the mark has
+        // stopped speaking for it.
+        verify(window.runningDownloads[cut] !== undefined)
+        compare(window.runningDownloads[cut].state, "interrupted")
+
+        // An interrupted download sits in the window's list until it is retried
+        // or dropped, and the mark counts what has finished since it last had
+        // nothing to show. A later download must not inherit the tally the
+        // interrupted one is sitting in the middle of.
+        openPage("https://ledge.example/box")
+        browser.recordOriginInteraction("https://ledge.example/box")
+        const later = host.simulateDownloadRequest("https://ledge.example/box",
+            "https://ledge.example/omaweb-test-ledge.pdf", "omaweb-test-ledge.pdf",
+            "application/pdf")
+        verify(later.length > 0)
+        tryCompare(mark, "running", 1)
+        host.simulateDownloadFinished(later)
+        tryCompare(mark, "holding", true)
+        compare(mark.Accessible.name, "1 download finished")
+        tryCompare(mark, "visible", false)
+
+        host.cancelDownload(cut)
+        tryVerify(function() { return window.runningDownloads[cut] === undefined })
+        mark.dwellMilliseconds = 4200
+        findChild(window.contentItem, "pageNotice").dismiss()
+    }
 }

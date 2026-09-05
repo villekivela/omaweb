@@ -19,9 +19,6 @@ class WindowManager final : public QObject {
     Q_OBJECT
     Q_PROPERTY(int privateWindowCount READ privateWindowCount NOTIFY privateWindowCountChanged)
     Q_PROPERTY(QString privateProfilePath READ privateProfilePath NOTIFY privateSessionChanged)
-    Q_PROPERTY(QString privateDownloadDirectory READ privateDownloadDirectory CONSTANT)
-    Q_PROPERTY(bool acceptPrivateDownloads READ acceptPrivateDownloads CONSTANT)
-    Q_PROPERTY(bool recordPrivateDownloads READ recordPrivateDownloads CONSTANT)
     // A session launched with a debugging listener has no Private windows to
     // offer: everything in one would be readable through the listener.
     Q_PROPERTY(bool privateWindowsAvailable READ privateWindowsAvailable CONSTANT)
@@ -38,9 +35,6 @@ public:
     Q_INVOKABLE void releasePrivateWindow(QObject *controller);
     int privateWindowCount() const;
     QString privateProfilePath() const;
-    QString privateDownloadDirectory() const;
-    bool acceptPrivateDownloads() const;
-    bool recordPrivateDownloads() const;
     bool privateWindowsAvailable() const;
 
 signals:

@@ -50,6 +50,33 @@ bool isSecurityLoweringFlag(const QString &argument)
     return false;
 }
 
+// Every switch that takes the renderer sandbox away, and every one that
+// collapses the processes it separates. `--single-process`, `--in-process-gpu`
+// and `--in-process-network-service` are not named as sandbox switches by
+// Chromium, but each puts code that was in a sandboxed process of its own into
+// the browser process, which is the same thing arrived at differently.
+bool isSandboxDisablingFlag(const QString &argument)
+{
+    static const QStringList flags = {
+        QStringLiteral("--no-sandbox"),
+        QStringLiteral("--disable-sandbox"),
+        QStringLiteral("--disable-gpu-sandbox"),
+        QStringLiteral("--disable-setuid-sandbox"),
+        QStringLiteral("--disable-namespace-sandbox"),
+        QStringLiteral("--disable-seccomp-filter-sandbox"),
+        QStringLiteral("--no-zygote"),
+        QStringLiteral("--single-process"),
+        QStringLiteral("--in-process-gpu"),
+        QStringLiteral("--in-process-network-service"),
+    };
+    for (const auto &flag : flags) {
+        if (argument == flag || argument.startsWith(flag + QStringLiteral("="))) {
+            return true;
+        }
+    }
+    return false;
+}
+
 } // namespace
 
 DevelopmentLaunch readDevelopmentLaunch(const QStringList &arguments,
@@ -63,6 +90,11 @@ DevelopmentLaunch readDevelopmentLaunch(const QStringList &arguments,
     };
 
     for (const auto &argument : arguments + engineFlags) {
+        if (isSandboxDisablingFlag(argument)) {
+            return refuse(QStringLiteral("%1 runs page code outside a sandbox. Omaweb has no "
+                                         "build that starts without renderer isolation.")
+                    .arg(argument.section(u'=', 0, 0)));
+        }
         if (isSecurityLoweringFlag(argument)) {
             return refuse(QStringLiteral("%1 turns off a web security boundary for every "
                                          "page. Omaweb has no launch that does that.")

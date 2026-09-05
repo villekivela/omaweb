@@ -3,7 +3,6 @@
 #include "BrowserController.h"
 
 #include <QDir>
-#include <QStandardPaths>
 #include <QTemporaryDir>
 #include <QTimer>
 
@@ -89,21 +88,6 @@ QString WindowManager::privateProfilePath() const
         return {};
     }
     return QDir(m_privateRoot->path()).filePath(QStringLiteral("engine-profile"));
-}
-
-QString WindowManager::privateDownloadDirectory() const
-{
-    return QStandardPaths::writableLocation(QStandardPaths::DownloadLocation);
-}
-
-bool WindowManager::acceptPrivateDownloads() const
-{
-    return true;
-}
-
-bool WindowManager::recordPrivateDownloads() const
-{
-    return false;
 }
 
 bool WindowManager::privateWindowsAvailable() const

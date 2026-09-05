@@ -53,6 +53,7 @@ public:
     bool updateDownload(const QString &id, const QString &state,
         qint64 receivedBytes, qint64 totalBytes, const QString &error);
     QVariantList downloadHistory() const;
+    bool forgetDownload(const QString &id);
 
     QString dataRoot() const;
     QString engineProfilePath(const QString &spaceId, const QString &engineName) const;

@@ -1,5 +1,7 @@
 #include "BrowserController.h"
 
+#include "DownloadPolicy.h"
+
 #include <QRegularExpression>
 #include <QDir>
 #include <QDirIterator>
@@ -133,6 +135,7 @@ BrowserController::BrowserController(QString dataRoot, QString engineName,
     connect(&m_tabs, &QAbstractItemModel::rowsRemoved, this, [this] { refreshAtRest(); });
     connect(&m_tabs, &QAbstractItemModel::dataChanged, this, [this] { refreshAtRest(); });
     connect(&m_tabs, &QAbstractItemModel::modelReset, this, [this] { refreshAtRest(); });
+    loadDownloadDirectory();
     initialize();
 }
 
@@ -301,7 +304,56 @@ QString BrowserController::errorMessage() const
 
 QString BrowserController::downloadDirectory() const
 {
-    return QStandardPaths::writableLocation(QStandardPaths::DownloadLocation);
+    return m_downloadDirectory;
+}
+
+// Configuring where downloads go is the reader's, so it is kept beside their
+// other configuration rather than inside a Space's session: a Private window
+// has no session to read and still has to put a download somewhere the reader
+// expects to find it.
+void BrowserController::loadDownloadDirectory()
+{
+    m_downloadDirectory = QStandardPaths::writableLocation(QStandardPaths::DownloadLocation);
+    if (m_configRoot.isEmpty()) {
+        return;
+    }
+    QFile file(QDir(m_configRoot).filePath(QStringLiteral("downloads.json")));
+    if (!file.open(QIODevice::ReadOnly)) {
+        return;
+    }
+    const auto configured = QJsonDocument::fromJson(file.readAll()).object()
+        .value(QStringLiteral("directory")).toString().trimmed();
+    // A directory that has since been moved or removed is not somewhere a
+    // download can begin, so the default answers again rather than every
+    // download failing at the last moment.
+    if (!configured.isEmpty() && QFileInfo(configured).isDir()) {
+        m_downloadDirectory = configured;
+    }
+}
+
+bool BrowserController::setDownloadDirectory(const QString &path)
+{
+    const auto chosen = path.trimmed();
+    // A Private window browses on the configuration; it does not write it.
+    if (m_privateBrowsing || m_configRoot.isEmpty() || chosen.isEmpty()
+        || !QFileInfo(chosen).isDir() || chosen == m_downloadDirectory) {
+        return false;
+    }
+    if (!QDir().mkpath(m_configRoot)) {
+        return false;
+    }
+    QSaveFile file(QDir(m_configRoot).filePath(QStringLiteral("downloads.json")));
+    if (!file.open(QIODevice::WriteOnly)) {
+        return false;
+    }
+    file.write(QJsonDocument(QJsonObject{{QStringLiteral("version"), 1},
+        {QStringLiteral("directory"), chosen}}).toJson(QJsonDocument::Indented));
+    if (!file.commit()) {
+        return false;
+    }
+    m_downloadDirectory = chosen;
+    emit downloadDirectoryChanged();
+    return true;
 }
 
 bool BrowserController::acceptDownloads() const
@@ -1706,6 +1758,10 @@ int BrowserController::permissionPolicy(const QString &permission) const
         QStringLiteral("camera-and-microphone"),
         QStringLiteral("geolocation"),
         QStringLiteral("notifications"),
+        // A page downloading things by itself is a use the reader can see
+        // afterwards — the files are on their disk — and take back where Site
+        // information lists it.
+        QStringLiteral("automatic-downloads"),
     };
     // Reading the clipboard and sharing a screen hand over whatever happens to
     // be there at that instant, which no earlier answer could have covered. So
@@ -2026,6 +2082,107 @@ QVariantList BrowserController::downloadHistory() const
         return {};
     }
     return m_store.downloadHistory();
+}
+
+bool BrowserController::forgetDownload(const QString &id)
+{
+    if (m_privateBrowsing || id.isEmpty()) {
+        return false;
+    }
+    return m_store.forgetDownload(id);
+}
+
+QString BrowserController::dispositionName(DownloadDisposition disposition)
+{
+    switch (disposition) {
+    case AcceptDownload:
+        return QStringLiteral("accept");
+    case ConfirmDownload:
+        return QStringLiteral("confirm");
+    case AskDownloadPermission:
+        return QStringLiteral("permission");
+    case RefuseDownload:
+        return QStringLiteral("refuse");
+    case SaveDownloadAs:
+        return QStringLiteral("save-as");
+    }
+    return QStringLiteral("refuse");
+}
+
+QVariantMap BrowserController::downloadDisposition(const QUrl &origin, const QString &fileName,
+    const QString &mimeType, const QString &directory, bool answered) const
+{
+    const auto normalized = normalizedOrigin(origin);
+    const auto kind = DownloadPolicy::riskKind(fileName, mimeType);
+    // A download nobody asked for, and a second one while this origin's first
+    // is still running, are both the page acting rather than the reader. An
+    // address with no origin to name — a local file the reader opened — is the
+    // reader either way.
+    const auto automatic = !answered && !normalized.isEmpty()
+        && (!originInteracted(origin) || activeDownloadCount(origin) > 0);
+    QVariantMap answer{
+        {QStringLiteral("risk"), kind},
+        {QStringLiteral("fileName"), fileName},
+        {QStringLiteral("origin"), normalized},
+        {QStringLiteral("automatic"), automatic},
+    };
+    const auto decide = [&answer](DownloadDisposition disposition) {
+        answer.insert(QStringLiteral("disposition"), dispositionName(disposition));
+        return answer;
+    };
+    if (automatic) {
+        // `permissionDecision` spends an allow-once answer, and this is a
+        // question about a download rather than the reader being asked one, so
+        // the store and the session are read directly.
+        const auto key = sessionPermissionKey(normalized,
+            QStringLiteral("automatic-downloads"));
+        auto decision = m_sessionPermissionDecisions->value(key, Ask);
+        if (decision == Ask && !m_privateBrowsing) {
+            decision = m_store.permissionDecision(m_activeSpaceId, normalized,
+                QStringLiteral("automatic-downloads"));
+        }
+        if (decision == Block) {
+            return decide(RefuseDownload);
+        }
+        if (decision == Ask) {
+            return decide(AskDownloadPermission);
+        }
+    }
+    // Whether to have the file at all comes before where to put it, and is
+    // asked once: a download the reader has already agreed to have is only
+    // still a question about where it goes.
+    if (!kind.isEmpty() && !answered) {
+        return decide(ConfirmDownload);
+    }
+    if (!directory.isEmpty() && !fileName.isEmpty()
+        && QFileInfo::exists(QDir(directory).filePath(fileName))) {
+        return decide(SaveDownloadAs);
+    }
+    return decide(AcceptDownload);
+}
+
+void BrowserController::noteDownloadStarted(const QUrl &origin, const QString &runtimeId)
+{
+    const auto normalized = normalizedOrigin(origin);
+    if (runtimeId.isEmpty() || normalized.isEmpty()) {
+        return;
+    }
+    m_activeDownloadOrigins.insert(runtimeId, normalized);
+}
+
+void BrowserController::noteDownloadSettled(const QString &runtimeId)
+{
+    m_activeDownloadOrigins.remove(runtimeId);
+}
+
+int BrowserController::activeDownloadCount(const QUrl &origin) const
+{
+    const auto normalized = normalizedOrigin(origin);
+    if (normalized.isEmpty()) {
+        return 0;
+    }
+    return static_cast<int>(std::count(m_activeDownloadOrigins.cbegin(),
+        m_activeDownloadOrigins.cend(), normalized));
 }
 
 // A Private window has no store to read or write, so it browses on the

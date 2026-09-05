@@ -50,6 +50,17 @@ file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/third_party/content-blocker/LADYBIRD_R
 # keeps the copies honest.
 set(omaweb_ubo_scriptlets_root "${CMAKE_CURRENT_SOURCE_DIR}/third_party/ubo-scriptlets")
 
+# The approved engine security baseline. One file, read here and by
+# scripts/check_security_baseline.py, so the runtime's claim about itself and
+# the weekly check are never two different opinions.
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/security/baseline.json" omaweb_security_baseline)
+string(JSON omaweb_approved_qtwebengine GET "${omaweb_security_baseline}" qtwebengine)
+string(JSON omaweb_approved_chromium GET "${omaweb_security_baseline}" chromium)
+string(JSON omaweb_approved_chromium_security_patch
+    GET "${omaweb_security_baseline}" chromiumSecurityPatch)
+message(STATUS "Omaweb approved engine baseline: QtWebEngine "
+    "${omaweb_approved_qtwebengine} / Chromium ${omaweb_approved_chromium_security_patch}")
+
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -98,6 +109,8 @@ add_library(omaweb-core STATIC
     src/core/BrowserController.h
     src/core/DevelopmentLaunch.cpp
     src/core/DevelopmentLaunch.h
+    src/core/DownloadPolicy.cpp
+    src/core/DownloadPolicy.h
     src/core/KeyboardNavigation.cpp
     src/core/KeyboardNavigation.h
     src/core/RetainedTab.h
@@ -191,6 +204,8 @@ if(OMAWEB_BUILD_BROWSER)
         src/engine/qt/QtContentBlocker.h
         src/engine/qt/QtCookiePolicy.cpp
         src/engine/qt/QtCookiePolicy.h
+        src/engine/qt/QtHeldDownloads.cpp
+        src/engine/qt/QtHeldDownloads.h
     )
     target_sources(omaweb-engine-qt PUBLIC src/engine/qt/EngineView.qml)
     target_include_directories(omaweb-engine-qt PUBLIC src/engine/qt)
@@ -212,12 +227,21 @@ add_library(omaweb-platform STATIC
     src/platform/PagePrinter.h
     src/platform/ProcessResources.cpp
     src/platform/ProcessResources.h
+    src/platform/RuntimeSecurity.cpp
+    src/platform/RuntimeSecurity.h
+    src/platform/SavedDownload.cpp
+    src/platform/SavedDownload.h
     src/platform/SystemNotifier.cpp
     src/platform/SystemNotifier.h
     src/platform/WindowChrome.h
 )
 target_include_directories(omaweb-platform PUBLIC src/platform)
 target_link_libraries(omaweb-platform PUBLIC Qt6::Gui Qt6::Qml Qt6::Quick)
+target_compile_definitions(omaweb-platform PUBLIC
+    OMAWEB_APPROVED_QTWEBENGINE="${omaweb_approved_qtwebengine}"
+    OMAWEB_APPROVED_CHROMIUM="${omaweb_approved_chromium}"
+    OMAWEB_APPROVED_CHROMIUM_SECURITY_PATCH="${omaweb_approved_chromium_security_patch}"
+)
 if(APPLE)
     enable_language(OBJCXX)
     find_library(OMAWEB_APPKIT_FRAMEWORK AppKit REQUIRED)
@@ -255,6 +279,7 @@ set(omaweb_ui_files
     src/ui/ChromeMenu.qml
     src/ui/CommandPanel.qml
     src/ui/DeveloperToolsDock.qml
+    src/ui/DownloadMark.qml
     src/ui/FindBar.qml
     src/ui/HistoryPage.qml
     src/ui/KeyHint.qml
@@ -456,6 +481,12 @@ if(BUILD_TESTING)
             COMMAND ${Python3_EXECUTABLE}
                 ${CMAKE_CURRENT_SOURCE_DIR}/tests/scripts/tst_release_notes.py
         )
+        # The weekly engine security baseline check and the issue it leaves
+        # behind, with upstream and GitHub both stubbed out.
+        add_test(NAME omaweb-security-baseline
+            COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/tests/scripts/tst_security_baseline.py
+        )
     endif()
 
     qt_add_executable(omaweb-core-tests tests/core/tst_browsercontroller.cpp)
@@ -476,6 +507,13 @@ if(BUILD_TESTING)
     target_link_libraries(omaweb-development-launch-tests PRIVATE omaweb-core Qt6::Test)
     omaweb_strict_target(omaweb-development-launch-tests)
     add_test(NAME omaweb-development-launch COMMAND omaweb-development-launch-tests)
+
+    qt_add_executable(omaweb-download-policy-tests
+        tests/core/tst_downloadpolicy.cpp
+    )
+    target_link_libraries(omaweb-download-policy-tests PRIVATE omaweb-core Qt6::Test)
+    omaweb_strict_target(omaweb-download-policy-tests)
+    add_test(NAME omaweb-download-policy COMMAND omaweb-download-policy-tests)
 
     qt_add_executable(omaweb-content-blocker-tests
         tests/content-blocking/tst_contentmatcher.cpp
@@ -536,6 +574,21 @@ if(BUILD_TESTING)
     # configuration, so the seam takes its directories as arguments and the
     # test hands it a temporary home. That runs on macOS too, which is where
     # the shipped template is reviewed.
+    qt_add_executable(omaweb-runtime-security-tests tests/platform/tst_runtimesecurity.cpp)
+    target_link_libraries(omaweb-runtime-security-tests PRIVATE omaweb-platform Qt6::Test)
+    omaweb_strict_target(omaweb-runtime-security-tests)
+    add_test(NAME omaweb-runtime-security COMMAND omaweb-runtime-security-tests)
+    # The suite links the platform seams and so builds a GUI application, which
+    # takes a platform plugin before it runs a line. A build host has no window
+    # server, and one that cannot find a plugin aborts before the first test
+    # rather than failing one, so the whole file's results go missing.
+    # A desktop's own platform theme is loaded in the same breath, and the GTK
+    # one opens a display of its own whatever Qt was told to draw on, so the
+    # suite is left to Qt's built-in theme rather than the developer's.
+    set_tests_properties(omaweb-runtime-security PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QPA_PLATFORMTHEME="
+    )
+
     qt_add_executable(omaweb-omarchy-theme-tests tests/platform/tst_omarchytheme.cpp)
     target_link_libraries(omaweb-omarchy-theme-tests PRIVATE omaweb-platform Qt6::Test)
     target_compile_definitions(omaweb-omarchy-theme-tests PRIVATE
