@@ -135,8 +135,9 @@ are bounded.
 Printing is split between the adapter, which renders the page to a PDF in an Omaweb-owned spool
 directory, and `omaweb-platform`, which presents it in the desktop's own print dialog, including
 that dialog's PDF destination, and removes the spooled file afterwards. macOS presents it through
-AppKit and PDFKit. A platform with no print panel reports the capability off, which is where Linux
-stands until the Wayland port.
+AppKit and PDFKit. Linux hands the rendered document to `org.freedesktop.portal.Print` as an open
+descriptor, so the spooled copy can go while the portal still holds it. A desktop with no print
+dialog behind either reports the capability off.
 
 Notifications are split the same way. They arrive from a Space's profile rather than from one page,
 so the origin is all there is to identify the sender by; the shell asks the core which tab in that

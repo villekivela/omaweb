@@ -16,15 +16,12 @@ The browser contract is complete on the Qt build: Spaces, tabs, the Omnibar, Key
 docked Developer tools, page commands, History and Settings, Site information, Content blocking, and
 download hardening all work.
 
-Three things are not finished:
+Two things are not finished:
 
-- **Linux platform integration.** The browser runs frameless on Wayland today and sends
-  notifications through the desktop's own service, but printing is macOS-only and lands with the
-  Wayland port ([#8](https://github.com/villekivela/omaweb/issues/8)). On Linux that command is
-  listed and reports itself unavailable rather than pretending. Blur behind the browser's
-  transparent surfaces is the compositor's to apply and needs nothing from Omaweb.
 - **Linux packaging.** There is no Arch package, no default-browser registration, and no update
-  delivery yet. Tracked by [#8](https://github.com/villekivela/omaweb/issues/8) as well.
+  delivery yet. Tracked by [#8](https://github.com/villekivela/omaweb/issues/8). The browser itself
+  runs frameless on Wayland and reaches the desktop's own notification and printing services; blur
+  behind its transparent surfaces is the compositor's to apply and needs nothing from Omaweb.
 - **The Ladybird adapter.** Tracked by [#7](https://github.com/villekivela/omaweb/issues/7).
 
 [The roadmap](docs/roadmap.md) has the ordered breakdown.

@@ -72,22 +72,6 @@ void PagePrinter::discard(const QString &path)
     QFile::remove(path);
 }
 
-#ifndef Q_OS_MACOS
-
-// No print panel here yet. Linux printing arrives with the Wayland port; until
-// then the command is listed and unavailable, which is what the reader needs to
-// know rather than a command that appears to work.
-bool PagePrinter::available() const { return false; }
-
-bool PagePrinter::present(const QString &path, const QString &jobName)
-{
-    Q_UNUSED(jobName)
-    discard(path);
-    return false;
-}
-
-#endif
-
 void registerPagePrinter()
 {
     qmlRegisterSingletonType<PagePrinter>("Omaweb", 1, 0, "PagePrinter",

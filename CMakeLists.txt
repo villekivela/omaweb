@@ -268,6 +268,7 @@ if(APPLE)
     )
 else()
     target_sources(omaweb-platform PRIVATE
+        src/platform/LinuxPagePrinter.cpp
         src/platform/LinuxSystemNotifier.cpp
         src/platform/WindowChrome.cpp
     )
@@ -597,6 +598,26 @@ if(BUILD_TESTING)
         set_tests_properties(omaweb-notification-service PROPERTIES
             ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
         )
+
+        # Printing goes out through the desktop portal, so the test stands one
+        # up on the same kind of private bus. It is what covers the document
+        # surviving the spooled copy being taken away, which is the part of the
+        # exchange a live portal would only reveal by printing something.
+        qt_add_executable(omaweb-print-portal-tests tests/platform/tst_printportal.cpp)
+        target_link_libraries(omaweb-print-portal-tests PRIVATE
+            omaweb-platform
+            Qt6::DBus
+            Qt6::Test
+        )
+        omaweb_strict_target(omaweb-print-portal-tests)
+        add_test(NAME omaweb-print-portal
+            COMMAND dbus-run-session -- $<TARGET_FILE:omaweb-print-portal-tests>
+        )
+        # Qt reaching for the desktop portal itself would start the real one on
+        # the private bus, racing the stub for the name it needs to own.
+        set_tests_properties(omaweb-print-portal PROPERTIES
+            ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_NO_XDG_DESKTOP_PORTAL=1"
+        )
     endif()
 
     # Following the desktop's theme writes into the reader's Omarchy
@@ -710,8 +731,15 @@ if(BUILD_TESTING)
         )
         omaweb_strict_target(omaweb-ui-tests)
         add_test(NAME omaweb-ui COMMAND omaweb-ui-tests)
+        # The chrome is checked against a desktop that offers nothing, so the
+        # commands standing on a platform service report themselves unavailable
+        # and the shell's own wording for that is what gets tested. On Linux
+        # those services are on the session bus, so it is taken away alongside
+        # the window server rather than left to whatever the host happens to
+        # be running.
         set_tests_properties(omaweb-ui PROPERTIES
-            ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+            ENVIRONMENT
+                "QT_QPA_PLATFORM=offscreen;DBUS_SESSION_BUS_ADDRESS=unix:path=/nonexistent/omaweb"
         )
     endif()
 

@@ -90,18 +90,23 @@ the Rust wrapper, its manifest, or its lockfile.
 
 ### Platform gaps on Linux
 
-`omaweb-platform` supplies the window-system services the browser cannot supply itself, and one of
-them is still macOS-only: the print dialog. It arrives with the Wayland port
-([#8](https://github.com/villekivela/omaweb/issues/8)). Until then the Linux implementation reports
-its capability off and the print command is listed and unavailable.
+`omaweb-platform` supplies the window-system services the browser cannot supply itself. On Linux
+they are session-bus services rather than window-server ones, which is the shape the whole layer
+takes here: `LinuxSystemNotifier.cpp` talks to `org.freedesktop.Notifications`, and
+`LinuxPagePrinter.cpp` to `org.freedesktop.portal.Print`. A desktop offering neither reports both
+capabilities off, which is the same answer the macOS build gives without a window server, so the
+contract the shell reads does not change between platforms.
 
-Notifications are a session-bus service on Linux rather than a window-server one, so
-`LinuxSystemNotifier.cpp` talks to `org.freedesktop.Notifications` and the browser needs no
-notification daemon of its own. A desktop running none reports the capability off, which is the same
-answer the macOS build gives without a window server, and a page's request is refused rather than
-left waiting. `omaweb-notification-service` covers the exchange against a stub daemon on a private
-bus, including the answer a reader gives, which is the one thing a live desktop cannot be asked for
-in a test.
+Printing goes through the portal rather than through Qt's own print dialog, which would cost the
+browser a QtWidgets dependency, and the portal is also the only route to a printer from inside a
+sandbox. Sending no print token is what makes the portal show its dialog; a token stands for
+settings the reader has already answered. The dialog comes up unparented, because exporting Omaweb's
+surface for it to sit over needs a handle Qt does not offer through public API.
+
+`omaweb-notification-service` and `omaweb-print-portal` cover both exchanges against stub services
+on a private bus under `dbus-run-session`. They reach what a live desktop cannot be asked for in a
+test: the reader answering a notification, and the rendered document surviving the spooled copy
+being taken away.
 
 Two things that look like gaps are not. The frameless window is one: `Main.qml` asks for
 `Qt.FramelessWindowHint` off macOS, so a Main or Private window is already frameless under Hyprland.
