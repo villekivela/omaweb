@@ -43,7 +43,6 @@ Tracking issue: [#50](https://github.com/villekivela/omaweb/issues/50)
 - Tab reordering, duplication, bulk closing, retained closed-tab stacks, and Keep active for selected Pinned tabs
 - Site information, certificate handling, third-party-cookie policy, safer downloads, and sandbox health
 - Native notifications and external-protocol confirmation
-- Research and implement engine-neutral phishing and malware URL reputation before public daily-driver status
 
 ## Linux and Wayland
 
