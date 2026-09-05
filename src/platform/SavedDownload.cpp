@@ -1,6 +1,5 @@
 #include "SavedDownload.h"
 
-#include <QDateTime>
 #include <QDesktopServices>
 #include <QFile>
 #include <QFileInfo>
@@ -11,6 +10,10 @@
 
 #include <sys/stat.h>
 #include <sys/xattr.h>
+#endif
+
+#if defined(Q_OS_MACOS)
+#include <QDateTime>
 #endif
 
 namespace omaweb {
@@ -35,15 +38,23 @@ bool writeExtendedAttribute(const QByteArray &path, const char *name, const QByt
 #endif
 }
 
+#if defined(Q_OS_MACOS)
+
 // Apple's quarantine value is four semicolon-separated fields: the flags, when
 // it arrived, what put it there, and an event identifier the browser has none
 // of. Gatekeeper reads the first three, which is what makes the file one the
 // desktop asks about before opening.
+//
+// Only macOS reads this, and only macOS builds it: a host that writes the
+// freedesktop attributes and nothing else has no caller for it, and a function
+// nobody calls is one the strict build refuses.
 QByteArray macQuarantineValue()
 {
     return QByteArrayLiteral("0083;")
         + QByteArray::number(QDateTime::currentSecsSinceEpoch(), 16) + ";Omaweb;";
 }
+
+#endif
 
 #endif
 
