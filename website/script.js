@@ -2,8 +2,8 @@
 // reads correctly with this file blocked.
 //
 //   1. Theme switching. One palette drives the page and the product UI, so
-//      picking a theme restyles both at once, which is what
-//      `omarchy theme set` does to the real browser.
+//      picking a theme restyles both at once. The choice is saved locally,
+//      and a `theme` query parameter lets a shared URL choose its palette.
 //   2. Hiding the product UI's sidebar, on Ctrl/Cmd+B and on either panel
 //      icon, the way the application binds it.
 //   3. Parallax between the desktop wallpaper and the window on it.
@@ -15,19 +15,56 @@
 
   // ---------------------------------------------------------------- theme
   var themeButtons = [].slice.call(document.querySelectorAll(".t-theme"));
+  var THEME_STORAGE_KEY = "omaweb.preview-theme";
 
-  function setTheme(name) {
+  function hasTheme(name) {
+    return themeButtons.some(function (button) {
+      return button.dataset.theme === name;
+    });
+  }
+
+  function readSavedTheme() {
+    try {
+      return localStorage.getItem(THEME_STORAGE_KEY);
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function saveTheme(name) {
+    try {
+      localStorage.setItem(THEME_STORAGE_KEY, name);
+    } catch (error) {
+      // The preview still works when storage is unavailable.
+    }
+  }
+
+  function setTheme(name, options) {
+    if (!hasTheme(name)) return;
+
     document.body.dataset.theme = name;
     themeButtons.forEach(function (button) {
       button.setAttribute("aria-pressed", String(button.dataset.theme === name));
     });
+
+    if (options.save) saveTheme(name);
+    if (options.share) {
+      var url = new URL(location.href);
+      url.searchParams.set("theme", name);
+      history.replaceState(null, "", url);
+    }
   }
 
   themeButtons.forEach(function (button) {
     button.addEventListener("click", function () {
-      setTheme(button.dataset.theme);
+      setTheme(button.dataset.theme, { save: true, share: true });
     });
   });
+
+  var queryTheme = new URLSearchParams(location.search).get("theme");
+  var savedTheme = readSavedTheme();
+  var initialTheme = hasTheme(queryTheme) ? queryTheme : savedTheme;
+  if (hasTheme(initialTheme)) setTheme(initialTheme, { save: Boolean(queryTheme), share: false });
 
   // ------------------------------------------------------------- sidebar
   // The icon swaps the same way the application does: left_panel_open once
