@@ -38,7 +38,8 @@ The current Qt build includes:
 - Session restoration, renderer recovery, searchable Space-local History,
   browsing-data controls, and Site permissions
 - Downloads that ask before writing a program down, mark what they saved with
-  where it came from, and never run it
+  where it came from, and never run it, with what is still running marked in the
+  sidebar footer
 - Built-in content blocking with EasyList, EasyPrivacy, cosmetic rules,
   scriptlets, and substitute resources
 - Runtime themes, terminal-theme import, Private-window styling, and an

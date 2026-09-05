@@ -43,6 +43,26 @@ QtWebEngine handles the network inside the browser process. That network service
 is not a sandboxed process of its own, as it is in Chromium's own builds, and
 Omaweb does not describe it as isolated.
 
+## Downloads
+
+A file the desktop would run, install or mount on a double-click — an
+executable, a script, an installer, a disk image, or an archive that may carry
+one — is a question before it is a download. The kind is named to the reader
+from the name that will land on disk, falling back to the server's declared type
+only where the name says nothing, and nothing is written while the question
+stands. A page that downloads without being touched, or starts a second download
+while its first runs, takes a Site permission the reader can see and take back.
+
+A finished download is marked with the address it came from in the metadata the
+operating system already reads, and left without its execute bits. Omaweb never
+opens a download and never offers to: revealing one shows the directory it
+landed in.
+
+Omaweb checks no download against a phishing, malware, or software-reputation
+provider, and says so rather than implying coverage it does not have
+(ADR 0032). What it can say about a file is what the file is, not whether it is
+safe.
+
 ## Report a vulnerability
 
 Report suspected vulnerabilities through GitHub's

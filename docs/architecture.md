@@ -40,6 +40,35 @@ Each Space keeps its own most recent closes in its own database, newest first, b
 
 Only the Space on show keeps live pages. Putting a Space away discards its renderers, with two exceptions the core names at the moment of suspension: a Pinned tab the reader marked Keep active, and the tab an inspector is attached to. The engine host is told which tabs those are, because the answer is only knowable while that Space is still the active one. Retained tabs come back after the visible Space rather than with it — the reader is waiting for the page in front of them — and a Pinned tab marked Keep active is started even in a Space that has never been selected, which is what a restart, or a session that outlived a crash, has to restore. Every retained tab is listed in settings with the Space it belongs to, why it is running, and the resident memory its renderer actually holds, asked of the operating system rather than estimated.
 
+## Downloads
+
+Naming what a file is is a pure seam in the core: `DownloadPolicy` reads the
+name that will land on disk, and the declared type only where the name says
+nothing, because both are attacker-supplied and neither is trusted to argue the
+other down. One rule in `omaweb-core` turns that kind, the reader's dealings
+with the origin, and the destination directory into a disposition — accept,
+ask, or refuse — that the adapters read by name rather than by number.
+
+The engine decides a download's fate inside one synchronous handler and cannot
+keep one waiting, so a question is not a paused download: the request is
+cancelled before a byte is written and the page is asked for the same file again
+once the reader has answered. That is what a Held download is, and it is why
+agreeing to have a program does not also agree to overwrite the copy already
+there — the rule is asked again, and a taken name goes to the desktop's own save
+dialog.
+
+`omaweb-platform` marks the finished file with where it came from in the
+metadata the operating system reads, and takes its execute bits off. Where
+downloads go is the reader's configuration rather than one Space's browsing
+data, so every window reads the same answer and a Private window cannot change
+it.
+
+The shell keeps the downloads it is running in memory, keyed by the engine's
+runtime id, and the footer's Download mark is derived from that map alone. The
+downloads list reads the Space's records to build itself, which is a query, and
+progress arrives byte by byte; deriving the mark from the live map is also what
+gives a Private window one, because a Private window records no download.
+
 ## Developer tools
 
 Core exposes one Open developer tools command. An adapter with an inspector attaches it to one tab and reports that capability; an adapter without one leaves the command unavailable. The Qt adapter hosts the bundled Chromium DevTools frontend in a second `WebEngineView` docked beside the inspected page. Omaweb does not expose Chromium's debugging protocol during ordinary browsing.
