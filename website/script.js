@@ -2,7 +2,7 @@
 // reads correctly with this file blocked.
 //
 //   1. Theme switching. One palette drives the page and the product UI, so
-//      picking a theme restyles both at once — which is what
+//      picking a theme restyles both at once, which is what
 //      `omarchy theme set` does to the real browser.
 //   2. Hiding the product UI's sidebar, on Ctrl/Cmd+B and on either panel
 //      icon, the way the application binds it.

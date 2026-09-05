@@ -4,7 +4,7 @@ Supersedes the part of 0010 that placed scriptlets outside the first content-blo
 rest of that contract's exclusions stand.
 
 A `##+js(...)` rule is the point where a filter list stops being data. Every other rule Omaweb
-honours describes something — an address to refuse, a selector to hide — and Omaweb decides what to
+honours describes something, an address to refuse or a selector to hide, and Omaweb decides what to
 do about it. A scriptlet rule asks for code to run in the page's own world, before the page's own
 scripts, which is exactly the privilege a Web extension has and the reason Omaweb does not load
 third-party extensions. Scriptlets are still worth having: a scriptlet is what neutralises an
@@ -19,8 +19,8 @@ carry yields nothing at all, rather than a call to something a list defined. So 
 can ever run in a page is the set in the repository, reviewable as a diff, and a list that changes
 upstream cannot enlarge it.
 
-uBlock Origin marks twenty-nine of its scriptlets as requiring trust — `trusted-set-cookie` sets any
-cookie to any value, `trusted-replace-fetch-response` rewrites what a page reads back from the
+uBlock Origin marks twenty-nine of its scriptlets as requiring trust. `trusted-set-cookie` sets any
+cookie to any value, and `trusted-replace-fetch-response` rewrites what a page reads back from the
 network. Upstream grants that trust to lists the user vouched for individually. Omaweb grants it to
 none: the generator stamps those resources with a permission bit, every rule set compiles with no
 permissions, and `adblock-rust` refuses the injection. Subscribing to a list is not a statement
@@ -28,8 +28,8 @@ about that list's authors, and Omaweb has no interface today in which it could b
 
 A refusal is reported, not swallowed. A rule naming a trust-gated scriptlet, or a name the pinned
 library does not carry, is counted in its own unsupported category rather than among the rules the
-list contributed — the two apart, because one says the pin is behind upstream and the other says
-Omaweb declined on purpose. Counting either as accepted would have Settings advertise a
+list contributed. The two are kept apart, because one says the pin is behind upstream and the other
+says Omaweb declined on purpose. Counting either as accepted would have Settings advertise a
 compatibility that does nothing on a page, which is the claim `0010` set out not to make.
 
 `scriptlets.json` beside the copies is the same library expressed as `adblock-rust` resource
@@ -43,7 +43,7 @@ binary.
 The library expects one name from its host, `scriptletGlobals`, through which uBO passes its
 extension's origin, a logging channel, and a cache of the sandbox it builds. Omaweb passes an empty
 object. That is not a stub: an absent origin is what says "no web-accessible resources to redirect
-to", and an absent channel is what says "nothing is listening" — the library reads the object
+to", and an absent channel is what says "nothing is listening". The library reads the object
 defensively and builds the rest itself.
 
 Injection rides the per-navigation document-creation script that already carries the cosmetic
@@ -56,8 +56,8 @@ changes mid-page waits for the next navigation. Only the stylesheet is re-applie
 
 This is the first third-party code Omaweb compiles into a binary it distributes rather than links
 dynamically or downloads at runtime, and it is GPL-3.0-or-later while Omaweb-owned code is MPL 2.0
-([0014](0014-license-omaweb-under-mpl-2.md)). The two are compatible in the direction that matters —
-MPL 2.0 is explicitly a secondary-license grant for GPL — but "compatible" is not the same as
+([0014](0014-license-omaweb-under-mpl-2.md)). The two are compatible in the direction that matters,
+since MPL 2.0 is explicitly a secondary-license grant for GPL. But "compatible" is not the same as
 "settled": what the combined binary may be distributed under, and what corresponding source must
 accompany it, is a release-engineering question this decision raises rather than answers.
 `THIRD_PARTY_NOTICES.md` carries the requirement; the release process owes it legal review before a
