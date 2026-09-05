@@ -17,6 +17,69 @@ confidential credential. Safe Browsing is the closest protocol fit, but the
 credential rule prevents Omaweb from treating its free tier as permission to
 put a shared key in public binaries.
 
+## Candidate update contracts
+
+### Safe Browsing v5
+
+Local List Mode downloads the `mw-4b` malware list and `se-4b` social
+engineering list through
+`GET https://safebrowsing.googleapis.com/v5/hashLists:batchGet`. An initial
+request has no version. Later requests send the opaque version returned for
+each list. A response contains a full replacement or partial update, removals,
+additions, a checksum, and `minimumWaitDuration`. That duration controls the
+next update rather than a client-defined fixed cadence.
+[Batch updates](https://developers.google.com/safe-browsing/reference/rest/v5/hashLists/batchGet),
+[local database](https://developers.google.com/safe-browsing/reference/Local.Database)
+
+A local prefix collision is confirmed through
+`GET https://safebrowsing.googleapis.com/v5/hashes:search`. The response
+contains matching full hashes and one cache duration for positive and negative
+answers. Requests use an API key. Google permits no more than 1,000 prefixes in
+one request and says ordinary URL processing should produce no more than 30.
+[Hash search](https://developers.google.com/safe-browsing/reference/rest/v5/hashes/search),
+[example requests](https://developers.google.com/safe-browsing/reference#example-requests)
+
+The API accepts `maxDatabaseEntries` and `maxUpdateEntries` limits. A ceiling
+of 16,777,216 four-byte entries for each of the two lists means at most 128 MiB
+of raw prefixes. A 256 MiB steady-state allowance and 512 MiB free-space check
+would leave room for indices, versions, checksums, a confirmation cache, and an
+atomic full replacement. These are research estimates, not accepted product
+budgets. The provider does not publish a typical production list size.
+[Size constraints](https://developers.google.com/safe-browsing/reference/rest/v5/SizeConstraints)
+
+### Web Risk
+
+The Update API downloads one threat class at a time through
+`GET https://webrisk.googleapis.com/v1/threatLists:computeDiff`. The request
+contains the threat type, previous opaque version, supported compression, and
+entry limits. The response contains a reset or difference, additions,
+removals, a checksum, a new version, and `recommendedNextDiff`, which sets the
+next-update cadence. Prefix collisions are confirmed through
+`GET https://webrisk.googleapis.com/v1/hashes:search`.
+[Update API](https://docs.cloud.google.com/web-risk/docs/update-api),
+[hash search](https://docs.cloud.google.com/web-risk/docs/reference/rest/v1/hashes/search)
+
+Web Risk requires a Google Cloud project with billing, the enabled API, and a
+credential. Google recommends a maximum update response of 16,777,216 entries.
+At the common four-byte prefix length, two threat classes have the same 128 MiB
+raw-prefix ceiling and the same provisional 256 MiB steady-state estimate as
+Safe Browsing. Confirmation requests are billable.
+[Setup](https://docs.cloud.google.com/web-risk/docs/detect-malicious-urls),
+[update constraints](https://docs.cloud.google.com/web-risk/docs/update-constraints),
+[pricing](https://cloud.google.com/web-risk/pricing)
+
+### Community feeds
+
+PhishTank's smallest documented practical feed is
+`https://data.phishtank.com/data/<app-key>/online-valid.json.bz2`. It contains
+full records for verified online phishing URLs and updates hourly. Automated
+clients should use an application key. URLhaus documents authenticated CSV and
+JSON exports generated every five minutes and asks clients not to fetch more
+often. Neither provider publishes a maximum feed size, so no bounded storage
+estimate can be derived from their contracts.
+[PhishTank feeds](https://phishtank.org/developer_info.php),
+[URLhaus feeds](https://urlhaus.abuse.ch/api/)
+
 ## Browser precedents
 
 - Helium disables Chromium Safe Browsing and relies on its other browser and
@@ -32,25 +95,77 @@ put a shared key in public binaries.
 These projects demonstrate different product choices. They do not provide a
 credential or data licence that Omaweb can inherit.
 
-## Data and operating constraints
+## Data leaving the device
 
-Safe Browsing Local List Mode and Web Risk Update API keep normal URL checks on
-the device. List updates still reveal the client's IP address, credential, list
-selection, and previous list version to the provider. A hash-prefix collision
-also sends browsing-derived prefix data for confirmation. Neither design needs
-to send a Space identifier, tab identifier, full URL, crash report, or Omaweb
-telemetry.
+| Event | Safe Browsing v5 Local List Mode | Web Risk Update API | Community feeds |
+| --- | --- | --- | --- |
+| Update | Source IP, API key, list names, previous opaque versions, and entry limits | Source IP, Cloud credential, threat type, previous version, compression, and entry limits | Source IP, feed-specific key, and request headers |
+| Ordinary local miss | Nothing | Nothing | Nothing |
+| Prefix collision | One or more SHA-256 prefixes, API key, and connection metadata | One SHA-256 prefix, threat classes, credential, and connection metadata | Nothing, because the feed contains complete provider URLs |
+| Reporting | No automatic reporting is required | No automatic reporting is required | No submission or voting is required |
 
-Community feeds can keep every lookup local, but each installation must obtain
-fresh data under the feed operator's terms. PhishTank and URLhaus cover
-different threat classes and publish no shared production reliability or
-false-positive guarantee.
+None of these contracts needs a Space identifier, tab identifier, complete URL
+for a prefix-based check, crash report, or Omaweb telemetry. Prefixes still
+come from browsing activity and reveal a small candidate set. The provider also
+sees the source IP unless Omaweb operates a proxy.
 
-A provider integration would also need to define list freshness, offline
-behavior, false-positive correction, one-navigation bypasses, bounded storage,
-atomic updates, and the exact automatic requests it makes. Those decisions
-depend on the selected provider and should not become architecture commitments
-before one is approved.
+## False positives, bypasses, stale data, and offline use
+
+No candidate publishes a browser-relevant false-positive rate or a guaranteed
+correction time. Google says both false positives and false negatives occur.
+PhishTank relies on community verification, and URLhaus accepts correction
+reports. Without working credentials and a representative browsing corpus,
+Omaweb cannot measure collision rate, confirmation latency, or correction time.
+Those unknowns count against selecting a provider rather than becoming assumed
+zeroes.
+
+If Omaweb later adds a provider, the narrow bypass researched for #59 applies
+to one exact canonical URL and one navigation. It is not stored, shared with
+another tab, reused for a redirect, or carried into a Private window. This is a
+candidate policy, not part of the current browser contract.
+
+Safe Browsing requires applicable provider data received within the preceding
+30 minutes before a client treats an address as unsafe. Web Risk full-hash
+matches expire at provider-supplied times. With no fresh confirmed match,
+offline operation must fail open. A local miss may proceed, while a prefix
+collision without a usable confirmation cannot become a warning.
+[Safe Browsing terms](https://developers.google.com/safe-browsing/terms),
+[Web Risk warning rules](https://docs.cloud.google.com/web-risk/docs/user-warnings)
+
+## Linux packaging
+
+The native Arch package could contain an engine-neutral client and synthetic
+test data, but no provider snapshot or production credential. Each installation
+would download current data into the application-data directory at runtime.
+The data must not enter Sync, backups, a Space, or an engine profile.
+
+Google's credential terms rule out embedding a shared API key in the package.
+A user-supplied Cloud key would turn default protection into setup work and may
+expose the reader to provider billing. A provider-approved public-client key or
+an Omaweb-operated credential proxy would be required. The community feeds do
+not remove the packaging problem because their current redistribution rights
+and maximum sizes remain unclear.
+
+## Deterministic fixtures
+
+A future provider implementation should use synthetic `.test` data and a fake
+clock. No test should call a live service or contain a provider snapshot. The
+research contract defines these fixture groups:
+
+- canonicalization cases with expected URL expressions, SHA-256 hashes, and
+  prefixes;
+- full-reset, partial-update, and bad-checksum responses that test atomic list
+  replacement and recovery;
+- positive, collision-only, expired, and transport-error confirmations;
+- safe, malware, phishing, stale, offline, bypassed, redirected, local,
+  non-HTTP, and subresource navigations;
+- recorded network requests that reject complete URLs, full hashes, Space and
+  tab identifiers, and telemetry.
+
+The same navigation cases must run against the core fake transport, Qt adapter,
+and Ladybird adapter. Provider-specific parsing and storage stay outside the
+engine adapters. The fixtures become binding only if a later decision approves
+a provider and its exact protocol.
 
 ## Conditions for another evaluation
 
