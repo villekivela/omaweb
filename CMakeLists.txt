@@ -825,6 +825,8 @@ if(BUILD_TESTING)
     endif()
 endif()
 
+include("${CMAKE_CURRENT_SOURCE_DIR}/tests/benchmarks/CosmeticBenchmark.cmake")
+
 # The vendored kit imports Quickshell, which omaweb-quickshell-shim registers
 # from C++. On a host that also has the real Quickshell installed in Qt's qml
 # directory, qmlimportscanner finds those qmldir files and Qt warns that the
