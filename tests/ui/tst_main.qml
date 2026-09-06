@@ -13,6 +13,20 @@ TestCase {
     // own cannot name it: the declaration shadows the context.
     readonly property var browserController: browser
 
+    // The page's width, counted rather than sampled: what a layout costs is
+    // paid once per width the viewport is given.
+    SignalSpy {
+        id: viewportWidthSpy
+        signalName: "widthChanged"
+    }
+
+    // The same count for the sidebar, whose rows would be laid out again with
+    // every width of its own.
+    SignalSpy {
+        id: sidebarWidthSpy
+        signalName: "widthChanged"
+    }
+
     Component {
         id: windowComponent
         Omaweb.Main {}
@@ -578,7 +592,7 @@ TestCase {
         // The page stops where the dock starts rather than running under it,
         // and the two of them together are the whole viewport. Measured against
         // the viewport rather than against a remembered width, because the
-        // sidebar beside it has a width animation of its own.
+        // sidebar beside it owns the rest of the row.
         const viewport = findChild(window.contentItem, "engineViewport");
         verify(viewport !== null);
         tryVerify(function () {
@@ -1080,7 +1094,8 @@ TestCase {
         const panel = findChild(window.contentItem, "siteInformationPanel");
         const width = window.sidebarWidth;
         // The narrowest the sidebar goes, which is where an overflowing row
-        // shows up first. The width eases, so it is waited for.
+        // shows up first. The layout carries the width on its next pass, so
+        // it is waited for.
         window.sidebarWidth = window.sidebarMinimumWidth;
         tryVerify(function () {
             return sidebar.width === window.sidebarMinimumWidth;
@@ -1525,8 +1540,90 @@ TestCase {
 
         window.sidebarCollapsed = false;
         tryVerify(function () {
-            return sidebar.visible;
+            return sidebar.visible && Math.round(sidebar.x) === 0;
         });
+    }
+
+    // The seam mid-slide: the page's leading edge stays on the sidebar's
+    // trailing one, and the pair still cover the row, so the movement leaves
+    // no gap between them and the page is not uncovered at the far edge.
+    // Returns how many samples caught the seam between its two ends, which is
+    // how the caller knows the movement was eased rather than jumped.
+    function watchTheSeam(sidebar, viewport, row) {
+        let moving = 0;
+        for (let sample = 0; sample < 8; ++sample) {
+            wait(10);
+            const seam = Math.round(viewport.x);
+            compare(Math.round(sidebar.x + sidebar.width), seam);
+            verify(Math.round(viewport.x + viewport.width) >= row);
+            if (seam > 0 && seam < window.sidebarWidth)
+                ++moving;
+        }
+        return moving;
+    }
+
+    // The seam eases and the page travels with it, but a width is a page
+    // layout: the page keeps one for the whole slide and takes the settled one
+    // when the seam stops. The sidebar keeps its own width throughout, so the
+    // rows in it are not laid out again either.
+    function test_theSeamEasesWithoutLayingThePageOutAgain() {
+        window.settingsOpen = false;
+        window.historyOpen = false;
+        window.sidebarCollapsed = false;
+        window.setSidebarWidth(window.sidebarDefaultWidth);
+        const sidebar = findChild(window.contentItem, "sidebar");
+        const viewport = findChild(window.contentItem, "engineViewport");
+        const cluster = findChild(window.contentItem, "navigationCluster");
+        verify(sidebar !== null);
+        verify(viewport !== null);
+        verify(cluster !== null);
+        // A seam that has arrived. Its width alone would not say so: the
+        // sidebar keeps that as it slides, and only where it sits does.
+        tryVerify(function () {
+            return Math.round(sidebar.x) === 0 && Math.round(viewport.x)
+                    === window.sidebarDefaultWidth;
+        });
+        // The row the sidebar and the page share. Neither is allowed to leave
+        // a gap in it, on the way or at either end.
+        const row = Math.round(sidebar.x + sidebar.width + viewport.width);
+
+        viewportWidthSpy.target = viewport;
+        sidebarWidthSpy.target = sidebar;
+        viewportWidthSpy.clear();
+        sidebarWidthSpy.clear();
+
+        window.commands.run("toggle-sidebar", -1);
+        verify(watchTheSeam(sidebar, viewport, row) > 0);
+        tryVerify(function () {
+            return !sidebar.visible;
+        });
+        compare(Math.round(viewport.x), 0);
+        compare(Math.round(viewport.width), row);
+        compare(viewportWidthSpy.count, 1);
+        // The strip stands in for a sidebar that has gone, not for one still
+        // on its way out.
+        verify(cluster.visible);
+
+        viewportWidthSpy.clear();
+        window.commands.run("toggle-sidebar", -1);
+        // The strip goes as the sidebar starts coming back, rather than
+        // waiting for it to arrive.
+        tryVerify(function () {
+            return !cluster.visible;
+        });
+        verify(watchTheSeam(sidebar, viewport, row) > 0);
+        tryVerify(function () {
+            return Math.round(viewport.width) === row - window.sidebarDefaultWidth;
+        });
+        verify(sidebar.visible);
+        compare(Math.round(sidebar.x), 0);
+        compare(Math.round(viewport.x), window.sidebarDefaultWidth);
+        compare(viewportWidthSpy.count, 1);
+
+        // Neither slide laid the sidebar out again.
+        compare(sidebarWidthSpy.count, 0);
+        viewportWidthSpy.target = null;
+        sidebarWidthSpy.target = null;
     }
 
     function test_sidebarWidthAnswersToBothPointerAndKeyboard() {
@@ -1542,8 +1639,8 @@ TestCase {
         verify(resizer !== null);
         tryCompare(sidebar, "width", window.sidebarDefaultWidth);
 
-        // The handle rides the seam it moves.
-        compare(Math.round(resizer.x + resizer.width / 2), Math.round(sidebar.width));
+        // The handle rides the seam it moves, wherever the seam is.
+        compare(Math.round(resizer.x + resizer.width / 2), Math.round(sidebar.x + sidebar.width));
 
         // Everything the pointer can do here, the keyboard can do too.
         resizer.forceActiveFocus();
