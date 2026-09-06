@@ -46,15 +46,39 @@ Both are published by the EasyList authors under the GNU General Public License 
 Creative Commons Attribution-ShareAlike 3.0 Unported, as stated at
 https://easylist.to/pages/licence.html.
 
-This file is populated from the exact dependency graph for each distributed build.
+## Corresponding source
 
-The release process must include, at minimum:
+Omaweb is under the Mozilla Public License 2.0, which is a per-file copyleft: the source for every
+file in this repository is this repository, at the commit a build names. `omaweb --version` and
+Settings both report that commit, because CMake takes the version from the nearest release tag and a
+build past a tag carries the description that names it.
 
-- Qt and QtWebEngine licenses, corresponding-source instructions, and replacement guidance
-- Chromium component notices generated from the selected Qt SDK
-- Ladybird and its dependency notices for the Ladybird variant
-- `adblock-rust` and Rust dependency notices
-- uBlock Origin's license and corresponding-source instructions for the vendored resource library
-- Filter-list source, license, attribution, and update address
+The vendored copies above are the other half. Each is pinned to one upstream commit in its
+`MANIFEST.json`, and the inventory below names that commit and the tree it came from, which is what
+a reader needs to fetch the corresponding source for a GPL-licensed copy.
 
-Do not publish a binary using this placeholder as its final notice inventory.
+## The inventory
+
+`scripts/generate_sbom.py` writes a CycloneDX inventory of what a distributed build contains, read
+from the places those things are already pinned rather than restated by hand. Every release carries
+one, and the Arch package installs it as `share/omaweb/sbom.json`.
+
+It covers what Omaweb ships: the Rust dependency graph the content blocker links, the two vendored
+web-asset directories, and the icon font. It does not cover the web engine, and that is deliberate.
+The Arch package depends on `qt6-webengine` rather than bundling it, so the distribution's own
+package carries Qt's and Chromium's notices, and its package manager already knows which version is
+installed. A second answer from Omaweb could only disagree with that one. What the inventory records
+instead is the approved engine baseline, which is Omaweb's own claim about the engine it is
+supported on.
+
+Filter lists are not in it either. They are fetched on a first run rather than shipped, and the
+addresses and licences above are what applies to them.
+
+## A build that bundles its engine
+
+A bundled build, an AppImage or a Flatpak, would carry Qt and Chromium itself, and none of the
+paragraph above would hold: it would need Qt and QtWebEngine licences, corresponding-source
+instructions and replacement guidance, plus Chromium component notices generated from the selected
+Qt SDK, and the same for Ladybird and its dependencies in the Ladybird variant. ADR 0013 defers both
+formats until Omaweb can maintain bundled engine security updates, and this inventory is not
+sufficient for one until it does.

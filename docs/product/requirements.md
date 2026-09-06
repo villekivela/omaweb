@@ -2,10 +2,10 @@
 
 ## Product
 
-Omaweb is a keyboard-driven browser for developers. Linux with first-class Wayland support is its
-distribution platform. The Qt build may run on macOS for development and testing, but Omaweb does
-not distribute macOS builds. The main application window is frameless, uses vertical tabs, and has
-transparent browser-owned surfaces.
+Omaweb is a keyboard-driven browser. Linux with first-class Wayland support is its distribution
+platform. The Qt build may run on macOS for development and testing, but Omaweb does not distribute
+macOS builds. The main application window is frameless, uses vertical tabs, and has transparent
+browser-owned surfaces.
 
 QtWebEngine is the Development engine. Ladybird is the Target engine. They ship as separate
 application build variants and share Omaweb's browser model, interface, settings, and
@@ -63,8 +63,8 @@ reports the gap and remains experimental rather than imitating behavior it canno
   colour but its own semantic opacity: the sidebar is read against the desktop, and a sheet is read
   against a page whose contrast is unknown, so at the sidebar's value a dark page shows through as
   nothing. Where there is no page to blur, as in a Space at rest, the surface takes the sidebar's
-  translucency instead, and the window's own native backdrop blurs the desktop behind it as it does
-  behind the sidebar.
+  translucency instead, and the desktop behind it is left to the window system, which blurs it or
+  not exactly as it does behind the sidebar.
 - Tabs can show site favicons or a two-character host code. The reader can turn favicons off and can
   choose whether favicon artwork is recoloured to the host-derived tint. With favicons off, the host
   code is drawn in the colour of the site's own favicon, and in a neutral colour where the favicon
@@ -104,7 +104,8 @@ reports the gap and remains experimental rather than imitating behavior it canno
   the other ordinary tabs or the ordinary tabs below it and never includes Pinned tabs.
 - Themes reload at runtime from versioned JSON. A theme defines type as well as colour: font
   families, sizes and label spacing, and the tinting of tab tiles. Semantic opacity values control
-  transparent surfaces. Native blur falls back to alpha transparency and then an opaque color.
+  transparent surfaces, which fall back to an opaque color where accessibility settings require it.
+  Blurring the desktop behind them is the window system's and is not required for them to read.
 - Quiet text is content, not decoration: a tab's title, a Space's letters, the footer's controls.
   Whatever a theme names for it, Omaweb holds it to WCAG AA against every ordinary and Private
   surface it is drawn on, and therefore clear of the disabled rendering of ordinary text. A reader

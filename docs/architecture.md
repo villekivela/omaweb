@@ -135,8 +135,9 @@ are bounded.
 Printing is split between the adapter, which renders the page to a PDF in an Omaweb-owned spool
 directory, and `omaweb-platform`, which presents it in the desktop's own print dialog, including
 that dialog's PDF destination, and removes the spooled file afterwards. macOS presents it through
-AppKit and PDFKit. A platform with no print panel reports the capability off, which is where Linux
-stands until the Wayland port.
+AppKit and PDFKit. Linux hands the rendered document to `org.freedesktop.portal.Print` as an open
+descriptor, so the spooled copy can go while the portal still holds it. A desktop with no print
+dialog behind either reports the capability off.
 
 Notifications are split the same way. They arrive from a Space's profile rather than from one page,
 so the origin is all there is to identify the sender by; the shell asks the core which tab in that
@@ -196,8 +197,10 @@ Main and Private windows are frameless and expose explicit system-move and resiz
 does not draw visible window controls. Platform-native menus and keyboard commands retain minimize,
 close, and quit behavior.
 
-Qt Quick owns the browser chrome. Webpage viewports stay opaque. macOS blur uses a small AppKit
-adapter; Wayland blur remains compositor-dependent and always has alpha and opaque fallbacks.
+Qt Quick owns the browser chrome. Webpage viewports stay opaque. Omaweb-owned surfaces are alpha
+over the desktop, with an opaque fallback for accessibility. Blurring what shows through is the
+window system's: a small AppKit adapter installs it on macOS, while a Wayland compositor applies its
+own and takes nothing from the client, so `installWindowChrome` is empty on Linux.
 
 The macOS adapter applies that chrome when a window's surface is created and again after every
 fullscreen transition. AppKit rebuilds a window's frame view across one, which takes back the

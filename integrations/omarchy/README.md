@@ -76,6 +76,38 @@ be doing something else entirely. Upstreaming a `default/hypr/apps/omaweb.lua` i
 fix that would reach every install, and it depends on an external pull request. That is tracked in
 villekivela/omaweb#75, and waits on Omaweb being something an Omarchy user can install.
 
+## Blur behind the browser's surfaces
+
+Omaweb's sidebar, overlays and empty window ground are drawn at the opacity its theme names, so the
+desktop shows through them. Whether what shows through is blurred or sharp is Hyprland's decision
+and not the browser's: there is no client-side blur protocol to ask through, so Omaweb binds nothing
+and a compositor setting is the whole mechanism.
+
+Omarchy ships blur off in `default/hypr/looknfeel.lua`. Turn it on in
+`~/.config/hypr/looknfeel.lua`, which is where a window's appearance belongs:
+
+```lua
+hl.config({
+  decoration = {
+    blur = {
+      enabled = true,
+    },
+  },
+})
+```
+
+Then `hyprctl reload`. This is a desktop-wide setting rather than one scoped to Omaweb, which is
+what makes it the reader's to make.
+
+The surface it changes most is the empty window ground. The shipped template gives `sidebar` 0.95
+and `window` 0.0, so a Space at rest shows the desktop through the whole page area while the sidebar
+transmits a twentieth of it.
+
+Leaving blur off is a legibility choice and never a broken window. Omaweb's surfaces keep the
+opacity the theme gave them and keep taking pointer input, so nothing goes click-through; what a
+busy wallpaper costs is contrast behind quiet text. A reader who wants the desktop sealed out can
+raise the opacity in their theme instead, which needs no compositor setting at all.
+
 ## Overrides
 
 Set `OMAWEB_NO_OMARCHY_TEMPLATE` to any value to stop Omaweb writing into `~/.config/omarchy` at

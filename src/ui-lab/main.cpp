@@ -1,6 +1,7 @@
 #include "BrowserController.h"
 #include "ContentBlocker.h"
 #include "FaviconTint.h"
+#include "DefaultBrowser.h"
 #include "ExternalProtocolHandler.h"
 #include "KeyboardNavigation.h"
 #include "KitTheme.h"
@@ -100,6 +101,7 @@ int main(int argc, char *argv[])
     omaweb::WindowManager windowManager(QStringLiteral("mock"));
 
     omaweb::registerFaviconTint();
+    omaweb::registerDefaultBrowser();
     omaweb::registerSystemClipboard();
     omaweb::registerExternalProtocolHandler();
     omaweb::registerPagePrinter();

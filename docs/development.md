@@ -90,17 +90,127 @@ the Rust wrapper, its manifest, or its lockfile.
 
 ### Platform gaps on Linux
 
-`omaweb-platform` supplies the window-system services the browser cannot supply itself, and three of
-them are still macOS-only: the native blur backdrop `installWindowChrome` installs, the print
-dialog, and the notification service. They arrive with the Wayland port
-([#8](https://github.com/villekivela/omaweb/issues/8)). Until then the Linux implementations report
-their capability off, the commands are listed and unavailable, and a page asking to notify is told
-its notification closed rather than left waiting.
+`omaweb-platform` supplies the window-system services the browser cannot supply itself. On Linux
+they are session-bus services rather than window-server ones, which is the shape the whole layer
+takes here: `LinuxSystemNotifier.cpp` talks to `org.freedesktop.Notifications`, and
+`LinuxPagePrinter.cpp` to `org.freedesktop.portal.Print`. A desktop offering neither reports both
+capabilities off, which is the same answer the macOS build gives without a window server, so the
+contract the shell reads does not change between platforms.
 
-The frameless window itself is not among them. `Main.qml` asks for `Qt.FramelessWindowHint` off
-macOS, so a Main or Private window is already frameless under Hyprland, and the transparent surfaces
-fall back to alpha over the desktop as ADR 0002 describes. What Linux lacks is the blur behind them,
-so review a blur change on macOS.
+Printing goes through the portal rather than through Qt's own print dialog, which would cost the
+browser a QtWidgets dependency, and the portal is also the only route to a printer from inside a
+sandbox. Sending no print token is what makes the portal show its dialog; a token stands for
+settings the reader has already answered. The dialog comes up unparented, because exporting Omaweb's
+surface for it to sit over needs a handle Qt does not offer through public API.
+
+`omaweb-notification-service` and `omaweb-print-portal` cover both exchanges against stub services
+on a private bus under `dbus-run-session`. They reach what a live desktop cannot be asked for in a
+test: the reader answering a notification, and the rendered document surviving the spooled copy
+being taken away.
+
+Two things that look like gaps are not. The frameless window is one: `Main.qml` asks for
+`Qt.FramelessWindowHint` off macOS, so a Main or Private window is already frameless under Hyprland.
+
+The blur behind a transparent surface is the other, and `installWindowChrome` is empty on Linux
+because there is nothing for it to do. Hyprland implements no client-side blur protocol, so a client
+cannot ask for blur; the compositor blurs the desktop behind a surface's translucent pixels
+according to its own `decoration:blur` setting. Omarchy ships that setting off, so a stock desktop
+shows the wallpaper sharp through Omaweb's surfaces, which is the desktop's decision rather than a
+missing implementation. `integrations/omarchy/README.md` has the rule that turns it on. macOS is the
+platform where blur is the application's to install, so an `installWindowChrome` change is reviewed
+there.
+
+### Installing and opening links
+
+`cmake --install` puts the browser at `bin/omaweb`, the bootstrapped content-blocking library under
+`lib/omaweb`, and the desktop entry, icon and licences under `share`. The library carries no soname,
+so the build is told as much: without that, linking it by path records that path as the dependency
+itself and an installed copy would look for it in whatever directory happened to build it. The
+runpath is `$ORIGIN`-relative for the same reason, because a package chooses its prefix when it
+installs rather than when it configures.
+
+The desktop entry stays `omaweb.desktop` rather than taking the application's bus name, which the
+freedesktop convention would ask for. Qt reads the desktop file name as the Wayland app id and the
+X11 window class, and a desktop's window rules are written against that, so renaming it would break
+every rule pointing at `omaweb`. The cost is `DBusActivatable`, which needs the entry and the bus
+name to match; the launcher runs `Exec` instead.
+
+Opening a link runs the browser again, and the second process does not become a second browser.
+`RunningBrowser` claims `dev.omaweb.browser` on the session bus, and a launch that finds the name
+taken hands its address to the owner over `org.freedesktop.Application` and exits without building
+an engine, a session store or a filter set. Omaweb is one window with its tabs down the side, so a
+handed-over address arrives as a tab.
+
+Addresses from outside the browser are read strictly and only `http`, `https` and `file` are opened.
+A desktop passes on whatever it was given, so a scheme that would run in a page is refused rather
+than resolved.
+
+Being the default browser is the desktop's setting, so Settings reads it and offers to change it,
+under About. Omaweb never takes it because it happened to start: the reader is the only one who
+knows what they were using before. `xdg-settings` is what the offer goes through, rather than
+`mimeapps.list` being edited here, because that file is only where most desktops keep the answer and
+a browser editing a shared file would have to understand everything else in it. A desktop without
+that tool is offered nothing rather than offered something that fails.
+
+### The Arch package
+
+`packaging/PKGBUILD` builds `omaweb-git` from the repository. There is no release tarball to build
+from yet, so the version comes from the nearest release tag through `git describe`, which is where
+CMake takes it from as well, and the two cannot disagree
+([ADR 0028](adr/0028-derive-the-version-from-the-release-tag.md)).
+
+Qt is a dependency rather than a bundle, which is
+[ADR 0013](adr/0013-preserve-engine-sandboxes-in-every-build.md)'s Linux packaging decision: an
+engine security update is then the distribution's to ship rather than Omaweb's to rebuild for.
+`qt6-wayland` is a dependency in its own right because native Wayland is the primary display
+platform. The content-blocking library is the one thing that rides along, under `lib/omaweb`,
+because no distribution package supplies it.
+
+`fcitx5-qt` is an optional dependency, and the reason is worth knowing. Omarchy sets
+`QT_IM_MODULE=fcitx` for every Qt application in
+`/usr/share/omarchy/default/environment.d/10-omarchy-fcitx.conf`, but does not install the plugin
+that name refers to. Qt then loads no input context, the Wayland text-input protocol is never bound,
+and an input method silently does nothing. Under `WAYLAND_DEBUG=1` the difference is visible:
+`zwp_text_input_manager_v3` is advertised and never bound, and with `QT_IM_MODULE` unset both it and
+`v1` are. This is not Omaweb-specific, but the package is where it can be answered.
+
+```sh
+scripts/check_package.sh
+```
+
+builds the package and checks what it carries: the binary, the library, the desktop entry, the icon
+and the licences, and nothing outside those directories. Run as root in a container it goes on to
+install, upgrade over itself and remove, checking that a file in the reader's configuration and the
+rest of the system come through untouched. It refuses to install on a host that is not disposable,
+because that would be putting a package on the machine of whoever ran a check.
+
+### Releases
+
+A release is cut by pushing a tag, and the tag is what everything else takes its version from. The
+release workflow builds the Arch package in the same container CI checks it in, generates the
+inventory, and attaches both to the release beside the notes.
+
+```sh
+scripts/generate_sbom.py --output omaweb-sbom.json
+```
+
+writes a CycloneDX inventory of what a distributed build contains: the Rust dependency graph the
+content blocker links, read through `cargo metadata` because a lockfile records versions but never
+licences; the two vendored web-asset directories, pinned to the upstream commit their
+`MANIFEST.json` names, which is what a reader needs to fetch corresponding source for the
+GPL-licensed one; and the icon font, identified by the hash of the file being built rather than by a
+version, because upstream publishes it from a branch.
+
+The web engine is deliberately not in it. The package depends on `qt6-webengine` rather than
+bundling it, so the distribution's package carries Qt's and Chromium's notices and its package
+manager already knows the version installed; a second answer from Omaweb could only disagree with
+that one. What the inventory records instead is the approved engine baseline, which is Omaweb's own
+claim about the engine it is supported on. Filter lists are out for the same reason: they are
+fetched on a first run rather than shipped.
+
+A build that bundled its engine would need all of that, and `THIRD_PARTY_NOTICES.md` says so.
+[ADR 0013](adr/0013-preserve-engine-sandboxes-in-every-build.md) defers AppImage and Flatpak until
+Omaweb can maintain bundled engine security updates.
 
 ## Security rules
 

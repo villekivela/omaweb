@@ -41,10 +41,10 @@ void PlatformServicesTest::reportsWhatAProcessHolds()
     QCOMPARE(resources.residentBytes(-1), 0);
 }
 
-// The tests run without a window server, which is a desktop with no
-// notification service. A page's request must then go unanswered rather than
-// being swallowed as though the reader had seen it — the shell reads this to
-// tell the page its notification closed.
+// The tests run with neither a window server nor a session bus, which is a
+// desktop with no notification service on either platform. A page's request
+// must then go unanswered rather than being swallowed as though the reader had
+// seen it: the shell reads this to tell the page its notification closed.
 void PlatformServicesTest::refusesToPresentWithoutANotificationService()
 {
     SystemNotifier notifier;
