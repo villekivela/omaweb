@@ -1046,7 +1046,10 @@ Item {
             "--sys-color-token-variable": variable,
             "--sys-color-token-property-special": method,
             "--sys-color-token-definition": method,
-            "--sys-color-token-builtin": variable,
+            // A builtin is the language's own name rather than one the
+            // document invented, so it reads with the keywords and not with
+            // the identifiers around it.
+            "--sys-color-token-builtin": keyword,
             "--sys-color-token-variable-special": method,
             "--sys-color-token-type": type
         };

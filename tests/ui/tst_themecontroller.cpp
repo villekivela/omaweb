@@ -45,6 +45,9 @@ private slots:
     void fallsBackToAFamilyTheHostActuallyHas();
     void keepsTheTypeBaseSizeUsable();
     void namesTheColoursCodeIsReadIn();
+    void drawsPunctuationAboveACommentAndBothBelowTheCode();
+    void liftsASyntaxColourTooDarkToReadWithoutChangingItsHue();
+    void keepsAQuietColourAThemeChoseForItsComments();
     void readsTheFirstPaletteOfferedThatIsThere();
     void followsADesktopPaletteThatAppearsAfterStartup();
     void followsADesktopPaletteWhoseDirectoryAppearsAfterStartup();
@@ -385,6 +388,15 @@ void ThemeControllerTest::drawsThePrivatePaletteTheOmarchyTemplateRenders()
         {QStringLiteral("blue"), QStringLiteral("#8296ac")},
         {QStringLiteral("magenta"), QStringLiteral("#8a5a62")},
         {QStringLiteral("brown"), QStringLiteral("#4a4040")},
+        // The bright half of the same palette. Omarchy keeps these in sync
+        // with slots 9 to 14, and a theme that names none of them still has
+        // them, so a template may spend one wherever an editor would.
+        {QStringLiteral("bright_red"), QStringLiteral("#a04444")},
+        {QStringLiteral("bright_yellow"), QStringLiteral("#ded8c8")},
+        {QStringLiteral("bright_green"), QStringLiteral("#96aca4")},
+        {QStringLiteral("bright_cyan"), QStringLiteral("#a4b6c6")},
+        {QStringLiteral("bright_blue"), QStringLiteral("#9cb0c8")},
+        {QStringLiteral("bright_magenta"), QStringLiteral("#a6737c")},
         {QStringLiteral("font_family"), QStringLiteral("CaskaydiaMono Nerd Font")},
     };
     for (auto it = colours.cbegin(); it != colours.cend(); ++it) {
@@ -1119,13 +1131,9 @@ void ThemeControllerTest::namesTheColoursCodeIsReadIn()
     const auto syntax = controller.palette().value(QStringLiteral("syntax")).toMap();
     QCOMPARE(QColor(syntax.value(QStringLiteral("string")).toString()),
         QColor(QStringLiteral("#00ff00")));
-    // A name that is not a colour is not a colour the inspector can be handed.
-    QCOMPARE(QColor(syntax.value(QStringLiteral("comment")).toString()),
-        QColor(QStringLiteral("#7f7a8c")));
-    // Structure is quieter than the names between it, and the interface
-    // already names how quiet that is.
-    QCOMPARE(QColor(syntax.value(QStringLiteral("punctuation")).toString()),
-        QColor(controller.palette().value(QStringLiteral("mutedText")).toString()));
+    // A name that is not a colour is a token the theme did not name, so it is
+    // derived rather than left for the frontend to draw in its own palette.
+    QVERIFY(QColor(syntax.value(QStringLiteral("comment")).toString()).isValid());
 
     for (const auto &token : {"keyword", "string", "number", "comment", "tag", "attribute",
              "variable", "function", "type", "punctuation"}) {
@@ -1135,6 +1143,98 @@ void ThemeControllerTest::namesTheColoursCodeIsReadIn()
         // its own to blend the character it draws into the page behind it.
         QCOMPARE(colour.alpha(), 255);
     }
+}
+
+// The two quiet names are the theme's own text turned down, and how far down
+// is what keeps them apart. A desktop palette has one quiet colour to give, so
+// a theme asked for both spends it twice and every bracket in the inspector is
+// drawn as dim as an aside.
+void ThemeControllerTest::drawsPunctuationAboveACommentAndBothBelowTheCode()
+{
+    QTemporaryDir root;
+    QFile theme(root.filePath(QStringLiteral("theme.json")));
+    QVERIFY(theme.open(QIODevice::WriteOnly));
+    theme.write(R"JSON({
+        "window": "#0e0e14",
+        "sidebar": "#13141c",
+        "surface": "#24283b",
+        "text": "#a9b1d6",
+        "mutedText": "#565f89"
+    })JSON");
+    theme.close();
+
+    ThemeController controller(theme.fileName());
+    const auto palette = controller.palette();
+    const auto syntax = palette.value(QStringLiteral("syntax")).toMap();
+    const QColor window(palette.value(QStringLiteral("windowOpaque")).toString());
+    const QColor muted(palette.value(QStringLiteral("mutedText")).toString());
+    const QColor comment(syntax.value(QStringLiteral("comment")).toString());
+    const QColor punctuation(syntax.value(QStringLiteral("punctuation")).toString());
+
+    QVERIFY(comment.isValid());
+    QVERIFY(punctuation.isValid());
+    QVERIFY(comment != punctuation);
+    // Read against the window an aside recedes furthest, structure sits above
+    // the quietest thing the interface asks anyone to read, and both stay
+    // below the names between them.
+    const QColor body(palette.value(QStringLiteral("text")).toString());
+    QVERIFY(contrastRatio(comment, window) < contrastRatio(muted, window));
+    QVERIFY(contrastRatio(muted, window) < contrastRatio(punctuation, window));
+    QVERIFY(contrastRatio(punctuation, window) < contrastRatio(body, window));
+}
+
+// A slot the desktop never meant for code still has to be read. The colour
+// keeps the hue the theme asked for and gives up only the lightness that made
+// it unreadable, because a repaired token in a hue from nowhere is a worse
+// answer than a dim one.
+void ThemeControllerTest::liftsASyntaxColourTooDarkToReadWithoutChangingItsHue()
+{
+    QTemporaryDir root;
+    QFile theme(root.filePath(QStringLiteral("theme.json")));
+    QVERIFY(theme.open(QIODevice::WriteOnly));
+    theme.write(R"JSON({
+        "window": "#0e0e14",
+        "sidebar": "#0e0e14",
+        "surface": "#0e0e14",
+        "text": "#e8e8f0",
+        "syntax": { "type": "#123423" }
+    })JSON");
+    theme.close();
+
+    ThemeController controller(theme.fileName());
+    const auto palette = controller.palette();
+    const QColor window(palette.value(QStringLiteral("windowOpaque")).toString());
+    const QColor type(
+        palette.value(QStringLiteral("syntax")).toMap().value(QStringLiteral("type")).toString());
+
+    QVERIFY(type.isValid());
+    QVERIFY(contrastRatio(type, window) >= 4.5);
+    QCOMPARE(qRound(type.hslHueF() * 360.0),
+        qRound(QColor(QStringLiteral("#123423")).hslHueF() * 360.0));
+}
+
+// The floor is for a token that has become unreadable, not for one that is
+// quiet by design. A theme that draws its comments at an aside's contrast
+// meant to, and lifting them would draw every aside as loudly as the code.
+void ThemeControllerTest::keepsAQuietColourAThemeChoseForItsComments()
+{
+    QTemporaryDir root;
+    QFile theme(root.filePath(QStringLiteral("theme.json")));
+    QVERIFY(theme.open(QIODevice::WriteOnly));
+    theme.write(R"JSON({
+        "window": "#0e0e14",
+        "text": "#e8e8f0",
+        "syntax": { "comment": "#3a3a44" }
+    })JSON");
+    theme.close();
+
+    ThemeController controller(theme.fileName());
+    QCOMPARE(QColor(controller.palette()
+                     .value(QStringLiteral("syntax"))
+                     .toMap()
+                     .value(QStringLiteral("comment"))
+                     .toString()),
+        QColor(QStringLiteral("#3a3a44")));
 }
 
 // Omaweb has more than one place a palette may come from -- an override, the

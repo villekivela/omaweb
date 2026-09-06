@@ -14,11 +14,10 @@
   "syntax": {
     "keyword": "{{ magenta }}",
     "string": "{{ green }}",
-    "number": "{{ yellow }}",
-    "comment": "{{ dark_foreground }}",
-    "tag": "{{ red }}",
-    "attribute": "{{ cyan }}",
-    "variable": "{{ red }}",
+    "number": "{{ bright_yellow }}",
+    "tag": "{{ bright_magenta }}",
+    "attribute": "{{ bright_cyan }}",
+    "variable": "{{ bright_foreground }}",
     "function": "{{ blue }}",
     "type": "{{ cyan }}"
   },

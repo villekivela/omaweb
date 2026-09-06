@@ -756,18 +756,66 @@ QVariantMap ThemeController::normalizedPalette(QVariantMap palette) const
     // against a solid surface, and a translucent character reads as a faded
     // one.
     auto syntaxDefaults = defaultSyntax();
-    // Punctuation is structure rather than content. An editor draws brackets,
-    // separators and quotes quieter than the names between them, and that
-    // contrast is most of what makes code read as code, so unless the theme
-    // names a colour for it, it is the interface's own muted text.
-    syntaxDefaults.insert(
-        QStringLiteral("punctuation"), palette.value(QStringLiteral("mutedText")));
     const auto themeSyntax = palette.value(QStringLiteral("syntax")).toMap();
+
+    // A comment and the punctuation between names are not hues a desktop has
+    // to find room for. They are the theme's own text turned down, and how far
+    // down is the whole of the decision, so Omaweb makes it rather than asking
+    // for it -- as it does with the private grounds, and for the same reason.
+    // A desktop palette has one quiet colour to give: Omarchy offers
+    // `dark_foreground` and nothing between it and the foreground, so a theme
+    // asked for both spends that one colour twice and every bracket in the
+    // inspector is drawn as dim as a comment. Punctuation is structure rather
+    // than content -- an editor draws brackets, separators and quotes quieter
+    // than the names between them, and that contrast is most of what makes
+    // code read as code -- and a comment is quieter still, or it reads as an
+    // interface label rather than as an aside. A theme that does name one
+    // keeps it.
+    const QColor mutedTextColour(palette.value(QStringLiteral("mutedText")).toString());
+    if (text.isValid() && mutedTextColour.isValid() && window.isValid()) {
+        // Both rungs are measured from muted text, which is the quietest the
+        // interface will draw something the reader still has to read. Halfway
+        // back towards the text puts punctuation below the names it separates
+        // and clearly above an aside; a comment carries on past muted text
+        // towards the window, which is the one direction that reads as
+        // receding on a light theme and a dark one alike.
+        constexpr auto punctuationStep = 0.5;
+        constexpr auto commentStep = 0.26;
+        syntaxDefaults.insert(QStringLiteral("punctuation"),
+            mixedPerceptually(mutedTextColour, text, punctuationStep).name(QColor::HexRgb));
+        syntaxDefaults.insert(QStringLiteral("comment"),
+            mixedPerceptually(mutedTextColour, window, commentStep).name(QColor::HexRgb));
+    } else if (mutedTextColour.isValid()) {
+        syntaxDefaults.insert(QStringLiteral("punctuation"), mutedTextColour.name(QColor::HexRgb));
+    }
+
+    // The grounds code is actually read on: the inspector's own body, the
+    // panels docked around it, and the raised surfaces it stacks on those.
+    const auto codeGrounds = coloursFor(
+        {QStringLiteral("window"), QStringLiteral("sidebar"), QStringLiteral("surface")});
+    // A hue too dark to read against them is not a preference Omaweb is
+    // honouring, it is a slot the desktop never meant for code --
+    // `scripts/import_terminal_theme.py` reaches for the bright twin of a slot
+    // that fails, and a theme rendered from a desktop's own colours has no
+    // twin to reach for, so the colour keeps its hue and gives up only the
+    // lightness that made it unreadable. Deliberately not applied to the two
+    // quiet names above: they are derived from the theme's own text ladder and
+    // are meant to recede, and a floor that lifted them would draw every
+    // comment as loudly as the code around it.
+    constexpr auto minimumSyntaxContrast = 4.5;
+    const auto readsAsCode = [](const QString &token) {
+        return token != QStringLiteral("comment") && token != QStringLiteral("punctuation");
+    };
+
     QVariantMap syntax;
     for (auto it = syntaxDefaults.cbegin(); it != syntaxDefaults.cend(); ++it) {
         const QColor named(themeSyntax.value(it.key()).toString());
-        syntax.insert(
-            it.key(), named.isValid() ? named.name(QColor::HexRgb) : it.value().toString());
+        auto colour = named.isValid() ? named : QColor(it.value().toString());
+        if (text.isValid() && !codeGrounds.isEmpty() && readsAsCode(it.key())) {
+            colour = adjustedForContrast(
+                colour, text, codeGrounds, minimumSyntaxContrast, /*preserveHue=*/true);
+        }
+        syntax.insert(it.key(), colour.name(QColor::HexRgb));
     }
     palette.insert(QStringLiteral("syntax"), syntax);
 
