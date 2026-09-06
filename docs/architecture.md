@@ -73,6 +73,14 @@ what a restart, or a session that outlived a crash, has to restore. Every retain
 settings with the Space it belongs to, why it is running, and the resident memory its renderer
 actually holds, asked of the operating system rather than estimated.
 
+Whether a page exists is separate from whether it runs. A page the reader cannot see is frozen: it
+keeps its document, its process and everything it holds, and stops its timers, animations and
+script, so selecting the tab continues the page rather than loading it again. The engine host
+decides this for every engine it owns, from one rule, so a background tab of the visible Space and a
+retained tab of a suspended Space are answered the same way. Two hidden pages are exempt, the tab an
+inspector is attached to and a tab making sound, and both stop being exempt as soon as the reason
+does.
+
 ## Downloads
 
 `DownloadPolicy` classifies a download from its proposed filename. It uses the declared media type

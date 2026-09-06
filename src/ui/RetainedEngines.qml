@@ -70,7 +70,7 @@ QtObject {
                                                       kept.spaceId), profile.profile);
             if (!engine)
                 continue;
-            engine.visible = false;
+            root.host.setEngineVisible(kept.tabId, false);
             engine.audioMuted = kept.muted === true;
             engine.setZoomFactor(kept.zoom !== undefined ? kept.zoom : 1.0);
             root.tabs[kept.tabId] = kept.spaceId;

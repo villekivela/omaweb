@@ -1804,6 +1804,112 @@ TestCase {
         tryCompare(engineHost.item, "pageLocalState", "edited form value");
     }
 
+    // A tab the reader is not looking at goes on holding its page and stops
+    // spending on it: the renderer freezes rather than running timers,
+    // animations and script behind the tab that replaced it. Selecting it
+    // again continues the page rather than loading it a second time.
+    function test_backgroundTabStopsRunningUntilItIsSelectedAgain() {
+        const engineHost = findChild(window.contentItem, "engineLoader");
+        verify(engineHost !== null);
+        openPage("https://foreground.example");
+
+        const firstTabId = browser.activeTabId;
+        const firstEngine = engineHost.item;
+        firstEngine.pageLocalState = "still here";
+        compare(firstEngine.pageFrozen, false);
+
+        browser.openInput("https://replacement.example", true);
+        tryVerify(function () {
+            return engineHost.item !== null && engineHost.item !== firstEngine;
+        });
+        const secondTabId = browser.activeTabId;
+        tryCompare(firstEngine, "pageFrozen", true);
+        compare(engineHost.item.pageFrozen, false);
+
+        browser.activateTab(firstTabId);
+        tryCompare(firstEngine, "pageFrozen", false);
+        tryCompare(engineHost.engines[secondTabId], "pageFrozen", true);
+        // The same engine, with what the page held still in it.
+        compare(engineHost.item, firstEngine);
+        compare(firstEngine.pageLocalState, "still here");
+
+        browser.closeTab(secondTabId);
+        browser.closeTab(firstTabId);
+    }
+
+    // Two hidden pages are not idle. One is being watched through the
+    // inspector, which is the whole reason it was kept, and Qt refuses to
+    // freeze it anyway. The other is being heard.
+    function test_watchedAndSoundingTabsKeepRunningWhileHidden() {
+        const engineHost = findChild(window.contentItem, "engineLoader");
+        verify(engineHost !== null);
+        openPage("https://watched.example");
+        const watchedTabId = browser.activeTabId;
+        const watchedEngine = engineHost.item;
+        browser.openDeveloperTools();
+
+        browser.openInput("https://sounding.example", true);
+        tryVerify(function () {
+            return engineHost.item !== null && engineHost.item !== watchedEngine;
+        });
+        const soundingTabId = browser.activeTabId;
+        const soundingEngine = engineHost.item;
+        soundingEngine.simulateAudible(true);
+
+        browser.openInput("https://elsewhere.example", true);
+        tryVerify(function () {
+            return engineHost.item !== null && engineHost.item !== soundingEngine;
+        });
+        const elsewhereTabId = browser.activeTabId;
+
+        tryCompare(engineHost.item, "pageFrozen", false);
+        compare(watchedEngine.pageFrozen, false);
+        compare(soundingEngine.pageFrozen, false);
+
+        // Neither exception outlives its reason.
+        browser.closeDeveloperTools();
+        soundingEngine.simulateAudible(false);
+        tryCompare(watchedEngine, "pageFrozen", true);
+        tryCompare(soundingEngine, "pageFrozen", true);
+
+        browser.closeTab(elsewhereTabId);
+        browser.closeTab(soundingTabId);
+        browser.closeTab(watchedTabId);
+    }
+
+    // Retention decides whether a page outlives its Space, not what state it
+    // runs in: a kept tab nobody is watching freezes like any other hidden
+    // page, and is running again when its Space comes back.
+    function test_retainedTabFreezesWithTheSpaceItIsKeptFrom() {
+        const engineLoader = findChild(window.contentItem, "engineLoader");
+        verify(engineLoader !== null);
+        const personalSpaceId = browser.activeSpaceId;
+
+        openPage("https://kept-frozen.example");
+        const keptTabId = browser.activeTabId;
+        browser.toggleActivePinned();
+        verify(browser.setTabKeepActive(keptTabId, true));
+        const keptEngine = engineLoader.engines[keptTabId];
+        verify(keptEngine !== undefined);
+
+        const awaySpaceId = browser.createSpace("Away");
+        verify(browser.switchSpace(awaySpaceId));
+        tryCompare(keptEngine, "pageFrozen", true);
+        verify(engineLoader.keepsEngineFor(keptTabId));
+
+        verify(browser.switchSpace(personalSpaceId));
+        tryVerify(function () {
+            return engineLoader.engines[keptTabId] === keptEngine;
+        });
+        tryCompare(keptEngine, "pageFrozen", false);
+
+        browser.setTabKeepActive(keptTabId, false);
+        browser.activateTab(keptTabId);
+        browser.toggleActivePinned();
+        browser.closeTab(keptTabId);
+        verify(browser.deleteSpace(awaySpaceId, "Away"));
+    }
+
     function test_primaryChromeIsAccessibleFromKeyboard() {
         window.requestActivate();
         tryVerify(function () {

@@ -152,7 +152,46 @@ Item {
         root.developerToolsView = inspected ? inspected.developerToolsView : null;
     }
 
-    onInspectedTabIdChanged: root.syncDeveloperTools()
+    onInspectedTabIdChanged: {
+        root.syncDeveloperTools();
+        // The inspector is one of the two reasons a hidden page goes on
+        // running, and it moves between tabs: the tab that had it has lost its
+        // exemption, and the tab that takes it gains one.
+        root.applyEveryPageLifecycle();
+    }
+
+    // A page the reader cannot see has no reason to go on running. Freezing it
+    // keeps the document, the process and everything the page holds, and stops
+    // the timers, animations and script behind the tab that replaced it, so
+    // selecting the tab continues the page rather than loading it again.
+    //
+    // Two hidden pages are exceptions. One is being watched through the
+    // inspector, which is the whole reason it was kept running; the engine
+    // refuses to freeze it in any case. The other is being heard, and a page
+    // the reader is listening to is not one they have finished with.
+    function applyPageLifecycle(tabId) {
+        const engine = root.engines[tabId];
+        if (!engine)
+            return;
+        engine.pageFrozen = !engine.visible && tabId !== root.inspectedTabId && !engine.pageAudible;
+    }
+
+    function applyEveryPageLifecycle() {
+        for (const tabId in root.engines)
+            root.applyPageLifecycle(tabId);
+    }
+
+    // Putting a page on screen or taking it off is the same act as deciding
+    // whether it runs, so the two are written together: nothing hides an engine
+    // without answering for what it goes on spending behind whatever replaced
+    // it.
+    function setEngineVisible(tabId, visible) {
+        const engine = root.engines[tabId];
+        if (!engine)
+            return;
+        engine.visible = visible;
+        root.applyPageLifecycle(tabId);
+    }
 
     // Asking to inspect the page is asking for the dock as well, so the core
     // hears about the attachment first and the engine is told which node to
@@ -223,9 +262,10 @@ Item {
                 continue;
             if (retained.indexOf(tabId) >= 0) {
                 retainedEngines.keep(tabId, spaceId);
-                const engine = root.engines[tabId];
-                if (engine)
-                    engine.visible = false;
+                // Retention decided that this page exists, not what it runs at:
+                // a kept tab nobody is watching or listening to freezes like
+                // any other page the reader cannot see.
+                root.setEngineVisible(tabId, false);
                 continue;
             }
             root.discardEngine(tabId);
@@ -410,7 +450,7 @@ Item {
             function showEngine() {
                 if (!engine)
                     return;
-                engine.visible = tabSlot.active;
+                root.setEngineVisible(tabSlot.tabId, tabSlot.active);
                 engine.z = tabSlot.active ? 1 : 0;
                 if (tabSlot.active) {
                     root.activeEngine = engine;
@@ -507,7 +547,7 @@ Item {
                     if (!engine)
                         root.activeEngine = null;
                 } else if (engine) {
-                    engine.visible = false;
+                    root.setEngineVisible(tabId, false);
                 }
             }
 
@@ -524,8 +564,7 @@ Item {
             // closed the tab, and the page goes with it.
             Component.onDestruction: {
                 if (root.preservingEngines) {
-                    if (root.engines[tabId])
-                        root.engines[tabId].visible = false;
+                    root.setEngineVisible(tabId, false);
                     if (root.activeEngine === engine)
                         root.activeEngine = null;
                 } else {
@@ -538,8 +577,7 @@ Item {
 
                 function onSuspendedChanged() {
                     if (root.suspended) {
-                        if (tabSlot.engine)
-                            tabSlot.engine.visible = false;
+                        root.setEngineVisible(tabSlot.tabId, false);
                     } else {
                         tabSlot.restoreReportedIcon();
                         tabSlot.restoreEnginePlayback();
@@ -592,6 +630,9 @@ Item {
 
                 function onPageAudibleChanged() {
                     root.browserController.setTabAudible(tabSlot.tabId, tabSlot.engine.pageAudible);
+                    // Sound is the other reason a hidden page runs, and it
+                    // starts and stops on the page's own account.
+                    root.applyPageLifecycle(tabSlot.tabId);
                 }
 
                 function onLoadingChanged() {
