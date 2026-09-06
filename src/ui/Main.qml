@@ -1670,16 +1670,40 @@ ApplicationWindow {
         border.color: window.colors.border
         clip: true
 
-        RowLayout {
+        Item {
+            id: chromeRow
             anchors.fill: parent
-            spacing: 0
+
+            // How much of the sidebar is on show. Only hiding and showing move
+            // it, so they are what eases: a resize changes the width the reader
+            // owns, and the seam follows that at once as it always has.
+            property real revealed: window.sidebarCollapsed ? 0 : 1
+            readonly property real seam: chromeRow.revealed * window.sidebarWidth
+            readonly property real settledSeam: window.sidebarCollapsed ? 0 : window.sidebarWidth
+            // The page is a webpage's viewport, so every width it is handed is
+            // a layout of that page. It takes the wider of the two widths the
+            // slide ends at and gives it up once the seam has settled, riding
+            // the seam on its leading edge while the shell clips what runs past
+            // the far one. One layout each way, not one a frame.
+            readonly property real pageInset: seamEase.running ? 0 : chromeRow.settledSeam
+
+            Behavior on revealed {
+                NumberAnimation {
+                    id: seamEase
+                    duration: 120
+                    easing.type: Easing.OutCubic
+                }
+            }
 
             SpaceOutline {
                 id: sidebar
                 objectName: "sidebar"
-                Layout.fillHeight: true
-                Layout.preferredWidth: window.sidebarCollapsed ? 0 : window.sidebarWidth
-                visible: Layout.preferredWidth > 0
+                height: parent.height
+                // The sidebar's own width does not change as it leaves or
+                // arrives, so the rows in it are not laid out again on the way.
+                width: window.sidebarWidth
+                x: chromeRow.seam - width
+                visible: chromeRow.seam > 0
                 colors: window.colors
                 iconFontFamily: materialSymbols.name
                 browser: window.windowBrowser
@@ -1713,16 +1737,6 @@ ApplicationWindow {
                     if (action === "third-party")
                         window.refreshThirdPartyRows();
                     window.dialogMode = action;
-                }
-
-                // A drag is already following the pointer; easing it too
-                // would make the seam lag behind the hand holding it.
-                Behavior on Layout.preferredWidth {
-                    enabled: !sidebarResizer.dragging
-                    NumberAnimation {
-                        duration: 120
-                        easing.type: Easing.OutCubic
-                    }
                 }
 
                 onAddressRequested: window.openOmnibar(false)
@@ -1768,8 +1782,9 @@ ApplicationWindow {
 
             Item {
                 objectName: "engineViewport"
-                Layout.fillWidth: true
-                Layout.fillHeight: true
+                x: chromeRow.seam
+                width: chromeRow.width - chromeRow.pageInset
+                height: parent.height
 
                 // The shell around it is translucent by theme; a webpage viewport
                 // never is, so it gets its own opaque backing rather than
@@ -2236,8 +2251,11 @@ ApplicationWindow {
                 // where a site has been given the screen, which is the one
                 // state that has no browser chrome over it at all.
                 NavigationCluster {
-                    visible: !window.settingsOpen && !window.historyOpen && window.sidebarCollapsed
-                             && !engineLoader.siteFullscreenActive
+                    // The sidebar itself rather than the flag that sends it
+                    // away: the strip stands in for a sidebar that has gone,
+                    // not for one still sliding out.
+                    visible: !window.settingsOpen && !window.historyOpen && !sidebar.visible &&
+                             !engineLoader.siteFullscreenActive
                     // Where the outline's own controls were: the strip stands
                     // in for the top of the sidebar, so hiding the sidebar
                     // leaves the commands where the reader was already
@@ -2386,7 +2404,7 @@ ApplicationWindow {
         }
 
         MouseArea {
-            x: sidebar.width
+            x: chromeRow.seam
             width: parent.width - x
             height: parent.height
             visible: sidebar.statusOpen
@@ -2397,7 +2415,9 @@ ApplicationWindow {
         PanelResizer {
             id: sidebarResizer
             objectName: "sidebarResizer"
-            visible: !window.sidebarCollapsed && !window.settingsOpen && !window.historyOpen
+            // The handle is part of the sidebar, so it leaves with it rather
+            // than blinking out from under the reader's pointer first.
+            visible: sidebar.visible && !window.settingsOpen && !window.historyOpen
             enabled: visible
             height: parent.height
             x: sidebar.x + sidebar.width - width / 2
