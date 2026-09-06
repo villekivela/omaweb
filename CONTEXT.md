@@ -1,8 +1,8 @@
 # Omaweb
 
-Omaweb is a keyboard-driven web browser for developers. Omaweb is meant to be a daily driver on
-Linux, with first-class Wayland support, and is distributed for no other platform. Its macOS build
-must stay usable during development.
+Omaweb is a keyboard-driven web browser. Omaweb is meant to be a daily driver on Linux, with
+first-class Wayland support, and is distributed for no other platform. Its macOS build must stay
+usable during development.
 
 ## Language
 
