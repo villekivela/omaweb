@@ -152,6 +152,38 @@ knows what they were using before. `xdg-settings` is what the offer goes through
 a browser editing a shared file would have to understand everything else in it. A desktop without
 that tool is offered nothing rather than offered something that fails.
 
+### The Arch package
+
+`packaging/PKGBUILD` builds `omaweb-git` from the repository. There is no release tarball to build
+from yet, so the version comes from the nearest release tag through `git describe`, which is where
+CMake takes it from as well, and the two cannot disagree
+([ADR 0028](adr/0028-derive-the-version-from-the-release-tag.md)).
+
+Qt is a dependency rather than a bundle, which is
+[ADR 0013](adr/0013-preserve-engine-sandboxes-in-every-build.md)'s Linux packaging decision: an
+engine security update is then the distribution's to ship rather than Omaweb's to rebuild for.
+`qt6-wayland` is a dependency in its own right because native Wayland is the primary display
+platform. The content-blocking library is the one thing that rides along, under `lib/omaweb`,
+because no distribution package supplies it.
+
+`fcitx5-qt` is an optional dependency, and the reason is worth knowing. Omarchy sets
+`QT_IM_MODULE=fcitx` for every Qt application in
+`/usr/share/omarchy/default/environment.d/10-omarchy-fcitx.conf`, but does not install the plugin
+that name refers to. Qt then loads no input context, the Wayland text-input protocol is never bound,
+and an input method silently does nothing. Under `WAYLAND_DEBUG=1` the difference is visible:
+`zwp_text_input_manager_v3` is advertised and never bound, and with `QT_IM_MODULE` unset both it and
+`v1` are. This is not Omaweb-specific, but the package is where it can be answered.
+
+```sh
+scripts/check_package.sh
+```
+
+builds the package and checks what it carries: the binary, the library, the desktop entry, the icon
+and the licences, and nothing outside those directories. Run as root in a container it goes on to
+install, upgrade over itself and remove, checking that a file in the reader's configuration and the
+rest of the system come through untouched. It refuses to install on a host that is not disposable,
+because that would be putting a package on the machine of whoever ran a check.
+
 ## Security rules
 
 Never use Chromium's `--no-sandbox`, `--single-process`, in-process network-service flags, or

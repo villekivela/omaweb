@@ -92,3 +92,24 @@ jobs:
         # a CMake script check, the other loads QML offscreen.
         run:
           su builder -c "ctest --preset release -R '^(omaweb-shared-qml-boundary|omaweb-qml-load)$'"
+
+  arch-package:
+    runs-on: ubuntu-latest
+    container: archlinux:base-devel
+    timeout-minutes: 30
+    steps:
+      - name: Install toolchain
+        run:
+          pacman -Syu --noconfirm git cmake ninja clang rust qt6-base qt6-declarative qt6-webengine
+          qt6-wayland hicolor-icon-theme xdg-utils
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The package takes its version from the nearest release tag, so a
+          # shallow checkout with no tags would build one that names nothing.
+          fetch-depth: 0
+      - name: Trust checkout in container
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+      - name: Build, install, upgrade and remove the package
+        # The container is the disposable machine this needs: it installs the
+        # package for real and checks that removing it leaves nothing behind.
+        run: scripts/check_package.sh

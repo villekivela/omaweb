@@ -19,7 +19,6 @@ left that is macOS-only. What remains for Linux is the package and the validatio
 Tracking issue: [#8](https://github.com/villekivela/omaweb/issues/8)
 
 - Validate the completed browser contract under native Wayland on Omarchy and Hyprland
-- Ship an Arch `PKGBUILD` using system Qt packages
 - Deliver releases and updates through the native package
 - Run Linux accessibility, IME, packaging, sandbox, and default-browser tests
 

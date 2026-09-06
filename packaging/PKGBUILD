@@ -1,0 +1,80 @@
+# Maintainer: Ville Kivelä <5814559+villekivela@users.noreply.github.com>
+#
+# Omaweb has no published release tarball yet, so this builds from the
+# repository and takes its version from the nearest release tag, which is where
+# CMake takes it from as well (ADR 0028). The two cannot disagree.
+#
+# Qt comes from the system rather than from a bundle, which is ADR 0013's Linux
+# packaging decision: an engine security update is then the distribution's to
+# ship rather than Omaweb's to rebuild for.
+
+pkgname=omaweb-git
+_pkgname=omaweb
+pkgver=0.1.2.r85.gfe9255e
+pkgrel=1
+pkgdesc="A keyboard-driven web browser for developers"
+arch=('x86_64' 'aarch64')
+url="https://github.com/villekivela/omaweb"
+license=('MPL-2.0')
+depends=(
+    'qt6-base'
+    'qt6-declarative'
+    'qt6-webengine'
+    # Native Wayland is the primary display platform. X11 stays a fallback Qt
+    # supplies through qt6-base.
+    'qt6-wayland'
+    'hicolor-icon-theme'
+    # `xdg-settings`, which is how Settings offers to become the default
+    # browser. Without it the offer is not made.
+    'xdg-utils'
+)
+makedepends=('cmake' 'ninja' 'clang' 'git' 'rust')
+optdepends=(
+    # Qt is pointed at an input-method plugin by the desktop environment, and
+    # Omarchy points it at fcitx. Without the plugin installed Qt loads no input
+    # context and never binds the Wayland text-input protocol, so an input
+    # method silently does nothing. See docs/development.md.
+    'fcitx5-qt: input methods under Wayland'
+)
+provides=("$_pkgname=$pkgver")
+conflicts=("$_pkgname")
+source=("$_pkgname::git+$url.git")
+sha256sums=('SKIP')
+
+pkgver() {
+    cd "$_pkgname"
+    # `--long` so a build sitting exactly on a tag still carries the count and
+    # the hash, and one version never stands for two different commits.
+    git describe --long --tags --match 'v[0-9]*' | sed 's/^v//;s/\([^-]*-g\)/r\1/;s/-/./g'
+}
+
+prepare() {
+    cd "$_pkgname"
+    # The content-blocking library is built from a pinned lockfile. Fetching in
+    # `prepare` keeps the build itself off the network, which is what a clean
+    # chroot expects.
+    cargo fetch --locked --manifest-path third_party/content-blocker/Cargo.toml
+}
+
+build() {
+    cd "$_pkgname"
+    # CMake verifies the bootstrapped library against a recorded checksum but
+    # never invokes Cargo itself, so the bootstrap runs first.
+    scripts/bootstrap_content_blocker.sh
+
+    # The repository's own release preset, so the package is the build the
+    # project tests rather than a second configuration that drifts from it. It
+    # embeds QML, themes and the icon font instead of reading them from a source
+    # tree that will not be installed.
+    cmake --preset release \
+        -DCMAKE_INSTALL_PREFIX=/usr \
+        -DBUILD_TESTING=OFF \
+        -DOMAWEB_BUILD_UI_LAB=OFF \
+        -DCMAKE_CXX_COMPILER_LAUNCHER=
+    cmake --build --preset release
+}
+
+package() {
+    cd "$_pkgname"
+    DESTDIR="$pkgdir" cmake --install build/release
+}
