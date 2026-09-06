@@ -2,7 +2,7 @@
 Type=Application
 Name=Omaweb
 GenericName=Web Browser
-Comment=A keyboard-driven web browser for developers
+Comment=A keyboard-driven web browser
 Exec=omaweb %u
 Icon=omaweb
 Terminal=false

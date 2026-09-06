@@ -189,7 +189,7 @@ def build(version: str) -> dict:
                 "type": "application",
                 "name": "omaweb",
                 "version": version,
-                "description": "A keyboard-driven web browser for developers",
+                "description": "A keyboard-driven web browser",
                 "licenses": [{"expression": "MPL-2.0"}],
                 "externalReferences": [
                     {"type": "vcs", "url": "https://github.com/villekivela/omaweb.git"},
