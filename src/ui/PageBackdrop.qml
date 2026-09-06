@@ -7,11 +7,11 @@ import QtQuick.Effects
 // behind instead of losing it behind a solid plate, and without being asked to
 // read a webpage through a list of settings.
 //
-// With no page to sample — a resting Space — only the tint is drawn, and the
-// window's own native backdrop blurs the desktop behind it exactly as it does
-// for the sidebar. That is why the tint is the sidebar's: a surface that takes
-// the whole page area is a plate of the same kind, not a dialog floating over
-// one, and the two read as one window rather than two materials.
+// With no page to sample, a resting Space, only the tint is drawn and the
+// desktop behind it is left to the window system, which blurs it or not exactly
+// as it does for the sidebar. That is why the tint is the sidebar's: a surface
+// that takes the whole page area is a plate of the same kind, not a dialog
+// floating over one, and the two read as one window rather than two materials.
 //
 // `source` must not be an ancestor of this item, or the effect would feed on
 // its own output. Nothing is sampled while the surface is hidden: a live

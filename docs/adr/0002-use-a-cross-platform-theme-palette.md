@@ -23,10 +23,22 @@ desktops that have no theme manager of their own. ADR 0016 records the lookup or
 sources.
 
 The palette defines semantic opacity values for Omaweb-owned surfaces such as the vertical sidebar,
-address bar, overlays, and empty window background. Those surfaces request native background blur
-where the platform or compositor provides it, fall back to alpha transparency, and then to an opaque
-theme color. Webpage viewports remain opaque, and transparent surfaces continue to receive pointer
-input.
+address bar, overlays, and empty window background. Those surfaces are drawn at their semantic
+opacity and fall back to an opaque theme color when accessibility settings require it. Webpage
+viewports remain opaque, and transparent surfaces continue to receive pointer input.
+
+What lies behind a transparent surface is blurred by whoever owns the desktop behind the window, and
+how much of Omaweb is involved differs by platform. On macOS the application asks: a small AppKit
+adapter installs a backdrop view behind the content, so `installWindowChrome` has a body there.
+Wayland has no such call. Hyprland blurs the desktop behind a surface's translucent pixels from its
+own `decoration:blur` setting and window rules, with nothing bound by the client, so
+`installWindowChrome` is deliberately empty on Linux and the compositor's configuration is what a
+reader changes. A compositor that does take a client's blur region, as KDE does, would be the one
+case between the two.
+
+So blur is not a tier of Omaweb's own drawing. An Omaweb-owned surface is alpha over the desktop
+either way, and the compositor decides whether what shows through is blurred or sharp. Only the
+opaque accessibility fallback changes what Omaweb draws.
 
 Legibility is Omaweb's rather than the theme's. A palette derived from a terminal's sixteen colours
 has no colour for quiet text. Omarchy offers `dark_foreground`, which its own templates spend on

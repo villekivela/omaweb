@@ -64,6 +64,11 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 set(omaweb_qt_components Concurrent Core Gui Network Qml Quick QuickControls2 Sql)
+if(UNIX AND NOT APPLE)
+    # The desktop's notification service is a session-bus service, so the Linux
+    # platform layer needs D-Bus. macOS reaches its own through AppKit.
+    list(APPEND omaweb_qt_components DBus)
+endif()
 if(OMAWEB_BUILD_BROWSER)
     list(APPEND omaweb_qt_components WebEngineCore WebEngineQuick)
 endif()
@@ -77,6 +82,12 @@ qt_standard_project_setup(REQUIRES 6.11)
 add_library(omaweb-adblock-rust SHARED IMPORTED GLOBAL)
 set_target_properties(omaweb-adblock-rust PROPERTIES
     IMPORTED_LOCATION "${omaweb_content_blocker_library}"
+    # The bootstrapped library carries no soname, so linking it by path would
+    # record that path as the dependency itself and no runpath would ever be
+    # consulted. An installed copy would then look for the library in whatever
+    # directory happened to build it. Saying so makes CMake link it by name and
+    # leave finding it to the runpath.
+    IMPORTED_NO_SONAME TRUE
 )
 
 add_library(omaweb-content-blocking STATIC
@@ -110,6 +121,8 @@ add_library(omaweb-core STATIC
     src/core/DownloadPolicy.h
     src/core/KeyboardNavigation.cpp
     src/core/KeyboardNavigation.h
+    src/core/LaunchRequest.cpp
+    src/core/LaunchRequest.h
     src/core/RetainedTab.h
     src/core/SessionSiteState.cpp
     src/core/SessionSiteState.h
@@ -216,6 +229,8 @@ if(OMAWEB_BUILD_BROWSER)
 endif()
 
 add_library(omaweb-platform STATIC
+    src/platform/DefaultBrowser.cpp
+    src/platform/DefaultBrowser.h
     src/platform/ExternalProtocolHandler.cpp
     src/platform/ExternalProtocolHandler.h
     src/platform/OmarchyTheme.cpp
@@ -224,6 +239,7 @@ add_library(omaweb-platform STATIC
     src/platform/PagePrinter.h
     src/platform/ProcessResources.cpp
     src/platform/ProcessResources.h
+    src/platform/RunningBrowser.h
     src/platform/RuntimeSecurity.cpp
     src/platform/RuntimeSecurity.h
     src/platform/SavedDownload.cpp
@@ -250,6 +266,7 @@ if(APPLE)
     # identifies the notifying application by its bundle identifier.
     find_library(OMAWEB_USER_NOTIFICATIONS_FRAMEWORK UserNotifications REQUIRED)
     target_sources(omaweb-platform PRIVATE
+        src/platform/RunningBrowser.cpp
         src/platform/MacExternalProtocolHandler.mm
         src/platform/MacPagePrinter.mm
         src/platform/MacSystemNotifier.mm
@@ -263,8 +280,13 @@ if(APPLE)
     )
 else()
     target_sources(omaweb-platform PRIVATE
+        src/platform/LinuxDefaultBrowser.cpp
+        src/platform/LinuxPagePrinter.cpp
+        src/platform/LinuxRunningBrowser.cpp
+        src/platform/LinuxSystemNotifier.cpp
         src/platform/WindowChrome.cpp
     )
+    target_link_libraries(omaweb-platform PRIVATE Qt6::DBus)
 endif()
 omaweb_strict_target(omaweb-platform)
 
@@ -414,6 +436,36 @@ if(OMAWEB_BUILD_BROWSER)
         MACOSX_BUNDLE_BUNDLE_VERSION "${OMAWEB_BUILD_NUMBER}"
         WIN32_EXECUTABLE TRUE
     )
+
+    if(UNIX AND NOT APPLE)
+        include(GNUInstallDirs)
+
+        # The content blocker is a shared library the build resolves out of the
+        # bootstrap cache, so the binary's build-tree runpath names a directory
+        # on the machine that compiled it. An installed copy has to find it
+        # where the package puts it instead, or it loads nothing anywhere but
+        # here.
+        # Relative to the binary rather than to a prefix. `CMAKE_INSTALL_FULL_*`
+        # bakes in whatever prefix configuring used, and a package sets its own
+        # when it installs, which would leave the runpath naming a directory the
+        # package never wrote to.
+        set_target_properties(omaweb PROPERTIES
+            INSTALL_RPATH "$ORIGIN/../${CMAKE_INSTALL_LIBDIR}/omaweb")
+
+        install(TARGETS omaweb RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
+        install(FILES "${omaweb_content_blocker_library}"
+            DESTINATION "${CMAKE_INSTALL_LIBDIR}/omaweb")
+        # The entry's own name is the Wayland app id and X11 window class, which
+        # a desktop's window rules are written against, so it stays `omaweb`
+        # rather than taking the bus name the way a `DBusActivatable` entry
+        # would have to. See src/platform/LinuxRunningBrowser.cpp.
+        install(FILES packaging/omaweb.desktop
+            DESTINATION "${CMAKE_INSTALL_DATADIR}/applications")
+        install(FILES assets/icons/omaweb.svg
+            DESTINATION "${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps")
+        install(FILES LICENSE THIRD_PARTY_NOTICES.md
+            DESTINATION "${CMAKE_INSTALL_DATADIR}/licenses/omaweb")
+    endif()
 endif()
 
 if(OMAWEB_BUILD_UI_LAB)
@@ -503,6 +555,13 @@ if(BUILD_TESTING)
     omaweb_strict_target(omaweb-development-launch-tests)
     add_test(NAME omaweb-development-launch COMMAND omaweb-development-launch-tests)
 
+    qt_add_executable(omaweb-launch-request-tests
+        tests/core/tst_launchrequest.cpp
+    )
+    target_link_libraries(omaweb-launch-request-tests PRIVATE omaweb-core Qt6::Test)
+    omaweb_strict_target(omaweb-launch-request-tests)
+    add_test(NAME omaweb-launch-request COMMAND omaweb-launch-request-tests)
+
     qt_add_executable(omaweb-download-policy-tests
         tests/core/tst_downloadpolicy.cpp
     )
@@ -559,11 +618,58 @@ if(BUILD_TESTING)
     )
     omaweb_strict_target(omaweb-platform-services-tests)
     add_test(NAME omaweb-platform-services COMMAND omaweb-platform-services-tests)
-    # The notification service is a window-server service, and the seam's
-    # contract is what it does without one.
+    # The seam's contract is what it does on a desktop that offers no
+    # notification service, so the test is given one. Which service is missing
+    # differs by platform: macOS asks a window server, Linux asks the session
+    # bus, so both are taken away rather than only the one this host uses.
     set_tests_properties(omaweb-platform-services PROPERTIES
-        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        ENVIRONMENT
+            "QT_QPA_PLATFORM=offscreen;DBUS_SESSION_BUS_ADDRESS=unix:path=/nonexistent/omaweb"
     )
+
+    if(UNIX AND NOT APPLE)
+        # The Linux notification seam talks to a session-bus service, so the
+        # test supplies one of its own and drives the answers a reader would
+        # give. `dbus-run-session` puts it on a private bus, which keeps the
+        # test off the developer's desktop and out of their notification
+        # history. Qt itself depends on D-Bus, so the binary is present
+        # wherever these tests build.
+        qt_add_executable(omaweb-notification-service-tests
+            tests/platform/tst_notificationservice.cpp
+        )
+        target_link_libraries(omaweb-notification-service-tests PRIVATE
+            omaweb-platform
+            Qt6::DBus
+            Qt6::Test
+        )
+        omaweb_strict_target(omaweb-notification-service-tests)
+        add_test(NAME omaweb-notification-service
+            COMMAND dbus-run-session -- $<TARGET_FILE:omaweb-notification-service-tests>
+        )
+        set_tests_properties(omaweb-notification-service PROPERTIES
+            ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        )
+
+        # Printing goes out through the desktop portal, so the test stands one
+        # up on the same kind of private bus. It is what covers the document
+        # surviving the spooled copy being taken away, which is the part of the
+        # exchange a live portal would only reveal by printing something.
+        qt_add_executable(omaweb-print-portal-tests tests/platform/tst_printportal.cpp)
+        target_link_libraries(omaweb-print-portal-tests PRIVATE
+            omaweb-platform
+            Qt6::DBus
+            Qt6::Test
+        )
+        omaweb_strict_target(omaweb-print-portal-tests)
+        add_test(NAME omaweb-print-portal
+            COMMAND dbus-run-session -- $<TARGET_FILE:omaweb-print-portal-tests>
+        )
+        # Qt reaching for the desktop portal itself would start the real one on
+        # the private bus, racing the stub for the name it needs to own.
+        set_tests_properties(omaweb-print-portal PROPERTIES
+            ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_NO_XDG_DESKTOP_PORTAL=1"
+        )
+    endif()
 
     # Following the desktop's theme writes into the reader's Omarchy
     # configuration, so the seam takes its directories as arguments and the
@@ -676,8 +782,15 @@ if(BUILD_TESTING)
         )
         omaweb_strict_target(omaweb-ui-tests)
         add_test(NAME omaweb-ui COMMAND omaweb-ui-tests)
+        # The chrome is checked against a desktop that offers nothing, so the
+        # commands standing on a platform service report themselves unavailable
+        # and the shell's own wording for that is what gets tested. On Linux
+        # those services are on the session bus, so it is taken away alongside
+        # the window server rather than left to whatever the host happens to
+        # be running.
         set_tests_properties(omaweb-ui PROPERTIES
-            ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+            ENVIRONMENT
+                "QT_QPA_PLATFORM=offscreen;DBUS_SESSION_BUS_ADDRESS=unix:path=/nonexistent/omaweb"
         )
     endif()
 

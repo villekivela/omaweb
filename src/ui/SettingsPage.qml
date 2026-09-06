@@ -1099,6 +1099,37 @@ Rectangle {
                         font.pixelSize: Style.font.caption
                     }
 
+                    // Being the default browser is the desktop's setting, so it
+                    // is offered here and never taken on a first run. A desktop
+                    // with no way to ask does not get an offer that would fail.
+                    SectionLabel {
+                        visible: DefaultBrowser.available
+                        colors: root.colors
+                        text: "default browser"
+                    }
+
+                    Text {
+                        objectName: "defaultBrowserState"
+                        visible: DefaultBrowser.available
+                        width: pane.width
+                        text: DefaultBrowser.isDefault
+                              ? "Omaweb opens links from other applications." :
+                                "Another browser opens links from other applications."
+                        color: root.colors.mutedText
+                        wrapMode: Text.WordWrap
+                        font.family: Style.font.family
+                        font.pixelSize: Style.font.body
+                    }
+
+                    ActionButton {
+                        objectName: "makeDefaultBrowserButton"
+                        visible: DefaultBrowser.available && !DefaultBrowser.isDefault
+                        colors: root.colors
+                        label: "Make Omaweb the default"
+                        accessibleName: "Make Omaweb the default browser"
+                        onClicked: DefaultBrowser.makeDefault()
+                    }
+
                     SectionLabel {
                         colors: root.colors
                         text: "project"
