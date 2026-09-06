@@ -37,9 +37,19 @@ else
     ( cd "$work" && makepkg -f --noconfirm )
 fi
 
-package=$(find "$work" -maxdepth 1 -name '*.pkg.tar.*' -print | head -n 1)
+# A host whose `makepkg.conf` enables `debug`, which Arch's own build container
+# does, produces a second package carrying the detached symbols. That one is
+# meant to hold nothing but `usr/lib/debug`, so checking it would be checking
+# the wrong package, and picking whichever the file system listed first is how
+# that happens.
+package=$(find "$work" -maxdepth 1 -name '*.pkg.tar.*' ! -name '*-debug-*' -print | sort)
 if [ -z "$package" ]; then
     echo "makepkg produced no package" >&2
+    exit 1
+fi
+if [ "$(printf '%s\n' "$package" | wc -l)" -ne 1 ]; then
+    echo "makepkg produced more than one package, so it is unclear which to check:" >&2
+    printf '%s\n' "$package" >&2
     exit 1
 fi
 echo "==> Built $package"
