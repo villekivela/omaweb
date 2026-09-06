@@ -55,30 +55,37 @@ SURFACE_STEPS = {
 }
 MUTED_TEXT_STEP = 0.70
 
-# The ANSI slot each syntax token is read from. A terminal has six hues to
-# give and code has more constructs than that, so tokens that read alike share
-# one: an attribute name and a type both name something rather than being a
-# value. An attribute's value is not here at all — it is a string, and the
-# inspector draws it in the string colour, as an editor does. An element's name
-# takes the interactive slot rather than the error one: red carries "something
-# is wrong" in an interface, and most editors draw a tag in the blue family.
+# The ANSI slot each syntax token is read from, read off what an editor
+# rendering the same colours actually draws rather than off what the slot names
+# suggest. A terminal has six hues to give and code has more constructs than
+# that, so tokens that read alike share one — but the pairs that share are the
+# ones an editor already pairs. An element's name sits in the magenta family
+# with the keywords, because markup's own vocabulary is the language's rather
+# than the document's, and red stays out of code entirely: it carries "this
+# failed" everywhere else in the interface. An attribute's name takes the cyan
+# family, the same one a type takes, for the same reason. An attribute's value
+# is not here at all — it is a string, and the inspector draws it in the string
+# colour, as an editor does.
+#
+# Where two constructs share a family they take the two strengths of it rather
+# than the one colour, and which gets the brighter is which the reader meets
+# more often: a tag's name over a keyword, an attribute's name over a type. A
+# number takes the bright yellow, which is the orange every editor gives it.
 SYNTAX_SLOTS = {
     "keyword": 5,
     "string": 2,
-    "number": 3,
-    "tag": 4,
-    "attribute": 6,
-    "variable": 1,
+    "number": 11,
+    "tag": 13,
+    "attribute": 14,
     "function": 4,
     "type": 6,
 }
 # A token drawn too dark to read against the window is swapped for its bright
 # twin, which is the same hue eight slots along. Both failing leaves the more
-# legible of the two rather than a colour from nowhere.
+# legible of the two rather than a colour from nowhere. ThemeController applies
+# the same floor to every theme it loads, so a slot that fails here has already
+# been given the best colour the palette holds before that floor sees it.
 SYNTAX_MINIMUM_CONTRAST = 4.5
-# A comment is body text turned down rather than a hue of its own: at the muted
-# step it reads as an interface label, and code wants it quieter than that.
-COMMENT_STEP = 0.52
 
 # xterm's palette, for a terminal that leaves some slots at their built-in value
 # and so never writes them to a config file.
@@ -419,11 +426,22 @@ def derive(source):
 
     syntax = {}
     for token, slot in SYNTAX_SLOTS.items():
-        ordinary, bright = palette[slot], palette[slot + 8]
-        legible = (ordinary if contrast(ordinary, window) >= SYNTAX_MINIMUM_CONTRAST
+        # A slot at or past the bright half has its twin behind it rather than
+        # ahead of it, and either way the pair is the same hue in two strengths.
+        ordinary, bright = palette[slot % 8], palette[slot % 8 + 8]
+        preferred = palette[slot]
+        legible = (preferred if contrast(preferred, window) >= SYNTAX_MINIMUM_CONTRAST
                    else max((ordinary, bright), key=lambda colour: contrast(colour, window)))
         syntax[token] = to_hex(legible)
-    syntax["comment"] = to_hex(mix(window, text, COMMENT_STEP))
+    # A plain identifier is not a hue at all. An editor draws it in body text,
+    # and spending a slot on it costs the palette a colour and tells the reader
+    # nothing: everything the document names would share one colour with
+    # whichever construct that slot already carried.
+    syntax["variable"] = to_hex(text)
+    # No comment or punctuation colour. They are the theme's own text turned
+    # down, ThemeController derives both that way for every theme it loads, and
+    # naming them here would be a second copy of one decision, drifting the
+    # moment either side is calibrated again.
 
     derived = {
         "window": to_hex(window),

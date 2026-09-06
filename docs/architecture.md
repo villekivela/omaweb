@@ -109,8 +109,21 @@ Omaweb ships no patched frontend and speaks no debugging protocol to it. Chromiu
 the tonal ramp its browser UI theme serves at `devtools://theme/colors.css`, and every one of the
 frontend's design tokens is a tone of that ramp, so the Qt adapter names the ramp as well as the
 tokens it is sure about. The theme palette carries a `syntax` section for the colours code is read
-in, and the frontend's interface takes the theme's type family. The frontend's DOM tree draws a
-tag's brackets and its name in one token, so the adapter also wraps the frontend's `attachShadow`
+in, and the frontend's interface takes the theme's type family.
+
+Which construct is drawn in which of those colours is one decision, made where a desktop's colours
+become a palette: `integrations/omarchy/omaweb.json.tpl` for a desktop that renders the theme, and
+`SYNTAX_SLOTS` in `scripts/import_terminal_theme.py` for a palette imported from a terminal. Both
+land where an editor rendering the same theme lands rather than where the slot names suggest — a
+tag's name sits in the magenta family with the keywords and an attribute's name in the cyan family
+with the types, each pair taking the two strengths of its family rather than one colour; a plain
+identifier is body text rather than a hue at all; and red stays out of code, because it carries
+"this failed" everywhere else in the interface. Neither names a comment or a punctuation colour:
+those are the theme's own text turned down, and `ThemeController` derives both for every theme it
+loads, because a desktop palette has one quiet colour to give and a theme asked for both draws every
+bracket as dim as an aside. A named colour too dark to read against the surfaces code is drawn on
+keeps its hue and gives up only the lightness that made it unreadable. The frontend's DOM tree draws
+a tag's brackets and its name in one token, so the adapter also wraps the frontend's `attachShadow`
 before its scripts run and adopts one stylesheet into every shadow tree it opens; that is the only
 place a rule, rather than a token, is needed.
 

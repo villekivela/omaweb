@@ -534,6 +534,12 @@ if(BUILD_TESTING)
             COMMAND ${Python3_EXECUTABLE}
                 ${CMAKE_CURRENT_SOURCE_DIR}/tests/scripts/tst_security_baseline.py
         )
+        # Which construct each terminal colour is read as -- the same claim the
+        # Omarchy template makes for a desktop that renders the palette itself.
+        add_test(NAME omaweb-terminal-theme-import
+            COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/tests/scripts/tst_terminal_theme_import.py
+        )
     endif()
 
     qt_add_executable(omaweb-core-tests tests/core/tst_browsercontroller.cpp)

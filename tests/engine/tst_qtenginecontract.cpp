@@ -81,7 +81,7 @@ private slots:
     void qtKeepsAnInspectedTabActiveOnlyWhileAttached();
     void qtInspectsAPrivateTabInItsOwnTemporaryProfile();
     void qtPicksAnElementWhenNoContextMenuNamedOne();
-    void qtDrawsMarkupStructureQuieterThanItsContent();
+    void qtDrawsMarkupDelimitersApartFromTheNamesBetweenThem();
     void qtReportsThePageContextAndDrawsNoMenuOfItsOwn();
     void qtReportsTargetsInsideCrossOriginFrames();
     void qtOwnsJavaScriptPromptsAndReturnsTheirAnswer();
@@ -1753,15 +1753,15 @@ void QtEngineContractTest::qtPicksAnElementWhenNoContextMenuNamedOne()
     QVERIFY(QMetaObject::invokeMethod(adapter.get(), "detachDeveloperTools"));
 }
 
-// An editor keeps a document's structure quiet and lets its content speak: the
-// brackets, the equals signs and the quotes recede, and the names between them
-// carry the colour. The frontend's DOM tree draws all of it in one token,
+// An editor draws a document's delimiters apart from the names between them:
+// the brackets and the slashes take the language's own colour and the names
+// carry the theme's. The frontend's DOM tree draws all of it in one token,
 // because the name is a span inside the `<...>` that token wraps, so no design
 // token can tell them apart — only a rule can, and the spans live in shadow
 // trees a rule in the document cannot reach. This is the test that the way in
 // still works: the frontend's own `attachShadow` is wrapped before its scripts
 // run, and every tree it opens takes one more stylesheet.
-void QtEngineContractTest::qtDrawsMarkupStructureQuieterThanItsContent()
+void QtEngineContractTest::qtDrawsMarkupDelimitersApartFromTheNamesBetweenThem()
 {
     QTemporaryDir root;
     QVERIFY(root.isValid());
@@ -1819,7 +1819,7 @@ void QtEngineContractTest::qtDrawsMarkupStructureQuieterThanItsContent()
       if (classes && classes.contains('webkit-html-tag-name'))
         seen.add('name=' + getComputedStyle(element).color);
       else if (classes && classes.contains('webkit-html-tag'))
-        seen.add('punctuation=' + getComputedStyle(element).color);
+        seen.add('delimiter=' + getComputedStyle(element).color);
       if (element.shadowRoot) walk(element.shadowRoot, depth + 1);
     }
   };
@@ -1841,10 +1841,11 @@ void QtEngineContractTest::qtDrawsMarkupStructureQuieterThanItsContent()
         }
     }
     QVERIFY2(!report.isEmpty(), "the markup tree never rendered");
-    // The name carries the theme's tag colour; everything structural around it
-    // carries the quieter one the theme names for punctuation.
+    // The name carries the theme's tag colour; the brackets around it carry the
+    // one the theme names for a type, which is where an editor puts markup's
+    // own delimiters.
     QVERIFY2(report.contains(QLatin1String("name=rgb(1, 2, 3)")), qPrintable(report));
-    QVERIFY2(report.contains(QLatin1String("punctuation=rgb(119, 136, 153)")), qPrintable(report));
+    QVERIFY2(report.contains(QLatin1String("delimiter=rgb(16, 17, 18)")), qPrintable(report));
 
     QVERIFY(QMetaObject::invokeMethod(adapter.get(), "detachDeveloperTools"));
 }
