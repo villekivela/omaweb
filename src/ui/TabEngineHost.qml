@@ -250,13 +250,24 @@ Item {
     }
 
     // Putting a Space away costs it its pages, which is the memory policy the
-    // browser is built on: only the Space on show keeps live ones. The named
-    // tabs are the exceptions and keep theirs, hidden and still running.
+    // browser is built on. The named tabs are the exceptions the core makes and
+    // keep theirs, hidden and still running.
+    //
+    // The page the reader was left on keeps its renderer too, stopped rather
+    // than running: coming back to a Space is what the reader does next often
+    // enough that reloading the page in front of them is the wrong trade, and a
+    // stopped page costs the memory it holds and no more. Its background tabs
+    // are not kept, which is what bounds this at one stopped page per Space the
+    // reader has visited rather than one per tab they opened in it.
+    //
+    // Which tab that is has to be read here: the core names the Space being put
+    // away while it is still the active one, and says so afterwards.
     function suspend(spaceId, retainedTabIds) {
         preservingEngines = true;
         suspended = true;
         activeEngine = null;
         const retained = retainedTabIds || [];
+        const onShow = root.browserController ? root.browserController.activeTabId : "";
         for (const tabId in root.engineSpaces) {
             if (root.engineSpaces[tabId] !== spaceId)
                 continue;
@@ -265,6 +276,10 @@ Item {
                 // Retention decided that this page exists, not what it runs at:
                 // a kept tab nobody is watching or listening to freezes like
                 // any other page the reader cannot see.
+                root.setEngineVisible(tabId, false);
+                continue;
+            }
+            if (tabId === onShow) {
                 root.setEngineVisible(tabId, false);
                 continue;
             }

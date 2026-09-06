@@ -65,21 +65,24 @@ A Private session keeps the same stack in memory and writes none of it down.
 
 Only the Space on show keeps live pages. Putting a Space away discards its renderers, with two
 exceptions the core names at the moment of suspension: a Pinned tab the reader marked Keep active,
-and the tab an inspector is attached to. The engine host is told which tabs those are, because the
-answer is only knowable while that Space is still the active one. Retained tabs come back after the
-visible Space rather than with it, because the reader is waiting for the page in front of them, and
-a Pinned tab marked Keep active is started even in a Space that has never been selected, which is
-what a restart, or a session that outlived a crash, has to restore. Every retained tab is listed in
-settings with the Space it belongs to, why it is running, and the resident memory its renderer
-actually holds, asked of the operating system rather than estimated.
+and the tab an inspector is attached to. The page the reader was left on is a third, and the engine
+host's own: it keeps its renderer frozen rather than reloading in front of them on the way back. Its
+background tabs are not kept, which bounds that at one stopped page per Space the reader has
+visited. The engine host is told which tabs those are, because the answer is only knowable while
+that Space is still the active one. Retained tabs come back after the visible Space rather than with
+it, because the reader is waiting for the page in front of them, and a Pinned tab marked Keep active
+is started even in a Space that has never been selected, which is what a restart, or a session that
+outlived a crash, has to restore. Every retained tab is listed in settings with the Space it belongs
+to, why it is running, and the resident memory its renderer actually holds, asked of the operating
+system rather than estimated.
 
 Whether a page exists is separate from whether it runs. A page the reader cannot see is frozen: it
 keeps its document, its process and everything it holds, and stops its timers, animations and
 script, so selecting the tab continues the page rather than loading it again. The engine host
-decides this for every engine it owns, from one rule, so a background tab of the visible Space and a
-retained tab of a suspended Space are answered the same way. Two hidden pages are exempt, the tab an
-inspector is attached to and a tab making sound, and both stop being exempt as soon as the reason
-does.
+decides this for every engine it owns, from one rule, so a background tab of the visible Space, the
+page a suspended Space was left on, and a retained tab of a suspended Space are answered the same
+way. Two hidden pages are exempt, the tab an inspector is attached to and a tab making sound, and
+both stop being exempt as soon as the reason does.
 
 ## Downloads
 
