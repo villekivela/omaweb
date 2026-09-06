@@ -1152,9 +1152,15 @@ Item {
 
     // The frontend's DOM tree draws every bracket, equals sign and quote in the
     // same colour as a tag's name, because one class carries both: the name is
-    // a span inside the `<...>` the class wraps. An editor keeps structure
-    // quiet and lets the content speak, which is most of why the two do not
-    // read alike, and no design token can separate them — only a rule can.
+    // a span inside the `<...>` the class wraps. An editor separates them, and
+    // no design token can — only a rule can.
+    //
+    // Markup's delimiters take the type colour, which is where an editor puts
+    // them: they are structure rather than content, but structure the language
+    // itself defines, and drawn in the interface's quiet grey instead they
+    // leave a tree of grey punctuation with a few coloured names floating in
+    // it. Elsewhere in the frontend — source, stylesheets, the console — the
+    // quiet grey is right and `--sys-color-token-subtle` still carries it.
     //
     // Those spans live in shadow trees, where a rule in the document cannot
     // reach them. So the frontend's own `attachShadow` is wrapped before any of
@@ -1162,11 +1168,11 @@ Item {
     // stylesheet. Nothing is rewritten and nothing is read back: the frontend
     // builds exactly what it would have built, in Omaweb's colours.
     function developerToolsMarkupStyleSheet() {
-        const punctuation = root.developerToolsSyntaxColor("punctuation", root.developerToolsColor(
-                                                               "mutedText", "#aaa5b7"));
+        const delimiter = root.developerToolsSyntaxColor("type", root.developerToolsColor(
+                                                             "mutedText", "#aaa5b7"));
         const tag = root.developerToolsSyntaxColor("tag", root.developerToolsColor("text",
                                                                                    "#f3f1fa"));
-        return ".webkit-html-tag{color:" + punctuation + " !important}"
+        return ".webkit-html-tag{color:" + delimiter + " !important}"
                 + ".webkit-html-tag-name,.webkit-html-close-tag-name{color:" + tag + " !important}";
     }
 
