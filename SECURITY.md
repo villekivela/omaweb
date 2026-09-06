@@ -14,19 +14,20 @@ Updating the baseline requires a review of the Qt release notes and a qualified 
 
 ## Response to a security-bearing Qt patch
 
-When a Qt patch release includes security fixes, publish a tested Omaweb update within seven days
-after the baseline issue opens. The issue includes its due date. To update the baseline:
+When a Qt patch release includes security fixes, qualify it and publish the raised baseline within
+seven days after the baseline issue opens. The issue includes its due date. The seven days cover the
+qualification and the release, which is the whole of what Omaweb controls. The engine itself arrives
+from the distribution, because the package depends on system Qt rather than bundling it
+([ADR 0013](docs/adr/0013-preserve-engine-sandboxes-in-every-build.md)), so a reader takes the
+patched engine through a system upgrade on their own schedule. To update the baseline:
 
 1. Read the Qt release notes for the fixes the release carries.
 2. Build against the new engine and run `ctest --preset ci` in full.
 3. Update `qtwebengine`, `chromium`, `chromiumSecurityPatch`, and `reviewed` in
    `security/baseline.json`.
-4. Tag a release so the raised baseline reaches readers. The engine itself arrives from the
-   distribution, because the package depends on system Qt rather than bundling it
-   ([ADR 0013](docs/adr/0013-preserve-engine-sandboxes-in-every-build.md)), so a reader takes the
-   patched engine through a system upgrade and this release is what stops their build reporting
-   itself as unsupported. Omaweb has no application updater, so the package handles its own release
-   and update delivery.
+4. Tag a release so the raised baseline reaches readers, which is what stops a build that meets it
+   reporting itself as unsupported. Omaweb has no application updater, so the package handles its
+   own release and update delivery.
 
 Until step 3 lands, every build reports itself as below the approved baseline.
 
