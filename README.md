@@ -1,4 +1,6 @@
-# `</>` Omaweb
+<img src="assets/icons/omaweb.svg" alt="" width="72">
+
+# Omaweb
 
 Omaweb is a keyboard-driven web browser. One window, tabs down the side, Spaces that keep logins
 apart, and a palette that follows the desktop's own theme.
