@@ -18,12 +18,12 @@ download hardening all work.
 
 Two things are not finished:
 
-- **Linux delivery.** `packaging/PKGBUILD` builds an Arch package against system Qt, and Settings
-  offers to make Omaweb the default browser, but releases and updates do not come through that
-  package yet. Tracked by [#8](https://github.com/villekivela/omaweb/issues/8). The browser itself
-  runs frameless on Wayland, opens the addresses the desktop hands it, and reaches the desktop's own
-  notification and printing services; blur behind its transparent surfaces is the compositor's to
-  apply and needs nothing from Omaweb.
+- **Linux validation.** The browser runs frameless on Wayland, opens the addresses the desktop hands
+  it, reaches the desktop's own notification and printing services, and offers to become the default
+  browser. `packaging/PKGBUILD` builds an Arch package against system Qt, and a release carries that
+  package beside an inventory of what is in it. What is left is the validation sweep across input,
+  accessibility and sandboxing on a real desktop, tracked by
+  [#8](https://github.com/villekivela/omaweb/issues/8).
 - **The Ladybird adapter.** Tracked by [#7](https://github.com/villekivela/omaweb/issues/7).
 
 [The roadmap](docs/roadmap.md) has the ordered breakdown.

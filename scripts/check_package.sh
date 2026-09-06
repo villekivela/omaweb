@@ -51,7 +51,8 @@ for required in \
     usr/share/applications/omaweb.desktop \
     usr/share/icons/hicolor/scalable/apps/omaweb.svg \
     usr/share/licenses/omaweb/LICENSE \
-    usr/share/licenses/omaweb/THIRD_PARTY_NOTICES.md; do
+    usr/share/licenses/omaweb/THIRD_PARTY_NOTICES.md \
+    usr/share/omaweb/sbom.json; do
     if ! printf '%s\n' "$contents" | grep -qx "$required"; then
         echo "The package is missing $required" >&2
         exit 1
@@ -65,7 +66,7 @@ if ! printf '%s\n' "$contents" | grep -q '^usr/lib/omaweb/libomaweb_content_bloc
 fi
 # Anything outside these is a file the package has no business owning.
 unexpected=$(printf '%s\n' "$contents" | grep -v '/$' \
-    | grep -vE '^(usr/bin/|usr/lib/omaweb/|usr/share/(applications|icons|licenses)/)' \
+    | grep -vE '^(usr/bin/|usr/lib/omaweb/|usr/share/(applications|icons|licenses|omaweb)/)' \
     | grep -vE '^\.(PKGINFO|BUILDINFO|MTREE)$' || true)
 if [ -n "$unexpected" ]; then
     echo "The package carries files it should not:" >&2

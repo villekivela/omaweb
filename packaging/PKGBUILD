@@ -28,7 +28,7 @@ depends=(
     # browser. Without it the offer is not made.
     'xdg-utils'
 )
-makedepends=('cmake' 'ninja' 'clang' 'git' 'rust')
+makedepends=('cmake' 'ninja' 'clang' 'git' 'rust' 'python')
 optdepends=(
     # Qt is pointed at an input-method plugin by the desktop environment, and
     # Omarchy points it at fcitx. Without the plugin installed Qt loads no input
@@ -72,9 +72,16 @@ build() {
         -DOMAWEB_BUILD_UI_LAB=OFF \
         -DCMAKE_CXX_COMPILER_LAUNCHER=
     cmake --build --preset release
+
+    # The inventory is generated here rather than by CMake, because it reads the
+    # Rust dependency graph through Cargo and CMake never invokes Cargo. It goes
+    # into the package so that a reader who has the browser has the list of what
+    # is in it, without having to find the release it came from.
+    scripts/generate_sbom.py --output build/release/sbom.json
 }
 
 package() {
     cd "$_pkgname"
     DESTDIR="$pkgdir" cmake --install build/release
+    install -Dm644 build/release/sbom.json "$pkgdir/usr/share/omaweb/sbom.json"
 }

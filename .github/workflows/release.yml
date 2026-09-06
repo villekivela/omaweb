@@ -5,9 +5,9 @@ name: Release
 #
 #   git tag v0.2.0 && git push origin v0.2.0
 #
-# This publishes notes only. A distributed Linux build needs the full notice
-# inventory described in THIRD_PARTY_NOTICES.md. macOS bundles are development
-# artifacts and are not attached to releases.
+# A release carries the Arch package, the inventory of what is in it, and the
+# notes. macOS bundles are development artifacts and are not attached
+# (ADR 0029).
 
 on:
   push:
@@ -17,7 +17,53 @@ permissions:
   contents: write
 
 jobs:
+  # Built in the same container CI checks the package in, so what a release
+  # carries is what was already checked to install, upgrade and remove.
+  package:
+    runs-on: ubuntu-latest
+    container: archlinux:base-devel
+    timeout-minutes: 30
+    steps:
+      - name: Install toolchain
+        run:
+          pacman -Syu --noconfirm git cmake ninja clang rust python qt6-base qt6-declarative
+          qt6-webengine qt6-wayland hicolor-icon-theme xdg-utils
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The package takes its version from the nearest release tag, so the
+          # tags have to be here for it to find the one being released.
+          fetch-depth: 0
+      - name: Trust checkout in container
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Build the package
+        # makepkg refuses to run as root, so the container's root builds as a
+        # user it makes for the purpose. The source is this checkout at the tag
+        # rather than a fresh clone, so the package is built from the commit the
+        # release names.
+        run: |
+          useradd --create-home builder
+          mkdir -p /tmp/build artifacts
+          cp packaging/PKGBUILD /tmp/build/PKGBUILD
+          sed -i "s|^source=.*|source=(\"\$_pkgname::git+file://$GITHUB_WORKSPACE#tag=$GITHUB_REF_NAME\")|" \
+            /tmp/build/PKGBUILD
+          chown -R builder /tmp/build
+          su builder -c 'cd /tmp/build && makepkg -f --noconfirm'
+          cp /tmp/build/*.pkg.tar.* artifacts/
+
+      - name: Generate the inventory
+        run:
+          scripts/generate_sbom.py --output "artifacts/omaweb-$GITHUB_REF_NAME-sbom.json" --version
+          "${GITHUB_REF_NAME#v}"
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-artifacts
+          path: artifacts/
+          if-no-files-found: error
+
   release:
+    needs: package
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -39,6 +85,11 @@ jobs:
           scripts/release_notes.sh "${GITHUB_REF_NAME}" > notes.md
           cat notes.md >> "$GITHUB_STEP_SUMMARY"
 
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: release-artifacts
+          path: artifacts
+
       - name: Publish the release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -51,4 +102,5 @@ jobs:
           gh release create "${GITHUB_REF_NAME}" \
             --title "${GITHUB_REF_NAME}" \
             --notes-file notes.md \
-            ${prerelease}
+            ${prerelease} \
+            artifacts/*

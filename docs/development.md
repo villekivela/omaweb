@@ -184,6 +184,34 @@ install, upgrade over itself and remove, checking that a file in the reader's co
 rest of the system come through untouched. It refuses to install on a host that is not disposable,
 because that would be putting a package on the machine of whoever ran a check.
 
+### Releases
+
+A release is cut by pushing a tag, and the tag is what everything else takes its version from. The
+release workflow builds the Arch package in the same container CI checks it in, generates the
+inventory, and attaches both to the release beside the notes.
+
+```sh
+scripts/generate_sbom.py --output omaweb-sbom.json
+```
+
+writes a CycloneDX inventory of what a distributed build contains: the Rust dependency graph the
+content blocker links, read through `cargo metadata` because a lockfile records versions but never
+licences; the two vendored web-asset directories, pinned to the upstream commit their
+`MANIFEST.json` names, which is what a reader needs to fetch corresponding source for the
+GPL-licensed one; and the icon font, identified by the hash of the file being built rather than by a
+version, because upstream publishes it from a branch.
+
+The web engine is deliberately not in it. The package depends on `qt6-webengine` rather than
+bundling it, so the distribution's package carries Qt's and Chromium's notices and its package
+manager already knows the version installed; a second answer from Omaweb could only disagree with
+that one. What the inventory records instead is the approved engine baseline, which is Omaweb's own
+claim about the engine it is supported on. Filter lists are out for the same reason: they are
+fetched on a first run rather than shipped.
+
+A build that bundled its engine would need all of that, and `THIRD_PARTY_NOTICES.md` says so.
+[ADR 0013](adr/0013-preserve-engine-sandboxes-in-every-build.md) defers AppImage and Flatpak until
+Omaweb can maintain bundled engine security updates.
+
 ## Security rules
 
 Never use Chromium's `--no-sandbox`, `--single-process`, in-process network-service flags, or

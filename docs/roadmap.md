@@ -19,7 +19,6 @@ left that is macOS-only. What remains for Linux is the package and the validatio
 Tracking issue: [#8](https://github.com/villekivela/omaweb/issues/8)
 
 - Validate the completed browser contract under native Wayland on Omarchy and Hyprland
-- Deliver releases and updates through the native package
 - Run Linux accessibility, IME, packaging, sandbox, and default-browser tests
 
 Linux is the only platform CI builds. macOS remains a development and test platform, and Omaweb does
