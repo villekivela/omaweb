@@ -13,9 +13,9 @@ The repo uses the five default triage labels. See `docs/agents/triage-labels.md`
 
 Domain documentation uses the single-context layout. See `docs/agents/domain.md`.
 
-### Commits
+### Branches and commits
 
-Before creating a commit, follow `docs/agents/commits.md`.
+Before creating a branch or a commit, follow `docs/agents/commits.md`.
 
 ### Documentation and code quality
 

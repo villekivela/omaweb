@@ -1,4 +1,18 @@
-# Commit messages
+# Branches and commit messages
+
+## Branch names
+
+Work on a branch named for the change and the ticket it answers:
+
+```text
+<type>/<issue>-<summary>
+```
+
+Use the same types as the commit subject. Keep the summary imperative, lowercase, and hyphenated,
+and drop the issue number only when there is no ticket. Examples: `fix/108-follow-the-editor-theme`,
+`perf/70-step-the-sidebar-seam`.
+
+## Commit messages
 
 Use Conventional Commits for every new commit:
 
