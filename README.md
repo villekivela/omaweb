@@ -25,12 +25,19 @@ ordered breakdown, and what else is planned.
 
 ## Install
 
-No release carries the package yet, so build it from the repository. It uses system Qt, which means
-an engine security update arrives from the distribution rather than from a rebuild here.
+Build the package from the repository. It uses system Qt, which means an engine security update
+arrives from the distribution rather than from a rebuild here.
 
 ```sh
 git clone https://github.com/villekivela/omaweb.git
 cd omaweb/packaging && makepkg -si
+```
+
+A release that carries a `.pkg.tar.zst` asset installs without a build. The `v0.1.x` releases carry
+notes alone, so check what the release you want offers.
+
+```sh
+sudo pacman -U omaweb-git-*.pkg.tar.zst
 ```
 
 Install `fcitx5-qt` as well if you use an input method. Omarchy points every Qt application at
