@@ -21,8 +21,12 @@ after the baseline issue opens. The issue includes its due date. To update the b
 2. Build against the new engine and run `ctest --preset ci` in full.
 3. Update `qtwebengine`, `chromium`, `chromiumSecurityPatch`, and `reviewed` in
    `security/baseline.json`.
-4. Tag a release so the Linux package includes the new engine. Omaweb has no application updater, so
-   the package handles release and update delivery.
+4. Tag a release so the raised baseline reaches readers. The engine itself arrives from the
+   distribution, because the package depends on system Qt rather than bundling it
+   ([ADR 0013](docs/adr/0013-preserve-engine-sandboxes-in-every-build.md)), so a reader takes the
+   patched engine through a system upgrade and this release is what stops their build reporting
+   itself as unsupported. Omaweb has no application updater, so the package handles its own release
+   and update delivery.
 
 Until step 3 lands, every build reports itself as below the approved baseline.
 
