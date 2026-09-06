@@ -6,9 +6,8 @@ Omaweb is a keyboard-driven web browser. One window, tabs down the side, Spaces 
 apart, and a palette that follows the desktop's own theme.
 
 Linux with first-class Wayland support is the platform Omaweb ships on, and the only one CI builds.
-The Qt build also runs on macOS as a development platform; those bundles are never distributed.
-QtWebEngine is the current engine. Ladybird is the one Omaweb is aiming at and stays a separate
-experimental build until its embedding and security contracts are ready.
+It also builds on macOS as a development platform; those bundles are never distributed. Pages are
+rendered by QtWebEngine.
 
 **Omaweb is pre-alpha. Do not put anything sensitive through it.**
 
@@ -20,10 +19,9 @@ hardening all work. On Linux it runs frameless on Wayland, opens the addresses t
 sends notifications and prints through the desktop's own services, and offers to become the default
 browser.
 
-Two things are not finished: the validation sweep across input, accessibility and sandboxing on a
-real desktop ([#8](https://github.com/villekivela/omaweb/issues/8)), and the Ladybird adapter
-([#7](https://github.com/villekivela/omaweb/issues/7)). [The roadmap](docs/roadmap.md) has the
-ordered breakdown.
+What is left is the validation sweep across input, accessibility and sandboxing on a real desktop
+([#8](https://github.com/villekivela/omaweb/issues/8)). [The roadmap](docs/roadmap.md) has the
+ordered breakdown, and what else is planned.
 
 ## Install
 
@@ -148,6 +146,6 @@ the running engine meets the baseline and CI compares it against upstream weekly
 
 ## License
 
-Omaweb's own code is under MPL 2.0. Engines, filter data, interface components, and other
+Omaweb's own code is under MPL 2.0. The engine, filter data, interface components, and other
 third-party material keep their own licenses. Every release carries an inventory of what is in it;
 see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
