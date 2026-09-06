@@ -11,6 +11,7 @@ class ContentBlockerTest final : public QObject {
     Q_OBJECT
 
 private slots:
+    void cosmeticsFollowRuleReplacementAndSiteToggles();
     void userRulesCompileOffTheCallerPath();
     void disablingASiteBypassesMatchingAndCosmetics();
     void disablingASiteRunsNoScriptlet();
@@ -20,6 +21,38 @@ private slots:
     void aRefusedWindowCountsAsABlockedRequest();
     void firstRunSubscribesToTheDefaultLists();
 };
+
+void ContentBlockerTest::cosmeticsFollowRuleReplacementAndSiteToggles()
+{
+    QTemporaryDir root;
+    ContentBlocker blocker(root.path(), ContentBlocker::DefaultLists::None);
+    const QUrl page(QStringLiteral("https://example.com/article"));
+    blocker.setUserRules(QStringLiteral("example.com##.old-ad\n##.generic-ad\n"
+                                        "example.com##+js(set-constant, adsShown, false)"));
+    QTRY_VERIFY_WITH_TIMEOUT(!blocker.compiling(), 5000);
+    QVERIFY(blocker.cosmeticStyleSheet(page).contains(QStringLiteral(".old-ad")));
+    QVERIFY(blocker.scriptletSource(page).contains(QStringLiteral("adsShown")));
+    QVERIFY(blocker.cosmeticSurveyWanted(page));
+
+    blocker.setSiteEnabled(page, false);
+    QVERIFY(blocker.cosmeticStyleSheet(page).isEmpty());
+    QVERIFY(blocker.scriptletSource(page).isEmpty());
+    QVERIFY(!blocker.cosmeticSurveyWanted(page));
+    QVERIFY(blocker.genericCosmeticStyleSheet(page, {QStringLiteral("generic-ad")}, {}).isEmpty());
+
+    blocker.setUserRules(
+        QStringLiteral("example.com##.new-ad\n##.generic-ad\nexample.com#@#.generic-ad\n"
+                       "example.com##+js(set-constant, adsShown, false)\n"
+                       "example.com#@#+js(set-constant, adsShown, false)"));
+    QTRY_VERIFY_WITH_TIMEOUT(!blocker.compiling(), 5000);
+    QVERIFY(blocker.cosmeticStyleSheet(page).isEmpty());
+    blocker.setSiteEnabled(page, true);
+    const auto css = blocker.cosmeticStyleSheet(page);
+    QVERIFY(css.contains(QStringLiteral(".new-ad")));
+    QVERIFY(!css.contains(QStringLiteral(".old-ad")));
+    QVERIFY(blocker.scriptletSource(page).isEmpty());
+    QVERIFY(blocker.genericCosmeticStyleSheet(page, {QStringLiteral("generic-ad")}, {}).isEmpty());
+}
 
 void ContentBlockerTest::userRulesCompileOffTheCallerPath()
 {

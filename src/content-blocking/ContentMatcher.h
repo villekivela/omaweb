@@ -53,6 +53,8 @@ public:
     bool shouldBlockPopup(const QUrl &requestUrl, const QUrl &openerUrl) const;
     QString cosmeticStyleSheet(const QUrl &url) const;
     QString scriptletSource(const QUrl &url) const;
+    // Counts assembled URL resources, excluding cache hits, for performance validation.
+    quint64 cosmeticLookupCount() const;
     bool cosmeticSurveyWanted(const QUrl &url) const;
     QString genericCosmeticStyleSheet(
         const QUrl &url, const QStringList &classes, const QStringList &ids) const;

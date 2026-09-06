@@ -669,6 +669,8 @@ Item {
                                                              root.currentUrl) : 0;
     }
     property bool cosmeticRulesInjected: false
+    property int cosmeticRuleGeneration: 0
+    property int cosmeticSurveyGeneration: 0
     property bool genericCosmeticRulesInjected: false
     readonly property string cosmeticElementId: "__omaweb_content_blocking"
     readonly property string genericCosmeticElementId: "__omaweb_content_blocking_generic"
@@ -684,8 +686,9 @@ Item {
                 + "const parent = document.head || document.documentElement;"
                 + "if (!parent) return false;" + "let style = document.getElementById(id);"
                 + "if (!style) {" + "style = document.createElement('style'); style.id = id;"
-                + "parent.append(style);" + "}" + "style.textContent = css;" + "return true;"
-                + "};" + "if (apply()) return;" + "const observer = new MutationObserver(() => {"
+                + "parent.append(style);" + "}"
+                + "if (style.textContent !== css) style.textContent = css;" + "return true;" + "};"
+                + "if (apply()) return;" + "const observer = new MutationObserver(() => {"
                 + "if (apply()) observer.disconnect();" + "});"
                 + "observer.observe(document, { childList: true, subtree: true });" + "})()";
     }
@@ -771,12 +774,26 @@ Item {
     function surveyGenericCosmeticRules() {
         // Turning blocking off for a site, or a rule set that no longer hides
         // anything here, has to take back what the last survey hid.
+        const surveyGeneration = ++root.cosmeticSurveyGeneration;
+        if (loading)
+            return;
         if (!contentBlocker || !contentBlocker.cosmeticSurveyWanted(currentUrl)) {
+            root.applyCosmeticRules();
             root.clearGenericCosmeticRules();
             return;
         }
         const surveyed = currentUrl;
-        webView.runJavaScript("(() => {" + "const classes = new Set(), ids = new Set();"
+        const documentGeneration = root.pageGeneration;
+        const ruleGeneration = root.cosmeticRuleGeneration;
+        const blocker = root.contentBlocker;
+        const css = blocker.cosmeticStyleSheet(surveyed);
+        // Verify the site stylesheet in the survey's existing round trip. The page
+        // may have removed or changed it since document creation.
+        const repair = css.length > 0 || cosmeticRulesInjected ? root.styleSheetSnippet(
+                                                                     root.cosmeticElementId, css)
+                                                                 + ";" : "";
+        root.cosmeticRulesInjected = css.length > 0;
+        webView.runJavaScript(repair + "(() => {" + "const classes = new Set(), ids = new Set();"
                               + "for (const element of document.querySelectorAll('[class], [id]')) {"
                               + "if (element.id) ids.add(element.id);"
                               + "for (const name of element.classList) classes.add(name);" + "}"
@@ -784,8 +801,11 @@ Item {
                               + "})()", function (survey) {
                                   // The page can navigate away while the survey is in flight,
                                   // and its classes say nothing about where the view landed.
-                                  if (!survey || !root.contentBlocker || surveyed
-                                          !== root.currentUrl)
+                                  if (!survey || root.loading || blocker !== root.contentBlocker
+                                          || documentGeneration !== root.pageGeneration
+                                          || ruleGeneration !== root.cosmeticRuleGeneration
+                                          || surveyGeneration !== root.cosmeticSurveyGeneration
+                                          || surveyed !== root.currentUrl)
                                       return;
                                   const css = root.contentBlocker.genericCosmeticStyleSheet(surveyed,
                                                                                             survey.classes,
@@ -885,14 +905,14 @@ Item {
         }
 
         function onConfigurationChanged() {
+            root.cosmeticRuleGeneration += 1;
             root.refreshBlockedRequestCount();
-            root.applyCosmeticRules();
             root.surveyGenericCosmeticRules();
         }
 
         function onRulesChanged() {
+            root.cosmeticRuleGeneration += 1;
             root.refreshBlockedRequestCount();
-            root.applyCosmeticRules();
             root.surveyGenericCosmeticRules();
         }
     }
@@ -1345,9 +1365,10 @@ Item {
                 root.installBlockingScript(loadRequest.url);
                 return;
             }
-            root.applyCosmeticRules();
             if (loadRequest.status === WebEngineView.LoadSucceededStatus) {
                 root.surveyGenericCosmeticRules();
+            } else {
+                root.applyCosmeticRules();
             }
             if (loadRequest.status === WebEngineView.LoadFailedStatus) {
                 root.lastLoadFailed = true;

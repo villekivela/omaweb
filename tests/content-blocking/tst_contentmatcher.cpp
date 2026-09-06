@@ -11,6 +11,8 @@ class ContentMatcherTest final : public QObject {
     Q_OBJECT
 
 private slots:
+    void reusesCosmeticResourcesForAStableNavigation();
+    void cosmeticCacheSeparatesFullUrlsAndEvictsOldEntries();
     void sharedConformanceFixtures();
     void sharedSurveyFixtures();
     void scriptletsCallTheLibraryFunctionTheRuleNames();
@@ -25,6 +27,52 @@ private slots:
     void popupRulesKeepTheirOtherConditions();
     void negatedPopupRulesStayOrdinaryRules();
 };
+
+void ContentMatcherTest::reusesCosmeticResourcesForAStableNavigation()
+{
+    const auto compilation = ContentMatcher::compile(
+        QStringLiteral("site.example##.site-ad\n##.generic-ad\n##.excepted\n"
+                       "site.example#@#.excepted\n"
+                       "site.example##+js(set-constant, adsShown, false)"));
+    QVERIFY(compilation.matcher);
+    const auto &matcher = *compilation.matcher;
+    const QUrl url(QStringLiteral("https://site.example/article"));
+    QCOMPARE(matcher.cosmeticLookupCount(), 0);
+    const auto css = matcher.cosmeticStyleSheet(url);
+    QVERIFY(css.contains(QStringLiteral(".site-ad")));
+    QVERIFY(matcher.scriptletSource(url).contains(QStringLiteral("adsShown")));
+    QCOMPARE(matcher.cosmeticStyleSheet(url), css);
+    QVERIFY(matcher.cosmeticSurveyWanted(url));
+    const auto generic = matcher.genericCosmeticStyleSheet(
+        url, {QStringLiteral("generic-ad"), QStringLiteral("excepted")}, {});
+    QVERIFY(generic.contains(QStringLiteral(".generic-ad")));
+    QVERIFY(!generic.contains(QStringLiteral(".excepted")));
+    QCOMPARE(matcher.cosmeticLookupCount(), 1);
+}
+
+void ContentMatcherTest::cosmeticCacheSeparatesFullUrlsAndEvictsOldEntries()
+{
+    const auto compilation
+        = ContentMatcher::compile(QStringLiteral("site.example##.site-ad\n##.generic-ad\n"
+                                                 "@@|https://site.example/excepted|$generichide"));
+    QVERIFY(compilation.matcher);
+    const auto &matcher = *compilation.matcher;
+    const QUrl first(QStringLiteral("https://site.example/first"));
+    const QUrl excepted(QStringLiteral("https://site.example/excepted"));
+    QVERIFY(matcher.cosmeticSurveyWanted(first));
+    QVERIFY(!matcher.cosmeticSurveyWanted(excepted));
+    QVERIFY(
+        matcher.genericCosmeticStyleSheet(excepted, {QStringLiteral("generic-ad")}, {}).isEmpty());
+    QCOMPARE(matcher.cosmeticLookupCount(), 2);
+    for (int index = 0; index < 40; ++index) {
+        QVERIFY(matcher
+                .cosmeticStyleSheet(QUrl(QStringLiteral("https://site.example/page/%1").arg(index)))
+                .contains(QStringLiteral(".site-ad")));
+    }
+    QCOMPARE(matcher.cosmeticLookupCount(), 42);
+    QVERIFY(matcher.cosmeticSurveyWanted(first));
+    QCOMPARE(matcher.cosmeticLookupCount(), 43);
+}
 
 void ContentMatcherTest::sharedConformanceFixtures()
 {
