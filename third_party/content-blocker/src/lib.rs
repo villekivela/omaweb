@@ -7,10 +7,11 @@ use adblock::{
     },
 };
 use serde_json::json;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashSet, VecDeque};
 use std::ffi::{CStr, CString, c_char};
 use std::panic::{AssertUnwindSafe, catch_unwind};
-use std::sync::LazyLock;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, LazyLock, Mutex};
 
 // uBlock Origin's resource library, vendored and pinned under
 // third_party/ubo-scriptlets and built into the binary. Two sets, and a rule
@@ -148,11 +149,56 @@ impl ResourceStorageBackend for VendoredResources {
 
 pub struct OmawebBlocker {
     engine: Engine,
+    cosmetic_lookups: AtomicU64,
+    cosmetics: Mutex<VecDeque<(String, Arc<CosmeticResources>)>>,
     // A second engine holds the list's $popup rules with that option stripped
     // off. adblock-rust has no popup request type and rejects the option
     // outright, so the rules are kept apart and asked about separately, at the
     // moment a page asks for a window rather than during a page's requests.
     popups: Engine,
+}
+
+// Each compiled matcher owns at most 32 full-URL results. The lock covers lookup and
+// insertion so concurrent requests for one URL assemble its scriptlets only once.
+//
+// The bound counts entries, not bytes, and an entry carries the site stylesheet and
+// the assembled scriptlet source together. Against EasyList and EasyPrivacy that is
+// roughly 47 KiB for an ordinary site and 149 KiB for a scriptlet-heavy one, so a
+// full cache runs from about 1.5 MiB to about 4.7 MiB. There is one per compiled
+// matcher, shared by every tab rather than held per tab.
+struct CosmeticResources {
+    css: String,
+    injected_script: String,
+    generichide: bool,
+    exceptions: HashSet<String>,
+}
+
+impl OmawebBlocker {
+    fn cosmetic_resources(&self, url: &str) -> Arc<CosmeticResources> {
+        let mut cache = self
+            .cosmetics
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
+        if let Some(index) = cache.iter().position(|(key, _)| key == url) {
+            let entry = cache.remove(index).expect("the cached URL exists");
+            let resources = Arc::clone(&entry.1);
+            cache.push_back(entry);
+            return resources;
+        }
+        self.cosmetic_lookups.fetch_add(1, Ordering::Relaxed);
+        let resources = self.engine.url_cosmetic_resources(url);
+        let resources = Arc::new(CosmeticResources {
+            css: stylesheet(resources.hide_selectors),
+            injected_script: resources.injected_script,
+            generichide: resources.generichide,
+            exceptions: resources.exceptions,
+        });
+        if cache.len() == 32 {
+            cache.pop_front();
+        }
+        cache.push_back((url.to_owned(), Arc::clone(&resources)));
+        resources
+    }
 }
 
 fn input(value: *const c_char) -> Option<String> {
@@ -407,6 +453,8 @@ pub unsafe extern "C" fn omaweb_blocker_compile(
         Box::into_raw(Box::new(OmawebBlocker {
             engine,
             popups: popup_engine,
+            cosmetic_lookups: AtomicU64::new(0),
+            cosmetics: Mutex::new(VecDeque::new()),
         }))
     }))
     .unwrap_or(std::ptr::null_mut())
@@ -582,8 +630,8 @@ pub unsafe extern "C" fn omaweb_blocker_cosmetic_css(
         let (Some(blocker), Some(url)) = (unsafe { blocker.as_ref() }, input(url)) else {
             return std::ptr::null_mut();
         };
-        let resources = blocker.engine.url_cosmetic_resources(&url);
-        output(stylesheet(resources.hide_selectors))
+        let resources = blocker.cosmetic_resources(&url);
+        output(resources.css.clone())
     }))
     .unwrap_or(std::ptr::null_mut())
 }
@@ -604,7 +652,7 @@ pub unsafe extern "C" fn omaweb_blocker_scriptlet_source(
         let (Some(blocker), Some(url)) = (unsafe { blocker.as_ref() }, input(url)) else {
             return std::ptr::null_mut();
         };
-        output(blocker.engine.url_cosmetic_resources(&url).injected_script)
+        output(blocker.cosmetic_resources(&url).injected_script.clone())
     }))
     .unwrap_or(std::ptr::null_mut())
 }
@@ -623,7 +671,7 @@ pub unsafe extern "C" fn omaweb_blocker_cosmetic_survey_wanted(
         let (Some(blocker), Some(url)) = (unsafe { blocker.as_ref() }, input(url)) else {
             return false;
         };
-        !blocker.engine.url_cosmetic_resources(&url).generichide
+        !blocker.cosmetic_resources(&url).generichide
     }))
     .unwrap_or(false)
 }
@@ -645,7 +693,7 @@ pub unsafe extern "C" fn omaweb_blocker_generic_cosmetic_css(
         let (Some(blocker), Some(url)) = (unsafe { blocker.as_ref() }, input(url)) else {
             return std::ptr::null_mut();
         };
-        let resources = blocker.engine.url_cosmetic_resources(&url);
+        let resources = blocker.cosmetic_resources(&url);
         if resources.generichide {
             return output(String::new());
         }
@@ -668,4 +716,15 @@ pub unsafe extern "C" fn omaweb_blocker_string_free(value: *mut c_char) {
             drop(CString::from_raw(value));
         }));
     }
+}
+
+#[unsafe(no_mangle)]
+/// # Safety
+/// `blocker` must be a live matcher.
+pub unsafe extern "C" fn omaweb_blocker_cosmetic_lookup_count(
+    blocker: *const OmawebBlocker,
+) -> u64 {
+    unsafe { blocker.as_ref() }.map_or(0, |blocker| {
+        blocker.cosmetic_lookups.load(Ordering::Relaxed)
+    })
 }

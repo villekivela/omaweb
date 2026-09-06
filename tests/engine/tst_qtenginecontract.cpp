@@ -66,7 +66,10 @@ private slots:
     void qtKeyboardNavigationHonorsInputContracts_data();
     void qtKeyboardNavigationHonorsInputContracts();
     void qtLinkHintsOwnSingleKeyShortcuts();
+    void qtHidesCosmeticRulesBeforeThePageRuns_data();
     void qtHidesCosmeticRulesBeforeThePageRuns();
+    void qtRejectsObsoleteCosmeticSurveys_data();
+    void qtRejectsObsoleteCosmeticSurveys();
     void qtRunsScriptletsBeforeThePageRuns();
     void qtRefusesTheWindowsTheListsNameAndNoOthers();
     void qtServesTheSubstitutesTheListsName();
@@ -1025,6 +1028,14 @@ public:
                 if (fields.size() > 1) {
                     m_requested.append(QString::fromUtf8(fields.at(1)));
                 }
+                if (fields.value(1) == "/redirect") {
+                    const auto destination
+                        = "http://127.0.0.1:" + QByteArray::number(serverPort()) + "/page.html";
+                    socket->write("HTTP/1.1 302 Found\r\nLocation: " + destination
+                        + "\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
+                    socket->disconnectFromHost();
+                    return;
+                }
                 socket->write("HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: "
                     + QByteArray::number(m_body.size()) + "\r\nConnection: close\r\n\r\n" + m_body);
                 socket->flush();
@@ -1046,9 +1057,21 @@ private:
 // once the view has settled. A hiding rule that arrives after the page's own
 // scripts is a rule the reader watched an ad flash through, so the first
 // report is as much of the contract as the second.
+void QtEngineContractTest::qtHidesCosmeticRulesBeforeThePageRuns_data()
+{
+    QTest::addColumn<QByteArray>("tamper");
+    QTest::addColumn<int>("writes");
+    QTest::newRow("unchanged") << QByteArray() << 0;
+    QTest::newRow("missing") << QByteArray("style.remove();") << 0;
+    QTest::newRow("changed") << QByteArray("style.textContent = '';") << 2;
+    QTest::newRow("redirect") << QByteArray("redirect") << 0;
+}
+
 void QtEngineContractTest::qtHidesCosmeticRulesBeforeThePageRuns()
 {
-    PageServer server(R"HTML(<!doctype html><html><body>
+    QFETCH(QByteArray, tamper);
+    QFETCH(int, writes);
+    const QByteArray body(R"HTML(<!doctype html><html><body>
         <div id="specific" class="local-ad">ad</div>
         <div id="generic" class="generic-ad">ad</div>
         <div id="article" class="story">article</div>
@@ -1058,19 +1081,29 @@ void QtEngineContractTest::qtHidesCosmeticRulesBeforeThePageRuns()
             const state = () => (hidden("specific") ? "S" : "-")
                 + (hidden("generic") ? "G" : "-") + (hidden("article") ? "A" : "-");
             const first = state();
+            const style = document.getElementById("__omaweb_content_blocking");
+            let writes = 0;
+            if (style) {
+                new MutationObserver(records => { writes += records.length; })
+                    .observe(style, { childList: true });
+            }
+            TAMPER
             const report = () => {
-                document.title = first + "|" + state();
+                document.title = first + "|" + state() + "|" + writes;
                 requestAnimationFrame(report);
             };
             report();
         </script>
     </body></html>)HTML");
+    const bool redirected = tamper == "redirect";
+    PageServer server(QByteArray(body).replace("TAMPER", redirected ? QByteArray() : tamper));
     QVERIFY(server.listen(QHostAddress::LocalHost));
 
     QTemporaryDir root;
     QVERIFY(root.isValid());
     omaweb::ContentBlocker contentBlocker(root.path(), omaweb::ContentBlocker::DefaultLists::None);
-    contentBlocker.setUserRules(QStringLiteral("127.0.0.1##.local-ad\n##.generic-ad"));
+    contentBlocker.setUserRules(
+        QStringLiteral("127.0.0.1##.local-ad\nlocalhost##.story\n##.generic-ad"));
     QTRY_VERIFY_WITH_TIMEOUT(!contentBlocker.compiling(), 5000);
 
     QQmlEngine engine;
@@ -1086,18 +1119,92 @@ void QtEngineContractTest::qtHidesCosmeticRulesBeforeThePageRuns()
     window.show();
 
     const QUrl pageUrl(QStringLiteral("http://127.0.0.1:%1/page.html").arg(server.serverPort()));
-    QVERIFY(adapter->setProperty("currentUrl", pageUrl));
+    const QUrl initialUrl = redirected
+        ? QUrl(QStringLiteral("http://localhost:%1/redirect").arg(server.serverPort()))
+        : pageUrl;
+    QVERIFY(adapter->setProperty("currentUrl", initialUrl));
 
     // The hostname rule is in the document before the page's own script runs;
     // the generic rule arrives with the survey, once there is a DOM to survey.
-    QTRY_COMPARE_WITH_TIMEOUT(
-        adapter->property("pageTitle").toString(), QStringLiteral("S--|SG-"), 15000);
+    if (redirected) {
+        QTRY_COMPARE_WITH_TIMEOUT(adapter->property("currentUrl").toUrl(), pageUrl, 15000);
+        QTRY_COMPARE_WITH_TIMEOUT(adapter->property("pageTitle").toString().section('|', 1, 1),
+            QStringLiteral("SG-"), 15000);
+    } else {
+        QTRY_COMPARE_WITH_TIMEOUT(adapter->property("pageTitle").toString(),
+            QStringLiteral("S--|SG-|%1").arg(writes), 15000);
+    }
 
     // Turning the site off gives both back without a reload, the surveyed
     // rules included.
     contentBlocker.setSiteEnabled(pageUrl, false);
     QTRY_COMPARE_WITH_TIMEOUT(
-        adapter->property("pageTitle").toString(), QStringLiteral("S--|---"), 15000);
+        adapter->property("pageTitle").toString().section('|', 1, 1), QStringLiteral("---"), 15000);
+    contentBlocker.setSiteEnabled(pageUrl, true);
+    QTRY_COMPARE_WITH_TIMEOUT(
+        adapter->property("pageTitle").toString().section('|', 1, 1), QStringLiteral("SG-"), 15000);
+}
+
+void QtEngineContractTest::qtRejectsObsoleteCosmeticSurveys_data()
+{
+    QTest::addColumn<QString>("change");
+    QTest::newRow("same-url-reload") << QStringLiteral("reload");
+    QTest::newRow("rule-replacement") << QStringLiteral("rulesChanged");
+    QTest::newRow("site-toggle") << QStringLiteral("configurationChanged");
+}
+
+void QtEngineContractTest::qtRejectsObsoleteCosmeticSurveys()
+{
+    QFETCH(QString, change);
+    PageServer server(
+        "<html><body class='ad'><script>document.title='ready';</script></body></html>");
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+    QTemporaryDir root;
+    QQmlEngine engine;
+    // Count requests at the adapter's blocker boundary. The survey runs in Chromium,
+    // so a change issued in this event-loop turn precedes its asynchronous reply.
+    QQmlComponent blockerComponent(&engine);
+    blockerComponent.setData(R"QML(
+        import QtQml
+        QtObject {
+            property int genericRequests: 0
+            signal rulesChanged()
+            signal configurationChanged()
+            function blockedRequestCount(url) { return 0; }
+            function cosmeticStyleSheet(url) { return ""; }
+            function scriptletSource(url) { return ""; }
+            function cosmeticSurveyWanted(url) { return true; }
+            function genericCosmeticStyleSheet(url, classes, ids) {
+                genericRequests += 1;
+                return ".ad { display: none !important; }";
+            }
+        }
+    )QML",
+        QUrl());
+    const std::unique_ptr<QObject> blocker(blockerComponent.create());
+    QVERIFY2(blocker, qPrintable(blockerComponent.errorString()));
+    QQmlComponent component(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
+        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
+        {QStringLiteral("contentBlocker"), QVariant::fromValue(blocker.get())},
+    }));
+    QVERIFY2(adapter, qPrintable(component.errorString()));
+    QQuickWindow window;
+    qobject_cast<QQuickItem *>(adapter.get())->setParentItem(window.contentItem());
+    window.show();
+    const QUrl page(QStringLiteral("http://127.0.0.1:%1/page.html").arg(server.serverPort()));
+    QVERIFY(adapter->setProperty("currentUrl", page));
+    QTRY_COMPARE_WITH_TIMEOUT(blocker->property("genericRequests").toInt(), 1, 15000);
+    QVERIFY(QMetaObject::invokeMethod(adapter.get(), "surveyGenericCosmeticRules"));
+    if (change == QStringLiteral("reload")) {
+        QVERIFY(QMetaObject::invokeMethod(adapter.get(), "reloadPage"));
+    } else {
+        QVERIFY(QMetaObject::invokeMethod(blocker.get(), change.toUtf8().constData()));
+    }
+    QTRY_COMPARE_WITH_TIMEOUT(blocker->property("genericRequests").toInt(), 2, 15000);
+    QTest::qWait(250);
+    QCOMPARE(blocker->property("genericRequests").toInt(), 2);
 }
 
 // A `##+js(...)` rule is worth something only if its scriptlet has already run

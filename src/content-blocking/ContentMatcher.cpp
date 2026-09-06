@@ -147,6 +147,11 @@ QString ContentMatcher::scriptletSource(const QUrl &url) const
     return result;
 }
 
+quint64 ContentMatcher::cosmeticLookupCount() const
+{
+    return omaweb_blocker_cosmetic_lookup_count(d->blocker);
+}
+
 bool ContentMatcher::cosmeticSurveyWanted(const QUrl &url) const
 {
     const auto encodedUrl = url.toString(QUrl::FullyEncoded).toUtf8();

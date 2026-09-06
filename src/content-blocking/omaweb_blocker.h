@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stdbool.h>
+#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -35,6 +36,7 @@ char *omaweb_blocker_scriptlet_source(const OmawebBlocker *blocker, const char *
 bool omaweb_blocker_cosmetic_survey_wanted(const OmawebBlocker *blocker, const char *url);
 char *omaweb_blocker_generic_cosmetic_css(
     const OmawebBlocker *blocker, const char *url, const char *classes, const char *ids);
+uint64_t omaweb_blocker_cosmetic_lookup_count(const OmawebBlocker *blocker);
 void omaweb_blocker_string_free(char *value);
 
 #ifdef __cplusplus
