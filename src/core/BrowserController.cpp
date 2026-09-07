@@ -2,6 +2,8 @@
 
 #include "DownloadPolicy.h"
 #include "HistorySearch.h"
+#include "PrivateSessionStore.h"
+#include "SqliteSessionStore.h"
 
 #include <QRegularExpression>
 #include <QDir>
@@ -74,6 +76,22 @@ namespace {
 
 } // namespace
 
+namespace {
+
+    // The one place a window's adapter is chosen. A Private window is given a
+    // store that keeps nothing but the Site permissions its session shares, so no
+    // call site below has to ask again.
+    std::shared_ptr<SessionStore> makeStore(const QString &dataRoot, bool privateBrowsing,
+        const QSharedPointer<QHash<QString, int>> &sessionDecisions)
+    {
+        if (privateBrowsing) {
+            return std::make_shared<PrivateSessionStore>(sessionDecisions);
+        }
+        return std::make_shared<SqliteSessionStore>(dataRoot);
+    }
+
+} // namespace
+
 BrowserController::BrowserController(QString dataRoot, QString engineName, QObject *parent)
     : BrowserController(dataRoot, std::move(engineName), false,
           QSharedPointer<QHash<QString, int>>::create(), {}, parent)
@@ -113,8 +131,29 @@ BrowserController::BrowserController(QString dataRoot, QString engineName, bool 
 BrowserController::BrowserController(QString dataRoot, QString engineName, bool privateBrowsing,
     QSharedPointer<QHash<QString, int>> sessionPermissionDecisions,
     QSharedPointer<SessionSiteState> sessionSiteState, QString configRoot, QObject *parent)
+    : BrowserController(makeStore(dataRoot, privateBrowsing, sessionPermissionDecisions),
+          std::move(dataRoot), std::move(engineName), privateBrowsing,
+          std::move(sessionPermissionDecisions), std::move(sessionSiteState), std::move(configRoot),
+          parent)
+{
+}
+
+BrowserController::BrowserController(std::shared_ptr<SessionStore> store, QString engineName,
+    bool privateBrowsing, QSharedPointer<QHash<QString, int>> sessionPermissionDecisions,
+    QSharedPointer<SessionSiteState> sessionSiteState, QString configRoot, QObject *parent)
+    : BrowserController(std::move(store), {}, std::move(engineName), privateBrowsing,
+          std::move(sessionPermissionDecisions), std::move(sessionSiteState), std::move(configRoot),
+          parent)
+{
+}
+
+BrowserController::BrowserController(std::shared_ptr<SessionStore> store, QString dataRoot,
+    QString engineName, bool privateBrowsing,
+    QSharedPointer<QHash<QString, int>> sessionPermissionDecisions,
+    QSharedPointer<SessionSiteState> sessionSiteState, QString configRoot, QObject *parent)
     : QObject(parent)
-    , m_store(std::move(dataRoot))
+    , m_store(std::move(store))
+    , m_dataRoot(std::move(dataRoot))
     , m_engineName(std::move(engineName))
     , m_configRoot(std::move(configRoot))
     , m_privateBrowsing(privateBrowsing)
@@ -145,7 +184,7 @@ BrowserController::BrowserController(QString dataRoot, QString engineName, bool 
     if (!m_privateBrowsing) {
         m_historyThread = new QThread(this);
         m_historyThread->setObjectName(QStringLiteral("omaweb-history-search"));
-        m_historySearch = new HistorySearch(m_store.dataRoot());
+        m_historySearch = new HistorySearch(m_dataRoot);
         m_historySearch->moveToThread(m_historyThread);
         connect(m_historyThread, &QThread::finished, m_historySearch, &QObject::deleteLater);
         connect(this, &BrowserController::historySearchRequested, m_historySearch,
@@ -210,7 +249,7 @@ QString BrowserController::activeProfilePath() const
     if (m_privateBrowsing) {
         return {};
     }
-    return m_store.engineProfilePath(m_activeSpaceId, m_engineName);
+    return SqliteSessionStore::engineProfilePath(m_dataRoot, m_activeSpaceId, m_engineName);
 }
 
 QString BrowserController::profilePathForSpace(const QString &spaceId) const
@@ -220,7 +259,7 @@ QString BrowserController::profilePathForSpace(const QString &spaceId) const
     }
     for (const auto &space : m_spaces.items()) {
         if (space.id == spaceId) {
-            return m_store.engineProfilePath(spaceId, m_engineName);
+            return SqliteSessionStore::engineProfilePath(m_dataRoot, spaceId, m_engineName);
         }
     }
     return {};
@@ -362,7 +401,7 @@ QString BrowserController::createSpace(const QString &name)
     space.id = QUuid::createUuid().toString(QUuid::WithoutBraces);
     space.name = normalizedName;
     space.color = QStringLiteral("#7c6cff");
-    if (!m_store.saveSpace(space)) {
+    if (!m_store->saveSpace(space)) {
         return {};
     }
 
@@ -396,7 +435,7 @@ bool BrowserController::switchSpace(const QString &spaceId)
         return false;
     }
     emit spaceSuspended(m_activeSpaceId, retainedTabIds());
-    if (!m_store.setActiveSpace(spaceId)) {
+    if (!m_store->setActiveSpace(spaceId)) {
         emit spaceRestored(m_activeSpaceId);
         return false;
     }
@@ -437,7 +476,7 @@ bool BrowserController::renameSpace(const QString &spaceId, const QString &name)
             continue;
         }
         space.name = normalizedName;
-        if (!m_store.saveSpace(space)) {
+        if (!m_store->saveSpace(space)) {
             return false;
         }
         if (space.active) {
@@ -487,13 +526,13 @@ bool BrowserController::deleteSpace(const QString &spaceId, const QString &confi
         // Nothing in a Space that is being deleted is worth keeping running.
         emit spaceSuspended(spaceId, {});
     }
-    if (!m_store.deleteSpace(spaceId, deletingActiveSpace ? replacementId : QString {})) {
+    if (!m_store->deleteSpace(spaceId, deletingActiveSpace ? replacementId : QString {})) {
         if (deletingActiveSpace) {
             emit spaceRestored(spaceId);
         }
         return false;
     }
-    m_spaces.reset(m_store.loadSpaces());
+    m_spaces.reset(m_store->loadSpaces());
     cancelHistorySuggestions();
     emit historySearchSpaceForgotten(spaceId);
     // Nothing belonging to a deleted Space should outlive it, including the
@@ -571,7 +610,7 @@ bool BrowserController::confirmTabMoveToSpace(
         sourceActiveTabId = sourceTabs.first().id;
     }
 
-    auto destinationTabs = m_store.loadTabs(destinationSpaceId);
+    auto destinationTabs = m_store->loadTabs(destinationSpaceId);
     QString destinationActiveTabId;
     for (const auto &tab : destinationTabs) {
         if (tab.active) {
@@ -588,7 +627,7 @@ bool BrowserController::confirmTabMoveToSpace(
         destinationActiveTabId = movedTab.id;
     }
 
-    if (!m_store.saveSpaceMove(m_activeSpaceId, sourceTabs, sourceActiveTabId, destinationSpaceId,
+    if (!m_store->saveSpaceMove(m_activeSpaceId, sourceTabs, sourceActiveTabId, destinationSpaceId,
             destinationTabs, destinationActiveTabId)) {
         return false;
     }
@@ -800,8 +839,7 @@ void BrowserController::rememberClosedTab(const TabState &tab)
 
 void BrowserController::loadClosedTabs()
 {
-    m_closedTabs
-        = m_privateBrowsing ? QVector<TabState> {} : m_store.loadClosedTabs(m_activeSpaceId);
+    m_closedTabs = m_store->loadClosedTabs(m_activeSpaceId);
     while (m_closedTabs.size() > retainedClosedTabs) {
         m_closedTabs.removeLast();
     }
@@ -809,13 +847,10 @@ void BrowserController::loadClosedTabs()
 }
 
 // A Private session keeps the same stack for as long as it lasts and leaves
-// nothing behind, so nothing about it reaches a store.
+// nothing behind, which is its store's answer rather than a test here.
 void BrowserController::persistClosedTabs()
 {
-    if (m_privateBrowsing) {
-        return;
-    }
-    m_store.saveClosedTabs(m_activeSpaceId, m_closedTabs);
+    m_store->saveClosedTabs(m_activeSpaceId, m_closedTabs);
 }
 
 // Newest first, so repeated asking walks back through the closes in the order
@@ -1031,7 +1066,7 @@ bool BrowserController::releaseRetainedTab(const QString &tabId)
     }
     if (const auto *retained = findRetainedTab(tabId)) {
         const auto spaceId = retained->spaceId;
-        auto tabs = m_store.loadTabs(spaceId);
+        auto tabs = m_store->loadTabs(spaceId);
         QString activeTabId;
         bool found = false;
         for (auto &tab : tabs) {
@@ -1044,7 +1079,7 @@ bool BrowserController::releaseRetainedTab(const QString &tabId)
             tab.keepActive = false;
             found = true;
         }
-        if (!found || !m_store.saveTabs(spaceId, tabs, activeTabId)) {
+        if (!found || !m_store->saveTabs(spaceId, tabs, activeTabId)) {
             return false;
         }
         refreshRetainedTabs();
@@ -1102,26 +1137,24 @@ QStringList BrowserController::retainedTabIds() const
 void BrowserController::refreshRetainedTabs()
 {
     QVector<RetainedTab> retained;
-    if (!m_privateBrowsing) {
-        for (const auto &space : m_spaces.items()) {
-            if (space.id == m_activeSpaceId) {
+    for (const auto &space : m_spaces.items()) {
+        if (space.id == m_activeSpaceId) {
+            continue;
+        }
+        for (const auto &tab : m_store->loadTabs(space.id)) {
+            if (!retains(tab, m_developerToolsTabId)) {
                 continue;
             }
-            for (const auto &tab : m_store.loadTabs(space.id)) {
-                if (!retains(tab, m_developerToolsTabId)) {
-                    continue;
-                }
-                retained.append(RetainedTab {
-                    .tabId = tab.id,
-                    .spaceId = space.id,
-                    .spaceName = space.name,
-                    .title = tab.title,
-                    .url = tab.url,
-                    .zoom = tab.zoom,
-                    .muted = tab.muted,
-                    .inspected = tab.id == m_developerToolsTabId,
-                });
-            }
+            retained.append(RetainedTab {
+                .tabId = tab.id,
+                .spaceId = space.id,
+                .spaceName = space.name,
+                .title = tab.title,
+                .url = tab.url,
+                .zoom = tab.zoom,
+                .muted = tab.muted,
+                .inspected = tab.id == m_developerToolsTabId,
+            });
         }
     }
     if (retained == m_retainedTabs) {
@@ -1499,11 +1532,10 @@ void BrowserController::requestStopLoading() { emit stopLoadingRequested(); }
 
 void BrowserController::recordVisit(const QUrl &url, const QString &title)
 {
-    if (m_privateBrowsing || url.scheme() == QStringLiteral("about")
-        || normalizedOrigin(url).isEmpty()) {
+    if (url.scheme() == QStringLiteral("about") || normalizedOrigin(url).isEmpty()) {
         return;
     }
-    m_store.recordVisit(m_activeSpaceId, url, title.isEmpty() ? url.host() : title);
+    m_store->recordVisit(m_activeSpaceId, url, title.isEmpty() ? url.host() : title);
 }
 
 void BrowserController::requestHistorySuggestions(const QString &query, int limit)
@@ -1561,15 +1593,15 @@ void BrowserController::historySearchAnswered(
 
 QVariantList BrowserController::history(const QString &query, int limit) const
 {
-    if (m_privateBrowsing || limit <= 0) {
+    if (limit <= 0) {
         return {};
     }
-    return m_store.history(m_activeSpaceId, query.trimmed(), limit);
+    return m_store->history(m_activeSpaceId, query.trimmed(), limit);
 }
 
 bool BrowserController::deleteHistoryVisit(qint64 id)
 {
-    if (m_privateBrowsing || id <= 0 || !m_store.deleteHistoryVisit(m_activeSpaceId, id)) {
+    if (id <= 0 || !m_store->deleteHistoryVisit(m_activeSpaceId, id)) {
         return false;
     }
     cancelHistorySuggestions();
@@ -1579,8 +1611,7 @@ bool BrowserController::deleteHistoryVisit(qint64 id)
 bool BrowserController::deleteHistoryOrigin(const QUrl &url)
 {
     const auto origin = normalizedOrigin(url);
-    if (m_privateBrowsing || origin.isEmpty()
-        || !m_store.deleteHistoryOrigin(m_activeSpaceId, origin)) {
+    if (origin.isEmpty() || !m_store->deleteHistoryOrigin(m_activeSpaceId, origin)) {
         return false;
     }
     cancelHistorySuggestions();
@@ -1589,7 +1620,7 @@ bool BrowserController::deleteHistoryOrigin(const QUrl &url)
 
 bool BrowserController::deleteHistorySince(qint64 since)
 {
-    if (m_privateBrowsing || !m_store.deleteHistorySince(m_activeSpaceId, since)) {
+    if (!m_store->deleteHistorySince(m_activeSpaceId, since)) {
         return false;
     }
     cancelHistorySuggestions();
@@ -1744,17 +1775,17 @@ bool BrowserController::clearBrowsingData(
     QStringList spaceIds {m_activeSpaceId};
     if (everySpace) {
         spaceIds.clear();
-        for (const auto &space : m_store.loadSpaces()) {
+        for (const auto &space : m_store->loadSpaces()) {
             spaceIds.append(space.id);
         }
     }
     bool cleared = true;
     for (const auto &spaceId : spaceIds) {
         if (dataTypes.contains(QStringLiteral("history"))) {
-            cleared = m_store.deleteHistorySince(spaceId, since) && cleared;
+            cleared = m_store->deleteHistorySince(spaceId, since) && cleared;
         }
         if (dataTypes.contains(QStringLiteral("permissions"))) {
-            cleared = m_store.clearPermissionsSince(spaceId, since) && cleared;
+            cleared = m_store->clearPermissionsSince(spaceId, since) && cleared;
             const auto prefix = spaceId + QChar(0x1f);
             m_sessionPermissionDecisions->removeIf(
                 [&prefix](auto it) { return it.key().startsWith(prefix); });
@@ -1822,10 +1853,7 @@ int BrowserController::permissionDecision(const QUrl &url, const QString &permis
     if (sessionDecision != Ask) {
         return sessionDecision;
     }
-    if (m_privateBrowsing) {
-        return Ask;
-    }
-    return m_store.permissionDecision(m_activeSpaceId, origin, normalizedPermission);
+    return m_store->permissionDecision(m_activeSpaceId, origin, normalizedPermission);
 }
 
 bool BrowserController::setPermissionDecision(
@@ -1847,12 +1875,12 @@ bool BrowserController::setPermissionDecision(
     if (policy == AskedEachTime) {
         return decision != AllowPersistently;
     }
-    if (decision == AllowOnce || m_privateBrowsing) {
+    if (decision == AllowOnce) {
         m_sessionPermissionDecisions->insert(
             sessionPermissionKey(origin, normalizedPermission), decision);
         return true;
     }
-    return m_store.savePermissionDecision(m_activeSpaceId, origin, normalizedPermission, decision);
+    return m_store->savePermissionDecision(m_activeSpaceId, origin, normalizedPermission, decision);
 }
 
 QVariantList BrowserController::sitePermissions(const QUrl &url) const
@@ -1861,13 +1889,10 @@ QVariantList BrowserController::sitePermissions(const QUrl &url) const
     if (origin.isEmpty()) {
         return {};
     }
-    QVariantList permissions;
+    QVariantList permissions = m_store->permissionsForOrigin(m_activeSpaceId, origin);
     QSet<QString> listed;
-    if (!m_privateBrowsing) {
-        permissions = m_store.permissionsForOrigin(m_activeSpaceId, origin);
-        for (const auto &entry : permissions) {
-            listed.insert(entry.toMap().value(QStringLiteral("permission")).toString());
-        }
+    for (const auto &entry : permissions) {
+        listed.insert(entry.toMap().value(QStringLiteral("permission")).toString());
     }
     // The session's own answers count too, and are the only ones a Private
     // window has. Read without being spent: listing what a site holds is not
@@ -1909,7 +1934,7 @@ bool BrowserController::resetSitePermissions(const QUrl &url)
     if (m_privateBrowsing) {
         return true;
     }
-    return m_store.clearPermissionsForOrigin(m_activeSpaceId, origin);
+    return m_store->clearPermissionsForOrigin(m_activeSpaceId, origin);
 }
 
 bool BrowserController::localDevelopmentSite(const QUrl &url) const
@@ -2049,8 +2074,7 @@ bool BrowserController::externalProtocolAllowed(const QUrl &url, const QString &
     if (sessionDecision == AllowPersistently) {
         return true;
     }
-    return !m_privateBrowsing
-        && m_store.permissionDecision(m_activeSpaceId, origin, permission) == AllowPersistently;
+    return m_store->permissionDecision(m_activeSpaceId, origin, permission) == AllowPersistently;
 }
 
 bool BrowserController::rememberExternalProtocolDecision(const QUrl &url, const QString &scheme)
@@ -2061,22 +2085,17 @@ bool BrowserController::rememberExternalProtocolDecision(const QUrl &url, const 
         return false;
     }
     const auto permission = QStringLiteral("external-protocol/%1").arg(normalizedScheme);
-    if (m_privateBrowsing) {
-        m_sessionPermissionDecisions->insert(
-            sessionPermissionKey(origin, permission), AllowPersistently);
-        return true;
-    }
-    return m_store.savePermissionDecision(m_activeSpaceId, origin, permission, AllowPersistently);
+    return m_store->savePermissionDecision(m_activeSpaceId, origin, permission, AllowPersistently);
 }
 
 QString BrowserController::recordDownload(const QString &runtimeId, const QUrl &url,
     const QString &path, const QString &state, qint64 receivedBytes, qint64 totalBytes)
 {
-    if (m_privateBrowsing || runtimeId.isEmpty() || !url.isValid()) {
+    if (runtimeId.isEmpty() || !url.isValid()) {
         return {};
     }
     const auto recordId = QUuid::createUuid().toString(QUuid::WithoutBraces);
-    return m_store.recordDownload(recordId, url, path, state, receivedBytes, totalBytes)
+    return m_store->recordDownload(recordId, url, path, state, receivedBytes, totalBytes)
         ? recordId
         : QString {};
 }
@@ -2084,26 +2103,17 @@ QString BrowserController::recordDownload(const QString &runtimeId, const QUrl &
 bool BrowserController::updateDownload(const QString &id, const QString &state,
     qint64 receivedBytes, qint64 totalBytes, const QString &error)
 {
-    if (m_privateBrowsing) {
-        return false;
-    }
-    return m_store.updateDownload(id, state, receivedBytes, totalBytes, error);
+    return m_store->updateDownload(id, state, receivedBytes, totalBytes, error);
 }
 
-QVariantList BrowserController::downloadHistory() const
-{
-    if (m_privateBrowsing) {
-        return {};
-    }
-    return m_store.downloadHistory();
-}
+QVariantList BrowserController::downloadHistory() const { return m_store->downloadHistory(); }
 
 bool BrowserController::forgetDownload(const QString &id)
 {
-    if (m_privateBrowsing || id.isEmpty()) {
+    if (id.isEmpty()) {
         return false;
     }
-    return m_store.forgetDownload(id);
+    return m_store->forgetDownload(id);
 }
 
 QString BrowserController::dispositionName(DownloadDisposition disposition)
@@ -2143,8 +2153,8 @@ QVariantMap BrowserController::downloadDisposition(const QUrl &origin, const QSt
     if (automatic) {
         const auto key = sessionPermissionKey(normalized, QStringLiteral("automatic-downloads"));
         auto decision = m_sessionPermissionDecisions->value(key, Ask);
-        if (decision == Ask && !m_privateBrowsing) {
-            decision = m_store.permissionDecision(
+        if (decision == Ask) {
+            decision = m_store->permissionDecision(
                 m_activeSpaceId, normalized, QStringLiteral("automatic-downloads"));
         }
         if (decision == Block) {
@@ -2192,31 +2202,33 @@ int BrowserController::activeDownloadCount(const QUrl &origin) const
 // defaults and leaves nothing of itself behind.
 QString BrowserController::preference(const QString &name, const QString &fallback) const
 {
-    if (m_privateBrowsing || !m_ready) {
+    if (!m_ready) {
         return fallback;
     }
-    return m_store.preference(name, fallback);
+    return m_store->preference(name, fallback);
 }
 
 bool BrowserController::setPreference(const QString &name, const QString &value)
 {
-    if (m_privateBrowsing || !m_ready) {
+    if (!m_ready) {
         return false;
     }
-    return m_store.savePreference(name, value);
+    return m_store->savePreference(name, value);
 }
 
 void BrowserController::initialize()
 {
+    if (!m_store->open(&m_errorMessage)) {
+        return;
+    }
+    // A Private window has no Spaces and nothing saved to restore them from,
+    // so its one ordinary tab starts blank.
     if (m_privateBrowsing) {
         auto tab = makeBlankTab({});
         m_activeTabId = tab.id;
         m_tabs.reset({tab});
         loadSearchEngines();
         m_ready = true;
-        return;
-    }
-    if (!m_store.open(&m_errorMessage)) {
         return;
     }
     ensureDefaultSpace();
@@ -2231,14 +2243,14 @@ void BrowserController::initialize()
 
 void BrowserController::ensureDefaultSpace()
 {
-    auto spaces = m_store.loadSpaces();
+    auto spaces = m_store->loadSpaces();
     if (spaces.isEmpty()) {
         SpaceState personal;
         personal.id = QUuid::createUuid().toString(QUuid::WithoutBraces);
         personal.name = QStringLiteral("Personal");
         personal.color = QStringLiteral("#7c6cff");
         personal.active = true;
-        m_store.saveSpace(personal);
+        m_store->saveSpace(personal);
         spaces.append(personal);
     }
 
@@ -2256,11 +2268,11 @@ void BrowserController::ensureDefaultSpace()
 
 void BrowserController::ensureActiveTab()
 {
-    auto tabs = m_store.loadTabs(m_activeSpaceId);
+    auto tabs = m_store->loadTabs(m_activeSpaceId);
     if (tabs.isEmpty()) {
         auto tab = makeBlankTab(m_activeSpaceId);
         tabs.append(tab);
-        m_store.saveTab(tab, 0);
+        m_store->saveTab(tab, 0);
     }
 
     auto active = tabs.cbegin();
@@ -2279,10 +2291,7 @@ void BrowserController::ensureActiveTab()
 bool BrowserController::persistTabs()
 {
     m_persistTabsTimer.stop();
-    if (m_privateBrowsing) {
-        return true;
-    }
-    return m_store.saveTabs(m_activeSpaceId, m_tabs.items(), m_activeTabId);
+    return m_store->saveTabs(m_activeSpaceId, m_tabs.items(), m_activeTabId);
 }
 
 // A loading page reports a new address and then several titles in quick
@@ -2473,7 +2482,7 @@ QString BrowserController::normalizedOrigin(const QUrl &url)
 QString BrowserController::sessionPermissionKey(
     const QString &origin, const QString &permission) const
 {
-    return m_activeSpaceId + QChar(0x1f) + origin + QChar(0x1f) + permission;
+    return omaweb::sessionPermissionKey(m_activeSpaceId, origin, permission);
 }
 
 bool BrowserController::isBlank(const QUrl &url)

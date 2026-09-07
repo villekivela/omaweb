@@ -1,7 +1,7 @@
 #include "HistorySearch.h"
 
 #include "HistoryQuery.h"
-#include "SessionStore.h"
+#include "SqliteSessionStore.h"
 
 #include <QFileInfo>
 #include <QSqlQuery>
@@ -63,7 +63,7 @@ QSqlDatabase HistorySearch::database(const QString &spaceId)
         return it.value();
     }
 
-    const auto path = SessionStore::spaceDatabasePath(m_dataRoot, spaceId);
+    const auto path = SqliteSessionStore::spaceDatabasePath(m_dataRoot, spaceId);
     // Opening would create an empty database, which for a Space that has been
     // deleted would put its directory back. A Space with nothing written yet
     // has no History to suggest either way.

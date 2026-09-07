@@ -1,6 +1,7 @@
 #include "BrowserController.h"
 #include "HistoryQuery.h"
 #include "SpaceListModel.h"
+#include "SqliteSessionStore.h"
 #include "TabListModel.h"
 #include "WindowManager.h"
 
@@ -683,7 +684,8 @@ void BrowserControllerTest::keepsHistoryInsideItsBoundWhileASpaceStaysOpen()
     const auto connectionName = QStringLiteral("history-bound-check");
     {
         auto database = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), connectionName);
-        database.setDatabaseName(omaweb::SessionStore::spaceDatabasePath(root.path(), spaceId));
+        database.setDatabaseName(
+            omaweb::SqliteSessionStore::spaceDatabasePath(root.path(), spaceId));
         QVERIFY(database.open());
         QSqlQuery count(database);
         QVERIFY(count.exec(QStringLiteral("SELECT COUNT(*) FROM history")));

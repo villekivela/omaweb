@@ -42,6 +42,12 @@ JSON stores settings, keybindings, and themes.
 Structural state commits transactionally. High-frequency presentation state saves on a short
 debounce. Engine caches and compiled blocker data are disposable and never enter Sync.
 
+A Private window is given a store that records none of this. Which store a window holds is where "a
+Private window writes nothing down" is decided, rather than a test beside each write, and the one
+thing that store keeps, the Site permissions its session has agreed to, lives in memory and goes
+when the last Private window closes
+([ADR 0035](adr/0035-keep-the-private-browsing-rule-in-the-session-store.md)).
+
 A Space keeps its 5,000 most recent visits. The bound is restored as visits arrive, once every 256
 of them, so a session that never restarts stays inside the bound plus one batch rather than growing
 until the Space database is next opened. The cleanup finds the oldest visit worth keeping through

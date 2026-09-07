@@ -13,6 +13,8 @@ class QTemporaryDir;
 
 namespace omaweb {
 
+class PrivateSessionStore;
+
 class BrowserController;
 
 class WindowManager final : public QObject {
@@ -52,6 +54,10 @@ private:
     std::unique_ptr<QTemporaryDir> m_privateRoot;
     QSet<BrowserController *> m_privateWindows;
     QSharedPointer<QHash<QString, int>> m_privatePermissionDecisions;
+    // The session's store, not a window's. Every Private window is handed this
+    // one, so what it keeps, the Site permissions they have agreed to, is one
+    // answer for all of them and goes with the rest below.
+    std::shared_ptr<PrivateSessionStore> m_privateStore;
     // The site state the private windows share, alongside the Site permissions
     // they already do: third-party allowances and granted certificate
     // exceptions. All of it goes when the last of them closes.
