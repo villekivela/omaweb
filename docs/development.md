@@ -137,6 +137,39 @@ missing implementation. `integrations/omarchy/README.md` has the rule that turns
 platform where blur is the application's to install, so an `installWindowChrome` change is reviewed
 there.
 
+### Driving the session
+
+```sh
+scripts/check_wayland_session.py
+```
+
+drives a browser through its own commands on the desktop that is running, which is the part of the
+Wayland port no headless suite reaches. Keys go in through `hl.dsp.send_shortcut`, Hyprland's own
+dispatcher, so no key synthesiser has to be installed; what they did is read back from
+`hyprctl clients`, `wl-paste` and the window title. It reads no pixels. A check that has to look at
+the screen has to capture the desktop, and the desktop belongs to whoever is sitting at it.
+
+The browser it drives is a second one, on a private session bus so it does not hand its argument to
+the browser already open and exit, and on throwaway directories so it browses nothing of the
+reader's. Off a Wayland session, or without Hyprland, it says it skipped and succeeds, so it is safe
+to run anywhere and is not a CI gate.
+
+It covers browser fullscreen taken and handed back, the sidebar commands resizing the sidebar rather
+than the window, a Private window opening as a window of its own, the clipboard crossing in both
+directions including the primary selection, and every browser binding in
+`assets/keybindings/default.json` answering without leaving the browser unable to take the next one.
+Four commands are not sent, each because sending it would end the run rather than test it: `print`
+and `open-file` open dialogs only a person can answer, `minimize-window` unmaps the window every
+later check reads, and `private-window` has a check of its own.
+
+Two things stay a person's. Moving and resizing the window by its frameless regions needs a pointer
+button no dispatcher synthesises. Becoming the default browser changes the machine that runs the
+check.
+
+One finding worth keeping: a clipboard check has to focus the window first. Wayland lets a client
+set the selection only while it holds keyboard focus, so `Primary+Shift+C` sent to an unfocused
+window fires the command and copies nothing. That is the protocol rather than the browser.
+
 ### Installing and opening links
 
 `cmake --install` puts the browser at `bin/omaweb`, the bootstrapped content-blocking library under
