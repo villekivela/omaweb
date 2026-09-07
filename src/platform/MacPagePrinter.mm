@@ -18,8 +18,11 @@ bool PagePrinter::available() const
 // AppKit's print panel is the operating system's own, and its PDF menu is the
 // PDF destination the reader expects. The page has already been rendered to
 // PDF by the engine adapter, so what is printed is exactly what was on screen.
-bool PagePrinter::present(const QString &path, const QString &jobName)
+bool PagePrinter::present(const QString &path, const QString &jobName, QWindow *window)
 {
+    // The panel here is the application's own and comes up over it, so the
+    // window it was asked from is nothing this platform has to be told.
+    Q_UNUSED(window)
     if (!available() || path.isEmpty()) {
         discard(path);
         return false;

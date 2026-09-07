@@ -102,8 +102,13 @@ contract the shell reads does not change between platforms.
 Printing goes through the portal rather than through Qt's own print dialog, which would cost the
 browser a QtWidgets dependency, and the portal is also the only route to a printer from inside a
 sandbox. Sending no print token is what makes the portal show its dialog; a token stands for
-settings the reader has already answered. The dialog comes up unparented, because exporting Omaweb's
-surface for it to sit over needs a handle Qt does not offer through public API.
+settings the reader has already answered. The dialog stands over the window the reader asked from,
+which takes a name for that window: `wayland:<handle>` for a surface exported through
+`zxdg_exporter_v2`, or `x11:<xid>`. Qt exports the surface already, because its own dialogs are
+portal dialogs and they are parented, and `LinuxPortalWindow.cpp` is the one place Omaweb reaches
+past Qt's public API to read the name back. Exporting the surface a second time would need the
+window's `wl_surface`, which is no more public. A desktop that gives no name gets an empty one and
+places the dialog itself, which is what every print did before.
 
 `omaweb-notification-service` and `omaweb-print-portal` cover both exchanges against stub services
 on a private bus under `dbus-run-session`. They reach what a live desktop cannot be asked for in a

@@ -67,7 +67,10 @@ set(omaweb_qt_components Concurrent Core Gui Network Qml Quick QuickControls2 Sq
 if(UNIX AND NOT APPLE)
     # The desktop's notification service is a session-bus service, so the Linux
     # platform layer needs D-Bus. macOS reaches its own through AppKit.
-    list(APPEND omaweb_qt_components DBus)
+    #
+    # `GuiPrivate` is one call in `LinuxPortalWindow.cpp`, which says why it is
+    # the only route to the name a portal takes for a parent window.
+    list(APPEND omaweb_qt_components DBus GuiPrivate)
 endif()
 if(OMAWEB_BUILD_BROWSER)
     list(APPEND omaweb_qt_components WebEngineCore WebEngineQuick)
@@ -243,6 +246,7 @@ add_library(omaweb-platform STATIC
     src/platform/OmarchyTheme.h
     src/platform/PagePrinter.cpp
     src/platform/PagePrinter.h
+    src/platform/PortalWindow.h
     src/platform/ProcessResources.cpp
     src/platform/ProcessResources.h
     src/platform/RunningBrowser.h
@@ -288,11 +292,16 @@ else()
     target_sources(omaweb-platform PRIVATE
         src/platform/LinuxDefaultBrowser.cpp
         src/platform/LinuxPagePrinter.cpp
+        src/platform/LinuxPortalWindow.cpp
         src/platform/LinuxRunningBrowser.cpp
         src/platform/LinuxSystemNotifier.cpp
         src/platform/WindowChrome.cpp
     )
-    target_link_libraries(omaweb-platform PRIVATE Qt6::DBus)
+    # `Qt6::GuiPrivate` is here for one call, and `LinuxPortalWindow.cpp` says
+    # why: the name a portal takes for a parent window is Qt's to give and Qt
+    # does not offer it publicly. A Qt that moves it breaks the build rather
+    # than the browser, because this is compiled against the Qt it links.
+    target_link_libraries(omaweb-platform PRIVATE Qt6::DBus Qt6::GuiPrivate)
 endif()
 omaweb_strict_target(omaweb-platform)
 
