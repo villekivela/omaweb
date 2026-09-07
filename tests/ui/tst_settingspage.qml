@@ -37,6 +37,20 @@ TestCase {
                                               windowOpaque: "#16151d"
                                           })
 
+    // The content-blocking section only offers the default lists back when
+    // there is a blocker to ask, so the stub records the ask rather than
+    // standing in for the whole service.
+    QtObject {
+        id: blockerStub
+
+        property int restoreCount: 0
+        property var compilationReport: ({})
+
+        function restoreDefaultSubscriptions() {
+            restoreCount += 1;
+        }
+    }
+
     // Two of everything the page lists, so a gap between one row and the next
     // is a thing this test can measure rather than a thing it has to imagine.
     readonly property var retainedTabsFixture: [
@@ -351,6 +365,60 @@ TestCase {
         tryVerify(function () {
             return status.lineCount <= lines + 1;
         });
+    }
+
+    // No filter lists says so. Left to the Repeater alone the section drew
+    // blank page between two headings, which reads as a section that failed to
+    // load rather than as a browser blocking nothing (#43), and the default
+    // lists are offered back beside the sentence saying they are gone.
+    function test_anEmptyListOfSubscriptionsReadsAsEmpty() {
+        const page = makePage();
+        page.blocker = blockerStub;
+        page.section = 2;
+        const notice = findChild(page, "noSubscriptionsNotice");
+        const restore = findChild(page, "restoreDefaultListsButton");
+        verify(notice !== null);
+        verify(restore !== null);
+
+        // The fixture page carries no subscriptions, which is the state.
+        compare(page.subscriptions.length, 0);
+        tryVerify(function () {
+            return notice.visible && notice.height > 0;
+        });
+        verify(findChild(page, "noSubscriptionsText").text.length > 0);
+
+        // The offer reaches the blocker rather than only reading as one.
+        const asked = blockerStub.restoreCount;
+        restore.clicked();
+        compare(blockerStub.restoreCount, asked + 1);
+
+        // And the sentence goes as soon as there is a list to show.
+        page.subscriptions = [
+                    {
+                        id: "easylist",
+                        title: "EasyList",
+                        source: "https://easylist.to/",
+                        license: "GPLv3 or CC BY-SA 3.0",
+                        updateAddress: "https://easylist.to/easylist/easylist.txt",
+                        updateStatus: "not updated",
+                        enabled: true
+                    }
+                ];
+        tryVerify(function () {
+            return !notice.visible;
+        });
+    }
+
+    // Nothing is offered before there is a blocker to ask: the page is built
+    // ahead of the service it reads, and a button that cannot act is worse
+    // than no offer at all.
+    function test_theOfferWaitsForABlockerToAsk() {
+        const page = makePage();
+        page.section = 2;
+        verify(!page.blocker);
+        const notice = findChild(page, "noSubscriptionsNotice");
+        verify(notice !== null);
+        verify(!notice.visible);
     }
 
     // The first item under the pane that runs past its right edge, or that had
