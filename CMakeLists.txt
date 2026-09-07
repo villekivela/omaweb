@@ -697,10 +697,6 @@ if(BUILD_TESTING)
         )
     endif()
 
-    # Following the desktop's theme writes into the reader's Omarchy
-    # configuration, so the seam takes its directories as arguments and the
-    # test hands it a temporary home. That runs on macOS too, which is where
-    # the shipped template is reviewed.
     # What the desktop asked Qt for by way of an input method against what it
     # installed to answer with. Both halves are the host's, so the seam takes
     # them as arguments and the test states the pairs rather than the machine
@@ -709,7 +705,16 @@ if(BUILD_TESTING)
     target_link_libraries(omaweb-input-method-tests PRIVATE omaweb-platform Qt6::Test)
     omaweb_strict_target(omaweb-input-method-tests)
     add_test(NAME omaweb-input-method COMMAND omaweb-input-method-tests)
+    # The GTK platform theme a desktop may have selected opens a display of its
+    # own and cannot, which is noise on a suite that states its own pairs.
+    set_tests_properties(omaweb-input-method PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QPA_PLATFORMTHEME="
+    )
 
+    # Following the desktop's theme writes into the reader's Omarchy
+    # configuration, so the seam takes its directories as arguments and the
+    # test hands it a temporary home. That runs on macOS too, which is where
+    # the shipped template is reviewed.
     qt_add_executable(omaweb-runtime-security-tests tests/platform/tst_runtimesecurity.cpp)
     target_link_libraries(omaweb-runtime-security-tests PRIVATE omaweb-platform Qt6::Test)
     omaweb_strict_target(omaweb-runtime-security-tests)

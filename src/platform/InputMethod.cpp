@@ -1,11 +1,13 @@
 #include "InputMethod.h"
 
+#include <QCoreApplication>
 #include <QDir>
 #include <QJsonArray>
 #include <QJsonObject>
-#include <QLibraryInfo>
 #include <QPluginLoader>
 #include <QQmlEngine>
+
+#include <algorithm>
 
 namespace omaweb {
 namespace {
@@ -44,24 +46,32 @@ namespace {
 
     QStringList installedPlugins()
     {
-        const QDir directory(QLibraryInfo::path(QLibraryInfo::PluginsPath)
-            + QStringLiteral("/platforminputcontexts"));
         QStringList keys;
-        const auto files = directory.entryInfoList(QDir::Files);
-        for (const auto &file : files) {
-            // The keys are the plugin's own declaration of what it answers to,
-            // read without loading it: a plugin that has to be loaded to be
-            // asked about is a plugin the browser has run.
-            const QPluginLoader loader(file.absoluteFilePath());
-            const auto declared = loader.metaData()
-                                      .value(QStringLiteral("MetaData"))
-                                      .toObject()
-                                      .value(QStringLiteral("Keys"))
-                                      .toArray();
-            for (const auto &key : declared) {
-                const auto name = key.toString().trimmed();
-                if (!name.isEmpty()) {
-                    keys.append(name);
+        // Every directory Qt would look in rather than only the one the Qt
+        // build was installed to. A plugin under a `QT_PLUGIN_PATH` prefix is
+        // one Qt would find and a report that read a single directory would
+        // call missing, which is this warning pointed the wrong way.
+        const auto roots = QCoreApplication::libraryPaths();
+        for (const auto &root : roots) {
+            const QDir directory(root + QStringLiteral("/platforminputcontexts"));
+            const auto files = directory.entryInfoList(QDir::Files);
+            for (const auto &file : files) {
+                // The keys are the plugin's own declaration of what it answers
+                // to, read without loading it: a plugin that has to be loaded
+                // to be asked about is a plugin the browser has run.
+                const QPluginLoader loader(file.absoluteFilePath());
+                const auto declared = loader.metaData()
+                                          .value(QStringLiteral("MetaData"))
+                                          .toObject()
+                                          .value(QStringLiteral("Keys"))
+                                          .toArray();
+                for (const auto &key : declared) {
+                    const auto name = key.toString().trimmed();
+                    // The same plugin under two prefixes is one answer, and
+                    // the comparison is the one Qt makes.
+                    if (!name.isEmpty() && !keys.contains(name, Qt::CaseInsensitive)) {
+                        keys.append(name);
+                    }
                 }
             }
         }
