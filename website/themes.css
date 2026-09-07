@@ -13,7 +13,6 @@ body[data-theme="oligarchy"] {
   --accent: #9aa3ad;
   --urgent: #7a2e2e;
   --muted: #929ca6;
-  --sidebar-alpha: 95%;
 }
 
 body[data-theme="tokyo-night"] {
@@ -23,7 +22,6 @@ body[data-theme="tokyo-night"] {
   --accent: #7aa2f7;
   --urgent: #f7768e;
   --muted: #565f89;
-  --sidebar-alpha: 95%;
 }
 
 body[data-theme="catppuccin"] {
@@ -33,7 +31,6 @@ body[data-theme="catppuccin"] {
   --accent: #89b4fa;
   --urgent: #f38ba8;
   --muted: #6c7086;
-  --sidebar-alpha: 95%;
 }
 
 body[data-theme="nord"] {
@@ -43,7 +40,6 @@ body[data-theme="nord"] {
   --accent: #81a1c1;
   --urgent: #bf616a;
   --muted: #667080;
-  --sidebar-alpha: 95%;
 }
 
 body[data-theme="everforest"] {
@@ -53,7 +49,6 @@ body[data-theme="everforest"] {
   --accent: #7fbbb3;
   --urgent: #e67e80;
   --muted: #4f585e;
-  --sidebar-alpha: 95%;
 }
 
 body[data-theme="gruvbox"] {
@@ -63,5 +58,4 @@ body[data-theme="gruvbox"] {
   --accent: #7daea3;
   --urgent: #ea6962;
   --muted: #7c6f64;
-  --sidebar-alpha: 95%;
 }
