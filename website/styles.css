@@ -309,6 +309,43 @@ img {
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+  text-decoration: none;
+}
+
+/* The badge carries its own caveat, shown on hover and on keyboard focus.
+   `visibility` rather than `display`, so the note is laid out and can be
+   transitioned, and so `aria-describedby` still finds it. */
+.badge-host {
+  position: relative;
+  display: inline-flex;
+}
+.badge__note {
+  position: absolute;
+  top: calc(100% + var(--sp-lg));
+  left: 0;
+  z-index: 5;
+  width: max-content;
+  max-width: min(42ch, 80vw);
+  padding: var(--control-py) var(--control-px);
+  border: 1px solid var(--line-normal);
+  border-radius: var(--radius);
+  background: var(--sidebar);
+  color: var(--muted);
+  font-size: var(--fs-caption);
+  font-weight: 400;
+  letter-spacing: normal;
+  line-height: 1.5;
+  text-transform: none;
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    opacity 120ms ease,
+    visibility 120ms ease;
+}
+.badge-host:hover .badge__note,
+.badge-host:focus-within .badge__note {
+  opacity: 1;
+  visibility: visible;
 }
 
 .t-section {
@@ -535,20 +572,6 @@ img {
 .t-viewer__close:hover {
   background: var(--fill-hover);
   border-color: var(--line-hover);
-}
-
-/* One quiet line rather than a section: it sits on the rule above the
-   footer, which is where a caveat about the software belongs on a page about
-   what the software does. */
-.t-note {
-  margin: calc(var(--panel-padding) * 2) 0 0;
-  padding-top: var(--sp-xxl);
-  border-top: 1px solid var(--line-quiet);
-  color: var(--muted);
-  font-size: var(--fs-body-sm);
-}
-.t-note a {
-  color: var(--accent);
 }
 
 .t-foot {

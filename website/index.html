@@ -88,8 +88,24 @@
           </a>
           <!-- Beside the buttons rather than in the masthead: what the state
                of the software is matters where a reader is deciding whether to
-               go and get it. -->
-          <span class="badge">Pre-alpha</span>
+               go and get it. The detail hangs off it on hover and on focus,
+               and the badge is the link to the rest, so a reader who wants the
+               caveat can get it and one who does not is not held up by it.
+
+               The note is a sibling of the link, not a child: inside it, its
+               text would join the link's own name. -->
+          <span class="badge-host">
+            <a
+              class="badge"
+              href="https://github.com/villekivela/omaweb#readme"
+              aria-describedby="pre-alpha-note"
+              >Pre-alpha</a
+            >
+            <span class="badge__note" id="pre-alpha-note" role="tooltip">
+              Arch packaging and the final Wayland release checks are still in progress. The README
+              lists what works today.
+            </span>
+          </span>
         </div>
       </section>
 
@@ -285,15 +301,6 @@
           </div>
         </div>
       </section>
-
-      <!-- Where the project has got to, in one line with a link out. It had a
-           section of its own with three columns, which made the state of the
-           software the loudest thing on a page about the browser. -->
-      <p class="t-note">
-        Omaweb is pre-alpha: Arch packaging and the final Wayland release checks are still in
-        progress. The
-        <a href="https://github.com/villekivela/omaweb#readme">README</a> lists what works today.
-      </p>
 
       <!-- The viewer the thumbnails open into. `<dialog>` rather than a
            hand-built overlay: Escape, the backdrop and the focus trap come
