@@ -209,8 +209,6 @@ Rectangle {
         root.engines = root.browser.searchEngines();
         root.enginePresets = root.browser.searchEnginePresets();
         root.subscriptions = root.blocker ? root.blocker.subscriptions : [];
-        root.blockedRequestCount = root.blocker ? root.blocker.blockedRequestCount(
-                                                      root.browser.activeUrl) : 0;
         userRules.text = root.blocker ? root.blocker.userRules : "";
         root.loadBrowsingDataSelection();
     }
@@ -569,9 +567,10 @@ Rectangle {
                         width: pane.width
                         colors: root.colors
                         title: "Block requests on this site"
-                        note: root.blockedRequestCount + " requests blocked" + (
-                                  root.activeHost.length > 0 ? " on " + root.activeHost : "")
-                              + " so far."
+                        note: root.blockedRequestCount + " requests blocked on this page" + (
+                                  root.activeHost.length > 0
+                                  ? ", and the switch covers every page on " + root.activeHost :
+                                    "") + "."
                         accessibleName: "Enable content blocking for this site"
                         checked: root.blocker && root.browser ? root.blocker.siteEnabled(
                                                                     root.browser.activeUrl) : false

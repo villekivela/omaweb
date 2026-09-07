@@ -48,8 +48,7 @@ Rectangle {
     property var engineContentBlocker: null
     property var permissionController: null
     readonly property var browserProfile: root.sharedProfile ? root.sharedProfile : root
-    readonly property int blockedRequestCount: contentBlocker ? contentBlocker.blockedRequestCount(
-                                                                    currentUrl) : 0
+    property int blockedRequestCount: 0
     property var keyboardNavigationConfiguration: ({})
     property string keyboardNavigationScriptSource: ""
     property bool keyboardNavigationHintModeActive: false

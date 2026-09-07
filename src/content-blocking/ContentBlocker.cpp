@@ -74,8 +74,9 @@ ContentBlocker::ContentBlocker(QString dataRoot, DefaultLists defaults, QObject 
 
 void ContentBlocker::noteBlockedRequest(const QUrl &sourceUrl)
 {
-    ++m_blockedCounts[siteKey(sourceUrl)];
-    m_pendingBlockedSites.insert(siteKey(sourceUrl), sourceUrl);
+    auto &pending = m_pendingBlockedSites[siteKey(sourceUrl)];
+    pending.url = sourceUrl;
+    ++pending.blocked;
     if (!m_blockedCountFlush.isActive()) {
         m_blockedCountFlush.start();
     }
@@ -83,9 +84,10 @@ void ContentBlocker::noteBlockedRequest(const QUrl &sourceUrl)
 
 void ContentBlocker::flushBlockedRequestCounts()
 {
+    m_blockedCountFlush.stop();
     const auto pending = std::exchange(m_pendingBlockedSites, {});
-    for (const auto &sourceUrl : pending) {
-        emit blockedRequestCountChanged(sourceUrl);
+    for (const auto &site : pending) {
+        emit requestsBlocked(site.url, site.blocked);
     }
 }
 
@@ -281,11 +283,6 @@ void ContentBlocker::setSiteEnabled(const QUrl &url, bool enabled)
     replaceDisabledSites();
     save();
     emit configurationChanged();
-}
-
-int ContentBlocker::blockedRequestCount(const QUrl &url) const
-{
-    return m_blockedCounts.value(siteKey(url));
 }
 
 // The rules in force for one site: the compiled set, unless there is none yet

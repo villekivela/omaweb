@@ -398,7 +398,7 @@ public:
     {
     }
 
-    Q_INVOKABLE int blockedRequestCount(const QUrl &) const { return 0; }
+    Q_INVOKABLE void flushBlockedRequestCounts() { }
 
     Q_INVOKABLE QString cosmeticStyleSheet(const QUrl &url)
     {
@@ -456,7 +456,7 @@ public:
 signals:
     void rulesChanged();
     void configurationChanged();
-    void blockedRequestCountChanged(const QUrl &siteUrl);
+    void requestsBlocked(const QUrl &siteUrl, int count);
 
 private:
     std::shared_ptr<const ContentMatcher> m_matcher;

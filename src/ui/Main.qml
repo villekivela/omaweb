@@ -190,7 +190,11 @@ ApplicationWindow {
     // moves on its own and a number that never moves is worse than none.
     property var visibleRetainedTabs: []
     property var visibleSubscriptions: []
-    property int visibleBlockedRequestCount: 0
+    // The tab on show counts its own page load, so the chrome reads the tally
+    // from the engine rather than keeping one of its own: a window-level cache
+    // went on showing the tab the reader had just left (#131).
+    readonly property int visibleBlockedRequestCount: engineLoader.item
+                                                      ? engineLoader.item.blockedRequestCount : 0
     property var pendingPermissionRequest: null
     property string pendingPermissionOrigin: ""
     property string pendingPermissionType: ""
@@ -2208,6 +2212,7 @@ ApplicationWindow {
                     iconFontFamily: materialSymbols.name
                     browser: window.windowBrowser
                     blocker: contentBlocker
+                    blockedRequestCount: window.visibleBlockedRequestCount
                     keyboard: keyboardNavigation
                     open: window.settingsOpen
                     // As the sheet does: the page itself, never the viewport
@@ -2563,23 +2568,11 @@ ApplicationWindow {
     Connections {
         target: contentBlocker
 
-        function refreshBlockedRequestCount() {
-            window.visibleBlockedRequestCount = contentBlocker.blockedRequestCount(
-                        window.windowBrowser.activeUrl);
-        }
-
         // Rebuilding the subscription list means copying every list's title,
-        // address and status into new values. That belongs to the settings
-        // page, not to a counter that moves on every blocked request.
+        // address and status into new values, so the chrome holds a copy and
+        // renews it only when the lists themselves change.
         function onSubscriptionsChanged() {
             window.visibleSubscriptions = contentBlocker.subscriptions;
-        }
-
-        function onBlockedRequestCountChanged(siteUrl) {
-            refreshBlockedRequestCount();
-        }
-        function onRulesChanged() {
-            refreshBlockedRequestCount();
         }
     }
 
