@@ -11,7 +11,7 @@ Rectangle {
     property url iconUrl
     property bool highlighted: false
     property bool useArtwork: true
-    property bool tintArtwork: true
+    property bool tintArtwork: false
 
     // Set where the mark is all the tile draws, as on a pinned tab: no plate
     // behind it, and the mark itself in the site's colour at full strength

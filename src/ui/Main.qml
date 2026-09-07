@@ -35,7 +35,11 @@ ApplicationWindow {
     property var colors: privateWindow ? privatePalette(theme.palette) : theme.palette
     property bool sidebarCollapsed: false
     property bool useFavicons: true
-    property bool tintFavicons: true
+    // A favicon is how a reader finds a tab without reading it, so it is shown
+    // as the site drew it. Recolouring every mark to one hue takes away the one
+    // thing telling them apart, however well it sits in a palette, so tinting
+    // is the reader's to ask for rather than the default.
+    property bool tintFavicons: false
     // The reader owns the sidebar's width. It is clamped rather than free: too
     // narrow and a tab row stops being readable, too wide and the page it is
     // an outline of loses the window.
@@ -954,7 +958,7 @@ ApplicationWindow {
 
     function restoreTabAppearance() {
         window.useFavicons = window.windowBrowser.preference("use-favicons", "true") === "true";
-        window.tintFavicons = window.windowBrowser.preference("tint-favicons", "true") === "true";
+        window.tintFavicons = window.windowBrowser.preference("tint-favicons", "false") === "true";
     }
 
     function setUseFavicons(enabled) {

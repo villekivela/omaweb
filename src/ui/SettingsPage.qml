@@ -21,7 +21,7 @@ Rectangle {
     property var subscriptions: []
     property int blockedRequestCount: 0
     property bool useFavicons: true
-    property bool tintFavicons: true
+    property bool tintFavicons: false
     property var engines: []
     // Every tab still running for a Space that is not on show, and what each
     // costs. A retained tab is a renderer the reader cannot see, so the browser

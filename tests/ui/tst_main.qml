@@ -83,7 +83,14 @@ TestCase {
         }
     }
 
+    // The type the theme sets, so a size the sidebar derives from it can be
+    // driven rather than read back.
+    ThemeAxis {
+        id: themeAxis
+    }
+
     function initTestCase() {
+        themeAxis.remember();
         window = windowComponent.createObject(null);
         verify(window !== null);
         window.show();
@@ -91,6 +98,7 @@ TestCase {
     }
 
     function cleanupTestCase() {
+        themeAxis.restore();
         window.destroy();
     }
 
@@ -3662,7 +3670,9 @@ TestCase {
         verify(useFavicons !== null);
         verify(tintFavicons !== null);
         compare(window.useFavicons, true);
-        compare(window.tintFavicons, true);
+        // A fresh profile draws every favicon as its site drew it, so tinting
+        // is off until the reader asks for it.
+        compare(window.tintFavicons, false);
 
         useFavicons.clicked();
         compare(window.useFavicons, false);
@@ -3673,11 +3683,74 @@ TestCase {
         useFavicons.clicked();
         tintFavicons.clicked();
         compare(window.useFavicons, true);
-        compare(window.tintFavicons, false);
-        compare(browser.preference("tint-favicons", "true"), "false");
+        compare(window.tintFavicons, true);
+        compare(browser.preference("tint-favicons", "false"), "true");
 
         tintFavicons.clicked();
+        compare(window.tintFavicons, false);
+        compare(browser.preference("tint-favicons", "false"), "false");
+    }
+
+    // Changing a default must not change an answer someone already gave. A
+    // reader who turned tinting on while it was still the default comes back to
+    // it on, and the stored answer is what the window reads rather than the
+    // property's own value.
+    function test_aStoredTintAnswerOutlivesTheDefault() {
+        const stored = browser.preference("tint-favicons", "");
+
+        browser.setPreference("tint-favicons", "true");
+        window.restoreTabAppearance();
         compare(window.tintFavicons, true);
+
+        browser.setPreference("tint-favicons", "false");
+        window.restoreTabAppearance();
+        compare(window.tintFavicons, false);
+
+        browser.setPreference("tint-favicons", stored);
+        window.restoreTabAppearance();
+    }
+
+    // A row's chip and a pin's mark are one size in two proportions, and the
+    // size is the theme's smallest type rather than a number written into the
+    // row: a theme with a larger font takes a larger chip with it instead of
+    // clipping the two letters the chip stands in with.
+    function test_theChipSizesAreDerivedFromTheThemesSmallestType() {
+        openPage("https://chip-size.example");
+        const row = findChild(window.contentItem, "tab-" + browser.activeTabId);
+        verify(row !== null);
+        const tile = findChild(window.contentItem, "siteTile-" + browser.activeTabId);
+        verify(tile !== null);
+
+        const ordinary = row.chipSize;
+        verify(ordinary > 0);
+        // Small enough to sit beside a title rather than to carry the row.
+        verify(ordinary < row.height);
+        tryCompare(tile, "implicitWidth", ordinary);
+        tryCompare(tile, "implicitHeight", ordinary);
+
+        themeAxis.useTypeTokens(1.6);
+        tryVerify(function () {
+            return row.chipSize > ordinary;
+        });
+        tryCompare(tile, "implicitWidth", row.chipSize);
+        themeAxis.restore();
+        tryCompare(row, "chipSize", ordinary);
+
+        // The pin is the same size in the proportion a mark with no title
+        // beside it is given, and it is derived rather than written twice.
+        // Pinning replaces the row, so the pin is found again rather than
+        // asked of the row that has just been destroyed.
+        browser.toggleActivePinned();
+        const pinnedRow = findChild(window.contentItem, "pinned-" + browser.activeTabId);
+        verify(pinnedRow !== null);
+        verify(pinnedRow.pinnedChipSize > pinnedRow.chipSize);
+        compare(pinnedRow.pinnedChipSize, Math.round(pinnedRow.chipSize * 1.25));
+        const pinnedTile = findChild(window.contentItem, "siteTile-" + browser.activeTabId);
+        verify(pinnedTile !== null);
+        tryCompare(pinnedTile, "implicitWidth", pinnedRow.pinnedChipSize);
+        browser.toggleActivePinned();
+
+        browser.closeActiveTab();
     }
 
     // A pin is a square with no title, so Omaweb paints it in the site's own
@@ -3686,7 +3759,7 @@ TestCase {
     function test_pinnedSiteColourFollowsTheTintSetting() {
         const tintFavicons = findChild(window.contentItem, "tintFavicons");
         verify(tintFavicons !== null);
-        compare(window.tintFavicons, true);
+        compare(window.tintFavicons, false);
 
         browser.toggleActivePinned();
         const pinnedRow = findChild(window.contentItem, "pinned-" + browser.activeTabId);
@@ -3694,11 +3767,6 @@ TestCase {
         tryVerify(function () {
             return pinnedRow.visible;
         });
-        compare(pinnedRow.siteColored, true);
-
-        tintFavicons.clicked();
-        compare(window.tintFavicons, false);
-        tryCompare(pinnedRow, "tintFavicons", false);
         compare(pinnedRow.siteColored, false);
         const tile = findChild(window.contentItem, "siteTile-" + browser.activeTabId);
         verify(tile !== null);
@@ -3706,7 +3774,13 @@ TestCase {
 
         tintFavicons.clicked();
         compare(window.tintFavicons, true);
-        tryCompare(pinnedRow, "siteColored", true);
+        tryCompare(pinnedRow, "tintFavicons", true);
+        compare(pinnedRow.siteColored, true);
+        tryCompare(tile, "siteColoredMark", true);
+
+        tintFavicons.clicked();
+        compare(window.tintFavicons, false);
+        tryCompare(pinnedRow, "siteColored", false);
         browser.toggleActivePinned();
     }
 
