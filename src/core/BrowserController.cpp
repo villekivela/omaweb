@@ -2475,7 +2475,7 @@ QString BrowserController::normalizedOrigin(const QUrl &url)
 QString BrowserController::sessionPermissionKey(
     const QString &origin, const QString &permission) const
 {
-    return m_activeSpaceId + QChar(0x1f) + origin + QChar(0x1f) + permission;
+    return omaweb::sessionPermissionKey(m_activeSpaceId, origin, permission);
 }
 
 bool BrowserController::isBlank(const QUrl &url)

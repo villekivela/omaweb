@@ -10,6 +10,16 @@
 
 namespace omaweb {
 
+// How a session's own Site permissions are keyed, in memory, for as long as
+// the session lasts. The layout is named here because both a Private window's
+// store and the shell that reads those answers back have to spell it the same
+// way.
+inline QString sessionPermissionKey(
+    const QString &spaceId, const QString &origin, const QString &permission)
+{
+    return spaceId + QChar(0x1f) + origin + QChar(0x1f) + permission;
+}
+
 // What a window's session is kept in. A Private window writes nothing down, so
 // the rule is the adapter it is given rather than a test every caller has to
 // remember: `SqliteSessionStore` records, `PrivateSessionStore` accepts and
