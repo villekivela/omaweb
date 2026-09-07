@@ -364,7 +364,6 @@ img {
 }
 .t-shot figcaption {
   margin-top: var(--sp-lg);
-  max-width: 60ch;
   color: var(--muted);
   font-size: var(--fs-caption);
 }
@@ -444,8 +443,9 @@ img {
   margin-top: var(--sp-xxl);
 }
 .t-viewer__caption {
+  flex: 1 1 24ch;
   margin: 0;
-  max-width: 68ch;
+  min-width: 0;
   color: var(--muted);
   font-size: var(--fs-caption);
 }
