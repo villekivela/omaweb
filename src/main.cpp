@@ -4,6 +4,7 @@
 #include "DevelopmentLaunch.h"
 #include "ExternalProtocolHandler.h"
 #include "FaviconTint.h"
+#include "HardwareVideoDecode.h"
 #include "KeyboardNavigation.h"
 #include "KitTheme.h"
 #include "LaunchRequest.h"
@@ -123,9 +124,28 @@ int main(int argc, char *argv[])
         return 2;
     }
 
-    const auto engineFlags
-        = QProcess::splitCommand(qEnvironmentVariable("QTWEBENGINE_CHROMIUM_FLAGS"));
-    const auto launch = omaweb::readDevelopmentLaunch(arguments, engineFlags);
+    const auto environmentCommandLine = qEnvironmentVariable("QTWEBENGINE_CHROMIUM_FLAGS");
+    const auto environmentFlags = QProcess::splitCommand(environmentCommandLine);
+#if defined(Q_OS_LINUX)
+    // VA-API is the Linux interface. macOS decodes on the GPU without being
+    // asked, and no other platform is distributed for.
+    const auto addedFlags = omaweb::hardwareVideoDecodeFlags(environmentFlags);
+#else
+    const QStringList addedFlags;
+    Q_UNUSED(environmentFlags);
+#endif
+    // What Omaweb adds goes after what the reader set, because Chromium reads
+    // the last occurrence of a switch: an added feature list carries the
+    // reader's own features forward, so nothing they asked for is dropped by
+    // Omaweb asking for one more. Their value is carried over as they wrote it
+    // rather than as it split, so a flag that quotes a space survives being
+    // added to.
+    const auto engineCommandLine
+        = (environmentCommandLine + u' ' + addedFlags.join(u' ')).trimmed();
+    // Audited as the engine will read it, so the rule about what a launch may
+    // carry has one statement rather than one per route in.
+    const auto launch
+        = omaweb::readDevelopmentLaunch(arguments, QProcess::splitCommand(engineCommandLine));
     if (!launch.refusal.isEmpty()) {
         qCritical("Omaweb refuses to start: %s", qPrintable(launch.refusal));
         return 2;
@@ -149,6 +169,10 @@ int main(int argc, char *argv[])
             qPrintable(launch.listenAddress));
     } else {
         qunsetenv("QTWEBENGINE_REMOTE_DEBUGGING");
+    }
+
+    if (!addedFlags.isEmpty()) {
+        qputenv("QTWEBENGINE_CHROMIUM_FLAGS", engineCommandLine.toLocal8Bit());
     }
 
     // Chromium learns its schemes before it starts, and content blocking

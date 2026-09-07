@@ -35,6 +35,17 @@ optdepends=(
     # context and never binds the Wayland text-input protocol, so an input
     # method silently does nothing. See docs/development.md.
     'fcitx5-qt: input methods under Wayland'
+    # Omaweb asks Chromium for VA-API video decoding, and a driver has to be
+    # there to answer. Which one depends on the GPU, so this is a choice the
+    # host makes rather than a dependency the package can name. Without any of
+    # them Omaweb decodes video in software and starts normally. Each driver
+    # pulls in the `libva` runtime it plugs into, so naming that as well would
+    # add nothing. See docs/development.md.
+    'intel-media-driver: hardware video decode on Intel GPUs from Broadwell on'
+    'libva-intel-driver: hardware video decode on Intel GPUs before Broadwell'
+    'mesa: hardware video decode on AMD GPUs, through the Mesa VA-API driver'
+    'libva-nvidia-driver: hardware video decode on NVIDIA GPUs, over NVDEC'
+    'libva-utils: `vainfo`, which reports which driver answers on this host'
 )
 provides=("$_pkgname=$pkgver")
 conflicts=("$_pkgname")
