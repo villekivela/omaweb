@@ -127,7 +127,8 @@ Rectangle {
     // that makes the shell denser or roomier moves the sheet with everything
     // else. `Style.space()` is what keeps the proportions the sheet already had.
     readonly property int sideMargin: Style.space(40)
-    readonly property int topInset: Style.space(56)
+    // Every full-window sheet leaves the same gap above its heading.
+    readonly property int topInset: sheetInsets.top
     readonly property int columnGap: Style.space(40)
     // The gap a group adds on top of the one its own label reserves.
     readonly property int groupGap: Style.space(10)
@@ -288,6 +289,10 @@ Rectangle {
             root.closed();
             event.accepted = true;
         }
+    }
+
+    SheetInsets {
+        id: sheetInsets
     }
 
     PageBackdrop {

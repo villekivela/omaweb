@@ -24,6 +24,8 @@
 #include <QHash>
 #include <QFile>
 #include <QImage>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QPainter>
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
@@ -129,6 +131,10 @@ void seedSampleTabs(omaweb::BrowserController &browser, const QVariantList &favi
             continue;
         }
         browser.updateTab(tabId, url, QString::fromUtf8(sample.title));
+        // A tab that was opened was also visited. Without this History is a
+        // page saying the Space has none, which is a state of the empty lab
+        // rather than a state of the browser.
+        browser.recordVisit(url, QString::fromUtf8(sample.title));
         if (!favicons.isEmpty()) {
             browser.setTabIcon(tabId, favicons.at(icon++ % favicons.size()).toUrl());
         }
@@ -318,6 +324,23 @@ int main(int argc, char *argv[])
             target->setProperty(property.property, property.value);
         }
     }
+    // The palette the browser resolves, rather than the template it was
+    // rendered from. A theme file names a handful of colours; Omaweb derives
+    // every role it draws from them, floors the quiet ones against the ground
+    // they sit on, and tints the private grounds. Anything drawing Omaweb's
+    // colours outside Omaweb — the website's own palettes — has to read the
+    // resolved roles or it is approximating them a second time.
+    const auto paletteIndex = arguments.indexOf(QStringLiteral("--dump-palette"));
+    if (paletteIndex >= 0 && paletteIndex + 1 < arguments.size()) {
+        QFile out(arguments.at(paletteIndex + 1));
+        if (!out.open(QIODevice::WriteOnly)) {
+            qCritical("Could not write %s", qPrintable(arguments.at(paletteIndex + 1)));
+            return 1;
+        }
+        out.write(QJsonDocument(QJsonObject::fromVariantMap(theme.palette())).toJson());
+        out.close();
+    }
+
     const auto captureIndex = arguments.indexOf(QStringLiteral("--capture"));
     if (captureIndex >= 0 && captureIndex + 1 < arguments.size()) {
         const auto capturePath = arguments.at(captureIndex + 1);

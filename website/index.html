@@ -10,7 +10,7 @@
     />
     <meta name="application-name" content="Omaweb" />
     <meta name="robots" content="index, follow" />
-    <meta name="theme-color" content="#1a1b26" />
+    <meta name="theme-color" content="#090a0e" />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Omaweb" />
     <meta property="og:title" content="Omaweb, a keyboard-driven browser for Omarchy" />
@@ -39,183 +39,226 @@
     </script>
     <link rel="icon" href="favicon.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="styles.css" />
+    <!-- Generated from each Omarchy theme's own colors.toml by
+         scripts/build_website_themes.py, alongside the screenshots and the
+         favicons drawn in the same palettes. -->
+    <link rel="stylesheet" href="themes.css" />
   </head>
 
-  <body>
+  <body data-theme="oligarchy">
+    <!-- GitHub's own mark, defined once and referenced by every button that
+         goes there. `currentColor`, so it takes the button's text colour and
+         follows the theme with it. Used to link to GitHub, which is what
+         GitHub's brand guidance permits it for. -->
+    <svg width="0" height="0" aria-hidden="true" style="position: absolute">
+      <symbol id="mark-github" viewBox="0 0 16 16">
+        <path
+          fill="currentColor"
+          d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A7.995 7.995 0 0016 8c0-4.42-3.58-8-8-8z"
+        />
+      </symbol>
+    </svg>
+
     <div class="t-wrap">
       <header class="t-top">
-        <img src="assets/icons/omaweb.svg" alt="Omaweb" />
-        <p class="t-status">Pre-alpha Linux browser for Omarchy</p>
+        <img
+          data-themed="assets/icons/wordmark-{theme}.svg"
+          src="assets/icons/wordmark-oligarchy.svg"
+          width="160"
+          height="20"
+          alt="Omaweb"
+        />
+        <p class="t-status">Browser for Omarchy</p>
       </header>
 
       <section class="t-hero">
         <h1>The browser should be<br /><em>part of your desktop</em>,<br />not a guest on it.</h1>
         <p>
-          It is a desktop-native, keyboard-driven browser for Omarchy users who want browsing to fit
-          into the system they already chose.
+          Desktop-native and keyboard-driven browser for Omarchy users who want browsing to fit into
+          the system they already chose.
         </p>
         <div class="t-hero__actions">
-          <a class="btn btn--emphasis" href="https://github.com/villekivela/omaweb"
-            >Read the source</a
-          >
-          <a class="btn" href="https://github.com/villekivela/omaweb/blob/main/docs/development.md"
-            >Build from source</a
-          >
+          <a class="btn btn--emphasis" href="https://github.com/villekivela/omaweb">
+            <svg class="btn__mark" aria-hidden="true"><use href="#mark-github" /></svg>
+            Read the source
+          </a>
+          <a class="btn" href="https://github.com/villekivela/omaweb/blob/main/docs/development.md">
+            <svg class="btn__mark" aria-hidden="true"><use href="#mark-github" /></svg>
+            Build from source
+          </a>
+          <!-- Beside the buttons rather than in the masthead: what the state
+               of the software is matters where a reader is deciding whether to
+               go and get it. The detail hangs off it on hover and on focus,
+               and the badge is the link to the rest, so a reader who wants the
+               caveat can get it and one who does not is not held up by it.
+
+               The note is a sibling of the link, not a child: inside it, its
+               text would join the link's own name. -->
+          <span class="badge-host">
+            <a
+              class="badge"
+              href="https://github.com/villekivela/omaweb#readme"
+              aria-describedby="pre-alpha-note"
+              >Pre-alpha</a
+            >
+            <span class="badge__note" id="pre-alpha-note" role="tooltip">
+              Arch packaging and the final Wayland release checks are still in progress. The README
+              lists what works today.
+            </span>
+          </span>
         </div>
       </section>
-    </div>
 
-    <!-- full-width desktop; the wallpaper layer parallaxes against the window -->
-    <div class="desk">
-      <div class="desk__wall" aria-hidden="true"></div>
-      <div class="desk__grain" aria-hidden="true"></div>
-      <div class="desk__stage">
-        <div class="ui" id="ui" data-collapsed="false">
-          <aside class="ui__side">
-            <div class="ui__chrome">
-              <button class="ui__ico ui__panel" type="button" aria-pressed="false">
-                <span class="ms ms--left-panel-close" aria-hidden="true"></span>
-                <span class="sr-only">Hide sidebar</span>
-              </button>
-              <span class="ui__ico"><span class="ms ms--search" aria-hidden="true"></span></span>
-              <span class="ui__gap"></span>
-              <span class="ui__ico"
-                ><span class="ms ms--arrow-back" aria-hidden="true"></span
-              ></span>
-              <span class="ui__ico"
-                ><span class="ms ms--arrow-forward" aria-hidden="true"></span
-              ></span>
-              <span class="ui__ico"><span class="ms ms--refresh" aria-hidden="true"></span></span>
-            </div>
-
-            <div class="ui__addr">
-              <span class="ui__lock ms ms--lock" aria-hidden="true"></span>
-              <span class="ui__url">omarchy.org/</span>
-              <span class="ui__blocked">
-                <span class="ms ms--shield" aria-hidden="true"></span>
-                <span>6</span>
-              </span>
-            </div>
-
-            <!-- Pinned tabs run 3-5 across, each showing the site code the
-                 application derives from the host. No heading: the sidebar
-                 has none. -->
-            <div class="ui__pinned">
-              <span class="ui__pin">GI</span>
-              <span class="ui__pin">LI</span>
-              <span class="ui__pin">OM</span>
-              <span class="ui__pin">YO</span>
-            </div>
-
-            <div class="ui__tab is-on">
-              <span class="ui__fav">OM</span
-              ><span>Omarchy &mdash; Beautiful, Fun &amp; Agentic Linux</span>
-            </div>
-            <div class="ui__tab">
-              <span class="ui__fav">HY</span><span>Hyprland Wiki &mdash; Configuring</span>
-            </div>
-            <div class="ui__tab">
-              <span class="ui__fav">GI</span><span>villekivela/omaweb &mdash; Issues</span>
-            </div>
-
-            <span class="ui__gap"></span>
-            <div class="ui__foot">
-              <span class="ui__spaces">
-                <span class="ui__space is-on">P</span>
-                <span class="ui__space">W</span>
-                <span class="ui__space">C</span>
-              </span>
-              <span class="ui__gap"></span>
-              <span class="ui__ico"
-                ><span class="ms ms--more-horiz" aria-hidden="true"></span
-              ></span>
-              <span class="ui__ico"><span class="ms ms--settings" aria-hidden="true"></span></span>
-            </div>
-          </aside>
-
-          <div class="ui__view">
-            <!-- The cluster the application floats over the page while the
-                 sidebar is hidden: it is how the sidebar comes back. -->
-            <div class="ui__cluster">
-              <span class="ui__ico"
-                ><span class="ms ms--arrow-back" aria-hidden="true"></span
-              ></span>
-              <span class="ui__ico"
-                ><span class="ms ms--arrow-forward" aria-hidden="true"></span
-              ></span>
-              <span class="ui__ico"><span class="ms ms--refresh" aria-hidden="true"></span></span>
-              <span class="ui__rule"></span>
-              <button class="ui__ico ui__panel" type="button" aria-pressed="true">
-                <span class="ms ms--left-panel-open" aria-hidden="true"></span>
-                <span class="sr-only">Show sidebar</span>
-              </button>
-              <span class="ui__ico"><span class="ms ms--search" aria-hidden="true"></span></span>
-            </div>
-
-            <div class="ui__page">
-              <p class="ui__start-eyebrow">Shortcuts &middot; Ctrl / &middot; Esc closes</p>
-              <h3>Keyboard commands</h3>
-              <div class="ui__keys">
-                <div><b>Ctrl L</b><i>Open an address</i></div>
-                <div><b>f</b><i>Hint every link in view</i></div>
-                <div><b>Ctrl K</b><i>Commands, tabs and Spaces</i></div>
-                <div><b>j k</b><i>Scroll the page</i></div>
-                <div><b>Ctrl T</b><i>New tab</i></div>
-                <div><b>d u</b><i>Scroll half a page</i></div>
-                <div><b>Ctrl E</b><i>Focus the sidebar</i></div>
-                <div><b>g g / G</b><i>Top / bottom</i></div>
-                <div><b>Ctrl B</b><i>Hide the sidebar</i></div>
-                <div><b>Ctrl Y</b><i>History</i></div>
-                <div><b>Ctrl Shift I</b><i>Developer tools</i></div>
-                <div><b>Ctrl /</b><i>Every binding, live</i></div>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div class="t-demo__foot">
-          <p>Omaweb follows the active Omarchy theme.</p>
-          <div class="t-themes" role="group" aria-label="Preview theme">
-            <span>Preview theme</span>
-            <button class="t-theme" type="button" aria-pressed="true" data-theme="tokyo-night">
-              Tokyo Night
-            </button>
-            <button class="t-theme" type="button" aria-pressed="false" data-theme="everforest">
-              Everforest
-            </button>
-            <button class="t-theme" type="button" aria-pressed="false" data-theme="kanagawa">
-              Kanagawa
-            </button>
-            <button class="t-theme" type="button" aria-pressed="false" data-theme="catppuccin">
-              Catppuccin
-            </button>
-            <button class="t-theme" type="button" aria-pressed="false" data-theme="nord">
-              Nord
-            </button>
-            <button class="t-theme" type="button" aria-pressed="false" data-theme="vantablack">
-              Vantablack
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="t-wrap t-wrap--rest">
-      <section class="t-section">
+      <!-- Every image here is generated by scripts/build_website_themes.py: it
+           renders each Omarchy theme's palette, draws a wallpaper from it,
+           captures the chrome headlessly, and composites the two. The buttons
+           pick which theme's set is on show and restyle the page to match.
+           How that is done is not the reader's problem, so the page says what
+           the pictures show and this comment carries the rest. -->
+      <section class="t-section t-shots">
         <div class="t-section__head">
-          <p class="t-section__index">01 / part of the desktop</p>
+          <p class="t-section__index">01 / the window itself</p>
           <div class="t-section__intro">
-            <h2>One window among the rest.</h2>
-            <p>Omaweb takes its cues from the desktop instead of bringing another one.</p>
-          </div>
-        </div>
-        <div class="t-cols t-cols--3">
-          <div>
-            <h3>Theme, not a skin</h3>
+            <h2>The window, in every theme.</h2>
             <p>
-              Omaweb reads the theme generated by <code>omarchy theme set</code>, alongside your
-              bar, terminal and editor.
+              Omaweb takes its colours from the Omarchy theme you are running. Pick one to see the
+              whole browser in it.
             </p>
           </div>
+        </div>
+
+        <div class="t-themes" role="group" aria-label="Preview theme">
+          <span>Preview theme</span>
+          <button class="t-theme" type="button" aria-pressed="true" data-theme="oligarchy">
+            Oligarchy
+          </button>
+          <button class="t-theme" type="button" aria-pressed="false" data-theme="tokyo-night">
+            Tokyo Night
+          </button>
+          <button class="t-theme" type="button" aria-pressed="false" data-theme="catppuccin">
+            Catppuccin
+          </button>
+          <button class="t-theme" type="button" aria-pressed="false" data-theme="nord">Nord</button>
+          <button class="t-theme" type="button" aria-pressed="false" data-theme="everforest">
+            Everforest
+          </button>
+          <button class="t-theme" type="button" aria-pressed="false" data-theme="gruvbox">
+            Gruvbox
+          </button>
+        </div>
+
+        <figure class="t-shot t-shot--lead">
+          <a
+            class="t-shot__open"
+            data-themed="assets/shots/{theme}/space.webp"
+            href="assets/shots/oligarchy/space.webp"
+          >
+            <img
+              data-themed="assets/shots/{theme}/space.webp"
+              src="assets/shots/oligarchy/space.webp"
+              width="3264"
+              height="2264"
+              alt="Omaweb with Pinned tabs above an ordinary tab list, and a new tab on show"
+              decoding="async"
+            />
+          </a>
+          <figcaption>
+            A Space at work: Pinned tabs across the top of the sidebar, the day&rsquo;s ordinary
+            tabs under them, and the Start page on the new tab.
+          </figcaption>
+        </figure>
+
+        <div class="t-shot-grid">
+          <figure class="t-shot">
+            <a
+              class="t-shot__open"
+              data-themed="assets/shots/{theme}/settings.webp"
+              href="assets/shots/oligarchy/settings.webp"
+            >
+              <img
+                data-themed="assets/shots/{theme}/settings-thumb.webp"
+                src="assets/shots/oligarchy/settings-thumb.webp"
+                width="720"
+                height="499"
+                alt="The Settings page, open on its Tabs section"
+                loading="lazy"
+                decoding="async"
+              />
+            </a>
+            <figcaption>Settings, in the window rather than on a page of its own.</figcaption>
+          </figure>
+          <figure class="t-shot">
+            <a
+              class="t-shot__open"
+              data-themed="assets/shots/{theme}/blocking.webp"
+              href="assets/shots/oligarchy/blocking.webp"
+            >
+              <img
+                data-themed="assets/shots/{theme}/blocking-thumb.webp"
+                src="assets/shots/oligarchy/blocking-thumb.webp"
+                width="720"
+                height="499"
+                alt="The Content Blocking section, with filter lists and a user rules field"
+                loading="lazy"
+                decoding="async"
+              />
+            </a>
+            <figcaption>
+              Content blocking is uBlock Origin&rsquo;s own filter syntax, with your rules beside
+              the lists.
+            </figcaption>
+          </figure>
+          <figure class="t-shot">
+            <a
+              class="t-shot__open"
+              data-themed="assets/shots/{theme}/history.webp"
+              href="assets/shots/oligarchy/history.webp"
+            >
+              <img
+                data-themed="assets/shots/{theme}/history-thumb.webp"
+                src="assets/shots/oligarchy/history-thumb.webp"
+                width="720"
+                height="499"
+                alt="History, listing this Space's visits"
+                loading="lazy"
+                decoding="async"
+              />
+            </a>
+            <figcaption>History belongs to the Space, and is cleared by the Space.</figcaption>
+          </figure>
+          <figure class="t-shot">
+            <a
+              class="t-shot__open"
+              data-themed="assets/shots/{theme}/collapsed.webp"
+              href="assets/shots/oligarchy/collapsed.webp"
+            >
+              <img
+                data-themed="assets/shots/{theme}/collapsed-thumb.webp"
+                src="assets/shots/oligarchy/collapsed-thumb.webp"
+                width="720"
+                height="499"
+                alt="The window with its sidebar hidden, the page filling it"
+                loading="lazy"
+                decoding="async"
+              />
+            </a>
+            <figcaption>Ctrl B hides the sidebar and the page has the whole window.</figcaption>
+          </figure>
+        </div>
+      </section>
+
+      <section class="t-section">
+        <div class="t-section__head">
+          <p class="t-section__index">02 / yours to configure</p>
+          <div class="t-section__intro">
+            <h2>Nothing you cannot change.</h2>
+            <p>
+              The theme comes from <code>omarchy theme set</code>, and everything else is a file on
+              your machine.
+            </p>
+          </div>
+        </div>
+        <div class="t-cols t-cols--2">
           <div>
             <h3>Keys you own</h3>
             <p>
@@ -235,7 +278,7 @@
 
       <section class="t-section">
         <div class="t-section__head">
-          <p class="t-section__index">02 / browsing identities</p>
+          <p class="t-section__index">03 / browsing identities</p>
           <div class="t-section__intro">
             <h2>Work and personal stay in the same window.</h2>
             <p>A Space keeps the browser data one part of your life leaves behind.</p>
@@ -259,45 +302,29 @@
         </div>
       </section>
 
-      <section class="t-section">
-        <div class="t-section__head">
-          <p class="t-section__index">03 / Status</p>
-          <div class="t-section__intro">
-            <h2>The Qt browser contract is complete. Release qualification is not.</h2>
-            <p>Omaweb is pre-alpha while Arch packaging and final Wayland release work continue.</p>
+      <!-- The viewer the thumbnails open into. `<dialog>` rather than a
+           hand-built overlay: Escape, the backdrop and the focus trap come
+           with it. With no script the thumbnails are links to the image, which
+           is why it is empty here. -->
+      <dialog class="t-viewer" id="viewer" aria-label="Screenshot">
+        <button class="t-viewer__close" type="button" data-close aria-label="Close">&times;</button>
+        <img class="t-viewer__shot" alt="" />
+        <div class="t-viewer__foot">
+          <p class="t-viewer__caption"></p>
+          <div class="t-viewer__nav">
+            <span class="t-viewer__count" aria-live="polite"></span>
+            <button class="t-viewer__step" type="button" data-step="-1">
+              &lsaquo; <span>Previous</span>
+            </button>
+            <button class="t-viewer__step" type="button" data-step="1">
+              <span>Next</span> &rsaquo;
+            </button>
           </div>
         </div>
-        <div class="t-cols t-cols--3">
-          <div>
-            <h3>Available now</h3>
-            <p>
-              Spaces, Pinned tabs, the Omnibar, Keyboard navigation, docked Developer tools, Content
-              blocking, session restore, tab management, Space-local History, Site permissions,
-              certificate and cookie policy, and downloads that ask before writing a program down.
-              Every page runs in its own sandboxed renderer, and the browser refuses to start
-              without one.
-            </p>
-          </div>
-          <div>
-            <h3>Release work</h3>
-            <p>
-              Native Wayland qualification, an Arch package and release automation are the remaining
-              path to a daily-driver release.
-            </p>
-          </div>
-          <div>
-            <h3>Built in the target environment</h3>
-            <p>
-              Omaweb is developed on Omarchy. It already runs as a native Wayland client; packaging
-              and final release checks remain.
-            </p>
-          </div>
-        </div>
-      </section>
+      </dialog>
 
       <footer class="t-foot">
         <span>Omaweb &middot; pre-alpha &middot; MPL 2.0</span>
-        <span>The web engine is a replaceable part. More than one can be supported.</span>
         <a href="https://github.com/villekivela/omaweb">github.com/villekivela/omaweb</a>
       </footer>
     </div>

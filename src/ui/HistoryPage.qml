@@ -54,10 +54,20 @@ Rectangle {
         tint: root.colors.sheet
     }
 
+    SheetInsets {
+        id: sheetInsets
+    }
+
     Column {
         anchors.fill: parent
-        anchors.margins: 48
-        spacing: 18
+        // Every full-window sheet leaves the same gap above its heading; the
+        // rest of the frame is this sheet's own and follows the theme's
+        // spacing rather than a raw pixel count.
+        anchors.topMargin: sheetInsets.top
+        anchors.leftMargin: Style.space(48)
+        anchors.rightMargin: Style.space(48)
+        anchors.bottomMargin: Style.space(48)
+        spacing: Style.space(18)
 
         Item {
             width: parent.width
