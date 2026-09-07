@@ -110,6 +110,16 @@ on a private bus under `dbus-run-session`. They reach what a live desktop cannot
 test: the reader answering a notification, and the rendered document surviving the spooled copy
 being taken away.
 
+Omaweb takes two connections on the AT-SPI bus and only one of them is its own. The populated one is
+Qt's bridge, carrying the frame, its named buttons, the page tabs and the rest of what the
+`Accessible.*` annotations in `src/ui/*.qml` state. The empty one reports `gtk` as its toolkit and
+has no children, because Omarchy sets `QT_QPA_PLATFORMTHEME=gtk3` and Qt's GTK platform theme plugin
+loads GTK itself, which registers an application through `libatk-bridge-2.0` whether or not GTK
+draws anything. Every Qt application on that desktop does it, quickshell included, so an assistive
+client listing what is running finds a pair for each of them. `NO_AT_BRIDGE` would take Omaweb's
+empty one away, but the file chooser that same plugin supplies is a GTK window a reader may need
+read to them, and a browser whose Open dialog has gone quiet is worse off than one listed twice.
+
 Two things that look like gaps are not. The frameless window is one: `Main.qml` asks for
 `Qt.FramelessWindowHint` off macOS, so a Main or Private window is already frameless under Hyprland.
 
