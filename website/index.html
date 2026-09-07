@@ -10,7 +10,7 @@
     />
     <meta name="application-name" content="Omaweb" />
     <meta name="robots" content="index, follow" />
-    <meta name="theme-color" content="#1a1b26" />
+    <meta name="theme-color" content="#090a0e" />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Omaweb" />
     <meta property="og:title" content="Omaweb, a keyboard-driven browser for Omarchy" />
@@ -39,12 +39,22 @@
     </script>
     <link rel="icon" href="favicon.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="styles.css" />
+    <!-- Generated from each Omarchy theme's own colors.toml by
+         scripts/build_website_themes.py, alongside the screenshots and the
+         favicons drawn in the same palettes. -->
+    <link rel="stylesheet" href="themes.css" />
   </head>
 
-  <body>
+  <body data-theme="oligarchy">
     <div class="t-wrap">
       <header class="t-top">
-        <img src="assets/icons/omaweb.svg" alt="Omaweb" />
+        <img
+          data-themed="assets/icons/wordmark-{theme}.svg"
+          src="assets/icons/wordmark-oligarchy.svg"
+          width="160"
+          height="20"
+          alt="Omaweb"
+        />
         <p class="t-status">Pre-alpha Linux browser for Omarchy</p>
       </header>
 
@@ -65,144 +75,117 @@
       </section>
     </div>
 
-    <!-- full-width desktop; the wallpaper layer parallaxes against the window -->
-    <div class="desk">
-      <div class="desk__wall" aria-hidden="true"></div>
-      <div class="desk__grain" aria-hidden="true"></div>
-      <div class="desk__stage">
-        <div class="ui" id="ui" data-collapsed="false">
-          <aside class="ui__side">
-            <div class="ui__chrome">
-              <button class="ui__ico ui__panel" type="button" aria-pressed="false">
-                <span class="ms ms--left-panel-close" aria-hidden="true"></span>
-                <span class="sr-only">Hide sidebar</span>
-              </button>
-              <span class="ui__ico"><span class="ms ms--search" aria-hidden="true"></span></span>
-              <span class="ui__gap"></span>
-              <span class="ui__ico"
-                ><span class="ms ms--arrow-back" aria-hidden="true"></span
-              ></span>
-              <span class="ui__ico"
-                ><span class="ms ms--arrow-forward" aria-hidden="true"></span
-              ></span>
-              <span class="ui__ico"><span class="ms ms--refresh" aria-hidden="true"></span></span>
-            </div>
-
-            <div class="ui__addr">
-              <span class="ui__lock ms ms--lock" aria-hidden="true"></span>
-              <span class="ui__url">omarchy.org/</span>
-              <span class="ui__blocked">
-                <span class="ms ms--shield" aria-hidden="true"></span>
-                <span>6</span>
-              </span>
-            </div>
-
-            <!-- Pinned tabs run 3-5 across, each showing the site code the
-                 application derives from the host. No heading: the sidebar
-                 has none. -->
-            <div class="ui__pinned">
-              <span class="ui__pin">GI</span>
-              <span class="ui__pin">LI</span>
-              <span class="ui__pin">OM</span>
-              <span class="ui__pin">YO</span>
-            </div>
-
-            <div class="ui__tab is-on">
-              <span class="ui__fav">OM</span
-              ><span>Omarchy &mdash; Beautiful, Fun &amp; Agentic Linux</span>
-            </div>
-            <div class="ui__tab">
-              <span class="ui__fav">HY</span><span>Hyprland Wiki &mdash; Configuring</span>
-            </div>
-            <div class="ui__tab">
-              <span class="ui__fav">GI</span><span>villekivela/omaweb &mdash; Issues</span>
-            </div>
-
-            <span class="ui__gap"></span>
-            <div class="ui__foot">
-              <span class="ui__spaces">
-                <span class="ui__space is-on">P</span>
-                <span class="ui__space">W</span>
-                <span class="ui__space">C</span>
-              </span>
-              <span class="ui__gap"></span>
-              <span class="ui__ico"
-                ><span class="ms ms--more-horiz" aria-hidden="true"></span
-              ></span>
-              <span class="ui__ico"><span class="ms ms--settings" aria-hidden="true"></span></span>
-            </div>
-          </aside>
-
-          <div class="ui__view">
-            <!-- The cluster the application floats over the page while the
-                 sidebar is hidden: it is how the sidebar comes back. -->
-            <div class="ui__cluster">
-              <span class="ui__ico"
-                ><span class="ms ms--arrow-back" aria-hidden="true"></span
-              ></span>
-              <span class="ui__ico"
-                ><span class="ms ms--arrow-forward" aria-hidden="true"></span
-              ></span>
-              <span class="ui__ico"><span class="ms ms--refresh" aria-hidden="true"></span></span>
-              <span class="ui__rule"></span>
-              <button class="ui__ico ui__panel" type="button" aria-pressed="true">
-                <span class="ms ms--left-panel-open" aria-hidden="true"></span>
-                <span class="sr-only">Show sidebar</span>
-              </button>
-              <span class="ui__ico"><span class="ms ms--search" aria-hidden="true"></span></span>
-            </div>
-
-            <div class="ui__page">
-              <p class="ui__start-eyebrow">Shortcuts &middot; Ctrl / &middot; Esc closes</p>
-              <h3>Keyboard commands</h3>
-              <div class="ui__keys">
-                <div><b>Ctrl L</b><i>Open an address</i></div>
-                <div><b>f</b><i>Hint every link in view</i></div>
-                <div><b>Ctrl K</b><i>Commands, tabs and Spaces</i></div>
-                <div><b>j k</b><i>Scroll the page</i></div>
-                <div><b>Ctrl T</b><i>New tab</i></div>
-                <div><b>d u</b><i>Scroll half a page</i></div>
-                <div><b>Ctrl E</b><i>Focus the sidebar</i></div>
-                <div><b>g g / G</b><i>Top / bottom</i></div>
-                <div><b>Ctrl B</b><i>Hide the sidebar</i></div>
-                <div><b>Ctrl Y</b><i>History</i></div>
-                <div><b>Ctrl Shift I</b><i>Developer tools</i></div>
-                <div><b>Ctrl /</b><i>Every binding, live</i></div>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div class="t-demo__foot">
-          <p>Omaweb follows the active Omarchy theme.</p>
-          <div class="t-themes" role="group" aria-label="Preview theme">
-            <span>Preview theme</span>
-            <button class="t-theme" type="button" aria-pressed="true" data-theme="tokyo-night">
-              Tokyo Night
-            </button>
-            <button class="t-theme" type="button" aria-pressed="false" data-theme="everforest">
-              Everforest
-            </button>
-            <button class="t-theme" type="button" aria-pressed="false" data-theme="kanagawa">
-              Kanagawa
-            </button>
-            <button class="t-theme" type="button" aria-pressed="false" data-theme="catppuccin">
-              Catppuccin
-            </button>
-            <button class="t-theme" type="button" aria-pressed="false" data-theme="nord">
-              Nord
-            </button>
-            <button class="t-theme" type="button" aria-pressed="false" data-theme="vantablack">
-              Vantablack
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-
     <div class="t-wrap t-wrap--rest">
+      <!-- Every image here is generated: scripts/build_website_themes.py renders
+           each Omarchy theme's palette, draws a wallpaper from it, captures the
+           chrome headlessly and composites the two. The buttons pick which
+           theme's set is on show, and restyle the page around them to match. -->
+      <section class="t-section t-shots">
+        <div class="t-section__head">
+          <p class="t-section__index">01 / the window itself</p>
+          <div class="t-section__intro">
+            <h2>Generated, not staged.</h2>
+            <p>
+              One set per theme, rendered from the source tree with no compositor and no screen
+              grab, each over a wallpaper generated from that theme&rsquo;s own palette. A chrome
+              change is a re-run rather than a photo session.
+            </p>
+          </div>
+        </div>
+
+        <div class="t-themes" role="group" aria-label="Preview theme">
+          <span>Preview theme</span>
+          <button class="t-theme" type="button" aria-pressed="true" data-theme="oligarchy">
+            Oligarchy
+          </button>
+          <button class="t-theme" type="button" aria-pressed="false" data-theme="tokyo-night">
+            Tokyo Night
+          </button>
+          <button class="t-theme" type="button" aria-pressed="false" data-theme="catppuccin">
+            Catppuccin
+          </button>
+          <button class="t-theme" type="button" aria-pressed="false" data-theme="nord">Nord</button>
+          <button class="t-theme" type="button" aria-pressed="false" data-theme="everforest">
+            Everforest
+          </button>
+          <button class="t-theme" type="button" aria-pressed="false" data-theme="gruvbox">
+            Gruvbox
+          </button>
+        </div>
+
+        <figure class="t-shot t-shot--lead">
+          <img
+            data-themed="assets/shots/{theme}/space.png"
+            src="assets/shots/oligarchy/space.png"
+            width="1632"
+            height="1132"
+            alt="Omaweb with Pinned tabs above an ordinary tab list, and a new tab on show"
+            decoding="async"
+          />
+          <figcaption>
+            A Space at work: Pinned tabs across the top of the sidebar, the day&rsquo;s ordinary
+            tabs under them, and the Start page on the new tab.
+          </figcaption>
+        </figure>
+
+        <div class="t-shot-grid">
+          <figure class="t-shot">
+            <img
+              data-themed="assets/shots/{theme}/settings.png"
+              src="assets/shots/oligarchy/settings.png"
+              width="1632"
+              height="1132"
+              alt="The Settings page, open on its Tabs section"
+              loading="lazy"
+              decoding="async"
+            />
+            <figcaption>Settings, in the window rather than on a page of its own.</figcaption>
+          </figure>
+          <figure class="t-shot">
+            <img
+              data-themed="assets/shots/{theme}/blocking.png"
+              src="assets/shots/oligarchy/blocking.png"
+              width="1632"
+              height="1132"
+              alt="The Content Blocking section, with filter lists and a user rules field"
+              loading="lazy"
+              decoding="async"
+            />
+            <figcaption>
+              Content blocking is uBlock Origin&rsquo;s own filter syntax, with your rules beside
+              the lists.
+            </figcaption>
+          </figure>
+          <figure class="t-shot">
+            <img
+              data-themed="assets/shots/{theme}/history.png"
+              src="assets/shots/oligarchy/history.png"
+              width="1632"
+              height="1132"
+              alt="History, listing this Space's visits"
+              loading="lazy"
+              decoding="async"
+            />
+            <figcaption>History belongs to the Space, and is cleared by the Space.</figcaption>
+          </figure>
+          <figure class="t-shot">
+            <img
+              data-themed="assets/shots/{theme}/collapsed.png"
+              src="assets/shots/oligarchy/collapsed.png"
+              width="1632"
+              height="1132"
+              alt="The window with its sidebar hidden, the page filling it"
+              loading="lazy"
+              decoding="async"
+            />
+            <figcaption>Ctrl B hides the sidebar and the page has the whole window.</figcaption>
+          </figure>
+        </div>
+      </section>
+
       <section class="t-section">
         <div class="t-section__head">
-          <p class="t-section__index">01 / part of the desktop</p>
+          <p class="t-section__index">02 / part of the desktop</p>
           <div class="t-section__intro">
             <h2>One window among the rest.</h2>
             <p>Omaweb takes its cues from the desktop instead of bringing another one.</p>
@@ -235,7 +218,7 @@
 
       <section class="t-section">
         <div class="t-section__head">
-          <p class="t-section__index">02 / browsing identities</p>
+          <p class="t-section__index">03 / browsing identities</p>
           <div class="t-section__intro">
             <h2>Work and personal stay in the same window.</h2>
             <p>A Space keeps the browser data one part of your life leaves behind.</p>
@@ -261,7 +244,7 @@
 
       <section class="t-section">
         <div class="t-section__head">
-          <p class="t-section__index">03 / Status</p>
+          <p class="t-section__index">04 / Status</p>
           <div class="t-section__intro">
             <h2>The Qt browser contract is complete. Release qualification is not.</h2>
             <p>Omaweb is pre-alpha while Arch packaging and final Wayland release work continue.</p>

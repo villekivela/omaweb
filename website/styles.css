@@ -1,12 +1,4 @@
 @font-face {
-  font-family: "Material Symbols Rounded";
-  src: url("assets/fonts/material-symbols-subset.woff2") format("woff2");
-  font-weight: 400;
-  font-style: normal;
-  font-display: block;
-}
-
-@font-face {
   font-family: "JetBrains Mono";
   src: url("assets/fonts/JetBrainsMono.woff2") format("woff2");
   font-style: normal;
@@ -72,13 +64,18 @@ body {
   /* Hyprland decoration:rounding */
   --radius: 0px;
 
-  /* Palette roles. The default theme; [data-theme] swaps them below. */
-  --bg: #1a1b26;
-  --sidebar: #16161e;
-  --fg: #c0caf5;
-  --accent: #7aa2f7;
-  --urgent: #f7768e;
-  --muted: #9aa5ce;
+  /* Palette roles, as the ground to paint before themes.css arrives.
+     Every palette the page actually offers, including this one, is
+     generated into themes.css from its Omarchy theme's own colors.toml,
+     and index.html names the default on <body>. These are the default
+     theme's values, kept here so the page is never unpainted. */
+  --bg: #090a0e;
+  --sidebar: #0d0f14;
+  --fg: #d8dbe3;
+  --accent: #9aa3ad;
+  --urgent: #7a2e2e;
+  --muted: #929ca6;
+  --sidebar-alpha: 95%;
 
   /* State tokens. Kit alphas exactly, including the hover border
      dropping BELOW normal (0.25 vs 0.40). */
@@ -176,56 +173,17 @@ img {
    The page and the product UI are drawn from the same palette tokens,
    so picking a theme restyles both at once, which is what
    `omarchy theme set` does to the real browser.
-   These approximate the palettes Omarchy ships. When a theme changes
-   upstream, regenerate the values here from its own colors.toml.
+   The palettes themselves are not written here. Each is generated into
+   `themes.css` by `scripts/build_website_themes.py`, out of the roles
+   Omaweb resolves from that theme's own `colors.toml` -- alongside the
+   screenshots and favicons drawn in the same palette, so a theme's
+   colours reach the page, its pictures and its icon from one place.
    =================================================================== */
-body[data-theme="catppuccin"] {
-  --bg: #1e1e2e;
-  --sidebar: #181825;
-  --fg: #cdd6f4;
-  --accent: #89b4fa;
-  --urgent: #f38ba8;
-  --muted: #9399b2;
-}
-body[data-theme="kanagawa"] {
-  --bg: #1f1f28;
-  --sidebar: #16161d;
-  --fg: #dcd7ba;
-  --accent: #7e9cd8;
-  --urgent: #c34043;
-  --muted: #a6a69c;
-}
-body[data-theme="everforest"] {
-  --bg: #2d353b;
-  --sidebar: #232a2e;
-  --fg: #d3c6aa;
-  --accent: #a7c080;
-  --urgent: #e67e80;
-  --muted: #9da9a0;
-}
-body[data-theme="nord"] {
-  --bg: #2e3440;
-  --sidebar: #292e39;
-  --fg: #d8dee9;
-  --accent: #88c0d0;
-  --urgent: #bf616a;
-  --muted: #aeb8c8;
-}
-/* No lift on the sidebar at all: on a black theme the only thing
-   separating it from the page is the transparency. */
-body[data-theme="vantablack"] {
-  --bg: #000000;
-  --sidebar: #000000;
-  --fg: #e8e8e8;
-  --accent: #9d9d9d;
-  --urgent: #d35f5f;
-  --muted: #6f6f6f;
-}
 
 .t-wrap {
   width: min(80rem, calc(100% - var(--sp-huge) * 2));
   margin-inline: auto;
-  padding-block: var(--sp-huge) calc(var(--panel-padding) * 5);
+  padding-block: var(--sp-huge) calc(var(--panel-padding) * 2);
 }
 
 .t-top {
@@ -236,10 +194,12 @@ body[data-theme="vantablack"] {
   padding-bottom: var(--sp-xxl);
   border-bottom: 1px solid var(--line-quiet);
 }
+/* The wordmark is generated in the theme's own foreground, so it needs no
+   inversion to be visible: the page used to invert a black drawing to get
+   white out of it, which no theme could reach. */
 .t-top img {
   width: calc(88px * var(--scale));
   height: auto;
-  filter: invert(1);
 }
 
 .t-themes {
@@ -386,6 +346,43 @@ body[data-theme="vantablack"] {
   }
 }
 
+/* ---------------- the generated screenshots -------------------------
+   The shots already carry their own desktop: each is the window
+   composited over a wallpaper drawn from the same palette, so the
+   figure adds a frame and a caption and nothing else. Sizing is by
+   aspect ratio rather than by height, because every shot is one
+   capture size and the page decides how wide it is drawn. */
+.t-shot {
+  margin: 0;
+  min-width: 0;
+}
+.t-shot img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--line-quiet);
+  border-radius: var(--radius);
+}
+.t-shot figcaption {
+  margin-top: var(--sp-lg);
+  max-width: 60ch;
+  color: var(--muted);
+  font-size: var(--fs-caption);
+}
+.t-shot--lead {
+  margin-top: var(--panel-padding);
+}
+.t-shot-grid {
+  display: grid;
+  gap: calc(var(--panel-padding) * 1.5);
+  margin-top: calc(var(--panel-padding) * 1.5);
+}
+@media (min-width: 52rem) {
+  .t-shot-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 .t-foot {
   display: flex;
   flex-wrap: wrap;
@@ -398,452 +395,8 @@ body[data-theme="vantablack"] {
   font-size: var(--fs-caption);
 }
 
-/* ---------------- the product UI, drawn from the same tokens --------
-   Composition follows src/ui/SpaceOutline.qml: a controls row, the
-   address field with its lock in an 18px slot and the blocked-request
-   shield on the right, Pinned tabs running 3-5 across as site codes,
-   ordinary tabs as rows, then the Space switcher as single letters
-   beside more_horiz and settings.
-
-   The window sits on a full-width desktop wallpaper that parallaxes
-   against it. The sidebar is translucent and blurred at the theme's
-   `opacity.sidebar`; the page viewport is opaque, because a webpage
-   viewport is not a Transparent surface. */
 .t-wrap--rest {
   padding-block: calc(var(--panel-padding) * 2) calc(var(--panel-padding) * 5);
-}
-
-.desk {
-  position: relative;
-  overflow: hidden;
-  padding: clamp(26px, 4.4vw, 76px) 0;
-  isolation: isolate;
-}
-/* Two layers at different rates, because one layer of repeating stripes
-   cannot show parallax: a repeating pattern shifted along its own axis
-   is indistinguishable from itself. The orb is the landmark you can
-   actually track against the window frame; the stripe field travels at
-   under half its rate. Both are oversized so there is headroom to move
-   without exposing an edge. */
-.desk__wall,
-.desk__grain {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: -46%;
-  height: 192%;
-  will-change: translate;
-}
-.desk__wall {
-  translate: 0 var(--par, 0px);
-  background:
-    radial-gradient(
-      34% 30% at 24% 34%,
-      color-mix(in srgb, var(--accent) 95%, transparent) 0%,
-      color-mix(in srgb, var(--accent) 46%, transparent) 40%,
-      transparent 66%
-    ),
-    radial-gradient(
-      26% 24% at 82% 72%,
-      color-mix(in srgb, var(--urgent) 82%, transparent) 0%,
-      color-mix(in srgb, var(--urgent) 34%, transparent) 44%,
-      transparent 68%
-    ),
-    radial-gradient(
-      20% 18% at 62% 14%,
-      color-mix(in srgb, var(--fg) 52%, transparent) 0%,
-      transparent 70%
-    ),
-    linear-gradient(152deg, color-mix(in srgb, var(--bg) 34%, #000), var(--bg));
-}
-.desk__grain {
-  translate: 0 var(--grain, 0px);
-  background: repeating-linear-gradient(
-    58deg,
-    transparent 0 30px,
-    color-mix(in srgb, var(--fg) 13%, transparent) 30px 60px
-  );
-}
-
-.desk__stage {
-  position: relative;
-  z-index: 1;
-  width: min(80rem, calc(100% - var(--sp-huge) * 2));
-  margin-inline: auto;
-}
-.t-demo__foot {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--panel-gap);
-  padding-top: var(--panel-gap);
-}
-.t-demo__foot > p {
-  margin: 0;
-  color: color-mix(in srgb, var(--fg) 82%, var(--bg));
-  font-size: var(--fs-body-sm);
-}
-
-.ui {
-  --ui: 12.5px;
-  display: grid;
-  grid-template-columns: 268px minmax(0, 1fr);
-  min-height: 452px;
-  border: 1px solid color-mix(in srgb, var(--fg) 22%, transparent);
-  border-radius: var(--radius);
-  font-size: var(--ui);
-  line-height: 1.5;
-  overflow: hidden;
-  transition: grid-template-columns 220ms cubic-bezier(0.2, 0, 0, 1);
-}
-.ui[data-collapsed="true"] {
-  grid-template-columns: 0px minmax(0, 1fr);
-}
-
-.ui__side {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  width: 268px;
-  min-width: 0;
-  padding: 10px;
-  border-right: 1px solid color-mix(in srgb, var(--fg) 12%, transparent);
-  /* theme opacity.sidebar = 0.85 */
-  background: color-mix(in srgb, var(--sidebar) 85%, transparent);
-  backdrop-filter: blur(16px) saturate(1.35);
-  -webkit-backdrop-filter: blur(16px) saturate(1.35);
-  transition: translate 220ms cubic-bezier(0.2, 0, 0, 1);
-}
-.ui[data-collapsed="true"] .ui__side {
-  translate: -268px 0;
-}
-
-.ui__chrome {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-}
-.ui__gap {
-  flex: 1;
-}
-
-/* Material Symbols Rounded, subset to the icons the application asks
-   for by name in src/ui/*.qml. Built by
-   scripts/build_website_icon_font.py, which reads the codepoints out of
-   the font instead of guessing them. */
-.sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  margin: -1px;
-  padding: 0;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
-}
-
-.ms {
-  font-family: "Material Symbols Rounded";
-  font-weight: 400;
-  font-style: normal;
-  line-height: 1;
-  letter-spacing: normal;
-  text-transform: none;
-  white-space: nowrap;
-  direction: ltr;
-  -webkit-font-smoothing: antialiased;
-}
-.ms::before {
-  content: var(--glyph, "\e5d3");
-}
-.ms--left-panel-close {
-  --glyph: "\f717";
-}
-.ms--left-panel-open {
-  --glyph: "\f716";
-}
-.ms--search {
-  --glyph: "\e8b6";
-}
-.ms--arrow-back {
-  --glyph: "\e5c4";
-}
-.ms--arrow-forward {
-  --glyph: "\e5c8";
-}
-.ms--refresh {
-  --glyph: "\e5d5";
-}
-.ms--lock {
-  --glyph: "\e88d";
-}
-.ms--shield {
-  --glyph: "\e75b";
-}
-.ms--settings {
-  --glyph: "\e8b8";
-}
-.ms--more-horiz {
-  --glyph: "\e5d3";
-}
-
-.ui__ico {
-  display: grid;
-  place-items: center;
-  width: 26px;
-  height: 24px;
-  border: 1px solid transparent;
-  background: none;
-  padding: 0;
-  color: var(--muted);
-  font-size: 15px;
-}
-button.ui__ico {
-  cursor: pointer;
-}
-button.ui__ico:hover {
-  background: var(--fill-hover);
-  border-color: var(--line-hover);
-  color: var(--fg);
-}
-
-/* radius 2, per SpaceOutline's own address field */
-.ui__addr {
-  display: flex;
-  align-items: center;
-  height: 28px;
-  padding: 0 8px;
-  border: 1px solid var(--line-normal);
-  border-radius: 2px;
-  background: var(--fill-normal);
-}
-/* the lock takes the same 18px slot a tab row gives its site chip, so
-   the address and every tab title start on one line */
-.ui__lock {
-  flex: none;
-  width: 18px;
-  text-align: center;
-  font-size: 14px;
-  color: var(--fg);
-}
-.ui__url {
-  flex: 1;
-  min-width: 0;
-  margin-left: 9px;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-  color: var(--fg);
-}
-.ui__blocked {
-  display: flex;
-  align-items: center;
-  gap: 3px;
-  flex: none;
-  margin-left: 8px;
-  color: var(--muted);
-  font-size: 10px;
-}
-.ui__blocked .ms {
-  font-size: 13px;
-}
-
-.ui__pinned {
-  margin-top: 4px;
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 4px;
-}
-.ui__pin {
-  display: grid;
-  place-items: center;
-  height: 30px;
-  border: 1px solid var(--line-normal);
-  background: var(--fill-normal);
-  color: var(--muted);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-}
-
-.ui__tab {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  height: 26px;
-  padding: 0 6px;
-  border: 1px solid transparent;
-  color: color-mix(in srgb, var(--fg) 78%, transparent);
-}
-.ui__tab.is-on {
-  border-color: color-mix(in srgb, var(--fg) 18%, transparent);
-  background: var(--fill-selected);
-  color: var(--fg);
-}
-.ui__tab span:last-child {
-  min-width: 0;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-.ui__fav {
-  display: grid;
-  place-items: center;
-  flex: none;
-  width: 18px;
-  height: 15px;
-  border: 1px solid color-mix(in srgb, var(--fg) 16%, transparent);
-  color: var(--accent);
-  font-size: 8px;
-  font-weight: 700;
-}
-
-.ui__foot {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding-top: 8px;
-  border-top: 1px solid color-mix(in srgb, var(--fg) 12%, transparent);
-}
-/* the Space switcher: one letter per Space, as the application draws it */
-.ui__spaces {
-  display: flex;
-  gap: 5px;
-}
-.ui__space {
-  display: grid;
-  place-items: center;
-  width: 30px;
-  height: 26px;
-  border: 1px solid transparent;
-  color: var(--muted);
-  font-size: 11px;
-  font-weight: 700;
-}
-.ui__space.is-on {
-  background: var(--fill-selected);
-  border-color: color-mix(in srgb, var(--fg) 18%, transparent);
-  color: var(--fg);
-}
-
-.ui__view {
-  position: relative;
-  min-width: 0;
-}
-
-/* the cluster the application floats over the page with the sidebar
-   hidden; its contents recede rather than the strip itself */
-.ui__cluster {
-  position: absolute;
-  top: 10px;
-  left: 10px;
-  z-index: 2;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 3px 5px;
-  background: color-mix(in srgb, var(--bg) 96%, transparent);
-  border: 1px solid color-mix(in srgb, var(--fg) 14%, transparent);
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 130ms linear;
-}
-.ui[data-collapsed="true"] .ui__cluster {
-  opacity: 0.55;
-  pointer-events: auto;
-}
-.ui[data-collapsed="true"] .ui__cluster:hover,
-.ui[data-collapsed="true"] .ui__cluster:focus-within {
-  opacity: 1;
-}
-.ui__rule {
-  width: 1px;
-  height: 18px;
-  background: var(--line-normal);
-}
-
-/* with the sidebar hidden the cluster floats above the page, so the
-   page's own content starts below it rather than under it */
-.ui[data-collapsed="true"] .ui__page {
-  padding-top: 54px;
-}
-
-/* opaque: a webpage viewport is never a Transparent surface */
-.ui__page {
-  display: grid;
-  align-content: start;
-  height: 100%;
-  padding: 26px 22px;
-  background: var(--bg);
-}
-.ui__start-eyebrow {
-  margin: 0;
-  color: var(--muted);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-}
-.ui__page h3 {
-  margin: 8px 0 0;
-  font-size: 20px;
-  font-weight: 700;
-  letter-spacing: -0.03em;
-}
-.ui__keys {
-  display: grid;
-  gap: 0 26px;
-  margin: 18px 0 0;
-  align-content: start;
-}
-@media (min-width: 46rem) {
-  .ui__keys {
-    grid-template-columns: 1fr 1fr;
-  }
-}
-.ui__keys > div {
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-  padding: 5px 0;
-  border-bottom: 1px solid color-mix(in srgb, var(--fg) 8%, transparent);
-}
-.ui__keys b {
-  flex: none;
-  min-width: 76px;
-  color: var(--accent);
-  font-weight: 700;
-}
-.ui__keys i {
-  font-style: normal;
-  color: color-mix(in srgb, var(--fg) 74%, var(--bg));
-}
-
-@media (max-width: 46rem) {
-  .t-demo__foot {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-  .ui {
-    grid-template-columns: minmax(0, 1fr);
-    min-height: 0;
-  }
-  .ui[data-collapsed="true"] {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .ui__side {
-    width: auto;
-    border-right: 0;
-    border-bottom: 1px solid color-mix(in srgb, var(--fg) 12%, transparent);
-  }
-  .ui[data-collapsed="true"] .ui__side {
-    translate: 0 0;
-    display: none;
-  }
-  .ui__page {
-    padding: 18px 14px;
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {
