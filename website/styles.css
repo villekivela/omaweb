@@ -158,6 +158,14 @@ img {
   border-color: var(--accent);
 }
 
+/* Sized to the type it stands beside rather than to a pixel count, so the
+   mark and the label scale together with the theme's font. */
+.btn__mark {
+  width: 1.15em;
+  height: 1.15em;
+  flex: none;
+}
+
 .t-status {
   margin: 0 0 0 auto;
   color: var(--muted);
@@ -179,10 +187,14 @@ img {
    colours reach the page, its pictures and its icon from one place.
    =================================================================== */
 
+/* One wrap holds the whole page. There were two, so that the full-bleed
+   desktop band could sit between them; without it the pair only stacked its
+   own paddings against the hero's and the first section's. The rhythm between
+   sections is `.t-section`'s to set. */
 .t-wrap {
   width: min(80rem, calc(100% - var(--sp-huge) * 2));
   margin-inline: auto;
-  padding-block: var(--sp-huge) calc(var(--panel-padding) * 2);
+  padding-block: var(--sp-huge) calc(var(--panel-padding) * 3);
 }
 
 .t-top {
@@ -201,11 +213,14 @@ img {
   height: auto;
 }
 
+/* The switcher heads the screenshots it changes, so it stands off the
+   section's own text above it rather than abutting the paragraph. */
 .t-themes {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--sp-md);
+  margin-top: var(--panel-padding);
 }
 .t-themes > span {
   color: var(--muted);
@@ -235,8 +250,11 @@ img {
   font-weight: 700;
 }
 
+/* Padding above only. The section below sets the space between itself and
+   whatever precedes it, and the hero adding its own on top of that doubled
+   the gap. */
 .t-hero {
-  padding-block: clamp(var(--panel-padding), 5vw, calc(var(--panel-padding) * 3));
+  padding-block: clamp(var(--panel-padding), 5vw, calc(var(--panel-padding) * 3)) 0;
 }
 .t-hero h1 {
   max-width: 26ch;
@@ -266,8 +284,31 @@ img {
 .t-hero__actions {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: var(--sp-xxl);
   margin-top: var(--panel-padding);
+}
+
+/* A state, not an action, so it stands beside the buttons rather than among
+   them: the theme's urgent colour instead of its accent, because what it says
+   is a caveat and not an invitation.
+
+   The box and the type are the button's own, down to the tokens, so the three
+   sit on one line at any theme spacing. A <span> rather than a <p> because
+   `.t-hero p` sets a paragraph's size and would win over this. */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--control-h);
+  padding: var(--control-py) var(--control-px);
+  border: 1px solid color-mix(in srgb, var(--urgent) 60%, transparent);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--urgent) 16%, transparent);
+  color: var(--fg);
+  font-size: var(--fs-body-sm);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .t-section {
@@ -496,6 +537,20 @@ img {
   border-color: var(--line-hover);
 }
 
+/* One quiet line rather than a section: it sits on the rule above the
+   footer, which is where a caveat about the software belongs on a page about
+   what the software does. */
+.t-note {
+  margin: calc(var(--panel-padding) * 2) 0 0;
+  padding-top: var(--sp-xxl);
+  border-top: 1px solid var(--line-quiet);
+  color: var(--muted);
+  font-size: var(--fs-body-sm);
+}
+.t-note a {
+  color: var(--accent);
+}
+
 .t-foot {
   display: flex;
   flex-wrap: wrap;
@@ -506,10 +561,6 @@ img {
   border-top: 1px solid var(--line-quiet);
   color: var(--muted);
   font-size: var(--fs-caption);
-}
-
-.t-wrap--rest {
-  padding-block: calc(var(--panel-padding) * 2) calc(var(--panel-padding) * 5);
 }
 
 @media (prefers-reduced-motion: reduce) {
