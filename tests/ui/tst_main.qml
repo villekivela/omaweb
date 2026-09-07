@@ -1998,19 +1998,18 @@ TestCase {
     // renderers with it: coming back reloads its tabs from their addresses
     // rather than finding the very pages that were left. That is the memory
     // policy the browser is built on, not a shortcoming of the switch.
-    // Putting a Space away takes its pages, all but the one the reader was left
-    // on: that one keeps its renderer, stopped rather than running, because
-    // coming back to a Space is what the reader does next often enough that
-    // reloading the page in front of them is the wrong trade. Its background
-    // tabs are not kept, which is what bounds this at one stopped page per
-    // Space rather than one per tab.
-    function test_spaceSuspensionKeepsOnlyThePageTheReaderWasLeftOn() {
+    // Putting a Space away stops its pages rather than taking them: every page
+    // the reader opened in it freezes, and coming back finds each one where it
+    // was rather than loading it again. What the Space costs while it is away
+    // is a renderer per tab the reader actually opened in it.
+    function test_spaceSuspensionStopsThePagesItKeeps() {
         const engineLoader = findChild(window.contentItem, "engineLoader");
         verify(engineLoader !== null);
         openPage("https://personal-background.example");
         const personalSpaceId = browser.activeSpaceId;
         const backgroundTabId = browser.activeTabId;
         const backgroundEngineView = engineLoader.item;
+        backgroundEngineView.pageLocalState = "the tab behind";
 
         browser.openInput("https://personal-space.example", true);
         tryVerify(function () {
@@ -2022,15 +2021,15 @@ TestCase {
         const workSpaceId = browser.createSpace("Work");
 
         verify(browser.switchSpace(workSpaceId));
-        // The background page is gone; the page on show is only stopped, and
-        // neither is being retained for its Space.
-        tryVerify(function () {
-            return engineLoader.engines[backgroundTabId] === undefined;
-        });
+        // Both pages are stopped, neither is gone, and neither is being
+        // retained: retention is a different question from existence.
         tryCompare(personalEngineView, "pageFrozen", true);
+        tryCompare(backgroundEngineView, "pageFrozen", true);
+        compare(engineLoader.engines[personalTabId], personalEngineView);
+        compare(engineLoader.engines[backgroundTabId], backgroundEngineView);
         verify(!engineLoader.keepsEngineFor(personalTabId));
+        verify(!engineLoader.keepsEngineFor(backgroundTabId));
         openPage("https://work-space.example");
-        const workEngineView = engineLoader.item;
         const workTabId = browser.activeTabId;
 
         verify(browser.switchSpace(personalSpaceId));
@@ -2040,8 +2039,15 @@ TestCase {
         });
         tryCompare(personalEngineView, "pageFrozen", false);
         compare(personalEngineView.pageLocalState, "where the reader was");
-        compare(String(engineLoader.item.currentUrl), "https://personal-space.example");
         compare(engineLoader.item.profilePath, browser.activeProfilePath);
+
+        // And the tab behind it is the same page too, still stopped until it is
+        // the one being read.
+        compare(engineLoader.engines[backgroundTabId], backgroundEngineView);
+        compare(backgroundEngineView.pageFrozen, true);
+        browser.activateTab(backgroundTabId);
+        tryCompare(backgroundEngineView, "pageFrozen", false);
+        compare(backgroundEngineView.pageLocalState, "the tab behind");
 
         verify(browser.deleteSpace(workSpaceId, "Work"));
         compare(browser.activeSpaceId, personalSpaceId);
@@ -2078,21 +2084,15 @@ TestCase {
         });
         const ordinaryTabId = browser.activeTabId;
 
-        // The page the reader is left on keeps its renderer whatever the core
-        // retains, so an ordinary tab that is not it stands for the policy.
-        browser.openInput("https://on-show.example", true);
-        tryVerify(function () {
-            return engineLoader.item !== null && String(engineLoader.item.currentUrl)
-                    === "https://on-show.example";
-        });
-        const onShowTabId = browser.activeTabId;
-
         const workSpaceId = browser.createSpace("Retained");
         verify(browser.switchSpace(workSpaceId));
 
-        // The ordinary page is gone; the retained ones are still running.
+        // Every page is kept, and only the named ones are retained: the
+        // ordinary page is stopped and answers for nothing, while the retained
+        // ones are identified and listed.
         tryVerify(function () {
-            return engineLoader.engines[ordinaryTabId] === undefined;
+            return engineLoader.engines[ordinaryTabId] !== undefined
+                    && engineLoader.engines[ordinaryTabId].pageFrozen;
         });
         verify(engineLoader.keepsEngineFor(keptTabId));
         verify(engineLoader.keepsEngineFor(inspectedTabId));
@@ -2130,7 +2130,6 @@ TestCase {
         browser.closeTab(keptTabId);
         browser.closeTab(inspectedTabId);
         browser.closeTab(ordinaryTabId);
-        browser.closeTab(onShowTabId);
         verify(browser.deleteSpace(workSpaceId, "Retained"));
     }
 
@@ -2177,45 +2176,45 @@ TestCase {
         verify(browser.deleteSpace(workSpaceId, "Sound"));
     }
 
-    // Muting is the session's, not the page's: a tab whose renderer was thrown
-    // away with its Space comes back muted from the store, and the engine that
-    // reloads it is told so. A background tab of that Space, because the page
-    // the reader was left on keeps its renderer and never reloads.
+    // Muting is the session's, not the page's: a tab the reader has never
+    // opened has no renderer to hold it, so the engine that first draws it is
+    // told what the session says — including after its Space has been put away
+    // and brought back, which is where the tab's own record of itself would be
+    // if it had one.
     function test_mutingComesBackFromTheSessionAfterSuspension() {
         const engineLoader = findChild(window.contentItem, "engineLoader");
         const personalSpaceId = browser.activeSpaceId;
-        const engineView = openPage("https://muted.example");
-        const tabId = browser.activeTabId;
-        browser.toggleTabMuted(tabId);
-        tryVerify(function () {
-            return engineView.audioMuted;
-        });
-
-        browser.openInput("https://on-show-muting.example", true);
-        tryVerify(function () {
-            return engineLoader.item !== null && engineLoader.item !== engineView;
-        });
+        const onShowEngine = openPage("https://muting-on-show.example");
         const onShowTabId = browser.activeTabId;
+
+        // Opened behind the page on show and never selected, so it has no
+        // engine at all: nothing here is being reloaded, it has yet to load.
+        browser.openInputInBackground("https://muted.example");
+        const tabIndex = browser.tabs.index(browser.tabs.rowCount() - 1, 0);
+        const tabId = browser.tabs.data(tabIndex, Qt.UserRole + 1);
+        verify(engineLoader.engines[tabId] === undefined);
+        browser.toggleTabMuted(tabId);
 
         const workSpaceId = browser.createSpace("Muting");
         verify(browser.switchSpace(workSpaceId));
-        tryVerify(function () {
-            return engineLoader.engines[tabId] === undefined;
-        });
         verify(browser.switchSpace(personalSpaceId));
+        tryVerify(function () {
+            return engineLoader.item === onShowEngine;
+        });
         browser.activateTab(tabId);
 
-        // A different engine, drawing the same tab, muted because the tab is.
+        // The engine drawing it for the first time, muted because the tab is.
         tryVerify(function () {
-            const reloaded = engineLoader.engines[tabId];
-            return reloaded !== undefined && reloaded !== engineView && reloaded.audioMuted;
+            const loaded = engineLoader.engines[tabId];
+            return loaded !== undefined && loaded !== onShowEngine && loaded.audioMuted;
         });
         const row = findChild(window.contentItem, "tab-" + tabId);
         verify(row !== null);
         verify(row.tabMuted);
 
         browser.toggleTabMuted(tabId);
-        browser.closeTab(onShowTabId);
+        browser.closeTab(tabId);
+        browser.activateTab(onShowTabId);
         verify(browser.deleteSpace(workSpaceId, "Muting"));
     }
 

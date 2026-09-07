@@ -249,41 +249,34 @@ Item {
             host.resetOriginPermissions(origin);
     }
 
-    // Putting a Space away costs it its pages, which is the memory policy the
-    // browser is built on. The named tabs are the exceptions the core makes and
-    // keep theirs, hidden and still running.
+    // Putting a Space away stops its pages rather than taking them. A page the
+    // reader cannot see spends nothing once it is frozen, and coming back to a
+    // Space is ordinary enough that reloading every page in it is the wrong
+    // trade: what the reader left open is what they expect to find.
     //
-    // The page the reader was left on keeps its renderer too, stopped rather
-    // than running: coming back to a Space is what the reader does next often
-    // enough that reloading the page in front of them is the wrong trade, and a
-    // stopped page costs the memory it holds and no more. Its background tabs
-    // are not kept, which is what bounds this at one stopped page per Space the
-    // reader has visited rather than one per tab they opened in it.
+    // What this costs is a renderer per tab the reader actually opened in that
+    // Space, held until the tab or the Space is closed. Tabs of a restored
+    // Space that were never selected have no engine to keep, so a Space the
+    // reader has read three pages in holds three.
     //
-    // Which tab that is has to be read here: the core names the Space being put
-    // away while it is still the active one, and says so afterwards.
+    // The tabs the core names are still retained, which is a different
+    // question: retention is what keeps a page identified, listed with its
+    // cost, and started again in a Space that has never been selected.
     function suspend(spaceId, retainedTabIds) {
         preservingEngines = true;
         suspended = true;
         activeEngine = null;
         const retained = retainedTabIds || [];
-        const onShow = root.browserController ? root.browserController.activeTabId : "";
         for (const tabId in root.engineSpaces) {
             if (root.engineSpaces[tabId] !== spaceId)
                 continue;
-            if (retained.indexOf(tabId) >= 0) {
+            if (retained.indexOf(tabId) >= 0)
                 retainedEngines.keep(tabId, spaceId);
-                // Retention decided that this page exists, not what it runs at:
-                // a kept tab nobody is watching or listening to freezes like
-                // any other page the reader cannot see.
-                root.setEngineVisible(tabId, false);
-                continue;
-            }
-            if (tabId === onShow) {
-                root.setEngineVisible(tabId, false);
-                continue;
-            }
-            root.discardEngine(tabId);
+            // Retention decided that a page is identified and answered for, not
+            // what it runs at: every page of a Space that is not on show
+            // freezes, and the ones being watched or heard are exempt wherever
+            // they are.
+            root.setEngineVisible(tabId, false);
         }
     }
 
