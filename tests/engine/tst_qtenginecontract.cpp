@@ -80,6 +80,7 @@ private slots:
     void qtDocksAnInspectorDrawnInOmawebsColours();
     void qtKeepsAnInspectedTabActiveOnlyWhileAttached();
     void qtFreezesAHiddenPageTheShellHasFinishedWith();
+    void qtRefusesToFreezeAPageThatIsCapturing();
     void qtInspectsAPrivateTabInItsOwnTemporaryProfile();
     void qtPicksAnElementWhenNoContextMenuNamedOne();
     void qtDrawsMarkupDelimitersApartFromTheNamesBetweenThem();
@@ -1717,6 +1718,77 @@ void QtEngineContractTest::qtFreezesAHiddenPageTheShellHasFinishedWith()
     QTRY_COMPARE(adapter->property("pageTitle").toString(), QStringLiteral("kept"));
 }
 
+// A tab holding the camera is not making sound, so nothing in Omaweb's own rule
+// exempts it, and freezing one would stop a capture the reader is in the middle
+// of. Qt reports capture as a permission the page asked for and never as a state
+// the page is in, so Omaweb cannot write that exemption: what protects the
+// capture is Chromium refusing to freeze a page that holds one, which it reports
+// by recommending Active for a view that is hidden. That is an engine fact
+// Omaweb relies on and would lose silently, which is what this pins.
+void QtEngineContractTest::qtRefusesToFreezeAPageThatIsCapturing()
+{
+    PageServer server(R"HTML(<!doctype html><html><body><title>asking</title>
+        <script>
+            navigator.mediaDevices.getUserMedia({video: true}).then(stream => {
+                globalThis.__omawebCapture = stream;
+                document.title = "capturing";
+            }, error => document.title = "refused:" + error.name);
+        </script>
+    </body></html>)HTML");
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+    // Loopback is a secure context, which capture requires. The camera is
+    // Chromium's fake device, asked for in main(), so the capture really runs.
+    const QUrl page(QStringLiteral("http://127.0.0.1:%1/page.html").arg(server.serverPort()));
+
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    QQmlEngine engine;
+    QQmlComponent component(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
+        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
+    }));
+    QVERIFY2(adapter, qPrintable(component.errorString()));
+    auto *item = qobject_cast<QQuickItem *>(adapter.get());
+    QVERIFY(item);
+    QQuickWindow window;
+    window.resize(800, 600);
+    item->setParentItem(window.contentItem());
+    item->setSize(QSizeF(800, 600));
+    window.show();
+
+    QSignalSpy asked(adapter.get(), SIGNAL(sitePermissionRequested(QString, QString, QString)));
+    QVERIFY(asked.isValid());
+    QVERIFY(adapter->setProperty("currentUrl", page));
+    QTRY_VERIFY_WITH_TIMEOUT(asked.count() > 0, 20000);
+    QCOMPARE(asked.first().at(2).toString(), QStringLiteral("camera"));
+    QVERIFY(QMetaObject::invokeMethod(adapter.get(), "respondToPermission",
+        Q_ARG(QVariant, asked.first().at(0)), Q_ARG(QVariant, 2)));
+    QTRY_COMPARE_WITH_TIMEOUT(
+        adapter->property("pageTitle").toString(), QStringLiteral("capturing"), 20000);
+
+    auto *webView = adapter->findChild<QObject *>(QStringLiteral("qtWebView"));
+    QVERIFY(webView);
+    const auto activeState = webView->property("lifecycleState");
+    QVERIFY(activeState.isValid());
+
+    // Hidden, and the shell has finished with it, but the camera is still on.
+    item->setVisible(false);
+    QVERIFY(adapter->setProperty("pageFrozen", true));
+    QTest::qWait(2000);
+    QCOMPARE(webView->property("recommendedState"), activeState);
+    QCOMPARE(webView->property("lifecycleState"), activeState);
+
+    // The camera off, and the same hidden page freezes: the exemption is the
+    // capture rather than anything about this page, and the decision the shell
+    // made while the capture held it out is still standing to be applied.
+    QVERIFY(QMetaObject::invokeMethod(webView, "runJavaScript",
+        Q_ARG(QString,
+            QStringLiteral("globalThis.__omawebCapture.getTracks().forEach(t => t.stop());"))));
+    const auto frozenState = QVariant::fromValue(activeState.toInt() + 1);
+    QTRY_COMPARE_WITH_TIMEOUT(webView->property("lifecycleState"), frozenState, 20000);
+}
+
 // A Private window's pages run in one temporary off-the-record profile, and the
 // inspector is a page: it runs in the same profile, so what it stores about the
 // pages it inspected goes when the Private session does.
@@ -3140,6 +3212,11 @@ void QtEngineContractTest::qtEmptiesOneOriginsStorageFromInsideItsPage()
 
 int main(int argc, char *argv[])
 {
+    // A build machine has no camera, and a capture that never starts would
+    // prove nothing about what freezing does to one. Chromium's fake device is
+    // a synthetic camera that draws a test pattern, so the page's capture is a
+    // real capture as far as the engine's own bookkeeping is concerned.
+    qputenv("QTWEBENGINE_CHROMIUM_FLAGS", "--use-fake-device-for-media-stream");
     omaweb::QtContentBlocker::registerSubstituteScheme();
     QtWebEngineQuick::initialize();
     QGuiApplication application(argc, argv);
