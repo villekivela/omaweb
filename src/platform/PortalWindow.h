@@ -18,4 +18,11 @@ namespace omaweb {
 // what every portal call did before this existed.
 QString portalWindowHandle(QWindow *window);
 
+// Whether the name is safe to ask Qt for at all. It is read out of Qt through a
+// private class, which carries no ABI guarantee between Qt builds, so a browser
+// meeting a Qt it was not compiled against would be calling whatever now stands
+// where that function stood. Both versions are arguments so the rule can be
+// stated rather than only run on whatever Qt the checking machine has.
+bool portalNameIsSafeToAsk(const QString &compiledQt, const QString &runningQt);
+
 } // namespace omaweb

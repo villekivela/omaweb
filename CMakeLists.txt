@@ -79,7 +79,18 @@ if(BUILD_TESTING)
     list(APPEND omaweb_qt_components Test QuickTest)
 endif()
 
+# Qt warns on every configure that a private module ties the build to one Qt
+# version and may crash against another. The warning is right about what it
+# describes and does not describe how Omaweb is built: it is compiled from
+# source against the Qt it links, and the package depends on that Qt, so the
+# two cannot come apart in a distributed build. Left on, it is a warning nobody
+# can act on, printed every time, which is how people learn to read past CMake
+# warnings that do matter. It is turned off for this call and turned back on
+# after it, so a private module added later is warned about the same way this
+# one was.
+set(QT_NO_PRIVATE_MODULE_WARNING ON)
 find_package(Qt6 6.11 REQUIRED COMPONENTS ${omaweb_qt_components})
+set(QT_NO_PRIVATE_MODULE_WARNING OFF)
 qt_standard_project_setup(REQUIRES 6.11)
 
 add_library(omaweb-adblock-rust SHARED IMPORTED GLOBAL)
@@ -301,8 +312,13 @@ else()
     )
     # `Qt6::GuiPrivate` is here for one call, and `LinuxPortalWindow.cpp` says
     # why: the name a portal takes for a parent window is Qt's to give and Qt
-    # does not offer it publicly. A Qt that moves it breaks the build rather
-    # than the browser, because this is compiled against the Qt it links.
+    # does not offer it publicly.
+    #
+    # A Qt that renames or removes it breaks the build, which is the harmless
+    # case. A Qt that keeps the name and moves it in the vtable does not, and
+    # printing would then call whatever took its place. That is the real cost
+    # of the private call, it is confined to printing, and the answer to it is
+    # a rebuild against the Qt in front of it rather than anything in the code.
     target_link_libraries(omaweb-platform PRIVATE Qt6::DBus Qt6::GuiPrivate)
 endif()
 omaweb_strict_target(omaweb-platform)

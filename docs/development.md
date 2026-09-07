@@ -110,6 +110,25 @@ past Qt's public API to read the name back. Exporting the surface a second time 
 window's `wl_surface`, which is no more public. A desktop that gives no name gets an empty one and
 places the dialog itself, which is what every print did before.
 
+That private call has one cost worth stating plainly. Qt warns that a private module ties a build to
+one Qt build, and it is right: `portalWindowIdentifier` is reached as a virtual through
+`QDesktopUnixServices`, so a Qt that renamed or removed it would break the build, and a Qt that kept
+the name and moved it in the vtable would not — printing would call whatever took its place. Nothing
+else in Omaweb touches private Qt, so the exposure is printing and nothing more.
+
+So the browser does not ask on a Qt it was not compiled against. `portalNameIsSafeToAsk` compares
+`QT_VERSION_STR` with `qVersion()` and wants them identical, not compatible: public Qt keeps its ABI
+across a patch release and private Qt promises nothing. A browser that meets a Qt it was not built
+against prints with an unparented dialog, which is a placement rather than a crash and is what
+printing did before any of this. Rebuilding gives the dialog its parent back, which is what a Qt
+upgrade should be followed by anyway.
+
+Pinning an exact `qt6-base` in the package would be the other answer, and it is worse: it makes the
+package unbuildable the day the distribution moves a patch release, which is a hard failure in place
+of a placement. CMake's warning about the private module is turned off around the one `find_package`
+that raises it, because a warning printed on every configure that nobody can act on is how people
+learn to read past the ones that matter.
+
 `omaweb-notification-service` and `omaweb-print-portal` cover both exchanges against stub services
 on a private bus under `dbus-run-session`. They reach what a live desktop cannot be asked for in a
 test: the reader answering a notification, and the rendered document surviving the spooled copy

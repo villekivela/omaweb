@@ -1,6 +1,7 @@
 #include "PortalWindow.h"
 
 #include <QWindow>
+#include <QtGlobal>
 
 // Qt already exports the surface a portal needs, because its own dialogs are
 // portal dialogs and they are parented. Nothing in its public API hands the
@@ -16,9 +17,24 @@
 
 namespace omaweb {
 
+bool portalNameIsSafeToAsk(const QString &compiledQt, const QString &runningQt)
+{
+    // Exactly the same build, not a compatible one. Public Qt keeps its ABI
+    // across a patch release and private Qt promises nothing, so the only Qt
+    // this can reach into is the one it was compiled against.
+    return !compiledQt.isEmpty() && compiledQt == runningQt;
+}
+
 QString portalWindowHandle(QWindow *window)
 {
     if (!window) {
+        return {};
+    }
+    if (!portalNameIsSafeToAsk(QStringLiteral(QT_VERSION_STR), QString::fromLatin1(qVersion()))) {
+        // Nothing is asked and nothing crashes: the portal is given no name and
+        // places the dialog itself, which is what printing did before this
+        // existed. A rebuild against the Qt in front of the browser is what
+        // gives the dialog its parent back.
         return {};
     }
     auto *integration = QGuiApplicationPrivate::platformIntegration();
