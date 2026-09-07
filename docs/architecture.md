@@ -81,9 +81,17 @@ Whether a page exists is separate from whether it runs. A page the reader cannot
 keeps its document, its process and everything it holds, and stops its timers, animations and
 script, so selecting the tab continues the page rather than loading it again. The engine host
 decides this for every engine it owns, from one rule, so a background tab of the visible Space and
-every page of a Space that is away are answered the same way. Two hidden pages are exempt, the tab
-an inspector is attached to and a tab making sound, and both stop being exempt as soon as the reason
-does.
+every page of a Space that is away are answered the same way. Three hidden pages are exempt: the tab
+an inspector is attached to, a tab making sound, and a Pinned tab marked Keep active, which is the
+reader asking for a page that goes on running while they are elsewhere. The first two stop being
+exempt as soon as the reason does, and the third when the setting is taken away.
+
+A tab holding the camera, a microphone or the screen is not named in that rule and does not need to
+be. The engine refuses to freeze a page that is capturing and says so by recommending Active for a
+view that is hidden, and the Qt adapter applies the shell's decision against that recommendation
+rather than commanding a state the engine may refuse. Qt reports capture as a permission a page
+asked for and never as a state a page is in, so Omaweb could not write this exemption itself; it is
+an engine fact the browser relies on, and `tests/engine/tst_qtenginecontract.cpp` pins it.
 
 ## Downloads
 

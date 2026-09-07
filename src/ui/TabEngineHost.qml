@@ -160,20 +160,38 @@ Item {
         root.applyEveryPageLifecycle();
     }
 
+    // The tabs the core retains: a Pinned tab the reader marked Keep active, and
+    // the tab an inspector is attached to. Which of the two answers depends on
+    // where the tab is, because the core holds one Space's tabs at a time:
+    // `retainedEngines` was told at the moment its Space was put away, and the
+    // core itself answers for the Space on show.
+    function retains(tabId) {
+        if (retainedEngines.keeps(tabId))
+            return true;
+        const retained = root.browserController ? root.browserController.retainedTabIds() : [];
+        return retained.indexOf(tabId) >= 0;
+    }
+
     // A page the reader cannot see has no reason to go on running. Freezing it
     // keeps the document, the process and everything the page holds, and stops
     // the timers, animations and script behind the tab that replaced it, so
     // selecting the tab continues the page rather than loading it again.
     //
-    // Two hidden pages are exceptions. One is being watched through the
+    // Three hidden pages are exceptions. One is being watched through the
     // inspector, which is the whole reason it was kept running; the engine
-    // refuses to freeze it in any case. The other is being heard, and a page
-    // the reader is listening to is not one they have finished with.
+    // refuses to freeze it in any case. One is being heard, and a page the
+    // reader is listening to is not one they have finished with. The third is a
+    // Pinned tab marked Keep active, which is the reader asking in as many words
+    // for a page to go on running while they are looking at something else: a
+    // stopped page cannot tell them that a message arrived, and this build has
+    // no push service to tell them in its place.
     function applyPageLifecycle(tabId) {
         const engine = root.engines[tabId];
         if (!engine)
             return;
-        engine.pageFrozen = !engine.visible && tabId !== root.inspectedTabId && !engine.pageAudible;
+        const runsUnwatched = tabId === root.inspectedTabId || engine.pageAudible || root.retains(
+                  tabId);
+        engine.pageFrozen = !engine.visible && !runsUnwatched;
     }
 
     function applyEveryPageLifecycle() {
@@ -420,6 +438,11 @@ Item {
             // in the session; the engine is told it whenever it changes and
             // whenever a new engine takes the tab over.
             required property real tabZoom
+            // Whether the reader marked this Pinned tab Keep active. The
+            // freezing rule reads the core rather than this, but the setting
+            // has to be watched from here: taking it away is the moment a tab
+            // becomes an ordinary background page and stops.
+            required property bool tabKeepActive
 
             // A restored Space can hold many tabs, and each engine costs a
             // renderer process and a page load. Only a tab the user has
@@ -488,6 +511,7 @@ Item {
                 tabSlot.engine.audioMuted = tabSlot.tabMuted || tabSlot.tabSoundSuppressed;
             }
 
+            onTabKeepActiveChanged: root.applyPageLifecycle(tabId)
             onTabMutedChanged: tabSlot.applySoundPolicy()
             onTabSoundSuppressedChanged: tabSlot.applySoundPolicy()
             onTabZoomChanged: if (engine)

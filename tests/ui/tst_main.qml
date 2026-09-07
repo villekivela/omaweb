@@ -1877,36 +1877,55 @@ TestCase {
         browser.closeTab(watchedTabId);
     }
 
-    // Retention decides whether a page outlives its Space, not what state it
-    // runs in: a kept tab nobody is watching freezes like any other hidden
-    // page, and is running again when its Space comes back.
-    function test_retainedTabFreezesWithTheSpaceItIsKeptFrom() {
+    // Keep active is the reader asking for a page to go on running while they
+    // are looking at something else, so freezing never reaches it: not behind
+    // another tab of its own Space, and not while its Space is away. Taking the
+    // setting away hands the tab back to the ordinary rule.
+    function test_keepActivePinGoesOnRunningWhereverItIs() {
         const engineLoader = findChild(window.contentItem, "engineLoader");
         verify(engineLoader !== null);
         const personalSpaceId = browser.activeSpaceId;
 
-        openPage("https://kept-frozen.example");
+        openPage("https://kept-running.example");
         const keptTabId = browser.activeTabId;
         browser.toggleActivePinned();
         verify(browser.setTabKeepActive(keptTabId, true));
         const keptEngine = engineLoader.engines[keptTabId];
         verify(keptEngine !== undefined);
 
+        // Behind another tab of its own Space.
+        browser.openInput("https://beside-the-pin.example", true);
+        tryVerify(function () {
+            return engineLoader.item !== null && engineLoader.item !== keptEngine;
+        });
+        const elsewhereTabId = browser.activeTabId;
+        tryCompare(engineLoader.item, "pageFrozen", false);
+        wait(50);
+        compare(keptEngine.pageFrozen, false);
+
+        // And while its Space is away, which is what the setting names.
         const awaySpaceId = browser.createSpace("Away");
         verify(browser.switchSpace(awaySpaceId));
-        tryCompare(keptEngine, "pageFrozen", true);
         verify(engineLoader.keepsEngineFor(keptTabId));
+        wait(50);
+        compare(keptEngine.pageFrozen, false);
 
         verify(browser.switchSpace(personalSpaceId));
         tryVerify(function () {
             return engineLoader.engines[keptTabId] === keptEngine;
         });
-        tryCompare(keptEngine, "pageFrozen", false);
+        wait(50);
+        compare(keptEngine.pageFrozen, false);
 
-        browser.setTabKeepActive(keptTabId, false);
+        // Unticked, it is an ordinary background tab and stops like one.
+        browser.activateTab(elsewhereTabId);
+        verify(browser.setTabKeepActive(keptTabId, false));
+        tryCompare(keptEngine, "pageFrozen", true);
+
         browser.activateTab(keptTabId);
         browser.toggleActivePinned();
         browser.closeTab(keptTabId);
+        browser.closeTab(elsewhereTabId);
         verify(browser.deleteSpace(awaySpaceId, "Away"));
     }
 

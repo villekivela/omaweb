@@ -24,14 +24,17 @@ Workspace, container, profile
 **Pinned tab**: A tab saved within one Space and restored whenever that Space resumes. Its saved
 address changes only when the user explicitly updates the pin. _Avoid_: Bookmark, favorite
 
-**Keep active**: A Pinned-tab setting that lets its page continue running while another Space is
-active. The setting survives restart, and Omaweb always identifies the retained tab and its resource
-use. _Avoid_: Background Space, never suspend
+**Keep active**: A Pinned-tab setting that lets its page continue running while the reader is
+looking at something else, whether that is another tab of its own Space or another Space entirely.
+Freezing does not reach it, so it is the one page the reader can rely on to still be doing something
+when they are not there. The setting survives restart, and Omaweb always identifies the retained tab
+and its resource use. _Avoid_: Background Space, never suspend
 
 **Frozen tab**: A tab whose page has stopped running because the reader is not looking at it. It
 keeps its document and everything the page holds, and continues where it stopped when the tab is
 selected, rather than loading again. A tab an inspector is attached to and a tab making sound are
-not frozen. _Avoid_: Suspended tab, sleeping tab, discarded tab
+not frozen, and neither is a Pinned tab marked Keep active. _Avoid_: Suspended tab, sleeping tab,
+discarded tab
 
 **Space at rest**: A Space with nothing open in it, because nothing has been opened yet or the last
 page has been closed. Its only ordinary tab is blank. A Space at rest lists no ordinary tab and
