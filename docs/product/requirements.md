@@ -327,6 +327,9 @@ plain CSS cosmetic rules, exceptions, common resource types, first-party and thi
 domain restrictions, entity domains, automatic updates, per-site disabling, user lists, and a
 visible blocked-request count.
 
+The first run is recorded, so a list a user removes stays removed across restarts. When there are no
+subscriptions, Settings says so and offers the two default lists back.
+
 A list's `$popup` rules decide which windows a page gets to open, and a window they refuse counts as
 a blocked request. A middle- or ctrl-clicked link, which opens a background tab, is the user asking
 rather than the page, and is never refused.

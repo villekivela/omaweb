@@ -1,7 +1,9 @@
 # Automatic network requests
 
 A first run subscribes to EasyList and EasyPrivacy with both enabled, so the first startup check
-fetches both lists. Turning a subscription off in Settings stops its requests.
+fetches both lists. Later runs read the stored subscriptions and subscribe to nothing on their own,
+so removing a list stops its requests for good. Turning a subscription off in Settings also stops
+its requests.
 
 Omaweb checks enabled Content-blocking subscriptions when the browser starts. Each request goes only
 to the update address shown for that subscription. It sends a normal HTTP GET with no browsing

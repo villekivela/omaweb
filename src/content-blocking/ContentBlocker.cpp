@@ -9,6 +9,7 @@
 #include <QFutureWatcher>
 #include <QJsonArray>
 #include <QJsonDocument>
+#include <QJsonParseError>
 #include <QNetworkReply>
 #include <QPointer>
 #include <QSaveFile>
@@ -392,6 +393,11 @@ void ContentBlocker::seedDefaultSubscriptions()
 {
     const auto seed
         = [this](const QString &id, const QString &title, const QString &updateAddress) {
+              // An install that kept one of the two, or one migrating from
+              // before the marker, must not end up subscribed to it twice.
+              if (findSubscription(id)) {
+                  return;
+              }
               Subscription subscription;
               subscription.id = id;
               subscription.title = title;
@@ -405,7 +411,22 @@ void ContentBlocker::seedDefaultSubscriptions()
         QStringLiteral("https://easylist.to/easylist/easylist.txt"));
     seed(QStringLiteral("easyprivacy"), QStringLiteral("EasyPrivacy"),
         QStringLiteral("https://easylist.to/easylist/easyprivacy.txt"));
+    m_seeded = true;
     save();
+}
+
+// Seeding on its own only reaches the stored subscriptions, because load()
+// compiles and fetches after it. Asked for from Settings it has to do both.
+void ContentBlocker::restoreDefaultSubscriptions()
+{
+    const auto before = m_subscriptions.size();
+    seedDefaultSubscriptions();
+    if (m_subscriptions.size() == before) {
+        return;
+    }
+    emit subscriptionsChanged();
+    recompile();
+    updateStaleSubscriptions();
 }
 
 void ContentBlocker::load()
@@ -417,7 +438,16 @@ void ContentBlocker::load()
         }
         return;
     }
-    const auto root = QJsonDocument::fromJson(file.readAll()).object();
+    QJsonParseError parseError;
+    const auto document = QJsonDocument::fromJson(file.readAll(), &parseError);
+    // A file that does not parse says nothing either way, and the seeding
+    // below would write over it. Whatever the reader configured is still in
+    // there, and a truncated write is repairable by hand only while it is.
+    if (parseError.error != QJsonParseError::NoError || !document.isObject()) {
+        return;
+    }
+    const auto root = document.object();
+    m_seeded = root.value(QStringLiteral("seeded")).toBool(false);
     m_userRules = root.value(QStringLiteral("userRules")).toString();
     for (const auto &value : root.value(QStringLiteral("disabledSites")).toArray()) {
         m_disabledSites.insert(value.toString());
@@ -436,6 +466,12 @@ void ContentBlocker::load()
         if (!subscription.id.isEmpty()) {
             m_subscriptions.append(std::move(subscription));
         }
+    }
+    // A file written before the marker existed was never told it had been
+    // seeded, whatever it lists. Seeding once more is the migration; after
+    // that the marker answers, and an empty list stays empty.
+    if (!m_seeded && m_defaultLists == DefaultLists::Seed) {
+        seedDefaultSubscriptions();
     }
 }
 
@@ -465,6 +501,7 @@ void ContentBlocker::save() const
     }
     file.write(QJsonDocument(QJsonObject {
                                  {QStringLiteral("version"), 1},
+                                 {QStringLiteral("seeded"), m_seeded},
                                  {QStringLiteral("userRules"), m_userRules},
                                  {QStringLiteral("disabledSites"), disabledSites},
                                  {QStringLiteral("subscriptions"), subscriptions},

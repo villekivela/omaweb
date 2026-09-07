@@ -46,6 +46,9 @@ public:
     Q_INVOKABLE void updateSubscription(const QString &id);
     Q_INVOKABLE void updateAllSubscriptions();
     Q_INVOKABLE void updateStaleSubscriptions();
+    // Settings offers the default lists back when there are none. Seeding is
+    // otherwise a one-off, so this is the only way they return.
+    Q_INVOKABLE void restoreDefaultSubscriptions();
     Q_INVOKABLE bool siteEnabled(const QUrl &url) const;
     Q_INVOKABLE void setSiteEnabled(const QUrl &url, bool enabled);
     Q_INVOKABLE int blockedRequestCount(const QUrl &url) const;
@@ -101,6 +104,11 @@ private:
 
     QString m_dataRoot;
     DefaultLists m_defaultLists;
+    // Whether this install has ever been offered the default lists. Recorded
+    // rather than inferred: a settings file that lists nothing used to be
+    // indistinguishable from one that had never been seeded, so an install
+    // that reached that state blocked nothing for ever (#43).
+    bool m_seeded = false;
     QString m_userRules;
     QList<Subscription> m_subscriptions;
     QSet<QString> m_disabledSites;

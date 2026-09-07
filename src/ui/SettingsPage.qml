@@ -570,6 +570,44 @@ Rectangle {
                         }
                     }
 
+                    // No subscriptions is a state, not the absence of one.
+                    // Left to the Repeater it drew as blank page between two
+                    // headings, which reads as a section that failed to load
+                    // rather than as a browser blocking nothing (#43). The
+                    // default lists are offered back here because seeding
+                    // happens once: nothing else brings them in. It waits for
+                    // the blocker, because a button that cannot act is worse
+                    // than no offer at all.
+                    Column {
+                        objectName: "noSubscriptionsNotice"
+                        width: pane.width
+                        visible: root.blocker !== null && root.blocker !== undefined
+                                 && root.subscriptions.length === 0
+                        spacing: Style.spacing.lg
+
+                        Text {
+                            objectName: "noSubscriptionsText"
+                            width: pane.width
+                            text: "No filter lists. Network rules only block what the user rules "
+                                  + "below say to block."
+                            color: root.colors.mutedText
+                            wrapMode: Text.WordWrap
+                            font.family: Style.font.family
+                            font.pixelSize: Style.font.body
+                        }
+
+                        ActionButton {
+                            objectName: "restoreDefaultListsButton"
+                            colors: root.colors
+                            label: "Add EasyList and EasyPrivacy"
+                            accessibleName: "Add the default filter lists"
+                            onClicked: {
+                                root.blocker.restoreDefaultSubscriptions();
+                                root.refresh();
+                            }
+                        }
+                    }
+
                     SectionLabel {
                         colors: root.colors
                         text: "add a list"

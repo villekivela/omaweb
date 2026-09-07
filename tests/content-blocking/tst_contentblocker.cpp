@@ -1,6 +1,10 @@
 #include "ContentBlocker.h"
 
+#include <QDir>
 #include <QFile>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QTest>
@@ -20,7 +24,48 @@ private slots:
     void aListKeepsTheRulesThisContractParses();
     void aRefusedWindowCountsAsABlockedRequest();
     void firstRunSubscribesToTheDefaultLists();
+    void aSettingsFileWithNoMarkerSeedsOnceMore();
+    void anEmptyListTheReaderChoseSurvivesTheNextRun();
+    void aSettingsFileThatDoesNotParseIsLeftAlone();
 };
+
+namespace {
+
+QString settingsPath(const QTemporaryDir &root)
+{
+    return root.filePath(QStringLiteral("content-blocking/settings.json"));
+}
+
+// A settings file as an earlier version left it, or as the reader's own
+// choices did. Written by hand rather than by a first run, because what is
+// under test is what load() makes of a file it did not write itself.
+void writeSettings(const QTemporaryDir &root, const QJsonObject &fields)
+{
+    QVERIFY(QDir(root.path()).mkpath(QStringLiteral("content-blocking")));
+    auto document = QJsonObject {
+        {QStringLiteral("version"), 1},
+        {QStringLiteral("userRules"), QString()},
+        {QStringLiteral("disabledSites"), QJsonArray {}},
+        {QStringLiteral("subscriptions"), QJsonArray {}},
+    };
+    for (auto field = fields.begin(); field != fields.end(); ++field) {
+        document.insert(field.key(), field.value());
+    }
+    QFile file(settingsPath(root));
+    QVERIFY(file.open(QIODevice::WriteOnly));
+    QVERIFY(file.write(QJsonDocument(document).toJson()) > 0);
+}
+
+QJsonObject storedSettings(const QTemporaryDir &root)
+{
+    QFile file(settingsPath(root));
+    if (!file.open(QIODevice::ReadOnly)) {
+        return {};
+    }
+    return QJsonDocument::fromJson(file.readAll()).object();
+}
+
+} // namespace
 
 void ContentBlockerTest::cosmeticsFollowRuleReplacementAndSiteToggles()
 {
@@ -234,11 +279,72 @@ void ContentBlockerTest::firstRunSubscribesToTheDefaultLists()
         QVERIFY(!subscription.value(QStringLiteral("license")).toString().isEmpty());
     }
     QCOMPARE(titles, QStringList({QStringLiteral("EasyList"), QStringLiteral("EasyPrivacy")}));
-    QVERIFY(QFile::exists(root.filePath(QStringLiteral("content-blocking/settings.json"))));
+    QVERIFY(QFile::exists(settingsPath(root)));
+    // Recorded, so the next run reads a decision rather than inferring one.
+    QVERIFY(storedSettings(root).value(QStringLiteral("seeded")).toBool());
 
     // A second run reads the stored subscriptions rather than seeding again.
     ContentBlocker resumed(root.path());
     QCOMPARE(resumed.subscriptions().size(), 2);
+}
+
+// A settings file that exists, parses, and lists no subscription is the state
+// #43 was found in: file absence stood in for "never seeded", so such an
+// install blocked nothing, for ever, without an error anywhere. The marker
+// makes "never seeded" and "seeded, then emptied" two states rather than one,
+// and a file written before the marker existed is the first of the two.
+void ContentBlockerTest::aSettingsFileWithNoMarkerSeedsOnceMore()
+{
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    writeSettings(root, {{QStringLiteral("userRules"), QStringLiteral("||kept.example^")}});
+
+    ContentBlocker blocker(root.path());
+    QCOMPARE(blocker.subscriptions().size(), 2);
+    // Seeding is a repair, not a reset: what the file did say is still said.
+    QCOMPARE(blocker.userRules(), QStringLiteral("||kept.example^"));
+    QVERIFY(storedSettings(root).value(QStringLiteral("seeded")).toBool());
+}
+
+// The other half of the marker: once an install has been seeded, an empty list
+// is a decision. Reinstating subscriptions the reader deleted is worse than
+// blocking nothing, so nothing comes back on its own. Asking twice does not
+// subscribe twice either, because a list already there is left as it is.
+void ContentBlockerTest::anEmptyListTheReaderChoseSurvivesTheNextRun()
+{
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    writeSettings(root, {{QStringLiteral("seeded"), true}});
+
+    ContentBlocker blocker(root.path());
+    QCOMPARE(blocker.subscriptions().size(), 0);
+
+    blocker.restoreDefaultSubscriptions();
+    QCOMPARE(blocker.subscriptions().size(), 2);
+    blocker.restoreDefaultSubscriptions();
+    QCOMPARE(blocker.subscriptions().size(), 2);
+}
+
+// Seeding writes the settings file, so the migration must not run on a file
+// nobody could read. A truncated write leaves rules and per-site decisions
+// still in there, recoverable by hand only for as long as the file survives.
+void ContentBlockerTest::aSettingsFileThatDoesNotParseIsLeftAlone()
+{
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    QVERIFY(QDir(root.path()).mkpath(QStringLiteral("content-blocking")));
+    const auto truncated
+        = QByteArray("{\n  \"userRules\": \"||kept.example^\",\n  \"subscriptions\": [");
+    QFile file(settingsPath(root));
+    QVERIFY(file.open(QIODevice::WriteOnly));
+    QVERIFY(file.write(truncated) > 0);
+    file.close();
+
+    ContentBlocker blocker(root.path());
+    QCOMPARE(blocker.subscriptions().size(), 0);
+
+    QVERIFY(file.open(QIODevice::ReadOnly));
+    QCOMPARE(file.readAll(), truncated);
 }
 
 QTEST_GUILESS_MAIN(ContentBlockerTest)
