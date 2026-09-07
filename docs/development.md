@@ -381,8 +381,9 @@ git push origin v0.2.0
 ```
 
 The `Release` workflow refuses a tag that is not on `main`, generates notes from the Conventional
-Commit subjects since the previous tag with `scripts/release_notes.sh`, and publishes them. Every
-`v0.*` tag is marked a prerelease. No binaries are attached. See
+Commit subjects since the previous tag with `scripts/release_notes.sh`, and publishes them beside
+the Arch package and its inventory. Every `v0.*` tag is marked a prerelease. macOS bundles are
+development artifacts and are not attached ([ADR 0029](adr/0029-distribute-only-for-linux.md)). See
 [ADR 0028](adr/0028-derive-the-version-from-the-release-tag.md).
 
 `cmake --preset dev` prints the version it derived. A tree with no tags falls back to

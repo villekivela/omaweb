@@ -17,12 +17,13 @@ While the major version is 0 the project is pre-alpha and the minor version carr
 changes. A `!` in a commit subject before 1.0.0 therefore bumps the minor, not the major. The
 release workflow marks every `v0.*` tag as a prerelease on GitHub for the same reason.
 
-Releases publish notes and no binaries. `scripts/release_notes.sh` groups the Conventional Commit
-subjects since the previous tag, which is why the commit convention is enforced in CI: the changelog
-is a product of the commit messages rather than a file anyone maintains. A Linux package release
-requires the full notice inventory that `THIRD_PARTY_NOTICES.md` describes, so a binary release is a
-separate decision from a version number. macOS bundles remain development artifacts and are not
-attached to releases.
+Releases publish notes, the Arch package, and the inventory of what is in it.
+`scripts/release_notes.sh` groups the Conventional Commit subjects since the previous tag, which is
+why the commit convention is enforced in CI: the changelog is a product of the commit messages
+rather than a file anyone maintains. A Linux package release requires the full notice inventory that
+`THIRD_PARTY_NOTICES.md` describes, so the release workflow generates it with
+`scripts/generate_sbom.py` and attaches it alongside the package. macOS bundles remain development
+artifacts and are not attached to releases.
 
 The alternative was a version literal in `CMakeLists.txt` bumped by hand. It needs a commit per
 release, and it goes stale silently, because nothing fails when the literal and the tag disagree.
