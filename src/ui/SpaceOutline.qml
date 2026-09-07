@@ -15,7 +15,7 @@ Rectangle {
     property int blockedRequestCount: 0
     property bool statusOpen: false
     property bool useFavicons: true
-    property bool tintFavicons: true
+    property bool tintFavicons: false
     property bool canGoBack: false
     property bool canGoForward: false
     // Something in settings is waiting on the reader. The button wears a mark

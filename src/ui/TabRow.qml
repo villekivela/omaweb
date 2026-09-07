@@ -25,7 +25,7 @@ Item {
     property var colors
     property string iconFontFamily
     property bool useFavicons: true
-    property bool tintFavicons: true
+    property bool tintFavicons: false
 
     // A pinned tab is a square with no title, so its colour is what tells the
     // sites apart, and the mark is drawn in it on every pin. The colour leaves
@@ -53,11 +53,19 @@ Item {
     readonly property bool showsAudio: tabAudible || tabMuted
     readonly property bool silenced: tabMuted || tabSoundSuppressed
 
-    // The 18px slot an ordinary row gives its site chip, and where it starts.
-    // The speaker takes the same box, so the two never sit in different
-    // places and the title beside them never moves.
-    readonly property int chipSize: 18
+    // The slot an ordinary row gives its site chip, and where it starts. The
+    // stand-in the chip draws is two characters of the theme's smallest type,
+    // so the box is derived from that size rather than fixed: a theme with a
+    // larger font would otherwise clip its own letters. The speaker takes the
+    // same box, so the two never sit in different places and the title beside
+    // them never moves.
+    readonly property int chipSize: Math.round(Style.font.caption * 1.6)
     readonly property int chipInset: 8
+
+    // A pin has no title, so its mark is the whole row and is given more of it
+    // than a chip standing beside a title needs. Derived from the ordinary
+    // size rather than written again: the two are meant to relate.
+    readonly property int pinnedChipSize: Math.round(chipSize * 1.25)
 
     signal activated(string tabId)
     signal closeRequested(string tabId)
@@ -169,8 +177,8 @@ Item {
     SiteTile {
         id: tile
         objectName: "siteTile-" + root.tabId
-        implicitWidth: root.pinned ? 22 : root.chipSize
-        implicitHeight: root.pinned ? 22 : root.chipSize
+        implicitWidth: root.pinned ? root.pinnedChipSize : root.chipSize
+        implicitHeight: root.pinned ? root.pinnedChipSize : root.chipSize
         // The speaker stands in the chip's place rather than beside it: a row
         // that widened for it would shove its own title sideways every time a
         // page started and stopped playing. The chip is what the row can spare

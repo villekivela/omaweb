@@ -69,11 +69,14 @@ section and a dialog over it: `--show settings:<section>` opens one of `tabs`, `
 `--show settings:privacy:clear` stands the clear-browsing-data dialog on Privacy. Naming the section
 is how a layout change is reviewed at a font size the page was not written at: point
 `OMAWEB_THEME_FILE` at a theme whose `font.size` is larger and capture each section in turn.
-`--show site` opens Site information, which is a click on the address trigger. Pass
-`--capture <path>` to render one frame to a PNG and exit, which works headlessly with
-`QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software` for reviewing chrome changes without a desktop
-session. Development presets load QML, themes, and the icon font directly from the source tree.
-Editing those files requires an application restart but no compile or relink.
+`--show site` opens Site information, which is a click on the address trigger. Pass `--tabs` to seed
+the Space with a day's worth of tabs, some of them pinned: the lab otherwise comes up on a Space at
+rest, which draws neither the Pinned section nor the tab list, so the sidebar is the one part of the
+chrome a capture cannot reach. The blank tab stays the one on show, so the viewport still draws the
+Start page. Pass `--capture <path>` to render one frame to a PNG and exit, which works headlessly
+with `QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software` for reviewing chrome changes without a
+desktop session. Development presets load QML, themes, and the icon font directly from the source
+tree. Editing those files requires an application restart but no compile or relink.
 
 The `ladybird` preset is deliberately separate. Do not add Ladybird, Qt source builds, or Rust
 compilation to `dev`.
