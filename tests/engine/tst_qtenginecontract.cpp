@@ -88,6 +88,7 @@ private slots:
     void qtReportsTargetsInsideCrossOriginFrames();
     void qtOwnsJavaScriptPromptsAndReturnsTheirAnswer();
     void qtOpensOneLocalFileWithoutDirectoryWideAccess();
+    void qtLoadsTheRemoteResourcesALocalPageNames();
     void adaptersAnswerForEveryEverydayPageOperation_data();
     void adaptersAnswerForEveryEverydayPageOperation();
     void qtFindsInThePageAndKeepsTheQueryAcrossNavigation();
@@ -2160,6 +2161,49 @@ void QtEngineContractTest::qtOpensOneLocalFileWithoutDirectoryWideAccess()
     QVERIFY(adapter->setProperty("currentUrl", QUrl::fromLocalFile(page.fileName())));
     QTRY_COMPARE_WITH_TIMEOUT(
         adapter->property("pageTitle").toString(), QStringLiteral("isolated"), 10000);
+}
+
+// A local document is written against a browser, and a browser fetches the
+// styles and scripts it names. Withholding them leaves the reader an unstyled
+// page and no sign of why, which the directory-wide refusal above does not ask
+// for: that one is about reading the disk around the chosen file.
+void QtEngineContractTest::qtLoadsTheRemoteResourcesALocalPageNames()
+{
+    PageServer server("body { }");
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    QFile page(root.filePath(QStringLiteral("chosen.html")));
+    QVERIFY(page.open(QIODevice::WriteOnly));
+    // A local document has no origin to be granted one, so the fetch asks for
+    // no answer it could read. Whether the request leaves at all is the whole
+    // question, and the server below is what saw it.
+    page.write(QByteArray(R"HTML(<!doctype html><title>waiting</title><script>
+        fetch('http://127.0.0.1:PORT/style.css', { mode: 'no-cors' })
+            .then(() => document.title = 'fetched')
+            .catch(() => document.title = 'refused');
+    </script>)HTML")
+            .replace("PORT", QByteArray::number(server.serverPort())));
+    page.close();
+
+    QQmlEngine engine;
+    QQmlComponent component(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    const std::unique_ptr<QObject> adapter(component.create());
+    QVERIFY2(adapter, qPrintable(component.errorString()));
+    auto *item = qobject_cast<QQuickItem *>(adapter.get());
+    QVERIFY(item);
+    QQuickWindow window;
+    window.resize(640, 480);
+    item->setParentItem(window.contentItem());
+    item->setSize(QSizeF(640, 480));
+    window.show();
+
+    QVERIFY(adapter->setProperty("currentUrl", QUrl::fromLocalFile(page.fileName())));
+    QTRY_COMPARE_WITH_TIMEOUT(
+        adapter->property("pageTitle").toString(), QStringLiteral("fetched"), 10000);
+    QVERIFY(server.requested().contains(QStringLiteral("/style.css")));
 }
 
 void QtEngineContractTest::adaptersAnswerForEveryEverydayPageOperation_data()

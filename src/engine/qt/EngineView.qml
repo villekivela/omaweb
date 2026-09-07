@@ -1315,9 +1315,11 @@ Item {
         settings.fullScreenSupportEnabled: true
         // Opening one selected local document must not give that document a
         // directory-wide read capability. Related resources need a server or
-        // an explicit file-selection grant of their own.
+        // an explicit file-selection grant of their own. Chromium withholds the
+        // same capability by default, and grants the remote one below, so a
+        // page written against a browser renders here as its author saw it.
         settings.localContentCanAccessFileUrls: false
-        settings.localContentCanAccessRemoteUrls: false
+        settings.localContentCanAccessRemoteUrls: true
         // Chromium paints this before a page supplies its own background.
         // Left at white it flashes a bright rectangle through dark chrome on
         // every navigation, so it follows the theme instead.
