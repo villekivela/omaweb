@@ -99,7 +99,8 @@ Rectangle {
     // everything else in the kit is set on. A pixel count here would be right
     // at one theme font size and crowd or clip at the next (#85).
     readonly property int sideMargin: Style.space(48)
-    readonly property int topInset: Style.space(40)
+    // Every full-window sheet leaves the same gap above its heading.
+    readonly property int topInset: sheetInsets.top
     readonly property int headerGap: Style.space(28)
     readonly property int bottomInset: Style.space(24)
     readonly property int railGap: Style.space(40)
@@ -266,6 +267,10 @@ Rectangle {
     // The selection is state the page holds whether or not it has been opened,
     // so it is read once rather than on the first visit.
     Component.onCompleted: loadBrowsingDataSelection()
+
+    SheetInsets {
+        id: sheetInsets
+    }
 
     PageBackdrop {
         objectName: "settingsBackdrop"

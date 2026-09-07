@@ -347,6 +347,7 @@ set(omaweb_ui_files
     src/ui/PagePromptBar.qml
     src/ui/RetainedEngines.qml
     src/ui/SectionLabel.qml
+    src/ui/SheetInsets.qml
     src/ui/SiteInformationPanel.qml
     src/ui/MultilineField.qml
     src/ui/ClearBrowsingDataDialog.qml
