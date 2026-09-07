@@ -1,5 +1,7 @@
 #include "PagePrinter.h"
 
+#include "PortalWindow.h"
+
 #include <QDBusAbstractAdaptor>
 #include <QDBusConnection>
 #include <QDBusObjectPath>
@@ -85,6 +87,7 @@ private slots:
     void takesTheSpooledCopyAwayOnceThePortalHasIt();
     void refusesToPrintADocumentThatWasNeverRendered();
     void printsUnparentedWhenNoWindowAsked();
+    void asksQtForTheNameOnlyOnTheQtItWasBuiltAgainst();
     void namesTheWindowTheDialogBelongsTo();
 
 private:
@@ -189,6 +192,26 @@ void PrintPortalTest::printsUnparentedWhenNoWindowAsked()
     QVERIFY(m_printer->present(path, QStringLiteral("Job"), nullptr));
 
     QCOMPARE(m_portal->requests.constLast().parentWindow, QString());
+}
+
+// The name comes out of Qt through a private class, which carries no ABI
+// guarantee between Qt builds. Meeting a Qt this was not compiled against is
+// the one case where asking for it is worse than going without: printing loses
+// its parent, which is a placement, rather than calling whatever now stands
+// where that function stood.
+void PrintPortalTest::asksQtForTheNameOnlyOnTheQtItWasBuiltAgainst()
+{
+    QVERIFY(omaweb::portalNameIsSafeToAsk(QStringLiteral("6.11.2"), QStringLiteral("6.11.2")));
+    // A patch apart is still a different build of a class Qt never promised to
+    // keep, so it is refused as firmly as a major version would be.
+    QVERIFY(!omaweb::portalNameIsSafeToAsk(QStringLiteral("6.11.2"), QStringLiteral("6.11.3")));
+    QVERIFY(!omaweb::portalNameIsSafeToAsk(QStringLiteral("6.11.2"), QStringLiteral("6.12.0")));
+    QVERIFY(!omaweb::portalNameIsSafeToAsk(QString(), QString()));
+
+    // And the browser as it is built now is running on the Qt it was built
+    // against, so the check it makes for itself is the permitting one.
+    QVERIFY(omaweb::portalNameIsSafeToAsk(
+        QStringLiteral(QT_VERSION_STR), QString::fromLatin1(qVersion())));
 }
 
 // The name is the window system's to give, so this is only an answer on a
