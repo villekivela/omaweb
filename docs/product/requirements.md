@@ -143,6 +143,9 @@ reports the gap and remains experimental rather than imitating behavior it canno
 - Audio indicators and mute controls remain visible for audible tabs. Muted autoplay is allowed,
   while audible autoplay waits for interaction with the origin. A retained Pinned tab may continue
   playback while its Space is inactive.
+- Video decodes on the GPU where the host has a working VA-API driver, and in software where it has
+  none. A missing driver is not a refusal to start, and the driver packages are `optdepends` rather
+  than dependencies because which one a host needs depends on its GPU.
 - Omaweb supplies no spellchecker, translation, Reader mode, page-screenshot command, View source
   command, or installed-web-application model.
 
@@ -244,7 +247,9 @@ The default page commands include:
 - Every build refuses to start when its command line or `QTWEBENGINE_CHROMIUM_FLAGS` disables the
   renderer sandbox. On Linux, a failed sandbox prerequisite stops startup with a diagnostic that
   identifies the setting and required value. Omaweb reports renderer isolation only after verifying
-  it. It does not describe QtWebEngine's in-process network service as sandboxed.
+  it. It does not describe QtWebEngine's in-process network service as sandboxed. Flags Omaweb adds
+  to the engine command line itself are audited by the same rule as flags from its command line and
+  from `QTWEBENGINE_CHROMIUM_FLAGS`.
 - The Ladybird variant is experimental and unsuitable for sensitive browsing while Ladybird remains
   pre-alpha.
 - Site permissions belong to an origin within one Space and support allow once, persistent allow,

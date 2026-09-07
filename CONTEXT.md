@@ -134,6 +134,11 @@ patch it includes. Settings reports whether the running build meets the baseline
 upstream changes each week. Builds below the baseline are unsupported previews. _Avoid_: Minimum Qt
 version, supported engine
 
+**Hardware video decode**: Video frames decoded by the GPU rather than by the CPU, which Omaweb asks
+the engine for and a VA-API driver on the host answers. A host with no working driver decodes in
+software and starts normally, so the driver is a host's choice rather than a requirement of the
+browser. _Avoid_: GPU acceleration, VA-API, hardware acceleration
+
 **Content blocking**: Omaweb's built-in removal of unwanted network requests and page elements using
 subscribed filter lists. Content blocking is a browser capability and does not depend on an
 installed extension. _Avoid_: Ad-blocking extension

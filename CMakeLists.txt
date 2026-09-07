@@ -119,6 +119,8 @@ add_library(omaweb-core STATIC
     src/core/DevelopmentLaunch.h
     src/core/DownloadPolicy.cpp
     src/core/DownloadPolicy.h
+    src/core/HardwareVideoDecode.cpp
+    src/core/HardwareVideoDecode.h
     src/core/KeyboardNavigation.cpp
     src/core/KeyboardNavigation.h
     src/core/LaunchRequest.cpp
@@ -560,6 +562,18 @@ if(BUILD_TESTING)
     target_link_libraries(omaweb-development-launch-tests PRIVATE omaweb-core Qt6::Test)
     omaweb_strict_target(omaweb-development-launch-tests)
     add_test(NAME omaweb-development-launch COMMAND omaweb-development-launch-tests)
+
+    qt_add_executable(omaweb-hardware-video-decode-tests
+        tests/core/tst_hardwarevideodecode.cpp
+    )
+    target_link_libraries(omaweb-hardware-video-decode-tests PRIVATE omaweb-core Qt6::Test)
+    # The feature name Omaweb asks Chromium for is a claim about one engine, so
+    # the test reads the approved baseline rather than a copy of its version.
+    target_compile_definitions(omaweb-hardware-video-decode-tests PRIVATE
+        OMAWEB_SECURITY_BASELINE="${CMAKE_CURRENT_SOURCE_DIR}/security/baseline.json"
+    )
+    omaweb_strict_target(omaweb-hardware-video-decode-tests)
+    add_test(NAME omaweb-hardware-video-decode COMMAND omaweb-hardware-video-decode-tests)
 
     qt_add_executable(omaweb-launch-request-tests
         tests/core/tst_launchrequest.cpp

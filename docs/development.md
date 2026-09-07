@@ -36,9 +36,11 @@ QtWebEngine builds Chromium's command line from `QTWEBENGINE_CHROMIUM_FLAGS`, an
 Omaweb's own argv is ignored.
 
 This is a property of the guest's graphics rather than of Omaweb, so it stays an environment
-variable rather than something the build decides. Omaweb refuses `--no-sandbox`, `--single-process`,
-`--in-process-gpu`, and `--in-process-network-service` (see [Security rules](#security-rules)); the
-rendering flags above are not among them.
+variable rather than something the build decides. It also gives up hardware video decode, which has
+no GPU process to run in once the flag is set; see [Hardware video decode](#hardware-video-decode).
+Omaweb refuses `--no-sandbox`, `--single-process`, `--in-process-gpu`, and
+`--in-process-network-service` (see [Security rules](#security-rules)); the rendering flags above
+are not among them.
 
 ## Presets
 
@@ -388,6 +390,69 @@ development artifacts and are not attached ([ADR 0029](adr/0029-distribute-only-
 
 `cmake --preset dev` prints the version it derived. A tree with no tags falls back to
 `OMAWEB_FALLBACK_VERSION` in `cmake/OmawebVersion.cmake`.
+
+## Hardware video decode
+
+Omaweb asks Chromium for VA-API decoding by adding `--enable-features=VaapiVideoDecodeLinuxGL` to
+the engine command line before the engine starts. The GL spelling of the feature is the one
+QtWebEngine reads: Chromium renders offscreen into a texture Qt Quick composites, so the Ozone and
+Vulkan paths are not in use. The name is Chromium's and has changed between versions, so check it
+against the Chromium in `security/baseline.json` when the engine baseline moves.
+
+The flag Omaweb adds goes through the same audit as one from the environment, so there is one rule
+about what a launch may carry rather than one rule per route in
+([ADR 0034](adr/0034-audit-the-engine-flags-omaweb-adds-itself.md)).
+
+Chromium reads one `--enable-features` list, and the last one on the command line is the one it
+reads. Omaweb's goes last, carrying whatever `QTWEBENGINE_CHROMIUM_FLAGS` already named, so a host
+that needed a companion feature to get its driver working keeps hardware decode instead of losing it
+to the naming:
+
+```sh
+QTWEBENGINE_CHROMIUM_FLAGS=--enable-features=VaapiIgnoreDriverChecks ./build/dev/omaweb
+# the engine reads --enable-features=VaapiIgnoreDriverChecks,VaapiVideoDecodeLinuxGL
+```
+
+Omaweb adds nothing where the host has already said no:
+
+- `--disable-gpu` or `--disable-accelerated-video-decode` leaves no GPU process to decode in, which
+  is the case for the virtual-machine workaround above.
+- `--disable-features=VaapiVideoDecodeLinuxGL` refuses the feature on its own, without giving up the
+  rest of the GPU process.
+
+A host with no working driver needs no configuration. Chromium finds nothing to talk to, decodes in
+software, and starts as it did before.
+
+### Confirming it is in use
+
+Install the driver for the GPU, which is what `packaging/PKGBUILD` lists as `optdepends`:
+`intel-media-driver` for Intel from Broadwell on, `libva-intel-driver` for Intel before it, `mesa`
+for AMD, and `libva-nvidia-driver` for NVIDIA. `libva-utils` supplies `vainfo`, which reports the
+driver a host loaded and the profiles it decodes:
+
+```sh
+vainfo
+```
+
+No driver, or no `VAProfile` line for the codec the page uses, is the answer: that page decodes in
+software whatever Omaweb asks for.
+
+With a driver present, the GPU's own counters say whether the decoder is doing the work. Watch the
+video engine with `intel_gpu_top`, `radeontop`, or `nvtop` while a page plays, and compare a run
+under `QTWEBENGINE_CHROMIUM_FLAGS=--disable-accelerated-video-decode`, which puts the same page back
+on the CPU.
+
+Chromium's own logging names the decoder it built. These flags name no feature list, so Omaweb still
+adds its own alongside them:
+
+```sh
+QTWEBENGINE_CHROMIUM_FLAGS="--enable-logging=stderr --vmodule=*vaapi*=2" ./build/dev/omaweb
+```
+
+Take the measurement on hardware. A guest with virtualized graphics cannot answer this question, the
+same constraint [cosmetic resource validation](cosmetic-resource-validation.md) records. No
+measurement is recorded yet: the change was written on a guest, where the workaround above turns the
+GPU process off. Record a before and after here from the first run on hardware.
 
 ## Performance
 
