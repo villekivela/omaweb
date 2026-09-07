@@ -1,4 +1,5 @@
 #include "BrowserController.h"
+#include "HistoryQuery.h"
 #include "SpaceListModel.h"
 #include "TabListModel.h"
 #include "WindowManager.h"
@@ -51,6 +52,9 @@ private slots:
     void restoresEveryTabsZoomAfterRestart();
     void sharesPrivateIdentityUntilLastWindowCloses();
     void keepsHistorySuggestionsInsideActiveSpace();
+    void keepsHistoryInsideItsBoundWhileASpaceStaysOpen();
+    void answersOnlyTheLatestOmnibarSearch();
+    void abandonsASearchTheReaderHasMovedOnFrom();
     void filtersAndDeletesHistoryAtRequestedBoundaries();
     void resolvesAddressesBeforeSearches();
     void migratesAndUsesSearchEngineConfiguration();
@@ -644,17 +648,130 @@ void BrowserControllerTest::keepsHistorySuggestionsInsideActiveSpace()
     QVERIFY(controller.switchSpace(workSpaceId));
     controller.recordVisit(
         QUrl(QStringLiteral("https://docs.example/work")), QStringLiteral("Work documentation"));
+    QSignalSpy readySpy(&controller, &BrowserController::historySuggestionsReady);
 
-    const auto workSuggestions = controller.historySuggestions(QStringLiteral("docs"));
+    controller.requestHistorySuggestions(QStringLiteral("docs"));
+    QTRY_COMPARE(readySpy.count(), 1);
+    const auto workSuggestions = readySpy.takeFirst().first().toList();
     QCOMPARE(workSuggestions.size(), 1);
     QCOMPARE(workSuggestions.first().toMap().value(QStringLiteral("url")).toUrl(),
         QUrl(QStringLiteral("https://docs.example/work")));
 
     QVERIFY(controller.switchSpace(personalSpaceId));
-    const auto personalSuggestions = controller.historySuggestions(QStringLiteral("documentation"));
+    controller.requestHistorySuggestions(QStringLiteral("documentation"));
+    QTRY_COMPARE(readySpy.count(), 1);
+    const auto personalSuggestions = readySpy.takeFirst().first().toList();
     QCOMPARE(personalSuggestions.size(), 1);
     QCOMPARE(personalSuggestions.first().toMap().value(QStringLiteral("url")).toUrl(),
         QUrl(QStringLiteral("https://docs.example/personal")));
+}
+
+// Retention is a bound on the Space, not a step taken when its database is
+// opened. A session that never restarts still trims, within one batch of the
+// bound, and keeps the most recent visits.
+void BrowserControllerTest::keepsHistoryInsideItsBoundWhileASpaceStaysOpen()
+{
+    QTemporaryDir root;
+    BrowserController controller(root.path(), QStringLiteral("test"));
+    const auto spaceId = controller.activeSpaceId();
+    const auto visits = omaweb::history::retainedRows + omaweb::history::cleanupBatch + 20;
+    for (int visit = 0; visit < visits; ++visit) {
+        controller.recordVisit(QUrl(QStringLiteral("https://example.test/page/%1").arg(visit)),
+            QStringLiteral("Example page %1").arg(visit));
+    }
+
+    const auto connectionName = QStringLiteral("history-bound-check");
+    {
+        auto database = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), connectionName);
+        database.setDatabaseName(omaweb::SessionStore::spaceDatabasePath(root.path(), spaceId));
+        QVERIFY(database.open());
+        QSqlQuery count(database);
+        QVERIFY(count.exec(QStringLiteral("SELECT COUNT(*) FROM history")));
+        QVERIFY(count.next());
+        const auto rows = count.value(0).toInt();
+        QVERIFY2(rows <= omaweb::history::retainedRows + omaweb::history::cleanupBatch,
+            qPrintable(QStringLiteral("history holds %1 rows").arg(rows)));
+        // Trimming from the wrong end would leave a bound and no History.
+        QVERIFY(rows >= omaweb::history::retainedRows);
+        QSqlQuery newest(database);
+        QVERIFY(newest.exec(
+            QStringLiteral("SELECT url FROM history ORDER BY visited_at DESC, id DESC LIMIT 1")));
+        QVERIFY(newest.next());
+        QCOMPARE(newest.value(0).toString(),
+            QStringLiteral("https://example.test/page/%1").arg(visits - 1));
+    }
+    QSqlDatabase::removeDatabase(connectionName);
+}
+
+// Typing is faster than the store answers, so requests coalesce: one search
+// runs, one waits, and the reader is shown the answer to what they last typed
+// rather than to what they typed first.
+void BrowserControllerTest::answersOnlyTheLatestOmnibarSearch()
+{
+    QTemporaryDir root;
+    BrowserController controller(root.path(), QStringLiteral("test"));
+    controller.recordVisit(
+        QUrl(QStringLiteral("https://alpha.example/one")), QStringLiteral("Alpha one"));
+    controller.recordVisit(
+        QUrl(QStringLiteral("https://omega.example/two")), QStringLiteral("Omega two"));
+    controller.setHistorySearchDelayForTests(60);
+
+    QSignalSpy readySpy(&controller, &BrowserController::historySuggestionsReady);
+    controller.requestHistorySuggestions(QStringLiteral("alpha"));
+    controller.requestHistorySuggestions(QStringLiteral("nothing-matches-this"));
+    controller.requestHistorySuggestions(QStringLiteral("omega"));
+    // The GUI thread is free while the search runs: this is the only reason
+    // the third request can be made before the first has answered.
+    QCOMPARE(readySpy.count(), 0);
+
+    QTRY_COMPARE(readySpy.count(), 1);
+    const auto suggestions = readySpy.takeFirst().first().toList();
+    QCOMPARE(suggestions.size(), 1);
+    QCOMPARE(suggestions.first().toMap().value(QStringLiteral("url")).toUrl(),
+        QUrl(QStringLiteral("https://omega.example/two")));
+    // Nothing arrives for the two requests that were replaced.
+    QTest::qWait(120);
+    QCOMPARE(readySpy.count(), 0);
+}
+
+// A search in flight outlives the state it was asked about. Every route out of
+// that state discards its answer rather than drawing it over what replaced it.
+void BrowserControllerTest::abandonsASearchTheReaderHasMovedOnFrom()
+{
+    QTemporaryDir root;
+    BrowserController controller(root.path(), QStringLiteral("test"));
+    const auto personalSpaceId = controller.activeSpaceId();
+    controller.recordVisit(
+        QUrl(QStringLiteral("https://alpha.example/one")), QStringLiteral("Alpha one"));
+    controller.setHistorySearchDelayForTests(60);
+    QSignalSpy readySpy(&controller, &BrowserController::historySuggestionsReady);
+
+    // The Omnibar closes while a search runs.
+    controller.requestHistorySuggestions(QStringLiteral("alpha"));
+    controller.cancelHistorySuggestions();
+    QTest::qWait(160);
+    QCOMPARE(readySpy.count(), 0);
+
+    // The reader switches Space, whose History is not the one being searched.
+    const auto workSpaceId = controller.createSpace(QStringLiteral("Work"));
+    controller.requestHistorySuggestions(QStringLiteral("alpha"));
+    QVERIFY(controller.switchSpace(workSpaceId));
+    QTest::qWait(160);
+    QCOMPARE(readySpy.count(), 0);
+
+    // The History being searched is deleted.
+    QVERIFY(controller.switchSpace(personalSpaceId));
+    controller.requestHistorySuggestions(QStringLiteral("alpha"));
+    QVERIFY(controller.deleteHistorySince(0));
+    QTest::qWait(160);
+    QCOMPARE(readySpy.count(), 0);
+
+    // With nothing in the way, the same request answers.
+    controller.recordVisit(
+        QUrl(QStringLiteral("https://alpha.example/again")), QStringLiteral("Alpha again"));
+    controller.requestHistorySuggestions(QStringLiteral("alpha"));
+    QTRY_COMPARE(readySpy.count(), 1);
+    QCOMPARE(readySpy.takeFirst().first().toList().size(), 1);
 }
 
 void BrowserControllerTest::filtersAndDeletesHistoryAtRequestedBoundaries()
@@ -787,6 +904,15 @@ void BrowserControllerTest::refusesPersistentBrowsingDataActionsInPrivateWindows
         {QStringLiteral("cookies"), QStringLiteral("history")}, 0, false, {}));
     QCOMPARE(clearSpy.count(), 0);
     QCOMPARE(controller.history({}).size(), 0);
+
+    // The Omnibar asks the same way in a Private window and is answered with
+    // nothing, at once and without a search thread to answer it.
+    QSignalSpy readySpy(&controller, &BrowserController::historySuggestionsReady);
+    controller.recordVisit(
+        QUrl(QStringLiteral("https://private.example")), QStringLiteral("Private"));
+    controller.requestHistorySuggestions(QStringLiteral("private"));
+    QCOMPARE(readySpy.count(), 1);
+    QVERIFY(readySpy.takeFirst().first().toList().isEmpty());
 }
 
 void BrowserControllerTest::clearsSelectedBrowsingDataWithinConfirmedScope()

@@ -42,6 +42,24 @@ JSON stores settings, keybindings, and themes.
 Structural state commits transactionally. High-frequency presentation state saves on a short
 debounce. Engine caches and compiled blocker data are disposable and never enter Sync.
 
+A Space keeps its 5,000 most recent visits. The bound is restored as visits arrive, once every 256
+of them, so a session that never restarts stays inside the bound plus one batch rather than growing
+until the Space database is next opened. The cleanup finds the oldest visit worth keeping through
+the recency index and deletes below it, naming that visit by id as well as by timestamp because a
+redirect chain lands several visits in one millisecond.
+
+## History search
+
+The Omnibar searches a Space's history on a thread of its own, through SQLite connections that
+thread opens and closes: the query scans and groups every matching visit, which is work the
+interface cannot do between keystrokes. One search runs and one waits, so typing faster than the
+store answers replaces the waiting request instead of queueing another.
+
+Each request carries a generation and the Space it was asked about. The core drops an answer whose
+generation is behind, whose Space is no longer the active one, or whose history was deleted while it
+ran, so a stale answer never replaces the rows the reader is looking at. A Private window has no
+history to search and is answered with none.
+
 ## Content blocker
 
 The Qt adapter calls a separately built `adblock-rust` shared library through a narrow C interface.

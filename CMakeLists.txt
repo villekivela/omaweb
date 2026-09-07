@@ -121,6 +121,10 @@ add_library(omaweb-core STATIC
     src/core/DownloadPolicy.h
     src/core/HardwareVideoDecode.cpp
     src/core/HardwareVideoDecode.h
+    src/core/HistoryQuery.cpp
+    src/core/HistoryQuery.h
+    src/core/HistorySearch.cpp
+    src/core/HistorySearch.h
     src/core/KeyboardNavigation.cpp
     src/core/KeyboardNavigation.h
     src/core/LaunchRequest.cpp

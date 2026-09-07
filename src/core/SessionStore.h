@@ -35,8 +35,10 @@ public:
         const QVector<TabState> &destinationTabs, const QString &destinationActiveTabId);
     QString preference(const QString &name, const QString &fallback = {}) const;
     bool savePreference(const QString &name, const QString &value);
+    // Records one visit, and restores the retention bound once a batch of them
+    // has arrived. A long session trims as it goes rather than only when the
+    // Space database is first opened.
     bool recordVisit(const QString &spaceId, const QUrl &url, const QString &title);
-    QVariantList historySuggestions(const QString &spaceId, const QString &query, int limit) const;
     QVariantList history(const QString &spaceId, const QString &query, int limit) const;
     bool deleteHistoryVisit(const QString &spaceId, qint64 id);
     bool deleteHistoryOrigin(const QString &spaceId, const QString &origin);
@@ -56,6 +58,10 @@ public:
     bool forgetDownload(const QString &id);
 
     QString dataRoot() const;
+    // Where one Space keeps its tabs, history and Site permissions. The
+    // history search reads the same file from its own thread, so the layout is
+    // named here rather than spelled out twice.
+    static QString spaceDatabasePath(const QString &dataRoot, const QString &spaceId);
     QString engineProfilePath(const QString &spaceId, const QString &engineName) const;
 
 private:
@@ -70,6 +76,7 @@ private:
     QSqlDatabase m_database;
     mutable QHash<QString, QSqlDatabase> m_spaceDatabases;
     mutable QHash<QString, QString> m_spaceConnectionNames;
+    QHash<QString, int> m_visitsSinceHistoryCleanup;
 };
 
 } // namespace omaweb

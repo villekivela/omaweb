@@ -2929,6 +2929,49 @@ TestCase {
         verify(browser.deleteSpace(workSpaceId, "History Work"));
     }
 
+    // Suggestions arrive from the search thread, so the rows on show are the
+    // answer to the last thing typed rather than to whichever search finished
+    // last, and closing the Omnibar leaves nothing to arrive.
+    function test_omnibarSuggestionsFollowTheLastKeystroke() {
+        browser.recordVisit("https://alpha-omni.example/one", "Alpha omni");
+        browser.recordVisit("https://omega-omni.example/two", "Omega omni");
+        browser.setHistorySearchDelayForTests(40);
+        window.openOmnibar(true);
+        const input = findChild(window.contentItem, "omnibarInput");
+        const suggestions = findChild(window.contentItem, "historySuggestionList");
+        verify(input !== null);
+        verify(suggestions !== null);
+
+        input.text = "alpha-omni";
+        input.text = "no-such-history";
+        input.text = "omega-omni";
+        tryCompare(suggestions, "count", 1);
+        compare(window.omnibarSuggestions[0].url.toString(), "https://omega-omni.example/two");
+        // The replaced searches never reach the panel.
+        wait(120);
+        compare(suggestions.count, 1);
+
+        // A row the reader stepped onto is a different destination once the
+        // next answer lands, so the selection goes back to the typed text.
+        const panel = findChild(window.contentItem, "commandPanel");
+        verify(panel !== null);
+        panel.step(1);
+        compare(panel.selected, 0);
+        input.text = "omni";
+        panel.step(1);
+        compare(panel.selected, 0);
+        tryCompare(suggestions, "count", 2);
+        compare(panel.selected, -1);
+
+        input.text = "alpha-omni";
+        window.closeOmnibar();
+        wait(120);
+        compare(window.omnibarSuggestions.length, 0);
+        browser.setHistorySearchDelayForTests(0);
+        verify(browser.deleteHistoryOrigin("https://alpha-omni.example/one"));
+        verify(browser.deleteHistoryOrigin("https://omega-omni.example/two"));
+    }
+
     function test_historyIsAFilteredBrowserOwnedSheet() {
         browser.recordVisit("https://history-sheet.example/first", "History sheet first");
         browser.recordVisit("https://other-sheet.example/second", "Other sheet");

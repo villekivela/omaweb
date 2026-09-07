@@ -1,6 +1,7 @@
 #include "BrowserController.h"
 
 #include "DownloadPolicy.h"
+#include "HistorySearch.h"
 
 #include <QRegularExpression>
 #include <QDir>
@@ -139,6 +140,24 @@ BrowserController::BrowserController(QString dataRoot, QString engineName, bool 
     connect(&m_tabs, &QAbstractItemModel::modelReset, this, [this] { refreshAtRest(); });
     loadDownloadDirectory();
     initialize();
+    // A Private window keeps no history, so it has nothing to search and no
+    // thread to search it with.
+    if (!m_privateBrowsing) {
+        m_historyThread = new QThread(this);
+        m_historyThread->setObjectName(QStringLiteral("omaweb-history-search"));
+        m_historySearch = new HistorySearch(m_store.dataRoot());
+        m_historySearch->moveToThread(m_historyThread);
+        connect(m_historyThread, &QThread::finished, m_historySearch, &QObject::deleteLater);
+        connect(this, &BrowserController::historySearchRequested, m_historySearch,
+            &HistorySearch::search);
+        connect(this, &BrowserController::historySearchSpaceForgotten, m_historySearch,
+            &HistorySearch::forgetSpace);
+        connect(this, &BrowserController::historySearchDelayRequested, m_historySearch,
+            &HistorySearch::setDelayForTests);
+        connect(m_historySearch, &HistorySearch::resultsReady, this,
+            &BrowserController::historySearchAnswered);
+        m_historyThread->start();
+    }
 }
 
 // A quit while a coalesced write is still pending would drop the last address
@@ -147,6 +166,13 @@ BrowserController::~BrowserController()
 {
     if (m_persistTabsTimer.isActive()) {
         persistTabs();
+    }
+    // The search owns SQLite connections, which have to be closed on the
+    // thread that opened them. Waiting is what makes the deleteLater above run
+    // there rather than leaving the connections behind.
+    if (m_historyThread) {
+        m_historyThread->quit();
+        m_historyThread->wait();
     }
 }
 
@@ -376,6 +402,9 @@ bool BrowserController::switchSpace(const QString &spaceId)
     }
     m_activeSpaceId = destination->id;
     m_activeSpaceName = destination->name;
+    // A suggestion belongs to the Space it was searched in, so a search still
+    // running or waiting is one this Space has no use for.
+    cancelHistorySuggestions();
     auto spaces = m_spaces.items();
     for (auto &space : spaces) {
         space.active = space.id == spaceId;
@@ -465,6 +494,8 @@ bool BrowserController::deleteSpace(const QString &spaceId, const QString &confi
         return false;
     }
     m_spaces.reset(m_store.loadSpaces());
+    cancelHistorySuggestions();
+    emit historySearchSpaceForgotten(spaceId);
     // Nothing belonging to a deleted Space should outlive it, including the
     // pages a window is still holding open for it and an inspector attached to
     // one of them — which, while another Space is active, is not in the tab
@@ -1475,12 +1506,57 @@ void BrowserController::recordVisit(const QUrl &url, const QString &title)
     m_store.recordVisit(m_activeSpaceId, url, title.isEmpty() ? url.host() : title);
 }
 
-QVariantList BrowserController::historySuggestions(const QString &query, int limit) const
+void BrowserController::requestHistorySuggestions(const QString &query, int limit)
 {
-    if (m_privateBrowsing || limit <= 0) {
-        return {};
+    if (m_privateBrowsing || limit <= 0 || !m_historySearch) {
+        emit historySuggestionsReady({});
+        return;
     }
-    return m_store.historySuggestions(m_activeSpaceId, query.trimmed(), limit);
+    ++m_historyGeneration;
+    if (m_historySearchRunning) {
+        // The waiting request is a single slot rather than a queue: input that
+        // arrives while a search runs replaces what the last input asked for,
+        // because that is the answer the reader is now waiting for.
+        m_historySearchPending = true;
+        m_pendingHistoryQuery = query.trimmed();
+        m_pendingHistoryLimit = limit;
+        return;
+    }
+    startHistorySearch(query.trimmed(), limit);
+}
+
+void BrowserController::cancelHistorySuggestions()
+{
+    // The running search is left to finish. Its answer carries the generation
+    // it was asked with, which is now behind, so nothing reaches the interface.
+    ++m_historyGeneration;
+    m_historySearchPending = false;
+    m_pendingHistoryQuery.clear();
+    m_pendingHistoryLimit = 0;
+}
+
+void BrowserController::setHistorySearchDelayForTests(int milliseconds)
+{
+    emit historySearchDelayRequested(milliseconds);
+}
+
+void BrowserController::startHistorySearch(const QString &text, int limit)
+{
+    m_historySearchRunning = true;
+    m_historySearchPending = false;
+    emit historySearchRequested(m_activeSpaceId, text, limit, m_historyGeneration);
+}
+
+void BrowserController::historySearchAnswered(
+    const QString &spaceId, const QVariantList &suggestions, quint64 generation)
+{
+    m_historySearchRunning = false;
+    if (generation == m_historyGeneration && spaceId == m_activeSpaceId && !m_privateBrowsing) {
+        emit historySuggestionsReady(suggestions);
+    }
+    if (m_historySearchPending) {
+        startHistorySearch(m_pendingHistoryQuery, m_pendingHistoryLimit);
+    }
 }
 
 QVariantList BrowserController::history(const QString &query, int limit) const
@@ -1493,19 +1569,31 @@ QVariantList BrowserController::history(const QString &query, int limit) const
 
 bool BrowserController::deleteHistoryVisit(qint64 id)
 {
-    return !m_privateBrowsing && id > 0 && m_store.deleteHistoryVisit(m_activeSpaceId, id);
+    if (m_privateBrowsing || id <= 0 || !m_store.deleteHistoryVisit(m_activeSpaceId, id)) {
+        return false;
+    }
+    cancelHistorySuggestions();
+    return true;
 }
 
 bool BrowserController::deleteHistoryOrigin(const QUrl &url)
 {
     const auto origin = normalizedOrigin(url);
-    return !m_privateBrowsing && !origin.isEmpty()
-        && m_store.deleteHistoryOrigin(m_activeSpaceId, origin);
+    if (m_privateBrowsing || origin.isEmpty()
+        || !m_store.deleteHistoryOrigin(m_activeSpaceId, origin)) {
+        return false;
+    }
+    cancelHistorySuggestions();
+    return true;
 }
 
 bool BrowserController::deleteHistorySince(qint64 since)
 {
-    return !m_privateBrowsing && m_store.deleteHistorySince(m_activeSpaceId, since);
+    if (m_privateBrowsing || !m_store.deleteHistorySince(m_activeSpaceId, since)) {
+        return false;
+    }
+    cancelHistorySuggestions();
+    return true;
 }
 
 QVariantList BrowserController::searchEngines() const
@@ -1674,6 +1762,9 @@ bool BrowserController::clearBrowsingData(
     }
     if (!cleared) {
         return false;
+    }
+    if (dataTypes.contains(QStringLiteral("history"))) {
+        cancelHistorySuggestions();
     }
     emit engineDataClearRequested(spaceIds, dataTypes, since);
     return true;
