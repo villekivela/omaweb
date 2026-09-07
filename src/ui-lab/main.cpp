@@ -17,6 +17,7 @@
 #include "WindowChrome.h"
 #include "WindowManager.h"
 
+#include <QAbstractItemModel>
 #include <QColor>
 #include <QCoreApplication>
 #include <QDir>
@@ -64,6 +65,82 @@ QVariantList drawMockFavicons(const QString &directory)
         }
     }
     return urls;
+}
+
+// A day's worth of tabs for a Space the lab would otherwise bring up at rest.
+// The sidebar's shape is the point — Pinned tiles above an ordinary list — so
+// these are named the way a reader's own tabs are named rather than by their
+// position in this array.
+struct SampleTab {
+    const char *url;
+    const char *title;
+    bool pinned;
+};
+
+const QList<SampleTab> &sampleTabs()
+{
+    static const QList<SampleTab> tabs = {
+        {"https://mail.proton.me/u/0/inbox", "Inbox", true},
+        {"https://calendar.google.com/calendar/r/week", "Calendar", true},
+        {"https://github.com/notifications", "Notifications", true},
+        {"https://music.youtube.com/library", "Library", true},
+        {"https://github.com/villekivela/omaweb/pull/124", "Generate the website's screenshots",
+            false},
+        {"https://doc.qt.io/qt-6/qtquick-visualcanvas-scenegraph.html", "Qt Quick Scene Graph",
+            false},
+        {"https://wayland.app/protocols/xdg-shell", "xdg-shell protocol", false},
+        {"https://archlinux.org/packages/extra/x86_64/qt6-webengine/", "Arch Linux - qt6-webengine",
+            false},
+        {"https://omarchy.org/", "Omarchy", false},
+    };
+    return tabs;
+}
+
+// The id of the tab a background open has just appended. A seeded tab is
+// addressed by id for its title, its icon and its pin, and the controller
+// hands back no id of its own for a background open.
+QString lastTabId(QAbstractItemModel *tabs)
+{
+    if (tabs == nullptr || tabs->rowCount() == 0) {
+        return {};
+    }
+    const auto roles = tabs->roleNames();
+    const auto role = roles.key(QByteArrayLiteral("tabId"), -1);
+    if (role < 0) {
+        return {};
+    }
+    return tabs->data(tabs->index(tabs->rowCount() - 1, 0), role).toString();
+}
+
+// Seeds the Space the lab came up on. The blank tab it came up with is left
+// active and taken back at the end, so the viewport still draws the Start page
+// with a populated sidebar beside it: a reader opening a new tab on a working
+// day, which is the state a screenshot of this browser wants.
+void seedSampleTabs(omaweb::BrowserController &browser, const QVariantList &favicons)
+{
+    const auto blankTabId = browser.activeTabId();
+    auto *unpinned = browser.unpinnedTabs();
+    qsizetype icon = 0;
+    for (const auto &sample : sampleTabs()) {
+        const QUrl url(QString::fromUtf8(sample.url));
+        browser.openInputInBackground(url);
+        const auto tabId = lastTabId(unpinned);
+        if (tabId.isEmpty()) {
+            continue;
+        }
+        browser.updateTab(tabId, url, QString::fromUtf8(sample.title));
+        if (!favicons.isEmpty()) {
+            browser.setTabIcon(tabId, favicons.at(icon++ % favicons.size()).toUrl());
+        }
+        // Pinning is an operation on the tab on show, so a seeded pin is
+        // activated and pinned in turn. Nothing sees the intermediate state:
+        // the blank tab is active again before control reaches the event loop.
+        if (sample.pinned) {
+            browser.activateTab(tabId);
+            browser.toggleActivePinned();
+        }
+    }
+    browser.activateTab(blankTabId);
 }
 
 } // namespace
@@ -137,8 +214,8 @@ int main(int argc, char *argv[])
         QStringLiteral("engineProfileSource"), QUrl(QStringLiteral(OMAWEB_ENGINE_PROFILE_URL)));
     engine.rootContext()->setContextProperty(
         QStringLiteral("iconFontSource"), QUrl(QStringLiteral(OMAWEB_ICON_FONT_URL)));
-    engine.rootContext()->setContextProperty(QStringLiteral("mockFaviconUrls"),
-        drawMockFavicons(dataRoot.filePath(QStringLiteral("favicons"))));
+    const auto mockFavicons = drawMockFavicons(dataRoot.filePath(QStringLiteral("favicons")));
+    engine.rootContext()->setContextProperty(QStringLiteral("mockFaviconUrls"), mockFavicons);
     engine.addImportPath(QStringLiteral(OMAWEB_UI_DIRECTORY));
     // The vendored Omarchy component kit: qs.Ui and qs.Commons.
     engine.addImportPath(QStringLiteral(OMAWEB_OMARCHY_IMPORT_PATH));
@@ -153,6 +230,12 @@ int main(int argc, char *argv[])
     engine.load(QUrl(QStringLiteral(OMAWEB_MAIN_QML_URL)));
 
     const auto arguments = application.arguments();
+    // The lab comes up on a Space at rest, which draws neither the Pinned
+    // section nor the tab list, so the sidebar that distinguishes this browser
+    // is the one thing a capture of it cannot show. `--tabs` seeds a day.
+    if (arguments.contains(QStringLiteral("--tabs"))) {
+        seedSampleTabs(browser, mockFavicons);
+    }
     // Private chrome is a whole palette of its own, and the lab is where it is
     // reviewed. Nothing else about the window changes.
     if (arguments.contains(QStringLiteral("--private")) && !engine.rootObjects().isEmpty()) {
