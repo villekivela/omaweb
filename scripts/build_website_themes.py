@@ -17,13 +17,15 @@ Per theme it writes:
   theme's own ground and foreground, and `wordmark-<theme>.svg`, the wordmark
   in its foreground. The default theme's favicon is also written to
   `website/favicon.svg`, which is where a browser asks for it.
-- `website/assets/shots/<theme>/<state>.png`, one capture per interface state,
-  composited over a wallpaper generated from the same palette.
+- `website/assets/shots/<theme>/<state>.webp`, one capture per interface state,
+  composited over a wallpaper generated from the same palette, and a
+  `<state>-thumb.webp` beside it for the grid that opens it.
 
-The wallpaper is the design `.desk__wall` and `.desk__grain` already draw in
-`website/styles.css` -- three radial glows over a diagonal gradient, under a
-field of diagonal stripes -- so the still shots and the page's own live mock
-sit on one wallpaper rather than on two. One geometry, colours only.
+The wallpaper is one geometry in every palette, colours only: three radial
+glows over a diagonal gradient, under a field of diagonal stripes. It was the
+design the page itself drew behind the recreation of the window it used to
+carry, kept here so the themes read as one family and none of them needed a
+wallpaper of its own.
 
 ## Headless, and no pointer
 
@@ -53,7 +55,18 @@ this is why.
 
     scripts/build_website_themes.py --lab ./build/dev/omaweb-ui-lab
 
-Only the standard library is used, so there is nothing to install. Themes are
+The one thing to install is a WebP encoder: `cwebp` from libwebp, or
+ImageMagick. Everything else is the standard library.
+
+Captures are taken at twice the size the page draws them, so the browser's own
+type is rendered at two device pixels per logical one rather than resampled
+down to nine. That costs bytes and the wallpaper is where they go: a gradient
+under a field of stripes is high-frequency everywhere, so a full capture lands
+near 280 KB whether it is encoded lossless or at quality 92. The thumbnails
+carry the saving instead -- lossy, and a quarter of what lossless wants for a
+picture nobody reads.
+
+Themes are
 read from `/usr/share/omarchy/themes` and `~/.config/omarchy/themes`, the user
 directory winning; a theme that is installed in neither is skipped with a word
 about it. Nothing is written outside this repository.
@@ -125,8 +138,9 @@ STATES = [
 # one argument away for anyone who wants to look.
 
 # The palette roles the website spends, taken from the palette Omaweb resolved.
-# The opaque grounds rather than the translucent ones: CSS composites the
-# translucency itself, from `--sidebar-alpha`.
+# The opaque grounds rather than the translucent ones: what the page draws is
+# flat, and the translucency a theme names is already resolved into the
+# screenshots by the compositing step.
 RESOLVED_ROLES = {
     "--bg": "windowOpaque",
     "--sidebar": "sidebarOpaque",
@@ -147,6 +161,19 @@ NAMED_ROLES = {"--muted": "mutedText"}
 # The desktop the window is shown standing on, as a fraction of the capture.
 # Enough of it for the wallpaper to be a wallpaper rather than a border.
 MARGIN = 0.1
+
+# Captured at twice the size Qt would lay the window out at, so the type is
+# rendered at two device pixels per logical one rather than resampled down to
+# them. The page draws the lead shot at around 1200 CSS pixels; a capture at
+# the same width lands the browser's 12px body type at nine, which is what
+# made the shots read as soft. Qt scales the whole layout, so the shot is the
+# same window at the same proportions and only the pixel count changes.
+SCALE = 2
+
+# What the grid under the lead shot draws. A whole window at 600 CSS pixels is
+# unreadable however many pixels it holds, so those are thumbnails that open
+# the full capture rather than shrunken copies pretending to be legible.
+THUMBNAIL_WIDTH = 720
 
 
 # ------------------------------------------------------------------ themes
@@ -207,6 +234,7 @@ def run_lab(lab: pathlib.Path, theme_file: pathlib.Path, arguments: list[str]) -
             "OMAWEB_NO_OMARCHY_TEMPLATE": "1",
             "QT_QPA_PLATFORM": "offscreen",
             "QT_QUICK_BACKEND": "software",
+            "QT_SCALE_FACTOR": str(SCALE),
         }
     )
     result = subprocess.run(
@@ -321,8 +349,14 @@ def unfilter(kind: int, line: bytearray, previous: bytearray, step: int) -> None
         raise SystemExit(f"unknown PNG filter {kind}")
 
 
-def write_png(path: pathlib.Path, width: int, height: int, pixels: bytes) -> None:
-    """Write RGB bytes as an 8-bit PNG. Wallpapers and composites are opaque."""
+def png_bytes(width: int, height: int, pixels: bytes) -> bytes:
+    """RGB bytes as an 8-bit PNG. Composites are opaque: the window's own
+    translucency has already been resolved against the desktop behind it.
+
+    Returned rather than written, because what is written is WebP and the
+    encoder takes a PNG on its standard input. Compression level 1: this is a
+    handoff to another process, not the file that ships.
+    """
     raw = bytearray()
     stride = width * 3
     for row in range(height):
@@ -337,11 +371,10 @@ def write_png(path: pathlib.Path, width: int, height: int, pixels: bytes) -> Non
             + struct.pack(">I", zlib.crc32(name + body) & 0xFFFFFFFF)
         )
 
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_bytes(
+    return (
         b"\x89PNG\r\n\x1a\n"
         + chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0))
-        + chunk(b"IDAT", zlib.compress(bytes(raw), 9))
+        + chunk(b"IDAT", zlib.compress(bytes(raw), 1))
         + chunk(b"IEND", b"")
     )
 
@@ -350,13 +383,13 @@ def write_png(path: pathlib.Path, width: int, height: int, pixels: bytes) -> Non
 
 
 def wallpaper(palette: dict, width: int, height: int) -> bytearray:
-    """The design `.desk__wall` and `.desk__grain` draw, in this palette.
+    """One geometry, in this palette. Three glows and a field of stripes.
 
-    Kept a transcription of the stylesheet rather than a second design: the
-    page shows the live mock on the CSS version of this and the shots on this
-    one, and two wallpapers under one interface would read as two products.
-    Each glow is an ellipse in fractions of the canvas, painted over a diagonal
-    gradient, with a field of diagonal stripes over the lot.
+    Each glow is an ellipse placed in fractions of the canvas and painted over
+    a diagonal gradient, with the stripes over the lot. The design came from
+    the stylesheet's own `.desk__wall` and `.desk__grain`, which drew the
+    desktop behind the recreation of the window the page used to carry, so
+    every theme's wallpaper is the same drawing and only the colours move.
     """
     background = channels(palette["windowOpaque"])
     foreground = channels(palette["text"])
@@ -455,9 +488,8 @@ def blur(pixels: bytearray, width: int, height: int, radius: int) -> bytearray:
     Off unless asked for. A blur under the translucent surfaces is what a
     compositor with `decoration:blur` on would show, and Omarchy ships that
     off; there is no client-side blur for the browser to ask through either, so
-    a sharp desktop is what a stock install actually looks like. The site's own
-    live mock blurs its sidebar with `backdrop-filter`, which is the page's
-    licence rather than the desktop's.
+    a sharp desktop is what a stock install actually looks like. Turning it on
+    is a claim about the reader's compositor rather than about the browser.
     """
     for _ in range(2):
         pixels = box_pass(pixels, width, height, radius)
@@ -493,6 +525,64 @@ def transpose(pixels: bytearray, width: int, height: int) -> bytearray:
     return out
 
 
+# ------------------------------------------------------- scale and encode
+
+
+def find_encoder() -> str | None:
+    """The tool that turns a PNG on stdin into WebP on stdout.
+
+    WebP because the captures are taken at twice the size the page draws them,
+    and a thumbnail of one has to be cheap. `cwebp` is libwebp's own tool;
+    ImageMagick is the fallback because a machine that renders this site tends
+    to have it already.
+    """
+    for name in ("cwebp", "magick", "convert"):
+        if shutil.which(name):
+            return name
+    return None
+
+
+def encoding(encoder: str, width: int | None, lossless: bool) -> list[str]:
+    """The command line for one encode, scaling on the way through if asked.
+
+    The full capture is encoded losslessly: it is the file a reader opens to
+    read the type in, and lossy saves it almost nothing anyway -- what the
+    bytes go on is the wallpaper's gradient and stripes, and those compress no
+    better for quality thrown away. A thumbnail is the opposite case. Nobody
+    reads one, and lossless spends four times what it needs to.
+    """
+    if encoder == "cwebp":
+        # -z 9 is the slowest and smallest of the lossless presets.
+        quality = ["-lossless", "-z", "9"] if lossless else ["-q", "82"]
+        resize = ["-resize", str(width), "0"] if width else []
+        return ["cwebp", "-quiet", *quality, *resize, "-o", "-", "--", "-"]
+    # ImageMagick reads its operators between the input and the output.
+    quality = ["-define", "webp:lossless=true"] if lossless else ["-quality", "82"]
+    resize = ["-filter", "Lanczos", "-resize", f"{width}x"] if width else []
+    return [encoder, "png:-", *resize, *quality, "webp:-"]
+
+
+def write_webp(
+    path: pathlib.Path,
+    encoder: str,
+    png: bytes,
+    width: int | None = None,
+    lossless: bool = True,
+) -> None:
+    """Encode one composite, scaled to `width` on the way through if given.
+
+    The encoder does the scaling because it is decoding the image anyway, and
+    a box average written in Python over a canvas this size costs more than
+    every other step here put together.
+    """
+    command = encoding(encoder, width, lossless)
+    result = subprocess.run(command, input=png, capture_output=True)
+    if result.returncode != 0 or not result.stdout:
+        sys.exit(f"{encoder} could not encode {path.name}: {result.stderr.decode().strip()}")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(result.stdout)
+
+
 # ------------------------------------------------------------- composite
 
 
@@ -504,29 +594,47 @@ def composite(
     The capture keeps the opacity the theme gave each surface, so the desktop
     shows through the sidebar and the empty page ground exactly as far as a
     compositor would let it.
+
+    Done a row at a time over channel slices rather than a pixel at a time:
+    a capture at this size is several million pixels, and the interpreter is
+    the whole cost. A row that turns out to be one alpha throughout -- an
+    opaque band of page, a translucent band of sidebar -- skips the blend for
+    a slice assignment or a single constant.
     """
-    width, height = canvas
+    width, _ = canvas
     left, top = offset
     shot_width, shot_height, shot = read_png(capture)
+    stride = shot_width * 3
     pixels = bytearray(ground)
+    row_bytes = bytearray(stride)
     for row in range(shot_height):
+        line = shot[row * shot_width * 4 : (row + 1) * shot_width * 4]
+        alpha = line[3::4]
         target = ((top + row) * width + left) * 3
-        source = row * shot_width * 4
-        for column in range(shot_width):
-            alpha = shot[source + 3]
-            if alpha == 0:
-                target += 3
-                source += 4
-                continue
-            if alpha == 255:
-                pixels[target : target + 3] = shot[source : source + 3]
+        low, high = min(alpha), max(alpha)
+        if low == 255:
+            row_bytes[0::3] = line[0::4]
+            row_bytes[1::3] = line[1::4]
+            row_bytes[2::3] = line[2::4]
+        else:
+            under = pixels[target : target + stride]
+            if low == high:
+                weight = low
+                rest = 255 - weight
+                for channel in range(3):
+                    row_bytes[channel::3] = bytes(
+                        (over * weight + beneath * rest) // 255
+                        for over, beneath in zip(line[channel::4], under[channel::3])
+                    )
             else:
                 for channel in range(3):
-                    over = shot[source + channel]
-                    under = pixels[target + channel]
-                    pixels[target + channel] = (over * alpha + under * (255 - alpha)) // 255
-            target += 3
-            source += 4
+                    row_bytes[channel::3] = bytes(
+                        (over * transmit + beneath * (255 - transmit)) // 255
+                        for over, beneath, transmit in zip(
+                            line[channel::4], under[channel::3], alpha
+                        )
+                    )
+        pixels[target : target + stride] = row_bytes
     return pixels
 
 
@@ -601,9 +709,6 @@ def stylesheet(palettes: dict[str, tuple[dict, dict]]) -> str:
             lines.append(f"  {token}: {hex_color(palette[role])};")
         for token, role in NAMED_ROLES.items():
             lines.append(f"  {token}: {hex_color(named[role])};")
-        # The sidebar's translucency is the theme's, as it is in the browser.
-        alpha = palette.get("opacity", {}).get("sidebar", 0.95)
-        lines.append(f"  --sidebar-alpha: {round(alpha * 100)}%;")
         lines.append("}")
         lines.append("")
     return "\n".join(lines)
@@ -613,7 +718,11 @@ def stylesheet(palettes: dict[str, tuple[dict, dict]]) -> str:
 
 
 def build(
-    theme: str, lab: pathlib.Path, scratch: pathlib.Path, blurred: bool
+    theme: str,
+    lab: pathlib.Path,
+    scratch: pathlib.Path,
+    encoder: str,
+    blurred: bool,
 ) -> tuple[dict, dict] | None:
     colors = theme_colors(theme)
     if colors is None:
@@ -642,8 +751,16 @@ def build(
 
     for state, capture in captures.items():
         pixels = composite(capture, ground, canvas, (margin, margin))
-        write_png(SHOTS / theme / f"{state}.png", *canvas, pixels)
-        print(f"  {theme}/{state}.png")
+        png = png_bytes(*canvas, pixels)
+        write_webp(SHOTS / theme / f"{state}.webp", encoder, png)
+        write_webp(
+            SHOTS / theme / f"{state}-thumb.webp",
+            encoder,
+            png,
+            width=THUMBNAIL_WIDTH,
+            lossless=False,
+        )
+        print(f"  {theme}/{state}.webp")
     return palette, named
 
 
@@ -667,6 +784,13 @@ def main() -> int:
 
     if not arguments.lab.is_file():
         return fail(f"no lab at {arguments.lab}; build the dev or ui preset first")
+    encoder = find_encoder()
+    if encoder is None:
+        return fail(
+            "no WebP encoder found; install libwebp for cwebp, or imagemagick.\n"
+            "The page asks for .webp, so writing PNG here would produce files it "
+            "cannot load."
+        )
     if not any(directory.is_dir() for directory in THEME_DIRECTORIES):
         print("No Omarchy themes on this machine; nothing to build.")
         return 0
@@ -680,7 +804,7 @@ def main() -> int:
         scratch = pathlib.Path(directory)
         for theme, _ in wanted:
             print(f"{theme}:")
-            built = build(theme, arguments.lab, scratch, arguments.blur)
+            built = build(theme, arguments.lab, scratch, encoder, arguments.blur)
             if built is not None:
                 palettes[theme] = built
 

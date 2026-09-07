@@ -114,14 +114,20 @@
         </div>
 
         <figure class="t-shot t-shot--lead">
-          <img
-            data-themed="assets/shots/{theme}/space.png"
-            src="assets/shots/oligarchy/space.png"
-            width="1632"
-            height="1132"
-            alt="Omaweb with Pinned tabs above an ordinary tab list, and a new tab on show"
-            decoding="async"
-          />
+          <a
+            class="t-shot__open"
+            data-themed="assets/shots/{theme}/space.webp"
+            href="assets/shots/oligarchy/space.webp"
+          >
+            <img
+              data-themed="assets/shots/{theme}/space.webp"
+              src="assets/shots/oligarchy/space.webp"
+              width="3264"
+              height="2264"
+              alt="Omaweb with Pinned tabs above an ordinary tab list, and a new tab on show"
+              decoding="async"
+            />
+          </a>
           <figcaption>
             A Space at work: Pinned tabs across the top of the sidebar, the day&rsquo;s ordinary
             tabs under them, and the Start page on the new tab.
@@ -130,54 +136,78 @@
 
         <div class="t-shot-grid">
           <figure class="t-shot">
-            <img
-              data-themed="assets/shots/{theme}/settings.png"
-              src="assets/shots/oligarchy/settings.png"
-              width="1632"
-              height="1132"
-              alt="The Settings page, open on its Tabs section"
-              loading="lazy"
-              decoding="async"
-            />
+            <a
+              class="t-shot__open"
+              data-themed="assets/shots/{theme}/settings.webp"
+              href="assets/shots/oligarchy/settings.webp"
+            >
+              <img
+                data-themed="assets/shots/{theme}/settings-thumb.webp"
+                src="assets/shots/oligarchy/settings-thumb.webp"
+                width="720"
+                height="499"
+                alt="The Settings page, open on its Tabs section"
+                loading="lazy"
+                decoding="async"
+              />
+            </a>
             <figcaption>Settings, in the window rather than on a page of its own.</figcaption>
           </figure>
           <figure class="t-shot">
-            <img
-              data-themed="assets/shots/{theme}/blocking.png"
-              src="assets/shots/oligarchy/blocking.png"
-              width="1632"
-              height="1132"
-              alt="The Content Blocking section, with filter lists and a user rules field"
-              loading="lazy"
-              decoding="async"
-            />
+            <a
+              class="t-shot__open"
+              data-themed="assets/shots/{theme}/blocking.webp"
+              href="assets/shots/oligarchy/blocking.webp"
+            >
+              <img
+                data-themed="assets/shots/{theme}/blocking-thumb.webp"
+                src="assets/shots/oligarchy/blocking-thumb.webp"
+                width="720"
+                height="499"
+                alt="The Content Blocking section, with filter lists and a user rules field"
+                loading="lazy"
+                decoding="async"
+              />
+            </a>
             <figcaption>
               Content blocking is uBlock Origin&rsquo;s own filter syntax, with your rules beside
               the lists.
             </figcaption>
           </figure>
           <figure class="t-shot">
-            <img
-              data-themed="assets/shots/{theme}/history.png"
-              src="assets/shots/oligarchy/history.png"
-              width="1632"
-              height="1132"
-              alt="History, listing this Space's visits"
-              loading="lazy"
-              decoding="async"
-            />
+            <a
+              class="t-shot__open"
+              data-themed="assets/shots/{theme}/history.webp"
+              href="assets/shots/oligarchy/history.webp"
+            >
+              <img
+                data-themed="assets/shots/{theme}/history-thumb.webp"
+                src="assets/shots/oligarchy/history-thumb.webp"
+                width="720"
+                height="499"
+                alt="History, listing this Space's visits"
+                loading="lazy"
+                decoding="async"
+              />
+            </a>
             <figcaption>History belongs to the Space, and is cleared by the Space.</figcaption>
           </figure>
           <figure class="t-shot">
-            <img
-              data-themed="assets/shots/{theme}/collapsed.png"
-              src="assets/shots/oligarchy/collapsed.png"
-              width="1632"
-              height="1132"
-              alt="The window with its sidebar hidden, the page filling it"
-              loading="lazy"
-              decoding="async"
-            />
+            <a
+              class="t-shot__open"
+              data-themed="assets/shots/{theme}/collapsed.webp"
+              href="assets/shots/oligarchy/collapsed.webp"
+            >
+              <img
+                data-themed="assets/shots/{theme}/collapsed-thumb.webp"
+                src="assets/shots/oligarchy/collapsed-thumb.webp"
+                width="720"
+                height="499"
+                alt="The window with its sidebar hidden, the page filling it"
+                loading="lazy"
+                decoding="async"
+              />
+            </a>
             <figcaption>Ctrl B hides the sidebar and the page has the whole window.</figcaption>
           </figure>
         </div>
@@ -277,6 +307,27 @@
           </div>
         </div>
       </section>
+
+      <!-- The viewer the thumbnails open into. `<dialog>` rather than a
+           hand-built overlay: Escape, the backdrop and the focus trap come
+           with it. With no script the thumbnails are links to the image, which
+           is why it is empty here. -->
+      <dialog class="t-viewer" id="viewer" aria-label="Screenshot">
+        <button class="t-viewer__close" type="button" data-close aria-label="Close">&times;</button>
+        <img class="t-viewer__shot" alt="" />
+        <div class="t-viewer__foot">
+          <p class="t-viewer__caption"></p>
+          <div class="t-viewer__nav">
+            <span class="t-viewer__count" aria-live="polite"></span>
+            <button class="t-viewer__step" type="button" data-step="-1">
+              &lsaquo; <span>Previous</span>
+            </button>
+            <button class="t-viewer__step" type="button" data-step="1">
+              <span>Next</span> &rsaquo;
+            </button>
+          </div>
+        </div>
+      </dialog>
 
       <footer class="t-foot">
         <span>Omaweb &middot; pre-alpha &middot; MPL 2.0</span>

@@ -75,7 +75,6 @@ body {
   --accent: #9aa3ad;
   --urgent: #7a2e2e;
   --muted: #929ca6;
-  --sidebar-alpha: 95%;
 
   /* State tokens. Kit alphas exactly, including the hover border
      dropping BELOW normal (0.25 vs 0.40). */
@@ -381,6 +380,120 @@ img {
   .t-shot-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+}
+
+/* A thumbnail is a link to its own full capture, so it says so on hover and
+   takes a focus ring like any other link. */
+.t-shot__open {
+  display: block;
+  text-decoration: none;
+}
+.t-shot__open img {
+  transition: border-color 140ms ease;
+}
+.t-shot-grid .t-shot__open:hover img,
+.t-shot-grid .t-shot__open:focus-visible img {
+  border-color: var(--accent);
+}
+/* The lead is already drawn large, so it says it opens by lifting rather
+   than by outlining a metre of border in the accent. */
+.t-shot--lead .t-shot__open img {
+  transition:
+    border-color 140ms ease,
+    opacity 140ms ease;
+}
+.t-shot--lead .t-shot__open:hover img,
+.t-shot--lead .t-shot__open:focus-visible img {
+  opacity: 0.92;
+}
+
+/* ---------------- the screenshot viewer -----------------------------
+   A native <dialog>, so the backdrop, Escape and the focus trap are the
+   browser's. It is sized to the viewport rather than to the image: the
+   captures are wider than they are tall and the point of opening one is
+   to read the type in it. */
+.t-viewer {
+  width: min(96vw, 1600px);
+  max-width: none;
+  max-height: 94vh;
+  padding: var(--panel-padding);
+  border: 1px solid var(--line-normal);
+  border-radius: var(--radius);
+  background: var(--sidebar);
+  color: var(--fg);
+}
+.t-viewer::backdrop {
+  background: color-mix(in srgb, #000 76%, transparent);
+}
+.t-viewer__shot {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: calc(94vh - var(--panel-padding) * 4);
+  object-fit: contain;
+}
+/* The caption and the controls share one row under the shot: what this is
+   on the left, where you are and how to move on the right. It stacks on a
+   narrow window, caption first, because the caption is the content. */
+.t-viewer__foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--panel-gap);
+  margin-top: var(--sp-xxl);
+}
+.t-viewer__caption {
+  margin: 0;
+  max-width: 68ch;
+  color: var(--muted);
+  font-size: var(--fs-caption);
+}
+.t-viewer__nav {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-lg);
+  margin-left: auto;
+}
+.t-viewer__count {
+  color: var(--muted);
+  font-size: var(--fs-caption);
+  font-variant-numeric: tabular-nums;
+}
+.t-viewer__step {
+  height: var(--control-h);
+  padding-inline: var(--control-px);
+  border: 1px solid var(--line-normal);
+  border-radius: var(--radius);
+  background: var(--fill-normal);
+  color: var(--fg);
+  font-family: var(--mono);
+  font-size: var(--fs-body-sm);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.t-viewer__step:hover {
+  background: var(--fill-hover);
+  border-color: var(--line-hover);
+}
+.t-viewer__close {
+  position: absolute;
+  top: var(--sp-md);
+  right: var(--sp-md);
+  width: var(--control-h);
+  height: var(--control-h);
+  border: 1px solid var(--line-normal);
+  border-radius: var(--radius);
+  background: var(--fill-normal);
+  color: var(--fg);
+  font-family: var(--mono);
+  font-size: var(--fs-subtitle);
+  line-height: 1;
+  cursor: pointer;
+}
+.t-viewer__close:hover {
+  background: var(--fill-hover);
+  border-color: var(--line-hover);
 }
 
 .t-foot {
