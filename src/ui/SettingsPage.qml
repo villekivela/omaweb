@@ -44,10 +44,15 @@ Rectangle {
     // case, and shows nothing at all.
     readonly property string keyboardReport: keyboard ? keyboard.errorMessage : ""
 
+    // What the desktop's input method configuration amounts to, if it named one
+    // at all. A desktop that names a plugin it did not install is the case
+    // worth a notice: nothing composes and nothing says why.
+    readonly property bool inputMethodMissing: !InputMethodReport.available
+
     // Whether anything in here is waiting on the reader. The sidebar's settings
     // button reads this, so a notice that lives on one section is still
     // findable from outside it.
-    readonly property bool needsAttention: keyboardReport.length > 0
+    readonly property bool needsAttention: keyboardReport.length > 0 || inputMethodMissing
 
     readonly property var sections: ["tabs", "keyboard", "content blocking", "network", "downloads",
         "search", "privacy", "about"]
@@ -528,6 +533,22 @@ Rectangle {
                         glyph: "keyboard_alt"
                         title: "Some bindings were ignored"
                         detail: root.keyboardReport
+                    }
+
+                    // The plugin is the desktop's to install, so this names
+                    // what is missing rather than offering to fix it. It sits
+                    // here because an input method is keyboard input, and
+                    // because the alternative is a reader typing into a page
+                    // and watching nothing appear (#104).
+                    NoticeBox {
+                        objectName: "inputMethodNotice"
+                        width: pane.width
+                        visible: root.inputMethodMissing
+                        colors: root.colors
+                        iconFontFamily: root.iconFontFamily
+                        glyph: "keyboard_alt"
+                        title: "This desktop's input method is not installed"
+                        detail: InputMethodReport.diagnostic
                     }
                 }
 

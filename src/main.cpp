@@ -5,6 +5,7 @@
 #include "ExternalProtocolHandler.h"
 #include "FaviconTint.h"
 #include "HardwareVideoDecode.h"
+#include "InputMethod.h"
 #include "KeyboardNavigation.h"
 #include "KitTheme.h"
 #include "LaunchRequest.h"
@@ -227,6 +228,16 @@ int main(int argc, char *argv[])
         omaweb::OmarchyThemePaths::fromEnvironment(), QStringLiteral(OMAWEB_OMARCHY_TEMPLATE_PATH));
 #endif
     omaweb::ThemeController theme(themePaths());
+    // The plugin an input method needs is the desktop's to install, and a
+    // desktop that names one it has not installed leaves Qt with no input
+    // context and Omaweb with no text-input protocol bound. Nothing about that
+    // is printed by Qt, so the browser says it once here and again in Settings,
+    // because a browser that drops every composed character without a word is
+    // worse than one that names what is missing.
+    omaweb::InputMethodReport inputMethod(omaweb::InputMethodHost::fromEnvironment());
+    if (!inputMethod.available()) {
+        qWarning("%s", qPrintable(inputMethod.diagnostic()));
+    }
     omaweb::WindowManager windowManager(
         QStringLiteral("qt"), configRoot(), launch.privateWindowsAvailable);
 
@@ -239,6 +250,7 @@ int main(int argc, char *argv[])
     omaweb::registerProcessResources();
     omaweb::registerSavedDownload();
     omaweb::registerRuntimeSecurity(&runtimeSecurity);
+    omaweb::registerInputMethodReport(&inputMethod);
     QQmlApplicationEngine engine;
     omaweb::quickshell::installShim(engine);
     engine.rootContext()->setContextProperty(QStringLiteral("browser"), &browser);

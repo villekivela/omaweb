@@ -3,6 +3,7 @@
 #include "FaviconTint.h"
 #include "DefaultBrowser.h"
 #include "ExternalProtocolHandler.h"
+#include "InputMethod.h"
 #include "KeyboardNavigation.h"
 #include "KitTheme.h"
 #include "PagePrinter.h"
@@ -110,6 +111,10 @@ int main(int argc, char *argv[])
     omaweb::registerSavedDownload();
     static omaweb::RuntimeSecurity runtimeSecurity({}, {});
     omaweb::registerRuntimeSecurity(&runtimeSecurity);
+    // The lab reviews chrome rather than the desktop it runs on, so the report
+    // it draws is of a desktop that asked for no input method.
+    static omaweb::InputMethodReport inputMethod {omaweb::InputMethodHost {}};
+    omaweb::registerInputMethodReport(&inputMethod);
     QQmlApplicationEngine engine;
     omaweb::quickshell::installShim(engine);
     engine.rootContext()->setContextProperty(QStringLiteral("browser"), &browser);

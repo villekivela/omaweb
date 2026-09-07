@@ -242,6 +242,8 @@ add_library(omaweb-platform STATIC
     src/platform/DefaultBrowser.h
     src/platform/ExternalProtocolHandler.cpp
     src/platform/ExternalProtocolHandler.h
+    src/platform/InputMethod.cpp
+    src/platform/InputMethod.h
     src/platform/OmarchyTheme.cpp
     src/platform/OmarchyTheme.h
     src/platform/PagePrinter.cpp
@@ -703,6 +705,20 @@ if(BUILD_TESTING)
             ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_NO_XDG_DESKTOP_PORTAL=1"
         )
     endif()
+
+    # What the desktop asked Qt for by way of an input method against what it
+    # installed to answer with. Both halves are the host's, so the seam takes
+    # them as arguments and the test states the pairs rather than the machine
+    # it happens to run on.
+    qt_add_executable(omaweb-input-method-tests tests/platform/tst_inputmethod.cpp)
+    target_link_libraries(omaweb-input-method-tests PRIVATE omaweb-platform Qt6::Test)
+    omaweb_strict_target(omaweb-input-method-tests)
+    add_test(NAME omaweb-input-method COMMAND omaweb-input-method-tests)
+    # The GTK platform theme a desktop may have selected opens a display of its
+    # own and cannot, which is noise on a suite that states its own pairs.
+    set_tests_properties(omaweb-input-method PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QPA_PLATFORMTHEME="
+    )
 
     # Following the desktop's theme writes into the reader's Omarchy
     # configuration, so the seam takes its directories as arguments and the
