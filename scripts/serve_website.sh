@@ -4,8 +4,9 @@
 #   scripts/serve_website.sh            # the site
 #   scripts/serve_website.sh 8080       # on another port
 #
-# Rebuild the icon font after changing which icons the page draws:
-# scripts/build_website_icon_font.py
+# Rebuild the per-theme palettes, screenshots, favicons and wordmarks after a
+# chrome change or an upstream theme change:
+# scripts/build_website_themes.py
 set -euo pipefail
 
 port="${1:-8000}"
