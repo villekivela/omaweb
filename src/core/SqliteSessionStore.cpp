@@ -1,4 +1,4 @@
-#include "SessionStore.h"
+#include "SqliteSessionStore.h"
 
 #include "HistoryQuery.h"
 
@@ -11,14 +11,14 @@
 
 namespace omaweb {
 
-SessionStore::SessionStore(QString dataRoot)
+SqliteSessionStore::SqliteSessionStore(QString dataRoot)
     : m_dataRoot(std::move(dataRoot))
     , m_connectionName(
           QStringLiteral("omaweb-%1").arg(QUuid::createUuid().toString(QUuid::WithoutBraces)))
 {
 }
 
-SessionStore::~SessionStore()
+SqliteSessionStore::~SqliteSessionStore()
 {
     const auto spaceConnectionNames = m_spaceConnectionNames.values();
     for (auto database : m_spaceDatabases) {
@@ -36,7 +36,7 @@ SessionStore::~SessionStore()
     QSqlDatabase::removeDatabase(m_connectionName);
 }
 
-bool SessionStore::open(QString *errorMessage)
+bool SqliteSessionStore::open(QString *errorMessage)
 {
     if (!QDir().mkpath(m_dataRoot)) {
         if (errorMessage) {
@@ -68,7 +68,7 @@ bool SessionStore::open(QString *errorMessage)
     return true;
 }
 
-QVector<SpaceState> SessionStore::loadSpaces() const
+QVector<SpaceState> SqliteSessionStore::loadSpaces() const
 {
     QVector<SpaceState> spaces;
     QSqlQuery query(m_database);
@@ -84,7 +84,7 @@ QVector<SpaceState> SessionStore::loadSpaces() const
     return spaces;
 }
 
-QVector<TabState> SessionStore::loadTabs(const QString &spaceId) const
+QVector<TabState> SqliteSessionStore::loadTabs(const QString &spaceId) const
 {
     QVector<TabState> tabs;
     QSqlQuery query(spaceDatabase(spaceId));
@@ -113,7 +113,7 @@ QVector<TabState> SessionStore::loadTabs(const QString &spaceId) const
 // The tabs a Space has lost, newest first, which is the order they come back
 // in. Only what the session keeps about a tab is here: a reopened tab is a new
 // tab at a saved address, not the page that was closed.
-QVector<TabState> SessionStore::loadClosedTabs(const QString &spaceId) const
+QVector<TabState> SqliteSessionStore::loadClosedTabs(const QString &spaceId) const
 {
     QVector<TabState> tabs;
     QSqlQuery query(spaceDatabase(spaceId));
@@ -137,7 +137,7 @@ QVector<TabState> SessionStore::loadClosedTabs(const QString &spaceId) const
 
 // The whole stack is rewritten rather than pushed onto: it is at most a few
 // dozen rows, and one statement per close would still have to trim the far end.
-bool SessionStore::saveClosedTabs(const QString &spaceId, const QVector<TabState> &tabs)
+bool SqliteSessionStore::saveClosedTabs(const QString &spaceId, const QVector<TabState> &tabs)
 {
     auto database = spaceDatabase(spaceId);
     if (!database.transaction()) {
@@ -174,7 +174,7 @@ bool SessionStore::saveClosedTabs(const QString &spaceId, const QVector<TabState
     return database.commit();
 }
 
-bool SessionStore::saveSpace(const SpaceState &space)
+bool SqliteSessionStore::saveSpace(const SpaceState &space)
 {
     QSqlQuery query(m_database);
     query.prepare(
@@ -189,7 +189,7 @@ bool SessionStore::saveSpace(const SpaceState &space)
     return query.exec();
 }
 
-bool SessionStore::setActiveSpace(const QString &spaceId)
+bool SqliteSessionStore::setActiveSpace(const QString &spaceId)
 {
     if (!m_database.transaction()) {
         return false;
@@ -212,7 +212,7 @@ bool SessionStore::setActiveSpace(const QString &spaceId)
     return m_database.commit();
 }
 
-bool SessionStore::spaceHasSavedContent(const QString &spaceId) const
+bool SqliteSessionStore::spaceHasSavedContent(const QString &spaceId) const
 {
     const auto database = spaceDatabase(spaceId);
     QSqlQuery query(database);
@@ -234,7 +234,8 @@ bool SessionStore::spaceHasSavedContent(const QString &spaceId) const
     return files.hasNext();
 }
 
-bool SessionStore::deleteSpace(const QString &spaceId, const QString &replacementActiveSpaceId)
+bool SqliteSessionStore::deleteSpace(
+    const QString &spaceId, const QString &replacementActiveSpaceId)
 {
     if (!m_database.transaction()) {
         return false;
@@ -274,7 +275,7 @@ bool SessionStore::deleteSpace(const QString &spaceId, const QString &replacemen
     return true;
 }
 
-bool SessionStore::saveTab(const TabState &tab, int position)
+bool SqliteSessionStore::saveTab(const TabState &tab, int position)
 {
     QSqlQuery query(spaceDatabase(tab.spaceId));
     query.prepare(QStringLiteral(
@@ -297,7 +298,7 @@ bool SessionStore::saveTab(const TabState &tab, int position)
     return query.exec();
 }
 
-bool SessionStore::saveTabs(
+bool SqliteSessionStore::saveTabs(
     const QString &spaceId, const QVector<TabState> &tabs, const QString &activeTabId)
 {
     auto database = spaceDatabase(spaceId);
@@ -324,9 +325,10 @@ bool SessionStore::saveTabs(
     return database.commit();
 }
 
-bool SessionStore::saveSpaceMove(const QString &sourceSpaceId, const QVector<TabState> &sourceTabs,
-    const QString &sourceActiveTabId, const QString &destinationSpaceId,
-    const QVector<TabState> &destinationTabs, const QString &destinationActiveTabId)
+bool SqliteSessionStore::saveSpaceMove(const QString &sourceSpaceId,
+    const QVector<TabState> &sourceTabs, const QString &sourceActiveTabId,
+    const QString &destinationSpaceId, const QVector<TabState> &destinationTabs,
+    const QString &destinationActiveTabId)
 {
     spaceDatabase(sourceSpaceId);
     spaceDatabase(destinationSpaceId);
@@ -402,7 +404,7 @@ bool SessionStore::saveSpaceMove(const QString &sourceSpaceId, const QVector<Tab
 // Small, window-shaped settings the interface owns — how wide a panel was left,
 // not what a Space contains. They are named rather than columned so a new one
 // costs no migration.
-QString SessionStore::preference(const QString &name, const QString &fallback) const
+QString SqliteSessionStore::preference(const QString &name, const QString &fallback) const
 {
     QSqlQuery query(m_database);
     query.prepare(QStringLiteral("SELECT value FROM preferences WHERE name = ?"));
@@ -413,7 +415,7 @@ QString SessionStore::preference(const QString &name, const QString &fallback) c
     return query.value(0).toString();
 }
 
-bool SessionStore::savePreference(const QString &name, const QString &value)
+bool SqliteSessionStore::savePreference(const QString &name, const QString &value)
 {
     if (name.isEmpty()) {
         return false;
@@ -426,7 +428,7 @@ bool SessionStore::savePreference(const QString &name, const QString &value)
     return query.exec();
 }
 
-bool SessionStore::recordVisit(const QString &spaceId, const QUrl &url, const QString &title)
+bool SqliteSessionStore::recordVisit(const QString &spaceId, const QUrl &url, const QString &title)
 {
     auto database = spaceDatabase(spaceId);
     QSqlQuery query(database);
@@ -448,7 +450,8 @@ bool SessionStore::recordVisit(const QString &spaceId, const QUrl &url, const QS
     return true;
 }
 
-QVariantList SessionStore::history(const QString &spaceId, const QString &text, int limit) const
+QVariantList SqliteSessionStore::history(
+    const QString &spaceId, const QString &text, int limit) const
 {
     QVariantList rows;
     QSqlQuery query(spaceDatabase(spaceId));
@@ -474,7 +477,7 @@ QVariantList SessionStore::history(const QString &spaceId, const QString &text, 
     return rows;
 }
 
-bool SessionStore::deleteHistoryVisit(const QString &spaceId, qint64 id)
+bool SqliteSessionStore::deleteHistoryVisit(const QString &spaceId, qint64 id)
 {
     QSqlQuery query(spaceDatabase(spaceId));
     query.prepare(QStringLiteral("DELETE FROM history WHERE id = ?"));
@@ -482,7 +485,7 @@ bool SessionStore::deleteHistoryVisit(const QString &spaceId, qint64 id)
     return query.exec() && query.numRowsAffected() == 1;
 }
 
-bool SessionStore::deleteHistoryOrigin(const QString &spaceId, const QString &origin)
+bool SqliteSessionStore::deleteHistoryOrigin(const QString &spaceId, const QString &origin)
 {
     auto database = spaceDatabase(spaceId);
     QSqlQuery select(database);
@@ -520,7 +523,7 @@ bool SessionStore::deleteHistoryOrigin(const QString &spaceId, const QString &or
     return database.commit();
 }
 
-bool SessionStore::deleteHistorySince(const QString &spaceId, qint64 since)
+bool SqliteSessionStore::deleteHistorySince(const QString &spaceId, qint64 since)
 {
     QSqlQuery query(spaceDatabase(spaceId));
     query.prepare(since > 0 ? QStringLiteral("DELETE FROM history WHERE visited_at >= ?")
@@ -531,7 +534,7 @@ bool SessionStore::deleteHistorySince(const QString &spaceId, qint64 since)
     return query.exec();
 }
 
-bool SessionStore::clearPermissionsSince(const QString &spaceId, qint64 since)
+bool SqliteSessionStore::clearPermissionsSince(const QString &spaceId, qint64 since)
 {
     QSqlQuery query(spaceDatabase(spaceId));
     query.prepare(since > 0 ? QStringLiteral("DELETE FROM site_permissions WHERE updated_at >= ?")
@@ -542,7 +545,7 @@ bool SessionStore::clearPermissionsSince(const QString &spaceId, qint64 since)
     return query.exec();
 }
 
-int SessionStore::permissionDecision(
+int SqliteSessionStore::permissionDecision(
     const QString &spaceId, const QString &origin, const QString &permission) const
 {
     QSqlQuery query(spaceDatabase(spaceId));
@@ -556,7 +559,7 @@ int SessionStore::permissionDecision(
     return query.value(0).toInt();
 }
 
-bool SessionStore::savePermissionDecision(
+bool SqliteSessionStore::savePermissionDecision(
     const QString &spaceId, const QString &origin, const QString &permission, int decision)
 {
     QSqlQuery query(spaceDatabase(spaceId));
@@ -571,7 +574,8 @@ bool SessionStore::savePermissionDecision(
     return query.exec();
 }
 
-QVariantList SessionStore::permissionsForOrigin(const QString &spaceId, const QString &origin) const
+QVariantList SqliteSessionStore::permissionsForOrigin(
+    const QString &spaceId, const QString &origin) const
 {
     QSqlQuery query(spaceDatabase(spaceId));
     query.prepare(QStringLiteral("SELECT permission, decision FROM site_permissions "
@@ -590,7 +594,7 @@ QVariantList SessionStore::permissionsForOrigin(const QString &spaceId, const QS
     return permissions;
 }
 
-bool SessionStore::clearPermissionsForOrigin(const QString &spaceId, const QString &origin)
+bool SqliteSessionStore::clearPermissionsForOrigin(const QString &spaceId, const QString &origin)
 {
     QSqlQuery query(spaceDatabase(spaceId));
     query.prepare(QStringLiteral("DELETE FROM site_permissions WHERE origin = ?"));
@@ -598,7 +602,7 @@ bool SessionStore::clearPermissionsForOrigin(const QString &spaceId, const QStri
     return query.exec();
 }
 
-bool SessionStore::recordDownload(const QString &id, const QUrl &url, const QString &path,
+bool SqliteSessionStore::recordDownload(const QString &id, const QUrl &url, const QString &path,
     const QString &state, qint64 receivedBytes, qint64 totalBytes)
 {
     QSqlQuery query(m_database);
@@ -619,8 +623,8 @@ bool SessionStore::recordDownload(const QString &id, const QUrl &url, const QStr
     return query.exec();
 }
 
-bool SessionStore::updateDownload(const QString &id, const QString &state, qint64 receivedBytes,
-    qint64 totalBytes, const QString &error)
+bool SqliteSessionStore::updateDownload(const QString &id, const QString &state,
+    qint64 receivedBytes, qint64 totalBytes, const QString &error)
 {
     QSqlQuery query(m_database);
     query.prepare(QStringLiteral(
@@ -634,7 +638,7 @@ bool SessionStore::updateDownload(const QString &id, const QString &state, qint6
     return query.exec();
 }
 
-QVariantList SessionStore::downloadHistory() const
+QVariantList SqliteSessionStore::downloadHistory() const
 {
     QVariantList downloads;
     QSqlQuery query(m_database);
@@ -658,7 +662,7 @@ QVariantList SessionStore::downloadHistory() const
     return downloads;
 }
 
-bool SessionStore::forgetDownload(const QString &id)
+bool SqliteSessionStore::forgetDownload(const QString &id)
 {
     QSqlQuery query(m_database);
     query.prepare(QStringLiteral("DELETE FROM downloads WHERE id = ?"));
@@ -666,23 +670,23 @@ bool SessionStore::forgetDownload(const QString &id)
     return query.exec() && query.numRowsAffected() > 0;
 }
 
-QString SessionStore::dataRoot() const { return m_dataRoot; }
+QString SqliteSessionStore::dataRoot() const { return m_dataRoot; }
 
-QString SessionStore::spaceDatabasePath(const QString &dataRoot, const QString &spaceId)
+QString SqliteSessionStore::spaceDatabasePath(const QString &dataRoot, const QString &spaceId)
 {
     return QDir(dataRoot).filePath(QStringLiteral("spaces/%1/browser.sqlite").arg(spaceId));
 }
 
-QString SessionStore::engineProfilePath(const QString &spaceId, const QString &engineName) const
+QString SqliteSessionStore::engineProfilePath(
+    const QString &dataRoot, const QString &spaceId, const QString &engineName)
 {
     const auto path
-        = QDir(m_dataRoot)
-              .filePath(QStringLiteral("spaces/%1/engines/%2").arg(spaceId, engineName));
+        = QDir(dataRoot).filePath(QStringLiteral("spaces/%1/engines/%2").arg(spaceId, engineName));
     QDir().mkpath(path);
     return path;
 }
 
-bool SessionStore::executeSchema(QString *errorMessage)
+bool SqliteSessionStore::executeSchema(QString *errorMessage)
 {
     static constexpr auto schema = R"SQL(
         CREATE TABLE IF NOT EXISTS spaces (
@@ -732,7 +736,7 @@ bool SessionStore::executeSchema(QString *errorMessage)
     return true;
 }
 
-bool SessionStore::migrateLegacyTabs(QString *errorMessage)
+bool SqliteSessionStore::migrateLegacyTabs(QString *errorMessage)
 {
     QSqlQuery tableQuery(m_database);
     if (!tableQuery.exec(QStringLiteral(
@@ -806,7 +810,7 @@ bool SessionStore::migrateLegacyTabs(QString *errorMessage)
     return true;
 }
 
-void SessionStore::cleanupPendingSpaceDeletions()
+void SqliteSessionStore::cleanupPendingSpaceDeletions()
 {
     QSqlQuery pending(m_database);
     if (!pending.exec(QStringLiteral("SELECT space_id FROM pending_space_deletions"))) {
@@ -833,7 +837,7 @@ void SessionStore::cleanupPendingSpaceDeletions()
     }
 }
 
-QSqlDatabase SessionStore::spaceDatabase(const QString &spaceId) const
+QSqlDatabase SqliteSessionStore::spaceDatabase(const QString &spaceId) const
 {
     if (const auto it = m_spaceDatabases.constFind(spaceId); it != m_spaceDatabases.cend()) {
         return it.value();
@@ -907,7 +911,7 @@ QSqlDatabase SessionStore::spaceDatabase(const QString &spaceId) const
     return database;
 }
 
-void SessionStore::closeSpaceDatabase(const QString &spaceId)
+void SqliteSessionStore::closeSpaceDatabase(const QString &spaceId)
 {
     m_visitsSinceHistoryCleanup.remove(spaceId);
     const auto connectionName = m_spaceConnectionNames.take(spaceId);

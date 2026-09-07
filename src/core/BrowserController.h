@@ -16,6 +16,8 @@
 #include <QUrl>
 #include <QVariantList>
 
+#include <memory>
+
 namespace omaweb {
 
 class HistorySearch;
@@ -408,7 +410,12 @@ private:
     QString sessionPermissionKey(const QString &origin, const QString &permission) const;
     static bool localDevelopmentHost(const QString &host);
 
-    SessionStore m_store;
+    // The window's session. Which adapter it is answers "does a Private
+    // window write this down", so no call site asks.
+    std::shared_ptr<SessionStore> m_store;
+    // Kept beside the store because the history search opens the same files
+    // from its own thread, and a store that keeps nothing has no root to ask.
+    QString m_dataRoot;
     // The search thread and the object on it. Both are absent in a Private
     // window, which has no history to search.
     QThread *m_historyThread = nullptr;

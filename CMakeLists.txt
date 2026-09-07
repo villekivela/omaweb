@@ -146,8 +146,9 @@ add_library(omaweb-core STATIC
     src/core/RetainedTab.h
     src/core/SessionSiteState.cpp
     src/core/SessionSiteState.h
-    src/core/SessionStore.cpp
     src/core/SessionStore.h
+    src/core/SqliteSessionStore.cpp
+    src/core/SqliteSessionStore.h
     src/core/SpaceListModel.cpp
     src/core/SpaceListModel.h
     src/core/TabListModel.cpp
