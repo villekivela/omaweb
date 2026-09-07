@@ -1,8 +1,8 @@
 {
   "repository": "https://github.com/omacom/omarchy",
   "branch": "quattro",
-  "ref": "b686ed892d9c3020c3336203f6d34cc75b544e2b",
-  "fetched": "2026-08-31",
+  "ref": "a703092631599de5e70c5d3d2be4fbb268f8639b",
+  "fetched": "2026-09-07",
   "license": "MIT",
   "files": {
     "LICENSE": {
@@ -32,13 +32,23 @@
     },
     "qs/Commons/Util.qml": {
       "upstream": "shell/Commons/Util.qml",
-      "blob": "ca265acda4e2aecb1257444ce683bdbf2040f3df",
-      "sha256": "6894c63190973b5dbe50b13b3f7a99dd5770e143699f3aae1650fb65ca3ebe9b"
+      "blob": "14af44fed9ec8e852221d69ad8bde197a1c247e6",
+      "sha256": "5d3645caa4da6e640c021421d35a54bb0b05b01d9d904b284eba42b4b6017953"
     },
     "qs/Commons/qmldir": {
       "upstream": "shell/Commons/qmldir",
       "blob": "4bfd0b7838128144312a52dc33368df64e0968c3",
       "sha256": "5593fa25d33b1e2d3ed8628ca2e0dce5074497608f2bad6652689e390727e5e8"
+    },
+    "qs/Ui/BackgroundMedia.qml": {
+      "upstream": "shell/Ui/BackgroundMedia.qml",
+      "blob": "b281ae223ac505e4cd5cc7bf455c64fea25dc1e5",
+      "sha256": "b8e62a0fe29bf5d326da52550d871e01f0cd7ff0e5c2c195a50fcb7d1f503fc9"
+    },
+    "qs/Ui/BackgroundVideo.qml": {
+      "upstream": "shell/Ui/BackgroundVideo.qml",
+      "blob": "519e8bd99f02318fec657baaa55023640747e5a9",
+      "sha256": "c206343f404b8814c9457ab7b5f13c71641f5cb103d6186e513460c5a0d9c42d"
     },
     "qs/Ui/BarIconButton.qml": {
       "upstream": "shell/Ui/BarIconButton.qml",
@@ -155,6 +165,11 @@
       "blob": "90d3133af50b414682f4e7ae19615a6b6f3e4779",
       "sha256": "5520685c2d160002cb4bd62c9e5da193003c071fca69b90e6012ebf0c8ee4ca3"
     },
+    "qs/Ui/PluginBarApi.qml": {
+      "upstream": "shell/Ui/PluginBarApi.qml",
+      "blob": "03c748b142cd4d3470feae77db60461bb5090428",
+      "sha256": "91964a42b92c58476a4f961df35148d4c94071344ef1a69eab1563d1496705a7"
+    },
     "qs/Ui/PointerMoveGate.qml": {
       "upstream": "shell/Ui/PointerMoveGate.qml",
       "blob": "e97b9d83e45c286c811f77b5c0e130646b0857bb",
@@ -202,8 +217,8 @@
     },
     "qs/Ui/qmldir": {
       "upstream": "shell/Ui/qmldir",
-      "blob": "b25bf5ca00b27be9f3ee189d4326a1a522c464e2",
-      "sha256": "d6b4ac284aea719458cfdcf66afc18c63b69c20a400317ad307d029865a96886"
+      "blob": "092caf6c609102721006bc42ad84945e892b42fe",
+      "sha256": "9d4ff34131478f656a0368f43c8d1ea4d3ab0768296445fa0c96cad73e517a1e"
     }
   }
 }
