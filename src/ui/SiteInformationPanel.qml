@@ -224,7 +224,7 @@ Rectangle {
         Text {
             objectName: "siteInformationBlocked"
             width: parent.width
-            text: "· " + root.blockedRequestCount + " requests blocked in this window"
+            text: "· " + root.blockedRequestCount + " requests blocked on this page"
             color: root.colors.mutedText
             wrapMode: Text.WordWrap
             font.family: Style.font.family

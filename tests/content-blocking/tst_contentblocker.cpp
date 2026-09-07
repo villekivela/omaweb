@@ -255,8 +255,11 @@ void ContentBlockerTest::aRefusedWindowCountsAsABlockedRequest()
 
     QVERIFY(
         !blocker.shouldBlockPopup(QUrl(QStringLiteral("https://pay.example/checkout")), opener));
+    QSignalSpy blocked(&blocker, &ContentBlocker::requestsBlocked);
     QVERIFY(blocker.shouldBlockPopup(QUrl(QStringLiteral("https://popads.example/win")), opener));
-    QTRY_COMPARE_WITH_TIMEOUT(blocker.blockedRequestCount(opener), 1, 5000);
+    QTRY_COMPARE_WITH_TIMEOUT(blocked.count(), 1, 5000);
+    QCOMPARE(blocked.first().at(0).toUrl(), opener);
+    QCOMPARE(blocked.first().at(1).toInt(), 1);
 
     // A site the user turned blocking off for opens its windows either way.
     blocker.setSiteEnabled(opener, false);

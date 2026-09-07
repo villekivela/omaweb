@@ -686,9 +686,14 @@ Item {
                               + "globalThis.__omawebKeyboardNavigation.configure(" + JSON.stringify(
                                   keyboardNavigationConfiguration) + ");");
     }
-    function refreshBlockedRequestCount() {
-        root.blockedRequestCount = root.contentBlocker ? root.contentBlocker.blockedRequestCount(
-                                                             root.currentUrl) : 0;
+    // The count belongs to the page on show, so a new load starts it again.
+    // Announcements are batched, and one already earned by the page being
+    // replaced still belongs to it: it is delivered before the tally is
+    // cleared rather than landing on the page that follows.
+    function restartBlockedRequestCount() {
+        if (root.contentBlocker)
+            root.contentBlocker.flushBlockedRequestCounts();
+        root.blockedRequestCount = 0;
     }
     property bool cosmeticRulesInjected: false
     property int cosmeticRuleGeneration: 0
@@ -906,8 +911,6 @@ Item {
     }
 
     Component.onCompleted: {
-        if (root.contentBlocker)
-            root.blockedRequestCount = root.contentBlocker.blockedRequestCount(root.currentUrl);
         Qt.callLater(root.applyKeyboardNavigationConfiguration);
     }
 
@@ -920,21 +923,19 @@ Item {
         // the only two that re-inject a stylesheet; doing it per blocked
         // request cost a rule lookup and a script round trip hundreds of times
         // over a single page load, in every open tab at once.
-        function onBlockedRequestCountChanged(siteUrl) {
+        function onRequestsBlocked(siteUrl, count) {
             if (siteUrl.toString().length > 0 && siteUrl.host !== root.currentUrl.host)
                 return;
-            root.refreshBlockedRequestCount();
+            root.blockedRequestCount += count;
         }
 
         function onConfigurationChanged() {
             root.cosmeticRuleGeneration += 1;
-            root.refreshBlockedRequestCount();
             root.surveyGenericCosmeticRules();
         }
 
         function onRulesChanged() {
             root.cosmeticRuleGeneration += 1;
-            root.refreshBlockedRequestCount();
             root.surveyGenericCosmeticRules();
         }
     }
@@ -1382,8 +1383,8 @@ Item {
         }
 
         onLoadingChanged: function (loadRequest) {
-            root.refreshBlockedRequestCount();
             if (loadRequest.status === WebEngineView.LoadStartedStatus) {
+                root.restartBlockedRequestCount();
                 root.pageGeneration += 1;
                 root.javaScriptDialogsBlocked = false;
                 root.lastLoadFailed = false;

@@ -51,7 +51,9 @@ public:
     Q_INVOKABLE void restoreDefaultSubscriptions();
     Q_INVOKABLE bool siteEnabled(const QUrl &url) const;
     Q_INVOKABLE void setSiteEnabled(const QUrl &url, bool enabled);
-    Q_INVOKABLE int blockedRequestCount(const QUrl &url) const;
+    // A page load owns its own tally, so the announcements a view has not
+    // heard yet are delivered before it starts a new one and zeroes itself.
+    Q_INVOKABLE void flushBlockedRequestCounts();
     Q_INVOKABLE QString cosmeticStyleSheet(const QUrl &url) const;
     Q_INVOKABLE QString scriptletSource(const QUrl &url) const;
     Q_INVOKABLE bool cosmeticSurveyWanted(const QUrl &url) const;
@@ -70,7 +72,10 @@ signals:
     void subscriptionsChanged();
     void compilingChanged();
     void rulesChanged();
-    void blockedRequestCountChanged(const QUrl &siteUrl);
+    // How many requests were blocked for that site since the last
+    // announcement, not a running total: the tally belongs to the page load
+    // that a view is showing, and only the view knows when that ends.
+    void requestsBlocked(const QUrl &siteUrl, int count);
 
 private:
     struct Subscription {
@@ -82,6 +87,10 @@ private:
         QString updateStatus;
         QString lastUpdated;
         bool enabled = true;
+    };
+    struct PendingSite {
+        QUrl url;
+        int blocked = 0;
     };
     struct Runtime {
         std::shared_ptr<const ContentMatcher> matcher;
@@ -96,7 +105,6 @@ private:
     void seedDefaultSubscriptions();
     void countBlockedRequest(const QUrl &sourceUrl) const;
     void noteBlockedRequest(const QUrl &sourceUrl);
-    void flushBlockedRequestCounts();
     void save() const;
     void recompile();
     void replaceDisabledSites();
@@ -113,11 +121,10 @@ private:
     QList<Subscription> m_subscriptions;
     QSet<QString> m_disabledSites;
     std::shared_ptr<const Runtime> m_runtime;
-    QHash<QString, int> m_blockedCounts;
     // A busy page blocks hundreds of requests. Announcing each one separately
-    // would make every open tab re-read its counter and re-run its bindings
-    // hundreds of times over a single load, so the announcements are batched.
-    QHash<QString, QUrl> m_pendingBlockedSites;
+    // would make every open tab re-run its bindings hundreds of times over a
+    // single load, so the announcements are batched and carry their own count.
+    QHash<QString, PendingSite> m_pendingBlockedSites;
     QTimer m_blockedCountFlush;
     QNetworkAccessManager m_network;
     QVariantMap m_compilationReport;

@@ -1172,7 +1172,7 @@ void QtEngineContractTest::qtRejectsObsoleteCosmeticSurveys()
             property int genericRequests: 0
             signal rulesChanged()
             signal configurationChanged()
-            function blockedRequestCount(url) { return 0; }
+            function flushBlockedRequestCounts() {}
             function cosmeticStyleSheet(url) { return ""; }
             function scriptletSource(url) { return ""; }
             function cosmeticSurveyWanted(url) { return true; }
