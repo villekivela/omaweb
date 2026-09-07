@@ -79,6 +79,7 @@ private slots:
     void adaptersNameTheColoursTheirInspectorIsDrawnIn();
     void qtDocksAnInspectorDrawnInOmawebsColours();
     void qtKeepsAnInspectedTabActiveOnlyWhileAttached();
+    void qtFreezesAHiddenPageTheShellHasFinishedWith();
     void qtInspectsAPrivateTabInItsOwnTemporaryProfile();
     void qtPicksAnElementWhenNoContextMenuNamedOne();
     void qtDrawsMarkupDelimitersApartFromTheNamesBetweenThem();
@@ -1650,6 +1651,70 @@ void QtEngineContractTest::qtKeepsAnInspectedTabActiveOnlyWhileAttached()
     // Detached: the exception goes with the inspector.
     QVERIFY(QMetaObject::invokeMethod(adapter.get(), "detachDeveloperTools"));
     QTRY_COMPARE(webView->property("recommendedState"), frozenState);
+}
+
+// The shell states that a page has no reader, and the adapter is what carries
+// that to Chromium: the page stops running and keeps its document, so clearing
+// the decision continues it rather than loading it again. Chromium refuses to
+// freeze a page it is drawing or a page under an inspector, and says so through
+// a recommendation of its own, so the decision is applied against that answer
+// rather than written once and assumed.
+void QtEngineContractTest::qtFreezesAHiddenPageTheShellHasFinishedWith()
+{
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    QQmlEngine engine;
+    QQmlComponent component(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
+        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
+    }));
+    QVERIFY2(adapter, qPrintable(component.errorString()));
+    auto *item = qobject_cast<QQuickItem *>(adapter.get());
+    QVERIFY(item);
+    QQuickWindow window;
+    window.resize(800, 600);
+    item->setParentItem(window.contentItem());
+    item->setSize(QSizeF(800, 600));
+    window.show();
+
+    QVERIFY(adapter->setProperty(
+        "currentUrl", QUrl(QStringLiteral("data:text/html,<title>Running</title><p>page</p>"))));
+    QTRY_COMPARE(adapter->property("pageTitle").toString(), QStringLiteral("Running"));
+
+    auto *webView = adapter->findChild<QObject *>(QStringLiteral("qtWebView"));
+    QVERIFY(webView);
+    const auto activeState = webView->property("lifecycleState");
+    QVERIFY(activeState.isValid());
+    const auto frozenState = QVariant::fromValue(activeState.toInt() + 1);
+
+    // Something only this document holds, to tell a continued page from a
+    // reloaded one afterwards.
+    QVERIFY(QMetaObject::invokeMethod(webView, "runJavaScript",
+        Q_ARG(QString, QStringLiteral("globalThis.__omawebMarker = 'kept';"))));
+
+    // A page the shell is still drawing goes on running whatever it asks for.
+    QVERIFY(adapter->setProperty("pageFrozen", true));
+    QCOMPARE(webView->property("lifecycleState"), activeState);
+
+    item->setVisible(false);
+    QTRY_COMPARE(webView->property("lifecycleState"), frozenState);
+
+    // The inspector is the reader: a page under one runs whatever the shell
+    // decided, and freezes again when the inspector goes.
+    QVERIFY(QMetaObject::invokeMethod(adapter.get(), "attachDeveloperTools"));
+    QTRY_COMPARE(webView->property("lifecycleState"), activeState);
+    QVERIFY(QMetaObject::invokeMethod(adapter.get(), "detachDeveloperTools"));
+    QTRY_COMPARE(webView->property("lifecycleState"), frozenState);
+
+    // Selecting the tab again continues the same document.
+    item->setVisible(true);
+    QVERIFY(adapter->setProperty("pageFrozen", false));
+    QTRY_COMPARE(webView->property("lifecycleState"), activeState);
+    QVERIFY(QMetaObject::invokeMethod(webView, "runJavaScript",
+        Q_ARG(
+            QString, QStringLiteral("document.title = globalThis.__omawebMarker || 'reloaded';"))));
+    QTRY_COMPARE(adapter->property("pageTitle").toString(), QStringLiteral("kept"));
 }
 
 // A Private window's pages run in one temporary off-the-record profile, and the

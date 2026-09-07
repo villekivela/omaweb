@@ -1,15 +1,17 @@
 import QtQuick
 import Omaweb
 
-// The pages that outlive their Space, and what they cost.
+// The pages the reader is answered for while their Space is away, and what they
+// cost.
 //
-// Only the Space on show keeps live pages. This is the exception and its whole
-// bookkeeping: which tabs of a suspended Space kept their engine, starting the
-// ones whose Space has never been visited, taking one away when the core stops
-// retaining it, and answering for what each one holds. It is kept apart from
-// the engine of the tab on show because the two are asked different questions —
-// one is about the page the reader is looking at, the other about pages they
-// cannot see.
+// A Space that is away keeps its pages frozen, so existing is not what makes a
+// page interesting here. These are the named ones: the tabs the core retains,
+// which are started even in a Space that has never been visited, are listed
+// with what they hold, and lose their engine when the core stops retaining
+// them. They freeze like every other page the reader cannot see; what retention
+// decides is that they are answered for. It is kept apart from the engine of the
+// tab on show because the two are asked different questions — one is about the
+// page the reader is looking at, the other about pages they cannot see.
 //
 // The engines themselves belong to the host, which is the only thing that can
 // build and destroy them; this object decides which of them should exist.
@@ -70,7 +72,7 @@ QtObject {
                                                       kept.spaceId), profile.profile);
             if (!engine)
                 continue;
-            engine.visible = false;
+            root.host.setEngineVisible(kept.tabId, false);
             engine.audioMuted = kept.muted === true;
             engine.setZoomFactor(kept.zoom !== undefined ? kept.zoom : 1.0);
             root.tabs[kept.tabId] = kept.spaceId;

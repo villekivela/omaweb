@@ -35,6 +35,10 @@ Rectangle {
     // No renderer, so no process to account for. The lab reports a pid a test
     // can name rather than pretending to have one.
     property int renderProcessPid: 0
+    // Whether the shell has stopped this page for want of a reader. The lab has
+    // nothing to stop, so it records the decision and nothing else: which pages
+    // are frozen is the shell's rule, and this is where a test reads it.
+    property bool pageFrozen: false
     property bool canGoBack: false
     property bool canGoForward: false
     property string pageLocalState: ""

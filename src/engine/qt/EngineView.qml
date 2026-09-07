@@ -25,6 +25,28 @@ Item {
     // actually costs rather than only that it is running. Zero while the view
     // has no renderer, which is the honest answer for a page that is not up.
     readonly property int renderProcessPid: webView.renderProcessPid
+    // Whether this page may stop running while nobody is looking at it. The
+    // shell decides that; Chromium decides whether it can be done. A frozen
+    // page keeps its document, its process and everything it holds, and stops
+    // running timers, animations and script, so clearing this continues the
+    // page rather than loading it again. Discarding is never asked for: that
+    // would take the page away, which is the shell's other policy and reaches
+    // an engine as a destroyed adapter.
+    property bool pageFrozen: false
+    onPageFrozenChanged: root.applyPageLifecycle()
+
+    // Chromium refuses to freeze a page it is still drawing, and refuses
+    // anything below Active while the inspector is attached. It reports both as
+    // a recommendation of its own, and reports it after the fact rather than
+    // when the shell decides, so the decision is applied again every time that
+    // recommendation moves.
+    function applyPageLifecycle() {
+        const frozen = WebEngineView.LifecycleState.Frozen;
+        const active = WebEngineView.LifecycleState.Active;
+        const wanted = root.pageFrozen && webView.recommendedState !== active ? frozen : active;
+        if (webView.lifecycleState !== wanted)
+            webView.lifecycleState = wanted;
+    }
     property alias canGoBack: webView.canGoBack
     property alias canGoForward: webView.canGoForward
     property string profilePath: ""
@@ -1308,6 +1330,8 @@ Item {
         // to gain by starting — either the tab is muted or the reader has
         // already dealt with the origin.
         settings.playbackRequiresUserGesture: !root.autoplayAllowed
+
+        onRecommendedStateChanged: root.applyPageLifecycle()
 
         onRenderProcessTerminated: function (terminationStatus, exitCode) {
             root.rendererFailed("Renderer stopped with exit code " + exitCode);

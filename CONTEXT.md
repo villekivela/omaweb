@@ -28,6 +28,11 @@ address changes only when the user explicitly updates the pin. _Avoid_: Bookmark
 active. The setting survives restart, and Omaweb always identifies the retained tab and its resource
 use. _Avoid_: Background Space, never suspend
 
+**Frozen tab**: A tab whose page has stopped running because the reader is not looking at it. It
+keeps its document and everything the page holds, and continues where it stopped when the tab is
+selected, rather than loading again. A tab an inspector is attached to and a tab making sound are
+not frozen. _Avoid_: Suspended tab, sleeping tab, discarded tab
+
 **Space at rest**: A Space with nothing open in it, because nothing has been opened yet or the last
 page has been closed. Its only ordinary tab is blank. A Space at rest lists no ordinary tab and
 shows the Start page in place of a webpage; its Pinned tabs are unaffected. _Avoid_: Empty tab,

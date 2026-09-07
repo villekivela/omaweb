@@ -8,7 +8,9 @@ configuration remain shared.
 Only the active Space keeps live pages. Omaweb serializes and suspends inactive Spaces, then
 restores their tabs when selected. Applying the same lifecycle to both engines is a deliberate
 memory policy. Ladybird's named profiles can now run side by side, so Ladybird no longer forces this
-restriction.
+restriction. This paragraph's memory policy is replaced by
+[ADR 0033](0033-stop-an-away-spaces-pages-instead-of-taking-them.md): an away Space now keeps its
+pages frozen rather than losing them. The rest of this decision stands.
 
 Within the active Space, Omaweb may suspend old background tabs under memory pressure. It does not
 automatically suspend tabs that play or capture media, download data, contain edited form state, or

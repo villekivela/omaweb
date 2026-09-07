@@ -53,6 +53,13 @@ QStringList validateEngineViewContract(const QObject &adapter)
         // retained tab costs.
         {"autoplayAllowed", QMetaType::Bool},
         {"renderProcessPid", QMetaType::Int},
+        // Whether this page may stop running while nobody is looking at it. The
+        // shell decides which pages those are and writes the decision here; the
+        // adapter owes it a page that keeps its document and its state, so
+        // clearing the decision continues the page rather than loading it
+        // again. An engine that cannot stop a page keeps running it, which
+        // costs memory and battery and nothing else.
+        {"pageFrozen", QMetaType::Bool},
         // Fullscreen the site asked for, which is not fullscreen the reader
         // asked for: the origin is named so the notice can say who is holding
         // the screen.
