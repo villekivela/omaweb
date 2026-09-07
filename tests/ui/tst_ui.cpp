@@ -6,6 +6,7 @@
 #include "KitTheme.h"
 #include "PagePrinter.h"
 #include "ProcessResources.h"
+#include "InputMethod.h"
 #include "RuntimeSecurity.h"
 #include "SavedDownload.h"
 #include "SystemNotifier.h"
@@ -65,6 +66,10 @@ public slots:
         m_runtimeSecurity = std::make_unique<omaweb::RuntimeSecurity>(
             omaweb::SandboxHost {}, omaweb::RuntimeSecurity::EngineBuild {});
         omaweb::registerRuntimeSecurity(m_runtimeSecurity.get());
+        // A desktop that asked for no input method, so the chrome under test is
+        // the ordinary one rather than one carrying a notice about this host.
+        m_inputMethod = std::make_unique<omaweb::InputMethodReport>(omaweb::InputMethodHost {});
+        omaweb::registerInputMethodReport(m_inputMethod.get());
         m_dataRoot = std::make_unique<QTemporaryDir>();
         m_browser = std::make_unique<omaweb::BrowserController>(
             m_dataRoot->path(), QStringLiteral("mock"));
@@ -137,6 +142,7 @@ private:
     std::unique_ptr<omaweb::KitTheme> m_kitTheme;
     std::unique_ptr<omaweb::WindowManager> m_windowManager;
     std::unique_ptr<omaweb::RuntimeSecurity> m_runtimeSecurity;
+    std::unique_ptr<omaweb::InputMethodReport> m_inputMethod;
 };
 
 QUICK_TEST_MAIN_WITH_SETUP(omaweb_ui, UiTestSetup)

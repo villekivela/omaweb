@@ -176,6 +176,15 @@ and an input method silently does nothing. Under `WAYLAND_DEBUG=1` the differenc
 `zwp_text_input_manager_v3` is advertised and never bound, and with `QT_IM_MODULE` unset both it and
 `v1` are. This is not Omaweb-specific, but the package is where it can be answered.
 
+An optional dependency only helps someone reading the package, so the browser says it too.
+`InputMethod.cpp` reads the modules the environment names, `QT_IM_MODULES` before `QT_IM_MODULE` as
+Qt reads them, against the keys the installed platform input context plugins declare, which it takes
+from each plugin's metadata without loading it. Naming a module nothing answers to warns once at
+startup and stands a notice in Settings under Keyboard, which is also what marks the settings button
+as wanting attention. A desktop that names no input method is not misconfigured and is told nothing.
+What the browser cannot answer for is the other half: a plugin that is installed still needs its
+daemon running, and only typing into a page proves that (#104).
+
 ```sh
 scripts/check_package.sh
 ```
