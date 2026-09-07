@@ -53,6 +53,15 @@ Item {
         });
     }
 
+    // Suggestions arrive after the keystroke that asked for them, so a row the
+    // reader had stepped onto is a different destination once the answer
+    // lands, or gone. The typed text is always a destination, so the selection
+    // goes back to it rather than to whatever now sits at that index.
+    onSuggestionsChanged: {
+        if (!commandMode)
+            selected = -1;
+    }
+
     function refresh() {
         results = commandMode ? commands.search(input.text) : [];
         selected = commandMode ? 0 : -1;

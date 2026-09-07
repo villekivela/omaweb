@@ -1337,8 +1337,12 @@ ApplicationWindow {
     function openOmnibar(forNewTab) {
         newTabIntent = forNewTab;
         const preset = forNewTab ? "" : window.windowBrowser.activeUrl.toString();
-        omnibarSuggestions = window.privateWindow ? [] : window.windowBrowser.historySuggestions(
-                                                        preset);
+        // Suggestions arrive from the search thread, so the panel opens on the
+        // typing it was opened for rather than on a scan of the Space's
+        // history finishing first.
+        omnibarSuggestions = [];
+        if (!window.privateWindow)
+            window.windowBrowser.requestHistorySuggestions(preset);
         commandPanel.beginAddress(preset, forNewTab);
         omnibarOpen = true;
     }
@@ -1623,6 +1627,9 @@ ApplicationWindow {
     function closeOmnibar() {
         omnibarOpen = false;
         newTabIntent = false;
+        omnibarSuggestions = [];
+        if (!window.privateWindow)
+            window.windowBrowser.cancelHistorySuggestions();
         engineLoader.focusPage();
     }
 
@@ -2525,6 +2532,11 @@ ApplicationWindow {
     Connections {
         target: window.windowBrowser
 
+        function onHistorySuggestionsReady(suggestions) {
+            if (!window.omnibarOpen || commandPanel.commandMode)
+                return;
+            window.omnibarSuggestions = suggestions;
+        }
         function onRetainedTabsChanged() {
             window.refreshRetainedTabs();
         }
@@ -2916,9 +2928,14 @@ ApplicationWindow {
         onQueryChanged: function (text) {
             if (commandPanel.commandMode)
                 return;
-            window.omnibarSuggestions = window.privateWindow ? [] :
-                                                               window.windowBrowser.historySuggestions(
-                                                                   text);
+            if (window.privateWindow) {
+                window.omnibarSuggestions = [];
+                return;
+            }
+            // The rows on show stay until the answer to this keystroke
+            // arrives: emptying them first would flicker the panel on every
+            // character.
+            window.windowBrowser.requestHistorySuggestions(text);
         }
         onCommitted: function (text) {
             window.windowBrowser.openInput(text, window.newTabIntent);

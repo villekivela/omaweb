@@ -7,6 +7,7 @@
 #include "TabListModel.h"
 
 #include <QObject>
+#include <QThread>
 #include <QHash>
 #include <QSet>
 #include <QSharedPointer>
@@ -16,6 +17,8 @@
 #include <QVariantList>
 
 namespace omaweb {
+
+class HistorySearch;
 
 class BrowserController final : public QObject {
     Q_OBJECT
@@ -247,7 +250,18 @@ public:
     // one rather than becoming a muting decision of its own.
     Q_INVOKABLE void grantTabSound(const QString &tabId);
     Q_INVOKABLE void recordVisit(const QUrl &url, const QString &title);
-    Q_INVOKABLE QVariantList historySuggestions(const QString &query, int limit = 8) const;
+    // The Omnibar's search, answered off the GUI thread. Every keystroke may
+    // ask, and only the answer to the latest request, for the Space still on
+    // show, reaches historySuggestionsReady. One search runs and one waits, so
+    // typing faster than the store answers cannot queue more work.
+    Q_INVOKABLE void requestHistorySuggestions(const QString &query, int limit = 8);
+    // Abandons what a running or waiting search would have answered: the
+    // Omnibar has closed, the Space has changed, or the history it read has
+    // been deleted.
+    Q_INVOKABLE void cancelHistorySuggestions();
+    // Holds every search open for this long. Only a test sets it, to have
+    // input arrive while a search is still running.
+    Q_INVOKABLE void setHistorySearchDelayForTests(int milliseconds);
     Q_INVOKABLE QVariantList history(const QString &query, int limit = 500) const;
     Q_INVOKABLE bool deleteHistoryVisit(qint64 id);
     Q_INVOKABLE bool deleteHistoryOrigin(const QUrl &url);
@@ -348,10 +362,21 @@ signals:
     // only appear to undo.
     void engineOriginPermissionsResetRequested(const QString &spaceId, const QUrl &origin);
     void thirdPartyCookieAllowancesChanged();
+    // The suggestions for the request the Omnibar is still waiting on. A
+    // Private window is answered with none.
+    void historySuggestionsReady(const QVariantList &suggestions);
+    // Carried to the search thread. Nothing outside this class connects them.
+    void historySearchRequested(
+        const QString &spaceId, const QString &text, int limit, quint64 generation);
+    void historySearchSpaceForgotten(const QString &spaceId);
+    void historySearchDelayRequested(int milliseconds);
     void certificateExceptionsChanged();
 
 private:
     void initialize();
+    void startHistorySearch(const QString &text, int limit);
+    void historySearchAnswered(
+        const QString &spaceId, const QVariantList &suggestions, quint64 generation);
     void ensureDefaultSpace();
     void ensureActiveTab();
     bool persistTabs();
@@ -384,6 +409,17 @@ private:
     static bool localDevelopmentHost(const QString &host);
 
     SessionStore m_store;
+    // The search thread and the object on it. Both are absent in a Private
+    // window, which has no history to search.
+    QThread *m_historyThread = nullptr;
+    HistorySearch *m_historySearch = nullptr;
+    // Which request the interface is waiting for. A result carrying an earlier
+    // generation belongs to input the reader has already replaced.
+    quint64 m_historyGeneration = 0;
+    bool m_historySearchRunning = false;
+    bool m_historySearchPending = false;
+    QString m_pendingHistoryQuery;
+    int m_pendingHistoryLimit = 0;
     QTimer m_persistTabsTimer;
     SpaceListModel m_spaces;
     TabListModel m_tabs;

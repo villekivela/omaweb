@@ -1,5 +1,7 @@
 #include "SessionStore.h"
 
+#include "HistoryQuery.h"
+
 #include <QDir>
 #include <QDirIterator>
 #include <QSqlError>
@@ -8,11 +10,6 @@
 #include <QUuid>
 
 namespace omaweb {
-namespace {
-
-    constexpr int retainedHistoryRows = 5000;
-
-} // namespace
 
 SessionStore::SessionStore(QString dataRoot)
     : m_dataRoot(std::move(dataRoot))
@@ -431,38 +428,24 @@ bool SessionStore::savePreference(const QString &name, const QString &value)
 
 bool SessionStore::recordVisit(const QString &spaceId, const QUrl &url, const QString &title)
 {
-    QSqlQuery query(spaceDatabase(spaceId));
+    auto database = spaceDatabase(spaceId);
+    QSqlQuery query(database);
     query.prepare(QStringLiteral("INSERT INTO history(url, title, visited_at) VALUES(?, ?, ?)"));
     query.addBindValue(url.toString());
     query.addBindValue(title);
     query.addBindValue(QDateTime::currentMSecsSinceEpoch());
-    return query.exec();
-}
-
-QVariantList SessionStore::historySuggestions(
-    const QString &spaceId, const QString &text, int limit) const
-{
-    QVariantList suggestions;
-    QSqlQuery query(spaceDatabase(spaceId));
-    const auto pattern = QStringLiteral("%%1%").arg(text);
-    query.prepare(QStringLiteral("SELECT url, MAX(title), MAX(visited_at) FROM history "
-                                 "WHERE ? = '' OR url LIKE ? OR title LIKE ? "
-                                 "GROUP BY url ORDER BY MAX(visited_at) DESC LIMIT ?"));
-    query.addBindValue(text);
-    query.addBindValue(pattern);
-    query.addBindValue(pattern);
-    query.addBindValue(limit);
     if (!query.exec()) {
-        return suggestions;
+        return false;
     }
-    while (query.next()) {
-        QVariantMap item;
-        item.insert(QStringLiteral("url"), query.value(0).toUrl());
-        item.insert(QStringLiteral("title"), query.value(1).toString());
-        item.insert(QStringLiteral("visitedAt"), query.value(2).toLongLong());
-        suggestions.append(item);
+    // Trimming on every visit would delete over the whole retained window each
+    // time a page loads. Counting to a batch first keeps the bound without
+    // paying for it per navigation.
+    auto &visits = m_visitsSinceHistoryCleanup[spaceId];
+    if (++visits >= history::cleanupBatch) {
+        visits = 0;
+        history::trim(database);
     }
-    return suggestions;
+    return true;
 }
 
 QVariantList SessionStore::history(const QString &spaceId, const QString &text, int limit) const
@@ -685,6 +668,11 @@ bool SessionStore::forgetDownload(const QString &id)
 
 QString SessionStore::dataRoot() const { return m_dataRoot; }
 
+QString SessionStore::spaceDatabasePath(const QString &dataRoot, const QString &spaceId)
+{
+    return QDir(dataRoot).filePath(QStringLiteral("spaces/%1/browser.sqlite").arg(spaceId));
+}
+
 QString SessionStore::engineProfilePath(const QString &spaceId, const QString &engineName) const
 {
     const auto path
@@ -855,7 +843,7 @@ QSqlDatabase SessionStore::spaceDatabase(const QString &spaceId) const
     QDir().mkpath(spaceRoot);
     const auto connectionName = QStringLiteral("%1-space-%2").arg(m_connectionName, spaceId);
     auto database = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), connectionName);
-    database.setDatabaseName(QDir(spaceRoot).filePath(QStringLiteral("browser.sqlite")));
+    database.setDatabaseName(spaceDatabasePath(m_dataRoot, spaceId));
     database.open();
     QSqlQuery pragma(database);
     pragma.exec(QStringLiteral("PRAGMA journal_mode = WAL"));
@@ -903,10 +891,9 @@ QSqlDatabase SessionStore::spaceDatabase(const QString &spaceId) const
         "CREATE INDEX IF NOT EXISTS history_visited_at ON history(visited_at DESC)"));
     schema.exec(QStringLiteral("CREATE INDEX IF NOT EXISTS history_url ON history(url)"));
     // One row per page load, kept forever, would make that read slower every
-    // day the browser is used. Only the recent past is ever suggested.
-    schema.exec(QStringLiteral("DELETE FROM history WHERE id NOT IN ("
-                               "SELECT id FROM history ORDER BY visited_at DESC LIMIT %1)")
-            .arg(retainedHistoryRows));
+    // day the browser is used. Only the recent past is ever suggested, and a
+    // running session keeps the same bound as visits arrive.
+    history::trim(database);
     schema.exec(QStringLiteral("CREATE TABLE IF NOT EXISTS site_permissions ("
                                "origin TEXT NOT NULL, "
                                "permission TEXT NOT NULL, "
@@ -922,6 +909,7 @@ QSqlDatabase SessionStore::spaceDatabase(const QString &spaceId) const
 
 void SessionStore::closeSpaceDatabase(const QString &spaceId)
 {
+    m_visitsSinceHistoryCleanup.remove(spaceId);
     const auto connectionName = m_spaceConnectionNames.take(spaceId);
     auto database = m_spaceDatabases.take(spaceId);
     if (database.isValid()) {
