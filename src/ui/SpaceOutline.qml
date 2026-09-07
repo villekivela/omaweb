@@ -278,8 +278,8 @@ Rectangle {
         anchors.top: parent.top
         anchors.leftMargin: 16
         anchors.rightMargin: 16
-        anchors.topMargin: 16
-        spacing: 12
+        anchors.topMargin: 10
+        spacing: 8
 
         // The navigation controls hold the row the Space heading used to: the
         // commands that act on the page open the outline, and the browsing
@@ -564,7 +564,10 @@ Rectangle {
             id: ordinarySection
             objectName: "ordinaryList"
             width: tabScroll.availableWidth
-            spacing: 0
+
+            // The list gaps its rows as the pinned section gaps its pins, so
+            // the two halves of the sidebar read as one list.
+            spacing: pinnedSection.spacing
 
             Repeater {
                 model: root.atRest || !root.browser ? null : root.browser.unpinnedTabs
