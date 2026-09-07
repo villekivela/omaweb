@@ -1,5 +1,7 @@
 #include "WindowManager.h"
 
+#include "PrivateSessionStore.h"
+
 #include "BrowserController.h"
 
 #include <QDir>
@@ -35,8 +37,8 @@ BrowserController *WindowManager::createPrivateWindow()
         return nullptr;
     }
 
-    auto *controller = new BrowserController({}, m_engineName, true, m_privatePermissionDecisions,
-        m_privateSiteState, m_configRoot, this);
+    auto *controller = new BrowserController(m_privateStore, m_engineName, true,
+        m_privatePermissionDecisions, m_privateSiteState, m_configRoot, this);
     if (!controller->ready()) {
         controller->deleteLater();
         return nullptr;
@@ -70,6 +72,7 @@ void WindowManager::releasePrivateWindow(QObject *controller)
                 return;
             }
             m_privateRoot.reset();
+            m_privateStore.reset();
             m_privatePermissionDecisions.reset();
             m_privateSiteState.reset();
             emit privateSessionChanged();
@@ -106,6 +109,7 @@ bool WindowManager::ensurePrivateSession()
 
     m_privateRoot = std::move(root);
     m_privatePermissionDecisions = QSharedPointer<QHash<QString, int>>::create();
+    m_privateStore = std::make_shared<PrivateSessionStore>(m_privatePermissionDecisions);
     m_privateSiteState = QSharedPointer<SessionSiteState>::create();
     emit privateSessionChanged();
     return true;

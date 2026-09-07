@@ -127,6 +127,14 @@ public:
         QSharedPointer<QHash<QString, int>> sessionPermissionDecisions,
         QSharedPointer<SessionSiteState> sessionSiteState, QString configRoot,
         QObject *parent = nullptr);
+    // A Private window is handed the store its session already has, so what one
+    // window agreed to is what the next one finds. Whether a window is private
+    // stays a fact of its own: a store that keeps nothing is also how an
+    // ordinary window could be built for a test.
+    BrowserController(std::shared_ptr<SessionStore> store, QString engineName, bool privateBrowsing,
+        QSharedPointer<QHash<QString, int>> sessionPermissionDecisions,
+        QSharedPointer<SessionSiteState> sessionSiteState, QString configRoot,
+        QObject *parent = nullptr);
 
     ~BrowserController() override;
 
@@ -407,6 +415,10 @@ private:
     bool saveSearchEngines(const QVariantList &engines, const QString &defaultEngineId);
     void loadDownloadDirectory();
     static QString normalizedOrigin(const QUrl &url);
+    BrowserController(std::shared_ptr<SessionStore> store, QString dataRoot, QString engineName,
+        bool privateBrowsing, QSharedPointer<QHash<QString, int>> sessionPermissionDecisions,
+        QSharedPointer<SessionSiteState> sessionSiteState, QString configRoot, QObject *parent);
+
     QString sessionPermissionKey(const QString &origin, const QString &permission) const;
     static bool localDevelopmentHost(const QString &host);
 
