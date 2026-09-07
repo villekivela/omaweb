@@ -1,5 +1,7 @@
 #include "PagePrinter.h"
 
+#include "PortalWindow.h"
+
 #include <QDBusConnection>
 #include <QDBusConnectionInterface>
 #include <QDBusMessage>
@@ -57,7 +59,7 @@ bool PagePrinter::available() const
 // destination is the PDF one the reader expects. The page has already been
 // rendered to PDF by the engine adapter, so what is printed is what was on
 // screen.
-bool PagePrinter::present(const QString &path, const QString &jobName)
+bool PagePrinter::present(const QString &path, const QString &jobName, QWindow *window)
 {
     if (!available() || path.isEmpty()) {
         discard(path);
@@ -84,14 +86,15 @@ bool PagePrinter::present(const QString &path, const QString &jobName)
             QStringLiteral("omaweb_%1")
                 .arg(QUuid::createUuid().toString(QUuid::WithoutBraces).left(8))},
     };
-    // No parent window. Exporting Omaweb's surface for the dialog to sit over
-    // needs a handle Qt does not offer through public API, so the dialog comes
-    // up unparented rather than modal to the window that asked.
+    // The window the reader asked from, named the way the portal names one, so
+    // its dialog stands over that window. A desktop that gives no name gets an
+    // empty one, which is a dialog of its own placing rather than no dialog.
     //
-    // No print token either, which is what makes the portal show a dialog at
-    // all: a token from `PreparePrint` would mean the settings were already
-    // answered and this should print straight away.
-    message << QString() << (jobName.isEmpty() ? QStringLiteral("Omaweb") : jobName)
+    // No print token, which is what makes the portal show a dialog at all: a
+    // token from `PreparePrint` would mean the settings were already answered
+    // and this should print straight away.
+    message << portalWindowHandle(window)
+            << (jobName.isEmpty() ? QStringLiteral("Omaweb") : jobName)
             << QVariant::fromValue(descriptor) << options;
 
     const auto reply = QDBusConnection::sessionBus().call(message, QDBus::Block, kCallTimeoutMs);

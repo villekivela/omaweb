@@ -858,7 +858,7 @@ ApplicationWindow {
                               "The page could not be rendered for printing");
             return;
         }
-        if (!PagePrinter.present(destination, window.windowBrowser.activeTitle)) {
+        if (!PagePrinter.present(destination, window.windowBrowser.activeTitle, window)) {
             window.showNotice("print_disabled", "Printing failed",
                               "This desktop has no print dialog to present");
         }

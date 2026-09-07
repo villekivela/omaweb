@@ -5,7 +5,9 @@
 #include <QDBusObjectPath>
 #include <QDBusUnixFileDescriptor>
 #include <QFile>
+#include <QGuiApplication>
 #include <QTest>
+#include <QWindow>
 #include <QVariantMap>
 
 using omaweb::PagePrinter;
@@ -82,6 +84,8 @@ private slots:
     void asksForADialogRatherThanAStraightPrint();
     void takesTheSpooledCopyAwayOnceThePortalHasIt();
     void refusesToPrintADocumentThatWasNeverRendered();
+    void printsUnparentedWhenNoWindowAsked();
+    void namesTheWindowTheDialogBelongsTo();
 
 private:
     StubPrintPortal *m_portal = nullptr;
@@ -174,6 +178,42 @@ void PrintPortalTest::refusesToPrintADocumentThatWasNeverRendered()
     QVERIFY(!QFile::exists(missing));
     QVERIFY(!m_printer->present(missing, QStringLiteral("Job")));
     QCOMPARE(m_portal->requests.size(), asked);
+}
+
+// A print that names no window still prints. The portal places the dialog
+// itself then, which is what every print did before a window was named.
+void PrintPortalTest::printsUnparentedWhenNoWindowAsked()
+{
+    const auto path = spoolARenderedPage("%PDF-1.4\n%%EOF\n");
+    QVERIFY(!path.isEmpty());
+    QVERIFY(m_printer->present(path, QStringLiteral("Job"), nullptr));
+
+    QCOMPARE(m_portal->requests.constLast().parentWindow, QString());
+}
+
+// The name is the window system's to give, so this is only an answer on a
+// session that has one. Under the offscreen platform the suite otherwise runs
+// on there is no surface to export and nothing to check.
+void PrintPortalTest::namesTheWindowTheDialogBelongsTo()
+{
+    if (QGuiApplication::platformName() != QStringLiteral("wayland")) {
+        QSKIP("the portal's name for a window comes from the window system");
+    }
+
+    QWindow window;
+    window.resize(320, 240);
+    window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
+
+    const auto path = spoolARenderedPage("%PDF-1.4\n%%EOF\n");
+    QVERIFY(!path.isEmpty());
+    QVERIFY(m_printer->present(path, QStringLiteral("Job"), &window));
+
+    // `wayland:<handle>` is a surface exported through `zxdg_exporter_v2`, and
+    // the handle beyond the prefix is the compositor's to make up.
+    const auto parent = m_portal->requests.constLast().parentWindow;
+    QVERIFY2(parent.startsWith(QStringLiteral("wayland:")), qPrintable(parent));
+    QVERIFY(parent.size() > QStringLiteral("wayland:").size());
 }
 
 QTEST_MAIN(PrintPortalTest)

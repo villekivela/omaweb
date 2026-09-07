@@ -3,6 +3,10 @@
 #include <QObject>
 #include <QString>
 
+QT_BEGIN_NAMESPACE
+class QWindow;
+QT_END_NAMESPACE
+
 namespace omaweb {
 
 // The platform's own print dialog, and the temporary file a page is rendered
@@ -29,7 +33,12 @@ public:
     // Presents the rendered document in the platform's print dialog and takes
     // the temporary file away afterwards. False means the reader never saw a
     // dialog; a reader who cancels one has printed nothing and is not a failure.
-    Q_INVOKABLE bool present(const QString &path, const QString &jobName);
+    //
+    // The window is the one the reader asked from, so the dialog stands over it.
+    // Passing none still prints, from wherever the desktop puts an unparented
+    // dialog.
+    Q_INVOKABLE bool present(
+        const QString &path, const QString &jobName, QWindow *window = nullptr);
     // For a render that never arrived: nothing to present, nothing to keep.
     Q_INVOKABLE void discard(const QString &path);
 };
