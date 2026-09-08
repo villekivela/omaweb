@@ -74,18 +74,33 @@ TestCase {
         }
     ]
 
-    readonly property var downloadsFixture: [
-        {
-            path: "/home/reader/Downloads/first.zip",
-            state: "completed",
+    // The page takes the window's download list, which is a model with roles,
+    // so the fixture is one too rather than an array of maps.
+    readonly property int downloadsFixtureCount: 2
+
+    ListModel {
+        id: downloadsFixture
+
+        ListElement {
+            recordId: "first"
+            runtimeId: ""
+            path: "/home/reader/Downloads/first.zip"
+            state: "completed"
             error: ""
-        },
-        {
-            path: "/home/reader/Downloads/second.zip",
-            state: "interrupted",
-            error: "the connection was lost"
+            receivedBytes: 10
+            totalBytes: 10
         }
-    ]
+
+        ListElement {
+            recordId: "second"
+            runtimeId: ""
+            path: "/home/reader/Downloads/second.zip"
+            state: "interrupted"
+            error: "the connection was lost"
+            receivedBytes: 5
+            totalBytes: 100
+        }
+    }
 
     Component {
         id: pageComponent
@@ -95,7 +110,7 @@ TestCase {
             iconFontFamily: ""
             open: true
             retainedTabs: testCase.retainedTabsFixture
-            downloads: testCase.downloadsFixture
+            downloads: downloadsFixture
             width: 1200
             height: 900
         }
@@ -264,7 +279,7 @@ TestCase {
         const page = makePage();
         page.section = 4;
         const rows = [];
-        for (let index = 0; index < testCase.downloadsFixture.length; ++index)
+        for (let index = 0; index < testCase.downloadsFixtureCount; ++index)
             rows.push(findChild(page, "recordedDownload-" + index));
         for (let index = 0; index < rows.length; ++index)
             verify(rows[index] !== null);

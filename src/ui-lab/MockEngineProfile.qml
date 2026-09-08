@@ -26,7 +26,7 @@ QtObject {
     signal browsingDataCleared
     property string downloadDirectory: ""
     property bool acceptDownloads: false
-    property var downloadController: null
+    property var downloads: null
     property var downloadHolds: null
     property var answeredDownloads: ({})
     property var downloadRequests: ({})
@@ -41,7 +41,7 @@ QtObject {
     property bool downloadObserversConnected: false
     property bool notificationObserversConnected: false
     readonly property var profile: this
-    signal downloadStarted(string runtimeId, url sourceUrl, string path, string state,
+    signal downloadStarted(string runtimeId, url sourceUrl, url pageUrl, string path, string state,
                            double receivedBytes, double totalBytes)
     signal downloadUpdated(string runtimeId, string state, double receivedBytes, double totalBytes,
                            string error)
@@ -59,11 +59,8 @@ QtObject {
             delete answeredDownloads[sourceKey];
         let chosenPath = answered && answer.length > 0 ? answer : "";
         if (chosenPath.length === 0) {
-            const rule = downloadController ? downloadController.downloadDisposition(pageUrl,
-                                                                                     fileName, mimeType,
-                                                                                     downloadDirectory,
-                                                                                     answered) :
-                                              null;
+            const rule = downloads ? downloads.disposition(pageUrl, fileName, mimeType,
+                                                           downloadDirectory, answered) : null;
             const disposition = rule ? rule.disposition : BrowserController.AcceptDownload;
             if (disposition === BrowserController.RefuseDownload) {
                 downloadRefused(sourceUrl, fileName, rule.origin);
@@ -87,9 +84,7 @@ QtObject {
             path = downloadDirectory + "/" + String(fileName);
         downloadRequests[runtimeId] = path;
         activeDownloadCount += 1;
-        if (downloadController)
-            downloadController.noteDownloadStarted(pageUrl, runtimeId);
-        downloadStarted(runtimeId, sourceUrl, path, "in-progress", 0, 100);
+        downloadStarted(runtimeId, sourceUrl, pageUrl, path, "in-progress", 0, 100);
         return runtimeId;
     }
 
@@ -104,8 +99,6 @@ QtObject {
         if (downloadRequests[runtimeId] === undefined)
             return false;
         activeDownloadCount -= 1;
-        if (downloadController)
-            downloadController.noteDownloadSettled(runtimeId);
         delete downloadRequests[runtimeId];
         downloadUpdated(runtimeId, "completed", 100, 100, "");
         return true;

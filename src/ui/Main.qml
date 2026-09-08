@@ -184,7 +184,6 @@ ApplicationWindow {
     readonly property var privateWindows: []
     property var spaceProfileHost: null
     property var omnibarSuggestions: []
-    property var visibleDownloads: []
     // What the retained-tab list is showing. Rebuilt when the retained set
     // changes and while the list is open, because a renderer's resident memory
     // moves on its own and a number that never moves is worse than none.
@@ -199,20 +198,19 @@ ApplicationWindow {
     property string pendingPermissionOrigin: ""
     property string pendingPermissionType: ""
     property var pendingPermissionResponder: null
-    property var downloadRecordIds: ({})
-    property var runningDownloads: ({})
-    property var downloadActivity: ({
-                                        "running": 0,
-                                        "fraction": -1,
-                                        "finished": 0,
-                                        "downloads": []
-                                    })
-    property int finishedDownloadCount: 0
-    readonly property bool downloadDetailOpen: sidebar.downloadDetailWanted
-    readonly property int savedDownloadNoticeMilliseconds: 4200
-    property var heldDownloadQueue: []
-    property var downloadQuestion: null
-    property bool downloadQuestionOpen: false
+    // The window's downloads, running and recorded, in one list that says
+    // which is which. Callers bind to it; nothing refreshes it.
+    readonly property var downloads: window.windowBrowser ? window.windowBrowser.downloads : null
+    // Which engine profile started a download, keyed by the namespace its
+    // runtime id begins with. Reaching an engine is the window's to do: the
+    // list says which engine, and this says how to reach it.
+    property var downloadHostsByNamespace: ({})
+    readonly property var downloadQuestion: window.downloads ? window.downloads.question : ({})
+    // A save-as question is a file dialog rather than a bar, so the bar opens
+    // for every other kind.
+    readonly property bool downloadQuestionOpen: window.downloadQuestion.token !== undefined
+                                                 && window.downloadQuestion.disposition
+                                                 !== BrowserController.SaveDownloadAs
     property bool settingsOpen: false
     property bool historyOpen: false
     property bool shortcutsOpen: false
@@ -330,8 +328,8 @@ ApplicationWindow {
         objectName: "downloadTargetDialog"
         title: "Save download as"
         fileMode: Dialogs.FileDialog.SaveFile
-        onAccepted: window.answerHeldDownload(true, window.localPath(selectedFile), 0)
-        onRejected: window.answerHeldDownload(false, "", 0)
+        onAccepted: window.downloads.answer(true, window.localPath(selectedFile), 0)
+        onRejected: window.downloads.answer(false, "", 0)
     }
 
     Dialogs.FolderDialog {
@@ -347,12 +345,7 @@ ApplicationWindow {
         title: "Save as"
         fileMode: Dialogs.FileDialog.SaveFile
         onAccepted: window.completeTargetSave(selectedFile)
-        onRejected: {
-            window.pendingSaveEngine = null;
-            window.pendingSaveAction = "";
-            window.pendingSaveTabId = "";
-            window.pendingSaveGeneration = -1;
-        }
+        onRejected: window.forgetPendingSave()
     }
 
     function openCommandPanel() {
@@ -1241,6 +1234,30 @@ ApplicationWindow {
         if (window.pendingFileSelectionResponder)
             window.respondToFileSelection([]);
         window.pageMenuOpen = false;
+        window.forgetPendingSave();
+    }
+
+    function reconcileTabModalRequests() {
+        const active = window.windowBrowser.activeTabId;
+        window.presentBrowserPromptForActiveTab();
+        if (window.pendingFileSelectionResponder && window.pendingFileSelectionTabId !== active)
+            window.respondToFileSelection([]);
+        if (window.pendingSaveEngine && window.pendingSaveTabId !== active)
+            window.forgetPendingSave();
+        window.pageMenuOpen = false;
+    }
+
+    // Recording what the reader asked to save and asking them where to put it
+    // are two things. Keeping them apart lets a caller, a test above all, set up
+    // a pending save without a dialog standing in the way.
+    function recordPendingSave(engine, action) {
+        window.pendingSaveEngine = engine;
+        window.pendingSaveAction = action;
+        window.pendingSaveTabId = window.windowBrowser.activeTabId;
+        window.pendingSaveGeneration = Number(engine.pageGeneration);
+    }
+
+    function forgetPendingSave() {
         window.pendingSaveEngine = null;
         window.pendingSaveAction = "";
         window.pendingSaveTabId = "";
@@ -1249,27 +1266,8 @@ ApplicationWindow {
             saveTargetDialog.close();
     }
 
-    function reconcileTabModalRequests() {
-        const active = window.windowBrowser.activeTabId;
-        window.presentBrowserPromptForActiveTab();
-        if (window.pendingFileSelectionResponder && window.pendingFileSelectionTabId !== active)
-            window.respondToFileSelection([]);
-        if (window.pendingSaveEngine && window.pendingSaveTabId !== active) {
-            window.pendingSaveEngine = null;
-            window.pendingSaveAction = "";
-            window.pendingSaveTabId = "";
-            window.pendingSaveGeneration = -1;
-            if (saveTargetDialog.visible)
-                saveTargetDialog.close();
-        }
-        window.pageMenuOpen = false;
-    }
-
     function requestTargetSave(engine, action, url) {
-        window.pendingSaveEngine = engine;
-        window.pendingSaveAction = action;
-        window.pendingSaveTabId = window.windowBrowser.activeTabId;
-        window.pendingSaveGeneration = Number(engine.pageGeneration);
+        window.recordPendingSave(engine, action);
         const address = String(url).split("?")[0].split("#")[0];
         const slash = address.lastIndexOf("/");
         const suggested = slash >= 0 && slash + 1 < address.length ? address.substring(slash + 1) :
@@ -1284,12 +1282,7 @@ ApplicationWindow {
         if (engine && engine === engineLoader.item && window.pendingSaveGeneration === Number(
                     engine.pageGeneration))
             engine.performPageContextAction(window.pendingSaveAction, String(fileUrl));
-        window.pendingSaveEngine = null;
-        window.pendingSaveAction = "";
-        window.pendingSaveTabId = "";
-        window.pendingSaveGeneration = -1;
-        if (saveTargetDialog.visible)
-            saveTargetDialog.close();
+        window.forgetPendingSave();
     }
 
     function stepTab(delta) {
@@ -1373,16 +1366,14 @@ ApplicationWindow {
     function adoptSpaceProfile(spaceId, host) {
         if (!host)
             return;
+        window.adoptDownloadHost(host);
         if (!host.downloadObserversConnected) {
-            host.downloadStarted.connect(function (runtimeId, sourceUrl, path, state, receivedBytes,
-                                                   totalBytes) {
-                window.handleDownloadStarted(host, runtimeId, sourceUrl, path, state, receivedBytes,
-                                             totalBytes);
-            });
-            host.downloadUpdated.connect(window.handleDownloadUpdated);
+            host.downloadStarted.connect(window.noteDownloadStarted);
+            host.downloadUpdated.connect(window.downloads.updated);
             host.downloadHeld.connect(function (token, disposition, origin, sourceUrl, fileName,
                                                 risk) {
-                window.holdDownload(host, token, disposition, origin, sourceUrl, fileName, risk);
+                window.downloads.hold(host.downloadNamespace, token, disposition, origin, sourceUrl,
+                                      fileName, risk);
             });
             host.downloadRefused.connect(function (sourceUrl, fileName, origin) {
                 window.showNotice("block", "Download refused", fileName + " · " + origin
@@ -1399,68 +1390,14 @@ ApplicationWindow {
             window.spaceProfileHost = null;
     }
 
-    function handleDownloadStarted(host, runtimeId, sourceUrl, path, state, receivedBytes,
-                                   totalBytes) {
-        const wasIdle = window.downloadActivity.running === 0;
-        const recordId = window.windowBrowser.recordDownload(runtimeId, sourceUrl, path, state,
-                                                             receivedBytes, totalBytes);
-        if (recordId.length > 0)
-            window.downloadRecordIds[runtimeId] = recordId;
-        const running = window.runningDownloads;
-        running[runtimeId] = {
-            "host": host,
-            "runtimeId": runtimeId,
-            "recordId": recordId,
-            "sourceUrl": String(sourceUrl),
-            "pageUrl": String(window.windowBrowser.activeUrl),
-            "path": String(path),
-            "fileName": window.downloadFileName(path),
-            "state": state,
-            "error": "",
-            "receivedBytes": receivedBytes,
-            "totalBytes": totalBytes
-        };
-        window.runningDownloads = running;
-        if (wasIdle)
-            window.finishedDownloadCount = 0;
-        window.refreshDownloadActivity();
-        if (window.settingsOpen)
-            window.refreshVisibleDownloads();
+    // The list is told what the engine did; the window says what that looks
+    // like. Everything the notice needs is on the row the list just made.
+    function noteDownloadStarted(runtimeId, sourceUrl, pageUrl, path, state, receivedBytes,
+                                 totalBytes) {
+        window.downloads.started(runtimeId, sourceUrl, pageUrl, path, state, receivedBytes,
+                                 totalBytes);
         window.showNotice("download", "Downloading " + window.downloadFileName(path), String(
                               sourceUrl), 3000);
-    }
-
-    function handleDownloadUpdated(runtimeId, state, receivedBytes, totalBytes, error) {
-        const recordId = window.downloadRecordIds[runtimeId];
-        if (recordId)
-            window.windowBrowser.updateDownload(recordId, state, receivedBytes, totalBytes, error);
-        const running = window.runningDownloads;
-        const download = running[runtimeId];
-        if (!download)
-            return;
-        download.state = state;
-        download.error = String(error || "");
-        download.receivedBytes = receivedBytes;
-        download.totalBytes = totalBytes;
-        if (state === "completed") {
-            const marked = SavedDownload.quarantine(download.path, download.sourceUrl,
-                                                    download.pageUrl);
-            window.showNotice("download_done", "Saved " + download.fileName, marked ? download.path :
-                                                                                      download.path
-                                                                                      + " · this filesystem carries no origin metadata",
-                              window.savedDownloadNoticeMilliseconds);
-        } else if (state === "interrupted") {
-            window.showNotice("error", "Download failed", download.fileName + (
-                                  download.error.length > 0 ? " · " + download.error : ""), 4200);
-        }
-        if (state === "completed" || state === "cancelled")
-            delete running[runtimeId];
-        if (state === "completed")
-            window.finishedDownloadCount += 1;
-        window.runningDownloads = running;
-        window.refreshDownloadActivity();
-        if (window.settingsOpen)
-            window.refreshVisibleDownloads();
     }
 
     function localPath(fileUrl) {
@@ -1476,98 +1413,18 @@ ApplicationWindow {
         return separator >= 0 ? String(path).substring(separator + 1) : String(path);
     }
 
-    function refreshDownloadActivity() {
-        let running = 0;
-        let received = 0;
-        let total = 0;
-        const detailed = window.downloadDetailOpen;
-        const downloads = [];
-        for (const runtimeId in window.runningDownloads) {
-            const download = window.runningDownloads[runtimeId];
-            if (download.state === "interrupted")
-                continue;
-            running += 1;
-            received += download.receivedBytes;
-            if (total >= 0 && download.totalBytes > 0)
-                total += download.totalBytes;
-            else
-                total = -1;
-            if (detailed)
-                downloads.push({
-                                   "name": download.fileName,
-                                   "fraction": download.totalBytes > 0 ? Math.min(1,
-                                                                                  download.receivedBytes
-                                                                                  / download.totalBytes) :
-                                                                         -1
-                               });
-        }
-        window.downloadActivity = {
-            "running": running,
-            "fraction": total > 0 ? Math.min(1, received / total) : -1,
-            "finished": window.finishedDownloadCount,
-            "downloads": downloads
-        };
+    function downloadHost(downloadNamespace) {
+        return window.downloadHostsByNamespace[String(downloadNamespace)] || null;
     }
 
-    onDownloadDetailOpenChanged: window.refreshDownloadActivity()
-
-    function refreshVisibleDownloads() {
-        const running = [];
-        for (const runtimeId in window.runningDownloads) {
-            const download = window.runningDownloads[runtimeId];
-            running.push({
-                             "runtimeId": runtimeId,
-                             "id": download.recordId,
-                             "url": download.sourceUrl,
-                             "path": download.path,
-                             "state": download.state,
-                             "error": download.error,
-                             "receivedBytes": download.receivedBytes,
-                             "totalBytes": download.totalBytes,
-                             "running": true
-                         });
-        }
-        const recorded = [];
-        const history = window.windowBrowser.downloadHistory();
-        for (let index = 0; index < history.length; ++index) {
-            const record = history[index];
-            let live = false;
-            for (let position = 0; position < running.length; ++position)
-                live = live || running[position].id === record.id;
-            if (live)
-                continue;
-            recorded.push({
-                              "runtimeId": "",
-                              "id": record.id,
-                              "url": String(record.url),
-                              "path": record.path,
-                              "state": record.state,
-                              "error": record.error,
-                              "receivedBytes": record.receivedBytes,
-                              "totalBytes": record.totalBytes,
-                              "running": false
-                          });
-        }
-        window.visibleDownloads = running.concat(recorded);
-    }
-
-    function cancelDownload(runtimeId) {
-        const download = window.runningDownloads[runtimeId];
-        if (!download || !download.host)
+    // A Private window's shared profile has the empty namespace, which is a
+    // key like any other: its runtime ids begin with the same empty name.
+    function adoptDownloadHost(host) {
+        if (!host)
             return;
-        download.host.cancelDownload(runtimeId);
-    }
-
-    function retryDownload(runtimeId, sourceUrl) {
-        const download = window.runningDownloads[runtimeId];
-        if (download && download.host && download.host.retryDownload(runtimeId))
-            return;
-        if (String(sourceUrl).length > 0) {
-            window.windowBrowser.openInput(String(sourceUrl), false);
-            return;
-        }
-        window.showNotice("block", "This download cannot be retried", "Ask the page for it again",
-                          4200);
+        const hosts = window.downloadHostsByNamespace;
+        hosts[String(host.downloadNamespace)] = host;
+        window.downloadHostsByNamespace = hosts;
     }
 
     function revealDownload(path) {
@@ -1576,60 +1433,72 @@ ApplicationWindow {
                               "The file is no longer where Omaweb put it", 4200);
     }
 
-    function forgetDownload(recordId) {
-        if (window.windowBrowser.forgetDownload(recordId))
-            window.refreshVisibleDownloads();
-    }
-
-    function holdDownload(host, token, disposition, origin, sourceUrl, fileName, risk) {
-        window.heldDownloadQueue.push({
-                                          "host": host,
-                                          "token": token,
-                                          "disposition": disposition,
-                                          "origin": origin,
-                                          "sourceUrl": String(sourceUrl),
-                                          "fileName": String(fileName),
-                                          "risk": String(risk)
-                                      });
-        window.presentHeldDownload();
-    }
-
-    function presentHeldDownload() {
-        if (window.downloadQuestion || window.heldDownloadQueue.length === 0)
-            return;
-        const held = window.heldDownloadQueue.shift();
-        window.downloadQuestion = held;
-        if (held.disposition === BrowserController.SaveDownloadAs) {
-            downloadTargetDialog.currentFile = window.fileUrl(
-                        window.windowBrowser.downloadDirectory + "/" + held.fileName);
-            downloadTargetDialog.open();
-            return;
-        }
-        window.downloadQuestionOpen = true;
-    }
-
-    function answerHeldDownload(keep, path, permissionDecision) {
-        const held = window.downloadQuestion;
-        window.downloadQuestionOpen = false;
-        window.downloadQuestion = null;
-        if (held) {
-            if (permissionDecision > 0)
-                window.windowBrowser.setPermissionDecision(held.origin, "automatic-downloads",
-                                                           permissionDecision);
-            if (keep)
-                held.host.releaseHeldDownload(held.token, path ? String(path) : "");
-            else {
-                held.host.discardHeldDownload(held.token);
-                window.showNotice("block", "Download discarded", held.fileName, 3000);
-            }
-        }
-        window.presentHeldDownload();
-    }
-
     function chooseDownloadDirectory(folderUrl) {
         const path = window.localPath(folderUrl);
         if (!window.windowBrowser.setDownloadDirectory(path))
             window.showNotice("block", "That directory cannot take downloads", path, 4200);
+    }
+
+    // What the list asks of an engine, and what the window says about what the
+    // list did. The list holds no engine and draws nothing.
+    Connections {
+        target: window.downloads
+
+        function onCancelRequested(downloadNamespace, runtimeId) {
+            const host = window.downloadHost(downloadNamespace);
+            if (host)
+                host.cancelDownload(runtimeId);
+        }
+
+        function onRetryRequested(downloadNamespace, runtimeId, sourceUrl) {
+            const host = window.downloadHost(downloadNamespace);
+            if (host && host.retryDownload(runtimeId))
+                return;
+            if (String(sourceUrl).length > 0) {
+                window.windowBrowser.openInput(String(sourceUrl), false);
+                return;
+            }
+            window.showNotice("block", "This download cannot be retried",
+                              "Ask the page for it again", 4200);
+        }
+
+        function onReleaseRequested(downloadNamespace, token, path) {
+            const host = window.downloadHost(downloadNamespace);
+            if (host)
+                host.releaseHeldDownload(token, path);
+        }
+
+        function onDiscardRequested(downloadNamespace, token, fileName) {
+            const host = window.downloadHost(downloadNamespace);
+            if (host)
+                host.discardHeldDownload(token);
+            window.showNotice("block", "Download discarded", fileName, 3000);
+        }
+
+        function onDownloadCompleted(path, sourceUrl, pageUrl, fileName) {
+            const marked = SavedDownload.quarantine(path, sourceUrl, pageUrl);
+            window.showNotice("download_done", "Saved " + fileName, marked ? path : path + " · this filesystem carries no origin metadata",
+                              4200);
+        }
+
+        function onDownloadFailed(fileName, error) {
+            window.showNotice("error", "Download failed", fileName + (String(error).length > 0
+                                                                      ? " · " + error : ""), 4200);
+        }
+
+        // A save-as question is answered with a path, so it opens the dialog
+        // instead of the question bar. The list presents one question at a
+        // time, so this runs once per question.
+        function onQuestionChanged() {
+            const question = window.downloads.question;
+            if (question.disposition === BrowserController.SaveDownloadAs) {
+                downloadTargetDialog.currentFile = window.fileUrl(
+                            window.windowBrowser.downloadDirectory + "/" + question.fileName);
+                downloadTargetDialog.open();
+            } else if (downloadTargetDialog.visible) {
+                downloadTargetDialog.close();
+            }
+        }
     }
 
     function closeOmnibar() {
@@ -1741,8 +1610,10 @@ ApplicationWindow {
                 useFavicons: window.useFavicons
                 tintFavicons: window.tintFavicons
                 settingsAttention: settingsSurface.needsAttention
-                downloadActivity: window.downloadActivity
-                downloadDwellMilliseconds: window.savedDownloadNoticeMilliseconds
+                downloads: window.downloads
+                // The mark stays until the saved-file notice goes, which is
+                // the rule rather than a matching pair of durations.
+                savedFileNoticeShowing: pageNotice.showing && pageNotice.glyph === "download_done"
                 onDownloadsRequested: window.requestDownloads()
 
                 // The panel states; the window asks. Opening the dialog puts
@@ -2185,7 +2056,7 @@ ApplicationWindow {
 
                     onActionTriggered: function (index) {
                         const action = downloadQuestionBar.actions[index];
-                        window.answerHeldDownload(action.keep, "", action.decision);
+                        window.downloads.answer(action.keep, "", action.decision);
                     }
                 }
 
@@ -2223,25 +2094,24 @@ ApplicationWindow {
                     tintFavicons: window.tintFavicons
                     retainedTabs: window.visibleRetainedTabs
 
-                    downloads: window.visibleDownloads
+                    downloads: window.downloads
 
                     onClosed: window.settingsOpen = false
                     onRetainedTabReleased: function (tabId) {
                         window.releaseRetainedTab(tabId);
                     }
-                    onDownloadsRequested: window.refreshVisibleDownloads()
                     onDownloadDirectoryRequested: downloadDirectoryDialog.open()
-                    onDownloadCancelled: function (runtimeId) {
-                        window.cancelDownload(runtimeId);
+                    onDownloadCancelled: function (row) {
+                        window.downloads.cancel(row);
                     }
-                    onDownloadRetried: function (runtimeId, sourceUrl) {
-                        window.retryDownload(runtimeId, sourceUrl);
+                    onDownloadRetried: function (row) {
+                        window.downloads.retry(row);
                     }
                     onDownloadRevealed: function (path) {
                         window.revealDownload(path);
                     }
-                    onDownloadForgotten: function (id) {
-                        window.forgetDownload(id);
+                    onDownloadForgotten: function (row) {
+                        window.downloads.forget(row);
                     }
                     onUseFaviconsToggled: function (enabled) {
                         window.setUseFavicons(enabled);
@@ -2489,8 +2359,8 @@ ApplicationWindow {
                                                                               controller.downloadDirectory,
                                                                               "acceptDownloads":
                                                                               controller.acceptDownloads,
-                                                                              "downloadController":
-                                                                              controller,
+                                                                              "downloads":
+                                                                              controller.downloads,
                                                                               "downloadHolds":
                                                                               engineHeldDownloads,
                                                                               "privateBrowsing":

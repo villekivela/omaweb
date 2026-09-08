@@ -3332,7 +3332,7 @@ void QtEngineContractTest::qtHoldsARiskyDownloadUntilTheShellHasAnswered()
         {QStringLiteral("acceptDownloads"), true},
         {QStringLiteral("downloadDirectory"), downloads},
         {QStringLiteral("downloadNamespace"), QStringLiteral("space-1")},
-        {QStringLiteral("downloadController"), QVariant::fromValue<QObject *>(&controller)},
+        {QStringLiteral("downloads"), QVariant::fromValue<QObject *>(controller.downloads())},
         {QStringLiteral("downloadHolds"), QVariant::fromValue<QObject *>(&heldDownloads)},
     }));
     QVERIFY2(profile, qPrintable(profileComponent.errorString()));
@@ -3353,8 +3353,8 @@ void QtEngineContractTest::qtHoldsARiskyDownloadUntilTheShellHasAnswered()
     QSignalSpy heldSpy(
         profile.get(), SIGNAL(downloadHeld(QString, int, QString, QUrl, QString, QString)));
     QVERIFY(heldSpy.isValid());
-    QSignalSpy startedSpy(
-        profile.get(), SIGNAL(downloadStarted(QString, QUrl, QString, QString, double, double)));
+    QSignalSpy startedSpy(profile.get(),
+        SIGNAL(downloadStarted(QString, QUrl, QUrl, QString, QString, double, double)));
     QVERIFY(startedSpy.isValid());
 
     QVERIFY(view->setProperty("currentUrl", QUrl(base + QStringLiteral("/page"))));

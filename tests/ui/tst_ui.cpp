@@ -57,6 +57,7 @@ public slots:
         QCoreApplication::setApplicationVersion(QStringLiteral(OMAWEB_VERSION));
         omaweb::quickshell::installShim(*engine);
         omaweb::registerBrowserController();
+        omaweb::registerDownloads();
         omaweb::registerFaviconTint();
         omaweb::registerSystemClipboard();
         omaweb::registerExternalProtocolHandler();

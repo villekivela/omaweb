@@ -17,7 +17,9 @@ Rectangle {
     property var keyboard
     property bool open: false
     property int section: 0
-    property var downloads: []
+    // The window's download list. A model rather than an array: it says when
+    // it changes, so this page never asks for it again.
+    property var downloads: null
     property var subscriptions: []
     property int blockedRequestCount: 0
     property bool useFavicons: true
@@ -176,12 +178,11 @@ Rectangle {
     }
 
     signal closed
-    signal downloadsRequested
     signal downloadDirectoryRequested
-    signal downloadCancelled(string runtimeId)
-    signal downloadRetried(string runtimeId, string sourceUrl)
+    signal downloadCancelled(int row)
+    signal downloadRetried(int row)
     signal downloadRevealed(string path)
-    signal downloadForgotten(string id)
+    signal downloadForgotten(int row)
     signal retainedTabReleased(string tabId)
     signal useFaviconsToggled(bool enabled)
     signal tintFaviconsToggled(bool enabled)
@@ -205,7 +206,6 @@ Rectangle {
     function refresh() {
         if (!root.browser)
             return;
-        root.downloadsRequested();
         root.engines = root.browser.searchEngines();
         root.enginePresets = root.browser.searchEnginePresets();
         root.subscriptions = root.blocker ? root.blocker.subscriptions : [];
@@ -824,25 +824,29 @@ Rectangle {
                     }
 
                     Repeater {
-                        model: root.section === 4 ? root.downloads : []
+                        model: root.section === 4 ? root.downloads : null
 
                         SettingRow {
+                            id: downloadRow
+                            // Taken through `model` rather than one required
+                            // property each: a row's state is one of the
+                            // model's roles, and an Item already has a `state`.
                             required property int index
-                            required property var modelData
+                            required property var model
 
                             objectName: "recordedDownload-" + index
                             width: pane.width
                             colors: root.colors
-                            title: modelData.path
+                            title: String(downloadRow.model.path)
                             note: {
-                                const state = String(modelData.state);
-                                const error = String(modelData.error || "");
-                                const received = Number(modelData.receivedBytes || 0);
-                                const total = Number(modelData.totalBytes || 0);
-                                let line = state;
-                                if (state === "in-progress" && total > 0)
+                                const downloadState = String(downloadRow.model.state);
+                                const error = String(downloadRow.model.error || "");
+                                const received = Number(downloadRow.model.receivedBytes || 0);
+                                const total = Number(downloadRow.model.totalBytes || 0);
+                                let line = downloadState;
+                                if (downloadState === "in-progress" && total > 0)
                                     line += " · " + Math.floor(received * 100 / total) + "%";
-                                else if (state === "in-progress" && received > 0)
+                                else if (downloadState === "in-progress" && received > 0)
                                     line += " · " + root.resourceLabel(received);
                                 if (error.length > 0)
                                     line += " · " + error;
@@ -857,9 +861,9 @@ Rectangle {
                                     colors: root.colors
                                     label: "Cancel"
                                     accessibleName: "Cancel this download"
-                                    visible: String(modelData.state) === "in-progress" && String(
-                                                 modelData.runtimeId || "").length > 0
-                                    onClicked: root.downloadCancelled(String(modelData.runtimeId))
+                                    visible: String(downloadRow.model.state) === "in-progress"
+                                             && String(downloadRow.model.runtimeId || "").length > 0
+                                    onClicked: root.downloadCancelled(downloadRow.index)
                                 }
 
                                 ActionButton {
@@ -867,10 +871,8 @@ Rectangle {
                                     colors: root.colors
                                     label: "Retry"
                                     accessibleName: "Retry this download"
-                                    visible: String(modelData.state) === "interrupted"
-                                    onClicked: root.downloadRetried(String(modelData.runtimeId
-                                                                           || ""), String(
-                                                                        modelData.url || ""))
+                                    visible: String(downloadRow.model.state) === "interrupted"
+                                    onClicked: root.downloadRetried(downloadRow.index)
                                 }
 
                                 ActionButton {
@@ -878,8 +880,8 @@ Rectangle {
                                     colors: root.colors
                                     label: "Show"
                                     accessibleName: "Show where this download landed"
-                                    visible: String(modelData.state) === "completed"
-                                    onClicked: root.downloadRevealed(String(modelData.path))
+                                    visible: String(downloadRow.model.state) === "completed"
+                                    onClicked: root.downloadRevealed(String(downloadRow.model.path))
                                 }
 
                                 ActionButton {
@@ -887,9 +889,9 @@ Rectangle {
                                     colors: root.colors
                                     label: "Remove"
                                     accessibleName: "Remove this download from the history"
-                                    visible: String(modelData.id || "").length > 0 && String(
-                                                 modelData.state) !== "in-progress"
-                                    onClicked: root.downloadForgotten(String(modelData.id))
+                                    visible: String(downloadRow.model.recordId || "").length > 0
+                                             && String(downloadRow.model.state) !== "in-progress"
+                                    onClicked: root.downloadForgotten(downloadRow.index)
                                 }
                             }
                         }
@@ -897,7 +899,7 @@ Rectangle {
 
                     SettingRow {
                         width: pane.width
-                        visible: root.downloads.length === 0
+                        visible: root.downloads ? root.downloads.count === 0 : true
                         colors: root.colors
                         title: "No recorded downloads"
                         note: "Downloads Omaweb has recorded in this Space appear here."
