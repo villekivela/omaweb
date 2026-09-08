@@ -81,8 +81,9 @@ capture from the UI lab.
 
 ## Reporting a vulnerability
 
-Do not open a public issue. `SECURITY.md` has the private reporting form. Omaweb is pre-alpha
-browser software, so treat it as unsafe for sensitive browsing regardless.
+Do not open a public issue. `SECURITY.md` has the private reporting form. The gaps it names, no URL
+reputation and an unsandboxed network service, are documented trade-offs rather than
+vulnerabilities.
 
 ## License
 
