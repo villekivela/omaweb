@@ -2,6 +2,7 @@
 #include "ContentBlocker.h"
 #include "QtCookiePolicy.h"
 #include "EngineCapabilities.h"
+#include "EngineCapabilityExpectations.h"
 #include "ExternalProtocolHandler.h"
 #include "QtContentBlocker.h"
 #include "QtHeldDownloads.h"
@@ -393,10 +394,10 @@ void QtEngineContractTest::adaptersExposeSharedContract()
     QVERIFY2(adapter, qPrintable(component.errorString()));
     const auto missingContract = validateEngineViewContract(*adapter);
     QVERIFY2(missingContract.isEmpty(), qPrintable(missingContract.join(QStringLiteral("; "))));
-    const auto capabilities = adapter->property("capabilities").toInt();
-    QVERIFY(capabilities & EngineCapabilities::Navigation);
-    QVERIFY(capabilities & EngineCapabilities::ContentBlocking);
-    QVERIFY(capabilities & EngineCapabilities::RendererRecovery);
+    const auto expected = path == QStringLiteral(OMAWEB_MOCK_ENGINE_VIEW_PATH)
+        ? omaweb::test::expectedMockCapabilities()
+        : omaweb::test::expectedQtCapabilities();
+    QCOMPARE(adapter->property("capabilities").toInt(), expected);
 }
 
 // The blocker surface an adapter is handed, on the real blocker and on the fake
@@ -3373,6 +3374,7 @@ int main(int argc, char *argv[])
     omaweb::QtContentBlocker::registerSubstituteScheme();
     QtWebEngineQuick::initialize();
     QGuiApplication application(argc, argv);
+    omaweb::registerEngineCapabilities();
     omaweb::registerBrowserController();
     omaweb::registerExternalProtocolHandler();
     QtEngineContractTest test;

@@ -1,4 +1,5 @@
 import QtQuick
+import Omaweb.Engine
 
 Rectangle {
     id: root
@@ -55,19 +56,6 @@ Rectangle {
     property string keyboardInput: ""
     property color pageBackgroundColor: "#16151d"
     readonly property bool pageHasFocus: root.activeFocus
-    readonly property int navigationCapability: 1 << 0
-    readonly property int persistentProfilesCapability: 1 << 1
-    readonly property int contentBlockingCapability: 1 << 3
-    readonly property int keyboardPageCommandsCapability: 1 << 4
-    readonly property int developerToolsCapability: 1 << 5
-    readonly property int rendererRecoveryCapability: 1 << 6
-    readonly property int pageFindCapability: 1 << 7
-    readonly property int pageZoomCapability: 1 << 8
-    readonly property int printingCapability: 1 << 9
-    readonly property int siteFullscreenCapability: 1 << 10
-    readonly property int inlinePdfViewingCapability: 1 << 11
-    readonly property int certificateDecisionsCapability: 1 << 12
-    readonly property int thirdPartyCookieControlCapability: 1 << 13
     // The lab is also the engine that cannot do everything. Each everyday page
     // operation is switchable on its own, because the shell has to be
     // reviewable against an adapter that reports the gap rather than only
@@ -87,23 +75,29 @@ Rectangle {
     // Site information has no size to show. A test that needs the shell stood
     // up against an engine that does keep a profile turns it on.
     property bool persistentProfilesAvailable: false
-    readonly property int capabilities: navigationCapability | contentBlockingCapability
-                                        | keyboardPageCommandsCapability | (root.inspectorAvailable
-                                                                            ? developerToolsCapability :
-                                                                              0) | rendererRecoveryCapability
-                                        | (root.findAvailable ? pageFindCapability : 0) | (
-                                            root.zoomAvailable ? pageZoomCapability : 0) | (
-                                            root.printingAvailable ? printingCapability : 0) | (
-                                            root.siteFullscreenAvailable ? siteFullscreenCapability :
-                                                                           0) | (root.inlinePdfViewingAvailable
-                                                                                 ? inlinePdfViewingCapability :
-                                                                                   0) | (root.persistentProfilesAvailable
-                                                                                         ? persistentProfilesCapability :
-                                                                                           0) | (root.certificateDecisionsAvailable
-                                                                                                 ? certificateDecisionsCapability :
-                                                                                                   0) | (root.thirdPartyCookieControlAvailable
-                                                                                                         ? thirdPartyCookieControlCapability :
-                                                                                                           0)
+    readonly property int capabilities: EngineCapabilities.Navigation
+                                        | EngineCapabilities.PrivateProfiles
+                                        | EngineCapabilities.ContentBlocking
+                                        | EngineCapabilities.KeyboardPageCommands | (
+                                            root.inspectorAvailable
+                                            ? EngineCapabilities.DeveloperTools : 0)
+                                        | EngineCapabilities.RendererRecovery | (root.findAvailable
+                                                                                 ? EngineCapabilities.PageFind :
+                                                                                   0) | (root.zoomAvailable
+                                                                                         ? EngineCapabilities.PageZoom :
+                                                                                           0) | (root.printingAvailable
+                                                                                                 ? EngineCapabilities.Printing :
+                                                                                                   0) | (root.siteFullscreenAvailable
+                                                                                                         ? EngineCapabilities.SiteFullscreen :
+                                                                                                           0) | (root.inlinePdfViewingAvailable
+                                                                                                                 ? EngineCapabilities.InlinePdfViewing :
+                                                                                                                   0) | (root.persistentProfilesAvailable
+                                                                                                                         ? EngineCapabilities.PersistentProfiles :
+                                                                                                                           0) | (root.certificateDecisionsAvailable
+                                                                                                                                 ? EngineCapabilities.CertificateDecisions :
+                                                                                                                                   0) | (root.thirdPartyCookieControlAvailable
+                                                                                                                                         ? EngineCapabilities.ThirdPartyCookieControl :
+                                                                                                                                           0)
 
     // The lab renders nothing, so find counts the plain occurrences of the
     // query in a body of text a test names. That is enough for the interface:

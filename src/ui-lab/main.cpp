@@ -1,5 +1,6 @@
 #include "BrowserController.h"
 #include "ContentBlocker.h"
+#include "EngineCapabilities.h"
 #include "FaviconTint.h"
 #include "DefaultBrowser.h"
 #include "ExternalProtocolHandler.h"
@@ -188,6 +189,7 @@ int main(int argc, char *argv[])
     omaweb::registerBrowserController();
     omaweb::registerDownloads();
     omaweb::registerFaviconTint();
+    omaweb::registerEngineCapabilities();
     omaweb::registerDefaultBrowser();
     omaweb::registerSystemClipboard();
     omaweb::registerExternalProtocolHandler();

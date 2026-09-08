@@ -1,5 +1,6 @@
 #include "BrowserController.h"
 #include "ContentBlocker.h"
+#include "EngineCapabilities.h"
 #include "FaviconTint.h"
 #include "ExternalProtocolHandler.h"
 #include "InputMethod.h"
@@ -59,6 +60,7 @@ public slots:
         omaweb::registerBrowserController();
         omaweb::registerDownloads();
         omaweb::registerFaviconTint();
+        omaweb::registerEngineCapabilities();
         omaweb::registerSystemClipboard();
         omaweb::registerExternalProtocolHandler();
         omaweb::registerPagePrinter();
