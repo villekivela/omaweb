@@ -247,10 +247,11 @@ public:
     // away. The interface hands this to the engine host at suspension, which
     // is the only moment the answer is about a Space that is still active.
     Q_INVOKABLE QStringList retainedTabIds() const;
-    Q_INVOKABLE void updateTab(const QString &tabId, const QUrl &url, const QString &title);
-    Q_INVOKABLE void setTabLoading(const QString &tabId, bool loading);
-    Q_INVOKABLE void setTabIcon(const QString &tabId, const QUrl &iconUrl);
-    Q_INVOKABLE void setTabAudible(const QString &tabId, bool audible);
+    Q_INVOKABLE void reportTabPageState(const QString &tabId, const QUrl &url, const QString &title,
+        const QUrl &iconUrl, bool loading, bool audible);
+    void setTabLoading(const QString &tabId, bool loading);
+    void setTabIcon(const QString &tabId, const QUrl &iconUrl);
+    void setTabAudible(const QString &tabId, bool audible);
     Q_INVOKABLE void setTabMuted(const QString &tabId, bool muted);
     Q_INVOKABLE void toggleTabMuted(const QString &tabId);
     // Zoom moves along a fixed ladder rather than by a percentage, so every
@@ -391,6 +392,13 @@ signals:
     void certificateExceptionsChanged();
 
 private:
+    // Facts held by pages that survived a Space switch. The session store does
+    // not write either one, and a process restart starts them empty again.
+    struct LivePageState {
+        QUrl iconUrl;
+        bool audible = false;
+    };
+
     void initialize();
     void startHistorySearch(const QString &text, int limit);
     void historySearchAnswered(
@@ -468,6 +476,7 @@ private:
     QString m_errorMessage;
     QVector<TabState> m_closedTabs;
     QVector<RetainedTab> m_retainedTabs;
+    QHash<QString, LivePageState> m_livePageStates;
     QSet<QString> m_interactedOrigins;
     QString m_downloadDirectory;
     Downloads *m_downloads = nullptr;

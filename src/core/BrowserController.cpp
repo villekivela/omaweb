@@ -477,6 +477,9 @@ bool BrowserController::switchSpace(const QString &spaceId)
         emit spaceRestored(m_activeSpaceId);
         return false;
     }
+    for (const auto &tab : m_tabs.items()) {
+        m_livePageStates.insert(tab.id, {tab.iconUrl, tab.audible});
+    }
     m_activeSpaceId = destination->id;
     m_activeSpaceName = destination->name;
     // A suggestion belongs to the Space it was searched in, so a search still
@@ -675,6 +678,7 @@ bool BrowserController::confirmTabMoveToSpace(
     if (tabId == m_developerToolsTabId) {
         closeDeveloperTools();
     }
+    m_livePageStates.remove(tabId);
     m_activeTabId = sourceActiveTabId;
     m_tabs.reset(std::move(sourceTabs));
     refreshRetainedTabs();
@@ -767,7 +771,9 @@ void BrowserController::closeTab(const QString &tabId)
         rememberClosedTab(*tab);
         tab->url = QUrl(QStringLiteral("about:blank"));
         tab->title = QStringLiteral("New tab");
+        tab->iconUrl.clear();
         tab->loading = false;
+        tab->audible = false;
         tab->muted = false;
         tab->zoom = 1.0;
         tab->rendererFailureReason.clear();
@@ -775,7 +781,9 @@ void BrowserController::closeTab(const QString &tabId)
             {
                 TabListModel::UrlRole,
                 TabListModel::TitleRole,
+                TabListModel::IconUrlRole,
                 TabListModel::LoadingRole,
+                TabListModel::AudibleRole,
                 TabListModel::MutedRole,
                 TabListModel::ZoomRole,
             });
@@ -1121,6 +1129,7 @@ bool BrowserController::releaseRetainedTab(const QString &tabId)
         if (!found || !m_store->saveTabs(spaceId, tabs, activeTabId)) {
             return false;
         }
+        m_livePageStates.remove(tabId);
         refreshRetainedTabs();
         return true;
     }
@@ -1336,45 +1345,68 @@ bool BrowserController::originInteracted(const QUrl &url) const
     return !key.isEmpty() && m_interactedOrigins.contains(key);
 }
 
-void BrowserController::updateTab(const QString &tabId, const QUrl &url, const QString &title)
+void BrowserController::reportTabPageState(const QString &tabId, const QUrl &url,
+    const QString &title, const QUrl &iconUrl, bool loading, bool audible)
 {
     auto *tab = m_tabs.find(tabId);
     if (!tab) {
         return;
     }
 
+    const auto loadFinished = tab->loading && !loading && !isBlank(url);
+    const auto reportsAddress = !url.isEmpty();
     const auto normalizedTitle
         = title.isEmpty() ? (url.host().isEmpty() ? QStringLiteral("New tab") : url.host()) : title;
-    if (tab->url == url && tab->title == normalizedTitle) {
-        return;
-    }
+    const auto addressOrTitleChanged
+        = reportsAddress && (tab->url != url || tab->title != normalizedTitle);
+    const auto changedHost = reportsAddress && tab->url.host() != url.host();
+    QList<int> changedRoles;
 
+    if (addressOrTitleChanged) {
+        tab->url = url;
+        tab->title = normalizedTitle;
+        changedRoles.append({TabListModel::UrlRole, TabListModel::TitleRole});
+    }
     // Artwork from the previous site would mislabel the tab until the new page
-    // reports its own, so a move to another host drops it.
-    const auto changedHost = tab->url.host() != url.host();
-    tab->url = url;
-    tab->title = normalizedTitle;
+    // reports its own, so the first report from another host drops it. A later
+    // report on that host may apply its replacement.
     if (changedHost) {
         tab->iconUrl.clear();
+        changedRoles.append(TabListModel::IconUrlRole);
+    } else if (tab->iconUrl != iconUrl) {
+        tab->iconUrl = iconUrl;
+        changedRoles.append(TabListModel::IconUrlRole);
+    }
+    if (tab->loading != loading) {
+        tab->loading = loading;
+        changedRoles.append(TabListModel::LoadingRole);
+    }
+    if (tab->audible != audible) {
+        tab->audible = audible;
+        changedRoles.append(TabListModel::AudibleRole);
+    }
+    if (!changedRoles.isEmpty()) {
+        m_tabs.notifyChanged(tab->id, changedRoles);
     }
     // A tab that has lost its address has lost its page, and the engine that
     // drew it goes with it.
-    if (isBlank(url) && tabId == m_developerToolsTabId) {
+    if (addressOrTitleChanged && isBlank(url) && tabId == m_developerToolsTabId) {
         closeDeveloperTools();
     }
-    m_tabs.notifyChanged(tab->id,
-        changedHost
-            ? QList<int> {TabListModel::UrlRole, TabListModel::TitleRole, TabListModel::IconUrlRole}
-            : QList<int> {TabListModel::UrlRole, TabListModel::TitleRole});
-    refreshSoundSuppression();
-    schedulePersistTabs();
-    if (tabId == m_activeTabId) {
-        emit activeTabChanged();
+    if (addressOrTitleChanged) {
+        refreshSoundSuppression();
+        schedulePersistTabs();
+        if (tabId == m_activeTabId) {
+            emit activeTabChanged();
+        }
+    }
+    if (loadFinished) {
+        recordVisit(url, title);
     }
 }
 
-// Site artwork belongs to the loaded page, not to the saved session: a
-// restored tab shows its lettered tile until the page hands one back.
+// Site artwork belongs to the loaded page, not to the saved session: a tab
+// restored after restart shows its lettered tile until the page hands one back.
 void BrowserController::setTabIcon(const QString &tabId, const QUrl &iconUrl)
 {
     auto *tab = m_tabs.find(tabId);
@@ -1395,9 +1427,8 @@ void BrowserController::setTabLoading(const QString &tabId, bool loading)
     m_tabs.notifyChanged(tab->id, {TabListModel::LoadingRole});
 }
 
-// Whether a page is making sound is the page's to say, and it says it only
-// while it has a renderer: a tab that loses its engine falls silent here too,
-// or the row would keep offering to mute a page that is no longer loaded.
+// Whether a page is making sound is the page's to say. This setter stays public
+// for native callers; engine adapters report the complete page state instead.
 void BrowserController::setTabAudible(const QString &tabId, bool audible)
 {
     auto *tab = m_tabs.find(tabId);
@@ -1410,9 +1441,7 @@ void BrowserController::setTabAudible(const QString &tabId, bool audible)
 
 // Muting is a standing decision about the tab rather than about the page in
 // it: it survives navigation within the tab, because the reader silenced this
-// tab and not one particular document. A Space switch reloads its tabs from
-// the store, which knows nothing of either, so a page that outlived the
-// switch says both again on the way back.
+// tab and not one particular document.
 void BrowserController::setTabMuted(const QString &tabId, bool muted)
 {
     auto *tab = m_tabs.find(tabId);
@@ -2198,6 +2227,14 @@ void BrowserController::ensureActiveTab()
         auto tab = makeBlankTab(m_activeSpaceId);
         tabs.append(tab);
         m_store->saveTab(tab, 0);
+    }
+    for (auto &tab : tabs) {
+        const auto livePage = m_livePageStates.constFind(tab.id);
+        if (livePage == m_livePageStates.cend()) {
+            continue;
+        }
+        tab.iconUrl = livePage->iconUrl;
+        tab.audible = livePage->audible;
     }
 
     auto active = tabs.cbegin();

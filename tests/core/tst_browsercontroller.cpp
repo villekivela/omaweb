@@ -70,6 +70,12 @@ private slots:
     void pinningMovesTabIntoPinnedBlock();
     void keepsFinalTabAsBlankTab();
     void restsUntilSomethingIsOpenedInTheSpace();
+    void appliesAddresslessPageReportsWithoutBlankingTheTab();
+    void recordsVisitsWhenReportedLoadsFinish();
+    void keepsReportedIconAndAudibilityAcrossSpaceSwitches();
+    void dropsReportedPageStateWhenMovingATabBetweenSpaces();
+    void exposesOnlyCombinedPageStateReportsToQml();
+    void dropsThePreviousHostsIconFromPageReports();
     void keepsRendererFailureOnAffectedTab();
     void keepsMutingDecisionWhileSoundComesAndGoes();
     void stepsZoomAlongOneLadderPerTab();
@@ -541,6 +547,125 @@ void BrowserControllerTest::keepsRendererFailureOnAffectedTab()
     controller.recoverActiveTab();
     QVERIFY(!controller.activeRendererFailed());
     QCOMPARE(reloadSpy.count(), 1);
+}
+
+void BrowserControllerTest::appliesAddresslessPageReportsWithoutBlankingTheTab()
+{
+    QTemporaryDir root;
+    BrowserController controller(SpaceStorage(root.path(), QStringLiteral("test")));
+    controller.openInput(QStringLiteral("https://example.com/first"), false);
+    const auto tabId = controller.activeTabId();
+
+    controller.reportTabPageState(tabId, {}, QStringLiteral("Missing"), {}, true, false);
+
+    QCOMPARE(controller.activeUrl(), QUrl(QStringLiteral("https://example.com/first")));
+    QCOMPARE(controller.activeTitle(), QStringLiteral("example.com"));
+    QVERIFY(controller.tabs()
+            ->data(controller.tabs()->index(0, 0), TabListModel::LoadingRole)
+            .toBool());
+}
+
+void BrowserControllerTest::recordsVisitsWhenReportedLoadsFinish()
+{
+    QTemporaryDir root;
+    BrowserController controller(SpaceStorage(root.path(), QStringLiteral("test")));
+    const auto tabId = controller.activeTabId();
+    const QUrl address(QStringLiteral("https://example.com/visited"));
+
+    controller.reportTabPageState(tabId, address, QStringLiteral("Visited"), {}, true, false);
+    QCOMPARE(controller.history({}).size(), 0);
+
+    controller.reportTabPageState(tabId, address, QStringLiteral("Visited"), {}, false, false);
+    const auto visits = controller.history({});
+    QCOMPARE(visits.size(), 1);
+    QCOMPARE(visits.first().toMap().value(QStringLiteral("url")).toUrl(), address);
+    QCOMPARE(visits.first().toMap().value(QStringLiteral("title")).toString(),
+        QStringLiteral("Visited"));
+    controller.reportTabPageState(tabId, address, QStringLiteral("Visited"), {}, false, false);
+    QCOMPARE(controller.history({}).size(), 1);
+}
+
+void BrowserControllerTest::keepsReportedIconAndAudibilityAcrossSpaceSwitches()
+{
+    QTemporaryDir root;
+    BrowserController controller(SpaceStorage(root.path(), QStringLiteral("test")));
+    const auto personalSpaceId = controller.activeSpaceId();
+    controller.openInput(QStringLiteral("https://example.com"), false);
+    const auto tabId = controller.activeTabId();
+    const QUrl icon(QStringLiteral("https://example.com/favicon.png"));
+    controller.reportTabPageState(
+        tabId, controller.activeUrl(), QStringLiteral("Example"), icon, false, true);
+    const auto workSpaceId = controller.createSpace(QStringLiteral("Work"));
+
+    QVERIFY(controller.switchSpace(workSpaceId));
+    QVERIFY(controller.switchSpace(personalSpaceId));
+
+    const auto index = controller.tabs()->index(0, 0);
+    QCOMPARE(controller.tabs()->data(index, TabListModel::IconUrlRole).toUrl(), icon);
+    QVERIFY(controller.tabs()->data(index, TabListModel::AudibleRole).toBool());
+}
+
+void BrowserControllerTest::dropsReportedPageStateWhenMovingATabBetweenSpaces()
+{
+    QTemporaryDir root;
+    BrowserController controller(SpaceStorage(root.path(), QStringLiteral("test")));
+    const auto personalSpaceId = controller.activeSpaceId();
+    controller.openInput(QStringLiteral("https://example.com"), false);
+    const auto tabId = controller.activeTabId();
+    const QUrl icon(QStringLiteral("https://example.com/favicon.png"));
+    controller.reportTabPageState(
+        tabId, controller.activeUrl(), QStringLiteral("Example"), icon, false, true);
+    const auto workSpaceId = controller.createSpace(QStringLiteral("Work"));
+    QVERIFY(controller.switchSpace(workSpaceId));
+    QVERIFY(controller.switchSpace(personalSpaceId));
+
+    QVERIFY(controller.confirmTabMoveToSpace(tabId, workSpaceId));
+    QVERIFY(controller.switchSpace(workSpaceId));
+
+    auto *tabs = controller.tabs();
+    for (int row = 0; row < tabs->rowCount(); ++row) {
+        const auto index = tabs->index(row, 0);
+        if (tabs->data(index, TabListModel::IdRole).toString() != tabId) {
+            continue;
+        }
+        QVERIFY(tabs->data(index, TabListModel::IconUrlRole).toUrl().isEmpty());
+        QVERIFY(!tabs->data(index, TabListModel::AudibleRole).toBool());
+        return;
+    }
+    QFAIL("moved tab is missing from its destination Space");
+}
+
+void BrowserControllerTest::exposesOnlyCombinedPageStateReportsToQml()
+{
+    QTemporaryDir root;
+    BrowserController controller(SpaceStorage(root.path(), QStringLiteral("test")));
+    const auto *metaObject = controller.metaObject();
+
+    QVERIFY(
+        metaObject->indexOfMethod("reportTabPageState(QString,QUrl,QString,QUrl,bool,bool)") >= 0);
+    QCOMPARE(metaObject->indexOfMethod("setTabIcon(QString,QUrl)"), -1);
+    QCOMPARE(metaObject->indexOfMethod("setTabLoading(QString,bool)"), -1);
+    QCOMPARE(metaObject->indexOfMethod("setTabAudible(QString,bool)"), -1);
+}
+
+void BrowserControllerTest::dropsThePreviousHostsIconFromPageReports()
+{
+    QTemporaryDir root;
+    BrowserController controller(SpaceStorage(root.path(), QStringLiteral("test")));
+    const auto tabId = controller.activeTabId();
+    const QUrl firstAddress(QStringLiteral("https://first.example/page"));
+    const QUrl firstIcon(QStringLiteral("https://first.example/favicon.png"));
+    controller.reportTabPageState(
+        tabId, firstAddress, QStringLiteral("First"), firstIcon, false, false);
+    controller.reportTabPageState(
+        tabId, firstAddress, QStringLiteral("First"), firstIcon, false, false);
+    const auto index = controller.tabs()->index(0, 0);
+    QCOMPARE(controller.tabs()->data(index, TabListModel::IconUrlRole).toUrl(), firstIcon);
+
+    controller.reportTabPageState(tabId, QUrl(QStringLiteral("https://second.example/page")),
+        QStringLiteral("Second"), firstIcon, false, false);
+
+    QVERIFY(controller.tabs()->data(index, TabListModel::IconUrlRole).toUrl().isEmpty());
 }
 
 // Sound is the page's to report and muting is the reader's to decide, so the
@@ -1338,8 +1463,8 @@ void BrowserControllerTest::detachesTheInspectorWithTheTabItInspects()
 
     controller.openInput(QStringLiteral("https://navigated.example"), false);
     controller.openDeveloperTools();
-    controller.updateTab(
-        controller.activeTabId(), QUrl(QStringLiteral("about:blank")), QStringLiteral("New tab"));
+    controller.reportTabPageState(controller.activeTabId(), QUrl(QStringLiteral("about:blank")),
+        QStringLiteral("New tab"), {}, false, false);
     QVERIFY(controller.developerToolsTabId().isEmpty());
 
     controller.openInput(QStringLiteral("https://moved.example"), false);
@@ -1650,8 +1775,8 @@ void BrowserControllerTest::restoresMutingWithTheTabAndNeverByOrigin()
         QVERIFY(!tabs->data(tabs->index(1, 0), TabListModel::MutedRole).toBool());
 
         // Muting survives navigation within the tab.
-        controller.updateTab(mutedId, QUrl(QStringLiteral("https://elsewhere.example")),
-            QStringLiteral("Elsewhere"));
+        controller.reportTabPageState(mutedId, QUrl(QStringLiteral("https://elsewhere.example")),
+            QStringLiteral("Elsewhere"), {}, false, true);
         QVERIFY(tabs->data(tabs->index(0, 0), TabListModel::MutedRole).toBool());
     }
 
@@ -1957,8 +2082,8 @@ void BrowserControllerTest::holdsBackSoundUntilTheOriginIsDealtWith()
 
         // Leaving for a site the reader has not dealt with holds the sound
         // again, in the same tab.
-        controller.updateTab(firstId, QUrl(QStringLiteral("https://elsewhere.example/")),
-            QStringLiteral("Elsewhere"));
+        controller.reportTabPageState(firstId, QUrl(QStringLiteral("https://elsewhere.example/")),
+            QStringLiteral("Elsewhere"), {}, false, false);
         QVERIFY(controller.tabSoundSuppressed(firstId));
     }
 
