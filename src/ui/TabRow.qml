@@ -22,6 +22,11 @@ Item {
     // origin. The row draws it the way it draws muting, because that is what it
     // is from where the reader sits — silence, with the sound one press away.
     required property bool tabSoundSuppressed
+    // Whether the reader marked this Pinned tab Keep active. A pin has no
+    // title to carry the state and the tab menu is the only other place the
+    // setting appears, so the row draws it: a standing decision the reader
+    // cannot see is one they cannot tell they have made, or undo.
+    required property bool tabKeepActive
     property var colors
     property string iconFontFamily
     property bool useFavicons: true
@@ -52,6 +57,10 @@ Item {
     // on the row for as long as the reader's decision does.
     readonly property bool showsAudio: tabAudible || tabMuted
     readonly property bool silenced: tabMuted || tabSoundSuppressed
+
+    // Keep active is a pin's setting alone, and the core gives it up when a tab
+    // is unpinned, so an ordinary row has nothing to say here.
+    readonly property bool showsKeepActive: pinned && tabKeepActive
 
     // The slot an ordinary row gives its site chip, and where it starts. The
     // stand-in the chip draws is two characters of the theme's smallest type,
@@ -120,7 +129,9 @@ Item {
                                                                                    ? " (playing silently)" :
                                                                                      (tabAudible
                                                                                       ? " (playing audio)" :
-                                                                                        "")))
+                                                                                        ""))) + (showsKeepActive
+                                                                                                 ? " (kept active)" :
+                                                                                                   "")
     Accessible.onPressAction: root.activated(root.tabId)
 
     Keys.onPressed: function (event) {
@@ -194,6 +205,26 @@ Item {
         useArtwork: root.useFavicons
         tintArtwork: root.tintFavicons
         siteColoredMark: root.siteColored
+    }
+
+    // The pin's own corner, opposite the speaker, so a page being heard and a
+    // page kept running can both be read off one tile. Ringed in the sidebar's
+    // ground rather than left bare: the mark lies over site artwork, which is
+    // any colour at all, and a dot the artwork swallows says nothing.
+    Rectangle {
+        objectName: "keepActive-" + root.tabId
+        visible: root.showsKeepActive
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        anchors.rightMargin: 4
+        anchors.bottomMargin: 4
+        width: 8
+        height: 8
+        radius: width / 2
+        color: root.siteColored && root.active ? root.siteColor : root.colors.accent
+        border.width: 1
+        border.color: root.colors.windowOpaque
+        Accessible.ignored: true
     }
 
     // The title names the page; its address is already in the address button

@@ -2453,6 +2453,59 @@ TestCase {
         browser.closeTab(ordinaryTabId);
     }
 
+    // Every menu is the menu as it stands. The entries turn on whether the row
+    // is pinned and kept active, which the core answers as calls rather than as
+    // properties, so a menu bound to the tab id alone would hand back the list
+    // it built the first time it was asked about that row: "Pin tab" on a pin,
+    // and "Keep active" on a tab already kept active.
+    function test_tabMenuAnswersWithTheRowAsItStands() {
+        openPage("https://restated.example");
+        const tabId = browser.activeTabId;
+
+        const labels = function () {
+            window.openTabMenu(tabId, 0, 0);
+            window.tabMenuOpen = false;
+            return window.tabMenuItems.map(function (action) {
+                return action.label;
+            });
+        };
+
+        verify(labels().indexOf("Pin tab") >= 0);
+
+        browser.toggleActivePinned();
+        const pinned = labels();
+        verify(pinned.indexOf("Unpin tab") >= 0);
+        verify(pinned.indexOf("Keep active") >= 0);
+        verify(pinned.indexOf("Close tab") === -1);
+
+        verify(browser.setTabKeepActive(tabId, true));
+        verify(labels().indexOf("Stop keeping active") >= 0);
+
+        // The row says so too, so the setting is legible without opening the
+        // menu that made it. The mark is a pin's: unpinning gives Keep active
+        // up, and the mark goes with it.
+        const mark = findChild(window.contentItem, "keepActive-" + tabId);
+        verify(mark !== null);
+        tryVerify(function () {
+            return mark.visible;
+        });
+
+        // Running the entry the menu is showing turns the setting off rather
+        // than on again.
+        window.openTabMenu(tabId, 0, 0);
+        window.runTabMenu(window.tabMenuItems.map(function (action) {
+            return action.label;
+        }).indexOf("Stop keeping active"));
+        verify(!browser.tabKeepActive(tabId));
+        tryVerify(function () {
+            return !mark.visible;
+        });
+
+        browser.activateTab(tabId);
+        browser.toggleActivePinned();
+        browser.closeTab(tabId);
+    }
+
     // Order is the reader's, within one section. A drag down the ordinary list
     // moves a row past its neighbour and no further than the section's end,
     // and the keyboard does the same a step at a time.
