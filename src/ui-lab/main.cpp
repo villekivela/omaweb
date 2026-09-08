@@ -167,7 +167,8 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    omaweb::BrowserController browser(dataRoot.path(), QStringLiteral("mock"));
+    omaweb::BrowserController browser(
+        omaweb::SpaceStorage(dataRoot.path(), QStringLiteral("mock")));
     omaweb::ContentBlocker contentBlocker(
         dataRoot.path(), omaweb::ContentBlocker::DefaultLists::None);
     const auto keybindingsPath = dataRoot.filePath(QStringLiteral("keybindings.json"));
@@ -182,7 +183,7 @@ int main(int argc, char *argv[])
     const auto themeOverride = qEnvironmentVariable("OMAWEB_THEME_FILE");
     omaweb::ThemeController theme(
         themeOverride.isEmpty() ? QStringLiteral(OMAWEB_THEME_PATH) : themeOverride);
-    omaweb::WindowManager windowManager(QStringLiteral("mock"));
+    omaweb::WindowManager windowManager;
 
     omaweb::registerFaviconTint();
     omaweb::registerDefaultBrowser();

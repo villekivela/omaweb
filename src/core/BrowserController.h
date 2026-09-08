@@ -4,6 +4,7 @@
 #include "SessionSiteState.h"
 #include "SessionStore.h"
 #include "SpaceListModel.h"
+#include "SpaceStorage.h"
 #include "TabListModel.h"
 #include "WindowCapabilities.h"
 
@@ -18,6 +19,7 @@
 #include <QVariantList>
 
 #include <memory>
+#include <optional>
 
 namespace omaweb {
 
@@ -110,29 +112,32 @@ public:
     // QML adapters exchange these names instead of depending on enum values.
     static QString dispositionName(DownloadDisposition disposition);
 
-    BrowserController(QString dataRoot, QString engineName, QObject *parent = nullptr);
-    BrowserController(
-        QString dataRoot, QString engineName, QString configRoot, QObject *parent = nullptr);
-    BrowserController(
-        QString dataRoot, QString engineName, bool privateBrowsing, QObject *parent = nullptr);
-    BrowserController(QString dataRoot, QString engineName, bool privateBrowsing,
+    // Where this window's Spaces live on disk, which is a data root and the
+    // name of the engine reading it. A window built this way keeps what it
+    // browses; the store-taking constructor below is how one that keeps
+    // nothing is built.
+    explicit BrowserController(SpaceStorage storage, QObject *parent = nullptr);
+    BrowserController(SpaceStorage storage, QString configRoot, QObject *parent = nullptr);
+    BrowserController(SpaceStorage storage, bool privateBrowsing, QObject *parent = nullptr);
+    BrowserController(SpaceStorage storage, bool privateBrowsing,
         QSharedPointer<QHash<QString, int>> sessionPermissionDecisions, QObject *parent = nullptr);
-    BrowserController(QString dataRoot, QString engineName, bool privateBrowsing,
+    BrowserController(SpaceStorage storage, bool privateBrowsing,
         QSharedPointer<QHash<QString, int>> sessionPermissionDecisions, QString configRoot,
         QObject *parent = nullptr);
     // The session's own site state — third-party allowances and granted
     // certificate exceptions — which a shared private session hands round its
     // windows beside the Site permissions it already shares. Both live in
     // memory for exactly as long as that session does.
-    BrowserController(QString dataRoot, QString engineName, bool privateBrowsing,
+    BrowserController(SpaceStorage storage, bool privateBrowsing,
         QSharedPointer<QHash<QString, int>> sessionPermissionDecisions,
         QSharedPointer<SessionSiteState> sessionSiteState, QString configRoot,
         QObject *parent = nullptr);
     // A Private window is handed the store its session already has, so what one
     // window agreed to is what the next one finds. Whether a window is private
     // stays a fact of its own: a store that keeps nothing is also how an
-    // ordinary window could be built for a test.
-    BrowserController(std::shared_ptr<SessionStore> store, QString engineName, bool privateBrowsing,
+    // ordinary window could be built for a test. Either way the window has no
+    // SpaceStorage, because nothing it browses is kept anywhere.
+    BrowserController(std::shared_ptr<SessionStore> store, bool privateBrowsing,
         QSharedPointer<QHash<QString, int>> sessionPermissionDecisions,
         QSharedPointer<SessionSiteState> sessionSiteState, QString configRoot,
         QObject *parent = nullptr);
@@ -148,8 +153,16 @@ public:
     QString activeTabId() const;
     QUrl activeUrl() const;
     QString activeTitle() const;
+    // Where the active Space's Engine profile belongs, and where one Space's
+    // does. Both only say where: a window with no SpaceStorage, and a Space
+    // this window does not have, answer with nothing.
     QString activeProfilePath() const;
     Q_INVOKABLE QString profilePathForSpace(const QString &spaceId) const;
+    // The same directory, made to exist. Called where an engine host is about
+    // to be built over it, and answering with nothing when it cannot be
+    // created — a host pointed at a directory that is not there would find out
+    // later and less clearly.
+    Q_INVOKABLE QString prepareProfileForSpace(const QString &spaceId) const;
     bool activeTabPinned() const;
     bool activeTabKeepActive() const;
     int closedTabCount() const;
@@ -416,7 +429,7 @@ private:
     bool saveSearchEngines(const QVariantList &engines, const QString &defaultEngineId);
     void loadDownloadDirectory();
     static QString normalizedOrigin(const QUrl &url);
-    BrowserController(std::shared_ptr<SessionStore> store, QString dataRoot, QString engineName,
+    BrowserController(std::shared_ptr<SessionStore> store, std::optional<SpaceStorage> storage,
         bool privateBrowsing, QSharedPointer<QHash<QString, int>> sessionPermissionDecisions,
         QSharedPointer<SessionSiteState> sessionSiteState, QString configRoot, QObject *parent);
 
@@ -426,9 +439,11 @@ private:
     // The window's session. Which adapter it is answers "does a Private
     // window write this down", so no call site asks.
     std::shared_ptr<SessionStore> m_store;
-    // Kept beside the store because the history search opens the same files
-    // from its own thread, and a store that keeps nothing has no root to ask.
-    QString m_dataRoot;
+    // Where this window's Spaces live, kept beside the store because the
+    // history search opens the same files from its own thread. Empty in a
+    // window that keeps nothing, which is what the profile-path readers answer
+    // from rather than testing whether this window is private.
+    std::optional<SpaceStorage> m_storage;
     // The search thread and the object on it. Both are absent in a Private
     // window, which has no history to search.
     QThread *m_historyThread = nullptr;
@@ -453,7 +468,6 @@ private:
     // attachment with it: the tab is gone from the store, and while another
     // Space is active it is not in the tab model to be noticed missing.
     QString m_developerToolsSpaceId;
-    QString m_engineName;
     QString m_configRoot;
     QVariantList m_searchEngines;
     QString m_defaultSearchEngineId;

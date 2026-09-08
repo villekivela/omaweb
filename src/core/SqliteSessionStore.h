@@ -58,15 +58,6 @@ public:
     bool forgetDownload(const QString &id) override;
 
     QString dataRoot() const;
-    // Where one Space keeps its tabs, history and Site permissions. The
-    // history search reads the same file from its own thread, so the layout is
-    // named here rather than spelled out twice.
-    static QString spaceDatabasePath(const QString &dataRoot, const QString &spaceId);
-    // Where a Space keeps one engine's profile. Static for the same reason
-    // as the database path above: the layout is the recording adapter's, and
-    // a caller with a data root can ask without holding a store.
-    static QString engineProfilePath(
-        const QString &dataRoot, const QString &spaceId, const QString &engineName);
 
 private:
     bool executeSchema(QString *errorMessage);

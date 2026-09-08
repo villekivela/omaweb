@@ -672,20 +672,6 @@ bool SqliteSessionStore::forgetDownload(const QString &id)
 
 QString SqliteSessionStore::dataRoot() const { return m_dataRoot; }
 
-QString SqliteSessionStore::spaceDatabasePath(const QString &dataRoot, const QString &spaceId)
-{
-    return QDir(dataRoot).filePath(QStringLiteral("spaces/%1/browser.sqlite").arg(spaceId));
-}
-
-QString SqliteSessionStore::engineProfilePath(
-    const QString &dataRoot, const QString &spaceId, const QString &engineName)
-{
-    const auto path
-        = QDir(dataRoot).filePath(QStringLiteral("spaces/%1/engines/%2").arg(spaceId, engineName));
-    QDir().mkpath(path);
-    return path;
-}
-
 bool SqliteSessionStore::executeSchema(QString *errorMessage)
 {
     static constexpr auto schema = R"SQL(
@@ -847,7 +833,9 @@ QSqlDatabase SqliteSessionStore::spaceDatabase(const QString &spaceId) const
     QDir().mkpath(spaceRoot);
     const auto connectionName = QStringLiteral("%1-space-%2").arg(m_connectionName, spaceId);
     auto database = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), connectionName);
-    database.setDatabaseName(spaceDatabasePath(m_dataRoot, spaceId));
+    // The file SpaceStorage names for this Space, opened in the directory this
+    // accessor has just made room for.
+    database.setDatabaseName(QDir(spaceRoot).filePath(QStringLiteral("browser.sqlite")));
     database.open();
     QSqlQuery pragma(database);
     pragma.exec(QStringLiteral("PRAGMA journal_mode = WAL"));

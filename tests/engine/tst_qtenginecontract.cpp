@@ -37,6 +37,7 @@
 
 using omaweb::BrowserController;
 using omaweb::EngineCapabilities;
+using omaweb::SpaceStorage;
 using omaweb::validateEngineViewContract;
 
 static QString keyboardNavigationPageScript()
@@ -2862,7 +2863,7 @@ void QtEngineContractTest::qtRefusesThirdPartyCookiesUntilAnOriginIsAllowed()
 
     QTemporaryDir dataRoot;
     QVERIFY(dataRoot.isValid());
-    BrowserController browser(dataRoot.path(), QStringLiteral("qt"));
+    BrowserController browser(SpaceStorage(dataRoot.path(), QStringLiteral("qt")));
     QVERIFY(browser.ready());
     const auto spaceId = browser.activeSpaceId();
     omaweb::QtCookiePolicy policy;
@@ -3316,7 +3317,8 @@ void QtEngineContractTest::qtHoldsARiskyDownloadUntilTheShellHasAnswered()
     const auto downloads = root.filePath(QStringLiteral("downloads"));
     QVERIFY(QDir().mkpath(downloads));
 
-    BrowserController controller(root.filePath(QStringLiteral("data")), QStringLiteral("qt"));
+    BrowserController controller(
+        SpaceStorage(root.filePath(QStringLiteral("data")), QStringLiteral("qt")));
     controller.recordOriginInteraction(QUrl(base));
     omaweb::QtHeldDownloads heldDownloads;
 

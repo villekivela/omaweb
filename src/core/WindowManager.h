@@ -26,10 +26,9 @@ class WindowManager final : public QObject {
     Q_PROPERTY(bool privateWindowsAvailable READ privateWindowsAvailable CONSTANT)
 
 public:
-    explicit WindowManager(QString engineName, QObject *parent = nullptr);
-    WindowManager(QString engineName, bool privateWindowsAvailable, QObject *parent = nullptr);
-    WindowManager(QString engineName, QString configRoot, bool privateWindowsAvailable,
-        QObject *parent = nullptr);
+    explicit WindowManager(QObject *parent = nullptr);
+    explicit WindowManager(bool privateWindowsAvailable, QObject *parent = nullptr);
+    WindowManager(QString configRoot, bool privateWindowsAvailable, QObject *parent = nullptr);
     ~WindowManager() override;
 
     BrowserController *createPrivateWindow();
@@ -48,7 +47,6 @@ signals:
 private:
     bool ensurePrivateSession();
 
-    QString m_engineName;
     QString m_configRoot;
     bool m_privateWindowsAvailable = true;
     std::unique_ptr<QTemporaryDir> m_privateRoot;

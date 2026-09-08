@@ -153,6 +153,8 @@ add_library(omaweb-core STATIC
     src/core/SqliteSessionStore.h
     src/core/SpaceListModel.cpp
     src/core/SpaceListModel.h
+    src/core/SpaceStorage.cpp
+    src/core/SpaceStorage.h
     src/core/TabListModel.cpp
     src/core/TabListModel.h
     src/core/WindowCapabilities.h
@@ -589,6 +591,11 @@ if(BUILD_TESTING)
     target_link_libraries(omaweb-session-store-tests PRIVATE omaweb-core Qt6::Test)
     omaweb_strict_target(omaweb-session-store-tests)
     add_test(NAME omaweb-session-store COMMAND omaweb-session-store-tests)
+
+    qt_add_executable(omaweb-space-storage-tests tests/core/tst_spacestorage.cpp)
+    target_link_libraries(omaweb-space-storage-tests PRIVATE omaweb-core Qt6::Test)
+    omaweb_strict_target(omaweb-space-storage-tests)
+    add_test(NAME omaweb-space-storage COMMAND omaweb-space-storage-tests)
 
     qt_add_executable(omaweb-keyboard-navigation-tests
         tests/core/tst_keyboardnavigation.cpp

@@ -72,14 +72,14 @@ public slots:
         omaweb::registerInputMethodReport(m_inputMethod.get());
         m_dataRoot = std::make_unique<QTemporaryDir>();
         m_browser = std::make_unique<omaweb::BrowserController>(
-            m_dataRoot->path(), QStringLiteral("mock"));
+            omaweb::SpaceStorage(m_dataRoot->path(), QStringLiteral("mock")));
         m_contentBlocker = std::make_unique<omaweb::ContentBlocker>(m_dataRoot->path());
         const auto keybindingsPath = m_dataRoot->filePath(QStringLiteral("keybindings.json"));
         QFile::copy(QStringLiteral(OMAWEB_DEFAULT_KEYBINDINGS_PATH), keybindingsPath);
         QFile::setPermissions(keybindingsPath, QFileDevice::ReadOwner | QFileDevice::WriteOwner);
         m_keyboardNavigation = std::make_unique<omaweb::KeyboardNavigation>(keybindingsPath);
         m_theme = std::make_unique<omaweb::ThemeController>(QStringLiteral(OMAWEB_THEME_PATH));
-        m_windowManager = std::make_unique<omaweb::WindowManager>(QStringLiteral("mock"));
+        m_windowManager = std::make_unique<omaweb::WindowManager>();
         engine->rootContext()->setContextProperty(QStringLiteral("browser"), m_browser.get());
         engine->rootContext()->setContextProperty(
             QStringLiteral("contentBlocker"), m_contentBlocker.get());
