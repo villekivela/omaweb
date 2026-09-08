@@ -155,6 +155,7 @@ add_library(omaweb-core STATIC
     src/core/SpaceListModel.h
     src/core/TabListModel.cpp
     src/core/TabListModel.h
+    src/core/WindowCapabilities.h
     src/core/WindowManager.cpp
     src/core/WindowManager.h
 )
