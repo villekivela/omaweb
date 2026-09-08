@@ -133,6 +133,8 @@ add_library(omaweb-core STATIC
     src/core/DevelopmentLaunch.h
     src/core/DownloadPolicy.cpp
     src/core/DownloadPolicy.h
+    src/core/Downloads.cpp
+    src/core/Downloads.h
     src/core/HardwareVideoDecode.cpp
     src/core/HardwareVideoDecode.h
     src/core/HistoryQuery.cpp
@@ -162,7 +164,7 @@ add_library(omaweb-core STATIC
     src/core/WindowManager.h
 )
 target_include_directories(omaweb-core PUBLIC src/core src/content-blocking)
-target_link_libraries(omaweb-core PUBLIC Qt6::Core Qt6::Network Qt6::Sql
+target_link_libraries(omaweb-core PUBLIC Qt6::Core Qt6::Network Qt6::Qml Qt6::Sql
     PRIVATE Qt6::Concurrent omaweb-content-blocking)
 omaweb_strict_target(omaweb-core)
 
@@ -629,6 +631,13 @@ if(BUILD_TESTING)
     target_link_libraries(omaweb-launch-request-tests PRIVATE omaweb-core Qt6::Test)
     omaweb_strict_target(omaweb-launch-request-tests)
     add_test(NAME omaweb-launch-request COMMAND omaweb-launch-request-tests)
+
+    qt_add_executable(omaweb-downloads-tests
+        tests/core/tst_downloads.cpp
+    )
+    target_link_libraries(omaweb-downloads-tests PRIVATE omaweb-core Qt6::Test)
+    omaweb_strict_target(omaweb-downloads-tests)
+    add_test(NAME omaweb-downloads COMMAND omaweb-downloads-tests)
 
     qt_add_executable(omaweb-download-policy-tests
         tests/core/tst_downloadpolicy.cpp

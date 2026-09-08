@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Downloads.h"
 #include "RetainedTab.h"
 #include "SessionSiteState.h"
 #include "SessionStore.h"
@@ -25,7 +26,10 @@ namespace omaweb {
 
 class HistorySearch;
 
-class BrowserController final : public QObject {
+// A window implements DownloadPermissions so its downloads can ask what an
+// origin has been allowed without holding the window's Site permissions
+// themselves.
+class BrowserController final : public QObject, public DownloadPermissions {
     Q_OBJECT
     Q_PROPERTY(QAbstractItemModel *spaces READ spaces CONSTANT)
     Q_PROPERTY(QAbstractItemModel *tabs READ tabs CONSTANT)
@@ -77,6 +81,9 @@ class BrowserController final : public QObject {
     Q_PROPERTY(bool privateBrowsing READ privateBrowsing CONSTANT)
     Q_PROPERTY(bool ready READ ready CONSTANT)
     Q_PROPERTY(QString errorMessage READ errorMessage CONSTANT)
+    // The window's downloads, running and recorded. The download directory
+    // above is a setting rather than part of this list, so it stays here.
+    Q_PROPERTY(omaweb::Downloads *downloads READ downloads CONSTANT)
     Q_PROPERTY(QString downloadDirectory READ downloadDirectory NOTIFY downloadDirectoryChanged)
     Q_PROPERTY(bool acceptDownloads READ acceptDownloads CONSTANT)
 
@@ -108,9 +115,6 @@ public:
         SaveDownloadAs = 4,
     };
     Q_ENUM(DownloadDisposition)
-
-    // QML adapters exchange these names instead of depending on enum values.
-    static QString dispositionName(DownloadDisposition disposition);
 
     // Where this window's Spaces live on disk, which is a data root and the
     // name of the engine reading it. A window built this way keeps what it
@@ -177,8 +181,13 @@ public:
     bool privateBrowsing() const;
     bool ready() const;
     QString errorMessage() const;
+    Downloads *downloads() const;
     QString downloadDirectory() const;
     bool acceptDownloads() const;
+
+    QString permissionOrigin(const QUrl &url) const override;
+    int automaticDownloadDecision(const QString &origin) const override;
+    bool rememberAutomaticDownloadDecision(const QString &origin, int decision) override;
 
     Q_INVOKABLE void activateTab(const QString &tabId);
     Q_INVOKABLE QString createSpace(const QString &name);
@@ -267,7 +276,7 @@ public:
     // themselves. The memory is the session's and one Space's: another Space
     // is another browsing identity, and nothing here reaches across a restart.
     Q_INVOKABLE void recordOriginInteraction(const QUrl &url);
-    Q_INVOKABLE bool originInteracted(const QUrl &url) const;
+    Q_INVOKABLE bool originInteracted(const QUrl &url) const override;
     Q_INVOKABLE bool tabSoundSuppressed(const QString &tabId) const;
     // The reader asking a row for its sound. That is the reader dealing with
     // the origin — the same answer as touching the page — so it is recorded as
@@ -341,19 +350,6 @@ public:
     Q_INVOKABLE double siteDataBytes(const QString &spaceId, const QStringList &entries) const;
     Q_INVOKABLE bool externalProtocolAllowed(const QUrl &origin, const QString &scheme) const;
     Q_INVOKABLE bool rememberExternalProtocolDecision(const QUrl &origin, const QString &scheme);
-    Q_INVOKABLE QString recordDownload(const QString &runtimeId, const QUrl &url,
-        const QString &path, const QString &state, qint64 receivedBytes, qint64 totalBytes);
-    Q_INVOKABLE bool updateDownload(const QString &id, const QString &state, qint64 receivedBytes,
-        qint64 totalBytes, const QString &error);
-    Q_INVOKABLE QVariantList downloadHistory() const;
-    Q_INVOKABLE bool forgetDownload(const QString &id);
-    // `answered` prevents the retried request from repeating the first prompt.
-    // Filename conflicts still return SaveDownloadAs.
-    Q_INVOKABLE QVariantMap downloadDisposition(const QUrl &origin, const QString &fileName,
-        const QString &mimeType, const QString &directory, bool answered = false) const;
-    Q_INVOKABLE void noteDownloadStarted(const QUrl &origin, const QString &runtimeId);
-    Q_INVOKABLE void noteDownloadSettled(const QString &runtimeId);
-    Q_INVOKABLE int activeDownloadCount(const QUrl &origin) const;
     Q_INVOKABLE bool setDownloadDirectory(const QString &path);
     Q_INVOKABLE QString preference(const QString &name, const QString &fallback = {}) const;
     Q_INVOKABLE bool setPreference(const QString &name, const QString &value);
@@ -476,7 +472,7 @@ private:
     QVector<RetainedTab> m_retainedTabs;
     QSet<QString> m_interactedOrigins;
     QString m_downloadDirectory;
-    QHash<QString, QString> m_activeDownloadOrigins;
+    Downloads *m_downloads = nullptr;
     bool m_ready = false;
     bool m_atRest = false;
     bool m_privateBrowsing = false;
@@ -486,5 +482,10 @@ private:
     QSharedPointer<QHash<QString, int>> m_sessionPermissionDecisions;
     QSharedPointer<SessionSiteState> m_sessionSiteState;
 };
+
+// Makes `BrowserController`'s enums available to QML as `import Omaweb`. The
+// type is uncreatable: a window's controller is handed to QML, never built
+// there. Call once per process, before loading QML.
+void registerBrowserController();
 
 } // namespace omaweb

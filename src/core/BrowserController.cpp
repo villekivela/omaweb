@@ -18,6 +18,7 @@
 #include <QSet>
 #include <QUrlQuery>
 #include <QUuid>
+#include <QQmlEngine>
 #include <QStandardPaths>
 
 #include <algorithm>
@@ -183,6 +184,9 @@ BrowserController::BrowserController(std::shared_ptr<SessionStore> store,
     connect(&m_tabs, &QAbstractItemModel::modelReset, this, [this] { refreshAtRest(); });
     loadDownloadDirectory();
     initialize();
+    // Built once the store is open, because it reads the Space's Download
+    // records to come up with the list it already has.
+    m_downloads = new Downloads(m_store.get(), this, this);
     // A window without History search has nothing to search and no thread to
     // search it with, and neither has one that keeps nothing on disk: the
     // search reads the Space databases a SpaceStorage names.
@@ -389,6 +393,24 @@ bool BrowserController::setDownloadDirectory(const QString &path)
 }
 
 bool BrowserController::acceptDownloads() const { return true; }
+
+Downloads *BrowserController::downloads() const { return m_downloads; }
+
+QString BrowserController::permissionOrigin(const QUrl &url) const { return normalizedOrigin(url); }
+
+int BrowserController::automaticDownloadDecision(const QString &origin) const
+{
+    const auto key = sessionPermissionKey(origin, QStringLiteral("automatic-downloads"));
+    const auto session = m_sessionPermissionDecisions->value(key, Ask);
+    return session != Ask ? session
+                          : m_store->permissionDecision(
+                                m_activeSpaceId, origin, QStringLiteral("automatic-downloads"));
+}
+
+bool BrowserController::rememberAutomaticDownloadDecision(const QString &origin, int decision)
+{
+    return setPermissionDecision(QUrl(origin), QStringLiteral("automatic-downloads"), decision);
+}
 
 void BrowserController::activateTab(const QString &tabId)
 {
@@ -2106,116 +2128,6 @@ bool BrowserController::rememberExternalProtocolDecision(const QUrl &url, const 
     return m_store->savePermissionDecision(m_activeSpaceId, origin, permission, AllowPersistently);
 }
 
-QString BrowserController::recordDownload(const QString &runtimeId, const QUrl &url,
-    const QString &path, const QString &state, qint64 receivedBytes, qint64 totalBytes)
-{
-    if (runtimeId.isEmpty() || !url.isValid()) {
-        return {};
-    }
-    const auto recordId = QUuid::createUuid().toString(QUuid::WithoutBraces);
-    return m_store->recordDownload(recordId, url, path, state, receivedBytes, totalBytes)
-        ? recordId
-        : QString {};
-}
-
-bool BrowserController::updateDownload(const QString &id, const QString &state,
-    qint64 receivedBytes, qint64 totalBytes, const QString &error)
-{
-    return m_store->updateDownload(id, state, receivedBytes, totalBytes, error);
-}
-
-QVariantList BrowserController::downloadHistory() const { return m_store->downloadHistory(); }
-
-bool BrowserController::forgetDownload(const QString &id)
-{
-    if (id.isEmpty()) {
-        return false;
-    }
-    return m_store->forgetDownload(id);
-}
-
-QString BrowserController::dispositionName(DownloadDisposition disposition)
-{
-    switch (disposition) {
-    case AcceptDownload:
-        return QStringLiteral("accept");
-    case ConfirmDownload:
-        return QStringLiteral("confirm");
-    case AskDownloadPermission:
-        return QStringLiteral("permission");
-    case RefuseDownload:
-        return QStringLiteral("refuse");
-    case SaveDownloadAs:
-        return QStringLiteral("save-as");
-    }
-    return QStringLiteral("refuse");
-}
-
-QVariantMap BrowserController::downloadDisposition(const QUrl &origin, const QString &fileName,
-    const QString &mimeType, const QString &directory, bool answered) const
-{
-    const auto normalized = normalizedOrigin(origin);
-    const auto kind = DownloadPolicy::riskKind(fileName, mimeType);
-    const auto automatic = !answered && !normalized.isEmpty()
-        && (!originInteracted(origin) || activeDownloadCount(origin) > 0);
-    QVariantMap answer {
-        {QStringLiteral("risk"), kind},
-        {QStringLiteral("fileName"), fileName},
-        {QStringLiteral("origin"), normalized},
-        {QStringLiteral("automatic"), automatic},
-    };
-    const auto decide = [&answer](DownloadDisposition disposition) {
-        answer.insert(QStringLiteral("disposition"), dispositionName(disposition));
-        return answer;
-    };
-    if (automatic) {
-        const auto key = sessionPermissionKey(normalized, QStringLiteral("automatic-downloads"));
-        auto decision = m_sessionPermissionDecisions->value(key, Ask);
-        if (decision == Ask) {
-            decision = m_store->permissionDecision(
-                m_activeSpaceId, normalized, QStringLiteral("automatic-downloads"));
-        }
-        if (decision == Block) {
-            return decide(RefuseDownload);
-        }
-        if (decision == Ask) {
-            return decide(AskDownloadPermission);
-        }
-    }
-    if (!kind.isEmpty() && !answered) {
-        return decide(ConfirmDownload);
-    }
-    if (!directory.isEmpty() && !fileName.isEmpty()
-        && QFileInfo::exists(QDir(directory).filePath(fileName))) {
-        return decide(SaveDownloadAs);
-    }
-    return decide(AcceptDownload);
-}
-
-void BrowserController::noteDownloadStarted(const QUrl &origin, const QString &runtimeId)
-{
-    const auto normalized = normalizedOrigin(origin);
-    if (runtimeId.isEmpty() || normalized.isEmpty()) {
-        return;
-    }
-    m_activeDownloadOrigins.insert(runtimeId, normalized);
-}
-
-void BrowserController::noteDownloadSettled(const QString &runtimeId)
-{
-    m_activeDownloadOrigins.remove(runtimeId);
-}
-
-int BrowserController::activeDownloadCount(const QUrl &origin) const
-{
-    const auto normalized = normalizedOrigin(origin);
-    if (normalized.isEmpty()) {
-        return 0;
-    }
-    return static_cast<int>(
-        std::count(m_activeDownloadOrigins.cbegin(), m_activeDownloadOrigins.cend(), normalized));
-}
-
 // A Private window has no store to read or write, so it browses on the
 // defaults and leaves nothing of itself behind.
 QString BrowserController::preference(const QString &name, const QString &fallback) const
@@ -2544,6 +2456,12 @@ TabState BrowserController::makeBlankTab(const QString &spaceId)
     tab.title = QStringLiteral("New tab");
     tab.active = true;
     return tab;
+}
+
+void registerBrowserController()
+{
+    qmlRegisterUncreatableType<BrowserController>("Omaweb", 1, 0, "BrowserController",
+        QStringLiteral("A window's controller is handed to QML, not built there."));
 }
 
 } // namespace omaweb

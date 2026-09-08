@@ -3265,6 +3265,7 @@ int main(int argc, char *argv[])
     omaweb::QtContentBlocker::registerSubstituteScheme();
     QtWebEngineQuick::initialize();
     QGuiApplication application(argc, argv);
+    omaweb::registerBrowserController();
     omaweb::registerExternalProtocolHandler();
     QtEngineContractTest test;
     return QTest::qExec(&test, argc, argv);
@@ -3331,7 +3332,7 @@ void QtEngineContractTest::qtHoldsARiskyDownloadUntilTheShellHasAnswered()
         {QStringLiteral("acceptDownloads"), true},
         {QStringLiteral("downloadDirectory"), downloads},
         {QStringLiteral("downloadNamespace"), QStringLiteral("space-1")},
-        {QStringLiteral("downloadController"), QVariant::fromValue<QObject *>(&controller)},
+        {QStringLiteral("downloads"), QVariant::fromValue<QObject *>(controller.downloads())},
         {QStringLiteral("downloadHolds"), QVariant::fromValue<QObject *>(&heldDownloads)},
     }));
     QVERIFY2(profile, qPrintable(profileComponent.errorString()));
@@ -3350,10 +3351,10 @@ void QtEngineContractTest::qtHoldsARiskyDownloadUntilTheShellHasAnswered()
     window.show();
 
     QSignalSpy heldSpy(
-        profile.get(), SIGNAL(downloadHeld(QString, QString, QString, QUrl, QString, QString)));
+        profile.get(), SIGNAL(downloadHeld(QString, int, QString, QUrl, QString, QString)));
     QVERIFY(heldSpy.isValid());
-    QSignalSpy startedSpy(
-        profile.get(), SIGNAL(downloadStarted(QString, QUrl, QString, QString, double, double)));
+    QSignalSpy startedSpy(profile.get(),
+        SIGNAL(downloadStarted(QString, QUrl, QUrl, QString, QString, double, double)));
     QVERIFY(startedSpy.isValid());
 
     QVERIFY(view->setProperty("currentUrl", QUrl(base + QStringLiteral("/page"))));
@@ -3366,7 +3367,7 @@ void QtEngineContractTest::qtHoldsARiskyDownloadUntilTheShellHasAnswered()
     QCOMPARE(heldDownloads.heldCount(), 1);
 
     const auto held = heldSpy.first();
-    QCOMPARE(held.at(1).toString(), QStringLiteral("confirm"));
+    QCOMPARE(held.at(1).toInt(), BrowserController::ConfirmDownload);
     QCOMPARE(held.at(2).toString(), base);
     QCOMPARE(held.at(4).toString(), QStringLiteral("install.sh"));
     QCOMPARE(held.at(5).toString(), QStringLiteral("script"));
@@ -3381,11 +3382,11 @@ void QtEngineContractTest::qtHoldsARiskyDownloadUntilTheShellHasAnswered()
 
     QVERIFY(view->setProperty("currentUrl", QUrl(base + QStringLiteral("/install.sh"))));
     QTRY_COMPARE(heldSpy.count(), 2);
-    QCOMPARE(heldSpy.at(1).at(1).toString(), QStringLiteral("confirm"));
+    QCOMPARE(heldSpy.at(1).at(1).toInt(), BrowserController::ConfirmDownload);
     QVERIFY(QMetaObject::invokeMethod(profile.get(), "releaseHeldDownload",
         Q_ARG(QVariant, heldSpy.at(1).at(0).toString()), Q_ARG(QVariant, QString())));
     QTRY_COMPARE(heldSpy.count(), 3);
-    QCOMPARE(heldSpy.at(2).at(1).toString(), QStringLiteral("save-as"));
+    QCOMPARE(heldSpy.at(2).at(1).toInt(), BrowserController::SaveDownloadAs);
     QCOMPARE(startedSpy.count(), 1);
 
     const auto chosen = QDir(downloads).filePath(QStringLiteral("install-2.sh"));

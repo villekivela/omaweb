@@ -124,23 +124,33 @@ an engine fact the browser relies on, and `tests/engine/tst_qtenginecontract.cpp
 
 ## Downloads
 
+`Downloads` is a list model in `omaweb-core`, held one per window by `BrowserController` and exposed
+to QML as a property on it. It holds the window's running downloads and the Download records its
+Space kept in one list, with a role saying which, and it publishes the Download activity the footer
+mark reports. Callers bind to it; nothing refreshes it
+([ADR 0038](adr/0038-own-a-windows-downloads-in-core.md)).
+
 `DownloadPolicy` classifies a download from its proposed filename. It uses the declared media type
-only when the filename is inconclusive. Both values are untrusted. A rule in `omaweb-core` combines
-the file type, the reader's prior decision for the origin, and the destination directory. It returns
-a named disposition such as accept, confirm, refuse, or save-as.
+only when the filename is inconclusive. Both values are untrusted. `Downloads` combines the file
+type, the reader's prior decision for the origin, and the destination directory into a Download
+disposition. It asks the window what an origin has been allowed through a small `DownloadHost`
+interface, and the disposition crosses into QML as the enum rather than as a name.
 
 The engine requires a synchronous decision and cannot pause a download while a prompt is open. For a
-Held download, the adapter cancels the request before it writes any bytes. If the reader accepts,
-the page requests the file again. The policy runs again so confirmation does not also authorize
-overwriting an existing file. A filename collision opens the native save dialog.
+Held download, the adapter cancels the request before it writes any bytes and keeps the pointer to
+the live engine object; `Downloads` queues only the adapter's token, so the queue spans a window's
+engine profiles and presents one question at a time. If the reader accepts, the page requests the
+file again. The policy runs again so confirmation does not also authorize overwriting an existing
+file. A filename collision opens the native save dialog.
 
 `omaweb-platform` records the source address in the finished file's metadata and removes execute
 permissions. The download directory is global reader configuration, not Space data. All windows use
 it, and Private windows cannot change it.
 
-The shell keeps active downloads in memory, keyed by engine runtime ID. The footer derives its
-Download mark from this map instead of querying a Space's download history for each progress update.
-This also makes the mark work in Private windows, which do not record downloads.
+A row's identity is the list's own, because a Private window records nothing and its downloads have
+no record id. Cancelling and retrying go back out through QML: `Downloads` names the download
+namespace its runtime ID begins with, and the window keeps one table from that namespace to the
+engine profile.
 
 ## Developer tools
 

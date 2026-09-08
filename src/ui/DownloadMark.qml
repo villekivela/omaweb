@@ -6,16 +6,22 @@ ChromeButton {
 
     property var colors
     property string iconFontFamily
-    property var activity: null
-    property int dwellMilliseconds: 4200
+    // The window's downloads. The mark reports the Download activity the list
+    // publishes rather than a summary somebody else keeps up to date.
+    property var model: null
+    // The glossary's rule: after the last download finishes the mark remains
+    // until the saved-file notice closes. Following the notice itself is what
+    // makes that hold, rather than a duration copied from it.
+    property bool savedFileNoticeShowing: false
 
-    readonly property int running: root.activity ? root.activity.running : 0
-    readonly property real fraction: root.activity ? root.activity.fraction : -1
-    readonly property int finished: root.activity ? root.activity.finished : 0
-    readonly property var downloads: root.activity ? root.activity.downloads : []
+    readonly property int running: root.model ? root.model.running : 0
+    readonly property real fraction: root.model ? root.model.fraction : -1
+    readonly property int finished: root.model ? root.model.finished : 0
 
     readonly property bool measured: root.fraction >= 0
-    readonly property bool holding: root.running === 0 && dwell.running
+    readonly property bool holding: root.running === 0 && root.finished > 0
+                                    && root.savedFileNoticeShowing
+
     readonly property bool detailRequested: root.visible && (root.hot || root.activeFocus)
 
     readonly property string summary: root.holding ? (root.finished === 1 ? "1 download finished" : String(
@@ -32,12 +38,10 @@ ChromeButton {
         return fraction >= 0 ? Math.round(fraction * 100) + "%" : "size unknown";
     }
 
-    function fileSummary() {
+    function fileSummary(rows) {
         const names = [];
-        for (let index = 0; index < root.downloads.length; ++index) {
-            names.push(root.downloads[index].name + " · " + root.progressLabelFor(
-                           root.downloads[index].fraction));
-        }
+        for (let index = 0; index < rows.length; ++index)
+            names.push(rows[index].fileName + " · " + root.progressLabelFor(rows[index].fraction));
         return names.join(", ");
     }
 
@@ -48,24 +52,12 @@ ChromeButton {
     fontFamily: root.iconFontFamily
     focusable: root.visible
     accessibleName: root.summary
-    Accessible.description: root.detailRequested ? root.fileSummary() : ""
-
-    onRunningChanged: {
-        if (root.running > 0)
-            dwell.stop();
-        else if (root.finished > 0)
-            dwell.restart();
-    }
-
-    onFinishedChanged: {
-        if (root.running === 0 && root.finished > 0)
-            dwell.restart();
-    }
-
-    Timer {
-        id: dwell
-        interval: root.dwellMilliseconds
-    }
+    // The list answers for its running rows rather than keeping a list of them,
+    // and this binding only asks while the mark is being read: until then the
+    // condition is false and nothing depends on the answer.
+    Accessible.description: root.detailRequested && root.model ? root.fileSummary(
+                                                                     root.model.runningDownloads) :
+                                                                 ""
 
     Text {
         objectName: "downloadMarkCount"

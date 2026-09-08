@@ -241,6 +241,8 @@ int main(int argc, char *argv[])
     }
     omaweb::WindowManager windowManager(configRoot(), launch.privateWindowsAvailable);
 
+    omaweb::registerBrowserController();
+    omaweb::registerDownloads();
     omaweb::registerFaviconTint();
     omaweb::registerDefaultBrowser();
     omaweb::registerSystemClipboard();

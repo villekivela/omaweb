@@ -96,12 +96,7 @@ private slots:
     void endsThirdPartyCookieAllowancesWithTheirSpaceAndPrivateSession();
     void measuresTheSiteDataHeldForOneSpace();
     void scopesExternalProtocolDecisionsToOriginSchemeSpaceAndPrivateSession();
-    void persistsOnlyNonPrivateDownloadHistory();
-    void asksBeforeWritingDownAProgram();
-    void takesAPermissionForAutomaticAndMultipleDownloads();
-    void sendsAConflictingNameToTheSaveDialog();
     void configuresOneDownloadDirectoryForEveryWindow();
-    void forgetsOneDownloadWithoutForgettingTheRest();
     void persistsInterfacePreferencesOutsidePrivateBrowsing();
     void attachesOneInspectorToOneTab();
     void keepsTheInspectorThroughASpaceSwitch();
@@ -683,7 +678,7 @@ void BrowserControllerTest::sharesPrivateIdentityUntilLastWindowCloses()
         QStandardPaths::writableLocation(QStandardPaths::DownloadLocation));
     QTemporaryDir elsewhere;
     QVERIFY(!first->setDownloadDirectory(elsewhere.path()));
-    QVERIFY(first->downloadHistory().isEmpty());
+    QCOMPARE(first->downloads()->rowCount(), 0);
     QVERIFY(first->setPermissionDecision(QUrl(QStringLiteral("https://camera.example")),
         QStringLiteral("camera"), BrowserController::AllowOnce));
     QCOMPARE(second->permissionDecision(
@@ -1208,175 +1203,6 @@ void BrowserControllerTest::scopesExternalProtocolDecisionsToOriginSchemeSpaceAn
         QUrl(QStringLiteral("https://private.example")), QStringLiteral("mailto")));
 }
 
-void BrowserControllerTest::persistsOnlyNonPrivateDownloadHistory()
-{
-    QTemporaryDir root;
-    {
-        BrowserController controller(SpaceStorage(root.path(), QStringLiteral("test")));
-        const auto downloadId = controller.recordDownload(QStringLiteral("runtime-1"),
-            QUrl(QStringLiteral("https://files.example/archive.zip")),
-            QStringLiteral("/Downloads/archive.zip"), QStringLiteral("in-progress"), 12, 100);
-        QVERIFY(!downloadId.isEmpty());
-        controller.closeActiveTab();
-        QVERIFY(controller.updateDownload(downloadId, QStringLiteral("completed"), 100, 100, {}));
-
-        BrowserController privateController(
-            SpaceStorage(root.path(), QStringLiteral("test")), true);
-        QVERIFY(privateController
-                .recordDownload(QStringLiteral("private-download"),
-                    QUrl(QStringLiteral("https://files.example/private.zip")),
-                    QStringLiteral("/Downloads/private.zip"), QStringLiteral("completed"), 5, 5)
-                .isEmpty());
-    }
-
-    BrowserController restored(SpaceStorage(root.path(), QStringLiteral("test")));
-    const auto downloads = restored.downloadHistory();
-    QCOMPARE(downloads.size(), 1);
-    const auto record = downloads.first().toMap();
-    QVERIFY(!record.value(QStringLiteral("id")).toString().isEmpty());
-    QCOMPARE(record.value(QStringLiteral("state")).toString(), QStringLiteral("completed"));
-    QCOMPARE(record.value(QStringLiteral("receivedBytes")).toLongLong(), 100);
-}
-
-void BrowserControllerTest::asksBeforeWritingDownAProgram()
-{
-    QTemporaryDir root;
-    QTemporaryDir downloads;
-    BrowserController controller(SpaceStorage(root.path(), QStringLiteral("test")));
-    const QUrl origin(QStringLiteral("https://files.example/page"));
-    controller.recordOriginInteraction(origin);
-
-    const auto document = controller.downloadDisposition(
-        origin, QStringLiteral("notes.pdf"), QStringLiteral("application/pdf"), downloads.path());
-    QCOMPARE(document.value(QStringLiteral("disposition")).toString(), QStringLiteral("accept"));
-    QVERIFY(document.value(QStringLiteral("risk")).toString().isEmpty());
-
-    const auto script = controller.downloadDisposition(
-        origin, QStringLiteral("install.sh"), QStringLiteral("text/plain"), downloads.path());
-    QCOMPARE(script.value(QStringLiteral("disposition")).toString(), QStringLiteral("confirm"));
-    QCOMPARE(BrowserController::dispositionName(BrowserController::ConfirmDownload),
-        QStringLiteral("confirm"));
-    QCOMPARE(script.value(QStringLiteral("risk")).toString(), QStringLiteral("script"));
-    QCOMPARE(script.value(QStringLiteral("fileName")).toString(), QStringLiteral("install.sh"));
-    QCOMPARE(
-        script.value(QStringLiteral("origin")).toString(), QStringLiteral("https://files.example"));
-    QVERIFY(!script.value(QStringLiteral("automatic")).toBool());
-}
-
-void BrowserControllerTest::takesAPermissionForAutomaticAndMultipleDownloads()
-{
-    QTemporaryDir root;
-    QTemporaryDir downloads;
-    BrowserController controller(SpaceStorage(root.path(), QStringLiteral("test")));
-    const auto personalSpaceId = controller.activeSpaceId();
-    const QUrl origin(QStringLiteral("https://files.example/page"));
-    const auto disposition = [&] {
-        return controller.downloadDisposition(origin, QStringLiteral("notes.pdf"),
-            QStringLiteral("application/pdf"), downloads.path());
-    };
-
-    QCOMPARE(disposition().value(QStringLiteral("disposition")).toString(),
-        QStringLiteral("permission"));
-    QVERIFY(disposition().value(QStringLiteral("automatic")).toBool());
-
-    QCOMPARE(controller.permissionPolicy(QStringLiteral("automatic-downloads")),
-        static_cast<int>(BrowserController::Rememberable));
-    QVERIFY(controller.setPermissionDecision(
-        origin, QStringLiteral("automatic-downloads"), BrowserController::Block));
-    QCOMPARE(
-        disposition().value(QStringLiteral("disposition")).toString(), QStringLiteral("refuse"));
-
-    QVERIFY(controller.setPermissionDecision(
-        origin, QStringLiteral("automatic-downloads"), BrowserController::AllowPersistently));
-    QCOMPARE(
-        disposition().value(QStringLiteral("disposition")).toString(), QStringLiteral("accept"));
-
-    const auto workSpaceId = controller.createSpace(QStringLiteral("Work"));
-    QVERIFY(controller.switchSpace(workSpaceId));
-    QCOMPARE(disposition().value(QStringLiteral("disposition")).toString(),
-        QStringLiteral("permission"));
-    QVERIFY(controller.switchSpace(personalSpaceId));
-
-    const QUrl clicked(QStringLiteral("https://other.example/page"));
-    controller.recordOriginInteraction(clicked);
-    const auto clickedDisposition = [&] {
-        return controller
-            .downloadDisposition(clicked, QStringLiteral("notes.pdf"),
-                QStringLiteral("application/pdf"), downloads.path())
-            .value(QStringLiteral("disposition"))
-            .toString();
-    };
-    QCOMPARE(clickedDisposition(), QStringLiteral("accept"));
-    controller.noteDownloadStarted(clicked, QStringLiteral("runtime-1"));
-    QCOMPARE(clickedDisposition(), QStringLiteral("permission"));
-    QCOMPARE(
-        controller
-            .downloadDisposition(QUrl(QStringLiteral("https://third.example/page")),
-                QStringLiteral("notes.pdf"), QStringLiteral("application/pdf"), downloads.path())
-            .value(QStringLiteral("automatic"))
-            .toBool(),
-        true);
-    controller.noteDownloadSettled(QStringLiteral("runtime-1"));
-    QCOMPARE(clickedDisposition(), QStringLiteral("accept"));
-    controller.noteDownloadSettled(QStringLiteral("runtime-1"));
-    QCOMPARE(clickedDisposition(), QStringLiteral("accept"));
-}
-
-void BrowserControllerTest::sendsAConflictingNameToTheSaveDialog()
-{
-    QTemporaryDir root;
-    QTemporaryDir downloads;
-    BrowserController controller(SpaceStorage(root.path(), QStringLiteral("test")));
-    const QUrl origin(QStringLiteral("https://files.example/page"));
-    controller.recordOriginInteraction(origin);
-
-    QFile existing(QDir(downloads.path()).filePath(QStringLiteral("notes.pdf")));
-    QVERIFY(existing.open(QIODevice::WriteOnly));
-    existing.close();
-
-    QCOMPARE(controller
-                 .downloadDisposition(origin, QStringLiteral("notes.pdf"),
-                     QStringLiteral("application/pdf"), downloads.path())
-                 .value(QStringLiteral("disposition"))
-                 .toString(),
-        QStringLiteral("save-as"));
-    QCOMPARE(controller
-                 .downloadDisposition(origin, QStringLiteral("other.pdf"),
-                     QStringLiteral("application/pdf"), downloads.path())
-                 .value(QStringLiteral("disposition"))
-                 .toString(),
-        QStringLiteral("accept"));
-
-    QFile program(QDir(downloads.path()).filePath(QStringLiteral("install.sh")));
-    QVERIFY(program.open(QIODevice::WriteOnly));
-    program.close();
-    QCOMPARE(controller
-                 .downloadDisposition(origin, QStringLiteral("install.sh"),
-                     QStringLiteral("text/plain"), downloads.path())
-                 .value(QStringLiteral("disposition"))
-                 .toString(),
-        QStringLiteral("confirm"));
-    QCOMPARE(controller
-                 .downloadDisposition(origin, QStringLiteral("install.sh"),
-                     QStringLiteral("text/plain"), downloads.path(), true)
-                 .value(QStringLiteral("disposition"))
-                 .toString(),
-        QStringLiteral("save-as"));
-    QCOMPARE(controller
-                 .downloadDisposition(origin, QStringLiteral("free.sh"),
-                     QStringLiteral("text/plain"), downloads.path(), true)
-                 .value(QStringLiteral("disposition"))
-                 .toString(),
-        QStringLiteral("accept"));
-    QCOMPARE(controller
-                 .downloadDisposition(QUrl(QStringLiteral("https://untouched.example/x")),
-                     QStringLiteral("free.pdf"), QStringLiteral("application/pdf"),
-                     downloads.path(), true)
-                 .value(QStringLiteral("disposition"))
-                 .toString(),
-        QStringLiteral("accept"));
-}
-
 void BrowserControllerTest::configuresOneDownloadDirectoryForEveryWindow()
 {
     QTemporaryDir root;
@@ -1408,31 +1234,6 @@ void BrowserControllerTest::configuresOneDownloadDirectoryForEveryWindow()
     QTemporaryDir elsewhere;
     QVERIFY(!privateWindow.setDownloadDirectory(elsewhere.path()));
     QCOMPARE(privateWindow.downloadDirectory(), chosen.path());
-}
-
-void BrowserControllerTest::forgetsOneDownloadWithoutForgettingTheRest()
-{
-    QTemporaryDir root;
-    BrowserController controller(SpaceStorage(root.path(), QStringLiteral("test")));
-    const auto first = controller.recordDownload(QStringLiteral("runtime-1"),
-        QUrl(QStringLiteral("https://files.example/first.zip")),
-        QStringLiteral("/Downloads/first.zip"), QStringLiteral("completed"), 10, 10);
-    const auto second = controller.recordDownload(QStringLiteral("runtime-2"),
-        QUrl(QStringLiteral("https://files.example/second.zip")),
-        QStringLiteral("/Downloads/second.zip"), QStringLiteral("completed"), 20, 20);
-    QCOMPARE(controller.downloadHistory().size(), 2);
-
-    QVERIFY(controller.forgetDownload(first));
-    const auto remaining = controller.downloadHistory();
-    QCOMPARE(remaining.size(), 1);
-    QCOMPARE(remaining.first().toMap().value(QStringLiteral("id")).toString(), second);
-    QVERIFY(!controller.forgetDownload(first));
-    QVERIFY(!controller.forgetDownload(QString()));
-
-    const auto privateDecisions = QSharedPointer<QHash<QString, int>>::create();
-    BrowserController privateWindow(
-        SpaceStorage(root.path(), QStringLiteral("test")), true, privateDecisions);
-    QVERIFY(!privateWindow.forgetDownload(second));
 }
 
 void BrowserControllerTest::persistsInterfacePreferencesOutsidePrivateBrowsing()
