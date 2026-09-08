@@ -37,6 +37,12 @@ class BrowserController final : public QObject, public DownloadPermissions {
     Q_PROPERTY(QAbstractItemModel *unpinnedTabs READ unpinnedTabs CONSTANT)
     Q_PROPERTY(QString activeSpaceId READ activeSpaceId NOTIFY activeSpaceChanged)
     Q_PROPERTY(QString activeSpaceName READ activeSpaceName NOTIFY activeSpaceChanged)
+    // The Space that this session's browsing state keys on: the Space on show,
+    // or the empty name a Private window uses because its shared session has
+    // no Space of its own. Answered here so that the chrome, which reads
+    // Content blocking's Refusal tally for the address on show, does not work
+    // the Private window's exception out again in each place it asks.
+    Q_PROPERTY(QString sessionSpaceId READ sessionSpaceId NOTIFY activeSpaceChanged)
     Q_PROPERTY(QString activeTabId READ activeTabId NOTIFY activeTabChanged)
     Q_PROPERTY(QUrl activeUrl READ activeUrl NOTIFY activeTabChanged)
     Q_PROPERTY(QString activeTitle READ activeTitle NOTIFY activeTabChanged)
@@ -153,6 +159,7 @@ public:
     QAbstractItemModel *pinnedTabs();
     QAbstractItemModel *unpinnedTabs();
     QString activeSpaceId() const;
+    QString sessionSpaceId() const;
     QString activeSpaceName() const;
     QString activeTabId() const;
     QUrl activeUrl() const;

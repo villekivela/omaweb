@@ -12,7 +12,7 @@ Rectangle {
     property var browser
     property bool privateWindow: false
     property bool collapsed: false
-    property int blockedRequestCount: 0
+    property var blocker: null
     property bool statusOpen: false
     property bool useFavicons: true
     property bool tintFavicons: false
@@ -35,6 +35,14 @@ Rectangle {
     readonly property bool atRest: browser ? browser.atRest : false
 
     readonly property url activeUrl: browser ? browser.activeUrl : ""
+    // What Content blocking refused for the page on show.
+    readonly property int refusalTally: refusals.count
+
+    property RefusalTally refusals: RefusalTally {
+        blocker: root.blocker
+        browser: root.browser
+        pageAddress: root.activeUrl
+    }
     // What the connection is, as the engine drawing the page reports it. The
     // outline never works this out from the address: an address is what was
     // asked for, and a lock drawn from one is a claim nothing checked.
@@ -450,7 +458,7 @@ Rectangle {
                 anchors.rightMargin: 9
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: 3
-                visible: root.blockedRequestCount > 0
+                visible: root.refusalTally > 0
 
                 Text {
                     anchors.verticalCenter: parent.verticalCenter
@@ -462,7 +470,7 @@ Rectangle {
 
                 Text {
                     anchors.verticalCenter: parent.verticalCenter
-                    text: root.blockedRequestCount
+                    text: root.refusalTally
                     color: root.colors.mutedText
                     font.family: Style.font.family
                     font.pixelSize: Style.font.caption
@@ -877,7 +885,7 @@ Rectangle {
         thirdPartyCookieControlAvailable: root.thirdPartyCookieControlAvailable
         siteDataOnDisk: root.siteDataOnDisk
         insecureContentBlocked: root.insecureContentBlocked
-        blockedRequestCount: root.blockedRequestCount
+        blocker: root.blocker
         siteDataEntries: root.siteDataEntries
         retainedDataEntries: root.retainedDataEntries
         siteDataGeneration: root.siteDataGeneration

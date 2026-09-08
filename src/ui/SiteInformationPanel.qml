@@ -30,7 +30,16 @@ Rectangle {
     property bool thirdPartyCookieControlAvailable: false
     property bool siteDataOnDisk: false
     property bool insecureContentBlocked: true
-    property int blockedRequestCount: 0
+    // Content blocking, which owns the Refusal tally this panel states.
+    property var blocker: null
+    // What Content blocking refused for the page on show.
+    readonly property int refusalTally: refusals.count
+
+    property RefusalTally refusals: RefusalTally {
+        blocker: root.blocker
+        browser: root.browser
+        pageAddress: root.activeUrl
+    }
     property bool open: false
     // The files and directories the engine says its site data lives in, and a
     // count the window bumps when the engine reports it has finished clearing.
@@ -224,7 +233,7 @@ Rectangle {
         Text {
             objectName: "siteInformationBlocked"
             width: parent.width
-            text: "· " + root.blockedRequestCount + " requests blocked on this page"
+            text: "· " + root.refusalTally + " requests blocked on this page"
             color: root.colors.mutedText
             wrapMode: Text.WordWrap
             font.family: Style.font.family

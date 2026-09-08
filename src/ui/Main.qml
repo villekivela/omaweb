@@ -189,11 +189,6 @@ ApplicationWindow {
     // moves on its own and a number that never moves is worse than none.
     property var visibleRetainedTabs: []
     property var visibleSubscriptions: []
-    // The tab on show counts its own page load, so the chrome reads the tally
-    // from the engine rather than keeping one of its own: a window-level cache
-    // went on showing the tab the reader had just left (#131).
-    readonly property int visibleBlockedRequestCount: engineLoader.item
-                                                      ? engineLoader.item.blockedRequestCount : 0
     property var pendingPermissionRequest: null
     property string pendingPermissionOrigin: ""
     property string pendingPermissionType: ""
@@ -1593,7 +1588,7 @@ ApplicationWindow {
                 browser: window.windowBrowser
                 privateWindow: window.privateWindow
                 collapsed: window.sidebarCollapsed
-                blockedRequestCount: window.visibleBlockedRequestCount
+                blocker: contentBlocker
                 connectionState: window.connectionState
                 certificateDecisionsAvailable: window.certificateDecisionsAvailable
                 thirdPartyCookieControlAvailable: window.thirdPartyCookieControlAvailable
@@ -2084,7 +2079,6 @@ ApplicationWindow {
                     iconFontFamily: materialSymbols.name
                     browser: window.windowBrowser
                     blocker: contentBlocker
-                    blockedRequestCount: window.visibleBlockedRequestCount
                     keyboard: keyboardNavigation
                     open: window.settingsOpen
                     // As the sheet does: the page itself, never the viewport
@@ -2374,7 +2368,7 @@ ApplicationWindow {
                                                                               engineCookiePolicy,
                                                                               "cookieController":
                                                                               controller,
-                                                                              "cookieSpaceId": ""
+                                                                              "spaceId": ""
                                                                           });
                 // A Private page is not given the desktop's notification
                 // centre. A notification would put the origin into a list that

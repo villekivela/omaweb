@@ -13,7 +13,11 @@ QtObject {
     // Space nobody is looking at.
     property var engineCookiePolicy: null
     property var cookieController: null
-    property string cookieSpaceId: ""
+    // The Space this profile is the browsing identity of. Both the engine's
+    // third-party allowances and Content blocking's Refusal tally are keyed by
+    // it. A Private window has no Space of its own and passes the empty name
+    // its shared session already uses.
+    property string spaceId: ""
     // Whether the engine's third-party filter is actually attached. Reported
     // rather than assumed: a profile the filter could not be attached to is one
     // Site information has to stop promising anything about.
@@ -354,11 +358,11 @@ QtObject {
 
     Component.onCompleted: {
         if (root.engineContentBlocker)
-            root.engineContentBlocker.attachToProfile(root.profile);
+            root.engineContentBlocker.attachToProfile(root.profile, root.spaceId);
         if (root.engineCookiePolicy && root.cookieController) {
             root.thirdPartyCookiesBlocked = root.engineCookiePolicy.attachToProfile(root.profile,
                                                                                     root.cookieController,
-                                                                                    root.cookieSpaceId);
+                                                                                    root.spaceId);
         }
     }
 }

@@ -9,7 +9,7 @@ QtObject {
     // information has to name.
     property var engineCookiePolicy: null
     property var cookieController: null
-    property string cookieSpaceId: ""
+    property string spaceId: ""
     readonly property bool thirdPartyCookiesBlocked: false
     // The lab keeps nothing on disk, so it names nothing and Site information
     // has no size to show. A test that needs the shell stood up against an

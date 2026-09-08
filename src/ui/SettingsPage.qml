@@ -21,7 +21,14 @@ Rectangle {
     // it changes, so this page never asks for it again.
     property var downloads: null
     property var subscriptions: []
-    property int blockedRequestCount: 0
+    // What Content blocking refused for the page on show.
+    readonly property int refusalTally: refusals.count
+
+    property RefusalTally refusals: RefusalTally {
+        blocker: root.blocker
+        browser: root.browser
+        pageAddress: root.browser ? root.browser.activeUrl : ""
+    }
     property bool useFavicons: true
     property bool tintFavicons: false
     property var engines: []
@@ -567,7 +574,7 @@ Rectangle {
                         width: pane.width
                         colors: root.colors
                         title: "Block requests on this site"
-                        note: root.blockedRequestCount + " requests blocked on this page" + (
+                        note: root.refusalTally + " requests blocked on this page" + (
                                   root.activeHost.length > 0
                                   ? ", and the switch covers every page on " + root.activeHost :
                                     "") + "."

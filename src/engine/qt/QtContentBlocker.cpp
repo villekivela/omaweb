@@ -12,6 +12,8 @@
 #include <QWebEngineUrlScheme>
 #include <QWebEngineUrlSchemeHandler>
 
+#include <utility>
+
 namespace omaweb {
 namespace {
 
@@ -71,15 +73,16 @@ namespace {
 
     class RequestInterceptor final : public QWebEngineUrlRequestInterceptor {
     public:
-        explicit RequestInterceptor(QtContentBlocker *contentBlocker)
+        RequestInterceptor(QtContentBlocker *contentBlocker, QString spaceId)
             : m_contentBlocker(contentBlocker)
+            , m_spaceId(std::move(spaceId))
         {
         }
 
         void interceptRequest(QWebEngineUrlRequestInfo &info) override
         {
             const auto decision = m_contentBlocker->checkRequest(
-                info.requestUrl(), info.firstPartyUrl(), info.resourceType());
+                info.requestUrl(), info.firstPartyUrl(), info.resourceType(), m_spaceId);
             // Chromium drops a redirect on a request carrying a payload, and says
             // so only in a warning. Both answers below are redirects, so a request
             // that cannot take one falls back to what it can take.
@@ -101,6 +104,7 @@ namespace {
 
     private:
         QtContentBlocker *m_contentBlocker;
+        QString m_spaceId;
     };
 
     // Serves one substitute body out of the vendored library, under its own name
@@ -144,15 +148,15 @@ void QtContentBlocker::registerSubstituteScheme()
 QtContentBlocker::QtContentBlocker(ContentBlocker *contentBlocker, QObject *parent)
     : QObject(parent)
     , m_contentBlocker(contentBlocker)
-    , m_interceptor(std::make_unique<RequestInterceptor>(this))
     , m_substitutes(std::make_unique<SubstituteSchemeHandler>())
 {
 }
 
 RequestDecision QtContentBlocker::checkRequest(const QUrl &requestUrl, const QUrl &sourceUrl,
-    QWebEngineUrlRequestInfo::ResourceType resourceType) const
+    QWebEngineUrlRequestInfo::ResourceType resourceType, const QString &spaceId) const
 {
-    return m_contentBlocker->checkRequest(requestUrl, sourceUrl, resourceTypeName(resourceType));
+    return m_contentBlocker->checkRequest(
+        requestUrl, sourceUrl, resourceTypeName(resourceType), spaceId);
 }
 
 QString QtContentBlocker::cosmeticStyleSheet(const QUrl &url) const
@@ -178,10 +182,14 @@ QtContentBlocker::~QtContentBlocker() = default;
 // carrying the same two calls. Casting to one of them alone attaches to
 // nothing and says so only through a return value QML ignores, which is
 // content blocking that reports its rules and applies none of them.
-bool QtContentBlocker::attachToProfile(QObject *profileObject)
+bool QtContentBlocker::attachToProfile(QObject *profileObject, const QString &spaceId)
 {
-    const auto attach = [this](auto *profile) {
-        profile->setUrlRequestInterceptor(m_interceptor.get());
+    auto &interceptor = m_interceptors[spaceId];
+    if (!interceptor) {
+        interceptor = std::make_unique<RequestInterceptor>(this, spaceId);
+    }
+    const auto attach = [this, &interceptor](auto *profile) {
+        profile->setUrlRequestInterceptor(interceptor.get());
         profile->installUrlSchemeHandler(substituteScheme, m_substitutes.get());
         return true;
     };
