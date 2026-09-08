@@ -1,5 +1,7 @@
 #pragma once
 
+#include "SpaceStorage.h"
+
 #include <QHash>
 #include <QObject>
 #include <QSqlDatabase>
@@ -19,7 +21,7 @@ class HistorySearch final : public QObject {
     Q_OBJECT
 
 public:
-    explicit HistorySearch(QString dataRoot, QObject *parent = nullptr);
+    explicit HistorySearch(SpaceStorage storage, QObject *parent = nullptr);
     ~HistorySearch() override;
 
     HistorySearch(const HistorySearch &) = delete;
@@ -39,7 +41,7 @@ signals:
 private:
     QSqlDatabase database(const QString &spaceId);
 
-    QString m_dataRoot;
+    SpaceStorage m_storage;
     QString m_connectionPrefix;
     QHash<QString, QSqlDatabase> m_databases;
     int m_delayMilliseconds = 0;

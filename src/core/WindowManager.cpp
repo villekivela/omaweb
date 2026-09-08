@@ -10,20 +10,18 @@
 
 namespace omaweb {
 
-WindowManager::WindowManager(QString engineName, QObject *parent)
-    : WindowManager(std::move(engineName), true, parent)
+WindowManager::WindowManager(QObject *parent)
+    : WindowManager(true, parent)
 {
 }
 
-WindowManager::WindowManager(QString engineName, bool privateWindowsAvailable, QObject *parent)
-    : WindowManager(std::move(engineName), {}, privateWindowsAvailable, parent)
+WindowManager::WindowManager(bool privateWindowsAvailable, QObject *parent)
+    : WindowManager({}, privateWindowsAvailable, parent)
 {
 }
 
-WindowManager::WindowManager(
-    QString engineName, QString configRoot, bool privateWindowsAvailable, QObject *parent)
+WindowManager::WindowManager(QString configRoot, bool privateWindowsAvailable, QObject *parent)
     : QObject(parent)
-    , m_engineName(std::move(engineName))
     , m_configRoot(std::move(configRoot))
     , m_privateWindowsAvailable(privateWindowsAvailable)
 {
@@ -37,8 +35,8 @@ BrowserController *WindowManager::createPrivateWindow()
         return nullptr;
     }
 
-    auto *controller = new BrowserController(m_privateStore, m_engineName, true,
-        m_privatePermissionDecisions, m_privateSiteState, m_configRoot, this);
+    auto *controller = new BrowserController(
+        m_privateStore, true, m_privatePermissionDecisions, m_privateSiteState, m_configRoot, this);
     if (!controller->ready()) {
         controller->deleteLater();
         return nullptr;

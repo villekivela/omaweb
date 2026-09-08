@@ -84,80 +84,79 @@ namespace {
     // The one place a window's adapter is chosen. A Private window is given a
     // store that keeps nothing but the Site permissions its session shares, so no
     // call site below has to ask again.
-    std::shared_ptr<SessionStore> makeStore(const QString &dataRoot, bool privateBrowsing,
+    std::shared_ptr<SessionStore> makeStore(const SpaceStorage &storage, bool privateBrowsing,
         const QSharedPointer<QHash<QString, int>> &sessionDecisions)
     {
         if (privateBrowsing) {
             return std::make_shared<PrivateSessionStore>(sessionDecisions);
         }
-        return std::make_shared<SqliteSessionStore>(dataRoot);
+        return std::make_shared<SqliteSessionStore>(storage.dataRoot());
     }
 
 } // namespace
 
-BrowserController::BrowserController(QString dataRoot, QString engineName, QObject *parent)
-    : BrowserController(dataRoot, std::move(engineName), false,
-          QSharedPointer<QHash<QString, int>>::create(), {}, parent)
+BrowserController::BrowserController(SpaceStorage storage, QObject *parent)
+    : BrowserController(
+          std::move(storage), false, QSharedPointer<QHash<QString, int>>::create(), {}, parent)
 {
 }
 
-BrowserController::BrowserController(
-    QString dataRoot, QString engineName, QString configRoot, QObject *parent)
-    : BrowserController(std::move(dataRoot), std::move(engineName), false,
-          QSharedPointer<QHash<QString, int>>::create(), std::move(configRoot), parent)
-{
-}
-
-BrowserController::BrowserController(
-    QString dataRoot, QString engineName, bool privateBrowsing, QObject *parent)
-    : BrowserController(dataRoot, std::move(engineName), privateBrowsing,
-          QSharedPointer<QHash<QString, int>>::create(), {}, parent)
-{
-}
-
-BrowserController::BrowserController(QString dataRoot, QString engineName, bool privateBrowsing,
-    QSharedPointer<QHash<QString, int>> sessionPermissionDecisions, QObject *parent)
-    : BrowserController(dataRoot, std::move(engineName), privateBrowsing,
-          std::move(sessionPermissionDecisions), {}, parent)
-{
-}
-
-BrowserController::BrowserController(QString dataRoot, QString engineName, bool privateBrowsing,
-    QSharedPointer<QHash<QString, int>> sessionPermissionDecisions, QString configRoot,
-    QObject *parent)
-    : BrowserController(std::move(dataRoot), std::move(engineName), privateBrowsing,
-          std::move(sessionPermissionDecisions), QSharedPointer<SessionSiteState>::create(),
+BrowserController::BrowserController(SpaceStorage storage, QString configRoot, QObject *parent)
+    : BrowserController(std::move(storage), false, QSharedPointer<QHash<QString, int>>::create(),
           std::move(configRoot), parent)
 {
 }
 
-BrowserController::BrowserController(QString dataRoot, QString engineName, bool privateBrowsing,
+BrowserController::BrowserController(SpaceStorage storage, bool privateBrowsing, QObject *parent)
+    : BrowserController(std::move(storage), privateBrowsing,
+          QSharedPointer<QHash<QString, int>>::create(), {}, parent)
+{
+}
+
+BrowserController::BrowserController(SpaceStorage storage, bool privateBrowsing,
+    QSharedPointer<QHash<QString, int>> sessionPermissionDecisions, QObject *parent)
+    : BrowserController(
+          std::move(storage), privateBrowsing, std::move(sessionPermissionDecisions), {}, parent)
+{
+}
+
+BrowserController::BrowserController(SpaceStorage storage, bool privateBrowsing,
+    QSharedPointer<QHash<QString, int>> sessionPermissionDecisions, QString configRoot,
+    QObject *parent)
+    : BrowserController(std::move(storage), privateBrowsing, std::move(sessionPermissionDecisions),
+          QSharedPointer<SessionSiteState>::create(), std::move(configRoot), parent)
+{
+}
+
+BrowserController::BrowserController(SpaceStorage storage, bool privateBrowsing,
     QSharedPointer<QHash<QString, int>> sessionPermissionDecisions,
     QSharedPointer<SessionSiteState> sessionSiteState, QString configRoot, QObject *parent)
-    : BrowserController(makeStore(dataRoot, privateBrowsing, sessionPermissionDecisions),
-          std::move(dataRoot), std::move(engineName), privateBrowsing,
-          std::move(sessionPermissionDecisions), std::move(sessionSiteState), std::move(configRoot),
-          parent)
+    // A Private window keeps nothing, so it holds no layout for what it keeps,
+    // however it was built. That absence is what the profile-path readers
+    // answer from, in place of the flag test they used to make.
+    : BrowserController(makeStore(storage, privateBrowsing, sessionPermissionDecisions),
+          privateBrowsing ? std::optional<SpaceStorage> {} : std::optional(storage),
+          privateBrowsing, std::move(sessionPermissionDecisions), std::move(sessionSiteState),
+          std::move(configRoot), parent)
 {
 }
 
-BrowserController::BrowserController(std::shared_ptr<SessionStore> store, QString engineName,
-    bool privateBrowsing, QSharedPointer<QHash<QString, int>> sessionPermissionDecisions,
+BrowserController::BrowserController(std::shared_ptr<SessionStore> store, bool privateBrowsing,
+    QSharedPointer<QHash<QString, int>> sessionPermissionDecisions,
     QSharedPointer<SessionSiteState> sessionSiteState, QString configRoot, QObject *parent)
-    : BrowserController(std::move(store), {}, std::move(engineName), privateBrowsing,
+    : BrowserController(std::move(store), std::nullopt, privateBrowsing,
           std::move(sessionPermissionDecisions), std::move(sessionSiteState), std::move(configRoot),
           parent)
 {
 }
 
-BrowserController::BrowserController(std::shared_ptr<SessionStore> store, QString dataRoot,
-    QString engineName, bool privateBrowsing,
+BrowserController::BrowserController(std::shared_ptr<SessionStore> store,
+    std::optional<SpaceStorage> storage, bool privateBrowsing,
     QSharedPointer<QHash<QString, int>> sessionPermissionDecisions,
     QSharedPointer<SessionSiteState> sessionSiteState, QString configRoot, QObject *parent)
     : QObject(parent)
     , m_store(std::move(store))
-    , m_dataRoot(std::move(dataRoot))
-    , m_engineName(std::move(engineName))
+    , m_storage(std::move(storage))
     , m_configRoot(std::move(configRoot))
     , m_privateBrowsing(privateBrowsing)
     , m_capabilities(
@@ -185,11 +184,12 @@ BrowserController::BrowserController(std::shared_ptr<SessionStore> store, QStrin
     loadDownloadDirectory();
     initialize();
     // A window without History search has nothing to search and no thread to
-    // search it with.
-    if (m_capabilities.allows(Capability::HistorySearch)) {
+    // search it with, and neither has one that keeps nothing on disk: the
+    // search reads the Space databases a SpaceStorage names.
+    if (m_capabilities.allows(Capability::HistorySearch) && m_storage) {
         m_historyThread = new QThread(this);
         m_historyThread->setObjectName(QStringLiteral("omaweb-history-search"));
-        m_historySearch = new HistorySearch(m_dataRoot);
+        m_historySearch = new HistorySearch(*m_storage);
         m_historySearch->moveToThread(m_historyThread);
         connect(m_historyThread, &QThread::finished, m_historySearch, &QObject::deleteLater);
         connect(this, &BrowserController::historySearchRequested, m_historySearch,
@@ -251,23 +251,29 @@ QString BrowserController::activeTitle() const
 
 QString BrowserController::activeProfilePath() const
 {
-    if (m_privateBrowsing) {
-        return {};
-    }
-    return SqliteSessionStore::engineProfilePath(m_dataRoot, m_activeSpaceId, m_engineName);
+    return m_storage ? m_storage->profilePathFor(m_activeSpaceId) : QString {};
 }
 
 QString BrowserController::profilePathForSpace(const QString &spaceId) const
 {
-    if (m_privateBrowsing) {
+    if (!m_storage) {
         return {};
     }
     for (const auto &space : m_spaces.items()) {
         if (space.id == spaceId) {
-            return SqliteSessionStore::engineProfilePath(m_dataRoot, spaceId, m_engineName);
+            return m_storage->profilePathFor(spaceId);
         }
     }
     return {};
+}
+
+QString BrowserController::prepareProfileForSpace(const QString &spaceId) const
+{
+    const auto path = profilePathForSpace(spaceId);
+    if (path.isEmpty() || !QDir().mkpath(path)) {
+        return {};
+    }
+    return path;
 }
 
 bool BrowserController::activeTabPinned() const
@@ -2042,8 +2048,13 @@ QStringList BrowserController::allowedThirdPartyCookieOrigins(const QString &spa
 double BrowserController::siteDataBytes(const QString &spaceId, const QStringList &entries) const
 {
     const auto path = profilePathForSpace(spaceId);
-    if (path.isEmpty() || entries.isEmpty() || !QFileInfo::exists(path)) {
+    if (path.isEmpty() || entries.isEmpty()) {
         return -1;
+    }
+    // A Space whose engine has never run has no Engine profile yet, which is a
+    // Space holding no site data rather than a Space nothing can be said about.
+    if (!QFileInfo::exists(path)) {
+        return 0;
     }
     const QDir profile(path);
     double bytes = 0;

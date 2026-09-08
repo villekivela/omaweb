@@ -28,11 +28,13 @@ window with no search thread never receives a result to suppress, and no close a
 was ever pinned, because closing spares a Pinned tab.
 
 Whether a window is private stays a separate fact. `privateBrowsing()` answers from the flag, not
-from the capability set, and nothing exposes capabilities to QML. Ten tests of the flag remain and
-none of them is about a capability: session storage, reader configuration, the profile-path readers
-(#138), resetting Site permissions, closing the window on its last tab, the blank tab a Private
-window starts with, and the coalesced persist. So does the one place the flag is read to name rather
-than to refuse, where a notification's Space is rendered as "Private".
+from the capability set, and nothing exposes capabilities to QML. Eight tests of the flag remain and
+none of them is about a capability: session storage, reader configuration, resetting Site
+permissions, closing the window on its last tab, the blank tab a Private window starts with, and the
+coalesced persist. The two profile-path readers are no longer among them: a window that keeps
+nothing holds no `SpaceStorage`, and both answer from that absence
+([ADR 0008](0008-isolate-space-storage-on-disk.md)). So does the one place the flag is read to name
+rather than to refuse, where a notification's Space is rendered as "Private".
 
 Reopening a closed tab is the exception in shape. It clears pinning and Keep active rather than
 refusing, because a tab may come back into a window that has no Pinned section for it, and that is

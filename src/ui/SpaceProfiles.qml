@@ -46,10 +46,15 @@ QtObject {
             return existing;
         if (!root.profileSource || String(root.profileSource).length === 0)
             return null;
+        // The directory has to be there before an engine is pointed at it, and
+        // a Space that cannot be given one gets no host rather than a host
+        // over nothing.
+        const profilePath = root.browser.prepareProfileForSpace(spaceId);
+        if (profilePath.length === 0)
+            return null;
         const component = Qt.createComponent(root.profileSource);
         const host = component.createObject(root.owner ? root.owner : root, {
-                                                "profilePath": root.browser.profilePathForSpace(
-                                                                   spaceId),
+                                                "profilePath": profilePath,
                                                 "downloadDirectory": root.browser.downloadDirectory,
                                                 "acceptDownloads": root.browser.acceptDownloads,
                                                 "privateBrowsing": false,

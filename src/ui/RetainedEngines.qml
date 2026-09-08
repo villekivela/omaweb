@@ -68,7 +68,7 @@ QtObject {
             const profile = root.spaceProfiles.hostFor(kept.spaceId);
             if (!profile)
                 continue;
-            const engine = root.host.createEngine(kept.tabId, kept.url, kept.spaceId, root.browser.profilePathForSpace(
+            const engine = root.host.createEngine(kept.tabId, kept.url, kept.spaceId, root.browser.prepareProfileForSpace(
                                                       kept.spaceId), profile.profile);
             if (!engine)
                 continue;

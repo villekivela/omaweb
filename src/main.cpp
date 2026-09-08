@@ -211,7 +211,8 @@ int main(int argc, char *argv[])
         // better than none, so this carries on as an ordinary launch.
     }
 
-    omaweb::BrowserController browser(dataRoot(), QStringLiteral("qt"), configRoot());
+    omaweb::BrowserController browser(
+        omaweb::SpaceStorage(dataRoot(), QStringLiteral("qt")), configRoot());
     omaweb::ContentBlocker contentBlocker(dataRoot());
     omaweb::KeyboardNavigation keyboardNavigation(
         keybindingsPath(), QStringLiteral(OMAWEB_KEYBOARD_NAVIGATION_SCRIPT_PATH));
@@ -238,8 +239,7 @@ int main(int argc, char *argv[])
     if (!inputMethod.available()) {
         qWarning("%s", qPrintable(inputMethod.diagnostic()));
     }
-    omaweb::WindowManager windowManager(
-        QStringLiteral("qt"), configRoot(), launch.privateWindowsAvailable);
+    omaweb::WindowManager windowManager(configRoot(), launch.privateWindowsAvailable);
 
     omaweb::registerFaviconTint();
     omaweb::registerDefaultBrowser();

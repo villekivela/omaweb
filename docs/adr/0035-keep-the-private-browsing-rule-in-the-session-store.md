@@ -25,10 +25,9 @@ Whether a window is private stays a separate fact from whether its store records
 today, and deriving one from the other would read well until an ordinary window wanted a store that
 keeps nothing, for a test, and silently became a Private window instead.
 
-Three tests of the flag remain beside the store, and none of them is about storage. Resetting Site
+One test of the flag remains beside the store, and it is not about storage. Resetting Site
 permissions reports success where the store reports nothing stored, because a Private window with
-nothing to reset has not failed. The two profile-path readers answer for a store with no data root;
-a Space's engine profile directory is not session storage, and moving it out is #138.
+nothing to reset has not failed.
 
 What this does not touch:
 
