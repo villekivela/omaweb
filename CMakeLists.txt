@@ -226,12 +226,13 @@ if(omaweb_omarchy_file_count GREATER 0)
 endif()
 
 add_library(omaweb-engine-api STATIC
+    "src/engine/api/EngineCapabilities.cpp"
     src/engine/api/EngineCapabilities.h
     src/engine/api/EngineViewContract.cpp
     src/engine/api/EngineViewContract.h
 )
 target_include_directories(omaweb-engine-api PUBLIC src/engine/api)
-target_link_libraries(omaweb-engine-api PUBLIC Qt6::Core)
+target_link_libraries(omaweb-engine-api PUBLIC Qt6::Core Qt6::Qml)
 omaweb_strict_target(omaweb-engine-api)
 
 if(OMAWEB_BUILD_BROWSER)
@@ -531,6 +532,25 @@ if(OMAWEB_BUILD_UI_LAB)
 endif()
 
 if(BUILD_TESTING)
+    qt_add_executable(omaweb-engine-contract-tests
+        "tests/engine/tst_enginecontract.cpp"
+    )
+    target_link_libraries(omaweb-engine-contract-tests PRIVATE
+        omaweb-engine-api
+        Qt6::Gui
+        Qt6::Qml
+        Qt6::Quick
+        Qt6::Test
+    )
+    target_compile_definitions(omaweb-engine-contract-tests PRIVATE
+        OMAWEB_MOCK_ENGINE_VIEW_PATH="${CMAKE_CURRENT_SOURCE_DIR}/src/ui-lab/MockEngineView.qml"
+    )
+    omaweb_strict_target(omaweb-engine-contract-tests)
+    add_test(NAME omaweb-engine-contract COMMAND omaweb-engine-contract-tests)
+    set_tests_properties(omaweb-engine-contract PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+    )
+
     add_test(NAME omaweb-shared-qml-boundary
         COMMAND ${CMAKE_COMMAND}
             -DOMAWEB_UI_DIRECTORY=${CMAKE_CURRENT_SOURCE_DIR}/src/ui
@@ -843,6 +863,7 @@ if(BUILD_TESTING)
         target_link_libraries(omaweb-ui-tests PRIVATE
             omaweb-core
             omaweb-content-blocking
+            omaweb-engine-api
             omaweb-ui
             omaweb-platform
             omaweb-quickshell-shim

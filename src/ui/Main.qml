@@ -4,6 +4,7 @@ import QtQuick.Layouts
 import QtQuick.Window
 import QtQuick.Dialogs as Dialogs
 import Omaweb
+import Omaweb.Engine
 
 ApplicationWindow {
     id: window
@@ -68,29 +69,28 @@ ApplicationWindow {
     // offering a dock nothing can fill.
     readonly property bool developerToolsAvailable: engineLoader.item !== null && (
                                                         engineLoader.item.capabilities
-                                                        & engineLoader.item.developerToolsCapability)
-                                                    !== 0
+                                                        & EngineCapabilities.DeveloperTools) !== 0
     // The everyday page operations an engine may or may not have. Each is read
     // off the adapter itself, so a command Omaweb cannot carry out here is listed
     // and unavailable rather than doing nothing when it is run.
     readonly property bool findAvailable: engineLoader.item !== null && (
                                               engineLoader.item.capabilities
-                                              & engineLoader.item.pageFindCapability) !== 0
+                                              & EngineCapabilities.PageFind) !== 0
     readonly property bool zoomAvailable: engineLoader.item !== null && (
                                               engineLoader.item.capabilities
-                                              & engineLoader.item.pageZoomCapability) !== 0
+                                              & EngineCapabilities.PageZoom) !== 0
     // Two halves have to hold: an engine that can render the page for printing,
     // and a desktop with a print dialog to answer.
     readonly property bool printingAvailable: engineLoader.item !== null && (
                                                   engineLoader.item.capabilities
-                                                  & engineLoader.item.printingCapability) !== 0
+                                                  & EngineCapabilities.Printing) !== 0
                                               && PagePrinter.available
     // A PDF the engine draws in its own sandbox, with find, zoom, print and
     // download inside it. An engine without one downloads the document, and
     // says so.
     readonly property bool inlinePdfViewingAvailable: engineLoader.item !== null && (
                                                           engineLoader.item.capabilities
-                                                          & engineLoader.item.inlinePdfViewingCapability)
+                                                          & EngineCapabilities.InlinePdfViewing)
                                                       !== 0
     // The two halves of a site's security contract an engine can be missing,
     // and whether it keeps a Space's site data on disk at all. Site information
@@ -98,16 +98,15 @@ ApplicationWindow {
     // a reassuring blank.
     readonly property bool certificateDecisionsAvailable: engineLoader.item !== null && (
                                                               engineLoader.item.capabilities
-                                                              & engineLoader.item.certificateDecisionsCapability)
+                                                              & EngineCapabilities.CertificateDecisions)
                                                           !== 0
     readonly property bool thirdPartyCookieControlAvailable: engineLoader.item !== null && (
                                                                  engineLoader.item.capabilities
-                                                                 & engineLoader.item.thirdPartyCookieControlCapability)
+                                                                 & EngineCapabilities.ThirdPartyCookieControl)
                                                              !== 0
     readonly property bool siteDataOnDisk: engineLoader.item !== null && (
                                                engineLoader.item.capabilities
-                                               & engineLoader.item.persistentProfilesCapability)
-                                           !== 0
+                                               & EngineCapabilities.PersistentProfiles) !== 0
     // The permission policies the core answers with, named here so nothing in
     // the interface compares against a bare number.
     readonly property int permissionRefused: 0

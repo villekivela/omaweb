@@ -43,4 +43,6 @@ public:
 
 Q_DECLARE_OPERATORS_FOR_FLAGS(EngineCapabilities::Capabilities)
 
+void registerEngineCapabilities();
+
 } // namespace omaweb

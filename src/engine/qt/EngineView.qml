@@ -1,6 +1,7 @@
 import QtQuick
 import QtWebEngine
 import Omaweb
+import Omaweb.Engine
 
 Item {
     id: root
@@ -56,27 +57,19 @@ Item {
     property var engineContentBlocker: null
     readonly property var browserProfile: webView.profile
     readonly property bool pageHasFocus: webView.activeFocus
-    readonly property int navigationCapability: 1 << 0
-    readonly property int persistentProfilesCapability: 1 << 1
-    readonly property int contentBlockingCapability: 1 << 3
-    readonly property int keyboardPageCommandsCapability: 1 << 4
-    readonly property int developerToolsCapability: 1 << 5
-    readonly property int rendererRecoveryCapability: 1 << 6
-    readonly property int pageFindCapability: 1 << 7
-    readonly property int pageZoomCapability: 1 << 8
-    readonly property int printingCapability: 1 << 9
-    readonly property int siteFullscreenCapability: 1 << 10
-    readonly property int inlinePdfViewingCapability: 1 << 11
-    readonly property int certificateDecisionsCapability: 1 << 12
-    readonly property int thirdPartyCookieControlCapability: 1 << 13
-    readonly property int capabilities: navigationCapability | persistentProfilesCapability
-                                        | contentBlockingCapability
-                                        | keyboardPageCommandsCapability | developerToolsCapability
-                                        | rendererRecoveryCapability | pageFindCapability
-                                        | pageZoomCapability | printingCapability
-                                        | siteFullscreenCapability | inlinePdfViewingCapability
-                                        | certificateDecisionsCapability
-                                        | thirdPartyCookieControlCapability
+    readonly property int capabilities: EngineCapabilities.Navigation
+                                        | EngineCapabilities.PersistentProfiles
+                                        | EngineCapabilities.PrivateProfiles
+                                        | EngineCapabilities.ContentBlocking
+                                        | EngineCapabilities.KeyboardPageCommands
+                                        | EngineCapabilities.DeveloperTools
+                                        | EngineCapabilities.RendererRecovery
+                                        | EngineCapabilities.PageFind | EngineCapabilities.PageZoom
+                                        | EngineCapabilities.Printing
+                                        | EngineCapabilities.SiteFullscreen
+                                        | EngineCapabilities.InlinePdfViewing
+                                        | EngineCapabilities.CertificateDecisions
+                                        | EngineCapabilities.ThirdPartyCookieControl
     property int blockedRequestCount: 0
     property color pageBackgroundColor: "#16151d"
     property var keyboardNavigationConfiguration: ({})
