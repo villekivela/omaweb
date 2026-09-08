@@ -2,14 +2,16 @@
 
 Scriptlets moved inside the contract in [0025](0025-run-only-vendored-scriptlets.md), and redirects
 and resource replacement in [0026](0026-serve-substitutes-under-an-omaweb-scheme.md); the paragraphs
-below still read as though they had not. Every other exclusion stands.
+below still read as though they had not. What the blocked-request count below asks for is the
+Refusal tally, whose owner and accuracy [0037](0037-count-refusals-per-page-address.md) settles.
+Every other exclusion stands.
 
 Omaweb provides Content blocking through a shared filter-list contract rather than an
 engine-specific Web extension. Both engine adapters must support network-request blocking, cosmetic
 element hiding, refusing the windows a list's `$popup` rules name, user lists, automatic updates,
-per-site disabling, and a visible blocked-request count. Omaweb publishes unsupported filter syntax
-and does not claim scriptlet, dynamic-filtering, or full uBlock Origin compatibility until those
-behaviors exist.
+per-site disabling, and a visible Refusal tally. Omaweb publishes unsupported filter syntax and does
+not claim scriptlet, dynamic-filtering, or full uBlock Origin compatibility until those behaviors
+exist.
 
 The Qt adapter uses Brave's `adblock-rust` behind a narrow Omaweb-owned C interface, pinned to the
 version used by the selected Ladybird revision. Ladybird uses its internal copy. Both adapters run

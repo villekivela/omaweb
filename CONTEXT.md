@@ -165,6 +165,12 @@ browser. _Avoid_: GPU acceleration, VA-API, hardware acceleration
 subscribed filter lists. Content blocking is a browser capability and does not depend on an
 installed extension. _Avoid_: Ad-blocking extension
 
+**Refusal tally**: What Content blocking refused for one page address in one Space: how many
+requests the document loaded there has been prevented from making. A new document at that address
+starts the tally again, and a navigation within that document carries it on, so the tally follows
+the document rather than the reader's sense of a new page. Two tabs on the same address in the same
+Space read the same tally. _Avoid_: Blocked count, blocked-request total, blocked requests
+
 **URL reputation**: An optional browser capability that checks an address or download against a
 provider's current phishing, malware, or software-reputation data. Content blocking may refuse some
 known malicious addresses but is not URL reputation. URL reputation is not part of Omaweb's
