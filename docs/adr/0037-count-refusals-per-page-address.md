@@ -26,10 +26,12 @@ contract stops declaring a `blockedRequestCount` property, because no adapter ex
 
 What was rejected:
 
-- **Qt's private headers.** `QWebEnginePage::setUrlRequestInterceptor` would attribute per view, but
-  the page behind a QML `WebEngineView` is reachable only through
-  `QtWebEngineQuick/<version>/QtWebEngineQuick/private`. Pinning the request path of the one
-  subsystem [ADR 0010](0010-own-portable-content-blocking.md) promises across engines to Qt
+- **Qt's private headers.** They do not reach it either. `QWebEnginePage::setUrlRequestInterceptor`
+  attributes per view, but a QML `WebEngineView` owns no page: `QQuickWebEngineViewPrivate` is a
+  `WebContentsAdapterClient` beside `QWebEnginePage` rather than beneath it, and the private view
+  header exposes the Engine profile and nothing narrower. Per-view interception means reaching into
+  `WebContentsAdapter`, and pinning the request path of the one subsystem
+  [ADR 0010](0010-own-portable-content-blocking.md) promises across engines to Chromium-adjacent Qt
   internals buys accuracy in the development engine that the target engine cannot inherit.
 - **Inferring a new load from the first refusal after the address changes.** It cannot tell a reload
   from a load still in progress, and it never starts the tally for a page that refuses nothing.
