@@ -34,10 +34,12 @@ private:
     static QVariantMap defaultOpacity();
     static QVariantMap defaultFont();
     static QVariantMap defaultSyntax();
-    // The first candidate family the host actually has installed. A theme
-    // names the families it prefers; Qt has to be handed one that exists,
-    // because a missing family costs a full font-alias sweep and then draws
-    // in whatever face Qt substitutes.
+    // The face the host would actually draw for the first candidate it has. A
+    // theme names the families it prefers; Qt has to be handed one that
+    // exists, because a missing family costs a full font-alias sweep and then
+    // draws in whatever face Qt substitutes. A candidate may also be a
+    // fontconfig alias rather than a family, and the answer is then the family
+    // the alias stands for rather than the alias.
     static QString installedFamily(const QStringList &candidates);
     QVariantMap fallbackPalette() const;
     QStringList themeSourceState() const;

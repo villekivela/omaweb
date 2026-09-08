@@ -5,7 +5,9 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QFont>
 #include <QFontDatabase>
+#include <QFontInfo>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QMap>
@@ -447,14 +449,24 @@ QVariantMap ThemeController::defaultFont()
 
 QString ThemeController::installedFamily(const QStringList &candidates)
 {
+    // A name the database has is not always a family: fontconfig answers for
+    // its aliases too, and "monospace" is the one the desktop writes the
+    // reader's own choice into, because `omarchy font set` edits `fonts.conf`
+    // rather than any theme. So the palette carries the face Qt would draw
+    // for the name it was given, and a name that is itself a family answers
+    // with itself. Qt's own fixed-pitch answer is an alias on Linux too.
+    const auto drawnFamily = [](const QString &name) {
+        const QString drawn = QFontInfo(QFont(name)).family();
+        return drawn != name && QFontDatabase::hasFamily(drawn) ? drawn : name;
+    };
     for (const auto &candidate : candidates) {
         if (QFontDatabase::hasFamily(candidate)) {
-            return candidate;
+            return drawnFamily(candidate);
         }
     }
     const auto fixed = QFontDatabase::systemFont(QFontDatabase::FixedFont).family();
     if (QFontDatabase::hasFamily(fixed)) {
-        return fixed;
+        return drawnFamily(fixed);
     }
     // A host with no fixed-pitch family is not one Omaweb can be picky on.
     const auto installed = QFontDatabase::families();

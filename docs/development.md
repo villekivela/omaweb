@@ -351,9 +351,12 @@ window-wide setting and does not translate to Omaweb's per-surface opacity.
 `theme.json`'s `font` block is `families` and `size`. `families` is a preference order and the first
 family the host actually has installed wins, so a theme can name a font it would like without
 breaking a machine that lacks it; nothing is ever handed to Qt that Qt cannot find, because a
-missing family costs a font-alias sweep at startup and then draws in whatever face Qt substitutes.
-`size` is the root the whole type scale grows from: every size the interface asks for is derived
-from it by the Omarchy kit, which `ThemeController` drives. See
+missing family costs a font-alias sweep at startup and then draws in whatever face Qt substitutes. A
+candidate may be a fontconfig alias rather than a family, and the palette then carries the family
+the alias stands for. `monospace` is the alias that matters: `omarchy font set` writes the reader's
+choice there rather than into any theme, so it is what the Omarchy template names first and how
+Omaweb follows the desktop's font. `size` is the root the whole type scale grows from: every size
+the interface asks for is derived from it by the Omarchy kit, which `ThemeController` drives. See
 [ADR 0018](adr/0018-drive-the-kit-from-the-theme-palette.md).
 
 ## Interface components
