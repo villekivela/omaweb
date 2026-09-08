@@ -37,6 +37,10 @@ QJsonObject runFixtures(const QJsonObject &fixtures, const omaweb::QtContentBloc
             return Info::ResourceTypeXhr;
         return Info::ResourceTypeUnknown;
     };
+    // A request is made in a Space, and the compatibility report is about what
+    // the rules decide rather than about which Space asked, so every fixture
+    // asks in the same one.
+    const auto reportSpace = QStringLiteral("report");
     int passed = 0;
     int total = 0;
     for (const auto &value : fixtures.value(QStringLiteral("network")).toArray()) {
@@ -44,7 +48,7 @@ QJsonObject runFixtures(const QJsonObject &fixtures, const omaweb::QtContentBloc
         const auto decision
             = adapter.checkRequest(QUrl(fixture.value(QStringLiteral("url")).toString()),
                 QUrl(fixture.value(QStringLiteral("source")).toString()),
-                resourceType(fixture.value(QStringLiteral("type")).toString()));
+                resourceType(fixture.value(QStringLiteral("type")).toString()), reportSpace);
         passed += decision.blocked == fixture.value(QStringLiteral("blocked")).toBool()
             && decision.substitute == fixture.value(QStringLiteral("substitute")).toString()
             && decision.rewrittenUrl == QUrl(fixture.value(QStringLiteral("rewritten")).toString());
@@ -56,7 +60,7 @@ QJsonObject runFixtures(const QJsonObject &fixtures, const omaweb::QtContentBloc
         const auto fixture = value.toObject();
         const auto actual
             = contentBlocker.shouldBlockPopup(QUrl(fixture.value(QStringLiteral("url")).toString()),
-                QUrl(fixture.value(QStringLiteral("opener")).toString()));
+                QUrl(fixture.value(QStringLiteral("opener")).toString()), reportSpace);
         passed += actual == fixture.value(QStringLiteral("blocked")).toBool();
         ++total;
     }

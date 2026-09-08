@@ -23,6 +23,11 @@ Item {
     property var developerToolsColors: ({})
     property color pageBackgroundColor: "#16151d"
     property string spaceId: ""
+    // The Space the window's own profile belongs to, which is not the Space on
+    // show in a Private window: that session is shared and has no Space of its
+    // own. The core answers it, so the rule is not written out again here.
+    readonly property string sessionSpaceId: root.browserController
+                                             ? root.browserController.sessionSpaceId : ""
 
     readonly property alias item: root.activeEngine
     // The inspector of the tab the core says is being inspected, for the dock
@@ -359,6 +364,14 @@ Item {
                                                         root.permissionController,
                                                         "contentBlocker": root.blocker,
                                                         "engineContentBlocker": root.engineBlocker,
+                                                        // The Space of the
+                                                        // profile this view
+                                                        // runs on, which is
+                                                        // what Content
+                                                        // blocking keys its
+                                                        // Refusal tally by.
+                                                        "spaceId": spaceId !== undefined ? spaceId :
+                                                                                           root.sessionSpaceId,
                                                         "keyboardNavigationConfiguration":
                                                         root.keyboardConfiguration(tabUrl),
                                                         "keyboardNavigationScriptSource":

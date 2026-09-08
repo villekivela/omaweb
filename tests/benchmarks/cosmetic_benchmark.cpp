@@ -8,6 +8,7 @@
 // every fixture, rule set, and metric definition is identical on both sides.
 
 #include "ContentMatcher.h"
+#include "ContentBlockerContract.h"
 #include "ExternalProtocolHandler.h"
 #include "QtContentBlocker.h"
 
@@ -398,7 +399,10 @@ public:
     {
     }
 
-    Q_INVOKABLE void flushBlockedRequestCounts() { }
+    // The benchmark refuses nothing and counts nothing, so a page load has no
+    // tally to move. It is answered anyway, because it is part of what a view
+    // may ask a blocker (ContentBlockerContract).
+    Q_INVOKABLE void showPage(QObject *, const QString &, const QUrl &, int) { }
 
     Q_INVOKABLE QString cosmeticStyleSheet(const QUrl &url)
     {
@@ -425,7 +429,10 @@ public:
         return m_matcher->genericCosmeticStyleSheet(url, classes, ids);
     }
 
-    Q_INVOKABLE bool shouldBlockPopup(const QUrl &, const QUrl &) const { return false; }
+    Q_INVOKABLE bool shouldBlockPopup(const QUrl &, const QUrl &, const QString &) const
+    {
+        return false;
+    }
 
     const ContentMatcher &matcher() const { return *m_matcher; }
 
@@ -456,7 +463,6 @@ public:
 signals:
     void rulesChanged();
     void configurationChanged();
-    void requestsBlocked(const QUrl &siteUrl, int count);
 
 private:
     std::shared_ptr<const ContentMatcher> m_matcher;
@@ -620,6 +626,15 @@ int main(int argc, char *argv[])
         return 2;
     }
     BenchmarkBlocker blocker(compilation.matcher);
+    // The view asks this stub the questions it would ask Content blocking. One
+    // whose surface has drifted answers nothing and measures a path that never
+    // ran, so the harness refuses to produce numbers for it.
+    const auto missing = omaweb::validateEngineBlockerContract(blocker);
+    if (!missing.isEmpty()) {
+        fprintf(stderr, "The benchmark blocker is missing %s\n",
+            qPrintable(missing.join(QStringLiteral("; "))));
+        return 2;
+    }
 
     QTemporaryDir root;
     QQmlEngine engine;

@@ -19,6 +19,12 @@ tally used to be keyed by host, a leftover from the running per-host totals the 
 [#131](https://github.com/villekivela/omaweb/issues/131), and every tab on a host showed everything
 that host refused.
 
+A view tells a load apart from an arrival by carrying the page load it is on. A reload asks for the
+same address and is a new document, so the tally starts again; a redirect the load resolved to is
+the same load arriving elsewhere, so the tally moves to the address it resolved to; a jump inside
+the document is neither, and the fragment is off the key, so the tally carries on. Without the page
+load in hand these three are the same call.
+
 The chrome reads a tally for the address it is showing rather than being handed a number. Site
 information, Settings and the Space outline each already know that address, so nothing carries the
 count through the view, the window, or the outline on its way to being drawn. The engine-view

@@ -1,5 +1,6 @@
 import QtQuick
 import QtWebEngine
+import Omaweb
 
 QtObject {
     id: root
@@ -12,14 +13,20 @@ QtObject {
     // Space nobody is looking at.
     property var engineCookiePolicy: null
     property var cookieController: null
-    property string cookieSpaceId: ""
+    // The Space this profile is the browsing identity of. Both the engine's
+    // third-party allowances and Content blocking's Refusal tally are keyed by
+    // it. A Private window has no Space of its own and passes the empty name
+    // its shared session already uses.
+    property string spaceId: ""
     // Whether the engine's third-party filter is actually attached. Reported
     // rather than assumed: a profile the filter could not be attached to is one
     // Site information has to stop promising anything about.
     property bool thirdPartyCookiesBlocked: false
     property string downloadDirectory: ""
     property bool acceptDownloads: false
-    property var downloadController: null
+    // The window's download list, which decides what happens to a request
+    // before it starts and is told what became of one that did.
+    property var downloads: null
     property var downloadHolds: null
     property var answeredDownloads: ({})
     property var downloadRequests: ({})
@@ -48,12 +55,12 @@ QtObject {
     // action that did nothing.
     signal browsingDataCleared
     readonly property var profile: privateProfile
-    signal downloadStarted(string runtimeId, url sourceUrl, string path, string state,
+    signal downloadStarted(string runtimeId, url sourceUrl, url pageUrl, string path, string state,
                            double receivedBytes, double totalBytes)
     signal downloadUpdated(string runtimeId, string state, double receivedBytes, double totalBytes,
                            string error)
-    signal downloadHeld(string token, string disposition, string origin, url sourceUrl,
-                        string fileName, string risk)
+    signal downloadHeld(string token, int disposition, string origin, url sourceUrl, string fileName,
+                        string risk)
     signal downloadRefused(url sourceUrl, string fileName, string origin)
 
     function releaseHeldDownload(token, path) {
@@ -212,13 +219,9 @@ QtObject {
                 if (!running() && !settled) {
                     settled = true;
                     root.activeDownloadCount -= 1;
-                    if (root.downloadController)
-                        root.downloadController.noteDownloadSettled(runtimeId());
                 } else if (running() && settled) {
                     settled = false;
                     root.activeDownloadCount += 1;
-                    if (root.downloadController)
-                        root.downloadController.noteDownloadStarted(observer.pageUrl, runtimeId());
                 }
                 if (download.state === WebEngineDownloadRequest.DownloadCompleted || download.state
                         === WebEngineDownloadRequest.DownloadCancelled) {
@@ -231,8 +234,8 @@ QtObject {
 
             Component.onCompleted: {
                 root.downloadRequests[runtimeId()] = download;
-                root.downloadStarted(runtimeId(), download.url, path(), stateName(), download.receivedBytes,
-                                     download.totalBytes);
+                root.downloadStarted(runtimeId(), download.url, observer.pageUrl, path(), stateName(),
+                                     download.receivedBytes, download.totalBytes);
             }
 
             property Connections downloadConnections: Connections {
@@ -310,16 +313,17 @@ QtObject {
             if (chosenPath.length === 0) {
                 const fileName = download.downloadFileName.length > 0 ? download.downloadFileName :
                                                                         download.suggestedFileName;
-                const rule = root.downloadController ? root.downloadController.downloadDisposition(
-                                                           pageUrl, fileName, download.mimeType,
-                                                           root.downloadDirectory, answered) : null;
-                const disposition = rule ? rule.disposition : "accept";
-                if (disposition === "refuse") {
+                const rule = root.downloads ? root.downloads.disposition(pageUrl, fileName,
+                                                                         download.mimeType,
+                                                                         root.downloadDirectory,
+                                                                         answered) : null;
+                const disposition = rule ? rule.disposition : BrowserController.AcceptDownload;
+                if (disposition === BrowserController.RefuseDownload) {
                     download.cancel();
                     root.downloadRefused(download.url, fileName, rule.origin);
                     return;
                 }
-                if (disposition !== "accept") {
+                if (disposition !== BrowserController.AcceptDownload) {
                     const token = root.downloadHolds ? root.downloadHolds.hold(download) : "";
                     if (token.length === 0) {
                         download.cancel();
@@ -343,25 +347,22 @@ QtObject {
             if (download.downloadFileName.length === 0)
                 download.downloadFileName = download.suggestedFileName;
             root.activeDownloadCount += 1;
-            const observer = root.downloadObserver.createObject(root, {
-                                                                    "download": download,
-                                                                    "downloadNamespace":
-                                                                    root.downloadNamespace,
-                                                                    "pageUrl": String(pageUrl)
-                                                                });
-            if (root.downloadController)
-                root.downloadController.noteDownloadStarted(pageUrl, observer.runtimeId());
+            root.downloadObserver.createObject(root, {
+                                                   "download": download,
+                                                   "downloadNamespace": root.downloadNamespace,
+                                                   "pageUrl": String(pageUrl)
+                                               });
             download.accept();
         }
     }
 
     Component.onCompleted: {
         if (root.engineContentBlocker)
-            root.engineContentBlocker.attachToProfile(root.profile);
+            root.engineContentBlocker.attachToProfile(root.profile, root.spaceId);
         if (root.engineCookiePolicy && root.cookieController) {
             root.thirdPartyCookiesBlocked = root.engineCookiePolicy.attachToProfile(root.profile,
                                                                                     root.cookieController,
-                                                                                    root.cookieSpaceId);
+                                                                                    root.spaceId);
         }
     }
 }

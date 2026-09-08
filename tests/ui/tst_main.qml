@@ -102,6 +102,26 @@ TestCase {
         window.destroy();
     }
 
+    // A Download record outlives the test that made it, and every test here
+    // shares one window, so a test about the list starts from an empty one.
+    function clearDownloads() {
+        for (let row = window.downloads.count - 1; row >= 0; --row)
+            window.downloads.forget(row);
+    }
+
+    // One row of the window's download list, by the role the model names.
+    function downloadRole(row, role) {
+        return window.downloads.data(window.downloads.index(row, 0), role);
+    }
+
+    // Where a download landed in the list, which is newest first.
+    function downloadRowFor(runtimeId) {
+        for (let row = 0; row < window.downloads.count; ++row)
+            if (downloadRole(row, Downloads.RuntimeIdRole) === runtimeId)
+                return row;
+        return -1;
+    }
+
     // A Space at rest shows the start page: no engine is spent on the blank
     // tab standing in for a page, and the outline lists no ordinary tab row.
     // A test about a page, an engine or a tab row opens a page first.
@@ -355,10 +375,7 @@ TestCase {
 
     function test_saveDialogRejectsATargetThatBecameStaleWhileOpen() {
         const engine = openPage("https://stale-save.example/before");
-        window.pendingSaveEngine = engine;
-        window.pendingSaveAction = "save-link";
-        window.pendingSaveTabId = browser.activeTabId;
-        window.pendingSaveGeneration = Number(engine.pageGeneration);
+        window.recordPendingSave(engine, "save-link");
         engine.currentUrl = "https://stale-save.example/after";
         window.completeTargetSave("file:///tmp/archive.zip");
         compare(engine.lastContextAction, "");
@@ -2436,6 +2453,59 @@ TestCase {
         browser.closeTab(ordinaryTabId);
     }
 
+    // Every menu is the menu as it stands. The entries turn on whether the row
+    // is pinned and kept active, which the core answers as calls rather than as
+    // properties, so a menu bound to the tab id alone would hand back the list
+    // it built the first time it was asked about that row: "Pin tab" on a pin,
+    // and "Keep active" on a tab already kept active.
+    function test_tabMenuAnswersWithTheRowAsItStands() {
+        openPage("https://restated.example");
+        const tabId = browser.activeTabId;
+
+        const labels = function () {
+            window.openTabMenu(tabId, 0, 0);
+            window.tabMenuOpen = false;
+            return window.tabMenuItems.map(function (action) {
+                return action.label;
+            });
+        };
+
+        verify(labels().indexOf("Pin tab") >= 0);
+
+        browser.toggleActivePinned();
+        const pinned = labels();
+        verify(pinned.indexOf("Unpin tab") >= 0);
+        verify(pinned.indexOf("Keep active") >= 0);
+        verify(pinned.indexOf("Close tab") === -1);
+
+        verify(browser.setTabKeepActive(tabId, true));
+        verify(labels().indexOf("Stop keeping active") >= 0);
+
+        // The row says so too, so the setting is legible without opening the
+        // menu that made it. The mark is a pin's: unpinning gives Keep active
+        // up, and the mark goes with it.
+        const mark = findChild(window.contentItem, "keepActive-" + tabId);
+        verify(mark !== null);
+        tryVerify(function () {
+            return mark.visible;
+        });
+
+        // Running the entry the menu is showing turns the setting off rather
+        // than on again.
+        window.openTabMenu(tabId, 0, 0);
+        window.runTabMenu(window.tabMenuItems.map(function (action) {
+            return action.label;
+        }).indexOf("Stop keeping active"));
+        verify(!browser.tabKeepActive(tabId));
+        tryVerify(function () {
+            return !mark.visible;
+        });
+
+        browser.activateTab(tabId);
+        browser.toggleActivePinned();
+        browser.closeTab(tabId);
+    }
+
     // Order is the reader's, within one section. A drag down the ordinary list
     // moves a row past its neighbour and no further than the section's end,
     // and the keyboard does the same a step at a time.
@@ -4134,6 +4204,7 @@ TestCase {
     function test_aProgramIsNotWrittenDownUntilTheReaderSaysSo() {
         openPage("https://tools.example/releases");
         const host = window.spaceProfileHost;
+        clearDownloads();
         const question = findChild(window.contentItem, "downloadQuestionBar");
         verify(question !== null);
         browser.recordOriginInteraction("https://tools.example/releases");
@@ -4155,7 +4226,7 @@ TestCase {
         question.actionTriggered(1);
         tryCompare(question, "open", false);
         tryCompare(notice, "message", "Download discarded");
-        compare(Object.keys(window.runningDownloads).length, 0);
+        compare(window.downloads.running, 0);
         notice.dismiss();
 
         compare(host.simulateDownloadRequest("https://tools.example/releases",
@@ -4164,12 +4235,9 @@ TestCase {
         tryCompare(question, "open", true);
         question.actionTriggered(0);
         tryCompare(question, "open", false);
-        tryVerify(function () {
-            return Object.keys(window.runningDownloads).length === 1;
-        });
-        const runtimeId = Object.keys(window.runningDownloads)[0];
-        verify(String(window.runningDownloads[runtimeId].path).indexOf("omaweb-test-install.sh")
-               > 0);
+        tryCompare(window.downloads, "running", 1);
+        const runtimeId = downloadRole(0, Downloads.RuntimeIdRole);
+        verify(String(downloadRole(0, Downloads.PathRole)).indexOf("omaweb-test-install.sh") > 0);
         host.simulateDownloadFinished(runtimeId);
         tryVerify(function () {
             return notice.message === "Saved omaweb-test-install.sh";
@@ -4180,6 +4248,7 @@ TestCase {
     function test_aPageThatDownloadsByItselfTakesASitePermission() {
         openPage("https://auto.example/page");
         const host = window.spaceProfileHost;
+        clearDownloads();
         const question = findChild(window.contentItem, "downloadQuestionBar");
         const notice = findChild(window.contentItem, "pageNotice");
 
@@ -4196,7 +4265,7 @@ TestCase {
 
         question.actionTriggered(2);
         tryCompare(question, "open", false);
-        compare(Object.keys(window.runningDownloads).length, 0);
+        compare(window.downloads.running, 0);
         const decisions = browser.sitePermissions("https://auto.example/page");
         let blocked = false;
         for (let index = 0; index < decisions.length; ++index)
@@ -4216,6 +4285,7 @@ TestCase {
     function test_anOrdinaryDownloadIsListedWithWhatCanStillBeDoneToIt() {
         openPage("https://files.example/library");
         const host = window.spaceProfileHost;
+        clearDownloads();
         browser.recordOriginInteraction("https://files.example/library");
         compare(host.downloadDirectory, browser.downloadDirectory);
 
@@ -4226,54 +4296,87 @@ TestCase {
         window.settingsOpen = true;
         const settings = findChild(window.contentItem, "settingsSurface");
         settings.section = 4;
-        tryVerify(function () {
-            return window.visibleDownloads.length > 0;
-        });
-        compare(window.visibleDownloads[0].runtimeId, runtimeId);
-        compare(window.visibleDownloads[0].state, "in-progress");
+        // The list is the model itself, so the row is there without anyone
+        // asking for it.
+        tryCompare(window.downloads, "count", 1);
+        compare(downloadRole(0, Downloads.RuntimeIdRole), runtimeId);
+        compare(downloadRole(0, Downloads.StateRole), "in-progress");
+        compare(downloadRole(0, Downloads.RunningRole), true);
 
         const row = findChild(settings, "recordedDownload-0");
         verify(row !== null);
         verify(findChild(settings, "cancelDownload-0").visible);
         verify(!findChild(settings, "revealDownload-0").visible);
 
+        const cancelledBefore = host.cancelledDownloads.length;
         findChild(settings, "cancelDownload-0").clicked();
         tryVerify(function () {
-            return host.cancelledDownloads.length === 1;
+            return host.cancelledDownloads.length === cancelledBefore + 1;
         });
-        compare(host.cancelledDownloads[0], runtimeId);
+        compare(host.cancelledDownloads[cancelledBefore], runtimeId);
 
-        window.refreshVisibleDownloads();
-        tryVerify(function () {
-            return window.visibleDownloads.length > 0;
-        });
-        const recordId = window.visibleDownloads[0].id;
-        verify(String(recordId).length > 0);
-        const listed = window.visibleDownloads.length;
-        window.forgetDownload(recordId);
-        tryVerify(function () {
-            return window.visibleDownloads.length === listed - 1;
-        });
+        // Cancelled, the row keeps the Download record its Space made of it.
+        tryCompare(window.downloads, "running", 0);
+        compare(window.downloads.count, 1);
+        verify(String(downloadRole(0, Downloads.RecordIdRole)).length > 0);
+        findChild(settings, "forgetDownload-0").clicked();
+        tryCompare(window.downloads, "count", 0);
 
-        const interrupted = browser.recordDownload("gone:1", "https://files.example/interrupted.pdf",
-                                                   "/nowhere/interrupted.pdf", "interrupted", 5,
-                                                   100);
+        const interrupted = host.simulateDownloadRequest("https://files.example/library",
+                                                         "https://files.example/interrupted.pdf",
+                                                         "omaweb-test-interrupted.pdf",
+                                                         "application/pdf");
         verify(interrupted.length > 0);
-        window.refreshVisibleDownloads();
-        let interruptedRow = -1;
-        for (let index = 0; index < window.visibleDownloads.length; ++index)
-            if (window.visibleDownloads[index].id === interrupted)
-                interruptedRow = index;
-        verify(interruptedRow >= 0);
-        compare(window.visibleDownloads[interruptedRow].runtimeId, "");
-        verify(findChild(settings, "retryDownload-" + interruptedRow).visible);
-
-        findChild(settings, "retryDownload-" + interruptedRow).clicked();
+        host.downloadUpdated(interrupted, "interrupted", 5, 100, "network changed");
         tryVerify(function () {
-            return String(browser.activeUrl) === "https://files.example/interrupted.pdf";
+            return downloadRole(0, Downloads.StateRole) === "interrupted";
         });
-        verify(browser.forgetDownload(interrupted));
+        verify(findChild(settings, "retryDownload-0").visible);
+        const retriedBefore = host.retriedDownloads.length;
+        findChild(settings, "retryDownload-0").clicked();
+        tryVerify(function () {
+            return host.retriedDownloads.length === retriedBefore + 1;
+        });
+        compare(host.retriedDownloads[retriedBefore], interrupted);
+
+        host.cancelDownload(interrupted);
+        tryVerify(function () {
+            return String(downloadRole(0, Downloads.RecordIdRole)).length > 0;
+        });
+        window.downloads.forget(0);
+        tryCompare(window.downloads, "count", 0);
         window.settingsOpen = false;
+    }
+
+    // A retry with no engine left behind it asks the page for the address
+    // again, which is the only thing a Download record can still do.
+    function test_aRetriedRecordWithNoEngineBehindItReopensTheAddress() {
+        openPage("https://gone.example/library");
+        const host = window.spaceProfileHost;
+        clearDownloads();
+        browser.recordOriginInteraction("https://gone.example/library");
+        const runtimeId = host.simulateDownloadRequest("https://gone.example/library",
+                                                       "https://gone.example/omaweb-test-lost.pdf",
+                                                       "omaweb-test-lost.pdf", "application/pdf");
+        verify(runtimeId.length > 0);
+        host.downloadUpdated(runtimeId, "interrupted", 5, 100, "network changed");
+        tryVerify(function () {
+            return downloadRole(0, Downloads.StateRole) === "interrupted";
+        });
+
+        const table = window.downloadHostsByNamespace;
+        delete table[String(host.downloadNamespace)];
+        window.downloadHostsByNamespace = table;
+        window.downloads.retry(0);
+        tryVerify(function () {
+            return String(browser.activeUrl) === "https://gone.example/omaweb-test-lost.pdf";
+        });
+        window.adoptDownloadHost(host);
+        host.cancelDownload(runtimeId);
+        tryVerify(function () {
+            return window.downloads.count === 1;
+        });
+        window.downloads.forget(0);
     }
 
     function test_settingsSeparatesRendererIsolationFromTheNetworkService() {
@@ -4293,14 +4396,76 @@ TestCase {
         window.settingsOpen = false;
     }
 
+    // Cancel and retry reach the engine profile that started the download.
+    // The window keeps one table from download namespace to profile, and the
+    // runtime id already begins with the namespace, so nothing else has to be
+    // remembered per download.
+    function test_aCancelReachesTheProfileThatStartedTheDownloadAndNotTheOther() {
+        openPage("https://two.example/library");
+        clearDownloads();
+        browser.recordOriginInteraction("https://two.example/library");
+        // A second download from one origin while the first is still running is
+        // automatic and would be held, so each profile downloads for its own.
+        browser.recordOriginInteraction("https://three.example/library");
+
+        const component = Qt.createComponent(engineProfileSource);
+        const hosts = [];
+        for (let index = 0; index < 2; ++index) {
+            const host = component.createObject(window, {
+                                                    "downloadDirectory": browser.downloadDirectory,
+                                                    "acceptDownloads": true,
+                                                    "downloads": window.downloads,
+                                                    "downloadNamespace": "lab-" + index
+                                                });
+            verify(host !== null);
+            window.adoptSpaceProfile("lab-" + index, host);
+            hosts.push(host);
+        }
+
+        const first = hosts[0].simulateDownloadRequest("https://two.example/library",
+                                                       "https://two.example/omaweb-test-one.pdf",
+                                                       "omaweb-test-one.pdf", "application/pdf");
+        const second = hosts[1].simulateDownloadRequest("https://three.example/library",
+                                                        "https://three.example/omaweb-test-two.pdf",
+                                                        "omaweb-test-two.pdf", "application/pdf");
+        verify(first.indexOf("lab-0:") === 0);
+        verify(second.indexOf("lab-1:") === 0);
+        tryCompare(window.downloads, "running", 2);
+
+        window.downloads.cancel(downloadRowFor(first));
+        tryCompare(hosts[0].cancelledDownloads, "length", 1);
+        compare(hosts[0].cancelledDownloads[0], first);
+        compare(hosts[1].cancelledDownloads.length, 0);
+
+        hosts[1].downloadUpdated(second, "interrupted", 5, 100, "network changed");
+        tryVerify(function () {
+            return downloadRole(downloadRowFor(second), Downloads.StateRole) === "interrupted";
+        });
+        window.downloads.retry(downloadRowFor(second));
+        tryCompare(hosts[1].retriedDownloads, "length", 1);
+        compare(hosts[1].retriedDownloads[0], second);
+        compare(hosts[0].retriedDownloads.length, 0);
+
+        hosts[1].cancelDownload(second);
+        tryCompare(window.downloads, "running", 0);
+        clearDownloads();
+        const table = window.downloadHostsByNamespace;
+        for (let index = 0; index < hosts.length; ++index) {
+            delete table["lab-" + index];
+            hosts[index].destroy();
+        }
+        window.downloadHostsByNamespace = table;
+        findChild(window.contentItem, "pageNotice").dismiss();
+    }
+
     function test_theFooterMarksTheDownloadsStillRunning() {
         openPage("https://mirror.example/library");
         const host = window.spaceProfileHost;
+        clearDownloads();
         browser.recordOriginInteraction("https://mirror.example/library");
         const outline = findChild(window.contentItem, "sidebar");
         const mark = findChild(outline, "downloadMark");
         verify(mark !== null);
-        mark.dwellMilliseconds = 200;
         tryCompare(mark, "visible", false);
 
         const first = host.simulateDownloadRequest("https://mirror.example/library",
@@ -4325,18 +4490,17 @@ TestCase {
         host.simulateDownloadFinished(first);
         host.simulateDownloadFinished(second);
         tryCompare(mark, "running", 0);
-        tryCompare(mark, "visible", false);
-        mark.dwellMilliseconds = 4200;
         const notice = findChild(window.contentItem, "pageNotice");
         notice.dismiss();
+        tryCompare(mark, "visible", false);
     }
 
     function test_theFooterMarkNeverInventsAPercentage() {
         openPage("https://stream.example/feed");
         const host = window.spaceProfileHost;
+        clearDownloads();
         browser.recordOriginInteraction("https://stream.example/feed");
         const mark = findChild(findChild(window.contentItem, "sidebar"), "downloadMark");
-        mark.dwellMilliseconds = 200;
         tryCompare(mark, "visible", false);
 
         const measured = host.simulateDownloadRequest("https://stream.example/feed",
@@ -4368,18 +4532,17 @@ TestCase {
         host.simulateDownloadFinished(measured);
         host.simulateDownloadFinished(unmeasured);
         tryCompare(mark, "running", 0);
-        tryCompare(mark, "visible", false);
-        mark.dwellMilliseconds = 4200;
         findChild(window.contentItem, "pageNotice").dismiss();
+        tryCompare(mark, "visible", false);
     }
 
     function test_theFooterMarkHoldsAFinishedDownloadThenLeaves() {
         openPage("https://vault.example/box");
         const host = window.spaceProfileHost;
+        clearDownloads();
         browser.recordOriginInteraction("https://vault.example/box");
         const outline = findChild(window.contentItem, "sidebar");
         const mark = findChild(outline, "downloadMark");
-        mark.dwellMilliseconds = 200;
         tryCompare(mark, "visible", false);
 
         const saved = host.simulateDownloadRequest("https://vault.example/box",
@@ -4400,8 +4563,11 @@ TestCase {
         compare(findChild(outline, "downloadDetail").visible, false);
         mouseMove(outline, 4, 4);
         tryCompare(mark, "detailRequested", false);
-        tryCompare(mark, "visible", false);
+        // The mark stands for exactly as long as the saved-file notice does.
+        compare(mark.visible, true);
         findChild(window.contentItem, "pageNotice").dismiss();
+        tryCompare(mark, "holding", false);
+        tryCompare(mark, "visible", false);
 
         openPage("https://crate.example/box");
         browser.recordOriginInteraction("https://crate.example/box");
@@ -4410,19 +4576,18 @@ TestCase {
                                                      "omaweb-test-crate.pdf", "application/pdf");
         verify(dropped.length > 0);
         tryCompare(mark, "visible", true);
-        window.cancelDownload(dropped);
+        window.downloads.cancel(0);
         tryCompare(mark, "running", 0);
         compare(mark.holding, false);
         compare(mark.visible, false);
-        mark.dwellMilliseconds = 4200;
     }
 
     function test_theFooterMarkOpensTheDownloadsItStandsFor() {
         openPage("https://depot.example/box");
         const host = window.spaceProfileHost;
+        clearDownloads();
         browser.recordOriginInteraction("https://depot.example/box");
         const mark = findChild(findChild(window.contentItem, "sidebar"), "downloadMark");
-        mark.dwellMilliseconds = 200;
         tryCompare(mark, "visible", false);
         const settings = findChild(window.contentItem, "settingsSurface");
         settings.section = 0;
@@ -4450,18 +4615,17 @@ TestCase {
         window.settingsOpen = false;
 
         host.simulateDownloadFinished(running);
-        tryCompare(mark, "visible", false);
-        mark.dwellMilliseconds = 4200;
         findChild(window.contentItem, "pageNotice").dismiss();
+        tryCompare(mark, "visible", false);
     }
 
     function test_theFooterMarkNamesEachDownloadOnDemand() {
         openPage("https://atlas.example/box");
         const host = window.spaceProfileHost;
+        clearDownloads();
         browser.recordOriginInteraction("https://atlas.example/box");
         const outline = findChild(window.contentItem, "sidebar");
         const mark = findChild(outline, "downloadMark");
-        mark.dwellMilliseconds = 200;
         tryCompare(mark, "visible", false);
         const detail = findChild(outline, "downloadDetail");
         verify(detail !== null);
@@ -4485,8 +4649,9 @@ TestCase {
         compare(detail.visible, false);
         mouseMove(mark, mark.width / 2, mark.height / 2);
         tryCompare(detail, "visible", true);
-        const northRow = findChild(detail, "downloadDetail-0");
-        const southRow = findChild(detail, "downloadDetail-1");
+        // Newest first, as the list itself is.
+        const southRow = findChild(detail, "downloadDetail-0");
+        const northRow = findChild(detail, "downloadDetail-1");
         verify(northRow !== null);
         verify(southRow !== null);
         compare(northRow.name, "omaweb-test-north.pdf");
@@ -4505,18 +4670,17 @@ TestCase {
 
         host.simulateDownloadFinished(first);
         host.simulateDownloadFinished(second);
-        tryCompare(mark, "visible", false);
-        mark.dwellMilliseconds = 4200;
         findChild(window.contentItem, "pageNotice").dismiss();
+        tryCompare(mark, "visible", false);
     }
 
     function test_theFooterMarkDropsADownloadThatStoppedShort() {
         openPage("https://cliff.example/box");
         const host = window.spaceProfileHost;
+        clearDownloads();
         browser.recordOriginInteraction("https://cliff.example/box");
         const outline = findChild(window.contentItem, "sidebar");
         const mark = findChild(outline, "downloadMark");
-        mark.dwellMilliseconds = 200;
         tryCompare(mark, "visible", false);
 
         const cut = host.simulateDownloadRequest("https://cliff.example/box",
@@ -4530,8 +4694,9 @@ TestCase {
         tryCompare(mark, "running", 0);
         compare(mark.holding, false);
         compare(mark.visible, false);
-        verify(window.runningDownloads[cut] !== undefined);
-        compare(window.runningDownloads[cut].state, "interrupted");
+        // Interrupted is neither running nor finished, so it counts towards
+        // neither and stays in the list with a retry still open to it.
+        compare(downloadRole(downloadRowFor(cut), Downloads.StateRole), "interrupted");
 
         openPage("https://ledge.example/box");
         browser.recordOriginInteraction("https://ledge.example/box");
@@ -4543,13 +4708,12 @@ TestCase {
         host.simulateDownloadFinished(later);
         tryCompare(mark, "holding", true);
         compare(mark.Accessible.name, "1 download finished");
+        findChild(window.contentItem, "pageNotice").dismiss();
         tryCompare(mark, "visible", false);
 
         host.cancelDownload(cut);
         tryVerify(function () {
-            return window.runningDownloads[cut] === undefined;
+            return downloadRole(downloadRowFor(cut), Downloads.StateRole) === "cancelled";
         });
-        mark.dwellMilliseconds = 4200;
-        findChild(window.contentItem, "pageNotice").dismiss();
     }
 }

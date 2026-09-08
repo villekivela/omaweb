@@ -62,8 +62,8 @@ QtObject {
                                                 "engineContentBlocker": root.contentBlocker,
                                                 "engineCookiePolicy": root.cookiePolicy,
                                                 "cookieController": root.browser,
-                                                "cookieSpaceId": spaceId,
-                                                "downloadController": root.browser,
+                                                "spaceId": spaceId,
+                                                "downloads": root.browser.downloads,
                                                 "downloadHolds": root.downloadHolds
                                             });
         if (!host)

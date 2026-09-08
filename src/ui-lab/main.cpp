@@ -186,6 +186,8 @@ int main(int argc, char *argv[])
         themeOverride.isEmpty() ? QStringLiteral(OMAWEB_THEME_PATH) : themeOverride);
     omaweb::WindowManager windowManager;
 
+    omaweb::registerBrowserController();
+    omaweb::registerDownloads();
     omaweb::registerFaviconTint();
     omaweb::registerEngineCapabilities();
     omaweb::registerDefaultBrowser();

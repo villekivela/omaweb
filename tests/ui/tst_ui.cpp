@@ -57,6 +57,8 @@ public slots:
         // test host has to carry the version the browser does.
         QCoreApplication::setApplicationVersion(QStringLiteral(OMAWEB_VERSION));
         omaweb::quickshell::installShim(*engine);
+        omaweb::registerBrowserController();
+        omaweb::registerDownloads();
         omaweb::registerFaviconTint();
         omaweb::registerEngineCapabilities();
         omaweb::registerSystemClipboard();

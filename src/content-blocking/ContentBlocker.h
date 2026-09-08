@@ -24,6 +24,12 @@ class ContentBlocker final : public QObject {
     Q_PROPERTY(QVariantList subscriptions READ subscriptions NOTIFY subscriptionsChanged)
     Q_PROPERTY(bool compiling READ compiling NOTIFY compilingChanged)
     Q_PROPERTY(QVariantMap compilationReport READ compilationReport NOTIFY rulesChanged)
+    // How many times a Refusal tally has moved. A tally is keyed by page
+    // address and Space, so it is asked for rather than bound to; reading this
+    // beside the question is what makes the answer arrive again when it
+    // changes.
+    Q_PROPERTY(
+        int refusalTallyGeneration READ refusalTallyGeneration NOTIFY refusalTallyGenerationChanged)
 
 public:
     // The default lists are what makes blocking work on a first run, so they
@@ -51,9 +57,24 @@ public:
     Q_INVOKABLE void restoreDefaultSubscriptions();
     Q_INVOKABLE bool siteEnabled(const QUrl &url) const;
     Q_INVOKABLE void setSiteEnabled(const QUrl &url, bool enabled);
-    // A page load owns its own tally, so the announcements a view has not
-    // heard yet are delivered before it starts a new one and zeroes itself.
-    Q_INVOKABLE void flushBlockedRequestCounts();
+    int refusalTallyGeneration() const;
+    // A view says which document it is showing, and each load of one carries a
+    // generation of its own. A tally belongs to one page address in one Space:
+    // the view takes the tally for the address it arrives at, and a load newer
+    // than the last one announced starts that tally again at zero. An address
+    // that differs only in its fragment is the same document, so its tally
+    // carries on.
+    //
+    // Whatever the document being replaced earned is delivered to its own
+    // tally before the view lets go of it, so a refusal is never credited to
+    // the document that follows. A view that goes away lets go of its tally
+    // too, which leaves the live tallies the page loads that are open.
+    Q_INVOKABLE void showPage(
+        QObject *view, const QString &spaceId, const QUrl &pageAddress, int pageGeneration);
+    // What Content blocking has refused for one page address in one Space.
+    // Zero for an address no view is showing, which is also the answer for one
+    // that has refused nothing.
+    Q_INVOKABLE int refusalTally(const QString &spaceId, const QUrl &pageAddress) const;
     Q_INVOKABLE QString cosmeticStyleSheet(const QUrl &url) const;
     Q_INVOKABLE QString scriptletSource(const QUrl &url) const;
     Q_INVOKABLE bool cosmeticSurveyWanted(const QUrl &url) const;
@@ -62,20 +83,18 @@ public:
 
     // The window a page asked for is refused from QML, where the request
     // arrives, so unlike checkRequest this one is invokable.
-    Q_INVOKABLE bool shouldBlockPopup(const QUrl &requestUrl, const QUrl &openerUrl) const;
+    Q_INVOKABLE bool shouldBlockPopup(
+        const QUrl &requestUrl, const QUrl &openerUrl, const QString &spaceId) const;
 
-    RequestDecision checkRequest(
-        const QUrl &requestUrl, const QUrl &sourceUrl, const QString &resourceType) const;
+    RequestDecision checkRequest(const QUrl &requestUrl, const QUrl &sourceUrl,
+        const QString &resourceType, const QString &spaceId) const;
 
 signals:
     void configurationChanged();
     void subscriptionsChanged();
     void compilingChanged();
     void rulesChanged();
-    // How many requests were blocked for that site since the last
-    // announcement, not a running total: the tally belongs to the page load
-    // that a view is showing, and only the view knows when that ends.
-    void requestsBlocked(const QUrl &siteUrl, int count);
+    void refusalTallyGenerationChanged();
 
 private:
     struct Subscription {
@@ -88,9 +107,33 @@ private:
         QString lastUpdated;
         bool enabled = true;
     };
-    struct PendingSite {
-        QUrl url;
-        int blocked = 0;
+    // One page address in one Space, in the shape the tallies are kept under.
+    // The fragment is off the address: a fragment jump is the same document,
+    // and the tally follows the document.
+    struct RefusalKey {
+        QString spaceId;
+        QString address;
+
+        bool operator==(const RefusalKey &other) const = default;
+
+        friend size_t qHash(const RefusalKey &key, size_t seed = 0)
+        {
+            return qHashMulti(seed, key.spaceId, key.address);
+        }
+    };
+    // What one open page load has been refused, and how many views are showing
+    // it. Two tabs on the same address in the same Space read one tally, and
+    // it stays live until the last of them lets go (ADR 0037).
+    struct RefusalTally {
+        int refused = 0;
+        int viewers = 0;
+    };
+    // The tally one view is holding open, and the page load it last said so
+    // at. The page load is what tells a reload from a redirect: both arrive
+    // without a load of their own to distinguish them.
+    struct ViewedPage {
+        RefusalKey tally;
+        int pageGeneration = 0;
     };
     struct Runtime {
         std::shared_ptr<const ContentMatcher> matcher;
@@ -98,13 +141,16 @@ private:
     };
 
     static QString siteKey(const QUrl &url);
+    static RefusalKey refusalKey(const QString &spaceId, const QUrl &pageAddress);
+    void releasePage(QObject *view);
     std::shared_ptr<const ContentMatcher> matcherFor(const QUrl &siteUrl) const;
     QString settingsPath() const;
     QString listPath(const QString &id) const;
     void load();
     void seedDefaultSubscriptions();
-    void countBlockedRequest(const QUrl &sourceUrl) const;
-    void noteBlockedRequest(const QUrl &sourceUrl);
+    void countRefusal(const QUrl &sourceUrl, const QString &spaceId) const;
+    void noteRefusal(const RefusalKey &key);
+    void flushRefusals();
     void save() const;
     void recompile();
     void replaceDisabledSites();
@@ -121,11 +167,15 @@ private:
     QList<Subscription> m_subscriptions;
     QSet<QString> m_disabledSites;
     std::shared_ptr<const Runtime> m_runtime;
-    // A busy page blocks hundreds of requests. Announcing each one separately
-    // would make every open tab re-run its bindings hundreds of times over a
-    // single load, so the announcements are batched and carry their own count.
-    QHash<QString, PendingSite> m_pendingBlockedSites;
-    QTimer m_blockedCountFlush;
+    // Refusals waiting to be credited, and the batch that delivers them.
+    QHash<RefusalKey, int> m_pendingRefusals;
+    QTimer m_refusalFlush;
+    QHash<RefusalKey, RefusalTally> m_refusalTallies;
+    // Kept here rather than in the view: what a load does to a tally is
+    // Content blocking's invariant, and a line in one adapter is not reachable
+    // from a test of it (#142).
+    QHash<QObject *, ViewedPage> m_viewedPages;
+    int m_refusalTallyGeneration = 0;
     QNetworkAccessManager m_network;
     QVariantMap m_compilationReport;
     QStringList m_pendingCurrent;

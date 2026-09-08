@@ -12,7 +12,7 @@ Rectangle {
     property var browser
     property bool privateWindow: false
     property bool collapsed: false
-    property int blockedRequestCount: 0
+    property var blocker: null
     property bool statusOpen: false
     property bool useFavicons: true
     property bool tintFavicons: false
@@ -22,9 +22,8 @@ Rectangle {
     // rather than the outline growing a line for it: settings is a place, and
     // what is wrong is stated there, where it can be acted on.
     property bool settingsAttention: false
-    property var downloadActivity: null
-    property int downloadDwellMilliseconds: 4200
-    readonly property bool downloadDetailWanted: downloadMark.detailRequested
+    property var downloads: null
+    property bool savedFileNoticeShowing: false
 
     // An empty pinned section takes no room at all.
     property int pinnedCount: browser ? browser.pinnedTabs.rowCount() : 0
@@ -36,6 +35,14 @@ Rectangle {
     readonly property bool atRest: browser ? browser.atRest : false
 
     readonly property url activeUrl: browser ? browser.activeUrl : ""
+    // What Content blocking refused for the page on show.
+    readonly property int refusalTally: refusals.count
+
+    property RefusalTally refusals: RefusalTally {
+        blocker: root.blocker
+        browser: root.browser
+        pageAddress: root.activeUrl
+    }
     // What the connection is, as the engine drawing the page reports it. The
     // outline never works this out from the address: an address is what was
     // asked for, and a lock drawn from one is a claim nothing checked.
@@ -451,7 +458,7 @@ Rectangle {
                 anchors.rightMargin: 9
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: 3
-                visible: root.blockedRequestCount > 0
+                visible: root.refusalTally > 0
 
                 Text {
                     anchors.verticalCenter: parent.verticalCenter
@@ -463,7 +470,7 @@ Rectangle {
 
                 Text {
                     anchors.verticalCenter: parent.verticalCenter
-                    text: root.blockedRequestCount
+                    text: root.refusalTally
                     color: root.colors.mutedText
                     font.family: Style.font.family
                     font.pixelSize: Style.font.caption
@@ -713,8 +720,8 @@ Rectangle {
             height: 26
             colors: root.colors
             iconFontFamily: root.iconFontFamily
-            activity: root.downloadActivity
-            dwellMilliseconds: root.downloadDwellMilliseconds
+            model: root.downloads
+            savedFileNoticeShowing: root.savedFileNoticeShowing
             onClicked: root.downloadsRequested()
         }
 
@@ -784,7 +791,7 @@ Rectangle {
         height: detailLines.height + 16
         radius: 2
         z: 5
-        visible: downloadMark.detailRequested && downloadMark.downloads.length > 0
+        visible: downloadMark.detailRequested && downloadMark.running > 0
         color: root.colors.overlay
         border.width: 1
         border.color: root.colors.accent
@@ -800,19 +807,27 @@ Rectangle {
             spacing: 4
 
             Repeater {
-                model: downloadMark.downloads
+                // The whole list, settled rows and all, but only while the
+                // detail is on screen: a Space's Download records are in here
+                // too and none of them is a running download.
+                model: downloadDetail.visible ? root.downloads : null
 
                 Item {
                     id: detailLine
                     required property int index
-                    required property var modelData
+                    required property string fileName
+                    required property real fraction
+                    required property bool running
 
                     objectName: "downloadDetail-" + index
-                    readonly property string name: modelData.name
+                    readonly property string name: detailLine.fileName
                     readonly property string progressLabel: downloadMark.progressLabelFor(
-                                                                modelData.fraction)
+                                                                detailLine.fraction)
+                    // A recorded download is in the same list; the mark reports
+                    // what is running, so a settled row takes no room.
+                    visible: detailLine.running
                     width: detailLines.width
-                    height: lineName.implicitHeight
+                    height: detailLine.running ? lineName.implicitHeight : 0
 
                     Text {
                         id: lineProgress
@@ -870,7 +885,7 @@ Rectangle {
         thirdPartyCookieControlAvailable: root.thirdPartyCookieControlAvailable
         siteDataOnDisk: root.siteDataOnDisk
         insecureContentBlocked: root.insecureContentBlocked
-        blockedRequestCount: root.blockedRequestCount
+        blocker: root.blocker
         siteDataEntries: root.siteDataEntries
         retainedDataEntries: root.retainedDataEntries
         siteDataGeneration: root.siteDataGeneration

@@ -9,7 +9,10 @@ Linux with first-class Wayland support is the platform Omaweb ships on, and the 
 It also builds on macOS as a development platform; those bundles are never distributed. Pages are
 rendered by QtWebEngine.
 
-**Omaweb is pre-alpha. Do not put anything sensitive through it.**
+**Omaweb is pre-alpha.** It ships no phishing, malware, or download-reputation service, so a
+malicious address raises no warning ([ADR 0032](docs/adr/0032-ship-without-url-reputation.md)).
+Validation on real Linux hardware is still open
+([#103](https://github.com/villekivela/omaweb/issues/103)).
 
 ## Status
 
@@ -19,9 +22,9 @@ hardening all work. On Linux it runs frameless on Wayland, opens the addresses t
 sends notifications and prints through the desktop's own services, and offers to become the default
 browser.
 
-What is left is the validation sweep across input, accessibility and sandboxing on a real desktop
-([#8](https://github.com/villekivela/omaweb/issues/8)). [The roadmap](docs/roadmap.md) has the
-ordered breakdown, and what else is planned.
+What is left is the validation sweep across input, accessibility and IME on a real desktop
+([#103](https://github.com/villekivela/omaweb/issues/103)). The renderer sandbox is already verified
+under Hyprland. [The roadmap](docs/roadmap.md) has the ordered breakdown, and what else is planned.
 
 ## Install
 

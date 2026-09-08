@@ -1,5 +1,6 @@
 #include "ContentBlocker.h"
 
+#include <QCoreApplication>
 #include <QDir>
 #include <QFile>
 #include <QJsonArray>
@@ -9,7 +10,18 @@
 #include <QTemporaryDir>
 #include <QTest>
 
+#include <memory>
+
 using omaweb::ContentBlocker;
+
+namespace {
+
+// The Space a request was made in, for the tests that are not about Spaces.
+// Every refusal is made in one, because a Refusal tally belongs to a page
+// address in a Space and there is no such thing as a request outside one.
+const QString space = QStringLiteral("space-1");
+
+} // namespace
 
 class ContentBlockerTest final : public QObject {
     Q_OBJECT
@@ -23,6 +35,14 @@ private slots:
     void invalidSubscriptionUpdateKeepsTheActiveRules();
     void aListKeepsTheRulesThisContractParses();
     void aRefusedWindowCountsAsABlockedRequest();
+    void aNewPageLoadStartsTheTallyAgain();
+    void aReloadStartsTheTallyBothTabsReadAgain();
+    void aRedirectCarriesTheTallyToTheAddressItResolvedTo();
+    void aRefusalPendingAtALoadCountsForTheOutgoingPage();
+    void twoPagesOnOneHostKeepSeparateTallies();
+    void twoSpacesKeepSeparateTalliesForOneAddress();
+    void aJumpInsideTheDocumentLeavesTheTallyRunning();
+    void aPageNoViewIsShowingHasNoTally();
     void firstRunSubscribesToTheDefaultLists();
     void aSettingsFileWithNoMarkerSeedsOnceMore();
     void anEmptyListTheReaderChoseSurvivesTheNextRun();
@@ -54,6 +74,29 @@ void writeSettings(const QTemporaryDir &root, const QJsonObject &fields)
     QFile file(settingsPath(root));
     QVERIFY(file.open(QIODevice::WriteOnly));
     QVERIFY(file.write(QJsonDocument(document).toJson()) > 0);
+}
+
+// A blocker with one rule that refuses everything from one host, ready to be
+// asked. Every tally test wants the same thing, and none of them is about how
+// rules get compiled.
+std::unique_ptr<ContentBlocker> refusingBlocker(const QTemporaryDir &root)
+{
+    auto blocker
+        = std::make_unique<ContentBlocker>(root.path(), ContentBlocker::DefaultLists::None);
+    blocker->setUserRules(QStringLiteral("||ads.example^"));
+    return blocker;
+}
+
+// One refused request, taken as far as the pending batch. Matching happens on
+// whichever thread the engine hands a request to and the tally belongs to the
+// blocker's, so a refusal crosses a queued call before it is even pending.
+void refuse(ContentBlocker &blocker, const QUrl &page, const QString &spaceId)
+{
+    QVERIFY(blocker
+            .checkRequest(QUrl(QStringLiteral("https://ads.example/ad.js")), page,
+                QStringLiteral("script"), spaceId)
+            .blocked);
+    QCoreApplication::processEvents();
 }
 
 QJsonObject storedSettings(const QTemporaryDir &root)
@@ -112,7 +155,7 @@ void ContentBlockerTest::userRulesCompileOffTheCallerPath()
     QVERIFY(compiled.count() > 0);
     QVERIFY(blocker
             .checkRequest(QUrl(QStringLiteral("https://ads.example/ad.js")),
-                QUrl(QStringLiteral("https://example.com/")), QStringLiteral("script"))
+                QUrl(QStringLiteral("https://example.com/")), QStringLiteral("script"), space)
             .blocked);
     QVERIFY(blocker.cosmeticStyleSheet(QUrl(QStringLiteral("https://example.com/")))
             .contains(QStringLiteral(".sponsor")));
@@ -129,7 +172,7 @@ void ContentBlockerTest::disablingASiteBypassesMatchingAndCosmetics()
     QVERIFY(!blocker.siteEnabled(QUrl(QStringLiteral("https://example.com/"))));
     QVERIFY(!blocker
             .checkRequest(QUrl(QStringLiteral("https://ads.example/ad.js")),
-                QUrl(QStringLiteral("https://example.com/")), QStringLiteral("script"))
+                QUrl(QStringLiteral("https://example.com/")), QStringLiteral("script"), space)
             .blocked);
     QVERIFY(blocker.cosmeticStyleSheet(QUrl(QStringLiteral("https://example.com/"))).isEmpty());
 }
@@ -175,7 +218,7 @@ void ContentBlockerTest::subscriptionsExposeRequiredProvenanceAndUpdateStatus()
         QUrl::fromLocalFile(list.fileName()));
     QVERIFY(blocker
             .checkRequest(QUrl(QStringLiteral("https://tracker.example/pixel")),
-                QUrl(QStringLiteral("https://site.example/")), QStringLiteral("image"))
+                QUrl(QStringLiteral("https://site.example/")), QStringLiteral("image"), space)
             .blocked);
 }
 
@@ -196,7 +239,7 @@ void ContentBlockerTest::invalidSubscriptionUpdateKeepsTheActiveRules()
         QStringLiteral("current"), 5000);
     QVERIFY(blocker
             .checkRequest(QUrl(QStringLiteral("https://tracker.example/pixel")),
-                QUrl(QStringLiteral("https://site.example/")), QStringLiteral("image"))
+                QUrl(QStringLiteral("https://site.example/")), QStringLiteral("image"), space)
             .blocked);
 
     QVERIFY(list.open(QIODevice::WriteOnly | QIODevice::Truncate));
@@ -212,7 +255,7 @@ void ContentBlockerTest::invalidSubscriptionUpdateKeepsTheActiveRules()
         5000);
     QVERIFY(blocker
             .checkRequest(QUrl(QStringLiteral("https://tracker.example/pixel")),
-                QUrl(QStringLiteral("https://site.example/")), QStringLiteral("image"))
+                QUrl(QStringLiteral("https://site.example/")), QStringLiteral("image"), space)
             .blocked);
 }
 
@@ -237,13 +280,13 @@ void ContentBlockerTest::aListKeepsTheRulesThisContractParses()
         QStringLiteral("current"), 5000);
     QVERIFY(blocker
             .checkRequest(QUrl(QStringLiteral("https://tracker.example/pixel")),
-                QUrl(QStringLiteral("https://site.example/")), QStringLiteral("image"))
+                QUrl(QStringLiteral("https://site.example/")), QStringLiteral("image"), space)
             .blocked);
     QVERIFY(blocker.shouldBlockPopup(QUrl(QStringLiteral("https://ads.example/?&popunder=1")),
-        QUrl(QStringLiteral("https://site.example/"))));
+        QUrl(QStringLiteral("https://site.example/")), space));
 }
 
-// The count means "requests this page did not get to make", and a window the
+// The tally means "requests this page did not get to make", and a window the
 // page never got to open is one of them.
 void ContentBlockerTest::aRefusedWindowCountsAsABlockedRequest()
 {
@@ -252,18 +295,198 @@ void ContentBlockerTest::aRefusedWindowCountsAsABlockedRequest()
     blocker.setUserRules(QStringLiteral("||popads.example^$popup"));
     QTRY_VERIFY_WITH_TIMEOUT(!blocker.compiling(), 5000);
     const QUrl opener(QStringLiteral("https://site.example/article"));
+    QObject view;
+    blocker.showPage(&view, space, opener, 1);
 
-    QVERIFY(
-        !blocker.shouldBlockPopup(QUrl(QStringLiteral("https://pay.example/checkout")), opener));
-    QSignalSpy blocked(&blocker, &ContentBlocker::requestsBlocked);
-    QVERIFY(blocker.shouldBlockPopup(QUrl(QStringLiteral("https://popads.example/win")), opener));
-    QTRY_COMPARE_WITH_TIMEOUT(blocked.count(), 1, 5000);
-    QCOMPARE(blocked.first().at(0).toUrl(), opener);
-    QCOMPARE(blocked.first().at(1).toInt(), 1);
+    QVERIFY(!blocker.shouldBlockPopup(
+        QUrl(QStringLiteral("https://pay.example/checkout")), opener, space));
+    QVERIFY(blocker.shouldBlockPopup(
+        QUrl(QStringLiteral("https://popads.example/win")), opener, space));
+    QTRY_COMPARE_WITH_TIMEOUT(blocker.refusalTally(space, opener), 1, 5000);
 
     // A site the user turned blocking off for opens its windows either way.
     blocker.setSiteEnabled(opener, false);
-    QVERIFY(!blocker.shouldBlockPopup(QUrl(QStringLiteral("https://popads.example/win")), opener));
+    QVERIFY(!blocker.shouldBlockPopup(
+        QUrl(QStringLiteral("https://popads.example/win")), opener, space));
+}
+
+// The behaviour the tally exists to deliver, and the one that used to live as a
+// line in one adapter where no test could reach it (#142).
+void ContentBlockerTest::aNewPageLoadStartsTheTallyAgain()
+{
+    QTemporaryDir root;
+    const auto blocker = refusingBlocker(root);
+    QTRY_VERIFY_WITH_TIMEOUT(!blocker->compiling(), 5000);
+    const QUrl page(QStringLiteral("https://site.example/article"));
+    QObject view;
+
+    blocker->showPage(&view, space, page, 1);
+    refuse(*blocker, page, space);
+    refuse(*blocker, page, space);
+    QTRY_COMPARE_WITH_TIMEOUT(blocker->refusalTally(space, page), 2, 5000);
+
+    blocker->showPage(&view, space, page, 2);
+    QCOMPARE(blocker->refusalTally(space, page), 0);
+}
+
+// A tally is shared by every tab on the address, so a load in one of them
+// restarts what all of them read. With one tab the tally goes when the tab
+// lets go of it, and starting it again would look like it worked either way.
+void ContentBlockerTest::aReloadStartsTheTallyBothTabsReadAgain()
+{
+    QTemporaryDir root;
+    const auto blocker = refusingBlocker(root);
+    QTRY_VERIFY_WITH_TIMEOUT(!blocker->compiling(), 5000);
+    const QUrl page(QStringLiteral("https://site.example/article"));
+    QObject reloading;
+    QObject watching;
+    blocker->showPage(&reloading, space, page, 1);
+    blocker->showPage(&watching, space, page, 1);
+
+    refuse(*blocker, page, space);
+    QTRY_COMPARE_WITH_TIMEOUT(blocker->refusalTally(space, page), 1, 5000);
+
+    blocker->showPage(&reloading, space, page, 2);
+    QCOMPARE(blocker->refusalTally(space, page), 0);
+}
+
+// A load that resolves to a redirect arrives somewhere else without a load of
+// its own, so the view says so again at the same page load and the tally goes
+// with it. Nothing carries over: what was refused on the way belonged to the
+// address that was left.
+void ContentBlockerTest::aRedirectCarriesTheTallyToTheAddressItResolvedTo()
+{
+    QTemporaryDir root;
+    const auto blocker = refusingBlocker(root);
+    QTRY_VERIFY_WITH_TIMEOUT(!blocker->compiling(), 5000);
+    const QUrl asked(QStringLiteral("http://site.example/article"));
+    const QUrl resolved(QStringLiteral("https://site.example/article"));
+    QObject view;
+
+    blocker->showPage(&view, space, asked, 1);
+    blocker->showPage(&view, space, resolved, 1);
+    refuse(*blocker, resolved, space);
+
+    QTRY_COMPARE_WITH_TIMEOUT(blocker->refusalTally(space, resolved), 1, 5000);
+    // Nobody is showing the address that was asked for any more.
+    QCOMPARE(blocker->refusalTally(space, asked), 0);
+}
+
+// Refusals are batched, so a load can start while some are still pending. They
+// were earned by the document being replaced and are credited to it, not to
+// the document that follows.
+void ContentBlockerTest::aRefusalPendingAtALoadCountsForTheOutgoingPage()
+{
+    QTemporaryDir root;
+    const auto blocker = refusingBlocker(root);
+    QTRY_VERIFY_WITH_TIMEOUT(!blocker->compiling(), 5000);
+    const QUrl outgoing(QStringLiteral("https://site.example/article"));
+    const QUrl arriving(QStringLiteral("https://site.example/other"));
+    // A second tab on the outgoing page, so its tally is still there to be read
+    // after the first tab has moved on.
+    QObject leaving;
+    QObject staying;
+    blocker->showPage(&leaving, space, outgoing, 1);
+    blocker->showPage(&staying, space, outgoing, 1);
+
+    refuse(*blocker, outgoing, space);
+    // Still pending: the batch has not been delivered yet, which is the moment
+    // this test is about.
+    QCOMPARE(blocker->refusalTally(space, outgoing), 0);
+
+    blocker->showPage(&leaving, space, arriving, 2);
+    QCOMPARE(blocker->refusalTally(space, outgoing), 1);
+    QCOMPARE(blocker->refusalTally(space, arriving), 0);
+}
+
+// The case a reader sees. The tally used to be keyed by host, so every tab on
+// a host reported everything that host refused (ADR 0037).
+void ContentBlockerTest::twoPagesOnOneHostKeepSeparateTallies()
+{
+    QTemporaryDir root;
+    const auto blocker = refusingBlocker(root);
+    QTRY_VERIFY_WITH_TIMEOUT(!blocker->compiling(), 5000);
+    const QUrl first(QStringLiteral("https://site.example/one"));
+    const QUrl second(QStringLiteral("https://site.example/two"));
+    QObject firstView;
+    QObject secondView;
+    blocker->showPage(&firstView, space, first, 1);
+    blocker->showPage(&secondView, space, second, 1);
+
+    refuse(*blocker, first, space);
+    refuse(*blocker, first, space);
+    refuse(*blocker, second, space);
+
+    QTRY_COMPARE_WITH_TIMEOUT(blocker->refusalTally(space, first), 2, 5000);
+    QCOMPARE(blocker->refusalTally(space, second), 1);
+}
+
+// A Space is a browsing identity, and the same address opened in two of them is
+// two documents. Interception carries the Space for this reason alone.
+void ContentBlockerTest::twoSpacesKeepSeparateTalliesForOneAddress()
+{
+    QTemporaryDir root;
+    const auto blocker = refusingBlocker(root);
+    QTRY_VERIFY_WITH_TIMEOUT(!blocker->compiling(), 5000);
+    const QUrl page(QStringLiteral("https://site.example/article"));
+    const auto work = QStringLiteral("space-work");
+    const auto home = QStringLiteral("space-home");
+    QObject atWork;
+    QObject atHome;
+    blocker->showPage(&atWork, work, page, 1);
+    blocker->showPage(&atHome, home, page, 1);
+
+    refuse(*blocker, page, work);
+
+    QTRY_COMPARE_WITH_TIMEOUT(blocker->refusalTally(work, page), 1, 5000);
+    QCOMPARE(blocker->refusalTally(home, page), 0);
+}
+
+// A fragment jump is the same document, so it is the same tally: the fragment
+// is off the key, and a view that says so again at the same page load changes
+// nothing.
+void ContentBlockerTest::aJumpInsideTheDocumentLeavesTheTallyRunning()
+{
+    QTemporaryDir root;
+    const auto blocker = refusingBlocker(root);
+    QTRY_VERIFY_WITH_TIMEOUT(!blocker->compiling(), 5000);
+    const QUrl page(QStringLiteral("https://site.example/article"));
+    const QUrl jumped(QStringLiteral("https://site.example/article#comments"));
+    QObject view;
+
+    blocker->showPage(&view, space, page, 1);
+    refuse(*blocker, page, space);
+    QTRY_COMPARE_WITH_TIMEOUT(blocker->refusalTally(space, page), 1, 5000);
+
+    blocker->showPage(&view, space, jumped, 1);
+    QCOMPARE(blocker->refusalTally(space, page), 1);
+    QCOMPARE(blocker->refusalTally(space, jumped), 1);
+
+    refuse(*blocker, jumped, space);
+    QTRY_COMPARE_WITH_TIMEOUT(blocker->refusalTally(space, page), 2, 5000);
+}
+
+// The live tallies are the page loads that are open. A tab that has gone takes
+// its tally with it rather than leaving a record of where the reader has been.
+void ContentBlockerTest::aPageNoViewIsShowingHasNoTally()
+{
+    QTemporaryDir root;
+    const auto blocker = refusingBlocker(root);
+    QTRY_VERIFY_WITH_TIMEOUT(!blocker->compiling(), 5000);
+    const QUrl page(QStringLiteral("https://site.example/article"));
+
+    {
+        QObject view;
+        blocker->showPage(&view, space, page, 1);
+        refuse(*blocker, page, space);
+        QTRY_COMPARE_WITH_TIMEOUT(blocker->refusalTally(space, page), 1, 5000);
+    }
+
+    QCOMPARE(blocker->refusalTally(space, page), 0);
+    // And a refusal for a page nobody is showing lands nowhere.
+    refuse(*blocker, page, space);
+    QTest::qWait(500);
+    QCOMPARE(blocker->refusalTally(space, page), 0);
 }
 
 void ContentBlockerTest::firstRunSubscribesToTheDefaultLists()

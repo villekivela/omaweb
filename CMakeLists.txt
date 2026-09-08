@@ -133,6 +133,8 @@ add_library(omaweb-core STATIC
     src/core/DevelopmentLaunch.h
     src/core/DownloadPolicy.cpp
     src/core/DownloadPolicy.h
+    src/core/Downloads.cpp
+    src/core/Downloads.h
     src/core/HardwareVideoDecode.cpp
     src/core/HardwareVideoDecode.h
     src/core/HistoryQuery.cpp
@@ -162,7 +164,7 @@ add_library(omaweb-core STATIC
     src/core/WindowManager.h
 )
 target_include_directories(omaweb-core PUBLIC src/core src/content-blocking)
-target_link_libraries(omaweb-core PUBLIC Qt6::Core Qt6::Network Qt6::Sql
+target_link_libraries(omaweb-core PUBLIC Qt6::Core Qt6::Network Qt6::Qml Qt6::Sql
     PRIVATE Qt6::Concurrent omaweb-content-blocking)
 omaweb_strict_target(omaweb-core)
 
@@ -227,9 +229,13 @@ endif()
 
 add_library(omaweb-engine-api STATIC
     "src/engine/api/EngineCapabilities.cpp"
+    src/engine/api/ContentBlockerContract.cpp
+    src/engine/api/ContentBlockerContract.h
     src/engine/api/EngineCapabilities.h
     src/engine/api/EngineViewContract.cpp
     src/engine/api/EngineViewContract.h
+    src/engine/api/QmlContract.cpp
+    src/engine/api/QmlContract.h
 )
 target_include_directories(omaweb-engine-api PUBLIC src/engine/api)
 target_link_libraries(omaweb-engine-api PUBLIC Qt6::Core Qt6::Qml)
@@ -352,6 +358,7 @@ set(omaweb_ui_files
     src/ui/PageNotice.qml
     src/ui/PageQuestionBar.qml
     src/ui/PagePromptBar.qml
+    src/ui/RefusalTally.qml
     src/ui/RetainedEngines.qml
     src/ui/SectionLabel.qml
     src/ui/SheetInsets.qml
@@ -649,6 +656,13 @@ if(BUILD_TESTING)
     target_link_libraries(omaweb-launch-request-tests PRIVATE omaweb-core Qt6::Test)
     omaweb_strict_target(omaweb-launch-request-tests)
     add_test(NAME omaweb-launch-request COMMAND omaweb-launch-request-tests)
+
+    qt_add_executable(omaweb-downloads-tests
+        tests/core/tst_downloads.cpp
+    )
+    target_link_libraries(omaweb-downloads-tests PRIVATE omaweb-core Qt6::Test)
+    omaweb_strict_target(omaweb-downloads-tests)
+    add_test(NAME omaweb-downloads COMMAND omaweb-downloads-tests)
 
     qt_add_executable(omaweb-download-policy-tests
         tests/core/tst_downloadpolicy.cpp
