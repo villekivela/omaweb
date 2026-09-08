@@ -126,22 +126,8 @@ public:
     // name of the engine reading it. A window built this way keeps what it
     // browses; the store-taking constructor below is how one that keeps
     // nothing is built.
-    explicit BrowserController(SpaceStorage storage, QObject *parent = nullptr);
-    BrowserController(SpaceStorage storage, QString configRoot, QObject *parent = nullptr);
-    BrowserController(SpaceStorage storage, bool privateBrowsing, QObject *parent = nullptr);
-    BrowserController(SpaceStorage storage, bool privateBrowsing,
-        QSharedPointer<QHash<QString, int>> sessionPermissionDecisions, QObject *parent = nullptr);
-    BrowserController(SpaceStorage storage, bool privateBrowsing,
-        QSharedPointer<QHash<QString, int>> sessionPermissionDecisions, QString configRoot,
-        QObject *parent = nullptr);
-    // The session's own site state — third-party allowances and granted
-    // certificate exceptions — which a shared private session hands round its
-    // windows beside the Site permissions it already shares. Both live in
-    // memory for exactly as long as that session does.
-    BrowserController(SpaceStorage storage, bool privateBrowsing,
-        QSharedPointer<QHash<QString, int>> sessionPermissionDecisions,
-        QSharedPointer<SessionSiteState> sessionSiteState, QString configRoot,
-        QObject *parent = nullptr);
+    explicit BrowserController(
+        SpaceStorage storage, QString configRoot = {}, QObject *parent = nullptr);
     // A Private window is handed the store its session already has, so what one
     // window agreed to is what the next one finds. Whether a window is private
     // stays a fact of its own: a store that keeps nothing is also how an

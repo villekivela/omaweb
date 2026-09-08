@@ -2,7 +2,6 @@
 
 #include "DownloadPolicy.h"
 #include "HistorySearch.h"
-#include "PrivateSessionStore.h"
 #include "SqliteSessionStore.h"
 
 #include <QRegularExpression>
@@ -80,64 +79,9 @@ namespace {
 
 } // namespace
 
-namespace {
-
-    // The one place a window's adapter is chosen. A Private window is given a
-    // store that keeps nothing but the Site permissions its session shares, so no
-    // call site below has to ask again.
-    std::shared_ptr<SessionStore> makeStore(const SpaceStorage &storage, bool privateBrowsing,
-        const QSharedPointer<QHash<QString, int>> &sessionDecisions)
-    {
-        if (privateBrowsing) {
-            return std::make_shared<PrivateSessionStore>(sessionDecisions);
-        }
-        return std::make_shared<SqliteSessionStore>(storage.dataRoot());
-    }
-
-} // namespace
-
-BrowserController::BrowserController(SpaceStorage storage, QObject *parent)
-    : BrowserController(
-          std::move(storage), false, QSharedPointer<QHash<QString, int>>::create(), {}, parent)
-{
-}
-
 BrowserController::BrowserController(SpaceStorage storage, QString configRoot, QObject *parent)
-    : BrowserController(std::move(storage), false, QSharedPointer<QHash<QString, int>>::create(),
-          std::move(configRoot), parent)
-{
-}
-
-BrowserController::BrowserController(SpaceStorage storage, bool privateBrowsing, QObject *parent)
-    : BrowserController(std::move(storage), privateBrowsing,
-          QSharedPointer<QHash<QString, int>>::create(), {}, parent)
-{
-}
-
-BrowserController::BrowserController(SpaceStorage storage, bool privateBrowsing,
-    QSharedPointer<QHash<QString, int>> sessionPermissionDecisions, QObject *parent)
-    : BrowserController(
-          std::move(storage), privateBrowsing, std::move(sessionPermissionDecisions), {}, parent)
-{
-}
-
-BrowserController::BrowserController(SpaceStorage storage, bool privateBrowsing,
-    QSharedPointer<QHash<QString, int>> sessionPermissionDecisions, QString configRoot,
-    QObject *parent)
-    : BrowserController(std::move(storage), privateBrowsing, std::move(sessionPermissionDecisions),
-          QSharedPointer<SessionSiteState>::create(), std::move(configRoot), parent)
-{
-}
-
-BrowserController::BrowserController(SpaceStorage storage, bool privateBrowsing,
-    QSharedPointer<QHash<QString, int>> sessionPermissionDecisions,
-    QSharedPointer<SessionSiteState> sessionSiteState, QString configRoot, QObject *parent)
-    // A Private window keeps nothing, so it holds no layout for what it keeps,
-    // however it was built. That absence is what the profile-path readers
-    // answer from, in place of the flag test they used to make.
-    : BrowserController(makeStore(storage, privateBrowsing, sessionPermissionDecisions),
-          privateBrowsing ? std::optional<SpaceStorage> {} : std::optional(storage),
-          privateBrowsing, std::move(sessionPermissionDecisions), std::move(sessionSiteState),
+    : BrowserController(std::make_shared<SqliteSessionStore>(storage.dataRoot()), storage, false,
+          QSharedPointer<QHash<QString, int>>::create(), QSharedPointer<SessionSiteState>::create(),
           std::move(configRoot), parent)
 {
 }

@@ -1,5 +1,6 @@
 #include "BrowserController.h"
 #include "Downloads.h"
+#include "PrivateSessionFixture.h"
 #include "PrivateSessionStore.h"
 #include "SpaceStorage.h"
 #include "SqliteSessionStore.h"
@@ -20,6 +21,7 @@ using omaweb::Downloads;
 using omaweb::PrivateSessionStore;
 using omaweb::SpaceStorage;
 using omaweb::SqliteSessionStore;
+using omaweb::test::PrivateSessionFixture;
 
 namespace {
 
@@ -317,9 +319,9 @@ void DownloadsTest::persistsOnlyNonPrivateDownloadHistory()
         controller.closeActiveTab();
         downloads->updated(QStringLiteral("test:1"), QStringLiteral("completed"), 100, 100, {});
 
-        BrowserController privateController(
-            SpaceStorage(root.path(), QStringLiteral("test")), true);
-        auto *privateDownloads = privateController.downloads();
+        PrivateSessionFixture privateSession;
+        auto privateController = privateSession.createController();
+        auto *privateDownloads = privateController->downloads();
         privateDownloads->started(QStringLiteral(":1"),
             QUrl(QStringLiteral("https://files.example/private.zip")),
             QUrl(QStringLiteral("https://files.example/page")),
