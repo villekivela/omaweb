@@ -397,7 +397,6 @@ void ThemeControllerTest::drawsThePrivatePaletteTheOmarchyTemplateRenders()
         {QStringLiteral("bright_cyan"), QStringLiteral("#a4b6c6")},
         {QStringLiteral("bright_blue"), QStringLiteral("#9cb0c8")},
         {QStringLiteral("bright_magenta"), QStringLiteral("#a6737c")},
-        {QStringLiteral("font_family"), QStringLiteral("CaskaydiaMono Nerd Font")},
     };
     for (auto it = colours.cbegin(); it != colours.cend(); ++it) {
         rendered.replace(QStringLiteral("{{ %1 }}").arg(it.key()), it.value());
@@ -469,6 +468,16 @@ void ThemeControllerTest::drawsThePrivatePaletteTheOmarchyTemplateRenders()
         const QColor ground(palette.value(QString::fromLatin1(key)).toString());
         QVERIFY2(contrastRatio(privateBorder, ground) >= minimumGraphicContrast, key);
     }
+
+    // Omarchy renders colours and nothing else, so the template asks for type
+    // by the name the desktop keeps the reader's own choice under: the
+    // fontconfig alias `omarchy font set` writes. What the palette carries is
+    // the family that alias stands for, because the kit is handed a face
+    // rather than a name to resolve.
+    const auto font = palette.value(QStringLiteral("font")).toMap();
+    const auto family = font.value(QStringLiteral("family")).toString();
+    QVERIFY2(QFontDatabase::hasFamily(family), qPrintable(family));
+    QVERIFY2(family != QStringLiteral("monospace"), qPrintable(family));
 }
 
 // Muted text is content — tab titles, Space letters, the footer's controls —
@@ -1084,14 +1093,13 @@ void ThemeControllerTest::fallsBackToAFamilyTheHostActuallyHas()
     const auto family = font.value(QStringLiteral("family")).toString();
     // Whatever the fallback lands on, it is a family the host has.
     QVERIFY(QFontDatabase::hasFamily(family));
-    // "monospace" is a fontconfig alias. macOS has no such family and a bare
-    // container has no fonts to alias, so there the name must not survive as
-    // the answer -- that is the substitution this test was written to catch.
-    // A Linux host with fonts installed does report it as a family, and
-    // honouring what the theme asked for is then the right answer.
-    if (!QFontDatabase::hasFamily(QStringLiteral("monospace"))) {
-        QVERIFY(family != QStringLiteral("monospace"));
-    }
+    // "monospace" is a fontconfig alias rather than a family. macOS has no
+    // such name at all and a bare container has no fonts to alias, so the
+    // candidate is skipped there; a Linux host does report it, and answers
+    // with the family it stands for. Either way the name a theme cannot draw
+    // with does not reach the kit -- that is the substitution this test was
+    // written to catch.
+    QVERIFY2(family != QStringLiteral("monospace"), qPrintable(family));
     // An empty candidate is not a family, and it must not become the answer.
     QCOMPARE(font.value(QStringLiteral("families")).toStringList(),
         QStringList {QStringLiteral("monospace")});

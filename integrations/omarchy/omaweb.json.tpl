@@ -26,7 +26,7 @@
     "lightness": 0.66
   },
   "font": {
-    "families": ["{{ font_family }}", "JetBrains Mono", "DejaVu Sans Mono"],
+    "families": ["monospace", "JetBrainsMono Nerd Font", "DejaVu Sans Mono"],
     "size": 12
   },
   "opacity": {

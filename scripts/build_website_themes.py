@@ -200,15 +200,13 @@ def render_theme_file(colors: dict[str, str], target: pathlib.Path) -> dict:
     directory. A screenshot run cannot switch the reader's desktop six times,
     so it renders the same template here instead.
 
-    `{{ font_family }}` is the one token Omarchy leaves standing: it is not a
-    `colors.toml` key, and the palette's family list falls through to the next
-    name. This drops the token for the same reason, so the browser resolves the
-    same family a desktop gives it.
+    The template names only `colors.toml` keys, so every token here is a colour
+    this theme has to define. The family list is names rather than tokens, and
+    the browser resolves it the same way a desktop's own palette is resolved.
     """
     rendered = TEMPLATE.read_text(encoding="utf-8")
     for key, value in colors.items():
         rendered = rendered.replace("{{ %s }}" % key, value)
-    rendered = rendered.replace('"{{ font_family }}", ', "")
     remaining = re.findall(r"\{\{[^}]*\}\}", rendered)
     if remaining:
         raise SystemExit(f"the template names colours this theme does not: {remaining}")
