@@ -19,7 +19,12 @@ _Avoid_: Trusted site, Project site
 
 **Space**: A named browsing identity with its own logins, site data, permissions, history, session,
 and tabs. Switching Spaces does not expose one Space's browsing identity to another. _Avoid_:
-Workspace, container, profile
+Workspace, container, profile (a Space is a browsing identity, not an Engine profile)
+
+**Engine profile**: The directory where one web engine keeps its own state for one Space: cookies,
+site storage, cache, and whatever else that engine writes for itself. A Space has one per engine
+that has run in it, and a Private window's engine profile is temporary and shared. _Avoid_: Profile
+directory, engine data, user data dir
 
 **Pinned tab**: A tab saved within one Space and restored whenever that Space resumes. Its saved
 address changes only when the user explicitly updates the pin. _Avoid_: Bookmark, favorite
@@ -82,7 +87,8 @@ through a supported WebExtensions contract. _Avoid_: Feature module, plugin
 becoming part of the browser core. Account and Sync are Feature modules. _Avoid_: Extension, plugin
 
 **Account**: An optional identity used by a Feature module to access remote services. An Account is
-never required for local browser features. _Avoid_: Space, browser profile
+never required for local browser features. _Avoid_: Space, browser profile (an Account is remote
+identity, not an Engine profile)
 
 **Sync**: An optional Feature module that copies selected non-secret browser state between Omaweb
 installations through a replaceable provider. _Avoid_: Backup, account
