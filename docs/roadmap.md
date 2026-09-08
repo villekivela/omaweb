@@ -3,23 +3,51 @@
 The Qt browser contract is complete. What remains before Omaweb is a daily driver is Linux: the
 platform integration the Wayland port carries, and a package to install it with.
 
-[#50](https://github.com/villekivela/omaweb/issues/50) and every issue under it are closed.
-[#8](https://github.com/villekivela/omaweb/issues/8) is the only gate left before daily-driver
-status.
+[#50](https://github.com/villekivela/omaweb/issues/50),
+[#8](https://github.com/villekivela/omaweb/issues/8), and every issue under them are closed.
+Validation on real Linux hardware ([#103](https://github.com/villekivela/omaweb/issues/103)) is the
+last gate before daily-driver status.
 
 The frameless window is Qt window flags rather than platform code, so it already works on Wayland,
 and blur behind the browser's transparent surfaces is the compositor's own. Notifications and
 printing now go through the desktop's own session-bus services, so `omaweb-platform` has nothing
 left that is macOS-only. What remains for Linux is the package and the validation around it.
 
+## Path to alpha
+
+Alpha is the daily-driver contract holding on Linux, with a release that carries the package proving
+it. `CONTEXT.md` states the contract.
+[ADR 0028](adr/0028-derive-the-version-from-the-release-tag.md) keeps the project pre-alpha while
+the major version is 0, so every `v0.*` tag ships as a prerelease.
+
+1. Run the Wayland validation sweep on real hardware, covering input, clipboard, IME, accessibility,
+   and window movement ([#103](https://github.com/villekivela/omaweb/issues/103)). A virtual machine
+   is a poor judge of these, and of blur especially, which is why the sweep is not automated.
+2. Confirm a theme change repaints without a restart, driven by `omarchy theme set` rather than by
+   inspecting the rendered files.
+3. Confirm the Arch package installs, upgrades, and removes without touching unrelated user files,
+   and that default-browser registration still requires an explicit action.
+4. Qualify the build against the approved engine baseline, which means building on the packaged
+   QtWebEngine and running `ctest --preset ci` in full. `SECURITY.md` states the process.
+5. Publish a release carrying the `.pkg.tar.zst`, the licenses, `THIRD_PARTY_NOTICES.md`, and the
+   generated SBOM. The `v0.1.x` releases carry notes alone.
+
+Nothing else gates alpha. The Omarchy window rule
+([#75](https://github.com/villekivela/omaweb/issues/75)) and the component kit
+([#9](https://github.com/villekivela/omaweb/issues/9),
+[#13](https://github.com/villekivela/omaweb/issues/13)) wait on upstream. The Ladybird adapter
+([#7](https://github.com/villekivela/omaweb/issues/7)) stays experimental, and Account and Sync are
+deferred.
+
 ## Remaining
 
 ### Linux and Wayland
 
-Tracking issue: [#8](https://github.com/villekivela/omaweb/issues/8)
+Tracking issue: [#103](https://github.com/villekivela/omaweb/issues/103)
 
 - Validate the completed browser contract under native Wayland on Omarchy and Hyprland
-- Run Linux accessibility, IME, packaging, sandbox, and default-browser tests
+- Run Linux accessibility, IME, packaging, and default-browser tests. The renderer sandbox is
+  already verified under Hyprland.
 
 Linux is the only platform CI builds. macOS remains a development and test platform, and Omaweb does
 not distribute its bundles ([ADR 0029](adr/0029-distribute-only-for-linux.md)).
