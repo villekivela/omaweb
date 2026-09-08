@@ -1599,7 +1599,7 @@ ApplicationWindow {
             return;
         const held = window.heldDownloadQueue.shift();
         window.downloadQuestion = held;
-        if (held.disposition === "save-as") {
+        if (held.disposition === BrowserController.SaveDownloadAs) {
             downloadTargetDialog.currentFile = window.fileUrl(
                         window.windowBrowser.downloadDirectory + "/" + held.fileName);
             downloadTargetDialog.open();
@@ -2141,7 +2141,8 @@ ApplicationWindow {
                     open: window.downloadQuestionOpen
                     glyph: "download"
                     readonly property var held: window.downloadQuestion || ({})
-                    readonly property bool automatic: String(held.disposition) === "permission"
+                    readonly property bool automatic: held.disposition
+                                                      === BrowserController.AskDownloadPermission
                     message: downloadQuestionBar.automatic ? String(held.origin || "")
                                                              + " wants to download files by itself" :
                                                              String(held.origin || "")

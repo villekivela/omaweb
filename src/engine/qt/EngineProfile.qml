@@ -1,5 +1,6 @@
 import QtQuick
 import QtWebEngine
+import Omaweb
 
 QtObject {
     id: root
@@ -52,8 +53,8 @@ QtObject {
                            double receivedBytes, double totalBytes)
     signal downloadUpdated(string runtimeId, string state, double receivedBytes, double totalBytes,
                            string error)
-    signal downloadHeld(string token, string disposition, string origin, url sourceUrl,
-                        string fileName, string risk)
+    signal downloadHeld(string token, int disposition, string origin, url sourceUrl, string fileName,
+                        string risk)
     signal downloadRefused(url sourceUrl, string fileName, string origin)
 
     function releaseHeldDownload(token, path) {
@@ -313,13 +314,13 @@ QtObject {
                 const rule = root.downloadController ? root.downloadController.downloadDisposition(
                                                            pageUrl, fileName, download.mimeType,
                                                            root.downloadDirectory, answered) : null;
-                const disposition = rule ? rule.disposition : "accept";
-                if (disposition === "refuse") {
+                const disposition = rule ? rule.disposition : BrowserController.AcceptDownload;
+                if (disposition === BrowserController.RefuseDownload) {
                     download.cancel();
                     root.downloadRefused(download.url, fileName, rule.origin);
                     return;
                 }
-                if (disposition !== "accept") {
+                if (disposition !== BrowserController.AcceptDownload) {
                     const token = root.downloadHolds ? root.downloadHolds.hold(download) : "";
                     if (token.length === 0) {
                         download.cancel();

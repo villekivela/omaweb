@@ -1,4 +1,5 @@
 import QtQuick
+import Omaweb
 
 QtObject {
     property string profilePath: ""
@@ -44,8 +45,8 @@ QtObject {
                            double receivedBytes, double totalBytes)
     signal downloadUpdated(string runtimeId, string state, double receivedBytes, double totalBytes,
                            string error)
-    signal downloadHeld(string token, string disposition, string origin, url sourceUrl,
-                        string fileName, string risk)
+    signal downloadHeld(string token, int disposition, string origin, url sourceUrl, string fileName,
+                        string risk)
     signal downloadRefused(url sourceUrl, string fileName, string origin)
 
     function simulateDownloadRequest(pageUrl, sourceUrl, fileName, mimeType) {
@@ -63,12 +64,12 @@ QtObject {
                                                                                      downloadDirectory,
                                                                                      answered) :
                                               null;
-            const disposition = rule ? rule.disposition : "accept";
-            if (disposition === "refuse") {
+            const disposition = rule ? rule.disposition : BrowserController.AcceptDownload;
+            if (disposition === BrowserController.RefuseDownload) {
                 downloadRefused(sourceUrl, fileName, rule.origin);
                 return "";
             }
-            if (disposition !== "accept") {
+            if (disposition !== BrowserController.AcceptDownload) {
                 const token = "held-" + String(++nextHeldDownload);
                 heldDownloads[token] = {
                     "sourceUrl": String(sourceUrl),

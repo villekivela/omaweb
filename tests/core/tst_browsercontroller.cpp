@@ -1248,14 +1248,14 @@ void BrowserControllerTest::asksBeforeWritingDownAProgram()
 
     const auto document = controller.downloadDisposition(
         origin, QStringLiteral("notes.pdf"), QStringLiteral("application/pdf"), downloads.path());
-    QCOMPARE(document.value(QStringLiteral("disposition")).toString(), QStringLiteral("accept"));
+    QCOMPARE(
+        document.value(QStringLiteral("disposition")).toInt(), BrowserController::AcceptDownload);
     QVERIFY(document.value(QStringLiteral("risk")).toString().isEmpty());
 
     const auto script = controller.downloadDisposition(
         origin, QStringLiteral("install.sh"), QStringLiteral("text/plain"), downloads.path());
-    QCOMPARE(script.value(QStringLiteral("disposition")).toString(), QStringLiteral("confirm"));
-    QCOMPARE(BrowserController::dispositionName(BrowserController::ConfirmDownload),
-        QStringLiteral("confirm"));
+    QCOMPARE(
+        script.value(QStringLiteral("disposition")).toInt(), BrowserController::ConfirmDownload);
     QCOMPARE(script.value(QStringLiteral("risk")).toString(), QStringLiteral("script"));
     QCOMPARE(script.value(QStringLiteral("fileName")).toString(), QStringLiteral("install.sh"));
     QCOMPARE(
@@ -1275,26 +1275,26 @@ void BrowserControllerTest::takesAPermissionForAutomaticAndMultipleDownloads()
             QStringLiteral("application/pdf"), downloads.path());
     };
 
-    QCOMPARE(disposition().value(QStringLiteral("disposition")).toString(),
-        QStringLiteral("permission"));
+    QCOMPARE(disposition().value(QStringLiteral("disposition")).toInt(),
+        BrowserController::AskDownloadPermission);
     QVERIFY(disposition().value(QStringLiteral("automatic")).toBool());
 
     QCOMPARE(controller.permissionPolicy(QStringLiteral("automatic-downloads")),
         static_cast<int>(BrowserController::Rememberable));
     QVERIFY(controller.setPermissionDecision(
         origin, QStringLiteral("automatic-downloads"), BrowserController::Block));
-    QCOMPARE(
-        disposition().value(QStringLiteral("disposition")).toString(), QStringLiteral("refuse"));
+    QCOMPARE(disposition().value(QStringLiteral("disposition")).toInt(),
+        BrowserController::RefuseDownload);
 
     QVERIFY(controller.setPermissionDecision(
         origin, QStringLiteral("automatic-downloads"), BrowserController::AllowPersistently));
-    QCOMPARE(
-        disposition().value(QStringLiteral("disposition")).toString(), QStringLiteral("accept"));
+    QCOMPARE(disposition().value(QStringLiteral("disposition")).toInt(),
+        BrowserController::AcceptDownload);
 
     const auto workSpaceId = controller.createSpace(QStringLiteral("Work"));
     QVERIFY(controller.switchSpace(workSpaceId));
-    QCOMPARE(disposition().value(QStringLiteral("disposition")).toString(),
-        QStringLiteral("permission"));
+    QCOMPARE(disposition().value(QStringLiteral("disposition")).toInt(),
+        BrowserController::AskDownloadPermission);
     QVERIFY(controller.switchSpace(personalSpaceId));
 
     const QUrl clicked(QStringLiteral("https://other.example/page"));
@@ -1304,11 +1304,11 @@ void BrowserControllerTest::takesAPermissionForAutomaticAndMultipleDownloads()
             .downloadDisposition(clicked, QStringLiteral("notes.pdf"),
                 QStringLiteral("application/pdf"), downloads.path())
             .value(QStringLiteral("disposition"))
-            .toString();
+            .toInt();
     };
-    QCOMPARE(clickedDisposition(), QStringLiteral("accept"));
+    QCOMPARE(clickedDisposition(), BrowserController::AcceptDownload);
     controller.noteDownloadStarted(clicked, QStringLiteral("runtime-1"));
-    QCOMPARE(clickedDisposition(), QStringLiteral("permission"));
+    QCOMPARE(clickedDisposition(), BrowserController::AskDownloadPermission);
     QCOMPARE(
         controller
             .downloadDisposition(QUrl(QStringLiteral("https://third.example/page")),
@@ -1317,9 +1317,9 @@ void BrowserControllerTest::takesAPermissionForAutomaticAndMultipleDownloads()
             .toBool(),
         true);
     controller.noteDownloadSettled(QStringLiteral("runtime-1"));
-    QCOMPARE(clickedDisposition(), QStringLiteral("accept"));
+    QCOMPARE(clickedDisposition(), BrowserController::AcceptDownload);
     controller.noteDownloadSettled(QStringLiteral("runtime-1"));
-    QCOMPARE(clickedDisposition(), QStringLiteral("accept"));
+    QCOMPARE(clickedDisposition(), BrowserController::AcceptDownload);
 }
 
 void BrowserControllerTest::sendsAConflictingNameToTheSaveDialog()
@@ -1338,14 +1338,14 @@ void BrowserControllerTest::sendsAConflictingNameToTheSaveDialog()
                  .downloadDisposition(origin, QStringLiteral("notes.pdf"),
                      QStringLiteral("application/pdf"), downloads.path())
                  .value(QStringLiteral("disposition"))
-                 .toString(),
-        QStringLiteral("save-as"));
+                 .toInt(),
+        BrowserController::SaveDownloadAs);
     QCOMPARE(controller
                  .downloadDisposition(origin, QStringLiteral("other.pdf"),
                      QStringLiteral("application/pdf"), downloads.path())
                  .value(QStringLiteral("disposition"))
-                 .toString(),
-        QStringLiteral("accept"));
+                 .toInt(),
+        BrowserController::AcceptDownload);
 
     QFile program(QDir(downloads.path()).filePath(QStringLiteral("install.sh")));
     QVERIFY(program.open(QIODevice::WriteOnly));
@@ -1354,27 +1354,27 @@ void BrowserControllerTest::sendsAConflictingNameToTheSaveDialog()
                  .downloadDisposition(origin, QStringLiteral("install.sh"),
                      QStringLiteral("text/plain"), downloads.path())
                  .value(QStringLiteral("disposition"))
-                 .toString(),
-        QStringLiteral("confirm"));
+                 .toInt(),
+        BrowserController::ConfirmDownload);
     QCOMPARE(controller
                  .downloadDisposition(origin, QStringLiteral("install.sh"),
                      QStringLiteral("text/plain"), downloads.path(), true)
                  .value(QStringLiteral("disposition"))
-                 .toString(),
-        QStringLiteral("save-as"));
+                 .toInt(),
+        BrowserController::SaveDownloadAs);
     QCOMPARE(controller
                  .downloadDisposition(origin, QStringLiteral("free.sh"),
                      QStringLiteral("text/plain"), downloads.path(), true)
                  .value(QStringLiteral("disposition"))
-                 .toString(),
-        QStringLiteral("accept"));
+                 .toInt(),
+        BrowserController::AcceptDownload);
     QCOMPARE(controller
                  .downloadDisposition(QUrl(QStringLiteral("https://untouched.example/x")),
                      QStringLiteral("free.pdf"), QStringLiteral("application/pdf"),
                      downloads.path(), true)
                  .value(QStringLiteral("disposition"))
-                 .toString(),
-        QStringLiteral("accept"));
+                 .toInt(),
+        BrowserController::AcceptDownload);
 }
 
 void BrowserControllerTest::configuresOneDownloadDirectoryForEveryWindow()

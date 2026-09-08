@@ -109,9 +109,6 @@ public:
     };
     Q_ENUM(DownloadDisposition)
 
-    // QML adapters exchange these names instead of depending on enum values.
-    static QString dispositionName(DownloadDisposition disposition);
-
     // Where this window's Spaces live on disk, which is a data root and the
     // name of the engine reading it. A window built this way keeps what it
     // browses; the store-taking constructor below is how one that keeps
@@ -486,5 +483,10 @@ private:
     QSharedPointer<QHash<QString, int>> m_sessionPermissionDecisions;
     QSharedPointer<SessionSiteState> m_sessionSiteState;
 };
+
+// Makes `BrowserController`'s enums available to QML as `import Omaweb`. The
+// type is uncreatable: a window's controller is handed to QML, never built
+// there. Call once per process, before loading QML.
+void registerBrowserController();
 
 } // namespace omaweb

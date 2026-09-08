@@ -162,7 +162,7 @@ add_library(omaweb-core STATIC
     src/core/WindowManager.h
 )
 target_include_directories(omaweb-core PUBLIC src/core src/content-blocking)
-target_link_libraries(omaweb-core PUBLIC Qt6::Core Qt6::Network Qt6::Sql
+target_link_libraries(omaweb-core PUBLIC Qt6::Core Qt6::Network Qt6::Qml Qt6::Sql
     PRIVATE Qt6::Concurrent omaweb-content-blocking)
 omaweb_strict_target(omaweb-core)
 

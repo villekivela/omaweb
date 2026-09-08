@@ -18,6 +18,7 @@
 #include <QSet>
 #include <QUrlQuery>
 #include <QUuid>
+#include <QQmlEngine>
 #include <QStandardPaths>
 
 #include <algorithm>
@@ -2134,23 +2135,6 @@ bool BrowserController::forgetDownload(const QString &id)
     return m_store->forgetDownload(id);
 }
 
-QString BrowserController::dispositionName(DownloadDisposition disposition)
-{
-    switch (disposition) {
-    case AcceptDownload:
-        return QStringLiteral("accept");
-    case ConfirmDownload:
-        return QStringLiteral("confirm");
-    case AskDownloadPermission:
-        return QStringLiteral("permission");
-    case RefuseDownload:
-        return QStringLiteral("refuse");
-    case SaveDownloadAs:
-        return QStringLiteral("save-as");
-    }
-    return QStringLiteral("refuse");
-}
-
 QVariantMap BrowserController::downloadDisposition(const QUrl &origin, const QString &fileName,
     const QString &mimeType, const QString &directory, bool answered) const
 {
@@ -2165,7 +2149,7 @@ QVariantMap BrowserController::downloadDisposition(const QUrl &origin, const QSt
         {QStringLiteral("automatic"), automatic},
     };
     const auto decide = [&answer](DownloadDisposition disposition) {
-        answer.insert(QStringLiteral("disposition"), dispositionName(disposition));
+        answer.insert(QStringLiteral("disposition"), static_cast<int>(disposition));
         return answer;
     };
     if (automatic) {
@@ -2544,6 +2528,12 @@ TabState BrowserController::makeBlankTab(const QString &spaceId)
     tab.title = QStringLiteral("New tab");
     tab.active = true;
     return tab;
+}
+
+void registerBrowserController()
+{
+    qmlRegisterUncreatableType<BrowserController>("Omaweb", 1, 0, "BrowserController",
+        QStringLiteral("A window's controller is handed to QML, not built there."));
 }
 
 } // namespace omaweb
