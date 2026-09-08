@@ -542,7 +542,7 @@ void BrowserControllerTest::keepsRendererFailureOnAffectedTab()
     controller.activateTab(failedTabId);
     QVERIFY(controller.activeRendererFailed());
 
-    QSignalSpy reloadSpy(&controller, &BrowserController::reloadRequested);
+    QSignalSpy reloadSpy(&controller, &BrowserController::rendererRecoveryReloadRequested);
     controller.recoverActiveTab();
     QVERIFY(!controller.activeRendererFailed());
     QCOMPARE(reloadSpy.count(), 1);

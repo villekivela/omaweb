@@ -5,6 +5,11 @@ policy and records, history, content-blocking configuration, keyboard commands, 
 errors. Engine adapters own rendering, input delivery, profile mechanics, navigation execution, web
 storage, process lifecycle, and translation of engine events into the common contract.
 
+The interface sends an operation owned wholly by an engine, such as page navigation, through the
+active engine host without relaying it through the core. When a core decision requires an engine
+operation, the core emits a request named for that decision instead of exposing a general-purpose
+engine command.
+
 Each Space shares its durable browser state across application variants but keeps separate
 QtWebEngine and Ladybird login state. Omaweb does not translate cookies, storage databases, service
 workers, or credentials between engines. Site permissions belong to an origin within one Space and

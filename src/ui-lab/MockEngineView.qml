@@ -382,8 +382,10 @@ Rectangle {
     }
 
     function goBack() {
+        root.backCount += 1;
     }
     function goForward() {
+        root.forwardCount += 1;
     }
     function focusPage() {
         root.forceActiveFocus();
@@ -406,6 +408,8 @@ Rectangle {
     // apart from inside.
     property int bypassedCacheCount: 0
     property int stoppedLoadCount: 0
+    property int backCount: 0
+    property int forwardCount: 0
 
     function forgetFindMatches() {
         root.findMatchCount = 0;

@@ -249,13 +249,6 @@ public:
     Q_INVOKABLE void openDeveloperTools();
     Q_INVOKABLE void toggleDeveloperTools();
     Q_INVOKABLE void closeDeveloperTools();
-    Q_INVOKABLE void requestBack();
-    Q_INVOKABLE void requestForward();
-    Q_INVOKABLE void requestReload();
-    // Three separate asks, because they mean three different things to a page:
-    // read it again, read it again from the network, and stop reading it.
-    Q_INVOKABLE void requestReloadBypassingCache();
-    Q_INVOKABLE void requestStopLoading();
     // Who a notification is for. A page may notify while the reader is looking
     // at its Space, and otherwise only from a tab that is retained; anything
     // else is a page whose Space was put away and has no business interrupting.
@@ -373,11 +366,9 @@ signals:
     void spaceRestored(const QString &spaceId);
     void spaceDiscarded(const QString &spaceId);
     void tabMoveConfirmationRequested(const QString &tabId, const QString &destinationSpaceId);
-    void backRequested();
-    void forwardRequested();
-    void reloadRequested();
-    void reloadBypassingCacheRequested();
-    void stopLoadingRequested();
+    // Recovery clears core-owned failure state, then asks the active engine to
+    // load its page again. Ordinary reloads go straight to the engine host.
+    void rendererRecoveryReloadRequested();
     void closeWindowRequested();
     void engineDataClearRequested(
         const QStringList &spaceIds, const QStringList &dataTypes, qint64 since);

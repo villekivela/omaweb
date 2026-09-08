@@ -3927,6 +3927,20 @@ TestCase {
         browser.closeTab(secondTabId);
     }
 
+    // The command registry sends navigation straight to the active engine host
+    // rather than passing it through browser state that it does not change.
+    function test_navigationCommandsReachTheActiveEngine() {
+        const engine = openPage("https://navigation.example/page");
+        const backBefore = engine.backCount;
+        const forwardBefore = engine.forwardCount;
+
+        window.commands.run("back", -1);
+        window.commands.run("forward", -1);
+
+        compare(engine.backCount, backBefore + 1);
+        compare(engine.forwardCount, forwardBefore + 1);
+    }
+
     // Three asks that look alike from outside are three operations inside:
     // read the page again, read it again from the network, stop reading it.
     function test_reloadStopAndBypassingCacheAreSeparateOperations() {

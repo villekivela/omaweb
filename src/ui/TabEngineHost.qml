@@ -117,8 +117,34 @@ Item {
     }
 
     // The everyday page operations, each one addressed to the engine of the tab
-    // on show. A tab with no engine has no page to find in, print or hand the
-    // screen back, so nothing is asked of one — the shell has already said so.
+    // on show. A tab with no engine has no page to navigate, find in, print or
+    // hand the screen back, so nothing is asked of one. The shell has already
+    // said so.
+    function goBack() {
+        if (root.activeEngine)
+            root.activeEngine.goBack();
+    }
+
+    function goForward() {
+        if (root.activeEngine)
+            root.activeEngine.goForward();
+    }
+
+    function reloadPage() {
+        if (root.activeEngine)
+            root.activeEngine.reloadPage();
+    }
+
+    function reloadPageBypassingCache() {
+        if (root.activeEngine)
+            root.activeEngine.reloadPageBypassingCache();
+    }
+
+    function stopLoading() {
+        if (root.activeEngine)
+            root.activeEngine.stopLoading();
+    }
+
     function findText(query, forward) {
         if (root.activeEngine)
             root.activeEngine.findText(query, forward);
@@ -734,29 +760,8 @@ Item {
     Connections {
         target: root.browserController
 
-        function onBackRequested() {
-            if (root.activeEngine)
-                root.activeEngine.goBack();
-        }
-
-        function onForwardRequested() {
-            if (root.activeEngine)
-                root.activeEngine.goForward();
-        }
-
-        function onReloadRequested() {
-            if (root.activeEngine)
-                root.activeEngine.reloadPage();
-        }
-
-        function onReloadBypassingCacheRequested() {
-            if (root.activeEngine)
-                root.activeEngine.reloadPageBypassingCache();
-        }
-
-        function onStopLoadingRequested() {
-            if (root.activeEngine)
-                root.activeEngine.stopLoading();
+        function onRendererRecoveryReloadRequested() {
+            root.reloadPage();
         }
     }
 
