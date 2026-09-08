@@ -32,10 +32,10 @@ a Space's engine profile directory is not session storage, and moving it out is 
 
 What this does not touch:
 
-- The fifteen places a Private window refuses an action rather than a write: no Spaces, no Pinned
-  tabs, no Keep active, no clearing. That is what a Private window is, recorded in
-  [ADR 0012](0012-isolate-private-browsing-by-window.md), and naming it once instead of fifteen
-  times is #137.
+- The fourteen places a Private window refuses an action rather than a write, and the one place it
+  renders its Space name as "Private": no Spaces, no Pinned tabs, no Keep active, no clearing. That
+  is what a Private window is, recorded in [ADR 0012](0012-isolate-private-browsing-by-window.md),
+  and naming it once instead of fourteen times is #137.
 - Reader configuration. The download directory and the search engines are read by every window and
   changed by none of the private ones, which is a different rule
   ([ADR 0016](0016-separate-user-configuration-from-application-data.md)) and stays visible where it

@@ -24,6 +24,9 @@
 #include <iterator>
 
 namespace omaweb {
+
+using Capability = WindowCapabilities::Capability;
+
 namespace {
 
     constexpr int persistTabsDelayMilliseconds = 400;
@@ -157,6 +160,8 @@ BrowserController::BrowserController(std::shared_ptr<SessionStore> store, QStrin
     , m_engineName(std::move(engineName))
     , m_configRoot(std::move(configRoot))
     , m_privateBrowsing(privateBrowsing)
+    , m_capabilities(
+          privateBrowsing ? WindowCapabilities::privateWindow() : WindowCapabilities::mainWindow())
     , m_sessionPermissionDecisions(std::move(sessionPermissionDecisions))
     , m_sessionSiteState(std::move(sessionSiteState))
 {
@@ -179,9 +184,9 @@ BrowserController::BrowserController(std::shared_ptr<SessionStore> store, QStrin
     connect(&m_tabs, &QAbstractItemModel::modelReset, this, [this] { refreshAtRest(); });
     loadDownloadDirectory();
     initialize();
-    // A Private window keeps no history, so it has nothing to search and no
-    // thread to search it with.
-    if (!m_privateBrowsing) {
+    // A window without History search has nothing to search and no thread to
+    // search it with.
+    if (m_capabilities.allows(Capability::HistorySearch)) {
         m_historyThread = new QThread(this);
         m_historyThread->setObjectName(QStringLiteral("omaweb-history-search"));
         m_historySearch = new HistorySearch(m_dataRoot);
@@ -389,7 +394,7 @@ void BrowserController::activateTab(const QString &tabId)
 
 QString BrowserController::createSpace(const QString &name)
 {
-    if (m_privateBrowsing) {
+    if (!m_capabilities.allows(Capability::Spaces)) {
         return {};
     }
     const auto normalizedName = name.trimmed();
@@ -413,7 +418,7 @@ QString BrowserController::createSpace(const QString &name)
 
 bool BrowserController::switchSpace(const QString &spaceId)
 {
-    if (m_privateBrowsing) {
+    if (!m_capabilities.allows(Capability::Spaces)) {
         return false;
     }
     if (spaceId == m_activeSpaceId) {
@@ -462,7 +467,7 @@ bool BrowserController::switchSpace(const QString &spaceId)
 
 bool BrowserController::renameSpace(const QString &spaceId, const QString &name)
 {
-    if (m_privateBrowsing) {
+    if (!m_capabilities.allows(Capability::Spaces)) {
         return false;
     }
     const auto normalizedName = name.trimmed();
@@ -493,7 +498,7 @@ bool BrowserController::renameSpace(const QString &spaceId, const QString &name)
 
 bool BrowserController::deleteSpace(const QString &spaceId, const QString &confirmationName)
 {
-    if (m_privateBrowsing) {
+    if (!m_capabilities.allows(Capability::Spaces)) {
         return false;
     }
     if (m_spaces.items().size() <= 1) {
@@ -562,7 +567,7 @@ bool BrowserController::deleteSpace(const QString &spaceId, const QString &confi
 bool BrowserController::requestTabMoveToSpace(
     const QString &tabId, const QString &destinationSpaceId, bool hasEditedFormState)
 {
-    if (m_privateBrowsing) {
+    if (!m_capabilities.allows(Capability::Spaces)) {
         return false;
     }
     if (!m_tabs.find(tabId) || destinationSpaceId == m_activeSpaceId) {
@@ -583,7 +588,7 @@ bool BrowserController::requestTabMoveToSpace(
 bool BrowserController::confirmTabMoveToSpace(
     const QString &tabId, const QString &destinationSpaceId)
 {
-    if (m_privateBrowsing) {
+    if (!m_capabilities.allows(Capability::Spaces)) {
         return false;
     }
     const auto *sourceTab = m_tabs.find(tabId);
@@ -868,9 +873,10 @@ void BrowserController::reopenClosedTab()
     tab.id = QUuid::createUuid().toString(QUuid::WithoutBraces);
     tab.spaceId = m_activeSpaceId;
     tab.active = true;
-    // A Private window has no Pinned section to come back into, and Keep
-    // active is a Pinned tab's setting.
-    if (m_privateBrowsing) {
+    // A window without Pinned tabs has no Pinned section to come back into,
+    // and Keep active is a Pinned tab's setting. Reopening still happens; what
+    // it cannot bring back is dropped.
+    if (!m_capabilities.allows(Capability::PinnedTabs)) {
         tab.pinned = false;
         tab.keepActive = false;
     }
@@ -1002,7 +1008,7 @@ bool BrowserController::moveTabBy(const QString &tabId, int offset)
 
 void BrowserController::toggleActivePinned()
 {
-    if (m_privateBrowsing) {
+    if (!m_capabilities.allows(Capability::PinnedTabs)) {
         return;
     }
     auto *tab = m_tabs.find(m_activeTabId);
@@ -1036,7 +1042,7 @@ void BrowserController::toggleActivePinned()
 
 bool BrowserController::setTabKeepActive(const QString &tabId, bool keepActive)
 {
-    if (m_privateBrowsing) {
+    if (!m_capabilities.allows(Capability::PinnedTabs)) {
         return false;
     }
     auto *tab = m_tabs.find(tabId);
@@ -1057,7 +1063,7 @@ bool BrowserController::setTabKeepActive(const QString &tabId, bool keepActive)
 
 bool BrowserController::releaseRetainedTab(const QString &tabId)
 {
-    if (m_privateBrowsing) {
+    if (!m_capabilities.allows(Capability::PinnedTabs)) {
         return false;
     }
     // A retained tab of the Space on show is simply one of its tabs.
@@ -1540,7 +1546,7 @@ void BrowserController::recordVisit(const QUrl &url, const QString &title)
 
 void BrowserController::requestHistorySuggestions(const QString &query, int limit)
 {
-    if (m_privateBrowsing || limit <= 0 || !m_historySearch) {
+    if (!m_capabilities.allows(Capability::HistorySearch) || limit <= 0 || !m_historySearch) {
         emit historySuggestionsReady({});
         return;
     }
@@ -1583,7 +1589,8 @@ void BrowserController::historySearchAnswered(
     const QString &spaceId, const QVariantList &suggestions, quint64 generation)
 {
     m_historySearchRunning = false;
-    if (generation == m_historyGeneration && spaceId == m_activeSpaceId && !m_privateBrowsing) {
+    if (generation == m_historyGeneration && spaceId == m_activeSpaceId
+        && m_capabilities.allows(Capability::HistorySearch)) {
         emit historySuggestionsReady(suggestions);
     }
     if (m_historySearchPending) {
@@ -1763,7 +1770,7 @@ bool BrowserController::clearBrowsingData(
 {
     static const QSet<QString> allowedTypes {QStringLiteral("cookies"), QStringLiteral("storage"),
         QStringLiteral("cache"), QStringLiteral("permissions"), QStringLiteral("history")};
-    if (m_privateBrowsing || dataTypes.isEmpty() || since < 0
+    if (!m_capabilities.allows(Capability::ClearBrowsingData) || dataTypes.isEmpty() || since < 0
         || (everySpace && confirmation != QStringLiteral("CLEAR ALL"))) {
         return false;
     }

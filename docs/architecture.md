@@ -48,6 +48,11 @@ thing that store keeps, the Site permissions its session has agreed to, lives in
 when the last Private window closes
 ([ADR 0035](adr/0035-keep-the-private-browsing-rule-in-the-session-store.md)).
 
+What a Private window may do is the set of capabilities the window holds, built once from its kind
+rather than tested wherever an action could be refused: no Spaces, no Pinned tabs, no History
+search, and nothing to clear ([ADR 0036](adr/0036-name-what-a-window-may-do.md)). Whether a window
+is private stays a separate fact from what it is entitled to do.
+
 A Space keeps its 5,000 most recent visits. The bound is restored as visits arrive, once every 256
 of them, so a session that never restarts stays inside the bound plus one batch rather than growing
 until the Space database is next opened. The cleanup finds the oldest visit worth keeping through

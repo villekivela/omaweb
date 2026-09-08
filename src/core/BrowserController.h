@@ -5,6 +5,7 @@
 #include "SessionStore.h"
 #include "SpaceListModel.h"
 #include "TabListModel.h"
+#include "WindowCapabilities.h"
 
 #include <QObject>
 #include <QThread>
@@ -465,6 +466,9 @@ private:
     bool m_ready = false;
     bool m_atRest = false;
     bool m_privateBrowsing = false;
+    // Built from the flag above at construction and never from anything else,
+    // and with no default: a window is given one kind's table or the other's.
+    WindowCapabilities m_capabilities;
     QSharedPointer<QHash<QString, int>> m_sessionPermissionDecisions;
     QSharedPointer<SessionSiteState> m_sessionSiteState;
 };
