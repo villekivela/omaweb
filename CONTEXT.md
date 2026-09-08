@@ -97,6 +97,11 @@ category and time range, and clearing it leaves the Space itself, its Pinned tab
 colour, and everything the reader configured about the browser. Deleting a Space is the separate act
 that removes the Space as well. _Avoid_: History, cache, site data, user data
 
+**History search**: The Omnibar's search of the addresses and titles a Space has visited, answered
+off the interface's thread while the reader types. It reads one Space, the one on show, and answers
+only the most recent request. A Private window keeps no history, so it has none to search and is
+answered with nothing. _Avoid_: Autocomplete, suggestions, omnibox search
+
 **Site information**: What Omaweb states about the site on show, for the Space it is on show in: its
 origin, the connection the engine reports, the requests Content blocking refused, the site data the
 Space holds, the origin's Site permissions, and the confirmed ways to clear that data or reset those
