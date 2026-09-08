@@ -172,6 +172,12 @@ ApplicationWindow {
     property real tabMenuX: 0
     property real tabMenuY: 0
     property bool tabMenuOpen: false
+    // The entries the open menu is offering, taken when it opens. A binding
+    // would answer with the list it built the first time it was asked about a
+    // row: the entries depend on whether the tab is pinned and kept active,
+    // which the core answers as calls rather than as properties, so nothing
+    // tells the binding to look again when either changes.
+    property var tabMenuItems: []
     property var privateProfileHost: null
     // The window that opened this Private window, so it can be dropped from
     // that window's list once it closes. Empty in every other window.
@@ -426,6 +432,7 @@ ApplicationWindow {
 
     function openTabMenu(tabId, anchorX, anchorY) {
         window.tabMenuTabId = tabId;
+        window.tabMenuItems = window.tabMenuActionsFor(tabId);
         window.tabMenuX = anchorX;
         window.tabMenuY = anchorY;
         window.tabMenuOpen = true;
@@ -435,8 +442,7 @@ ApplicationWindow {
     // one vocabulary. Every command here is about a named tab, and the ones the
     // registry states as being about the tab on show are given that tab first.
     function runTabMenu(index) {
-        const actions = window.tabMenuActionsFor(window.tabMenuTabId);
-        const action = actions[index];
+        const action = window.tabMenuItems[index];
         const tabId = window.tabMenuTabId;
         window.tabMenuOpen = false;
         if (!action || tabId.length === 0)
@@ -2573,7 +2579,7 @@ ApplicationWindow {
         itemWidth: 224
         anchorX: window.tabMenuX
         anchorY: window.tabMenuY
-        items: window.tabMenuActionsFor(window.tabMenuTabId)
+        items: window.tabMenuItems
 
         onDismissed: window.tabMenuOpen = false
         onTriggered: function (index) {
