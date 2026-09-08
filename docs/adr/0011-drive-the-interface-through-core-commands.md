@@ -1,10 +1,12 @@
 # Drive the interface through core commands
 
 `omaweb-core` owns Space, tab, pin, and session mutations. QML renders read-only state snapshots and
-submits commands rather than editing browser state directly. Structural changes commit
-transactionally as they happen, while high-frequency presentation state uses a short debounce. After
-a crash, Omaweb restores the last committed session and identifies tabs whose loads were
-interrupted.
+submits commands for state and policy that the core owns rather than editing browser state directly.
+Operations owned wholly by an engine, including page navigation, go through the active engine host
+without a core relay. A core decision may request a specific engine operation, such as reloading a
+tab after renderer recovery. Structural changes commit transactionally as they happen, while
+high-frequency presentation state uses a short debounce. After a crash, Omaweb restores the last
+committed session and identifies tabs whose loads were interrupted.
 
 Tests cover core behavior, database migrations and recovery, QML interaction through
 `omaweb-ui-lab`, a shared engine contract against fake, Qt, and Ladybird adapters, and a small

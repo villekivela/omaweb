@@ -289,6 +289,7 @@ ApplicationWindow {
         id: browserCommands
         window: window
         browser: window.windowBrowser
+        engineHost: engineLoader
         keymap: keymap
     }
 
@@ -823,7 +824,7 @@ ApplicationWindow {
             window.reportUnavailable("Reload bypassing cache");
             return;
         }
-        window.windowBrowser.requestReloadBypassingCache();
+        engineLoader.reloadPageBypassingCache();
     }
 
     function stopLoading() {
@@ -831,7 +832,7 @@ ApplicationWindow {
             window.reportUnavailable("Stop loading");
             return;
         }
-        window.windowBrowser.requestStopLoading();
+        engineLoader.stopLoading();
     }
 
     // The engine renders the page into a file; the desktop's own print dialog,
@@ -1658,9 +1659,9 @@ ApplicationWindow {
                     window.spacesMenuOpen = true;
                 }
                 onSettingsRequested: window.requestSettings()
-                onBackRequested: window.windowBrowser.requestBack()
-                onForwardRequested: window.windowBrowser.requestForward()
-                onReloadRequested: window.windowBrowser.requestReload()
+                onBackRequested: engineLoader.goBack()
+                onForwardRequested: engineLoader.goForward()
+                onReloadRequested: engineLoader.reloadPage()
                 onSidebarToggled: window.sidebarCollapsed = !window.sidebarCollapsed
                 onCommandPanelRequested: window.openCommandPanel()
                 onWindowMoveRequested: window.startSystemMove()
@@ -2161,9 +2162,9 @@ ApplicationWindow {
                     canGoForward: engineLoader.item ? engineLoader.item.canGoForward : false
                     sidebarCollapsed: window.sidebarCollapsed
 
-                    onBackRequested: window.windowBrowser.requestBack()
-                    onForwardRequested: window.windowBrowser.requestForward()
-                    onReloadRequested: window.windowBrowser.requestReload()
+                    onBackRequested: engineLoader.goBack()
+                    onForwardRequested: engineLoader.goForward()
+                    onReloadRequested: engineLoader.reloadPage()
                     onSidebarToggled: window.sidebarCollapsed = !window.sidebarCollapsed
                     onCommandPanelRequested: window.openCommandPanel()
                 }

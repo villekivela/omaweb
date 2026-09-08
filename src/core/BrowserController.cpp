@@ -1518,7 +1518,7 @@ void BrowserController::recoverActiveTab()
     }
     tab->rendererFailureReason.clear();
     emit activeTabChanged();
-    emit reloadRequested();
+    emit rendererRecoveryReloadRequested();
 }
 
 // A blank tab has no page and no engine to inspect, so there is nothing for an
@@ -1558,16 +1558,6 @@ void BrowserController::setDeveloperToolsTab(const QString &tabId, const QString
     // interface reads it there to decide whether to dock the inspector.
     emit activeTabChanged();
 }
-
-void BrowserController::requestBack() { emit backRequested(); }
-
-void BrowserController::requestForward() { emit forwardRequested(); }
-
-void BrowserController::requestReload() { emit reloadRequested(); }
-
-void BrowserController::requestReloadBypassingCache() { emit reloadBypassingCacheRequested(); }
-
-void BrowserController::requestStopLoading() { emit stopLoadingRequested(); }
 
 void BrowserController::recordVisit(const QUrl &url, const QString &title)
 {

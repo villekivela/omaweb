@@ -8,18 +8,19 @@ QtObject {
     // a command missing here is unreachable by keyboard and unsearchable.
     property var window
     property var browser
+    property var engineHost
     property var keymap
 
     function run(command, argument) {
         switch (command) {
         case "back":
-            browser.requestBack();
+            engineHost.goBack();
             return true;
         case "forward":
-            browser.requestForward();
+            engineHost.goForward();
             return true;
         case "reload":
-            browser.requestReload();
+            engineHost.reloadPage();
             return true;
         case "reload-bypassing-cache":
             window.reloadBypassingCache();
