@@ -237,6 +237,11 @@ QAbstractItemModel *BrowserController::unpinnedTabs() { return &m_unpinnedTabs; 
 
 QString BrowserController::activeSpaceId() const { return m_activeSpaceId; }
 
+QString BrowserController::sessionSpaceId() const
+{
+    return m_privateBrowsing ? QString() : m_activeSpaceId;
+}
+
 QString BrowserController::activeSpaceName() const { return m_activeSpaceName; }
 
 QString BrowserController::activeTabId() const { return m_activeTabId; }

@@ -228,9 +228,13 @@ if(omaweb_omarchy_file_count GREATER 0)
 endif()
 
 add_library(omaweb-engine-api STATIC
+    src/engine/api/ContentBlockerContract.cpp
+    src/engine/api/ContentBlockerContract.h
     src/engine/api/EngineCapabilities.h
     src/engine/api/EngineViewContract.cpp
     src/engine/api/EngineViewContract.h
+    src/engine/api/QmlContract.cpp
+    src/engine/api/QmlContract.h
 )
 target_include_directories(omaweb-engine-api PUBLIC src/engine/api)
 target_link_libraries(omaweb-engine-api PUBLIC Qt6::Core)
@@ -353,6 +357,7 @@ set(omaweb_ui_files
     src/ui/PageNotice.qml
     src/ui/PageQuestionBar.qml
     src/ui/PagePromptBar.qml
+    src/ui/RefusalTally.qml
     src/ui/RetainedEngines.qml
     src/ui/SectionLabel.qml
     src/ui/SheetInsets.qml

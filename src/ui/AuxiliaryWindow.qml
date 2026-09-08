@@ -41,6 +41,7 @@ ApplicationWindow {
                                              "profilePath": auxiliary.openerEngine.profilePath,
                                              "sharedProfile": auxiliary.openerEngine.browserProfile,
                                              "permissionController": auxiliary.permissionController,
+                                             "spaceId": auxiliary.openerEngine.spaceId,
                                              "contentBlocker": auxiliary.contentBlocker,
                                              "engineContentBlocker": auxiliary.engineContentBlocker,
                                              "keyboardNavigationConfiguration": Object.assign({},

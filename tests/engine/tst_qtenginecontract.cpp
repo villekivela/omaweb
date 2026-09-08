@@ -5,6 +5,7 @@
 #include "ExternalProtocolHandler.h"
 #include "QtContentBlocker.h"
 #include "QtHeldDownloads.h"
+#include "ContentBlockerContract.h"
 #include "EngineViewContract.h"
 #include "ProcessResources.h"
 
@@ -38,7 +39,70 @@
 using omaweb::BrowserController;
 using omaweb::EngineCapabilities;
 using omaweb::SpaceStorage;
+using omaweb::validateChromeBlockerContract;
+using omaweb::validateEngineBlockerContract;
 using omaweb::validateEngineViewContract;
+
+// A blocker that answers everything a view asks and counts the cosmetic
+// questions, so a test can tell a survey that ran from one that was skipped.
+// Written out here rather than inside a test, because the contract test holds
+// this very fake to the list the real blocker is held to.
+// A blocker that records the page loads announced to it. Content blocking owns
+// the Refusal tally, so an adapter that never says which document it is showing
+// leaves all three panels reading zero and nothing else goes wrong to say so
+// (#142).
+class RecordingBlocker final : public QObject {
+    Q_OBJECT
+
+public:
+    Q_INVOKABLE void showPage(QObject *, const QString &spaceId, const QUrl &pageAddress, int)
+    {
+        m_announced.append({spaceId, pageAddress});
+    }
+
+    Q_INVOKABLE bool shouldBlockPopup(const QUrl &, const QUrl &, const QString &) const
+    {
+        return false;
+    }
+    Q_INVOKABLE QString cosmeticStyleSheet(const QUrl &) const { return {}; }
+    Q_INVOKABLE QString scriptletSource(const QUrl &) const { return {}; }
+    Q_INVOKABLE bool cosmeticSurveyWanted(const QUrl &) const { return false; }
+    Q_INVOKABLE QString genericCosmeticStyleSheet(
+        const QUrl &, const QStringList &, const QStringList &) const
+    {
+        return {};
+    }
+
+    const QList<QPair<QString, QUrl>> &announced() const { return m_announced; }
+
+signals:
+    void rulesChanged();
+    void configurationChanged();
+
+private:
+    QList<QPair<QString, QUrl>> m_announced;
+};
+
+static QByteArray blockerFakeSource()
+{
+    return QByteArrayLiteral(R"QML(
+        import QtQml
+        QtObject {
+            property int genericRequests: 0
+            signal rulesChanged()
+            signal configurationChanged()
+            function showPage(view, spaceId, pageAddress, pageGeneration) {}
+            function shouldBlockPopup(requestUrl, openerUrl, spaceId) { return false; }
+            function cosmeticStyleSheet(url) { return ""; }
+            function scriptletSource(url) { return ""; }
+            function cosmeticSurveyWanted(url) { return true; }
+            function genericCosmeticStyleSheet(url, classes, ids) {
+                genericRequests += 1;
+                return ".ad { display: none !important; }";
+            }
+        }
+    )QML");
+}
 
 static QString keyboardNavigationPageScript()
 {
@@ -55,6 +119,9 @@ class QtEngineContractTest final : public QObject {
 private slots:
     void adaptersExposeSharedContract_data();
     void adaptersExposeSharedContract();
+    void blockersExposeSharedContract();
+    void adaptersAnnounceThePageTheyShow_data();
+    void adaptersAnnounceThePageTheyShow();
     void mockReportsLifecycleEvents();
     void mockReportsNewWindowPurpose();
     void adaptersExposeKeyboardNavigationCommands_data();
@@ -161,6 +228,41 @@ void QtEngineContractTest::adaptersExposeSharedContract_data()
     QTest::addColumn<QString>("path");
     QTest::newRow("UI-lab mock") << QStringLiteral(OMAWEB_MOCK_ENGINE_VIEW_PATH);
     QTest::newRow("QtWebEngine") << QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH);
+}
+
+void QtEngineContractTest::adaptersAnnounceThePageTheyShow_data()
+{
+    adaptersExposeSharedContract_data();
+}
+
+// The contract check above holds a blocker to its shape. This holds an adapter
+// to using it: the tally the chrome states is the one the adapter announced a
+// page load for, and an adapter that keeps quiet is indistinguishable from a
+// page that refused nothing.
+void QtEngineContractTest::adaptersAnnounceThePageTheyShow()
+{
+    QFETCH(QString, path);
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    RecordingBlocker blocker;
+    QQmlEngine engine;
+    QQmlComponent component(&engine, QUrl::fromLocalFile(path));
+    QVERIFY2(component.isReady(), qPrintable(component.errorString()));
+    const QUrl page(QStringLiteral("https://site.example/article"));
+    const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
+        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
+        {QStringLiteral("spaceId"), QStringLiteral("space-1")},
+        {QStringLiteral("contentBlocker"), QVariant::fromValue<QObject *>(&blocker)},
+        {QStringLiteral("currentUrl"), page},
+    }));
+    QVERIFY2(adapter, qPrintable(component.errorString()));
+
+    QTRY_VERIFY_WITH_TIMEOUT(!blocker.announced().isEmpty(), 5000);
+    const auto announced = blocker.announced().constLast();
+    QCOMPARE(announced.first, QStringLiteral("space-1"));
+    // Keyed by the address, in the Space the view was told it runs in, which is
+    // the pair the chrome asks with.
+    QCOMPARE(announced.second, page);
 }
 
 void QtEngineContractTest::adaptersRefuseEveryInsecureContentOverride_data()
@@ -295,6 +397,28 @@ void QtEngineContractTest::adaptersExposeSharedContract()
     QVERIFY(capabilities & EngineCapabilities::Navigation);
     QVERIFY(capabilities & EngineCapabilities::ContentBlocking);
     QVERIFY(capabilities & EngineCapabilities::RendererRecovery);
+}
+
+// The blocker surface an adapter is handed, on the real blocker and on the fake
+// this file stands in for it. A rename used to reach the real one and leave
+// every fake answering nothing at all, and nothing said so (#142).
+void QtEngineContractTest::blockersExposeSharedContract()
+{
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    omaweb::ContentBlocker blocker(root.path(), omaweb::ContentBlocker::DefaultLists::None);
+    const auto missingEngineHalf = validateEngineBlockerContract(blocker);
+    QVERIFY2(missingEngineHalf.isEmpty(), qPrintable(missingEngineHalf.join(QStringLiteral("; "))));
+    const auto missingChromeHalf = validateChromeBlockerContract(blocker);
+    QVERIFY2(missingChromeHalf.isEmpty(), qPrintable(missingChromeHalf.join(QStringLiteral("; "))));
+
+    QQmlEngine engine;
+    QQmlComponent component(&engine);
+    component.setData(blockerFakeSource(), QUrl());
+    const std::unique_ptr<QObject> fake(component.create());
+    QVERIFY2(fake, qPrintable(component.errorString()));
+    const auto missingFake = validateEngineBlockerContract(*fake);
+    QVERIFY2(missingFake.isEmpty(), qPrintable(missingFake.join(QStringLiteral("; "))));
 }
 
 void QtEngineContractTest::mockReportsLifecycleEvents()
@@ -1168,23 +1292,7 @@ void QtEngineContractTest::qtRejectsObsoleteCosmeticSurveys()
     // Count requests at the adapter's blocker boundary. The survey runs in Chromium,
     // so a change issued in this event-loop turn precedes its asynchronous reply.
     QQmlComponent blockerComponent(&engine);
-    blockerComponent.setData(R"QML(
-        import QtQml
-        QtObject {
-            property int genericRequests: 0
-            signal rulesChanged()
-            signal configurationChanged()
-            function flushBlockedRequestCounts() {}
-            function cosmeticStyleSheet(url) { return ""; }
-            function scriptletSource(url) { return ""; }
-            function cosmeticSurveyWanted(url) { return true; }
-            function genericCosmeticStyleSheet(url, classes, ids) {
-                genericRequests += 1;
-                return ".ad { display: none !important; }";
-            }
-        }
-    )QML",
-        QUrl());
+    blockerComponent.setData(blockerFakeSource(), QUrl());
     const std::unique_ptr<QObject> blocker(blockerComponent.create());
     QVERIFY2(blocker, qPrintable(blockerComponent.errorString()));
     QQmlComponent component(
@@ -1430,10 +1538,10 @@ void QtEngineContractTest::qtAttachesBlockingToTheProfileQmlCreates()
         "import QtWebEngine\nWebEngineProfile { storageName: \"omaweb-attach\" }", QUrl());
     const std::unique_ptr<QObject> profile(component.create());
     QVERIFY2(profile, qPrintable(component.errorString()));
-    QVERIFY(engineContentBlocker.attachToProfile(profile.get()));
+    QVERIFY(engineContentBlocker.attachToProfile(profile.get(), QStringLiteral("space-1")));
 
     QObject notAProfile;
-    QVERIFY(!engineContentBlocker.attachToProfile(&notAProfile));
+    QVERIFY(!engineContentBlocker.attachToProfile(&notAProfile, QStringLiteral("space-1")));
 }
 
 void QtEngineContractTest::adaptersNameTheColoursTheirInspectorIsDrawnIn_data()
@@ -2877,7 +2985,7 @@ void QtEngineContractTest::qtRefusesThirdPartyCookiesUntilAnOriginIsAllowed()
         {QStringLiteral("privateBrowsing"), false},
         {QStringLiteral("engineCookiePolicy"), QVariant::fromValue<QObject *>(&policy)},
         {QStringLiteral("cookieController"), QVariant::fromValue<QObject *>(&browser)},
-        {QStringLiteral("cookieSpaceId"), spaceId},
+        {QStringLiteral("spaceId"), spaceId},
     }));
     QVERIFY2(host, qPrintable(profileComponent.errorString()));
     QVERIFY(host->property("thirdPartyCookiesBlocked").toBool());

@@ -1,18 +1,14 @@
 #include "EngineViewContract.h"
 
-#include <QMetaMethod>
-#include <QMetaObject>
-#include <QObject>
+#include "QmlContract.h"
 
 namespace omaweb {
 
 QStringList validateEngineViewContract(const QObject &adapter)
 {
-    struct RequiredProperty {
-        const char *name;
-        QMetaType::Type type;
-    };
-    static constexpr RequiredProperty requiredProperties[] = {
+    using contract::Method;
+    using contract::Property;
+    static constexpr Property requiredProperties[] = {
         {"currentUrl", QMetaType::QUrl},
         {"pageTitle", QMetaType::QString},
         {"pageIconUrl", QMetaType::QUrl},
@@ -27,7 +23,10 @@ QStringList validateEngineViewContract(const QObject &adapter)
         {"pageHasFocus", QMetaType::Bool},
         {"capabilities", QMetaType::Int},
         {"contentBlocker", QMetaType::QVariant},
-        {"blockedRequestCount", QMetaType::Int},
+        // Which Space's browsing identity this view's pages belong to, so
+        // Content blocking can key the Refusal tally by it. Empty in a Private
+        // window, whose shared session has no Space of its own.
+        {"spaceId", QMetaType::QString},
         {"keyboardNavigationConfiguration", QMetaType::QVariant},
         {"keyboardNavigationHintModeActive", QMetaType::Bool},
         {"keyboardNavigationScriptSource", QMetaType::QString},
@@ -75,13 +74,7 @@ QStringList validateEngineViewContract(const QObject &adapter)
         // shell must say so about rather than quietly draw a lock over.
         {"insecureContentBlocked", QMetaType::Bool},
     };
-    struct RequiredMethod {
-        const char *name;
-        bool signal;
-        int parameterCount;
-        QMetaType::Type firstParameterType = QMetaType::UnknownType;
-    };
-    static constexpr RequiredMethod requiredMethods[] = {
+    static constexpr Method requiredMethods[] = {
         {"goBack", false, 0},
         {"goForward", false, 0},
         {"reloadPage", false, 0},
@@ -129,48 +122,7 @@ QStringList validateEngineViewContract(const QObject &adapter)
         {"userActivated", true, 0},
     };
 
-    QStringList missing;
-    const auto *metaObject = adapter.metaObject();
-    for (const auto &required : requiredProperties) {
-        const auto index = metaObject->indexOfProperty(required.name);
-        if (index < 0) {
-            missing.append(QStringLiteral("property %1").arg(QString::fromLatin1(required.name)));
-            continue;
-        }
-        const auto property = metaObject->property(index);
-        if (property.metaType().id() != required.type) {
-            missing.append(QStringLiteral("property %1 has type %2, expected %3")
-                    .arg(QString::fromLatin1(required.name),
-                        QString::fromLatin1(property.typeName()),
-                        QString::fromLatin1(QMetaType(required.type).name())));
-        }
-    }
-
-    for (const auto &required : requiredMethods) {
-        bool found = false;
-        for (int index = 0; index < metaObject->methodCount(); ++index) {
-            const auto method = metaObject->method(index);
-            if (method.name() != required.name) {
-                continue;
-            }
-            const auto hasExpectedSignature = required.signal
-                ? method.methodType() == QMetaMethod::Signal
-                    && method.parameterCount() == required.parameterCount
-                    && (required.firstParameterType == QMetaType::UnknownType
-                        || method.parameterMetaType(0).id() == required.firstParameterType)
-                : method.methodType() != QMetaMethod::Signal
-                    && method.parameterCount() == required.parameterCount;
-            if (hasExpectedSignature) {
-                found = true;
-                break;
-            }
-        }
-        if (!found) {
-            missing.append(QStringLiteral("method or signal %1 has the wrong signature")
-                    .arg(QString::fromLatin1(required.name)));
-        }
-    }
-    return missing;
+    return contract::missing(adapter, requiredProperties, requiredMethods);
 }
 
 } // namespace omaweb

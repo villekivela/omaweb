@@ -22,6 +22,11 @@ namespace omaweb {
 namespace {
 
     constexpr int startupUpdateDelayMilliseconds = 5000;
+    // A busy page refuses hundreds of requests. Crediting each one separately
+    // would make every reader of the tally re-run its bindings hundreds of
+    // times over a single load, so the refusals are batched and delivered
+    // together.
+    constexpr int refusalFlushIntervalMilliseconds = 250;
     constexpr qint64 updateIntervalSeconds = 24 * 60 * 60;
 
 // Requests are matched on whichever thread the engine hands them to, while a
@@ -59,10 +64,9 @@ ContentBlocker::ContentBlocker(QString dataRoot, DefaultLists defaults, QObject 
     , m_defaultLists(defaults)
 {
     storeSnapshot(&m_runtime, std::make_shared<const Runtime>());
-    m_blockedCountFlush.setSingleShot(true);
-    m_blockedCountFlush.setInterval(250);
-    connect(
-        &m_blockedCountFlush, &QTimer::timeout, this, &ContentBlocker::flushBlockedRequestCounts);
+    m_refusalFlush.setSingleShot(true);
+    m_refusalFlush.setInterval(refusalFlushIntervalMilliseconds);
+    connect(&m_refusalFlush, &QTimer::timeout, this, &ContentBlocker::flushRefusals);
     load();
     recompile();
     // Refreshing lists competes with the windows and pages coming up, and a
@@ -72,23 +76,115 @@ ContentBlocker::ContentBlocker(QString dataRoot, DefaultLists defaults, QObject 
         startupUpdateDelayMilliseconds, this, &ContentBlocker::updateStaleSubscriptions);
 }
 
-void ContentBlocker::noteBlockedRequest(const QUrl &sourceUrl)
+int ContentBlocker::refusalTallyGeneration() const { return m_refusalTallyGeneration; }
+
+// A tally belongs to a page address, not to a host: every tab on a host used
+// to report what the whole host refused, including tabs on entirely different
+// pages of it (ADR 0037). The fragment comes off, because a fragment jump is
+// the same document and the tally follows the document. This is not siteKey,
+// which keys the per-site switch and stays per-host: conflating the two would
+// make one of them wrong.
+ContentBlocker::RefusalKey ContentBlocker::refusalKey(
+    const QString &spaceId, const QUrl &pageAddress)
 {
-    auto &pending = m_pendingBlockedSites[siteKey(sourceUrl)];
-    pending.url = sourceUrl;
-    ++pending.blocked;
-    if (!m_blockedCountFlush.isActive()) {
-        m_blockedCountFlush.start();
+    return RefusalKey {
+        spaceId, pageAddress.adjusted(QUrl::RemoveFragment).toString(QUrl::FullyEncoded)};
+}
+
+void ContentBlocker::noteRefusal(const RefusalKey &key)
+{
+    m_pendingRefusals[key] += 1;
+    if (!m_refusalFlush.isActive()) {
+        m_refusalFlush.start();
     }
 }
 
-void ContentBlocker::flushBlockedRequestCounts()
+// A refusal counts towards a page load that is open. One pending for an
+// address no view is showing any more is dropped rather than kept: the live
+// tallies are the open page loads, and a table of everything ever refused
+// would be a record of everywhere the reader has been.
+void ContentBlocker::flushRefusals()
 {
-    m_blockedCountFlush.stop();
-    const auto pending = std::exchange(m_pendingBlockedSites, {});
-    for (const auto &site : pending) {
-        emit requestsBlocked(site.url, site.blocked);
+    m_refusalFlush.stop();
+    const auto pending = std::exchange(m_pendingRefusals, {});
+    auto moved = false;
+    for (auto it = pending.cbegin(); it != pending.cend(); ++it) {
+        const auto tally = m_refusalTallies.find(it.key());
+        if (tally == m_refusalTallies.end()) {
+            continue;
+        }
+        tally->refused += it.value();
+        moved = true;
     }
+    if (moved) {
+        ++m_refusalTallyGeneration;
+        emit refusalTallyGenerationChanged();
+    }
+}
+
+void ContentBlocker::showPage(
+    QObject *view, const QString &spaceId, const QUrl &pageAddress, int pageGeneration)
+{
+    if (!view) {
+        return;
+    }
+    const auto key = refusalKey(spaceId, pageAddress);
+    const auto viewed = m_viewedPages.constFind(view);
+    const auto known = viewed != m_viewedPages.cend();
+    const auto sameKey = known && viewed->tally == key;
+    // A new load, rather than the same one arriving at a new address. Only a
+    // load starts the tally again: a redirect the load resolved to moves the
+    // view to another address, and a fragment jump does not even do that.
+    const auto newLoad = !known || viewed->pageGeneration != pageGeneration;
+    if (sameKey && !newLoad) {
+        return;
+    }
+    // Everything the outgoing document earned is delivered before its tally is
+    // let go of or started again, so a refusal it earned lands on it and not
+    // on the document that follows.
+    flushRefusals();
+    if (known) {
+        releasePage(view);
+    } else {
+        connect(view, &QObject::destroyed, this, [this, view] { releasePage(view); });
+    }
+    auto &tally = m_refusalTallies[key];
+    tally.viewers += 1;
+    if (newLoad) {
+        tally.refused = 0;
+    }
+    m_viewedPages.insert(view, ViewedPage {key, pageGeneration});
+    ++m_refusalTallyGeneration;
+    emit refusalTallyGenerationChanged();
+}
+
+// A view that navigates away or goes away lets go of the tally it held. The
+// last holder takes the tally with it, so nothing accumulates for pages that
+// are no longer open.
+void ContentBlocker::releasePage(QObject *view)
+{
+    const auto viewed = m_viewedPages.constFind(view);
+    if (viewed == m_viewedPages.cend()) {
+        return;
+    }
+    const auto key = viewed->tally;
+    m_viewedPages.erase(viewed);
+    const auto tally = m_refusalTallies.find(key);
+    if (tally == m_refusalTallies.end()) {
+        return;
+    }
+    tally->viewers -= 1;
+    if (tally->viewers <= 0) {
+        m_refusalTallies.erase(tally);
+        m_pendingRefusals.remove(key);
+    }
+    ++m_refusalTallyGeneration;
+    emit refusalTallyGenerationChanged();
+}
+
+int ContentBlocker::refusalTally(const QString &spaceId, const QUrl &pageAddress) const
+{
+    return m_refusalTallies.value(refusalKey(spaceId, pageAddress)).refused;
 }
 
 // A subscription refreshed within the last day is left alone. Re-downloading
@@ -326,10 +422,10 @@ QString ContentBlocker::genericCosmeticStyleSheet(
 }
 
 // A refused request and a replaced one are the same refusal to the page that
-// asked, so both land in the site's count. A request the lists only stripped
-// parameters off was never refused and is not counted.
-RequestDecision ContentBlocker::checkRequest(
-    const QUrl &requestUrl, const QUrl &sourceUrl, const QString &resourceType) const
+// asked, so both land in that page's tally. A request the lists only stripped
+// parameters off was never refused and does not.
+RequestDecision ContentBlocker::checkRequest(const QUrl &requestUrl, const QUrl &sourceUrl,
+    const QString &resourceType, const QString &spaceId) const
 {
     const auto matcher = matcherFor(sourceUrl);
     if (!matcher) {
@@ -337,34 +433,36 @@ RequestDecision ContentBlocker::checkRequest(
     }
     const auto decision = matcher->check(requestUrl, sourceUrl, resourceType);
     if (decision.blocked) {
-        countBlockedRequest(sourceUrl);
+        countRefusal(sourceUrl, spaceId);
     }
     return decision;
 }
 
 // A window the page never got to open is a request the page never got to
-// make, so it lands in the same count as the rest and the number keeps
+// make, so it lands in the same tally as the rest and the number keeps
 // meaning one thing.
-bool ContentBlocker::shouldBlockPopup(const QUrl &requestUrl, const QUrl &openerUrl) const
+bool ContentBlocker::shouldBlockPopup(
+    const QUrl &requestUrl, const QUrl &openerUrl, const QString &spaceId) const
 {
     const auto matcher = matcherFor(openerUrl);
     if (!matcher || !matcher->shouldBlockPopup(requestUrl, openerUrl)) {
         return false;
     }
-    countBlockedRequest(openerUrl);
+    countRefusal(openerUrl, spaceId);
     return true;
 }
 
 // Requests are matched on whichever thread the engine hands them to, and the
-// counts belong to this object's thread.
-void ContentBlocker::countBlockedRequest(const QUrl &sourceUrl) const
+// tallies belong to this object's thread.
+void ContentBlocker::countRefusal(const QUrl &sourceUrl, const QString &spaceId) const
 {
     QPointer<ContentBlocker> guard(const_cast<ContentBlocker *>(this));
+    const auto key = refusalKey(spaceId, sourceUrl);
     QMetaObject::invokeMethod(
         const_cast<ContentBlocker *>(this),
-        [guard, sourceUrl] {
+        [guard, key] {
             if (guard) {
-                guard->noteBlockedRequest(sourceUrl);
+                guard->noteRefusal(key);
             }
         },
         Qt::QueuedConnection);

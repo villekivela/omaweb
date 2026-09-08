@@ -77,7 +77,12 @@ Item {
                                         | siteFullscreenCapability | inlinePdfViewingCapability
                                         | certificateDecisionsCapability
                                         | thirdPartyCookieControlCapability
-    property int blockedRequestCount: 0
+    // Which Space's browsing identity these pages belong to. Handed down with
+    // the profile, because it is the profile that decides it: Content blocking
+    // keys the Refusal tally by it, and its interception is attached per
+    // profile (ADR 0037). Empty in a Private window, whose shared session has
+    // no Space of its own.
+    property string spaceId: ""
     property color pageBackgroundColor: "#16151d"
     property var keyboardNavigationConfiguration: ({})
     property string keyboardNavigationScriptSource: ""
@@ -686,14 +691,15 @@ Item {
                               + "globalThis.__omawebKeyboardNavigation.configure(" + JSON.stringify(
                                   keyboardNavigationConfiguration) + ");");
     }
-    // The count belongs to the page on show, so a new load starts it again.
-    // Announcements are batched, and one already earned by the page being
-    // replaced still belongs to it: it is delivered before the tally is
-    // cleared rather than landing on the page that follows.
-    function restartBlockedRequestCount() {
+    // Content blocking owns the Refusal tally for the document on show, so
+    // this view says which document that is and keeps no count of its own.
+    // Said again when the address changes without a load of its own: a load
+    // that resolves to a redirect arrives somewhere else and the tally goes
+    // with it, while a jump inside the document is the same document and
+    // Content blocking carries its tally on.
+    function announcePage(pageAddress) {
         if (root.contentBlocker)
-            root.contentBlocker.flushBlockedRequestCounts();
-        root.blockedRequestCount = 0;
+            root.contentBlocker.showPage(root, root.spaceId, pageAddress, root.pageGeneration);
     }
     property bool cosmeticRulesInjected: false
     property int cosmeticRuleGeneration: 0
@@ -871,7 +877,8 @@ Item {
     // ctrl-click to produce one and that is the user asking, not the page.
     function popupRefused(destination, requestedUrl) {
         return destination !== WebEngineNewWindowRequest.InNewBackgroundTab && root.contentBlocker
-                && root.contentBlocker.shouldBlockPopup(requestedUrl, root.currentUrl);
+                && root.contentBlocker.shouldBlockPopup(requestedUrl, root.currentUrl,
+                                                        root.spaceId);
     }
 
     // A Chromium profile is expensive and owns the Space's cache and cookie
@@ -905,30 +912,27 @@ Item {
         if (!holder.instance) {
             holder.instance = root.ownProfileComponent.createObject(root);
             if (root.engineContentBlocker)
-                root.engineContentBlocker.attachToProfile(holder.instance);
+                root.engineContentBlocker.attachToProfile(holder.instance, root.spaceId);
         }
         return holder.instance;
     }
 
     Component.onCompleted: {
         Qt.callLater(root.applyKeyboardNavigationConfiguration);
+        root.announcePage(root.currentUrl);
     }
+
+    onCurrentUrlChanged: root.announcePage(root.currentUrl)
 
     Connections {
         target: root.contentBlocker
         ignoreUnknownSignals: true
 
-        // A blocked request only moves a counter. Cosmetic rules change when
-        // the compiled rule set or a site's own decision changes, so those are
-        // the only two that re-inject a stylesheet; doing it per blocked
-        // request cost a rule lookup and a script round trip hundreds of times
-        // over a single page load, in every open tab at once.
-        function onRequestsBlocked(siteUrl, count) {
-            if (siteUrl.toString().length > 0 && siteUrl.host !== root.currentUrl.host)
-                return;
-            root.blockedRequestCount += count;
-        }
-
+        // Cosmetic rules change when the compiled rule set or a site's own
+        // decision changes, so those are the only two that re-inject a
+        // stylesheet. A refused request changes neither: doing it per refusal
+        // cost a rule lookup and a script round trip hundreds of times over a
+        // single page load, in every open tab at once.
         function onConfigurationChanged() {
             root.cosmeticRuleGeneration += 1;
             root.surveyGenericCosmeticRules();
@@ -1386,8 +1390,10 @@ Item {
 
         onLoadingChanged: function (loadRequest) {
             if (loadRequest.status === WebEngineView.LoadStartedStatus) {
-                root.restartBlockedRequestCount();
                 root.pageGeneration += 1;
+                // The address being loaded, not the one still on show: a
+                // refusal the outgoing document earned belongs to it.
+                root.announcePage(loadRequest.url);
                 root.javaScriptDialogsBlocked = false;
                 root.lastLoadFailed = false;
                 root.certificateErrorRaisedForLoad = false;

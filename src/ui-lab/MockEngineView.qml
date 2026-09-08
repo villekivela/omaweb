@@ -48,7 +48,7 @@ Rectangle {
     property var engineContentBlocker: null
     property var permissionController: null
     readonly property var browserProfile: root.sharedProfile ? root.sharedProfile : root
-    property int blockedRequestCount: 0
+    property string spaceId: ""
     property var keyboardNavigationConfiguration: ({})
     property string keyboardNavigationScriptSource: ""
     property bool keyboardNavigationHintModeActive: false
@@ -358,8 +358,19 @@ Rectangle {
         root.lastContextDestination = String(destination);
     }
 
+    // The lab refuses nothing, so its tally is always zero — but it says which
+    // document it is showing anyway, because an adapter that does not is one
+    // the chrome reads no tally for at all.
+    function announcePage(pageAddress) {
+        if (root.contentBlocker)
+            root.contentBlocker.showPage(root, root.spaceId, pageAddress, root.pageGeneration);
+    }
+
+    Component.onCompleted: root.announcePage(root.currentUrl)
+
     onCurrentUrlChanged: {
         root.pageGeneration += 1;
+        root.announcePage(root.currentUrl);
         root.javaScriptDialogsBlocked = false;
         root.lastLoadFailed = false;
         // The failure belonged to the origin being left, and nothing wrote the
@@ -390,6 +401,8 @@ Rectangle {
     }
     function reloadPage() {
         loading = true;
+        root.pageGeneration += 1;
+        root.announcePage(root.currentUrl);
         settle.restart();
     }
     function reloadPageBypassingCache() {
