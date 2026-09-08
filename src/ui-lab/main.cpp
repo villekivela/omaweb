@@ -131,14 +131,14 @@ void seedSampleTabs(omaweb::BrowserController &browser, const QVariantList &favi
         if (tabId.isEmpty()) {
             continue;
         }
-        browser.updateTab(tabId, url, QString::fromUtf8(sample.title));
+        const auto favicon
+            = favicons.isEmpty() ? QUrl {} : favicons.at(icon++ % favicons.size()).toUrl();
+        browser.reportTabPageState(
+            tabId, url, QString::fromUtf8(sample.title), favicon, false, false);
         // A tab that was opened was also visited. Without this History is a
         // page saying the Space has none, which is a state of the empty lab
         // rather than a state of the browser.
         browser.recordVisit(url, QString::fromUtf8(sample.title));
-        if (!favicons.isEmpty()) {
-            browser.setTabIcon(tabId, favicons.at(icon++ % favicons.size()).toUrl());
-        }
         // Pinning is an operation on the tab on show, so a seeded pin is
         // activated and pinned in turn. Nothing sees the intermediate state:
         // the blank tab is active again before control reaches the event loop.

@@ -410,9 +410,6 @@ Item {
             root.activeEngine = null;
         delete root.engines[tabId];
         delete root.engineSpaces[tabId];
-        // The page that was making the sound is going away with its renderer,
-        // and nothing is left to report that it stopped.
-        root.browserController.setTabAudible(tabId, false);
         engine.destroy();
     }
 
@@ -556,36 +553,6 @@ Item {
             onTabZoomChanged: if (engine)
                                   engine.setZoomFactor(tabSlot.tabZoom)
 
-            // Site artwork belongs to the loaded page rather than to the saved
-            // session, so the core drops it when a Space switch reloads the
-            // Space's tabs from its store. A page kept alive across that switch
-            // has already reported its icon and has no reason to report it
-            // again, which would leave the tab wearing its lettered tile for a
-            // site whose artwork is still in memory. So a retained engine hands
-            // its icon back on the way in. Not only the tab the returning Space
-            // shows: a background tab keeps its engine too, and does not
-            // reattach until it is next selected.
-            function restoreReportedIcon() {
-                const retained = root.engines[tabId];
-                if (!retained || String(retained.pageIconUrl).length === 0)
-                    return;
-                root.browserController.setTabIcon(tabId, retained.pageIconUrl);
-            }
-
-            // What a retained page is playing is in the same position as its
-            // artwork across a Space switch: the page kept going while the tab
-            // it belongs to was reloaded from a store that records nothing
-            // about it, and has no reason to report itself again. Only what it
-            // is playing is read back — the muting is the session's now, and
-            // the engine's own is partly this policy's rather than the
-            // reader's, so reading that back would silence the tab for good.
-            function restoreEnginePlayback() {
-                const kept = root.engines[tabId];
-                if (!kept)
-                    return;
-                root.browserController.setTabAudible(tabId, kept.pageAudible);
-            }
-
             onTabUrlChanged: {
                 // A tab that has lost its address has lost its page, and the
                 // renderer that drew it goes too rather than idling behind the
@@ -623,8 +590,6 @@ Item {
             }
 
             Component.onCompleted: {
-                restoreReportedIcon();
-                restoreEnginePlayback();
                 loadEngine();
             }
 
@@ -650,26 +615,9 @@ Item {
                     if (root.suspended) {
                         root.setEngineVisible(tabSlot.tabId, false);
                     } else {
-                        tabSlot.restoreReportedIcon();
-                        tabSlot.restoreEnginePlayback();
                         tabSlot.loadEngine();
                     }
                 }
-            }
-
-            // An engine names no address at all between pages: the view's
-            // address is cleared as a navigation starts and named again when
-            // it commits, and a page adopted from a new-window request passes
-            // through that gap on its way to the address it was opened for. A
-            // tab whose engine is mid-navigation has not lost its page, and
-            // saying that it had would blank the tab — which now takes its
-            // engine with it, so the page a link opened would be torn down
-            // while it loaded and the Start page left standing in its place.
-            function reportPageState() {
-                if (!tabSlot.engine || String(tabSlot.engine.currentUrl).length === 0)
-                    return;
-                root.browserController.updateTab(tabSlot.tabId, tabSlot.engine.currentUrl,
-                                                 tabSlot.engine.pageTitle);
             }
 
             Connections {
@@ -677,7 +625,12 @@ Item {
                 ignoreUnknownSignals: true
 
                 function onCurrentUrlChanged() {
-                    tabSlot.reportPageState();
+                    root.browserController.reportTabPageState(tabSlot.tabId,
+                                                              tabSlot.engine.currentUrl,
+                                                              tabSlot.engine.pageTitle,
+                                                              tabSlot.engine.pageIconUrl,
+                                                              tabSlot.engine.loading,
+                                                              tabSlot.engine.pageAudible);
                     tabSlot.applySoundPolicy();
                     tabSlot.engine.configureKeyboardNavigation(root.keyboardConfiguration(
                                                                    tabSlot.engine.currentUrl));
@@ -692,26 +645,42 @@ Item {
                 }
 
                 function onPageIconUrlChanged() {
-                    root.browserController.setTabIcon(tabSlot.tabId, tabSlot.engine.pageIconUrl);
+                    root.browserController.reportTabPageState(tabSlot.tabId,
+                                                              tabSlot.engine.currentUrl,
+                                                              tabSlot.engine.pageTitle,
+                                                              tabSlot.engine.pageIconUrl,
+                                                              tabSlot.engine.loading,
+                                                              tabSlot.engine.pageAudible);
                 }
 
                 function onPageTitleChanged() {
-                    tabSlot.reportPageState();
+                    root.browserController.reportTabPageState(tabSlot.tabId,
+                                                              tabSlot.engine.currentUrl,
+                                                              tabSlot.engine.pageTitle,
+                                                              tabSlot.engine.pageIconUrl,
+                                                              tabSlot.engine.loading,
+                                                              tabSlot.engine.pageAudible);
                 }
 
                 function onPageAudibleChanged() {
-                    root.browserController.setTabAudible(tabSlot.tabId, tabSlot.engine.pageAudible);
+                    root.browserController.reportTabPageState(tabSlot.tabId,
+                                                              tabSlot.engine.currentUrl,
+                                                              tabSlot.engine.pageTitle,
+                                                              tabSlot.engine.pageIconUrl,
+                                                              tabSlot.engine.loading,
+                                                              tabSlot.engine.pageAudible);
                     // Sound is the other reason a hidden page runs, and it
                     // starts and stops on the page's own account.
                     root.applyPageLifecycle(tabSlot.tabId);
                 }
 
                 function onLoadingChanged() {
-                    root.browserController.setTabLoading(tabSlot.tabId, tabSlot.engine.loading);
-                    if (!tabSlot.engine.loading) {
-                        root.browserController.recordVisit(tabSlot.engine.currentUrl,
-                                                           tabSlot.engine.pageTitle);
-                    }
+                    root.browserController.reportTabPageState(tabSlot.tabId,
+                                                              tabSlot.engine.currentUrl,
+                                                              tabSlot.engine.pageTitle,
+                                                              tabSlot.engine.pageIconUrl,
+                                                              tabSlot.engine.loading,
+                                                              tabSlot.engine.pageAudible);
                 }
 
                 function onRendererFailed(reason) {
