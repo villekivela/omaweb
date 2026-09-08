@@ -130,9 +130,20 @@ cross a Space or outlive the session that granted it. _Avoid_: Cookie exception,
 installer, disk image, or archive. Omaweb identifies the type before downloading it, never opens it,
 and removes its execute permissions. _Avoid_: Dangerous file, malware, unsafe download
 
+**Download disposition**: What Omaweb decides about a download request before it starts: accept it,
+ask the reader to confirm it, ask whether the origin may download by itself, refuse it, or ask where
+to put it. _Avoid_: Download rule, download action
+
 **Held download**: A download that Omaweb cancels while waiting for the reader. The engine requires
 a synchronous decision, so it cannot pause the request. If the reader accepts, the page requests the
 file again. _Avoid_: Paused download, pending download, blocked download
+
+**Download record**: What a Space remembers about a download once it is no longer running. A Private
+window keeps none, so a download there is only ever running. _Avoid_: Download history entry, saved
+download
+
+**Download activity**: What a window's running downloads add up to: how many there are and how far
+along they are together. What the Download mark reports. _Avoid_: Download progress, download status
 
 **Download mark**: The outline footer control for active downloads. It shows their count and
 combined progress, and can list progress by file. It uses the window's live downloads, so it also
