@@ -60,7 +60,8 @@ private slots:
     void resolvesAddressesBeforeSearches();
     void migratesAndUsesSearchEngineConfiguration();
     void addsPredefinedSearchEngineProviders();
-    void refusesPersistentBrowsingDataActionsInPrivateWindows();
+    void allowsEveryWindowCapabilityInAMainWindow();
+    void refusesEveryWindowCapabilityInAPrivateWindow();
     void clearsSelectedBrowsingDataWithinConfirmedScope();
     void scopesPermissionDecisionsToOriginSpaceAndLifetime();
     void remembersOnlyThePermissionsThatMayBeRemembered();
@@ -896,25 +897,115 @@ void BrowserControllerTest::addsPredefinedSearchEngineProviders()
     QCOMPARE(controller.activeUrl().host(), QStringLiteral("search.brave.com"));
 }
 
-void BrowserControllerTest::refusesPersistentBrowsingDataActionsInPrivateWindows()
+namespace {
+
+// The four capabilities a window either has or has not, asked of a window that
+// has them and of one that has not. Every place a Private window refuses is
+// reached from here, so a capability that stops being asked for shows up as a
+// main window refusing or a Private window agreeing.
+
+enum class Window { Main, Private };
+
+void exerciseSpaces(Window window)
 {
+    const bool allowed = window == Window::Main;
     QTemporaryDir root;
-    BrowserController controller(root.path(), QStringLiteral("test"), true);
+    BrowserController controller(root.path(), QStringLiteral("test"), window == Window::Private);
+    const auto personalSpaceId = controller.activeSpaceId();
+
+    const auto workSpaceId = controller.createSpace(QStringLiteral("Work"));
+    QCOMPARE(!workSpaceId.isEmpty(), allowed);
+    QCOMPARE(controller.switchSpace(workSpaceId), allowed);
+    QCOMPARE(controller.renameSpace(workSpaceId, QStringLiteral("Deep work")), allowed);
+    QCOMPARE(controller.switchSpace(personalSpaceId), allowed);
+
+    const auto tabId = controller.activeTabId();
+    QSignalSpy confirmationSpy(&controller, &BrowserController::tabMoveConfirmationRequested);
+    QCOMPARE(controller.requestTabMoveToSpace(tabId, workSpaceId, true), allowed);
+    QCOMPARE(confirmationSpy.count(), allowed ? 1 : 0);
+    QCOMPARE(controller.confirmTabMoveToSpace(tabId, workSpaceId), allowed);
+    QCOMPARE(controller.deleteSpace(workSpaceId, QStringLiteral("Deep work")), allowed);
+}
+
+void exercisePinnedTabs(Window window)
+{
+    const bool allowed = window == Window::Main;
+    QTemporaryDir root;
+    BrowserController controller(root.path(), QStringLiteral("test"), window == Window::Private);
+    controller.openInput(QStringLiteral("https://pinned.example"), false);
+    const auto tabId = controller.activeTabId();
+
+    controller.toggleActivePinned();
+    QCOMPARE(controller.activeTabPinned(), allowed);
+    QCOMPARE(controller.setTabKeepActive(tabId, true), allowed);
+    QCOMPARE(controller.activeTabKeepActive(), allowed);
+    QCOMPARE(controller.releaseRetainedTab(tabId), allowed);
+    QVERIFY(!controller.activeTabKeepActive());
+
+    // Reopening is the one place that answers by clearing rather than by
+    // refusing, so both windows reopen. What a window without Pinned tabs
+    // clears cannot be produced here: closing spares a Pinned tab, so no close
+    // a window remembers was ever pinned.
+    controller.openInput(QStringLiteral("https://second.example"), true);
+    const auto secondTabId = controller.activeTabId();
+    controller.closeTab(secondTabId);
+    QCOMPARE(controller.closedTabCount(), 1);
+    controller.reopenClosedTab();
+    QCOMPARE(controller.closedTabCount(), 0);
+    QCOMPARE(controller.activeUrl(), QUrl(QStringLiteral("https://second.example")));
+    QVERIFY(!controller.activeTabPinned());
+    QVERIFY(!controller.activeTabKeepActive());
+}
+
+void exerciseHistorySearch(Window window)
+{
+    const bool allowed = window == Window::Main;
+    QTemporaryDir root;
+    BrowserController controller(root.path(), QStringLiteral("test"), window == Window::Private);
+    controller.recordVisit(
+        QUrl(QStringLiteral("https://searched.example")), QStringLiteral("Searched"));
+    QSignalSpy readySpy(&controller, &BrowserController::historySuggestionsReady);
+
+    controller.requestHistorySuggestions(QStringLiteral("searched"));
+    // A window with no search answers on the spot, having no thread to ask.
+    QCOMPARE(readySpy.count() == 1, !allowed);
+    QTRY_COMPARE(readySpy.count(), 1);
+    QCOMPARE(!readySpy.takeFirst().first().toList().isEmpty(), allowed);
+    // One answer and no more: a window with no search answered at once and off
+    // no thread, and a window with one has nothing further to say.
+    QVERIFY(!readySpy.wait(100));
+}
+
+void exerciseClearBrowsingData(Window window)
+{
+    const bool allowed = window == Window::Main;
+    QTemporaryDir root;
+    BrowserController controller(root.path(), QStringLiteral("test"), window == Window::Private);
+    controller.recordVisit(
+        QUrl(QStringLiteral("https://cleared.example")), QStringLiteral("Cleared"));
     QSignalSpy clearSpy(&controller, &BrowserController::engineDataClearRequested);
 
-    QVERIFY(!controller.clearBrowsingData(
-        {QStringLiteral("cookies"), QStringLiteral("history")}, 0, false, {}));
-    QCOMPARE(clearSpy.count(), 0);
+    QCOMPARE(controller.clearBrowsingData({QStringLiteral("history")}, 0, false, {}), allowed);
+    QCOMPARE(clearSpy.count(), allowed ? 1 : 0);
     QCOMPARE(controller.history({}).size(), 0);
+}
 
-    // The Omnibar asks the same way in a Private window and is answered with
-    // nothing, at once and without a search thread to answer it.
-    QSignalSpy readySpy(&controller, &BrowserController::historySuggestionsReady);
-    controller.recordVisit(
-        QUrl(QStringLiteral("https://private.example")), QStringLiteral("Private"));
-    controller.requestHistorySuggestions(QStringLiteral("private"));
-    QCOMPARE(readySpy.count(), 1);
-    QVERIFY(readySpy.takeFirst().first().toList().isEmpty());
+} // namespace
+
+void BrowserControllerTest::allowsEveryWindowCapabilityInAMainWindow()
+{
+    exerciseSpaces(Window::Main);
+    exercisePinnedTabs(Window::Main);
+    exerciseHistorySearch(Window::Main);
+    exerciseClearBrowsingData(Window::Main);
+}
+
+void BrowserControllerTest::refusesEveryWindowCapabilityInAPrivateWindow()
+{
+    exerciseSpaces(Window::Private);
+    exercisePinnedTabs(Window::Private);
+    exerciseHistorySearch(Window::Private);
+    exerciseClearBrowsingData(Window::Private);
 }
 
 void BrowserControllerTest::clearsSelectedBrowsingDataWithinConfirmedScope()
