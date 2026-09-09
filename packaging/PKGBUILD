@@ -10,7 +10,7 @@
 
 pkgname=omaweb-git
 _pkgname=omaweb
-pkgver=0.1.2.r85.gfe9255e
+pkgver=0.2.1.r1.g77f0e26
 pkgrel=1
 pkgdesc="A keyboard-driven web browser"
 arch=('x86_64' 'aarch64')
@@ -52,7 +52,17 @@ conflicts=("$_pkgname")
 # Prints the Hyprland window rule an Omarchy reader has to add by hand. Omarchy
 # owns its own rule directory, so the package cannot install the rule itself.
 install="$pkgname.install"
-source=("$_pkgname::git+$url.git")
+# The repository this file sits in, rather than a fresh clone of the remote.
+# `makepkg` run from a checkout should package the tree the reader has in front
+# of them, including commits they have not pushed, which is what the README's
+# instructions read as. `scripts/check_package.sh` and the release workflow
+# rewrite this line to name their own checkout, for the same reason.
+#
+# `makepkg` still keeps its clone of it under `packaging/`. A run that is
+# interrupted leaves that clone incomplete, and every later run then fails at
+# "Creating working copy" because the directory is there and is not a
+# repository. Removing `packaging/omaweb` is the repair, and the README says so.
+source=("$_pkgname::git+file://${startdir%/*}")
 sha256sums=('SKIP')
 
 pkgver() {

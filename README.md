@@ -36,6 +36,15 @@ git clone https://github.com/villekivela/omaweb.git
 cd omaweb/packaging && makepkg -si
 ```
 
+That builds the checkout it is run from, so a commit made and not pushed is in the package.
+`makepkg` keeps its own clone of the checkout under `packaging/`, and a run that is interrupted
+leaves that clone half made — every later run then stops at `Creating working copy` because the
+directory is there and is not a repository. Removing it is the repair:
+
+```sh
+rm -rf packaging/omaweb packaging/src packaging/pkg
+```
+
 From `v0.2.0` on, a release carries a built `.pkg.tar.zst` that installs without a build. The
 `v0.1.x` releases carry notes alone.
 
