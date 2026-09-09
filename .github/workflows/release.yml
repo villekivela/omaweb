@@ -49,7 +49,22 @@ jobs:
             /tmp/build/PKGBUILD
           chown -R builder /tmp/build
           su builder -c 'cd /tmp/build && makepkg -f --noconfirm'
-          cp /tmp/build/*.pkg.tar.* artifacts/
+          # A container whose makepkg.conf enables `debug`, which Arch's own
+          # base-devel does, produces a second package carrying the detached
+          # symbols. That one is not what a reader installs, and attaching it
+          # leaves the release offering two near-identically named files with
+          # nothing to choose between them. `check_package.sh` skips it the
+          # same way and says the same thing about why.
+          find /tmp/build -maxdepth 1 -name '*.pkg.tar.*' ! -name '*-debug-*' \
+            -exec cp {} artifacts/ \;
+          # One package, or the release is wrong in a way nobody would notice
+          # until they downloaded the wrong half of it.
+          count=$(find artifacts -maxdepth 1 -name '*.pkg.tar.*' | wc -l)
+          if [ "$count" -ne 1 ]; then
+            echo "::error::expected one package to attach, found $count" >&2
+            find artifacts -maxdepth 1 -name '*.pkg.tar.*' >&2
+            exit 1
+          fi
 
       - name: Generate the inventory
         run:
