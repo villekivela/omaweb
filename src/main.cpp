@@ -39,6 +39,8 @@
 #include <QtWebEngineCore/qtwebenginecoreglobal.h>
 #include <QtWebEngineQuick/qtwebenginequickglobal.h>
 
+#include <cstdio>
+
 namespace {
 
 QString dataRoot()
@@ -119,6 +121,17 @@ int main(int argc, char *argv[])
     QStringList arguments;
     for (int index = 0; index < argc; ++index) {
         arguments.append(QString::fromLocal8Bit(argv[index]));
+    }
+    // First, and before anything that can refuse to start or hand over to a
+    // browser already running. A build has to be able to say what it is
+    // exactly when it will not run, because that refusal is what a bug report
+    // is about, and asking a running browser would answer for that one instead.
+    if (omaweb::readVersionRequest(arguments)) {
+        const auto report = omaweb::versionReport(QStringLiteral(OMAWEB_VERSION),
+            QString::fromLatin1(qWebEngineVersion()),
+            QString::fromLatin1(qWebEngineChromiumVersion()));
+        std::fprintf(stdout, "%s\n", qPrintable(report));
+        return 0;
     }
     if (qEnvironmentVariableIsSet("QTWEBENGINE_DISABLE_SANDBOX")) {
         qCritical("Omaweb refuses to start with QTWEBENGINE_DISABLE_SANDBOX set. There is no "
