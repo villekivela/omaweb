@@ -24,6 +24,7 @@
 #include <QDir>
 #include <QHash>
 #include <QFile>
+#include <QFontDatabase>
 #include <QImage>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -155,6 +156,11 @@ void seedSampleTabs(omaweb::BrowserController &browser, const QVariantList &favi
 int main(int argc, char *argv[])
 {
     QGuiApplication application(argc, argv);
+    const auto captureFontFile = qEnvironmentVariable("OMAWEB_CAPTURE_FONT_FILE");
+    if (!captureFontFile.isEmpty() && QFontDatabase::addApplicationFont(captureFontFile) < 0) {
+        qCritical("Could not load capture font: %s", qPrintable(captureFontFile));
+        return 1;
+    }
     omaweb::installWindowChrome(&application);
     QCoreApplication::setOrganizationName(QStringLiteral("Omaweb"));
     QCoreApplication::setApplicationName(QStringLiteral("Omaweb UI Lab"));

@@ -69,12 +69,12 @@ body {
      generated into themes.css from its Omarchy theme's own colors.toml,
      and index.html names the default on <body>. These are the default
      theme's values, kept here so the page is never unpainted. */
-  --bg: #090a0e;
-  --sidebar: #0d0f14;
-  --fg: #d8dbe3;
-  --accent: #9aa3ad;
-  --urgent: #7a2e2e;
-  --muted: #929ca6;
+  --bg: #06060c;
+  --sidebar: #080910;
+  --fg: #ddf7ff;
+  --accent: #82fb9c;
+  --urgent: #50f872;
+  --muted: #6a6e95;
 
   /* State tokens. Kit alphas exactly, including the hover border
      dropping BELOW normal (0.25 vs 0.40). */
@@ -250,11 +250,11 @@ img {
   font-weight: 700;
 }
 
-/* Padding above only. The section below sets the space between itself and
-   whatever precedes it, and the hero adding its own on top of that doubled
-   the gap. */
+/* Leave a short run of the page background below the hero before section 01
+   begins its full-width band. */
 .t-hero {
-  padding-block: clamp(var(--panel-padding), 5vw, calc(var(--panel-padding) * 3)) 0;
+  padding-block: clamp(var(--panel-padding), 5vw, calc(var(--panel-padding) * 3))
+    var(--panel-padding);
 }
 .t-hero h1 {
   max-width: 26ch;
@@ -349,7 +349,24 @@ img {
 }
 
 .t-section {
+  position: relative;
+  isolation: isolate;
   padding-block: calc(var(--panel-padding) * 1.7);
+}
+.t-section::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset-block: 0;
+  left: 50%;
+  width: 100vw;
+  transform: translateX(-50%);
+}
+.t-section:nth-of-type(even)::before {
+  background: color-mix(in srgb, var(--fg) 2%, var(--bg));
+}
+.t-section:nth-of-type(odd)::before {
+  background: var(--bg);
 }
 .t-section__head {
   padding-bottom: var(--sp-xxl);
