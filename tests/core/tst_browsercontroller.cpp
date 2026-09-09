@@ -1,6 +1,7 @@
 #include "BrowserController.h"
 #include "HistoryQuery.h"
 #include "PrivateSessionFixture.h"
+#include "SessionFixture.h"
 #include "SpaceListModel.h"
 #include "SpaceStorage.h"
 #include "SqliteSessionStore.h"
@@ -33,6 +34,10 @@ using omaweb::SpaceStorage;
 using omaweb::TabListModel;
 using omaweb::WindowManager;
 using omaweb::test::PrivateSessionFixture;
+using omaweb::test::SessionFixture;
+using omaweb::test::SessionSpec;
+using omaweb::test::SpaceSpec;
+using omaweb::test::TabSpec;
 
 namespace {
 
@@ -317,23 +322,34 @@ void BrowserControllerTest::warnsBeforeMovingEditedTabBetweenSpaces()
 
 void BrowserControllerTest::restoresEverySpaceAfterRestart()
 {
-    QTemporaryDir root;
-    QString personalSpaceId;
-    QString workSpaceId;
-    {
-        BrowserController controller(SpaceStorage(root.path(), QStringLiteral("qt")));
-        personalSpaceId = controller.activeSpaceId();
-        controller.openInput(QStringLiteral("https://personal.example/session"), false);
-        workSpaceId = controller.createSpace(QStringLiteral("Work"));
-        QVERIFY(controller.switchSpace(workSpaceId));
-        controller.openInput(QStringLiteral("https://work.example/session"), false);
-    }
+    SessionFixture fixture(SessionSpec {
+        .spaces = {
+            SpaceSpec {
+                .id = QStringLiteral("personal"),
+                .name = QStringLiteral("Personal"),
+                .tabs = {TabSpec {
+                    .id = QStringLiteral("personal-tab"),
+                    .url = QUrl(QStringLiteral("https://personal.example/session")),
+                }},
+            },
+            SpaceSpec {
+                .id = QStringLiteral("work"),
+                .name = QStringLiteral("Work"),
+                .tabs = {TabSpec {
+                    .id = QStringLiteral("work-tab"),
+                    .url = QUrl(QStringLiteral("https://work.example/session")),
+                }},
+            },
+        },
+        .activeSpaceId = QStringLiteral("work"),
+    });
+    QVERIFY_SESSION_READY(fixture);
 
-    BrowserController restored(SpaceStorage(root.path(), QStringLiteral("qt")));
-    QCOMPARE(restored.activeSpaceId(), workSpaceId);
-    QCOMPARE(restored.activeUrl(), QUrl(QStringLiteral("https://work.example/session")));
-    QVERIFY(restored.switchSpace(personalSpaceId));
-    QCOMPARE(restored.activeUrl(), QUrl(QStringLiteral("https://personal.example/session")));
+    const auto restored = fixture.createController();
+    QCOMPARE(restored->activeSpaceId(), QStringLiteral("work"));
+    QCOMPARE(restored->activeUrl(), QUrl(QStringLiteral("https://work.example/session")));
+    QVERIFY(restored->switchSpace(QStringLiteral("personal")));
+    QCOMPARE(restored->activeUrl(), QUrl(QStringLiteral("https://personal.example/session")));
 }
 
 void BrowserControllerTest::separatesEngineStorageBySpaceAndEngine()
@@ -777,25 +793,31 @@ void BrowserControllerTest::stepsZoomAlongOneLadderPerTab()
 
 void BrowserControllerTest::restoresEveryTabsZoomAfterRestart()
 {
-    QTemporaryDir root;
-    QString zoomedTabId;
-    QString plainTabId;
-    {
-        BrowserController controller(SpaceStorage(root.path(), QStringLiteral("test")));
-        controller.openInput(QStringLiteral("https://plain.example"), false);
-        plainTabId = controller.activeTabId();
-        controller.openInput(QStringLiteral("https://zoomed.example"), true);
-        zoomedTabId = controller.activeTabId();
-        controller.stepActiveZoom(1);
-        controller.stepActiveZoom(1);
-        QCOMPARE(controller.activeTabZoom(), 1.25);
-    }
+    SessionFixture fixture(SessionSpec {
+        .spaces = {SpaceSpec {
+            .id = QStringLiteral("personal"),
+            .name = QStringLiteral("Personal"),
+            .tabs = {
+                TabSpec {
+                    .id = QStringLiteral("plain"),
+                    .url = QUrl(QStringLiteral("https://plain.example")),
+                },
+                TabSpec {
+                    .id = QStringLiteral("zoomed"),
+                    .url = QUrl(QStringLiteral("https://zoomed.example")),
+                    .zoom = 1.25,
+                },
+            },
+            .activeTabId = QStringLiteral("zoomed"),
+        }},
+    });
+    QVERIFY_SESSION_READY(fixture);
 
-    BrowserController restored(SpaceStorage(root.path(), QStringLiteral("test")));
-    QCOMPARE(restored.activeTabId(), zoomedTabId);
-    QCOMPARE(restored.activeTabZoom(), 1.25);
-    restored.activateTab(plainTabId);
-    QCOMPARE(restored.activeTabZoom(), 1.0);
+    const auto restored = fixture.createController();
+    QCOMPARE(restored->activeTabId(), QStringLiteral("zoomed"));
+    QCOMPARE(restored->activeTabZoom(), 1.25);
+    restored->activateTab(QStringLiteral("plain"));
+    QCOMPARE(restored->activeTabZoom(), 1.0);
 }
 
 void BrowserControllerTest::sharesPrivateIdentityUntilLastWindowCloses()
@@ -1519,20 +1541,27 @@ void BrowserControllerTest::detachesTheInspectorWithTheTabItInspects()
 
 void BrowserControllerTest::neverRestoresTheInspectorAfterRestart()
 {
-    QTemporaryDir root;
-    QString inspectedTabId;
+    SessionFixture fixture(SessionSpec {
+        .spaces = {SpaceSpec {
+            .id = QStringLiteral("personal"),
+            .name = QStringLiteral("Personal"),
+            .tabs = {TabSpec {
+                .id = QStringLiteral("inspected"),
+                .url = QUrl(QStringLiteral("https://inspected.example")),
+            }},
+        }},
+    });
+    QVERIFY_SESSION_READY(fixture);
     {
-        BrowserController controller(SpaceStorage(root.path(), QStringLiteral("test")));
-        controller.openInput(QStringLiteral("https://inspected.example"), false);
-        inspectedTabId = controller.activeTabId();
-        controller.openDeveloperTools();
-        QCOMPARE(controller.developerToolsTabId(), inspectedTabId);
+        const auto controller = fixture.createController();
+        controller->openDeveloperTools();
+        QCOMPARE(controller->developerToolsTabId(), QStringLiteral("inspected"));
     }
 
-    BrowserController restarted(SpaceStorage(root.path(), QStringLiteral("test")));
-    QCOMPARE(restarted.activeTabId(), inspectedTabId);
-    QVERIFY(restarted.developerToolsTabId().isEmpty());
-    QVERIFY(!restarted.activeTabInspected());
+    const auto restarted = fixture.createController();
+    QCOMPARE(restarted->activeTabId(), QStringLiteral("inspected"));
+    QVERIFY(restarted->developerToolsTabId().isEmpty());
+    QVERIFY(!restarted->activeTabInspected());
 }
 
 // Order inside a section is the reader's. A drag names a destination and a
@@ -1662,48 +1691,51 @@ void BrowserControllerTest::sweepingClosesSpareEveryPinnedTab()
 // gives back everything the session held about a tab.
 void BrowserControllerTest::keepsRecentClosesPerSpaceAcrossRestart()
 {
-    QTemporaryDir root;
-    QString personalSpaceId;
-    QString workSpaceId;
-    {
-        BrowserController controller(SpaceStorage(root.path(), QStringLiteral("test")));
-        personalSpaceId = controller.activeSpaceId();
-        controller.openInput(QStringLiteral("https://one.example"), false);
-        controller.openInput(QStringLiteral("https://two.example"), true);
-        const auto secondId = controller.activeTabId();
-        controller.setTabZoom(secondId, 1.25);
-        controller.setTabMuted(secondId, true);
-        controller.toggleActivePinned();
-        controller.toggleActivePinned();
-        controller.closeTab(secondId);
-        QCOMPARE(controller.closedTabCount(), 1);
+    SessionFixture fixture(SessionSpec {
+        .spaces = {
+            SpaceSpec {
+                .id = QStringLiteral("personal"),
+                .name = QStringLiteral("Personal"),
+                .tabs = {TabSpec {
+                    .id = QStringLiteral("personal-tab"),
+                    .url = QUrl(QStringLiteral("https://one.example")),
+                }},
+                .recentCloses = {TabSpec {
+                    .url = QUrl(QStringLiteral("https://two.example")),
+                    .zoom = 1.25,
+                    .muted = true,
+                }},
+            },
+            SpaceSpec {
+                .id = QStringLiteral("work"),
+                .name = QStringLiteral("Work"),
+                .tabs = {TabSpec {
+                    .id = QStringLiteral("work-resting"),
+                }},
+                .recentCloses = {TabSpec {
+                    .url = QUrl(QStringLiteral("https://work.example")),
+                }},
+            },
+        },
+        .activeSpaceId = QStringLiteral("personal"),
+    });
+    QVERIFY_SESSION_READY(fixture);
 
-        workSpaceId = controller.createSpace(QStringLiteral("Work"));
-        QVERIFY(controller.switchSpace(workSpaceId));
-        // Another Space's closes are not this Space's to take back.
-        QCOMPARE(controller.closedTabCount(), 0);
-        controller.openInput(QStringLiteral("https://work.example"), false);
-        controller.closeActiveTab();
-        QCOMPARE(controller.closedTabCount(), 1);
-        QVERIFY(controller.switchSpace(personalSpaceId));
-        QCOMPARE(controller.closedTabCount(), 1);
-    }
-
-    BrowserController restored(SpaceStorage(root.path(), QStringLiteral("test")));
-    QCOMPARE(restored.activeSpaceId(), personalSpaceId);
-    QCOMPARE(restored.closedTabCount(), 1);
-    restored.reopenClosedTab();
-    QCOMPARE(restored.activeUrl(), QUrl(QStringLiteral("https://two.example")));
-    QCOMPARE(restored.activeTabZoom(), 1.25);
-    auto *tabs = restored.tabs();
+    const auto restored = fixture.createController();
+    QCOMPARE(restored->activeSpaceId(), QStringLiteral("personal"));
+    QCOMPARE(restored->closedTabCount(), 1);
+    restored->reopenClosedTab();
+    QCOMPARE(restored->activeUrl(), QUrl(QStringLiteral("https://two.example")));
+    QCOMPARE(restored->activeTabZoom(), 1.25);
+    auto *tabs = restored->tabs();
     const auto reopened = tabs->index(tabs->rowCount() - 1, 0);
     QVERIFY(tabs->data(reopened, TabListModel::MutedRole).toBool());
-    QCOMPARE(restored.closedTabCount(), 0);
+    QCOMPARE(restored->closedTabCount(), 0);
 
-    QVERIFY(restored.switchSpace(workSpaceId));
-    QCOMPARE(restored.closedTabCount(), 1);
-    restored.reopenClosedTab();
-    QCOMPARE(restored.activeUrl(), QUrl(QStringLiteral("https://work.example")));
+    QVERIFY(restored->switchSpace(QStringLiteral("work")));
+    QCOMPARE(restored->closedTabCount(), 1);
+    restored->reopenClosedTab();
+    QCOMPARE(restored->activeUrl(), QUrl(QStringLiteral("https://work.example")));
 }
 
 // Twenty-five deep, in reverse closing order, and a pin comes back pinned.
@@ -1854,18 +1886,48 @@ void BrowserControllerTest::allowsKeepActiveOnlyOnPinnedTabs()
 // away and both are identified while it is gone; nothing else survives.
 void BrowserControllerTest::namesEverySuspensionExceptionAndNothingElse()
 {
-    QTemporaryDir root;
-    BrowserController controller(SpaceStorage(root.path(), QStringLiteral("test")));
-    const auto personalSpaceId = controller.activeSpaceId();
-    controller.openInput(QStringLiteral("https://kept.example"), false);
-    controller.toggleActivePinned();
-    const auto keptId = controller.activeTabId();
-    QVERIFY(controller.setTabKeepActive(keptId, true));
-    controller.openInput(QStringLiteral("https://suspended.example"), true);
-    controller.toggleActivePinned();
-    const auto suspendedPinId = controller.activeTabId();
-    controller.openInput(QStringLiteral("https://ordinary.example"), true);
-    const auto inspectedId = controller.activeTabId();
+    const auto personalSpaceId = QStringLiteral("personal");
+    const auto workSpaceId = QStringLiteral("work");
+    const auto keptId = QStringLiteral("kept");
+    const auto suspendedPinId = QStringLiteral("suspended-pin");
+    const auto inspectedId = QStringLiteral("inspected");
+    SessionFixture fixture(SessionSpec {
+        .spaces = {
+            SpaceSpec {
+                .id = personalSpaceId,
+                .name = QStringLiteral("Personal"),
+                .tabs = {
+                    TabSpec {
+                        .id = keptId,
+                        .url = QUrl(QStringLiteral("https://kept.example")),
+                        .pinned = true,
+                        .keepActive = true,
+                    },
+                    TabSpec {
+                        .id = suspendedPinId,
+                        .url = QUrl(QStringLiteral("https://suspended.example")),
+                        .pinned = true,
+                    },
+                    TabSpec {
+                        .id = inspectedId,
+                        .url = QUrl(QStringLiteral("https://ordinary.example")),
+                    },
+                },
+                .activeTabId = inspectedId,
+            },
+            SpaceSpec {
+                .id = workSpaceId,
+                .name = QStringLiteral("Work"),
+                .tabs = {TabSpec {
+                    .id = QStringLiteral("work-resting"),
+                }},
+            },
+        },
+        .activeSpaceId = personalSpaceId,
+    });
+    QVERIFY_SESSION_READY(fixture);
+    const auto ownedController = fixture.createController();
+    auto &controller = *ownedController;
     controller.openDeveloperTools();
 
     QCOMPARE(controller.retainedTabIds(), QStringList({keptId, inspectedId}));
@@ -1873,7 +1935,6 @@ void BrowserControllerTest::namesEverySuspensionExceptionAndNothingElse()
     // on show: its pages are live because the reader is looking at them.
     QVERIFY(controller.retainedTabs().isEmpty());
 
-    const auto workSpaceId = controller.createSpace(QStringLiteral("Work"));
     QSignalSpy suspendedSpy(&controller, &BrowserController::spaceSuspended);
     QVERIFY(controller.switchSpace(workSpaceId));
     QCOMPARE(suspendedSpy.count(), 1);
@@ -1905,34 +1966,49 @@ void BrowserControllerTest::namesEverySuspensionExceptionAndNothingElse()
 // bring back.
 void BrowserControllerTest::restoresRetainedTabsOfUnvisitedSpacesAfterRestart()
 {
-    QTemporaryDir root;
-    QString workSpaceId;
-    QString keptId;
-    {
-        BrowserController controller(SpaceStorage(root.path(), QStringLiteral("test")));
-        const auto personalSpaceId = controller.activeSpaceId();
-        workSpaceId = controller.createSpace(QStringLiteral("Work"));
-        QVERIFY(controller.switchSpace(workSpaceId));
-        controller.openInput(QStringLiteral("https://kept.example"), false);
-        controller.toggleActivePinned();
-        keptId = controller.activeTabId();
-        QVERIFY(controller.setTabKeepActive(keptId, true));
-        QVERIFY(controller.switchSpace(personalSpaceId));
-    }
+    SessionFixture fixture(SessionSpec {
+        .spaces = {
+            SpaceSpec {
+                .id = QStringLiteral("personal"),
+                .name = QStringLiteral("Personal"),
+                .tabs = {TabSpec {
+                    .id = QStringLiteral("personal-resting"),
+                }},
+            },
+            SpaceSpec {
+                .id = QStringLiteral("work"),
+                .name = QStringLiteral("Work"),
+                .tabs = {
+                    TabSpec {
+                        .id = QStringLiteral("kept"),
+                        .url = QUrl(QStringLiteral("https://kept.example")),
+                        .pinned = true,
+                        .keepActive = true,
+                    },
+                    TabSpec {
+                        .id = QStringLiteral("work-resting"),
+                    },
+                },
+                .activeTabId = QStringLiteral("kept"),
+            },
+        },
+        .activeSpaceId = QStringLiteral("personal"),
+    });
+    QVERIFY_SESSION_READY(fixture);
 
     // Nothing here has selected the Work Space, and the session still knows
     // one of its tabs is meant to be running.
-    BrowserController restored(SpaceStorage(root.path(), QStringLiteral("test")));
-    QCOMPARE(restored.retainedTabs().size(), 1);
-    const auto retained = restored.retainedTabs().first().toMap();
-    QCOMPARE(retained.value(QStringLiteral("tabId")).toString(), keptId);
-    QCOMPARE(retained.value(QStringLiteral("spaceId")).toString(), workSpaceId);
+    const auto restored = fixture.createController();
+    QCOMPARE(restored->retainedTabs().size(), 1);
+    const auto retained = restored->retainedTabs().first().toMap();
+    QCOMPARE(retained.value(QStringLiteral("tabId")).toString(), QStringLiteral("kept"));
+    QCOMPARE(retained.value(QStringLiteral("spaceId")).toString(), QStringLiteral("work"));
     QCOMPARE(retained.value(QStringLiteral("url")).toUrl(),
         QUrl(QStringLiteral("https://kept.example")));
 
     // Selecting that Space stops retaining it: the reader is looking at it.
-    QVERIFY(restored.switchSpace(workSpaceId));
-    QVERIFY(restored.retainedTabs().isEmpty());
+    QVERIFY(restored->switchSpace(QStringLiteral("work")));
+    QVERIFY(restored->retainedTabs().isEmpty());
 }
 
 // A crash is an exit with no chance to write anything down. Everything the
@@ -1983,15 +2059,33 @@ void BrowserControllerTest::restoresTheSessionAfterAnUncleanExit()
 // at them.
 void BrowserControllerTest::stopsRetainingTheSpaceThatReplacesADeletedOne()
 {
-    QTemporaryDir root;
-    BrowserController controller(SpaceStorage(root.path(), QStringLiteral("test")));
-    const auto personalSpaceId = controller.activeSpaceId();
-    controller.openInput(QStringLiteral("https://kept.example"), false);
-    controller.toggleActivePinned();
-    QVERIFY(controller.setTabKeepActive(controller.activeTabId(), true));
-
-    const auto workSpaceId = controller.createSpace(QStringLiteral("Work"));
-    QVERIFY(controller.switchSpace(workSpaceId));
+    const auto personalSpaceId = QStringLiteral("personal");
+    const auto workSpaceId = QStringLiteral("work");
+    SessionFixture fixture(SessionSpec {
+        .spaces = {
+            SpaceSpec {
+                .id = personalSpaceId,
+                .name = QStringLiteral("Personal"),
+                .tabs = {TabSpec {
+                    .id = QStringLiteral("kept"),
+                    .url = QUrl(QStringLiteral("https://kept.example")),
+                    .pinned = true,
+                    .keepActive = true,
+                }},
+            },
+            SpaceSpec {
+                .id = workSpaceId,
+                .name = QStringLiteral("Work"),
+                .tabs = {TabSpec {
+                    .id = QStringLiteral("work-resting"),
+                }},
+            },
+        },
+        .activeSpaceId = workSpaceId,
+    });
+    QVERIFY_SESSION_READY(fixture);
+    const auto ownedController = fixture.createController();
+    auto &controller = *ownedController;
     QCOMPARE(controller.retainedTabs().size(), 1);
 
     QVERIFY(controller.deleteSpace(workSpaceId, QStringLiteral("Work")));
@@ -2003,15 +2097,41 @@ void BrowserControllerTest::stopsRetainingTheSpaceThatReplacesADeletedOne()
 // tab that sent it — changing Space on the way when it has to.
 void BrowserControllerTest::routesNotificationsToTheOriginatingTab()
 {
-    QTemporaryDir root;
-    BrowserController controller(SpaceStorage(root.path(), QStringLiteral("test")));
-    const auto personalSpaceId = controller.activeSpaceId();
-    controller.openInput(QStringLiteral("https://chat.example/room"), false);
-    const auto chatId = controller.activeTabId();
-    controller.toggleActivePinned();
-    QVERIFY(controller.setTabKeepActive(chatId, true));
-    controller.openInput(QStringLiteral("https://quiet.example"), true);
-    const auto quietId = controller.activeTabId();
+    const auto personalSpaceId = QStringLiteral("personal");
+    const auto workSpaceId = QStringLiteral("work");
+    const auto chatId = QStringLiteral("chat");
+    SessionFixture fixture(SessionSpec {
+        .spaces = {
+            SpaceSpec {
+                .id = personalSpaceId,
+                .name = QStringLiteral("Personal"),
+                .tabs = {
+                    TabSpec {
+                        .id = chatId,
+                        .url = QUrl(QStringLiteral("https://chat.example/room")),
+                        .pinned = true,
+                        .keepActive = true,
+                    },
+                    TabSpec {
+                        .id = QStringLiteral("quiet"),
+                        .url = QUrl(QStringLiteral("https://quiet.example")),
+                    },
+                },
+                .activeTabId = QStringLiteral("quiet"),
+            },
+            SpaceSpec {
+                .id = workSpaceId,
+                .name = QStringLiteral("Work"),
+                .tabs = {TabSpec {
+                    .id = QStringLiteral("work-resting"),
+                }},
+            },
+        },
+        .activeSpaceId = personalSpaceId,
+    });
+    QVERIFY_SESSION_READY(fixture);
+    const auto ownedController = fixture.createController();
+    auto &controller = *ownedController;
 
     const auto target = controller.notificationTarget(
         personalSpaceId, QUrl(QStringLiteral("https://chat.example")));
@@ -2025,7 +2145,6 @@ void BrowserControllerTest::routesNotificationsToTheOriginatingTab()
             .notificationTarget(personalSpaceId, QUrl(QStringLiteral("https://elsewhere.example")))
             .isEmpty());
 
-    const auto workSpaceId = controller.createSpace(QStringLiteral("Work"));
     QVERIFY(controller.switchSpace(workSpaceId));
 
     // The retained tab may still say something while its Space is away; the
@@ -2038,8 +2157,6 @@ void BrowserControllerTest::routesNotificationsToTheOriginatingTab()
     QVERIFY(controller
             .notificationTarget(personalSpaceId, QUrl(QStringLiteral("https://quiet.example")))
             .isEmpty());
-    Q_UNUSED(quietId)
-
     QVERIFY(controller.activateNotificationTarget(personalSpaceId, chatId));
     QCOMPARE(controller.activeSpaceId(), personalSpaceId);
     QCOMPARE(controller.activeTabId(), chatId);

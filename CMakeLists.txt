@@ -609,7 +609,11 @@ if(BUILD_TESTING)
         )
     endif()
 
-    qt_add_executable(omaweb-core-tests tests/core/tst_browsercontroller.cpp)
+    qt_add_executable(omaweb-core-tests
+        "tests/core/SessionFixture.cpp"
+        "tests/core/SessionFixture.h"
+        "tests/core/tst_browsercontroller.cpp"
+    )
     target_link_libraries(omaweb-core-tests PRIVATE omaweb-core Qt6::Test)
     omaweb_strict_target(omaweb-core-tests)
     add_test(NAME omaweb-core COMMAND omaweb-core-tests)
@@ -618,6 +622,15 @@ if(BUILD_TESTING)
     target_link_libraries(omaweb-session-store-tests PRIVATE omaweb-core Qt6::Test)
     omaweb_strict_target(omaweb-session-store-tests)
     add_test(NAME omaweb-session-store COMMAND omaweb-session-store-tests)
+
+    qt_add_executable(omaweb-session-fixture-tests
+        "tests/core/SessionFixture.cpp"
+        "tests/core/SessionFixture.h"
+        "tests/core/tst_sessionfixture.cpp"
+    )
+    target_link_libraries(omaweb-session-fixture-tests PRIVATE omaweb-core Qt6::Test)
+    omaweb_strict_target(omaweb-session-fixture-tests)
+    add_test(NAME omaweb-session-fixture COMMAND omaweb-session-fixture-tests)
 
     qt_add_executable(omaweb-space-storage-tests tests/core/tst_spacestorage.cpp)
     target_link_libraries(omaweb-space-storage-tests PRIVATE omaweb-core Qt6::Test)
