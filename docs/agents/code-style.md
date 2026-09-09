@@ -52,5 +52,7 @@ ctest --preset ci
 ```
 
 CI runs the formatters and rejects any resulting diff. It then runs `qmllint`, the build, and the
-test suite with compiler warnings enabled. A change is ready to merge only when every applicable
-command passes.
+test suite with compiler warnings enabled, under both clang and GCC, because warnings are `-Werror`
+here and the two compilers do not report the same set. No preset names a compiler, so the commands
+above use whichever the host has, and either one is a configuration CI also checks. A change is
+ready to merge only when every applicable command passes.

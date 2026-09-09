@@ -93,6 +93,43 @@ jobs:
         run:
           su builder -c "ctest --preset release -R '^(omaweb-shared-qml-boundary|omaweb-qml-load)$'"
 
+  # The same tree under the other compiler. `arch-linux` pins clang, and no
+  # preset names a compiler, so the gate `docs/agents/code-style.md` asks for
+  # builds with whatever the host has — which on Arch is GCC. Without this,
+  # each compiler's own warnings are only ever found by whoever happens to run
+  # that one, which is how a `-Werror` build reached main having passed CI.
+  #
+  # Build and test only. The release resources and the compatibility summary
+  # belong to one job rather than both, because a second copy of them reports
+  # nothing the first does not.
+  arch-linux-gcc:
+    runs-on: ubuntu-latest
+    container: archlinux:base-devel
+    timeout-minutes: 30
+    env:
+      CC: gcc
+      CXX: g++
+    steps:
+      - name: Install toolchain
+        run:
+          pacman -Syu --noconfirm git cmake ninja gcc ccache rust qt6-base qt6-declarative
+          qt6-webengine
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Take the build off root
+        # Same reason as `arch-linux`: Chromium refuses to start as root with
+        # its sandbox on, and Omaweb does not turn it off (ADR 0013).
+        run: |
+          useradd --create-home --shell /bin/bash builder
+          chown -R builder "$GITHUB_WORKSPACE"
+      - name: Bootstrap content blocker
+        run: su builder -c 'scripts/bootstrap_content_blocker.sh'
+      - name: Configure
+        run: su builder -c 'cmake --preset ci'
+      - name: Build
+        run: su builder -c 'cmake --build --preset ci'
+      - name: Test
+        run: su builder -c 'ctest --preset ci'
+
   arch-package:
     runs-on: ubuntu-latest
     container: archlinux:base-devel
