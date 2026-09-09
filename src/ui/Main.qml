@@ -35,6 +35,14 @@ ApplicationWindow {
     property var sharedEngineProfile: null
     property var colors: privateWindow ? privatePalette(theme.palette) : theme.palette
     property bool sidebarCollapsed: false
+    // What stands in for the sidebar once it has gone. A reader who hides it to
+    // hand the page the whole window may mean the whole window, so the strip is
+    // theirs to refuse; the keys that hide the sidebar bring it back either way.
+    property bool floatingControls: true
+    // Whether hiding or showing the sidebar is a movement or a step. The ease
+    // is what most readers want and what the seam is written for, so refusing
+    // it is the reader's to ask for.
+    property bool easeSidebar: true
     property bool useFavicons: true
     // A favicon is how a reader finds a tab without reading it, so it is shown
     // as the site drew it. Recolouring every mark to one hue takes away the one
@@ -959,6 +967,22 @@ ApplicationWindow {
         window.tintFavicons = window.windowBrowser.preference("tint-favicons", "false") === "true";
     }
 
+    function restoreChromeAppearance() {
+        window.floatingControls = window.windowBrowser.preference("floating-controls", "true")
+                === "true";
+        window.easeSidebar = window.windowBrowser.preference("ease-sidebar", "true") === "true";
+    }
+
+    function setFloatingControls(enabled) {
+        window.floatingControls = enabled;
+        window.windowBrowser.setPreference("floating-controls", enabled ? "true" : "false");
+    }
+
+    function setEaseSidebar(enabled) {
+        window.easeSidebar = enabled;
+        window.windowBrowser.setPreference("ease-sidebar", enabled ? "true" : "false");
+    }
+
     function setUseFavicons(enabled) {
         window.useFavicons = enabled;
         window.windowBrowser.setPreference("use-favicons", enabled ? "true" : "false");
@@ -1573,6 +1597,12 @@ ApplicationWindow {
             readonly property real pageInset: seamEase.running ? 0 : chromeRow.settledSeam
 
             Behavior on revealed {
+                // A reader who has refused the ease gets the step the property
+                // makes on its own, so the seam settles in the frame the
+                // sidebar was hidden in and the page lays out once, as it does
+                // at the end of the movement.
+                enabled: window.easeSidebar
+
                 NumberAnimation {
                     id: seamEase
                     duration: 120
@@ -2092,6 +2122,8 @@ ApplicationWindow {
                     pageSource: window.pagelessViewport ? null : engineLoader
                     useFavicons: window.useFavicons
                     tintFavicons: window.tintFavicons
+                    floatingControls: window.floatingControls
+                    easeSidebar: window.easeSidebar
                     retainedTabs: window.visibleRetainedTabs
 
                     downloads: window.downloads
@@ -2119,6 +2151,12 @@ ApplicationWindow {
                     onTintFaviconsToggled: function (enabled) {
                         window.setTintFavicons(enabled);
                     }
+                    onFloatingControlsToggled: function (enabled) {
+                        window.setFloatingControls(enabled);
+                    }
+                    onEaseSidebarToggled: function (enabled) {
+                        window.setEaseSidebar(enabled);
+                    }
                 }
 
                 HistoryPage {
@@ -2136,13 +2174,14 @@ ApplicationWindow {
                 // The outline carries these commands while it is open; the
                 // strip is what the chromeless state has instead — except
                 // where a site has been given the screen, which is the one
-                // state that has no browser chrome over it at all.
+                // state that has no browser chrome over it at all, and except
+                // where the reader has asked for the strip not to be there.
                 NavigationCluster {
                     // The sidebar itself rather than the flag that sends it
                     // away: the strip stands in for a sidebar that has gone,
                     // not for one still sliding out.
-                    visible: !window.settingsOpen && !window.historyOpen && !sidebar.visible &&
-                             !engineLoader.siteFullscreenActive
+                    visible: window.floatingControls && !window.settingsOpen && !window.historyOpen
+                             && !sidebar.visible && !engineLoader.siteFullscreenActive
                     // Where the outline's own controls were: the strip stands
                     // in for the top of the sidebar, so hiding the sidebar
                     // leaves the commands where the reader was already
@@ -2458,6 +2497,7 @@ ApplicationWindow {
         window.restoreSidebarWidth();
         window.restoreDeveloperToolsWidth();
         window.restoreTabAppearance();
+        window.restoreChromeAppearance();
     }
 
     function forgetPrivateWindow(instance) {

@@ -277,7 +277,7 @@ TestCase {
     // names the directory they went to.
     function test_aRuledListAbutsInEverySectionThatHasOne() {
         const page = makePage();
-        page.section = 4;
+        page.section = page.sections.indexOf("downloads");
         const rows = [];
         for (let index = 0; index < testCase.downloadsFixtureCount; ++index)
             rows.push(findChild(page, "recordedDownload-" + index));
@@ -300,7 +300,7 @@ TestCase {
         verify(keptActive.topPadding > keptActive.bottomPadding);
         verify(keptActive.topPadding > keptActive.overshoot);
 
-        page.section = 6;
+        page.section = page.sections.indexOf("privacy");
         const privacy = findLabel(page, "privacy");
         verify(privacy !== null);
         compare(privacy.topPadding, privacy.overshoot);
@@ -326,7 +326,7 @@ TestCase {
     // sight of any width the page reports.
     function test_pairedFieldsStackRatherThanNarrowPastTheirWords() {
         const page = makePage();
-        page.section = 2;
+        page.section = page.sections.indexOf("content blocking");
         const fields = findChild(page, "subscriptionFields");
         verify(fields !== null);
         verify(page.fieldFloor > 0);
@@ -359,7 +359,7 @@ TestCase {
     function test_theExplanationIsMeasuredInTheFaceItIsDrawnIn() {
         const page = makePage();
         // Network, which is where the longest of these explanations sits.
-        page.section = 3;
+        page.section = page.sections.indexOf("network");
         const status = findChild(page, "automaticRequestsStatus");
         verify(status !== null);
         verify(page.noteMeasure > 0);
@@ -389,7 +389,7 @@ TestCase {
     function test_anEmptyListOfSubscriptionsReadsAsEmpty() {
         const page = makePage();
         page.blocker = blockerStub;
-        page.section = 2;
+        page.section = page.sections.indexOf("content blocking");
         const notice = findChild(page, "noSubscriptionsNotice");
         const restore = findChild(page, "restoreDefaultListsButton");
         verify(notice !== null);
@@ -429,7 +429,7 @@ TestCase {
     // than no offer at all.
     function test_theOfferWaitsForABlockerToAsk() {
         const page = makePage();
-        page.section = 2;
+        page.section = page.sections.indexOf("content blocking");
         verify(!page.blocker);
         const notice = findChild(page, "noSubscriptionsNotice");
         verify(notice !== null);
@@ -458,13 +458,13 @@ TestCase {
     }
 
     // The whole-page form of the same question the properties above ask one at
-    // a time, and it is asked of all eight sections: a pixel count left in any
-    // one of them shows up here and nowhere else.
+    // a time, and it is asked of every section the rail names: a pixel count
+    // left in any one of them shows up here and nowhere else.
     function test_noSectionOverflowsThePaneAtALargerType() {
         const page = makePage();
         const pane = findChild(page, "settingsPane");
         verify(pane !== null);
-        compare(page.sections.length, 8);
+        compare(page.sections.length, 9);
 
         theme.useTypeTokens(2);
         for (let section = 0; section < page.sections.length; ++section) {
