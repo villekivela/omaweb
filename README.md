@@ -36,12 +36,17 @@ git clone https://github.com/villekivela/omaweb.git
 cd omaweb/packaging && makepkg -si
 ```
 
-A release that carries a `.pkg.tar.zst` asset installs without a build. The `v0.1.x` releases carry
-notes alone, so check what the release you want offers.
+From `v0.2.0` on, a release carries a built `.pkg.tar.zst` that installs without a build. The
+`v0.1.x` releases carry notes alone.
 
 ```sh
 sudo pacman -U omaweb-git-*.pkg.tar.zst
 ```
+
+That asset is `x86_64`. Releases are built in Arch's own container image, which is published for
+that architecture alone, so `aarch64` is a supported architecture to build for and has no built
+asset of its own ([#185](https://github.com/villekivela/omaweb/issues/185)). On `aarch64`, use the
+source build above.
 
 Install `fcitx5-qt` as well if you use an input method. Omarchy points every Qt application at
 `fcitx` without shipping the plugin, so without it Qt binds no text-input protocol and an input

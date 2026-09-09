@@ -78,7 +78,8 @@
           the system they already chose.
         </p>
         <div class="t-hero__actions">
-          <a class="btn btn--emphasis" href="https://github.com/villekivela/omaweb">
+          <a class="btn btn--emphasis" href="#install">Install</a>
+          <a class="btn" href="https://github.com/villekivela/omaweb">
             <svg class="btn__mark" aria-hidden="true"><use href="#mark-github" /></svg>
             Read the source
           </a>
@@ -297,6 +298,40 @@
             <p>
               Pinned tabs return when a Space resumes. Mark one as Keep active to leave it running,
               then see which tab is active and how much memory it uses.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section class="t-section" id="install">
+        <div class="t-section__head">
+          <p class="t-section__index">04 / getting it</p>
+          <div class="t-section__intro">
+            <h2>Install it on Arch.</h2>
+            <p>
+              Omaweb builds against the Qt your distribution ships, so an engine security update
+              arrives from Arch rather than from a rebuild here.
+            </p>
+          </div>
+        </div>
+        <div class="t-cols t-cols--2">
+          <div>
+            <h3>From a release</h3>
+            <p>
+              Releases from
+              <a href="https://github.com/villekivela/omaweb/releases">v0.2.0 on</a> carry a built
+              package. Download it and hand it to pacman with
+              <code>sudo pacman -U omaweb-git-*.pkg.tar.zst</code>. The built package is
+              <code>x86_64</code>; on <code>aarch64</code> take the source path.
+            </p>
+          </div>
+          <div>
+            <h3>From the repository</h3>
+            <p>
+              Clone the repository, then
+              <code>cd omaweb/packaging &amp;&amp; makepkg -si</code> builds and installs the same
+              package on either architecture. Omaweb is alpha, and becoming your default browser
+              stays something you ask for in Settings rather than something installing it decides.
             </p>
           </div>
         </div>
