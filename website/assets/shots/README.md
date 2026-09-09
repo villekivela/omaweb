@@ -12,6 +12,3 @@ resolution.
 Re-run the script after a chrome change or an upstream theme change. Nothing in CI compares these
 byte for byte: rendering differs across machines and fonts, and a flaky gate on a picture is worse
 than a stale picture.
-
-`hero.png` is the exception. It is a manual capture of Omaweb displaying a live page, which the UI
-lab cannot render. Replace it only when the website needs a new hero image.

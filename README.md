@@ -2,9 +2,9 @@
   <img src="assets/icons/omaweb.svg" alt="" width="72">
 </p>
 
-# Omaweb
+<h1 align="center">Omaweb</h1>
 
-![Omaweb browser window](website/assets/shots/hero.png)
+![Omaweb browser window](assets/screenshots/omaweb.png)
 
 Omaweb is a keyboard-driven web browser for Linux with first-class Wayland support. It keeps tabs in
 a sidebar, separates browsing identities into Spaces, and follows the desktop theme.

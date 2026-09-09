@@ -16,12 +16,12 @@ body[data-theme="hackerman"] {
 }
 
 body[data-theme="oligarchy"] {
-  --bg: #090a0e;
-  --sidebar: #0d0f14;
-  --fg: #d8dbe3;
-  --accent: #9aa3ad;
-  --urgent: #7a2e2e;
-  --muted: #929ca6;
+  --bg: #1c261d;
+  --sidebar: #29382b;
+  --fg: #f7e2b1;
+  --accent: #5a9059;
+  --urgent: #b09153;
+  --muted: #b9aa85;
 }
 
 body[data-theme="tokyo-night"] {

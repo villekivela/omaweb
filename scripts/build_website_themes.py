@@ -21,17 +21,18 @@ Per theme it writes:
   composited over a wallpaper generated from the same palette, and a
   `<state>-thumb.webp` beside it for the grid that opens it.
 
-The wallpaper is one geometry in every palette, colours only: three radial
-glows over a diagonal gradient, under a field of diagonal stripes. It was the
-design the page itself drew behind the recreation of the window it used to
-carry, kept here so the themes read as one family and none of them needed a
+The wallpaper is one geometry in every palette, colours only: a technical grid
+crossed by sparse circuit traces over a diagonal ground. Each capture takes
+the active-window border from the same theme. Keeping one drawing across the
+set lets the themes read as one family without asking any of them for a
 wallpaper of its own.
 
 ## Headless, and no pointer
 
 Nothing here needs a compositor, a pointer or a screen grab:
 
-    QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software \\
+    OMAWEB_CAPTURE_FONT_FILE=/path/to/JetBrainsMono.ttf \\
+      QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software \\
       ./build/dev/omaweb-ui-lab --tabs --show settings:tabs --capture out.png
 
 `OMAWEB_THEME_FILE` points the lab at a rendered theme without installing it,
@@ -100,6 +101,7 @@ WEBSITE = ROOT / "website"
 SHOTS = WEBSITE / "assets" / "shots"
 ICONS = WEBSITE / "assets" / "icons"
 STYLESHEET = WEBSITE / "themes.css"
+CAPTURE_FONT_FAMILY = "JetBrains Mono"
 
 THEME_DIRECTORIES = [
     pathlib.Path.home() / ".config" / "omarchy" / "themes",
@@ -159,9 +161,11 @@ RESOLVED_ROLES = {
 # foreground it is meant to be quieter than.
 NAMED_ROLES = {"--muted": "mutedText"}
 
-# The desktop the window is shown standing on, as a fraction of the capture.
-# Enough of it for the wallpaper to be a wallpaper rather than a border.
-MARGIN = 0.1
+# The desktop the window is shown standing on, as a fraction of each capture
+# axis. The wider sides leave room for the wallpaper to read as a desktop;
+# the tighter top and bottom keep the browser itself large in the frame.
+HORIZONTAL_MARGIN = 0.1
+VERTICAL_MARGIN = 0.055
 
 # Captured at twice the size Qt would lay the window out at, so the type is
 # rendered at two device pixels per logical one rather than resampled down to
@@ -211,8 +215,13 @@ def render_theme_file(colors: dict[str, str], target: pathlib.Path) -> dict:
     remaining = re.findall(r"\{\{[^}]*\}\}", rendered)
     if remaining:
         raise SystemExit(f"the template names colours this theme does not: {remaining}")
-    target.write_text(rendered, encoding="utf-8")
-    return json.loads(rendered)
+    theme = json.loads(rendered)
+    families = theme["font"]["families"]
+    theme["font"]["families"] = [CAPTURE_FONT_FAMILY] + [
+        family for family in families if family != CAPTURE_FONT_FAMILY
+    ]
+    target.write_text(json.dumps(theme, indent=2) + "\n", encoding="utf-8")
+    return theme
 
 
 def resolved_palette(lab: pathlib.Path, theme_file: pathlib.Path) -> dict:
@@ -220,7 +229,14 @@ def resolved_palette(lab: pathlib.Path, theme_file: pathlib.Path) -> dict:
     with tempfile.TemporaryDirectory() as scratch:
         dump = pathlib.Path(scratch) / "palette.json"
         run_lab(lab, theme_file, ["--dump-palette", str(dump), "--validate-qml"])
-        return json.loads(dump.read_text(encoding="utf-8"))
+        palette = json.loads(dump.read_text(encoding="utf-8"))
+        resolved = palette.get("font", {}).get("family")
+        if resolved != CAPTURE_FONT_FAMILY:
+            raise SystemExit(
+                f"captures require {CAPTURE_FONT_FAMILY}, but Qt resolved {resolved!r}; "
+                "set OMAWEB_CAPTURE_FONT_FILE to its TTF file"
+            )
+        return palette
 
 
 def run_lab(lab: pathlib.Path, theme_file: pathlib.Path, arguments: list[str]) -> None:
@@ -382,18 +398,10 @@ def png_bytes(width: int, height: int, pixels: bytes) -> bytes:
 
 
 def wallpaper(palette: dict, width: int, height: int) -> bytearray:
-    """One geometry, in this palette. Three glows and a field of stripes.
-
-    Each glow is an ellipse placed in fractions of the canvas and painted over
-    a diagonal gradient, with the stripes over the lot. The design came from
-    the stylesheet's own `.desk__wall` and `.desk__grain`, which drew the
-    desktop behind the recreation of the window the page used to carry, so
-    every theme's wallpaper is the same drawing and only the colours move.
-    """
+    """One technical grid and circuit drawing, in this palette."""
     background = channels(palette["windowOpaque"])
     foreground = channels(palette["text"])
     accent = channels(palette["accent"])
-    urgent = channels(palette["urgent"])
 
     # linear-gradient(152deg, color-mix(bg 34%, #000), bg). CSS measures the
     # angle clockwise from "to top", and the gradient line is long enough that
@@ -403,78 +411,181 @@ def wallpaper(palette: dict, width: int, height: int) -> bytearray:
     span = abs(width * along[0]) + abs(height * along[1])
     start = tuple(round(value * 0.34) for value in background)
 
-    # radial-gradient(rx ry at cx cy, colour alpha stop, ...) for each glow,
-    # painted in the order CSS composites them: last listed is furthest back.
-    glows = [
-        (0.20, 0.18, 0.62, 0.14, foreground, [(0.0, 0.52), (0.70, 0.0)]),
-        (0.26, 0.24, 0.82, 0.72, urgent, [(0.0, 0.82), (0.44, 0.34), (0.68, 0.0)]),
-        (0.34, 0.30, 0.24, 0.34, accent, [(0.0, 0.95), (0.40, 0.46), (0.66, 0.0)]),
-    ]
-    prepared = []
-    for fraction_x, fraction_y, at_x, at_y, color, stops in glows:
-        centre_x, centre_y = at_x * width, at_y * height
-        radius_x, radius_y = fraction_x * width, fraction_y * height
-        # The x term of the ellipse distance is the same down every column.
-        columns = [((column + 0.5 - centre_x) / radius_x) ** 2 for column in range(width)]
-        prepared.append((columns, centre_y, radius_y, color, stops))
-
-    # repeating-linear-gradient(58deg, transparent 0 30px, mix(fg 13%) 30px 60px)
-    grain_radians = math.radians(58)
-    grain = (math.sin(grain_radians), -math.cos(grain_radians))
-
     pixels = bytearray(width * height * 3)
     at = 0
     for row in range(height):
         y = row + 0.5
         base_projection = y * along[1]
-        base_grain = y * grain[1]
-        rows = [
-            (columns, ((y - centre_y) / radius_y) ** 2, color, stops)
-            for columns, centre_y, radius_y, color, stops in prepared
-        ]
         for column in range(width):
             x = column + 0.5
-            # The diagonal ground.
             position = (x * along[0] + base_projection) / span + 0.5
             position = 0.0 if position < 0.0 else (1.0 if position > 1.0 else position)
             red = start[0] + (background[0] - start[0]) * position
             green = start[1] + (background[1] - start[1]) * position
             blue = start[2] + (background[2] - start[2]) * position
-
-            for columns, row_term, color, stops in rows:
-                distance = math.sqrt(columns[column] + row_term)
-                if distance >= stops[-1][0]:
-                    continue
-                alpha = stop_alpha(distance, stops)
-                if alpha <= 0.0:
-                    continue
-                red += (color[0] - red) * alpha
-                green += (color[1] - green) * alpha
-                blue += (color[2] - blue) * alpha
-
-            if ((x * grain[0] + base_grain) % 60.0) >= 30.0:
-                red += (foreground[0] - red) * 0.13
-                green += (foreground[1] - green) * 0.13
-                blue += (foreground[2] - blue) * 0.13
-
             pixels[at] = clamp(red)
             pixels[at + 1] = clamp(green)
             pixels[at + 2] = clamp(blue)
             at += 3
+
+    step = max(32, round(width / 38))
+    fine = max(1, round(width / 1800))
+    major = fine + 1
+    for column in range(0, width, step):
+        is_major = (column // step) % 4 == 0
+        blend_rect(
+            pixels,
+            width,
+            height,
+            column,
+            0,
+            column + (major if is_major else fine),
+            height,
+            accent if is_major else foreground,
+            0.11 if is_major else 0.045,
+        )
+    for row in range(0, height, step):
+        is_major = (row // step) % 4 == 0
+        blend_rect(
+            pixels,
+            width,
+            height,
+            0,
+            row,
+            width,
+            row + (major if is_major else fine),
+            accent if is_major else foreground,
+            0.11 if is_major else 0.045,
+        )
+
+    traces = [
+        [(0.00, 0.18), (0.08, 0.18), (0.08, 0.34), (0.22, 0.34), (0.22, 0.12)],
+        [(0.00, 0.78), (0.14, 0.78), (0.14, 0.62), (0.29, 0.62)],
+        [(1.00, 0.24), (0.90, 0.24), (0.90, 0.42), (0.77, 0.42)],
+        [(1.00, 0.82), (0.84, 0.82), (0.84, 0.67), (0.70, 0.67), (0.70, 0.92)],
+    ]
+    trace_width = max(2, round(width / 700))
+    node_size = max(8, round(width / 150))
+    for index, points in enumerate(traces):
+        color = accent if index % 2 == 0 else foreground
+        alpha = 0.44 if index % 2 == 0 else 0.22
+        draw_trace(pixels, width, height, points, trace_width, node_size, color, alpha)
     return pixels
 
 
-def stop_alpha(distance: float, stops: list[tuple[float, float]]) -> float:
-    """The alpha a CSS gradient's stop list gives one point on its ray."""
-    if distance <= stops[0][0]:
-        return stops[0][1]
-    for (first_at, first), (second_at, second) in zip(stops, stops[1:]):
-        if distance <= second_at:
-            reach = second_at - first_at
-            if reach <= 0.0:
-                return second
-            return first + (second - first) * (distance - first_at) / reach
-    return stops[-1][1]
+def blend_rect(
+    pixels: bytearray,
+    width: int,
+    height: int,
+    left: int,
+    top: int,
+    right: int,
+    bottom: int,
+    color: tuple[int, int, int],
+    alpha: float,
+) -> None:
+    """Blend one clipped rectangle over an RGB canvas."""
+    left, top = max(0, left), max(0, top)
+    right, bottom = min(width, right), min(height, bottom)
+    for row in range(top, bottom):
+        at = (row * width + left) * 3
+        for _ in range(left, right):
+            for channel in range(3):
+                pixels[at + channel] = round(
+                    pixels[at + channel] * (1.0 - alpha) + color[channel] * alpha
+                )
+            at += 3
+
+
+def draw_trace(
+    pixels: bytearray,
+    width: int,
+    height: int,
+    points: list[tuple[float, float]],
+    line_width: int,
+    node_size: int,
+    color: tuple[int, int, int],
+    alpha: float,
+) -> None:
+    """Draw an orthogonal circuit trace with a square node at each turn."""
+    resolved = [(round(x * width), round(y * height)) for x, y in points]
+    half_line = line_width // 2
+    half_node = node_size // 2
+    for (first_x, first_y), (second_x, second_y) in zip(resolved, resolved[1:]):
+        blend_rect(
+            pixels,
+            width,
+            height,
+            min(first_x, second_x) - half_line,
+            min(first_y, second_y) - half_line,
+            max(first_x, second_x) + line_width,
+            max(first_y, second_y) + line_width,
+            color,
+            alpha,
+        )
+    for x, y in resolved[1:-1]:
+        blend_rect(
+            pixels,
+            width,
+            height,
+            x - half_node,
+            y - half_node,
+            x + half_node,
+            y + half_node,
+            color,
+            min(1.0, alpha + 0.18),
+        )
+
+
+def active_border_stops(
+    value: str | None, fallback: tuple[int, int, int]
+) -> list[tuple[tuple[int, int, int], float]]:
+    """RGB stops and opacity from an Omarchy active-border declaration."""
+    stops = []
+    for rgb, opacity in re.findall(r"(?:#|rgba\()?([0-9a-fA-F]{6})([0-9a-fA-F]{2})?", value or ""):
+        stops.append((channels(rgb), int(opacity, 16) / 255 if opacity else 1.0))
+    return stops or [(fallback, 1.0)]
+
+
+def draw_active_border(
+    pixels: bytearray,
+    canvas_width: int,
+    canvas_height: int,
+    left: int,
+    top: int,
+    window_width: int,
+    window_height: int,
+    stops: list[tuple[tuple[int, int, int], float]],
+) -> None:
+    """Draw the theme's active-window cue immediately outside a capture."""
+    thickness = max(3, round(canvas_width / 900))
+    right, bottom = left + window_width, top + window_height
+
+    def paint(box: tuple[int, int, int, int]) -> None:
+        box_left, box_top, box_right, box_bottom = box
+        for row in range(max(0, box_top), min(canvas_height, box_bottom)):
+            for column in range(max(0, box_left), min(canvas_width, box_right)):
+                position = ((column - left) + (row - top)) / (window_width + window_height)
+                position = max(0.0, min(1.0, position))
+                scaled = position * (len(stops) - 1)
+                first = min(int(scaled), len(stops) - 1)
+                second = min(first + 1, len(stops) - 1)
+                amount = scaled - first
+                color = tuple(
+                    round(stops[first][0][channel] * (1.0 - amount) + stops[second][0][channel] * amount)
+                    for channel in range(3)
+                )
+                alpha = stops[first][1] * (1.0 - amount) + stops[second][1] * amount
+                at = (row * canvas_width + column) * 3
+                for channel in range(3):
+                    pixels[at + channel] = round(
+                        pixels[at + channel] * (1.0 - alpha) + color[channel] * alpha
+                    )
+
+    paint((left - thickness, top - thickness, right + thickness, top))
+    paint((left - thickness, bottom, right + thickness, bottom + thickness))
+    paint((left - thickness, top, left, bottom))
+    paint((right, top, right + thickness, bottom))
 
 
 def clamp(value: float) -> int:
@@ -742,14 +853,28 @@ def build(
         captures[state] = target
 
     width, height, _ = read_png(captures["space"])
-    margin = round(width * MARGIN)
-    canvas = (width + margin * 2, height + margin * 2)
+    horizontal_margin = round(width * HORIZONTAL_MARGIN)
+    vertical_margin = round(height * VERTICAL_MARGIN)
+    canvas = (width + horizontal_margin * 2, height + vertical_margin * 2)
     ground = wallpaper(palette, *canvas)
     if blurred:
-        ground = blur(ground, *canvas, radius=max(2, round(canvas[0] / 90)))
+        softened = blur(bytearray(ground), *canvas, radius=max(2, round(canvas[0] / 90)))
+        for row in range(vertical_margin, vertical_margin + height):
+            start = (row * canvas[0] + horizontal_margin) * 3
+            end = start + width * 3
+            ground[start:end] = softened[start:end]
+    draw_active_border(
+        ground,
+        *canvas,
+        horizontal_margin,
+        vertical_margin,
+        width,
+        height,
+        active_border_stops(colors.get("hyprland_active_border"), channels(palette["accent"])),
+    )
 
     for state, capture in captures.items():
-        pixels = composite(capture, ground, canvas, (margin, margin))
+        pixels = composite(capture, ground, canvas, (horizontal_margin, vertical_margin))
         png = png_bytes(*canvas, pixels)
         write_webp(SHOTS / theme / f"{state}.webp", encoder, png)
         write_webp(

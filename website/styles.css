@@ -289,17 +289,6 @@ img {
   margin-top: var(--panel-padding);
 }
 
-.t-hero__product {
-  margin: calc(var(--panel-padding) * 2) 0 0;
-}
-.t-hero__product img {
-  display: block;
-  width: 100%;
-  height: auto;
-  border: 1px solid var(--line-quiet);
-  border-radius: var(--radius);
-}
-
 /* A state, not an action, so it stands beside the buttons rather than among
    them: the theme's urgent colour instead of its accent, because what it says
    is a caveat and not an invitation.
@@ -360,7 +349,24 @@ img {
 }
 
 .t-section {
+  position: relative;
+  isolation: isolate;
   padding-block: calc(var(--panel-padding) * 1.7);
+}
+.t-section::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset-block: 0;
+  left: 50%;
+  width: 100vw;
+  transform: translateX(-50%);
+}
+.t-section:nth-of-type(even)::before {
+  background: color-mix(in srgb, var(--fg) 2%, var(--bg));
+}
+.t-section:nth-of-type(odd)::before {
+  background: var(--bg);
 }
 .t-section__head {
   padding-bottom: var(--sp-xxl);
