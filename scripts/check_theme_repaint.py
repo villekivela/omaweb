@@ -121,6 +121,10 @@ def require_host() -> None:
 
 
 def main() -> int:
+    # Line buffered, because this changes the theme in force and a run that is
+    # killed has to have already printed the command that puts it back.
+    sys.stdout.reconfigure(line_buffering=True)
+
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--browser", default="build/dev/omaweb", help="the browser to drive")
     parser.add_argument(
