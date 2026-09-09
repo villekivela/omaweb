@@ -42,4 +42,17 @@ QUrl readLaunchUrl(const QStringList &arguments)
     return {};
 }
 
+bool readVersionRequest(const QStringList &arguments)
+{
+    // Only the long spelling. Chromium takes `-v` as a logging level and
+    // Omaweb hands it flags, so a single letter here would mean one thing to
+    // the browser and another to the engine behind it.
+    return arguments.mid(1).contains(QLatin1String("--version"));
+}
+
+QString versionReport(const QString &omaweb, const QString &engine, const QString &chromium)
+{
+    return QStringLiteral("Omaweb %1\nQtWebEngine %2, Chromium %3").arg(omaweb, engine, chromium);
+}
+
 } // namespace omaweb

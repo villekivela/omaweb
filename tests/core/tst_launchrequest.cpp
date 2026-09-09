@@ -3,6 +3,8 @@
 #include <QTest>
 
 using omaweb::readLaunchUrl;
+using omaweb::readVersionRequest;
+using omaweb::versionReport;
 
 class LaunchRequestTest final : public QObject {
     Q_OBJECT
@@ -13,6 +15,8 @@ private slots:
     void refusesASchemeThatIsNotTheWeb();
     void refusesAnArgumentThatIsNotAnAddress();
     void takesTheFirstAddressOnly();
+    void readsAVersionRequest();
+    void reportsTheBrowserAndTheEngine();
 };
 
 // Being the default browser is being run with an address, so this is the whole
@@ -71,6 +75,32 @@ void LaunchRequestTest::takesTheFirstAddressOnly()
     QCOMPARE(readLaunchUrl({QStringLiteral("omaweb"), QStringLiteral("https://first.example"),
                  QStringLiteral("https://second.example")}),
         QUrl(QStringLiteral("https://first.example")));
+}
+
+// A build that will not start is the one a bug report is about, so the switch
+// that names it has to be recognised before anything else reads the line.
+void LaunchRequestTest::readsAVersionRequest()
+{
+    QVERIFY(readVersionRequest({QStringLiteral("omaweb"), QStringLiteral("--version")}));
+    QVERIFY(!readVersionRequest({QStringLiteral("omaweb")}));
+    QVERIFY(!readVersionRequest({}));
+    // The program's own path is not an argument, so a browser installed at a
+    // path that happens to contain the switch does not answer with a version.
+    QVERIFY(!readVersionRequest({QStringLiteral("--version")}));
+    // `-v` is Chromium's logging level, and Omaweb hands it flags.
+    QVERIFY(!readVersionRequest({QStringLiteral("omaweb"), QStringLiteral("-v")}));
+    // Asking what this is and asking for a page are different questions, and
+    // the first one is the one being answered.
+    QVERIFY(readVersionRequest({QStringLiteral("omaweb"), QStringLiteral("https://example.com"),
+        QStringLiteral("--version")}));
+}
+
+void LaunchRequestTest::reportsTheBrowserAndTheEngine()
+{
+    const auto report = versionReport(QStringLiteral("0.2.0-7-gb718931"), QStringLiteral("6.11.2"),
+        QStringLiteral("151.0.7922.71"));
+    QCOMPARE(report,
+        QStringLiteral("Omaweb 0.2.0-7-gb718931\nQtWebEngine 6.11.2, Chromium 151.0.7922.71"));
 }
 
 QTEST_APPLESS_MAIN(LaunchRequestTest)
