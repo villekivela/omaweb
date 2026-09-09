@@ -76,14 +76,41 @@ def default_browser() -> str:
     return result.stdout.strip()
 
 
-def set_default_browser(entry: str) -> str:
+def session_holds_browser() -> bool:
+    """Whether a reader's own application would inherit `BROWSER`.
+
+    `xdg-settings` refuses to change anything while `BROWSER` is set, and
+    Omarchy exports it from its bash configuration — so a shell has it and the
+    session does not. An application the reader starts from their launcher
+    inherits the session's environment, so it never sees it, and Settings makes
+    Omaweb the default there without trouble.
+
+    A check that read its own shell would answer for a machine nobody is on.
+    This asks the session instead, and the answer decides whether the variable
+    is part of what is being tested or an artefact of running from a terminal.
+    """
+    result = subprocess.run(
+        ["systemctl", "--user", "show-environment"], capture_output=True, text=True, check=False
+    )
+    return any(line.startswith("BROWSER=") for line in result.stdout.splitlines())
+
+
+def set_default_browser(entry: str) -> tuple[str, bool]:
+    environment = dict(os.environ)
+    # Dropped only when the session does not have it, which is the environment
+    # the reader's own browser is started in. Left in place when the session
+    # does, because then the refusal is one a reader would meet too.
+    shell_only = "BROWSER" in environment and not session_holds_browser()
+    if shell_only:
+        del environment["BROWSER"]
     result = subprocess.run(
         ["xdg-settings", "set", "default-web-browser", entry],
         capture_output=True,
         text=True,
         check=False,
+        env=environment,
     )
-    return result.stderr.strip()
+    return result.stderr.strip(), shell_only
 
 
 def omaweb_windows() -> set[int]:
@@ -168,15 +195,20 @@ def main() -> int:
             )
         subprocess.run(["update-desktop-database", APPLICATIONS], capture_output=True, check=False)
 
-        complaint = set_default_browser(ENTRY_ID)
+        complaint, shell_only = set_default_browser(ENTRY_ID)
+        if shell_only:
+            print(
+                "note: BROWSER is set in this shell and not in the session, so it is dropped "
+                "for this check; a browser the reader starts does not inherit it"
+            )
         registered = default_browser()
         # `xdg-settings` refuses outright while `BROWSER` is set, and Omarchy
         # exports it. Naming it here because the tool's own message says what
         # it will not do without saying what a reader would have to change, and
         # Settings offers this through the same tool.
         because = ""
-        if registered != ENTRY_ID and os.environ.get("BROWSER"):
-            because = f"; BROWSER={os.environ['BROWSER']!r} is set in this session"
+        if registered != ENTRY_ID and session_holds_browser():
+            because = "; BROWSER is set in the session, which xdg-settings refuses to override"
         report.check(
             registered == ENTRY_ID,
             "Omaweb can be made the desktop's default browser",
