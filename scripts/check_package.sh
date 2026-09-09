@@ -22,6 +22,9 @@ fi
 echo "==> Building the package"
 mkdir -p "$work"
 cp "$repo_root/packaging/PKGBUILD" "$work/PKGBUILD"
+# makepkg reads the install file from the build directory, not from the
+# repository, so it has to travel with the PKGBUILD that names it.
+cp "$repo_root/packaging/omaweb-git.install" "$work/omaweb-git.install"
 # The published source is the repository on GitHub. A check has to build what is
 # in front of it instead, including work that has not been pushed.
 sed -i "s|^source=.*|source=(\"\$_pkgname::git+file://$repo_root#branch=$branch\")|" \
@@ -77,7 +80,7 @@ fi
 # Anything outside these is a file the package has no business owning.
 unexpected=$(printf '%s\n' "$contents" | grep -v '/$' \
     | grep -vE '^(usr/bin/|usr/lib/omaweb/|usr/share/(applications|icons|licenses|omaweb)/)' \
-    | grep -vE '^\.(PKGINFO|BUILDINFO|MTREE)$' || true)
+    | grep -vE '^\.(PKGINFO|BUILDINFO|MTREE|INSTALL)$' || true)
 if [ -n "$unexpected" ]; then
     echo "The package carries files it should not:" >&2
     printf '%s\n' "$unexpected" >&2
@@ -98,8 +101,18 @@ echo "written before the package existed" > "$witness"
 before=$(find /etc /usr/share/applications -type f 2>/dev/null | sort | md5sum)
 
 echo "==> Installing"
-pacman -U --noconfirm "$package"
+install_output=$(pacman -U --noconfirm "$package" 2>&1) || {
+    printf '%s\n' "$install_output" >&2
+    exit 1
+}
+printf '%s\n' "$install_output"
 [ -x /usr/bin/omaweb ] || { echo "omaweb is not installed" >&2; exit 1; }
+# The window rule is the one thing an Omarchy reader has to do by hand, so the
+# install has to say so. A silent install is the failure this catches.
+if ! printf '%s\n' "$install_output" | grep -q 'tag = "-default-opacity"'; then
+    echo "Installing did not print the Hyprland window rule" >&2
+    exit 1
+fi
 
 echo "==> Upgrading over itself"
 pacman -U --noconfirm "$package"

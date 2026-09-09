@@ -49,32 +49,42 @@ Qt to derive one — so the exemption is one line in `~/.config/hypr/looknfeel.l
 window's appearance belongs:
 
 ```lua
-o.window("omaweb", { tag = "-default-opacity", opacity = "1 1" })
+o.window("omaweb", { tag = "-default-opacity", opacity = "1.0 0.985" })
 ```
 
 Then `hyprctl reload`. That is the same shape Omarchy's own `default/hypr/apps/qemu.lua` uses to opt
 a window out.
 
-`1 1` rather than the `1.0 0.985` Omarchy gives Chromium and Firefox in `apps/browser.lua`: an
-unfocused browser there still washes its page by 1.5%, and a webpage viewport that is opaque only
-while focused is not opaque. Omaweb's own surfaces carry the translucency instead, where the theme
-can name it.
+`1.0 0.985` is the value Omarchy gives Chromium and Firefox in `apps/browser.lua`. The page is
+opaque while focused and washed 1.5% while not, which is what the desktop does to every other
+browser on it.
+
+The rule states that opacity rather than taking Omarchy's `chromium-based-browser` tag, which
+applies the same value. The tag carries more than opacity. `apps/pip.lua` matches it together with a
+`^Meet - .+` title and then floats, pins and shrinks the window to 600 by 338, and an Omaweb window
+is titled after its page, so a Meet call would collapse the browser into a corner overlay. The tag
+forces `tile = true` on every window as well, and it names an engine Omaweb is leaving (ADR 0001).
 
 Order is what makes it work. Omarchy's defaults tag every window, let their `apps/*.lua` opt out,
 and only then apply the opacity to whatever still carries the tag. A user override is loaded after
 all of that — `hyprland.lua` requires Omarchy's defaults before its own files — so the later
-`opacity = "1 1"` wins. Dropping the tag as well costs nothing and is what the defaults do.
+`opacity = "1.0 0.985"` wins. Dropping the tag as well costs nothing and is what the defaults do.
 
 The bottom of `~/.config/hypr/hyprland.lua` works as well, under the "Add any other personal
 Hyprland configuration below" comment it already carries. Either is loaded after Omarchy's defaults,
 which is all the rule needs.
 
+`packaging/omaweb-git.install` prints this rule after an install and after an upgrade, so a reader
+who never opens this file still meets it once.
+
 This is a rule the reader adds, not one Omaweb installs. Omaweb writes into
 `~/.config/omarchy/themed/` because that is a template directory a program is meant to render from;
 `~/.config/hypr/` is the reader's own window management, and a browser that quietly edited it would
-be doing something else entirely. Upstreaming a `default/hypr/apps/omaweb.lua` into Omarchy is the
-fix that would reach every install, and it depends on an external pull request. That is tracked in
-villekivela/omaweb#75, and waits on Omaweb being something an Omarchy user can install.
+be doing something else entirely. A `default/hypr/apps/omaweb.lua` upstream in Omarchy, carrying the
+same line, is the fix that would reach every install; Omarchy loads that directory with
+`require_all.files`, so the file needs no registration anywhere. It depends on an external pull
+request, tracked in villekivela/omaweb#75, and waits on Omaweb being something an Omarchy user can
+install.
 
 ## Blur behind the browser's surfaces
 

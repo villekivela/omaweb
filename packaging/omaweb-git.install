@@ -1,0 +1,27 @@
+# Omarchy applies a window opacity to every window, opaque pixels included, so
+# it reaches the webpage viewport Omaweb paints opaque. Only the reader can opt
+# out: the rule belongs in their own Hyprland configuration, and the directory
+# Omarchy keeps its own rules in is owned by the omarchy-settings package.
+# integrations/omarchy/README.md explains the mechanism.
+
+_window_rule_notice() {
+    cat <<'NOTICE'
+On Omarchy, Hyprland washes every window slightly, webpage included. To exempt
+Omaweb, add this to ~/.config/hypr/looknfeel.lua:
+
+    o.window("omaweb", { tag = "-default-opacity", opacity = "1.0 0.985" })
+
+then run `hyprctl reload`. See https://github.com/villekivela/omaweb/issues/75.
+NOTICE
+}
+
+post_install() {
+    _window_rule_notice
+}
+
+post_upgrade() {
+    # An upgrade repeats it because the rule is easy to lose to a configuration
+    # that gets rewritten, and because a reader who skipped it the first time
+    # has no other prompt.
+    _window_rule_notice
+}

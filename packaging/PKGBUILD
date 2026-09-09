@@ -49,6 +49,9 @@ optdepends=(
 )
 provides=("$_pkgname=$pkgver")
 conflicts=("$_pkgname")
+# Prints the Hyprland window rule an Omarchy reader has to add by hand. Omarchy
+# owns its own rule directory, so the package cannot install the rule itself.
+install="$pkgname.install"
 source=("$_pkgname::git+$url.git")
 sha256sums=('SKIP')
 
