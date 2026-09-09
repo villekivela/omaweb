@@ -2,6 +2,7 @@
 
 #include "HistoryQuery.h"
 
+#include <QDebug>
 #include <QDir>
 #include <QDirIterator>
 #include <QSqlError>
@@ -830,7 +831,11 @@ QSqlDatabase SqliteSessionStore::spaceDatabase(const QString &spaceId) const
     }
 
     const auto spaceRoot = QDir(m_dataRoot).filePath(QStringLiteral("spaces/%1").arg(spaceId));
-    QDir().mkpath(spaceRoot);
+    if (!QDir().mkpath(spaceRoot)) {
+        qWarning().noquote()
+            << QStringLiteral("Could not create Space directory: %1").arg(spaceRoot);
+        return {};
+    }
     const auto connectionName = QStringLiteral("%1-space-%2").arg(m_connectionName, spaceId);
     auto database = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), connectionName);
     // The file SpaceStorage names for this Space, opened in the directory this
