@@ -13,9 +13,12 @@ Two version strings leave the build, and they differ on purpose. `PROJECT_VERSIO
 count, which rises on every commit and never resets, which is what macOS expects of a build number
 and what `CFBundleVersion` comparisons rely on.
 
-While the major version is 0 the project is pre-alpha and the minor version carries breaking
-changes. A `!` in a commit subject before 1.0.0 therefore bumps the minor, not the major. The
-release workflow marks every `v0.*` tag as a prerelease on GitHub for the same reason.
+While the major version is 0 the minor version carries breaking changes. A `!` in a commit subject
+before 1.0.0 therefore bumps the minor, not the major. The release workflow marks every `v0.*` tag
+as a prerelease on GitHub for the same reason.
+
+A version number records what a build is compatible with, not how finished it is, so which milestone
+the project has reached is `docs/roadmap.md`'s to state rather than this decision's.
 
 Releases publish notes, the Arch package, and the inventory of what is in it.
 `scripts/release_notes.sh` groups the Conventional Commit subjects since the previous tag, which is

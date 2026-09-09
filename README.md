@@ -9,9 +9,9 @@ Linux with first-class Wayland support is the platform Omaweb ships on, and the 
 It also builds on macOS as a development platform; those bundles are never distributed. Pages are
 rendered by QtWebEngine.
 
-**Omaweb is pre-alpha.** It ships no phishing, malware, or download-reputation service, so a
-malicious address raises no warning ([ADR 0032](docs/adr/0032-ship-without-url-reputation.md)).
-Validation on real Linux hardware is still open
+**Omaweb is alpha.** It ships no phishing, malware, or download-reputation service, so a malicious
+address raises no warning ([ADR 0032](docs/adr/0032-ship-without-url-reputation.md)). Becoming the
+desktop's default browser is the one Wayland check still to be run on real hardware
 ([#103](https://github.com/villekivela/omaweb/issues/103)).
 
 ## Status
