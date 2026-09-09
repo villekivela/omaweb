@@ -1,6 +1,6 @@
 # Security policy
 
-Omaweb is pre-alpha. The sections below state what it verifies and what it leaves to the reader. Two
+Omaweb is alpha. The sections below state what it verifies and what it leaves to the reader. Two
 gaps are deliberate and not scheduled to close: Omaweb ships no phishing, malware, or
 download-reputation service ([ADR 0032](docs/adr/0032-ship-without-url-reputation.md)), and
 QtWebEngine's network service is not a sandboxed process of its own.

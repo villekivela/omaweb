@@ -6,22 +6,25 @@ platform integration the Wayland port carries, and a package to install it with.
 [#50](https://github.com/villekivela/omaweb/issues/50),
 [#8](https://github.com/villekivela/omaweb/issues/8), and every issue under them are closed.
 Validation on real Linux hardware ([#103](https://github.com/villekivela/omaweb/issues/103)) has
-run, and the release that carries the package is the last gate before daily-driver status.
+run, and [v0.2.0](https://github.com/villekivela/omaweb/releases/tag/v0.2.0) carries the package
+that proves it. Omaweb is alpha.
 
 The frameless window is Qt window flags rather than platform code, so it already works on Wayland,
 and blur behind the browser's transparent surfaces is the compositor's own. Notifications and
 printing now go through the desktop's own session-bus services, so `omaweb-platform` has nothing
-left that is macOS-only. What remains for Linux is the release.
+left that is macOS-only. The package ships, and what remains for Linux is what the release turns up.
 
 Blur is not a gate. On Linux the shader pass belongs to the compositor and Omaweb's part is asking
 for a transparent surface, which it does. There is nothing here for a validation run to judge.
 
-## Path to alpha
+## Alpha, and what answered it
 
 Alpha is the daily-driver contract holding on Linux, with a release that carries the package proving
-it. `CONTEXT.md` states the contract.
-[ADR 0028](adr/0028-derive-the-version-from-the-release-tag.md) keeps the project pre-alpha while
-the major version is 0, so every `v0.*` tag ships as a prerelease.
+it. `CONTEXT.md` states the contract, and
+[v0.2.0](https://github.com/villekivela/omaweb/releases/tag/v0.2.0) is the release.
+[ADR 0028](adr/0028-derive-the-version-from-the-release-tag.md) ships every `v0.*` tag as a
+prerelease while the major version is 0, which records what a build is compatible with rather than
+how finished it is.
 
 1. Run the Wayland validation sweep on real hardware, covering input, clipboard, IME, accessibility,
    and window movement ([#103](https://github.com/villekivela/omaweb/issues/103)). Answered by
