@@ -17,10 +17,19 @@ The browser under test is a second one, launched on a private session bus so it
 does not hand its arguments to the browser the reader already has open, and on
 throwaway data and configuration directories so it browses nothing of theirs.
 
-Two of #103's checks are deliberately not here. Moving and resizing the window
-by its frameless regions needs a pointer button, which Hyprland's dispatchers do
-not synthesise. Becoming the default browser changes the machine that runs the
-check. Both stay a person's, and the report says so.
+The frameless move and resize regions need a pointer, which arrives in two
+halves: Hyprland's own `hl.dsp.cursor.move` puts the cursor on an exact layout
+coordinate, and `ydotool` presses the button its dispatchers do not synthesise.
+Those checks are skipped, not failed, where ydotool is absent.
+
+Hyprland tiles, and a tiled window does not follow a pointer: `xdg_toplevel.move`
+and `.resize` are requests a tiling compositor answers as it sees fit. So the
+window under test is floated for those two checks and handed back to the layout
+afterwards. What is being judged is Omaweb's region, not the layout's policy.
+
+One of #103's checks is still deliberately not here. Becoming the default browser
+changes the machine that runs the check, so it stays a person's, and the report
+says so.
 
 Usage:
 
@@ -31,9 +40,11 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import io
 import json
 import os
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
@@ -44,6 +55,12 @@ import time
 SETTLE = 0.8
 # A page load crosses a process boundary and reads a file, so it gets its own.
 LOAD_SETTLE = 3.0
+# A pointer step is one compositor event rather than a command, so it settles
+# faster than a keystroke does.
+POINTER_SETTLE = 0.15
+# ydotool spells a left button press and release as these bits of one code.
+BUTTON_LEFT_DOWN = "0x40"
+BUTTON_LEFT_UP = "0x80"
 
 PROBE_PAGE = """<!doctype html>
 <meta charset="utf-8">
@@ -131,9 +148,11 @@ def set_clipboard(value: str) -> None:
 class Browser:
     """A second browser, its own session bus, its own throwaway directories."""
 
-    def __init__(self, executable: str, root: str) -> None:
+    def __init__(self, executable: str, root: str, protocol_log: str | None = None) -> None:
         self.executable = executable
         self.root = root
+        self.protocol_log = protocol_log
+        self.sink: io.TextIOWrapper | None = None
         self.process: subprocess.Popen | None = None
         self.pid = 0
 
@@ -141,14 +160,18 @@ class Browser:
         environment = dict(os.environ)
         environment["OMAWEB_DATA_ROOT"] = os.path.join(self.root, "data")
         environment["OMAWEB_CONFIG_ROOT"] = os.path.join(self.root, "config")
+        if self.protocol_log:
+            environment["WAYLAND_DEBUG"] = "1"
         # A private bus is what stops this handing its argument to the browser
         # the reader already has open and exiting, which is the whole of what
         # `RunningBrowser` is for and exactly wrong here.
+        sink = open(self.protocol_log, "w", encoding="utf-8") if self.protocol_log else None
+        self.sink = sink
         self.process = subprocess.Popen(
             ["dbus-run-session", "--", self.executable, url],
             env=environment,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+            stdout=sink or subprocess.DEVNULL,
+            stderr=subprocess.STDOUT if sink else subprocess.DEVNULL,
             start_new_session=True,
         )
         for _ in range(60):
@@ -203,20 +226,218 @@ class Browser:
         window = window_of(self.pid)
         return window["size"] if window else []
 
+    def position(self) -> list[int]:
+        window = window_of(self.pid)
+        return window["at"] if window else []
+
+    def floating(self) -> bool:
+        window = window_of(self.pid)
+        return bool(window.get("floating")) if window else False
+
+    def float_window(self) -> None:
+        dispatch(f'hl.dsp.window.float{{window="pid:{self.pid}"}}')
+        time.sleep(SETTLE)
+        self.settle()
+
+    def reshape(self, width: int, height: int) -> bool:
+        """Puts the window at an exact size, centred, and says whether it took.
+
+        The edges cannot be judged from whatever the layout happened to hand
+        the window. Floated, it tends to arrive at Omaweb's own minimum size,
+        where a drag inward is refused, and a window tiled across the output
+        arrives with its right and bottom edges on the screen's boundary,
+        where a drag outward is clamped. Neither reads as a failed resize.
+        """
+        window = f'window="pid:{self.pid}"'
+        dispatch(f"hl.dsp.window.resize{{x={width},y={height},exact=true,{window}}}")
+        dispatch(f"hl.dsp.window.center{{{window}}}")
+        time.sleep(SETTLE)
+        return self.settle() == [width, height]
+
+    def settle(self, tries: int = 20) -> list[int]:
+        """Waits for the geometry to stop changing, and returns it.
+
+        Leaving the layout is animated, so a size read straight afterwards is
+        a frame of that animation. An edge check that subtracted one of those
+        from the next would report the animation as its own result.
+        """
+        previous = self.size()
+        for _ in range(tries):
+            time.sleep(POINTER_SETTLE)
+            current = self.size()
+            if current and current == previous:
+                return current
+            previous = current
+        return previous
+
     def fullscreen(self) -> int:
         window = window_of(self.pid)
         return window.get("fullscreen", 0) if window else 0
+
+    def requests(self, name: str) -> int:
+        if not self.protocol_log or not os.path.exists(self.protocol_log):
+            return 0
+        with open(self.protocol_log, encoding="utf-8", errors="replace") as handle:
+            return sum(1 for line in handle if f"-> xdg_toplevel" in line and f".{name}(" in line)
 
     def alive(self) -> bool:
         return window_of(self.pid) is not None
 
     def stop(self) -> None:
-        if self.process and self.process.poll() is None:
-            self.process.terminate()
-            try:
-                self.process.wait(timeout=10)
-            except subprocess.TimeoutExpired:
-                self.process.kill()
+        """Ends the whole process group and waits for the window to go.
+
+        Terminating the launcher alone leaves the engine's own zygote and
+        renderer processes running, holding their memory and their window. On
+        a machine with a few gigabytes that is enough for the next browser
+        this script starts to be killed by the kernel instead of by us, so
+        this reaps the group and does not return while a window remains.
+        """
+        if self.process:
+            for stage in (signal.SIGTERM, signal.SIGKILL):
+                if self.process.poll() is not None and not self.alive():
+                    break
+                try:
+                    os.killpg(os.getpgid(self.process.pid), stage)
+                except (ProcessLookupError, PermissionError):
+                    pass
+                try:
+                    self.process.wait(timeout=10)
+                except subprocess.TimeoutExpired:
+                    pass
+                for _ in range(20):
+                    if not self.alive():
+                        break
+                    time.sleep(0.25)
+        if self.sink:
+            self.sink.close()
+            self.sink = None
+
+
+class Pointer:
+    """The cursor from Hyprland, the button from ydotool.
+
+    Hyprland's `cursor.move` takes a layout coordinate and lands on it exactly,
+    so nothing here has to know the output's scale. What it has no dispatcher
+    for is a button, which is the whole reason the frameless regions went
+    unchecked until now.
+    """
+
+    def __init__(self) -> None:
+        if shutil.which("ydotool") is None:
+            raise SessionError(
+                "ydotool is not installed, and a frameless region needs a button pressed"
+            )
+        self.to(0, 0)
+        if hyprctl("cursorpos") != "0, 0":
+            raise SessionError("Hyprland did not move the cursor, so a region cannot be pressed")
+
+    def to(self, x: float, y: float) -> None:
+        dispatch(f"hl.dsp.cursor.move{{x={round(x)},y={round(y)}}}")
+        time.sleep(POINTER_SETTLE)
+
+    def _button(self, code: str) -> None:
+        result = subprocess.run(["ydotool", "click", code], capture_output=True, text=True)
+        if result.returncode != 0:
+            # A daemon that is not running or a uinput module that is not
+            # loaded both land here, and neither is a failed check.
+            raise SessionError(f"ydotool could not press a button: {result.stderr.strip()}")
+        time.sleep(POINTER_SETTLE)
+
+    def drag(self, start: tuple[float, float], end: tuple[float, float], steps: int = 10) -> None:
+        self.to(*start)
+        self._button(BUTTON_LEFT_DOWN)
+        try:
+            # Stepped rather than jumped: one large motion can arrive before
+            # the press is handled, and a grab that has not begun ignores it.
+            for step in range(1, steps + 1):
+                fraction = step / steps
+                self.to(
+                    start[0] + (end[0] - start[0]) * fraction,
+                    start[1] + (end[1] - start[1]) * fraction,
+                )
+        finally:
+            self._button(BUTTON_LEFT_UP)
+        time.sleep(SETTLE)
+
+
+def check_window_moves_by_its_region(browser: Browser, report: Report, pointer: Pointer) -> None:
+    """The move region is judged by the request it sends, not by the window.
+
+    Hyprland's interactive move follows relative pointer motion, and a cursor
+    put on a coordinate is a warp with no deltas behind it, so the window sits
+    still however faithfully the region fires. Its resize grab reads the
+    cursor's absolute position instead, which is why the edges below can be
+    judged by the size and this cannot be judged by the position. What belongs
+    to Omaweb either way is the request, so that is what this reads.
+    """
+    # The strip is inset by the outline's own margin and has a button row
+    # anchored at each end. The gap between those rows is what a reader grabs.
+    at = browser.position()
+    before = browser.requests("move")
+    pointer.drag((at[0] + 130, at[1] + 26), (at[0] + 290, at[1] + 146))
+    sent = browser.requests("move") - before
+    report.check(
+        sent > 0,
+        "a drag on the sidebar's navigation strip asks the compositor to move the window",
+        f"xdg_toplevel.move sent {sent}x" if sent else "no xdg_toplevel.move was sent",
+    )
+
+
+def check_window_resizes_by_its_edges(browser: Browser, report: Report, pointer: Pointer) -> None:
+    # Each edge is a five-pixel strip, so the grab sits two pixels in: on the
+    # edge itself the compositor's own border takes the press first.
+    inset = 2
+    # Every drag pushes the edge outward, from a window `reshape` has already
+    # given room to grow into on all four sides.
+    travel = 80
+    for edge, grab, shift in (
+        ("right", lambda a, s: (a[0] + s[0] - 1 - inset, a[1] + s[1] / 2), (travel, 0)),
+        ("bottom", lambda a, s: (a[0] + s[0] / 2, a[1] + s[1] - 1 - inset), (0, travel)),
+        ("left", lambda a, s: (a[0] + inset, a[1] + s[1] / 2), (-travel, 0)),
+        ("top", lambda a, s: (a[0] + s[0] / 2, a[1] + inset), (0, -travel)),
+    ):
+        size = browser.settle()
+        at = browser.position()
+        if not at or not size:
+            report.check(False, f"the {edge} edge resizes the window", "the window went away")
+            return
+        start = grab(at, size)
+        pointer.drag(start, (start[0] + shift[0], start[1] + shift[1]))
+        after = browser.settle()
+        axis = 0 if shift[0] else 1
+        report.check(
+            bool(after) and abs(after[axis] - size[axis] - travel) <= 2,
+            f"the {edge} edge resizes the window",
+            f"{size} to {after}",
+        )
+
+
+def check_frameless_regions(browser: Browser, report: Report) -> None:
+    try:
+        pointer = Pointer()
+    except SessionError as error:
+        print(f"skipped: {error}")
+        return
+
+    # A tiled window is placed by the layout and does not follow a pointer, so
+    # the drag would test Hyprland's tiling policy rather than Omaweb's region.
+    tiled = not browser.floating()
+    if tiled:
+        browser.float_window()
+    if not browser.floating():
+        print("skipped: the window under test could not be floated, and a tiled one cannot move")
+        return
+    try:
+        check_window_moves_by_its_region(browser, report, pointer)
+        # Comfortably above Omaweb's own 840x560 minimum and well inside the
+        # output, so all four edges have somewhere to travel.
+        if browser.reshape(1200, 900):
+            check_window_resizes_by_its_edges(browser, report, pointer)
+        else:
+            print(f"skipped: the window would not take a known size, and it is {browser.size()}")
+    finally:
+        if tiled and browser.alive():
+            browser.float_window()
 
 
 class Report:
@@ -395,14 +616,26 @@ def main() -> int:
     finally:
         if not arguments.keep:
             browser.stop()
+
+    # A browser of its own, because the move region is judged by the protocol
+    # and WAYLAND_DEBUG over the sweep above would be a log nobody can read.
+    regions = Browser(arguments.browser, root, protocol_log=os.path.join(root, "protocol.log"))
+    try:
+        regions.start(pages["probe"])
+        regions.focus()
+        check_frameless_regions(regions, report)
+    except SessionError as error:
+        print(f"skipped: {error}")
+    finally:
+        if not arguments.keep:
+            regions.stop()
             shutil.rmtree(root, ignore_errors=True)
 
     print()
     for command, reason in sorted(UNSWEPT.items()):
         print(f"not sent: {command} — {reason}")
-    print("not checked here: moving and resizing the window by its frameless regions, which")
-    print("                  needs a pointer button no dispatcher synthesises, and becoming")
-    print("                  the default browser, which changes the machine running the check")
+    print("not checked here: becoming the default browser, which changes the machine")
+    print("                  running the check")
 
     failed = report.failed()
     print(f"\n{len(report.results) - failed} passed, {failed} failed")
