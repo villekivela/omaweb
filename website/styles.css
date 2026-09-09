@@ -250,11 +250,11 @@ img {
   font-weight: 700;
 }
 
-/* Padding above only. The section below sets the space between itself and
-   whatever precedes it, and the hero adding its own on top of that doubled
-   the gap. */
+/* Leave a short run of the page background below the hero before section 01
+   begins its full-width band. */
 .t-hero {
-  padding-block: clamp(var(--panel-padding), 5vw, calc(var(--panel-padding) * 3)) 0;
+  padding-block: clamp(var(--panel-padding), 5vw, calc(var(--panel-padding) * 3))
+    var(--panel-padding);
 }
 .t-hero h1 {
   max-width: 26ch;
