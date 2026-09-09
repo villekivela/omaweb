@@ -6,6 +6,7 @@
 
 #include <QDir>
 #include <QDirIterator>
+#include <QFile>
 #include <QTemporaryDir>
 #include <QTest>
 
@@ -73,6 +74,7 @@ private slots:
     void adaptersAnswerASitePermissionTheyWereGiven();
     void adaptersAnswerASitePermissionTheyWereGiven_data();
     void aRecordingStoreKeepsItsSessionAcrossAReopen();
+    void aRecordingStoreRetriesCreatingASpaceDirectory();
     void aPrivateStoreLeavesTheRootItWasGivenEmpty();
     void aPrivateStoreSharesItsDecisionsWithTheSession();
 
@@ -234,6 +236,29 @@ void SessionStoreTest::aRecordingStoreKeepsItsSessionAcrossAReopen()
     QCOMPARE(reopened.loadSpaces().size(), 1);
     QCOMPARE(reopened.loadTabs(spaceId()).size(), 1);
     QCOMPARE(reopened.preference(QStringLiteral("sidebar-width")), QStringLiteral("280"));
+}
+
+void SessionStoreTest::aRecordingStoreRetriesCreatingASpaceDirectory()
+{
+    QTemporaryDir root;
+    SqliteSessionStore store(root.path());
+    QVERIFY(store.open());
+
+    const auto spacesPath = root.filePath(QStringLiteral("spaces"));
+    QFile blocking(spacesPath);
+    QVERIFY(blocking.open(QIODevice::WriteOnly));
+    blocking.close();
+
+    const auto spacePath = root.filePath(QStringLiteral("spaces/space-1"));
+    QTest::ignoreMessage(QtWarningMsg,
+        qPrintable(QStringLiteral("Could not create Space directory: %1").arg(spacePath)));
+    QVERIFY(
+        !store.saveTab(makeTab(QStringLiteral("tab-1"), QStringLiteral("https://a.example")), 0));
+
+    QVERIFY(blocking.remove());
+    QVERIFY(
+        store.saveTab(makeTab(QStringLiteral("tab-1"), QStringLiteral("https://a.example")), 0));
+    QCOMPARE(store.loadTabs(spaceId()).size(), 1);
 }
 
 // The claim the guards used to make one call site at a time.
