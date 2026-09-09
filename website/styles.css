@@ -69,12 +69,12 @@ body {
      generated into themes.css from its Omarchy theme's own colors.toml,
      and index.html names the default on <body>. These are the default
      theme's values, kept here so the page is never unpainted. */
-  --bg: #090a0e;
-  --sidebar: #0d0f14;
-  --fg: #d8dbe3;
-  --accent: #9aa3ad;
-  --urgent: #7a2e2e;
-  --muted: #929ca6;
+  --bg: #06060c;
+  --sidebar: #080910;
+  --fg: #ddf7ff;
+  --accent: #82fb9c;
+  --urgent: #50f872;
+  --muted: #6a6e95;
 
   /* State tokens. Kit alphas exactly, including the hover border
      dropping BELOW normal (0.25 vs 0.40). */
@@ -287,6 +287,17 @@ img {
   align-items: center;
   gap: var(--sp-xxl);
   margin-top: var(--panel-padding);
+}
+
+.t-hero__product {
+  margin: calc(var(--panel-padding) * 2) 0 0;
+}
+.t-hero__product img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--line-quiet);
+  border-radius: var(--radius);
 }
 
 /* A state, not an action, so it stands beside the buttons rather than among

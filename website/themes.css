@@ -6,6 +6,15 @@
  * ground they sit on. Re-run the script to pick up an upstream change.
  */
 
+body[data-theme="hackerman"] {
+  --bg: #06060c;
+  --sidebar: #080910;
+  --fg: #ddf7ff;
+  --accent: #82fb9c;
+  --urgent: #50f872;
+  --muted: #6a6e95;
+}
+
 body[data-theme="oligarchy"] {
   --bg: #090a0e;
   --sidebar: #0d0f14;

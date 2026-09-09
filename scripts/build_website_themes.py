@@ -109,6 +109,7 @@ THEME_DIRECTORIES = [
 # The themes the site offers, in the order it offers them. The first is the
 # default: the one the page comes up in and the one its favicon is.
 THEMES = [
+    ("hackerman", "Hackerman"),
     ("oligarchy", "Oligarchy"),
     ("tokyo-night", "Tokyo Night"),
     ("catppuccin", "Catppuccin"),
@@ -647,7 +648,7 @@ def favicon(palette: dict) -> str:
     shipping six copies of one palette.
     """
     source = APPLICATION_ICON.read_text(encoding="utf-8")
-    ground, mark = "#1a1b26", "#c0caf5"
+    ground, mark = "#06060c", "#82fb9c"
     for color in (ground, mark):
         if color not in source:
             raise SystemExit(f"{APPLICATION_ICON} no longer draws {color}")
