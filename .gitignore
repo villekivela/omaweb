@@ -9,3 +9,13 @@ compile_commands.json
 Testing/
 /third_party/content-blocker/target/
 __pycache__/
+
+# What `makepkg` leaves in `packaging/`, which is where the README tells a
+# reader to run it. `src` is its build tree and `omaweb` the clone it makes of
+# this repository to build from, so a checkout that has built the package once
+# holds a second copy of itself and several hundred megabytes besides.
+/packaging/src/
+/packaging/pkg/
+/packaging/omaweb/
+/packaging/*.pkg.tar.*
+/packaging/*.log
