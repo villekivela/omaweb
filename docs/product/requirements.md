@@ -77,6 +77,10 @@ reports the gap and remains experimental rather than imitating behavior it canno
   keeps the browsing identity visible. Hiding or showing the sidebar eases the seam and the page
   travels with it, keeping one width for the whole movement: the page lays out once rather than at
   every width the seam crosses, and the sidebar's rows keep their own width as it goes.
+- The floating controls and the eased seam are defaults rather than fixtures. Settings' interface
+  section turns each off: without the floating controls a hidden sidebar leaves the page the whole
+  window, and without the ease the seam and the page arrive at their settled widths in one step.
+  Both survive a restart, and the keys that hide and show the sidebar work the same either way.
 - The sidebar's width belongs to the reader. The seam between it and the page drags, and
   `Primary+Shift+]` and `Primary+Shift+[` move that same seam from the keyboard, so a resize never
   depends on a pointer. The width is clamped so a tab row stays readable and the page keeps at least

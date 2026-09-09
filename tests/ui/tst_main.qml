@@ -49,7 +49,7 @@ TestCase {
                 property string errorMessage: reportingSettings.report
             }
             open: true
-            section: 1
+            section: sections.indexOf("keyboard")
             width: 900
             height: 700
         }
@@ -65,7 +65,7 @@ TestCase {
             iconFontFamily: ""
             browser: testCase.browserController
             open: true
-            section: 6
+            section: sections.indexOf("privacy")
             width: 900
             height: 700
         }
@@ -3082,9 +3082,17 @@ TestCase {
         });
     }
 
+    // The rail names its sections; their order is the page's to change. A test
+    // that wants one asks for it by name, so adding a section never sends a
+    // test to the page next door.
+    function railSection(name) {
+        const surface = findChild(window.contentItem, "settingsSurface");
+        return findChild(window.contentItem, "settingsSection" + surface.sections.indexOf(name));
+    }
+
     function test_settingsAboutNamesTheVersion() {
         window.requestSettings();
-        const aboutSection = findChild(window.contentItem, "settingsSection7");
+        const aboutSection = railSection("about");
         verify(aboutSection !== null);
         compare(aboutSection.text.toLowerCase(), "about");
 
@@ -3111,8 +3119,8 @@ TestCase {
 
     function test_settingsOwnSearchAndBrowsingDataControls() {
         window.requestSettings();
-        const searchSection = findChild(window.contentItem, "settingsSection5");
-        const dataSection = findChild(window.contentItem, "settingsSection6");
+        const searchSection = railSection("search");
+        const dataSection = railSection("privacy");
         verify(searchSection !== null);
         verify(dataSection !== null);
         compare(searchSection.text.toLowerCase(), "search");
@@ -3159,7 +3167,7 @@ TestCase {
     function readyForBrowsingData() {
         findChild(window.contentItem, "settingsSurface").clearDataOpen = false;
         window.requestSettings();
-        findChild(window.contentItem, "settingsSection6").Accessible.pressAction();
+        railSection("privacy").Accessible.pressAction();
     }
 
     function leaveBrowsingData() {
@@ -3761,6 +3769,86 @@ TestCase {
         compare(browser.preference("tint-favicons", "false"), "false");
     }
 
+    // The strip stands in for the sidebar by default, and a reader who wants
+    // the page to have the window keeps the keys that hide the sidebar either
+    // way: refusing the strip refuses the strip, not the state it belongs to.
+    function test_theFloatingControlsCanBeRefused() {
+        window.settingsOpen = false;
+        window.sidebarCollapsed = false;
+        const cluster = findChild(window.contentItem, "navigationCluster");
+        const floatingControls = findChild(window.contentItem, "floatingControls");
+        verify(cluster !== null);
+        verify(floatingControls !== null);
+        compare(window.floatingControls, true);
+
+        window.sidebarCollapsed = true;
+        tryVerify(function () {
+            return cluster.visible;
+        });
+
+        floatingControls.clicked();
+        compare(window.floatingControls, false);
+        compare(browser.preference("floating-controls", "true"), "false");
+        verify(!cluster.visible);
+        // The sidebar still answers, so the reader is not shut out of the
+        // state they are in.
+        verify(window.commands.run("toggle-sidebar", -1));
+        tryVerify(function () {
+            return !window.sidebarCollapsed;
+        });
+
+        floatingControls.clicked();
+        compare(window.floatingControls, true);
+        compare(browser.preference("floating-controls", "true"), "true");
+    }
+
+    // The ease is a movement the reader can decline. Declined, the seam is
+    // where it settles in the frame the sidebar was hidden in rather than
+    // somewhere along the way, and the page is laid out once as it always is.
+    function test_theSidebarEaseCanBeRefused() {
+        window.settingsOpen = false;
+        window.historyOpen = false;
+        window.sidebarCollapsed = false;
+        window.setSidebarWidth(window.sidebarDefaultWidth);
+        const sidebar = findChild(window.contentItem, "sidebar");
+        const viewport = findChild(window.contentItem, "engineViewport");
+        const easeSidebar = findChild(window.contentItem, "easeSidebar");
+        verify(sidebar !== null);
+        verify(viewport !== null);
+        verify(easeSidebar !== null);
+        compare(window.easeSidebar, true);
+        tryVerify(function () {
+            return Math.round(sidebar.x) === 0 && Math.round(viewport.x)
+                    === window.sidebarDefaultWidth;
+        });
+        const row = Math.round(sidebar.x + sidebar.width + viewport.width);
+
+        easeSidebar.clicked();
+        compare(window.easeSidebar, false);
+        compare(browser.preference("ease-sidebar", "true"), "false");
+
+        viewportWidthSpy.target = viewport;
+        viewportWidthSpy.clear();
+        verify(window.commands.run("toggle-sidebar", -1));
+        // No sample to catch mid-slide: the seam is already at the end of one.
+        verify(!sidebar.visible);
+        compare(Math.round(viewport.x), 0);
+        compare(Math.round(viewport.width), row);
+        compare(viewportWidthSpy.count, 1);
+
+        viewportWidthSpy.clear();
+        verify(window.commands.run("toggle-sidebar", -1));
+        verify(sidebar.visible);
+        compare(Math.round(sidebar.x), 0);
+        compare(Math.round(viewport.x), window.sidebarDefaultWidth);
+        compare(viewportWidthSpy.count, 1);
+        viewportWidthSpy.target = null;
+
+        easeSidebar.clicked();
+        compare(window.easeSidebar, true);
+        compare(browser.preference("ease-sidebar", "true"), "true");
+    }
+
     // Changing a default must not change an answer someone already gave. A
     // reader who turned tinting on while it was still the default comes back to
     // it on, and the stored answer is what the window reads rather than the
@@ -4295,7 +4383,7 @@ TestCase {
         verify(runtimeId.length > 0);
         window.settingsOpen = true;
         const settings = findChild(window.contentItem, "settingsSurface");
-        settings.section = 4;
+        settings.section = settings.sections.indexOf("downloads");
         // The list is the model itself, so the row is there without anyone
         // asking for it.
         tryCompare(window.downloads, "count", 1);
@@ -4382,7 +4470,7 @@ TestCase {
     function test_settingsSeparatesRendererIsolationFromTheNetworkService() {
         window.settingsOpen = true;
         const settings = findChild(window.contentItem, "settingsSurface");
-        settings.section = 6;
+        settings.section = settings.sections.indexOf("privacy");
         const renderer = findChild(settings, "rendererIsolationRow");
         const network = findChild(settings, "networkServiceRow");
         const baseline = findChild(settings, "securityBaselineRow");

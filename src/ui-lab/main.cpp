@@ -257,7 +257,7 @@ int main(int argc, char *argv[])
     // press. Naming the state is how the lab reviews them.
     //
     // A state is a list of properties rather than one flag, because settings is
-    // eight sections deep and a section can have a dialog standing over it. An
+    // many sections deep and a section can have a dialog standing over it. An
     // empty object name means the window; anything else is found by the name
     // the surface already carries, so naming a state costs the browser nothing.
     // "settings" alone still opens the page on whatever section it was left on.
@@ -280,8 +280,8 @@ int main(int argc, char *argv[])
         const auto requested = arguments.at(showIndex + 1);
         auto *root = engine.rootObjects().constFirst();
 
-        // Settings is eight sections deep, and a review of its layout wants a
-        // capture of each. The rail's own list is what names them, so the
+        // Settings has a section for each part of the browser, and a review of
+        // its layout wants a capture of each. The rail's own list is what names them, so the
         // section is looked up there rather than written down again here:
         // adding a section, or moving one, cannot leave the lab pointing at
         // the wrong page. `settings:privacy:clear` still stands the dialog on

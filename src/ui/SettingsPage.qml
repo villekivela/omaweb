@@ -31,6 +31,8 @@ Rectangle {
     }
     property bool useFavicons: true
     property bool tintFavicons: false
+    property bool floatingControls: true
+    property bool easeSidebar: true
     property var engines: []
     // Every tab still running for a Space that is not on show, and what each
     // costs. A retained tab is a renderer the reader cannot see, so the browser
@@ -63,8 +65,8 @@ Rectangle {
     // findable from outside it.
     readonly property bool needsAttention: keyboardReport.length > 0 || inputMethodMissing
 
-    readonly property var sections: ["tabs", "keyboard", "content blocking", "network", "downloads",
-        "search", "privacy", "about"]
+    readonly property var sections: ["tabs", "interface", "keyboard", "content blocking", "network",
+        "downloads", "search", "privacy", "about"]
 
     // The rail is as wide as the longest section name it draws, measured in the
     // bold face the current section takes so the pane beside it does not shift
@@ -193,6 +195,8 @@ Rectangle {
     signal retainedTabReleased(string tabId)
     signal useFaviconsToggled(bool enabled)
     signal tintFaviconsToggled(bool enabled)
+    signal floatingControlsToggled(bool enabled)
+    signal easeSidebarToggled(bool enabled)
 
     visible: open
     // Settings is a place over the page rather than instead of it, so the page
@@ -508,11 +512,41 @@ Rectangle {
                     }
                 }
 
-                // ---- keyboard ----------------------------------------------
+                // ---- interface ---------------------------------------------
 
                 Column {
                     width: pane.width
                     visible: root.section === 1
+                    spacing: pane.spacing
+
+                    SettingToggle {
+                        objectName: "floatingControls"
+                        width: pane.width
+                        colors: root.colors
+                        title: "Floating controls"
+                        note: "With the sidebar hidden, keep the navigation controls over the page. When off, a hidden sidebar leaves the page the whole window."
+                        accessibleName: "Floating controls"
+                        checked: root.floatingControls
+                        onClicked: root.floatingControlsToggled(!checked)
+                    }
+
+                    SettingToggle {
+                        objectName: "easeSidebar"
+                        width: pane.width
+                        colors: root.colors
+                        title: "Ease the sidebar"
+                        note: "Slide the sidebar and the page as the sidebar is hidden or shown. When off, both arrive at once."
+                        accessibleName: "Ease the sidebar"
+                        checked: root.easeSidebar
+                        onClicked: root.easeSidebarToggled(!checked)
+                    }
+                }
+
+                // ---- keyboard ----------------------------------------------
+
+                Column {
+                    width: pane.width
+                    visible: root.section === 2
                     spacing: pane.spacing
 
                     SettingToggle {
@@ -566,7 +600,7 @@ Rectangle {
 
                 Column {
                     width: pane.width
-                    visible: root.section === 2
+                    visible: root.section === 3
                     spacing: pane.spacing
 
                     SettingToggle {
@@ -586,7 +620,7 @@ Rectangle {
                     }
 
                     Repeater {
-                        model: root.section === 2 ? root.subscriptions : []
+                        model: root.section === 3 ? root.subscriptions : []
 
                         SettingToggle {
                             required property var modelData
@@ -767,7 +801,7 @@ Rectangle {
 
                 Column {
                     width: pane.width
-                    visible: root.section === 3
+                    visible: root.section === 4
                     spacing: 0
 
                     SettingRow {
@@ -810,7 +844,7 @@ Rectangle {
 
                 Column {
                     width: pane.width
-                    visible: root.section === 4
+                    visible: root.section === 5
                     spacing: 0
 
                     SettingRow {
@@ -831,7 +865,7 @@ Rectangle {
                     }
 
                     Repeater {
-                        model: root.section === 4 ? root.downloads : null
+                        model: root.section === 5 ? root.downloads : null
 
                         SettingRow {
                             id: downloadRow
@@ -917,7 +951,7 @@ Rectangle {
 
                 Column {
                     width: pane.width
-                    visible: root.section === 5
+                    visible: root.section === 6
                     spacing: pane.spacing
 
                     Column {
@@ -927,7 +961,7 @@ Rectangle {
                         Repeater {
                             id: searchEngineList
                             objectName: "searchEngineList"
-                            model: root.section === 5 ? root.engines : []
+                            model: root.section === 6 ? root.engines : []
 
                             SettingRow {
                                 required property var modelData
@@ -1059,7 +1093,7 @@ Rectangle {
 
                 Column {
                     width: pane.width
-                    visible: root.section === 6
+                    visible: root.section === 7
                     spacing: 0
 
                     // The section is named for what it will hold rather than
@@ -1140,7 +1174,7 @@ Rectangle {
 
                 Column {
                     width: pane.width
-                    visible: root.section === 7
+                    visible: root.section === 8
                     spacing: pane.spacing
 
                     Text {
