@@ -44,6 +44,12 @@ from omaweb_session import (
     require_session,
 )
 
+# The name the running browser claims, and the one a second launch looks for.
+BUS_NAME = "dev.omaweb.browser"
+# A launcher that blocks until the browser it started exits would otherwise
+# hold this run open for as long as that browser lives.
+OPEN_TIMEOUT = 30.0
+
 APPLICATIONS = os.path.expanduser("~/.local/share/applications")
 ENTRY = os.path.join(APPLICATIONS, "omaweb-under-test.desktop")
 # The entry's own name, which is what xdg-settings takes and reports.
@@ -84,20 +90,40 @@ def omaweb_windows() -> set[int]:
     return {client["pid"] for client in clients() if client.get("class") == "omaweb"}
 
 
+def bus_name_held() -> bool:
+    result = subprocess.run(
+        ["busctl", "--user", "list", "--no-legend"], capture_output=True, text=True, check=False
+    )
+    return any(line.split()[:1] == [BUS_NAME] for line in result.stdout.splitlines() if line)
+
+
 def require_host() -> None:
     if os.environ.get("OMAWEB_DEFAULT_BROWSER_CHECK_ALLOW_HOST") != "1":
         raise SessionError(
             "this changes the desktop's default browser while it runs; "
             "set OMAWEB_DEFAULT_BROWSER_CHECK_ALLOW_HOST=1 to allow it"
         )
-    for tool in ("xdg-settings", "xdg-open"):
+    for tool in ("xdg-settings", "xdg-open", "busctl"):
         if shutil.which(tool) is None:
             raise SessionError(f"{tool} is not installed")
+    # The browser under test has to be the one that claims the desktop's name,
+    # and only the first to ask gets it. With the reader's own Omaweb running,
+    # the link under test would be handed to theirs: a tab would open in the
+    # browser they are reading, and this would report a pass for it.
+    if bus_name_held():
+        raise SessionError(
+            f"an Omaweb already holds {BUS_NAME}; close it, "
+            "because this check has to be the browser that answers"
+        )
     if os.path.exists(ENTRY):
         raise SessionError(f"{ENTRY} is already there, and this will not overwrite it")
 
 
 def main() -> int:
+    # Line buffered, because this changes the machine and a run that is killed
+    # has to have already printed how far it got and what it had changed.
+    sys.stdout.reconfigure(line_buffering=True)
+
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--browser", default="build/dev/omaweb", help="the browser to drive")
     arguments = parser.parse_args()
@@ -127,7 +153,9 @@ def main() -> int:
         handle.write(PROBE_PAGE)
 
     report = Report()
-    browser = Browser(arguments.browser, root)
+    # On the session bus rather than a private one: the handover is the thing
+    # being tested, and it happens over the bus the desktop uses.
+    browser = Browser(arguments.browser, root, private_bus=False)
     try:
         os.makedirs(APPLICATIONS, exist_ok=True)
         with open(ENTRY, "w", encoding="utf-8") as handle:
@@ -142,11 +170,19 @@ def main() -> int:
 
         complaint = set_default_browser(ENTRY_ID)
         registered = default_browser()
+        # `xdg-settings` refuses outright while `BROWSER` is set, and Omarchy
+        # exports it. Naming it here because the tool's own message says what
+        # it will not do without saying what a reader would have to change, and
+        # Settings offers this through the same tool.
+        because = ""
+        if registered != ENTRY_ID and os.environ.get("BROWSER"):
+            because = f"; BROWSER={os.environ['BROWSER']!r} is set in this session"
         report.check(
             registered == ENTRY_ID,
             "Omaweb can be made the desktop's default browser",
             f"xdg-settings reports {registered!r}"
-            + (f", saying {complaint!r}" if complaint else ""),
+            + (f", saying {complaint!r}" if complaint else "")
+            + because,
         )
 
         browser.start(f"file://{page}")
@@ -157,18 +193,35 @@ def main() -> int:
 
         # The link a reader clicks elsewhere. `xdg-open` is what those
         # applications call, so it is what this calls rather than the browser.
-        subprocess.run(
-            ["xdg-open", f"file://{page}?opened-elsewhere"], capture_output=True, check=False
-        )
+        #
+        # Bounded, because a launcher waits for what it started: if the
+        # handover fails, the second browser runs until something stops it and
+        # `xdg-open` does not return until then. That timeout is a result
+        # rather than an error, so it is recorded and the checks below still
+        # read what actually happened.
+        launcher_returned = True
+        try:
+            subprocess.run(
+                ["xdg-open", f"file://{page}?opened-elsewhere"],
+                capture_output=True,
+                check=False,
+                timeout=OPEN_TIMEOUT,
+            )
+        except subprocess.TimeoutExpired:
+            launcher_returned = False
         time.sleep(LOAD_SETTLE * 2)
         after = omaweb_windows()
-        report.check(
-            after == before,
-            "a link from another application reaches the running browser",
-            f"pid {sorted(before)} answered it"
-            if after == before
-            else f"pid {sorted(before)} became {sorted(after)}, so a second browser started",
-        )
+        detail = f"pid {sorted(before)} answered it"
+        if after != before:
+            detail = f"pid {sorted(before)} became {sorted(after)}, so a second browser started"
+        elif not launcher_returned:
+            detail = f"xdg-open did not return within {OPEN_TIMEOUT:.0f}s"
+        report.check(after == before and launcher_returned,
+            "a link from another application reaches the running browser", detail)
+        # Whatever the launcher started that did not hand over is this check's
+        # to end, or it outlives the run holding the desktop's name.
+        for pid in sorted(after - before):
+            subprocess.run(["kill", "-TERM", str(pid)], capture_output=True, check=False)
     except SessionError as error:
         print(f"skipped: {error}")
         return 0

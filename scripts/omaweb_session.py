@@ -134,10 +134,23 @@ def set_clipboard(value: str) -> None:
 class Browser:
     """A second browser, its own session bus, its own throwaway directories."""
 
-    def __init__(self, executable: str, root: str, protocol_log: str | None = None) -> None:
+    def __init__(
+        self,
+        executable: str,
+        root: str,
+        protocol_log: str | None = None,
+        private_bus: bool = True,
+    ) -> None:
         self.executable = executable
         self.root = root
         self.protocol_log = protocol_log
+        # A private bus is what keeps a check off the browser the reader has
+        # open. The one exception is the check about handing a link over, which
+        # happens on the session bus: on a private one the browser under test
+        # claims a name nothing else can see, so a second launch finds the name
+        # free, becomes the browser that answers, and the handover being tested
+        # cannot happen at all.
+        self.private_bus = private_bus
         self.sink: io.TextIOWrapper | None = None
         self.process: subprocess.Popen | None = None
         self.pid = 0
@@ -153,8 +166,9 @@ class Browser:
         # `RunningBrowser` is for and exactly wrong here.
         sink = open(self.protocol_log, "w", encoding="utf-8") if self.protocol_log else None
         self.sink = sink
+        launcher = ["dbus-run-session", "--"] if self.private_bus else []
         self.process = subprocess.Popen(
-            ["dbus-run-session", "--", self.executable, url],
+            [*launcher, self.executable, url],
             env=environment,
             stdout=sink or subprocess.DEVNULL,
             stderr=subprocess.STDOUT if sink else subprocess.DEVNULL,
