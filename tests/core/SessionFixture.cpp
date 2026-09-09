@@ -20,15 +20,123 @@ namespace {
 
     bool invalidZoom(double zoom) { return !std::isfinite(zoom) || zoom <= 0.0; }
 
-    QString validateAndNormalizeTab(TabSpec &tab, const QString &path, bool blankAllowed)
-    {
-        if (tab.keepActive && !tab.pinned) {
-            return path + QStringLiteral(".keepActive: requires a Pinned tab");
+    class SpecNormalizer final {
+    public:
+        QString normalize(SessionSpec &spec)
+        {
+            if (spec.spaces.isEmpty()) {
+                return QStringLiteral("spaces: at least one Space is required");
+            }
+            for (qsizetype index = 0; index < spec.spaces.size(); ++index) {
+                if (const auto error = normalizeSpace(spec.spaces[index], index);
+                    !error.isEmpty()) {
+                    return error;
+                }
+            }
+            return normalizeActiveSpace(spec);
         }
-        if (invalidZoom(tab.zoom)) {
-            return path + QStringLiteral(".zoom: must be positive and finite");
+
+    private:
+        QString normalizeSpace(SpaceSpec &space, qsizetype index)
+        {
+            const auto path = QStringLiteral("spaces[%1]").arg(index);
+            if (space.id.trimmed().isEmpty()) {
+                return path + QStringLiteral(".id: id is required");
+            }
+            if (m_spaceIds.contains(space.id)) {
+                return path + QStringLiteral(".id: duplicate Space id '%1'").arg(space.id);
+            }
+            m_spaceIds.insert(space.id);
+
+            space.name = space.name.trimmed();
+            if (space.name.isEmpty()) {
+                return path + QStringLiteral(".name: name is required");
+            }
+            if (space.color.isEmpty()) {
+                return path + QStringLiteral(".color: color is required");
+            }
+            if (space.tabs.isEmpty()) {
+                return path + QStringLiteral(".tabs: at least one open tab is required");
+            }
+            if (const auto error = normalizeOpenTabs(space.tabs, path); !error.isEmpty()) {
+                return error;
+            }
+            if (const auto error = normalizeActiveTab(space, path); !error.isEmpty()) {
+                return error;
+            }
+            if (const auto error = normalizeRecentCloses(space.recentCloses, path);
+                !error.isEmpty()) {
+                return error;
+            }
+            return {};
         }
-        if (isBlank(tab.url)) {
+
+        QString normalizeOpenTabs(QVector<TabSpec> &tabs, const QString &spacePath)
+        {
+            bool sawOrdinaryTab = false;
+            qsizetype ordinaryTabs = 0;
+            qsizetype blankTabs = 0;
+            for (qsizetype index = 0; index < tabs.size(); ++index) {
+                auto &tab = tabs[index];
+                const auto path = spacePath + QStringLiteral(".tabs[%1]").arg(index);
+                if (tab.id.trimmed().isEmpty()) {
+                    return path + QStringLiteral(".id: id is required");
+                }
+                if (m_tabIds.contains(tab.id)) {
+                    return path + QStringLiteral(".id: duplicate open-tab id '%1'").arg(tab.id);
+                }
+                m_tabIds.insert(tab.id);
+                if (tab.pinned && sawOrdinaryTab) {
+                    return path + QStringLiteral(".pinned: Pinned tabs must come first");
+                }
+                if (!tab.pinned) {
+                    sawOrdinaryTab = true;
+                    ++ordinaryTabs;
+                }
+
+                const auto blank = isBlank(tab.url);
+                if (const auto error = normalizeTab(tab, path, true); !error.isEmpty()) {
+                    return error;
+                }
+                blankTabs += blank ? 1 : 0;
+            }
+            if (blankTabs > 0 && ordinaryTabs != 1) {
+                return spacePath
+                    + QStringLiteral(".tabs: a blank tab must be the only ordinary tab");
+            }
+            return {};
+        }
+
+        static QString normalizeRecentCloses(
+            QVector<TabSpec> &recentCloses, const QString &spacePath)
+        {
+            for (qsizetype index = 0; index < recentCloses.size(); ++index) {
+                auto &close = recentCloses[index];
+                const auto path = spacePath + QStringLiteral(".recentCloses[%1]").arg(index);
+                if (!close.id.isEmpty()) {
+                    return path + QStringLiteral(".id: recent closes do not declare an id");
+                }
+                if (const auto error = normalizeTab(close, path, false); !error.isEmpty()) {
+                    return error;
+                }
+            }
+            return {};
+        }
+
+        static QString normalizeTab(TabSpec &tab, const QString &path, bool blankAllowed)
+        {
+            if (tab.keepActive && !tab.pinned) {
+                return path + QStringLiteral(".keepActive: requires a Pinned tab");
+            }
+            if (invalidZoom(tab.zoom)) {
+                return path + QStringLiteral(".zoom: must be positive and finite");
+            }
+            if (!isBlank(tab.url)) {
+                if (tab.title.isEmpty()) {
+                    tab.title = tab.url.toString();
+                }
+                return {};
+            }
             if (!blankAllowed) {
                 return path + QStringLiteral(".url: address is required");
             }
@@ -37,127 +145,103 @@ namespace {
             }
             tab.url = QUrl(QStringLiteral("about:blank"));
             tab.title = QStringLiteral("New tab");
-        } else if (tab.title.isEmpty()) {
-            tab.title = tab.url.toString();
+            return {};
+        }
+
+        static QString normalizeActiveTab(SpaceSpec &space, const QString &path)
+        {
+            if (space.activeTabId.isEmpty()) {
+                if (space.tabs.size() != 1) {
+                    return path
+                        + QStringLiteral(".activeTabId: required when several tabs are declared");
+                }
+                space.activeTabId = space.tabs.constFirst().id;
+                return {};
+            }
+            for (const auto &tab : space.tabs) {
+                if (tab.id == space.activeTabId) {
+                    return {};
+                }
+            }
+            return path
+                + QStringLiteral(".activeTabId: unknown tab id '%1'").arg(space.activeTabId);
+        }
+
+        QString normalizeActiveSpace(SessionSpec &spec) const
+        {
+            if (spec.activeSpaceId.isEmpty()) {
+                if (spec.spaces.size() != 1) {
+                    return QStringLiteral(
+                        "activeSpaceId: required when several Spaces are declared");
+                }
+                spec.activeSpaceId = spec.spaces.constFirst().id;
+                return {};
+            }
+            if (!m_spaceIds.contains(spec.activeSpaceId)) {
+                return QStringLiteral("activeSpaceId: unknown Space id '%1'")
+                    .arg(spec.activeSpaceId);
+            }
+            return {};
+        }
+
+        QSet<QString> m_spaceIds;
+        QSet<QString> m_tabIds;
+    };
+
+    enum class TabIdSource { Declared, Generated };
+
+    QVector<TabState> tabStates(
+        const QVector<TabSpec> &specs, const QString &spaceId, TabIdSource idSource)
+    {
+        QVector<TabState> tabs;
+        tabs.reserve(specs.size());
+        for (const auto &spec : specs) {
+            tabs.append(TabState {
+                .id = idSource == TabIdSource::Declared
+                    ? spec.id
+                    : QUuid::createUuid().toString(QUuid::WithoutBraces),
+                .spaceId = spaceId,
+                .url = spec.url,
+                .title = spec.title,
+                .pinned = spec.pinned,
+                .muted = spec.muted,
+                .zoom = spec.zoom,
+                .keepActive = spec.keepActive,
+            });
+        }
+        return tabs;
+    }
+
+    QString writeSpace(
+        SqliteSessionStore &store, const SpaceSpec &spec, const QString &activeSpaceId)
+    {
+        if (!store.saveSpace({spec.id, spec.name, spec.color, spec.id == activeSpaceId})) {
+            return QStringLiteral("spaces[%1]: could not save Space").arg(spec.id);
+        }
+        const auto tabs = tabStates(spec.tabs, spec.id, TabIdSource::Declared);
+        if (!store.saveTabs(spec.id, tabs, spec.activeTabId)) {
+            return QStringLiteral("spaces[%1].tabs: could not save tabs").arg(spec.id);
+        }
+        const auto recentCloses = tabStates(spec.recentCloses, spec.id, TabIdSource::Generated);
+        if (!store.saveClosedTabs(spec.id, recentCloses)) {
+            return QStringLiteral("spaces[%1].recentCloses: could not save recent closes")
+                .arg(spec.id);
         }
         return {};
     }
 
-    TabState tabState(const TabSpec &spec, const QString &spaceId, QString id)
+    QString writeSession(const SessionSpec &spec, const QString &dataRoot)
     {
-        return TabState {
-            .id = std::move(id),
-            .spaceId = spaceId,
-            .url = spec.url,
-            .title = spec.title,
-            .pinned = spec.pinned,
-            .muted = spec.muted,
-            .zoom = spec.zoom,
-            .keepActive = spec.keepActive,
-        };
-    }
-
-    QString validateAndNormalize(SessionSpec &spec)
-    {
-        if (spec.spaces.isEmpty()) {
-            return QStringLiteral("spaces: at least one Space is required");
+        SqliteSessionStore store(dataRoot);
+        QString error;
+        if (!store.open(&error)) {
+            return error;
         }
-
-        QSet<QString> spaceIds;
-        QSet<QString> tabIds;
-        for (qsizetype spaceIndex = 0; spaceIndex < spec.spaces.size(); ++spaceIndex) {
-            auto &space = spec.spaces[spaceIndex];
-            const auto spacePath = QStringLiteral("spaces[%1]").arg(spaceIndex);
-            if (space.id.trimmed().isEmpty()) {
-                return spacePath + QStringLiteral(".id: id is required");
+        for (const auto &space : spec.spaces) {
+            error = writeSpace(store, space, spec.activeSpaceId);
+            if (!error.isEmpty()) {
+                return error;
             }
-            if (spaceIds.contains(space.id)) {
-                return spacePath + QStringLiteral(".id: duplicate Space id '%1'").arg(space.id);
-            }
-            spaceIds.insert(space.id);
-            space.name = space.name.trimmed();
-            if (space.name.isEmpty()) {
-                return spacePath + QStringLiteral(".name: name is required");
-            }
-            if (space.color.isEmpty()) {
-                return spacePath + QStringLiteral(".color: color is required");
-            }
-            if (space.tabs.isEmpty()) {
-                return spacePath + QStringLiteral(".tabs: at least one open tab is required");
-            }
-
-            bool sawOrdinaryTab = false;
-            qsizetype ordinaryTabs = 0;
-            qsizetype blankOrdinaryTabs = 0;
-            for (qsizetype tabIndex = 0; tabIndex < space.tabs.size(); ++tabIndex) {
-                auto &tab = space.tabs[tabIndex];
-                const auto tabPath = spacePath + QStringLiteral(".tabs[%1]").arg(tabIndex);
-                if (tab.id.trimmed().isEmpty()) {
-                    return tabPath + QStringLiteral(".id: id is required");
-                }
-                if (tabIds.contains(tab.id)) {
-                    return tabPath + QStringLiteral(".id: duplicate open-tab id '%1'").arg(tab.id);
-                }
-                tabIds.insert(tab.id);
-                if (tab.pinned && sawOrdinaryTab) {
-                    return tabPath + QStringLiteral(".pinned: Pinned tabs must come first");
-                }
-                if (!tab.pinned) {
-                    sawOrdinaryTab = true;
-                    ++ordinaryTabs;
-                }
-                const auto blank = isBlank(tab.url);
-                if (const auto error = validateAndNormalizeTab(tab, tabPath, true);
-                    !error.isEmpty()) {
-                    return error;
-                }
-                if (blank) {
-                    ++blankOrdinaryTabs;
-                }
-            }
-            if (blankOrdinaryTabs > 0 && ordinaryTabs != 1) {
-                return spacePath
-                    + QStringLiteral(".tabs: a blank tab must be the only ordinary tab");
-            }
-            if (space.activeTabId.isEmpty()) {
-                if (space.tabs.size() != 1) {
-                    return spacePath
-                        + QStringLiteral(".activeTabId: required when several tabs are declared");
-                }
-                space.activeTabId = space.tabs.constFirst().id;
-            } else {
-                bool foundActiveTab = false;
-                for (const auto &tab : space.tabs) {
-                    foundActiveTab = foundActiveTab || tab.id == space.activeTabId;
-                }
-                if (!foundActiveTab) {
-                    return spacePath
-                        + QStringLiteral(".activeTabId: unknown tab id '%1'")
-                              .arg(space.activeTabId);
-                }
-            }
-
-            for (qsizetype closeIndex = 0; closeIndex < space.recentCloses.size(); ++closeIndex) {
-                auto &close = space.recentCloses[closeIndex];
-                const auto closePath
-                    = spacePath + QStringLiteral(".recentCloses[%1]").arg(closeIndex);
-                if (!close.id.isEmpty()) {
-                    return closePath + QStringLiteral(".id: recent closes do not declare an id");
-                }
-                if (const auto error = validateAndNormalizeTab(close, closePath, false);
-                    !error.isEmpty()) {
-                    return error;
-                }
-            }
-        }
-
-        if (spec.activeSpaceId.isEmpty()) {
-            if (spec.spaces.size() != 1) {
-                return QStringLiteral("activeSpaceId: required when several Spaces are declared");
-            }
-            spec.activeSpaceId = spec.spaces.constFirst().id;
-        } else if (!spaceIds.contains(spec.activeSpaceId)) {
-            return QStringLiteral("activeSpaceId: unknown Space id '%1'").arg(spec.activeSpaceId);
         }
         return {};
     }
@@ -171,51 +255,12 @@ SessionFixture::SessionFixture(SessionSpec spec, QString configRoot)
         m_errorMessage = QStringLiteral("dataRoot: could not create a temporary directory");
         return;
     }
-    m_errorMessage = validateAndNormalize(spec);
-    if (!m_errorMessage.isEmpty()) {
-        return;
+    SpecNormalizer normalizer;
+    m_errorMessage = normalizer.normalize(spec);
+    if (m_errorMessage.isEmpty()) {
+        m_errorMessage = writeSession(spec, m_dataRoot.path());
     }
-
-    SqliteSessionStore store(m_dataRoot.path());
-    if (!store.open(&m_errorMessage)) {
-        return;
-    }
-    for (const auto &spaceSpec : spec.spaces) {
-        SpaceState space {
-            .id = spaceSpec.id,
-            .name = spaceSpec.name,
-            .color = spaceSpec.color,
-            .active = spaceSpec.id == spec.activeSpaceId,
-        };
-        if (!store.saveSpace(space)) {
-            m_errorMessage = QStringLiteral("spaces[%1]: could not save Space").arg(spaceSpec.id);
-            return;
-        }
-
-        QVector<TabState> tabs;
-        tabs.reserve(spaceSpec.tabs.size());
-        for (const auto &tabSpec : spaceSpec.tabs) {
-            tabs.append(tabState(tabSpec, spaceSpec.id, tabSpec.id));
-        }
-        if (!store.saveTabs(spaceSpec.id, tabs, spaceSpec.activeTabId)) {
-            m_errorMessage
-                = QStringLiteral("spaces[%1].tabs: could not save tabs").arg(spaceSpec.id);
-            return;
-        }
-
-        QVector<TabState> recentCloses;
-        recentCloses.reserve(spaceSpec.recentCloses.size());
-        for (const auto &closeSpec : spaceSpec.recentCloses) {
-            recentCloses.append(tabState(
-                closeSpec, spaceSpec.id, QUuid::createUuid().toString(QUuid::WithoutBraces)));
-        }
-        if (!store.saveClosedTabs(spaceSpec.id, recentCloses)) {
-            m_errorMessage = QStringLiteral("spaces[%1].recentCloses: could not save recent closes")
-                                 .arg(spaceSpec.id);
-            return;
-        }
-    }
-    m_ready = true;
+    m_ready = m_errorMessage.isEmpty();
 }
 
 bool SessionFixture::ready() const { return m_ready; }
