@@ -45,6 +45,7 @@ jobs:
           useradd --create-home builder
           mkdir -p /tmp/build artifacts
           cp packaging/PKGBUILD /tmp/build/PKGBUILD
+          cp packaging/omaweb-git.install /tmp/build/omaweb-git.install
           sed -i "s|^source=.*|source=(\"\$_pkgname::git+file://$GITHUB_WORKSPACE#tag=$GITHUB_REF_NAME\")|" \
             /tmp/build/PKGBUILD
           chown -R builder /tmp/build

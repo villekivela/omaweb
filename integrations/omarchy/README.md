@@ -74,6 +74,9 @@ The bottom of `~/.config/hypr/hyprland.lua` works as well, under the "Add any ot
 Hyprland configuration below" comment it already carries. Either is loaded after Omarchy's defaults,
 which is all the rule needs.
 
+`packaging/omaweb-git.install` prints this rule after an install and after an upgrade, so a reader
+who never opens this file still meets it once.
+
 This is a rule the reader adds, not one Omaweb installs. Omaweb writes into
 `~/.config/omarchy/themed/` because that is a template directory a program is meant to render from;
 `~/.config/hypr/` is the reader's own window management, and a browser that quietly edited it would
