@@ -122,6 +122,13 @@ function(omaweb_strict_target target)
     )
 endfunction()
 
+function(omaweb_declarative_fixture_target target)
+    # Fixture declarations intentionally omit fields whose domain defaults are under test.
+    target_compile_options(${target} PRIVATE
+        $<$<CXX_COMPILER_ID:Clang>:-Wno-missing-designated-field-initializers>
+    )
+endfunction()
+
 omaweb_strict_target(omaweb-content-blocking)
 
 add_library(omaweb-core STATIC
@@ -616,6 +623,7 @@ if(BUILD_TESTING)
     )
     target_link_libraries(omaweb-core-tests PRIVATE omaweb-core Qt6::Test)
     omaweb_strict_target(omaweb-core-tests)
+    omaweb_declarative_fixture_target(omaweb-core-tests)
     add_test(NAME omaweb-core COMMAND omaweb-core-tests)
 
     qt_add_executable(omaweb-session-store-tests tests/core/tst_sessionstore.cpp)
@@ -630,6 +638,7 @@ if(BUILD_TESTING)
     )
     target_link_libraries(omaweb-session-fixture-tests PRIVATE omaweb-core Qt6::Test)
     omaweb_strict_target(omaweb-session-fixture-tests)
+    omaweb_declarative_fixture_target(omaweb-session-fixture-tests)
     add_test(NAME omaweb-session-fixture COMMAND omaweb-session-fixture-tests)
 
     qt_add_executable(omaweb-space-storage-tests tests/core/tst_spacestorage.cpp)
