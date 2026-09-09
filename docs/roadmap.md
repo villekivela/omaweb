@@ -5,13 +5,16 @@ platform integration the Wayland port carries, and a package to install it with.
 
 [#50](https://github.com/villekivela/omaweb/issues/50),
 [#8](https://github.com/villekivela/omaweb/issues/8), and every issue under them are closed.
-Validation on real Linux hardware ([#103](https://github.com/villekivela/omaweb/issues/103)) is the
-last gate before daily-driver status.
+Validation on real Linux hardware ([#103](https://github.com/villekivela/omaweb/issues/103)) has
+run, and the release that carries the package is the last gate before daily-driver status.
 
 The frameless window is Qt window flags rather than platform code, so it already works on Wayland,
 and blur behind the browser's transparent surfaces is the compositor's own. Notifications and
 printing now go through the desktop's own session-bus services, so `omaweb-platform` has nothing
-left that is macOS-only. What remains for Linux is the package and the validation around it.
+left that is macOS-only. What remains for Linux is the release.
+
+Blur is not a gate. On Linux the shader pass belongs to the compositor and Omaweb's part is asking
+for a transparent surface, which it does. There is nothing here for a validation run to judge.
 
 ## Path to alpha
 
@@ -21,16 +24,26 @@ it. `CONTEXT.md` states the contract.
 the major version is 0, so every `v0.*` tag ships as a prerelease.
 
 1. Run the Wayland validation sweep on real hardware, covering input, clipboard, IME, accessibility,
-   and window movement ([#103](https://github.com/villekivela/omaweb/issues/103)). A virtual machine
-   is a poor judge of these, and of blur especially, which is why the sweep is not automated.
+   and window movement ([#103](https://github.com/villekivela/omaweb/issues/103)). Answered by
+   `scripts/check_wayland_session.py`, which is a script rather than the checklist this started as:
+   Hyprland's own dispatchers supply the keystrokes and the cursor, and `ydotool` the one thing they
+   do not, a pointer button. Becoming the default browser is the one bullet left, because it changes
+   the machine that runs it; `scripts/check_default_browser.py` drives it where that is allowed.
 2. Confirm a theme change repaints without a restart, driven by `omarchy theme set` rather than by
-   inspecting the rendered files.
+   inspecting the rendered files. Answered by `scripts/check_theme_repaint.py`, which reads the
+   sidebar's pixels against the colour the theme declares and confirms the process did not restart.
 3. Confirm the Arch package installs, upgrades, and removes without touching unrelated user files,
-   and that default-browser registration still requires an explicit action.
+   and that default-browser registration still requires an explicit action. Answered by
+   `scripts/check_package.sh`, which Linux CI runs on every change in a container of its own.
 4. Qualify the build against the approved engine baseline, which means building on the packaged
    QtWebEngine and running `ctest --preset ci` in full. `SECURITY.md` states the process.
 5. Publish a release carrying the `.pkg.tar.zst`, the licenses, `THIRD_PARTY_NOTICES.md`, and the
    generated SBOM. The `v0.1.x` releases carry notes alone.
+
+The three checks that drive a live desktop are not one command, and deliberately. The sweep changes
+nothing a reader would notice and reads no pixels. The other two change the machine they run on, the
+theme in force or the default browser, so each is its own script, each refuses to run without being
+told to, and each puts back what it changed.
 
 Nothing else gates alpha. The Omarchy window rule
 ([#75](https://github.com/villekivela/omaweb/issues/75)) and the component kit
@@ -45,9 +58,12 @@ deferred.
 
 Tracking issue: [#103](https://github.com/villekivela/omaweb/issues/103)
 
-- Validate the completed browser contract under native Wayland on Omarchy and Hyprland
-- Run Linux accessibility, IME, packaging, and default-browser tests. The renderer sandbox is
-  already verified under Hyprland.
+- Drive the default browser on a machine whose default browser may change, which is the one check in
+  [#103](https://github.com/villekivela/omaweb/issues/103) still to be run
+- Compose through an input method. With `fcitx5-qt` installed Qt loads the plugin and reaches fcitx5
+  over D-Bus, never binding `zwp_text_input_v3`, which is the plugin's design rather than a fault.
+  Composing itself needs an input method that composes, and a plain keyboard layout is not one. The
+  renderer sandbox and accessibility are already verified under Hyprland.
 
 Linux is the only platform CI builds. macOS remains a development and test platform, and Omaweb does
 not distribute its bundles ([ADR 0029](adr/0029-distribute-only-for-linux.md)).
