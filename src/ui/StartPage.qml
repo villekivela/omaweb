@@ -277,11 +277,12 @@ Rectangle {
     // The fill is the backdrop's: over a page it goes on top of that page
     // blurred, and standing in for one it is all there is.
     color: "transparent"
-    focus: open && overPage
+    focus: open
 
-    // Summoned over a page, the sheet has to hear Escape itself: the page it
-    // covers is what otherwise holds the keyboard.
-    onOpenChanged: if (open && overPage)
+    // Summoned over a page, the sheet has to hear Escape itself. Standing in
+    // for a page, it gives focus restoration somewhere that does not consume
+    // typing, so single-key browser commands reach the window again.
+    onOpenChanged: if (open)
                        forceActiveFocus()
 
     Keys.onPressed: function (event) {
