@@ -153,6 +153,86 @@ TestCase {
                                                            + above.height));
     }
 
+    function fieldWithPlaceholder(item, placeholder) {
+        for (let index = 0; index < item.children.length; ++index) {
+            const child = item.children[index];
+            if (child.placeholderText === placeholder)
+                return child;
+            const deeper = fieldWithPlaceholder(child, placeholder);
+            if (deeper !== null)
+                return deeper;
+        }
+        return null;
+    }
+
+    function test_aLetterSelectsAndFocusesItsSection() {
+        const page = makePage();
+        const privacy = findChild(page, "settingsSection" + page.sections.indexOf("privacy"));
+        const about = findChild(page, "settingsSection" + page.sections.indexOf("about"));
+        verify(privacy !== null);
+        verify(about !== null);
+
+        page.forceActiveFocus();
+        keyClick(Qt.Key_P);
+
+        compare(page.sections[page.section], "privacy");
+        verify(privacy.activeFocus);
+
+        keyClick(Qt.Key_Space);
+        compare(page.sections[page.section], "privacy");
+        keyClick(Qt.Key_Tab);
+        verify(about.activeFocus);
+    }
+
+    function test_aRepeatedLetterWrapsAndAnUnknownLetterDoesNothing() {
+        const page = makePage();
+        const downloads = findChild(page, "settingsSection" + page.sections.indexOf("downloads"));
+        verify(downloads !== null);
+
+        page.forceActiveFocus();
+        keyClick(Qt.Key_D, Qt.ShiftModifier);
+        compare(page.sections[page.section], "downloads");
+        verify(downloads.activeFocus);
+
+        keyClick(Qt.Key_D);
+        compare(page.sections[page.section], "downloads");
+        verify(downloads.activeFocus);
+
+        keyClick(Qt.Key_Z);
+        compare(page.sections[page.section], "downloads");
+        verify(downloads.activeFocus);
+    }
+
+    function test_aFieldKeepsTheLettersItAccepts() {
+        const page = makePage();
+        page.section = page.sections.indexOf("content blocking");
+        const field = fieldWithPlaceholder(page, page.subscriptionPlaceholders.title);
+        verify(field !== null);
+
+        field.focusInput();
+        keyClick(Qt.Key_P);
+
+        compare(field.text, "p");
+        compare(page.sections[page.section], "content blocking");
+        verify(field.activeFocus);
+    }
+
+    function test_aDialogKeepsUnhandledLettersFromTheSettingsPage() {
+        const page = makePage();
+        page.section = page.sections.indexOf("downloads");
+        page.clearDataOpen = true;
+        const firstCategory = findChild(page, "clearCategory-cookies");
+        verify(firstCategory !== null);
+        tryVerify(function () {
+            return firstCategory.activeFocus;
+        });
+
+        keyClick(Qt.Key_P);
+
+        compare(page.sections[page.section], "downloads");
+        verify(firstCategory.activeFocus);
+    }
+
     // The page's own frame is the kit's rhythm rather than a pixel count, so a
     // theme that makes the shell denser or roomier moves it with everything
     // else.

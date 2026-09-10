@@ -1541,8 +1541,9 @@ ApplicationWindow {
 
     // Every binding — chord, single key, or sequence — comes from the keyboard
     // configuration, so rebinding is editing assets/keybindings/default.json.
-    // Chords are always live. Single keys follow the Keyboard navigation
-    // setting, because only they can be confused with typing on a page.
+    // Chords are always live while the page owns the keyboard. Single keys
+    // also follow the Keyboard navigation setting, because only they can be
+    // confused with typing on a page. Settings owns every key until it closes.
     Repeater {
         model: Object.keys(keymap.browserBindings)
 
@@ -1551,8 +1552,9 @@ ApplicationWindow {
 
             Shortcut {
                 sequence: keymap.keySequence(modelData)
-                enabled: keymap.isChord(modelData) || (keymap.pageCommandsEnabled &&
-                                                       !engineLoader.hintModeActive)
+                enabled: !window.settingsOpen && (keymap.isChord(modelData) || (
+                                                      keymap.pageCommandsEnabled &&
+                                                      !engineLoader.hintModeActive))
                 context: Qt.WindowShortcut
                 onActivated: browserCommands.run(keymap.commandFor(modelData), parseInt(
                                                      modelData.slice(-1), 10) - 1)
@@ -1663,6 +1665,8 @@ ApplicationWindow {
                 onAddressRequested: window.openOmnibar(false)
                 onTabActivated: function (tabId) {
                     window.windowBrowser.activateTab(tabId);
+                    if (window.settingsOpen)
+                        settingsSurface.forceActiveFocus();
                 }
                 onTabCloseRequested: function (tabId) {
                     window.windowBrowser.closeTab(tabId);
@@ -1745,6 +1749,10 @@ ApplicationWindow {
                     blocker: contentBlocker
                     engineBlocker: engineContentBlocker
                     keyboardManager: keyboardNavigation
+                    // A tab becomes active before its engine asks for focus on
+                    // the next event turn. Settings keeps that later request
+                    // from taking the keyboard back after a tab click.
+                    pageFocusAllowed: !window.settingsOpen
                     hintTheme: window.colors
                     developerToolsColors: window.colors
                     // Chromium's own pre-paint colour, so a navigation never

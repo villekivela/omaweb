@@ -89,6 +89,9 @@ reports the gap and remains experimental rather than imitating behavior it canno
 - `Primary+E` moves the keyboard into the outline, landing on the row the reader is already reading,
   and `Escape` or `Primary+Shift+E` hands it back to the page. Focusing a hidden outline shows it
   first.
+- In Settings, an unhandled letter selects the next section whose name begins with it and moves the
+  keyboard onto that name in the rail. Repeated presses cycle through matching sections. A field
+  keeps the letters typed into it.
 - Security state and the blocked-request count ride inline in the address trigger, and open the
   site-information panel.
 - Clicking the sidebar's current-address trigger or pressing `Primary+L` opens a centered Omnibar
