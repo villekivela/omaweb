@@ -553,6 +553,10 @@ ApplicationWindow {
     }
 
     function focusPage() {
+        if (window.pagelessViewport) {
+            startPage.forceActiveFocus();
+            return;
+        }
         engineLoader.focusPage();
     }
 
@@ -1532,7 +1536,7 @@ ApplicationWindow {
         omnibarSuggestions = [];
         if (!window.privateWindow)
             window.windowBrowser.cancelHistorySuggestions();
-        engineLoader.focusPage();
+        window.focusPage();
     }
 
     // Every binding — chord, single key, or sequence — comes from the keyboard

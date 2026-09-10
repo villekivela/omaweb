@@ -3489,6 +3489,36 @@ TestCase {
         verify(browser.deleteSpace(restingSpaceId, "Resting"));
     }
 
+    function test_restingSpaceRegainsSingleKeyCommandsAfterTheOmnibarCloses() {
+        const homeSpaceId = browser.activeSpaceId;
+        const restingSpaceId = browser.createSpace("Resting focus");
+        verify(browser.switchSpace(restingSpaceId));
+        tryVerify(function () {
+            return window.pagelessViewport;
+        });
+        window.requestActivate();
+        tryVerify(function () {
+            return window.active;
+        });
+
+        keyClick(Qt.Key_T);
+        tryCompare(window, "omnibarOpen", true);
+        const input = findChild(window.contentItem, "omnibarInput");
+        verify(input !== null);
+        tryVerify(function () {
+            return input.activeFocus;
+        });
+
+        keyClick(Qt.Key_Escape);
+        tryCompare(window, "omnibarOpen", false);
+        keyClick(Qt.Key_T);
+        tryCompare(window, "omnibarOpen", true);
+
+        keyClick(Qt.Key_Escape);
+        verify(browser.switchSpace(homeSpaceId));
+        verify(browser.deleteSpace(restingSpaceId, "Resting focus"));
+    }
+
     // A blank address is not the same thing as a resting Space, and it must not
     // be an empty viewport either: there is no page, so the sheet stands in.
     // The tab itself stays listed, because the reader put it there and has to
