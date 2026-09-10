@@ -16,6 +16,7 @@ Item {
     required property var blocker
     required property var engineBlocker
     required property var keyboardManager
+    property bool pageFocusAllowed: true
     property var hintTheme: ({})
     // The palette the engine draws its inspector in, so a docked inspector is
     // the same window as the chrome around it rather than the engine's own idea
@@ -521,7 +522,10 @@ Item {
                 engine.z = tabSlot.active ? 1 : 0;
                 if (tabSlot.active) {
                     root.activeEngine = engine;
-                    Qt.callLater(root.focusPage);
+                    Qt.callLater(function () {
+                        if (root.pageFocusAllowed)
+                            root.focusPage();
+                    });
                 }
             }
 

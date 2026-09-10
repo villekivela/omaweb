@@ -3382,6 +3382,63 @@ TestCase {
         });
     }
 
+    function test_settingsOwnsTheKeyboardUntilItCloses() {
+        browser.openInput("about:blank", true);
+        const settings = findChild(window.contentItem, "settingsSurface");
+        const activeTab = browser.activeTabId;
+        verify(settings !== null);
+
+        try {
+            window.requestSettings();
+            tryVerify(function () {
+                return settings.visible && settings.activeFocus;
+            });
+
+            keyClick(Qt.Key_J, Qt.ShiftModifier);
+            keyClick(Qt.Key_Escape);
+
+            verify(!settings.visible);
+            compare(browser.activeTabId, activeTab);
+        } finally {
+            window.settingsOpen = false;
+            browser.closeTab(activeTab);
+        }
+    }
+
+    function test_settingsRegainsTheKeyboardAfterAPointerChangesTab() {
+        const targetEngine = openPage("https://settings-focus.example/one");
+        const targetTab = browser.activeTabId;
+        browser.openInput("https://settings-focus.example/two", true);
+        const addedTab = browser.activeTabId;
+        const engineHost = findChild(window.contentItem, "engineLoader");
+        const targetPointer = findChild(window.contentItem, "tabPointer-" + targetTab);
+        const settings = findChild(window.contentItem, "settingsSurface");
+        tryVerify(function () {
+            return engineHost.item !== null && engineHost.item !== targetEngine;
+        });
+        verify(targetPointer !== null);
+        verify(settings !== null);
+        settleRow(targetPointer.parent);
+
+        try {
+            window.requestSettings();
+            tryVerify(function () {
+                return settings.visible && settings.activeFocus;
+            });
+
+            mouseClick(targetPointer, targetPointer.width / 2, targetPointer.height / 2);
+
+            compare(browser.activeTabId, targetTab);
+            wait(50);
+            verify(settings.activeFocus);
+            keyClick(Qt.Key_Escape);
+            verify(!settings.visible);
+        } finally {
+            window.settingsOpen = false;
+            browser.closeTab(addedTab);
+        }
+    }
+
     function test_settingsExposeNetworkAndDownloadPolicy() {
         const settingsButton = findChild(window.contentItem, "settingsButton");
         const remoteSuggestionsStatus = findChild(window.contentItem, "remoteSuggestionsStatus");
