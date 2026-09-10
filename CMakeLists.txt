@@ -362,6 +362,7 @@ set(omaweb_ui_files
     src/ui/CommandDialog.qml
     src/ui/DialogPanel.qml
     src/ui/PageBackdrop.qml
+    src/ui/PageLoadingIndicator.qml
     src/ui/PageNotice.qml
     src/ui/PageQuestionBar.qml
     src/ui/PagePromptBar.qml
@@ -953,6 +954,7 @@ if(BUILD_TESTING)
             OMAWEB_QT_ENGINE_PROFILE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/src/engine/qt/EngineProfile.qml"
             OMAWEB_MOCK_ENGINE_PROFILE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/src/ui-lab/MockEngineProfile.qml"
             OMAWEB_KEYBOARD_NAVIGATION_SCRIPT_PATH="${CMAKE_CURRENT_SOURCE_DIR}/src/engine/api/keyboard-navigation.js"
+            OMAWEB_UI_DIRECTORY="${CMAKE_CURRENT_SOURCE_DIR}/src/ui"
             OMAWEB_UNTRUSTED_CERTIFICATE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/tests/engine/certificates/untrusted-local.crt"
             OMAWEB_UNTRUSTED_KEY_PATH="${CMAKE_CURRENT_SOURCE_DIR}/tests/engine/certificates/untrusted-local.key"
         )

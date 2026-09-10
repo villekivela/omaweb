@@ -1857,6 +1857,18 @@ ApplicationWindow {
                     }
                 }
 
+                PageLoadingIndicator {
+                    anchors.horizontalCenter: engineLoader.horizontalCenter
+                    anchors.top: engineLoader.top
+                    anchors.topMargin: 8
+                    z: 3
+                    colors: window.colors
+                    active: engineLoader.item !== null && engineLoader.item.loading
+                    allowed: !window.pagelessViewport && !window.settingsOpen &&
+                             !window.historyOpen && !window.shortcutsOpen &&
+                             !engineLoader.siteFullscreenActive
+                }
+
                 DeveloperToolsDock {
                     id: developerToolsDock
                     objectName: "developerToolsDock"
