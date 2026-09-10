@@ -71,11 +71,6 @@ Item {
     readonly property int chipSize: Math.round(Style.font.caption * 1.6)
     readonly property int chipInset: 8
 
-    // A pin has no title, so its mark is the whole row and is given more of it
-    // than a chip standing beside a title needs. Derived from the ordinary
-    // size rather than written again: the two are meant to relate.
-    readonly property int pinnedChipSize: Math.round(chipSize * 1.25)
-
     signal activated(string tabId)
     signal closeRequested(string tabId)
     signal muteToggled(string tabId)
@@ -188,8 +183,8 @@ Item {
     SiteTile {
         id: tile
         objectName: "siteTile-" + root.tabId
-        implicitWidth: root.pinned ? root.pinnedChipSize : root.chipSize
-        implicitHeight: root.pinned ? root.pinnedChipSize : root.chipSize
+        implicitWidth: root.chipSize
+        implicitHeight: root.chipSize
         // The speaker stands in the chip's place rather than beside it: a row
         // that widened for it would shove its own title sideways every time a
         // page started and stopped playing. The chip is what the row can spare

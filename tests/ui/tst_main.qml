@@ -3955,7 +3955,7 @@ TestCase {
         window.restoreTabAppearance();
     }
 
-    // A row's chip and a pin's mark are one size in two proportions, and the
+    // A row's chip and a pin's mark share the same size, and the
     // size is the theme's smallest type rather than a number written into the
     // row: a theme with a larger font takes a larger chip with it instead of
     // clipping the two letters the chip stands in with.
@@ -3981,18 +3981,24 @@ TestCase {
         themeAxis.restore();
         tryCompare(row, "chipSize", ordinary);
 
-        // The pin is the same size in the proportion a mark with no title
-        // beside it is given, and it is derived rather than written twice.
         // Pinning replaces the row, so the pin is found again rather than
         // asked of the row that has just been destroyed.
         browser.toggleActivePinned();
         const pinnedRow = findChild(window.contentItem, "pinned-" + browser.activeTabId);
         verify(pinnedRow !== null);
-        verify(pinnedRow.pinnedChipSize > pinnedRow.chipSize);
-        compare(pinnedRow.pinnedChipSize, Math.round(pinnedRow.chipSize * 1.25));
         const pinnedTile = findChild(window.contentItem, "siteTile-" + browser.activeTabId);
         verify(pinnedTile !== null);
-        tryCompare(pinnedTile, "implicitWidth", pinnedRow.pinnedChipSize);
+        tryCompare(pinnedTile, "implicitWidth", ordinary);
+        tryCompare(pinnedTile, "implicitHeight", ordinary);
+        themeAxis.useTypeTokens(1.6);
+        tryVerify(function () {
+            return pinnedRow.chipSize > ordinary;
+        });
+        tryCompare(pinnedTile, "implicitWidth", pinnedRow.chipSize);
+        tryCompare(pinnedTile, "implicitHeight", pinnedRow.chipSize);
+        themeAxis.restore();
+        tryCompare(pinnedTile, "implicitWidth", ordinary);
+        tryCompare(pinnedTile, "implicitHeight", ordinary);
         browser.toggleActivePinned();
 
         browser.closeActiveTab();
