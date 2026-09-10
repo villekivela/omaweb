@@ -19,19 +19,6 @@ namespace {
         return (nativeWindow.styleMask & NSWindowStyleMaskFullScreen) != 0;
     }
 
-    // A window filling the screen has no corners to round. The native fullscreen
-    // bit is read rather than the window's `cornerRadius` property, because that
-    // property follows Qt's own view of the transition and nothing orders that
-    // against the notification this is applied from.
-    CGFloat backdropCornerRadius(QWindow *window, NSWindow *nativeWindow)
-    {
-        if (windowIsFullScreen(nativeWindow)) {
-            return 0;
-        }
-        const auto radius = window->property("cornerRadius");
-        return radius.isValid() ? radius.toReal() : 0;
-    }
-
     // Tier one of the surface contract in ADR 0002: a native blur behind every
     // Omaweb-owned surface. The webpage viewport paints its own opaque backing on
     // top, so nothing here reaches the page. NSVisualEffectView drops to a plain
@@ -48,12 +35,8 @@ namespace {
         if (!frameView) {
             return;
         }
-        const auto radius = backdropCornerRadius(window, nativeWindow);
         for (NSView *existing in frameView.subviews) {
             if ([existing.identifier isEqualToString:kBackdropIdentifier]) {
-                // The shell squares its corners in fullscreen and rounds them again
-                // on the way back, and the mask follows it.
-                existing.layer.cornerRadius = radius;
                 return;
             }
         }
@@ -64,13 +47,6 @@ namespace {
         backdrop.blendingMode = NSVisualEffectBlendingModeBehindWindow;
         backdrop.state = NSVisualEffectStateFollowsWindowActiveState;
         backdrop.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
-
-        // The shell is a rounded rectangle over a transparent window, so an
-        // unmasked backdrop would blur the desktop in the four corners the shell
-        // does not cover. QML owns the radius and hands it over as a property.
-        backdrop.wantsLayer = YES;
-        backdrop.layer.cornerRadius = radius;
-        backdrop.layer.masksToBounds = YES;
 
         // Below the Qt view rather than inside it: subviews of a layer-backed Quick
         // view composite above the scene graph, which would bury the interface.

@@ -62,7 +62,6 @@ private slots:
 
         QQuickWindow window;
         window.setColor(QColor(0, 0, 0, 0));
-        window.setProperty("cornerRadius", 14.0);
         window.setFlags(Qt::Window | Qt::ExpandedClientAreaHint | Qt::NoTitleBarBackgroundHint);
         window.resize(480, 320);
         window.show();
@@ -79,8 +78,6 @@ private slots:
         }
         QVERIFY(backdrop != nil);
         QCOMPARE(backdrop.blendingMode, NSVisualEffectBlendingModeBehindWindow);
-        // Masked to the shell's rounded rect so the corners stay clear of the desktop.
-        QCOMPARE(backdrop.layer.cornerRadius, 14.0);
         // Behind the scene graph, never layered over it.
         const auto backdropIndex = [contentView.superview.subviews indexOfObject:backdrop];
         const auto contentIndex = [contentView.superview.subviews indexOfObject:contentView];
@@ -103,7 +100,6 @@ private slots:
 
         QQuickWindow window;
         window.setColor(QColor(0, 0, 0, 0));
-        window.setProperty("cornerRadius", 14.0);
         window.setFlags(Qt::Window | Qt::ExpandedClientAreaHint | Qt::NoTitleBarBackgroundHint);
         window.resize(480, 320);
         window.show();
@@ -155,7 +151,6 @@ private slots:
 
         NSVisualEffectView *restored = backdropOf(nativeWindow);
         QVERIFY(restored != nil);
-        QCOMPARE(restored.layer.cornerRadius, 14.0);
         const auto backdropIndex =
             [nativeWindow.contentView.superview.subviews indexOfObject:restored];
         const auto contentIndex =

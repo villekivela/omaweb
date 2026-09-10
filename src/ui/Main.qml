@@ -23,18 +23,14 @@ ApplicationWindow {
                                   + " — Omaweb"
 
     property var windowBrowser: browser
-    // The native backdrop reads this to mask its blur to the same rounded rect,
-    // so the shell and the platform chrome cannot drift apart. A window filling
-    // the screen has no corners to round, and rounding them there would notch
-    // the desktop through at all four.
-    readonly property real shellCornerRadius: 14
-    property real cornerRadius: window.visibility === Window.FullScreen ? 0 :
-                                                                          window.shellCornerRadius
     property bool privateWindow: false
     property string profilePathOverride: ""
     property var sharedEngineProfile: null
     property var colors: privateWindow ? privatePalette(theme.palette) : theme.palette
     property bool sidebarCollapsed: false
+    // A deliberate pause at the window edge borrows the page for the sidebar
+    // without changing whether the reader left it collapsed.
+    property bool sidebarPeeked: false
     // What stands in for the sidebar once it has gone. A reader who hides it to
     // hand the page the whole window may mean the whole window, so the strip is
     // theirs to refuse; the keys that hide the sidebar bring it back either way.
@@ -222,9 +218,6 @@ ApplicationWindow {
     property bool settingsOpen: false
     property bool historyOpen: false
     property bool shortcutsOpen: false
-    property bool spacesMenuOpen: false
-    property real spacesMenuX: 0
-    property real spacesMenuY: 0
     // What the reader pointed at on the page, and the menu Omaweb draws for it.
     property var pageContext: null
     property var pageContextEngine: null
@@ -257,6 +250,8 @@ ApplicationWindow {
     // One dialog is open at a time, so one panel serves them all and the
     // question it is asking is the only thing that changes.
     property string dialogMode: ""
+    property string dialogSpaceId: ""
+    property string dialogSpaceName: ""
     property var moveTargets: []
 
     function privatePalette(source) {
@@ -508,6 +503,13 @@ ApplicationWindow {
         }
         window.moveTargets = targets;
         window.dialogMode = targets.length > 0 ? "move" : "";
+    }
+
+    function requestMoveToSpace(spaceId) {
+        const tabId = window.windowBrowser.activeTabId;
+        engineLoader.checkForEditedFormState(function (hasEditedFormState) {
+            window.windowBrowser.requestTabMoveToSpace(tabId, spaceId, hasEditedFormState);
+        });
     }
 
     function requestNewSpace() {
@@ -1577,7 +1579,6 @@ ApplicationWindow {
     Rectangle {
         id: shell
         anchors.fill: parent
-        radius: window.cornerRadius
         color: window.colors.window
         // A window filling the screen has no edge to draw: the frame belongs to
         // a window sitting on a desktop, not to one that is the desktop.
@@ -1595,6 +1596,7 @@ ApplicationWindow {
             property real revealed: window.sidebarCollapsed ? 0 : 1
             readonly property real seam: chromeRow.revealed * window.sidebarWidth
             readonly property real settledSeam: window.sidebarCollapsed ? 0 : window.sidebarWidth
+            property real peekRevealed: window.sidebarPeeked ? 1 : 0
             // The page is a webpage's viewport, so every width it is handed is
             // a layout of that page. It takes the wider of the two widths the
             // slide ends at and gives it up once the seam has settled, riding
@@ -1616,20 +1618,39 @@ ApplicationWindow {
                 }
             }
 
+            Behavior on peekRevealed {
+                enabled: window.easeSidebar
+
+                NumberAnimation {
+                    duration: 120
+                    easing.type: Easing.OutCubic
+                }
+            }
+
             SpaceOutline {
                 id: sidebar
                 objectName: "sidebar"
-                height: parent.height
+                // A floating outline has to sit above the blur that samples
+                // the composed shell. Reparenting it keeps that sample from
+                // including the outline and feeding the effect back into
+                // itself. Both parents fill the window, so its coordinates do
+                // not change at the handoff.
+                parent: floating ? window.contentItem : chromeRow
+                height: chromeRow.height
                 // The sidebar's own width does not change as it leaves or
                 // arrives, so the rows in it are not laid out again on the way.
                 width: window.sidebarWidth
-                x: chromeRow.seam - width
-                visible: chromeRow.seam > 0
+                x: chromeRow.seam - width + (window.sidebarCollapsed ? chromeRow.peekRevealed
+                                                                       * width : 0)
+                visible: chromeRow.seam > 0 || (chromeRow.peekRevealed > 0 &&
+                                                !engineLoader.siteFullscreenActive)
+                z: chromeRow.peekRevealed > 0 ? 10 : 0
                 colors: window.colors
                 iconFontFamily: materialSymbols.name
                 browser: window.windowBrowser
                 privateWindow: window.privateWindow
                 collapsed: window.sidebarCollapsed
+                floating: chromeRow.peekRevealed > 0 && window.sidebarCollapsed
                 blocker: contentBlocker
                 connectionState: window.connectionState
                 certificateDecisionsAvailable: window.certificateDecisionsAvailable
@@ -1690,11 +1711,6 @@ ApplicationWindow {
                 onSpaceActivated: function (spaceId) {
                     window.windowBrowser.switchSpace(spaceId);
                 }
-                onSpacesMenuRequested: function (anchorX, anchorY) {
-                    window.spacesMenuX = anchorX;
-                    window.spacesMenuY = anchorY;
-                    window.spacesMenuOpen = true;
-                }
                 onSettingsRequested: window.requestSettings()
                 onBackRequested: engineLoader.goBack()
                 onForwardRequested: engineLoader.goForward()
@@ -1703,6 +1719,10 @@ ApplicationWindow {
                 onCommandPanelRequested: window.openCommandPanel()
                 onWindowMoveRequested: window.startSystemMove()
                 onPageFocusRequested: window.focusPage()
+
+                HoverHandler {
+                    id: sidebarHover
+                }
             }
 
             Item {
@@ -1801,6 +1821,7 @@ ApplicationWindow {
                     // reader is told whose page is holding it and how to leave.
                     onSiteFullscreenActiveChanged: {
                         if (engineLoader.siteFullscreenActive) {
+                            window.sidebarPeeked = false;
                             window.sidebarHiddenForFullscreen = !window.sidebarCollapsed;
                             window.sidebarCollapsed = true;
                             window.applyFullscreen();
@@ -2152,6 +2173,12 @@ ApplicationWindow {
 
                     downloads: window.downloads
 
+                    onNewSpaceRequested: window.requestNewSpace()
+                    onSpaceActionRequested: function (action, spaceId, spaceName) {
+                        window.dialogSpaceId = spaceId;
+                        window.dialogSpaceName = spaceName;
+                        window.dialogMode = action;
+                    }
                     onClosed: window.settingsOpen = false
                     onRetainedTabReleased: function (tabId) {
                         window.releaseRetainedTab(tabId);
@@ -2362,12 +2389,44 @@ ApplicationWindow {
             onClicked: sidebar.statusOpen = false
         }
 
+        MouseArea {
+            id: sidebarRevealEdge
+            objectName: "sidebarRevealEdge"
+            anchors.left: parent.left
+            anchors.top: parent.top
+            anchors.bottom: parent.bottom
+            width: 6
+            z: 48
+            visible: window.sidebarCollapsed && !window.sidebarPeeked &&
+                     !engineLoader.siteFullscreenActive
+            hoverEnabled: true
+            acceptedButtons: Qt.NoButton
+
+            Timer {
+                // Crossing the edge on the way to something else must not
+                // summon a panel over the page. Holding there is the gesture.
+                interval: 550
+                running: sidebarRevealEdge.visible && sidebarRevealEdge.containsMouse
+                onTriggered: window.sidebarPeeked = true
+            }
+        }
+
+        Timer {
+            // Give the hover handler one event turn to take over from the edge
+            // when the sidebar first appears, then put a peek away on exit.
+            interval: 120
+            running: window.sidebarPeeked && !sidebarHover.hovered
+            onTriggered: window.sidebarPeeked = false
+        }
+
         PanelResizer {
             id: sidebarResizer
             objectName: "sidebarResizer"
             // The handle is part of the sidebar, so it leaves with it rather
             // than blinking out from under the reader's pointer first.
-            visible: sidebar.visible && !window.settingsOpen && !window.historyOpen
+            visible: sidebar.visible && !sidebar.floating && !window.settingsOpen &&
+                     !window.historyOpen
+
             enabled: visible
             height: parent.height
             x: sidebar.x + sidebar.width - width / 2
@@ -2549,52 +2608,6 @@ ApplicationWindow {
         });
     }
 
-    ChromeMenu {
-        id: spacesMenu
-        objectName: "spacesMenu"
-        anchors.fill: parent
-        z: 55
-        colors: window.colors
-        open: window.spacesMenuOpen
-        anchorX: window.spacesMenuX
-        anchorY: window.spacesMenuY
-        items: [
-            {
-                "label": "New Space"
-            },
-            {
-                "label": "Rename " + window.windowBrowser.activeSpaceName
-            },
-            {
-                "label": "Move this tab to a Space"
-            },
-            {
-                "label": "Delete " + window.windowBrowser.activeSpaceName,
-                "destructive": true
-            }
-        ]
-
-        onDismissed: window.spacesMenuOpen = false
-
-        onTriggered: function (index) {
-            window.spacesMenuOpen = false;
-            switch (index) {
-            case 0:
-                window.requestNewSpace();
-                break;
-            case 1:
-                window.dialogMode = "rename";
-                break;
-            case 2:
-                window.requestMoveTab();
-                break;
-            case 3:
-                window.dialogMode = "delete";
-                break;
-            }
-        }
-    }
-
     SpaceProfiles {
         id: spaceProfiles
         browser: window.windowBrowser
@@ -2685,7 +2698,7 @@ ApplicationWindow {
         inputVisible: window.dialogMode === "new" || window.dialogMode === "rename"
                       || window.dialogMode === "delete"
         selectPreset: window.dialogMode === "rename"
-        presetText: window.dialogMode === "rename" ? window.windowBrowser.activeSpaceName : ""
+        presetText: window.dialogMode === "rename" ? window.dialogSpaceName : ""
 
         label: {
             switch (window.dialogMode) {
@@ -2716,16 +2729,16 @@ ApplicationWindow {
             case "new":
                 return "name the Space";
             case "rename":
-                return window.windowBrowser.activeSpaceName;
+                return window.dialogSpaceName;
             case "delete":
-                return "type " + window.windowBrowser.activeSpaceName + " to delete it";
+                return "type " + window.dialogSpaceName + " to delete it";
             }
             return "";
         }
 
         message: {
             if (window.dialogMode === "delete") {
-                return window.windowBrowser.activeSpaceName + " keeps its tabs, its session, "
+                return window.dialogSpaceName + " keeps its tabs, its session, "
                         + "its logins and its engine data. Deleting it cannot be undone.";
             }
             if (window.dialogMode === "confirm-move") {
@@ -2768,7 +2781,7 @@ ApplicationWindow {
             case "rename":
                 return "⏎ rename the Space";
             case "delete":
-                return "⏎ delete " + window.windowBrowser.activeSpaceName;
+                return "⏎ delete " + window.dialogSpaceName;
             case "move":
                 return "↑↓ choose      ⏎ move the tab";
             case "confirm-move":
@@ -2805,10 +2818,10 @@ ApplicationWindow {
                     window.windowBrowser.switchSpace(spaceId);
                 break;
             case "rename":
-                window.windowBrowser.renameSpace(window.windowBrowser.activeSpaceId, text);
+                window.windowBrowser.renameSpace(window.dialogSpaceId, text);
                 break;
             case "delete":
-                window.windowBrowser.deleteSpace(window.windowBrowser.activeSpaceId, text);
+                window.windowBrowser.deleteSpace(window.dialogSpaceId, text);
                 break;
             case "confirm-move":
                 window.windowBrowser.confirmTabMoveToSpace(window.pendingMoveTabId,
@@ -2836,12 +2849,29 @@ ApplicationWindow {
             const target = window.moveTargets[index];
             if (!target)
                 return;
-            const tabId = window.windowBrowser.activeTabId;
             window.dialogMode = "";
-            engineLoader.checkForEditedFormState(function (hasEditedFormState) {
-                window.windowBrowser.requestTabMoveToSpace(tabId, target.id, hasEditedFormState);
-            });
+            window.requestMoveToSpace(target.id);
         }
+    }
+
+    PageBackdrop {
+        id: floatingSidebarBackdrop
+        objectName: "sidebarBackdrop"
+        x: sidebar.x
+        y: sidebar.y
+        width: sidebar.width
+        height: sidebar.height
+        z: 9
+        visible: sidebar.floating
+        clip: true
+        // Qt WebEngine can provide a texture through the composed shell. The
+        // floating outline is reparented above this item, so it is absent from
+        // the sample and the effect cannot recurse.
+        source: shell
+        sourceRect: Qt.rect(x, y, width, height)
+        textureScale: 0.5
+        readonly property color overlayTint: window.colors.sheet
+        tint: Qt.rgba(overlayTint.r, overlayTint.g, overlayTint.b, Math.min(overlayTint.a, 0.8))
     }
 
     CommandPanel {

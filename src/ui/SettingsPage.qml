@@ -66,7 +66,7 @@ Rectangle {
     readonly property bool needsAttention: keyboardReport.length > 0 || inputMethodMissing
 
     readonly property var sections: ["tabs", "interface", "keyboard", "content blocking", "network",
-        "downloads", "search", "privacy", "about"]
+        "downloads", "search", "privacy", "spaces", "about"]
 
     // The rail is as wide as the longest section name it draws, measured in the
     // bold face the current section takes so the pane beside it does not shift
@@ -199,6 +199,8 @@ Rectangle {
     }
 
     signal closed
+    signal newSpaceRequested
+    signal spaceActionRequested(string action, string spaceId, string spaceName)
     signal downloadDirectoryRequested
     signal downloadCancelled(int row)
     signal downloadRetried(int row)
@@ -543,7 +545,7 @@ Rectangle {
                         width: pane.width
                         colors: root.colors
                         title: "Floating controls"
-                        note: "With the sidebar hidden, keep the navigation controls over the page. When off, a hidden sidebar leaves the page the whole window."
+                        note: "With the sidebar hidden, keep the navigation controls over the page. Pause at the left edge to peek at the sidebar; it hides when the pointer leaves."
                         accessibleName: "Floating controls"
                         checked: root.floatingControls
                         onClicked: root.floatingControlsToggled(!checked)
@@ -1189,11 +1191,93 @@ Rectangle {
                     }
                 }
 
-                // ---- about -------------------------------------------------
+                // ---- spaces -------------------------------------------------
 
                 Column {
                     width: pane.width
                     visible: root.section === 8
+                    spacing: pane.spacing
+
+                    ActionButton {
+                        objectName: "newSpaceButton"
+                        colors: root.colors
+                        label: "New Space"
+                        visible: root.browser ? !root.browser.privateBrowsing : false
+                        onClicked: root.newSpaceRequested()
+                    }
+
+                    Column {
+                        width: pane.width
+                        spacing: 0
+
+                        Repeater {
+                            id: spaceList
+                            model: root.browser && !root.browser.privateBrowsing
+                                   ? root.browser.spaces : null
+
+                            SettingRow {
+                                id: spaceRow
+                                required property string spaceId
+                                required property string spaceName
+                                required property bool active
+                                objectName: "settingsSpace-" + spaceId
+                                width: pane.width
+                                colors: root.colors
+                                title: spaceName
+                                note: active ? "Current Space" : ""
+                                height: Math.max(implicitHeight, spaceActions.implicitHeight
+                                                 + verticalPadding * 2)
+
+                                Flow {
+                                    id: spaceActions
+                                    width: Math.min(pane.width * 0.7, renameSpace.implicitWidth
+                                                    + deleteSpace.implicitWidth + spacing)
+                                    spacing: Style.spacing.sm
+
+                                    ActionButton {
+                                        id: renameSpace
+                                        objectName: "renameSpace-" + spaceRow.spaceId
+                                        colors: root.colors
+                                        label: "Rename"
+                                        accessibleName: "Rename " + spaceRow.spaceName
+                                        onClicked: root.spaceActionRequested("rename",
+                                                                             spaceRow.spaceId,
+                                                                             spaceRow.spaceName)
+                                    }
+
+                                    ActionButton {
+                                        id: deleteSpace
+                                        objectName: "deleteSpace-" + spaceRow.spaceId
+                                        colors: root.colors
+                                        label: "Delete"
+                                        accessibleName: "Delete " + spaceRow.spaceName
+                                        destructive: true
+                                        enabled: spaceList.count > 1
+                                        onClicked: root.spaceActionRequested("delete",
+                                                                             spaceRow.spaceId,
+                                                                             spaceRow.spaceName)
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    Text {
+                        width: pane.width
+                        visible: root.browser ? root.browser.privateBrowsing : false
+                        text: "Space actions are available in a regular window."
+                        color: root.colors.mutedText
+                        font.family: Style.font.family
+                        font.pixelSize: Style.font.body
+                        wrapMode: Text.WordWrap
+                    }
+                }
+
+                // ---- about -------------------------------------------------
+
+                Column {
+                    width: pane.width
+                    visible: root.section === 9
                     spacing: pane.spacing
 
                     Text {
