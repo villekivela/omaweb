@@ -88,6 +88,18 @@ Rectangle {
         });
     }
 
+    function selectSectionByLetter(letter) {
+        for (let offset = 1; offset <= root.sections.length; ++offset) {
+            const index = (root.section + offset) % root.sections.length;
+            if (root.sections[index].charAt(0).toLowerCase() !== letter)
+                continue;
+            root.section = index;
+            sectionRepeater.itemAt(index).forceActiveFocus();
+            return true;
+        }
+        return false;
+    }
+
     readonly property int railWidth: {
         // Read for the dependency alone: advanceWidth() measures in C++ off a
         // font this binding never otherwise touches.
@@ -208,10 +220,16 @@ Rectangle {
     focus: open && !clearDataOpen
 
     Keys.onPressed: function (event) {
+        if (root.clearDataOpen)
+            return;
         if (event.key === Qt.Key_Escape) {
             root.closed();
             event.accepted = true;
+            return;
         }
+        const letter = event.text.toLowerCase();
+        if (/^[a-z]$/.test(letter) && root.selectSectionByLetter(letter))
+            event.accepted = true;
     }
 
     function refresh() {
@@ -367,6 +385,7 @@ Rectangle {
             spacing: Style.spacing.xxs
 
             Repeater {
+                id: sectionRepeater
                 model: root.sections
 
                 Text {
