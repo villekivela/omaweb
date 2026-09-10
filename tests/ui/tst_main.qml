@@ -4209,6 +4209,185 @@ TestCase {
         compare(engine.currentUrl.toString(), "https://reload.example/page");
     }
 
+    function test_pageLoadingIndicatorFollowsTheActiveEngine() {
+        const engineHost = findChild(window.contentItem, "engineLoader");
+        const engine = openPage("https://loading.example/page");
+        const indicator = findChild(window.contentItem, "pageLoadingIndicator");
+        verify(indicator !== null);
+        verify(!indicator.visible);
+
+        engine.loading = true;
+        tryVerify(function () {
+            return indicator.visible;
+        });
+        compare(Math.round(indicator.x + indicator.width / 2), Math.round(engineHost.x
+                                                                          + engineHost.width / 2));
+        compare(indicator.y, 8);
+
+        engine.loading = false;
+        tryVerify(function () {
+            return !indicator.visible;
+        });
+
+        engine.loading = true;
+        tryVerify(function () {
+            return indicator.visible;
+        });
+        engine.lastLoadFailed = true;
+        engine.loading = false;
+        tryVerify(function () {
+            return !indicator.visible;
+        });
+    }
+
+    function test_pageLoadingIndicatorBelongsToThePageOnShow() {
+        const engineHost = findChild(window.contentItem, "engineLoader");
+        const indicator = findChild(window.contentItem, "pageLoadingIndicator");
+        const first = openPage("https://loading-first.example/page");
+        const firstTabId = browser.activeTabId;
+        first.loading = true;
+        tryVerify(function () {
+            return indicator.visible;
+        });
+
+        browser.openInput("https://loading-second.example/page", true);
+        tryVerify(function () {
+            return engineHost.item !== null && engineHost.item !== first;
+        });
+        const second = engineHost.item;
+        const secondTabId = browser.activeTabId;
+        tryCompare(indicator, "visible", false);
+
+        second.loading = true;
+        tryVerify(function () {
+            return indicator.visible;
+        });
+        browser.activateTab(firstTabId);
+        tryVerify(function () {
+            return engineHost.item === first && indicator.visible;
+        });
+
+        first.loading = false;
+        browser.activateTab(secondTabId);
+        tryVerify(function () {
+            return engineHost.item === second && indicator.visible;
+        });
+        second.loading = false;
+        browser.closeTab(secondTabId);
+    }
+
+    function test_pageLoadingIndicatorFollowsTheSpaceOnShow() {
+        const engineHost = findChild(window.contentItem, "engineLoader");
+        const indicator = findChild(window.contentItem, "pageLoadingIndicator");
+        const first = openPage("https://loading-personal.example/page");
+        const personalSpaceId = browser.activeSpaceId;
+        first.loading = true;
+        tryVerify(function () {
+            return indicator.visible;
+        });
+
+        const otherSpaceId = browser.createSpace("Loading indicator");
+        verify(browser.switchSpace(otherSpaceId));
+        tryVerify(function () {
+            return engineHost.item === null && !indicator.visible;
+        });
+
+        const second = openPage("https://loading-work.example/page");
+        verify(!indicator.visible);
+        verify(browser.switchSpace(personalSpaceId));
+        tryVerify(function () {
+            return engineHost.item === first && indicator.visible;
+        });
+
+        first.loading = false;
+        verify(browser.switchSpace(otherSpaceId));
+        second.loading = false;
+        browser.closeTab(browser.activeTabId);
+        verify(browser.switchSpace(personalSpaceId));
+        verify(browser.deleteSpace(otherSpaceId, "Loading indicator"));
+    }
+
+    function test_pageLoadingIndicatorStaysOffBrowserSurfacesAndSiteFullscreen() {
+        const engineHost = findChild(window.contentItem, "engineLoader");
+        const indicator = findChild(window.contentItem, "pageLoadingIndicator");
+        const engine = openPage("https://loading-visibility.example/page");
+        engine.loading = true;
+        tryVerify(function () {
+            return indicator.visible;
+        });
+
+        window.settingsOpen = true;
+        verify(!indicator.visible);
+        window.settingsOpen = false;
+        window.shortcutsOpen = true;
+        verify(!indicator.visible);
+        window.shortcutsOpen = false;
+
+        window.visibility = Window.FullScreen;
+        tryCompare(window, "browserFullscreen", true);
+        verify(indicator.visible);
+        engine.simulateSiteFullscreen("loading-visibility.example");
+        tryVerify(function () {
+            return engineHost.siteFullscreenActive && !indicator.visible;
+        });
+        engine.exitSiteFullscreen();
+        tryVerify(function () {
+            return !engineHost.siteFullscreenActive && indicator.visible;
+        });
+        window.visibility = Window.Windowed;
+        tryCompare(window, "browserFullscreen", false);
+
+        engine.loading = false;
+        browser.openInput("about:blank", false);
+        tryVerify(function () {
+            return window.pagelessViewport && !indicator.visible;
+        });
+    }
+
+    function test_pageLoadingIndicatorMovesWithSidebarEasingDisabled() {
+        const indicator = findChild(window.contentItem, "pageLoadingIndicator");
+        const engine = openPage("https://loading-steady.example/page");
+        const originalEaseSidebar = window.easeSidebar;
+        window.easeSidebar = false;
+        engine.loading = true;
+        tryVerify(function () {
+            return indicator.visible;
+        });
+
+        compare(indicator.motionEnabled, true);
+        compare(indicator.moving, true);
+        compare(indicator.enabled, false);
+        compare(indicator.Accessible.ignored, true);
+        compare(indicator.color, Qt.alpha(window.colors.accent, 0.45));
+
+        engine.stopLoading();
+        tryCompare(indicator, "visible", false);
+        window.easeSidebar = originalEaseSidebar;
+    }
+
+    function test_pageLoadingIndicatorFadesAndCanResumeDuringExit() {
+        const indicator = findChild(window.contentItem, "pageLoadingIndicator");
+        const engine = openPage("https://loading-motion.example/page");
+        engine.loading = true;
+        tryCompare(indicator, "opacity", 1);
+        tryCompare(indicator, "scale", 1);
+
+        engine.loading = false;
+        verify(indicator.visible);
+        tryVerify(function () {
+            return indicator.opacity < 1 && indicator.opacity > 0;
+        });
+        engine.loading = true;
+        tryCompare(indicator, "opacity", 1);
+        tryCompare(indicator, "scale", 1);
+
+        engine.loading = false;
+        tryCompare(indicator, "visible", false);
+        compare(indicator.opacity, 0);
+        tryCompare(indicator, "scale", 0.92);
+        verify(!indicator.moving);
+    }
+
     // A site holding the screen is not the reader holding it. The notice names
     // the origin, Escape hands the screen back, and the reader's own fullscreen
     // is untouched throughout.

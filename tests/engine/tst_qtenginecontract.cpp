@@ -128,6 +128,7 @@ private slots:
     void adaptersExposeKeyboardNavigationCommands_data();
     void adaptersExposeKeyboardNavigationCommands();
     void qtAdapterPropagatesPageState();
+    void qtNavigationDrivesPageLoadingIndicator();
     void qtProfilesIsolateSiteStorage();
     void qtPrivateWindowsShareOneProfile();
     void qtSpaceProfilesKeepSiteStorageOnDisk();
@@ -547,6 +548,77 @@ void QtEngineContractTest::qtAdapterPropagatesPageState()
         QGenericArgument("int", &exitCode)));
     QCOMPARE(failureSpy.count(), 1);
     QVERIFY(failureSpy.takeFirst().first().toString().contains(QString::number(exitCode)));
+}
+
+void QtEngineContractTest::qtNavigationDrivesPageLoadingIndicator()
+{
+    QTcpServer server;
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+    QTcpSocket *pageSocket = nullptr;
+    const QByteArray body
+        = QByteArrayLiteral("<!doctype html><title>Loading indicator</title><p>page</p>");
+    const qsizetype bodySplitOffset
+        = body.indexOf("</title>") + QByteArrayLiteral("</title>").size();
+    connect(&server, &QTcpServer::newConnection, &server, [&] {
+        pageSocket = server.nextPendingConnection();
+        connect(pageSocket, &QTcpSocket::readyRead, pageSocket, [&, pageSocket] {
+            pageSocket->readAll();
+            pageSocket->write("HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: "
+                + QByteArray::number(body.size()) + "\r\nConnection: close\r\n\r\n"
+                + body.first(bodySplitOffset));
+        });
+    });
+
+    QTemporaryDir profileRoot;
+    QVERIFY(profileRoot.isValid());
+    QQmlEngine engine;
+    QQmlComponent adapterComponent(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    const std::unique_ptr<QObject> adapter(adapterComponent.createWithInitialProperties({
+        {QStringLiteral("profilePath"), profileRoot.filePath(QStringLiteral("profile"))},
+    }));
+    QVERIFY2(adapter, qPrintable(adapterComponent.errorString()));
+
+    auto *view = qobject_cast<QQuickItem *>(adapter.get());
+    QVERIFY(view);
+    QQuickWindow window;
+    window.resize(640, 480);
+    view->setParentItem(window.contentItem());
+    view->setSize(QSizeF(640, 480));
+    window.show();
+
+    const QByteArray indicatorSource = QByteArrayLiteral(R"QML(
+            import QtQuick
+            import "." as Omaweb
+            Omaweb.PageLoadingIndicator {
+                property var page
+                colors: ({ "accent": "#9b7cff" })
+                active: page !== null && page.loading
+            }
+        )QML");
+    QQmlComponent indicatorComponent(&engine);
+    indicatorComponent.setData(indicatorSource,
+        QUrl::fromLocalFile(QStringLiteral(OMAWEB_UI_DIRECTORY "/LoadingIndicatorHarness.qml")));
+    const std::unique_ptr<QObject> indicator(indicatorComponent.createWithInitialProperties({
+        {QStringLiteral("page"), QVariant::fromValue(adapter.get())},
+    }));
+    QVERIFY2(indicator, qPrintable(indicatorComponent.errorString()));
+    auto *indicatorItem = qobject_cast<QQuickItem *>(indicator.get());
+    QVERIFY(indicatorItem);
+    indicatorItem->setParentItem(window.contentItem());
+    QVERIFY(!indicator->property("visible").toBool());
+
+    const QUrl pageUrl(QStringLiteral("http://127.0.0.1:%1/page.html").arg(server.serverPort()));
+    QVERIFY(adapter->setProperty("currentUrl", pageUrl));
+    QTRY_VERIFY(pageSocket);
+    QTRY_COMPARE(adapter->property("pageTitle").toString(), QStringLiteral("Loading indicator"));
+    QTRY_VERIFY(adapter->property("loading").toBool());
+    QTRY_VERIFY(indicator->property("visible").toBool());
+
+    pageSocket->write(body.sliced(bodySplitOffset));
+    pageSocket->disconnectFromHost();
+    QTRY_VERIFY(!adapter->property("loading").toBool());
+    QTRY_VERIFY(!indicator->property("visible").toBool());
 }
 
 void QtEngineContractTest::qtProfilesIsolateSiteStorage()
