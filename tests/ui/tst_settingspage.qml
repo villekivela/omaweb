@@ -1,5 +1,6 @@
 import QtQuick
 import QtTest
+import Omaweb
 import qs.Commons
 import "../../src/ui" as Omaweb
 
@@ -49,6 +50,48 @@ TestCase {
         function restoreDefaultSubscriptions() {
             restoreCount += 1;
         }
+    }
+
+    QtObject {
+        id: syncControllerStub
+
+        property bool enabled: false
+        property bool connecting: true
+        property bool awaitingInstallation: false
+        property bool pending: false
+        property string provider: "GitHub"
+        property string login: ""
+        property string status: "Waiting for GitHub authorization"
+        property string errorMessage: ""
+        property string userCode: "ABCD-EFGH"
+        property url verificationUrl: ""
+        property string avatarPath: ""
+        property string recoveryKey: ""
+        property date lastSuccessfulSync
+
+        signal consentPageRequested(url url)
+    }
+
+    QtObject {
+        id: syncLauncherStub
+
+        property var controller: syncControllerStub
+        property string errorMessage: ""
+        property bool configured: false
+
+        function load() {
+            return true;
+        }
+    }
+
+    SignalSpy {
+        id: settingsClosedSpy
+        signalName: "closed"
+    }
+
+    SignalSpy {
+        id: syncCodeCopiedSpy
+        signalName: "syncCodeCopied"
     }
 
     // Two of everything the page lists, so a gap between one row and the next
@@ -132,6 +175,10 @@ TestCase {
     // page and the singleton it moved are put back here instead, where one
     // test's failure cannot leave the next one reading a shell it did not set.
     function cleanup() {
+        settingsClosedSpy.target = null;
+        settingsClosedSpy.clear();
+        syncCodeCopiedSpy.target = null;
+        syncCodeCopiedSpy.clear();
         theme.restore();
         if (livePage !== null) {
             livePage.destroy();
@@ -213,6 +260,21 @@ TestCase {
         verify(boundary.text.indexOf("Passwords") >= 0);
         verify(boundary.text.indexOf("Private") >= 0);
         verify(boundary.text.indexOf("history") >= 0);
+    }
+
+    function test_syncConsentCopiesTheCodeAndClosesSettings() {
+        const page = makePage();
+        page.syncLauncher = syncLauncherStub;
+        settingsClosedSpy.target = page;
+        syncCodeCopiedSpy.target = page;
+        SystemClipboard.copyText("stale clipboard");
+
+        syncControllerStub.consentPageRequested(syncControllerStub.verificationUrl);
+
+        compare(SystemClipboard.text(), syncControllerStub.userCode);
+        compare(settingsClosedSpy.count, 1);
+        compare(syncCodeCopiedSpy.count, 1);
+        verify(findChild(page, "copyGitHubCodeButton") !== null);
     }
 
     function test_aFieldKeepsTheLettersItAccepts() {

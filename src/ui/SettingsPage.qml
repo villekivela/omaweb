@@ -24,7 +24,7 @@ Rectangle {
         ignoreUnknownSignals: true
 
         function onConsentPageRequested(url) {
-            Qt.openUrlExternally(url);
+            root.openSyncConsent(url);
         }
     }
     readonly property bool syncAvailable: root.browser ? !root.browser.privateBrowsing : false
@@ -220,6 +220,20 @@ Rectangle {
     signal downloadRevealed(string path)
     signal downloadForgotten(int row)
     signal retainedTabReleased(string tabId)
+    signal syncCodeCopied
+
+    function copySyncCode() {
+        if (root.sync && root.sync.userCode.length > 0 && SystemClipboard.copyText(
+                    root.sync.userCode))
+            root.syncCodeCopied();
+    }
+
+    function openSyncConsent(url) {
+        if (root.sync && !root.sync.awaitingInstallation && root.sync.userCode.length > 0)
+            root.copySyncCode();
+        root.closed();
+        Qt.openUrlExternally(url);
+    }
     signal useFaviconsToggled(bool enabled)
     signal tintFaviconsToggled(bool enabled)
     signal floatingControlsToggled(bool enabled)
@@ -1375,12 +1389,25 @@ Rectangle {
                         note: "The GitHub login becomes your Sync identity; Omaweb does not create an account."
                     }
 
-                    ActionButton {
-                        colors: root.colors
+                    Flow {
+                        width: pane.width
+                        spacing: Style.spacing.sm
                         visible: root.sync && root.sync.connecting &&
                                  !root.sync.awaitingInstallation
-                        label: "Open GitHub authorization"
-                        onClicked: Qt.openUrlExternally(root.sync.verificationUrl)
+
+                        ActionButton {
+                            objectName: "copyGitHubCodeButton"
+                            colors: root.colors
+                            label: "Copy code"
+                            onClicked: root.copySyncCode()
+                        }
+
+                        ActionButton {
+                            objectName: "openGitHubAuthorizationButton"
+                            colors: root.colors
+                            label: "Open GitHub authorization"
+                            onClicked: root.openSyncConsent(root.sync.verificationUrl)
+                        }
                     }
 
                     SettingRow {

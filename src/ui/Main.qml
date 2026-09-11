@@ -2203,6 +2203,9 @@ ApplicationWindow {
                         window.dialogMode = action;
                     }
                     onClosed: window.settingsOpen = false
+                    onSyncCodeCopied: window.showNotice("content_copy", "GitHub code copied",
+                                                        "Paste it into the authorization page",
+                                                        3000)
                     onRetainedTabReleased: function (tabId) {
                         window.releaseRetainedTab(tabId);
                     }
