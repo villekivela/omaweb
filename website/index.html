@@ -79,8 +79,8 @@
       <section class="t-hero">
         <h1>The browser should be<br /><em>part of your desktop</em>,<br />not a guest on it.</h1>
         <p>
-          Desktop-native and keyboard-driven browser for Omarchy users who want browsing to fit into
-          the system they already chose.
+          A keyboard-driven browser for Omarchy. It takes the desktop's theme and keys, and keeps
+          its data on your machine.
         </p>
         <div class="t-hero__actions">
           <a class="btn btn--emphasis" href="#install">Install</a>
@@ -108,7 +108,8 @@
               >Alpha</a
             >
             <span class="badge__note" id="alpha-note" role="tooltip">
-              Expect bugs and unfinished desktop integration. The README lists what works today.
+              Expect bugs, and desktop integration that is not finished. The README says what works
+              today.
             </span>
           </span>
         </div>
@@ -126,8 +127,8 @@
           <div class="t-section__intro">
             <h2>The window, in every theme.</h2>
             <p>
-              Omaweb takes its colours from the Omarchy theme you are running. Pick one to see the
-              whole browser in it.
+              Omaweb reads its colours from whichever Omarchy theme you are running. Pick one to see
+              the whole browser in it.
             </p>
           </div>
         </div>
@@ -171,8 +172,8 @@
             />
           </a>
           <figcaption>
-            A Space at work: Pinned tabs across the top of the sidebar, the day&rsquo;s ordinary
-            tabs under them, and the Start page on the new tab.
+            A Space in use. Pinned tabs sit across the top of the sidebar, the day&rsquo;s tabs run
+            under them, and a new tab opens on the Start page.
           </figcaption>
         </figure>
 
@@ -193,7 +194,7 @@
                 decoding="async"
               />
             </a>
-            <figcaption>Settings, in the window rather than on a page of its own.</figcaption>
+            <figcaption>Settings opens inside the window, not on a page of its own.</figcaption>
           </figure>
           <figure class="t-shot">
             <a
@@ -212,8 +213,8 @@
               />
             </a>
             <figcaption>
-              Content blocking is uBlock Origin&rsquo;s own filter syntax, with your rules beside
-              the lists.
+              Content blocking uses uBlock Origin&rsquo;s filter syntax. Your own rules go in the
+              field under the lists.
             </figcaption>
           </figure>
           <figure class="t-shot">
@@ -232,7 +233,9 @@
                 decoding="async"
               />
             </a>
-            <figcaption>History belongs to the Space, and is cleared by the Space.</figcaption>
+            <figcaption>
+              Each Space keeps its own history. Clearing it clears that Space alone.
+            </figcaption>
           </figure>
           <figure class="t-shot">
             <a
@@ -250,7 +253,7 @@
                 decoding="async"
               />
             </a>
-            <figcaption>Ctrl B hides the sidebar and the page has the whole window.</figcaption>
+            <figcaption>Ctrl B hides the sidebar. The page gets the whole window.</figcaption>
           </figure>
         </div>
       </section>
@@ -261,8 +264,8 @@
           <div class="t-section__intro">
             <h2>Nothing you cannot change.</h2>
             <p>
-              The theme comes from <code>omarchy theme set</code>, and everything else is a file on
-              your machine.
+              <code>omarchy theme set</code> picks the theme. Everything else is a file on your
+              machine.
             </p>
           </div>
         </div>
@@ -270,15 +273,15 @@
           <div>
             <h3>Keys you own</h3>
             <p>
-              Browser bindings and page-key rules live in <code>keybindings.json</code>. Rebind a
-              command, or give a conflicting key back to the page.
+              Every browser binding lives in <code>keybindings.json</code>. Rebind a command there,
+              or hand a key back to the page when a site wants it.
             </p>
           </div>
           <div>
             <h3>Local by default</h3>
             <p>
-              No browser account, telemetry or automatic crash upload. Omaweb keeps its browsing
-              data on your machine.
+              No browser account, no telemetry, no crash reports sent anywhere. Your browsing data
+              stays on your disk.
             </p>
           </div>
         </div>
@@ -289,22 +292,23 @@
           <p class="t-section__index">03 / browsing identities</p>
           <div class="t-section__intro">
             <h2>Work and personal stay in the same window.</h2>
-            <p>A Space keeps the browser data one part of your life leaves behind.</p>
+            <p>A Space holds the browsing data of one part of your life, and nothing else's.</p>
           </div>
         </div>
         <div class="t-cols t-cols--2">
           <div>
             <h3>Keep accounts apart</h3>
             <p>
-              Each Space has its own cookies, logins, history, permissions and session. Work and
-              personal accounts can stay open without another browser or a private window.
+              Each Space has its own cookies, logins, history, permissions and session. Two accounts
+              on the same site stay logged in at once, with no second browser and no private window.
             </p>
           </div>
           <div>
-            <h3>Carry the right context forward</h3>
+            <h3>Pick up where you left off</h3>
             <p>
-              Pinned tabs return when a Space resumes. Mark one as Keep active to leave it running,
-              then see which tab is active and how much memory it uses.
+              Pinned tabs come back when a Space resumes. Mark one as Keep active and it keeps
+              running in the background. Settings lists every tab kept this way, with the memory
+              each one is using.
             </p>
           </div>
         </div>
@@ -316,8 +320,8 @@
           <div class="t-section__intro">
             <h2>Install it on Arch.</h2>
             <p>
-              Omaweb builds against the Qt your distribution ships, so an engine security update
-              arrives from Arch rather than from a rebuild here.
+              Omaweb links against the Qt that Arch ships. When Arch patches the engine, you get the
+              fix with your next system update, not with a new Omaweb release.
             </p>
           </div>
         </div>
@@ -325,20 +329,20 @@
           <div>
             <h3>From a release</h3>
             <p>
-              Releases from
-              <a href="https://github.com/villekivela/omaweb/releases">v0.2.0 on</a> carry a built
-              package. Download it and hand it to pacman with
-              <code>sudo pacman -U omaweb-git-*.pkg.tar.zst</code>. The built package is
-              <code>x86_64</code>; on <code>aarch64</code> take the source path.
+              Every release from
+              <a href="https://github.com/villekivela/omaweb/releases">v0.2.0</a> on includes a
+              built package. Download it and install it with
+              <code>sudo pacman -U omaweb-git-*.pkg.tar.zst</code>. Packages are
+              <code>x86_64</code> only. On <code>aarch64</code>, build from the repository.
             </p>
           </div>
           <div>
             <h3>From the repository</h3>
             <p>
-              Clone the repository, then
-              <code>cd omaweb/packaging &amp;&amp; makepkg -si</code> builds and installs the same
-              package on either architecture. Omaweb is alpha, and becoming your default browser
-              stays something you ask for in Settings rather than something installing it decides.
+              Clone the repository and run
+              <code>cd omaweb/packaging &amp;&amp; makepkg -si</code>. That builds and installs the
+              same package on either architecture. Installing does not make Omaweb your default
+              browser. It is alpha, so that stays a choice you make in Settings.
             </p>
           </div>
         </div>
