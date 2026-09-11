@@ -427,6 +427,13 @@ CELL_FILL = 0.58
 STREAK_SHARE = 0.25
 STREAK_SOLID_DEPTH = 0.75
 
+# How far each cell rises from the ground it sits on. The website draws its
+# hero canvas at a third of full opacity so the rain stays a backdrop to the
+# type over it; painted at full tint, the same cells were the brightest thing
+# on the page. Half keeps the columns legible through the blur behind the
+# window while the window stays the brightest thing in the frame.
+CELL_OPACITY = 0.5
+
 
 def wallpaper(palette: dict, width: int, height: int) -> bytearray:
     """Square cells raining from the top edge, in this palette.
@@ -476,7 +483,8 @@ def wallpaper(palette: dict, width: int, height: int) -> bytearray:
     def paint(column: int, row: int, tint: tuple[float, float, float]) -> None:
         x = column * pitch + inset
         y = row * pitch + inset
-        fill_rect(pixels, width, height, x, y, x + cell, y + cell, tint)
+        ground = mix(top, bottom, (y + cell / 2) / max(height - 1, 1))
+        fill_rect(pixels, width, height, x, y, x + cell, y + cell, mix(ground, tint, CELL_OPACITY))
 
     # Each column's fall, weighted toward its neighbours so long and short
     # runs cluster a little, and biased short so the deep ones stand out.
