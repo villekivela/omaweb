@@ -79,8 +79,8 @@
       <section class="t-hero">
         <h1>The browser should be<br /><em>part of your desktop</em>,<br />not a guest on it.</h1>
         <p>
-          A keyboard-driven browser for Omarchy. It takes the desktop's theme and keys, and keeps
-          its data on your machine.
+          A keyboard-driven browser for Omarchy. It wears the desktop's theme and keeps its data on
+          your machine.
         </p>
         <div class="t-hero__actions">
           <a class="btn btn--emphasis" href="#install">Install</a>
@@ -331,19 +331,30 @@
             <p>
               Every release from
               <a href="https://github.com/villekivela/omaweb/releases">v0.2.0</a> on includes a
-              built package. Download it and install it with
-              <code>sudo pacman -U omaweb-git-*.pkg.tar.zst</code>. Packages are
+              built package. Download it and install it with pacman. Packages are
               <code>x86_64</code> only. On <code>aarch64</code>, build from the repository.
             </p>
+            <div class="t-term">
+              <pre
+                class="t-term__line"
+              ><span class="t-term__prompt" aria-hidden="true">$</span><code>sudo pacman -U omaweb-git-*.pkg.tar.zst</code><span class="t-term__cursor" aria-hidden="true"></span></pre>
+              <button class="btn t-term__copy" type="button" data-copy>Copy</button>
+            </div>
           </div>
           <div>
             <h3>From the repository</h3>
             <p>
-              Clone the repository and run
-              <code>cd omaweb/packaging &amp;&amp; makepkg -si</code>. That builds and installs the
-              same package on either architecture. Installing does not make Omaweb your default
-              browser. It is alpha, so that stays a choice you make in Settings.
+              Clone the repository and build the package yourself. This gives the same package on
+              either architecture. Installing does not make Omaweb your default browser. It is
+              alpha, so that stays a choice you make in Settings.
             </p>
+            <div class="t-term">
+              <pre
+                class="t-term__line"
+              ><span class="t-term__prompt" aria-hidden="true">$</span><code>git clone https://github.com/villekivela/omaweb.git</code>
+<span class="t-term__prompt" aria-hidden="true">$</span><code>cd omaweb/packaging &amp;&amp; makepkg -si</code><span class="t-term__cursor" aria-hidden="true"></span></pre>
+              <button class="btn t-term__copy" type="button" data-copy>Copy</button>
+            </div>
           </div>
         </div>
       </section>
