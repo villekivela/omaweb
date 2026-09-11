@@ -23,6 +23,7 @@ ApplicationWindow {
                                   + " — Omaweb"
 
     property var windowBrowser: browser
+    readonly property var syncLauncherService: syncLauncher
     property bool privateWindow: false
     property string profilePathOverride: ""
     property var sharedEngineProfile: null
@@ -1687,7 +1688,7 @@ ApplicationWindow {
                 useFavicons: window.useFavicons
                 tintFavicons: window.tintFavicons
                 settingsAttention: settingsSurface.needsAttention
-                sync: syncLauncher ? syncLauncher.controller : null
+                sync: window.syncLauncherService ? window.syncLauncherService.controller : null
                 downloads: window.downloads
                 // The mark stays until the saved-file notice goes, which is
                 // the rule rather than a matching pair of durations.
@@ -2182,7 +2183,7 @@ ApplicationWindow {
                     browser: window.windowBrowser
                     blocker: contentBlocker
                     keyboard: keyboardNavigation
-                    syncLauncher: window.privateWindow ? null : syncLauncher
+                    syncLauncher: window.privateWindow ? null : window.syncLauncherService
                     open: window.settingsOpen
                     // As the sheet does: the page itself, never the viewport
                     // that owns both.

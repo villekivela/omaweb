@@ -12,6 +12,7 @@ TestCase {
     // `browser` is a context property, and a component that declares one of its
     // own cannot name it: the declaration shadows the context.
     readonly property var browserController: browser
+    readonly property var syncLauncherContext: syncLauncher
 
     // The page's width, counted rather than sampled: what a layout costs is
     // paid once per width the viewport is given.
@@ -3224,6 +3225,12 @@ TestCase {
         // page back on the section the later settings tests open it expecting.
         findChild(window.contentItem, "settingsSection0").Accessible.pressAction();
         findChild(window.contentItem, "closeSettingsButton").clicked();
+    }
+
+    function test_settingsReceivesSyncLauncher() {
+        const settings = findChild(window.contentItem, "settingsSurface");
+        verify(settings !== null);
+        compare(settings.syncLauncher, syncLauncherContext);
     }
 
     function test_settingsOwnSearchAndBrowsingDataControls() {
