@@ -460,7 +460,7 @@ img {
   .t-cols--2 {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-  .t-cols > div + div {
+  .t-cols:not(.t-cols--stack) > div + div {
     padding-left: calc(var(--panel-padding) * 1.5);
     border-left: 1px solid var(--line-quiet);
   }
@@ -547,11 +547,18 @@ img {
   color: var(--accent);
 }
 
+/* Stacked at every width, and narrow columns at narrow widths, divide
+   with a rule above rather than beside. The install section stacks: a
+   command block wants the whole measure, not half of it. */
 @media (max-width: 51.999rem) {
   .t-cols > div + div {
     padding-top: var(--panel-padding);
     border-top: 1px solid var(--line-quiet);
   }
+}
+.t-cols--stack > div + div {
+  padding-top: var(--panel-padding);
+  border-top: 1px solid var(--line-quiet);
 }
 
 /* ---------------- the generated screenshots -------------------------
