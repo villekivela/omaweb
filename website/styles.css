@@ -197,20 +197,40 @@ img {
   padding-block: var(--sp-huge) calc(var(--panel-padding) * 3);
 }
 
-/* The header stands where the rain is densest, so it frosts the canvas
-   behind it: a translucent ground with a backdrop blur, bled past the text by
-   a step of padding so the blur reaches the edge of the letters. */
+/* The header stands where the rain is densest, so it sits on a pane of
+   frosted glass that runs the full width of the page. The pane is a
+   pseudo-element, since the header itself is inside the wrap's column: blur
+   and a lift in saturation on what is behind it, a translucent ground with a
+   sheen from top to bottom over that, and a hairline highlight along the top
+   edge from the sheen and the theme's quiet line below, which is what reads as glass rather
+   than as a dimmed strip. */
 .t-top {
+  position: relative;
+  isolation: isolate;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--panel-gap);
-  margin-inline: calc(var(--sp-lg) * -1);
-  padding: var(--sp-lg) var(--sp-lg) var(--sp-xxl);
+  /* Pulled up over the wrap's own top padding, so the pane starts at the
+     edge of the page rather than a step below it. */
+  margin-top: calc(var(--sp-huge) * -1);
+  padding-block: var(--sp-xl) var(--sp-xxl);
+}
+.t-top::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset-block: 0;
+  left: 50%;
+  width: 100vw;
+  transform: translateX(-50%);
+  background:
+    linear-gradient(to bottom, color-mix(in srgb, var(--fg) 7%, transparent), transparent 40%),
+    color-mix(in srgb, var(--bg) 30%, transparent);
   border-bottom: 1px solid var(--line-quiet);
-  background: color-mix(in srgb, var(--bg) 60%, transparent);
-  -webkit-backdrop-filter: blur(12px);
-  backdrop-filter: blur(12px);
+  box-shadow: 0 var(--sp-lg) calc(var(--sp-huge) * 1.5) color-mix(in srgb, #000 35%, transparent);
+  -webkit-backdrop-filter: blur(14px) saturate(160%) brightness(1.1);
+  backdrop-filter: blur(14px) saturate(160%) brightness(1.1);
 }
 /* The wordmark is generated in the theme's own foreground, so it needs no
    inversion to be visible: the page used to invert a black drawing to get
