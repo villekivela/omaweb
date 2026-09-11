@@ -197,13 +197,20 @@ img {
   padding-block: var(--sp-huge) calc(var(--panel-padding) * 3);
 }
 
+/* The header stands where the rain is densest, so it frosts the canvas
+   behind it: a translucent ground with a backdrop blur, bled past the text by
+   a step of padding so the blur reaches the edge of the letters. */
 .t-top {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--panel-gap);
-  padding-bottom: var(--sp-xxl);
+  margin-inline: calc(var(--sp-lg) * -1);
+  padding: var(--sp-lg) var(--sp-lg) var(--sp-xxl);
   border-bottom: 1px solid var(--line-quiet);
+  background: color-mix(in srgb, var(--bg) 60%, transparent);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
 }
 /* The wordmark is generated in the theme's own foreground, so it needs no
    inversion to be visible: the page used to invert a black drawing to get
@@ -248,6 +255,24 @@ img {
   border-color: var(--accent);
   color: var(--fg);
   font-weight: 700;
+}
+
+/* The rain behind the header and the hero. Pinned to the top of the page and
+   painted under the flow, where the first section's own full-width band hides
+   its lower edge. The mask fades it out on the way down and the opacity keeps
+   it below the type: the hero's own contrast is measured against the plain
+   ground, and a field of accent cells at full strength would take that away. */
+.t-rain {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: -1;
+  width: 100%;
+  height: min(80vh, 48rem);
+  opacity: 0.32;
+  pointer-events: none;
+  -webkit-mask-image: linear-gradient(to bottom, #000 30%, transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 30%, transparent 100%);
 }
 
 /* Leave a short run of the page background below the hero before section 01
