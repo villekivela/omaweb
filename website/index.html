@@ -46,6 +46,11 @@
   </head>
 
   <body data-theme="hackerman">
+    <!-- The same rain of cells the screenshots' wallpaper is drawn from,
+         drawn live in the active palette behind the header and the hero.
+         Decorative: it is hidden from assistive technology and the page is
+         complete without it. -->
+    <canvas class="t-rain" aria-hidden="true"></canvas>
     <!-- GitHub's own mark, defined once and referenced by every button that
          goes there. `currentColor`, so it takes the button's text colour and
          follows the theme with it. Used to link to GitHub, which is what

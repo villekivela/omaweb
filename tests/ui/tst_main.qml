@@ -519,8 +519,7 @@ TestCase {
         verify(window.commands.available("copy-address"));
         window.commands.run("copy-address", -1);
         compare(SystemClipboard.text(), "https://copy-me.example/path?q=1");
-        compare(window.commands.keymap.keysFor("copy-address"), Qt.platform.os === "osx" ? "⌘⇧C" :
-                                                                                           "Ctrl+Shift+C");
+        compare(window.commands.keymap.keysFor("copy-address"), "Ctrl+Shift+C");
     }
 
     // An engine that supplies no inspector leaves the command listed and

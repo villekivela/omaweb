@@ -21,11 +21,16 @@ Per theme it writes:
   composited over a wallpaper generated from the same palette, and a
   `<state>-thumb.webp` beside it for the grid that opens it.
 
-The wallpaper is one geometry in every palette, colours only: a technical grid
-crossed by sparse circuit traces over a diagonal ground. Each capture takes
-the active-window border from the same theme. Keeping one drawing across the
-set lets the themes read as one family without asking any of them for a
-wallpaper of its own.
+The wallpaper is one drawing in every palette, colours only: square cells on a
+coarse grid, raining from the top edge and thinning out as they fall, in a few
+quantised tints of the theme's accent. Each capture takes the active-window
+border from the same theme, and the desktop under the window is blurred, as a
+compositor with blur on shows it. The window's surfaces are captured a step more
+translucent than the template ships them, so the blurred desktop reads through
+them as frosted glass rather than as a two-level tint; `--template-opacity`
+keeps the shipped values. Keeping one drawing across the set lets the
+themes read as one family without asking any of them for a wallpaper of its
+own, and the website draws the same picture live behind its hero.
 
 ## Headless, and no pointer
 
@@ -69,16 +74,16 @@ ImageMagick. Everything else is the standard library.
 
 Captures are taken at twice the size the page draws them, so the browser's own
 type is rendered at two device pixels per logical one rather than resampled
-down to nine. That costs bytes and the wallpaper is where they go: a gradient
-under a field of stripes is high-frequency everywhere, so a full capture lands
-near 280 KB whether it is encoded lossless or at quality 92. The thumbnails
+down to nine. That costs bytes, and the full captures are encoded lossless
+anyway: they are the file a reader opens to read the type in. The thumbnails
 carry the saving instead -- lossy, and a quarter of what lossless wants for a
 picture nobody reads.
 
-Themes are
-read from `/usr/share/omarchy/themes` and `~/.config/omarchy/themes`, the user
-directory winning; a theme that is installed in neither is skipped with a word
-about it. Nothing is written outside this repository.
+Themes are read from `/usr/share/omarchy/themes` and `~/.config/omarchy/themes`,
+the user directory winning, and from any directory named with `--themes`, which
+wins over both: a checkout of the Omarchy repository's `themes/` serves on a
+machine that has no Omarchy installed. A theme found in none of them is skipped
+with a word about it. Nothing is written outside this repository.
 
 The images are deliberately not gated in CI. Rendering differs across machines
 and fonts, and a flaky gate on a picture is worse than a stale picture.
@@ -88,7 +93,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import math
 import os
 import pathlib
 import re
@@ -174,6 +178,14 @@ NAMED_ROLES = {"--muted": "mutedText"}
 HORIZONTAL_MARGIN = 0.1
 VERTICAL_MARGIN = 0.055
 
+# The opacity the captures give the window's surfaces, in place of the
+# template's own. The template ships the page sheet at 0.92 and the sidebar at
+# 0.95, which over a dark wallpaper is a window that reads as opaque: the page
+# ground under dense and under empty desktop probes two levels apart. These
+# values let the blurred desktop through as a haze while the type stays on a
+# ground dark enough to read.
+CAPTURE_OPACITY = {"sheet": 0.8, "sidebar": 0.86}
+
 # Captured at twice the size Qt would lay the window out at, so the type is
 # rendered at two device pixels per logical one rather than resampled down to
 # them. The page draws the lead shot at around 1200 CSS pixels; a capture at
@@ -205,7 +217,9 @@ def theme_colors(name: str) -> dict[str, str] | None:
     return None
 
 
-def render_theme_file(colors: dict[str, str], target: pathlib.Path) -> dict:
+def render_theme_file(
+    colors: dict[str, str], target: pathlib.Path, opacity: dict[str, float] | None
+) -> dict:
     """Substitute the shipped Omarchy template against one theme's palette.
 
     Omarchy renders this itself at theme-switch time, into its own state
@@ -229,6 +243,8 @@ def render_theme_file(colors: dict[str, str], target: pathlib.Path) -> dict:
         theme["font"]["families"] = [family] + [
             fallback for fallback in families if fallback != family
         ]
+    if opacity:
+        theme["opacity"].update(opacity)
     target.write_text(json.dumps(theme, indent=2) + "\n", encoding="utf-8")
     return theme
 
@@ -400,84 +416,138 @@ def png_bytes(width: int, height: int, pixels: bytes) -> bytes:
 
 # ------------------------------------------------------------- wallpaper
 
+# The wallpaper's grid, as fractions of the canvas width: one cell pitch per
+# hundredth of the width, and a square filling a little over half of each
+# pitch so the gaps read as a grid rather than a texture.
+CELL_PITCH = 1 / 100
+CELL_FILL = 0.58
+
+# How much of the column count falls as an unbroken streak, and how far down
+# the canvas those streaks reach before they break up like the rest.
+STREAK_SHARE = 0.25
+STREAK_SOLID_DEPTH = 0.75
+
 
 def wallpaper(palette: dict, width: int, height: int) -> bytearray:
-    """One technical grid and circuit drawing, in this palette."""
+    """Square cells raining from the top edge, in this palette.
+
+    Cells sit on a coarse grid and fall in columns: solid near the top, then
+    breaking into dashes and thinning out with depth, each column reaching its
+    own distance down. A quarter of the columns are streaks that hold together
+    for most of their length, so long lines cut through the shorter speckle.
+    Brightness is quantised to four accent tints rather than faded smoothly,
+    which is what keeps the cells reading as blocks. The website draws the
+    same picture behind its hero in `script.js`; a change here wants the same
+    change there.
+
+    Everything random is a hash of the cell's position, so a re-run gives the
+    same picture and only the palette changes between themes.
+    """
     background = channels(palette["windowOpaque"])
     foreground = channels(palette["text"])
     accent = channels(palette["accent"])
 
-    # linear-gradient(152deg, color-mix(bg 34%, #000), bg). CSS measures the
-    # angle clockwise from "to top", and the gradient line is long enough that
-    # the far corners still reach the last stop.
-    radians = math.radians(152)
-    along = (math.sin(radians), -math.cos(radians))
-    span = abs(width * along[0]) + abs(height * along[1])
-    start = tuple(round(value * 0.34) for value in background)
-
+    # The theme's window ground pulled toward black, a touch lighter at the top.
+    top = mix(background, (0, 0, 0), 0.45)
+    bottom = mix(background, (0, 0, 0), 0.7)
     pixels = bytearray(width * height * 3)
-    at = 0
+    stride = width * 3
     for row in range(height):
-        y = row + 0.5
-        base_projection = y * along[1]
-        for column in range(width):
-            x = column + 0.5
-            position = (x * along[0] + base_projection) / span + 0.5
-            position = 0.0 if position < 0.0 else (1.0 if position > 1.0 else position)
-            red = start[0] + (background[0] - start[0]) * position
-            green = start[1] + (background[1] - start[1]) * position
-            blue = start[2] + (background[2] - start[2]) * position
-            pixels[at] = clamp(red)
-            pixels[at + 1] = clamp(green)
-            pixels[at + 2] = clamp(blue)
-            at += 3
+        color = bytes(clamp(value) for value in mix(top, bottom, row / max(height - 1, 1)))
+        pixels[row * stride : (row + 1) * stride] = color * width
 
-    step = max(32, round(width / 38))
-    fine = max(1, round(width / 1800))
-    major = fine + 1
-    for column in range(0, width, step):
-        is_major = (column // step) % 4 == 0
-        blend_rect(
-            pixels,
-            width,
-            height,
-            column,
-            0,
-            column + (major if is_major else fine),
-            height,
-            accent if is_major else foreground,
-            0.11 if is_major else 0.045,
-        )
-    for row in range(0, height, step):
-        is_major = (row // step) % 4 == 0
-        blend_rect(
-            pixels,
-            width,
-            height,
-            0,
-            row,
-            width,
-            row + (major if is_major else fine),
-            accent if is_major else foreground,
-            0.11 if is_major else 0.045,
-        )
+    pitch = max(8, round(width * CELL_PITCH))
+    cell = max(3, round(pitch * CELL_FILL))
+    inset = (pitch - cell) // 2
+    columns = width // pitch + 1
+    rows = height // pitch + 1
 
-    traces = [
-        [(0.00, 0.18), (0.08, 0.18), (0.08, 0.34), (0.22, 0.34), (0.22, 0.12)],
-        [(0.00, 0.78), (0.14, 0.78), (0.14, 0.62), (0.29, 0.62)],
-        [(1.00, 0.24), (0.90, 0.24), (0.90, 0.42), (0.77, 0.42)],
-        [(1.00, 0.82), (0.84, 0.82), (0.84, 0.67), (0.70, 0.67), (0.70, 0.92)],
+    # A whisper of accent up to the accent itself, and a fifth tint, the
+    # accent lifted toward the foreground, for a few leading cells on the top
+    # row.
+    tints = [
+        mix(background, accent, 0.22),
+        mix(background, accent, 0.42),
+        mix(background, accent, 0.68),
+        accent,
+        mix(accent, foreground, 0.55),
     ]
-    trace_width = max(2, round(width / 700))
-    node_size = max(8, round(width / 150))
-    for index, points in enumerate(traces):
-        color = accent if index % 2 == 0 else foreground
-        alpha = 0.44 if index % 2 == 0 else 0.22
-        draw_trace(pixels, width, height, points, trace_width, node_size, color, alpha)
+
+    def paint(column: int, row: int, tint: tuple[float, float, float]) -> None:
+        x = column * pitch + inset
+        y = row * pitch + inset
+        fill_rect(pixels, width, height, x, y, x + cell, y + cell, tint)
+
+    # Each column's fall, weighted toward its neighbours so long and short
+    # runs cluster a little, and biased short so the deep ones stand out.
+    raw = [hash01(1, index) for index in range(columns + 4)]
+    lengths = []
+    for index in range(columns):
+        noise = 0.55 * (raw[index + 1] + raw[index + 2] + raw[index + 3]) / 3 + 0.45 * raw[index + 2]
+        lengths.append(0.06 + 0.8 * noise**1.8)
+    for index in range(columns):
+        if hash01(7, index) < STREAK_SHARE:
+            lengths[index] = max(lengths[index], 0.55 + 0.45 * hash01(9, index))
+
+    for column in range(columns):
+        if hash01(2, column) < 0.12:
+            continue
+        fall = max(lengths[column] * rows, 1)
+        streak = hash01(7, column) < STREAK_SHARE
+        # Dropout is decided per run of a few cells rather than per cell, so
+        # the breaks come as dashes.
+        run = 1 + int(hash01(8, column) * 3)
+        for row in range(rows):
+            depth = row / fall
+            if depth > 1.15:
+                break
+            depth = min(1.0, depth)
+            survive = 1.0 - depth**0.9 * 0.9
+            if streak and depth < STREAK_SOLID_DEPTH:
+                survive = 1.0
+            if hash01(3, column, row // run) > survive:
+                continue
+            brightness = (1 - depth) ** 1.1 * (0.65 + 0.5 * hash01(4, column, row))
+            level = min(3, int(brightness * 4))
+            if brightness < 0.08:
+                level = 0
+            if row == 0 and hash01(5, column, row) < 0.2:
+                level = 4
+            paint(column, row, tints[level])
+
+    # Stray cells drifting in the dark below the fall.
+    for column in range(columns):
+        for row in range(rows):
+            if hash01(6, column, row) < 0.012:
+                paint(column, row, tints[0])
     return pixels
 
 
-def blend_rect(
+def hash01(*values: int) -> float:
+    """A value in [0, 1) from a few integers, the same for the same integers.
+
+    A splitmix-style mixer rather than `zlib.crc32`: a CRC is linear, and the
+    cells it placed lined up in rows the eye found at once.
+    """
+    state = 0x9E3779B97F4A7C15
+    for value in values:
+        state = (state ^ (value & MASK64)) * 0xBF58476D1CE4E5B9 & MASK64
+        state ^= state >> 31
+        state = state * 0x94D049BB133111EB & MASK64
+        state ^= state >> 29
+    return (state >> 11) / (1 << 53)
+
+
+MASK64 = (1 << 64) - 1
+
+
+def mix(
+    first: tuple[float, float, float], second: tuple[float, float, float], amount: float
+) -> tuple[float, float, float]:
+    return tuple(first[index] + (second[index] - first[index]) * amount for index in range(3))
+
+
+def fill_rect(
     pixels: bytearray,
     width: int,
     height: int,
@@ -485,60 +555,17 @@ def blend_rect(
     top: int,
     right: int,
     bottom: int,
-    color: tuple[int, int, int],
-    alpha: float,
+    color: tuple[float, float, float],
 ) -> None:
-    """Blend one clipped rectangle over an RGB canvas."""
+    """Fill one clipped rectangle of an RGB canvas, a row slice at a time."""
     left, top = max(0, left), max(0, top)
     right, bottom = min(width, right), min(height, bottom)
+    if right <= left or bottom <= top:
+        return
+    line = bytes(clamp(channel) for channel in color) * (right - left)
     for row in range(top, bottom):
         at = (row * width + left) * 3
-        for _ in range(left, right):
-            for channel in range(3):
-                pixels[at + channel] = round(
-                    pixels[at + channel] * (1.0 - alpha) + color[channel] * alpha
-                )
-            at += 3
-
-
-def draw_trace(
-    pixels: bytearray,
-    width: int,
-    height: int,
-    points: list[tuple[float, float]],
-    line_width: int,
-    node_size: int,
-    color: tuple[int, int, int],
-    alpha: float,
-) -> None:
-    """Draw an orthogonal circuit trace with a square node at each turn."""
-    resolved = [(round(x * width), round(y * height)) for x, y in points]
-    half_line = line_width // 2
-    half_node = node_size // 2
-    for (first_x, first_y), (second_x, second_y) in zip(resolved, resolved[1:]):
-        blend_rect(
-            pixels,
-            width,
-            height,
-            min(first_x, second_x) - half_line,
-            min(first_y, second_y) - half_line,
-            max(first_x, second_x) + line_width,
-            max(first_y, second_y) + line_width,
-            color,
-            alpha,
-        )
-    for x, y in resolved[1:-1]:
-        blend_rect(
-            pixels,
-            width,
-            height,
-            x - half_node,
-            y - half_node,
-            x + half_node,
-            y + half_node,
-            color,
-            min(1.0, alpha + 0.18),
-        )
+        pixels[at : at + len(line)] = line
 
 
 def active_border_stops(
@@ -599,11 +626,11 @@ def clamp(value: float) -> int:
 def blur(pixels: bytearray, width: int, height: int, radius: int) -> bytearray:
     """A separable box blur, twice, which is close enough to a gaussian.
 
-    Off unless asked for. A blur under the translucent surfaces is what a
-    compositor with `decoration:blur` on would show, and Omarchy ships that
-    off; there is no client-side blur for the browser to ask through either, so
-    a sharp desktop is what a stock install actually looks like. Turning it on
-    is a claim about the reader's compositor rather than about the browser.
+    Applied under the window unless `--no-blur` asks otherwise. A blur under
+    the translucent surfaces is what a compositor with `decoration:blur` on
+    shows, and the shots are meant to look like the desktop the browser was
+    designed for rather than the flattest install of it: a sharp field of cells
+    behind the sidebar reads as noise, a blurred one as a glow.
     """
     for _ in range(2):
         pixels = box_pass(pixels, width, height, radius)
@@ -660,10 +687,8 @@ def encoding(encoder: str, width: int | None, lossless: bool) -> list[str]:
     """The command line for one encode, scaling on the way through if asked.
 
     The full capture is encoded losslessly: it is the file a reader opens to
-    read the type in, and lossy saves it almost nothing anyway -- what the
-    bytes go on is the wallpaper's gradient and stripes, and those compress no
-    better for quality thrown away. A thumbnail is the opposite case. Nobody
-    reads one, and lossless spends four times what it needs to.
+    read the type in. A thumbnail is the opposite case. Nobody reads one, and
+    lossless spends four times what it needs to.
     """
     if encoder == "cwebp":
         # -z 9 is the slowest and smallest of the lossless presets.
@@ -837,6 +862,7 @@ def build(
     scratch: pathlib.Path,
     encoder: str,
     blurred: bool,
+    opacity: dict[str, float] | None,
 ) -> tuple[dict, dict] | None:
     colors = theme_colors(theme)
     if colors is None:
@@ -844,7 +870,7 @@ def build(
         return None
 
     theme_file = scratch / f"{theme}.json"
-    named = render_theme_file(colors, theme_file)
+    named = render_theme_file(colors, theme_file, opacity)
     palette = resolved_palette(lab, theme_file)
 
     (ICONS / f"favicon-{theme}.svg").write_text(favicon(palette), encoding="utf-8")
@@ -904,9 +930,22 @@ def main() -> int:
         "--theme", action="append", help="build only this theme; repeatable"
     )
     parser.add_argument(
-        "--blur",
+        "--no-blur",
+        dest="blur",
+        action="store_false",
+        help="leave the desktop behind the window sharp, as a compositor without blur shows it",
+    )
+    parser.add_argument(
+        "--template-opacity",
         action="store_true",
-        help="blur the desktop behind the window, as a compositor with blur on would",
+        help="capture the window at the opacity the template ships, not the frosted capture one",
+    )
+    parser.add_argument(
+        "--themes",
+        action="append",
+        type=pathlib.Path,
+        default=[],
+        help="a directory of Omarchy themes to read before the installed ones; repeatable",
     )
     arguments = parser.parse_args()
 
@@ -919,6 +958,7 @@ def main() -> int:
             "The page asks for .webp, so writing PNG here would produce files it "
             "cannot load."
         )
+    THEME_DIRECTORIES[:0] = arguments.themes
     if not any(directory.is_dir() for directory in THEME_DIRECTORIES):
         print("No Omarchy themes on this machine; nothing to build.")
         return 0
@@ -932,7 +972,14 @@ def main() -> int:
         scratch = pathlib.Path(directory)
         for theme, _ in wanted:
             print(f"{theme}:")
-            built = build(theme, arguments.lab, scratch, encoder, arguments.blur)
+            built = build(
+                theme,
+                arguments.lab,
+                scratch,
+                encoder,
+                arguments.blur,
+                None if arguments.template_opacity else CAPTURE_OPACITY,
+            )
             if built is not None:
                 palettes[theme] = built
 
