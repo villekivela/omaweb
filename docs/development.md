@@ -62,9 +62,10 @@ On macOS the executable is inside the bundle, at
 `./build/ui/omaweb-ui-lab.app/Contents/MacOS/omaweb-ui-lab`. Pass `--private` to paint the window in
 the private palette, which is the only way to review that chrome without opening a private window.
 `OMAWEB_THEME_FILE` points the lab at one theme file, as it does the browser, so a palette can be
-reviewed without installing it. Pass `--show collapsed`, `--show settings`, `--show history` or
-`--show shortcuts` to open the state a capture cannot press a key to reach. A state can name a
-section and a dialog over it: `--show settings:<section>` opens one of `tabs`, `keyboard`,
+reviewed without installing it. Pass `--show collapsed`, `--show peek`, `--show settings`,
+`--show history` or `--show shortcuts` to open the state a capture cannot press a key to reach. Use
+`--tabs --show peek` to review the floating sidebar and its page blur. A state can name a section
+and a dialog over it: `--show settings:<section>` opens one of `tabs`, `keyboard`,
 `content-blocking`, `network`, `downloads`, `search`, `privacy` or `about`, and
 `--show settings:privacy:clear` stands the clear-browsing-data dialog on Privacy. Naming the section
 is how a layout change is reviewed at a font size the page was not written at: point

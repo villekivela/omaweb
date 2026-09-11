@@ -3,8 +3,10 @@ import Omaweb.Engine
 
 Rectangle {
     id: root
+    objectName: "mockEngineView"
 
     property url currentUrl: "about:blank"
+    property bool blurReviewPattern: false
     property string pageTitle: currentUrl.toString() === "about:blank" ? "New tab" :
                                                                          currentUrl.toString()
     // The lab runs no engine and so has no icon store. Handing every host one
@@ -590,6 +592,22 @@ Rectangle {
         id: settle
         interval: 180
         onTriggered: root.loading = false
+    }
+
+    Row {
+        anchors.fill: parent
+        visible: root.blurReviewPattern
+
+        Repeater {
+            model: Math.ceil(root.width / 96)
+
+            Rectangle {
+                required property int index
+                width: 96
+                height: root.height
+                color: index % 2 === 0 ? "#f4f0ff" : "#241832"
+            }
+        }
     }
 
     Column {

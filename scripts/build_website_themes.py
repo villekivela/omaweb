@@ -31,8 +31,7 @@ wallpaper of its own.
 
 Nothing here needs a compositor, a pointer or a screen grab:
 
-    OMAWEB_CAPTURE_FONT_FILE=/path/to/JetBrainsMono.ttf \\
-      QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software \\
+    QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software \\
       ./build/dev/omaweb-ui-lab --tabs --show settings:tabs --capture out.png
 
 `OMAWEB_THEME_FILE` points the lab at a rendered theme without installing it,
@@ -55,6 +54,15 @@ this is why.
 ## Running it
 
     scripts/build_website_themes.py --lab ./build/dev/omaweb-ui-lab
+
+Captures use the theme template's font list, starting with the system's
+monospace font. Set `OMAWEB_CAPTURE_FONT_FAMILY` to prefer an installed family:
+
+    OMAWEB_CAPTURE_FONT_FAMILY="JetBrainsMono Nerd Font" \\
+      scripts/build_website_themes.py --lab ./build/dev/omaweb-ui-lab
+
+If that family is unavailable, the theme's system font list supplies the fallback.
+No font download is required. `OMAWEB_CAPTURE_FONT_FILE` is ignored by this script.
 
 The one thing to install is a WebP encoder: `cwebp` from libwebp, or
 ImageMagick. Everything else is the standard library.
@@ -101,7 +109,6 @@ WEBSITE = ROOT / "website"
 SHOTS = WEBSITE / "assets" / "shots"
 ICONS = WEBSITE / "assets" / "icons"
 STYLESHEET = WEBSITE / "themes.css"
-CAPTURE_FONT_FAMILY = "JetBrains Mono"
 
 THEME_DIRECTORIES = [
     pathlib.Path.home() / ".config" / "omarchy" / "themes",
@@ -216,10 +223,12 @@ def render_theme_file(colors: dict[str, str], target: pathlib.Path) -> dict:
     if remaining:
         raise SystemExit(f"the template names colours this theme does not: {remaining}")
     theme = json.loads(rendered)
-    families = theme["font"]["families"]
-    theme["font"]["families"] = [CAPTURE_FONT_FAMILY] + [
-        family for family in families if family != CAPTURE_FONT_FAMILY
-    ]
+    family = os.environ.get("OMAWEB_CAPTURE_FONT_FAMILY", "").strip()
+    if family:
+        families = theme["font"]["families"]
+        theme["font"]["families"] = [family] + [
+            fallback for fallback in families if fallback != family
+        ]
     target.write_text(json.dumps(theme, indent=2) + "\n", encoding="utf-8")
     return theme
 
@@ -229,18 +238,13 @@ def resolved_palette(lab: pathlib.Path, theme_file: pathlib.Path) -> dict:
     with tempfile.TemporaryDirectory() as scratch:
         dump = pathlib.Path(scratch) / "palette.json"
         run_lab(lab, theme_file, ["--dump-palette", str(dump), "--validate-qml"])
-        palette = json.loads(dump.read_text(encoding="utf-8"))
-        resolved = palette.get("font", {}).get("family")
-        if resolved != CAPTURE_FONT_FAMILY:
-            raise SystemExit(
-                f"captures require {CAPTURE_FONT_FAMILY}, but Qt resolved {resolved!r}; "
-                "set OMAWEB_CAPTURE_FONT_FILE to its TTF file"
-            )
-        return palette
+        return json.loads(dump.read_text(encoding="utf-8"))
 
 
 def run_lab(lab: pathlib.Path, theme_file: pathlib.Path, arguments: list[str]) -> None:
     environment = dict(os.environ)
+    # Website captures use installed fonts, even if the lab has a font-file override.
+    environment.pop("OMAWEB_CAPTURE_FONT_FILE", None)
     environment.update(
         {
             "OMAWEB_THEME_FILE": str(theme_file),

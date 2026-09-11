@@ -12,6 +12,7 @@ Rectangle {
     property var browser
     property bool privateWindow: false
     property bool collapsed: false
+    property bool floating: false
     property var blocker: null
     property bool statusOpen: false
     property bool useFavicons: true
@@ -84,7 +85,6 @@ Rectangle {
     // and nothing about the rows around it.
     signal tabDropped(string tabId, int destination)
     signal spaceActivated(string spaceId)
-    signal spacesMenuRequested(real anchorX, real anchorY)
     signal settingsRequested
     signal backRequested
     signal forwardRequested
@@ -253,7 +253,7 @@ Rectangle {
         onActivated: root.statusOpen = false
     }
 
-    color: colors.sidebar
+    color: floating ? "transparent" : colors.sidebar
     clip: true
 
     Connections {
@@ -346,7 +346,7 @@ Rectangle {
                     icon: "arrow_back"
                     accessibleName: "Back"
                     fontFamily: root.iconFontFamily
-                    foreground: root.colors.text
+                    foreground: root.colors.mutedText
                     accent: root.colors.accent
                     enabled: root.canGoBack
                     onClicked: root.backRequested()
@@ -359,7 +359,7 @@ Rectangle {
                     icon: "arrow_forward"
                     accessibleName: "Forward"
                     fontFamily: root.iconFontFamily
-                    foreground: root.colors.text
+                    foreground: root.colors.mutedText
                     accent: root.colors.accent
                     enabled: root.canGoForward
                     onClicked: root.forwardRequested()
@@ -372,7 +372,7 @@ Rectangle {
                     icon: "refresh"
                     accessibleName: "Reload"
                     fontFamily: root.iconFontFamily
-                    foreground: root.colors.text
+                    foreground: root.colors.mutedText
                     accent: root.colors.accent
                     onClicked: root.reloadRequested()
                 }
@@ -421,8 +421,7 @@ Rectangle {
                 width: 18
                 horizontalAlignment: Text.AlignHCenter
                 text: root.certificateError ? "warning" : (root.secure ? "lock" : "lock_open")
-                color: root.certificateError ? root.colors.urgent : (root.secure ? root.colors.text :
-                                                                                   root.colors.mutedText)
+                color: root.certificateError ? root.colors.urgent : root.colors.mutedText
                 font.family: root.iconFontFamily
                 font.pixelSize: Style.font.iconLarge
                 Accessible.role: Accessible.StaticText
@@ -465,7 +464,7 @@ Rectangle {
                     text: "shield"
                     color: root.colors.mutedText
                     font.family: root.iconFontFamily
-                    font.pixelSize: Style.font.icon
+                    font.pixelSize: Style.font.iconLarge
                 }
 
                 Text {
@@ -560,7 +559,7 @@ Rectangle {
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.top: pinnedSection.bottom
-        anchors.bottom: footerRule.top
+        anchors.bottom: footer.top
         anchors.leftMargin: 16
         anchors.rightMargin: 16
         anchors.topMargin: 12
@@ -614,24 +613,7 @@ Rectangle {
         }
     }
 
-    // What the Space is, and what it carries, are not more tabs: the rule says
-    // where the list ends so the footer reads as the outline's own furniture
-    // rather than as the row after the last tab.
-    Rectangle {
-        id: footerRule
-        objectName: "outlineFooterRule"
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.bottom: footer.top
-        anchors.leftMargin: 16
-        anchors.rightMargin: 16
-        anchors.bottomMargin: Style.spacing.lg
-        height: Style.spacing.hairline
-        color: root.colors.separator
-    }
-
-    // The Space letters, the Space menu and the settings the Space carries
-    // read as one row, and it closes the outline instead of opening it.
+    // Space switching and settings close the outline.
     Item {
         id: footer
         objectName: "spaceHeading"
@@ -652,7 +634,7 @@ Rectangle {
         Row {
             objectName: "spaceSwitcher"
             anchors.left: parent.left
-            anchors.right: spacesButton.left
+            anchors.right: downloadMark.visible ? downloadMark.left : settingsButton.left
             anchors.rightMargin: 8
             anchors.verticalCenter: parent.verticalCenter
             height: 28
@@ -726,33 +708,12 @@ Rectangle {
         }
 
         ChromeButton {
-            id: spacesButton
-            objectName: "manageSpacesButton"
-            anchors.right: downloadMark.visible ? downloadMark.left : settingsButton.left
-            anchors.rightMargin: 4
-            anchors.verticalCenter: parent.verticalCenter
-            width: 28
-            height: 26
-            visible: !root.privateWindow
-            icon: "more_horiz"
-            accessibleName: "Manage Spaces"
-            fontFamily: root.iconFontFamily
-            foreground: root.colors.mutedText
-            accent: root.colors.accent
-            onClicked: {
-                const corner = spacesButton.mapToItem(null, spacesButton.width,
-                                                      spacesButton.height);
-                root.spacesMenuRequested(corner.x, corner.y);
-            }
-        }
-
-        ChromeButton {
             id: settingsButton
             objectName: "settingsButton"
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
-            width: 30
-            height: 30
+            width: 28
+            height: 26
             icon: "settings"
             accessibleName: root.settingsAttention
                             ? "Browsing settings and downloads — needs attention" :

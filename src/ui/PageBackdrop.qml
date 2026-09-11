@@ -21,21 +21,13 @@ Item {
 
     property Item source: null
     property color tint: "transparent"
+    // The source's coordinates are explicit because this surface may be
+    // reparented above the item it samples. Full-page surfaces share their
+    // source's origin and need no override.
+    property rect sourceRect: Qt.rect(0, 0, width, height)
+    property real textureScale: 1
 
     readonly property bool sampling: source !== null && source.visible && root.visible
-
-    // Which part of the source lies under this surface, in the source's own
-    // coordinates. Stated rather than left to the default: an empty sourceRect
-    // means "the whole source item", which is the right answer only while the
-    // two share a size and an origin. They do today — both fill the page area —
-    // and a caller that insets this surface would otherwise get a sample
-    // silently stretched to fit rather than the part it actually covers.
-    readonly property rect sampleRect: {
-        if (!root.sampling)
-            return Qt.rect(0, 0, 0, 0);
-        const origin = root.mapToItem(root.source, 0, 0);
-        return Qt.rect(origin.x, origin.y, Math.max(1, root.width), Math.max(1, root.height));
-    }
 
     ShaderEffectSource {
         id: pageTexture
@@ -44,9 +36,11 @@ Item {
         hideSource: false
         recursive: false
         sourceItem: root.sampling ? root.source : null
-        sourceRect: root.sampleRect
+        sourceRect: root.sampling ? root.sourceRect : Qt.rect(0, 0, 0, 0)
         width: Math.max(1, root.width)
         height: Math.max(1, root.height)
+        textureSize: Qt.size(Math.max(1, Math.round(width * root.textureScale)), Math.max(1, Math.round(
+                                                                                              height * root.textureScale)))
     }
 
     MultiEffect {

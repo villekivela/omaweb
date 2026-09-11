@@ -276,6 +276,9 @@ int main(int argc, char *argv[])
     if (showIndex >= 0 && showIndex + 1 < arguments.size() && !engine.rootObjects().isEmpty()) {
         static const QHash<QString, QList<ShowProperty>> states = {
             {QStringLiteral("collapsed"), {{"", "sidebarCollapsed", true}}},
+            {QStringLiteral("peek"),
+                {{"", "sidebarCollapsed", true}, {"", "sidebarPeeked", true},
+                    {"", "floatingControls", false}, {"", "easeSidebar", false}}},
             {QStringLiteral("settings"), {{"", "settingsOpen", true}}},
             {QStringLiteral("settings:clear"),
                 {{"", "settingsOpen", true}, {"settingsSurface", "clearDataOpen", true}}},
@@ -285,6 +288,15 @@ int main(int argc, char *argv[])
         };
         const auto requested = arguments.at(showIndex + 1);
         auto *root = engine.rootObjects().constFirst();
+
+        // A visible page gives the peek capture detail whose blur can be
+        // reviewed. The other seeded captures keep the blank tab active.
+        if (requested == QLatin1String("peek")) {
+            const auto tabId = lastTabId(browser.unpinnedTabs());
+            if (!tabId.isEmpty()) {
+                browser.activateTab(tabId);
+            }
+        }
 
         // Settings has a section for each part of the browser, and a review of
         // its layout wants a capture of each. The rail's own list is what names them, so the
@@ -333,6 +345,23 @@ int main(int argc, char *argv[])
                 return 1;
             }
             target->setProperty(property.property, property.value);
+        }
+        // The real peek stays up because the pointer moves from the reveal
+        // edge into it. The lab has no pointer, so repeat the named state until
+        // capture while the browser's ordinary leave timer tries to close it.
+        if (requested == QLatin1String("peek")) {
+            auto *peekKeeper = new QTimer(root);
+            peekKeeper->setInterval(16);
+            QObject::connect(peekKeeper, &QTimer::timeout, root, [root] {
+                root->setProperty("sidebarCollapsed", true);
+                root->setProperty("sidebarPeeked", true);
+                root->setProperty("floatingControls", false);
+                const auto views = root->findChildren<QObject *>(QStringLiteral("mockEngineView"));
+                for (auto *view : views) {
+                    view->setProperty("blurReviewPattern", true);
+                }
+            });
+            peekKeeper->start();
         }
     }
     // The palette the browser resolves, rather than the template it was

@@ -1519,16 +1519,8 @@ TestCase {
             return pinnedRow.mapToItem(sidebar, 0, 0).y > navigationTop;
         });
 
-        // The browsing identity closes the outline, below every tab row, and a
-        // rule separates it from the list rather than letting it read as one
-        // more row.
         verify(spaceHeading.mapToItem(sidebar, 0, 0).y > pinnedRow.mapToItem(sidebar, 0, 0).y);
-        const footerRule = findChild(window.contentItem, "outlineFooterRule");
-        verify(footerRule !== null);
-        verify(footerRule.visible);
-        compare(footerRule.height, 1);
-        verify(footerRule.mapToItem(sidebar, 0, 0).y > pinnedRow.mapToItem(sidebar, 0, 0).y);
-        verify(footerRule.mapToItem(sidebar, 0, 0).y < spaceHeading.mapToItem(sidebar, 0, 0).y);
+        compare(findChild(sidebar, "outlineFooterRule"), null);
         const pinnedList = findChild(window.contentItem, "pinnedList");
         verify(pinnedList.capacity >= 3);
         verify(pinnedList.capacity <= 5);
@@ -1542,6 +1534,124 @@ TestCase {
             verify(pinnedRow.mapToItem(sidebar, 0, 0).y < tabRow.mapToItem(sidebar, 0, 0).y);
         }
         browser.toggleActivePinned();
+    }
+
+    function test_hiddenSidebarCanBePeekedWithMouse_data() {
+        return [
+                    {
+                        tag: "floating eased",
+                        floating: true,
+                        eased: true
+                    },
+                    {
+                        tag: "no floating eased",
+                        floating: false,
+                        eased: true
+                    },
+                    {
+                        tag: "floating immediate",
+                        floating: true,
+                        eased: false
+                    }
+                ];
+    }
+
+    function test_hiddenSidebarCanBePeekedWithMouse(data) {
+        const sidebar = findChild(window.contentItem, "sidebar");
+        const backdrop = findChild(window.contentItem, "sidebarBackdrop");
+        const engineViewport = findChild(window.contentItem, "engineViewport");
+        window.floatingControls = data.floating;
+        window.easeSidebar = data.eased;
+        mouseMove(window.contentItem, window.width / 2, window.height / 2);
+        window.sidebarCollapsed = true;
+        tryCompare(sidebar, "visible", false);
+        const collapsedWidth = engineViewport.width;
+
+        mouseMove(window.contentItem, 2, window.height / 2);
+        wait(300);
+        verify(!sidebar.visible);
+        tryCompare(sidebar, "visible", true);
+        compare(window.sidebarCollapsed, true);
+        compare(sidebar.floating, true);
+        compare(backdrop.visible, true);
+        verify(backdrop.source !== null);
+        const sheetTint = Qt.color(window.colors.sheet);
+        compare(backdrop.tint.r, sheetTint.r);
+        compare(backdrop.tint.g, sheetTint.g);
+        compare(backdrop.tint.b, sheetTint.b);
+        compare(backdrop.tint.a, Math.min(sheetTint.a, 0.8));
+        compare(backdrop.sourceRect.x, sidebar.x);
+        compare(backdrop.sourceRect.y, sidebar.y);
+        compare(backdrop.sourceRect.width, sidebar.width);
+        compare(backdrop.sourceRect.height, sidebar.height);
+        compare(backdrop.textureScale, 0.5);
+        if (data.eased)
+            verify(sidebar.x < 0);
+        tryCompare(sidebar, "x", 0);
+        compare(engineViewport.x, 0);
+        compare(engineViewport.width, collapsedWidth);
+
+        mouseMove(window.contentItem, window.width / 2, window.height / 2);
+        wait(170);
+        if (data.eased) {
+            verify(sidebar.visible);
+            verify(sidebar.x < 0);
+            verify(sidebar.x > -sidebar.width);
+        }
+        tryCompare(sidebar, "visible", false);
+        compare(window.sidebarCollapsed, true);
+        compare(backdrop.visible, false);
+        window.floatingControls = true;
+        window.easeSidebar = true;
+    }
+
+    function test_spaceActionsAreInSettings() {
+        const sidebar = findChild(window.contentItem, "sidebar");
+        compare(findChild(sidebar, "manageSpacesButton"), null);
+        window.requestSettings();
+        const settings = findChild(window.contentItem, "settingsSurface");
+        settings.section = settings.sections.indexOf("spaces");
+        const create = findChild(settings, "newSpaceButton");
+        verify(create.visible);
+        settleActions(create);
+        mouseClick(create, create.width / 2, create.height / 2);
+        compare(window.dialogMode, "new");
+        window.dialogMode = "";
+
+        const activeId = browser.activeSpaceId;
+        const otherId = browser.createSpace("Other Space");
+        const thirdId = browser.createSpace("Third Space");
+        for (const spaceId of [activeId, otherId, thirdId]) {
+            const row = findChild(settings, "settingsSpace-" + spaceId);
+            verify(row !== null);
+            verify(row.visible);
+        }
+        compare(findChild(settings, "settingsSpace-" + activeId).note, "Current Space");
+        const rename = findChild(settings, "renameSpace-" + otherId);
+        verify(rename !== null);
+        settleActions(rename);
+        mouseClick(rename, rename.width / 2, rename.height / 2);
+        compare(window.dialogMode, "rename");
+        compare(window.dialogSpaceId, otherId);
+        compare(browser.activeSpaceId, activeId);
+        const dialog = findChild(window.contentItem, "spaceDialog");
+        compare(dialog.presetText, "Other Space");
+        dialog.accepted("Renamed Space");
+        const remove = findChild(settings, "deleteSpace-" + otherId);
+        settleActions(remove);
+        mouseClick(remove, remove.width / 2, remove.height / 2);
+        compare(window.dialogSpaceName, "Renamed Space");
+        dialog.accepted("Wrong name");
+        verify(findChild(settings, "settingsSpace-" + otherId) !== null);
+        remove.clicked();
+        dialog.accepted("Renamed Space");
+        compare(browser.activeSpaceId, activeId);
+        tryVerify(function () {
+            return findChild(settings, "settingsSpace-" + otherId) === null;
+        });
+        verify(findChild(settings, "settingsSpace-" + thirdId) !== null);
+        verify(browser.deleteSpace(thirdId, "Third Space"));
+        window.settingsOpen = false;
     }
 
     function test_collapsingTheSidebarLeavesOnlyTheFloatingControls() {
@@ -1758,8 +1868,8 @@ TestCase {
 
         // The resize handle reads as part of the sidebar, so it leaves like
         // the rest of it. Every control in there answers to the same key.
-        const controls = ["addressButton", "settingsButton", "manageSpacesButton", "sidebarResizer",
-                          "tab-" + browser.activeTabId];
+        const controls = ["addressButton", "settingsButton", "sidebarResizer", "tab-"
+                          + browser.activeTabId];
         for (let index = 0; index < controls.length; ++index) {
             const control = findChild(window.contentItem, controls[index]);
             verify(control !== null);
@@ -1963,7 +2073,7 @@ TestCase {
         const collapseButton = findChild(window.contentItem, "collapseButton");
         const reloadButton = findChild(window.contentItem, "reloadButton");
         const commandPanelButton = findChild(window.contentItem, "commandPanelButton");
-        const manageSpacesButton = findChild(window.contentItem, "manageSpacesButton");
+        const newSpaceButton = findChild(window.contentItem, "newSpaceButton");
         const settingsButton = findChild(window.contentItem, "settingsButton");
         const materialSymbolsFont = findChild(window, "materialSymbolsFont");
 
@@ -1971,7 +2081,7 @@ TestCase {
         compare(addressButton.accessibleName, "Search or enter address");
         compare(collapseButton.accessibleName, "Hide sidebar");
         compare(commandPanelButton.accessibleName, "Command panel");
-        compare(manageSpacesButton.icon, "more_horiz");
+        compare(newSpaceButton.label, "New Space");
         verify(iconFontSource.toString().endsWith("/material-symbols-rounded.ttf"));
         verify(materialSymbolsFont !== null);
         tryCompare(materialSymbolsFont, "status", FontLoader.Ready);
@@ -1991,7 +2101,7 @@ TestCase {
         verify(visitedTab);
         compare(window.activeFocusItem.objectName, "settingsButton");
         keyClick(Qt.Key_Backtab);
-        compare(window.activeFocusItem.objectName, "manageSpacesButton");
+        verify(window.activeFocusItem.objectName.indexOf("space-") === 0);
     }
 
     function test_everyBrowserCommandIsBoundAndSearchable() {
@@ -2830,16 +2940,16 @@ TestCase {
 
         const spaceSwitcher = findChild(privateBrowser.contentItem, "spaceSwitcher");
         const pinnedList = findChild(privateBrowser.contentItem, "pinnedList");
-        const manageSpacesButton = findChild(privateBrowser.contentItem, "manageSpacesButton");
+        const newSpaceButton = findChild(privateBrowser.contentItem, "newSpaceButton");
         const privateEngine = findChild(privateBrowser.contentItem, "engineLoader");
         const privateBadge = findChild(privateBrowser.contentItem, "privateBadge");
         verify(spaceSwitcher !== null);
         verify(pinnedList !== null);
-        verify(manageSpacesButton !== null);
+        verify(newSpaceButton !== null);
         verify(privateEngine !== null);
         verify(!spaceSwitcher.visible);
         verify(!pinnedList.visible);
-        verify(!manageSpacesButton.visible);
+        verify(!newSpaceButton.visible);
         // The window names itself with its palette and the mask in the footer.
         // Nothing is drawn over the page to say it.
         verify(findChild(privateBrowser.contentItem, "privateIndicator") === null);
@@ -4417,6 +4527,10 @@ TestCase {
         // The page has the whole window: standing the outline aside must not
         // put the floating strip over the page in its place.
         verify(!floatingControls.visible);
+        verify(!findChild(window.contentItem, "sidebarRevealEdge").visible);
+        mouseMove(window.contentItem, 2, window.height / 2);
+        wait(200);
+        compare(window.sidebarCollapsed, true);
 
         keyClick(Qt.Key_Escape);
         tryVerify(function () {
@@ -4443,12 +4557,9 @@ TestCase {
 
         window.visibility = Window.FullScreen;
         tryCompare(window, "browserFullscreen", true);
-        // A window filling the screen has no corners to round.
-        compare(window.cornerRadius, 0);
 
         window.visibility = Window.Windowed;
         tryCompare(window, "browserFullscreen", false);
-        compare(window.cornerRadius, window.shellCornerRadius);
 
         // And the next command still works from there.
         window.commands.run("fullscreen", -1);

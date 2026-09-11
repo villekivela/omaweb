@@ -168,9 +168,9 @@ TestCase {
     function test_aLetterSelectsAndFocusesItsSection() {
         const page = makePage();
         const privacy = findChild(page, "settingsSection" + page.sections.indexOf("privacy"));
-        const about = findChild(page, "settingsSection" + page.sections.indexOf("about"));
+        const spaces = findChild(page, "settingsSection" + page.sections.indexOf("spaces"));
         verify(privacy !== null);
-        verify(about !== null);
+        verify(spaces !== null);
 
         page.forceActiveFocus();
         keyClick(Qt.Key_P);
@@ -181,7 +181,7 @@ TestCase {
         keyClick(Qt.Key_Space);
         compare(page.sections[page.section], "privacy");
         keyClick(Qt.Key_Tab);
-        verify(about.activeFocus);
+        verify(spaces.activeFocus);
     }
 
     function test_aRepeatedLetterWrapsAndAnUnknownLetterDoesNothing() {
@@ -544,7 +544,7 @@ TestCase {
         const page = makePage();
         const pane = findChild(page, "settingsPane");
         verify(pane !== null);
-        compare(page.sections.length, 9);
+        compare(page.sections.length, 10);
 
         theme.useTypeTokens(2);
         for (let section = 0; section < page.sections.length; ++section) {

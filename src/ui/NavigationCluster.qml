@@ -111,7 +111,7 @@ Rectangle {
             icon: "arrow_back"
             accessibleName: "Back"
             fontFamily: root.iconFontFamily
-            foreground: root.colors.text
+            foreground: root.colors.mutedText
             accent: root.colors.accent
             enabled: root.canGoBack
             onClicked: root.backRequested()
@@ -124,7 +124,7 @@ Rectangle {
             icon: "arrow_forward"
             accessibleName: "Forward"
             fontFamily: root.iconFontFamily
-            foreground: root.colors.text
+            foreground: root.colors.mutedText
             accent: root.colors.accent
             enabled: root.canGoForward
             onClicked: root.forwardRequested()
@@ -137,7 +137,7 @@ Rectangle {
             icon: "refresh"
             accessibleName: "Reload"
             fontFamily: root.iconFontFamily
-            foreground: root.colors.text
+            foreground: root.colors.mutedText
             accent: root.colors.accent
             onClicked: root.reloadRequested()
         }
