@@ -197,15 +197,20 @@ img {
   padding-block: var(--sp-huge) calc(var(--panel-padding) * 3);
 }
 
-/* The header stands where the rain is densest, so it sits on a pane of
-   frosted glass that runs the full width of the page. The pane is a
-   pseudo-element, since the header itself is inside the wrap's column: blur
+/* The header stays at the top of the viewport as the page scrolls, so it can
+   carry a notice, a release note or a link that wants to be found from
+   anywhere. It stands where the rain is densest and then over every section
+   band in turn, so it sits on a pane of frosted glass that runs the full
+   width of the page. The pane is a pseudo-element, since the header itself is
+   inside the wrap's column: blur
    and a lift in saturation on what is behind it, a translucent ground with a
    sheen from top to bottom over that, and a hairline highlight along the top
    edge from the sheen and the theme's quiet line below, which is what reads as glass rather
    than as a dimmed strip. */
 .t-top {
-  position: relative;
+  position: sticky;
+  top: 0;
+  z-index: 10;
   isolation: isolate;
   display: flex;
   flex-wrap: wrap;
@@ -214,7 +219,7 @@ img {
   /* Pulled up over the wrap's own top padding, so the pane starts at the
      edge of the page rather than a step below it. */
   margin-top: calc(var(--sp-huge) * -1);
-  padding-block: var(--sp-xl) var(--sp-xxl);
+  padding-block: var(--sp-xl);
 }
 .t-top::before {
   content: "";

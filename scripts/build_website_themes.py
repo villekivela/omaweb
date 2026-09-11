@@ -25,7 +25,10 @@ The wallpaper is one drawing in every palette, colours only: square cells on a
 coarse grid, raining from the top edge and thinning out as they fall, in a few
 quantised tints of the theme's accent. Each capture takes the active-window
 border from the same theme, and the desktop under the window is blurred, as a
-compositor with blur on shows it. Keeping one drawing across the set lets the
+compositor with blur on shows it. The window's surfaces are captured a step more
+translucent than the template ships them, so the blurred desktop reads through
+them as frosted glass rather than as a two-level tint; `--template-opacity`
+keeps the shipped values. Keeping one drawing across the set lets the
 themes read as one family without asking any of them for a wallpaper of its
 own, and the website draws the same picture live behind its hero.
 
@@ -175,6 +178,14 @@ NAMED_ROLES = {"--muted": "mutedText"}
 HORIZONTAL_MARGIN = 0.1
 VERTICAL_MARGIN = 0.055
 
+# The opacity the captures give the window's surfaces, in place of the
+# template's own. The template ships the page sheet at 0.92 and the sidebar at
+# 0.95, which over a dark wallpaper is a window that reads as opaque: the page
+# ground under dense and under empty desktop probes two levels apart. These
+# values let the blurred desktop through as a haze while the type stays on a
+# ground dark enough to read.
+CAPTURE_OPACITY = {"sheet": 0.8, "sidebar": 0.86}
+
 # Captured at twice the size Qt would lay the window out at, so the type is
 # rendered at two device pixels per logical one rather than resampled down to
 # them. The page draws the lead shot at around 1200 CSS pixels; a capture at
@@ -206,7 +217,9 @@ def theme_colors(name: str) -> dict[str, str] | None:
     return None
 
 
-def render_theme_file(colors: dict[str, str], target: pathlib.Path) -> dict:
+def render_theme_file(
+    colors: dict[str, str], target: pathlib.Path, opacity: dict[str, float] | None
+) -> dict:
     """Substitute the shipped Omarchy template against one theme's palette.
 
     Omarchy renders this itself at theme-switch time, into its own state
@@ -230,6 +243,8 @@ def render_theme_file(colors: dict[str, str], target: pathlib.Path) -> dict:
         theme["font"]["families"] = [family] + [
             fallback for fallback in families if fallback != family
         ]
+    if opacity:
+        theme["opacity"].update(opacity)
     target.write_text(json.dumps(theme, indent=2) + "\n", encoding="utf-8")
     return theme
 
@@ -847,6 +862,7 @@ def build(
     scratch: pathlib.Path,
     encoder: str,
     blurred: bool,
+    opacity: dict[str, float] | None,
 ) -> tuple[dict, dict] | None:
     colors = theme_colors(theme)
     if colors is None:
@@ -854,7 +870,7 @@ def build(
         return None
 
     theme_file = scratch / f"{theme}.json"
-    named = render_theme_file(colors, theme_file)
+    named = render_theme_file(colors, theme_file, opacity)
     palette = resolved_palette(lab, theme_file)
 
     (ICONS / f"favicon-{theme}.svg").write_text(favicon(palette), encoding="utf-8")
@@ -920,6 +936,11 @@ def main() -> int:
         help="leave the desktop behind the window sharp, as a compositor without blur shows it",
     )
     parser.add_argument(
+        "--template-opacity",
+        action="store_true",
+        help="capture the window at the opacity the template ships, not the frosted capture one",
+    )
+    parser.add_argument(
         "--themes",
         action="append",
         type=pathlib.Path,
@@ -951,7 +972,14 @@ def main() -> int:
         scratch = pathlib.Path(directory)
         for theme, _ in wanted:
             print(f"{theme}:")
-            built = build(theme, arguments.lab, scratch, encoder, arguments.blur)
+            built = build(
+                theme,
+                arguments.lab,
+                scratch,
+                encoder,
+                arguments.blur,
+                None if arguments.template_opacity else CAPTURE_OPACITY,
+            )
             if built is not None:
                 palettes[theme] = built
 
