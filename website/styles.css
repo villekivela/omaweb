@@ -444,6 +444,11 @@ img {
   color: var(--muted);
   font-size: var(--fs-body-sm);
 }
+.t-section__intro code {
+  font: inherit;
+  font-weight: 700;
+  color: var(--accent);
+}
 
 .t-cols {
   display: grid;
