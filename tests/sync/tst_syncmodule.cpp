@@ -15,6 +15,8 @@
 #include <QTemporaryDir>
 #include <QTest>
 
+#include <utility>
+
 using omaweb::PrivateSessionStore;
 using omaweb::SpaceState;
 using omaweb::SqliteSessionStore;
@@ -37,6 +39,7 @@ public:
 
     omaweb::ForgeAuthorization pollAuthorization(const QString &deviceCode, QString *) override
     {
+        ++authorizationPolls;
         if (deviceCode != QLatin1String("device-secret")) {
             return {};
         }
@@ -52,9 +55,17 @@ public:
         return {};
     }
 
-    omaweb::ForgeRepository provisionPrivateRepository(
-        const QByteArray &accessToken, const QString &name, QString *) override
+    omaweb::InstallationState installationState(
+        const QByteArray &, const QString &, QString *) override
     {
+        ++installationChecks;
+        return installed ? omaweb::InstallationState::Complete : omaweb::InstallationState::Pending;
+    }
+
+    omaweb::ForgeRepository provisionPrivateRepository(
+        const QByteArray &accessToken, const QString &, const QString &name, QString *) override
+    {
+        ++provisionAttempts;
         provisionedWith = accessToken;
         provisionedName = name;
         return {.name = name,
@@ -73,6 +84,10 @@ public:
     QString provisionedName;
     QUrl fetchedAvatarUrl;
     bool repositoryCreated = true;
+    bool installed = true;
+    int authorizationPolls = 0;
+    int installationChecks = 0;
+    int provisionAttempts = 0;
 };
 
 class MemorySecretStore final : public omaweb::SecretStore {
@@ -166,6 +181,7 @@ private slots:
     void laterRecordWinsWhenTwoMachinesChangeTheSameRecord();
     void aClosedTabDoesNotReturnFromAnotherMachine();
     void setupUsesAForgeIdentityAndCreatesAPrivateRepository();
+    void setupWaitsForInstallationBeforeProvisioning();
     void compactsAnOvergrownRepositoryIntoASnapshot();
     void anExistingRepositoryRequiresItsRecoveryKey();
 };
@@ -904,6 +920,33 @@ void SyncModuleTest::setupUsesAForgeIdentityAndCreatesAPrivateRepository()
     QFile avatar(dataRoot.filePath(QStringLiteral("sync/avatar")));
     QVERIFY(avatar.open(QIODevice::ReadOnly));
     QCOMPARE(avatar.readAll(), QByteArrayLiteral("fake-png"));
+}
+
+void SyncModuleTest::setupWaitsForInstallationBeforeProvisioning()
+{
+    QTemporaryDir dataRoot;
+    FakeForge forge;
+    forge.installed = false;
+    MemorySecretStore secrets;
+    SyncSetup setup(forge, secrets, dataRoot.path());
+    QString error;
+
+    QVERIFY(!setup.beginConnect({}, &error).deviceCode.isEmpty());
+    const auto waiting = setup.finishConnect(&error);
+    QVERIFY(!waiting.ready);
+    QVERIFY2(error.isEmpty(), qPrintable(error));
+    QCOMPARE(forge.provisionAttempts, 0);
+    QCOMPARE(forge.authorizationPolls, 1);
+    QCOMPARE(forge.installationChecks, 1);
+
+    forge.installed = true;
+    SyncSetup resumed(forge, secrets, dataRoot.path());
+    resumed.resumeConnect(std::move(waiting.authorization), {});
+    const auto connected = resumed.finishConnect(&error);
+    QVERIFY2(connected.ready, qPrintable(error));
+    QCOMPARE(forge.authorizationPolls, 1);
+    QCOMPARE(forge.installationChecks, 2);
+    QCOMPARE(forge.provisionAttempts, 1);
 }
 
 QTEST_GUILESS_MAIN(SyncModuleTest)

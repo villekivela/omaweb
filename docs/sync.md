@@ -1,9 +1,11 @@
 # Building the GitHub Sync adapter
 
-Sync is Linux-only and requires libsodium, libsecret, and git. Register the project GitHub App with
-device flow enabled, expiring user tokens enabled, repository Administration write permission, and
-repository Contents read/write permission. No webhook or callback URL is required by the browser's
-device flow. Build with its public identifiers:
+Sync is Linux-only and requires libsodium, libsecret, and git. Official builds use the public client
+ID and slug for the Omaweb Sync GitHub App. Register a separate development App with device flow
+enabled, expiring user tokens enabled, repository Administration write permission, and repository
+Contents read/write permission. No webhook or callback URL is required by the browser's device flow.
+Leave "Request user authorization (OAuth) during installation" disabled because Omaweb owns that
+step through device flow. Override the built-in public identifiers when testing that App:
 
 ```sh
 cmake --preset dev \
@@ -15,7 +17,8 @@ The client ID and slug are public application identifiers, not secrets. Never co
 secret or private key into the browser. A build without a client ID still builds and runs, but its
 Sync pane explains that GitHub authorization is unavailable.
 
-The first connection creates a private repository. A later machine logs into the same GitHub
-identity and enters the recovery key saved from the first machine. Losing every copy of that key
-makes the encrypted Space and tab records unrecoverable. Disconnecting does not remove the GitHub
-repository.
+Connect opens GitHub authorization. Once authorized, Omaweb opens installation when necessary,
+detects its completion, creates the private repository, starts Sync, and shows the recovery key. A
+later machine logs into the same GitHub identity and enters the recovery key saved from the first
+machine. Losing every copy of that key makes the encrypted Space and tab records unrecoverable.
+Disconnecting does not remove the GitHub repository.

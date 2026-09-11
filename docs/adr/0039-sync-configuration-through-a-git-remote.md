@@ -6,14 +6,19 @@ session and configuration stores immediately, then the module reconciles after 3
 every five minutes while enabled, and when the reader asks for Sync now. Git and network work run
 away from the shell thread.
 
-The initial forge adapter is a project-owned GitHub App. Installing the App and completing GitHub's
-device flow makes the GitHub login the Sync identity; Omaweb has no Account service or account
-database. The adapter asks for repository Administration write and Contents read/write, creates a
-private `omaweb-sync` repository, and reuses one it can identify as its own. An unrelated repository
-with that name is never adopted: the adapter tries a numbered name instead. The public App client ID
-and slug are build settings. User and refresh tokens live only in Linux Secret Service. A
-short-lived access token reaches git through an inherited pipe and askpass helper, never an
-argument, file, remote address, or general environment variable.
+The initial forge adapter is a project-owned GitHub App. Connect starts GitHub's device flow and
+opens its authorization page. Omaweb detects authorization, checks whether the App is installed for
+that personal account, and opens the installation page only when needed. It polls installation
+state, then creates the private repository and starts Sync without a manual continuation step. The
+GitHub login becomes the Sync identity; Omaweb has no Account service or account database.
+
+The adapter asks for repository Administration write and Contents read/write, creates a private
+`omaweb-sync` repository, and reuses one it can identify as its own. An unrelated repository with
+that name is never adopted: the adapter tries a numbered name instead. The official App's public
+client ID and slug are build defaults and remain overridable for development. User and refresh
+tokens live only in Linux Secret Service. While installation is pending, the authorized session
+exists only in memory. A short-lived access token reaches git through an inherited pipe and askpass
+helper, never an argument, file, remote address, or general environment variable.
 
 Forge authorization, repository provisioning, secret storage, and git reconciliation are separate
 interfaces. A later Forgejo or Gitea adapter can replace GitHub without changing the record model or

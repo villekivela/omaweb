@@ -22,8 +22,10 @@ else()
     set(omaweb_build_sync_default OFF)
 endif()
 option(OMAWEB_BUILD_SYNC "Build the Linux Sync Feature module" ${omaweb_build_sync_default})
-set(OMAWEB_GITHUB_APP_CLIENT_ID "" CACHE STRING "Public client ID of the Omaweb GitHub App")
-set(OMAWEB_GITHUB_APP_SLUG "omaweb-sync" CACHE STRING "Public slug of the Omaweb GitHub App")
+set(OMAWEB_GITHUB_APP_CLIENT_ID "Iv23lisXyiY9VgMs8ZxJ" CACHE STRING
+    "Public client ID of the Omaweb GitHub App")
+set(OMAWEB_GITHUB_APP_SLUG "omaweb-sync-villekivela" CACHE STRING
+    "Public slug of the Omaweb GitHub App")
 
 set(OMAWEB_CONTENT_BLOCKER_CACHE "${CMAKE_CURRENT_SOURCE_DIR}/.cache/content-blocker/release"
     CACHE PATH "Directory containing the bootstrapped content-blocker shared library")

@@ -32,6 +32,14 @@ SyncSetup::SyncSetup(ForgeProvider &forge, SecretStore &secrets, QString dataRoo
 {
 }
 
+SyncSetup::~SyncSetup()
+{
+    sodium_memzero(m_authorization.accessToken.data(),
+        static_cast<size_t>(m_authorization.accessToken.size()));
+    sodium_memzero(m_authorization.refreshToken.data(),
+        static_cast<size_t>(m_authorization.refreshToken.size()));
+}
+
 DeviceAuthorization SyncSetup::beginConnect(QString recoveryKey, QString *errorMessage)
 {
     m_recoveryKey = std::move(recoveryKey);
@@ -46,41 +54,64 @@ void SyncSetup::resumeConnect(QString deviceCode, QString recoveryKey)
     m_recoveryKey = std::move(recoveryKey);
 }
 
+void SyncSetup::resumeConnect(ForgeAuthorization authorization, QString recoveryKey)
+{
+    m_authorization = std::move(authorization);
+    m_recoveryKey = std::move(recoveryKey);
+}
+
 SyncConnection SyncSetup::finishConnect(QString *errorMessage)
 {
-    if (m_deviceCode.isEmpty()) {
+    if (m_deviceCode.isEmpty() && m_authorization.state != AuthorizationState::Complete) {
         setError(errorMessage, QStringLiteral("GitHub connection has not been started"));
         return {};
     }
-    auto authorization = m_forge.pollAuthorization(m_deviceCode, errorMessage);
-    if (authorization.state == AuthorizationState::Pending) {
+    if (m_authorization.state != AuthorizationState::Complete) {
+        m_authorization = m_forge.pollAuthorization(m_deviceCode, errorMessage);
+        if (m_authorization.state == AuthorizationState::Pending) {
+            SyncConnection pending;
+            pending.pollIntervalAdjustmentSeconds = m_authorization.pollIntervalAdjustmentSeconds;
+            return pending;
+        }
+        m_deviceCode.clear();
+        if (m_authorization.state != AuthorizationState::Complete || m_authorization.login.isEmpty()
+            || m_authorization.accessToken.isEmpty() || m_authorization.refreshToken.isEmpty()) {
+            setError(errorMessage, QStringLiteral("GitHub did not authorize Sync"));
+            return {};
+        }
+    }
+
+    const auto installation = m_forge.installationState(
+        m_authorization.accessToken, m_authorization.login, errorMessage);
+    if (installation == InstallationState::Pending) {
+        if (errorMessage) {
+            errorMessage->clear();
+        }
         SyncConnection pending;
-        pending.pollIntervalAdjustmentSeconds = authorization.pollIntervalAdjustmentSeconds;
+        pending.installationRequired = true;
+        pending.authorization = std::move(m_authorization);
         return pending;
     }
-    m_deviceCode.clear();
-    if (authorization.state != AuthorizationState::Complete || authorization.login.isEmpty()
-        || authorization.accessToken.isEmpty() || authorization.refreshToken.isEmpty()) {
-        setError(errorMessage, QStringLiteral("GitHub did not authorize Sync"));
+    if (installation != InstallationState::Complete) {
         return {};
     }
 
-    auto repository = m_forge.provisionPrivateRepository(
-        authorization.accessToken, QStringLiteral("omaweb-sync"), errorMessage);
+    auto repository = m_forge.provisionPrivateRepository(m_authorization.accessToken,
+        m_authorization.login, QStringLiteral("omaweb-sync"), errorMessage);
     if (repository.name.isEmpty() || !repository.cloneUrl.isValid() || !repository.isPrivate) {
-        sodium_memzero(authorization.accessToken.data(),
-            static_cast<size_t>(authorization.accessToken.size()));
-        sodium_memzero(authorization.refreshToken.data(),
-            static_cast<size_t>(authorization.refreshToken.size()));
+        sodium_memzero(m_authorization.accessToken.data(),
+            static_cast<size_t>(m_authorization.accessToken.size()));
+        sodium_memzero(m_authorization.refreshToken.data(),
+            static_cast<size_t>(m_authorization.refreshToken.size()));
         setError(errorMessage, QStringLiteral("The Sync repository was not created privately"));
         return {};
     }
 
     if (!repository.created && m_recoveryKey.isEmpty()) {
-        sodium_memzero(authorization.accessToken.data(),
-            static_cast<size_t>(authorization.accessToken.size()));
-        sodium_memzero(authorization.refreshToken.data(),
-            static_cast<size_t>(authorization.refreshToken.size()));
+        sodium_memzero(m_authorization.accessToken.data(),
+            static_cast<size_t>(m_authorization.accessToken.size()));
+        sodium_memzero(m_authorization.refreshToken.data(),
+            static_cast<size_t>(m_authorization.refreshToken.size()));
         setError(errorMessage,
             QStringLiteral("Enter the recovery key for the existing Sync repository"));
         return {};
@@ -88,19 +119,19 @@ SyncConnection SyncSetup::finishConnect(QString *errorMessage)
     const auto displayedKey
         = m_recoveryKey.isEmpty() ? SyncModule::createRecoveryKey() : m_recoveryKey;
     auto key = SyncModule::decodeRecoveryKey(displayedKey, errorMessage);
-    const auto refreshName = QStringLiteral("forge-refresh/%1").arg(authorization.login);
-    const auto keyName = QStringLiteral("sync-key/%1").arg(authorization.login);
-    if (key.isEmpty() || !m_secrets.store(refreshName, authorization.refreshToken, errorMessage)
+    const auto refreshName = QStringLiteral("forge-refresh/%1").arg(m_authorization.login);
+    const auto keyName = QStringLiteral("sync-key/%1").arg(m_authorization.login);
+    if (key.isEmpty() || !m_secrets.store(refreshName, m_authorization.refreshToken, errorMessage)
         || !m_secrets.store(keyName, key, errorMessage)) {
         sodium_memzero(key.data(), static_cast<size_t>(key.size()));
-        sodium_memzero(authorization.accessToken.data(),
-            static_cast<size_t>(authorization.accessToken.size()));
-        sodium_memzero(authorization.refreshToken.data(),
-            static_cast<size_t>(authorization.refreshToken.size()));
+        sodium_memzero(m_authorization.accessToken.data(),
+            static_cast<size_t>(m_authorization.accessToken.size()));
+        sodium_memzero(m_authorization.refreshToken.data(),
+            static_cast<size_t>(m_authorization.refreshToken.size()));
         return {};
     }
 
-    const auto avatar = m_forge.fetchAvatar(authorization.avatarUrl, nullptr);
+    const auto avatar = m_forge.fetchAvatar(m_authorization.avatarUrl, nullptr);
     if (!avatar.isEmpty()) {
         const auto path = QDir(m_dataRoot).filePath(QStringLiteral("sync/avatar"));
         if (QDir().mkpath(QFileInfo(path).absolutePath())) {
@@ -112,10 +143,10 @@ SyncConnection SyncSetup::finishConnect(QString *errorMessage)
         }
     }
 
-    const auto login = authorization.login;
+    const auto login = m_authorization.login;
     sodium_memzero(key.data(), static_cast<size_t>(key.size()));
-    sodium_memzero(
-        authorization.refreshToken.data(), static_cast<size_t>(authorization.refreshToken.size()));
+    sodium_memzero(m_authorization.refreshToken.data(),
+        static_cast<size_t>(m_authorization.refreshToken.size()));
     if (errorMessage) {
         errorMessage->clear();
     }
@@ -124,9 +155,10 @@ SyncConnection SyncSetup::finishConnect(QString *errorMessage)
         .repositoryName = repository.name,
         .remoteUrl = repository.cloneUrl,
         .recoveryKey = displayedKey,
-        .accessToken = std::move(authorization.accessToken),
-        .accessTokenExpiresInSeconds = authorization.expiresInSeconds,
-        .repositoryCreated = repository.created};
+        .accessToken = std::move(m_authorization.accessToken),
+        .accessTokenExpiresInSeconds = m_authorization.expiresInSeconds,
+        .repositoryCreated = repository.created,
+        .authorization = {}};
 }
 
 } // namespace omaweb

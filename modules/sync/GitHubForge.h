@@ -9,7 +9,7 @@ namespace omaweb {
 
 class GitHubForge final : public ForgeProvider {
 public:
-    explicit GitHubForge(QString clientId = {},
+    explicit GitHubForge(QString clientId = {}, QString appSlug = {},
         QUrl webRoot = QUrl(QStringLiteral("https://github.com")),
         QUrl apiRoot = QUrl(QStringLiteral("https://api.github.com")));
 
@@ -18,7 +18,9 @@ public:
         const QString &deviceCode, QString *errorMessage = nullptr) override;
     ForgeAuthorization refreshAuthorization(
         const QByteArray &refreshToken, QString *errorMessage = nullptr) override;
-    ForgeRepository provisionPrivateRepository(const QByteArray &accessToken,
+    InstallationState installationState(const QByteArray &accessToken, const QString &login,
+        QString *errorMessage = nullptr) override;
+    ForgeRepository provisionPrivateRepository(const QByteArray &accessToken, const QString &owner,
         const QString &preferredName, QString *errorMessage = nullptr) override;
     QByteArray fetchAvatar(const QUrl &avatarUrl, QString *errorMessage = nullptr) override;
 
@@ -36,9 +38,9 @@ private:
     QUrl apiUrl(const QString &path) const;
 
     QString m_clientId;
+    QString m_appSlug;
     QUrl m_webRoot;
     QUrl m_apiRoot;
-    QString m_login;
     QNetworkAccessManager m_network;
 };
 

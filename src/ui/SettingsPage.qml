@@ -18,6 +18,15 @@ Rectangle {
     property var keyboard
     property var syncLauncher: null
     readonly property var sync: syncLauncher ? syncLauncher.controller : null
+
+    Connections {
+        target: root.sync
+        ignoreUnknownSignals: true
+
+        function onConsentPageRequested(url) {
+            Qt.openUrlExternally(url);
+        }
+    }
     readonly property bool syncAvailable: root.browser ? !root.browser.privateBrowsing : false
     property bool open: false
     property int section: 0
@@ -1351,7 +1360,6 @@ Rectangle {
                                     root.syncLauncher.controller.resume();
                                     return;
                                 }
-                                Qt.openUrlExternally(root.syncLauncher.controller.installationUrl);
                                 root.syncLauncher.controller.beginGitHubConnection(
                                             syncRecoveryKey.text);
                             }
@@ -1360,7 +1368,8 @@ Rectangle {
 
                     SettingRow {
                         width: pane.width
-                        visible: root.sync && root.sync.connecting
+                        visible: root.sync && root.sync.connecting &&
+                                 !root.sync.awaitingInstallation
                         colors: root.colors
                         title: root.sync ? "Enter " + root.sync.userCode + " on GitHub" : ""
                         note: "The GitHub login becomes your Sync identity; Omaweb does not create an account."
@@ -1368,9 +1377,18 @@ Rectangle {
 
                     ActionButton {
                         colors: root.colors
-                        visible: root.sync && root.sync.connecting
+                        visible: root.sync && root.sync.connecting &&
+                                 !root.sync.awaitingInstallation
                         label: "Open GitHub authorization"
                         onClicked: Qt.openUrlExternally(root.sync.verificationUrl)
+                    }
+
+                    SettingRow {
+                        width: pane.width
+                        visible: root.sync && root.sync.awaitingInstallation
+                        colors: root.colors
+                        title: "Install Omaweb Sync for your personal GitHub account"
+                        note: "Omaweb detects approval and creates the private Sync repository automatically."
                     }
 
                     SettingRow {

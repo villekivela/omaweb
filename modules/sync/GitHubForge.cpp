@@ -2,6 +2,7 @@
 
 #include <QEventLoop>
 #include <QHttpHeaders>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QNetworkReply>
@@ -28,8 +29,9 @@ namespace {
 
 } // namespace
 
-GitHubForge::GitHubForge(QString clientId, QUrl webRoot, QUrl apiRoot)
+GitHubForge::GitHubForge(QString clientId, QString appSlug, QUrl webRoot, QUrl apiRoot)
     : m_clientId(std::move(clientId))
+    , m_appSlug(std::move(appSlug))
     , m_webRoot(std::move(webRoot))
     , m_apiRoot(std::move(apiRoot))
 {
@@ -130,11 +132,10 @@ ForgeAuthorization GitHubForge::pollAuthorization(const QString &deviceCode, QSt
                                     : profile.error);
         return {.state = AuthorizationState::Failed};
     }
-    m_login = user.value(QStringLiteral("login")).toString();
     return {.state = AuthorizationState::Complete,
         .accessToken = std::move(accessToken),
         .refreshToken = token.value(QStringLiteral("refresh_token")).toString().toUtf8(),
-        .login = m_login,
+        .login = user.value(QStringLiteral("login")).toString(),
         .avatarUrl = QUrl(user.value(QStringLiteral("avatar_url")).toString()),
         .expiresInSeconds = token.value(QStringLiteral("expires_in")).toInt()};
 }
@@ -160,10 +161,38 @@ ForgeAuthorization GitHubForge::refreshAuthorization(
         .expiresInSeconds = token.value(QStringLiteral("expires_in")).toInt()};
 }
 
-ForgeRepository GitHubForge::provisionPrivateRepository(
-    const QByteArray &accessToken, const QString &preferredName, QString *errorMessage)
+InstallationState GitHubForge::installationState(
+    const QByteArray &accessToken, const QString &login, QString *errorMessage)
 {
-    if (m_login.isEmpty()) {
+    if (m_appSlug.isEmpty()) {
+        setError(errorMessage, QStringLiteral("This build has no GitHub App slug"));
+        return InstallationState::Failed;
+    }
+    const auto response = request(
+        "GET", apiUrl(QStringLiteral("/user/installations?per_page=100")), {}, accessToken);
+    if (response.status != 200) {
+        setError(errorMessage,
+            response.error.isEmpty() ? QStringLiteral("GitHub could not check the App installation")
+                                     : response.error);
+        return InstallationState::Failed;
+    }
+    const auto installations
+        = objectFrom(response.body).value(QStringLiteral("installations")).toArray();
+    for (const auto &value : installations) {
+        const auto installation = value.toObject();
+        const auto account = installation.value(QStringLiteral("account")).toObject();
+        if (installation.value(QStringLiteral("app_slug")).toString() == m_appSlug
+            && account.value(QStringLiteral("login")).toString() == login) {
+            return InstallationState::Complete;
+        }
+    }
+    return InstallationState::Pending;
+}
+
+ForgeRepository GitHubForge::provisionPrivateRepository(const QByteArray &accessToken,
+    const QString &owner, const QString &preferredName, QString *errorMessage)
+{
+    if (owner.isEmpty()) {
         setError(errorMessage, QStringLiteral("GitHub identity is not available"));
         return {};
     }
@@ -171,11 +200,11 @@ ForgeRepository GitHubForge::provisionPrivateRepository(
         const auto name = suffix == 1 ? preferredName
                                       : preferredName + QLatin1Char('-') + QString::number(suffix);
         const auto existing = request(
-            "GET", apiUrl(QStringLiteral("/repos/%1/%2").arg(m_login, name)), {}, accessToken);
+            "GET", apiUrl(QStringLiteral("/repos/%1/%2").arg(owner, name)), {}, accessToken);
         if (existing.status == 200) {
             const auto repository = objectFrom(existing.body);
             const auto marker = request("GET",
-                apiUrl(QStringLiteral("/repos/%1/%2/contents/meta.json").arg(m_login, name)), {},
+                apiUrl(QStringLiteral("/repos/%1/%2/contents/meta.json").arg(owner, name)), {},
                 accessToken);
             const auto markerObject = objectFrom(marker.body);
             const auto markerContents = QByteArray::fromBase64(

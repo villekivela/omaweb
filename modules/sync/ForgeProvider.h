@@ -16,6 +16,8 @@ struct DeviceAuthorization {
 
 enum class AuthorizationState { Pending, Complete, Expired, Failed };
 
+enum class InstallationState { Pending, Complete, Failed };
+
 struct ForgeAuthorization {
     AuthorizationState state = AuthorizationState::Failed;
     QByteArray accessToken {};
@@ -45,8 +47,10 @@ public:
         const QString &deviceCode, QString *errorMessage = nullptr) = 0;
     virtual ForgeAuthorization refreshAuthorization(
         const QByteArray &refreshToken, QString *errorMessage = nullptr) = 0;
+    virtual InstallationState installationState(
+        const QByteArray &accessToken, const QString &login, QString *errorMessage = nullptr) = 0;
     virtual ForgeRepository provisionPrivateRepository(const QByteArray &accessToken,
-        const QString &preferredName, QString *errorMessage = nullptr) = 0;
+        const QString &owner, const QString &preferredName, QString *errorMessage = nullptr) = 0;
     virtual QByteArray fetchAvatar(const QUrl &avatarUrl, QString *errorMessage = nullptr) = 0;
 
 protected:

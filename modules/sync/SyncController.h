@@ -36,6 +36,7 @@ class SyncController final : public QObject {
     Q_OBJECT
     Q_PROPERTY(bool enabled READ enabled NOTIFY stateChanged)
     Q_PROPERTY(bool connecting READ connecting NOTIFY stateChanged)
+    Q_PROPERTY(bool awaitingInstallation READ awaitingInstallation NOTIFY stateChanged)
     Q_PROPERTY(bool pending READ pending NOTIFY stateChanged)
     Q_PROPERTY(QString provider READ provider CONSTANT)
     Q_PROPERTY(QString login READ login NOTIFY stateChanged)
@@ -56,6 +57,7 @@ public:
 
     bool enabled() const;
     bool connecting() const;
+    bool awaitingInstallation() const;
     bool pending() const;
     QString provider() const;
     QString login() const;
@@ -78,12 +80,14 @@ public:
 
 signals:
     void stateChanged();
+    void consentPageRequested(const QUrl &url);
 
 private:
     void loadMarker();
     bool writeMarker();
     QString machineId();
     void pollAuthorization();
+    void clearPendingAuthorization();
     void markPending();
     void finishDisconnect();
 
@@ -96,6 +100,7 @@ private:
     QString m_login;
     QUrl m_remoteUrl;
     QByteArray m_accessToken;
+    ForgeAuthorization m_pendingAuthorization;
     QByteArray m_keybindingsDigest;
     QByteArray m_subscriptionDigest;
     QDateTime m_accessTokenExpiresAt;
@@ -109,6 +114,7 @@ private:
     QDateTime m_lastSuccessfulSync;
     bool m_enabled = false;
     bool m_connecting = false;
+    bool m_awaitingInstallation = false;
     bool m_pending = false;
     bool m_syncing = false;
     bool m_initialRemoteRestore = false;

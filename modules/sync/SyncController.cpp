@@ -17,6 +17,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QLoggingCategory>
 #include <QSaveFile>
 #include <QUuid>
 #include <QtConcurrentRun>
@@ -27,6 +28,8 @@
 #include <utility>
 
 namespace omaweb {
+
+Q_LOGGING_CATEGORY(syncLog, "omaweb.sync")
 
 namespace {
 
@@ -70,6 +73,7 @@ SyncController::SyncController(BrowserController *browser, ContentBlocker *block
             m_connecting = false;
             m_errorMessage = result.second;
             m_status = QStringLiteral("GitHub connection failed");
+            qCWarning(syncLog) << "GitHub authorization could not start:" << m_errorMessage;
             emit stateChanged();
             return;
         }
@@ -79,12 +83,26 @@ SyncController::SyncController(BrowserController *browser, ContentBlocker *block
         m_authorizationPoll.setInterval(qMax(1, prompt.pollIntervalSeconds) * 1'000);
         m_authorizationPoll.start();
         m_status = QStringLiteral("Waiting for GitHub authorization");
+        qCInfo(syncLog) << "GitHub authorization page requested";
         emit stateChanged();
+        emit consentPageRequested(m_verificationUrl);
     });
     connect(&m_authorizationFinishWatcher, &QFutureWatcherBase::finished, this, [this] {
         auto result = m_authorizationFinishWatcher.result();
         auto &connected = result.first;
         if (!connected.ready && result.second.isEmpty()) {
+            if (connected.installationRequired) {
+                clearPendingAuthorization();
+                m_pendingAuthorization = std::move(connected.authorization);
+                if (!m_awaitingInstallation) {
+                    m_awaitingInstallation = true;
+                    m_status = QStringLiteral("Waiting for GitHub App installation");
+                    qCInfo(syncLog) << "GitHub App installation page requested";
+                    emit stateChanged();
+                    emit consentPageRequested(installationUrl());
+                }
+                return;
+            }
             if (connected.pollIntervalAdjustmentSeconds > 0) {
                 m_authorizationPoll.setInterval(m_authorizationPoll.interval()
                     + connected.pollIntervalAdjustmentSeconds * 1'000);
@@ -93,11 +111,14 @@ SyncController::SyncController(BrowserController *browser, ContentBlocker *block
         }
         m_authorizationPoll.stop();
         m_connecting = false;
+        m_awaitingInstallation = false;
+        clearPendingAuthorization();
         std::fill(m_pendingRecoveryKey.begin(), m_pendingRecoveryKey.end(), QChar {});
         m_pendingRecoveryKey.clear();
         if (!connected.ready) {
             m_errorMessage = result.second;
             m_status = QStringLiteral("GitHub connection failed");
+            qCWarning(syncLog) << "GitHub connection failed:" << m_errorMessage;
             emit stateChanged();
             return;
         }
@@ -112,6 +133,7 @@ SyncController::SyncController(BrowserController *browser, ContentBlocker *block
         m_pending = true;
         m_periodicReconcile.start();
         writeMarker();
+        qCInfo(syncLog) << "GitHub Sync connection ready for" << m_login;
         emit stateChanged();
         syncNow();
     });
@@ -280,10 +302,12 @@ SyncController::~SyncController()
     sodium_memzero(m_accessToken.data(), static_cast<size_t>(m_accessToken.size()));
     std::fill(m_recoveryKey.begin(), m_recoveryKey.end(), QChar {});
     std::fill(m_pendingRecoveryKey.begin(), m_pendingRecoveryKey.end(), QChar {});
+    clearPendingAuthorization();
 }
 
 bool SyncController::enabled() const { return m_enabled; }
 bool SyncController::connecting() const { return m_connecting; }
+bool SyncController::awaitingInstallation() const { return m_awaitingInstallation; }
 bool SyncController::pending() const { return m_pending; }
 QString SyncController::provider() const { return QStringLiteral("GitHub"); }
 QString SyncController::login() const { return m_login; }
@@ -377,10 +401,12 @@ bool SyncController::beginGitHubConnection(const QString &recoveryKey)
     m_pendingRecoveryKey = recoveryKey;
     m_connecting = true;
     m_status = QStringLiteral("Contacting GitHub");
+    qCInfo(syncLog) << "GitHub Sync connection started";
     emit stateChanged();
     m_authorizationStartWatcher.setFuture(QtConcurrent::run([recoveryKey] {
         QString error;
-        GitHubForge forge(QString::fromLatin1(OMAWEB_GITHUB_APP_CLIENT_ID));
+        GitHubForge forge(QString::fromLatin1(OMAWEB_GITHUB_APP_CLIENT_ID),
+            QString::fromLatin1(OMAWEB_GITHUB_APP_SLUG));
         LinuxSecretStore secrets;
         SyncSetup setup(forge, secrets, {});
         const auto prompt = setup.beginConnect(recoveryKey, &error);
@@ -397,15 +423,31 @@ void SyncController::pollAuthorization()
     const auto deviceCode = m_deviceCode;
     const auto recoveryKey = m_pendingRecoveryKey;
     const auto dataRoot = m_dataRoot;
-    m_authorizationFinishWatcher.setFuture(QtConcurrent::run([deviceCode, recoveryKey, dataRoot] {
-        QString error;
-        GitHubForge forge(QString::fromLatin1(OMAWEB_GITHUB_APP_CLIENT_ID));
-        LinuxSecretStore secrets;
-        SyncSetup setup(forge, secrets, dataRoot);
-        setup.resumeConnect(deviceCode, recoveryKey);
-        auto connection = setup.finishConnect(&error);
-        return QPair {std::move(connection), error};
-    }));
+    auto authorization = std::move(m_pendingAuthorization);
+    m_authorizationFinishWatcher.setFuture(QtConcurrent::run(
+        [deviceCode, recoveryKey, dataRoot, authorization = std::move(authorization)]() mutable {
+            QString error;
+            GitHubForge forge(QString::fromLatin1(OMAWEB_GITHUB_APP_CLIENT_ID),
+                QString::fromLatin1(OMAWEB_GITHUB_APP_SLUG));
+            LinuxSecretStore secrets;
+            SyncSetup setup(forge, secrets, dataRoot);
+            if (authorization.state == AuthorizationState::Complete) {
+                setup.resumeConnect(std::move(authorization), recoveryKey);
+            } else {
+                setup.resumeConnect(deviceCode, recoveryKey);
+            }
+            auto connection = setup.finishConnect(&error);
+            return QPair {std::move(connection), error};
+        }));
+}
+
+void SyncController::clearPendingAuthorization()
+{
+    sodium_memzero(m_pendingAuthorization.accessToken.data(),
+        static_cast<size_t>(m_pendingAuthorization.accessToken.size()));
+    sodium_memzero(m_pendingAuthorization.refreshToken.data(),
+        static_cast<size_t>(m_pendingAuthorization.refreshToken.size()));
+    m_pendingAuthorization = {};
 }
 
 void SyncController::markPending()
@@ -463,7 +505,8 @@ void SyncController::syncNow()
         if (options.accessToken.isEmpty()) {
             auto refresh
                 = secrets.retrieve(QStringLiteral("forge-refresh/%1").arg(login), &workerError);
-            GitHubForge forge(QString::fromLatin1(OMAWEB_GITHUB_APP_CLIENT_ID));
+            GitHubForge forge(QString::fromLatin1(OMAWEB_GITHUB_APP_CLIENT_ID),
+                QString::fromLatin1(OMAWEB_GITHUB_APP_SLUG));
             auto authorization = forge.refreshAuthorization(refresh, &workerError);
             sodium_memzero(refresh.data(), static_cast<size_t>(refresh.size()));
             if (authorization.state != AuthorizationState::Complete) {
