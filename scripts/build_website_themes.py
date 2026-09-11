@@ -60,14 +60,15 @@ this is why.
 
     scripts/build_website_themes.py --lab ./build/dev/omaweb-ui-lab
 
-Captures use the theme template's font list, starting with the system's
-monospace font. Set `OMAWEB_CAPTURE_FONT_FAMILY` to prefer an installed family:
+Captures are set in JetBrains Mono, the type the website itself is set in,
+and the run stops if Qt resolves anything else: a shot in the machine's
+fallback monospace is wrong in a way nothing downstream catches. Install the
+family, or name another installed one with `OMAWEB_CAPTURE_FONT_FAMILY`:
 
     OMAWEB_CAPTURE_FONT_FAMILY="JetBrainsMono Nerd Font" \\
       scripts/build_website_themes.py --lab ./build/dev/omaweb-ui-lab
 
-If that family is unavailable, the theme's system font list supplies the fallback.
-No font download is required. `OMAWEB_CAPTURE_FONT_FILE` is ignored by this script.
+`OMAWEB_CAPTURE_FONT_FILE` is ignored by this script.
 
 The one thing to install is a WebP encoder: `cwebp` from libwebp, or
 ImageMagick. Everything else is the standard library.
@@ -113,6 +114,7 @@ WEBSITE = ROOT / "website"
 SHOTS = WEBSITE / "assets" / "shots"
 ICONS = WEBSITE / "assets" / "icons"
 STYLESHEET = WEBSITE / "themes.css"
+CAPTURE_FONT_FAMILY = os.environ.get("OMAWEB_CAPTURE_FONT_FAMILY", "").strip() or "JetBrains Mono"
 
 THEME_DIRECTORIES = [
     pathlib.Path.home() / ".config" / "omarchy" / "themes",
@@ -237,12 +239,10 @@ def render_theme_file(
     if remaining:
         raise SystemExit(f"the template names colours this theme does not: {remaining}")
     theme = json.loads(rendered)
-    family = os.environ.get("OMAWEB_CAPTURE_FONT_FAMILY", "").strip()
-    if family:
-        families = theme["font"]["families"]
-        theme["font"]["families"] = [family] + [
-            fallback for fallback in families if fallback != family
-        ]
+    families = theme["font"]["families"]
+    theme["font"]["families"] = [CAPTURE_FONT_FAMILY] + [
+        fallback for fallback in families if fallback != CAPTURE_FONT_FAMILY
+    ]
     if opacity:
         theme["opacity"].update(opacity)
     target.write_text(json.dumps(theme, indent=2) + "\n", encoding="utf-8")
@@ -254,7 +254,14 @@ def resolved_palette(lab: pathlib.Path, theme_file: pathlib.Path) -> dict:
     with tempfile.TemporaryDirectory() as scratch:
         dump = pathlib.Path(scratch) / "palette.json"
         run_lab(lab, theme_file, ["--dump-palette", str(dump), "--validate-qml"])
-        return json.loads(dump.read_text(encoding="utf-8"))
+        palette = json.loads(dump.read_text(encoding="utf-8"))
+        resolved = palette.get("font", {}).get("family")
+        if resolved != CAPTURE_FONT_FAMILY:
+            raise SystemExit(
+                f"captures are set in {CAPTURE_FONT_FAMILY}, but Qt resolved {resolved!r}; "
+                "install it, or name an installed family with OMAWEB_CAPTURE_FONT_FAMILY"
+            )
+        return palette
 
 
 def run_lab(lab: pathlib.Path, theme_file: pathlib.Path, arguments: list[str]) -> None:
@@ -427,6 +434,13 @@ CELL_FILL = 0.58
 STREAK_SHARE = 0.25
 STREAK_SOLID_DEPTH = 0.75
 
+# How far each cell rises from the ground it sits on. The website draws its
+# hero canvas at a third of full opacity so the rain stays a backdrop to the
+# type over it; painted at full tint, the same cells were the brightest thing
+# on the page. Half keeps the columns legible through the blur behind the
+# window while the window stays the brightest thing in the frame.
+CELL_OPACITY = 0.5
+
 
 def wallpaper(palette: dict, width: int, height: int) -> bytearray:
     """Square cells raining from the top edge, in this palette.
@@ -476,7 +490,8 @@ def wallpaper(palette: dict, width: int, height: int) -> bytearray:
     def paint(column: int, row: int, tint: tuple[float, float, float]) -> None:
         x = column * pitch + inset
         y = row * pitch + inset
-        fill_rect(pixels, width, height, x, y, x + cell, y + cell, tint)
+        ground = mix(top, bottom, (y + cell / 2) / max(height - 1, 1))
+        fill_rect(pixels, width, height, x, y, x + cell, y + cell, mix(ground, tint, CELL_OPACITY))
 
     # Each column's fall, weighted toward its neighbours so long and short
     # runs cluster a little, and biased short so the deep ones stand out.

@@ -275,7 +275,8 @@ int main(int argc, char *argv[])
     const auto showIndex = arguments.indexOf(QStringLiteral("--show"));
     if (showIndex >= 0 && showIndex + 1 < arguments.size() && !engine.rootObjects().isEmpty()) {
         static const QHash<QString, QList<ShowProperty>> states = {
-            {QStringLiteral("collapsed"), {{"", "sidebarCollapsed", true}}},
+            {QStringLiteral("collapsed"),
+                {{"", "sidebarCollapsed", true}, {"", "sidebarPeeked", false}}},
             {QStringLiteral("peek"),
                 {{"", "sidebarCollapsed", true}, {"", "sidebarPeeked", true},
                     {"", "floatingControls", false}, {"", "easeSidebar", false}}},
@@ -346,22 +347,31 @@ int main(int argc, char *argv[])
             }
             target->setProperty(property.property, property.value);
         }
-        // The real peek stays up because the pointer moves from the reveal
-        // edge into it. The lab has no pointer, so repeat the named state until
-        // capture while the browser's ordinary leave timer tries to close it.
-        if (requested == QLatin1String("peek")) {
-            auto *peekKeeper = new QTimer(root);
-            peekKeeper->setInterval(16);
-            QObject::connect(peekKeeper, &QTimer::timeout, root, [root] {
+        // The hidden sidebar answers a pointer the lab does not have. The real
+        // peek stays up because the pointer moves from the reveal edge into
+        // it, and the browser's leave timer puts it away when it has not. The
+        // offscreen platform parks its cursor at device pixel (10, 10), which
+        // at a scale factor of two is inside the six-pixel reveal edge, so the
+        // browser's hold timer summons the sidebar over a `collapsed` capture.
+        // Repeat the named state until capture, so the shot is the state asked
+        // for rather than the one the browser's timers arrive at.
+        if (requested == QLatin1String("collapsed") || requested == QLatin1String("peek")) {
+            const auto peeked = requested == QLatin1String("peek");
+            auto *sidebarKeeper = new QTimer(root);
+            sidebarKeeper->setInterval(16);
+            QObject::connect(sidebarKeeper, &QTimer::timeout, root, [root, peeked] {
                 root->setProperty("sidebarCollapsed", true);
-                root->setProperty("sidebarPeeked", true);
+                root->setProperty("sidebarPeeked", peeked);
+                if (!peeked) {
+                    return;
+                }
                 root->setProperty("floatingControls", false);
                 const auto views = root->findChildren<QObject *>(QStringLiteral("mockEngineView"));
                 for (auto *view : views) {
                     view->setProperty("blurReviewPattern", true);
                 }
             });
-            peekKeeper->start();
+            sidebarKeeper->start();
         }
     }
     // The palette the browser resolves, rather than the template it was

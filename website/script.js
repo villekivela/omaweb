@@ -222,6 +222,39 @@
   var initialTheme = hasTheme(queryTheme) ? queryTheme : savedTheme;
   if (hasTheme(initialTheme)) setTheme(initialTheme, { save: Boolean(queryTheme), share: false });
 
+  // ---------------------------------------------------------------- copy
+  // The button copies the command beside it, not the prompt or the cursor,
+  // which are drawn for the reader and would be wrong in a shell. Without
+  // the clipboard API, which needs a secure context, the button goes away
+  // and the text is still there to select.
+  var copiers = [].slice.call(document.querySelectorAll("[data-copy]"));
+
+  copiers.forEach(function (button) {
+    var lines = [].slice.call(button.parentNode.querySelectorAll("code"));
+    if (!lines.length || !navigator.clipboard) {
+      button.hidden = true;
+      return;
+    }
+    var label = button.textContent;
+    var reset = 0;
+    button.addEventListener("click", function () {
+      var text = lines
+        .map(function (line) {
+          return line.textContent;
+        })
+        .join("\n");
+      navigator.clipboard.writeText(text).then(function () {
+        button.textContent = "Copied";
+        button.setAttribute("data-copied", "");
+        clearTimeout(reset);
+        reset = setTimeout(function () {
+          button.textContent = label;
+          button.removeAttribute("data-copied");
+        }, 1500);
+      });
+    });
+  });
+
   // -------------------------------------------------------------- viewer
   // The dialog is the browser's own, so Escape, the backdrop and the focus
   // trap are not ours to write. The set is walked by the two buttons in its

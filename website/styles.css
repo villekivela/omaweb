@@ -444,6 +444,11 @@ img {
   color: var(--muted);
   font-size: var(--fs-body-sm);
 }
+.t-section__intro code {
+  font: inherit;
+  font-weight: 700;
+  color: var(--accent);
+}
 
 .t-cols {
   display: grid;
@@ -460,7 +465,7 @@ img {
   .t-cols--2 {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-  .t-cols > div + div {
+  .t-cols:not(.t-cols--stack) > div + div {
     padding-left: calc(var(--panel-padding) * 1.5);
     border-left: 1px solid var(--line-quiet);
   }
@@ -483,11 +488,82 @@ img {
   color: var(--accent);
 }
 
+/* A command the reader is meant to run, drawn as the terminal it goes in:
+   a prompt, the line, a cursor after it, and the copy button beside. The
+   button is the kit's own, and the block is the kit's panel surface. The
+   cursor blinks unless the reader has asked for less motion. */
+.t-term {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-lg);
+  margin-top: var(--sp-xxl);
+  padding: var(--sp-xl) var(--sp-xl) var(--sp-xl) var(--sp-xxl);
+  border: 1px solid var(--line-quiet);
+  border-radius: var(--radius);
+  background: var(--sidebar);
+}
+.t-term__line {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  padding: calc(var(--control-py) - 1px) 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: inherit;
+  font-size: var(--fs-body-sm);
+  line-height: 1.65;
+  color: var(--fg);
+}
+.t-term__line code {
+  font: inherit;
+  color: inherit;
+}
+.t-term__prompt {
+  margin-right: 1ch;
+  color: var(--accent);
+  user-select: none;
+}
+.t-term__cursor {
+  display: inline-block;
+  width: 0.6em;
+  height: 1.1em;
+  margin-left: 0.15ch;
+  vertical-align: text-bottom;
+  background: var(--fg);
+  animation: t-blink 1.1s steps(1, end) infinite;
+}
+@keyframes t-blink {
+  50% {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .t-term__cursor {
+    animation: none;
+  }
+}
+.t-term__copy {
+  flex: none;
+  min-width: 5.5ch;
+  justify-content: center;
+}
+.t-term__copy[data-copied] {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* Stacked at every width, and narrow columns at narrow widths, divide
+   with a rule above rather than beside. The install section stacks: a
+   command block wants the whole measure, not half of it. */
 @media (max-width: 51.999rem) {
   .t-cols > div + div {
     padding-top: var(--panel-padding);
     border-top: 1px solid var(--line-quiet);
   }
+}
+.t-cols--stack > div + div {
+  padding-top: var(--panel-padding);
+  border-top: 1px solid var(--line-quiet);
 }
 
 /* ---------------- the generated screenshots -------------------------
