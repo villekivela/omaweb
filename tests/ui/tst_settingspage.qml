@@ -203,6 +203,18 @@ TestCase {
         verify(downloads.activeFocus);
     }
 
+    function test_syncHasAnExplicitPrivacyBoundary() {
+        const page = makePage();
+        compare(page.sections.indexOf("sync") >= 0, true);
+        page.section = page.sections.indexOf("sync");
+
+        const boundary = findChild(page, "syncPrivacyBoundary");
+        verify(boundary !== null);
+        verify(boundary.text.indexOf("Passwords") >= 0);
+        verify(boundary.text.indexOf("Private") >= 0);
+        verify(boundary.text.indexOf("history") >= 0);
+    }
+
     function test_aFieldKeepsTheLettersItAccepts() {
         const page = makePage();
         page.section = page.sections.indexOf("content blocking");
@@ -544,7 +556,7 @@ TestCase {
         const page = makePage();
         const pane = findChild(page, "settingsPane");
         verify(pane !== null);
-        compare(page.sections.length, 10);
+        compare(page.sections.length, 11);
 
         theme.useTypeTokens(2);
         for (let section = 0; section < page.sections.length; ++section) {

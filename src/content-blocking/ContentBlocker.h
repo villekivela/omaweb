@@ -55,6 +55,7 @@ public:
     // Settings offers the default lists back when there are none. Seeding is
     // otherwise a one-off, so this is the only way they return.
     Q_INVOKABLE void restoreDefaultSubscriptions();
+    void reloadSyncedConfiguration();
     Q_INVOKABLE bool siteEnabled(const QUrl &url) const;
     Q_INVOKABLE void setSiteEnabled(const QUrl &url, bool enabled);
     int refusalTallyGeneration() const;

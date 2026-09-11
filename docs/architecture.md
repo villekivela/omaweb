@@ -28,6 +28,9 @@ each Space keeps separate engine-managed login state.
   window integrations, the desktop's print dialog and notification centre, and what the operating
   system says one process holds.
 - `modules/*` contains independently compiled first-party Feature modules.
+- `omaweb-sync` contains the provider-neutral encrypted-record and git reconciliation core;
+  `omaweb-sync-plugin` adapts it to the running browser; and `omaweb-sync-askpass` passes an access
+  token to git through a single inherited descriptor.
 - `omaweb-ui-lab` loads the shared QML against fake browser state and a mock engine.
 
 QML renders read-only snapshots and submits commands. It does not mutate durable browser state
@@ -41,6 +44,14 @@ JSON stores settings, keybindings, and themes.
 
 Structural state commits transactionally. High-frequency presentation state saves on a short
 debounce. Engine caches and compiled blocker data are disposable and never enter Sync.
+
+Sync has two adapters around one record model. A forge adapter authorizes an identity and provisions
+the private repository; a git adapter reconciles its files. The core launcher knows only the
+versioned Feature-module contract and loads the Linux plugin after explicit connection or an enabled
+marker. Reconciliation opens separate SQLite connections on a worker thread and refreshes the live
+models only after it succeeds. Applying merged remote state is serialized on the shell thread; if
+the reader changed local state while reconciliation ran, that apply is deferred to the next pass so
+the completed worker cannot overwrite the newer edit.
 
 A Private window is given a store that records none of this. Which store a window holds is where "a
 Private window writes nothing down" is decided, rather than a test beside each write, and the one

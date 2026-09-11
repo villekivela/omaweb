@@ -82,6 +82,10 @@ bool ThreadedSessionStore::open(QString *errorMessage)
     return ask([this, errorMessage] { return m_store->open(errorMessage); });
 }
 
+// Whether the store records is what the store is, not what it holds, so this
+// answers without waiting on the thread.
+bool ThreadedSessionStore::recordsState() const { return m_store->recordsState(); }
+
 QVector<SpaceState> ThreadedSessionStore::loadSpaces() const
 {
     return ask([this] { return m_store->loadSpaces(); });
@@ -90,6 +94,11 @@ QVector<SpaceState> ThreadedSessionStore::loadSpaces() const
 bool ThreadedSessionStore::saveSpace(const SpaceState &space)
 {
     return ask([this, &space] { return m_store->saveSpace(space); });
+}
+
+bool ThreadedSessionStore::saveSpaces(const QVector<SpaceState> &spaces)
+{
+    return ask([this, &spaces] { return m_store->saveSpaces(spaces); });
 }
 
 bool ThreadedSessionStore::setActiveSpace(const QString &spaceId)

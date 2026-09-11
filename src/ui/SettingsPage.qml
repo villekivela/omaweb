@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Dialogs as Dialogs
 import Omaweb
 import qs.Commons
 
@@ -15,6 +16,9 @@ Rectangle {
     property var browser
     property var blocker
     property var keyboard
+    property var syncLauncher: null
+    readonly property var sync: syncLauncher ? syncLauncher.controller : null
+    readonly property bool syncAvailable: root.browser ? !root.browser.privateBrowsing : false
     property bool open: false
     property int section: 0
     // The window's download list. A model rather than an array: it says when
@@ -66,7 +70,7 @@ Rectangle {
     readonly property bool needsAttention: keyboardReport.length > 0 || inputMethodMissing
 
     readonly property var sections: ["tabs", "interface", "keyboard", "content blocking", "network",
-        "downloads", "search", "privacy", "spaces", "about"]
+        "downloads", "search", "privacy", "spaces", "sync", "about"]
 
     // The rail is as wide as the longest section name it draws, measured in the
     // bold face the current section takes so the pane beside it does not shift
@@ -211,6 +215,17 @@ Rectangle {
     signal tintFaviconsToggled(bool enabled)
     signal floatingControlsToggled(bool enabled)
     signal easeSidebarToggled(bool enabled)
+
+    Dialogs.FileDialog {
+        id: recoveryKeySaveDialog
+        title: "Save Sync recovery key"
+        fileMode: Dialogs.FileDialog.SaveFile
+        nameFilters: ["Text files (*.txt)"]
+        onAccepted: {
+            if (root.sync)
+                root.sync.saveRecoveryKey(selectedFile);
+        }
+    }
 
     visible: open
     // Settings is a place over the page rather than instead of it, so the page
@@ -1278,6 +1293,152 @@ Rectangle {
                 Column {
                     width: pane.width
                     visible: root.section === 9
+                    spacing: pane.spacing
+
+                    Text {
+                        text: "Sync"
+                        color: root.colors.text
+                        font.family: Style.font.family
+                        font.pixelSize: Style.font.display
+                    }
+
+                    SettingRow {
+                        width: pane.width
+                        colors: root.colors
+                        title: !root.syncAvailable ? "Sync is unavailable in a Private window" :
+                                                     root.sync ? (root.sync.login.length > 0
+                                                                  ? root.sync.login + " on "
+                                                                    + root.sync.provider :
+                                                                    root.sync.status) :
+                                                                 "Connect GitHub"
+                        note: root.sync ? root.sync.status : (root.syncLauncher
+                                                              ? root.syncLauncher.errorMessage : "")
+                    }
+
+                    Text {
+                        id: syncPrivacyBoundary
+                        objectName: "syncPrivacyBoundary"
+                        width: pane.width
+                        text: "Spaces and tabs are end-to-end encrypted. Approved settings, keybindings, and filter subscription addresses are readable in your private repository. Passwords, cookies, browsing history, downloads, site permissions, and every Private window are never synced. GitHub can still observe repository size and update timing."
+                        color: root.colors.mutedText
+                        wrapMode: Text.WordWrap
+                        font.family: Style.font.family
+                        font.pixelSize: Style.font.body
+                    }
+
+                    SettingField {
+                        id: syncRecoveryKey
+                        objectName: "syncRecoveryKey"
+                        width: pane.width
+                        visible: root.syncAvailable && (!root.sync || root.sync.login.length === 0)
+                        colors: root.colors
+                        placeholder: "recovery key (leave empty on the first device)"
+                        accessibleName: "Existing Sync recovery key"
+                    }
+
+                    ActionButton {
+                        objectName: "connectSyncButton"
+                        colors: root.colors
+                        visible: root.syncAvailable && (!root.sync || (!root.sync.enabled
+                                                                       && root.sync.login.length
+                                                                       === 0))
+                        label: !root.sync && root.syncLauncher && root.syncLauncher.configured
+                               ? "Resume Sync" : "Connect GitHub"
+                        onClicked: {
+                            if (root.syncLauncher && root.syncLauncher.load()
+                                    && root.syncLauncher.controller) {
+                                if (root.syncLauncher.controller.login.length > 0) {
+                                    root.syncLauncher.controller.resume();
+                                    return;
+                                }
+                                Qt.openUrlExternally(root.syncLauncher.controller.installationUrl);
+                                root.syncLauncher.controller.beginGitHubConnection(
+                                            syncRecoveryKey.text);
+                            }
+                        }
+                    }
+
+                    SettingRow {
+                        width: pane.width
+                        visible: root.sync && root.sync.connecting
+                        colors: root.colors
+                        title: root.sync ? "Enter " + root.sync.userCode + " on GitHub" : ""
+                        note: "The GitHub login becomes your Sync identity; Omaweb does not create an account."
+                    }
+
+                    ActionButton {
+                        colors: root.colors
+                        visible: root.sync && root.sync.connecting
+                        label: "Open GitHub authorization"
+                        onClicked: Qt.openUrlExternally(root.sync.verificationUrl)
+                    }
+
+                    SettingRow {
+                        width: pane.width
+                        visible: root.sync && root.sync.recoveryKey.length > 0
+                        colors: root.colors
+                        title: "Save this recovery key now"
+                        note: root.sync ? root.sync.recoveryKey : ""
+                    }
+
+                    Flow {
+                        width: pane.width
+                        spacing: Style.spacing.sm
+                        visible: root.sync && root.sync.recoveryKey.length > 0
+
+                        ActionButton {
+                            colors: root.colors
+                            label: "Copy recovery key"
+                            onClicked: SystemClipboard.copyText(root.sync.recoveryKey)
+                        }
+                        ActionButton {
+                            colors: root.colors
+                            label: "Save recovery key"
+                            onClicked: recoveryKeySaveDialog.open()
+                        }
+                        ActionButton {
+                            colors: root.colors
+                            label: "I saved it"
+                            onClicked: root.sync.clearRecoveryKey()
+                        }
+                    }
+
+                    Flow {
+                        width: pane.width
+                        spacing: Style.spacing.sm
+                        visible: root.sync && root.sync.login.length > 0
+
+                        ActionButton {
+                            colors: root.colors
+                            label: "Sync now"
+                            onClicked: root.sync.syncNow()
+                        }
+                        ActionButton {
+                            colors: root.colors
+                            label: "Pause"
+                            visible: root.sync && root.sync.enabled
+                            onClicked: root.sync.pause()
+                        }
+                        ActionButton {
+                            colors: root.colors
+                            label: "Resume"
+                            visible: root.sync && !root.sync.enabled
+                            onClicked: root.sync.resume()
+                        }
+                        ActionButton {
+                            colors: root.colors
+                            label: "Disconnect"
+                            destructive: true
+                            onClicked: root.sync.disconnectProvider()
+                        }
+                    }
+                }
+
+                // ---- about -------------------------------------------------
+
+                Column {
+                    width: pane.width
+                    visible: root.section === 10
                     spacing: pane.spacing
 
                     Text {

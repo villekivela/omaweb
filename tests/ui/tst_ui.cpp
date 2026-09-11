@@ -100,6 +100,8 @@ public slots:
             QStringLiteral("engineHeldDownloads"), QVariant::fromValue<QObject *>(nullptr));
         engine->rootContext()->setContextProperty(QStringLiteral("theme"), m_theme.get());
         engine->rootContext()->setContextProperty(
+            QStringLiteral("syncLauncher"), static_cast<QObject *>(nullptr));
+        engine->rootContext()->setContextProperty(
             QStringLiteral("windowManager"), m_windowManager.get());
         engine->rootContext()->setContextProperty(
             QStringLiteral("engineViewSource"), QUrl(QStringLiteral(OMAWEB_MOCK_ENGINE_VIEW_URL)));

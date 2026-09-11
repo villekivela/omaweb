@@ -6,6 +6,8 @@ omaweb_resolve_version()
 
 project(Omaweb VERSION ${OMAWEB_VERSION} LANGUAGES CXX)
 
+include(GNUInstallDirs)
+
 omaweb_watch_git_head()
 message(STATUS "Omaweb version ${OMAWEB_VERSION_STRING} (build ${OMAWEB_BUILD_NUMBER})")
 
@@ -14,6 +16,14 @@ include(CTest)
 option(OMAWEB_BUILD_BROWSER "Build the QtWebEngine application" ON)
 option(OMAWEB_BUILD_UI_LAB "Build the engine-free QML UI runner" ON)
 option(OMAWEB_SOURCE_QML "Load QML from the source tree for fast iteration" ON)
+if(UNIX AND NOT APPLE)
+    set(omaweb_build_sync_default ON)
+else()
+    set(omaweb_build_sync_default OFF)
+endif()
+option(OMAWEB_BUILD_SYNC "Build the Linux Sync Feature module" ${omaweb_build_sync_default})
+set(OMAWEB_GITHUB_APP_CLIENT_ID "" CACHE STRING "Public client ID of the Omaweb GitHub App")
+set(OMAWEB_GITHUB_APP_SLUG "omaweb-sync" CACHE STRING "Public slug of the Omaweb GitHub App")
 
 set(OMAWEB_CONTENT_BLOCKER_CACHE "${CMAKE_CURRENT_SOURCE_DIR}/.cache/content-blocker/release"
     CACHE PATH "Directory containing the bootstrapped content-blocker shared library")
@@ -113,6 +123,7 @@ add_library(omaweb-content-blocking STATIC
     src/content-blocking/ContentMatcher.h
     src/content-blocking/omaweb_blocker.h
 )
+set_target_properties(omaweb-content-blocking PROPERTIES POSITION_INDEPENDENT_CODE ON)
 target_include_directories(omaweb-content-blocking PUBLIC src/content-blocking)
 target_link_libraries(omaweb-content-blocking PUBLIC
     Qt6::Core
@@ -170,16 +181,80 @@ add_library(omaweb-core STATIC
     src/core/SpaceListModel.h
     src/core/SpaceStorage.cpp
     src/core/SpaceStorage.h
+    src/core/SyncFeature.h
+    src/core/SyncLauncher.cpp
+    src/core/SyncLauncher.h
     src/core/TabListModel.cpp
     src/core/TabListModel.h
     src/core/WindowCapabilities.h
     src/core/WindowManager.cpp
     src/core/WindowManager.h
 )
+set_target_properties(omaweb-core PROPERTIES POSITION_INDEPENDENT_CODE ON)
 target_include_directories(omaweb-core PUBLIC src/core src/content-blocking)
 target_link_libraries(omaweb-core PUBLIC Qt6::Core Qt6::Network Qt6::Qml Qt6::Sql
     PRIVATE Qt6::Concurrent omaweb-content-blocking)
 omaweb_strict_target(omaweb-core)
+
+if(OMAWEB_BUILD_SYNC)
+    if(NOT UNIX OR APPLE)
+        message(FATAL_ERROR "The Sync Feature module currently supports Linux only")
+    endif()
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(SODIUM REQUIRED IMPORTED_TARGET libsodium)
+    pkg_check_modules(LIBSECRET REQUIRED IMPORTED_TARGET libsecret-1)
+    set(omaweb_sync_installed_askpass
+        "${CMAKE_INSTALL_FULL_LIBEXECDIR}/omaweb/omaweb-sync-askpass")
+    add_executable(omaweb-sync-askpass modules/sync/AskPass.cpp)
+    omaweb_strict_target(omaweb-sync-askpass)
+    add_library(omaweb-sync SHARED
+        modules/sync/ForgeProvider.h
+        modules/sync/GitHubForge.cpp
+        modules/sync/GitHubForge.h
+        modules/sync/LinuxSecretStore.cpp
+        modules/sync/LinuxSecretStore.h
+        modules/sync/SecretStore.h
+        modules/sync/SyncSetup.cpp
+        modules/sync/SyncSetup.h
+        modules/sync/SyncModule.cpp
+        modules/sync/SyncModule.h
+    )
+    target_include_directories(omaweb-sync PUBLIC modules/sync)
+    target_link_libraries(omaweb-sync PUBLIC omaweb-core PRIVATE
+        PkgConfig::LIBSECRET
+        PkgConfig::SODIUM
+    )
+    target_compile_definitions(omaweb-sync PRIVATE
+        OMAWEB_GITHUB_APP_CLIENT_ID="${OMAWEB_GITHUB_APP_CLIENT_ID}"
+        OMAWEB_GITHUB_APP_SLUG="${OMAWEB_GITHUB_APP_SLUG}"
+        OMAWEB_SYNC_ASKPASS_PATH="$<TARGET_FILE:omaweb-sync-askpass>"
+        OMAWEB_SYNC_INSTALLED_ASKPASS_PATH="${omaweb_sync_installed_askpass}"
+    )
+    add_dependencies(omaweb-sync omaweb-sync-askpass)
+    set_target_properties(omaweb-sync PROPERTIES AUTOMOC ON)
+    set_target_properties(omaweb-sync PROPERTIES INSTALL_RPATH "$ORIGIN:$ORIGIN/..")
+    omaweb_strict_target(omaweb-sync)
+    qt_add_plugin(omaweb-sync-plugin
+        CLASS_NAME SyncPlugin
+        PLUGIN_TYPE omaweb
+        modules/sync/SyncController.cpp
+        modules/sync/SyncController.h
+        modules/sync/SyncPlugin.cpp
+        modules/sync/SyncPlugin.h
+    )
+    target_link_libraries(omaweb-sync-plugin PRIVATE omaweb-sync omaweb-core Qt6::Concurrent)
+    target_include_directories(omaweb-sync-plugin PRIVATE modules/sync src/core)
+    target_compile_definitions(omaweb-sync-plugin PRIVATE
+        OMAWEB_GITHUB_APP_CLIENT_ID="${OMAWEB_GITHUB_APP_CLIENT_ID}"
+        OMAWEB_GITHUB_APP_SLUG="${OMAWEB_GITHUB_APP_SLUG}"
+    )
+    set_target_properties(omaweb-sync-plugin PROPERTIES INSTALL_RPATH "$ORIGIN:$ORIGIN/..")
+    omaweb_strict_target(omaweb-sync-plugin)
+    install(TARGETS omaweb-sync omaweb-sync-plugin omaweb-sync-askpass
+        LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}/omaweb/modules"
+        RUNTIME DESTINATION "${CMAKE_INSTALL_LIBEXECDIR}/omaweb"
+    )
+endif()
 
 add_library(omaweb-ui STATIC
     src/ui/FaviconTint.cpp
@@ -551,6 +626,20 @@ if(OMAWEB_BUILD_BROWSER)
     omaweb_configure_qml(omaweb "src/engine/qt/EngineView.qml"
         "src/engine/qt/EngineProfile.qml" "Omaweb.Engine.Qt")
     omaweb_strict_target(omaweb)
+    if(TARGET omaweb-sync-plugin)
+        set(omaweb_sync_installed_module
+            "${CMAKE_INSTALL_FULL_LIBDIR}/omaweb/modules/$<TARGET_FILE_NAME:omaweb-sync-plugin>")
+        add_dependencies(omaweb omaweb-sync-plugin)
+        target_compile_definitions(omaweb PRIVATE
+            OMAWEB_SYNC_MODULE_PATH="$<TARGET_FILE:omaweb-sync-plugin>"
+            OMAWEB_SYNC_INSTALLED_MODULE_PATH="${omaweb_sync_installed_module}"
+        )
+    else()
+        target_compile_definitions(omaweb PRIVATE
+            OMAWEB_SYNC_MODULE_PATH=""
+            OMAWEB_SYNC_INSTALLED_MODULE_PATH=""
+        )
+    endif()
 
     set_target_properties(omaweb PROPERTIES
         MACOSX_BUNDLE_BUNDLE_NAME "Omaweb"
@@ -561,8 +650,6 @@ if(OMAWEB_BUILD_BROWSER)
     )
 
     if(UNIX AND NOT APPLE)
-        include(GNUInstallDirs)
-
         # The content blocker is a shared library the build resolves out of the
         # bootstrap cache, so the binary's build-tree runpath names a directory
         # on the machine that compiled it. An installed copy has to find it
@@ -713,6 +800,13 @@ if(BUILD_TESTING)
     target_include_directories(omaweb-session-store-tests PRIVATE "tests")
     omaweb_strict_target(omaweb-session-store-tests)
     add_test(NAME omaweb-session-store COMMAND omaweb-session-store-tests)
+
+    if(TARGET omaweb-sync)
+        qt_add_executable(omaweb-sync-tests tests/sync/tst_syncmodule.cpp)
+        target_link_libraries(omaweb-sync-tests PRIVATE omaweb-sync Qt6::Test)
+        omaweb_strict_target(omaweb-sync-tests)
+        add_test(NAME omaweb-sync COMMAND omaweb-sync-tests)
+    endif()
 
     qt_add_executable(omaweb-session-fixture-tests
         "tests/core/SessionFixture.cpp"

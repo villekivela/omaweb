@@ -23,6 +23,7 @@ Rectangle {
     // rather than the outline growing a line for it: settings is a place, and
     // what is wrong is stated there, where it can be acted on.
     property bool settingsAttention: false
+    property var sync: null
     property var downloads: null
     property bool savedFileNoticeShowing: false
 
@@ -86,6 +87,7 @@ Rectangle {
     signal tabDropped(string tabId, int destination)
     signal spaceActivated(string spaceId)
     signal settingsRequested
+    signal syncRequested
     signal backRequested
     signal forwardRequested
     signal reloadRequested
@@ -634,7 +636,9 @@ Rectangle {
         Row {
             objectName: "spaceSwitcher"
             anchors.left: parent.left
-            anchors.right: downloadMark.visible ? downloadMark.left : settingsButton.left
+            anchors.right: downloadMark.visible ? downloadMark.left : (syncMark.visible
+                                                                       ? syncMark.left :
+                                                                         settingsButton.left)
             anchors.rightMargin: 8
             anchors.verticalCenter: parent.verticalCenter
             height: 28
@@ -695,7 +699,7 @@ Rectangle {
         DownloadMark {
             id: downloadMark
             objectName: "downloadMark"
-            anchors.right: settingsButton.left
+            anchors.right: syncMark.visible ? syncMark.left : settingsButton.left
             anchors.rightMargin: 4
             anchors.verticalCenter: parent.verticalCenter
             width: 26
@@ -705,6 +709,47 @@ Rectangle {
             model: root.downloads
             savedFileNoticeShowing: root.savedFileNoticeShowing
             onClicked: root.downloadsRequested()
+        }
+
+        ChromeButton {
+            id: syncMark
+            objectName: "syncMark"
+            anchors.right: settingsButton.left
+            anchors.rightMargin: 4
+            anchors.verticalCenter: parent.verticalCenter
+            width: 28
+            height: 26
+            visible: !root.privateWindow && root.sync && root.sync.login.length > 0
+            label: root.sync && root.sync.login.length > 0 ? root.sync.login.charAt(0).toUpperCase() :
+                                                             ""
+            accessibleName: root.sync ? root.sync.status : "Sync"
+            foreground: root.sync && root.sync.errorMessage.length > 0 ? root.colors.urgent :
+                                                                         root.colors.mutedText
+
+            accent: root.colors.accent
+            onClicked: root.syncRequested()
+
+            Image {
+                anchors.fill: parent
+                anchors.margins: 3
+                source: root.sync && root.sync.avatarPath.length > 0 ? "file://"
+                                                                       + root.sync.avatarPath : ""
+                fillMode: Image.PreserveAspectCrop
+                visible: status === Image.Ready
+                smooth: true
+            }
+
+            Rectangle {
+                anchors.right: parent.right
+                anchors.bottom: parent.bottom
+                width: 6
+                height: 6
+                radius: 3
+                color: root.sync && root.sync.errorMessage.length > 0 ? root.colors.urgent :
+                                                                        root.colors.accent
+
+                Accessible.ignored: true
+            }
         }
 
         ChromeButton {

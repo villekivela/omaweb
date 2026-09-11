@@ -24,11 +24,14 @@ depends=(
     # supplies through qt6-base.
     'qt6-wayland'
     'hicolor-icon-theme'
+    'git'
+    'libsecret'
+    'libsodium'
     # `xdg-settings`, which is how Settings offers to become the default
     # browser. Without it the offer is not made.
     'xdg-utils'
 )
-makedepends=('cmake' 'ninja' 'clang' 'git' 'rust' 'python')
+makedepends=('cmake' 'ninja' 'clang' 'rust' 'python')
 optdepends=(
     # Qt is pointed at an input-method plugin by the desktop environment, and
     # Omarchy points it at fcitx. Without the plugin installed Qt loads no input

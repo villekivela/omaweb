@@ -8,7 +8,8 @@ its requests.
 Omaweb checks enabled Content-blocking subscriptions when the browser starts. Each request goes only
 to the update address shown for that subscription. It sends a normal HTTP GET with no browsing
 history, Space identifier, Account information, or user-rule data. Disabling a subscription stops
-its update requests.
+its update requests. Applying a changed subscription set from Sync performs the same enabled-list
+checks and may fetch a newly received or stale list from its displayed update address.
 
 The browser sends network requests only after an explicit user or page action:
 
@@ -34,3 +35,18 @@ Chromium debugging switch passed to the engine by any other route refuses the la
 Future features that add sync, remote suggestions, telemetry, or another background request must
 document the destination, trigger, data sent, default state, and disable control here before
 release.
+
+Sync is off by default and is unavailable in Private windows. Connecting it opens the configured
+GitHub App installation page, starts GitHub's device authorization flow, and polls GitHub only while
+that flow is active. GitHub receives the App client ID, device code, and ordinary authorization
+metadata. After login, Omaweb reads the GitHub identity, creates or identifies the private Sync
+repository, and downloads that identity's avatar once. No browsing state is sent to the avatar host.
+
+While Sync is enabled, git fetch and push contact the private repository after 30 seconds without a
+new local change, every five minutes, after reconnecting, or when Sync now is pressed. Omaweb
+refreshes an expired GitHub access token before one of these reconciliations by sending the refresh
+credential and App client ID to GitHub's OAuth endpoint. Spaces and tabs are encrypted before
+upload. The repository also receives readable approved settings, keybindings, filter subscription
+addresses, commit authorship using the GitHub login, and the timing and approximate size inherent in
+git traffic. Pause stops these requests. Disconnect also deletes local credentials and state, but
+leaves the private repository in GitHub.

@@ -31,8 +31,10 @@ public:
     QThread *thread() const;
 
     bool open(QString *errorMessage = nullptr) override;
+    bool recordsState() const override;
     QVector<SpaceState> loadSpaces() const override;
     bool saveSpace(const SpaceState &space) override;
+    bool saveSpaces(const QVector<SpaceState> &spaces) override;
     bool setActiveSpace(const QString &spaceId) override;
     bool spaceHasSavedContent(const QString &spaceId) const override;
     bool deleteSpace(const QString &spaceId, const QString &replacementActiveSpaceId = {}) override;

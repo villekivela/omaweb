@@ -246,10 +246,10 @@ The default page commands include:
 
 ## Privacy and security
 
-- No telemetry, advertising identifier, browser account, cloud sync, Google push service, or
-  automatic crash upload.
-- Account and Sync are optional first-party Feature modules. A daily-driver build remains local-only
-  without either.
+- No telemetry, advertising identifier, browser account, hosted Omaweb service, Google push service,
+  or automatic crash upload.
+- Sync is an optional Linux Feature module. Its forge login is an identity, not an Omaweb Account,
+  and a daily-driver build remains local-only until the reader connects it.
 - Every automatic network request is documented.
 - Every build refuses to start when its command line or `QTWEBENGINE_CHROMIUM_FLAGS` disables the
   renderer sandbox. On Linux, a failed sandbox prerequisite stops startup with a diagnostic that
@@ -371,7 +371,7 @@ list contributed and what it skipped.
 - Bookmarks
 - Integrated terminal
 - Third-party WebExtensions
-- Account or Sync
+- Browser Account system
 - Password management
 - Browser data import
 - Installed web applications

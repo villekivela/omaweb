@@ -358,6 +358,10 @@ bool BrowserController::setDownloadDirectory(const QString &path)
 
 bool BrowserController::acceptDownloads() const { return true; }
 
+SessionStore *BrowserController::sessionStore() const { return m_store.get(); }
+
+bool BrowserController::startedWithEmptyState() const { return m_startedWithEmptyState; }
+
 Downloads *BrowserController::downloads() const { return m_downloads; }
 
 QString BrowserController::permissionOrigin(const QUrl &url) const { return normalizedOrigin(url); }
@@ -2126,7 +2130,54 @@ bool BrowserController::setPreference(const QString &name, const QString &value)
     if (!m_ready) {
         return false;
     }
-    return m_store->savePreference(name, value);
+    if (!m_store->savePreference(name, value)) {
+        return false;
+    }
+    emit preferenceChanged(name);
+    return true;
+}
+
+void BrowserController::reloadSyncedState()
+{
+    if (m_privateBrowsing || !m_ready) {
+        return;
+    }
+    const auto previousSpace = m_activeSpaceId;
+    const auto previousTab = m_activeTabId;
+    auto spaces = m_store->loadSpaces();
+    if (spaces.isEmpty()) {
+        return;
+    }
+    auto selected = std::ranges::find(spaces, previousSpace, &SpaceState::id);
+    if (selected == spaces.end()) {
+        selected = spaces.begin();
+    }
+    m_activeSpaceId = selected->id;
+    m_activeSpaceName = selected->name;
+    for (auto &space : spaces) {
+        space.active = space.id == m_activeSpaceId;
+    }
+    m_spaces.reset(std::move(spaces));
+    auto tabs = m_store->loadTabs(m_activeSpaceId);
+    auto active = std::ranges::find(tabs, previousTab, &TabState::id);
+    if (active == tabs.end() && !tabs.isEmpty()) {
+        active = tabs.begin();
+    }
+    m_activeTabId = active == tabs.end() ? QString {} : active->id;
+    for (auto &tab : tabs) {
+        tab.active = tab.id == m_activeTabId;
+    }
+    m_tabs.reset(std::move(tabs));
+    loadClosedTabs();
+    refreshRetainedTabs();
+    emit spaceSuspended(previousSpace, {});
+    emit spaceRestored(m_activeSpaceId);
+    emit activeSpaceChanged();
+    emit activeTabChanged();
+    for (const auto &name : {QStringLiteral("floating-controls"), QStringLiteral("ease-sidebar"),
+             QStringLiteral("use-favicons"), QStringLiteral("tint-favicons")}) {
+        emit preferenceChanged(name);
+    }
 }
 
 void BrowserController::initialize()
@@ -2144,6 +2195,7 @@ void BrowserController::initialize()
         m_ready = true;
         return;
     }
+    m_startedWithEmptyState = m_store->loadSpaces().isEmpty();
     ensureDefaultSpace();
     ensureActiveTab();
     loadClosedTabs();

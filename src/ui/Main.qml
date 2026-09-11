@@ -530,6 +530,14 @@ ApplicationWindow {
         window.settingsOpen = true;
     }
 
+    function requestSync() {
+        window.historyOpen = false;
+        const syncSection = settingsSurface.sections.indexOf("sync");
+        if (syncSection >= 0)
+            settingsSurface.section = syncSection;
+        window.settingsOpen = true;
+    }
+
     function requestHistory() {
         if (window.privateWindow)
             return;
@@ -997,6 +1005,17 @@ ApplicationWindow {
     function setTintFavicons(enabled) {
         window.tintFavicons = enabled;
         window.windowBrowser.setPreference("tint-favicons", enabled ? "true" : "false");
+    }
+
+    Connections {
+        target: window.windowBrowser
+
+        function onPreferenceChanged(name) {
+            if (name === "floating-controls" || name === "ease-sidebar")
+                window.restoreChromeAppearance();
+            else if (name === "use-favicons" || name === "tint-favicons")
+                window.restoreTabAppearance();
+        }
     }
 
     onSidebarWidthChanged: sidebarWidthWriter.restart()
@@ -1668,6 +1687,7 @@ ApplicationWindow {
                 useFavicons: window.useFavicons
                 tintFavicons: window.tintFavicons
                 settingsAttention: settingsSurface.needsAttention
+                sync: syncLauncher ? syncLauncher.controller : null
                 downloads: window.downloads
                 // The mark stays until the saved-file notice goes, which is
                 // the rule rather than a matching pair of durations.
@@ -1712,6 +1732,7 @@ ApplicationWindow {
                     window.windowBrowser.switchSpace(spaceId);
                 }
                 onSettingsRequested: window.requestSettings()
+                onSyncRequested: window.requestSync()
                 onBackRequested: engineLoader.goBack()
                 onForwardRequested: engineLoader.goForward()
                 onReloadRequested: engineLoader.reloadPage()
@@ -2161,6 +2182,7 @@ ApplicationWindow {
                     browser: window.windowBrowser
                     blocker: contentBlocker
                     keyboard: keyboardNavigation
+                    syncLauncher: window.privateWindow ? null : syncLauncher
                     open: window.settingsOpen
                     // As the sheet does: the page itself, never the viewport
                     // that owns both.
