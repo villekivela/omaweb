@@ -8,10 +8,6 @@ QtObject {
     property var configuration
     property bool pageCommandsEnabled: configuration ? configuration.enabled : false
 
-    readonly property string primaryLabel: Qt.platform.os === "osx" ? "⌘" : "Ctrl+"
-    readonly property string shiftLabel: Qt.platform.os === "osx" ? "⇧" : "Shift+"
-    readonly property string altLabel: Qt.platform.os === "osx" ? "⌥" : "Alt+"
-
     readonly property var browserBindings: configuration ? configuration.browserBindings : ({})
 
     // Chords are always live: they cannot be confused with typing on a page.
@@ -54,12 +50,12 @@ QtObject {
         return steps.join(",");
     }
 
+    // Omaweb ships for Linux, so its hints name Linux keys wherever it is run:
+    // a build on another desktop is a development convenience, and a hint that
+    // followed the host's symbols there would put that host's keys into every
+    // screenshot taken on it.
     function displayFor(binding) {
-        if (Qt.platform.os !== "osx") {
-            return binding.replace("Primary+", "Ctrl+");
-        }
-        return binding.replace("Primary+", primaryLabel).replace("Alt+", altLabel).replace("Shift+",
-                                                                                           shiftLabel);
+        return binding.replace("Primary+", "Ctrl+");
     }
 
     // Every binding that invokes a command, formatted for the command panel.
