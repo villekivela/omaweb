@@ -26,6 +26,20 @@ Rectangle {
         function onConsentPageRequested(url) {
             root.openSyncConsent(url);
         }
+
+        function onStateChanged() {
+            if (!root.sync)
+                return;
+            const detail = root.sync.errorMessage;
+            if (detail.length === 0) {
+                root.lastReportedSyncError = "";
+                return;
+            }
+            if (detail === root.lastReportedSyncError)
+                return;
+            root.lastReportedSyncError = detail;
+            root.syncConnectionFailed(detail);
+        }
     }
     readonly property bool syncAvailable: root.browser ? !root.browser.privateBrowsing : false
     property bool open: false
@@ -46,6 +60,7 @@ Rectangle {
     property bool tintFavicons: false
     property bool floatingControls: true
     property bool easeSidebar: true
+    property string lastReportedSyncError: ""
     property var engines: []
     // Every tab still running for a Space that is not on show, and what each
     // costs. A retained tab is a renderer the reader cannot see, so the browser
@@ -221,6 +236,7 @@ Rectangle {
     signal downloadForgotten(int row)
     signal retainedTabReleased(string tabId)
     signal syncCodeCopied
+    signal syncConnectionFailed(string detail)
 
     function copySyncCode() {
         if (root.sync && root.sync.userCode.length > 0 && SystemClipboard.copyText(
@@ -1347,6 +1363,17 @@ Rectangle {
                         wrapMode: Text.WordWrap
                         font.family: Style.font.family
                         font.pixelSize: Style.font.body
+                    }
+
+                    NoticeBox {
+                        objectName: "syncErrorNotice"
+                        width: pane.width
+                        visible: root.sync && root.sync.errorMessage.length > 0
+                        colors: root.colors
+                        iconFontFamily: root.iconFontFamily
+                        glyph: "sync_problem"
+                        title: "GitHub Sync failed"
+                        detail: root.sync ? root.sync.errorMessage : ""
                     }
 
                     SettingField {

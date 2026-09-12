@@ -70,6 +70,7 @@ TestCase {
         property date lastSuccessfulSync
 
         signal consentPageRequested(url url)
+        signal stateChanged
     }
 
     QtObject {
@@ -92,6 +93,11 @@ TestCase {
     SignalSpy {
         id: syncCodeCopiedSpy
         signalName: "syncCodeCopied"
+    }
+
+    SignalSpy {
+        id: syncConnectionFailedSpy
+        signalName: "syncConnectionFailed"
     }
 
     // Two of everything the page lists, so a gap between one row and the next
@@ -179,6 +185,9 @@ TestCase {
         settingsClosedSpy.clear();
         syncCodeCopiedSpy.target = null;
         syncCodeCopiedSpy.clear();
+        syncConnectionFailedSpy.target = null;
+        syncConnectionFailedSpy.clear();
+        syncControllerStub.errorMessage = "";
         theme.restore();
         if (livePage !== null) {
             livePage.destroy();
@@ -275,6 +284,23 @@ TestCase {
         compare(settingsClosedSpy.count, 1);
         compare(syncCodeCopiedSpy.count, 1);
         verify(findChild(page, "copyGitHubCodeButton") !== null);
+    }
+
+    function test_syncFailureIsVisibleAfterSettingsCloses() {
+        const page = makePage();
+        page.syncLauncher = syncLauncherStub;
+        page.section = page.sections.indexOf("sync");
+        syncConnectionFailedSpy.target = page;
+
+        syncControllerStub.errorMessage = "GitHub refused repository creation";
+        syncControllerStub.stateChanged();
+
+        compare(syncConnectionFailedSpy.count, 1);
+        compare(syncConnectionFailedSpy.signalArguments[0][0],
+                "GitHub refused repository creation");
+        const notice = findChild(page, "syncErrorNotice");
+        verify(notice.visible);
+        compare(notice.detail, "GitHub refused repository creation");
     }
 
     function test_aFieldKeepsTheLettersItAccepts() {

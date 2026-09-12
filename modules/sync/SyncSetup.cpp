@@ -99,7 +99,10 @@ SyncConnection SyncSetup::finishConnect(QString *errorMessage)
                 static_cast<size_t>(m_authorization.accessToken.size()));
             sodium_memzero(m_authorization.refreshToken.data(),
                 static_cast<size_t>(m_authorization.refreshToken.size()));
-            setError(errorMessage, QStringLiteral("The Sync repository was not created privately"));
+            if (!errorMessage || errorMessage->isEmpty()) {
+                setError(
+                    errorMessage, QStringLiteral("The Sync repository was not created privately"));
+            }
             return {};
         }
         if (installation == InstallationState::Complete) {

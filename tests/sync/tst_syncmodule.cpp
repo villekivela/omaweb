@@ -75,12 +75,18 @@ public:
         return url;
     }
 
-    omaweb::ForgeRepository provisionPrivateRepository(
-        const QByteArray &accessToken, const QString &, const QString &name, QString *) override
+    omaweb::ForgeRepository provisionPrivateRepository(const QByteArray &accessToken,
+        const QString &, const QString &name, QString *error) override
     {
         ++provisionAttempts;
         provisionedWith = accessToken;
         provisionedName = name;
+        if (!provisionError.isEmpty()) {
+            if (error) {
+                *error = provisionError;
+            }
+            return {};
+        }
         return {.id = 84,
             .name = name,
             .cloneUrl = QUrl(QStringLiteral("https://forge.example/octocat/%1.git").arg(name)),
@@ -97,6 +103,7 @@ public:
     QByteArray provisionedWith;
     QString provisionedName;
     QUrl fetchedAvatarUrl;
+    QString provisionError;
     bool repositoryCreated = true;
     bool installed = true;
     int authorizationPolls = 0;
@@ -196,6 +203,7 @@ private slots:
     void aClosedTabDoesNotReturnFromAnotherMachine();
     void setupUsesAForgeIdentityAndCreatesAPrivateRepository();
     void setupCreatesRepositoryBeforeInstallation();
+    void setupPreservesRepositoryProvisioningError();
     void githubInstallationSelectsOnlyTheSyncRepository();
     void compactsAnOvergrownRepositoryIntoASnapshot();
     void anExistingRepositoryRequiresItsRecoveryKey();
@@ -965,6 +973,21 @@ void SyncModuleTest::setupCreatesRepositoryBeforeInstallation()
     QCOMPARE(forge.authorizationPolls, 1);
     QCOMPARE(forge.installationChecks, 2);
     QCOMPARE(forge.provisionAttempts, 1);
+}
+
+void SyncModuleTest::setupPreservesRepositoryProvisioningError()
+{
+    QTemporaryDir dataRoot;
+    FakeForge forge;
+    forge.installed = false;
+    forge.provisionError = QStringLiteral("Forge refused repository creation");
+    MemorySecretStore secrets;
+    SyncSetup setup(forge, secrets, dataRoot.path());
+    QString error;
+
+    QVERIFY(!setup.beginConnect({}, &error).deviceCode.isEmpty());
+    QVERIFY(!setup.finishConnect(&error).ready);
+    QCOMPARE(error, forge.provisionError);
 }
 
 void SyncModuleTest::githubInstallationSelectsOnlyTheSyncRepository()

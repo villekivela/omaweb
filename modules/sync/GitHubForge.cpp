@@ -27,6 +27,14 @@ namespace {
         return QJsonDocument::fromJson(body).object();
     }
 
+    QString responseFailure(
+        const QByteArray &body, const QString &networkError, const QString &fallback)
+    {
+        const auto apiMessage = objectFrom(body).value(QStringLiteral("message")).toString();
+        const auto detail = apiMessage.isEmpty() ? networkError : apiMessage;
+        return detail.isEmpty() ? fallback : QStringLiteral("%1: %2").arg(fallback, detail);
+    }
+
 } // namespace
 
 GitHubForge::GitHubForge(QString clientId, QString appSlug, QUrl webRoot, QUrl apiRoot)
@@ -257,8 +265,8 @@ ForgeRepository GitHubForge::provisionPrivateRepository(const QByteArray &access
         }
         if (existing.status != 404) {
             setError(errorMessage,
-                existing.error.isEmpty() ? QStringLiteral("GitHub could not check the repository")
-                                         : existing.error);
+                responseFailure(existing.body, existing.error,
+                    QStringLiteral("GitHub could not check the repository")));
             return {};
         }
         const auto response = request("POST", apiUrl(QStringLiteral("/user/repos")),
@@ -278,8 +286,8 @@ ForgeRepository GitHubForge::provisionPrivateRepository(const QByteArray &access
         }
         if (response.status != 422) {
             setError(errorMessage,
-                response.error.isEmpty() ? QStringLiteral("GitHub could not create the repository")
-                                         : response.error);
+                responseFailure(response.body, response.error,
+                    QStringLiteral("GitHub could not create the repository")));
             return {};
         }
     }
