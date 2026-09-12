@@ -25,7 +25,18 @@ Item {
     // The process drawing this page, so the shell can say what a retained tab
     // actually costs rather than only that it is running. Zero while the view
     // has no renderer, which is the honest answer for a page that is not up.
-    readonly property int renderProcessPid: webView.renderProcessPid
+    //
+    // Chromium announces the process when the page's frame host changes, which
+    // for a page opening in a process of its own is before that process has
+    // started, and it never announces the process again. So the announcement
+    // alone reports zero for every page that is not sharing the view's first
+    // process, and the pid is read back from the view again when a load ends,
+    // when the process that drew it necessarily exists.
+    readonly property int renderProcessPid: root.reportedRenderProcessPid
+    property int reportedRenderProcessPid: 0
+    function refreshRenderProcessPid() {
+        root.reportedRenderProcessPid = webView.renderProcessPid;
+    }
     // Whether this page may stop running while nobody is looking at it. The
     // shell decides that; Chromium decides whether it can be done. A frozen
     // page keeps its document, its process and everything it holds, and stops
@@ -1381,7 +1392,9 @@ Item {
                                       });
         }
 
+        onRenderProcessPidChanged: root.refreshRenderProcessPid()
         onLoadingChanged: function (loadRequest) {
+            root.refreshRenderProcessPid();
             if (loadRequest.status === WebEngineView.LoadStartedStatus) {
                 root.pageGeneration += 1;
                 // The address being loaded, not the one still on show: a

@@ -2861,6 +2861,19 @@ void QtEngineContractTest::qtReportsTheProcessDrawingThePage()
     QVERIFY(resources.residentBytes(adapter->property("renderProcessPid").toInt()) > 0);
     // A process that is not there costs nothing, and is not guessed at.
     QCOMPARE(resources.residentBytes(0), 0);
+
+    // A page from a site, which opens in a process of its own rather than in
+    // the one the view started with. Chromium announces that process before
+    // it has started, so the adapter has to read it back once the page is up
+    // or every page a reader actually keeps is costed at nothing.
+    PageServer server("<!doctype html><title>Served</title><p>page</p>");
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+    QVERIFY(adapter->setProperty("currentUrl",
+        QUrl(QStringLiteral("http://127.0.0.1:%1/page.html").arg(server.serverPort()))));
+    QTRY_COMPARE_WITH_TIMEOUT(
+        adapter->property("pageTitle").toString(), QStringLiteral("Served"), 20000);
+    QTRY_VERIFY(adapter->property("renderProcessPid").toInt() > 0);
+    QVERIFY(resources.residentBytes(adapter->property("renderProcessPid").toInt()) > 0);
 }
 
 namespace {
