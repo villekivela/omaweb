@@ -84,6 +84,29 @@ TestCase {
         }
     }
 
+    Component {
+        id: authenticatedOutlineComponent
+
+        Omaweb.SpaceOutline {
+            colors: testCase.window.colors
+            iconFontFamily: ""
+            width: 300
+            height: 600
+            sync: QtObject {
+                property bool enabled: true
+                property string login: "octocat"
+                property string status: "Sync is on"
+                property string errorMessage: ""
+                property string avatarPath: ""
+            }
+        }
+    }
+
+    SignalSpy {
+        id: avatarSettingsSpy
+        signalName: "settingsRequested"
+    }
+
     // The type the theme sets, so a size the sidebar derives from it can be
     // driven rather than read back.
     ThemeAxis {
@@ -3455,6 +3478,41 @@ TestCase {
         tryVerify(function () {
             return !settingsSurface.visible;
         });
+    }
+
+    function test_authenticatedAvatarReplacesSettingsAndOpensIt() {
+        const outline = authenticatedOutlineComponent.createObject(window.contentItem);
+        verify(outline !== null);
+        avatarSettingsSpy.target = outline;
+        avatarSettingsSpy.clear();
+        try {
+            const avatar = findChild(outline, "syncAvatarButton");
+            const avatarClip = findChild(outline, "syncAvatarClip");
+            const activityDot = findChild(outline, "syncActivityDot");
+            const settings = findChild(outline, "settingsButton");
+            verify(avatar !== null);
+            verify(avatarClip !== null);
+            verify(activityDot !== null);
+            verify(settings !== null);
+            verify(avatar.visible);
+            verify(!settings.visible);
+            compare(avatarClip.radius, avatarClip.width / 2);
+            compare(avatarClip.opacity, 1);
+            compare(String(activityDot.color), String(outline.colors.accent));
+
+            avatar.clicked();
+            compare(avatarSettingsSpy.count, 1);
+
+            outline.sync.enabled = false;
+            verify(avatar.visible);
+            verify(!settings.visible);
+            compare(avatarClip.opacity, 0.45);
+            compare(String(activityDot.color), String(outline.colors.mutedText));
+        } finally {
+            avatarSettingsSpy.target = null;
+            outline.destroy();
+            window.requestActivate();
+        }
     }
 
     // The rail is as wide as the longest section name it draws, measured in the

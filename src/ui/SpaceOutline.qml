@@ -24,6 +24,9 @@ Rectangle {
     // what is wrong is stated there, where it can be acted on.
     property bool settingsAttention: false
     property var sync: null
+    readonly property bool authenticatedSync: !root.privateWindow && root.sync
+                                              && root.sync.login.length > 0
+    readonly property bool activeSync: root.authenticatedSync && root.sync.enabled
     property var downloads: null
     property bool savedFileNoticeShowing: false
 
@@ -713,40 +716,57 @@ Rectangle {
 
         ChromeButton {
             id: syncMark
-            objectName: "syncMark"
-            anchors.right: settingsButton.left
-            anchors.rightMargin: 4
+            objectName: "syncAvatarButton"
+            anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
             width: 28
             height: 26
-            visible: !root.privateWindow && root.sync && root.sync.login.length > 0
+            visible: root.authenticatedSync
             label: root.sync && root.sync.login.length > 0 ? root.sync.login.charAt(0).toUpperCase() :
                                                              ""
-            accessibleName: root.sync ? root.sync.status : "Sync"
+            accessibleName: !root.authenticatedSync ? "Settings" : root.settingsAttention
+                                                      ? "Settings for " + root.sync.login
+                                                        + " — needs attention" : !root.activeSync
+                                                        ? "Settings for " + root.sync.login
+                                                          + " — Sync paused" : "Settings for "
+                                                          + root.sync.login
             foreground: root.sync && root.sync.errorMessage.length > 0 ? root.colors.urgent :
                                                                          root.colors.mutedText
 
             accent: root.colors.accent
-            onClicked: root.syncRequested()
+            onClicked: root.settingsRequested()
 
-            Image {
+            Rectangle {
+                id: avatarClip
+                objectName: "syncAvatarClip"
                 anchors.fill: parent
                 anchors.margins: 3
-                source: root.sync && root.sync.avatarPath.length > 0 ? "file://"
-                                                                       + root.sync.avatarPath : ""
-                fillMode: Image.PreserveAspectCrop
-                visible: status === Image.Ready
-                smooth: true
+                radius: width / 2
+                color: "transparent"
+                clip: true
+                opacity: root.activeSync ? 1 : 0.45
+
+                Image {
+                    anchors.fill: parent
+                    source: root.sync && root.sync.avatarPath.length > 0 ? "file://"
+                                                                           + root.sync.avatarPath :
+                                                                           ""
+                    fillMode: Image.PreserveAspectCrop
+                    visible: status === Image.Ready
+                    smooth: true
+                }
             }
 
             Rectangle {
+                objectName: "syncActivityDot"
                 anchors.right: parent.right
                 anchors.bottom: parent.bottom
                 width: 6
                 height: 6
                 radius: 3
-                color: root.sync && root.sync.errorMessage.length > 0 ? root.colors.urgent :
-                                                                        root.colors.accent
+                color: root.sync && root.sync.errorMessage.length > 0 ? root.colors.urgent : root.activeSync
+                                                                        ? root.colors.accent :
+                                                                          root.colors.mutedText
 
                 Accessible.ignored: true
             }
@@ -759,6 +779,7 @@ Rectangle {
             anchors.verticalCenter: parent.verticalCenter
             width: 28
             height: 26
+            visible: !root.authenticatedSync
             icon: "settings"
             accessibleName: root.settingsAttention
                             ? "Browsing settings and downloads — needs attention" :
