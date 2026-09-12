@@ -577,3 +577,60 @@ the shell's sixty-odd files parse in a few tens of milliseconds, and the launch 
 session start-up. What compiling buys is the first launch no longer depending on the disk cache,
 which the count of cache files written shows: 58 before, 1 after. No figure from the packaged
 browser on Linux hardware has been taken yet.
+
+### Runtime probes
+
+Five runtime numbers are measurements the test suites keep rather than budgets. Each probe prints a
+`probe <name>: <value> <unit> (threshold <limit> <unit>)` line and fails naming both numbers when
+the value crosses the threshold. Each threshold is a round number set after the first measurement:
+about four times it for the two startup probes, seven and ten times for the tab switch and the
+frame, which are under ten milliseconds, where scheduling jitter is a larger share of a sample than
+the machine is, and about twice for memory. All five run under `ctest --preset ci`.
+
+Baseline measured on the initial macOS development machine, an Apple M2 Max on macOS 26.6.2, with
+the `dev` preset on 2026-09-12:
+
+| Probe                                             | Measured       | Threshold | Test                               |
+| ------------------------------------------------- | -------------- | --------- | ---------------------------------- |
+| Startup to first window drawn                     | 470 to 550 ms  | 2200 ms   | `omaweb-startup-probes`            |
+| Session restore to the visible Space's page drawn | 560 to 620 ms  | 2500 ms   | `omaweb-startup-probes`            |
+| Tab switch to the destination page's frame        | 7 ms           | 50 ms     | `omaweb-ui`, `tst_performance.qml` |
+| Chromeless frame time over an animated page       | 0.8 to 1.0 ms  | 10 ms     | `omaweb-ui`, `tst_performance.qml` |
+| Resident memory per frozen tab                    | 103 to 104 MiB | 200 MiB   | `omaweb-qt-engine-contract`        |
+
+What each one measures:
+
+- Startup is the UI lab, `omaweb-qml-smoke`, launched on an empty data root with `--report-startup`,
+  from `main` to the first frame the window swapped. The median of three launches is kept, so the
+  number is a warm start. The lab is the browser without an engine, so this is Omaweb's own startup
+  rather than Chromium's, and it is a different number from the `--validate-qml` launch above: that
+  one is the packaged browser quitting on its first event-loop turn, this one is the `dev` preset
+  loading source QML and drawing.
+- Session restore is the same launch against a data root seeded with one Space holding 100 open
+  tabs, five of them Pinned, its closed-tab stack at the bound of 25, and history at the retained
+  bound of 5,000 visits, from `main` to the first frame with the active tab's page in it. The
+  open-tab count has no bound of its own; 100 stands for a working day.
+- Tab switch is the median of ten `next-tab` commands between two pages whose engines already exist,
+  from the command to the first swapped frame showing the destination.
+- Frame time is the scene graph's own cost per frame, from `beforeFrameBegin` to `afterFrameEnd`,
+  averaged over one second with the sidebar hidden, the navigation strip floating and the page
+  redrawing every frame. The tests draw through the software rasteriser on the offscreen platform,
+  so the absolute value is meaningful only on real GPU hardware and a virtual machine's number is
+  comparative only: it holds the chrome to what it cost before on the same machine. On the same
+  machine through Metal, `QT_QPA_PLATFORM=cocoa`, the frame costs 0.5 to 0.7 ms and a tab switch 14
+  to 18 ms, the difference being a wait for the display.
+- Resident memory is read from the operating system through `ProcessResources`, the way the
+  retained-tab report reads it, for four pages served over HTTP in one shared profile, as a Space's
+  tabs are, hidden and frozen, summed over their distinct renderer processes and divided by the tab
+  count.
+
+Re-run the probes on their own with:
+
+```sh
+ctest --preset dev -R omaweb-startup-probes -V
+build/dev/omaweb-ui-tests -input tests/ui/tst_performance.qml
+build/dev/omaweb-qt-engine-contract-tests qtKeepsAFrozenTabInsideItsMemoryBudget
+```
+
+Set `QT_QPA_PLATFORM=offscreen` for the last two. The Linux numbers are still to be taken: re-run on
+Linux hardware when it is available and record them here beside the macOS ones.

@@ -295,5 +295,8 @@ On the initial M2 Max development machine, provisional budgets are:
 - Browser chrome visible within 1 second warm and 2 seconds cold
 
 These are budgets rather than measurements. `scripts/benchmark_build.sh` measures configure, clean
-build, incremental rebuild, and no-op build against them. The recorded baseline is in
+build, incremental rebuild, and no-op build against them. The runtime numbers are measurements the
+tests keep: startup, session restore, tab switch, chromeless frame time and a frozen tab's memory
+each have a probe that CI runs and fails when the number crosses its threshold. The recorded
+baseline, the thresholds and the machine they came from are in
 [the development guide](development.md#performance).

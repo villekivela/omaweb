@@ -7,6 +7,10 @@ Rectangle {
 
     property url currentUrl: "about:blank"
     property bool blurReviewPattern: false
+    // A page that is never still, so the chrome can be timed over a page that
+    // asks for a frame every frame, the way one with a video or a spinner
+    // does. Off unless a probe turns it on: a page at rest costs no frames.
+    property bool motionReview: false
     property string pageTitle: currentUrl.toString() === "about:blank" ? "New tab" :
                                                                          currentUrl.toString()
     // The lab runs no engine and so has no icon store. Handing every host one
@@ -607,6 +611,23 @@ Rectangle {
                 height: root.height
                 color: index % 2 === 0 ? "#f4f0ff" : "#241832"
             }
+        }
+    }
+
+    Rectangle {
+        anchors.centerIn: parent
+        width: 160
+        height: 160
+        radius: 24
+        color: "#7c6cff"
+        visible: root.motionReview
+
+        RotationAnimation on rotation {
+            running: root.motionReview
+            from: 0
+            to: 360
+            duration: 1200
+            loops: Animation.Infinite
         }
     }
 

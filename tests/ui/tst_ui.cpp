@@ -7,6 +7,7 @@
 #include "KeyboardNavigation.h"
 #include "KitTheme.h"
 #include "PagePrinter.h"
+#include "ProbeClock.h"
 #include "ProcessResources.h"
 #include "RuntimeSecurity.h"
 #include "SavedDownload.h"
@@ -120,6 +121,8 @@ public slots:
         // own. Reading the resolved name back is the only way QML can tell.
         engine->rootContext()->setContextProperty(
             QStringLiteral("controlsStyle"), QQuickStyle::name());
+        m_probeClock = std::make_unique<omaweb::test::ProbeClock>();
+        engine->rootContext()->setContextProperty(QStringLiteral("probeClock"), m_probeClock.get());
         engine->addImportPath(QStringLiteral(OMAWEB_UI_DIRECTORY));
         engine->addImportPath(QStringLiteral(OMAWEB_OMARCHY_IMPORT_PATH));
         m_kitTheme = std::make_unique<omaweb::KitTheme>(engine, m_theme.get());
@@ -127,6 +130,7 @@ public slots:
 
     void cleanupTestCase()
     {
+        m_probeClock.reset();
         m_kitTheme.reset();
         m_runtimeSecurity.reset();
         m_theme.reset();
@@ -147,6 +151,7 @@ private:
     std::unique_ptr<omaweb::WindowManager> m_windowManager;
     std::unique_ptr<omaweb::RuntimeSecurity> m_runtimeSecurity;
     std::unique_ptr<omaweb::InputMethodReport> m_inputMethod;
+    std::unique_ptr<omaweb::test::ProbeClock> m_probeClock;
 };
 
 QUICK_TEST_MAIN_WITH_SETUP(omaweb_ui, UiTestSetup)

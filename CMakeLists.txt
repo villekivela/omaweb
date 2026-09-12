@@ -970,8 +970,31 @@ if(BUILD_TESTING)
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QML_IMPORT_PATH=${CMAKE_CURRENT_SOURCE_DIR}/tests/qml/quickshell-decoy;QML2_IMPORT_PATH=${CMAKE_CURRENT_SOURCE_DIR}/tests/qml/quickshell-decoy"
     )
 
+    # Startup and session restore are measured on the lab as a process, from
+    # `main` to the frame that drew the window, so the probes launch it rather
+    # than loading Main.qml into themselves.
+    qt_add_executable(omaweb-startup-probes "tests/ui/tst_startup.cpp")
+    target_link_libraries(omaweb-startup-probes PRIVATE
+        omaweb-core
+        Qt6::Test
+    )
+    target_include_directories(omaweb-startup-probes PRIVATE "tests")
+    target_compile_definitions(omaweb-startup-probes PRIVATE
+        OMAWEB_UI_LAB_EXECUTABLE="$<TARGET_FILE:omaweb-qml-smoke>"
+    )
+    add_dependencies(omaweb-startup-probes omaweb-qml-smoke)
+    omaweb_strict_target(omaweb-startup-probes)
+    add_test(NAME omaweb-startup-probes COMMAND omaweb-startup-probes)
+    set_tests_properties(omaweb-startup-probes PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+    )
+
     if(OMAWEB_BUILD_UI_LAB)
-        qt_add_executable(omaweb-ui-tests tests/ui/tst_ui.cpp)
+        qt_add_executable(omaweb-ui-tests
+            "tests/ui/tst_ui.cpp"
+            "tests/ui/ProbeClock.cpp"
+            "tests/ui/ProbeClock.h"
+        )
         target_link_libraries(omaweb-ui-tests PRIVATE
             omaweb-core
             omaweb-content-blocking
@@ -995,6 +1018,7 @@ if(BUILD_TESTING)
             OMAWEB_UI_DIRECTORY="${CMAKE_CURRENT_SOURCE_DIR}/src/ui"
             OMAWEB_OMARCHY_IMPORT_PATH="${omaweb_omarchy_root}"
         )
+        target_include_directories(omaweb-ui-tests PRIVATE "tests")
         omaweb_strict_target(omaweb-ui-tests)
         add_test(NAME omaweb-ui COMMAND omaweb-ui-tests)
         # The chrome is checked against a desktop that offers nothing, so the
@@ -1033,6 +1057,7 @@ if(BUILD_TESTING)
             OMAWEB_UNTRUSTED_CERTIFICATE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/tests/engine/certificates/untrusted-local.crt"
             OMAWEB_UNTRUSTED_KEY_PATH="${CMAKE_CURRENT_SOURCE_DIR}/tests/engine/certificates/untrusted-local.key"
         )
+        target_include_directories(omaweb-qt-engine-contract-tests PRIVATE "tests")
         omaweb_strict_target(omaweb-qt-engine-contract-tests)
         add_test(NAME omaweb-qt-engine-contract COMMAND omaweb-qt-engine-contract-tests)
         set_tests_properties(omaweb-qt-engine-contract PROPERTIES

@@ -8,6 +8,7 @@
 #include "QtHeldDownloads.h"
 #include "ContentBlockerContract.h"
 #include "EngineViewContract.h"
+#include "PerformanceProbe.h"
 #include "ProcessResources.h"
 
 #include <QGuiApplication>
@@ -21,6 +22,7 @@
 #include <QQmlEngine>
 #include <QQuickItem>
 #include <QQuickWindow>
+#include <QSet>
 #include <QSignalSpy>
 #include <QSslConfiguration>
 #include <QSslKey>
@@ -36,6 +38,7 @@
 #include <QtWebEngineQuick/QQuickWebEngineProfile>
 
 #include <memory>
+#include <vector>
 
 using omaweb::BrowserController;
 using omaweb::EngineCapabilities;
@@ -171,6 +174,7 @@ private slots:
     void adaptersTakeTheShellsAutoplayDecision_data();
     void adaptersTakeTheShellsAutoplayDecision();
     void qtReportsTheProcessDrawingThePage();
+    void qtKeepsAFrozenTabInsideItsMemoryBudget();
     void adaptersReportTheConnectionFromTheirOwnFacts_data();
     void adaptersReportTheConnectionFromTheirOwnFacts();
     void adaptersRefuseEveryInsecureContentOverride_data();
@@ -2874,6 +2878,113 @@ void QtEngineContractTest::qtReportsTheProcessDrawingThePage()
         adapter->property("pageTitle").toString(), QStringLiteral("Served"), 20000);
     QTRY_VERIFY(adapter->property("renderProcessPid").toInt() > 0);
     QVERIFY(resources.residentBytes(adapter->property("renderProcessPid").toInt()) > 0);
+}
+
+namespace {
+
+// Resident memory per frozen tab, in mebibytes, set at twice the first
+// measurement and recorded with it in the development guide's performance
+// section. Memory moves less between machines than time does, and a Linux
+// renderer is the number still to be taken.
+constexpr double frozenTabThresholdMebibytes = 200.0;
+// How many pages are frozen and costed. Chromium gives each tab its own
+// renderer, so the per-tab number is the sum over the distinct processes
+// divided by the tabs, which also holds if the engine starts sharing them.
+constexpr int frozenTabs = 4;
+
+} // namespace
+
+// What one frozen tab costs, asked of the operating system the way the
+// retained-tab report asks: a page the reader cannot see keeps its renderer,
+// and this is what that renderer holds once the page has been stopped. The
+// pages are ordinary articles rather than empty documents, because an empty
+// renderer is not what a reader's away Space is made of.
+void QtEngineContractTest::qtKeepsAFrozenTabInsideItsMemoryBudget()
+{
+    QByteArray article = "<!doctype html><html><head><title>Article</title></head><body>";
+    for (int paragraph = 0; paragraph < 200; ++paragraph) {
+        article += "<p>A paragraph of the kind a page is made of, kept while the tab is frozen: "
+                   "the document stays, the script stops, and the renderer holds it all.</p>";
+    }
+    article += "</body></html>";
+    PageServer server(article);
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    QQmlEngine engine;
+    QQmlComponent profileComponent(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_PROFILE_PATH)));
+    const std::unique_ptr<QObject> profileHost(profileComponent.createWithInitialProperties({
+        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("space"))},
+    }));
+    QVERIFY2(profileHost, qPrintable(profileComponent.errorString()));
+    QQmlComponent viewComponent(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+
+    QQuickWindow window;
+    window.resize(1024, 768);
+    std::vector<std::unique_ptr<QObject>> adapters;
+    for (int tab = 0; tab < frozenTabs; ++tab) {
+        // One profile for all four, as a Space's tabs share one.
+        std::unique_ptr<QObject> adapter(viewComponent.createWithInitialProperties({
+            {QStringLiteral("sharedProfile"), profileHost->property("profile")},
+        }));
+        QVERIFY2(adapter, qPrintable(viewComponent.errorString()));
+        auto *item = qobject_cast<QQuickItem *>(adapter.get());
+        QVERIFY(item);
+        item->setParentItem(window.contentItem());
+        item->setSize(QSizeF(1024, 768));
+        QVERIFY(adapter->setProperty("currentUrl",
+            QUrl(QStringLiteral("http://127.0.0.1:%1/article-%2.html")
+                    .arg(server.serverPort())
+                    .arg(tab))));
+        adapters.push_back(std::move(adapter));
+    }
+    window.show();
+    QVariant activeState;
+    for (const auto &adapter : adapters) {
+        QTRY_COMPARE_WITH_TIMEOUT(
+            adapter->property("pageTitle").toString(), QStringLiteral("Article"), 20000);
+        QTRY_VERIFY(adapter->property("renderProcessPid").toInt() > 0);
+        auto *webView = adapter->findChild<QObject *>(QStringLiteral("qtWebView"));
+        QVERIFY(webView);
+        activeState = webView->property("lifecycleState");
+        QVERIFY(activeState.isValid());
+    }
+    const auto frozenState = QVariant::fromValue(activeState.toInt() + 1);
+
+    // Put away the way a Space is put away: hidden, and stopped.
+    for (const auto &adapter : adapters) {
+        qobject_cast<QQuickItem *>(adapter.get())->setVisible(false);
+        QVERIFY(adapter->setProperty("pageFrozen", true));
+    }
+    for (const auto &adapter : adapters) {
+        auto *webView = adapter->findChild<QObject *>(QStringLiteral("qtWebView"));
+        QTRY_COMPARE_WITH_TIMEOUT(webView->property("lifecycleState"), frozenState, 20000);
+    }
+    // A renderer that has just frozen is still letting go of what the running
+    // page held; the number is read once it has settled.
+    QTest::qWait(1000);
+
+    omaweb::ProcessResources resources;
+    QVERIFY(resources.available());
+    QSet<qint64> processes;
+    for (const auto &adapter : adapters) {
+        processes.insert(adapter->property("renderProcessPid").toLongLong());
+    }
+    qint64 residentBytes = 0;
+    for (const auto pid : processes) {
+        const auto bytes = resources.residentBytes(pid);
+        QVERIFY2(bytes > 0, qPrintable(QStringLiteral("no resident memory for %1").arg(pid)));
+        residentBytes += bytes;
+    }
+    qInfo("frozen tabs: %d, renderer processes: %lld", frozenTabs,
+        static_cast<long long>(processes.size()));
+    const auto measured = residentBytes / double(frozenTabs) / (1024.0 * 1024.0);
+    QVERIFY2(measured <= frozenTabThresholdMebibytes,
+        qPrintable(omaweb::probe::report(QStringLiteral("resident-memory-per-frozen-tab"), measured,
+            QStringLiteral("MiB"), frozenTabThresholdMebibytes)));
 }
 
 namespace {
