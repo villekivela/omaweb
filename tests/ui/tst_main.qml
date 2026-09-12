@@ -3242,6 +3242,17 @@ TestCase {
         notice.dismiss();
     }
 
+    function test_settingsSyncConsentOpensAForegroundTab() {
+        const settings = findChild(window.contentItem, "settingsSurface");
+        const target = "https://github.example/new?name=omaweb-sync";
+
+        settings.syncConsentRequested(target);
+
+        tryVerify(function () {
+            return browser.activeUrl.toString() === target;
+        });
+    }
+
     function test_settingsOwnSearchAndBrowsingDataControls() {
         window.requestSettings();
         const searchSection = railSection("search");

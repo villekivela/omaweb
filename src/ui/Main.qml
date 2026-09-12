@@ -2206,6 +2206,9 @@ ApplicationWindow {
                     onSyncCodeCopied: window.showNotice("content_copy", "GitHub code copied",
                                                         "Paste it into the authorization page",
                                                         3000)
+                    onSyncConsentRequested: function (url) {
+                        window.windowBrowser.openInput(String(url), true);
+                    }
                     onSyncConnectionFailed: function (detail) {
                         window.showNotice("sync_problem", "GitHub Sync failed", detail, 8000);
                     }

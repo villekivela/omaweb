@@ -236,6 +236,7 @@ Rectangle {
     signal downloadForgotten(int row)
     signal retainedTabReleased(string tabId)
     signal syncCodeCopied
+    signal syncConsentRequested(url url)
     signal syncConnectionFailed(string detail)
 
     function copySyncCode() {
@@ -249,7 +250,7 @@ Rectangle {
                 && root.sync.userCode.length > 0)
             root.copySyncCode();
         root.closed();
-        Qt.openUrlExternally(url);
+        root.syncConsentRequested(url);
     }
     signal useFaviconsToggled(bool enabled)
     signal tintFaviconsToggled(bool enabled)

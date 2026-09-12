@@ -107,6 +107,11 @@ TestCase {
         signalName: "syncConnectionFailed"
     }
 
+    SignalSpy {
+        id: syncConsentRequestedSpy
+        signalName: "syncConsentRequested"
+    }
+
     // Two of everything the page lists, so a gap between one row and the next
     // is a thing this test can measure rather than a thing it has to imagine.
     readonly property var retainedTabsFixture: [
@@ -194,6 +199,8 @@ TestCase {
         syncCodeCopiedSpy.clear();
         syncConnectionFailedSpy.target = null;
         syncConnectionFailedSpy.clear();
+        syncConsentRequestedSpy.target = null;
+        syncConsentRequestedSpy.clear();
         syncControllerStub.errorMessage = "";
         syncControllerStub.awaitingRepositoryCreation = false;
         syncControllerStub.continueCount = 0;
@@ -280,11 +287,13 @@ TestCase {
         verify(boundary.text.indexOf("history") >= 0);
     }
 
-    function test_syncConsentCopiesTheCodeAndClosesSettings() {
+    function test_syncConsentRoutesAfterSettingsIsClosed() {
         const page = makePage();
         page.syncLauncher = syncLauncherStub;
+        page.open = false;
         settingsClosedSpy.target = page;
         syncCodeCopiedSpy.target = page;
+        syncConsentRequestedSpy.target = page;
         SystemClipboard.copyText("stale clipboard");
 
         syncControllerStub.consentPageRequested(syncControllerStub.verificationUrl);
@@ -292,6 +301,7 @@ TestCase {
         compare(SystemClipboard.text(), syncControllerStub.userCode);
         compare(settingsClosedSpy.count, 1);
         compare(syncCodeCopiedSpy.count, 1);
+        compare(syncConsentRequestedSpy.count, 1);
         verify(findChild(page, "copyGitHubCodeButton") !== null);
     }
 
