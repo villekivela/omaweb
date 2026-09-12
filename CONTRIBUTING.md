@@ -47,7 +47,7 @@ frame to a PNG, which works headlessly and is the easiest way to show a chrome c
 request.
 
 `ctest --preset dev` must pass before you open a pull request. CI then runs the `ci` preset on Arch
-Linux and builds the `release` preset to check that the embedded QML still loads. Nothing builds
+Linux and builds the `release` preset to check that the compiled QML still loads. Nothing builds
 macOS for you, so a patch that touches `src/platform` or the bundle needs a local run there before
 it is sent.
 

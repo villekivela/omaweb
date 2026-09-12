@@ -79,6 +79,13 @@ with `QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software` for reviewing chrome 
 desktop session. Development presets load QML, themes, and the icon font directly from the source
 tree. Editing those files requires an application restart but no compile or relink.
 
+The `release` preset compiles the QML ahead of time instead: the shared UI, the vendored kit and the
+engine view each become a static library that `qt_add_qml_module` runs `qmlcachegen` over, so
+bytecode and the bindings the compiler can type ship in the binary and the first launch parses no
+QML. The kit's own `qmldir` files draw its module boundaries and travel unchanged. Only the release
+build graph carries these compile steps, and `omaweb-qml-build-graph` checks that in both
+directions.
+
 The `ladybird` preset is deliberately separate. Do not add Ladybird, Qt source builds, or Rust
 compilation to `dev`.
 
@@ -554,3 +561,19 @@ Baseline measured on the initial macOS development machine on 2026-08-29:
 
 These timings exclude application launch and prebuilt Qt installation. Re-run
 `scripts/benchmark_build.sh` after changing target boundaries or build settings.
+
+Startup to first window is `omaweb --validate-qml` on the `release` preset against an empty data
+root, which loads the shell, creates the window and quits on the first event-loop turn. Measured on
+the same macOS machine on 2026-09-12, ten interleaved runs each, before and after the QML was
+compiled ahead of time:
+
+- Source QML, first launch with an empty QML disk cache: median 0.668 seconds
+- Source QML, later launch reading the disk cache: median 0.564 seconds
+- Compiled QML, first launch: median 0.648 seconds
+- Compiled QML, later launch: median 0.596 seconds
+
+The run-to-run spread is about 0.1 seconds, so on this machine the difference is inside the noise:
+the shell's sixty-odd files parse in a few tens of milliseconds, and the launch is engine and
+session start-up. What compiling buys is the first launch no longer depending on the disk cache,
+which the count of cache files written shows: 58 before, 1 after. No figure from the packaged
+browser on Linux hardware has been taken yet.
