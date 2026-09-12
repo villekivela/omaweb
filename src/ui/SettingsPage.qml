@@ -1,8 +1,10 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Dialogs as Dialogs
+import QtQuick.Effects
 import Omaweb
 import qs.Commons
+import qs.Ui as Omarchy
 
 // Settings is a place, not a dialog. It has outgrown a modal — filter lists, a
 // rule editor and download history in one scroll — so it takes the page area
@@ -1343,8 +1345,127 @@ Rectangle {
                         font.pixelSize: Style.font.display
                     }
 
+                    Omarchy.BorderSurface {
+                        id: syncAccountCard
+                        objectName: "syncAccountCard"
+                        width: pane.width
+                        visible: root.sync && root.sync.login.length > 0 && (!root.browser ||
+                                                                             !root.browser.privateBrowsing)
+
+                        implicitHeight: contentTopInset + Math.max(syncAccountAvatar.height,
+                                                                   syncAccountDetails.implicitHeight)
+                                        + contentBottomInset
+                        height: implicitHeight
+                        radius: Style.cornerRadius
+                        padding: Style.spacing.huge
+                        color: Qt.rgba(root.colors.text.r, root.colors.text.g, root.colors.text.b,
+                                       0.04)
+                        borderSpec: Border.controlSpec("normal", root.colors.text,
+                                                       root.colors.accent)
+                        Accessible.role: Accessible.StaticText
+                        Accessible.name: root.sync ? root.sync.login + ", " + root.sync.provider
+                                                     + " account. " + root.sync.status : ""
+
+                        Rectangle {
+                            id: syncAccountAvatar
+                            objectName: "syncAccountAvatar"
+                            anchors.left: parent.left
+                            anchors.leftMargin: syncAccountCard.contentLeftInset
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: 64
+                            height: width
+                            radius: width / 2
+                            color: root.colors.separator
+                            clip: true
+                            Accessible.ignored: true
+
+                            Text {
+                                objectName: "syncAccountMonogram"
+                                anchors.centerIn: parent
+                                visible: syncAccountImage.status !== Image.Ready
+                                text: root.sync && root.sync.login.length > 0 ? root.sync.login.charAt(
+                                                                                    0).toUpperCase(
+                                                                                    ) : ""
+                                color: root.sync && root.sync.enabled ? root.colors.text :
+                                                                        root.colors.mutedText
+                                font.family: Style.font.family
+                                font.pixelSize: Style.font.display
+                                font.bold: true
+                            }
+
+                            Image {
+                                id: syncAccountImage
+                                anchors.fill: parent
+                                source: root.sync && root.sync.avatarPath.length > 0 ? "file://"
+                                                                                       + root.sync.avatarPath :
+                                                                                       ""
+                                sourceSize.width: 128
+                                sourceSize.height: 128
+                                fillMode: Image.PreserveAspectCrop
+                                visible: false
+                                smooth: true
+                            }
+
+                            MultiEffect {
+                                anchors.fill: parent
+                                source: syncAccountImage
+                                visible: syncAccountImage.status === Image.Ready
+                                saturation: root.sync && root.sync.enabled ? 0 : -1
+                            }
+                        }
+
+                        Column {
+                            id: syncAccountDetails
+                            anchors.left: syncAccountAvatar.right
+                            anchors.leftMargin: Style.spacing.huge
+                            anchors.right: parent.right
+                            anchors.rightMargin: syncAccountCard.contentRightInset
+                            anchors.verticalCenter: parent.verticalCenter
+                            spacing: Style.spacing.sm
+                            Accessible.ignored: true
+
+                            Text {
+                                id: syncAccountLogin
+                                objectName: "syncAccountLogin"
+                                width: parent.width
+                                text: root.sync ? root.sync.login : ""
+                                color: root.colors.text
+                                elide: Text.ElideRight
+                                font.family: Style.font.family
+                                font.pixelSize: Style.font.subtitle
+                                font.bold: true
+                            }
+
+                            Text {
+                                id: syncAccountProvider
+                                objectName: "syncAccountProvider"
+                                width: parent.width
+                                text: root.sync && root.sync.provider.length > 0
+                                      ? root.sync.provider + " account" : "Sync account"
+                                color: root.colors.mutedText
+                                elide: Text.ElideRight
+                                font.family: Style.font.family
+                                font.pixelSize: Style.font.body
+                            }
+
+                            Text {
+                                id: syncAccountState
+                                objectName: "syncAccountState"
+                                width: parent.width
+                                text: root.sync ? root.sync.status : ""
+                                color: root.sync && root.sync.errorMessage.length > 0
+                                       ? root.colors.urgent : root.sync && root.sync.enabled
+                                         ? root.colors.accent : root.colors.mutedText
+                                wrapMode: Text.WordWrap
+                                font.family: Style.font.family
+                                font.pixelSize: Style.font.caption
+                            }
+                        }
+                    }
+
                     SettingRow {
                         width: pane.width
+                        visible: !root.sync || root.sync.login.length === 0 || !root.syncAvailable
                         colors: root.colors
                         title: !root.syncAvailable ? "Sync is unavailable in a Private window" :
                                                      root.sync ? (root.sync.login.length > 0

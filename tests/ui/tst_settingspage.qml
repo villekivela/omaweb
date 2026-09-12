@@ -204,6 +204,9 @@ TestCase {
         syncControllerStub.errorMessage = "";
         syncControllerStub.awaitingRepositoryCreation = false;
         syncControllerStub.continueCount = 0;
+        syncControllerStub.enabled = false;
+        syncControllerStub.login = "";
+        syncControllerStub.status = "Waiting for GitHub authorization";
         theme.restore();
         if (livePage !== null) {
             livePage.destroy();
@@ -285,6 +288,38 @@ TestCase {
         verify(boundary.text.indexOf("Passwords") >= 0);
         verify(boundary.text.indexOf("Private") >= 0);
         verify(boundary.text.indexOf("history") >= 0);
+    }
+
+    function test_syncShowsTheProviderAccountProminently() {
+        const page = makePage();
+        page.syncLauncher = syncLauncherStub;
+        page.section = page.sections.indexOf("sync");
+        syncControllerStub.enabled = true;
+        syncControllerStub.login = "octocat";
+        syncControllerStub.status = "Sync is on";
+
+        const card = findChild(page, "syncAccountCard");
+        const avatar = findChild(page, "syncAccountAvatar");
+        const monogram = findChild(page, "syncAccountMonogram");
+        const login = findChild(page, "syncAccountLogin");
+        const provider = findChild(page, "syncAccountProvider");
+        const state = findChild(page, "syncAccountState");
+        verify(card !== null);
+        verify(card.visible);
+        verify(avatar !== null);
+        compare(avatar.width, 64);
+        compare(avatar.height, avatar.width);
+        compare(avatar.radius, avatar.width / 2);
+        compare(monogram.text, "O");
+        verify(monogram.visible);
+        compare(login.text, "octocat");
+        compare(provider.text, "GitHub account");
+        compare(state.text, "Sync is on");
+
+        syncControllerStub.enabled = false;
+        syncControllerStub.status = "Sync is paused";
+        compare(state.text, "Sync is paused");
+        compare(String(state.color), String(page.colors.mutedText));
     }
 
     function test_syncConsentRoutesAfterSettingsIsClosed() {

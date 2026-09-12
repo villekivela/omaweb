@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Effects
 import qs.Commons
 import qs.Ui as Omarchy
 
@@ -722,8 +723,6 @@ Rectangle {
             width: 28
             height: 26
             visible: root.authenticatedSync
-            label: root.sync && root.sync.login.length > 0 ? root.sync.login.charAt(0).toUpperCase() :
-                                                             ""
             accessibleName: !root.authenticatedSync ? "Settings" : root.settingsAttention
                                                       ? "Settings for " + root.sync.login
                                                         + " — needs attention" : !root.activeSync
@@ -739,21 +738,44 @@ Rectangle {
             Rectangle {
                 id: avatarClip
                 objectName: "syncAvatarClip"
-                anchors.fill: parent
-                anchors.margins: 3
+                anchors.centerIn: parent
+                width: parent.height - 4
+                height: width
                 radius: width / 2
-                color: "transparent"
+                color: root.colors.separator
                 clip: true
-                opacity: root.activeSync ? 1 : 0.45
+
+                Text {
+                    objectName: "syncAvatarMonogram"
+                    anchors.centerIn: parent
+                    visible: avatarImage.status !== Image.Ready
+                    text: root.sync && root.sync.login.length > 0 ? root.sync.login.charAt(0).toUpperCase() :
+                                                                    ""
+                    color: root.activeSync ? root.colors.text : root.colors.mutedText
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.body
+                    font.bold: true
+                }
 
                 Image {
+                    id: avatarImage
                     anchors.fill: parent
                     source: root.sync && root.sync.avatarPath.length > 0 ? "file://"
                                                                            + root.sync.avatarPath :
                                                                            ""
+                    sourceSize.width: 48
+                    sourceSize.height: 48
                     fillMode: Image.PreserveAspectCrop
-                    visible: status === Image.Ready
+                    visible: false
                     smooth: true
+                }
+
+                MultiEffect {
+                    objectName: "syncAvatarEffect"
+                    anchors.fill: parent
+                    source: avatarImage
+                    visible: avatarImage.status === Image.Ready
+                    saturation: root.activeSync ? 0 : -1
                 }
             }
 

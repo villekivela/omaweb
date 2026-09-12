@@ -3488,16 +3488,24 @@ TestCase {
         try {
             const avatar = findChild(outline, "syncAvatarButton");
             const avatarClip = findChild(outline, "syncAvatarClip");
+            const avatarMonogram = findChild(outline, "syncAvatarMonogram");
+            const avatarEffect = findChild(outline, "syncAvatarEffect");
             const activityDot = findChild(outline, "syncActivityDot");
             const settings = findChild(outline, "settingsButton");
             verify(avatar !== null);
             verify(avatarClip !== null);
+            verify(avatarMonogram !== null);
+            verify(avatarEffect !== null);
             verify(activityDot !== null);
             verify(settings !== null);
             verify(avatar.visible);
             verify(!settings.visible);
+            compare(avatarClip.width, avatarClip.height);
             compare(avatarClip.radius, avatarClip.width / 2);
             compare(avatarClip.opacity, 1);
+            compare(avatarMonogram.text, "O");
+            verify(avatarMonogram.visible);
+            compare(avatarEffect.saturation, 0);
             compare(String(activityDot.color), String(outline.colors.accent));
 
             avatar.clicked();
@@ -3506,7 +3514,8 @@ TestCase {
             outline.sync.enabled = false;
             verify(avatar.visible);
             verify(!settings.visible);
-            compare(avatarClip.opacity, 0.45);
+            compare(avatarClip.opacity, 1);
+            compare(avatarEffect.saturation, -1);
             compare(String(activityDot.color), String(outline.colors.mutedText));
         } finally {
             avatarSettingsSpy.target = null;
