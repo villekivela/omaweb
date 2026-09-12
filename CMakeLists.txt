@@ -221,15 +221,20 @@ set(omaweb_omarchy_root "${CMAKE_CURRENT_SOURCE_DIR}/third_party/omarchy-shell")
 file(READ "${omaweb_omarchy_root}/MANIFEST.json" omaweb_omarchy_manifest)
 string(JSON omaweb_omarchy_manifest_files GET "${omaweb_omarchy_manifest}" files)
 string(JSON omaweb_omarchy_file_count LENGTH "${omaweb_omarchy_manifest_files}")
-set(omaweb_omarchy_files "")
+set(omaweb_omarchy_commons_files "")
+set(omaweb_omarchy_ui_files "")
 if(omaweb_omarchy_file_count GREATER 0)
     math(EXPR omaweb_omarchy_last_file "${omaweb_omarchy_file_count} - 1")
     foreach(index RANGE 0 ${omaweb_omarchy_last_file})
         string(JSON omaweb_omarchy_file MEMBER "${omaweb_omarchy_manifest_files}" ${index})
-        # Only the QML module tree goes into the resource; the manifest also
-        # tracks upstream's license text.
-        if(omaweb_omarchy_file MATCHES "^qs/")
-            list(APPEND omaweb_omarchy_files "third_party/omarchy-shell/${omaweb_omarchy_file}")
+        # Only the QML module tree is built, one module per directory; the
+        # manifest also tracks upstream's license text. The qmldir files are
+        # the module boundary and travel with their module separately.
+        if(omaweb_omarchy_file MATCHES "^qs/Commons/.*\\.(qml|js)$")
+            list(APPEND omaweb_omarchy_commons_files
+                "third_party/omarchy-shell/${omaweb_omarchy_file}")
+        elseif(omaweb_omarchy_file MATCHES "^qs/Ui/.*\\.(qml|js)$")
+            list(APPEND omaweb_omarchy_ui_files "third_party/omarchy-shell/${omaweb_omarchy_file}")
         endif()
     endforeach()
 endif()
@@ -389,7 +394,60 @@ set(omaweb_ui_files
     src/ui/TabRow.qml
 )
 
-function(omaweb_configure_qml target engine_view engine_profile engine_directory)
+# One QML module compiled ahead of time into a static library named after its
+# URI. Qt binds a module to a single target, so every module is a library of
+# its own. The value handed back is the module's plugin: the plugin's
+# constructor names the compiled units and the resource, which is what keeps
+# an archive's otherwise unreferenced objects in the executable's link.
+#
+# A module that carries its own qmldir hands it in as QMLDIR and it rides
+# along unchanged; the others get one generated from their file list. Nothing
+# in either case is written back to the source tree.
+function(omaweb_compiled_qml_module out_target uri)
+    cmake_parse_arguments(PARSE_ARGV 2 arg "" "QMLDIR" "QML_FILES")
+    string(TOLOWER "${uri}" module_name)
+    string(REPLACE "." "-" module_name "${module_name}")
+    set(target "omaweb-qml-${module_name}")
+    set("${out_target}" "${target}plugin" PARENT_SCOPE)
+    # Every executable that embeds QML asks for the same modules, and a module
+    # is built once. A second request has to be the same request, or one
+    # executable would silently ship the other's file list.
+    if(TARGET "${target}")
+        get_target_property(existing_files "${target}" OMAWEB_QML_FILES)
+        if(NOT existing_files STREQUAL arg_QML_FILES)
+            message(FATAL_ERROR "QML module ${uri} was already defined with different files")
+        endif()
+        return()
+    endif()
+
+    # Every file sits at the module root in the resource, whatever its source
+    # path, and the module's qmldir refers to each by that name.
+    foreach(file IN LISTS arg_QML_FILES arg_QMLDIR)
+        get_filename_component(file_name "${file}" NAME)
+        set_source_files_properties("${file}" PROPERTIES QT_RESOURCE_ALIAS "${file_name}")
+    endforeach()
+    set(qmldir_arguments "")
+    if(arg_QMLDIR)
+        set(qmldir_arguments NO_GENERATE_QMLDIR RESOURCES "${arg_QMLDIR}")
+    endif()
+
+    # Qt places a library's module at the binary directory itself, and two
+    # modules cannot share one. The tooling copies live under `qml/` instead,
+    # laid out by URI, so the compiler resolves one module's imports of another.
+    string(REPLACE "." "/" module_path "${uri}")
+    add_library("${target}" STATIC)
+    qt_add_qml_module("${target}"
+        URI "${uri}"
+        VERSION 1.0
+        OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/qml/${module_path}"
+        NO_LINT
+        QML_FILES ${arg_QML_FILES}
+        ${qmldir_arguments}
+    )
+    set_target_properties("${target}" PROPERTIES OMAWEB_QML_FILES "${arg_QML_FILES}")
+endfunction()
+
+function(omaweb_configure_qml target engine_view engine_profile engine_module)
     target_compile_definitions(${target} PRIVATE
         OMAWEB_VERSION="${OMAWEB_VERSION_STRING}"
         OMAWEB_UI_DIRECTORY="${CMAKE_CURRENT_SOURCE_DIR}/src/ui"
@@ -408,25 +466,28 @@ function(omaweb_configure_qml target engine_view engine_profile engine_directory
             OMAWEB_KEYBOARD_NAVIGATION_SCRIPT_PATH="${CMAKE_CURRENT_SOURCE_DIR}/src/engine/api/keyboard-navigation.js"
         )
     else()
-        set_source_files_properties("${engine_view}" PROPERTIES QT_RESOURCE_ALIAS "EngineView.qml")
-        set_source_files_properties("${engine_profile}" PROPERTIES QT_RESOURCE_ALIAS "EngineProfile.qml")
-        qt_add_resources(${target} "omaweb_ui"
-            PREFIX "/omaweb/ui"
-            BASE "${CMAKE_CURRENT_SOURCE_DIR}/src/ui"
-            FILES ${omaweb_ui_files}
+        # The QML ships compiled: bytecode for every file, and C++ for the
+        # bindings the compiler can type. A module lands under `/qt/qml`, which
+        # is already on the engine's import path, so the vendored `qs.Commons`
+        # and `qs.Ui` resolve by name and the shell and engine view load by URL.
+        omaweb_compiled_qml_module(omaweb_ui_module "Omaweb.Ui" QML_FILES ${omaweb_ui_files})
+        omaweb_compiled_qml_module(omaweb_commons_module "qs.Commons"
+            QMLDIR "${omaweb_omarchy_root}/qs/Commons/qmldir"
+            QML_FILES ${omaweb_omarchy_commons_files}
         )
-        # `/qt/qml` is already on the engine's import path, so the vendored
-        # `qs.Commons` / `qs.Ui` modules resolve from the resource unchanged.
-        qt_add_resources(${target} "omaweb_omarchy_ui"
-            PREFIX "/qt/qml"
-            BASE "${omaweb_omarchy_root}"
-            FILES ${omaweb_omarchy_files}
+        omaweb_compiled_qml_module(omaweb_kit_module "qs.Ui"
+            QMLDIR "${omaweb_omarchy_root}/qs/Ui/qmldir"
+            QML_FILES ${omaweb_omarchy_ui_files}
         )
-        qt_add_resources(${target} "omaweb_engine_view"
-            PREFIX "/omaweb/engine"
-            BASE "${CMAKE_CURRENT_SOURCE_DIR}/${engine_directory}"
-            FILES "${engine_view}"
-                "${engine_profile}"
+        omaweb_compiled_qml_module(omaweb_engine_module "${engine_module}"
+            QML_FILES "${engine_view}" "${engine_profile}"
+        )
+        string(REPLACE "." "/" engine_module_path "${engine_module}")
+        target_link_libraries(${target} PRIVATE
+            ${omaweb_ui_module}
+            ${omaweb_commons_module}
+            ${omaweb_kit_module}
+            ${omaweb_engine_module}
         )
         qt_add_resources(${target} "omaweb_theme"
             PREFIX "/omaweb/themes"
@@ -457,9 +518,9 @@ function(omaweb_configure_qml target engine_view engine_profile engine_directory
         )
         target_compile_definitions(${target} PRIVATE
             OMAWEB_OMARCHY_IMPORT_PATH="qrc:/qt/qml"
-            OMAWEB_MAIN_QML_URL="qrc:/omaweb/ui/Main.qml"
-            OMAWEB_ENGINE_VIEW_URL="qrc:/omaweb/engine/EngineView.qml"
-            OMAWEB_ENGINE_PROFILE_URL="qrc:/omaweb/engine/EngineProfile.qml"
+            OMAWEB_MAIN_QML_URL="qrc:/qt/qml/Omaweb/Ui/Main.qml"
+            OMAWEB_ENGINE_VIEW_URL="qrc:/qt/qml/${engine_module_path}/EngineView.qml"
+            OMAWEB_ENGINE_PROFILE_URL="qrc:/qt/qml/${engine_module_path}/EngineProfile.qml"
             OMAWEB_THEME_PATH=":/omaweb/themes/default.json"
             OMAWEB_OMARCHY_TEMPLATE_PATH=":/omaweb/omarchy/omaweb.json.tpl"
             OMAWEB_ICON_FONT_URL="qrc:/omaweb/fonts/material-symbols-rounded.ttf"
@@ -482,7 +543,7 @@ if(OMAWEB_BUILD_BROWSER)
         Qt6::Quick
     )
     omaweb_configure_qml(omaweb "src/engine/qt/EngineView.qml"
-        "src/engine/qt/EngineProfile.qml" "src/engine/qt")
+        "src/engine/qt/EngineProfile.qml" "Omaweb.Engine.Qt")
     omaweb_strict_target(omaweb)
 
     set_target_properties(omaweb PROPERTIES
@@ -538,7 +599,7 @@ if(OMAWEB_BUILD_UI_LAB)
         Qt6::Quick
     )
     omaweb_configure_qml(omaweb-ui-lab "src/ui-lab/MockEngineView.qml"
-        "src/ui-lab/MockEngineProfile.qml" "src/ui-lab")
+        "src/ui-lab/MockEngineProfile.qml" "Omaweb.Engine.Mock")
     omaweb_strict_target(omaweb-ui-lab)
     set_target_properties(omaweb-ui-lab PROPERTIES
         MACOSX_BUNDLE_BUNDLE_NAME "Omaweb UI Lab"
@@ -570,6 +631,20 @@ if(BUILD_TESTING)
         COMMAND ${CMAKE_COMMAND}
             -DOMAWEB_UI_DIRECTORY=${CMAKE_CURRENT_SOURCE_DIR}/src/ui
             -P ${CMAKE_CURRENT_SOURCE_DIR}/tests/cmake/check_shared_qml.cmake
+    )
+
+    # The release build ships compiled QML and the source-tree builds ship
+    # none, so both configurations check their own build graph.
+    if(OMAWEB_SOURCE_QML)
+        set(omaweb_expected_qml_build "source")
+    else()
+        set(omaweb_expected_qml_build "compiled")
+    endif()
+    add_test(NAME omaweb-qml-build-graph
+        COMMAND ${CMAKE_COMMAND}
+            -DOMAWEB_BUILD_GRAPH=${CMAKE_BINARY_DIR}/build.ninja
+            -DOMAWEB_EXPECTED=${omaweb_expected_qml_build}
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/tests/cmake/check_qml_aot.cmake
     )
 
     add_test(NAME omaweb-vendored-omarchy-ui
@@ -879,7 +954,7 @@ if(BUILD_TESTING)
         Qt6::Quick
     )
     omaweb_configure_qml(omaweb-qml-smoke "src/ui-lab/MockEngineView.qml"
-        "src/ui-lab/MockEngineProfile.qml" "src/ui-lab")
+        "src/ui-lab/MockEngineProfile.qml" "Omaweb.Engine.Mock")
     omaweb_strict_target(omaweb-qml-smoke)
     add_test(NAME omaweb-qml-load COMMAND omaweb-qml-smoke --validate-qml)
     set_tests_properties(omaweb-qml-load PROPERTIES

@@ -86,12 +86,15 @@ jobs:
         run: su builder -c 'cmake --preset release'
       - name: Build release
         run: su builder -c 'cmake --build --preset release'
-      - name: Verify embedded QML
-        # The release preset embeds QML instead of loading it from source, so
-        # these two guard the packaged form. Both are platform-neutral: one is
-        # a CMake script check, the other loads QML offscreen.
+      - name: Verify compiled QML
+        # The release preset compiles QML into the binary instead of loading it
+        # from source, so these guard the packaged form. All are
+        # platform-neutral: two are CMake script checks, one of them reading
+        # the build graph for the compile steps, and the third loads the
+        # compiled QML offscreen.
         run:
-          su builder -c "ctest --preset release -R '^(omaweb-shared-qml-boundary|omaweb-qml-load)$'"
+          su builder -c "ctest --preset release -R
+          '^(omaweb-shared-qml-boundary|omaweb-qml-build-graph|omaweb-qml-load)$'"
 
   # The same tree under the other compiler. `arch-linux` pins clang, and no
   # preset names a compiler, so the gate `docs/agents/code-style.md` asks for
