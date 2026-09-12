@@ -36,6 +36,7 @@ class SyncController final : public QObject {
     Q_OBJECT
     Q_PROPERTY(bool enabled READ enabled NOTIFY stateChanged)
     Q_PROPERTY(bool connecting READ connecting NOTIFY stateChanged)
+    Q_PROPERTY(bool awaitingRepositoryCreation READ awaitingRepositoryCreation NOTIFY stateChanged)
     Q_PROPERTY(bool awaitingInstallation READ awaitingInstallation NOTIFY stateChanged)
     Q_PROPERTY(bool pending READ pending NOTIFY stateChanged)
     Q_PROPERTY(QString provider READ provider CONSTANT)
@@ -56,6 +57,7 @@ public:
 
     bool enabled() const;
     bool connecting() const;
+    bool awaitingRepositoryCreation() const;
     bool awaitingInstallation() const;
     bool pending() const;
     QString provider() const;
@@ -69,6 +71,7 @@ public:
     QDateTime lastSuccessfulSync() const;
 
     Q_INVOKABLE bool beginGitHubConnection(const QString &recoveryKey);
+    Q_INVOKABLE bool continueGitHubConnection();
     Q_INVOKABLE void syncNow();
     Q_INVOKABLE void pause();
     Q_INVOKABLE void resume();
@@ -113,6 +116,7 @@ private:
     QDateTime m_lastSuccessfulSync;
     bool m_enabled = false;
     bool m_connecting = false;
+    bool m_awaitingRepositoryCreation = false;
     bool m_awaitingInstallation = false;
     bool m_pending = false;
     bool m_syncing = false;

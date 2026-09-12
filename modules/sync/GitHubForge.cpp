@@ -223,10 +223,26 @@ InstallationState GitHubForge::installationState(
 
 QUrl GitHubForge::installationUrl(qint64 accountId, qint64 repositoryId) const
 {
+    if (repositoryId <= 0) {
+        return webUrl(QStringLiteral("/apps/%1/installations/new").arg(m_appSlug));
+    }
     auto url = webUrl(QStringLiteral("/apps/%1/installations/new/permissions").arg(m_appSlug));
     QUrlQuery query;
     query.addQueryItem(QStringLiteral("suggested_target_id"), QString::number(accountId));
     query.addQueryItem(QStringLiteral("repository_ids[]"), QString::number(repositoryId));
+    url.setQuery(query);
+    return url;
+}
+
+QUrl GitHubForge::repositoryCreationUrl(const QString &owner, const QString &repositoryName) const
+{
+    auto url = webUrl(QStringLiteral("/new"));
+    QUrlQuery query;
+    query.addQueryItem(QStringLiteral("owner"), owner);
+    query.addQueryItem(QStringLiteral("name"), repositoryName);
+    query.addQueryItem(
+        QStringLiteral("description"), QStringLiteral("Encrypted Omaweb browser synchronization"));
+    query.addQueryItem(QStringLiteral("visibility"), QStringLiteral("private"));
     url.setQuery(query);
     return url;
 }
@@ -252,14 +268,18 @@ ForgeRepository GitHubForge::provisionPrivateRepository(const QByteArray &access
             const auto markerContents = QByteArray::fromBase64(
                 markerObject.value(QStringLiteral("content")).toString().toLatin1());
             const auto metadata = objectFrom(markerContents);
-            if (repository.value(QStringLiteral("private")).toBool() && marker.status == 200
+            const auto isPrivate = repository.value(QStringLiteral("private")).toBool();
+            const auto isExistingSync = marker.status == 200
                 && metadata.value(QStringLiteral("format")).toString()
-                    == QLatin1String("omaweb-sync")) {
+                    == QLatin1String("omaweb-sync");
+            const auto isNewEmptyRepository
+                = marker.status == 404 && repository.value(QStringLiteral("size")).toInteger() == 0;
+            if (isPrivate && (isExistingSync || isNewEmptyRepository)) {
                 return {.id = repository.value(QStringLiteral("id")).toInteger(),
                     .name = name,
                     .cloneUrl = QUrl(repository.value(QStringLiteral("clone_url")).toString()),
                     .isPrivate = true,
-                    .created = false};
+                    .created = isNewEmptyRepository};
             }
             continue;
         }

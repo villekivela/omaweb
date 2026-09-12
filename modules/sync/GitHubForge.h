@@ -21,6 +21,7 @@ public:
     InstallationState installationState(const QByteArray &accessToken, const QString &login,
         qint64 repositoryId, QString *errorMessage = nullptr) override;
     QUrl installationUrl(qint64 accountId, qint64 repositoryId) const override;
+    QUrl repositoryCreationUrl(const QString &owner, const QString &repositoryName) const override;
     ForgeRepository provisionPrivateRepository(const QByteArray &accessToken, const QString &owner,
         const QString &preferredName, QString *errorMessage = nullptr) override;
     QByteArray fetchAvatar(const QUrl &avatarUrl, QString *errorMessage = nullptr) override;

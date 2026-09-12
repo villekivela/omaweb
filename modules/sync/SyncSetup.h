@@ -11,6 +11,7 @@ class SecretStore;
 
 struct SyncConnection {
     bool ready = false;
+    bool repositoryCreationRequired = false;
     bool installationRequired = false;
     QString login;
     QString repositoryName;
@@ -20,6 +21,7 @@ struct SyncConnection {
     int accessTokenExpiresInSeconds = 0;
     int pollIntervalAdjustmentSeconds = 0;
     bool repositoryCreated = false;
+    QUrl repositoryCreationUrl;
     QUrl installationUrl;
     ForgeAuthorization authorization;
     ForgeRepository repository;

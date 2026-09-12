@@ -90,9 +90,30 @@ SyncConnection SyncSetup::finishConnect(QString *errorMessage)
         return {};
     }
 
-    if (m_repository.name.isEmpty()) {
-        m_repository = m_forge.provisionPrivateRepository(m_authorization.accessToken,
-            m_authorization.login, QStringLiteral("omaweb-sync"), errorMessage);
+    if (installation == InstallationState::Pending) {
+        if (errorMessage) {
+            errorMessage->clear();
+        }
+        SyncConnection pending;
+        if (m_repository.name.isEmpty()) {
+            pending.repositoryCreationRequired = true;
+            pending.repositoryCreationUrl = m_forge.repositoryCreationUrl(
+                m_authorization.login, QStringLiteral("omaweb-sync"));
+        } else {
+            pending.installationRequired = true;
+            pending.installationUrl
+                = m_forge.installationUrl(m_authorization.accountId, m_repository.id);
+        }
+        pending.authorization = std::move(m_authorization);
+        pending.repository = std::move(m_repository);
+        return pending;
+    }
+
+    if (!m_repository.cloneUrl.isValid()) {
+        const auto preferredName
+            = m_repository.name.isEmpty() ? QStringLiteral("omaweb-sync") : m_repository.name;
+        m_repository = m_forge.provisionPrivateRepository(
+            m_authorization.accessToken, m_authorization.login, preferredName, errorMessage);
         if (m_repository.id <= 0 || m_repository.name.isEmpty() || !m_repository.cloneUrl.isValid()
             || !m_repository.isPrivate) {
             sodium_memzero(m_authorization.accessToken.data(),
@@ -105,10 +126,8 @@ SyncConnection SyncSetup::finishConnect(QString *errorMessage)
             }
             return {};
         }
-        if (installation == InstallationState::Complete) {
-            installation = m_forge.installationState(
-                m_authorization.accessToken, m_authorization.login, m_repository.id, errorMessage);
-        }
+        installation = m_forge.installationState(
+            m_authorization.accessToken, m_authorization.login, m_repository.id, errorMessage);
     }
 
     if (installation == InstallationState::Pending) {
@@ -178,6 +197,7 @@ SyncConnection SyncSetup::finishConnect(QString *errorMessage)
         .accessToken = std::move(m_authorization.accessToken),
         .accessTokenExpiresInSeconds = m_authorization.expiresInSeconds,
         .repositoryCreated = m_repository.created,
+        .repositoryCreationUrl = {},
         .installationUrl = {},
         .authorization = {},
         .repository = {}};

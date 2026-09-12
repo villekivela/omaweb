@@ -7,12 +7,13 @@ every five minutes while enabled, and when the reader asks for Sync now. Git and
 away from the shell thread.
 
 The initial forge adapter is a project-owned GitHub App. Connect starts GitHub's device flow and
-opens its authorization page. After authorization, Omaweb creates or identifies the private Sync
-repository. When installation is needed, the forge adapter builds an installation URL scoped to the
-authorized account and that repository. This avoids GitHub's requirement to select at least one
-repository without requesting access to an unrelated repository. Omaweb polls until the App can
-access the Sync repository, then starts Sync without a manual continuation step. The GitHub login
-becomes the Sync identity; Omaweb has no Account service or account database.
+opens its authorization page. On first setup, the forge adapter opens GitHub's repository form with
+the Sync name, owner, description, and Private visibility prefilled. The reader confirms creation,
+returns to Sync, and grants the App access to only that repository. This confirmation is necessary:
+GitHub neither lets an uninstalled App create a personal repository nor lets a repository-permission
+App install with zero repositories selected. Omaweb polls until the App can access the Sync
+repository, then starts Sync. The GitHub login becomes the Sync identity; Omaweb has no Account
+service or account database.
 
 The adapter asks for repository Administration write and Contents read/write, creates a private
 `omaweb-sync` repository, and reuses one it can identify as its own. An unrelated repository with

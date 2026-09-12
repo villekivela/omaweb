@@ -52,6 +52,8 @@ public:
     virtual InstallationState installationState(const QByteArray &accessToken, const QString &login,
         qint64 repositoryId, QString *errorMessage = nullptr) = 0;
     virtual QUrl installationUrl(qint64 accountId, qint64 repositoryId) const = 0;
+    virtual QUrl repositoryCreationUrl(const QString &owner, const QString &repositoryName) const
+        = 0;
     virtual ForgeRepository provisionPrivateRepository(const QByteArray &accessToken,
         const QString &owner, const QString &preferredName, QString *errorMessage = nullptr) = 0;
     virtual QByteArray fetchAvatar(const QUrl &avatarUrl, QString *errorMessage = nullptr) = 0;

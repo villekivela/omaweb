@@ -245,7 +245,8 @@ Rectangle {
     }
 
     function openSyncConsent(url) {
-        if (root.sync && !root.sync.awaitingInstallation && root.sync.userCode.length > 0)
+        if (root.sync && !root.sync.awaitingRepositoryCreation && !root.sync.awaitingInstallation
+                && root.sync.userCode.length > 0)
             root.copySyncCode();
         root.closed();
         Qt.openUrlExternally(url);
@@ -1391,7 +1392,8 @@ Rectangle {
                         colors: root.colors
                         visible: root.syncAvailable && (!root.sync || (!root.sync.enabled
                                                                        && root.sync.login.length
-                                                                       === 0))
+                                                                       === 0 &&
+                                                                       !root.sync.connecting))
                         label: !root.sync && root.syncLauncher && root.syncLauncher.configured
                                ? "Resume Sync" : "Connect GitHub"
                         onClicked: {
@@ -1410,6 +1412,7 @@ Rectangle {
                     SettingRow {
                         width: pane.width
                         visible: root.sync && root.sync.connecting &&
+                                 !root.sync.awaitingRepositoryCreation &&
                                  !root.sync.awaitingInstallation
                         colors: root.colors
                         title: root.sync ? "Enter " + root.sync.userCode + " on GitHub" : ""
@@ -1420,6 +1423,7 @@ Rectangle {
                         width: pane.width
                         spacing: Style.spacing.sm
                         visible: root.sync && root.sync.connecting &&
+                                 !root.sync.awaitingRepositoryCreation &&
                                  !root.sync.awaitingInstallation
 
                         ActionButton {
@@ -1439,10 +1443,26 @@ Rectangle {
 
                     SettingRow {
                         width: pane.width
+                        visible: root.sync && root.sync.awaitingRepositoryCreation
+                        colors: root.colors
+                        title: "Create the private omaweb-sync repository on GitHub"
+                        note: "Keep the prefilled name and Private visibility. After GitHub creates it, return here to continue."
+                    }
+
+                    ActionButton {
+                        objectName: "continueSyncSetupButton"
+                        colors: root.colors
+                        visible: root.sync && root.sync.awaitingRepositoryCreation
+                        label: "I created the repository"
+                        onClicked: root.sync.continueGitHubConnection()
+                    }
+
+                    SettingRow {
+                        width: pane.width
                         visible: root.sync && root.sync.awaitingInstallation
                         colors: root.colors
                         title: "Install Omaweb Sync for your personal GitHub account"
-                        note: "Omaweb detects approval and creates the private Sync repository automatically."
+                        note: "Choose Only select repositories, select omaweb-sync, and install. Omaweb detects approval automatically."
                     }
 
                     SettingRow {

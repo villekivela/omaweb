@@ -38,10 +38,11 @@ release.
 
 Sync is off by default and is unavailable in Private windows. Connecting it starts GitHub's device
 authorization flow and polls GitHub only while that flow is active. GitHub receives the App client
-ID, device code, and ordinary authorization metadata. After login, Omaweb reads the GitHub identity,
-creates or identifies the private Sync repository, and opens App installation with only that
-repository preselected when necessary. It polls until the App can access that repository and
-downloads the identity's avatar once. No browsing state is sent to the avatar host.
+ID, device code, and ordinary authorization metadata. After login on the first device, Omaweb opens
+GitHub's new-repository form with private visibility and the Sync repository details prefilled. Once
+the reader confirms creation and continues, Omaweb opens App installation; the reader selects only
+that Sync repository. Omaweb polls until the App can access it and downloads the identity's avatar
+once. No browsing state is sent to the avatar host.
 
 While Sync is enabled, git fetch and push contact the private repository after 30 seconds without a
 new local change, every five minutes, after reconnecting, or when Sync now is pressed. Omaweb

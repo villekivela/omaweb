@@ -91,6 +91,20 @@ SyncController::SyncController(BrowserController *browser, ContentBlocker *block
         auto result = m_authorizationFinishWatcher.result();
         auto &connected = result.first;
         if (!connected.ready && result.second.isEmpty()) {
+            if (connected.repositoryCreationRequired) {
+                clearPendingAuthorization();
+                m_pendingAuthorization = std::move(connected.authorization);
+                m_pendingRepository = std::move(connected.repository);
+                if (!m_awaitingRepositoryCreation) {
+                    m_awaitingRepositoryCreation = true;
+                    m_authorizationPoll.stop();
+                    m_status = QStringLiteral("Create the private Sync repository on GitHub");
+                    qCInfo(syncLog) << "GitHub repository creation page requested";
+                    emit stateChanged();
+                    emit consentPageRequested(connected.repositoryCreationUrl);
+                }
+                return;
+            }
             if (connected.installationRequired) {
                 clearPendingAuthorization();
                 m_pendingAuthorization = std::move(connected.authorization);
@@ -112,6 +126,7 @@ SyncController::SyncController(BrowserController *browser, ContentBlocker *block
         }
         m_authorizationPoll.stop();
         m_connecting = false;
+        m_awaitingRepositoryCreation = false;
         m_awaitingInstallation = false;
         clearPendingAuthorization();
         std::fill(m_pendingRecoveryKey.begin(), m_pendingRecoveryKey.end(), QChar {});
@@ -308,6 +323,7 @@ SyncController::~SyncController()
 
 bool SyncController::enabled() const { return m_enabled; }
 bool SyncController::connecting() const { return m_connecting; }
+bool SyncController::awaitingRepositoryCreation() const { return m_awaitingRepositoryCreation; }
 bool SyncController::awaitingInstallation() const { return m_awaitingInstallation; }
 bool SyncController::pending() const { return m_pending; }
 QString SyncController::provider() const { return QStringLiteral("GitHub"); }
@@ -394,6 +410,8 @@ bool SyncController::beginGitHubConnection(const QString &recoveryKey)
         return false;
     }
     m_errorMessage.clear();
+    m_awaitingRepositoryCreation = false;
+    m_awaitingInstallation = false;
     m_pendingRecoveryKey = recoveryKey;
     m_connecting = true;
     m_status = QStringLiteral("Contacting GitHub");
@@ -408,6 +426,26 @@ bool SyncController::beginGitHubConnection(const QString &recoveryKey)
         const auto prompt = setup.beginConnect(recoveryKey, &error);
         return QPair {prompt, error};
     }));
+    return true;
+}
+
+bool SyncController::continueGitHubConnection()
+{
+    if (!m_connecting || !m_awaitingRepositoryCreation
+        || m_pendingAuthorization.state != AuthorizationState::Complete) {
+        return false;
+    }
+    m_awaitingRepositoryCreation = false;
+    m_awaitingInstallation = true;
+    m_pendingRepository = {.name = QStringLiteral("omaweb-sync")};
+    m_status = QStringLiteral("Waiting for GitHub App installation");
+    GitHubForge forge(QString::fromLatin1(OMAWEB_GITHUB_APP_CLIENT_ID),
+        QString::fromLatin1(OMAWEB_GITHUB_APP_SLUG));
+    qCInfo(syncLog) << "GitHub App installation page requested";
+    emit stateChanged();
+    emit consentPageRequested(
+        forge.installationUrl(m_pendingAuthorization.accountId, m_pendingRepository.id));
+    m_authorizationPoll.start();
     return true;
 }
 

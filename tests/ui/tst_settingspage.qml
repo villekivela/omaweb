@@ -57,6 +57,7 @@ TestCase {
 
         property bool enabled: false
         property bool connecting: true
+        property bool awaitingRepositoryCreation: false
         property bool awaitingInstallation: false
         property bool pending: false
         property string provider: "GitHub"
@@ -68,6 +69,12 @@ TestCase {
         property string avatarPath: ""
         property string recoveryKey: ""
         property date lastSuccessfulSync
+        property int continueCount: 0
+
+        function continueGitHubConnection() {
+            continueCount += 1;
+            return true;
+        }
 
         signal consentPageRequested(url url)
         signal stateChanged
@@ -188,6 +195,8 @@ TestCase {
         syncConnectionFailedSpy.target = null;
         syncConnectionFailedSpy.clear();
         syncControllerStub.errorMessage = "";
+        syncControllerStub.awaitingRepositoryCreation = false;
+        syncControllerStub.continueCount = 0;
         theme.restore();
         if (livePage !== null) {
             livePage.destroy();
@@ -301,6 +310,18 @@ TestCase {
         const notice = findChild(page, "syncErrorNotice");
         verify(notice.visible);
         compare(notice.detail, "GitHub refused repository creation");
+    }
+
+    function test_syncRepositoryCreationHasAnExplicitContinuation() {
+        const page = makePage();
+        page.syncLauncher = syncLauncherStub;
+        page.section = page.sections.indexOf("sync");
+        syncControllerStub.awaitingRepositoryCreation = true;
+
+        const button = findChild(page, "continueSyncSetupButton");
+        verify(button.visible);
+        button.clicked();
+        compare(syncControllerStub.continueCount, 1);
     }
 
     function test_aFieldKeepsTheLettersItAccepts() {
