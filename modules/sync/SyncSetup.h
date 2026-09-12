@@ -20,7 +20,9 @@ struct SyncConnection {
     int accessTokenExpiresInSeconds = 0;
     int pollIntervalAdjustmentSeconds = 0;
     bool repositoryCreated = false;
+    QUrl installationUrl;
     ForgeAuthorization authorization;
+    ForgeRepository repository;
 };
 
 class SyncSetup final {
@@ -30,7 +32,8 @@ public:
 
     DeviceAuthorization beginConnect(QString recoveryKey = {}, QString *errorMessage = nullptr);
     void resumeConnect(QString deviceCode, QString recoveryKey = {});
-    void resumeConnect(ForgeAuthorization authorization, QString recoveryKey = {});
+    void resumeConnect(
+        ForgeAuthorization authorization, ForgeRepository repository, QString recoveryKey = {});
     SyncConnection finishConnect(QString *errorMessage = nullptr);
 
 private:
@@ -40,6 +43,7 @@ private:
     QString m_deviceCode;
     QString m_recoveryKey;
     ForgeAuthorization m_authorization;
+    ForgeRepository m_repository;
 };
 
 } // namespace omaweb

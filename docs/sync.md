@@ -17,8 +17,10 @@ The client ID and slug are public application identifiers, not secrets. Never co
 secret or private key into the browser. A build without a client ID still builds and runs, but its
 Sync pane explains that GitHub authorization is unavailable.
 
-Connect opens GitHub authorization. Once authorized, Omaweb opens installation when necessary,
-detects its completion, creates the private repository, starts Sync, and shows the recovery key. A
-later machine logs into the same GitHub identity and enters the recovery key saved from the first
-machine. Losing every copy of that key makes the encrypted Space and tab records unrecoverable.
-Disconnecting does not remove the GitHub repository.
+Connect opens GitHub authorization. Once authorized, Omaweb creates or identifies the private Sync
+repository. If App installation is necessary, Omaweb opens GitHub with only that repository
+preselected and detects completion automatically. The reader should leave "Only select repositories"
+selected; granting access to all repositories is unnecessary. Omaweb then starts Sync and shows the
+recovery key. A later machine logs into the same GitHub identity and enters the recovery key saved
+from the first machine. Losing every copy of that key makes the encrypted Space and tab records
+unrecoverable. Disconnecting does not remove the GitHub repository.

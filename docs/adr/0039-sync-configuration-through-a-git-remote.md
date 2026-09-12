@@ -7,10 +7,12 @@ every five minutes while enabled, and when the reader asks for Sync now. Git and
 away from the shell thread.
 
 The initial forge adapter is a project-owned GitHub App. Connect starts GitHub's device flow and
-opens its authorization page. Omaweb detects authorization, checks whether the App is installed for
-that personal account, and opens the installation page only when needed. It polls installation
-state, then creates the private repository and starts Sync without a manual continuation step. The
-GitHub login becomes the Sync identity; Omaweb has no Account service or account database.
+opens its authorization page. After authorization, Omaweb creates or identifies the private Sync
+repository. When installation is needed, the forge adapter builds an installation URL scoped to the
+authorized account and that repository. This avoids GitHub's requirement to select at least one
+repository without requesting access to an unrelated repository. Omaweb polls until the App can
+access the Sync repository, then starts Sync without a manual continuation step. The GitHub login
+becomes the Sync identity; Omaweb has no Account service or account database.
 
 The adapter asks for repository Administration write and Contents read/write, creates a private
 `omaweb-sync` repository, and reuses one it can identify as its own. An unrelated repository with
@@ -20,10 +22,11 @@ tokens live only in Linux Secret Service. While installation is pending, the aut
 exists only in memory. A short-lived access token reaches git through an inherited pipe and askpass
 helper, never an argument, file, remote address, or general environment variable.
 
-Forge authorization, repository provisioning, secret storage, and git reconciliation are separate
-interfaces. A later Forgejo or Gitea adapter can replace GitHub without changing the record model or
-creating an Omaweb account system. The first release intentionally offers no arbitrary server field:
-server compatibility, App registration, API variation, and trust messaging need their own delivery.
+Forge authorization, repository provisioning, installation URL construction, secret storage, and git
+reconciliation are separate interfaces. A later Forgejo or Gitea adapter can replace GitHub without
+changing the record model or creating an Omaweb account system. The first release intentionally
+offers no arbitrary server field: server compatibility, App registration, API variation, and trust
+messaging need their own delivery.
 
 Each Space and tab is an independently encrypted record. The module uses libsodium
 XChaCha20-Poly1305 with a fresh nonce and authenticates the schema version, record kind, and stable

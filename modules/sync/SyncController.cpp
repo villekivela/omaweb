@@ -94,12 +94,13 @@ SyncController::SyncController(BrowserController *browser, ContentBlocker *block
             if (connected.installationRequired) {
                 clearPendingAuthorization();
                 m_pendingAuthorization = std::move(connected.authorization);
+                m_pendingRepository = std::move(connected.repository);
                 if (!m_awaitingInstallation) {
                     m_awaitingInstallation = true;
                     m_status = QStringLiteral("Waiting for GitHub App installation");
                     qCInfo(syncLog) << "GitHub App installation page requested";
                     emit stateChanged();
-                    emit consentPageRequested(installationUrl());
+                    emit consentPageRequested(connected.installationUrl);
                 }
                 return;
             }
@@ -315,11 +316,6 @@ QString SyncController::status() const { return m_status; }
 QString SyncController::errorMessage() const { return m_errorMessage; }
 QString SyncController::userCode() const { return m_userCode; }
 QUrl SyncController::verificationUrl() const { return m_verificationUrl; }
-QUrl SyncController::installationUrl() const
-{
-    return QUrl(QStringLiteral("https://github.com/apps/%1/installations/new")
-            .arg(QString::fromLatin1(OMAWEB_GITHUB_APP_SLUG)));
-}
 QString SyncController::avatarPath() const
 {
     const auto path = QDir(m_dataRoot).filePath(QStringLiteral("sync/avatar"));
@@ -424,15 +420,17 @@ void SyncController::pollAuthorization()
     const auto recoveryKey = m_pendingRecoveryKey;
     const auto dataRoot = m_dataRoot;
     auto authorization = std::move(m_pendingAuthorization);
+    auto repository = std::move(m_pendingRepository);
     m_authorizationFinishWatcher.setFuture(QtConcurrent::run(
-        [deviceCode, recoveryKey, dataRoot, authorization = std::move(authorization)]() mutable {
+        [deviceCode, recoveryKey, dataRoot, authorization = std::move(authorization),
+            repository = std::move(repository)]() mutable {
             QString error;
             GitHubForge forge(QString::fromLatin1(OMAWEB_GITHUB_APP_CLIENT_ID),
                 QString::fromLatin1(OMAWEB_GITHUB_APP_SLUG));
             LinuxSecretStore secrets;
             SyncSetup setup(forge, secrets, dataRoot);
             if (authorization.state == AuthorizationState::Complete) {
-                setup.resumeConnect(std::move(authorization), recoveryKey);
+                setup.resumeConnect(std::move(authorization), std::move(repository), recoveryKey);
             } else {
                 setup.resumeConnect(deviceCode, recoveryKey);
             }
@@ -448,6 +446,7 @@ void SyncController::clearPendingAuthorization()
     sodium_memzero(m_pendingAuthorization.refreshToken.data(),
         static_cast<size_t>(m_pendingAuthorization.refreshToken.size()));
     m_pendingAuthorization = {};
+    m_pendingRepository = {};
 }
 
 void SyncController::markPending()

@@ -44,7 +44,6 @@ class SyncController final : public QObject {
     Q_PROPERTY(QString errorMessage READ errorMessage NOTIFY stateChanged)
     Q_PROPERTY(QString userCode READ userCode NOTIFY stateChanged)
     Q_PROPERTY(QUrl verificationUrl READ verificationUrl NOTIFY stateChanged)
-    Q_PROPERTY(QUrl installationUrl READ installationUrl CONSTANT)
     Q_PROPERTY(QString avatarPath READ avatarPath NOTIFY stateChanged)
     Q_PROPERTY(QString recoveryKey READ recoveryKey NOTIFY stateChanged)
     Q_PROPERTY(QDateTime lastSuccessfulSync READ lastSuccessfulSync NOTIFY stateChanged)
@@ -65,7 +64,6 @@ public:
     QString errorMessage() const;
     QString userCode() const;
     QUrl verificationUrl() const;
-    QUrl installationUrl() const;
     QString avatarPath() const;
     QString recoveryKey() const;
     QDateTime lastSuccessfulSync() const;
@@ -101,6 +99,7 @@ private:
     QUrl m_remoteUrl;
     QByteArray m_accessToken;
     ForgeAuthorization m_pendingAuthorization;
+    ForgeRepository m_pendingRepository;
     QByteArray m_keybindingsDigest;
     QByteArray m_subscriptionDigest;
     QDateTime m_accessTokenExpiresAt;

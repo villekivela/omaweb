@@ -54,9 +54,11 @@ void SyncSetup::resumeConnect(QString deviceCode, QString recoveryKey)
     m_recoveryKey = std::move(recoveryKey);
 }
 
-void SyncSetup::resumeConnect(ForgeAuthorization authorization, QString recoveryKey)
+void SyncSetup::resumeConnect(
+    ForgeAuthorization authorization, ForgeRepository repository, QString recoveryKey)
 {
     m_authorization = std::move(authorization);
+    m_repository = std::move(repository);
     m_recoveryKey = std::move(recoveryKey);
 }
 
@@ -74,40 +76,55 @@ SyncConnection SyncSetup::finishConnect(QString *errorMessage)
             return pending;
         }
         m_deviceCode.clear();
-        if (m_authorization.state != AuthorizationState::Complete || m_authorization.login.isEmpty()
-            || m_authorization.accessToken.isEmpty() || m_authorization.refreshToken.isEmpty()) {
-            setError(errorMessage, QStringLiteral("GitHub did not authorize Sync"));
+    }
+    if (m_authorization.state != AuthorizationState::Complete || m_authorization.login.isEmpty()
+        || m_authorization.accountId <= 0 || m_authorization.accessToken.isEmpty()
+        || m_authorization.refreshToken.isEmpty()) {
+        setError(errorMessage, QStringLiteral("GitHub did not authorize Sync"));
+        return {};
+    }
+
+    auto installation = m_forge.installationState(
+        m_authorization.accessToken, m_authorization.login, m_repository.id, errorMessage);
+    if (installation == InstallationState::Failed) {
+        return {};
+    }
+
+    if (m_repository.name.isEmpty()) {
+        m_repository = m_forge.provisionPrivateRepository(m_authorization.accessToken,
+            m_authorization.login, QStringLiteral("omaweb-sync"), errorMessage);
+        if (m_repository.id <= 0 || m_repository.name.isEmpty() || !m_repository.cloneUrl.isValid()
+            || !m_repository.isPrivate) {
+            sodium_memzero(m_authorization.accessToken.data(),
+                static_cast<size_t>(m_authorization.accessToken.size()));
+            sodium_memzero(m_authorization.refreshToken.data(),
+                static_cast<size_t>(m_authorization.refreshToken.size()));
+            setError(errorMessage, QStringLiteral("The Sync repository was not created privately"));
             return {};
+        }
+        if (installation == InstallationState::Complete) {
+            installation = m_forge.installationState(
+                m_authorization.accessToken, m_authorization.login, m_repository.id, errorMessage);
         }
     }
 
-    const auto installation = m_forge.installationState(
-        m_authorization.accessToken, m_authorization.login, errorMessage);
     if (installation == InstallationState::Pending) {
         if (errorMessage) {
             errorMessage->clear();
         }
         SyncConnection pending;
         pending.installationRequired = true;
+        pending.installationUrl
+            = m_forge.installationUrl(m_authorization.accountId, m_repository.id);
         pending.authorization = std::move(m_authorization);
+        pending.repository = std::move(m_repository);
         return pending;
     }
     if (installation != InstallationState::Complete) {
         return {};
     }
 
-    auto repository = m_forge.provisionPrivateRepository(m_authorization.accessToken,
-        m_authorization.login, QStringLiteral("omaweb-sync"), errorMessage);
-    if (repository.name.isEmpty() || !repository.cloneUrl.isValid() || !repository.isPrivate) {
-        sodium_memzero(m_authorization.accessToken.data(),
-            static_cast<size_t>(m_authorization.accessToken.size()));
-        sodium_memzero(m_authorization.refreshToken.data(),
-            static_cast<size_t>(m_authorization.refreshToken.size()));
-        setError(errorMessage, QStringLiteral("The Sync repository was not created privately"));
-        return {};
-    }
-
-    if (!repository.created && m_recoveryKey.isEmpty()) {
+    if (!m_repository.created && m_recoveryKey.isEmpty()) {
         sodium_memzero(m_authorization.accessToken.data(),
             static_cast<size_t>(m_authorization.accessToken.size()));
         sodium_memzero(m_authorization.refreshToken.data(),
@@ -152,13 +169,15 @@ SyncConnection SyncSetup::finishConnect(QString *errorMessage)
     }
     return {.ready = true,
         .login = login,
-        .repositoryName = repository.name,
-        .remoteUrl = repository.cloneUrl,
+        .repositoryName = m_repository.name,
+        .remoteUrl = m_repository.cloneUrl,
         .recoveryKey = displayedKey,
         .accessToken = std::move(m_authorization.accessToken),
         .accessTokenExpiresInSeconds = m_authorization.expiresInSeconds,
-        .repositoryCreated = repository.created,
-        .authorization = {}};
+        .repositoryCreated = m_repository.created,
+        .installationUrl = {},
+        .authorization = {},
+        .repository = {}};
 }
 
 } // namespace omaweb

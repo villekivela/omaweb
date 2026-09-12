@@ -136,6 +136,7 @@ ForgeAuthorization GitHubForge::pollAuthorization(const QString &deviceCode, QSt
         .accessToken = std::move(accessToken),
         .refreshToken = token.value(QStringLiteral("refresh_token")).toString().toUtf8(),
         .login = user.value(QStringLiteral("login")).toString(),
+        .accountId = user.value(QStringLiteral("id")).toInteger(),
         .avatarUrl = QUrl(user.value(QStringLiteral("avatar_url")).toString()),
         .expiresInSeconds = token.value(QStringLiteral("expires_in")).toInt()};
 }
@@ -162,7 +163,7 @@ ForgeAuthorization GitHubForge::refreshAuthorization(
 }
 
 InstallationState GitHubForge::installationState(
-    const QByteArray &accessToken, const QString &login, QString *errorMessage)
+    const QByteArray &accessToken, const QString &login, qint64 repositoryId, QString *errorMessage)
 {
     if (m_appSlug.isEmpty()) {
         setError(errorMessage, QStringLiteral("This build has no GitHub App slug"));
@@ -183,10 +184,43 @@ InstallationState GitHubForge::installationState(
         const auto account = installation.value(QStringLiteral("account")).toObject();
         if (installation.value(QStringLiteral("app_slug")).toString() == m_appSlug
             && account.value(QStringLiteral("login")).toString() == login) {
-            return InstallationState::Complete;
+            if (repositoryId <= 0
+                || installation.value(QStringLiteral("repository_selection")).toString()
+                    == QLatin1String("all")) {
+                return InstallationState::Complete;
+            }
+            const auto installationId = installation.value(QStringLiteral("id")).toInteger();
+            const auto repositories = request("GET",
+                apiUrl(QStringLiteral("/user/installations/%1/repositories?per_page=100")
+                        .arg(installationId)),
+                {}, accessToken);
+            if (repositories.status != 200) {
+                setError(errorMessage,
+                    repositories.error.isEmpty()
+                        ? QStringLiteral("GitHub could not check repository access")
+                        : repositories.error);
+                return InstallationState::Failed;
+            }
+            for (const auto &repository :
+                objectFrom(repositories.body).value(QStringLiteral("repositories")).toArray()) {
+                if (repository.toObject().value(QStringLiteral("id")).toInteger() == repositoryId) {
+                    return InstallationState::Complete;
+                }
+            }
+            return InstallationState::Pending;
         }
     }
     return InstallationState::Pending;
+}
+
+QUrl GitHubForge::installationUrl(qint64 accountId, qint64 repositoryId) const
+{
+    auto url = webUrl(QStringLiteral("/apps/%1/installations/new/permissions").arg(m_appSlug));
+    QUrlQuery query;
+    query.addQueryItem(QStringLiteral("suggested_target_id"), QString::number(accountId));
+    query.addQueryItem(QStringLiteral("repository_ids[]"), QString::number(repositoryId));
+    url.setQuery(query);
+    return url;
 }
 
 ForgeRepository GitHubForge::provisionPrivateRepository(const QByteArray &accessToken,
@@ -213,7 +247,8 @@ ForgeRepository GitHubForge::provisionPrivateRepository(const QByteArray &access
             if (repository.value(QStringLiteral("private")).toBool() && marker.status == 200
                 && metadata.value(QStringLiteral("format")).toString()
                     == QLatin1String("omaweb-sync")) {
-                return {.name = name,
+                return {.id = repository.value(QStringLiteral("id")).toInteger(),
+                    .name = name,
                     .cloneUrl = QUrl(repository.value(QStringLiteral("clone_url")).toString()),
                     .isPrivate = true,
                     .created = false};
@@ -235,7 +270,8 @@ ForgeRepository GitHubForge::provisionPrivateRepository(const QByteArray &access
             accessToken, "application/json");
         const auto repository = objectFrom(response.body);
         if (response.status == 201) {
-            return {.name = name,
+            return {.id = repository.value(QStringLiteral("id")).toInteger(),
+                .name = name,
                 .cloneUrl = QUrl(repository.value(QStringLiteral("clone_url")).toString()),
                 .isPrivate = repository.value(QStringLiteral("private")).toBool(),
                 .created = true};

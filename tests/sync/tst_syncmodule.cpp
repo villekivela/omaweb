@@ -1,6 +1,7 @@
 #include "SyncModule.h"
 #include "SyncSetup.h"
 #include "SecretStore.h"
+#include "GitHubForge.h"
 
 #include "PrivateSessionStore.h"
 #include "SqliteSessionStore.h"
@@ -14,6 +15,7 @@
 #include <QRegularExpression>
 #include <QTemporaryDir>
 #include <QTest>
+#include <QUrlQuery>
 
 #include <utility>
 
@@ -47,6 +49,7 @@ public:
             .accessToken = QByteArrayLiteral("short-lived-token"),
             .refreshToken = QByteArrayLiteral("refresh-token"),
             .login = QStringLiteral("octocat"),
+            .accountId = 42,
             .avatarUrl = QUrl(QStringLiteral("https://avatars.example/octocat"))};
     }
 
@@ -56,10 +59,20 @@ public:
     }
 
     omaweb::InstallationState installationState(
-        const QByteArray &, const QString &, QString *) override
+        const QByteArray &, const QString &, qint64, QString *) override
     {
         ++installationChecks;
         return installed ? omaweb::InstallationState::Complete : omaweb::InstallationState::Pending;
+    }
+
+    QUrl installationUrl(qint64 accountId, qint64 repositoryId) const override
+    {
+        QUrl url(QStringLiteral("https://forge.example/install"));
+        QUrlQuery query;
+        query.addQueryItem(QStringLiteral("account"), QString::number(accountId));
+        query.addQueryItem(QStringLiteral("repository"), QString::number(repositoryId));
+        url.setQuery(query);
+        return url;
     }
 
     omaweb::ForgeRepository provisionPrivateRepository(
@@ -68,7 +81,8 @@ public:
         ++provisionAttempts;
         provisionedWith = accessToken;
         provisionedName = name;
-        return {.name = name,
+        return {.id = 84,
+            .name = name,
             .cloneUrl = QUrl(QStringLiteral("https://forge.example/octocat/%1.git").arg(name)),
             .isPrivate = true,
             .created = repositoryCreated};
@@ -181,7 +195,8 @@ private slots:
     void laterRecordWinsWhenTwoMachinesChangeTheSameRecord();
     void aClosedTabDoesNotReturnFromAnotherMachine();
     void setupUsesAForgeIdentityAndCreatesAPrivateRepository();
-    void setupWaitsForInstallationBeforeProvisioning();
+    void setupCreatesRepositoryBeforeInstallation();
+    void githubInstallationSelectsOnlyTheSyncRepository();
     void compactsAnOvergrownRepositoryIntoASnapshot();
     void anExistingRepositoryRequiresItsRecoveryKey();
 };
@@ -922,7 +937,7 @@ void SyncModuleTest::setupUsesAForgeIdentityAndCreatesAPrivateRepository()
     QCOMPARE(avatar.readAll(), QByteArrayLiteral("fake-png"));
 }
 
-void SyncModuleTest::setupWaitsForInstallationBeforeProvisioning()
+void SyncModuleTest::setupCreatesRepositoryBeforeInstallation()
 {
     QTemporaryDir dataRoot;
     FakeForge forge;
@@ -932,21 +947,35 @@ void SyncModuleTest::setupWaitsForInstallationBeforeProvisioning()
     QString error;
 
     QVERIFY(!setup.beginConnect({}, &error).deviceCode.isEmpty());
-    const auto waiting = setup.finishConnect(&error);
+    auto waiting = setup.finishConnect(&error);
     QVERIFY(!waiting.ready);
     QVERIFY2(error.isEmpty(), qPrintable(error));
-    QCOMPARE(forge.provisionAttempts, 0);
+    QCOMPARE(forge.provisionAttempts, 1);
     QCOMPARE(forge.authorizationPolls, 1);
     QCOMPARE(forge.installationChecks, 1);
+    QCOMPARE(waiting.repository.id, 84);
+    QCOMPARE(waiting.installationUrl,
+        QUrl(QStringLiteral("https://forge.example/install?account=42&repository=84")));
 
     forge.installed = true;
     SyncSetup resumed(forge, secrets, dataRoot.path());
-    resumed.resumeConnect(std::move(waiting.authorization), {});
+    resumed.resumeConnect(std::move(waiting.authorization), std::move(waiting.repository), {});
     const auto connected = resumed.finishConnect(&error);
     QVERIFY2(connected.ready, qPrintable(error));
     QCOMPARE(forge.authorizationPolls, 1);
     QCOMPARE(forge.installationChecks, 2);
     QCOMPARE(forge.provisionAttempts, 1);
+}
+
+void SyncModuleTest::githubInstallationSelectsOnlyTheSyncRepository()
+{
+    const omaweb::GitHubForge forge(QStringLiteral("client-id"), QStringLiteral("omaweb-sync"));
+    const auto url = forge.installationUrl(42, 84);
+    const QUrlQuery query(url);
+
+    QCOMPARE(url.path(), QStringLiteral("/apps/omaweb-sync/installations/new/permissions"));
+    QCOMPARE(query.queryItemValue(QStringLiteral("suggested_target_id")), QStringLiteral("42"));
+    QCOMPARE(query.queryItemValue(QStringLiteral("repository_ids[]")), QStringLiteral("84"));
 }
 
 QTEST_GUILESS_MAIN(SyncModuleTest)

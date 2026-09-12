@@ -19,7 +19,8 @@ public:
     ForgeAuthorization refreshAuthorization(
         const QByteArray &refreshToken, QString *errorMessage = nullptr) override;
     InstallationState installationState(const QByteArray &accessToken, const QString &login,
-        QString *errorMessage = nullptr) override;
+        qint64 repositoryId, QString *errorMessage = nullptr) override;
+    QUrl installationUrl(qint64 accountId, qint64 repositoryId) const override;
     ForgeRepository provisionPrivateRepository(const QByteArray &accessToken, const QString &owner,
         const QString &preferredName, QString *errorMessage = nullptr) override;
     QByteArray fetchAvatar(const QUrl &avatarUrl, QString *errorMessage = nullptr) override;
