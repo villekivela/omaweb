@@ -11,13 +11,14 @@ ApplicationWindow {
     id: window
 
     // `--prototype B:picker,sidebar` opens the named states for a capture.
-    property string variant: "A"
+    property string variant: "D"
     property string openStates: ""
-    readonly property var variants: ["A", "B", "C"]
+    readonly property var variants: ["A", "B", "C", "D"]
     readonly property var variantNames: ({
                                              "A": "Lualine — plain, dense, hairlines",
                                              "B": "HUD — brackets, ruled ground, tracked titles",
-                                             "C": "Tmux — status on top, floats hang down"
+                                             "C": "Tmux — status on top, floats hang down",
+                                             "D": "A + C — bottom line, Spaces listed, numbered tree"
                                          })
 
     width: 1360
@@ -42,6 +43,7 @@ ApplicationWindow {
         property string query: ""
         property int cursor: 0
         property bool sidebarOpen: false
+        property bool statusOnTop: false
         property bool findOpen: false
         property bool promptOpen: false
         property bool loading: false
@@ -506,6 +508,9 @@ ApplicationWindow {
                 break;
             case "find":
                 proto.findOpen = true;
+                break;
+            case "top":
+                proto.statusOnTop = true;
                 break;
             case "loading":
                 proto.loading = true;
