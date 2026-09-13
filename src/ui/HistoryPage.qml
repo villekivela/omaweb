@@ -10,6 +10,11 @@ Rectangle {
     property string iconFontFamily
     property var browser
     property bool open: false
+    // How far below its place the sheet's content stands, in pixels, while
+    // the sheet arrives or leaves. The backdrop stays where it is: a ground
+    // that moved would show the page's edge above it for the length of the
+    // lift.
+    property real lift: 0
     property Item pageSource: null
     property var rows: []
 
@@ -59,6 +64,9 @@ Rectangle {
     }
 
     Column {
+        transform: Translate {
+            y: root.lift
+        }
         anchors.fill: parent
         // Every full-window sheet leaves the same gap above its heading; the
         // rest of the frame is this sheet's own and follows the theme's

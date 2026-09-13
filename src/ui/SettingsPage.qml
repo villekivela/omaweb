@@ -71,6 +71,11 @@ Rectangle {
                                                                               })
     readonly property bool syncAvailable: root.browser ? !root.browser.privateBrowsing : false
     property bool open: false
+    // How far below its place the sheet's content stands, in pixels, while
+    // the sheet arrives or leaves. The backdrop stays where it is: a ground
+    // that moved would show the page's edge above it for the length of the
+    // lift.
+    property real lift: 0
     property int section: 0
     // The window's download list. A model rather than an array: it says when
     // it changes, so this page never asks for it again.
@@ -394,6 +399,9 @@ Rectangle {
 
     Item {
         id: header
+        transform: Translate {
+            y: root.lift
+        }
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.top: parent.top
@@ -450,6 +458,9 @@ Rectangle {
 
     Row {
         id: body
+        transform: Translate {
+            y: root.lift
+        }
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.top: header.bottom

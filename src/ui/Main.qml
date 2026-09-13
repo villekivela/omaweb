@@ -1994,11 +1994,12 @@ ApplicationWindow {
                     id: startPage
                     anchors.fill: parent
                     z: 30
-                    transform: SheetLift {
+                    SheetLift {
                         id: startPageLift
                         shown: startPage.open
                         ease: window.easeSidebar
                     }
+                    lift: startPageLift.y
                     opacity: startPageLift.progress
                     // Drawn for the length of the drop.
                     visible: startPageLift.showing
@@ -2228,11 +2229,12 @@ ApplicationWindow {
                     objectName: "settingsSurface"
                     anchors.fill: parent
                     z: 45
-                    transform: SheetLift {
+                    SheetLift {
                         id: settingsLift
                         shown: settingsSurface.open
                         ease: window.easeSidebar
                     }
+                    lift: settingsLift.y
                     opacity: settingsLift.progress
                     // Drawn for the length of the drop.
                     visible: settingsLift.showing
@@ -2305,11 +2307,12 @@ ApplicationWindow {
                     id: historySurface
                     anchors.fill: parent
                     z: 46
-                    transform: SheetLift {
+                    SheetLift {
                         id: historyLift
                         shown: historySurface.open
                         ease: window.easeSidebar
                     }
+                    lift: historyLift.y
                     opacity: historyLift.progress
                     // Drawn for the length of the drop.
                     visible: historyLift.showing

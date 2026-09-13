@@ -24,6 +24,11 @@ Rectangle {
     property var keymap
     property bool privateWindow: false
     property bool open: false
+    // How far below its place the sheet's content stands, in pixels, while
+    // the sheet arrives or leaves. The backdrop stays where it is: a ground
+    // that moved would show the page's edge above it for the length of the
+    // lift.
+    property real lift: 0
 
     // Standing in for a page that does not exist, or summoned over one that
     // does. Standing in, the sheet is the viewport and takes the sidebar's
@@ -309,6 +314,9 @@ Rectangle {
     Flickable {
         id: sheetView
         anchors.fill: parent
+        transform: Translate {
+            y: root.lift
+        }
         contentWidth: width
         contentHeight: root.contentHeight
         boundsBehavior: Flickable.StopAtBounds
