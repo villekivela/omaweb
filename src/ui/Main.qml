@@ -1664,7 +1664,10 @@ ApplicationWindow {
                                                                        * width : 0)
                 visible: chromeRow.seam > 0 || (chromeRow.peekRevealed > 0 &&
                                                 !engineLoader.siteFullscreenActive)
-                z: chromeRow.peekRevealed > 0 ? 10 : 0
+                // Above the page while a Space arrives, so a page arriving
+                // from the left slides in from under the shelf rather than
+                // over it.
+                z: chromeRow.peekRevealed > 0 || sidebar.arriving ? 10 : 0
                 colors: window.colors
                 iconFontFamily: materialSymbols.name
                 browser: window.windowBrowser
@@ -1748,11 +1751,29 @@ ApplicationWindow {
                 }
             }
 
+            // What shows where the page is not while it arrives: the page's
+            // own opaque ground, standing still, rather than the desktop.
+            Rectangle {
+                x: chromeRow.seam
+                width: chromeRow.width - chromeRow.pageInset
+                height: parent.height
+                visible: sidebar.arriving
+                color: window.pagelessViewport ? window.colors.sheet : window.colors.windowOpaque
+            }
+
             Item {
                 objectName: "engineViewport"
                 x: chromeRow.seam
                 width: chromeRow.width - chromeRow.pageInset
                 height: parent.height
+                // The page arrives with the Space, from the side the sidebar's
+                // list arrives from, by a fraction of the list's travel: it is
+                // the heavy thing on the screen and only has to agree about
+                // the direction. A slide and nothing else, so the viewport is
+                // never drawn through a layer.
+                transform: Translate {
+                    x: sidebar.arriving ? sidebar.arrivalOffset * 32 : 0
+                }
 
                 // The shell around it is translucent by theme; a webpage viewport
                 // never is, so it gets its own opaque backing rather than

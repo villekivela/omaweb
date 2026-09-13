@@ -42,16 +42,25 @@ Rectangle {
 
     readonly property url activeUrl: browser ? browser.activeUrl : ""
 
-    // Spaces are a column behind the sidebar, and switching one moves the
-    // list the way the column would: a Space further down the list arrives
-    // from below, one further up from above. Only the arriving list moves,
-    // by less than a row, so the direction is felt rather than watched; the
-    // page keeps its own step. `easeSpaces` is the reader's refusal of the
-    // sidebar ease, which refuses this too.
+    // Spaces are a row, the row the footer draws them in, and switching one
+    // slides the outline along it: the Space to the right arrives from the
+    // right as the one on show leaves to the left, the lit letter slides
+    // along the footer with it, and the page arrives the same way. One
+    // movement, in the direction the reader chose. The leaving list is a
+    // picture taken while it was at rest, since the models have already
+    // become the next Space's by the time the switch is heard. `easeSpaces`
+    // is the reader's refusal of the sidebar ease, which refuses this too.
     property bool easeSpaces: true
     property int settledSpaceRow: activeSpaceRow()
-    property real stackShift: 0
-    property real stackOpacity: 1
+    property bool arriving: false
+    // Where the arriving list and the leaving picture stand, as a fraction
+    // of the list's width: 1 is one width to the right.
+    property real arrivalOffset: 0
+    property real departureOffset: 0
+    property real arrivalOpacity: 1
+    property real departureOpacity: 0
+    // The direction of the last switch: 1 to the right, -1 to the left.
+    property int switchDirection: 1
     // The row is read off the model on each change rather than bound: a
     // binding over model data does not see the model change.
     function activeSpaceRow() {
@@ -64,35 +73,113 @@ Rectangle {
         }
         return 0;
     }
+    // The picture of the list at rest, retaken after the list settles from
+    // any change, so it is the leaving Space's list when a switch comes.
+    function retakeDeparture() {
+        if (!root.arriving && root.easeSpaces)
+            departureRetake.restart();
+    }
+    Timer {
+        id: departureRetake
+        interval: 50
+        onTriggered: if (!root.arriving)
+                         departure.scheduleUpdate()
+    }
+    Component.onCompleted: retakeDeparture()
     Connections {
         target: root.browser
+        // Heard before the models change: from here on, the picture stands.
+        function onSpaceSuspended() {
+            if (root.easeSpaces)
+                root.arriving = true;
+        }
         function onActiveSpaceChanged() {
             const from = root.settledSpaceRow;
             const to = root.activeSpaceRow();
             root.settledSpaceRow = to;
-            if (!root.easeSpaces || from === to)
+            if (!root.easeSpaces || from === to) {
+                root.arriving = false;
                 return;
-            stackArrival.stop();
-            root.stackShift = to > from ? 18 : -18;
-            root.stackOpacity = 0;
-            stackArrival.start();
+            }
+            spaceArrival.stop();
+            root.switchDirection = to > from ? 1 : -1;
+            root.arrivalOffset = root.switchDirection;
+            root.arrivalOpacity = 0;
+            root.departureOffset = 0;
+            root.departureOpacity = 1;
+            spaceArrival.start();
+        }
+        function onActiveTabChanged() {
+            root.retakeDeparture();
+        }
+    }
+    Connections {
+        target: root.browser ? root.browser.unpinnedTabs : null
+        function onRowsInserted() {
+            root.retakeDeparture();
+        }
+        function onRowsRemoved() {
+            root.retakeDeparture();
+        }
+        function onRowsMoved() {
+            root.retakeDeparture();
+        }
+        function onDataChanged() {
+            root.retakeDeparture();
+        }
+        function onModelReset() {
+            root.retakeDeparture();
+        }
+    }
+    Connections {
+        target: root.browser ? root.browser.pinnedTabs : null
+        function onRowsInserted() {
+            root.retakeDeparture();
+        }
+        function onRowsRemoved() {
+            root.retakeDeparture();
+        }
+        function onRowsMoved() {
+            root.retakeDeparture();
+        }
+        function onDataChanged() {
+            root.retakeDeparture();
+        }
+        function onModelReset() {
+            root.retakeDeparture();
         }
     }
     ParallelAnimation {
-        id: stackArrival
+        id: spaceArrival
         NumberAnimation {
             target: root
-            property: "stackShift"
+            property: "arrivalOffset"
             to: 0
             duration: 240
             easing.type: Easing.OutCubic
         }
         NumberAnimation {
             target: root
-            property: "stackOpacity"
+            property: "arrivalOpacity"
             to: 1
-            duration: 180
+            duration: 160
+        }
+        NumberAnimation {
+            target: root
+            property: "departureOffset"
+            to: -root.switchDirection
+            duration: 240
             easing.type: Easing.OutCubic
+        }
+        NumberAnimation {
+            target: root
+            property: "departureOpacity"
+            to: 0
+            duration: 160
+        }
+        onFinished: {
+            root.arriving = false;
+            root.retakeDeparture();
         }
     }
     // What Content blocking refused for the page on show.
@@ -558,99 +645,49 @@ Rectangle {
     // the first tab in a Space gave the section its pins, and the column went
     // on placing the next thing where the section was not — the pins landing
     // over the controls at the top of the outline.
-    Flow {
-        id: pinnedSection
-        objectName: "pinnedList"
+    // The list, both halves of it, in a layer of its own: the layer is what
+    // the leaving picture is a picture of, and it carries nothing but the
+    // list, so the picture lays over the sidebar's own ground rather than
+    // bringing a second one.
+    Item {
+        id: listLayer
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.top: outline.bottom
-        anchors.leftMargin: 16
-        anchors.rightMargin: 16
-        anchors.topMargin: visible ? 12 : 0
-        height: childrenRect.height
-        visible: !root.privateWindow && root.pinnedCount > 0
-        opacity: root.stackOpacity
-        transform: Translate {
-            y: root.stackShift
-        }
-        readonly property int capacity: Math.max(3, Math.min(5, Math.floor(width / 56)))
-        readonly property int columns: Math.min(root.pinnedCount, capacity)
-        spacing: 4
-
-        Repeater {
-            model: root.browser ? root.browser.pinnedTabs : null
-
-            TabRow {
-                id: pinnedRow
-                required property int index
-                placeInSection: index
-                readonly property int rowStart: Math.floor(index / pinnedSection.capacity)
-                                                * pinnedSection.capacity
-                readonly property int tabsInRow: Math.min(pinnedSection.capacity, root.pinnedCount
-                                                          - rowStart)
-                width: (pinnedSection.width - pinnedSection.spacing * (tabsInRow - 1)) / tabsInRow
-                colors: root.colors
-                iconFontFamily: root.iconFontFamily
-                useFavicons: root.useFavicons
-                tintFavicons: root.tintFavicons
-                onActivated: function (id) {
-                    root.tabActivated(id);
-                }
-                onCloseRequested: function (id) {
-                    root.tabCloseRequested(id);
-                }
-                onMuteToggled: function (id) {
-                    root.tabMuteToggled(id);
-                }
-                onDragStarted: root.beginTabDrag(pinnedRow)
-                onDragMoved: function (id, sceneX, sceneY) {
-                    root.updateTabDrag(pinnedRow, sceneX, sceneY);
-                }
-                onDragEnded: root.endTabDrag(pinnedRow)
-                onMenuRequested: function (id, anchorX, anchorY) {
-                    root.tabMenuRequested(id, anchorX, anchorY);
-                }
-                onActiveChanged: if (active)
-                                     root.activeTabItem = this
-                Component.onCompleted: if (active)
-                                           root.activeTabItem = this
-            }
-        }
-    }
-
-    ScrollView {
-        id: tabScroll
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.top: pinnedSection.bottom
         anchors.bottom: footer.top
-        anchors.leftMargin: 16
-        anchors.rightMargin: 16
-        anchors.topMargin: 12
-        anchors.bottomMargin: 12
-        clip: true
-        opacity: root.stackOpacity
-        transform: Translate {
-            y: root.stackShift
-        }
 
-        Column {
-            id: ordinarySection
-            objectName: "ordinaryList"
-            width: tabScroll.availableWidth
-
-            // The list gaps its rows as the pinned section gaps its pins, so
-            // the two halves of the sidebar read as one list.
-            spacing: pinnedSection.spacing
+        Flow {
+            id: pinnedSection
+            objectName: "pinnedList"
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.top: parent.top
+            anchors.leftMargin: 16
+            anchors.rightMargin: 16
+            anchors.topMargin: visible ? 12 : 0
+            height: childrenRect.height
+            visible: !root.privateWindow && root.pinnedCount > 0
+            opacity: root.arrivalOpacity
+            transform: Translate {
+                x: root.arrivalOffset * listLayer.width
+            }
+            readonly property int capacity: Math.max(3, Math.min(5, Math.floor(width / 56)))
+            readonly property int columns: Math.min(root.pinnedCount, capacity)
+            spacing: 4
 
             Repeater {
-                model: root.atRest || !root.browser ? null : root.browser.unpinnedTabs
+                model: root.browser ? root.browser.pinnedTabs : null
 
                 TabRow {
-                    id: ordinaryRow
+                    id: pinnedRow
                     required property int index
                     placeInSection: index
-                    width: parent.width
+                    readonly property int rowStart: Math.floor(index / pinnedSection.capacity)
+                                                    * pinnedSection.capacity
+                    readonly property int tabsInRow: Math.min(pinnedSection.capacity,
+                                                              root.pinnedCount - rowStart)
+                    width: (pinnedSection.width - pinnedSection.spacing * (tabsInRow - 1))
+                           / tabsInRow
                     colors: root.colors
                     iconFontFamily: root.iconFontFamily
                     useFavicons: root.useFavicons
@@ -664,11 +701,11 @@ Rectangle {
                     onMuteToggled: function (id) {
                         root.tabMuteToggled(id);
                     }
-                    onDragStarted: root.beginTabDrag(ordinaryRow)
+                    onDragStarted: root.beginTabDrag(pinnedRow)
                     onDragMoved: function (id, sceneX, sceneY) {
-                        root.updateTabDrag(ordinaryRow, sceneX, sceneY);
+                        root.updateTabDrag(pinnedRow, sceneX, sceneY);
                     }
-                    onDragEnded: root.endTabDrag(ordinaryRow)
+                    onDragEnded: root.endTabDrag(pinnedRow)
                     onMenuRequested: function (id, anchorX, anchorY) {
                         root.tabMenuRequested(id, anchorX, anchorY);
                     }
@@ -678,6 +715,85 @@ Rectangle {
                                                root.activeTabItem = this
                 }
             }
+        }
+
+        ScrollView {
+            id: tabScroll
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.top: pinnedSection.bottom
+            anchors.bottom: parent.bottom
+            anchors.leftMargin: 16
+            anchors.rightMargin: 16
+            anchors.topMargin: 12
+            anchors.bottomMargin: 12
+            clip: true
+            opacity: root.arrivalOpacity
+            transform: Translate {
+                x: root.arrivalOffset * listLayer.width
+            }
+
+            Column {
+                id: ordinarySection
+                objectName: "ordinaryList"
+                width: tabScroll.availableWidth
+
+                // The list gaps its rows as the pinned section gaps its pins, so
+                // the two halves of the sidebar read as one list.
+                spacing: pinnedSection.spacing
+
+                Repeater {
+                    model: root.atRest || !root.browser ? null : root.browser.unpinnedTabs
+
+                    TabRow {
+                        id: ordinaryRow
+                        required property int index
+                        placeInSection: index
+                        width: parent.width
+                        colors: root.colors
+                        iconFontFamily: root.iconFontFamily
+                        useFavicons: root.useFavicons
+                        tintFavicons: root.tintFavicons
+                        onActivated: function (id) {
+                            root.tabActivated(id);
+                        }
+                        onCloseRequested: function (id) {
+                            root.tabCloseRequested(id);
+                        }
+                        onMuteToggled: function (id) {
+                            root.tabMuteToggled(id);
+                        }
+                        onDragStarted: root.beginTabDrag(ordinaryRow)
+                        onDragMoved: function (id, sceneX, sceneY) {
+                            root.updateTabDrag(ordinaryRow, sceneX, sceneY);
+                        }
+                        onDragEnded: root.endTabDrag(ordinaryRow)
+                        onMenuRequested: function (id, anchorX, anchorY) {
+                            root.tabMenuRequested(id, anchorX, anchorY);
+                        }
+                        onActiveChanged: if (active)
+                                             root.activeTabItem = this
+                        Component.onCompleted: if (active)
+                                                   root.activeTabItem = this
+                    }
+                }
+            }
+        }
+    }
+
+    ShaderEffectSource {
+        id: departure
+        x: listLayer.x
+        y: listLayer.y
+        width: listLayer.width
+        height: listLayer.height
+        sourceItem: listLayer
+        live: false
+        // Kept visible, parked past the clip when at rest: a picture that
+        // is not drawn is not retaken either.
+        opacity: root.arriving ? root.departureOpacity : 1
+        transform: Translate {
+            x: root.arriving ? root.departureOffset * listLayer.width : -2 * root.width
         }
     }
 
@@ -699,6 +815,27 @@ Rectangle {
         // Every Space is one letter, the active one lit. The row is the
         // switcher: spelling the active name out again would say what the
         // lit letter already says.
+        // The lit plate slides along the row to the Space on show, so the
+        // switch reads in the footer as it reads in the list. The letters
+        // themselves stay where they are.
+        Rectangle {
+            visible: !root.privateWindow && root.easeSpaces
+            x: root.settledSpaceRow * 35
+            anchors.verticalCenter: parent.verticalCenter
+            width: 30
+            height: 28
+            radius: Style.cornerRadius
+            color: Style.selectedFillFor(root.colors.text, root.colors.accent)
+            border.color: Style.normalBorderFor(root.colors.text, root.colors.accent)
+            border.width: Style.normalBorderWidth
+            Behavior on x {
+                NumberAnimation {
+                    duration: 240
+                    easing.type: Easing.OutCubic
+                }
+            }
+        }
+
         Row {
             objectName: "spaceSwitcher"
             anchors.left: parent.left
@@ -738,8 +875,8 @@ Rectangle {
                     // so it is drawn the way the kit draws a selection and the
                     // way a current tab row is: the kit's own selected fill,
                     // bordered.
-                    selected: active
-                    bordered: active
+                    selected: active && !root.easeSpaces
+                    bordered: active && !root.easeSpaces
                     background: "transparent"
                     onClicked: root.spaceActivated(spaceId)
                 }
