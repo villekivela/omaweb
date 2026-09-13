@@ -40,9 +40,35 @@ Rectangle {
             if (detail === root.lastReportedSyncError)
                 return;
             root.lastReportedSyncError = detail;
-            root.syncConnectionFailed(detail);
+            root.syncConnectionFailed(root.providerText.failureTitle, detail);
         }
     }
+    // Every provider-worded string a person reads comes from the provider itself, with neutral
+    // wording before a provider is loaded.
+    readonly property var providerText: root.sync ? root.sync.providerText : ({
+                                                                                  "name": "Sync",
+                                                                                  "connectAction":
+                                                                                  "Connect Sync",
+                                                                                  "authorizationAction":
+                                                                                  "Open the authorization page",
+                                                                                  "failureTitle":
+                                                                                  "Sync failed",
+                                                                                  "codeCopiedNotice":
+                                                                                  "Code copied",
+                                                                                  "codePrompt": "",
+                                                                                  "authorizationNote":
+                                                                                  "",
+                                                                                  "repositoryTitle":
+                                                                                  "",
+                                                                                  "repositoryNote":
+                                                                                  "",
+                                                                                  "installationTitle":
+                                                                                  "",
+                                                                                  "installationNote":
+                                                                                  "",
+                                                                                  "observationNote":
+                                                                                  ""
+                                                                              })
     readonly property bool syncAvailable: root.browser ? !root.browser.privateBrowsing : false
     property bool open: false
     property int section: 0
@@ -237,14 +263,14 @@ Rectangle {
     signal downloadRevealed(string path)
     signal downloadForgotten(int row)
     signal retainedTabReleased(string tabId)
-    signal syncCodeCopied
+    signal syncCodeCopied(string notice)
     signal syncConsentRequested(url url)
-    signal syncConnectionFailed(string detail)
+    signal syncConnectionFailed(string title, string detail)
 
     function copySyncCode() {
         if (root.sync && root.sync.userCode.length > 0 && SystemClipboard.copyText(
                     root.sync.userCode))
-            root.syncCodeCopied();
+            root.syncCodeCopied(root.providerText.codeCopiedNotice);
     }
 
     function openSyncConsent(url) {
@@ -1472,7 +1498,7 @@ Rectangle {
                                                                   ? root.sync.login + " on "
                                                                     + root.sync.provider :
                                                                     root.sync.status) :
-                                                                 "Connect GitHub"
+                                                                 root.providerText.connectAction
                         note: root.sync ? root.sync.status : (root.syncLauncher
                                                               ? root.syncLauncher.errorMessage : "")
                     }
@@ -1481,7 +1507,8 @@ Rectangle {
                         id: syncPrivacyBoundary
                         objectName: "syncPrivacyBoundary"
                         width: pane.width
-                        text: "Spaces and tabs are end-to-end encrypted. Approved settings, keybindings, and filter subscription addresses are readable in your private repository. Passwords, cookies, browsing history, downloads, site permissions, and every Private window are never synced. GitHub can still observe repository size and update timing."
+                        text: "Spaces and tabs are end-to-end encrypted. Approved settings, keybindings, and filter subscription addresses are readable in your private repository. Passwords, cookies, browsing history, downloads, site permissions, and every Private window are never synced. "
+                              + root.providerText.observationNote
                         color: root.colors.mutedText
                         wrapMode: Text.WordWrap
                         font.family: Style.font.family
@@ -1495,7 +1522,7 @@ Rectangle {
                         colors: root.colors
                         iconFontFamily: root.iconFontFamily
                         glyph: "sync_problem"
-                        title: "GitHub Sync failed"
+                        title: root.providerText.failureTitle
                         detail: root.sync ? root.sync.errorMessage : ""
                     }
 
@@ -1517,7 +1544,7 @@ Rectangle {
                                                                        === 0 &&
                                                                        !root.sync.connecting))
                         label: !root.sync && root.syncLauncher && root.syncLauncher.configured
-                               ? "Resume Sync" : "Connect GitHub"
+                               ? "Resume Sync" : root.providerText.connectAction
                         onClicked: {
                             if (root.syncLauncher && root.syncLauncher.load()
                                     && root.syncLauncher.controller) {
@@ -1525,8 +1552,7 @@ Rectangle {
                                     root.syncLauncher.controller.resume();
                                     return;
                                 }
-                                root.syncLauncher.controller.beginGitHubConnection(
-                                            syncRecoveryKey.text);
+                                root.syncLauncher.controller.beginConnection(syncRecoveryKey.text);
                             }
                         }
                     }
@@ -1537,8 +1563,8 @@ Rectangle {
                                  !root.sync.awaitingRepositoryCreation &&
                                  !root.sync.awaitingInstallation
                         colors: root.colors
-                        title: root.sync ? "Enter " + root.sync.userCode + " on GitHub" : ""
-                        note: "The GitHub login becomes your Sync identity; Omaweb does not create an account."
+                        title: root.providerText.codePrompt
+                        note: root.providerText.authorizationNote
                     }
 
                     Flow {
@@ -1549,16 +1575,16 @@ Rectangle {
                                  !root.sync.awaitingInstallation
 
                         ActionButton {
-                            objectName: "copyGitHubCodeButton"
+                            objectName: "copySyncCodeButton"
                             colors: root.colors
                             label: "Copy code"
                             onClicked: root.copySyncCode()
                         }
 
                         ActionButton {
-                            objectName: "openGitHubAuthorizationButton"
+                            objectName: "openSyncAuthorizationButton"
                             colors: root.colors
-                            label: "Open GitHub authorization"
+                            label: root.providerText.authorizationAction
                             onClicked: root.openSyncConsent(root.sync.verificationUrl)
                         }
                     }
@@ -1567,8 +1593,8 @@ Rectangle {
                         width: pane.width
                         visible: root.sync && root.sync.awaitingRepositoryCreation
                         colors: root.colors
-                        title: "Create the private omaweb-sync repository on GitHub"
-                        note: "Keep the prefilled name and Private visibility. After GitHub creates it, return here to continue."
+                        title: root.providerText.repositoryTitle
+                        note: root.providerText.repositoryNote
                     }
 
                     ActionButton {
@@ -1576,15 +1602,15 @@ Rectangle {
                         colors: root.colors
                         visible: root.sync && root.sync.awaitingRepositoryCreation
                         label: "I created the repository"
-                        onClicked: root.sync.continueGitHubConnection()
+                        onClicked: root.sync.continueConnection()
                     }
 
                     SettingRow {
                         width: pane.width
                         visible: root.sync && root.sync.awaitingInstallation
                         colors: root.colors
-                        title: "Install Omaweb Sync for your personal GitHub account"
-                        note: "Choose Only select repositories, select omaweb-sync, and install. Omaweb detects approval automatically."
+                        title: root.providerText.installationTitle
+                        note: root.providerText.installationNote
                     }
 
                     SettingRow {

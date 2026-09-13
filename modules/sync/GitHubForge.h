@@ -13,6 +13,7 @@ public:
         QUrl webRoot = QUrl(QStringLiteral("https://github.com")),
         QUrl apiRoot = QUrl(QStringLiteral("https://api.github.com")));
 
+    const ForgeVocabulary &vocabulary() const override;
     DeviceAuthorization beginAuthorization(QString *errorMessage = nullptr) override;
     ForgeAuthorization pollAuthorization(
         const QString &deviceCode, QString *errorMessage = nullptr) override;

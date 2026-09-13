@@ -9,6 +9,7 @@
 #include <QString>
 #include <QTimer>
 #include <QUrl>
+#include <QVariantMap>
 
 #include <memory>
 #include <atomic>
@@ -38,6 +39,7 @@ class SyncController final : public QObject {
     Q_PROPERTY(bool awaitingInstallation READ awaitingInstallation NOTIFY stateChanged)
     Q_PROPERTY(bool pending READ pending NOTIFY stateChanged)
     Q_PROPERTY(QString provider READ provider CONSTANT)
+    Q_PROPERTY(QVariantMap providerText READ providerText NOTIFY stateChanged)
     Q_PROPERTY(QString login READ login NOTIFY stateChanged)
     Q_PROPERTY(QString status READ status NOTIFY stateChanged)
     Q_PROPERTY(QString errorMessage READ errorMessage NOTIFY stateChanged)
@@ -58,6 +60,7 @@ public:
     bool awaitingInstallation() const;
     bool pending() const;
     QString provider() const;
+    QVariantMap providerText() const;
     QString login() const;
     QString status() const;
     QString errorMessage() const;
@@ -67,8 +70,8 @@ public:
     QString recoveryKey() const;
     QDateTime lastSuccessfulSync() const;
 
-    Q_INVOKABLE bool beginGitHubConnection(const QString &recoveryKey);
-    Q_INVOKABLE bool continueGitHubConnection();
+    Q_INVOKABLE bool beginConnection(const QString &recoveryKey);
+    Q_INVOKABLE bool continueConnection();
     Q_INVOKABLE void syncNow();
     Q_INVOKABLE void pause();
     Q_INVOKABLE void resume();

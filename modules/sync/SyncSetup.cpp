@@ -65,7 +65,7 @@ void SyncSetup::resumeConnect(
 SyncConnection SyncSetup::finishConnect(QString *errorMessage)
 {
     if (m_deviceCode.isEmpty() && m_authorization.state != AuthorizationState::Complete) {
-        setError(errorMessage, QStringLiteral("GitHub connection has not been started"));
+        setError(errorMessage, m_forge.vocabulary().connectionNotStarted);
         return {};
     }
     if (m_authorization.state != AuthorizationState::Complete) {
@@ -80,7 +80,7 @@ SyncConnection SyncSetup::finishConnect(QString *errorMessage)
     if (m_authorization.state != AuthorizationState::Complete || m_authorization.login.isEmpty()
         || m_authorization.accountId <= 0 || m_authorization.accessToken.isEmpty()
         || m_authorization.refreshToken.isEmpty()) {
-        setError(errorMessage, QStringLiteral("GitHub did not authorize Sync"));
+        setError(errorMessage, m_forge.vocabulary().authorizationRefused);
         return {};
     }
 
@@ -98,7 +98,7 @@ SyncConnection SyncSetup::finishConnect(QString *errorMessage)
         if (m_repository.name.isEmpty()) {
             pending.repositoryCreationRequired = true;
             pending.repositoryCreationUrl = m_forge.repositoryCreationUrl(
-                m_authorization.login, QStringLiteral("omaweb-sync"));
+                m_authorization.login, m_forge.vocabulary().repositoryName);
         } else {
             pending.installationRequired = true;
             pending.installationUrl
@@ -111,7 +111,7 @@ SyncConnection SyncSetup::finishConnect(QString *errorMessage)
 
     if (!m_repository.cloneUrl.isValid()) {
         const auto preferredName
-            = m_repository.name.isEmpty() ? QStringLiteral("omaweb-sync") : m_repository.name;
+            = m_repository.name.isEmpty() ? m_forge.vocabulary().repositoryName : m_repository.name;
         m_repository = m_forge.provisionPrivateRepository(
             m_authorization.accessToken, m_authorization.login, preferredName, errorMessage);
         if (m_repository.id <= 0 || m_repository.name.isEmpty() || !m_repository.cloneUrl.isValid()

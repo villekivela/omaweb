@@ -12,6 +12,7 @@
 #include <QString>
 #include <QTimer>
 #include <QUrl>
+#include <QVariantMap>
 
 namespace omaweb {
 
@@ -35,6 +36,8 @@ public:
     ~SyncAccount() override;
 
     QString provider() const;
+    QVariantMap providerText() const;
+    QString commitEmail() const;
     bool connected() const;
     bool connecting() const;
     bool awaitingRepositoryCreation() const;

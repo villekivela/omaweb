@@ -2203,14 +2203,15 @@ ApplicationWindow {
                         window.dialogMode = action;
                     }
                     onClosed: window.settingsOpen = false
-                    onSyncCodeCopied: window.showNotice("content_copy", "GitHub code copied",
-                                                        "Paste it into the authorization page",
-                                                        3000)
+                    onSyncCodeCopied: function (notice) {
+                        window.showNotice("content_copy", notice,
+                                          "Paste it into the authorization page", 3000);
+                    }
                     onSyncConsentRequested: function (url) {
                         window.windowBrowser.openInput(String(url), true);
                     }
-                    onSyncConnectionFailed: function (detail) {
-                        window.showNotice("sync_problem", "GitHub Sync failed", detail, 8000);
+                    onSyncConnectionFailed: function (title, detail) {
+                        window.showNotice("sync_problem", title, detail, 8000);
                     }
                     onRetainedTabReleased: function (tabId) {
                         window.releaseRetainedTab(tabId);

@@ -3259,8 +3259,8 @@ TestCase {
     function test_settingsSyncCopyShowsNotice() {
         const settings = findChild(window.contentItem, "settingsSurface");
         const notice = findChild(window.contentItem, "pageNotice");
-        settings.syncCodeCopied();
-        tryCompare(notice, "message", "GitHub code copied");
+        settings.syncCodeCopied("Forge code copied");
+        tryCompare(notice, "message", "Forge code copied");
         compare(notice.detail, "Paste it into the authorization page");
         notice.dismiss();
     }

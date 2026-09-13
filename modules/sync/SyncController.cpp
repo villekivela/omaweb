@@ -126,12 +126,14 @@ QDateTime SyncController::lastSuccessfulSync() const { return m_lastSuccessfulSy
 
 bool SyncController::remember() { return m_account->remember(m_enabled, m_lastSuccessfulSync); }
 
-bool SyncController::beginGitHubConnection(const QString &recoveryKey)
+bool SyncController::beginConnection(const QString &recoveryKey)
 {
     return m_account->beginConnection(recoveryKey);
 }
 
-bool SyncController::continueGitHubConnection() { return m_account->continueConnection(); }
+bool SyncController::continueConnection() { return m_account->continueConnection(); }
+
+QVariantMap SyncController::providerText() const { return m_account->providerText(); }
 
 void SyncController::markPending()
 {
@@ -178,6 +180,7 @@ void SyncController::syncNow()
         .remoteUrl = m_account->remoteUrl(),
         .machineId = m_account->machineId(),
         .authorName = m_account->login(),
+        .authorEmail = m_account->commitEmail(),
         .protectedTabId = local.protectedTabId,
         .intent = m_account->intent(),
         .localStateIsPristine = local.pristine,

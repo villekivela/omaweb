@@ -60,9 +60,9 @@ TestCase {
         property bool awaitingRepositoryCreation: false
         property bool awaitingInstallation: false
         property bool pending: false
-        property string provider: "GitHub"
+        property string provider: "Forge"
         property string login: ""
-        property string status: "Waiting for GitHub authorization"
+        property string status: "Waiting for Forge authorization"
         property string errorMessage: ""
         property string userCode: "ABCD-EFGH"
         property url verificationUrl: ""
@@ -70,8 +70,26 @@ TestCase {
         property string recoveryKey: ""
         property date lastSuccessfulSync
         property int continueCount: 0
+        property var providerText: ({
+                                        "name": "Forge",
+                                        "connectAction": "Connect Forge",
+                                        "authorizationAction": "Open Forge authorization",
+                                        "failureTitle": "Forge Sync failed",
+                                        "codeCopiedNotice": "Forge code copied",
+                                        "codePrompt": "Enter ABCD-EFGH on Forge",
+                                        "authorizationNote":
+                                        "The Forge login becomes your Sync identity.",
+                                        "repositoryTitle": "Create the private repository on Forge",
+                                        "repositoryNote":
+                                        "Keep the prefilled name and Private visibility.",
+                                        "installationTitle": "Grant Omaweb Sync access on Forge",
+                                        "installationNote":
+                                        "Select the Sync repository and approve.",
+                                        "observationNote":
+                                        "Forge can still observe repository size."
+                                    })
 
-        function continueGitHubConnection() {
+        function continueConnection() {
             continueCount += 1;
             return true;
         }
@@ -206,7 +224,7 @@ TestCase {
         syncControllerStub.continueCount = 0;
         syncControllerStub.enabled = false;
         syncControllerStub.login = "";
-        syncControllerStub.status = "Waiting for GitHub authorization";
+        syncControllerStub.status = "Waiting for Forge authorization";
         theme.restore();
         if (livePage !== null) {
             livePage.destroy();
@@ -313,7 +331,7 @@ TestCase {
         compare(monogram.text, "O");
         verify(monogram.visible);
         compare(login.text, "octocat");
-        compare(provider.text, "GitHub account");
+        compare(provider.text, "Forge account");
         compare(state.text, "Sync is on");
 
         syncControllerStub.enabled = false;
@@ -337,7 +355,7 @@ TestCase {
         compare(settingsClosedSpy.count, 1);
         compare(syncCodeCopiedSpy.count, 1);
         compare(syncConsentRequestedSpy.count, 1);
-        verify(findChild(page, "copyGitHubCodeButton") !== null);
+        verify(findChild(page, "copySyncCodeButton") !== null);
     }
 
     function test_syncFailureIsVisibleAfterSettingsCloses() {
@@ -346,15 +364,15 @@ TestCase {
         page.section = page.sections.indexOf("sync");
         syncConnectionFailedSpy.target = page;
 
-        syncControllerStub.errorMessage = "GitHub refused repository creation";
+        syncControllerStub.errorMessage = "Forge refused repository creation";
         syncControllerStub.stateChanged();
 
         compare(syncConnectionFailedSpy.count, 1);
-        compare(syncConnectionFailedSpy.signalArguments[0][0],
-                "GitHub refused repository creation");
+        compare(syncConnectionFailedSpy.signalArguments[0][0], "Forge Sync failed");
+        compare(syncConnectionFailedSpy.signalArguments[0][1], "Forge refused repository creation");
         const notice = findChild(page, "syncErrorNotice");
         verify(notice.visible);
-        compare(notice.detail, "GitHub refused repository creation");
+        compare(notice.detail, "Forge refused repository creation");
     }
 
     function test_syncRepositoryCreationHasAnExplicitContinuation() {

@@ -24,10 +24,17 @@ Q_DECLARE_LOGGING_CATEGORY(syncLog)
 
 namespace {
 
+    // The one place the built-in provider is named. Everything else asks it for its words.
     GitHubForge forge()
     {
         return GitHubForge(QString::fromLatin1(OMAWEB_GITHUB_APP_CLIENT_ID),
             QString::fromLatin1(OMAWEB_GITHUB_APP_SLUG));
+    }
+
+    const ForgeVocabulary &words()
+    {
+        static const auto vocabulary = forge().vocabulary();
+        return vocabulary;
     }
 
     void wipe(QString &text)
@@ -54,8 +61,8 @@ SyncAccount::SyncAccount(QString dataRoot, QString configRoot, QObject *parent)
         const auto &prompt = result.first;
         if (prompt.deviceCode.isEmpty()) {
             m_connecting = false;
-            qCWarning(syncLog) << "GitHub authorization could not start:" << result.second;
-            announce(QStringLiteral("GitHub connection failed"));
+            qCWarning(syncLog) << "Sync authorization could not start:" << result.second;
+            announce(words().failureStatus);
             emit connectionFailed(result.second);
             return;
         }
@@ -64,8 +71,8 @@ SyncAccount::SyncAccount(QString dataRoot, QString configRoot, QObject *parent)
         m_verificationUrl = prompt.verificationUrl;
         m_authorizationPoll.setInterval(qMax(1, prompt.pollIntervalSeconds) * 1'000);
         m_authorizationPoll.start();
-        qCInfo(syncLog) << "GitHub authorization page requested";
-        announce(QStringLiteral("Waiting for GitHub authorization"));
+        qCInfo(syncLog) << "Sync authorization page requested";
+        announce(words().authorizationStatus);
         emit consentPageRequested(m_verificationUrl);
     });
     connect(&m_authorizationFinishWatcher, &QFutureWatcherBase::finished, this, [this] {
@@ -79,8 +86,8 @@ SyncAccount::SyncAccount(QString dataRoot, QString configRoot, QObject *parent)
                 if (!m_awaitingRepositoryCreation) {
                     m_awaitingRepositoryCreation = true;
                     m_authorizationPoll.stop();
-                    qCInfo(syncLog) << "GitHub repository creation page requested";
-                    announce(QStringLiteral("Create the private Sync repository on GitHub"));
+                    qCInfo(syncLog) << "Sync repository creation page requested";
+                    announce(words().repositoryStatus);
                     emit consentPageRequested(connected.repositoryCreationUrl);
                 }
                 return;
@@ -91,8 +98,8 @@ SyncAccount::SyncAccount(QString dataRoot, QString configRoot, QObject *parent)
                 m_pendingRepository = std::move(connected.repository);
                 if (!m_awaitingInstallation) {
                     m_awaitingInstallation = true;
-                    qCInfo(syncLog) << "GitHub App installation page requested";
-                    announce(QStringLiteral("Waiting for GitHub App installation"));
+                    qCInfo(syncLog) << "Sync installation page requested";
+                    announce(words().installationStatus);
                     emit consentPageRequested(connected.installationUrl);
                 }
                 return;
@@ -110,8 +117,8 @@ SyncAccount::SyncAccount(QString dataRoot, QString configRoot, QObject *parent)
         clearPendingAuthorization();
         wipe(m_pendingRecoveryKey);
         if (!connected.ready) {
-            qCWarning(syncLog) << "GitHub connection failed:" << result.second;
-            announce(QStringLiteral("GitHub connection failed"));
+            qCWarning(syncLog) << "Sync connection failed:" << result.second;
+            announce(words().failureStatus);
             emit connectionFailed(result.second);
             return;
         }
@@ -122,7 +129,7 @@ SyncAccount::SyncAccount(QString dataRoot, QString configRoot, QObject *parent)
         m_accessTokenExpiresAt
             = QDateTime::currentDateTimeUtc().addSecs(connected.accessTokenExpiresInSeconds);
         m_adoptsRemote = !connected.repositoryCreated;
-        qCInfo(syncLog) << "GitHub Sync connection ready for" << m_login;
+        qCInfo(syncLog) << "Sync connection ready for" << m_login;
         emit changed();
         emit connectionReady();
     });
@@ -137,7 +144,7 @@ SyncAccount::~SyncAccount()
     clearPendingAuthorization();
 }
 
-QString SyncAccount::provider() const { return QStringLiteral("GitHub"); }
+QString SyncAccount::provider() const { return words().name; }
 bool SyncAccount::connected() const { return !m_login.isEmpty() && m_remoteUrl.isValid(); }
 bool SyncAccount::connecting() const { return m_connecting; }
 bool SyncAccount::awaitingRepositoryCreation() const { return m_awaitingRepositoryCreation; }
@@ -149,6 +156,28 @@ QUrl SyncAccount::verificationUrl() const { return m_verificationUrl; }
 QString SyncAccount::recoveryKey() const { return m_recoveryKey; }
 bool SyncAccount::wasEnabled() const { return m_enabled; }
 QDateTime SyncAccount::lastSuccessfulSync() const { return m_lastSuccessfulSync; }
+
+QString SyncAccount::commitEmail() const
+{
+    return m_login.isEmpty() ? QString {} : m_login + QLatin1Char('@') + words().commitEmailDomain;
+}
+
+QVariantMap SyncAccount::providerText() const
+{
+    const auto &vocabulary = words();
+    return {{QStringLiteral("name"), vocabulary.name},
+        {QStringLiteral("connectAction"), vocabulary.connectAction},
+        {QStringLiteral("authorizationAction"), vocabulary.authorizationAction},
+        {QStringLiteral("failureTitle"), vocabulary.failureTitle},
+        {QStringLiteral("codeCopiedNotice"), vocabulary.codeCopiedNotice},
+        {QStringLiteral("codePrompt"), vocabulary.codePrompt.arg(m_userCode)},
+        {QStringLiteral("authorizationNote"), vocabulary.authorizationNote},
+        {QStringLiteral("repositoryTitle"), vocabulary.repositoryTitle},
+        {QStringLiteral("repositoryNote"), vocabulary.repositoryNote},
+        {QStringLiteral("installationTitle"), vocabulary.installationTitle},
+        {QStringLiteral("installationNote"), vocabulary.installationNote},
+        {QStringLiteral("observationNote"), vocabulary.observationNote}};
+}
 
 QString SyncAccount::avatarPath() const
 {
@@ -176,7 +205,7 @@ void SyncAccount::loadMarker()
         return;
     }
     const auto marker = QJsonDocument::fromJson(file.readAll()).object();
-    if (marker.value(QStringLiteral("provider")).toString() != QLatin1String("github")) {
+    if (marker.value(QStringLiteral("provider")).toString() != words().identifier) {
         return;
     }
     m_enabled = marker.value(QStringLiteral("enabled")).toBool();
@@ -201,8 +230,7 @@ bool SyncAccount::remember(bool enabled, const QDateTime &lastSuccessfulSync)
     }
     file.write(QJsonDocument(
         QJsonObject {{QStringLiteral("version"), 1}, {QStringLiteral("enabled"), m_enabled},
-            {QStringLiteral("provider"), QStringLiteral("github")},
-            {QStringLiteral("login"), m_login},
+            {QStringLiteral("provider"), words().identifier}, {QStringLiteral("login"), m_login},
             {QStringLiteral("remoteUrl"), m_remoteUrl.toString()},
             {QStringLiteral("initialRemoteRestore"), m_adoptsRemote},
             {QStringLiteral("lastSuccessfulSync"),
@@ -244,8 +272,8 @@ bool SyncAccount::beginConnection(const QString &recoveryKey)
     m_awaitingInstallation = false;
     m_pendingRecoveryKey = recoveryKey;
     m_connecting = true;
-    qCInfo(syncLog) << "GitHub Sync connection started";
-    announce(QStringLiteral("Contacting GitHub"));
+    qCInfo(syncLog) << "Sync connection started";
+    announce(words().contactingStatus);
     m_authorizationStartWatcher.setFuture(QtConcurrent::run([recoveryKey] {
         QString error;
         auto provider = forge();
@@ -265,10 +293,10 @@ bool SyncAccount::continueConnection()
     }
     m_awaitingRepositoryCreation = false;
     m_awaitingInstallation = true;
-    m_pendingRepository = {.name = QStringLiteral("omaweb-sync")};
+    m_pendingRepository = {.name = words().repositoryName};
     auto provider = forge();
-    qCInfo(syncLog) << "GitHub App installation page requested";
-    announce(QStringLiteral("Waiting for GitHub App installation"));
+    qCInfo(syncLog) << "Sync installation page requested";
+    announce(words().installationStatus);
     emit consentPageRequested(
         provider.installationUrl(m_pendingAuthorization.accountId, m_pendingRepository.id));
     m_authorizationPoll.start();
@@ -392,8 +420,7 @@ SyncAccount::Session SyncAccount::openSession(const QString &login, QByteArray a
     wipe(refresh);
     if (authorization.state != AuthorizationState::Complete) {
         return failed(SyncFailure::AuthorizationExpired,
-            error.isEmpty() ? QStringLiteral("GitHub authorization expired; connect again")
-                            : error);
+            error.isEmpty() ? provider.vocabulary().authorizationExpired : error);
     }
     session.credentials.accessToken = std::move(authorization.accessToken);
     session.refreshedAccessToken = session.credentials.accessToken;

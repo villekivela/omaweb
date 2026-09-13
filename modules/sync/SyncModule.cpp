@@ -1394,16 +1394,16 @@ bool SyncModule::reconcileRemote(SessionStore &store, QString *errorMessage)
         return false;
     }
 
+    // The provider decides what identity it accepts on a commit; the git adapter only writes it.
+    const auto authorName
+        = m_options.authorName.isEmpty() ? QStringLiteral("Omaweb Sync") : m_options.authorName;
+    const auto authorEmail = m_options.authorEmail.isEmpty() ? QStringLiteral("sync@omaweb.local")
+                                                             : m_options.authorEmail;
     if (!runGit({QStringLiteral("add"), QStringLiteral("--all")}, errorMessage)
-        || !runGit({QStringLiteral("config"), QStringLiteral("user.name"),
-                       m_options.authorName.isEmpty() ? QStringLiteral("Omaweb Sync")
-                                                      : m_options.authorName},
-            errorMessage)
-        || !runGit({QStringLiteral("config"), QStringLiteral("user.email"),
-                       m_options.authorName.isEmpty()
-                           ? QStringLiteral("sync@omaweb.local")
-                           : m_options.authorName + QStringLiteral("@users.noreply.github.com")},
-            errorMessage)) {
+        || !runGit(
+            {QStringLiteral("config"), QStringLiteral("user.name"), authorName}, errorMessage)
+        || !runGit(
+            {QStringLiteral("config"), QStringLiteral("user.email"), authorEmail}, errorMessage)) {
         return false;
     }
     QProcess changed;

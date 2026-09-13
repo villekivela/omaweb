@@ -30,6 +30,7 @@ struct SyncOptions {
     QString machineId;
     QString askPassPath {};
     QString authorName {};
+    QString authorEmail {};
     QString protectedTabId {};
     SyncIntent intent = SyncIntent::Reconcile;
     bool localStateIsPristine = false;

@@ -29,6 +29,35 @@ struct ForgeAuthorization {
     int pollIntervalAdjustmentSeconds = 0;
 };
 
+// Every word a person reads about the provider, and every provider-shaped name Sync writes down.
+// Nothing outside a provider implementation spells a provider's name, so a second provider needs no
+// change anywhere else.
+struct ForgeVocabulary {
+    QString name {};
+    QString identifier {};
+    QString repositoryName {};
+    QString commitEmailDomain {};
+    QString contactingStatus {};
+    QString authorizationStatus {};
+    QString repositoryStatus {};
+    QString installationStatus {};
+    QString failureStatus {};
+    QString connectionNotStarted {};
+    QString authorizationRefused {};
+    QString authorizationExpired {};
+    QString connectAction {};
+    QString authorizationAction {};
+    QString failureTitle {};
+    QString codeCopiedNotice {};
+    QString codePrompt {};
+    QString authorizationNote {};
+    QString repositoryTitle {};
+    QString repositoryNote {};
+    QString installationTitle {};
+    QString installationNote {};
+    QString observationNote {};
+};
+
 struct ForgeRepository {
     qint64 id = 0;
     QString name {};
@@ -44,6 +73,7 @@ public:
     ForgeProvider(const ForgeProvider &) = delete;
     ForgeProvider &operator=(const ForgeProvider &) = delete;
 
+    virtual const ForgeVocabulary &vocabulary() const = 0;
     virtual DeviceAuthorization beginAuthorization(QString *errorMessage = nullptr) = 0;
     virtual ForgeAuthorization pollAuthorization(
         const QString &deviceCode, QString *errorMessage = nullptr) = 0;

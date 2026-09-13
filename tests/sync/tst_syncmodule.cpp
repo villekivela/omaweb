@@ -46,6 +46,37 @@ namespace {
 
 class FakeForge final : public omaweb::ForgeProvider {
 public:
+    // A provider that shares none of GitHub's words, so anything reading its own name shows here.
+    const omaweb::ForgeVocabulary &vocabulary() const override
+    {
+        static const omaweb::ForgeVocabulary words {
+            .name = QStringLiteral("Forge"),
+            .identifier = QStringLiteral("forge"),
+            .repositoryName = QStringLiteral("omaweb-sync"),
+            .commitEmailDomain = QStringLiteral("users.noreply.forge.example"),
+            .contactingStatus = QStringLiteral("Contacting Forge"),
+            .authorizationStatus = QStringLiteral("Waiting for Forge authorization"),
+            .repositoryStatus = QStringLiteral("Create the private Sync repository on Forge"),
+            .installationStatus = QStringLiteral("Waiting for Forge access"),
+            .failureStatus = QStringLiteral("Forge connection failed"),
+            .connectionNotStarted = QStringLiteral("Forge connection has not been started"),
+            .authorizationRefused = QStringLiteral("Forge did not authorize Sync"),
+            .authorizationExpired = QStringLiteral("Forge authorization expired; connect again"),
+            .connectAction = QStringLiteral("Connect Forge"),
+            .authorizationAction = QStringLiteral("Open Forge authorization"),
+            .failureTitle = QStringLiteral("Forge Sync failed"),
+            .codeCopiedNotice = QStringLiteral("Forge code copied"),
+            .codePrompt = QStringLiteral("Enter %1 on Forge"),
+            .authorizationNote = QStringLiteral("The Forge login becomes your Sync identity."),
+            .repositoryTitle = QStringLiteral("Create the private repository on Forge"),
+            .repositoryNote = QStringLiteral("Keep the prefilled name and Private visibility."),
+            .installationTitle = QStringLiteral("Grant Omaweb Sync access on Forge"),
+            .installationNote = QStringLiteral("Select the Sync repository and approve."),
+            .observationNote = QStringLiteral("Forge can still observe repository size."),
+        };
+        return words;
+    }
+
     omaweb::DeviceAuthorization beginAuthorization(QString *) override
     {
         return {.deviceCode = QStringLiteral("device-secret"),

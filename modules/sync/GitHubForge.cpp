@@ -87,6 +87,41 @@ GitHubForge::Response GitHubForge::request(const QByteArray &method, const QUrl 
     return response;
 }
 
+const ForgeVocabulary &GitHubForge::vocabulary() const
+{
+    static const ForgeVocabulary words {
+        .name = QStringLiteral("GitHub"),
+        .identifier = QStringLiteral("github"),
+        .repositoryName = QStringLiteral("omaweb-sync"),
+        .commitEmailDomain = QStringLiteral("users.noreply.github.com"),
+        .contactingStatus = QStringLiteral("Contacting GitHub"),
+        .authorizationStatus = QStringLiteral("Waiting for GitHub authorization"),
+        .repositoryStatus = QStringLiteral("Create the private Sync repository on GitHub"),
+        .installationStatus = QStringLiteral("Waiting for GitHub App installation"),
+        .failureStatus = QStringLiteral("GitHub connection failed"),
+        .connectionNotStarted = QStringLiteral("GitHub connection has not been started"),
+        .authorizationRefused = QStringLiteral("GitHub did not authorize Sync"),
+        .authorizationExpired = QStringLiteral("GitHub authorization expired; connect again"),
+        .connectAction = QStringLiteral("Connect GitHub"),
+        .authorizationAction = QStringLiteral("Open GitHub authorization"),
+        .failureTitle = QStringLiteral("GitHub Sync failed"),
+        .codeCopiedNotice = QStringLiteral("GitHub code copied"),
+        .codePrompt = QStringLiteral("Enter %1 on GitHub"),
+        .authorizationNote = QStringLiteral(
+            "The GitHub login becomes your Sync identity; Omaweb does not create an account."),
+        .repositoryTitle = QStringLiteral("Create the private omaweb-sync repository on GitHub"),
+        .repositoryNote = QStringLiteral("Keep the prefilled name and Private visibility. After "
+                                         "GitHub creates it, return here to continue."),
+        .installationTitle = QStringLiteral("Install Omaweb Sync for your personal GitHub account"),
+        .installationNote
+        = QStringLiteral("Choose Only select repositories, select omaweb-sync, and install. Omaweb "
+                         "detects approval automatically."),
+        .observationNote
+        = QStringLiteral("GitHub can still observe repository size and update timing."),
+    };
+    return words;
+}
+
 DeviceAuthorization GitHubForge::beginAuthorization(QString *errorMessage)
 {
     if (m_clientId.isEmpty()) {
@@ -271,7 +306,7 @@ ForgeRepository GitHubForge::provisionPrivateRepository(const QByteArray &access
             const auto isPrivate = repository.value(QStringLiteral("private")).toBool();
             const auto isExistingSync = marker.status == 200
                 && metadata.value(QStringLiteral("format")).toString()
-                    == QLatin1String("omaweb-sync");
+                    == vocabulary().repositoryName;
             const auto isNewEmptyRepository
                 = marker.status == 404 && repository.value(QStringLiteral("size")).toInteger() == 0;
             if (isPrivate && (isExistingSync || isNewEmptyRepository)) {
