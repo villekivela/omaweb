@@ -47,7 +47,7 @@
       </header>
 
       <section class="t-hero">
-        <h1>Sync copies<br /><em>some of your browser</em>,<br />and this page says which.</h1>
+        <h1>What is synced,<br /><em>and what is not</em>.</h1>
         <p>
           Sync is optional and does nothing until you connect it. It copies a fixed list of browser
           state between your machines through a private Git repository you own. There is no Omaweb
@@ -86,11 +86,8 @@
         <div class="t-section__head">
           <p class="t-section__index">02 / what is copied</p>
           <div class="t-section__intro">
-            <h2>Three lists, and nothing outside them.</h2>
-            <p>
-              Some records are encrypted before they leave. Some are readable in the repository.
-              Most of your browser is in neither list.
-            </p>
+            <h2>Encrypted, readable, or never sent.</h2>
+            <p>Every piece of browser state is in exactly one of these three lists.</p>
           </div>
         </div>
         <div class="t-cols t-cols--3">
@@ -127,8 +124,8 @@
         <div class="t-section__head">
           <p class="t-section__index">03 / what GitHub can see</p>
           <div class="t-section__intro">
-            <h2>Encryption hides the records, not the repository.</h2>
-            <p>What authenticated encryption covers, and what it does not.</p>
+            <h2>What encryption covers, and what it does not.</h2>
+            <p>Records are encrypted and authenticated. The repository around them is not.</p>
           </div>
         </div>
         <div class="t-cols t-cols--2">
@@ -195,7 +192,7 @@
         <div class="t-section__head">
           <p class="t-section__index">05 / the recovery key</p>
           <div class="t-section__intro">
-            <h2>You hold the only copy.</h2>
+            <h2>The recovery key.</h2>
             <p>The key that decrypts your Space and tab records never reaches GitHub or Omaweb.</p>
           </div>
         </div>
@@ -224,9 +221,10 @@
         <div class="t-section__head">
           <p class="t-section__index">06 / timing</p>
           <div class="t-section__intro">
-            <h2>Your browser never waits for Sync.</h2>
+            <h2>Local first, reconciliation after.</h2>
             <p>
-              Local changes are saved locally, straight away. Reconciliation happens behind them.
+              Your browser never waits for Sync. A change is saved on the machine first, and
+              reconciled afterwards.
             </p>
           </div>
         </div>
@@ -254,7 +252,7 @@
         <div class="t-section__head">
           <p class="t-section__index">07 / history</p>
           <div class="t-section__intro">
-            <h2>The repository stays small.</h2>
+            <h2>Repository growth and history.</h2>
             <p>How Omaweb bounds growth, and what that does not mean.</p>
           </div>
         </div>
@@ -282,7 +280,7 @@
         <div class="t-section__head">
           <p class="t-section__index">08 / setup</p>
           <div class="t-section__intro">
-            <h2>Six steps, once per machine.</h2>
+            <h2>Setting it up.</h2>
             <p>Sync is Linux-only and is unavailable in a Private window.</p>
           </div>
         </div>
@@ -312,7 +310,7 @@
         <div class="t-section__head">
           <p class="t-section__index">09 / providers</p>
           <div class="t-section__intro">
-            <h2>GitHub is the first provider, not the only possible one.</h2>
+            <h2>GitHub is the first provider.</h2>
             <p>
               Forge authorization, repository provisioning and git reconciliation are separate
               interfaces, so a Forgejo or Gitea adapter can take GitHub's place without Omaweb
