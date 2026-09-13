@@ -4,7 +4,9 @@
 
 #include <QEventLoop>
 #include <QQuickWindow>
+#include <QSGRendererInterface>
 #include <QTimer>
+#include <rhi/qrhi.h>
 
 #include <algorithm>
 #include <numeric>
@@ -49,6 +51,7 @@ void ProbeClock::watchFrames(QQuickWindow *window)
     }
     m_watched = window;
     m_frameNanoseconds.clear();
+    m_gpuMilliseconds.clear();
     m_frameStart = 0;
     if (window == nullptr) {
         return;
@@ -61,8 +64,21 @@ void ProbeClock::watchFrames(QQuickWindow *window)
     connect(
         window, &QQuickWindow::afterFrameEnd, this,
         [this] {
-            if (m_frameStart > 0) {
-                m_frameNanoseconds.push_back(m_clock.nsecsElapsed() - m_frameStart);
+            if (m_frameStart <= 0) {
+                return;
+            }
+            m_frameNanoseconds.push_back(m_clock.nsecsElapsed() - m_frameStart);
+            // The GPU's own time for the frame, which the CPU bracket above
+            // never sees: it records commands and moves on. Read off the
+            // swapchain's command buffer, which is the one the frame was
+            // submitted on, and zero unless `QSG_RHI_PROFILE=1` turned the
+            // timestamps on. The software rasteriser has no swapchain.
+            auto *interface = m_watched->rendererInterface();
+            auto *swapChain = static_cast<QRhiSwapChain *>(
+                interface->getResource(m_watched, QSGRendererInterface::RhiSwapchainResource));
+            if (swapChain != nullptr) {
+                m_gpuMilliseconds.push_back(
+                    swapChain->currentFrameCommandBuffer()->lastCompletedGpuTime() * 1e3);
             }
         },
         Qt::DirectConnection);
@@ -79,10 +95,14 @@ QVariantMap ProbeClock::frameReport()
         ? 0.0
         : std::accumulate(frames.begin(), frames.end(), 0.0) / frames.size() / 1e6;
     const auto max = frames.empty() ? 0.0 : *std::max_element(frames.begin(), frames.end()) / 1e6;
+    const auto &gpu = m_gpuMilliseconds;
+    const auto gpuMean
+        = gpu.empty() ? 0.0 : std::accumulate(gpu.begin(), gpu.end(), 0.0) / gpu.size();
     return {
         {QStringLiteral("frames"), static_cast<int>(frames.size())},
         {QStringLiteral("meanFrameMilliseconds"), mean},
         {QStringLiteral("maxFrameMilliseconds"), max},
+        {QStringLiteral("meanGpuMilliseconds"), gpuMean},
     };
 }
 

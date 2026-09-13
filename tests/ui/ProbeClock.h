@@ -39,10 +39,12 @@ public:
 
     // Starts keeping the cost of every frame `window` draws from now on.
     Q_INVOKABLE void watchFrames(QQuickWindow *window);
-    // Stops watching and reports `frames`, `meanFrameMilliseconds` and
-    // `maxFrameMilliseconds`. The mean is the number held; the slowest frame
-    // is printed beside it so a failure says whether the cost was even or
-    // one hitch.
+    // Stops watching and reports `frames`, `meanFrameMilliseconds`,
+    // `maxFrameMilliseconds` and `meanGpuMilliseconds`. The mean is the
+    // number held; the slowest frame is printed beside it so a failure says
+    // whether the cost was even or one hitch. The GPU mean is what the frames
+    // cost the GPU itself, which the CPU bracket does not include, and is
+    // zero unless a GPU drew them with timestamps on.
     Q_INVOKABLE QVariantMap frameReport();
 
 private:
@@ -50,6 +52,7 @@ private:
     QQuickWindow *m_watched = nullptr;
     qint64 m_frameStart = 0;
     std::vector<qint64> m_frameNanoseconds;
+    std::vector<double> m_gpuMilliseconds;
 };
 
 } // namespace omaweb::test

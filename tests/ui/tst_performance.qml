@@ -116,17 +116,45 @@ TestCase {
               tabSwitchThresholdMilliseconds);
     }
 
+    // Watches a second of frames and reports them, waking on each frame rather
+    // than sleeping between polls: `wait` sleeps ten milliseconds at a time,
+    // which under a threaded render loop costs the second a third of its
+    // frames and leaves the count saying nothing.
+    function watchASecond() {
+        probeClock.watchFrames(window);
+        const started = probeClock.milliseconds();
+        while (probeClock.milliseconds() - started < 1000)
+            probeClock.waitForFrame(window, 100);
+        return probeClock.frameReport();
+    }
+
+    function describeFrames(report) {
+        const gpu = report.meanGpuMilliseconds > 0 ? ", " + report.meanGpuMilliseconds.toFixed(2)
+                                                     + " ms of it on the GPU" : "";
+        return report.frames + " frames in a second, mean " + report.meanFrameMilliseconds.toFixed(
+                    2) + " ms, slowest " + report.maxFrameMilliseconds.toFixed(1) + " ms" + gpu;
+    }
+
     // What a frame costs in the chromeless state: sidebar hidden, the
     // navigation strip floating over the page, and the page redrawing every
     // frame. The cost is the scene graph's own, from the start of a frame to
     // its end, rather than the interval between frames, which the animation
     // timer sets at sixty a second regardless.
     //
+    // The same second is then taken with the strip sent away, so what the
+    // strip's blur costs the page is the difference between the two lines,
+    // rather than a number that would have to be teased out of one. Only the
+    // first is held: under a GPU the strip is a fraction of a millisecond, and
+    // the software rasteriser draws no shader effect at all, so a threshold
+    // on the difference would be one on noise.
+    //
     // The tests draw through the software rasteriser on the offscreen
     // platform, so this number is comparative only: it holds the chrome to
     // what it cost before, on the same machine. An absolute frame time needs a
     // GPU backend on real hardware, and a virtual machine's number is only
-    // ever comparative.
+    // ever comparative. With `QSG_RHI_PROFILE=1` a GPU backend also reports
+    // what the frames cost the GPU itself, which the CPU-side bracket does not
+    // include.
     function test_theChromelessChromeDrawsAnAnimatedPageInsideItsBudget() {
         const engine = openPage("https://motion.example/", true);
         engine.motionReview = true;
@@ -139,20 +167,29 @@ TestCase {
         tryVerify(function () {
             return cluster.visible;
         });
-        // The collapse eases; the measured second starts once it has settled.
+        // The collapse eases, and the strip's first frames build its
+        // pipelines; the measured second starts once both have settled.
         wait(300);
 
-        probeClock.watchFrames(window);
-        wait(1000);
-        const report = probeClock.frameReport();
+        const report = watchASecond();
         // Fewer frames than that and the page was not animating, so the mean
         // would be the cost of nothing.
         verify(report.frames >= 20, "the animated page drew only " + report.frames
                + " frames in a second, so nothing was being timed");
         const backend = GraphicsInfo.api === GraphicsInfo.Software ? "software rasteriser" : "GPU";
-        console.info("chromeless frames: " + report.frames + " in a second, slowest "
-                     + report.maxFrameMilliseconds.toFixed(1) + " ms, drawn by the " + backend
+        console.info("chromeless frames with the strip: " + describeFrames(report)
+                     + ", drawn by the " + backend
                      + "; comparative only unless drawn by a GPU on real hardware");
+
+        // The reader can ask for the strip not to be there, which is the
+        // chromeless state without it: the control.
+        window.floatingControls = false;
+        tryCompare(cluster, "visible", false);
+        wait(300);
+        const control = watchASecond();
+        console.info("chromeless frames without the strip: " + describeFrames(control));
+        window.floatingControls = true;
+
         probe("chromeless-frame-time", report.meanFrameMilliseconds, "ms",
               frameTimeThresholdMilliseconds);
 

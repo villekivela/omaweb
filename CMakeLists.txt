@@ -76,7 +76,11 @@ if(OMAWEB_BUILD_BROWSER)
     list(APPEND omaweb_qt_components WebEngineCore WebEngineQuick)
 endif()
 if(BUILD_TESTING)
-    list(APPEND omaweb_qt_components Test QuickTest)
+    # `GuiPrivate` for the UI tests' frame-time probe, which reads a frame's
+    # GPU time off the window's `QRhi`, a header Qt ships as private. Only the
+    # test links it; a Qt that moves it breaks the probe's build, not the
+    # browser.
+    list(APPEND omaweb_qt_components Test QuickTest GuiPrivate)
 endif()
 
 # Qt warns on every configure that a private module ties the build to one Qt
@@ -1003,6 +1007,7 @@ if(BUILD_TESTING)
             omaweb-platform
             omaweb-quickshell-shim
             Qt6::Gui
+            Qt6::GuiPrivate
             Qt6::Qml
             Qt6::Quick
             Qt6::QuickTest

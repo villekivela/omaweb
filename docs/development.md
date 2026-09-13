@@ -614,11 +614,34 @@ What each one measures:
   from the command to the first swapped frame showing the destination.
 - Frame time is the scene graph's own cost per frame, from `beforeFrameBegin` to `afterFrameEnd`,
   averaged over one second with the sidebar hidden, the navigation strip floating and the page
-  redrawing every frame. The tests draw through the software rasteriser on the offscreen platform,
-  so the absolute value is meaningful only on real GPU hardware and a virtual machine's number is
-  comparative only: it holds the chrome to what it cost before on the same machine. On the same
-  machine through Metal, `QT_QPA_PLATFORM=cocoa`, the frame costs 0.5 to 0.7 ms and a tab switch 14
-  to 18 ms, the difference being a wait for the display.
+  redrawing every frame. The probe then takes the same second with the strip turned off, so the
+  strip's own cost, its live copy of the page, blur and mask, is the difference between the two
+  lines it prints. The tests draw through the software rasteriser on the offscreen platform, so the
+  absolute value is meaningful only on real GPU hardware and a virtual machine's number is
+  comparative only: it holds the chrome to what it cost before on the same machine. The software
+  rasteriser draws no shader effect, so it cannot price the strip at all. On the same machine
+  through Metal, `QT_QPA_PLATFORM=cocoa`, a tab switch costs 14 to 18 ms, the difference being a
+  wait for the display, and the frame is the strip's own measurement below.
+
+### The floating strip's cost
+
+Measured under Metal with `QT_QPA_PLATFORM=cocoa QSG_RHI_PROFILE=1`, which turns on the GPU
+timestamps the probe reads beside its CPU bracket, on the same M2 Max on 2026-09-13, over eighteen
+interleaved seconds of each state:
+
+| State         | Frames a second | CPU per frame | GPU per frame  |
+| ------------- | --------------- | ------------- | -------------- |
+| Strip present | 60 to 62        | 0.9 to 1.5 ms | 0.4 to 0.9 ms  |
+| Strip absent  | 59 to 62        | 0.5 to 0.8 ms | 0.2 to 0.65 ms |
+
+The strip adds about 0.4 ms on the CPU and 0.2 ms on the GPU to a frame and drops none, well under
+the 2 ms that #213 set as the point to change how it is drawn, so it is drawn as it was. The CPU
+bracket includes the wait for a display drawable when the render thread gets ahead of the display:
+some seconds have every frame cost 8 or 16 ms with the GPU still under a millisecond, in either
+state, and a mean from such a second says nothing about the chrome. The probe's threshold is set for
+the offscreen platform CI runs it on, where there is no display to wait for. The Linux number is
+still to be taken.
+
 - Resident memory is read from the operating system through `ProcessResources`, the way the
   retained-tab report reads it, for four pages served over HTTP in one shared profile, as a Space's
   tabs are, hidden and frozen, summed over their distinct renderer processes and divided by the tab
@@ -632,5 +655,7 @@ build/dev/omaweb-ui-tests -input tests/ui/tst_performance.qml
 build/dev/omaweb-qt-engine-contract-tests qtKeepsAFrozenTabInsideItsMemoryBudget
 ```
 
-Set `QT_QPA_PLATFORM=offscreen` for the last two. The Linux numbers are still to be taken: re-run on
-Linux hardware when it is available and record them here beside the macOS ones.
+Set `QT_QPA_PLATFORM=offscreen` for the last two, or `QT_QPA_PLATFORM=cocoa QSG_RHI_PROFILE=1` to
+draw the frame probe through Metal and read what the frames cost the GPU. The Linux numbers are
+still to be taken: re-run on Linux hardware when it is available and record them here beside the
+macOS ones.
