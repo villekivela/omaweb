@@ -1,5 +1,7 @@
 #pragma once
 
+#include "SyncError.h"
+
 #include <QByteArray>
 #include <QList>
 #include <QObject>
@@ -16,20 +18,21 @@ namespace omaweb {
 
 class SessionStore;
 
+struct SyncCredentials {
+    QByteArray recoveryKey;
+    QByteArray accessToken {};
+};
+
 struct SyncOptions {
     QString dataRoot;
     QString configRoot;
     QUrl remoteUrl;
     QString machineId;
-    QByteArray recoveryKey;
-    QByteArray accessToken {};
     QString askPassPath {};
     QString authorName {};
     QString protectedTabId {};
-    bool initialRemoteRestore = false;
-    bool discardPristineLocalState = false;
-    bool deferRemoteApply = false;
-    bool replaceLocalState = false;
+    SyncIntent intent = SyncIntent::Reconcile;
+    bool localStateIsPristine = false;
     std::shared_ptr<std::atomic_bool> cancellationRequested {};
     std::function<qint64()> now {};
     int historyCommitLimit = 256;
@@ -43,21 +46,28 @@ class SyncModule final : public QObject {
 public:
     static constexpr int contractVersion = 1;
 
-    explicit SyncModule(SessionStore &store, SyncOptions options, QObject *parent = nullptr);
+    explicit SyncModule(SyncOptions options, QObject *parent = nullptr);
     ~SyncModule() override;
 
     static QString createRecoveryKey();
     static QByteArray decodeRecoveryKey(const QString &displayed, QString *errorMessage = nullptr);
-    bool open(QString *errorMessage = nullptr);
-    bool reconcile(QString *errorMessage = nullptr);
-    bool applyRemoteState(QString *errorMessage = nullptr);
-    bool remoteEpochAdvanced() const;
-    bool remoteStateChanged() const;
+
+    // One reconciliation runs as two phases. `reconcile` settles the remote from the worker thread
+    // that owns it; `applyRemoteState` puts the merged result into local state on the shell thread.
+    // Each phase is handed the session store belonging to its own thread, and what the first phase
+    // learned about the remote carries into the second without passing through the caller.
+    SyncError open(SyncCredentials credentials);
+    SyncError reconcile(SessionStore &store);
+    bool awaitsLocalApply() const;
+    SyncError applyRemoteState(SessionStore &store);
 
 private:
-    bool captureConfiguration(QString *errorMessage);
-    bool restoreConfiguration(QString *errorMessage);
-    bool restoreRemoteState(QString *errorMessage);
+    bool openCheckout(QString *errorMessage);
+    bool reconcileRemote(SessionStore &store, QString *errorMessage);
+    SyncError phaseError(const QString &message) const;
+    bool captureConfiguration(SessionStore &store, QString *errorMessage);
+    bool restoreConfiguration(SessionStore &store, QString *errorMessage);
+    bool restoreRemoteState(SessionStore &store, QString *errorMessage);
     bool gitRefExists(const QString &reference) const;
     bool mergeRemote(QString *errorMessage);
     bool resolveMergeConflicts(QString *errorMessage);
@@ -73,15 +83,21 @@ private:
         const QString &kind, const QString &id, const QByteArray &plainText, QString *errorMessage);
     bool tombstoneMissingRecords(
         const QString &kind, const QSet<QString> &currentIds, QString *errorMessage);
+    QString protectedTabId() const;
+    QByteArray checkoutTree() const;
+    bool checkoutAheadOfLocalState() const;
     QString checkoutRoot() const;
     bool cancelled(QString *errorMessage) const;
     bool writeAppliedRecordInventory(QString *errorMessage) const;
-    bool writeLocalBaselineInventory(QString *errorMessage) const;
+    bool writeLocalBaselineInventory(SessionStore &store, QString *errorMessage) const;
     bool stageConfigurationFile(
         const QString &relativePath, const QByteArray &contents, QString *errorMessage) const;
 
-    SessionStore &m_store;
     SyncOptions m_options;
+    SyncCredentials m_credentials;
+    mutable SyncFailure m_failure = SyncFailure::Failed;
+    bool m_reconciled = false;
+    bool m_heldBackLocalRecord = false;
     bool m_remoteEpochAdvanced = false;
     bool m_remoteStateChanged = false;
 };

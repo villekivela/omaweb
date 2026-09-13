@@ -220,6 +220,7 @@ if(OMAWEB_BUILD_SYNC)
         modules/sync/LocalSyncState.cpp
         modules/sync/LocalSyncState.h
         modules/sync/SecretStore.h
+        modules/sync/SyncError.h
         modules/sync/SyncSetup.cpp
         modules/sync/SyncSetup.h
         modules/sync/SyncModule.cpp

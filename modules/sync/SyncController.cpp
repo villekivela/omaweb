@@ -143,73 +143,33 @@ SyncController::SyncController(
                 result.refreshedAccessTokenExpiresInSeconds);
         }
         if (m_disconnectPending) {
-            sodium_memzero(
-                result.recoveryKey.data(), static_cast<size_t>(result.recoveryKey.size()));
             finishDisconnect();
             return;
         }
-        if (!result.succeeded) {
-            m_errorMessage = result.errorMessage;
-            const auto keyFailure
-                = result.errorMessage.contains(QStringLiteral("recovery key"), Qt::CaseInsensitive);
-            if (keyFailure) {
-                m_enabled = false;
-                m_pending = false;
-                m_quietReconcile.stop();
-                m_periodicReconcile.stop();
-                m_status = QStringLiteral("Sync is paused");
-                writeMarker();
-            } else if (m_enabled) {
-                m_status = QStringLiteral("Sync failed");
-                m_pending = true;
-            }
-            emit stateChanged();
+        if (result.error) {
+            reportFailure(result.error);
             return;
         }
         if (!m_enabled) {
-            sodium_memzero(
-                result.recoveryKey.data(), static_cast<size_t>(result.recoveryKey.size()));
             return;
         }
+        auto &transaction = *result.transaction;
         const auto revision = m_localState->checkpoint();
-        auto remoteApplyDeferred = revision.generation != result.localGeneration;
-        if (!remoteApplyDeferred && result.requiresRemoteStateApply(m_initialRemoteRestore)) {
-            auto applied
-                = m_localState->applyRemoteState({.expectedGeneration = result.localGeneration,
-                    .remoteUrl = m_remoteUrl,
-                    .machineId = machineId(),
-                    .protectedTabId = m_initialRemoteRestore ? QString {} : revision.protectedTabId,
-                    .recoveryKey = std::move(result.recoveryKey),
-                    .initialRemoteRestore = m_initialRemoteRestore,
-                    .discardPristineLocalState = m_initialRemoteRestore && revision.pristine,
-                    .replaceLocalState = m_initialRemoteRestore || result.remoteEpochAdvanced});
-            remoteApplyDeferred = applied.status == LocalSyncApplyStatus::Stale;
+        auto deferred = revision.generation != result.localGeneration;
+        if (!deferred && transaction.awaitsLocalApply()) {
+            const auto applied
+                = m_localState->applyRemoteState(transaction, result.localGeneration);
+            deferred = applied.status == LocalSyncApplyStatus::Stale;
             if (applied.status == LocalSyncApplyStatus::Failed
                 || applied.status == LocalSyncApplyStatus::Refused) {
-                m_errorMessage = applied.errorMessage;
-                const auto keyFailure = applied.errorMessage.contains(
-                    QStringLiteral("recovery key"), Qt::CaseInsensitive);
-                if (keyFailure) {
-                    m_enabled = false;
-                    m_pending = false;
-                    m_quietReconcile.stop();
-                    m_periodicReconcile.stop();
-                    m_status = QStringLiteral("Sync is paused");
-                    writeMarker();
-                } else {
-                    m_status = QStringLiteral("Sync failed");
-                    m_pending = true;
-                }
-                emit stateChanged();
+                reportFailure(applied.error);
                 return;
             }
         }
-        sodium_memzero(result.recoveryKey.data(), static_cast<size_t>(result.recoveryKey.size()));
-        if (!remoteApplyDeferred) {
+        if (!deferred) {
             m_initialRemoteRestore = false;
         }
-        m_pending = remoteApplyDeferred
-            || m_localState->checkpoint().generation != result.localGeneration;
+        m_pending = deferred || m_localState->checkpoint().generation != result.localGeneration;
         m_lastSuccessfulSync = QDateTime::currentDateTimeUtc();
         m_status = m_pending ? QStringLiteral("Changes waiting to sync") : QStringLiteral("Synced");
         writeMarker();
@@ -414,6 +374,23 @@ void SyncController::markPending()
     emit stateChanged();
 }
 
+void SyncController::reportFailure(const SyncError &error)
+{
+    m_errorMessage = error.message;
+    if (error.pausesSync()) {
+        m_enabled = false;
+        m_pending = false;
+        m_quietReconcile.stop();
+        m_periodicReconcile.stop();
+        m_status = QStringLiteral("Sync is paused");
+        writeMarker();
+    } else if (m_enabled) {
+        m_status = QStringLiteral("Sync failed");
+        m_pending = true;
+    }
+    emit stateChanged();
+}
+
 void SyncController::syncNow()
 {
     if (!m_enabled || m_syncing || m_login.isEmpty() || !m_remoteUrl.isValid()) {
@@ -426,36 +403,43 @@ void SyncController::syncNow()
         && m_accessTokenExpiresAt > QDateTime::currentDateTimeUtc().addSecs(60);
     m_cancellationRequested = std::make_shared<std::atomic_bool>(false);
     const auto local = m_localState->checkpoint();
-    SyncOptions options {.dataRoot = m_dataRoot,
+    auto transaction = std::make_shared<SyncModule>(SyncOptions {.dataRoot = m_dataRoot,
         .configRoot = m_configRoot,
         .remoteUrl = m_remoteUrl,
         .machineId = machineId(),
-        .recoveryKey = {},
-        .accessToken = tokenIsCurrent ? m_accessToken : QByteArray {},
         .authorName = m_login,
-        .protectedTabId = m_initialRemoteRestore ? QString {} : local.protectedTabId,
-        .initialRemoteRestore = m_initialRemoteRestore,
-        .discardPristineLocalState = m_initialRemoteRestore && local.pristine,
-        .deferRemoteApply = true,
-        .cancellationRequested = m_cancellationRequested};
+        .protectedTabId = local.protectedTabId,
+        .intent = m_initialRemoteRestore ? SyncIntent::AdoptRemote : SyncIntent::Reconcile,
+        .localStateIsPristine = local.pristine,
+        .cancellationRequested = m_cancellationRequested});
     const auto login = m_login;
+    const auto dataRoot = m_dataRoot;
     const auto localGeneration = local.generation;
+    auto currentAccessToken = tokenIsCurrent ? m_accessToken : QByteArray {};
     m_syncing = true;
     m_reconcileWatcher.setFuture(
-        QtConcurrent::run([options = std::move(options), login, localGeneration]() mutable {
+        QtConcurrent::run([transaction, login, dataRoot, localGeneration,
+                              accessToken = std::move(currentAccessToken)]() mutable {
+            const auto failed
+                = [&transaction, localGeneration](SyncFailure failure, const QString &message) {
+                      return ReconcileResult {.error = {.failure = failure, .message = message},
+                          .transaction = transaction,
+                          .refreshedAccessToken = {},
+                          .refreshedAccessTokenExpiresInSeconds = 0,
+                          .localGeneration = localGeneration};
+                  };
             QString workerError;
             LinuxSecretStore secrets;
-            options.recoveryKey
-                = secrets.retrieve(QStringLiteral("sync-key/%1").arg(login), &workerError);
-            if (options.recoveryKey.size() != 32) {
-                ReconcileResult result;
-                result.errorMessage = QStringLiteral("Enter the Sync recovery key");
-                result.localGeneration = localGeneration;
-                return result;
+            SyncCredentials credentials {.recoveryKey
+                = secrets.retrieve(QStringLiteral("sync-key/%1").arg(login), &workerError),
+                .accessToken = std::move(accessToken)};
+            if (credentials.recoveryKey.size() != 32) {
+                return failed(SyncFailure::RecoveryKeyRejected,
+                    QStringLiteral("Enter the Sync recovery key"));
             }
             QByteArray refreshedAccessToken;
             int refreshedAccessTokenExpiresInSeconds = 0;
-            if (options.accessToken.isEmpty()) {
+            if (credentials.accessToken.isEmpty()) {
                 auto refresh
                     = secrets.retrieve(QStringLiteral("forge-refresh/%1").arg(login), &workerError);
                 GitHubForge forge(QString::fromLatin1(OMAWEB_GITHUB_APP_CLIENT_ID),
@@ -463,45 +447,38 @@ void SyncController::syncNow()
                 auto authorization = forge.refreshAuthorization(refresh, &workerError);
                 sodium_memzero(refresh.data(), static_cast<size_t>(refresh.size()));
                 if (authorization.state != AuthorizationState::Complete) {
-                    ReconcileResult result;
-                    result.errorMessage = workerError.isEmpty()
-                        ? QStringLiteral("GitHub authorization expired; connect again")
-                        : workerError;
-                    result.localGeneration = localGeneration;
-                    return result;
+                    return failed(SyncFailure::AuthorizationExpired,
+                        workerError.isEmpty()
+                            ? QStringLiteral("GitHub authorization expired; connect again")
+                            : workerError);
                 }
-                options.accessToken = std::move(authorization.accessToken);
-                refreshedAccessToken = options.accessToken;
+                credentials.accessToken = std::move(authorization.accessToken);
+                refreshedAccessToken = credentials.accessToken;
                 refreshedAccessTokenExpiresInSeconds = authorization.expiresInSeconds;
                 if (!authorization.refreshToken.isEmpty()) {
                     if (!secrets.store(QStringLiteral("forge-refresh/%1").arg(login),
                             authorization.refreshToken, &workerError)) {
-                        ReconcileResult result;
-                        result.errorMessage = workerError;
-                        result.localGeneration = localGeneration;
-                        return result;
+                        return failed(SyncFailure::Failed, workerError);
                     }
                     sodium_memzero(authorization.refreshToken.data(),
                         static_cast<size_t>(authorization.refreshToken.size()));
                 }
             }
-            SqliteSessionStore store(options.dataRoot);
+            SqliteSessionStore store(dataRoot);
             if (!store.open(&workerError)) {
-                ReconcileResult result;
-                result.errorMessage = workerError;
-                result.localGeneration = localGeneration;
-                return result;
+                return failed(SyncFailure::Failed, workerError);
             }
-            auto recoveryKey = options.recoveryKey;
-            SyncModule sync(store, std::move(options));
-            const auto succeeded = sync.open(&workerError) && sync.reconcile(&workerError);
-            return ReconcileResult {.succeeded = succeeded,
-                .errorMessage = workerError,
-                .recoveryKey = std::move(recoveryKey),
+            if (const auto opened = transaction->open(std::move(credentials))) {
+                return ReconcileResult {.error = opened,
+                    .transaction = transaction,
+                    .refreshedAccessToken = std::move(refreshedAccessToken),
+                    .refreshedAccessTokenExpiresInSeconds = refreshedAccessTokenExpiresInSeconds,
+                    .localGeneration = localGeneration};
+            }
+            return ReconcileResult {.error = transaction->reconcile(store),
+                .transaction = transaction,
                 .refreshedAccessToken = std::move(refreshedAccessToken),
                 .refreshedAccessTokenExpiresInSeconds = refreshedAccessTokenExpiresInSeconds,
-                .remoteEpochAdvanced = sync.remoteEpochAdvanced(),
-                .remoteStateChanged = sync.remoteStateChanged(),
                 .localGeneration = localGeneration};
         }));
 }

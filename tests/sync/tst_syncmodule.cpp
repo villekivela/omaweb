@@ -7,6 +7,8 @@
 #include "SecretStore.h"
 #include "GitHubForge.h"
 
+#include "SessionStore.h"
+
 #include "PrivateSessionStore.h"
 #include "SpaceStorage.h"
 #include "SqliteSessionStore.h"
@@ -27,7 +29,6 @@
 
 using omaweb::BrowserController;
 using omaweb::BrowserStateExchangeAdapter;
-using omaweb::LocalSyncApplyRequest;
 using omaweb::LocalSyncApplyStatus;
 using omaweb::LocalSyncState;
 using omaweb::PrivateSessionStore;
@@ -36,6 +37,8 @@ using omaweb::SpaceListModel;
 using omaweb::SpaceState;
 using omaweb::SpaceStorage;
 using omaweb::SqliteSessionStore;
+using omaweb::SyncFailure;
+using omaweb::SyncIntent;
 using omaweb::SyncModule;
 using omaweb::SyncSetup;
 using omaweb::TabListModel;
@@ -167,6 +170,23 @@ public:
     int refreshCount = 0;
 };
 
+// One whole reconciliation, the way the controller runs it: settle the remote, then apply what
+// came back when the transaction says there is something to apply.
+omaweb::SyncError settle(SyncModule &transaction, omaweb::SessionStore &store)
+{
+    if (const auto reconciled = transaction.reconcile(store)) {
+        return reconciled;
+    }
+    return transaction.awaitsLocalApply() ? transaction.applyRemoteState(store)
+                                          : omaweb::SyncError {};
+}
+
+#define OMAWEB_VERIFY_SYNC(expression)                                                             \
+    do {                                                                                           \
+        const auto syncError = (expression);                                                       \
+        QVERIFY2(!syncError, qPrintable(syncError.message));                                       \
+    } while (false)
+
 bool runGit(const QString &directory, const QStringList &arguments, QString *error = nullptr)
 {
     QProcess git;
@@ -278,15 +298,14 @@ void SyncModuleTest::writesEncryptedBrowserStateToAGitRemote()
             .pinned = true}},
         QStringLiteral("tab-secret")));
 
-    SyncModule sync(store,
-        {.dataRoot = dataRoot.path(),
-            .configRoot = configRoot.path(),
-            .remoteUrl = QUrl::fromLocalFile(remoteRoot.filePath(QStringLiteral("sync.git"))),
-            .machineId = QStringLiteral("machine-a"),
-            .recoveryKey = QByteArray::fromHex(
-                "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f")});
-    QVERIFY2(sync.open(&error), qPrintable(error));
-    QVERIFY2(sync.reconcile(&error), qPrintable(error));
+    SyncModule sync({.dataRoot = dataRoot.path(),
+        .configRoot = configRoot.path(),
+        .remoteUrl = QUrl::fromLocalFile(remoteRoot.filePath(QStringLiteral("sync.git"))),
+        .machineId = QStringLiteral("machine-a")});
+    OMAWEB_VERIFY_SYNC(
+        sync.open({.recoveryKey = QByteArray::fromHex(
+                       "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f")}));
+    OMAWEB_VERIFY_SYNC(settle(sync, store));
 
     QVERIFY2(
         runGit(inspectionRoot.path(),
@@ -343,14 +362,12 @@ void SyncModuleTest::restoresBrowserStateOnASecondMachine()
                 .muted = true,
                 .zoom = 1.25}},
         QStringLiteral("tab-ordinary")));
-    SyncModule first(firstStore,
-        {.dataRoot = firstDataRoot.path(),
-            .configRoot = firstConfigRoot.path(),
-            .remoteUrl = remote,
-            .machineId = QStringLiteral("machine-a"),
-            .recoveryKey = key});
-    QVERIFY2(first.open(&error), qPrintable(error));
-    QVERIFY2(first.reconcile(&error), qPrintable(error));
+    SyncModule first({.dataRoot = firstDataRoot.path(),
+        .configRoot = firstConfigRoot.path(),
+        .remoteUrl = remote,
+        .machineId = QStringLiteral("machine-a")});
+    OMAWEB_VERIFY_SYNC(first.open({.recoveryKey = key}));
+    OMAWEB_VERIFY_SYNC(settle(first, firstStore));
 
     SqliteSessionStore secondStore(secondDataRoot.path());
     QVERIFY(secondStore.open(&error));
@@ -362,19 +379,17 @@ void SyncModuleTest::restoresBrowserStateOnASecondMachine()
             .url = QUrl(QStringLiteral("about:blank")),
             .title = QStringLiteral("New tab")}},
         QStringLiteral("generated-tab")));
-    SyncModule second(secondStore,
-        {.dataRoot = secondDataRoot.path(),
-            .configRoot = secondConfigRoot.path(),
-            .remoteUrl = remote,
-            .machineId = QStringLiteral("machine-b"),
-            .recoveryKey = key,
-            .initialRemoteRestore = true,
-            .discardPristineLocalState = true,
-            .deferRemoteApply = true});
-    QVERIFY2(second.open(&error), qPrintable(error));
-    QVERIFY2(second.reconcile(&error), qPrintable(error));
+    SyncModule second({.dataRoot = secondDataRoot.path(),
+        .configRoot = secondConfigRoot.path(),
+        .remoteUrl = remote,
+        .machineId = QStringLiteral("machine-b"),
+        .intent = SyncIntent::AdoptRemote,
+        .localStateIsPristine = true});
+    OMAWEB_VERIFY_SYNC(second.open({.recoveryKey = key}));
+    OMAWEB_VERIFY_SYNC(second.reconcile(secondStore));
+    QVERIFY(second.awaitsLocalApply());
     QCOMPARE(secondStore.loadSpaces().constFirst().id, QStringLiteral("generated-default"));
-    QVERIFY2(second.applyRemoteState(&error), qPrintable(error));
+    OMAWEB_VERIFY_SYNC(second.applyRemoteState(secondStore));
 
     const auto spaces = secondStore.loadSpaces();
     QCOMPARE(spaces.size(), 1);
@@ -439,14 +454,12 @@ void SyncModuleTest::syncsOnlyTheApprovedConfiguration()
     QVERIFY(writeFile(firstDataRoot.filePath(QStringLiteral("content-blocking/settings.json")),
         QJsonDocument(blocker).toJson()));
 
-    SyncModule first(firstStore,
-        {.dataRoot = firstDataRoot.path(),
-            .configRoot = firstConfigRoot.path(),
-            .remoteUrl = remote,
-            .machineId = QStringLiteral("machine-a"),
-            .recoveryKey = key});
-    QVERIFY2(first.open(&error), qPrintable(error));
-    QVERIFY2(first.reconcile(&error), qPrintable(error));
+    SyncModule first({.dataRoot = firstDataRoot.path(),
+        .configRoot = firstConfigRoot.path(),
+        .remoteUrl = remote,
+        .machineId = QStringLiteral("machine-a")});
+    OMAWEB_VERIFY_SYNC(first.open({.recoveryKey = key}));
+    OMAWEB_VERIFY_SYNC(settle(first, firstStore));
 
     QVERIFY2(runGit(inspectionRoot.path(),
                  {QStringLiteral("clone"), remote.toString(), QStringLiteral("checkout")}, &error),
@@ -473,14 +486,12 @@ void SyncModuleTest::syncsOnlyTheApprovedConfiguration()
     };
     QVERIFY(writeFile(secondDataRoot.filePath(QStringLiteral("content-blocking/settings.json")),
         QJsonDocument(localBlocker).toJson()));
-    SyncModule second(secondStore,
-        {.dataRoot = secondDataRoot.path(),
-            .configRoot = secondConfigRoot.path(),
-            .remoteUrl = remote,
-            .machineId = QStringLiteral("machine-b"),
-            .recoveryKey = key});
-    QVERIFY2(second.open(&error), qPrintable(error));
-    QVERIFY2(second.reconcile(&error), qPrintable(error));
+    SyncModule second({.dataRoot = secondDataRoot.path(),
+        .configRoot = secondConfigRoot.path(),
+        .remoteUrl = remote,
+        .machineId = QStringLiteral("machine-b")});
+    OMAWEB_VERIFY_SYNC(second.open({.recoveryKey = key}));
+    OMAWEB_VERIFY_SYNC(settle(second, secondStore));
 
     QCOMPARE(secondStore.preference(QStringLiteral("floating-controls")), QStringLiteral("false"));
     QCOMPARE(secondStore.preference(QStringLiteral("tint-favicons")), QStringLiteral("true"));
@@ -528,28 +539,20 @@ void SyncModuleTest::leavesTheRemoteUntouchedWhenNothingChanged()
             .url = QUrl(QStringLiteral("https://example.com")),
             .title = QStringLiteral("Example")}},
         QStringLiteral("tab-1")));
-    SyncModule sync(store,
-        {.dataRoot = dataRoot.path(),
-            .configRoot = configRoot.path(),
-            .remoteUrl = QUrl::fromLocalFile(repository),
-            .machineId = QStringLiteral("machine-a"),
-            .recoveryKey = QByteArray::fromHex(
-                "606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f")});
-    QVERIFY2(sync.open(&error), qPrintable(error));
-    QVERIFY2(sync.reconcile(&error), qPrintable(error));
+    SyncModule sync({.dataRoot = dataRoot.path(),
+        .configRoot = configRoot.path(),
+        .remoteUrl = QUrl::fromLocalFile(repository),
+        .machineId = QStringLiteral("machine-a")});
+    OMAWEB_VERIFY_SYNC(
+        sync.open({.recoveryKey = QByteArray::fromHex(
+                       "606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f")}));
+    OMAWEB_VERIFY_SYNC(settle(sync, store));
     const auto first = gitOutput(repository, {QStringLiteral("rev-parse"), QStringLiteral("main")});
     QVERIFY(!first.isEmpty());
 
-    QVERIFY2(sync.reconcile(&error), qPrintable(error));
+    OMAWEB_VERIFY_SYNC(settle(sync, store));
     QCOMPARE(gitOutput(repository, {QStringLiteral("rev-parse"), QStringLiteral("main")}), first);
-    QVERIFY(!sync.remoteStateChanged());
-    ReconcileResult cleanResult;
-    cleanResult.succeeded = true;
-    QVERIFY(!cleanResult.requiresRemoteStateApply(false));
-    cleanResult.remoteStateChanged = true;
-    QVERIFY(cleanResult.requiresRemoteStateApply(false));
-    cleanResult.remoteStateChanged = false;
-    QVERIFY(cleanResult.requiresRemoteStateApply(true));
+    QVERIFY(!sync.awaitsLocalApply());
 }
 
 void SyncModuleTest::localSyncStateRecognizesOnlyItsProjection()
@@ -587,10 +590,10 @@ void SyncModuleTest::localSyncStateRecognizesOnlyItsProjection()
     QVERIFY(browser.setPreference(QStringLiteral("floating-controls"), QStringLiteral("false")));
     QTRY_COMPARE(changed.count(), 1);
     QCOMPARE(localState.checkpoint().generation, initial.generation + 1);
-    LocalSyncApplyRequest staleRequest;
-    staleRequest.expectedGeneration = initial.generation;
-    QCOMPARE(
-        localState.applyRemoteState(std::move(staleRequest)).status, LocalSyncApplyStatus::Stale);
+    SyncModule staleTransaction({});
+    const auto stale = localState.applyRemoteState(staleTransaction, initial.generation);
+    QCOMPARE(stale.status, LocalSyncApplyStatus::Stale);
+    QCOMPARE(stale.error.failure, SyncFailure::LocalStateChanged);
 
     changed.clear();
     const auto workSpace = browser.createSpace(QStringLiteral("Work"));
@@ -614,10 +617,10 @@ void SyncModuleTest::localSyncStateRefusesIneligibleBrowserState()
 
     QVERIFY(!localState.eligible());
     QCOMPARE(exchange.captureCount, 0);
-    LocalSyncApplyRequest request;
-    const auto result = localState.applyRemoteState(std::move(request));
+    SyncModule transaction({});
+    const auto result = localState.applyRemoteState(transaction, 0);
     QCOMPARE(result.status, LocalSyncApplyStatus::Refused);
-    QCOMPARE(result.failure, omaweb::LocalSyncFailureCode::PrivateStateRefused);
+    QCOMPARE(result.error.failure, SyncFailure::PrivateStateRefused);
     QCOMPARE(exchange.captureCount, 0);
     QCOMPARE(exchange.refreshCount, 0);
 }
@@ -639,15 +642,16 @@ void SyncModuleTest::refusesAStoreThatCannotRecordBrowserState()
 
     PrivateSessionStore store(QSharedPointer<QHash<QString, int>>::create());
     QVERIFY(store.open(&error));
-    SyncModule sync(store,
-        {.dataRoot = dataRoot.path(),
-            .configRoot = configRoot.path(),
-            .remoteUrl = QUrl::fromLocalFile(repository),
-            .machineId = QStringLiteral("private-window"),
-            .recoveryKey = QByteArray::fromHex(
-                "808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9f")});
-    QVERIFY(!sync.open(&error));
-    QCOMPARE(error, QStringLiteral("Sync is unavailable in a Private window"));
+    SyncModule sync({.dataRoot = dataRoot.path(),
+        .configRoot = configRoot.path(),
+        .remoteUrl = QUrl::fromLocalFile(repository),
+        .machineId = QStringLiteral("private-window")});
+    OMAWEB_VERIFY_SYNC(
+        sync.open({.recoveryKey = QByteArray::fromHex(
+                       "808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9f")}));
+    const auto refused = sync.reconcile(store);
+    QCOMPARE(refused.failure, SyncFailure::PrivateStateRefused);
+    QCOMPARE(refused.message, QStringLiteral("Sync is unavailable in a Private window"));
     QVERIFY(gitOutput(repository, {QStringLiteral("show-ref")}).isEmpty());
 }
 
@@ -688,41 +692,37 @@ void SyncModuleTest::compactsAnOvergrownRepositoryIntoASnapshot()
     QVERIFY(store.open(&error));
     QVERIFY(store.saveSpace(
         {QStringLiteral("space"), QStringLiteral("Space"), QStringLiteral("#000000"), true}));
-    SyncModule sync(store,
-        {.dataRoot = dataRoot.path(),
-            .configRoot = configRoot.path(),
-            .remoteUrl = remote,
-            .machineId = QStringLiteral("machine"),
-            .recoveryKey = QByteArray(32, 'k'),
-            .historyCommitLimit = 3,
-            .historyMaxAgeMilliseconds = 0});
-    QVERIFY2(sync.open(&error), qPrintable(error));
+    SyncModule sync({.dataRoot = dataRoot.path(),
+        .configRoot = configRoot.path(),
+        .remoteUrl = remote,
+        .machineId = QStringLiteral("machine"),
+        .historyCommitLimit = 3,
+        .historyMaxAgeMilliseconds = 0});
+    OMAWEB_VERIFY_SYNC(sync.open({.recoveryKey = QByteArray(32, 'k')}));
     QVERIFY(store.savePreference(QStringLiteral("floating-controls"), QStringLiteral("0")));
-    QVERIFY2(sync.reconcile(&error), qPrintable(error));
+    OMAWEB_VERIFY_SYNC(settle(sync, store));
 
     SqliteSessionStore staleStore(staleDataRoot.path());
     QVERIFY(staleStore.open(&error));
-    SyncModule stale(staleStore,
-        {.dataRoot = staleDataRoot.path(),
-            .configRoot = staleConfigRoot.path(),
-            .remoteUrl = remote,
-            .machineId = QStringLiteral("stale-machine"),
-            .recoveryKey = QByteArray(32, 'k'),
-            .historyCommitLimit = 3,
-            .historyMaxAgeMilliseconds = 0});
-    QVERIFY2(stale.open(&error), qPrintable(error));
-    QVERIFY2(stale.reconcile(&error), qPrintable(error));
+    SyncModule stale({.dataRoot = staleDataRoot.path(),
+        .configRoot = staleConfigRoot.path(),
+        .remoteUrl = remote,
+        .machineId = QStringLiteral("stale-machine"),
+        .historyCommitLimit = 3,
+        .historyMaxAgeMilliseconds = 0});
+    OMAWEB_VERIFY_SYNC(stale.open({.recoveryKey = QByteArray(32, 'k')}));
+    OMAWEB_VERIFY_SYNC(settle(stale, staleStore));
 
     for (int revision = 1; revision < 5; ++revision) {
         QVERIFY(
             store.savePreference(QStringLiteral("floating-controls"), QString::number(revision)));
-        QVERIFY2(sync.reconcile(&error), qPrintable(error));
+        OMAWEB_VERIFY_SYNC(settle(sync, store));
     }
     QVERIFY(
         staleStore.savePreference(QStringLiteral("floating-controls"), QStringLiteral("stale")));
     QVERIFY(staleStore.saveSpace({QStringLiteral("stale-space"), QStringLiteral("Stale"),
         QStringLiteral("#ffffff"), false}));
-    QVERIFY2(stale.reconcile(&error), qPrintable(error));
+    OMAWEB_VERIFY_SYNC(settle(stale, staleStore));
     QCOMPARE(staleStore.preference(QStringLiteral("floating-controls")), QStringLiteral("4"));
     QCOMPARE(staleStore.loadSpaces().size(), 1);
     QCOMPARE(staleStore.loadSpaces().constFirst().id, QStringLiteral("space"));
@@ -781,35 +781,31 @@ void SyncModuleTest::twoMachinesConvergeWhenTheyChangeDifferentRecords()
         .url = QUrl(QStringLiteral("https://example.com")),
         .title = QStringLiteral("Original title")};
     QVERIFY(firstStore.saveTabs(QStringLiteral("space-1"), {originalTab}, QStringLiteral("tab-1")));
-    SyncModule first(firstStore,
-        {.dataRoot = firstDataRoot.path(),
-            .configRoot = firstConfigRoot.path(),
-            .remoteUrl = remote,
-            .machineId = QStringLiteral("machine-a"),
-            .recoveryKey = key});
-    QVERIFY2(first.open(&error), qPrintable(error));
-    QVERIFY2(first.reconcile(&error), qPrintable(error));
+    SyncModule first({.dataRoot = firstDataRoot.path(),
+        .configRoot = firstConfigRoot.path(),
+        .remoteUrl = remote,
+        .machineId = QStringLiteral("machine-a")});
+    OMAWEB_VERIFY_SYNC(first.open({.recoveryKey = key}));
+    OMAWEB_VERIFY_SYNC(settle(first, firstStore));
 
     SqliteSessionStore secondStore(secondDataRoot.path());
     QVERIFY(secondStore.open(&error));
-    SyncModule second(secondStore,
-        {.dataRoot = secondDataRoot.path(),
-            .configRoot = secondConfigRoot.path(),
-            .remoteUrl = remote,
-            .machineId = QStringLiteral("machine-b"),
-            .recoveryKey = key});
-    QVERIFY2(second.open(&error), qPrintable(error));
-    QVERIFY2(second.reconcile(&error), qPrintable(error));
+    SyncModule second({.dataRoot = secondDataRoot.path(),
+        .configRoot = secondConfigRoot.path(),
+        .remoteUrl = remote,
+        .machineId = QStringLiteral("machine-b")});
+    OMAWEB_VERIFY_SYNC(second.open({.recoveryKey = key}));
+    OMAWEB_VERIFY_SYNC(settle(second, secondStore));
 
     QVERIFY(firstStore.saveSpace(SpaceState {
         QStringLiteral("space-1"), QStringLiteral("Renamed"), QStringLiteral("#7c6cff"), true}));
-    QVERIFY2(first.reconcile(&error), qPrintable(error));
+    OMAWEB_VERIFY_SYNC(settle(first, firstStore));
     auto changedTab = originalTab;
     changedTab.title = QStringLiteral("Changed title");
     QVERIFY(secondStore.saveTabs(QStringLiteral("space-1"), {changedTab}, QStringLiteral("tab-1")));
-    QVERIFY2(second.reconcile(&error), qPrintable(error));
-    QVERIFY2(first.reconcile(&error), qPrintable(error));
-    QVERIFY(first.remoteStateChanged());
+    OMAWEB_VERIFY_SYNC(settle(second, secondStore));
+    OMAWEB_VERIFY_SYNC(settle(first, firstStore));
+    QVERIFY(first.awaitsLocalApply());
 
     QCOMPARE(firstStore.loadSpaces().constFirst().name, QStringLiteral("Renamed"));
     QCOMPARE(secondStore.loadSpaces().constFirst().name, QStringLiteral("Renamed"));
@@ -840,28 +836,23 @@ void SyncModuleTest::preservesUnappliedRemoteChangesDuringALocalEdit()
     QVERIFY(firstStore.open(&error));
     QVERIFY(firstStore.saveSpace(SpaceState {
         QStringLiteral("space-1"), QStringLiteral("Original"), QStringLiteral("#7c6cff"), true}));
-    SyncModule first(firstStore,
-        {.dataRoot = firstDataRoot.path(),
-            .configRoot = firstConfigRoot.path(),
-            .remoteUrl = remote,
-            .machineId = QStringLiteral("machine-a"),
-            .recoveryKey = key});
-    QVERIFY2(first.open(&error), qPrintable(error));
-    QVERIFY2(first.reconcile(&error), qPrintable(error));
+    SyncModule first({.dataRoot = firstDataRoot.path(),
+        .configRoot = firstConfigRoot.path(),
+        .remoteUrl = remote,
+        .machineId = QStringLiteral("machine-a")});
+    OMAWEB_VERIFY_SYNC(first.open({.recoveryKey = key}));
+    OMAWEB_VERIFY_SYNC(settle(first, firstStore));
 
     SqliteSessionStore secondStore(secondDataRoot.path());
     QVERIFY(secondStore.open(&error));
-    SyncModule second(secondStore,
-        {.dataRoot = secondDataRoot.path(),
-            .configRoot = secondConfigRoot.path(),
-            .remoteUrl = remote,
-            .machineId = QStringLiteral("machine-b"),
-            .recoveryKey = key,
-            .initialRemoteRestore = true,
-            .deferRemoteApply = true});
-    QVERIFY2(second.open(&error), qPrintable(error));
-    QVERIFY2(second.reconcile(&error), qPrintable(error));
-    QVERIFY2(second.applyRemoteState(&error), qPrintable(error));
+    SyncModule second({.dataRoot = secondDataRoot.path(),
+        .configRoot = secondConfigRoot.path(),
+        .remoteUrl = remote,
+        .machineId = QStringLiteral("machine-b"),
+        .intent = SyncIntent::AdoptRemote});
+    OMAWEB_VERIFY_SYNC(second.open({.recoveryKey = key}));
+    OMAWEB_VERIFY_SYNC(second.reconcile(secondStore));
+    OMAWEB_VERIFY_SYNC(second.applyRemoteState(secondStore));
 
     QVERIFY(firstStore.saveSpace(SpaceState {QStringLiteral("space-1"),
         QStringLiteral("Remote rename"), QStringLiteral("#7c6cff"), true}));
@@ -871,28 +862,25 @@ void SyncModuleTest::preservesUnappliedRemoteChangesDuringALocalEdit()
         .title = QStringLiteral("Remote tab")};
     QVERIFY(
         firstStore.saveTabs(QStringLiteral("space-1"), {remoteTab}, QStringLiteral("remote-tab")));
-    QVERIFY2(first.reconcile(&error), qPrintable(error));
+    OMAWEB_VERIFY_SYNC(settle(first, firstStore));
 
-    SyncModule staged(secondStore,
-        {.dataRoot = secondDataRoot.path(),
-            .configRoot = secondConfigRoot.path(),
-            .remoteUrl = remote,
-            .machineId = QStringLiteral("machine-b"),
-            .recoveryKey = key,
-            .deferRemoteApply = true});
-    QVERIFY2(staged.open(&error), qPrintable(error));
-    QVERIFY2(staged.reconcile(&error), qPrintable(error));
+    SyncModule staged({
+        .dataRoot = secondDataRoot.path(),
+        .configRoot = secondConfigRoot.path(),
+        .remoteUrl = remote,
+        .machineId = QStringLiteral("machine-b"),
+    });
+    OMAWEB_VERIFY_SYNC(staged.open({.recoveryKey = key}));
+    OMAWEB_VERIFY_SYNC(staged.reconcile(secondStore));
     QVERIFY(
         secondStore.savePreference(QStringLiteral("floating-controls"), QStringLiteral("false")));
 
-    SyncModule settled(secondStore,
-        {.dataRoot = secondDataRoot.path(),
-            .configRoot = secondConfigRoot.path(),
-            .remoteUrl = remote,
-            .machineId = QStringLiteral("machine-b"),
-            .recoveryKey = key});
-    QVERIFY2(settled.open(&error), qPrintable(error));
-    QVERIFY2(settled.reconcile(&error), qPrintable(error));
+    SyncModule settled({.dataRoot = secondDataRoot.path(),
+        .configRoot = secondConfigRoot.path(),
+        .remoteUrl = remote,
+        .machineId = QStringLiteral("machine-b")});
+    OMAWEB_VERIFY_SYNC(settled.open({.recoveryKey = key}));
+    OMAWEB_VERIFY_SYNC(settle(settled, secondStore));
     QCOMPARE(secondStore.loadSpaces().constFirst().name, QStringLiteral("Remote rename"));
     QCOMPARE(secondStore.loadTabs(QStringLiteral("space-1")).constFirst().id,
         QStringLiteral("remote-tab"));
@@ -921,37 +909,33 @@ void SyncModuleTest::laterRecordWinsWhenTwoMachinesChangeTheSameRecord()
     QVERIFY(firstStore.open(&error));
     QVERIFY(firstStore.saveSpace(SpaceState {
         QStringLiteral("space-1"), QStringLiteral("Original"), QStringLiteral("#7c6cff"), true}));
-    SyncModule first(firstStore,
-        {.dataRoot = firstDataRoot.path(),
-            .configRoot = firstConfigRoot.path(),
-            .remoteUrl = remote,
-            .machineId = QStringLiteral("machine-a"),
-            .recoveryKey = key,
-            .now = [&firstNow] { return firstNow; }});
-    QVERIFY2(first.open(&error), qPrintable(error));
-    QVERIFY2(first.reconcile(&error), qPrintable(error));
+    SyncModule first({.dataRoot = firstDataRoot.path(),
+        .configRoot = firstConfigRoot.path(),
+        .remoteUrl = remote,
+        .machineId = QStringLiteral("machine-a"),
+        .now = [&firstNow] { return firstNow; }});
+    OMAWEB_VERIFY_SYNC(first.open({.recoveryKey = key}));
+    OMAWEB_VERIFY_SYNC(settle(first, firstStore));
 
     SqliteSessionStore secondStore(secondDataRoot.path());
     QVERIFY(secondStore.open(&error));
-    SyncModule second(secondStore,
-        {.dataRoot = secondDataRoot.path(),
-            .configRoot = secondConfigRoot.path(),
-            .remoteUrl = remote,
-            .machineId = QStringLiteral("machine-b"),
-            .recoveryKey = key,
-            .now = [&secondNow] { return secondNow; }});
-    QVERIFY2(second.open(&error), qPrintable(error));
-    QVERIFY2(second.reconcile(&error), qPrintable(error));
+    SyncModule second({.dataRoot = secondDataRoot.path(),
+        .configRoot = secondConfigRoot.path(),
+        .remoteUrl = remote,
+        .machineId = QStringLiteral("machine-b"),
+        .now = [&secondNow] { return secondNow; }});
+    OMAWEB_VERIFY_SYNC(second.open({.recoveryKey = key}));
+    OMAWEB_VERIFY_SYNC(settle(second, secondStore));
 
     firstNow = 2'000;
     QVERIFY(firstStore.saveSpace(SpaceState {QStringLiteral("space-1"),
         QStringLiteral("Older rename"), QStringLiteral("#7c6cff"), true}));
-    QVERIFY2(first.reconcile(&error), qPrintable(error));
+    OMAWEB_VERIFY_SYNC(settle(first, firstStore));
     secondNow = 3'000;
     QVERIFY(secondStore.saveSpace(SpaceState {QStringLiteral("space-1"),
         QStringLiteral("Newer rename"), QStringLiteral("#7c6cff"), true}));
-    QVERIFY2(second.reconcile(&error), qPrintable(error));
-    QVERIFY2(first.reconcile(&error), qPrintable(error));
+    OMAWEB_VERIFY_SYNC(settle(second, secondStore));
+    OMAWEB_VERIFY_SYNC(settle(first, firstStore));
 
     QCOMPARE(firstStore.loadSpaces().constFirst().name, QStringLiteral("Newer rename"));
     QCOMPARE(secondStore.loadSpaces().constFirst().name, QStringLiteral("Newer rename"));
@@ -989,44 +973,38 @@ void SyncModuleTest::aClosedTabDoesNotReturnFromAnotherMachine()
         .title = QStringLiteral("Closed")};
     QVERIFY(
         firstStore.saveTabs(QStringLiteral("space-1"), {kept, closed}, QStringLiteral("tab-kept")));
-    SyncModule first(firstStore,
-        {.dataRoot = firstDataRoot.path(),
-            .configRoot = firstConfigRoot.path(),
-            .remoteUrl = remote,
-            .machineId = QStringLiteral("machine-a"),
-            .recoveryKey = key,
-            .now = [&now] { return now; }});
-    QVERIFY2(first.open(&error), qPrintable(error));
-    QVERIFY2(first.reconcile(&error), qPrintable(error));
+    SyncModule first({.dataRoot = firstDataRoot.path(),
+        .configRoot = firstConfigRoot.path(),
+        .remoteUrl = remote,
+        .machineId = QStringLiteral("machine-a"),
+        .now = [&now] { return now; }});
+    OMAWEB_VERIFY_SYNC(first.open({.recoveryKey = key}));
+    OMAWEB_VERIFY_SYNC(settle(first, firstStore));
 
     SqliteSessionStore secondStore(secondDataRoot.path());
     QVERIFY(secondStore.open(&error));
-    SyncModule second(secondStore,
-        {.dataRoot = secondDataRoot.path(),
-            .configRoot = secondConfigRoot.path(),
-            .remoteUrl = remote,
-            .machineId = QStringLiteral("machine-b"),
-            .recoveryKey = key,
-            .protectedTabId = QStringLiteral("tab-closed"),
-            .now = [&now] { return now; }});
-    QVERIFY2(second.open(&error), qPrintable(error));
-    QVERIFY2(second.reconcile(&error), qPrintable(error));
+    SyncModule second({.dataRoot = secondDataRoot.path(),
+        .configRoot = secondConfigRoot.path(),
+        .remoteUrl = remote,
+        .machineId = QStringLiteral("machine-b"),
+        .protectedTabId = QStringLiteral("tab-closed"),
+        .now = [&now] { return now; }});
+    OMAWEB_VERIFY_SYNC(second.open({.recoveryKey = key}));
+    OMAWEB_VERIFY_SYNC(settle(second, secondStore));
 
     now = 2'000;
     QVERIFY(firstStore.saveTabs(QStringLiteral("space-1"), {kept}, QStringLiteral("tab-kept")));
-    QVERIFY2(first.reconcile(&error), qPrintable(error));
-    QVERIFY2(second.reconcile(&error), qPrintable(error));
+    OMAWEB_VERIFY_SYNC(settle(first, firstStore));
+    OMAWEB_VERIFY_SYNC(settle(second, secondStore));
 
     QCOMPARE(secondStore.loadTabs(QStringLiteral("space-1")).size(), 2);
-    SyncModule afterSwitch(secondStore,
-        {.dataRoot = secondDataRoot.path(),
-            .configRoot = secondConfigRoot.path(),
-            .remoteUrl = remote,
-            .machineId = QStringLiteral("machine-b"),
-            .recoveryKey = key,
-            .now = [&now] { return now; }});
-    QVERIFY2(afterSwitch.open(&error), qPrintable(error));
-    QVERIFY2(afterSwitch.reconcile(&error), qPrintable(error));
+    SyncModule afterSwitch({.dataRoot = secondDataRoot.path(),
+        .configRoot = secondConfigRoot.path(),
+        .remoteUrl = remote,
+        .machineId = QStringLiteral("machine-b"),
+        .now = [&now] { return now; }});
+    OMAWEB_VERIFY_SYNC(afterSwitch.open({.recoveryKey = key}));
+    OMAWEB_VERIFY_SYNC(settle(afterSwitch, secondStore));
     const auto tabs = secondStore.loadTabs(QStringLiteral("space-1"));
     QCOMPARE(tabs.size(), 1);
     QCOMPARE(tabs.constFirst().id, QStringLiteral("tab-kept"));

@@ -180,9 +180,8 @@ namespace {
 
 } // namespace
 
-SyncModule::SyncModule(SessionStore &store, SyncOptions options, QObject *parent)
+SyncModule::SyncModule(SyncOptions options, QObject *parent)
     : QObject(parent)
-    , m_store(store)
     , m_options(std::move(options))
 {
     if (!m_options.now) {
@@ -192,8 +191,10 @@ SyncModule::SyncModule(SessionStore &store, SyncOptions options, QObject *parent
 
 SyncModule::~SyncModule()
 {
-    sodium_memzero(m_options.recoveryKey.data(), static_cast<size_t>(m_options.recoveryKey.size()));
-    sodium_memzero(m_options.accessToken.data(), static_cast<size_t>(m_options.accessToken.size()));
+    sodium_memzero(
+        m_credentials.recoveryKey.data(), static_cast<size_t>(m_credentials.recoveryKey.size()));
+    sodium_memzero(
+        m_credentials.accessToken.data(), static_cast<size_t>(m_credentials.accessToken.size()));
 }
 
 QString SyncModule::createRecoveryKey()
@@ -245,6 +246,11 @@ QByteArray SyncModule::decodeRecoveryKey(const QString &displayed, QString *erro
     return key;
 }
 
+QString SyncModule::protectedTabId() const
+{
+    return m_options.intent == SyncIntent::AdoptRemote ? QString {} : m_options.protectedTabId;
+}
+
 QString SyncModule::checkoutRoot() const
 {
     return QDir(m_options.dataRoot).filePath(QStringLiteral("sync/repository"));
@@ -285,6 +291,7 @@ bool SyncModule::cancelled(QString *errorMessage) const
     if (!m_options.cancellationRequested || !m_options.cancellationRequested->load()) {
         return false;
     }
+    m_failure = SyncFailure::Cancelled;
     setError(errorMessage, QStringLiteral("Sync was cancelled"));
     return true;
 }
@@ -384,7 +391,7 @@ bool SyncModule::prepareGitCredential(
     QProcess &git, int *readDescriptor, QString *errorMessage) const
 {
     *readDescriptor = -1;
-    if (m_options.accessToken.isEmpty()) {
+    if (m_credentials.accessToken.isEmpty()) {
         return true;
     }
     auto helper = m_options.askPassPath.isEmpty() ? QStringLiteral(OMAWEB_SYNC_ASKPASS_PATH)
@@ -401,7 +408,7 @@ bool SyncModule::prepareGitCredential(
         setError(errorMessage, QStringLiteral("Could not prepare git authentication"));
         return false;
     }
-    const auto bytes = m_options.accessToken + '\n';
+    const auto bytes = m_credentials.accessToken + '\n';
     qsizetype written = 0;
     while (written < bytes.size()) {
         const auto count = write(descriptors[1], bytes.constData() + written,
@@ -445,17 +452,28 @@ bool SyncModule::gitRefExists(const QString &reference) const
     return git.waitForFinished() && git.exitStatus() == QProcess::NormalExit && git.exitCode() == 0;
 }
 
-bool SyncModule::open(QString *errorMessage)
+SyncError SyncModule::phaseError(const QString &message) const { return {m_failure, message}; }
+
+SyncError SyncModule::open(SyncCredentials credentials)
 {
-    if (!m_store.recordsState()) {
-        setError(errorMessage, QStringLiteral("Sync is unavailable in a Private window"));
-        return false;
+    m_credentials = std::move(credentials);
+    m_failure = SyncFailure::Failed;
+    QString message;
+    if (!openCheckout(&message)) {
+        return phaseError(message);
     }
+    m_failure = SyncFailure::None;
+    return {};
+}
+
+bool SyncModule::openCheckout(QString *errorMessage)
+{
     if (sodium_init() < 0) {
         setError(errorMessage, QStringLiteral("Could not initialize record encryption"));
         return false;
     }
-    if (m_options.recoveryKey.size() != crypto_aead_xchacha20poly1305_ietf_KEYBYTES) {
+    if (m_credentials.recoveryKey.size() != crypto_aead_xchacha20poly1305_ietf_KEYBYTES) {
+        m_failure = SyncFailure::RecoveryKeyRejected;
         setError(errorMessage, QStringLiteral("The recovery key is not valid"));
         return false;
     }
@@ -479,7 +497,7 @@ bool SyncModule::open(QString *errorMessage)
     environment.insert(QStringLiteral("GIT_TERMINAL_PROMPT"), QStringLiteral("0"));
     git.setProcessEnvironment(environment);
     auto remoteUrl = m_options.remoteUrl;
-    if (!m_options.accessToken.isEmpty() && remoteUrl.scheme() == QLatin1String("https")) {
+    if (!m_credentials.accessToken.isEmpty() && remoteUrl.scheme() == QLatin1String("https")) {
         remoteUrl.setUserName(QStringLiteral("x-access-token"));
     }
     int credentialDescriptor = -1;
@@ -553,7 +571,7 @@ bool SyncModule::writeEncryptedRecord(
             reinterpret_cast<const unsigned char *>(associatedData.constData()),
             static_cast<unsigned long long>(associatedData.size()), nullptr,
             reinterpret_cast<const unsigned char *>(nonce.constData()),
-            reinterpret_cast<const unsigned char *>(m_options.recoveryKey.constData()))
+            reinterpret_cast<const unsigned char *>(m_credentials.recoveryKey.constData()))
         != 0) {
         setError(errorMessage, QStringLiteral("Could not encrypt a Sync record"));
         return false;
@@ -678,8 +696,9 @@ QByteArray SyncModule::decryptEncryptedRecord(const QString &kind, const QString
             reinterpret_cast<const unsigned char *>(associatedData.constData()),
             static_cast<unsigned long long>(associatedData.size()),
             reinterpret_cast<const unsigned char *>(nonce.constData()),
-            reinterpret_cast<const unsigned char *>(m_options.recoveryKey.constData()))
+            reinterpret_cast<const unsigned char *>(m_credentials.recoveryKey.constData()))
         != 0) {
+        m_failure = SyncFailure::RecoveryKeyRejected;
         setError(
             errorMessage, QStringLiteral("This recovery key cannot unlock the Sync repository"));
         return {};
@@ -837,16 +856,16 @@ bool SyncModule::mergeRemote(QString *errorMessage)
     return resolveMergeConflicts(errorMessage);
 }
 
-bool SyncModule::restoreRemoteState(QString *errorMessage)
+bool SyncModule::restoreRemoteState(SessionStore &store, QString *errorMessage)
 {
-    const auto localSpaces = m_store.loadSpaces();
+    const auto localSpaces = store.loadSpaces();
     QString localActiveSpaceId;
     QHash<QString, QString> localActiveTabIds;
     for (const auto &space : localSpaces) {
         if (space.active) {
             localActiveSpaceId = space.id;
         }
-        for (const auto &tab : m_store.loadTabs(space.id)) {
+        for (const auto &tab : store.loadTabs(space.id)) {
             if (tab.active) {
                 localActiveTabIds.insert(space.id, tab.id);
                 break;
@@ -938,12 +957,13 @@ bool SyncModule::restoreRemoteState(QString *errorMessage)
         spaces.append(std::move(space.state));
     }
     const auto replacementSpaceId = spaces.isEmpty() ? QString {} : spaces.constFirst().id;
-    for (const auto &localSpace : m_store.loadSpaces()) {
-        const auto absentFromReplacement = (m_options.replaceLocalState || m_remoteEpochAdvanced)
+    for (const auto &localSpace : store.loadSpaces()) {
+        const auto absentFromReplacement
+            = (m_options.intent == SyncIntent::AdoptRemote || m_remoteEpochAdvanced)
             && std::ranges::none_of(spaces,
                 [&localSpace](const SpaceState &space) { return space.id == localSpace.id; });
         if ((deletedSpaceIds.contains(localSpace.id) || absentFromReplacement)
-            && !m_store.deleteSpace(
+            && !store.deleteSpace(
                 localSpace.id, localSpace.active ? replacementSpaceId : QString {})) {
             setError(errorMessage, QStringLiteral("Could not apply a deleted remote Space"));
             return false;
@@ -958,7 +978,7 @@ bool SyncModule::restoreRemoteState(QString *errorMessage)
     for (auto &space : spaces) {
         space.active = space.id == localActiveSpaceId;
     }
-    if (!spaces.isEmpty() && !m_store.saveSpaces(spaces)) {
+    if (!spaces.isEmpty() && !store.saveSpaces(spaces)) {
         setError(errorMessage, QStringLiteral("Could not apply remote Space order"));
         return false;
     }
@@ -970,14 +990,15 @@ bool SyncModule::restoreRemoteState(QString *errorMessage)
         for (auto &tab : tabs) {
             states.append(std::move(tab.state));
         }
-        if (!m_options.protectedTabId.isEmpty()
-            && std::ranges::none_of(states,
-                [this](const TabState &tab) { return tab.id == m_options.protectedTabId; })) {
-            const auto localTabs = m_store.loadTabs(spaces[index].id);
-            const auto protectedTab
-                = std::ranges::find(localTabs, m_options.protectedTabId, &TabState::id);
+        const auto protectedId = protectedTabId();
+        if (!protectedId.isEmpty()
+            && std::ranges::none_of(
+                states, [&protectedId](const TabState &tab) { return tab.id == protectedId; })) {
+            const auto localTabs = store.loadTabs(spaces[index].id);
+            const auto protectedTab = std::ranges::find(localTabs, protectedId, &TabState::id);
             if (protectedTab != localTabs.end()) {
                 states.append(*protectedTab);
+                m_heldBackLocalRecord = true;
             }
         }
         auto activeTabId = localActiveTabIds.value(spaces[index].id);
@@ -985,12 +1006,12 @@ bool SyncModule::restoreRemoteState(QString *errorMessage)
                 states, [&activeTabId](const TabState &tab) { return tab.id == activeTabId; })) {
             activeTabId = states.isEmpty() ? QString {} : states.constFirst().id;
         }
-        if (!m_store.saveTabs(spaces[index].id, states, activeTabId)) {
+        if (!store.saveTabs(spaces[index].id, states, activeTabId)) {
             setError(errorMessage, QStringLiteral("Could not apply remote browser state"));
             return false;
         }
     }
-    return restoreConfiguration(errorMessage) && writeAppliedRecordInventory(errorMessage);
+    return restoreConfiguration(store, errorMessage) && writeAppliedRecordInventory(errorMessage);
 }
 
 bool SyncModule::writeAppliedRecordInventory(QString *errorMessage) const
@@ -1035,12 +1056,17 @@ bool SyncModule::writeAppliedRecordInventory(QString *errorMessage) const
         }
     }
     inventory.insert(QStringLiteral("configuration"), configuration);
+    // Holding a record back leaves local state deliberately behind the checkout, so do not record
+    // this tree as applied: the next pass must come back for what was held back.
+    if (!m_heldBackLocalRecord) {
+        inventory.insert(QStringLiteral("appliedTree"), QString::fromUtf8(checkoutTree()));
+    }
     return writeJsonObject(
         QDir(m_options.dataRoot).filePath(QStringLiteral("sync/applied-records.json")), inventory,
         errorMessage);
 }
 
-bool SyncModule::writeLocalBaselineInventory(QString *errorMessage) const
+bool SyncModule::writeLocalBaselineInventory(SessionStore &store, QString *errorMessage) const
 {
     const auto path
         = QDir(m_options.dataRoot).filePath(QStringLiteral("sync/applied-records.json"));
@@ -1050,7 +1076,7 @@ bool SyncModule::writeLocalBaselineInventory(QString *errorMessage) const
     QJsonObject inventory {{QStringLiteral("version"), 1}};
     QJsonObject spaces;
     QJsonObject tabs;
-    const auto localSpaces = m_store.loadSpaces();
+    const auto localSpaces = store.loadSpaces();
     for (qsizetype spacePosition = 0; spacePosition < localSpaces.size(); ++spacePosition) {
         const auto &space = localSpaces.at(spacePosition);
         spaces.insert(space.id,
@@ -1058,7 +1084,7 @@ bool SyncModule::writeLocalBaselineInventory(QString *errorMessage) const
                 {{QStringLiteral("version"), contractVersion}, {QStringLiteral("id"), space.id},
                     {QStringLiteral("name"), space.name}, {QStringLiteral("color"), space.color},
                     {QStringLiteral("position"), spacePosition}}));
-        const auto localTabs = m_store.loadTabs(space.id);
+        const auto localTabs = store.loadTabs(space.id);
         for (qsizetype position = 0; position < localTabs.size(); ++position) {
             const auto &tab = localTabs.at(position);
             tabs.insert(tab.id,
@@ -1076,7 +1102,7 @@ bool SyncModule::writeLocalBaselineInventory(QString *errorMessage) const
     QJsonObject configuration;
     const auto missing = QString(QChar(0));
     for (const auto &name : syncedPreferences) {
-        const auto value = m_store.preference(name, missing);
+        const auto value = store.preference(name, missing);
         if (value != missing) {
             const auto contents = QJsonDocument(
                 QJsonObject {{QStringLiteral("version"), contractVersion},
@@ -1136,7 +1162,7 @@ bool SyncModule::stageConfigurationFile(
     return true;
 }
 
-bool SyncModule::restoreConfiguration(QString *errorMessage)
+bool SyncModule::restoreConfiguration(SessionStore &store, QString *errorMessage)
 {
     const auto settingsDirectory = QDir(checkoutRoot()).filePath(QStringLiteral("settings"));
     for (const auto &name : syncedPreferences) {
@@ -1147,7 +1173,7 @@ bool SyncModule::restoreConfiguration(QString *errorMessage)
         if (record.value(QStringLiteral("version")).toInt() != contractVersion
             || record.value(QStringLiteral("key")).toString() != name
             || !record.value(QStringLiteral("value")).isString()
-            || !m_store.savePreference(name, record.value(QStringLiteral("value")).toString())) {
+            || !store.savePreference(name, record.value(QStringLiteral("value")).toString())) {
             setError(errorMessage, QStringLiteral("A synced Setting is not valid"));
             return false;
         }
@@ -1200,11 +1226,11 @@ bool SyncModule::restoreConfiguration(QString *errorMessage)
     return true;
 }
 
-bool SyncModule::captureConfiguration(QString *errorMessage)
+bool SyncModule::captureConfiguration(SessionStore &store, QString *errorMessage)
 {
     const auto missing = QString(QChar(0));
     for (const auto &name : syncedPreferences) {
-        const auto value = m_store.preference(name, missing);
+        const auto value = store.preference(name, missing);
         if (value == missing) {
             continue;
         }
@@ -1251,29 +1277,52 @@ bool SyncModule::captureConfiguration(QString *errorMessage)
     return true;
 }
 
-bool SyncModule::reconcile(QString *errorMessage)
+SyncError SyncModule::reconcile(SessionStore &store)
+{
+    m_failure = SyncFailure::Failed;
+    if (!store.recordsState()) {
+        m_failure = SyncFailure::PrivateStateRefused;
+        return phaseError(QStringLiteral("Sync is unavailable in a Private window"));
+    }
+    QString message;
+    if (!reconcileRemote(store, &message)) {
+        return phaseError(message);
+    }
+    m_reconciled = true;
+    m_failure = SyncFailure::None;
+    return {};
+}
+
+QByteArray SyncModule::checkoutTree() const
+{
+    return gitOutput({QStringLiteral("rev-parse"), QStringLiteral("HEAD^{tree}")});
+}
+
+// Local state is in step with the checkout only while it still matches the tree the last apply
+// recorded. A merge that was deferred, or a record local state held back, leaves the checkout
+// ahead until an apply catches it up, however many quiet passes come in between.
+bool SyncModule::checkoutAheadOfLocalState() const
+{
+    const auto applied = readJsonObject(
+        QDir(m_options.dataRoot).filePath(QStringLiteral("sync/applied-records.json")))
+                             .value(QStringLiteral("appliedTree"))
+                             .toString();
+    return applied.isEmpty() || applied.toUtf8() != checkoutTree();
+}
+
+bool SyncModule::awaitsLocalApply() const
+{
+    return m_reconciled
+        && (m_options.intent == SyncIntent::AdoptRemote || m_remoteEpochAdvanced
+            || m_remoteStateChanged || checkoutAheadOfLocalState());
+}
+
+bool SyncModule::reconcileRemote(SessionStore &store, QString *errorMessage)
 {
     m_remoteEpochAdvanced = false;
     m_remoteStateChanged = false;
-    if (m_options.initialRemoteRestore && !m_options.deferRemoteApply) {
-        if (m_options.discardPristineLocalState) {
-            for (const auto &space : m_store.loadSpaces()) {
-                if (!m_store.deleteSpace(space.id)) {
-                    setError(
-                        errorMessage, QStringLiteral("Could not replace the initial local Space"));
-                    return false;
-                }
-            }
-        }
-        if (!restoreRemoteState(errorMessage)) {
-            return false;
-        }
-    } else if (!m_options.initialRemoteRestore && m_store.loadSpaces().isEmpty()
-        && !restoreRemoteState(errorMessage)) {
-        return false;
-    }
-    if (m_options.initialRemoteRestore && m_options.deferRemoteApply) {
-        if (!writeLocalBaselineInventory(errorMessage)) {
+    if (m_options.intent == SyncIntent::AdoptRemote) {
+        if (!writeLocalBaselineInventory(store, errorMessage)) {
             return false;
         }
         if (!runGit({QStringLiteral("fetch"), QStringLiteral("origin")}, errorMessage)) {
@@ -1285,9 +1334,12 @@ bool SyncModule::reconcile(QString *errorMessage)
         }
         return !cancelled(errorMessage);
     }
+    if (store.loadSpaces().isEmpty() && !restoreRemoteState(store, errorMessage)) {
+        return false;
+    }
     QSet<QString> currentSpaceIds;
     QSet<QString> currentTabIds;
-    const auto localSpaces = m_store.loadSpaces();
+    const auto localSpaces = store.loadSpaces();
     for (qsizetype spacePosition = 0; spacePosition < localSpaces.size(); ++spacePosition) {
         const auto &space = localSpaces.at(spacePosition);
         currentSpaceIds.insert(space.id);
@@ -1299,7 +1351,7 @@ bool SyncModule::reconcile(QString *errorMessage)
                 errorMessage)) {
             return false;
         }
-        const auto tabs = m_store.loadTabs(space.id);
+        const auto tabs = store.loadTabs(space.id);
         for (qsizetype position = 0; position < tabs.size(); ++position) {
             const auto &tab = tabs.at(position);
             currentTabIds.insert(tab.id);
@@ -1321,7 +1373,7 @@ bool SyncModule::reconcile(QString *errorMessage)
         || !tombstoneMissingRecords(QStringLiteral("tabs"), currentTabIds, errorMessage)) {
         return false;
     }
-    if (!captureConfiguration(errorMessage)) {
+    if (!captureConfiguration(store, errorMessage)) {
         return false;
     }
 
@@ -1386,33 +1438,35 @@ bool SyncModule::reconcile(QString *errorMessage)
             return false;
         }
         m_remoteStateChanged = mergedTree != localTree;
-        if (!m_options.deferRemoteApply && !restoreRemoteState(errorMessage)) {
-            return false;
-        }
     }
     if (!runGit({QStringLiteral("push"), QStringLiteral("origin"), QStringLiteral("HEAD:main")},
             errorMessage)) {
         return false;
     }
-    return compactHistoryIfNeeded(errorMessage)
-        && (m_options.deferRemoteApply || writeAppliedRecordInventory(errorMessage));
+    return compactHistoryIfNeeded(errorMessage);
 }
 
-bool SyncModule::applyRemoteState(QString *errorMessage)
+SyncError SyncModule::applyRemoteState(SessionStore &store)
 {
-    if (m_options.initialRemoteRestore && m_options.discardPristineLocalState) {
-        for (const auto &space : m_store.loadSpaces()) {
-            if (!m_store.deleteSpace(space.id)) {
-                setError(errorMessage, QStringLiteral("Could not replace the initial local Space"));
-                return false;
+    m_failure = SyncFailure::Failed;
+    if (!store.recordsState()) {
+        m_failure = SyncFailure::PrivateStateRefused;
+        return phaseError(QStringLiteral("Sync is unavailable in a Private window"));
+    }
+    m_heldBackLocalRecord = false;
+    if (m_options.intent == SyncIntent::AdoptRemote && m_options.localStateIsPristine) {
+        for (const auto &space : store.loadSpaces()) {
+            if (!store.deleteSpace(space.id)) {
+                return phaseError(QStringLiteral("Could not replace the initial local Space"));
             }
         }
     }
-    return restoreRemoteState(errorMessage);
+    QString message;
+    if (!restoreRemoteState(store, &message)) {
+        return phaseError(message);
+    }
+    m_failure = SyncFailure::None;
+    return {};
 }
-
-bool SyncModule::remoteEpochAdvanced() const { return m_remoteEpochAdvanced; }
-
-bool SyncModule::remoteStateChanged() const { return m_remoteStateChanged; }
 
 } // namespace omaweb

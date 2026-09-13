@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ForgeProvider.h"
+#include "SyncError.h"
 #include "SyncSetup.h"
 
 #include <QByteArray>
@@ -20,21 +21,16 @@ class BrowserStateExchange;
 class GitHubForge;
 class LinuxSecretStore;
 class LocalSyncState;
+class SyncModule;
 
+// What the worker thread hands back: the transaction it prepared, ready for the shell thread to
+// finish, and the local generation it started from.
 struct ReconcileResult {
-    bool succeeded = false;
-    QString errorMessage;
-    QByteArray recoveryKey;
+    SyncError error;
+    std::shared_ptr<SyncModule> transaction;
     QByteArray refreshedAccessToken;
     int refreshedAccessTokenExpiresInSeconds = 0;
-    bool remoteEpochAdvanced = false;
-    bool remoteStateChanged = false;
     quint64 localGeneration = 0;
-
-    bool requiresRemoteStateApply(bool initialRemoteRestore) const
-    {
-        return initialRemoteRestore || remoteEpochAdvanced || remoteStateChanged;
-    }
 };
 
 class SyncController final : public QObject {
@@ -94,6 +90,7 @@ private:
     void pollAuthorization();
     void clearPendingAuthorization();
     void markPending();
+    void reportFailure(const SyncError &error);
     void finishDisconnect();
 
     std::unique_ptr<LocalSyncState> m_localState;

@@ -9,8 +9,6 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 
-#include <sodium.h>
-
 #include <algorithm>
 #include <utility>
 
@@ -80,42 +78,29 @@ LocalSyncRevision LocalSyncState::checkpoint() const
         .pristine = image.pristine};
 }
 
-LocalSyncApplyResult LocalSyncState::applyRemoteState(LocalSyncApplyRequest request)
+LocalSyncApplyResult LocalSyncState::applyRemoteState(
+    SyncModule &transaction, quint64 expectedGeneration)
 {
-    const auto discardRecoveryKey = [&request] {
-        sodium_memzero(request.recoveryKey.data(), static_cast<size_t>(request.recoveryKey.size()));
-    };
     if (!eligible()) {
-        discardRecoveryKey();
         return {.status = LocalSyncApplyStatus::Refused,
-            .failure = LocalSyncFailureCode::PrivateStateRefused,
-            .errorMessage = QStringLiteral("Sync is unavailable in a Private window")};
+            .error = {.failure = SyncFailure::PrivateStateRefused,
+                .message = QStringLiteral("Sync is unavailable in a Private window")}};
     }
-    if (request.expectedGeneration != m_generation) {
-        discardRecoveryKey();
+    if (expectedGeneration != m_generation) {
         return {.status = LocalSyncApplyStatus::Stale,
-            .failure = LocalSyncFailureCode::LocalStateChanged,
-            .errorMessage = QStringLiteral("Local browser state changed during Sync")};
+            .error = {.failure = SyncFailure::LocalStateChanged,
+                .message = QStringLiteral("Local browser state changed during Sync")}};
     }
 
     const auto before = fingerprints(m_exchange.capture(selection()));
-    QString errorMessage;
+    QString storeError;
     SqliteSessionStore store(m_dataRoot);
-    SyncModule sync(store,
-        {.dataRoot = m_dataRoot,
-            .configRoot = m_configRoot,
-            .remoteUrl = std::move(request.remoteUrl),
-            .machineId = std::move(request.machineId),
-            .recoveryKey = std::move(request.recoveryKey),
-            .protectedTabId = std::move(request.protectedTabId),
-            .initialRemoteRestore = request.initialRemoteRestore,
-            .discardPristineLocalState = request.discardPristineLocalState,
-            .replaceLocalState = request.replaceLocalState});
-    if (!store.open(&errorMessage) || !sync.open(&errorMessage)
-        || !sync.applyRemoteState(&errorMessage)) {
+    if (!store.open(&storeError)) {
         return {.status = LocalSyncApplyStatus::Failed,
-            .failure = LocalSyncFailureCode::StorageFailed,
-            .errorMessage = errorMessage};
+            .error = {.failure = SyncFailure::Failed, .message = storeError}};
+    }
+    if (const auto applied = transaction.applyRemoteState(store)) {
+        return {.status = LocalSyncApplyStatus::Failed, .error = applied};
     }
 
     const auto after = fingerprints(m_exchange.capture(selection()));
@@ -135,8 +120,7 @@ LocalSyncApplyResult LocalSyncState::applyRemoteState(LocalSyncApplyRequest requ
     m_fingerprints = after;
     return {.status = changed == BrowserStateSections {} ? LocalSyncApplyStatus::NoChange
                                                          : LocalSyncApplyStatus::Applied,
-        .failure = LocalSyncFailureCode::None,
-        .errorMessage = {}};
+        .error = {}};
 }
 
 BrowserStateSelection LocalSyncState::selection()

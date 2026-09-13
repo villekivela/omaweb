@@ -1,15 +1,17 @@
 #pragma once
 
 #include "BrowserStateExchange.h"
+#include "SyncError.h"
 
 #include <QByteArray>
 #include <QFileSystemWatcher>
 #include <QObject>
 #include <QString>
 #include <QTimer>
-#include <QUrl>
 
 namespace omaweb {
+
+class SyncModule;
 
 struct LocalSyncRevision {
     quint64 generation = 0;
@@ -19,23 +21,9 @@ struct LocalSyncRevision {
 
 enum class LocalSyncApplyStatus { Applied, NoChange, Stale, Refused, Failed };
 
-enum class LocalSyncFailureCode { None, PrivateStateRefused, LocalStateChanged, StorageFailed };
-
-struct LocalSyncApplyRequest {
-    quint64 expectedGeneration = 0;
-    QUrl remoteUrl;
-    QString machineId;
-    QString protectedTabId;
-    QByteArray recoveryKey;
-    bool initialRemoteRestore = false;
-    bool discardPristineLocalState = false;
-    bool replaceLocalState = false;
-};
-
 struct LocalSyncApplyResult {
     LocalSyncApplyStatus status = LocalSyncApplyStatus::Failed;
-    LocalSyncFailureCode failure = LocalSyncFailureCode::None;
-    QString errorMessage;
+    SyncError error;
 };
 
 class LocalSyncState final : public QObject {
@@ -47,7 +35,8 @@ public:
 
     bool eligible() const;
     LocalSyncRevision checkpoint() const;
-    LocalSyncApplyResult applyRemoteState(LocalSyncApplyRequest request);
+    // Finishes a reconciliation that the worker thread prepared, on the store this thread owns.
+    LocalSyncApplyResult applyRemoteState(SyncModule &transaction, quint64 expectedGeneration);
 
 signals:
     void meaningfulChange(quint64 generation);
