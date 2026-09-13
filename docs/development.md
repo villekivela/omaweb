@@ -74,10 +74,16 @@ is how a layout change is reviewed at a font size the page was not written at: p
 the Space with a day's worth of tabs, some of them pinned: the lab otherwise comes up on a Space at
 rest, which draws neither the Pinned section nor the tab list, so the sidebar is the one part of the
 chrome a capture cannot reach. The blank tab stays the one on show, so the viewport still draws the
-Start page. Pass `--capture <path>` to render one frame to a PNG and exit, which works headlessly
-with `QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software` for reviewing chrome changes without a
-desktop session. Development presets load QML, themes, and the icon font directly from the source
-tree. Editing those files requires an application restart but no compile or relink.
+Start page. `--spaces` seeds two more Spaces with pages of their own, before the interface loads, so
+a Space switch has somewhere to go. Pass `--capture <path>` to render one frame to a PNG and exit,
+which works headlessly with `QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software` for reviewing
+chrome changes without a desktop session. The chrome's movements are reviewed the same way:
+`--show space-step`, `tab-step`, `omnibar-step` and `settings-step` run the switch or the opening
+shortly before the capture, so the frame lands part way through it, and the `-settled` spelling of
+each runs it early enough to land at rest. The leaving list's picture and the command panel's growth
+need the hardware renderer, so those two captures go without `QT_QUICK_BACKEND=software`.
+Development presets load QML, themes, and the icon font directly from the source tree. Editing those
+files requires an application restart but no compile or relink.
 
 The `release` preset compiles the QML ahead of time instead: the shared UI, the vendored kit and the
 engine view each become a static library that `qt_add_qml_module` runs `qmlcachegen` over, so
