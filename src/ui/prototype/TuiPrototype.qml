@@ -11,14 +11,17 @@ ApplicationWindow {
     id: window
 
     // `--prototype B:picker,sidebar` opens the named states for a capture.
-    property string variant: "D"
+    property string variant: "E"
     property string openStates: ""
-    readonly property var variants: ["A", "B", "C", "D"]
+    readonly property var variants: ["E", "F", "G", "A", "C", "D", "B"]
     readonly property var variantNames: ({
                                              "A": "Lualine — plain, dense, hairlines",
                                              "B": "HUD — brackets, ruled ground, tracked titles",
                                              "C": "Tmux — status on top, floats hang down",
-                                             "D": "A + C — bottom line, Spaces listed, numbered tree"
+                                             "D": "A + C — bottom line, Spaces listed, numbered tree",
+                                             "E": "Phosphor — terminal in a bezel, glow, scanlines",
+                                             "F": "Horizon — synthwave grid, chamfers, display type",
+                                             "G": "Deck — cassette futurism, bevels, LEDs"
                                          })
 
     width: 1360
