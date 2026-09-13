@@ -39,7 +39,7 @@ ApplicationWindow {
     // Whether hiding or showing the sidebar is a movement or a step. The ease
     // is what most readers want and what the seam is written for, so refusing
     // it is the reader's to ask for.
-    property bool easeSidebar: true
+    property bool easeChrome: true
     property bool useFavicons: true
     // A favicon is how a reader finds a tab without reading it, so it is shown
     // as the site drew it. Recolouring every mark to one hue takes away the one
@@ -355,6 +355,7 @@ ApplicationWindow {
 
     function openCommandPanel() {
         commandPanel.beginCommand();
+        commandPanel.origin = window.omnibarOrigin();
         omnibarOpen = true;
     }
 
@@ -985,7 +986,7 @@ ApplicationWindow {
     function restoreChromeAppearance() {
         window.floatingControls = window.windowBrowser.preference("floating-controls", "true")
                 === "true";
-        window.easeSidebar = window.windowBrowser.preference("ease-sidebar", "true") === "true";
+        window.easeChrome = window.windowBrowser.preference("ease-sidebar", "true") === "true";
     }
 
     function setFloatingControls(enabled) {
@@ -993,8 +994,12 @@ ApplicationWindow {
         window.windowBrowser.setPreference("floating-controls", enabled ? "true" : "false");
     }
 
-    function setEaseSidebar(enabled) {
-        window.easeSidebar = enabled;
+    // The setting outgrew its name: it began as the sidebar's ease and now
+    // refuses every movement in the chrome. The stored key keeps the old name,
+    // since it is one of the four Sync carries (ADR 0039) and a renamed key
+    // would need a migration on every installation for a word.
+    function setEaseChrome(enabled) {
+        window.easeChrome = enabled;
         window.windowBrowser.setPreference("ease-sidebar", enabled ? "true" : "false");
     }
 
@@ -1396,7 +1401,16 @@ ApplicationWindow {
         if (!window.privateWindow)
             window.windowBrowser.requestHistorySuggestions(preset);
         commandPanel.beginAddress(preset, forNewTab);
+        commandPanel.origin = window.omnibarOrigin();
         omnibarOpen = true;
+    }
+
+    // Where the panel grows from: the address field when the sidebar shows
+    // it, nothing otherwise, so the panel arrives from above its own place.
+    function omnibarOrigin() {
+        if (sidebarCollapsed && chromeRow.peekRevealed === 0)
+            return Qt.rect(0, 0, 0, 0);
+        return sidebar.addressOrigin(commandPanel);
     }
 
     // The profile the Space on show runs in. Which is the same table every
@@ -1629,7 +1643,7 @@ ApplicationWindow {
                 // makes on its own, so the seam settles in the frame the
                 // sidebar was hidden in and the page lays out once, as it does
                 // at the end of the movement.
-                enabled: window.easeSidebar
+                enabled: window.easeChrome
 
                 NumberAnimation {
                     id: seamEase
@@ -1639,7 +1653,7 @@ ApplicationWindow {
             }
 
             Behavior on peekRevealed {
-                enabled: window.easeSidebar
+                enabled: window.easeChrome
 
                 NumberAnimation {
                     duration: 120
@@ -1664,7 +1678,10 @@ ApplicationWindow {
                                                                        * width : 0)
                 visible: chromeRow.seam > 0 || (chromeRow.peekRevealed > 0 &&
                                                 !engineLoader.siteFullscreenActive)
-                z: chromeRow.peekRevealed > 0 ? 10 : 0
+                // Above the page while a Space arrives, so a page arriving
+                // from the left slides in from under the shelf rather than
+                // over it.
+                z: chromeRow.peekRevealed > 0 || sidebar.arriving ? 10 : 0
                 colors: window.colors
                 iconFontFamily: materialSymbols.name
                 browser: window.windowBrowser
@@ -1672,6 +1689,7 @@ ApplicationWindow {
                 collapsed: window.sidebarCollapsed
                 floating: chromeRow.peekRevealed > 0 && window.sidebarCollapsed
                 blocker: contentBlocker
+                easeSpaces: window.easeChrome
                 connectionState: window.connectionState
                 certificateDecisionsAvailable: window.certificateDecisionsAvailable
                 thirdPartyCookieControlAvailable: window.thirdPartyCookieControlAvailable
@@ -1747,11 +1765,29 @@ ApplicationWindow {
                 }
             }
 
+            // What shows where the page is not while it arrives: the page's
+            // own opaque ground, standing still, rather than the desktop.
+            Rectangle {
+                x: chromeRow.seam
+                width: chromeRow.width - chromeRow.pageInset
+                height: parent.height
+                visible: sidebar.arriving
+                color: window.pagelessViewport ? window.colors.sheet : window.colors.windowOpaque
+            }
+
             Item {
                 objectName: "engineViewport"
                 x: chromeRow.seam
                 width: chromeRow.width - chromeRow.pageInset
                 height: parent.height
+                // The page arrives with the Space, from the side the sidebar's
+                // list arrives from, by a fraction of the list's travel: it is
+                // the heavy thing on the screen and only has to agree about
+                // the direction. A slide and nothing else, so the viewport is
+                // never drawn through a layer.
+                transform: Translate {
+                    x: sidebar.arriving ? sidebar.arrivalOffset * 32 : 0
+                }
 
                 // The shell around it is translucent by theme; a webpage viewport
                 // never is, so it gets its own opaque backing rather than
@@ -1769,6 +1805,16 @@ ApplicationWindow {
 
                 TabEngineHost {
                     id: engineLoader
+                    // A tab further down the list arrives from below, one
+                    // further up from above, and a pin further along the row
+                    // from the right, by less than a row: the arriving page
+                    // alone, over the ground that stays.
+                    tabNudgeX: sidebar.tabOffsetX
+                    tabNudgeY: sidebar.tabOffsetY
+                    // A page arriving from the left would otherwise start
+                    // over the seam and paint the sidebar's edge out for the
+                    // length of the nudge.
+                    clip: sidebar.tabOffsetX !== 0
                     anchors.left: parent.left
                     anchors.top: parent.top
                     anchors.bottom: parent.bottom
@@ -1952,6 +1998,15 @@ ApplicationWindow {
                     id: startPage
                     anchors.fill: parent
                     z: 30
+                    SheetLift {
+                        id: startPageLift
+                        shown: startPage.open
+                        ease: window.easeChrome
+                    }
+                    lift: startPageLift.y
+                    opacity: startPageLift.progress
+                    // Drawn for the length of the drop.
+                    visible: startPageLift.showing
                     colors: window.colors
                     iconFontFamily: materialSymbols.name
                     commands: browserCommands
@@ -2178,6 +2233,15 @@ ApplicationWindow {
                     objectName: "settingsSurface"
                     anchors.fill: parent
                     z: 45
+                    SheetLift {
+                        id: settingsLift
+                        shown: settingsSurface.open
+                        ease: window.easeChrome
+                    }
+                    lift: settingsLift.y
+                    opacity: settingsLift.progress
+                    // Drawn for the length of the drop.
+                    visible: settingsLift.showing
                     colors: window.colors
                     iconFontFamily: materialSymbols.name
                     browser: window.windowBrowser
@@ -2191,7 +2255,7 @@ ApplicationWindow {
                     useFavicons: window.useFavicons
                     tintFavicons: window.tintFavicons
                     floatingControls: window.floatingControls
-                    easeSidebar: window.easeSidebar
+                    easeChrome: window.easeChrome
                     retainedTabs: window.visibleRetainedTabs
 
                     downloads: window.downloads
@@ -2238,8 +2302,8 @@ ApplicationWindow {
                     onFloatingControlsToggled: function (enabled) {
                         window.setFloatingControls(enabled);
                     }
-                    onEaseSidebarToggled: function (enabled) {
-                        window.setEaseSidebar(enabled);
+                    onEaseChromeToggled: function (enabled) {
+                        window.setEaseChrome(enabled);
                     }
                 }
 
@@ -2247,6 +2311,15 @@ ApplicationWindow {
                     id: historySurface
                     anchors.fill: parent
                     z: 46
+                    SheetLift {
+                        id: historyLift
+                        shown: historySurface.open
+                        ease: window.easeChrome
+                    }
+                    lift: historyLift.y
+                    opacity: historyLift.progress
+                    // Drawn for the length of the drop.
+                    visible: historyLift.showing
                     colors: window.colors
                     iconFontFamily: materialSymbols.name
                     browser: window.windowBrowser
@@ -2916,6 +2989,7 @@ ApplicationWindow {
         // The window content behind the overlay, not the overlay's own parent,
         // so the blur never samples itself.
         backdropSource: shell
+        ease: window.easeChrome
         open: window.omnibarOpen
         suggestions: window.omnibarSuggestions
 

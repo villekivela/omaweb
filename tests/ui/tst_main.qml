@@ -1233,7 +1233,9 @@ TestCase {
             return dialog.open;
         });
         // One surface holds the question: the panel goes away behind it.
-        verify(!panel.visible);
+        tryVerify(function () {
+            return !panel.visible;
+        });
         return dialog;
     }
 
@@ -1443,10 +1445,13 @@ TestCase {
         tryVerify(function () {
             return panel.visible;
         });
+        // The panel unfolds from the address, so its place is read once it
+        // has settled there.
         const addressBottom = address.mapToItem(window.contentItem, 0, address.height).y;
-        const panelTop = panel.mapToItem(window.contentItem, 0, 0).y;
-        verify(panelTop >= addressBottom + 6);
-        verify(panelTop <= addressBottom + 10);
+        tryVerify(function () {
+            const panelTop = panel.mapToItem(window.contentItem, 0, 0).y;
+            return panelTop >= addressBottom + 6 && panelTop <= addressBottom + 10;
+        });
 
         keyClick(Qt.Key_Escape);
         tryVerify(function () {
@@ -1584,7 +1589,7 @@ TestCase {
         const backdrop = findChild(window.contentItem, "sidebarBackdrop");
         const engineViewport = findChild(window.contentItem, "engineViewport");
         window.floatingControls = data.floating;
-        window.easeSidebar = data.eased;
+        window.easeChrome = data.eased;
         mouseMove(window.contentItem, window.width / 2, window.height / 2);
         window.sidebarCollapsed = true;
         tryCompare(sidebar, "visible", false);
@@ -1625,7 +1630,7 @@ TestCase {
         compare(window.sidebarCollapsed, true);
         compare(backdrop.visible, false);
         window.floatingControls = true;
-        window.easeSidebar = true;
+        window.easeChrome = true;
     }
 
     function test_spaceActionsAreInSettings() {
@@ -3061,7 +3066,9 @@ TestCase {
         compare(browser.activeUrl.toString(), "https://opened.example/page");
         compare(engineLoader.engines[openedTabId], openedEngine);
         compare(engineLoader.item, openedEngine);
-        verify(!startPage.visible);
+        tryVerify(function () {
+            return !startPage.visible;
+        });
 
         // The address the navigation commits to is the one the tab takes.
         openedEngine.currentUrl = "https://opened.example/next";
@@ -3454,7 +3461,9 @@ TestCase {
         const settingsSurface = findChild(window.contentItem, "settingsSurface");
         verify(settingsButton !== null);
         verify(settingsSurface !== null);
-        verify(!settingsSurface.visible);
+        tryVerify(function () {
+            return !settingsSurface.visible;
+        });
         // A page to cover, so the backdrop below has something to blur.
         openPage("https://under-settings.example");
 
@@ -3567,7 +3576,9 @@ TestCase {
     function test_theKeymapOpensSettings() {
         const settingsSurface = findChild(window.contentItem, "settingsSurface");
         verify(settingsSurface !== null);
-        verify(!settingsSurface.visible);
+        tryVerify(function () {
+            return !settingsSurface.visible;
+        });
         compare(keyboardNavigation.browserBindings["Primary+,"], "settings");
 
         window.requestActivate();
@@ -3600,7 +3611,9 @@ TestCase {
             keyClick(Qt.Key_J, Qt.ShiftModifier);
             keyClick(Qt.Key_Escape);
 
-            verify(!settings.visible);
+            tryVerify(function () {
+                return !settings.visible;
+            });
             compare(browser.activeTabId, activeTab);
         } finally {
             window.settingsOpen = false;
@@ -3635,7 +3648,9 @@ TestCase {
             wait(50);
             verify(settings.activeFocus);
             keyClick(Qt.Key_Escape);
-            verify(!settings.visible);
+            tryVerify(function () {
+                return !settings.visible;
+            });
         } finally {
             window.settingsOpen = false;
             browser.closeTab(addedTab);
@@ -4102,19 +4117,19 @@ TestCase {
         window.setSidebarWidth(window.sidebarDefaultWidth);
         const sidebar = findChild(window.contentItem, "sidebar");
         const viewport = findChild(window.contentItem, "engineViewport");
-        const easeSidebar = findChild(window.contentItem, "easeSidebar");
+        const easeChrome = findChild(window.contentItem, "easeChrome");
         verify(sidebar !== null);
         verify(viewport !== null);
-        verify(easeSidebar !== null);
-        compare(window.easeSidebar, true);
+        verify(easeChrome !== null);
+        compare(window.easeChrome, true);
         tryVerify(function () {
             return Math.round(sidebar.x) === 0 && Math.round(viewport.x)
                     === window.sidebarDefaultWidth;
         });
         const row = Math.round(sidebar.x + sidebar.width + viewport.width);
 
-        easeSidebar.clicked();
-        compare(window.easeSidebar, false);
+        easeChrome.clicked();
+        compare(window.easeChrome, false);
         compare(browser.preference("ease-sidebar", "true"), "false");
 
         viewportWidthSpy.target = viewport;
@@ -4134,8 +4149,8 @@ TestCase {
         compare(viewportWidthSpy.count, 1);
         viewportWidthSpy.target = null;
 
-        easeSidebar.clicked();
-        compare(window.easeSidebar, true);
+        easeChrome.clicked();
+        compare(window.easeChrome, true);
         compare(browser.preference("ease-sidebar", "true"), "true");
     }
 
@@ -4556,8 +4571,8 @@ TestCase {
     function test_pageLoadingIndicatorMovesWithSidebarEasingDisabled() {
         const indicator = findChild(window.contentItem, "pageLoadingIndicator");
         const engine = openPage("https://loading-steady.example/page");
-        const originalEaseSidebar = window.easeSidebar;
-        window.easeSidebar = false;
+        const originalEaseChrome = window.easeChrome;
+        window.easeChrome = false;
         engine.loading = true;
         tryVerify(function () {
             return indicator.visible;
@@ -4571,7 +4586,7 @@ TestCase {
 
         engine.stopLoading();
         tryCompare(indicator, "visible", false);
-        window.easeSidebar = originalEaseSidebar;
+        window.easeChrome = originalEaseChrome;
     }
 
     function test_pageLoadingIndicatorFadesAndCanResumeDuringExit() {

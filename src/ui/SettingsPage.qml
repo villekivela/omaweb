@@ -71,6 +71,11 @@ Rectangle {
                                                                               })
     readonly property bool syncAvailable: root.browser ? !root.browser.privateBrowsing : false
     property bool open: false
+    // How far below its place the sheet's content stands, in pixels, while
+    // the sheet arrives or leaves. The backdrop stays where it is: a ground
+    // that moved would show the page's edge above it for the length of the
+    // lift.
+    property real lift: 0
     property int section: 0
     // The window's download list. A model rather than an array: it says when
     // it changes, so this page never asks for it again.
@@ -87,7 +92,7 @@ Rectangle {
     property bool useFavicons: true
     property bool tintFavicons: false
     property bool floatingControls: true
-    property bool easeSidebar: true
+    property bool easeChrome: true
     property string lastReportedSyncError: ""
     property var engines: []
     // Every tab still running for a Space that is not on show, and what each
@@ -283,7 +288,7 @@ Rectangle {
     signal useFaviconsToggled(bool enabled)
     signal tintFaviconsToggled(bool enabled)
     signal floatingControlsToggled(bool enabled)
-    signal easeSidebarToggled(bool enabled)
+    signal easeChromeToggled(bool enabled)
 
     Dialogs.FileDialog {
         id: recoveryKeySaveDialog
@@ -394,6 +399,9 @@ Rectangle {
 
     Item {
         id: header
+        transform: Translate {
+            y: root.lift
+        }
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.top: parent.top
@@ -450,6 +458,9 @@ Rectangle {
 
     Row {
         id: body
+        transform: Translate {
+            y: root.lift
+        }
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.top: header.bottom
@@ -636,14 +647,14 @@ Rectangle {
                     }
 
                     SettingToggle {
-                        objectName: "easeSidebar"
+                        objectName: "easeChrome"
                         width: pane.width
                         colors: root.colors
-                        title: "Ease the sidebar"
-                        note: "Slide the sidebar and the page as the sidebar is hidden or shown. When off, both arrive at once."
-                        accessibleName: "Ease the sidebar"
-                        checked: root.easeSidebar
-                        onClicked: root.easeSidebarToggled(!checked)
+                        title: "Ease the chrome"
+                        note: "Slide the sidebar, the outline, the page and every panel and sheet into place as they open, switch and close. When off, everything arrives at once."
+                        accessibleName: "Ease the chrome"
+                        checked: root.easeChrome
+                        onClicked: root.easeChromeToggled(!checked)
                     }
                 }
 

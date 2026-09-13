@@ -72,6 +72,11 @@ Item {
                 easing.type: Easing.OutCubic
             }
         }
+        // The notice comes down from the top edge as it fades in, and goes
+        // back up as it fades out: it belongs to the edge, not to the page.
+        transform: Translate {
+            y: (fade.opacity - 1) * 8
+        }
 
         Row {
             id: body
