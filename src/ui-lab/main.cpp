@@ -392,7 +392,7 @@ int main(int argc, char *argv[])
                 {{"", "sidebarCollapsed", true}, {"", "sidebarPeeked", false}}},
             {QStringLiteral("peek"),
                 {{"", "sidebarCollapsed", true}, {"", "sidebarPeeked", true},
-                    {"", "floatingControls", false}, {"", "easeSidebar", false}}},
+                    {"", "floatingControls", false}, {"", "easeChrome", false}}},
             {QStringLiteral("settings"), {{"", "settingsOpen", true}}},
             {QStringLiteral("settings:clear"),
                 {{"", "settingsOpen", true}, {"settingsSurface", "clearDataOpen", true}}},

@@ -4,8 +4,7 @@ import QtQuick
 // place in the chrome's overlay time, and the drop it makes as it closes,
 // back the way it came and quicker. A sheet's `transform` is one of these,
 // its opacity follows `progress`, and its visibility follows `showing`, so
-// it stays drawn for the length of the drop. `ease` is the reader's refusal
-// of the sidebar ease, which refuses this too.
+// it stays drawn for the length of the drop. `ease` is the reader's chrome ease.
 Translate {
     id: lift
 

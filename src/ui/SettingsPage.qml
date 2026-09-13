@@ -92,7 +92,7 @@ Rectangle {
     property bool useFavicons: true
     property bool tintFavicons: false
     property bool floatingControls: true
-    property bool easeSidebar: true
+    property bool easeChrome: true
     property string lastReportedSyncError: ""
     property var engines: []
     // Every tab still running for a Space that is not on show, and what each
@@ -288,7 +288,7 @@ Rectangle {
     signal useFaviconsToggled(bool enabled)
     signal tintFaviconsToggled(bool enabled)
     signal floatingControlsToggled(bool enabled)
-    signal easeSidebarToggled(bool enabled)
+    signal easeChromeToggled(bool enabled)
 
     Dialogs.FileDialog {
         id: recoveryKeySaveDialog
@@ -647,14 +647,14 @@ Rectangle {
                     }
 
                     SettingToggle {
-                        objectName: "easeSidebar"
+                        objectName: "easeChrome"
                         width: pane.width
                         colors: root.colors
-                        title: "Ease the sidebar"
-                        note: "Slide the sidebar and the page as the sidebar is hidden or shown. When off, both arrive at once."
-                        accessibleName: "Ease the sidebar"
-                        checked: root.easeSidebar
-                        onClicked: root.easeSidebarToggled(!checked)
+                        title: "Ease the chrome"
+                        note: "Slide the sidebar, the outline, the page and every panel and sheet into place as they open, switch and close. When off, everything arrives at once."
+                        accessibleName: "Ease the chrome"
+                        checked: root.easeChrome
+                        onClicked: root.easeChromeToggled(!checked)
                     }
                 }
 

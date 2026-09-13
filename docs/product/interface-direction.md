@@ -46,9 +46,9 @@ Motion is felt rather than watched: it says which way something went, and no mor
   move.
 - Idle chrome draws no frames. The one thing that animates unprompted is the page loading indicator,
   while a page loads.
-- One switch refuses all of it. The reader's refusal of the sidebar ease refuses every movement
-  here, which is also the reduced-motion answer. The setting is still named for the sidebar and
-  wants renaming once the direction holds.
+- One switch refuses all of it. "Ease the chrome" in Settings, which began as the sidebar's ease,
+  refuses every movement here, which is also the reduced-motion answer. Its stored key stays
+  `ease-sidebar`, since Sync carries it (ADR 0039).
 
 ## Cost
 

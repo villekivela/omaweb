@@ -1589,7 +1589,7 @@ TestCase {
         const backdrop = findChild(window.contentItem, "sidebarBackdrop");
         const engineViewport = findChild(window.contentItem, "engineViewport");
         window.floatingControls = data.floating;
-        window.easeSidebar = data.eased;
+        window.easeChrome = data.eased;
         mouseMove(window.contentItem, window.width / 2, window.height / 2);
         window.sidebarCollapsed = true;
         tryCompare(sidebar, "visible", false);
@@ -1630,7 +1630,7 @@ TestCase {
         compare(window.sidebarCollapsed, true);
         compare(backdrop.visible, false);
         window.floatingControls = true;
-        window.easeSidebar = true;
+        window.easeChrome = true;
     }
 
     function test_spaceActionsAreInSettings() {
@@ -4117,19 +4117,19 @@ TestCase {
         window.setSidebarWidth(window.sidebarDefaultWidth);
         const sidebar = findChild(window.contentItem, "sidebar");
         const viewport = findChild(window.contentItem, "engineViewport");
-        const easeSidebar = findChild(window.contentItem, "easeSidebar");
+        const easeChrome = findChild(window.contentItem, "easeChrome");
         verify(sidebar !== null);
         verify(viewport !== null);
-        verify(easeSidebar !== null);
-        compare(window.easeSidebar, true);
+        verify(easeChrome !== null);
+        compare(window.easeChrome, true);
         tryVerify(function () {
             return Math.round(sidebar.x) === 0 && Math.round(viewport.x)
                     === window.sidebarDefaultWidth;
         });
         const row = Math.round(sidebar.x + sidebar.width + viewport.width);
 
-        easeSidebar.clicked();
-        compare(window.easeSidebar, false);
+        easeChrome.clicked();
+        compare(window.easeChrome, false);
         compare(browser.preference("ease-sidebar", "true"), "false");
 
         viewportWidthSpy.target = viewport;
@@ -4149,8 +4149,8 @@ TestCase {
         compare(viewportWidthSpy.count, 1);
         viewportWidthSpy.target = null;
 
-        easeSidebar.clicked();
-        compare(window.easeSidebar, true);
+        easeChrome.clicked();
+        compare(window.easeChrome, true);
         compare(browser.preference("ease-sidebar", "true"), "true");
     }
 
@@ -4571,8 +4571,8 @@ TestCase {
     function test_pageLoadingIndicatorMovesWithSidebarEasingDisabled() {
         const indicator = findChild(window.contentItem, "pageLoadingIndicator");
         const engine = openPage("https://loading-steady.example/page");
-        const originalEaseSidebar = window.easeSidebar;
-        window.easeSidebar = false;
+        const originalEaseChrome = window.easeChrome;
+        window.easeChrome = false;
         engine.loading = true;
         tryVerify(function () {
             return indicator.visible;
@@ -4586,7 +4586,7 @@ TestCase {
 
         engine.stopLoading();
         tryCompare(indicator, "visible", false);
-        window.easeSidebar = originalEaseSidebar;
+        window.easeChrome = originalEaseChrome;
     }
 
     function test_pageLoadingIndicatorFadesAndCanResumeDuringExit() {

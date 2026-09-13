@@ -49,7 +49,7 @@ Rectangle {
     // movement, in the direction the reader chose. The leaving list is a
     // picture taken while it was at rest, since the models have already
     // become the next Space's by the time the switch is heard. `easeSpaces`
-    // is the reader's refusal of the sidebar ease, which refuses this too.
+    // is the reader's chrome ease.
     property bool easeSpaces: true
     property int settledSpaceRow: activeSpaceRow()
     property bool arriving: false

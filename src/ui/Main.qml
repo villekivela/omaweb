@@ -39,7 +39,7 @@ ApplicationWindow {
     // Whether hiding or showing the sidebar is a movement or a step. The ease
     // is what most readers want and what the seam is written for, so refusing
     // it is the reader's to ask for.
-    property bool easeSidebar: true
+    property bool easeChrome: true
     property bool useFavicons: true
     // A favicon is how a reader finds a tab without reading it, so it is shown
     // as the site drew it. Recolouring every mark to one hue takes away the one
@@ -986,7 +986,7 @@ ApplicationWindow {
     function restoreChromeAppearance() {
         window.floatingControls = window.windowBrowser.preference("floating-controls", "true")
                 === "true";
-        window.easeSidebar = window.windowBrowser.preference("ease-sidebar", "true") === "true";
+        window.easeChrome = window.windowBrowser.preference("ease-sidebar", "true") === "true";
     }
 
     function setFloatingControls(enabled) {
@@ -994,8 +994,12 @@ ApplicationWindow {
         window.windowBrowser.setPreference("floating-controls", enabled ? "true" : "false");
     }
 
-    function setEaseSidebar(enabled) {
-        window.easeSidebar = enabled;
+    // The setting outgrew its name: it began as the sidebar's ease and now
+    // refuses every movement in the chrome. The stored key keeps the old name,
+    // since it is one of the four Sync carries (ADR 0039) and a renamed key
+    // would need a migration on every installation for a word.
+    function setEaseChrome(enabled) {
+        window.easeChrome = enabled;
         window.windowBrowser.setPreference("ease-sidebar", enabled ? "true" : "false");
     }
 
@@ -1639,7 +1643,7 @@ ApplicationWindow {
                 // makes on its own, so the seam settles in the frame the
                 // sidebar was hidden in and the page lays out once, as it does
                 // at the end of the movement.
-                enabled: window.easeSidebar
+                enabled: window.easeChrome
 
                 NumberAnimation {
                     id: seamEase
@@ -1649,7 +1653,7 @@ ApplicationWindow {
             }
 
             Behavior on peekRevealed {
-                enabled: window.easeSidebar
+                enabled: window.easeChrome
 
                 NumberAnimation {
                     duration: 120
@@ -1685,7 +1689,7 @@ ApplicationWindow {
                 collapsed: window.sidebarCollapsed
                 floating: chromeRow.peekRevealed > 0 && window.sidebarCollapsed
                 blocker: contentBlocker
-                easeSpaces: window.easeSidebar
+                easeSpaces: window.easeChrome
                 connectionState: window.connectionState
                 certificateDecisionsAvailable: window.certificateDecisionsAvailable
                 thirdPartyCookieControlAvailable: window.thirdPartyCookieControlAvailable
@@ -1997,7 +2001,7 @@ ApplicationWindow {
                     SheetLift {
                         id: startPageLift
                         shown: startPage.open
-                        ease: window.easeSidebar
+                        ease: window.easeChrome
                     }
                     lift: startPageLift.y
                     opacity: startPageLift.progress
@@ -2232,7 +2236,7 @@ ApplicationWindow {
                     SheetLift {
                         id: settingsLift
                         shown: settingsSurface.open
-                        ease: window.easeSidebar
+                        ease: window.easeChrome
                     }
                     lift: settingsLift.y
                     opacity: settingsLift.progress
@@ -2251,7 +2255,7 @@ ApplicationWindow {
                     useFavicons: window.useFavicons
                     tintFavicons: window.tintFavicons
                     floatingControls: window.floatingControls
-                    easeSidebar: window.easeSidebar
+                    easeChrome: window.easeChrome
                     retainedTabs: window.visibleRetainedTabs
 
                     downloads: window.downloads
@@ -2298,8 +2302,8 @@ ApplicationWindow {
                     onFloatingControlsToggled: function (enabled) {
                         window.setFloatingControls(enabled);
                     }
-                    onEaseSidebarToggled: function (enabled) {
-                        window.setEaseSidebar(enabled);
+                    onEaseChromeToggled: function (enabled) {
+                        window.setEaseChrome(enabled);
                     }
                 }
 
@@ -2310,7 +2314,7 @@ ApplicationWindow {
                     SheetLift {
                         id: historyLift
                         shown: historySurface.open
-                        ease: window.easeSidebar
+                        ease: window.easeChrome
                     }
                     lift: historyLift.y
                     opacity: historyLift.progress
@@ -2985,7 +2989,7 @@ ApplicationWindow {
         // The window content behind the overlay, not the overlay's own parent,
         // so the blur never samples itself.
         backdropSource: shell
-        ease: window.easeSidebar
+        ease: window.easeChrome
         open: window.omnibarOpen
         suggestions: window.omnibarSuggestions
 
