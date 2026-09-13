@@ -2,7 +2,6 @@
 #include "BrowserStateExchange.h"
 #include "LocalSyncState.h"
 #include "SyncModule.h"
-#include "SyncController.h"
 #include "SyncSetup.h"
 #include "SecretStore.h"
 #include "GitHubForge.h"
@@ -32,7 +31,6 @@ using omaweb::BrowserStateExchangeAdapter;
 using omaweb::LocalSyncApplyStatus;
 using omaweb::LocalSyncState;
 using omaweb::PrivateSessionStore;
-using omaweb::ReconcileResult;
 using omaweb::SpaceListModel;
 using omaweb::SpaceState;
 using omaweb::SpaceStorage;

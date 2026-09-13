@@ -46,13 +46,16 @@ Structural state commits transactionally. High-frequency presentation state save
 debounce. Engine caches and compiled blocker data are disposable and never enter Sync.
 
 Sync has two adapters around one record model. A forge adapter authorizes an identity and provisions
-the private repository; a git adapter reconciles its files. The core launcher knows only the
-versioned Feature-module contract and loads the Linux plugin after explicit connection or an enabled
-marker. That contract carries one provider-neutral browser-state exchange rather than handing core
-modules to Sync individually. The exchange can expose only persistent non-secret browser state and
-the active selection metadata needed to preserve the local view. The Sync module owns the positive
-Sync projection, compares its fingerprints after coarse change hints, and ignores that selection
-without depending on model roles.
+the private repository; a git adapter reconciles its files. One lifecycle owner sits between them
+and the browser: it runs the connection steps and the consent pages they need, keeps the secrets,
+the avatar, the recovery key and the marker that remembers the connection across restarts, and hands
+a reconciliation the session it needs. Reconciliation asks for that session and knows nothing else
+about the account. The core launcher knows only the versioned Feature-module contract and loads the
+Linux plugin after explicit connection or an enabled marker. That contract carries one
+provider-neutral browser-state exchange rather than handing core modules to Sync individually. The
+exchange can expose only persistent non-secret browser state and the active selection metadata
+needed to preserve the local view. The Sync module owns the positive Sync projection, compares its
+fingerprints after coarse change hints, and ignores that selection without depending on model roles.
 
 One reconciliation is one transaction with two phases. The first settles the remote on a worker
 thread; the second puts the merged result into local state on the shell thread. Each phase is handed

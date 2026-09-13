@@ -244,6 +244,8 @@ if(OMAWEB_BUILD_SYNC)
     qt_add_plugin(omaweb-sync-plugin
         CLASS_NAME SyncPlugin
         PLUGIN_TYPE omaweb
+        modules/sync/SyncAccount.cpp
+        modules/sync/SyncAccount.h
         modules/sync/SyncController.cpp
         modules/sync/SyncController.h
         modules/sync/SyncPlugin.cpp

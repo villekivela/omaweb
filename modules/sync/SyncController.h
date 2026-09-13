@@ -1,8 +1,6 @@
 #pragma once
 
-#include "ForgeProvider.h"
 #include "SyncError.h"
-#include "SyncSetup.h"
 
 #include <QByteArray>
 #include <QDateTime>
@@ -18,9 +16,8 @@
 namespace omaweb {
 
 class BrowserStateExchange;
-class GitHubForge;
-class LinuxSecretStore;
 class LocalSyncState;
+class SyncAccount;
 class SyncModule;
 
 // What the worker thread hands back: the transaction it prepared, ready for the shell thread to
@@ -84,48 +81,25 @@ signals:
     void consentPageRequested(const QUrl &url);
 
 private:
-    void loadMarker();
-    bool writeMarker();
-    QString machineId();
-    void pollAuthorization();
-    void clearPendingAuthorization();
     void markPending();
     void reportFailure(const SyncError &error);
     void finishDisconnect();
+    bool remember();
 
+    std::unique_ptr<SyncAccount> m_account;
     std::unique_ptr<LocalSyncState> m_localState;
     QString m_dataRoot;
     QString m_configRoot;
-    QString m_machineId;
-    QString m_login;
-    QUrl m_remoteUrl;
-    QByteArray m_accessToken;
-    ForgeAuthorization m_pendingAuthorization;
-    ForgeRepository m_pendingRepository;
-    QDateTime m_accessTokenExpiresAt;
     QString m_status = QStringLiteral("Sync is off");
     QString m_errorMessage;
-    QString m_userCode;
-    QUrl m_verificationUrl;
-    QString m_recoveryKey;
-    QString m_deviceCode;
-    QString m_pendingRecoveryKey;
     QDateTime m_lastSuccessfulSync;
     bool m_enabled = false;
-    bool m_connecting = false;
-    bool m_awaitingRepositoryCreation = false;
-    bool m_awaitingInstallation = false;
     bool m_pending = false;
     bool m_syncing = false;
-    bool m_initialRemoteRestore = false;
     bool m_disconnectPending = false;
-    QTimer m_authorizationPoll;
     QTimer m_quietReconcile;
     QTimer m_periodicReconcile;
-    std::unique_ptr<LinuxSecretStore> m_secrets;
     std::shared_ptr<std::atomic_bool> m_cancellationRequested;
-    QFutureWatcher<QPair<DeviceAuthorization, QString>> m_authorizationStartWatcher;
-    QFutureWatcher<QPair<SyncConnection, QString>> m_authorizationFinishWatcher;
     QFutureWatcher<ReconcileResult> m_reconcileWatcher;
 };
 
