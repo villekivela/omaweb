@@ -355,6 +355,7 @@ ApplicationWindow {
 
     function openCommandPanel() {
         commandPanel.beginCommand();
+        commandPanel.origin = window.omnibarOrigin();
         omnibarOpen = true;
     }
 
@@ -1396,7 +1397,16 @@ ApplicationWindow {
         if (!window.privateWindow)
             window.windowBrowser.requestHistorySuggestions(preset);
         commandPanel.beginAddress(preset, forNewTab);
+        commandPanel.origin = window.omnibarOrigin();
         omnibarOpen = true;
+    }
+
+    // Where the panel grows from: the address field when the sidebar shows
+    // it, nothing otherwise, so the panel arrives from above its own place.
+    function omnibarOrigin() {
+        if (sidebarCollapsed && chromeRow.peekRevealed === 0)
+            return Qt.rect(0, 0, 0, 0);
+        return sidebar.addressOrigin(commandPanel);
     }
 
     // The profile the Space on show runs in. Which is the same table every
@@ -2938,6 +2948,7 @@ ApplicationWindow {
         // The window content behind the overlay, not the overlay's own parent,
         // so the blur never samples itself.
         backdropSource: shell
+        ease: window.easeSidebar
         open: window.omnibarOpen
         suggestions: window.omnibarSuggestions
 

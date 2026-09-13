@@ -419,6 +419,8 @@ int main(int argc, char *argv[])
             // is taken part way through the list's arrival.
             {QStringLiteral("space-step"), {}},
             {QStringLiteral("space-settled"), {}},
+            {QStringLiteral("omnibar-step"), {}},
+            {QStringLiteral("omnibar-settled"), {}},
         };
         const auto requested = arguments.at(showIndex + 1);
         auto *root = engine.rootObjects().constFirst();
@@ -466,10 +468,17 @@ int main(int argc, char *argv[])
                 state.append(rest);
             }
         }
-        if (requested.startsWith(QLatin1String("space-"))) {
-            const auto delay = requested == QLatin1String("space-step") ? 600 : 300;
-            QTimer::singleShot(delay, root,
-                [root] { QMetaObject::invokeMethod(root, "stepSpace", Q_ARG(QVariant, 1)); });
+        if (requested.endsWith(QLatin1String("-step"))
+            || requested.endsWith(QLatin1String("-settled"))) {
+            const auto delay = requested.endsWith(QLatin1String("-step")) ? 620 : 300;
+            const auto space = requested.startsWith(QLatin1String("space-"));
+            QTimer::singleShot(delay, root, [root, space] {
+                if (space) {
+                    QMetaObject::invokeMethod(root, "stepSpace", Q_ARG(QVariant, 1));
+                } else {
+                    QMetaObject::invokeMethod(root, "openOmnibar", Q_ARG(QVariant, false));
+                }
+            });
         } else if (state.isEmpty()) {
             qCritical("Unknown --show state %s", qPrintable(requested));
             return 1;

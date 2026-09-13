@@ -30,6 +30,33 @@ Item {
 
     visible: open
 
+    // Where the panel comes from: the address field, or the control that
+    // asked for it, in the panel's own coordinates. A panel that grows out
+    // of the field the reader pressed is the same field, expanded, rather
+    // than a second thing that appeared. An empty origin means the panel
+    // arrives from just above its resting place instead.
+    property rect origin: Qt.rect(0, 0, 0, 0)
+    property bool ease: true
+    // 0 at the origin, 1 at rest.
+    property real arrival: 1
+    readonly property real restWidth: Math.min(660, width - 96)
+    readonly property real restX: (width - restWidth) / 2
+    readonly property real restY: Math.max(80, height * 0.14)
+    readonly property real restHeight: header.height + body.height + footer.height + 2
+                                       * panel.border.width
+    readonly property bool fromOrigin: origin.width > 0
+    function lerp(a, b) {
+        return a + (b - a) * arrival;
+    }
+    NumberAnimation {
+        id: arrivalEase
+        target: root
+        property: "arrival"
+        to: 1
+        duration: 180
+        easing.type: Easing.OutCubic
+    }
+
     function beginAddress(preset, forNewTab) {
         commandMode = false;
         newTabIntent = forNewTab;
@@ -43,7 +70,13 @@ Item {
 
     onOpenChanged: {
         if (!open) {
+            arrivalEase.stop();
+            arrival = 1;
             return;
+        }
+        if (ease) {
+            arrival = 0;
+            arrivalEase.restart();
         }
         input.text = commandMode ? "" : presetText;
         refresh();
@@ -107,6 +140,7 @@ Item {
     Rectangle {
         anchors.fill: parent
         color: "#99000000"
+        opacity: root.arrival
 
         MouseArea {
             anchors.fill: parent
@@ -116,11 +150,14 @@ Item {
 
     Rectangle {
         id: panel
-        width: Math.min(660, parent.width - 96)
-        anchors.horizontalCenter: parent.horizontalCenter
-        anchors.top: parent.top
-        anchors.topMargin: Math.max(80, parent.height * 0.14)
-        height: header.height + body.height + footer.height + 2 * border.width
+        // Between the origin and rest by `arrival`; the height is what the
+        // rows need once it is there, and the frame grows to it.
+        x: root.fromOrigin ? root.lerp(root.origin.x, root.restX) : root.restX
+        y: root.fromOrigin ? root.lerp(root.origin.y, root.restY) : root.restY - 8 * (1
+                                                                                      - root.arrival)
+        width: root.fromOrigin ? root.lerp(root.origin.width, root.restWidth) : root.restWidth
+        height: root.fromOrigin ? root.lerp(root.origin.height, root.restHeight) : root.restHeight
+        opacity: root.fromOrigin ? 1 : root.arrival
         radius: 3
         // With a backdrop the tint goes on top of the blur instead, so the
         // panel itself stays clear.
