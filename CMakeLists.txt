@@ -164,6 +164,8 @@ add_library(omaweb-core STATIC
     src/core/SessionStore.h
     src/core/SqliteSessionStore.cpp
     src/core/SqliteSessionStore.h
+    src/core/ThreadedSessionStore.cpp
+    src/core/ThreadedSessionStore.h
     src/core/SpaceListModel.cpp
     src/core/SpaceListModel.h
     src/core/SpaceStorage.cpp
@@ -708,6 +710,7 @@ if(BUILD_TESTING)
 
     qt_add_executable(omaweb-session-store-tests tests/core/tst_sessionstore.cpp)
     target_link_libraries(omaweb-session-store-tests PRIVATE omaweb-core Qt6::Test)
+    target_include_directories(omaweb-session-store-tests PRIVATE "tests")
     omaweb_strict_target(omaweb-session-store-tests)
     add_test(NAME omaweb-session-store COMMAND omaweb-session-store-tests)
 

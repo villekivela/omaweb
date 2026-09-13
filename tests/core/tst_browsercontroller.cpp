@@ -92,6 +92,7 @@ private slots:
     void opensKeyboardHintTargetsInBackground();
     void closesRequestedBackgroundTab();
     void persistsTabsAndPins();
+    void landsThePendingTabWriteAtQuit();
     void pinningMovesTabIntoPinnedBlock();
     void keepsFinalTabAsBlankTab();
     void restsUntilSomethingIsOpenedInTheSpace();
@@ -480,6 +481,21 @@ void BrowserControllerTest::persistsTabsAndPins()
     QCOMPARE(restored.activeTabId(), activeId);
     QCOMPARE(restored.activeUrl(), QUrl(QStringLiteral("https://example.com")));
     QVERIFY(restored.activeTabPinned());
+}
+
+// The address a page reported is written on a delay, so a quit inside that
+// delay has a write still pending: it is queued to the store as the window
+// goes and lands before the store closes.
+void BrowserControllerTest::landsThePendingTabWriteAtQuit()
+{
+    QTemporaryDir root;
+    {
+        BrowserController controller(SpaceStorage(root.path(), QStringLiteral("test")));
+        controller.openInput(QStringLiteral("https://example.com/pending"), false);
+    }
+
+    BrowserController restored(SpaceStorage(root.path(), QStringLiteral("test")));
+    QCOMPARE(restored.activeUrl(), QUrl(QStringLiteral("https://example.com/pending")));
 }
 
 void BrowserControllerTest::pinningMovesTabIntoPinnedBlock()
@@ -908,40 +924,26 @@ void BrowserControllerTest::keepsHistorySuggestionsInsideActiveSpace()
 
 // Retention is a bound on the Space, not a step taken when its database is
 // opened. A session that never restarts still trims, within one batch of the
-// bound, and keeps the most recent visits.
+// bound, and keeps the most recent visits. The rows are read back through the
+// store, which answers once every visit given before the question has landed.
 void BrowserControllerTest::keepsHistoryInsideItsBoundWhileASpaceStaysOpen()
 {
     QTemporaryDir root;
     BrowserController controller(SpaceStorage(root.path(), QStringLiteral("test")));
-    const auto spaceId = controller.activeSpaceId();
     const auto visits = omaweb::history::retainedRows + omaweb::history::cleanupBatch + 20;
     for (int visit = 0; visit < visits; ++visit) {
         controller.recordVisit(QUrl(QStringLiteral("https://example.test/page/%1").arg(visit)),
             QStringLiteral("Example page %1").arg(visit));
     }
 
-    const auto connectionName = QStringLiteral("history-bound-check");
-    {
-        auto database = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), connectionName);
-        database.setDatabaseName(
-            SpaceStorage(root.path(), QStringLiteral("test")).databasePathFor(spaceId));
-        QVERIFY(database.open());
-        QSqlQuery count(database);
-        QVERIFY(count.exec(QStringLiteral("SELECT COUNT(*) FROM history")));
-        QVERIFY(count.next());
-        const auto rows = count.value(0).toInt();
-        QVERIFY2(rows <= omaweb::history::retainedRows + omaweb::history::cleanupBatch,
-            qPrintable(QStringLiteral("history holds %1 rows").arg(rows)));
-        // Trimming from the wrong end would leave a bound and no History.
-        QVERIFY(rows >= omaweb::history::retainedRows);
-        QSqlQuery newest(database);
-        QVERIFY(newest.exec(
-            QStringLiteral("SELECT url FROM history ORDER BY visited_at DESC, id DESC LIMIT 1")));
-        QVERIFY(newest.next());
-        QCOMPARE(newest.value(0).toString(),
-            QStringLiteral("https://example.test/page/%1").arg(visits - 1));
-    }
-    QSqlDatabase::removeDatabase(connectionName);
+    const auto history = controller.history({}, visits + 1);
+    const auto rows = history.size();
+    QVERIFY2(rows <= omaweb::history::retainedRows + omaweb::history::cleanupBatch,
+        qPrintable(QStringLiteral("history holds %1 rows").arg(rows)));
+    // Trimming from the wrong end would leave a bound and no History.
+    QVERIFY(rows >= omaweb::history::retainedRows);
+    QCOMPARE(history.first().toMap().value(QStringLiteral("url")).toUrl(),
+        QUrl(QStringLiteral("https://example.test/page/%1").arg(visits - 1)));
 }
 
 // Typing is faster than the store answers, so requests coalesce: one search

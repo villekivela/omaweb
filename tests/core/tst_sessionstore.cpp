@@ -1,15 +1,20 @@
+#include "HistoryQuery.h"
+#include "PerformanceProbe.h"
 #include "PrivateSessionStore.h"
 #include "SessionStore.h"
 #include "SpaceListModel.h"
 #include "SqliteSessionStore.h"
 #include "TabListModel.h"
+#include "ThreadedSessionStore.h"
 
 #include <QDir>
 #include <QDirIterator>
+#include <QElapsedTimer>
 #include <QFile>
 #include <QTemporaryDir>
 #include <QTest>
 
+#include <algorithm>
 #include <memory>
 
 using omaweb::PrivateSessionStore;
@@ -17,6 +22,7 @@ using omaweb::SessionStore;
 using omaweb::SpaceState;
 using omaweb::SqliteSessionStore;
 using omaweb::TabState;
+using omaweb::ThreadedSessionStore;
 
 namespace {
 
@@ -77,6 +83,9 @@ private slots:
     void aRecordingStoreRetriesCreatingASpaceDirectory();
     void aPrivateStoreLeavesTheRootItWasGivenEmpty();
     void aPrivateStoreSharesItsDecisionsWithTheSession();
+    void aThreadedStoreReadsBackTheWritesItWasGivenBefore();
+    void aThreadedStoreLandsAPendingWriteWhenItCloses();
+    void aThreadedStoreTakesTheSessionsRunningWritesInsideTheirBudget();
 
 private:
     static std::unique_ptr<SessionStore> makeStore(const QString &kind, const QString &root);
@@ -303,6 +312,156 @@ void SessionStoreTest::aPrivateStoreSharesItsDecisionsWithTheSession()
     QCOMPARE(second.permissionDecision(
                  {}, QStringLiteral("https://a.example"), QStringLiteral("camera")),
         0);
+}
+
+namespace {
+
+// A Space at the bounds the running writes are priced against: history at its
+// retained bound, a working day's tabs, and the closed-tab stack full. The
+// same Space the session-restore probe brings back.
+constexpr int openTabs = 100;
+constexpr int closedTabs = 25;
+
+QVector<TabState> makeTabs(const QString &prefix, int count)
+{
+    QVector<TabState> tabs;
+    for (int index = 0; index < count; ++index) {
+        auto tab = makeTab(QStringLiteral("%1-%2").arg(prefix).arg(index),
+            QStringLiteral("https://%1-%2.example/article").arg(prefix).arg(index));
+        tab.active = false;
+        tabs.append(tab);
+    }
+    return tabs;
+}
+
+void fillSpaceToItsBounds(SessionStore &store)
+{
+    store.saveSpace(makeSpace());
+    for (int index = 0; index < omaweb::history::retainedRows; ++index) {
+        store.recordVisit(spaceId(), QUrl(QStringLiteral("https://visited-%1.example/").arg(index)),
+            QStringLiteral("Visit %1").arg(index));
+    }
+}
+
+// The interface thread's share of each running write: the longest of a run of
+// them, because it is one slow write between two frames that the reader sees,
+// not the typical one. A run of visits is longer than a cleanup batch so that
+// the visit which restores the history bound is among them.
+struct RunningWriteCost {
+    double visitMicroseconds = 0;
+    double tabsMicroseconds = 0;
+    double closedTabsMicroseconds = 0;
+};
+
+RunningWriteCost priceRunningWrites(SessionStore &store)
+{
+    const auto tabs = makeTabs(QStringLiteral("tab"), openTabs);
+    const auto closed = makeTabs(QStringLiteral("closed"), closedTabs);
+    QElapsedTimer timer;
+    RunningWriteCost cost;
+    for (int index = 0; index < omaweb::history::cleanupBatch + 1; ++index) {
+        timer.start();
+        store.recordVisit(spaceId(), QUrl(QStringLiteral("https://again-%1.example/").arg(index)),
+            QStringLiteral("Again %1").arg(index));
+        cost.visitMicroseconds = std::max(cost.visitMicroseconds, timer.nsecsElapsed() / 1e3);
+    }
+    for (int run = 0; run < 20; ++run) {
+        timer.start();
+        store.saveTabs(spaceId(), tabs, tabs.first().id);
+        cost.tabsMicroseconds = std::max(cost.tabsMicroseconds, timer.nsecsElapsed() / 1e3);
+        timer.start();
+        store.saveClosedTabs(spaceId(), closed);
+        cost.closedTabsMicroseconds
+            = std::max(cost.closedTabsMicroseconds, timer.nsecsElapsed() / 1e3);
+    }
+    return cost;
+}
+
+} // namespace
+
+// A read after a queued write answers with that write landed: the store keeps
+// the order it was given, so nothing on the interface has to wait for a write
+// to be sure of what it reads next.
+void SessionStoreTest::aThreadedStoreReadsBackTheWritesItWasGivenBefore()
+{
+    QTemporaryDir root;
+    ThreadedSessionStore store(std::make_unique<SqliteSessionStore>(root.path()));
+    QVERIFY(store.open());
+    QVERIFY(store.saveSpace(makeSpace()));
+    for (int index = 0; index < 50; ++index) {
+        QVERIFY(store.saveTabs(
+            spaceId(), makeTabs(QStringLiteral("tab"), index + 1), QStringLiteral("tab-0")));
+        QVERIFY(store.saveClosedTabs(spaceId(), makeTabs(QStringLiteral("closed"), index)));
+        QVERIFY(store.recordVisit(spaceId(),
+            QUrl(QStringLiteral("https://visited-%1.example/").arg(index)),
+            QStringLiteral("Visit %1").arg(index)));
+    }
+    QCOMPARE(store.loadTabs(spaceId()).size(), 50);
+    QCOMPARE(store.loadClosedTabs(spaceId()).size(), 49);
+    const auto history = store.history(spaceId(), {}, 100);
+    QCOMPARE(history.size(), 50);
+    QCOMPARE(history.first().toMap().value(QStringLiteral("url")).toUrl(),
+        QUrl(QStringLiteral("https://visited-49.example/")));
+}
+
+// A quit while a write is still queued lands it before the store is gone,
+// which is what the interface's own flush at quit relies on.
+void SessionStoreTest::aThreadedStoreLandsAPendingWriteWhenItCloses()
+{
+    QTemporaryDir root;
+    {
+        ThreadedSessionStore store(std::make_unique<SqliteSessionStore>(root.path()));
+        QVERIFY(store.open());
+        QVERIFY(store.saveSpace(makeSpace()));
+        QVERIFY(
+            store.saveTabs(spaceId(), makeTabs(QStringLiteral("tab"), 3), QStringLiteral("tab-0")));
+        QVERIFY(store.saveClosedTabs(spaceId(), makeTabs(QStringLiteral("closed"), 2)));
+        QVERIFY(store.recordVisit(
+            spaceId(), QUrl(QStringLiteral("https://last.example/")), QStringLiteral("Last")));
+    }
+    SqliteSessionStore reopened(root.path());
+    QVERIFY(reopened.open());
+    QCOMPARE(reopened.loadTabs(spaceId()).size(), 3);
+    QCOMPARE(reopened.loadClosedTabs(spaceId()).size(), 2);
+    QCOMPARE(reopened.history(spaceId(), {}, 10).size(), 1);
+}
+
+// What the interface thread pays for a visit, the coalesced tab write and the
+// closed-tab write against a Space at its bounds. The control is the same
+// writes taken on the calling thread, which is what they cost before the store
+// thread existed; the threshold is the one the writes were moved for.
+void SessionStoreTest::aThreadedStoreTakesTheSessionsRunningWritesInsideTheirBudget()
+{
+    // The issue's own bound rather than a margin over the first measurement:
+    // the writes were moved because one of them crossed it. Microseconds,
+    // because a queued write is over in tens of them.
+    constexpr double thresholdMicroseconds = 2000.0;
+    QTemporaryDir controlRoot;
+    SqliteSessionStore control(controlRoot.path());
+    QVERIFY(control.open());
+    fillSpaceToItsBounds(control);
+    const auto before = priceRunningWrites(control);
+    omaweb::probe::report(QStringLiteral("visit-record-on-the-calling-thread"),
+        before.visitMicroseconds, QStringLiteral("us"), thresholdMicroseconds);
+    omaweb::probe::report(QStringLiteral("tab-write-on-the-calling-thread"),
+        before.tabsMicroseconds, QStringLiteral("us"), thresholdMicroseconds);
+    omaweb::probe::report(QStringLiteral("closed-tab-write-on-the-calling-thread"),
+        before.closedTabsMicroseconds, QStringLiteral("us"), thresholdMicroseconds);
+
+    QTemporaryDir root;
+    ThreadedSessionStore store(std::make_unique<SqliteSessionStore>(root.path()));
+    QVERIFY(store.open());
+    fillSpaceToItsBounds(store);
+    const auto after = priceRunningWrites(store);
+    QVERIFY2(after.visitMicroseconds <= thresholdMicroseconds,
+        qPrintable(omaweb::probe::report(QStringLiteral("visit-record"), after.visitMicroseconds,
+            QStringLiteral("us"), thresholdMicroseconds)));
+    QVERIFY2(after.tabsMicroseconds <= thresholdMicroseconds,
+        qPrintable(omaweb::probe::report(QStringLiteral("tab-write"), after.tabsMicroseconds,
+            QStringLiteral("us"), thresholdMicroseconds)));
+    QVERIFY2(after.closedTabsMicroseconds <= thresholdMicroseconds,
+        qPrintable(omaweb::probe::report(QStringLiteral("closed-tab-write"),
+            after.closedTabsMicroseconds, QStringLiteral("us"), thresholdMicroseconds)));
 }
 
 QTEST_MAIN(SessionStoreTest)

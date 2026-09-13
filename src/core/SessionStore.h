@@ -25,6 +25,13 @@ inline QString sessionPermissionKey(
 // remember: `SqliteSessionStore` records, `PrivateSessionStore` accepts and
 // drops. A write that was not written down answers false.
 //
+// Three writes are the ones a session makes as it runs: `recordVisit`,
+// `saveTabs` and `saveClosedTabs`. An adapter may take them and land them
+// later, answering whether it took the write, provided every later call sees
+// them landed; `ThreadedSessionStore` does. Every other write answers once it
+// is written, which a Space move or a delete has to know before the interface
+// moves on.
+//
 // Where the data root itself lives is not asked here. An adapter that keeps
 // nothing has no directory to name, so the paths a Space's engine profile and
 // history search need are static on the adapter that owns the layout.
@@ -51,10 +58,12 @@ public:
     virtual bool saveClosedTabs(const QString &spaceId, const QVector<TabState> &tabs) = 0;
     virtual bool saveTab(const TabState &tab, int position) = 0;
     virtual bool saveTabs(
-        const QString &spaceId, const QVector<TabState> &tabs, const QString &activeTabId) = 0;
+        const QString &spaceId, const QVector<TabState> &tabs, const QString &activeTabId)
+        = 0;
     virtual bool saveSpaceMove(const QString &sourceSpaceId, const QVector<TabState> &sourceTabs,
         const QString &sourceActiveTabId, const QString &destinationSpaceId,
-        const QVector<TabState> &destinationTabs, const QString &destinationActiveTabId) = 0;
+        const QVector<TabState> &destinationTabs, const QString &destinationActiveTabId)
+        = 0;
 
     virtual QString preference(const QString &name, const QString &fallback = {}) const = 0;
     virtual bool savePreference(const QString &name, const QString &value) = 0;
@@ -66,18 +75,22 @@ public:
     virtual bool deleteHistorySince(const QString &spaceId, qint64 since) = 0;
 
     virtual int permissionDecision(
-        const QString &spaceId, const QString &origin, const QString &permission) const = 0;
+        const QString &spaceId, const QString &origin, const QString &permission) const
+        = 0;
     virtual bool savePermissionDecision(
-        const QString &spaceId, const QString &origin, const QString &permission, int decision) = 0;
+        const QString &spaceId, const QString &origin, const QString &permission, int decision)
+        = 0;
     virtual QVariantList permissionsForOrigin(const QString &spaceId, const QString &origin) const
         = 0;
     virtual bool clearPermissionsForOrigin(const QString &spaceId, const QString &origin) = 0;
     virtual bool clearPermissionsSince(const QString &spaceId, qint64 since) = 0;
 
     virtual bool recordDownload(const QString &id, const QUrl &url, const QString &path,
-        const QString &state, qint64 receivedBytes, qint64 totalBytes) = 0;
+        const QString &state, qint64 receivedBytes, qint64 totalBytes)
+        = 0;
     virtual bool updateDownload(const QString &id, const QString &state, qint64 receivedBytes,
-        qint64 totalBytes, const QString &error) = 0;
+        qint64 totalBytes, const QString &error)
+        = 0;
     virtual QVariantList downloadHistory() const = 0;
     virtual bool forgetDownload(const QString &id) = 0;
 
