@@ -13,6 +13,16 @@
 
 namespace omaweb::test {
 
+namespace {
+
+    template <typename Value> double mean(const std::vector<Value> &values)
+    {
+        return values.empty() ? 0.0
+                              : std::accumulate(values.begin(), values.end(), 0.0) / values.size();
+    }
+
+} // namespace
+
 ProbeClock::ProbeClock(QObject *parent)
     : QObject(parent)
 {
@@ -68,14 +78,17 @@ void ProbeClock::watchFrames(QQuickWindow *window)
                 return;
             }
             m_frameNanoseconds.push_back(m_clock.nsecsElapsed() - m_frameStart);
-            // The GPU's own time for the frame, which the CPU bracket above
-            // never sees: it records commands and moves on. Read off the
-            // swapchain's command buffer, which is the one the frame was
-            // submitted on, and zero unless `QSG_RHI_PROFILE=1` turned the
-            // timestamps on. The software rasteriser has no swapchain.
-            auto *interface = m_watched->rendererInterface();
+            // What the GPU spent on a frame, which the CPU bracket above never
+            // sees: it records commands and moves on. Read off the swapchain's
+            // command buffer, which is the one the frames are submitted on,
+            // and zero unless `QSG_RHI_PROFILE=1` turned the timestamps on.
+            // It is the last frame the GPU finished rather than the one just
+            // ended, a frame or so behind the CPU number beside it, which a
+            // mean over a second does not notice. The software rasteriser has
+            // no swapchain.
+            auto *renderer = m_watched->rendererInterface();
             auto *swapChain = static_cast<QRhiSwapChain *>(
-                interface->getResource(m_watched, QSGRendererInterface::RhiSwapchainResource));
+                renderer->getResource(m_watched, QSGRendererInterface::RhiSwapchainResource));
             if (swapChain != nullptr) {
                 m_gpuMilliseconds.push_back(
                     swapChain->currentFrameCommandBuffer()->lastCompletedGpuTime() * 1e3);
@@ -91,18 +104,12 @@ QVariantMap ProbeClock::frameReport()
         m_watched = nullptr;
     }
     const auto &frames = m_frameNanoseconds;
-    const auto mean = frames.empty()
-        ? 0.0
-        : std::accumulate(frames.begin(), frames.end(), 0.0) / frames.size() / 1e6;
     const auto max = frames.empty() ? 0.0 : *std::max_element(frames.begin(), frames.end()) / 1e6;
-    const auto &gpu = m_gpuMilliseconds;
-    const auto gpuMean
-        = gpu.empty() ? 0.0 : std::accumulate(gpu.begin(), gpu.end(), 0.0) / gpu.size();
     return {
         {QStringLiteral("frames"), static_cast<int>(frames.size())},
-        {QStringLiteral("meanFrameMilliseconds"), mean},
+        {QStringLiteral("meanFrameMilliseconds"), mean(frames) / 1e6},
         {QStringLiteral("maxFrameMilliseconds"), max},
-        {QStringLiteral("meanGpuMilliseconds"), gpuMean},
+        {QStringLiteral("meanGpuMilliseconds"), mean(m_gpuMilliseconds)},
     };
 }
 
