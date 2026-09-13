@@ -1,10 +1,11 @@
 import QtQuick
 
-// The lift a sheet makes as it opens: from a little below its place to its
-// place, in the chrome's overlay time. A sheet's `transform` is one of these
-// and its opacity follows `progress`, so the Start page, settings and history
-// arrive as one kind of thing. `ease` is the reader's refusal of the sidebar
-// ease, which refuses this too.
+// The lift a sheet makes as it opens, from a little below its place to its
+// place in the chrome's overlay time, and the drop it makes as it closes,
+// back the way it came and quicker. A sheet's `transform` is one of these,
+// its opacity follows `progress`, and its visibility follows `showing`, so
+// it stays drawn for the length of the drop. `ease` is the reader's refusal
+// of the sidebar ease, which refuses this too.
 Translate {
     id: lift
 
@@ -13,8 +14,10 @@ Translate {
     // How far below its place the sheet starts; negative starts it above,
     // for a panel that unfolds from a control over it.
     property real distance: 24
-    // 0 just below, 1 at rest.
+    // 0 just off its place, 1 at rest.
     property real progress: 1
+    property bool leaving: false
+    readonly property bool showing: shown || leaving
     property NumberAnimation arrival: NumberAnimation {
         target: lift
         property: "progress"
@@ -22,18 +25,40 @@ Translate {
         duration: 180
         easing.type: Easing.OutCubic
     }
+    property NumberAnimation departure: NumberAnimation {
+        target: lift
+        property: "progress"
+        to: 0
+        duration: 120
+        easing.type: Easing.InCubic
+        onFinished: {
+            lift.leaving = false;
+            lift.progress = 1;
+        }
+    }
 
     y: (1 - progress) * distance
 
     onShownChanged: {
-        if (!shown) {
-            arrival.stop();
+        if (shown) {
+            departure.stop();
+            leaving = false;
+            if (!ease) {
+                progress = 1;
+                return;
+            }
+            // A sheet asked back mid-drop lifts from where it is.
+            if (progress === 1)
+                progress = 0;
+            arrival.restart();
+            return;
+        }
+        arrival.stop();
+        if (!ease) {
             progress = 1;
             return;
         }
-        if (ease) {
-            progress = 0;
-            arrival.restart();
-        }
+        leaving = true;
+        departure.restart();
     }
 }

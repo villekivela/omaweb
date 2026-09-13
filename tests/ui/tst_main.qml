@@ -1233,7 +1233,9 @@ TestCase {
             return dialog.open;
         });
         // One surface holds the question: the panel goes away behind it.
-        verify(!panel.visible);
+        tryVerify(function () {
+            return !panel.visible;
+        });
         return dialog;
     }
 
@@ -3064,7 +3066,9 @@ TestCase {
         compare(browser.activeUrl.toString(), "https://opened.example/page");
         compare(engineLoader.engines[openedTabId], openedEngine);
         compare(engineLoader.item, openedEngine);
-        verify(!startPage.visible);
+        tryVerify(function () {
+            return !startPage.visible;
+        });
 
         // The address the navigation commits to is the one the tab takes.
         openedEngine.currentUrl = "https://opened.example/next";
@@ -3457,7 +3461,9 @@ TestCase {
         const settingsSurface = findChild(window.contentItem, "settingsSurface");
         verify(settingsButton !== null);
         verify(settingsSurface !== null);
-        verify(!settingsSurface.visible);
+        tryVerify(function () {
+            return !settingsSurface.visible;
+        });
         // A page to cover, so the backdrop below has something to blur.
         openPage("https://under-settings.example");
 
@@ -3570,7 +3576,9 @@ TestCase {
     function test_theKeymapOpensSettings() {
         const settingsSurface = findChild(window.contentItem, "settingsSurface");
         verify(settingsSurface !== null);
-        verify(!settingsSurface.visible);
+        tryVerify(function () {
+            return !settingsSurface.visible;
+        });
         compare(keyboardNavigation.browserBindings["Primary+,"], "settings");
 
         window.requestActivate();
@@ -3603,7 +3611,9 @@ TestCase {
             keyClick(Qt.Key_J, Qt.ShiftModifier);
             keyClick(Qt.Key_Escape);
 
-            verify(!settings.visible);
+            tryVerify(function () {
+                return !settings.visible;
+            });
             compare(browser.activeTabId, activeTab);
         } finally {
             window.settingsOpen = false;
@@ -3638,7 +3648,9 @@ TestCase {
             wait(50);
             verify(settings.activeFocus);
             keyClick(Qt.Key_Escape);
-            verify(!settings.visible);
+            tryVerify(function () {
+                return !settings.visible;
+            });
         } finally {
             window.settingsOpen = false;
             browser.closeTab(addedTab);

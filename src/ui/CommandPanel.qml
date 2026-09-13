@@ -28,7 +28,9 @@ Item {
     signal committed(string text)
     signal queryChanged(string text)
 
-    visible: open
+    // Drawn for the length of the retreat as well.
+    visible: open || retreating
+    property bool retreating: false
 
     // Where the panel comes from: the address field, or the control that
     // asked for it, in the panel's own coordinates. A panel that grows out
@@ -56,6 +58,19 @@ Item {
         duration: 180
         easing.type: Easing.OutCubic
     }
+    // Back to the field it grew from, quicker than it came.
+    NumberAnimation {
+        id: retreatEase
+        target: root
+        property: "arrival"
+        to: 0
+        duration: 120
+        easing.type: Easing.InCubic
+        onFinished: {
+            root.retreating = false;
+            root.arrival = 1;
+        }
+    }
 
     function beginAddress(preset, forNewTab) {
         commandMode = false;
@@ -71,9 +86,16 @@ Item {
     onOpenChanged: {
         if (!open) {
             arrivalEase.stop();
-            arrival = 1;
+            if (!ease) {
+                arrival = 1;
+                return;
+            }
+            retreating = true;
+            retreatEase.restart();
             return;
         }
+        retreatEase.stop();
+        retreating = false;
         if (ease) {
             arrival = 0;
             arrivalEase.restart();

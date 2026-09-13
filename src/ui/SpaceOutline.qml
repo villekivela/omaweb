@@ -1097,11 +1097,11 @@ Rectangle {
         height: detailLines.height + 16
         radius: 2
         z: 5
-        visible: downloadMark.detailRequested && downloadMark.running > 0
-        // Rises from the mark it was asked from.
+        visible: detailLift.showing
+        // Rises from the mark it was asked from, and sinks back to it.
         transform: SheetLift {
             id: detailLift
-            shown: downloadDetail.visible
+            shown: downloadMark.detailRequested && downloadMark.running > 0
             ease: root.easeSpaces
             distance: 8
         }
@@ -1188,14 +1188,15 @@ Rectangle {
         y: outline.y + addressButton.y + addressButton.height + 8
         width: Math.min(320, Math.max(200, root.width - 32))
         z: 5
-        // Unfolds from the address it reports on.
+        // Unfolds from the address it reports on, and folds back into it.
         transform: SheetLift {
             id: siteLift
-            shown: sitePanel.visible
+            shown: sitePanel.open
             ease: root.easeSpaces
             distance: -8
         }
         opacity: siteLift.progress
+        visible: siteLift.showing
         colors: root.colors
         browser: root.browser
         cookiePolicy: root.cookiePolicy

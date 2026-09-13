@@ -56,10 +56,12 @@ A Space switch costs one offscreen render of the sidebar's list region whenever 
 after a change, and nothing per frame at rest. No other movement keeps anything between uses. The
 page is never drawn through a layer: it slides, and does not fade.
 
+Closing is the arrival reversed and quicker: 120 ms, in-cubic. The command panel retreats to the
+field, a sheet drops back below its place, a panel folds back into its control, and each stays drawn
+for the length of it. A test that asserts something has closed waits for the drop to end.
+
 ## Open
 
-- Closing. Everything still closes at once. The rule says things go back where they came from, so
-  the panel retreating to the field and the sheets dropping out are the same movements reversed.
 - The tuning numbers above, once the direction has been lived with.
 - A thawed tab's arrival. A page coming back from Frozen could arrive at 0.98 scale so that "was
   asleep" reads differently from "was live". Not tried.

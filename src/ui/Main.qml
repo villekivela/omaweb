@@ -2000,6 +2000,8 @@ ApplicationWindow {
                         ease: window.easeSidebar
                     }
                     opacity: startPageLift.progress
+                    // Drawn for the length of the drop.
+                    visible: startPageLift.showing
                     colors: window.colors
                     iconFontFamily: materialSymbols.name
                     commands: browserCommands
@@ -2232,6 +2234,8 @@ ApplicationWindow {
                         ease: window.easeSidebar
                     }
                     opacity: settingsLift.progress
+                    // Drawn for the length of the drop.
+                    visible: settingsLift.showing
                     colors: window.colors
                     iconFontFamily: materialSymbols.name
                     browser: window.windowBrowser
@@ -2307,6 +2311,8 @@ ApplicationWindow {
                         ease: window.easeSidebar
                     }
                     opacity: historyLift.progress
+                    // Drawn for the length of the drop.
+                    visible: historyLift.showing
                     colors: window.colors
                     iconFontFamily: materialSymbols.name
                     browser: window.windowBrowser
