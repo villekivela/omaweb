@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/icons/omaweb.svg" alt="" width="72">
+  <img src="assets/icons/omaweb-mono.svg" alt="" width="72">
 </p>
 
 <h1 align="center">Omaweb</h1>
