@@ -138,7 +138,7 @@ QVector<TabState> SqliteSessionStore::loadClosedTabs(const QString &spaceId) con
 
 // The whole stack is rewritten rather than pushed onto: it is at most a few
 // dozen rows, and one statement per close would still have to trim the far end.
-bool SqliteSessionStore::saveClosedTabs(const QString &spaceId, const QVector<TabState> &tabs)
+bool SqliteSessionStore::recordClosedTabs(const QString &spaceId, const QVector<TabState> &tabs)
 {
     auto database = spaceDatabase(spaceId);
     if (!database.transaction()) {
@@ -324,6 +324,12 @@ bool SqliteSessionStore::saveTabs(
     }
 
     return database.commit();
+}
+
+bool SqliteSessionStore::recordTabs(
+    const QString &spaceId, const QVector<TabState> &tabs, const QString &activeTabId)
+{
+    return saveTabs(spaceId, tabs, activeTabId);
 }
 
 bool SqliteSessionStore::saveSpaceMove(const QString &sourceSpaceId,

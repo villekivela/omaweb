@@ -62,9 +62,9 @@ redirect chain lands several visits in one millisecond.
 The SQLite store runs on a thread of its own, with its connections opened and closed there. The
 three writes a session makes as it runs, the visit record, the coalesced tab write and the
 closed-tab write, are queued to it and answered as taken, so the interface never waits on the disk
-for them: the visit that restores the history bound cost the interface thread 2 to 3 ms before, and
-a few microseconds now. Every other call, a Space move or a delete among them, runs on the store
-thread while the interface waits for its answer. The thread takes calls in the order they were made,
+for them; the store names them `record`. Every other call, the `save` writes, the deletes and the
+reads, runs on the store thread while the interface waits for its answer, which is what a Space
+switch, move or delete needs before it goes on. The thread takes calls in the order they were made,
 so a call sees every queued write made before it, and closing the store at quit lands whatever is
 still queued. A Private window's store keeps nothing and has no thread.
 

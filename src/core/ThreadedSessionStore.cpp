@@ -120,10 +120,10 @@ QVector<TabState> ThreadedSessionStore::loadClosedTabs(const QString &spaceId) c
     return ask([this, &spaceId] { return m_store->loadClosedTabs(spaceId); });
 }
 
-bool ThreadedSessionStore::saveClosedTabs(const QString &spaceId, const QVector<TabState> &tabs)
+bool ThreadedSessionStore::recordClosedTabs(const QString &spaceId, const QVector<TabState> &tabs)
 {
     return queue("closed-tab write",
-        [this, spaceId, tabs] { return m_store->saveClosedTabs(spaceId, tabs); });
+        [this, spaceId, tabs] { return m_store->recordClosedTabs(spaceId, tabs); });
 }
 
 bool ThreadedSessionStore::saveTab(const TabState &tab, int position)
@@ -134,8 +134,16 @@ bool ThreadedSessionStore::saveTab(const TabState &tab, int position)
 bool ThreadedSessionStore::saveTabs(
     const QString &spaceId, const QVector<TabState> &tabs, const QString &activeTabId)
 {
-    return queue("tab write", [this, spaceId, tabs, activeTabId] {
+    return ask([this, &spaceId, &tabs, &activeTabId] {
         return m_store->saveTabs(spaceId, tabs, activeTabId);
+    });
+}
+
+bool ThreadedSessionStore::recordTabs(
+    const QString &spaceId, const QVector<TabState> &tabs, const QString &activeTabId)
+{
+    return queue("tab write", [this, spaceId, tabs, activeTabId] {
+        return m_store->recordTabs(spaceId, tabs, activeTabId);
     });
 }
 

@@ -25,12 +25,12 @@ inline QString sessionPermissionKey(
 // remember: `SqliteSessionStore` records, `PrivateSessionStore` accepts and
 // drops. A write that was not written down answers false.
 //
-// Three writes are the ones a session makes as it runs: `recordVisit`,
-// `saveTabs` and `saveClosedTabs`. An adapter may take them and land them
-// later, answering whether it took the write, provided every later call sees
-// them landed; `ThreadedSessionStore` does. Every other write answers once it
-// is written, which a Space move or a delete has to know before the interface
-// moves on.
+// The writes named `record` are the ones a session makes as it runs: the
+// visit, the coalesced tab write and the closed-tab stack. An adapter may take
+// them and land them later, answering whether it took the write, provided
+// every later call sees them landed; `ThreadedSessionStore` does. The writes
+// named `save`, and the deletes, answer once they are written, which a Space
+// switch, move or delete has to know before the interface moves on.
 //
 // Where the data root itself lives is not asked here. An adapter that keeps
 // nothing has no directory to name, so the paths a Space's engine profile and
@@ -55,9 +55,14 @@ public:
 
     virtual QVector<TabState> loadTabs(const QString &spaceId) const = 0;
     virtual QVector<TabState> loadClosedTabs(const QString &spaceId) const = 0;
-    virtual bool saveClosedTabs(const QString &spaceId, const QVector<TabState> &tabs) = 0;
+    virtual bool recordClosedTabs(const QString &spaceId, const QVector<TabState> &tabs) = 0;
     virtual bool saveTab(const TabState &tab, int position) = 0;
     virtual bool saveTabs(
+        const QString &spaceId, const QVector<TabState> &tabs, const QString &activeTabId)
+        = 0;
+    // The same write as `saveTabs`, for the coalesced path that has nothing to
+    // do with the answer.
+    virtual bool recordTabs(
         const QString &spaceId, const QVector<TabState> &tabs, const QString &activeTabId)
         = 0;
     virtual bool saveSpaceMove(const QString &sourceSpaceId, const QVector<TabState> &sourceTabs,

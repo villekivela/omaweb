@@ -393,6 +393,7 @@ private:
     void ensureDefaultSpace();
     void ensureActiveTab();
     bool persistTabs();
+    void recordTabs();
     void schedulePersistTabs();
     void setActiveTab(const QString &tabId);
     qsizetype pinnedTabCount() const;

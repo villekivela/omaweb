@@ -30,7 +30,7 @@ QVector<TabState> PrivateSessionStore::loadTabs(const QString &) const { return 
 
 QVector<TabState> PrivateSessionStore::loadClosedTabs(const QString &) const { return {}; }
 
-bool PrivateSessionStore::saveClosedTabs(const QString &, const QVector<TabState> &)
+bool PrivateSessionStore::recordClosedTabs(const QString &, const QVector<TabState> &)
 {
     return false;
 }
@@ -38,6 +38,11 @@ bool PrivateSessionStore::saveClosedTabs(const QString &, const QVector<TabState
 bool PrivateSessionStore::saveTab(const TabState &, int) { return false; }
 
 bool PrivateSessionStore::saveTabs(const QString &, const QVector<TabState> &, const QString &)
+{
+    return false;
+}
+
+bool PrivateSessionStore::recordTabs(const QString &, const QVector<TabState> &, const QString &)
 {
     return false;
 }

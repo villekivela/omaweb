@@ -95,8 +95,7 @@ namespace {
 } // namespace
 
 BrowserController::BrowserController(SpaceStorage storage, QString configRoot, QObject *parent)
-    : BrowserController(
-          makeRecordingStore(storage), std::move(storage), std::move(configRoot), parent)
+    : BrowserController(makeRecordingStore(storage), storage, std::move(configRoot), parent)
 {
 }
 
@@ -139,7 +138,7 @@ BrowserController::BrowserController(std::shared_ptr<SessionStore> store, QThrea
     m_unpinnedTabs.setFilterRegularExpression(QRegularExpression(QStringLiteral("^false$")));
     m_persistTabsTimer.setSingleShot(true);
     m_persistTabsTimer.setInterval(persistTabsDelayMilliseconds);
-    connect(&m_persistTabsTimer, &QTimer::timeout, this, [this] { persistTabs(); });
+    connect(&m_persistTabsTimer, &QTimer::timeout, this, [this] { recordTabs(); });
     // Every route to a blank tab changes the tab model: opening the first
     // address, closing the last page, switching Space, restoring a session.
     // Watching the model is what keeps the answer from depending on a caller
@@ -180,7 +179,7 @@ BrowserController::BrowserController(std::shared_ptr<SessionStore> store, QThrea
 BrowserController::~BrowserController()
 {
     if (m_persistTabsTimer.isActive()) {
-        persistTabs();
+        recordTabs();
     }
 }
 
@@ -856,7 +855,7 @@ void BrowserController::loadClosedTabs()
 // nothing behind, which is its store's answer rather than a test here.
 void BrowserController::persistClosedTabs()
 {
-    m_store->saveClosedTabs(m_activeSpaceId, m_closedTabs);
+    m_store->recordClosedTabs(m_activeSpaceId, m_closedTabs);
 }
 
 // Newest first, so repeated asking walks back through the closes in the order
@@ -2216,11 +2215,18 @@ bool BrowserController::persistTabs()
     return m_store->saveTabs(m_activeSpaceId, m_tabs.items(), m_activeTabId);
 }
 
+// The coalesced write itself, which the store may land later: nothing here
+// waits for its answer.
+void BrowserController::recordTabs()
+{
+    m_persistTabsTimer.stop();
+    m_store->recordTabs(m_activeSpaceId, m_tabs.items(), m_activeTabId);
+}
+
 // A loading page reports a new address and then several titles in quick
 // succession, and each report used to rewrite the whole Space's tab table.
 // The session only has to survive a quit, so the writes are coalesced; the
-// paths that need the write ahead of their own, a Space switch or a delete,
-// still call persistTabs directly, and the store lands it before what follows.
+// paths that must know the write succeeded still call persistTabs directly.
 void BrowserController::schedulePersistTabs()
 {
     if (m_privateBrowsing) {

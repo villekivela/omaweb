@@ -13,15 +13,16 @@ namespace omaweb {
 // is opened, used and closed on that thread, which is where its SQLite
 // connections then belong.
 //
-// Three writes are queued and answered as taken: the visit record, the tab
-// write and the closed-tab write. Every other call runs on the store thread
-// while the caller waits for its answer, which is what a Space move or a
-// delete needs before the interface moves on. The thread takes calls in the
-// order they were made, so a call sees every queued write made before it, and
-// closing the store lands whatever is still queued.
+// The `record` writes, the visit, the coalesced tab write and the closed-tab
+// stack, are queued and answered as taken. Every other call runs on the store
+// thread while the caller waits for its answer, which is what a Space switch,
+// move or delete needs before the interface moves on. The thread takes calls
+// in the order they were made, so a call sees every queued write made before
+// it, and closing the store lands whatever is still queued.
 //
 // A reader that wants the same ordering, such as History search, can live on
-// the store's thread.
+// the store's thread. A waiting call then also waits behind a search in
+// progress, which is bounded by one scan of a Space's history.
 class ThreadedSessionStore final : public SessionStore {
 public:
     explicit ThreadedSessionStore(std::unique_ptr<SessionStore> store);
@@ -37,9 +38,11 @@ public:
     bool deleteSpace(const QString &spaceId, const QString &replacementActiveSpaceId = {}) override;
     QVector<TabState> loadTabs(const QString &spaceId) const override;
     QVector<TabState> loadClosedTabs(const QString &spaceId) const override;
-    bool saveClosedTabs(const QString &spaceId, const QVector<TabState> &tabs) override;
+    bool recordClosedTabs(const QString &spaceId, const QVector<TabState> &tabs) override;
     bool saveTab(const TabState &tab, int position) override;
     bool saveTabs(
+        const QString &spaceId, const QVector<TabState> &tabs, const QString &activeTabId) override;
+    bool recordTabs(
         const QString &spaceId, const QVector<TabState> &tabs, const QString &activeTabId) override;
     bool saveSpaceMove(const QString &sourceSpaceId, const QVector<TabState> &sourceTabs,
         const QString &sourceActiveTabId, const QString &destinationSpaceId,

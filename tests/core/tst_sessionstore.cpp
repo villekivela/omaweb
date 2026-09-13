@@ -149,7 +149,7 @@ void SessionStoreTest::adaptersRecordTabsOnlyIfTheyRecord()
     QCOMPARE(store->saveTabs(spaceId(), tabs, QStringLiteral("tab-1")), records);
     QCOMPARE(store->loadTabs(spaceId()).size(), records ? 1 : 0);
 
-    QCOMPARE(store->saveClosedTabs(spaceId(), tabs), records);
+    QCOMPARE(store->recordClosedTabs(spaceId(), tabs), records);
     QCOMPARE(store->loadClosedTabs(spaceId()).size(), records ? 1 : 0);
 }
 
@@ -281,7 +281,7 @@ void SessionStoreTest::aPrivateStoreLeavesTheRootItWasGivenEmpty()
     store.saveTabs(spaceId(),
         {makeTab(QStringLiteral("tab-1"), QStringLiteral("https://a.example"))},
         QStringLiteral("tab-1"));
-    store.saveClosedTabs(
+    store.recordClosedTabs(
         spaceId(), {makeTab(QStringLiteral("tab-2"), QStringLiteral("https://b.example"))});
     store.recordVisit(spaceId(), QUrl(QStringLiteral("https://a.example")), QStringLiteral("A"));
     store.savePreference(QStringLiteral("sidebar-width"), QStringLiteral("280"));
@@ -367,10 +367,10 @@ RunningWriteCost priceRunningWrites(SessionStore &store)
     }
     for (int run = 0; run < 20; ++run) {
         timer.start();
-        store.saveTabs(spaceId(), tabs, tabs.first().id);
+        store.recordTabs(spaceId(), tabs, tabs.first().id);
         cost.tabsMicroseconds = std::max(cost.tabsMicroseconds, timer.nsecsElapsed() / 1e3);
         timer.start();
-        store.saveClosedTabs(spaceId(), closed);
+        store.recordClosedTabs(spaceId(), closed);
         cost.closedTabsMicroseconds
             = std::max(cost.closedTabsMicroseconds, timer.nsecsElapsed() / 1e3);
     }
@@ -391,7 +391,7 @@ void SessionStoreTest::aThreadedStoreReadsBackTheWritesItWasGivenBefore()
     for (int index = 0; index < 50; ++index) {
         QVERIFY(store.saveTabs(
             spaceId(), makeTabs(QStringLiteral("tab"), index + 1), QStringLiteral("tab-0")));
-        QVERIFY(store.saveClosedTabs(spaceId(), makeTabs(QStringLiteral("closed"), index)));
+        QVERIFY(store.recordClosedTabs(spaceId(), makeTabs(QStringLiteral("closed"), index)));
         QVERIFY(store.recordVisit(spaceId(),
             QUrl(QStringLiteral("https://visited-%1.example/").arg(index)),
             QStringLiteral("Visit %1").arg(index)));
@@ -415,7 +415,7 @@ void SessionStoreTest::aThreadedStoreLandsAPendingWriteWhenItCloses()
         QVERIFY(store.saveSpace(makeSpace()));
         QVERIFY(
             store.saveTabs(spaceId(), makeTabs(QStringLiteral("tab"), 3), QStringLiteral("tab-0")));
-        QVERIFY(store.saveClosedTabs(spaceId(), makeTabs(QStringLiteral("closed"), 2)));
+        QVERIFY(store.recordClosedTabs(spaceId(), makeTabs(QStringLiteral("closed"), 2)));
         QVERIFY(store.recordVisit(
             spaceId(), QUrl(QStringLiteral("https://last.example/")), QStringLiteral("Last")));
     }
