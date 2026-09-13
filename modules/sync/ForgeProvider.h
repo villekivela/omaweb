@@ -4,7 +4,20 @@
 #include <QString>
 #include <QUrl>
 
+#include <algorithm>
+
 namespace omaweb {
+
+// A device-flow poll slows down when the forge asks it to, and never past the
+// point where the device code it is polling for would expire between two ticks.
+// The back-off belongs to the question being asked: a later step waits on
+// something else and starts again from the forge's own interval.
+constexpr int backedOffPollSeconds(int currentSeconds, int adjustmentSeconds)
+{
+    constexpr auto ceilingSeconds = 30;
+    return adjustmentSeconds > 0 ? std::min(ceilingSeconds, currentSeconds + adjustmentSeconds)
+                                 : currentSeconds;
+}
 
 struct DeviceAuthorization {
     QString deviceCode {};
