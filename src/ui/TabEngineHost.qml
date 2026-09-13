@@ -40,6 +40,18 @@ Item {
                                            ? root.activeEngine.keyboardNavigationHintModeActive :
                                              false
     property var activeEngine: null
+    // How far from its place the page on show stands while it arrives, in
+    // pixels down. Measured by the sidebar, where the rows are; applied here
+    // to the arriving engine and to nothing else, so the page it replaces and
+    // the ground under both stay where they are.
+    property real tabNudge: 0
+    Component {
+        id: tabSlideComponent
+        Translate {
+            property var engine: null
+            y: engine !== null && engine === root.activeEngine ? root.tabNudge : 0
+        }
+    }
     property bool suspended: true
 
     // What the page the reader is looking at is doing with the whole screen,
@@ -386,6 +398,9 @@ Item {
         if (!engine)
             return null;
         engine.anchors.fill = root;
+        engine.transform = [tabSlideComponent.createObject(engine, {
+                                                               "engine": engine
+                                                           })];
         root.engines[tabId] = engine;
         root.engineSpaces[tabId] = spaceId !== undefined ? spaceId : root.spaceId;
         // A tab can be named as the inspected one before it has an engine to

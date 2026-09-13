@@ -1781,16 +1781,9 @@ ApplicationWindow {
                 // the heavy thing on the screen and only has to agree about
                 // the direction. A slide and nothing else, so the viewport is
                 // never drawn through a layer.
-                // And with the tab: a tab further down the list arrives from
-                // below, one further up from above, by less than a row.
-                transform: [
-                    Translate {
-                        x: sidebar.arriving ? sidebar.arrivalOffset * 32 : 0
-                    },
-                    Translate {
-                        y: sidebar.tabOffset
-                    }
-                ]
+                transform: Translate {
+                    x: sidebar.arriving ? sidebar.arrivalOffset * 32 : 0
+                }
 
                 // The shell around it is translucent by theme; a webpage viewport
                 // never is, so it gets its own opaque backing rather than
@@ -1808,6 +1801,10 @@ ApplicationWindow {
 
                 TabEngineHost {
                     id: engineLoader
+                    // A tab further down the list arrives from below, one
+                    // further up from above, by less than a row: the arriving
+                    // page alone, over the ground that stays.
+                    tabNudge: sidebar.tabOffset
                     anchors.left: parent.left
                     anchors.top: parent.top
                     anchors.bottom: parent.bottom
