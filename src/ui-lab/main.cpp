@@ -421,6 +421,10 @@ int main(int argc, char *argv[])
             {QStringLiteral("space-settled"), {}},
             {QStringLiteral("omnibar-step"), {}},
             {QStringLiteral("omnibar-settled"), {}},
+            {QStringLiteral("tab-step"), {}},
+            {QStringLiteral("tab-settled"), {}},
+            {QStringLiteral("settings-step"), {}},
+            {QStringLiteral("settings-settled"), {}},
         };
         const auto requested = arguments.at(showIndex + 1);
         auto *root = engine.rootObjects().constFirst();
@@ -471,10 +475,14 @@ int main(int argc, char *argv[])
         if (requested.endsWith(QLatin1String("-step"))
             || requested.endsWith(QLatin1String("-settled"))) {
             const auto delay = requested.endsWith(QLatin1String("-step")) ? 620 : 300;
-            const auto space = requested.startsWith(QLatin1String("space-"));
-            QTimer::singleShot(delay, root, [root, space] {
-                if (space) {
+            const auto what = requested.section(QLatin1Char('-'), 0, 0);
+            QTimer::singleShot(delay, root, [root, what] {
+                if (what == QLatin1String("space")) {
                     QMetaObject::invokeMethod(root, "stepSpace", Q_ARG(QVariant, 1));
+                } else if (what == QLatin1String("tab")) {
+                    QMetaObject::invokeMethod(root, "stepTab", Q_ARG(QVariant, 1));
+                } else if (what == QLatin1String("settings")) {
+                    QMetaObject::invokeMethod(root, "requestSettings");
                 } else {
                     QMetaObject::invokeMethod(root, "openOmnibar", Q_ARG(QVariant, false));
                 }

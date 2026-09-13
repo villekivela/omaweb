@@ -1781,9 +1781,16 @@ ApplicationWindow {
                 // the heavy thing on the screen and only has to agree about
                 // the direction. A slide and nothing else, so the viewport is
                 // never drawn through a layer.
-                transform: Translate {
-                    x: sidebar.arriving ? sidebar.arrivalOffset * 32 : 0
-                }
+                // And with the tab: a tab further down the list arrives from
+                // below, one further up from above, by less than a row.
+                transform: [
+                    Translate {
+                        x: sidebar.arriving ? sidebar.arrivalOffset * 32 : 0
+                    },
+                    Translate {
+                        y: sidebar.tabOffset
+                    }
+                ]
 
                 // The shell around it is translucent by theme; a webpage viewport
                 // never is, so it gets its own opaque backing rather than
@@ -1984,6 +1991,12 @@ ApplicationWindow {
                     id: startPage
                     anchors.fill: parent
                     z: 30
+                    transform: SheetLift {
+                        id: startPageLift
+                        shown: startPage.open
+                        ease: window.easeSidebar
+                    }
+                    opacity: startPageLift.progress
                     colors: window.colors
                     iconFontFamily: materialSymbols.name
                     commands: browserCommands
@@ -2210,6 +2223,12 @@ ApplicationWindow {
                     objectName: "settingsSurface"
                     anchors.fill: parent
                     z: 45
+                    transform: SheetLift {
+                        id: settingsLift
+                        shown: settingsSurface.open
+                        ease: window.easeSidebar
+                    }
+                    opacity: settingsLift.progress
                     colors: window.colors
                     iconFontFamily: materialSymbols.name
                     browser: window.windowBrowser
@@ -2279,6 +2298,12 @@ ApplicationWindow {
                     id: historySurface
                     anchors.fill: parent
                     z: 46
+                    transform: SheetLift {
+                        id: historyLift
+                        shown: historySurface.open
+                        ease: window.easeSidebar
+                    }
+                    opacity: historyLift.progress
                     colors: window.colors
                     iconFontFamily: materialSymbols.name
                     browser: window.windowBrowser

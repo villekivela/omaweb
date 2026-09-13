@@ -102,6 +102,7 @@ Rectangle {
                 return;
             }
             spaceArrival.stop();
+            root.settledTabY = -1;
             root.switchDirection = to > from ? 1 : -1;
             root.arrivalOffset = root.switchDirection;
             root.arrivalOpacity = 0;
@@ -250,6 +251,33 @@ Rectangle {
     // Where "focus the sidebar" lands: the row the reader is already reading,
     // so the keyboard arrives where their attention is.
     property var activeTabItem: null
+    // Tabs are the list, and the page follows a switch the way the list
+    // reads: a tab further down arrives from below, one further up from
+    // above. The distance is the page's; the direction is measured here,
+    // where the rows are. A Space switch moves the page its own way and
+    // this stays out of it.
+    property real settledTabY: -1
+    property real tabOffset: 0
+    onActiveTabItemChanged: {
+        if (activeTabItem === null)
+            return;
+        const y = activeTabItem.mapToItem(root, 0, 0).y;
+        const from = settledTabY;
+        settledTabY = y;
+        if (!easeSpaces || arriving || from < 0 || from === y)
+            return;
+        tabArrival.stop();
+        tabOffset = y > from ? 10 : -10;
+        tabArrival.start();
+    }
+    NumberAnimation {
+        id: tabArrival
+        target: root
+        property: "tabOffset"
+        to: 0
+        duration: 160
+        easing.type: Easing.OutCubic
+    }
 
     // The row in the hand, and where the arrangement would put it if it were
     // let go now. A drag reorders nothing until it is released: opening the
@@ -1046,6 +1074,14 @@ Rectangle {
         radius: 2
         z: 5
         visible: downloadMark.detailRequested && downloadMark.running > 0
+        // Rises from the mark it was asked from.
+        transform: SheetLift {
+            id: detailLift
+            shown: downloadDetail.visible
+            ease: root.easeSpaces
+            distance: 8
+        }
+        opacity: detailLift.progress
         color: root.colors.overlay
         border.width: 1
         border.color: root.colors.accent
@@ -1128,6 +1164,14 @@ Rectangle {
         y: outline.y + addressButton.y + addressButton.height + 8
         width: Math.min(320, Math.max(200, root.width - 32))
         z: 5
+        // Unfolds from the address it reports on.
+        transform: SheetLift {
+            id: siteLift
+            shown: sitePanel.visible
+            ease: root.easeSpaces
+            distance: -8
+        }
+        opacity: siteLift.progress
         colors: root.colors
         browser: root.browser
         cookiePolicy: root.cookiePolicy

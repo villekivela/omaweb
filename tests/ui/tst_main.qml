@@ -1443,10 +1443,13 @@ TestCase {
         tryVerify(function () {
             return panel.visible;
         });
+        // The panel unfolds from the address, so its place is read once it
+        // has settled there.
         const addressBottom = address.mapToItem(window.contentItem, 0, address.height).y;
-        const panelTop = panel.mapToItem(window.contentItem, 0, 0).y;
-        verify(panelTop >= addressBottom + 6);
-        verify(panelTop <= addressBottom + 10);
+        tryVerify(function () {
+            const panelTop = panel.mapToItem(window.contentItem, 0, 0).y;
+            return panelTop >= addressBottom + 6 && panelTop <= addressBottom + 10;
+        });
 
         keyClick(Qt.Key_Escape);
         tryVerify(function () {
