@@ -246,6 +246,8 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty(QStringLiteral("theme"), &theme);
     engine.rootContext()->setContextProperty(QStringLiteral("windowManager"), &windowManager);
     engine.rootContext()->setContextProperty(
+        QStringLiteral("syncLauncher"), static_cast<QObject *>(nullptr));
+    engine.rootContext()->setContextProperty(
         QStringLiteral("engineViewSource"), QUrl(QStringLiteral(OMAWEB_ENGINE_VIEW_URL)));
     engine.rootContext()->setContextProperty(
         QStringLiteral("engineProfileSource"), QUrl(QStringLiteral(OMAWEB_ENGINE_PROFILE_URL)));

@@ -78,6 +78,7 @@ class BrowserControllerTest final : public QObject {
 private slots:
     void createsPersonalSpaceAndBlankTab();
     void createsAndSwitchesSpaces();
+    void switchesSpacesWithoutReportingAStructuralChange();
     void renamesSpacePersistently();
     void requiresNameToDeletePopulatedSpace();
     void treatsEngineStateAsPopulatedSpaceData();
@@ -183,6 +184,23 @@ void BrowserControllerTest::createsAndSwitchesSpaces()
 
     QVERIFY(controller.switchSpace(personalSpaceId));
     QCOMPARE(controller.activeUrl(), QUrl(QStringLiteral("https://personal.example")));
+}
+
+void BrowserControllerTest::switchesSpacesWithoutReportingAStructuralChange()
+{
+    QTemporaryDir root;
+    BrowserController controller(SpaceStorage(root.path(), QStringLiteral("test")));
+    const auto workSpaceId = controller.createSpace(QStringLiteral("Work"));
+    QSignalSpy resetSpy(controller.spaces(), &QAbstractItemModel::modelReset);
+    QSignalSpy changedSpy(controller.spaces(), &QAbstractItemModel::dataChanged);
+
+    QVERIFY(controller.switchSpace(workSpaceId));
+
+    QCOMPARE(resetSpy.count(), 0);
+    QCOMPARE(changedSpy.count(), 2);
+    for (const auto &change : changedSpy) {
+        QCOMPARE(change.at(2).value<QList<int>>(), {SpaceListModel::ActiveRole});
+    }
 }
 
 void BrowserControllerTest::opensKeyboardHintTargetsInBackground()
@@ -307,12 +325,14 @@ void BrowserControllerTest::warnsBeforeMovingEditedTabBetweenSpaces()
     const auto movedTabId = controller.activeTabId();
     const auto workSpaceId = controller.createSpace(QStringLiteral("Work"));
     QSignalSpy confirmationSpy(&controller, &BrowserController::tabMoveConfirmationRequested);
+    QSignalSpy removedSpy(controller.tabs(), &QAbstractItemModel::rowsRemoved);
 
     QVERIFY(controller.requestTabMoveToSpace(movedTabId, workSpaceId, true));
     QCOMPARE(confirmationSpy.count(), 1);
     QCOMPARE(controller.activeTabId(), movedTabId);
 
     QVERIFY(controller.confirmTabMoveToSpace(movedTabId, workSpaceId));
+    QCOMPARE(removedSpy.count(), 1);
     QCOMPARE(controller.tabs()->rowCount(), 1);
     QCOMPARE(controller.activeUrl(), QUrl(QStringLiteral("about:blank")));
 

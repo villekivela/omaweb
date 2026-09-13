@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Effects
 import qs.Commons
 import qs.Ui as Omarchy
 
@@ -23,6 +24,10 @@ Rectangle {
     // rather than the outline growing a line for it: settings is a place, and
     // what is wrong is stated there, where it can be acted on.
     property bool settingsAttention: false
+    property var sync: null
+    readonly property bool authenticatedSync: !root.privateWindow && root.sync
+                                              && root.sync.login.length > 0
+    readonly property bool activeSync: root.authenticatedSync && root.sync.enabled
     property var downloads: null
     property bool savedFileNoticeShowing: false
 
@@ -86,6 +91,7 @@ Rectangle {
     signal tabDropped(string tabId, int destination)
     signal spaceActivated(string spaceId)
     signal settingsRequested
+    signal syncRequested
     signal backRequested
     signal forwardRequested
     signal reloadRequested
@@ -634,7 +640,9 @@ Rectangle {
         Row {
             objectName: "spaceSwitcher"
             anchors.left: parent.left
-            anchors.right: downloadMark.visible ? downloadMark.left : settingsButton.left
+            anchors.right: downloadMark.visible ? downloadMark.left : (syncMark.visible
+                                                                       ? syncMark.left :
+                                                                         settingsButton.left)
             anchors.rightMargin: 8
             anchors.verticalCenter: parent.verticalCenter
             height: 28
@@ -695,7 +703,7 @@ Rectangle {
         DownloadMark {
             id: downloadMark
             objectName: "downloadMark"
-            anchors.right: settingsButton.left
+            anchors.right: syncMark.visible ? syncMark.left : settingsButton.left
             anchors.rightMargin: 4
             anchors.verticalCenter: parent.verticalCenter
             width: 26
@@ -708,12 +716,92 @@ Rectangle {
         }
 
         ChromeButton {
+            id: syncMark
+            objectName: "syncAvatarButton"
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            width: 28
+            height: 26
+            visible: root.authenticatedSync
+            accessibleName: !root.authenticatedSync ? "Settings" : root.settingsAttention
+                                                      ? "Settings for " + root.sync.login
+                                                        + " — needs attention" : !root.activeSync
+                                                        ? "Settings for " + root.sync.login
+                                                          + " — Sync paused" : "Settings for "
+                                                          + root.sync.login
+            foreground: root.sync && root.sync.errorMessage.length > 0 ? root.colors.urgent :
+                                                                         root.colors.mutedText
+
+            accent: root.colors.accent
+            onClicked: root.settingsRequested()
+
+            Rectangle {
+                id: avatarClip
+                objectName: "syncAvatarClip"
+                anchors.centerIn: parent
+                width: parent.height - 4
+                height: width
+                radius: width / 2
+                color: root.colors.separator
+                clip: true
+
+                Text {
+                    objectName: "syncAvatarMonogram"
+                    anchors.centerIn: parent
+                    visible: avatarImage.status !== Image.Ready
+                    text: root.sync && root.sync.login.length > 0 ? root.sync.login.charAt(0).toUpperCase() :
+                                                                    ""
+                    color: root.activeSync ? root.colors.text : root.colors.mutedText
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.body
+                    font.bold: true
+                }
+
+                Image {
+                    id: avatarImage
+                    anchors.fill: parent
+                    source: root.sync && root.sync.avatarPath.length > 0 ? "file://"
+                                                                           + root.sync.avatarPath :
+                                                                           ""
+                    sourceSize.width: 48
+                    sourceSize.height: 48
+                    fillMode: Image.PreserveAspectCrop
+                    visible: false
+                    smooth: true
+                }
+
+                MultiEffect {
+                    objectName: "syncAvatarEffect"
+                    anchors.fill: parent
+                    source: avatarImage
+                    visible: avatarImage.status === Image.Ready
+                    saturation: root.activeSync ? 0 : -1
+                }
+            }
+
+            Rectangle {
+                objectName: "syncActivityDot"
+                anchors.right: parent.right
+                anchors.bottom: parent.bottom
+                width: 6
+                height: 6
+                radius: 3
+                color: root.sync && root.sync.errorMessage.length > 0 ? root.colors.urgent : root.activeSync
+                                                                        ? root.colors.accent :
+                                                                          root.colors.mutedText
+
+                Accessible.ignored: true
+            }
+        }
+
+        ChromeButton {
             id: settingsButton
             objectName: "settingsButton"
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
             width: 28
             height: 26
+            visible: !root.authenticatedSync
             icon: "settings"
             accessibleName: root.settingsAttention
                             ? "Browsing settings and downloads — needs attention" :

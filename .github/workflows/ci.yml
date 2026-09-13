@@ -58,7 +58,7 @@ jobs:
         # container ships nothing it is not told to.
         run:
           pacman -Syu --noconfirm git cmake ninja clang ccache rust qt6-base qt6-declarative
-          qt6-webengine
+          qt6-webengine libsecret libsodium
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Take the build off root
         # A container runs as root, and Chromium refuses to start as root
@@ -116,7 +116,7 @@ jobs:
       - name: Install toolchain
         run:
           pacman -Syu --noconfirm git cmake ninja gcc ccache rust qt6-base qt6-declarative
-          qt6-webengine
+          qt6-webengine libsecret libsodium
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Take the build off root
         # Same reason as `arch-linux`: Chromium refuses to start as root with
@@ -141,7 +141,7 @@ jobs:
       - name: Install toolchain
         run:
           pacman -Syu --noconfirm git cmake ninja clang rust qt6-base qt6-declarative qt6-webengine
-          qt6-wayland hicolor-icon-theme xdg-utils
+          qt6-wayland hicolor-icon-theme xdg-utils libsecret libsodium
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # The package takes its version from the nearest release tag, so a

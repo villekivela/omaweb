@@ -45,9 +45,14 @@ public:
     // Called once before anything else. An adapter that records answers for
     // the directory it could not create; one that keeps nothing always agrees.
     virtual bool open(QString *errorMessage = nullptr) = 0;
+    // Whether this adapter makes durable browser state available to features
+    // outside the live window. A Private session answers false, which keeps a
+    // caller from reaching around its write-nothing rule through global files.
+    virtual bool recordsState() const = 0;
 
     virtual QVector<SpaceState> loadSpaces() const = 0;
     virtual bool saveSpace(const SpaceState &space) = 0;
+    virtual bool saveSpaces(const QVector<SpaceState> &spaces) = 0;
     virtual bool setActiveSpace(const QString &spaceId) = 0;
     virtual bool spaceHasSavedContent(const QString &spaceId) const = 0;
     virtual bool deleteSpace(const QString &spaceId, const QString &replacementActiveSpaceId = {})

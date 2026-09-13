@@ -133,6 +133,13 @@ QString KeyboardNavigation::errorMessage() const { return m_errorMessage; }
 
 QString KeyboardNavigation::pageScript() const { return m_pageScript; }
 
+bool KeyboardNavigation::reload()
+{
+    const auto loaded = load();
+    emit configurationChanged();
+    return loaded;
+}
+
 bool KeyboardNavigation::setEnabled(bool enabled)
 {
     if (!m_valid) {

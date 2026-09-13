@@ -22,6 +22,7 @@
 #include "SavedDownload.h"
 #include "SystemClipboard.h"
 #include "SystemNotifier.h"
+#include "SyncLauncher.h"
 #include "ThemeController.h"
 #include "WindowChrome.h"
 #include "WindowManager.h"
@@ -254,6 +255,12 @@ int main(int argc, char *argv[])
         qWarning("%s", qPrintable(inputMethod.diagnostic()));
     }
     omaweb::WindowManager windowManager(configRoot(), launch.privateWindowsAvailable);
+    const auto developmentSyncModule = QStringLiteral(OMAWEB_SYNC_MODULE_PATH);
+    const auto syncModulePath = QFileInfo::exists(developmentSyncModule)
+        ? developmentSyncModule
+        : QStringLiteral(OMAWEB_SYNC_INSTALLED_MODULE_PATH);
+    omaweb::SyncLauncher syncLauncher(
+        &browser, &contentBlocker, &keyboardNavigation, dataRoot(), configRoot(), syncModulePath);
 
     omaweb::registerBrowserController();
     omaweb::registerDownloads();
@@ -282,6 +289,7 @@ int main(int argc, char *argv[])
         QStringLiteral("engineHeldDownloads"), &engineHeldDownloads);
     engine.rootContext()->setContextProperty(QStringLiteral("theme"), &theme);
     engine.rootContext()->setContextProperty(QStringLiteral("windowManager"), &windowManager);
+    engine.rootContext()->setContextProperty(QStringLiteral("syncLauncher"), &syncLauncher);
     engine.rootContext()->setContextProperty(
         QStringLiteral("engineViewSource"), QUrl(QStringLiteral(OMAWEB_ENGINE_VIEW_URL)));
     engine.rootContext()->setContextProperty(

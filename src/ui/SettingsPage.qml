@@ -1,7 +1,10 @@
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Dialogs as Dialogs
+import QtQuick.Effects
 import Omaweb
 import qs.Commons
+import qs.Ui as Omarchy
 
 // Settings is a place, not a dialog. It has outgrown a modal — filter lists, a
 // rule editor and download history in one scroll — so it takes the page area
@@ -15,6 +18,58 @@ Rectangle {
     property var browser
     property var blocker
     property var keyboard
+    property var syncLauncher: null
+    readonly property var sync: syncLauncher ? syncLauncher.controller : null
+
+    Connections {
+        target: root.sync
+        ignoreUnknownSignals: true
+
+        function onConsentPageRequested(url) {
+            root.openSyncConsent(url);
+        }
+
+        function onStateChanged() {
+            if (!root.sync)
+                return;
+            const detail = root.sync.errorMessage;
+            if (detail.length === 0) {
+                root.lastReportedSyncError = "";
+                return;
+            }
+            if (detail === root.lastReportedSyncError)
+                return;
+            root.lastReportedSyncError = detail;
+            root.syncConnectionFailed(root.providerText.failureTitle, detail);
+        }
+    }
+    // Every provider-worded string a person reads comes from the provider itself, with neutral
+    // wording before a provider is loaded.
+    readonly property var providerText: root.sync ? root.sync.providerText : ({
+                                                                                  "name": "Sync",
+                                                                                  "connectAction":
+                                                                                  "Connect Sync",
+                                                                                  "authorizationAction":
+                                                                                  "Open the authorization page",
+                                                                                  "failureTitle":
+                                                                                  "Sync failed",
+                                                                                  "codeCopiedNotice":
+                                                                                  "Code copied",
+                                                                                  "codePrompt": "",
+                                                                                  "authorizationNote":
+                                                                                  "",
+                                                                                  "repositoryTitle":
+                                                                                  "",
+                                                                                  "repositoryNote":
+                                                                                  "",
+                                                                                  "installationTitle":
+                                                                                  "",
+                                                                                  "installationNote":
+                                                                                  "",
+                                                                                  "observationNote":
+                                                                                  ""
+                                                                              })
+    readonly property bool syncAvailable: root.browser ? !root.browser.privateBrowsing : false
     property bool open: false
     property int section: 0
     // The window's download list. A model rather than an array: it says when
@@ -33,6 +88,7 @@ Rectangle {
     property bool tintFavicons: false
     property bool floatingControls: true
     property bool easeSidebar: true
+    property string lastReportedSyncError: ""
     property var engines: []
     // Every tab still running for a Space that is not on show, and what each
     // costs. A retained tab is a renderer the reader cannot see, so the browser
@@ -66,7 +122,7 @@ Rectangle {
     readonly property bool needsAttention: keyboardReport.length > 0 || inputMethodMissing
 
     readonly property var sections: ["tabs", "interface", "keyboard", "content blocking", "network",
-        "downloads", "search", "privacy", "spaces", "about"]
+        "downloads", "search", "privacy", "spaces", "sync", "about"]
 
     // The rail is as wide as the longest section name it draws, measured in the
     // bold face the current section takes so the pane beside it does not shift
@@ -207,10 +263,38 @@ Rectangle {
     signal downloadRevealed(string path)
     signal downloadForgotten(int row)
     signal retainedTabReleased(string tabId)
+    signal syncCodeCopied(string notice)
+    signal syncConsentRequested(url url)
+    signal syncConnectionFailed(string title, string detail)
+
+    function copySyncCode() {
+        if (root.sync && root.sync.userCode.length > 0 && SystemClipboard.copyText(
+                    root.sync.userCode))
+            root.syncCodeCopied(root.providerText.codeCopiedNotice);
+    }
+
+    function openSyncConsent(url) {
+        if (root.sync && !root.sync.awaitingRepositoryCreation && !root.sync.awaitingInstallation
+                && root.sync.userCode.length > 0)
+            root.copySyncCode();
+        root.closed();
+        root.syncConsentRequested(url);
+    }
     signal useFaviconsToggled(bool enabled)
     signal tintFaviconsToggled(bool enabled)
     signal floatingControlsToggled(bool enabled)
     signal easeSidebarToggled(bool enabled)
+
+    Dialogs.FileDialog {
+        id: recoveryKeySaveDialog
+        title: "Save Sync recovery key"
+        fileMode: Dialogs.FileDialog.SaveFile
+        nameFilters: ["Text files (*.txt)"]
+        onAccepted: {
+            if (root.sync)
+                root.sync.saveRecoveryKey(selectedFile);
+        }
+    }
 
     visible: open
     // Settings is a place over the page rather than instead of it, so the page
@@ -1278,6 +1362,323 @@ Rectangle {
                 Column {
                     width: pane.width
                     visible: root.section === 9
+                    spacing: pane.spacing
+
+                    Text {
+                        text: "Sync"
+                        color: root.colors.text
+                        font.family: Style.font.family
+                        font.pixelSize: Style.font.display
+                    }
+
+                    Omarchy.BorderSurface {
+                        id: syncAccountCard
+                        objectName: "syncAccountCard"
+                        width: pane.width
+                        visible: root.sync && root.sync.login.length > 0 && (!root.browser ||
+                                                                             !root.browser.privateBrowsing)
+
+                        implicitHeight: contentTopInset + Math.max(syncAccountAvatar.height,
+                                                                   syncAccountDetails.implicitHeight)
+                                        + contentBottomInset
+                        height: implicitHeight
+                        radius: Style.cornerRadius
+                        padding: Style.spacing.huge
+                        color: Qt.rgba(root.colors.text.r, root.colors.text.g, root.colors.text.b,
+                                       0.04)
+                        borderSpec: Border.controlSpec("normal", root.colors.text,
+                                                       root.colors.accent)
+                        Accessible.role: Accessible.StaticText
+                        Accessible.name: root.sync ? root.sync.login + ", " + root.sync.provider
+                                                     + " account. " + root.sync.status : ""
+
+                        Rectangle {
+                            id: syncAccountAvatar
+                            objectName: "syncAccountAvatar"
+                            anchors.left: parent.left
+                            anchors.leftMargin: syncAccountCard.contentLeftInset
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: 64
+                            height: width
+                            radius: width / 2
+                            color: root.colors.separator
+                            clip: true
+                            Accessible.ignored: true
+
+                            Text {
+                                objectName: "syncAccountMonogram"
+                                anchors.centerIn: parent
+                                visible: syncAccountImage.status !== Image.Ready
+                                text: root.sync && root.sync.login.length > 0 ? root.sync.login.charAt(
+                                                                                    0).toUpperCase(
+                                                                                    ) : ""
+                                color: root.sync && root.sync.enabled ? root.colors.text :
+                                                                        root.colors.mutedText
+                                font.family: Style.font.family
+                                font.pixelSize: Style.font.display
+                                font.bold: true
+                            }
+
+                            Image {
+                                id: syncAccountImage
+                                anchors.fill: parent
+                                source: root.sync && root.sync.avatarPath.length > 0 ? "file://"
+                                                                                       + root.sync.avatarPath :
+                                                                                       ""
+                                sourceSize.width: 128
+                                sourceSize.height: 128
+                                fillMode: Image.PreserveAspectCrop
+                                visible: false
+                                smooth: true
+                            }
+
+                            MultiEffect {
+                                anchors.fill: parent
+                                source: syncAccountImage
+                                visible: syncAccountImage.status === Image.Ready
+                                saturation: root.sync && root.sync.enabled ? 0 : -1
+                            }
+                        }
+
+                        Column {
+                            id: syncAccountDetails
+                            anchors.left: syncAccountAvatar.right
+                            anchors.leftMargin: Style.spacing.huge
+                            anchors.right: parent.right
+                            anchors.rightMargin: syncAccountCard.contentRightInset
+                            anchors.verticalCenter: parent.verticalCenter
+                            spacing: Style.spacing.sm
+                            Accessible.ignored: true
+
+                            Text {
+                                id: syncAccountLogin
+                                objectName: "syncAccountLogin"
+                                width: parent.width
+                                text: root.sync ? root.sync.login : ""
+                                color: root.colors.text
+                                elide: Text.ElideRight
+                                font.family: Style.font.family
+                                font.pixelSize: Style.font.subtitle
+                                font.bold: true
+                            }
+
+                            Text {
+                                id: syncAccountProvider
+                                objectName: "syncAccountProvider"
+                                width: parent.width
+                                text: root.sync && root.sync.provider.length > 0
+                                      ? root.sync.provider + " account" : "Sync account"
+                                color: root.colors.mutedText
+                                elide: Text.ElideRight
+                                font.family: Style.font.family
+                                font.pixelSize: Style.font.body
+                            }
+
+                            Text {
+                                id: syncAccountState
+                                objectName: "syncAccountState"
+                                width: parent.width
+                                text: root.sync ? root.sync.status : ""
+                                color: root.sync && root.sync.errorMessage.length > 0
+                                       ? root.colors.urgent : root.sync && root.sync.enabled
+                                         ? root.colors.accent : root.colors.mutedText
+                                wrapMode: Text.WordWrap
+                                font.family: Style.font.family
+                                font.pixelSize: Style.font.caption
+                            }
+                        }
+                    }
+
+                    SettingRow {
+                        width: pane.width
+                        visible: !root.sync || root.sync.login.length === 0 || !root.syncAvailable
+                        colors: root.colors
+                        title: !root.syncAvailable ? "Sync is unavailable in a Private window" :
+                                                     root.sync ? (root.sync.login.length > 0
+                                                                  ? root.sync.login + " on "
+                                                                    + root.sync.provider :
+                                                                    root.sync.status) :
+                                                                 root.providerText.connectAction
+                        note: root.sync ? root.sync.status : (root.syncLauncher
+                                                              ? root.syncLauncher.errorMessage : "")
+                    }
+
+                    Text {
+                        id: syncPrivacyBoundary
+                        objectName: "syncPrivacyBoundary"
+                        width: pane.width
+                        text: "Spaces and tabs are end-to-end encrypted. Approved settings, keybindings, and filter subscription addresses are readable in your private repository. Passwords, cookies, browsing history, downloads, site permissions, and every Private window are never synced. "
+                              + root.providerText.observationNote
+                        color: root.colors.mutedText
+                        wrapMode: Text.WordWrap
+                        font.family: Style.font.family
+                        font.pixelSize: Style.font.body
+                    }
+
+                    NoticeBox {
+                        objectName: "syncErrorNotice"
+                        width: pane.width
+                        visible: root.sync && root.sync.errorMessage.length > 0
+                        colors: root.colors
+                        iconFontFamily: root.iconFontFamily
+                        glyph: "sync_problem"
+                        title: root.providerText.failureTitle
+                        detail: root.sync ? root.sync.errorMessage : ""
+                    }
+
+                    SettingField {
+                        id: syncRecoveryKey
+                        objectName: "syncRecoveryKey"
+                        width: pane.width
+                        visible: root.syncAvailable && (!root.sync || root.sync.login.length === 0)
+                        colors: root.colors
+                        placeholder: "recovery key (leave empty on the first device)"
+                        accessibleName: "Existing Sync recovery key"
+                    }
+
+                    ActionButton {
+                        objectName: "connectSyncButton"
+                        colors: root.colors
+                        visible: root.syncAvailable && (!root.sync || (!root.sync.enabled
+                                                                       && root.sync.login.length
+                                                                       === 0 &&
+                                                                       !root.sync.connecting))
+                        label: !root.sync && root.syncLauncher && root.syncLauncher.configured
+                               ? "Resume Sync" : root.providerText.connectAction
+                        onClicked: {
+                            if (root.syncLauncher && root.syncLauncher.load()
+                                    && root.syncLauncher.controller) {
+                                if (root.syncLauncher.controller.login.length > 0) {
+                                    root.syncLauncher.controller.resume();
+                                    return;
+                                }
+                                root.syncLauncher.controller.beginConnection(syncRecoveryKey.text);
+                            }
+                        }
+                    }
+
+                    SettingRow {
+                        width: pane.width
+                        visible: root.sync && root.sync.connecting &&
+                                 !root.sync.awaitingRepositoryCreation &&
+                                 !root.sync.awaitingInstallation
+                        colors: root.colors
+                        title: root.providerText.codePrompt
+                        note: root.providerText.authorizationNote
+                    }
+
+                    Flow {
+                        width: pane.width
+                        spacing: Style.spacing.sm
+                        visible: root.sync && root.sync.connecting &&
+                                 !root.sync.awaitingRepositoryCreation &&
+                                 !root.sync.awaitingInstallation
+
+                        ActionButton {
+                            objectName: "copySyncCodeButton"
+                            colors: root.colors
+                            label: "Copy code"
+                            onClicked: root.copySyncCode()
+                        }
+
+                        ActionButton {
+                            objectName: "openSyncAuthorizationButton"
+                            colors: root.colors
+                            label: root.providerText.authorizationAction
+                            onClicked: root.openSyncConsent(root.sync.verificationUrl)
+                        }
+                    }
+
+                    SettingRow {
+                        width: pane.width
+                        visible: root.sync && root.sync.awaitingRepositoryCreation
+                        colors: root.colors
+                        title: root.providerText.repositoryTitle
+                        note: root.providerText.repositoryNote
+                    }
+
+                    ActionButton {
+                        objectName: "continueSyncSetupButton"
+                        colors: root.colors
+                        visible: root.sync && root.sync.awaitingRepositoryCreation
+                        label: "I created the repository"
+                        onClicked: root.sync.continueConnection()
+                    }
+
+                    SettingRow {
+                        width: pane.width
+                        visible: root.sync && root.sync.awaitingInstallation
+                        colors: root.colors
+                        title: root.providerText.installationTitle
+                        note: root.providerText.installationNote
+                    }
+
+                    SettingRow {
+                        width: pane.width
+                        visible: root.sync && root.sync.recoveryKey.length > 0
+                        colors: root.colors
+                        title: "Save this recovery key now"
+                        note: root.sync ? root.sync.recoveryKey : ""
+                    }
+
+                    Flow {
+                        width: pane.width
+                        spacing: Style.spacing.sm
+                        visible: root.sync && root.sync.recoveryKey.length > 0
+
+                        ActionButton {
+                            colors: root.colors
+                            label: "Copy recovery key"
+                            onClicked: SystemClipboard.copyText(root.sync.recoveryKey)
+                        }
+                        ActionButton {
+                            colors: root.colors
+                            label: "Save recovery key"
+                            onClicked: recoveryKeySaveDialog.open()
+                        }
+                        ActionButton {
+                            colors: root.colors
+                            label: "I saved it"
+                            onClicked: root.sync.clearRecoveryKey()
+                        }
+                    }
+
+                    Flow {
+                        width: pane.width
+                        spacing: Style.spacing.sm
+                        visible: root.sync && root.sync.login.length > 0
+
+                        ActionButton {
+                            colors: root.colors
+                            label: "Sync now"
+                            onClicked: root.sync.syncNow()
+                        }
+                        ActionButton {
+                            colors: root.colors
+                            label: "Pause"
+                            visible: root.sync && root.sync.enabled
+                            onClicked: root.sync.pause()
+                        }
+                        ActionButton {
+                            colors: root.colors
+                            label: "Resume"
+                            visible: root.sync && !root.sync.enabled
+                            onClicked: root.sync.resume()
+                        }
+                        ActionButton {
+                            colors: root.colors
+                            label: "Disconnect"
+                            destructive: true
+                            onClicked: root.sync.disconnectProvider()
+                        }
+                    }
+                }
+
+                // ---- about -------------------------------------------------
+
+                Column {
+                    width: pane.width
+                    visible: root.section === 10
                     spacing: pane.spacing
 
                     Text {

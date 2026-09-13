@@ -32,6 +32,19 @@
 
 namespace {
 
+class SyncLauncherProbe final : public QObject {
+    Q_OBJECT
+    Q_PROPERTY(QObject *controller READ controller CONSTANT)
+    Q_PROPERTY(QString errorMessage READ errorMessage CONSTANT)
+    Q_PROPERTY(bool configured READ configured CONSTANT)
+
+public:
+    QObject *controller() const { return nullptr; }
+    QString errorMessage() const { return {}; }
+    bool configured() const { return false; }
+    Q_INVOKABLE bool load() { return false; }
+};
+
 // A favicon on disk for the tests that check what colour a site's chip takes.
 // A mark on a transparent plate is the shape a real favicon has.
 QUrl writeFavicon(const QString &path, const QColor &mark)
@@ -99,6 +112,7 @@ public slots:
         engine->rootContext()->setContextProperty(
             QStringLiteral("engineHeldDownloads"), QVariant::fromValue<QObject *>(nullptr));
         engine->rootContext()->setContextProperty(QStringLiteral("theme"), m_theme.get());
+        engine->rootContext()->setContextProperty(QStringLiteral("syncLauncher"), &m_syncLauncher);
         engine->rootContext()->setContextProperty(
             QStringLiteral("windowManager"), m_windowManager.get());
         engine->rootContext()->setContextProperty(
@@ -142,6 +156,7 @@ public slots:
     }
 
 private:
+    SyncLauncherProbe m_syncLauncher;
     std::unique_ptr<QTemporaryDir> m_dataRoot;
     std::unique_ptr<omaweb::BrowserController> m_browser;
     std::unique_ptr<omaweb::ContentBlocker> m_contentBlocker;

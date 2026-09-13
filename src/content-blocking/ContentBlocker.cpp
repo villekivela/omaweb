@@ -570,6 +570,17 @@ void ContentBlocker::load()
     }
 }
 
+void ContentBlocker::reloadSyncedConfiguration()
+{
+    m_subscriptions.clear();
+    m_disabledSites.clear();
+    load();
+    emit configurationChanged();
+    emit subscriptionsChanged();
+    recompile();
+    updateStaleSubscriptions();
+}
+
 void ContentBlocker::save() const
 {
     QJsonArray subscriptions;

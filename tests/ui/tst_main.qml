@@ -12,6 +12,7 @@ TestCase {
     // `browser` is a context property, and a component that declares one of its
     // own cannot name it: the declaration shadows the context.
     readonly property var browserController: browser
+    readonly property var syncLauncherContext: syncLauncher
 
     // The page's width, counted rather than sampled: what a layout costs is
     // paid once per width the viewport is given.
@@ -81,6 +82,29 @@ TestCase {
             width: 300
             height: 600
         }
+    }
+
+    Component {
+        id: authenticatedOutlineComponent
+
+        Omaweb.SpaceOutline {
+            colors: testCase.window.colors
+            iconFontFamily: ""
+            width: 300
+            height: 600
+            sync: QtObject {
+                property bool enabled: true
+                property string login: "octocat"
+                property string status: "Sync is on"
+                property string errorMessage: ""
+                property string avatarPath: ""
+            }
+        }
+    }
+
+    SignalSpy {
+        id: avatarSettingsSpy
+        signalName: "settingsRequested"
     }
 
     // The type the theme sets, so a size the sidebar derives from it can be
@@ -3226,6 +3250,32 @@ TestCase {
         findChild(window.contentItem, "closeSettingsButton").clicked();
     }
 
+    function test_settingsReceivesSyncLauncher() {
+        const settings = findChild(window.contentItem, "settingsSurface");
+        verify(settings !== null);
+        compare(settings.syncLauncher, syncLauncherContext);
+    }
+
+    function test_settingsSyncCopyShowsNotice() {
+        const settings = findChild(window.contentItem, "settingsSurface");
+        const notice = findChild(window.contentItem, "pageNotice");
+        settings.syncCodeCopied("Forge code copied");
+        tryCompare(notice, "message", "Forge code copied");
+        compare(notice.detail, "Paste it into the authorization page");
+        notice.dismiss();
+    }
+
+    function test_settingsSyncConsentOpensAForegroundTab() {
+        const settings = findChild(window.contentItem, "settingsSurface");
+        const target = "https://github.example/new?name=omaweb-sync";
+
+        settings.syncConsentRequested(target);
+
+        tryVerify(function () {
+            return browser.activeUrl.toString() === target;
+        });
+    }
+
     function test_settingsOwnSearchAndBrowsingDataControls() {
         window.requestSettings();
         const searchSection = railSection("search");
@@ -3428,6 +3478,50 @@ TestCase {
         tryVerify(function () {
             return !settingsSurface.visible;
         });
+    }
+
+    function test_authenticatedAvatarReplacesSettingsAndOpensIt() {
+        const outline = authenticatedOutlineComponent.createObject(window.contentItem);
+        verify(outline !== null);
+        avatarSettingsSpy.target = outline;
+        avatarSettingsSpy.clear();
+        try {
+            const avatar = findChild(outline, "syncAvatarButton");
+            const avatarClip = findChild(outline, "syncAvatarClip");
+            const avatarMonogram = findChild(outline, "syncAvatarMonogram");
+            const avatarEffect = findChild(outline, "syncAvatarEffect");
+            const activityDot = findChild(outline, "syncActivityDot");
+            const settings = findChild(outline, "settingsButton");
+            verify(avatar !== null);
+            verify(avatarClip !== null);
+            verify(avatarMonogram !== null);
+            verify(avatarEffect !== null);
+            verify(activityDot !== null);
+            verify(settings !== null);
+            verify(avatar.visible);
+            verify(!settings.visible);
+            compare(avatarClip.width, avatarClip.height);
+            compare(avatarClip.radius, avatarClip.width / 2);
+            compare(avatarClip.opacity, 1);
+            compare(avatarMonogram.text, "O");
+            verify(avatarMonogram.visible);
+            compare(avatarEffect.saturation, 0);
+            compare(String(activityDot.color), String(outline.colors.accent));
+
+            avatar.clicked();
+            compare(avatarSettingsSpy.count, 1);
+
+            outline.sync.enabled = false;
+            verify(avatar.visible);
+            verify(!settings.visible);
+            compare(avatarClip.opacity, 1);
+            compare(avatarEffect.saturation, -1);
+            compare(String(activityDot.color), String(outline.colors.mutedText));
+        } finally {
+            avatarSettingsSpy.target = null;
+            outline.destroy();
+            window.requestActivate();
+        }
     }
 
     // The rail is as wide as the longest section name it draws, measured in the

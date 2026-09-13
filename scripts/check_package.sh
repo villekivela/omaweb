@@ -77,9 +77,10 @@ if ! printf '%s\n' "$contents" | grep -q '^usr/lib/omaweb/libomaweb_content_bloc
     echo "The package is missing the content-blocking library" >&2
     exit 1
 fi
-# Anything outside these is a file the package has no business owning.
+# Anything outside these is a file the package has no business owning. The
+# Sync module's askpass helper is in libexec because git runs it, not a person.
 unexpected=$(printf '%s\n' "$contents" | grep -v '/$' \
-    | grep -vE '^(usr/bin/|usr/lib/omaweb/|usr/share/(applications|icons|licenses|omaweb)/)' \
+    | grep -vE '^(usr/bin/|usr/lib/omaweb/|usr/libexec/omaweb/|usr/share/(applications|icons|licenses|omaweb)/)' \
     | grep -vE '^\.(PKGINFO|BUILDINFO|MTREE|INSTALL)$' || true)
 if [ -n "$unexpected" ]; then
     echo "The package carries files it should not:" >&2

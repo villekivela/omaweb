@@ -28,6 +28,7 @@ public:
     QString pageScript() const;
 
     Q_INVOKABLE bool setEnabled(bool enabled);
+    bool reload();
 
     // Carries a configuration file written by an earlier version forward onto
     // the shipped defaults. Owned here rather than by the startup path,

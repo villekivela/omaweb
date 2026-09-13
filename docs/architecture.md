@@ -28,6 +28,9 @@ each Space keeps separate engine-managed login state.
   window integrations, the desktop's print dialog and notification centre, and what the operating
   system says one process holds.
 - `modules/*` contains independently compiled first-party Feature modules.
+- `omaweb-sync` contains the provider-neutral encrypted-record and git reconciliation core;
+  `omaweb-sync-plugin` adapts it to the running browser; and `omaweb-sync-askpass` passes an access
+  token to git through a single inherited descriptor.
 - `omaweb-ui-lab` loads the shared QML against fake browser state and a mock engine.
 
 QML renders read-only snapshots and submits commands. It does not mutate durable browser state
@@ -41,6 +44,42 @@ JSON stores settings, keybindings, and themes.
 
 Structural state commits transactionally. High-frequency presentation state saves on a short
 debounce. Engine caches and compiled blocker data are disposable and never enter Sync.
+
+Sync has two adapters around one record model. A forge adapter authorizes an identity and provisions
+the private repository; a git adapter reconciles its files. One lifecycle owner sits between them
+and the browser: it runs the connection steps and the consent pages they need, keeps the secrets,
+the avatar, the recovery key and the marker that remembers the connection across restarts, and hands
+a reconciliation the session it needs. Reconciliation asks for that session and knows nothing else
+about the account.
+
+The provider brings its own words. Its display name, the identifier the marker records, the
+repository name it wants, the commit identity it accepts, the status of each connection step, and
+every sentence a person reads about it come from the provider itself. Nothing outside a provider
+implementation spells a provider's name, so a second provider needs no change beyond its own file
+and the one line that chooses which provider to build. Before a provider is loaded the Sync pane
+words itself neutrally, because there is no provider yet to ask. The core launcher knows only the
+versioned Feature-module contract and loads the Linux plugin after explicit connection or an enabled
+marker. That contract carries one provider-neutral browser-state exchange rather than handing core
+modules to Sync individually. The exchange can expose only persistent non-secret browser state and
+the active selection metadata needed to preserve the local view. The Sync module owns the positive
+Sync projection, compares its fingerprints after coarse change hints, and ignores that selection
+without depending on model roles.
+
+One reconciliation is one transaction with two phases. The first settles the remote on a worker
+thread; the second puts the merged result into local state on the shell thread. Each phase is handed
+the SQLite connection belonging to its own thread, and what the first phase learned about the remote
+reaches the second through the transaction rather than through flags its caller carries. The caller
+declares only what the pass is for: an ordinary reconciliation, or the adopting pass that lets a
+repository which already holds state decide. A phase that stops reports a code, so a rejected
+recovery key pauses Sync and every other failure waits for the next pass, without reading the
+message text.
+
+The second phase checks the Sync projection generation captured before the worker started. A newer
+generation defers the apply to the next pass, so the completed worker cannot overwrite a newer edit.
+Local state is in step with the checkout only while it matches the tree the last apply recorded, so
+a deferred merge, or a record local state held back such as the active tab, is applied by a later
+pass however many quiet passes come in between. The exchange refreshes only browser state,
+keybindings, or filter subscriptions whose persisted projection changed.
 
 A Private window is given a store that records none of this. Which store a window holds is where "a
 Private window writes nothing down" is decided, rather than a test beside each write, and the one

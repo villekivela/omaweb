@@ -1,5 +1,6 @@
 import QtQuick
 import QtTest
+import Omaweb
 import qs.Commons
 import "../../src/ui" as Omaweb
 
@@ -49,6 +50,84 @@ TestCase {
         function restoreDefaultSubscriptions() {
             restoreCount += 1;
         }
+    }
+
+    QtObject {
+        id: syncControllerStub
+
+        property bool enabled: false
+        property bool connecting: true
+        property bool awaitingRepositoryCreation: false
+        property bool awaitingInstallation: false
+        property bool pending: false
+        property string provider: "Forge"
+        property string login: ""
+        property string status: "Waiting for Forge authorization"
+        property string errorMessage: ""
+        property string userCode: "ABCD-EFGH"
+        property url verificationUrl: ""
+        property string avatarPath: ""
+        property string recoveryKey: ""
+        property date lastSuccessfulSync
+        property int continueCount: 0
+        property var providerText: ({
+                                        "name": "Forge",
+                                        "connectAction": "Connect Forge",
+                                        "authorizationAction": "Open Forge authorization",
+                                        "failureTitle": "Forge Sync failed",
+                                        "codeCopiedNotice": "Forge code copied",
+                                        "codePrompt": "Enter ABCD-EFGH on Forge",
+                                        "authorizationNote":
+                                        "The Forge login becomes your Sync identity.",
+                                        "repositoryTitle": "Create the private repository on Forge",
+                                        "repositoryNote":
+                                        "Keep the prefilled name and Private visibility.",
+                                        "installationTitle": "Grant Omaweb Sync access on Forge",
+                                        "installationNote":
+                                        "Select the Sync repository and approve.",
+                                        "observationNote":
+                                        "Forge can still observe repository size."
+                                    })
+
+        function continueConnection() {
+            continueCount += 1;
+            return true;
+        }
+
+        signal consentPageRequested(url url)
+        signal stateChanged
+    }
+
+    QtObject {
+        id: syncLauncherStub
+
+        property var controller: syncControllerStub
+        property string errorMessage: ""
+        property bool configured: false
+
+        function load() {
+            return true;
+        }
+    }
+
+    SignalSpy {
+        id: settingsClosedSpy
+        signalName: "closed"
+    }
+
+    SignalSpy {
+        id: syncCodeCopiedSpy
+        signalName: "syncCodeCopied"
+    }
+
+    SignalSpy {
+        id: syncConnectionFailedSpy
+        signalName: "syncConnectionFailed"
+    }
+
+    SignalSpy {
+        id: syncConsentRequestedSpy
+        signalName: "syncConsentRequested"
     }
 
     // Two of everything the page lists, so a gap between one row and the next
@@ -132,6 +211,20 @@ TestCase {
     // page and the singleton it moved are put back here instead, where one
     // test's failure cannot leave the next one reading a shell it did not set.
     function cleanup() {
+        settingsClosedSpy.target = null;
+        settingsClosedSpy.clear();
+        syncCodeCopiedSpy.target = null;
+        syncCodeCopiedSpy.clear();
+        syncConnectionFailedSpy.target = null;
+        syncConnectionFailedSpy.clear();
+        syncConsentRequestedSpy.target = null;
+        syncConsentRequestedSpy.clear();
+        syncControllerStub.errorMessage = "";
+        syncControllerStub.awaitingRepositoryCreation = false;
+        syncControllerStub.continueCount = 0;
+        syncControllerStub.enabled = false;
+        syncControllerStub.login = "";
+        syncControllerStub.status = "Waiting for Forge authorization";
         theme.restore();
         if (livePage !== null) {
             livePage.destroy();
@@ -201,6 +294,97 @@ TestCase {
         keyClick(Qt.Key_Z);
         compare(page.sections[page.section], "downloads");
         verify(downloads.activeFocus);
+    }
+
+    function test_syncHasAnExplicitPrivacyBoundary() {
+        const page = makePage();
+        compare(page.sections.indexOf("sync") >= 0, true);
+        page.section = page.sections.indexOf("sync");
+
+        const boundary = findChild(page, "syncPrivacyBoundary");
+        verify(boundary !== null);
+        verify(boundary.text.indexOf("Passwords") >= 0);
+        verify(boundary.text.indexOf("Private") >= 0);
+        verify(boundary.text.indexOf("history") >= 0);
+    }
+
+    function test_syncShowsTheProviderAccountProminently() {
+        const page = makePage();
+        page.syncLauncher = syncLauncherStub;
+        page.section = page.sections.indexOf("sync");
+        syncControllerStub.enabled = true;
+        syncControllerStub.login = "octocat";
+        syncControllerStub.status = "Sync is on";
+
+        const card = findChild(page, "syncAccountCard");
+        const avatar = findChild(page, "syncAccountAvatar");
+        const monogram = findChild(page, "syncAccountMonogram");
+        const login = findChild(page, "syncAccountLogin");
+        const provider = findChild(page, "syncAccountProvider");
+        const state = findChild(page, "syncAccountState");
+        verify(card !== null);
+        verify(card.visible);
+        verify(avatar !== null);
+        compare(avatar.width, 64);
+        compare(avatar.height, avatar.width);
+        compare(avatar.radius, avatar.width / 2);
+        compare(monogram.text, "O");
+        verify(monogram.visible);
+        compare(login.text, "octocat");
+        compare(provider.text, "Forge account");
+        compare(state.text, "Sync is on");
+
+        syncControllerStub.enabled = false;
+        syncControllerStub.status = "Sync is paused";
+        compare(state.text, "Sync is paused");
+        compare(String(state.color), String(page.colors.mutedText));
+    }
+
+    function test_syncConsentRoutesAfterSettingsIsClosed() {
+        const page = makePage();
+        page.syncLauncher = syncLauncherStub;
+        page.open = false;
+        settingsClosedSpy.target = page;
+        syncCodeCopiedSpy.target = page;
+        syncConsentRequestedSpy.target = page;
+        SystemClipboard.copyText("stale clipboard");
+
+        syncControllerStub.consentPageRequested(syncControllerStub.verificationUrl);
+
+        compare(SystemClipboard.text(), syncControllerStub.userCode);
+        compare(settingsClosedSpy.count, 1);
+        compare(syncCodeCopiedSpy.count, 1);
+        compare(syncConsentRequestedSpy.count, 1);
+        verify(findChild(page, "copySyncCodeButton") !== null);
+    }
+
+    function test_syncFailureIsVisibleAfterSettingsCloses() {
+        const page = makePage();
+        page.syncLauncher = syncLauncherStub;
+        page.section = page.sections.indexOf("sync");
+        syncConnectionFailedSpy.target = page;
+
+        syncControllerStub.errorMessage = "Forge refused repository creation";
+        syncControllerStub.stateChanged();
+
+        compare(syncConnectionFailedSpy.count, 1);
+        compare(syncConnectionFailedSpy.signalArguments[0][0], "Forge Sync failed");
+        compare(syncConnectionFailedSpy.signalArguments[0][1], "Forge refused repository creation");
+        const notice = findChild(page, "syncErrorNotice");
+        verify(notice.visible);
+        compare(notice.detail, "Forge refused repository creation");
+    }
+
+    function test_syncRepositoryCreationHasAnExplicitContinuation() {
+        const page = makePage();
+        page.syncLauncher = syncLauncherStub;
+        page.section = page.sections.indexOf("sync");
+        syncControllerStub.awaitingRepositoryCreation = true;
+
+        const button = findChild(page, "continueSyncSetupButton");
+        verify(button.visible);
+        button.clicked();
+        compare(syncControllerStub.continueCount, 1);
     }
 
     function test_aFieldKeepsTheLettersItAccepts() {
@@ -544,7 +728,7 @@ TestCase {
         const page = makePage();
         const pane = findChild(page, "settingsPane");
         verify(pane !== null);
-        compare(page.sections.length, 10);
+        compare(page.sections.length, 11);
 
         theme.useTypeTokens(2);
         for (let section = 0; section < page.sections.length; ++section) {

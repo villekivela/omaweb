@@ -107,16 +107,16 @@ Before changing browser behavior, read the [domain glossary](CONTEXT.md),
 
 ## Scope
 
-Omaweb does not include bookmarks, password management, third-party WebExtensions, Account, Sync,
-installed web applications, Reader mode, translation, browser-data import, View source,
+Omaweb does not include bookmarks, password management, third-party WebExtensions, an Account
+system, installed web applications, Reader mode, translation, browser-data import, View source,
 spellchecking, DRM, or macOS distribution. These are deliberate scope decisions, not unfinished
 features.
 
 ## Privacy and security
 
-Omaweb has no telemetry, advertising identifier, browser account, cloud sync, push service, or
-automatic crash upload. The [network request ledger](docs/network-requests.md) lists every automatic
-request the browser makes.
+Omaweb has no telemetry, advertising identifier, browser account, hosted Omaweb service, push
+service, or automatic crash upload. The [network request ledger](docs/network-requests.md) lists
+every automatic request the browser makes.
 
 Each page runs in a sandboxed renderer. Omaweb refuses to start if its command line disables the
 sandbox or the Linux host cannot meet the sandbox requirements. An ordinary session opens no

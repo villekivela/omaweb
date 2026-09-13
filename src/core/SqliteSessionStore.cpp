@@ -69,6 +69,8 @@ bool SqliteSessionStore::open(QString *errorMessage)
     return true;
 }
 
+bool SqliteSessionStore::recordsState() const { return true; }
+
 QVector<SpaceState> SqliteSessionStore::loadSpaces() const
 {
     QVector<SpaceState> spaces;
@@ -188,6 +190,31 @@ bool SqliteSessionStore::saveSpace(const SpaceState &space)
     query.addBindValue(space.color);
     query.addBindValue(space.active);
     return query.exec();
+}
+
+bool SqliteSessionStore::saveSpaces(const QVector<SpaceState> &spaces)
+{
+    if (!m_database.transaction()) {
+        return false;
+    }
+    for (qsizetype position = 0; position < spaces.size(); ++position) {
+        const auto &space = spaces.at(position);
+        QSqlQuery query(m_database);
+        query.prepare(QStringLiteral(
+            "INSERT INTO spaces(id, name, color, active, position) VALUES(?, ?, ?, ?, ?) "
+            "ON CONFLICT(id) DO UPDATE SET name = excluded.name, color = excluded.color, "
+            "active = excluded.active, position = excluded.position"));
+        query.addBindValue(space.id);
+        query.addBindValue(space.name);
+        query.addBindValue(space.color);
+        query.addBindValue(space.active);
+        query.addBindValue(static_cast<int>(position));
+        if (!query.exec()) {
+            m_database.rollback();
+            return false;
+        }
+    }
+    return m_database.commit();
 }
 
 bool SqliteSessionStore::setActiveSpace(const QString &spaceId)

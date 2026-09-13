@@ -16,9 +16,13 @@ PrivateSessionStore::~PrivateSessionStore() = default;
 // ready as soon as it is asked.
 bool PrivateSessionStore::open(QString *) { return true; }
 
+bool PrivateSessionStore::recordsState() const { return false; }
+
 QVector<SpaceState> PrivateSessionStore::loadSpaces() const { return {}; }
 
 bool PrivateSessionStore::saveSpace(const SpaceState &) { return false; }
+
+bool PrivateSessionStore::saveSpaces(const QVector<SpaceState> &) { return false; }
 
 bool PrivateSessionStore::setActiveSpace(const QString &) { return false; }
 

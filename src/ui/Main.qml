@@ -23,6 +23,7 @@ ApplicationWindow {
                                   + " — Omaweb"
 
     property var windowBrowser: browser
+    readonly property var syncLauncherService: syncLauncher
     property bool privateWindow: false
     property string profilePathOverride: ""
     property var sharedEngineProfile: null
@@ -530,6 +531,14 @@ ApplicationWindow {
         window.settingsOpen = true;
     }
 
+    function requestSync() {
+        window.historyOpen = false;
+        const syncSection = settingsSurface.sections.indexOf("sync");
+        if (syncSection >= 0)
+            settingsSurface.section = syncSection;
+        window.settingsOpen = true;
+    }
+
     function requestHistory() {
         if (window.privateWindow)
             return;
@@ -997,6 +1006,17 @@ ApplicationWindow {
     function setTintFavicons(enabled) {
         window.tintFavicons = enabled;
         window.windowBrowser.setPreference("tint-favicons", enabled ? "true" : "false");
+    }
+
+    Connections {
+        target: window.windowBrowser
+
+        function onPreferenceChanged(name) {
+            if (name === "floating-controls" || name === "ease-sidebar")
+                window.restoreChromeAppearance();
+            else if (name === "use-favicons" || name === "tint-favicons")
+                window.restoreTabAppearance();
+        }
     }
 
     onSidebarWidthChanged: sidebarWidthWriter.restart()
@@ -1668,6 +1688,7 @@ ApplicationWindow {
                 useFavicons: window.useFavicons
                 tintFavicons: window.tintFavicons
                 settingsAttention: settingsSurface.needsAttention
+                sync: window.syncLauncherService ? window.syncLauncherService.controller : null
                 downloads: window.downloads
                 // The mark stays until the saved-file notice goes, which is
                 // the rule rather than a matching pair of durations.
@@ -1712,6 +1733,7 @@ ApplicationWindow {
                     window.windowBrowser.switchSpace(spaceId);
                 }
                 onSettingsRequested: window.requestSettings()
+                onSyncRequested: window.requestSync()
                 onBackRequested: engineLoader.goBack()
                 onForwardRequested: engineLoader.goForward()
                 onReloadRequested: engineLoader.reloadPage()
@@ -2161,6 +2183,7 @@ ApplicationWindow {
                     browser: window.windowBrowser
                     blocker: contentBlocker
                     keyboard: keyboardNavigation
+                    syncLauncher: window.privateWindow ? null : window.syncLauncherService
                     open: window.settingsOpen
                     // As the sheet does: the page itself, never the viewport
                     // that owns both.
@@ -2180,6 +2203,16 @@ ApplicationWindow {
                         window.dialogMode = action;
                     }
                     onClosed: window.settingsOpen = false
+                    onSyncCodeCopied: function (notice) {
+                        window.showNotice("content_copy", notice,
+                                          "Paste it into the authorization page", 3000);
+                    }
+                    onSyncConsentRequested: function (url) {
+                        window.windowBrowser.openInput(String(url), true);
+                    }
+                    onSyncConnectionFailed: function (title, detail) {
+                        window.showNotice("sync_problem", title, detail, 8000);
+                    }
                     onRetainedTabReleased: function (tabId) {
                         window.releaseRetainedTab(tabId);
                     }

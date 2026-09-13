@@ -178,6 +178,9 @@ public:
     Downloads *downloads() const;
     QString downloadDirectory() const;
     bool acceptDownloads() const;
+    SessionStore *sessionStore() const;
+    bool startedWithEmptyState() const;
+    void reloadSyncedState();
 
     QString permissionOrigin(const QUrl &url) const override;
     int automaticDownloadDecision(const QString &origin) const override;
@@ -377,6 +380,7 @@ signals:
     void historySearchSpaceForgotten(const QString &spaceId);
     void historySearchDelayRequested(int milliseconds);
     void certificateExceptionsChanged();
+    void preferenceChanged(const QString &name);
 
 private:
     // Facts held by pages that survived a Space switch. The session store does
@@ -474,6 +478,7 @@ private:
     QString m_downloadDirectory;
     Downloads *m_downloads = nullptr;
     bool m_ready = false;
+    bool m_startedWithEmptyState = false;
     bool m_atRest = false;
     bool m_privateBrowsing = false;
     // Built from the flag above at construction and never from anything else,
