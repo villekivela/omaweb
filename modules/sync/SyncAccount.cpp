@@ -69,7 +69,8 @@ SyncAccount::SyncAccount(QString dataRoot, QString configRoot, QObject *parent)
         m_deviceCode = prompt.deviceCode;
         m_userCode = prompt.userCode;
         m_verificationUrl = prompt.verificationUrl;
-        m_authorizationPoll.setInterval(qMax(1, prompt.pollIntervalSeconds) * 1'000);
+        m_basePollIntervalSeconds = qMax(1, prompt.pollIntervalSeconds);
+        resetAuthorizationPoll();
         m_authorizationPoll.start();
         qCInfo(syncLog) << "Sync authorization page requested";
         announce(words().authorizationStatus);
@@ -86,6 +87,7 @@ SyncAccount::SyncAccount(QString dataRoot, QString configRoot, QObject *parent)
                 if (!m_awaitingRepositoryCreation) {
                     m_awaitingRepositoryCreation = true;
                     m_authorizationPoll.stop();
+                    resetAuthorizationPoll();
                     qCInfo(syncLog) << "Sync repository creation page requested";
                     announce(words().repositoryStatus);
                     emit consentPageRequested(connected.repositoryCreationUrl);
@@ -98,16 +100,17 @@ SyncAccount::SyncAccount(QString dataRoot, QString configRoot, QObject *parent)
                 m_pendingRepository = std::move(connected.repository);
                 if (!m_awaitingInstallation) {
                     m_awaitingInstallation = true;
+                    resetAuthorizationPoll();
                     qCInfo(syncLog) << "Sync installation page requested";
                     announce(words().installationStatus);
                     emit consentPageRequested(connected.installationUrl);
                 }
                 return;
             }
-            if (connected.pollIntervalAdjustmentSeconds > 0) {
-                m_authorizationPoll.setInterval(m_authorizationPoll.interval()
-                    + connected.pollIntervalAdjustmentSeconds * 1'000);
-            }
+            m_authorizationPoll.setInterval(
+                backedOffPollSeconds(
+                    m_authorizationPoll.interval() / 1'000, connected.pollIntervalAdjustmentSeconds)
+                * 1'000);
             return;
         }
         m_authorizationPoll.stop();
@@ -328,6 +331,14 @@ void SyncAccount::pollAuthorization()
             auto connection = setup.finishConnect(&error);
             return QPair {std::move(connection), error};
         }));
+}
+
+// Waiting for a repository to be created, and waiting for an App to be
+// installed, are not the question the forge slowed the token poll for. Each
+// step starts again from the interval the forge asked for.
+void SyncAccount::resetAuthorizationPoll()
+{
+    m_authorizationPoll.setInterval(m_basePollIntervalSeconds * 1'000);
 }
 
 void SyncAccount::clearPendingAuthorization()

@@ -79,6 +79,7 @@ private:
     void loadMarker();
     void pollAuthorization();
     void clearPendingAuthorization();
+    void resetAuthorizationPoll();
     void announce(const QString &status);
 
     QString m_dataRoot;
@@ -101,6 +102,7 @@ private:
     bool m_awaitingRepositoryCreation = false;
     bool m_awaitingInstallation = false;
     bool m_adoptsRemote = false;
+    int m_basePollIntervalSeconds = 5;
     QTimer m_authorizationPoll;
     QFutureWatcher<QPair<DeviceAuthorization, QString>> m_authorizationStartWatcher;
     QFutureWatcher<QPair<SyncConnection, QString>> m_authorizationFinishWatcher;

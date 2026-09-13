@@ -281,6 +281,7 @@ private slots:
     void restoresBrowserStateOnASecondMachine();
     void syncsOnlyTheApprovedConfiguration();
     void leavesTheRemoteUntouchedWhenNothingChanged();
+    void authorizationPollBacksOffWithinItsCeiling();
     void localSyncStateRecognizesOnlyItsProjection();
     void localSyncStateRefusesIneligibleBrowserState();
     void refusesAStoreThatCannotRecordBrowserState();
@@ -582,6 +583,25 @@ void SyncModuleTest::leavesTheRemoteUntouchedWhenNothingChanged()
     OMAWEB_VERIFY_SYNC(settle(sync, store));
     QCOMPARE(gitOutput(repository, {QStringLiteral("rev-parse"), QStringLiteral("main")}), first);
     QVERIFY(!sync.awaitsLocalApply());
+}
+
+void SyncModuleTest::authorizationPollBacksOffWithinItsCeiling()
+{
+    // No adjustment leaves the forge's own interval alone.
+    QCOMPARE(omaweb::backedOffPollSeconds(5, 0), 5);
+
+    // Each slow_down adds what the forge asked for.
+    QCOMPARE(omaweb::backedOffPollSeconds(5, 5), 10);
+    QCOMPARE(omaweb::backedOffPollSeconds(10, 5), 15);
+
+    // Repeated slow_down stops at the ceiling rather than growing without
+    // bound, so a device code cannot expire between two ticks.
+    auto interval = 5;
+    for (int refusal = 0; refusal < 20; ++refusal) {
+        interval = omaweb::backedOffPollSeconds(interval, 5);
+    }
+    QCOMPARE(interval, 30);
+    QCOMPARE(omaweb::backedOffPollSeconds(30, 5), 30);
 }
 
 void SyncModuleTest::localSyncStateRecognizesOnlyItsProjection()
