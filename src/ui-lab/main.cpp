@@ -274,7 +274,7 @@ int main(int argc, char *argv[])
         const auto spec = prototypeIndex + 1 < arguments.size()
                 && !arguments.at(prototypeIndex + 1).startsWith(QLatin1String("--"))
             ? arguments.at(prototypeIndex + 1)
-            : QStringLiteral("D");
+            : QStringLiteral("");
         engine.setInitialProperties(
             {{QStringLiteral("variant"), spec.section(QLatin1Char(':'), 0, 0)},
                 {QStringLiteral("openStates"), spec.section(QLatin1Char(':'), 1)}});

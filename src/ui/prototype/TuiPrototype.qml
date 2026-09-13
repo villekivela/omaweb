@@ -1,7 +1,13 @@
-// PROTOTYPE — throwaway. Three variants of the main window in the "TUI for
-// the web" direction (docs/product/interface-direction.md), switchable with
-// `omaweb-ui-lab --prototype A|B|C` and the floating bar's arrows. Data is in
-// memory and invented; nothing here talks to the browser controller.
+// PROTOTYPE — throwaway. The shared root for the interface-direction
+// variants (docs/product/interface-direction.md): in-memory data, chord
+// handling and the floating switcher. Variants render `proto`; nothing here
+// talks to the browser controller. `omaweb-ui-lab --prototype X:picker,sidebar`
+// loads variant X with the named states open, for a capture.
+//
+// Every command is a chord, the way Omaweb's own keyboard navigation works.
+// There is no leader, no mode and no prefix to discover: variants A to G,
+// which were built on one, are in this branch's history and out of the
+// running.
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Window
@@ -10,19 +16,10 @@ import qs.Commons
 ApplicationWindow {
     id: window
 
-    // `--prototype B:picker,sidebar` opens the named states for a capture.
-    property string variant: "E"
+    property string variant: ""
     property string openStates: ""
-    readonly property var variants: ["E", "F", "G", "A", "C", "D", "B"]
-    readonly property var variantNames: ({
-                                             "A": "Lualine — plain, dense, hairlines",
-                                             "B": "HUD — brackets, ruled ground, tracked titles",
-                                             "C": "Tmux — status on top, floats hang down",
-                                             "D": "A + C — bottom line, Spaces listed, numbered tree",
-                                             "E": "Phosphor — terminal in a bezel, glow, scanlines",
-                                             "F": "Horizon — synthwave grid, chamfers, display type",
-                                             "G": "Deck — cassette futurism, bevels, LEDs"
-                                         })
+    readonly property var variants: []
+    readonly property var variantNames: ({})
 
     width: 1360
     height: 860
@@ -30,23 +27,19 @@ ApplicationWindow {
     color: "transparent"
     flags: Qt.platform.os === "osx" ? Qt.Window | Qt.ExpandedClientAreaHint | Qt.NoTitleBarBackgroundHint :
                                       Qt.Window | Qt.FramelessWindowHint
-    title: "Omaweb — TUI prototype " + variant
+    title: "Omaweb — prototype " + variant
 
     readonly property var colors: theme.palette
 
     // ------------------------------------------------------------ shared state
-    // Everything a variant draws. Variants render it; the keys below mutate it.
     QtObject {
         id: proto
-        property string mode: "NORMAL"      // NORMAL | PAGE | HINT | PICK
-        property string pendingKeys: ""
-        property bool whichKeyOpen: false
+        property bool hintsShowing: false
         property bool pickerOpen: false
         property string pickerSource: "tabs"  // tabs | spaces | settings
         property string query: ""
         property int cursor: 0
         property bool sidebarOpen: false
-        property bool statusOnTop: false
         property bool findOpen: false
         property bool promptOpen: false
         property bool loading: false
@@ -72,7 +65,7 @@ ApplicationWindow {
                 color: window.colors.syntax ? window.colors.syntax.number : window.colors.accent
             }
         ]
-        // Tabs across every Space, since the picker lists all of them.
+        // Tabs across every Space, since a picker lists all of them.
         readonly property var tabs: [
             {
                 space: 0,
@@ -177,78 +170,58 @@ ApplicationWindow {
         readonly property var activeTabInfo: tabs[activeTab]
         readonly property int activeTabIndexInSpace: currentTabs.indexOf(activeTabInfo) + 1
 
-        readonly property var leaderBindings: [
+        // The chords, for any variant that wants to show them beside what
+        // they run.
+        readonly property var chords: [
             {
-                key: "t",
-                label: "tabs"
+                key: "Ctrl+K",
+                label: "tabs",
+                command: "tabs"
             },
             {
-                key: "s",
-                label: "spaces"
+                key: "Ctrl+S",
+                label: "spaces",
+                command: "spaces"
             },
             {
-                key: "h",
-                label: "history"
+                key: "Ctrl+B",
+                label: "sidebar tree",
+                command: "sidebar"
             },
             {
-                key: "1-9",
-                label: "pinned tab"
+                key: "Ctrl+F",
+                label: "find",
+                command: "find"
             },
             {
-                key: "b",
-                label: "sidebar tree"
+                key: "F",
+                label: "link hints",
+                command: "hints"
             },
             {
-                key: "o",
-                label: "open address"
+                key: "Alt+1-9",
+                label: "pinned tab",
+                command: "pin1"
             },
             {
-                key: "d",
-                label: "downloads"
+                key: "Ctrl+,",
+                label: "settings",
+                command: "settings"
             },
             {
-                key: ",",
-                label: "settings"
+                key: "Ctrl+N",
+                label: "notify (demo)",
+                command: "notify"
             },
             {
-                key: "x",
-                label: "close tab"
+                key: "Ctrl+G",
+                label: "load (demo)",
+                command: "load"
             },
             {
-                key: "u",
-                label: "reopen closed"
-            },
-            {
-                key: "r",
-                label: "reload"
-            },
-            {
-                key: "f",
-                label: "hints"
-            },
-            {
-                key: "i",
-                label: "page mode"
-            },
-            {
-                key: "n",
-                label: "notify (demo)"
-            },
-            {
-                key: "l",
-                label: "load (demo)"
-            },
-            {
-                key: "?",
-                label: "ask (demo)"
-            },
-            {
-                key: "p",
-                label: "private window"
-            },
-            {
-                key: "q",
-                label: "quit"
+                key: "Ctrl+/",
+                label: "ask (demo)",
+                command: "ask"
             }
         ]
 
@@ -270,18 +243,16 @@ ApplicationWindow {
                                    ]);
             toastTimer.restart();
         }
-        function leader(text) {
-            keys.leaderKey(text);
+        function run(command) {
+            keys.run(command);
         }
         function closeAll() {
-            whichKeyOpen = false;
+            hintsShowing = false;
             pickerOpen = false;
             findOpen = false;
             promptOpen = false;
-            pendingKeys = "";
             query = "";
             cursor = 0;
-            mode = "NORMAL";
         }
     }
     Timer {
@@ -302,8 +273,7 @@ ApplicationWindow {
         }
     }
 
-    // ------------------------------------------------------------ keys
-    // Space is the leader. After it, one key chooses. Esc always backs out.
+    // ------------------------------------------------------------ chords
     Item {
         id: keys
         anchors.fill: parent
@@ -327,24 +297,47 @@ ApplicationWindow {
                 event.accepted = true;
                 return;
             }
-            if (proto.mode === "PAGE") {
-                if (event.key === Qt.Key_BracketLeft && event.modifiers & Qt.ControlModifier)
-                    proto.closeAll();
-                return;
-            }
-            if (proto.whichKeyOpen) {
-                leaderKey(event.text);
+            if (event.modifiers & Qt.ControlModifier) {
+                switch (event.key) {
+                case Qt.Key_K:
+                    run("tabs");
+                    break;
+                case Qt.Key_S:
+                    run("spaces");
+                    break;
+                case Qt.Key_B:
+                    run("sidebar");
+                    break;
+                case Qt.Key_F:
+                    run("find");
+                    break;
+                case Qt.Key_N:
+                    run("notify");
+                    break;
+                case Qt.Key_G:
+                    run("load");
+                    break;
+                case Qt.Key_Slash:
+                case Qt.Key_Question:
+                    run("ask");
+                    break;
+                case Qt.Key_Comma:
+                    run("settings");
+                    break;
+                default:
+                    return;
+                }
                 event.accepted = true;
                 return;
             }
-            if (event.key === Qt.Key_Space) {
-                proto.whichKeyOpen = true;
-                proto.pendingKeys = "SPC";
+            if ((event.modifiers & Qt.AltModifier) && event.key >= Qt.Key_1 && event.key
+                    <= Qt.Key_9) {
+                run("pin" + (event.key - Qt.Key_0));
                 event.accepted = true;
                 return;
             }
-            if (event.key === Qt.Key_Slash) {
-                proto.findOpen = true;
+            if (event.key === Qt.Key_F && !event.modifiers) {
+                run("hints");
                 event.accepted = true;
                 return;
             }
@@ -359,64 +352,56 @@ ApplicationWindow {
                 return;
             }
         }
-        function leaderKey(text) {
-            proto.whichKeyOpen = false;
-            proto.pendingKeys = "";
-            switch (text) {
-            case "t":
+        // One place every command runs from, whether by chord or by click.
+        function run(command) {
+            switch (command) {
+            case "tabs":
                 proto.pickerSource = "tabs";
                 proto.pickerOpen = true;
-                proto.mode = "PICK";
                 proto.cursor = proto.activeTab;
                 pickerInput.forceActiveFocus();
                 break;
-            case "s":
+            case "spaces":
                 proto.pickerSource = "spaces";
                 proto.pickerOpen = true;
-                proto.mode = "PICK";
                 proto.cursor = proto.activeSpace;
                 pickerInput.forceActiveFocus();
                 break;
-            case ",":
+            case "settings":
                 proto.pickerSource = "settings";
                 proto.pickerOpen = true;
-                proto.mode = "PICK";
                 proto.cursor = 0;
                 pickerInput.forceActiveFocus();
                 break;
-            case "b":
+            case "sidebar":
                 proto.sidebarOpen = !proto.sidebarOpen;
                 break;
-            case "n":
+            case "find":
+                proto.findOpen = !proto.findOpen;
+                break;
+            case "hints":
+                proto.hintsShowing = !proto.hintsShowing;
+                break;
+            case "notify":
                 proto.toast("Download finished — qt6-webengine-6.11.1.tar.zst");
                 proto.downloads = 0;
                 break;
-            case "l":
+            case "load":
                 proto.loading = true;
                 proto.loadProgress = 0;
                 break;
-            case "?":
+            case "ask":
                 proto.promptOpen = true;
                 break;
-            case "i":
-                proto.mode = "PAGE";
-                break;
-            case "f":
-                proto.mode = "HINT";
-                break;
-            case "1":
-            case "2":
-            case "3":
-            case "4":
-            {
-                const pinned = proto.currentTabs.filter(t => t.pinned);
-                const t = pinned[parseInt(text) - 1];
-                if (t)
-                    proto.activeTab = proto.tabs.indexOf(t);
-                break;
-            }
             default:
-                proto.toast("SPC " + text + " — not in the prototype");
+                if (command.startsWith("pin")) {
+                    const pinned = proto.currentTabs.filter(t => t.pinned);
+                    const t = pinned[parseInt(command.slice(3)) - 1];
+                    if (t)
+                        proto.activeTab = proto.tabs.indexOf(t);
+                } else {
+                    proto.toast(command + " — not in the prototype");
+                }
             }
         }
         function pickerKeys(event) {
@@ -449,13 +434,14 @@ ApplicationWindow {
             }
         }
         function cycle(step) {
+            if (window.variants.length === 0)
+                return;
             const i = (window.variants.indexOf(window.variant) + step + window.variants.length)
                   % window.variants.length;
             window.variant = window.variants[i];
         }
     }
-    // One hidden input carries the picker's typed query for every variant, so
-    // the variants only draw it.
+    // One hidden input carries the picker's typed query for every variant.
     TextInput {
         id: pickerInput
         visible: false
@@ -486,34 +472,27 @@ ApplicationWindow {
     Component.onCompleted: {
         for (const state of openStates.split(",")) {
             switch (state) {
-            case "whichkey":
-                proto.whichKeyOpen = true;
-                proto.pendingKeys = "SPC";
-                break;
             case "picker":
-                keys.leaderKey("t");
+                keys.run("tabs");
                 break;
             case "spaces":
-                keys.leaderKey("s");
+                keys.run("spaces");
                 break;
             case "sidebar":
                 proto.sidebarOpen = true;
                 break;
             case "toast":
-                keys.leaderKey("n");
+                keys.run("notify");
                 toastTimer.stop();
                 break;
             case "hint":
-                proto.mode = "HINT";
+                proto.hintsShowing = true;
                 break;
             case "prompt":
                 proto.promptOpen = true;
                 break;
             case "find":
                 proto.findOpen = true;
-                break;
-            case "top":
-                proto.statusOnTop = true;
                 break;
             case "loading":
                 proto.loading = true;
@@ -525,17 +504,24 @@ ApplicationWindow {
 
     Loader {
         anchors.fill: parent
-        source: "Variant" + window.variant + ".qml"
+        source: window.variant.length ? "Variant" + window.variant + ".qml" : ""
         onLoaded: {
             item.proto = proto;
             item.colors = window.colors;
         }
     }
+    Text {
+        visible: window.variant.length === 0
+        anchors.centerIn: parent
+        text: "No variant loaded. The next round's variants register in `variants`."
+        color: window.colors.mutedText
+        font.family: Style.font.family
+        font.pixelSize: Style.font.body
+    }
 
     // ------------------------------------------------------------ switcher
-    // Not part of the design: a high-contrast pill so it is obviously the
-    // prototype's own furniture.
     Rectangle {
+        visible: window.variants.length > 0
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.bottom: parent.bottom
         anchors.bottomMargin: 44
@@ -560,7 +546,7 @@ ApplicationWindow {
                 }
             }
             Text {
-                text: window.variant + " — " + window.variantNames[window.variant]
+                text: window.variant + " — " + (window.variantNames[window.variant] || "")
                 color: "#111"
                 font.family: Style.font.family
                 font.pixelSize: 12
