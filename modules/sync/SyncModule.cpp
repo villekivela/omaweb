@@ -1251,23 +1251,6 @@ bool SyncModule::captureConfiguration(QString *errorMessage)
     return true;
 }
 
-bool SyncModule::includesSyncedSpaceChange(const QList<int> &roles)
-{
-    static const QSet<int> syncedRoles {
-        SpaceListModel::IdRole, SpaceListModel::NameRole, SpaceListModel::ColorRole};
-    return roles.isEmpty()
-        || std::ranges::any_of(roles, [](int role) { return syncedRoles.contains(role); });
-}
-
-bool SyncModule::includesSyncedTabChange(const QList<int> &roles)
-{
-    static const QSet<int> syncedRoles {TabListModel::IdRole, TabListModel::SpaceIdRole,
-        TabListModel::UrlRole, TabListModel::TitleRole, TabListModel::PinnedRole,
-        TabListModel::MutedRole, TabListModel::ZoomRole, TabListModel::KeepActiveRole};
-    return roles.isEmpty()
-        || std::ranges::any_of(roles, [](int role) { return syncedRoles.contains(role); });
-}
-
 bool SyncModule::reconcile(QString *errorMessage)
 {
     m_remoteEpochAdvanced = false;

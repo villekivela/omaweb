@@ -48,8 +48,6 @@ public:
 
     static QString createRecoveryKey();
     static QByteArray decodeRecoveryKey(const QString &displayed, QString *errorMessage = nullptr);
-    static bool includesSyncedSpaceChange(const QList<int> &roles);
-    static bool includesSyncedTabChange(const QList<int> &roles);
     bool open(QString *errorMessage = nullptr);
     bool reconcile(QString *errorMessage = nullptr);
     bool applyRemoteState(QString *errorMessage = nullptr);

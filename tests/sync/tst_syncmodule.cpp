@@ -1,3 +1,6 @@
+#include "BrowserController.h"
+#include "BrowserStateExchange.h"
+#include "LocalSyncState.h"
 #include "SyncModule.h"
 #include "SyncController.h"
 #include "SyncSetup.h"
@@ -5,6 +8,7 @@
 #include "GitHubForge.h"
 
 #include "PrivateSessionStore.h"
+#include "SpaceStorage.h"
 #include "SqliteSessionStore.h"
 
 #include <QDirIterator>
@@ -14,16 +18,23 @@
 #include <QJsonObject>
 #include <QProcess>
 #include <QRegularExpression>
+#include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QTest>
 #include <QUrlQuery>
 
 #include <utility>
 
+using omaweb::BrowserController;
+using omaweb::BrowserStateExchangeAdapter;
+using omaweb::LocalSyncApplyRequest;
+using omaweb::LocalSyncApplyStatus;
+using omaweb::LocalSyncState;
 using omaweb::PrivateSessionStore;
 using omaweb::ReconcileResult;
 using omaweb::SpaceListModel;
 using omaweb::SpaceState;
+using omaweb::SpaceStorage;
 using omaweb::SqliteSessionStore;
 using omaweb::SyncModule;
 using omaweb::SyncSetup;
@@ -140,6 +151,22 @@ public:
     QHash<QString, QByteArray> values;
 };
 
+class RefusingStateExchange final : public omaweb::BrowserStateExchange {
+public:
+    bool eligible() const override { return false; }
+
+    omaweb::BrowserStateImage capture(const omaweb::BrowserStateSelection &) const override
+    {
+        ++captureCount;
+        return {};
+    }
+
+    void refresh(omaweb::BrowserStateSections) override { ++refreshCount; }
+
+    mutable int captureCount = 0;
+    int refreshCount = 0;
+};
+
 bool runGit(const QString &directory, const QStringList &arguments, QString *error = nullptr)
 {
     QProcess git;
@@ -205,6 +232,8 @@ private slots:
     void restoresBrowserStateOnASecondMachine();
     void syncsOnlyTheApprovedConfiguration();
     void leavesTheRemoteUntouchedWhenNothingChanged();
+    void localSyncStateRecognizesOnlyItsProjection();
+    void localSyncStateRefusesIneligibleBrowserState();
     void refusesAStoreThatCannotRecordBrowserState();
     void recoveryKeysDetectEntryErrors();
     void twoMachinesConvergeWhenTheyChangeDifferentRecords();
@@ -521,19 +550,76 @@ void SyncModuleTest::leavesTheRemoteUntouchedWhenNothingChanged()
     QVERIFY(cleanResult.requiresRemoteStateApply(false));
     cleanResult.remoteStateChanged = false;
     QVERIFY(cleanResult.requiresRemoteStateApply(true));
+}
 
-    QVERIFY(!SyncModule::includesSyncedTabChange({TabListModel::ActiveRole}));
-    QVERIFY(!SyncModule::includesSyncedTabChange({TabListModel::LoadingRole}));
-    QVERIFY(!SyncModule::includesSyncedTabChange({TabListModel::IconUrlRole}));
-    QVERIFY(!SyncModule::includesSyncedTabChange({TabListModel::AudibleRole}));
-    QVERIFY(!SyncModule::includesSyncedTabChange({TabListModel::SoundSuppressedRole}));
-    QVERIFY(SyncModule::includesSyncedTabChange({}));
-    QVERIFY(
-        SyncModule::includesSyncedTabChange({TabListModel::LoadingRole, TabListModel::TitleRole}));
-    QVERIFY(SyncModule::includesSyncedTabChange({TabListModel::UrlRole}));
-    QVERIFY(SyncModule::includesSyncedTabChange({TabListModel::MutedRole}));
-    QVERIFY(!SyncModule::includesSyncedSpaceChange({SpaceListModel::ActiveRole}));
-    QVERIFY(SyncModule::includesSyncedSpaceChange({SpaceListModel::NameRole}));
+void SyncModuleTest::localSyncStateRecognizesOnlyItsProjection()
+{
+    QTemporaryDir dataRoot;
+    QTemporaryDir configRoot;
+    QVERIFY(dataRoot.isValid());
+    QVERIFY(configRoot.isValid());
+    BrowserController browser(
+        SpaceStorage(dataRoot.path(), QStringLiteral("test")), configRoot.path());
+    BrowserStateExchangeAdapter exchange(
+        &browser, nullptr, nullptr, dataRoot.path(), configRoot.path());
+    LocalSyncState localState(exchange, dataRoot.path(), configRoot.path());
+    QSignalSpy changed(&localState, &LocalSyncState::meaningfulChange);
+
+    const auto initial = localState.checkpoint();
+    QVERIFY(localState.eligible());
+    browser.setTabLoading(browser.activeTabId(), true);
+    browser.setTabIcon(
+        browser.activeTabId(), QUrl(QStringLiteral("https://example.com/favicon.png")));
+    browser.setTabAudible(browser.activeTabId(), true);
+    const auto image = exchange.capture({});
+    const auto projectedTab = image.tabsBySpace.value(browser.activeSpaceId()).constFirst();
+    QCOMPARE(image.activeTabId, browser.activeTabId());
+    QVERIFY(!projectedTab.active);
+    QVERIFY(!projectedTab.loading);
+    QVERIFY(projectedTab.iconUrl.isEmpty());
+    QVERIFY(!projectedTab.audible);
+    QVERIFY(browser.setPreference(
+        QStringLiteral("not-in-the-sync-projection"), QStringLiteral("local-only")));
+    QTest::qWait(10);
+    QCOMPARE(changed.count(), 0);
+    QCOMPARE(localState.checkpoint().generation, initial.generation);
+
+    QVERIFY(browser.setPreference(QStringLiteral("floating-controls"), QStringLiteral("false")));
+    QTRY_COMPARE(changed.count(), 1);
+    QCOMPARE(localState.checkpoint().generation, initial.generation + 1);
+    LocalSyncApplyRequest staleRequest;
+    staleRequest.expectedGeneration = initial.generation;
+    QCOMPARE(
+        localState.applyRemoteState(std::move(staleRequest)).status, LocalSyncApplyStatus::Stale);
+
+    changed.clear();
+    const auto workSpace = browser.createSpace(QStringLiteral("Work"));
+    QVERIFY(!workSpace.isEmpty());
+    QTRY_COMPARE(changed.count(), 1);
+    changed.clear();
+    QVERIFY(browser.switchSpace(workSpace));
+    QTest::qWait(10);
+    QCOMPARE(changed.count(), 0);
+
+    QVERIFY(browser.renameSpace(workSpace, QStringLiteral("Projects")));
+    QTRY_COMPARE(changed.count(), 1);
+}
+
+void SyncModuleTest::localSyncStateRefusesIneligibleBrowserState()
+{
+    QTemporaryDir dataRoot;
+    QTemporaryDir configRoot;
+    RefusingStateExchange exchange;
+    LocalSyncState localState(exchange, dataRoot.path(), configRoot.path());
+
+    QVERIFY(!localState.eligible());
+    QCOMPARE(exchange.captureCount, 0);
+    LocalSyncApplyRequest request;
+    const auto result = localState.applyRemoteState(std::move(request));
+    QCOMPARE(result.status, LocalSyncApplyStatus::Refused);
+    QCOMPARE(result.failure, omaweb::LocalSyncFailureCode::PrivateStateRefused);
+    QCOMPARE(exchange.captureCount, 0);
+    QCOMPARE(exchange.refreshCount, 0);
 }
 
 void SyncModuleTest::refusesAStoreThatCannotRecordBrowserState()

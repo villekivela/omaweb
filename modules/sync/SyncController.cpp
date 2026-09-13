@@ -1,20 +1,16 @@
 #include "SyncController.h"
 
-#include "BrowserController.h"
-#include "ContentBlocker.h"
+#include "BrowserStateExchange.h"
 #include "GitHubForge.h"
 #include "LinuxSecretStore.h"
-#include "KeyboardNavigation.h"
+#include "LocalSyncState.h"
 #include "SqliteSessionStore.h"
 #include "SyncModule.h"
 #include "SyncSetup.h"
 
-#include <QAbstractItemModel>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
-#include <QCryptographicHash>
-#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QLoggingCategory>
@@ -31,40 +27,15 @@ namespace omaweb {
 
 Q_LOGGING_CATEGORY(syncLog, "omaweb.sync")
 
-namespace {
-
-    QByteArray subscriptionDigest(ContentBlocker *blocker)
-    {
-        QJsonArray subscriptions;
-        if (blocker) {
-            for (const auto &value : blocker->subscriptions()) {
-                const auto local = value.toMap();
-                QJsonObject subscription;
-                for (const auto &name : {QStringLiteral("id"), QStringLiteral("title"),
-                         QStringLiteral("source"), QStringLiteral("license"),
-                         QStringLiteral("updateAddress"), QStringLiteral("enabled")}) {
-                    if (local.contains(name)) {
-                        subscription.insert(name, QJsonValue::fromVariant(local.value(name)));
-                    }
-                }
-                subscriptions.append(subscription);
-            }
-        }
-        return QCryptographicHash::hash(QJsonDocument(subscriptions).toJson(QJsonDocument::Compact),
-            QCryptographicHash::Sha256);
-    }
-
-} // namespace
-
-SyncController::SyncController(BrowserController *browser, ContentBlocker *blocker,
-    KeyboardNavigation *keyboardNavigation, QString dataRoot, QString configRoot, QObject *parent)
+SyncController::SyncController(
+    BrowserStateExchange *state, QString dataRoot, QString configRoot, QObject *parent)
     : QObject(parent)
-    , m_browser(browser)
-    , m_blocker(blocker)
-    , m_keyboardNavigation(keyboardNavigation)
+    , m_localState(std::make_unique<LocalSyncState>(*state, dataRoot, configRoot))
     , m_dataRoot(std::move(dataRoot))
     , m_configRoot(std::move(configRoot))
 {
+    connect(m_localState.get(), &LocalSyncState::meaningfulChange, this,
+        [this](quint64) { markPending(); });
     connect(&m_authorizationPoll, &QTimer::timeout, this, &SyncController::pollAuthorization);
     connect(&m_authorizationStartWatcher, &QFutureWatcherBase::finished, this, [this] {
         const auto result = m_authorizationStartWatcher.result();
@@ -200,28 +171,24 @@ SyncController::SyncController(BrowserController *browser, ContentBlocker *block
                 result.recoveryKey.data(), static_cast<size_t>(result.recoveryKey.size()));
             return;
         }
-        if (!m_changedWhileSyncing && result.requiresRemoteStateApply(m_initialRemoteRestore)) {
-            QString applyError;
-            SqliteSessionStore store(m_dataRoot);
-            SyncModule sync(store,
-                {.dataRoot = m_dataRoot,
-                    .configRoot = m_configRoot,
+        const auto revision = m_localState->checkpoint();
+        auto remoteApplyDeferred = revision.generation != result.localGeneration;
+        if (!remoteApplyDeferred && result.requiresRemoteStateApply(m_initialRemoteRestore)) {
+            auto applied
+                = m_localState->applyRemoteState({.expectedGeneration = result.localGeneration,
                     .remoteUrl = m_remoteUrl,
                     .machineId = machineId(),
-                    .recoveryKey = result.recoveryKey,
-                    .protectedTabId
-                    = m_initialRemoteRestore ? QString {} : m_browser->activeTabId(),
+                    .protectedTabId = m_initialRemoteRestore ? QString {} : revision.protectedTabId,
+                    .recoveryKey = std::move(result.recoveryKey),
                     .initialRemoteRestore = m_initialRemoteRestore,
-                    .discardPristineLocalState
-                    = m_initialRemoteRestore && m_browser->startedWithEmptyState(),
+                    .discardPristineLocalState = m_initialRemoteRestore && revision.pristine,
                     .replaceLocalState = m_initialRemoteRestore || result.remoteEpochAdvanced});
-            if (!store.open(&applyError) || !sync.open(&applyError)
-                || !sync.applyRemoteState(&applyError)) {
-                sodium_memzero(
-                    result.recoveryKey.data(), static_cast<size_t>(result.recoveryKey.size()));
-                m_errorMessage = applyError;
-                const auto keyFailure
-                    = applyError.contains(QStringLiteral("recovery key"), Qt::CaseInsensitive);
+            remoteApplyDeferred = applied.status == LocalSyncApplyStatus::Stale;
+            if (applied.status == LocalSyncApplyStatus::Failed
+                || applied.status == LocalSyncApplyStatus::Refused) {
+                m_errorMessage = applied.errorMessage;
+                const auto keyFailure = applied.errorMessage.contains(
+                    QStringLiteral("recovery key"), Qt::CaseInsensitive);
                 if (keyFailure) {
                     m_enabled = false;
                     m_pending = false;
@@ -236,20 +203,13 @@ SyncController::SyncController(BrowserController *browser, ContentBlocker *block
                 emit stateChanged();
                 return;
             }
-            m_applyingRemote = true;
-            m_browser->reloadSyncedState();
-            if (m_keyboardNavigation) {
-                m_keyboardNavigation->reload();
-            }
-            if (m_blocker) {
-                m_blocker->reloadSyncedConfiguration();
-            }
-            m_applyingRemote = false;
         }
         sodium_memzero(result.recoveryKey.data(), static_cast<size_t>(result.recoveryKey.size()));
-        m_initialRemoteRestore = false;
-        m_pending = m_changedWhileSyncing;
-        m_changedWhileSyncing = false;
+        if (!remoteApplyDeferred) {
+            m_initialRemoteRestore = false;
+        }
+        m_pending = remoteApplyDeferred
+            || m_localState->checkpoint().generation != result.localGeneration;
         m_lastSuccessfulSync = QDateTime::currentDateTimeUtc();
         m_status = m_pending ? QStringLiteral("Changes waiting to sync") : QStringLiteral("Synced");
         writeMarker();
@@ -258,65 +218,6 @@ SyncController::SyncController(BrowserController *browser, ContentBlocker *block
             m_quietReconcile.start();
         }
     });
-    const auto watchStructure = [this](QAbstractItemModel *model, bool resetChangesState) {
-        connect(model, &QAbstractItemModel::rowsInserted, this, [this] { markPending(); });
-        connect(model, &QAbstractItemModel::rowsRemoved, this, [this] { markPending(); });
-        connect(model, &QAbstractItemModel::rowsMoved, this, [this] { markPending(); });
-        if (resetChangesState) {
-            connect(model, &QAbstractItemModel::modelReset, this, [this] { markPending(); });
-        }
-    };
-    connect(browser->spaces(), &QAbstractItemModel::dataChanged, this,
-        [this](const QModelIndex &, const QModelIndex &, const QList<int> &roles) {
-            if (SyncModule::includesSyncedSpaceChange(roles)) {
-                markPending();
-            }
-        });
-    connect(browser->tabs(), &QAbstractItemModel::dataChanged, this,
-        [this](const QModelIndex &, const QModelIndex &, const QList<int> &roles) {
-            if (SyncModule::includesSyncedTabChange(roles)) {
-                markPending();
-            }
-        });
-    watchStructure(browser->spaces(), true);
-    watchStructure(browser->tabs(), false);
-    connect(browser, &BrowserController::preferenceChanged, this, [this](const QString &name) {
-        static const QSet<QString> approved {QStringLiteral("floating-controls"),
-            QStringLiteral("ease-sidebar"), QStringLiteral("use-favicons"),
-            QStringLiteral("tint-favicons")};
-        if (approved.contains(name)) {
-            markPending();
-        }
-    });
-    const auto keybindingsPath = QDir(m_configRoot).filePath(QStringLiteral("keybindings.json"));
-    QFile keybindings(keybindingsPath);
-    if (keybindings.open(QIODevice::ReadOnly)) {
-        m_keybindingsDigest
-            = QCryptographicHash::hash(keybindings.readAll(), QCryptographicHash::Sha256);
-    }
-    if (m_configWatcher.addPath(m_configRoot)) {
-        connect(
-            &m_configWatcher, &QFileSystemWatcher::directoryChanged, this, [this, keybindingsPath] {
-                QFile file(keybindingsPath);
-                const auto contents
-                    = file.open(QIODevice::ReadOnly) ? file.readAll() : QByteArray {};
-                const auto digest = QCryptographicHash::hash(contents, QCryptographicHash::Sha256);
-                if (digest != m_keybindingsDigest) {
-                    m_keybindingsDigest = digest;
-                    markPending();
-                }
-            });
-    }
-    if (m_blocker) {
-        m_subscriptionDigest = subscriptionDigest(m_blocker);
-        connect(m_blocker, &ContentBlocker::subscriptionsChanged, this, [this] {
-            const auto digest = subscriptionDigest(m_blocker);
-            if (digest != m_subscriptionDigest) {
-                m_subscriptionDigest = digest;
-                markPending();
-            }
-        });
-    }
     loadMarker();
     if (m_enabled) {
         m_periodicReconcile.start();
@@ -502,16 +403,14 @@ void SyncController::clearPendingAuthorization()
 
 void SyncController::markPending()
 {
-    if (!m_enabled || m_applyingRemote) {
-        return;
-    }
-    if (m_syncing) {
-        m_changedWhileSyncing = true;
+    if (!m_enabled) {
         return;
     }
     m_pending = true;
-    m_status = QStringLiteral("Changes waiting to sync");
-    m_quietReconcile.start();
+    if (!m_syncing) {
+        m_status = QStringLiteral("Changes waiting to sync");
+        m_quietReconcile.start();
+    }
     emit stateChanged();
 }
 
@@ -526,6 +425,7 @@ void SyncController::syncNow()
     const auto tokenIsCurrent = !m_accessToken.isEmpty()
         && m_accessTokenExpiresAt > QDateTime::currentDateTimeUtc().addSecs(60);
     m_cancellationRequested = std::make_shared<std::atomic_bool>(false);
+    const auto local = m_localState->checkpoint();
     SyncOptions options {.dataRoot = m_dataRoot,
         .configRoot = m_configRoot,
         .remoteUrl = m_remoteUrl,
@@ -533,70 +433,77 @@ void SyncController::syncNow()
         .recoveryKey = {},
         .accessToken = tokenIsCurrent ? m_accessToken : QByteArray {},
         .authorName = m_login,
-        .protectedTabId = m_initialRemoteRestore ? QString {} : m_browser->activeTabId(),
+        .protectedTabId = m_initialRemoteRestore ? QString {} : local.protectedTabId,
         .initialRemoteRestore = m_initialRemoteRestore,
-        .discardPristineLocalState = m_initialRemoteRestore && m_browser->startedWithEmptyState(),
+        .discardPristineLocalState = m_initialRemoteRestore && local.pristine,
         .deferRemoteApply = true,
         .cancellationRequested = m_cancellationRequested};
     const auto login = m_login;
+    const auto localGeneration = local.generation;
     m_syncing = true;
-    m_reconcileWatcher.setFuture(QtConcurrent::run([options = std::move(options), login]() mutable {
-        QString workerError;
-        LinuxSecretStore secrets;
-        options.recoveryKey
-            = secrets.retrieve(QStringLiteral("sync-key/%1").arg(login), &workerError);
-        if (options.recoveryKey.size() != 32) {
-            ReconcileResult result;
-            result.errorMessage = QStringLiteral("Enter the Sync recovery key");
-            return result;
-        }
-        QByteArray refreshedAccessToken;
-        int refreshedAccessTokenExpiresInSeconds = 0;
-        if (options.accessToken.isEmpty()) {
-            auto refresh
-                = secrets.retrieve(QStringLiteral("forge-refresh/%1").arg(login), &workerError);
-            GitHubForge forge(QString::fromLatin1(OMAWEB_GITHUB_APP_CLIENT_ID),
-                QString::fromLatin1(OMAWEB_GITHUB_APP_SLUG));
-            auto authorization = forge.refreshAuthorization(refresh, &workerError);
-            sodium_memzero(refresh.data(), static_cast<size_t>(refresh.size()));
-            if (authorization.state != AuthorizationState::Complete) {
+    m_reconcileWatcher.setFuture(
+        QtConcurrent::run([options = std::move(options), login, localGeneration]() mutable {
+            QString workerError;
+            LinuxSecretStore secrets;
+            options.recoveryKey
+                = secrets.retrieve(QStringLiteral("sync-key/%1").arg(login), &workerError);
+            if (options.recoveryKey.size() != 32) {
                 ReconcileResult result;
-                result.errorMessage = workerError.isEmpty()
-                    ? QStringLiteral("GitHub authorization expired; connect again")
-                    : workerError;
+                result.errorMessage = QStringLiteral("Enter the Sync recovery key");
+                result.localGeneration = localGeneration;
                 return result;
             }
-            options.accessToken = std::move(authorization.accessToken);
-            refreshedAccessToken = options.accessToken;
-            refreshedAccessTokenExpiresInSeconds = authorization.expiresInSeconds;
-            if (!authorization.refreshToken.isEmpty()) {
-                if (!secrets.store(QStringLiteral("forge-refresh/%1").arg(login),
-                        authorization.refreshToken, &workerError)) {
+            QByteArray refreshedAccessToken;
+            int refreshedAccessTokenExpiresInSeconds = 0;
+            if (options.accessToken.isEmpty()) {
+                auto refresh
+                    = secrets.retrieve(QStringLiteral("forge-refresh/%1").arg(login), &workerError);
+                GitHubForge forge(QString::fromLatin1(OMAWEB_GITHUB_APP_CLIENT_ID),
+                    QString::fromLatin1(OMAWEB_GITHUB_APP_SLUG));
+                auto authorization = forge.refreshAuthorization(refresh, &workerError);
+                sodium_memzero(refresh.data(), static_cast<size_t>(refresh.size()));
+                if (authorization.state != AuthorizationState::Complete) {
                     ReconcileResult result;
-                    result.errorMessage = workerError;
+                    result.errorMessage = workerError.isEmpty()
+                        ? QStringLiteral("GitHub authorization expired; connect again")
+                        : workerError;
+                    result.localGeneration = localGeneration;
                     return result;
                 }
-                sodium_memzero(authorization.refreshToken.data(),
-                    static_cast<size_t>(authorization.refreshToken.size()));
+                options.accessToken = std::move(authorization.accessToken);
+                refreshedAccessToken = options.accessToken;
+                refreshedAccessTokenExpiresInSeconds = authorization.expiresInSeconds;
+                if (!authorization.refreshToken.isEmpty()) {
+                    if (!secrets.store(QStringLiteral("forge-refresh/%1").arg(login),
+                            authorization.refreshToken, &workerError)) {
+                        ReconcileResult result;
+                        result.errorMessage = workerError;
+                        result.localGeneration = localGeneration;
+                        return result;
+                    }
+                    sodium_memzero(authorization.refreshToken.data(),
+                        static_cast<size_t>(authorization.refreshToken.size()));
+                }
             }
-        }
-        SqliteSessionStore store(options.dataRoot);
-        if (!store.open(&workerError)) {
-            ReconcileResult result;
-            result.errorMessage = workerError;
-            return result;
-        }
-        auto recoveryKey = options.recoveryKey;
-        SyncModule sync(store, std::move(options));
-        const auto succeeded = sync.open(&workerError) && sync.reconcile(&workerError);
-        return ReconcileResult {.succeeded = succeeded,
-            .errorMessage = workerError,
-            .recoveryKey = std::move(recoveryKey),
-            .refreshedAccessToken = std::move(refreshedAccessToken),
-            .refreshedAccessTokenExpiresInSeconds = refreshedAccessTokenExpiresInSeconds,
-            .remoteEpochAdvanced = sync.remoteEpochAdvanced(),
-            .remoteStateChanged = sync.remoteStateChanged()};
-    }));
+            SqliteSessionStore store(options.dataRoot);
+            if (!store.open(&workerError)) {
+                ReconcileResult result;
+                result.errorMessage = workerError;
+                result.localGeneration = localGeneration;
+                return result;
+            }
+            auto recoveryKey = options.recoveryKey;
+            SyncModule sync(store, std::move(options));
+            const auto succeeded = sync.open(&workerError) && sync.reconcile(&workerError);
+            return ReconcileResult {.succeeded = succeeded,
+                .errorMessage = workerError,
+                .recoveryKey = std::move(recoveryKey),
+                .refreshedAccessToken = std::move(refreshedAccessToken),
+                .refreshedAccessTokenExpiresInSeconds = refreshedAccessTokenExpiresInSeconds,
+                .remoteEpochAdvanced = sync.remoteEpochAdvanced(),
+                .remoteStateChanged = sync.remoteStateChanged(),
+                .localGeneration = localGeneration};
+        }));
 }
 
 void SyncController::pause()

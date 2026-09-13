@@ -1,17 +1,15 @@
 #include "SyncPlugin.h"
 
-#include "BrowserController.h"
+#include "BrowserStateExchange.h"
 #include "SyncController.h"
 
-int SyncPlugin::contractVersion() const { return 1; }
+int SyncPlugin::contractVersion() const { return 2; }
 
-QObject *SyncPlugin::createController(omaweb::BrowserController *browser,
-    omaweb::ContentBlocker *blocker, omaweb::KeyboardNavigation *keyboardNavigation,
-    const QString &dataRoot, const QString &configRoot, QObject *parent)
+QObject *SyncPlugin::createController(omaweb::BrowserStateExchange *state, const QString &dataRoot,
+    const QString &configRoot, QObject *parent)
 {
-    if (!browser || browser->privateBrowsing() || !browser->sessionStore()->recordsState()) {
+    if (!state || !state->eligible()) {
         return nullptr;
     }
-    return new omaweb::SyncController(
-        browser, blocker, keyboardNavigation, dataRoot, configRoot, parent);
+    return new omaweb::SyncController(state, dataRoot, configRoot, parent);
 }

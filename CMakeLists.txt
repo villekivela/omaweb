@@ -151,6 +151,8 @@ omaweb_strict_target(omaweb-content-blocking)
 add_library(omaweb-core STATIC
     src/content-blocking/ContentBlocker.cpp
     src/content-blocking/ContentBlocker.h
+    src/core/BrowserStateExchange.cpp
+    src/core/BrowserStateExchange.h
     src/core/BrowserController.cpp
     src/core/BrowserController.h
     src/core/DevelopmentLaunch.cpp
@@ -215,6 +217,8 @@ if(OMAWEB_BUILD_SYNC)
         modules/sync/GitHubForge.h
         modules/sync/LinuxSecretStore.cpp
         modules/sync/LinuxSecretStore.h
+        modules/sync/LocalSyncState.cpp
+        modules/sync/LocalSyncState.h
         modules/sync/SecretStore.h
         modules/sync/SyncSetup.cpp
         modules/sync/SyncSetup.h

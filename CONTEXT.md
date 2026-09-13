@@ -93,6 +93,11 @@ identity, not an Engine profile)
 **Sync**: An optional Feature module that copies selected non-secret browser state between Omaweb
 installations through a replaceable provider. _Avoid_: Backup, account
 
+**Sync projection**: The positive allowlist of browser state Sync may copy: Space names and colours,
+ordinary and Pinned open tabs, approved Settings, keybindings, and filter subscriptions. Active
+Space and tab selection stay local, and Browsing data and every Private window are outside the
+projection. _Avoid_: Browser backup, profile snapshot, all settings
+
 **Site permission**: A Space-specific decision that allows or blocks an origin from using a
 protected browser capability. A Private window retains its Site permissions only while the shared
 private session exists. _Avoid_: System permission, engine permission

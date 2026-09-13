@@ -48,10 +48,18 @@ debounce. Engine caches and compiled blocker data are disposable and never enter
 Sync has two adapters around one record model. A forge adapter authorizes an identity and provisions
 the private repository; a git adapter reconciles its files. The core launcher knows only the
 versioned Feature-module contract and loads the Linux plugin after explicit connection or an enabled
-marker. Reconciliation opens separate SQLite connections on a worker thread and refreshes the live
-models only after it succeeds. Applying merged remote state is serialized on the shell thread; if
-the reader changed local state while reconciliation ran, that apply is deferred to the next pass so
-the completed worker cannot overwrite the newer edit.
+marker. That contract carries one provider-neutral browser-state exchange rather than handing core
+modules to Sync individually. The exchange can expose only persistent non-secret browser state and
+the active selection metadata needed to preserve the local view. The Sync module owns the positive
+Sync projection, compares its fingerprints after coarse change hints, and ignores that selection
+without depending on model roles.
+
+Reconciliation opens separate SQLite connections on a worker thread and refreshes the live models
+only after it succeeds. Applying merged remote state is serialized on the shell thread and checks
+the Sync projection generation captured before the worker started. A newer generation defers the
+apply to the next pass, so the completed worker cannot overwrite a newer edit. The exchange
+refreshes only browser state, keybindings, or filter subscriptions whose persisted projection
+changed.
 
 A Private window is given a store that records none of this. Which store a window holds is where "a
 Private window writes nothing down" is decided, rather than a test beside each write, and the one

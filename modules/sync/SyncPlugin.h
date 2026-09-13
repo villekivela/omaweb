@@ -11,7 +11,6 @@ class SyncPlugin final : public QObject, public omaweb::SyncFeature {
 
 public:
     int contractVersion() const override;
-    QObject *createController(omaweb::BrowserController *browser, omaweb::ContentBlocker *blocker,
-        omaweb::KeyboardNavigation *keyboardNavigation, const QString &dataRoot,
+    QObject *createController(omaweb::BrowserStateExchange *state, const QString &dataRoot,
         const QString &configRoot, QObject *parent) override;
 };

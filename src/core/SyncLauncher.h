@@ -10,6 +10,7 @@ class QPluginLoader;
 namespace omaweb {
 
 class BrowserController;
+class BrowserStateExchange;
 class ContentBlocker;
 class KeyboardNavigation;
 
@@ -43,6 +44,7 @@ private:
     QString m_modulePath;
     QString m_errorMessage;
     std::unique_ptr<QPluginLoader> m_loader;
+    std::unique_ptr<BrowserStateExchange> m_stateExchange;
     QObject *m_controller = nullptr;
     bool m_configured = false;
 };

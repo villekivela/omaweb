@@ -6,7 +6,6 @@
 #include <QByteArray>
 #include <QDateTime>
 #include <QFutureWatcher>
-#include <QFileSystemWatcher>
 #include <QObject>
 #include <QString>
 #include <QTimer>
@@ -17,11 +16,10 @@
 
 namespace omaweb {
 
-class BrowserController;
-class ContentBlocker;
+class BrowserStateExchange;
 class GitHubForge;
 class LinuxSecretStore;
-class KeyboardNavigation;
+class LocalSyncState;
 
 struct ReconcileResult {
     bool succeeded = false;
@@ -31,6 +29,7 @@ struct ReconcileResult {
     int refreshedAccessTokenExpiresInSeconds = 0;
     bool remoteEpochAdvanced = false;
     bool remoteStateChanged = false;
+    quint64 localGeneration = 0;
 
     bool requiresRemoteStateApply(bool initialRemoteRestore) const
     {
@@ -56,8 +55,7 @@ class SyncController final : public QObject {
     Q_PROPERTY(QDateTime lastSuccessfulSync READ lastSuccessfulSync NOTIFY stateChanged)
 
 public:
-    SyncController(BrowserController *browser, ContentBlocker *blocker,
-        KeyboardNavigation *keyboardNavigation, QString dataRoot, QString configRoot,
+    SyncController(BrowserStateExchange *state, QString dataRoot, QString configRoot,
         QObject *parent = nullptr);
     ~SyncController() override;
 
@@ -98,9 +96,7 @@ private:
     void markPending();
     void finishDisconnect();
 
-    BrowserController *m_browser = nullptr;
-    ContentBlocker *m_blocker = nullptr;
-    KeyboardNavigation *m_keyboardNavigation = nullptr;
+    std::unique_ptr<LocalSyncState> m_localState;
     QString m_dataRoot;
     QString m_configRoot;
     QString m_machineId;
@@ -109,8 +105,6 @@ private:
     QByteArray m_accessToken;
     ForgeAuthorization m_pendingAuthorization;
     ForgeRepository m_pendingRepository;
-    QByteArray m_keybindingsDigest;
-    QByteArray m_subscriptionDigest;
     QDateTime m_accessTokenExpiresAt;
     QString m_status = QStringLiteral("Sync is off");
     QString m_errorMessage;
@@ -127,13 +121,10 @@ private:
     bool m_pending = false;
     bool m_syncing = false;
     bool m_initialRemoteRestore = false;
-    bool m_changedWhileSyncing = false;
-    bool m_applyingRemote = false;
     bool m_disconnectPending = false;
     QTimer m_authorizationPoll;
     QTimer m_quietReconcile;
     QTimer m_periodicReconcile;
-    QFileSystemWatcher m_configWatcher;
     std::unique_ptr<LinuxSecretStore> m_secrets;
     std::shared_ptr<std::atomic_bool> m_cancellationRequested;
     QFutureWatcher<QPair<DeviceAuthorization, QString>> m_authorizationStartWatcher;
