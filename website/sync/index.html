@@ -1,0 +1,342 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Sync privacy and permissions, Omaweb</title>
+    <meta
+      name="description"
+      content="What Omaweb Sync copies, what it encrypts, what stays readable, what never leaves your machine, and which GitHub permissions it asks for."
+    />
+    <meta name="application-name" content="Omaweb" />
+    <meta name="robots" content="index, follow" />
+    <meta name="theme-color" content="#06060c" />
+    <meta property="og:type" content="article" />
+    <meta property="og:site_name" content="Omaweb" />
+    <meta property="og:title" content="Sync privacy and permissions, Omaweb" />
+    <meta
+      property="og:description"
+      content="What Omaweb Sync copies, what it encrypts, what stays readable, and which GitHub permissions it asks for."
+    />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="Sync privacy and permissions, Omaweb" />
+    <meta
+      name="twitter:description"
+      content="What Omaweb Sync copies, what it encrypts, what stays readable, and which GitHub permissions it asks for."
+    />
+    <link rel="icon" href="../favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="../styles.css" />
+    <link rel="stylesheet" href="../themes.css" />
+  </head>
+
+  <body data-theme="hackerman">
+    <canvas class="t-rain" aria-hidden="true"></canvas>
+
+    <div class="t-wrap">
+      <header class="t-top">
+        <a href="../">
+          <img
+            data-themed="../assets/icons/wordmark-{theme}.svg"
+            src="../assets/icons/wordmark-hackerman.svg"
+            width="160"
+            height="20"
+            alt="Omaweb"
+          />
+        </a>
+        <p class="t-status">Sync privacy and permissions</p>
+      </header>
+
+      <section class="t-hero">
+        <h1>Sync copies<br /><em>some of your browser</em>,<br />and this page says which.</h1>
+        <p>
+          Sync is optional and does nothing until you connect it. It copies a fixed list of browser
+          state between your machines through a private Git repository you own. There is no Omaweb
+          account, no Omaweb server, and no Private window is ever included.
+        </p>
+      </section>
+
+      <section class="t-section">
+        <div class="t-section__head">
+          <p class="t-section__index">01 / identity</p>
+          <div class="t-section__intro">
+            <h2>Your GitHub login is the identity.</h2>
+            <p>Omaweb does not create or operate a browser account.</p>
+          </div>
+        </div>
+        <div class="t-cols t-cols--2">
+          <div>
+            <h3>No account to sign up for</h3>
+            <p>
+              Signing in to GitHub is what pairs your machines. Omaweb runs no account service and
+              keeps no account database. Nothing about you reaches the Omaweb project.
+            </p>
+          </div>
+          <div>
+            <h3>A repository Omaweb maintains</h3>
+            <p>
+              Omaweb creates a private <code>omaweb-sync</code> repository and reuses one it can
+              identify as its own. An unrelated repository with that name is never adopted; Omaweb
+              takes a numbered name instead. Commits carry your GitHub login as the author.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section class="t-section">
+        <div class="t-section__head">
+          <p class="t-section__index">02 / what is copied</p>
+          <div class="t-section__intro">
+            <h2>Three lists, and nothing outside them.</h2>
+            <p>
+              Some records are encrypted before they leave. Some are readable in the repository.
+              Most of your browser is in neither list.
+            </p>
+          </div>
+        </div>
+        <div class="t-cols t-cols--3">
+          <div>
+            <h3>Encrypted before upload</h3>
+            <p>
+              Space names and colours, ordinary tabs, and Pinned tabs. Each is a separate record,
+              encrypted on your machine with XChaCha20-Poly1305 under your recovery key. GitHub
+              stores ciphertext and cannot read these.
+            </p>
+          </div>
+          <div>
+            <h3>Readable in the repository</h3>
+            <p>
+              Your complete <code>keybindings.json</code>, your filter subscription addresses, and
+              four Settings keys: <code>floating-controls</code>, <code>ease-sidebar</code>,
+              <code>use-favicons</code> and <code>tint-favicons</code>. These are stored as plain
+              text. Anyone who can read the repository, GitHub included, can read them.
+            </p>
+          </div>
+          <div>
+            <h3>Never synced</h3>
+            <p>
+              Passwords, cookies and active logins. Browsing history. Downloads. Site permissions.
+              Per-site content-blocking exceptions and user rules. Everything in a Private window.
+              Which Space and tab you currently have open stays on the machine, and so does your
+              theme.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section class="t-section">
+        <div class="t-section__head">
+          <p class="t-section__index">03 / what GitHub can see</p>
+          <div class="t-section__intro">
+            <h2>Encryption hides the records, not the repository.</h2>
+            <p>What authenticated encryption covers, and what it does not.</p>
+          </div>
+        </div>
+        <div class="t-cols t-cols--2">
+          <div>
+            <h3>Covered</h3>
+            <p>
+              The contents of every Space and tab record, and any alteration to them. Each record
+              authenticates its schema version, kind and identifier, so a changed record is rejected
+              rather than applied.
+            </p>
+          </div>
+          <div>
+            <h3>Not covered</h3>
+            <p>
+              That the repository exists, how large it is, and when it updates. The readable
+              configuration above. Your login on each commit. That you use Sync at all.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section class="t-section">
+        <div class="t-section__head">
+          <p class="t-section__index">04 / permissions</p>
+          <div class="t-section__intro">
+            <h2>What the GitHub App asks for.</h2>
+            <p>Two repository permissions, and what they reach once installed.</p>
+          </div>
+        </div>
+        <div class="t-cols t-cols--2">
+          <div>
+            <h3>The two permissions</h3>
+            <p>
+              <strong>Repository administration: write</strong>, so Omaweb can create the private
+              Sync repository. <strong>Repository contents: read and write</strong>, so Omaweb can
+              identify that repository and reconcile the files in it.
+            </p>
+          </div>
+          <div>
+            <h3>The scope you actually grant</h3>
+            <p>
+              GitHub grants both permissions across every repository you select while installing the
+              App. Omaweb asks you to choose <em>Only select repositories</em> and pick only
+              <code>omaweb-sync</code>, which keeps the grant to that one repository. Inside a
+              selected repository, administration write is GitHub's full repository-administration
+              permission, which is broader than creating it.
+            </p>
+          </div>
+        </div>
+        <div class="t-cols t-cols--stack">
+          <div>
+            <h3>Why you confirm the repository yourself</h3>
+            <p>
+              GitHub does not let an uninstalled App create a personal repository, and its
+              installation form does not accept zero selected repositories. So Omaweb opens GitHub's
+              new-repository form with the name, owner, description and Private visibility already
+              filled in, you confirm it, and the App is then installed for that repository.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section class="t-section">
+        <div class="t-section__head">
+          <p class="t-section__index">05 / the recovery key</p>
+          <div class="t-section__intro">
+            <h2>You hold the only copy.</h2>
+            <p>The key that decrypts your Space and tab records never reaches GitHub or Omaweb.</p>
+          </div>
+        </div>
+        <div class="t-cols t-cols--2">
+          <div>
+            <h3>Shown once</h3>
+            <p>
+              The first machine generates a random 256-bit key and keeps it in Linux Secret Service.
+              Omaweb shows it once, grouped and checksummed, to copy or save as a file only you can
+              read. Carry it to your second machine yourself.
+            </p>
+          </div>
+          <div>
+            <h3>Lost means lost</h3>
+            <p>
+              Omaweb cannot recover the key and neither can GitHub. If every copy is gone, the
+              encrypted Space and tab records cannot be read again. A wrong or missing key applies
+              nothing and pauses Sync, so a typo changes neither machine. Changing the key in place
+              is not offered; it needs a new repository and an explicit migration.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section class="t-section">
+        <div class="t-section__head">
+          <p class="t-section__index">06 / timing</p>
+          <div class="t-section__intro">
+            <h2>Your browser never waits for Sync.</h2>
+            <p>
+              Local changes are saved locally, straight away. Reconciliation happens behind them.
+            </p>
+          </div>
+        </div>
+        <div class="t-cols t-cols--2">
+          <div>
+            <h3>When it contacts GitHub</h3>
+            <p>
+              Thirty seconds after your last change, every five minutes while Sync is on, after
+              reconnecting, and when you press Sync now. An expired access token is refreshed first.
+              Your avatar is fetched once, when you log in.
+            </p>
+          </div>
+          <div>
+            <h3>Pause and disconnect</h3>
+            <p>
+              Pause stops the requests and keeps your credentials, local checkout and repository.
+              Disconnect deletes the local Sync credentials, checkout and avatar. The GitHub
+              repository stays where it is; delete it on GitHub if you want it gone.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section class="t-section">
+        <div class="t-section__head">
+          <p class="t-section__index">07 / history</p>
+          <div class="t-section__intro">
+            <h2>The repository stays small.</h2>
+            <p>How Omaweb bounds growth, and what that does not mean.</p>
+          </div>
+        </div>
+        <div class="t-cols t-cols--2">
+          <div>
+            <h3>Compaction</h3>
+            <p>
+              After 256 commits or 30 days, Omaweb replaces the history with a fresh snapshot and
+              advances a repository epoch. Deleting a tab or Space writes an encrypted tombstone,
+              kept for 90 days, so a machine that was offline does not bring back something you
+              closed.
+            </p>
+          </div>
+          <div>
+            <h3>Not secure erasure</h3>
+            <p>
+              Compaction bounds ordinary growth. It does not erase what a forge already holds:
+              GitHub can retain backups and unreachable objects after the history is replaced.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section class="t-section">
+        <div class="t-section__head">
+          <p class="t-section__index">08 / setup</p>
+          <div class="t-section__intro">
+            <h2>Six steps, once per machine.</h2>
+            <p>Sync is Linux-only and is unavailable in a Private window.</p>
+          </div>
+        </div>
+        <div class="t-cols t-cols--2">
+          <div>
+            <h3>The first machine</h3>
+            <p>
+              Open Settings and choose Connect. Authorize on GitHub with the code shown. Confirm the
+              prefilled private repository. Install the App for only that repository. Save the
+              recovery key when it appears.
+            </p>
+          </div>
+          <div>
+            <h3>Every machine after</h3>
+            <p>
+              Sign in to the same GitHub identity and enter the saved recovery key. The
+              <a href="https://github.com/villekivela/omaweb/blob/main/docs/sync.md"
+                >Sync adapter notes</a
+              >
+              cover the key and the setup flow in more detail.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section class="t-section">
+        <div class="t-section__head">
+          <p class="t-section__index">09 / providers</p>
+          <div class="t-section__intro">
+            <h2>GitHub is the first provider, not the only possible one.</h2>
+            <p>
+              Forge authorization, repository provisioning and git reconciliation are separate
+              interfaces, so a Forgejo or Gitea adapter can take GitHub's place without Omaweb
+              growing an account system. This release offers no arbitrary server field: another
+              forge needs its own App registration and trust messaging.
+              <a
+                href="https://github.com/villekivela/omaweb/blob/main/docs/adr/0039-sync-configuration-through-a-git-remote.md"
+                >The decision record</a
+              >
+              has the reasoning, and the
+              <a href="https://github.com/villekivela/omaweb/blob/main/docs/network-requests.md"
+                >network request ledger</a
+              >
+              lists every automatic request the browser makes.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <footer class="t-foot">
+        <span>Omaweb &middot; alpha &middot; MPL 2.0</span>
+        <a href="https://github.com/villekivela/omaweb">github.com/villekivela/omaweb</a>
+      </footer>
+    </div>
+    <script src="../script.js"></script>
+  </body>
+</html>

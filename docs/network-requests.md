@@ -51,4 +51,5 @@ credential and App client ID to GitHub's OAuth endpoint. Spaces and tabs are enc
 upload. The repository also receives readable approved settings, keybindings, filter subscription
 addresses, commit authorship using the GitHub login, and the timing and approximate size inherent in
 git traffic. Pause stops these requests. Disconnect also deletes local credentials and state, but
-leaves the private repository in GitHub.
+leaves the private repository in GitHub. The [Sync privacy page](https://omaweb.app/sync) states the
+same boundary for readers.
