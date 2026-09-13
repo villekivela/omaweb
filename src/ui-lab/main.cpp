@@ -266,7 +266,23 @@ int main(int argc, char *argv[])
     QObject::connect(
         &engine, &QQmlApplicationEngine::objectCreationFailed, &application,
         [] { QCoreApplication::exit(1); }, Qt::QueuedConnection);
-    engine.load(QUrl(QStringLiteral(OMAWEB_MAIN_QML_URL)));
+    // PROTOTYPE — `--prototype [A|B|C]` loads the throwaway TUI-direction
+    // window from the source tree in place of Main.qml. Remove with the
+    // prototype.
+    const auto prototypeIndex = arguments.indexOf(QStringLiteral("--prototype"));
+    if (prototypeIndex >= 0) {
+        const auto spec = prototypeIndex + 1 < arguments.size()
+                && !arguments.at(prototypeIndex + 1).startsWith(QLatin1String("--"))
+            ? arguments.at(prototypeIndex + 1)
+            : QStringLiteral("A");
+        engine.setInitialProperties(
+            {{QStringLiteral("variant"), spec.section(QLatin1Char(':'), 0, 0)},
+                {QStringLiteral("openStates"), spec.section(QLatin1Char(':'), 1)}});
+        engine.load(
+            QUrl::fromLocalFile(QStringLiteral(OMAWEB_UI_DIRECTORY "/prototype/TuiPrototype.qml")));
+    } else {
+        engine.load(QUrl(QStringLiteral(OMAWEB_MAIN_QML_URL)));
+    }
 
     // The two startup numbers the tests keep, in milliseconds since `main`:
     // the first frame the window drew, and the first frame with the visible
