@@ -1,4 +1,5 @@
 #include "SyncModule.h"
+#include "SyncController.h"
 #include "SyncSetup.h"
 #include "SecretStore.h"
 #include "GitHubForge.h"
@@ -20,10 +21,13 @@
 #include <utility>
 
 using omaweb::PrivateSessionStore;
+using omaweb::ReconcileResult;
+using omaweb::SpaceListModel;
 using omaweb::SpaceState;
 using omaweb::SqliteSessionStore;
 using omaweb::SyncModule;
 using omaweb::SyncSetup;
+using omaweb::TabListModel;
 using omaweb::TabState;
 
 namespace {
@@ -509,6 +513,27 @@ void SyncModuleTest::leavesTheRemoteUntouchedWhenNothingChanged()
 
     QVERIFY2(sync.reconcile(&error), qPrintable(error));
     QCOMPARE(gitOutput(repository, {QStringLiteral("rev-parse"), QStringLiteral("main")}), first);
+    QVERIFY(!sync.remoteStateChanged());
+    ReconcileResult cleanResult;
+    cleanResult.succeeded = true;
+    QVERIFY(!cleanResult.requiresRemoteStateApply(false));
+    cleanResult.remoteStateChanged = true;
+    QVERIFY(cleanResult.requiresRemoteStateApply(false));
+    cleanResult.remoteStateChanged = false;
+    QVERIFY(cleanResult.requiresRemoteStateApply(true));
+
+    QVERIFY(!SyncModule::includesSyncedTabChange({TabListModel::ActiveRole}));
+    QVERIFY(!SyncModule::includesSyncedTabChange({TabListModel::LoadingRole}));
+    QVERIFY(!SyncModule::includesSyncedTabChange({TabListModel::IconUrlRole}));
+    QVERIFY(!SyncModule::includesSyncedTabChange({TabListModel::AudibleRole}));
+    QVERIFY(!SyncModule::includesSyncedTabChange({TabListModel::SoundSuppressedRole}));
+    QVERIFY(SyncModule::includesSyncedTabChange({}));
+    QVERIFY(
+        SyncModule::includesSyncedTabChange({TabListModel::LoadingRole, TabListModel::TitleRole}));
+    QVERIFY(SyncModule::includesSyncedTabChange({TabListModel::UrlRole}));
+    QVERIFY(SyncModule::includesSyncedTabChange({TabListModel::MutedRole}));
+    QVERIFY(!SyncModule::includesSyncedSpaceChange({SpaceListModel::ActiveRole}));
+    QVERIFY(SyncModule::includesSyncedSpaceChange({SpaceListModel::NameRole}));
 }
 
 void SyncModuleTest::refusesAStoreThatCannotRecordBrowserState()
@@ -698,6 +723,7 @@ void SyncModuleTest::twoMachinesConvergeWhenTheyChangeDifferentRecords()
     QVERIFY(secondStore.saveTabs(QStringLiteral("space-1"), {changedTab}, QStringLiteral("tab-1")));
     QVERIFY2(second.reconcile(&error), qPrintable(error));
     QVERIFY2(first.reconcile(&error), qPrintable(error));
+    QVERIFY(first.remoteStateChanged());
 
     QCOMPARE(firstStore.loadSpaces().constFirst().name, QStringLiteral("Renamed"));
     QCOMPARE(secondStore.loadSpaces().constFirst().name, QStringLiteral("Renamed"));

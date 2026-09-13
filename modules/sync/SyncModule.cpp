@@ -1,6 +1,8 @@
 #include "SyncModule.h"
 
 #include "SessionStore.h"
+#include "SpaceListModel.h"
+#include "TabListModel.h"
 
 #include <QDir>
 #include <QDateTime>
@@ -1249,8 +1251,27 @@ bool SyncModule::captureConfiguration(QString *errorMessage)
     return true;
 }
 
+bool SyncModule::includesSyncedSpaceChange(const QList<int> &roles)
+{
+    static const QSet<int> syncedRoles {
+        SpaceListModel::IdRole, SpaceListModel::NameRole, SpaceListModel::ColorRole};
+    return roles.isEmpty()
+        || std::ranges::any_of(roles, [](int role) { return syncedRoles.contains(role); });
+}
+
+bool SyncModule::includesSyncedTabChange(const QList<int> &roles)
+{
+    static const QSet<int> syncedRoles {TabListModel::IdRole, TabListModel::SpaceIdRole,
+        TabListModel::UrlRole, TabListModel::TitleRole, TabListModel::PinnedRole,
+        TabListModel::MutedRole, TabListModel::ZoomRole, TabListModel::KeepActiveRole};
+    return roles.isEmpty()
+        || std::ranges::any_of(roles, [](int role) { return syncedRoles.contains(role); });
+}
+
 bool SyncModule::reconcile(QString *errorMessage)
 {
+    m_remoteEpochAdvanced = false;
+    m_remoteStateChanged = false;
     if (m_options.initialRemoteRestore && !m_options.deferRemoteApply) {
         if (m_options.discardPristineLocalState) {
             for (const auto &space : m_store.loadSpaces()) {
@@ -1364,12 +1385,25 @@ bool SyncModule::reconcile(QString *errorMessage)
             errorMessage)) {
         return false;
     }
+    const auto localTree
+        = gitOutput({QStringLiteral("rev-parse"), QStringLiteral("HEAD^{tree}")}, errorMessage);
+    if (localTree.isEmpty()) {
+        return false;
+    }
     if (!runGit({QStringLiteral("fetch"), QStringLiteral("origin")}, errorMessage)) {
         return false;
     }
     if (gitRefExists(QStringLiteral("refs/remotes/origin/main"))) {
-        if (!mergeRemote(errorMessage)
-            || (!m_options.deferRemoteApply && !restoreRemoteState(errorMessage))) {
+        if (!mergeRemote(errorMessage)) {
+            return false;
+        }
+        const auto mergedTree
+            = gitOutput({QStringLiteral("rev-parse"), QStringLiteral("HEAD^{tree}")}, errorMessage);
+        if (mergedTree.isEmpty()) {
+            return false;
+        }
+        m_remoteStateChanged = mergedTree != localTree;
+        if (!m_options.deferRemoteApply && !restoreRemoteState(errorMessage)) {
             return false;
         }
     }
@@ -1395,5 +1429,7 @@ bool SyncModule::applyRemoteState(QString *errorMessage)
 }
 
 bool SyncModule::remoteEpochAdvanced() const { return m_remoteEpochAdvanced; }
+
+bool SyncModule::remoteStateChanged() const { return m_remoteStateChanged; }
 
 } // namespace omaweb

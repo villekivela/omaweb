@@ -200,7 +200,7 @@ SyncController::SyncController(BrowserController *browser, ContentBlocker *block
                 result.recoveryKey.data(), static_cast<size_t>(result.recoveryKey.size()));
             return;
         }
-        if (!m_changedWhileSyncing) {
+        if (!m_changedWhileSyncing && result.requiresRemoteStateApply(m_initialRemoteRestore)) {
             QString applyError;
             SqliteSessionStore store(m_dataRoot);
             SyncModule sync(store,
@@ -258,15 +258,28 @@ SyncController::SyncController(BrowserController *browser, ContentBlocker *block
             m_quietReconcile.start();
         }
     });
-    const auto watchModel = [this](QAbstractItemModel *model) {
-        connect(model, &QAbstractItemModel::dataChanged, this, [this] { markPending(); });
+    const auto watchStructure = [this](QAbstractItemModel *model, bool resetChangesState) {
         connect(model, &QAbstractItemModel::rowsInserted, this, [this] { markPending(); });
         connect(model, &QAbstractItemModel::rowsRemoved, this, [this] { markPending(); });
         connect(model, &QAbstractItemModel::rowsMoved, this, [this] { markPending(); });
-        connect(model, &QAbstractItemModel::modelReset, this, [this] { markPending(); });
+        if (resetChangesState) {
+            connect(model, &QAbstractItemModel::modelReset, this, [this] { markPending(); });
+        }
     };
-    watchModel(browser->spaces());
-    watchModel(browser->tabs());
+    connect(browser->spaces(), &QAbstractItemModel::dataChanged, this,
+        [this](const QModelIndex &, const QModelIndex &, const QList<int> &roles) {
+            if (SyncModule::includesSyncedSpaceChange(roles)) {
+                markPending();
+            }
+        });
+    connect(browser->tabs(), &QAbstractItemModel::dataChanged, this,
+        [this](const QModelIndex &, const QModelIndex &, const QList<int> &roles) {
+            if (SyncModule::includesSyncedTabChange(roles)) {
+                markPending();
+            }
+        });
+    watchStructure(browser->spaces(), true);
+    watchStructure(browser->tabs(), false);
     connect(browser, &BrowserController::preferenceChanged, this, [this](const QString &name) {
         static const QSet<QString> approved {QStringLiteral("floating-controls"),
             QStringLiteral("ease-sidebar"), QStringLiteral("use-favicons"),
@@ -581,7 +594,8 @@ void SyncController::syncNow()
             .recoveryKey = std::move(recoveryKey),
             .refreshedAccessToken = std::move(refreshedAccessToken),
             .refreshedAccessTokenExpiresInSeconds = refreshedAccessTokenExpiresInSeconds,
-            .remoteEpochAdvanced = sync.remoteEpochAdvanced()};
+            .remoteEpochAdvanced = sync.remoteEpochAdvanced(),
+            .remoteStateChanged = sync.remoteStateChanged()};
     }));
 }
 

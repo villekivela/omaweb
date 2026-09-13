@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QByteArray>
+#include <QList>
 #include <QObject>
 #include <QProcess>
 #include <QString>
@@ -47,10 +48,13 @@ public:
 
     static QString createRecoveryKey();
     static QByteArray decodeRecoveryKey(const QString &displayed, QString *errorMessage = nullptr);
+    static bool includesSyncedSpaceChange(const QList<int> &roles);
+    static bool includesSyncedTabChange(const QList<int> &roles);
     bool open(QString *errorMessage = nullptr);
     bool reconcile(QString *errorMessage = nullptr);
     bool applyRemoteState(QString *errorMessage = nullptr);
     bool remoteEpochAdvanced() const;
+    bool remoteStateChanged() const;
 
 private:
     bool captureConfiguration(QString *errorMessage);
@@ -81,6 +85,7 @@ private:
     SessionStore &m_store;
     SyncOptions m_options;
     bool m_remoteEpochAdvanced = false;
+    bool m_remoteStateChanged = false;
 };
 
 } // namespace omaweb

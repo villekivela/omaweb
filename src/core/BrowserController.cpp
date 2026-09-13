@@ -602,6 +602,7 @@ bool BrowserController::confirmTabMoveToSpace(
         return false;
     }
 
+    const auto movingActiveTab = tabId == m_activeTabId;
     auto sourceTabs = m_tabs.items();
     TabState movedTab = *sourceTab;
     sourceTabs.removeIf([&tabId](const TabState &tab) { return tab.id == tabId; });
@@ -610,7 +611,7 @@ bool BrowserController::confirmTabMoveToSpace(
         auto blankTab = makeBlankTab(m_activeSpaceId);
         sourceActiveTabId = blankTab.id;
         sourceTabs.append(blankTab);
-    } else if (tabId == m_activeTabId) {
+    } else if (movingActiveTab) {
         sourceActiveTabId = sourceTabs.first().id;
     }
 
@@ -643,7 +644,14 @@ bool BrowserController::confirmTabMoveToSpace(
     }
     m_livePageStates.remove(tabId);
     m_activeTabId = sourceActiveTabId;
-    m_tabs.reset(std::move(sourceTabs));
+    m_tabs.remove(tabId);
+    if (m_tabs.rowCount() == 0) {
+        m_tabs.append(sourceTabs.constFirst());
+    } else if (movingActiveTab) {
+        auto *replacement = m_tabs.find(sourceActiveTabId);
+        replacement->active = true;
+        m_tabs.notifyChanged(replacement->id, {TabListModel::ActiveRole});
+    }
     refreshRetainedTabs();
     emit activeTabChanged();
     return true;

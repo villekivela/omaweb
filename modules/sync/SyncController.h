@@ -30,6 +30,12 @@ struct ReconcileResult {
     QByteArray refreshedAccessToken;
     int refreshedAccessTokenExpiresInSeconds = 0;
     bool remoteEpochAdvanced = false;
+    bool remoteStateChanged = false;
+
+    bool requiresRemoteStateApply(bool initialRemoteRestore) const
+    {
+        return initialRemoteRestore || remoteEpochAdvanced || remoteStateChanged;
+    }
 };
 
 class SyncController final : public QObject {
