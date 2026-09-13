@@ -118,6 +118,14 @@ Omaweb has no telemetry, advertising identifier, browser account, hosted Omaweb 
 service, or automatic crash upload. The [network request ledger](docs/network-requests.md) lists
 every automatic request the browser makes.
 
+Sync is optional, off until you connect it, and unavailable in a Private window. It copies Spaces,
+tabs, keybindings, filter subscription addresses, and four approved Settings keys between your own
+machines through a private git repository you own. Spaces and tabs are encrypted before upload;
+keybindings, subscription addresses, and those settings are readable in that repository. Passwords,
+cookies, browsing history, downloads, site permissions, and every Private window never enter Sync.
+The [Sync privacy page](https://omaweb.app/sync) states the full boundary and the forge permissions
+it asks for.
+
 Each page runs in a sandboxed renderer. Omaweb refuses to start if its command line disables the
 sandbox or the Linux host cannot meet the sandbox requirements. An ordinary session opens no
 listening socket.
