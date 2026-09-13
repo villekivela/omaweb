@@ -22,6 +22,7 @@
 #include <QColor>
 #include <QCoreApplication>
 #include <QDir>
+#include <QElapsedTimer>
 #include <QHash>
 #include <QFile>
 #include <QFontDatabase>
@@ -35,6 +36,9 @@
 #include <QTemporaryDir>
 #include <QQuickWindow>
 #include <QTimer>
+
+#include <cstdio>
+#include <optional>
 
 namespace {
 
@@ -155,6 +159,11 @@ void seedSampleTabs(omaweb::BrowserController &browser, const QVariantList &favi
 
 int main(int argc, char *argv[])
 {
+    // Startup is measured from here: what the process pays before `main` is
+    // the loader's and the same for every build, and what comes after is what
+    // an Omaweb change can slow down.
+    QElapsedTimer startup;
+    startup.start();
     QGuiApplication application(argc, argv);
     const auto captureFontFile = qEnvironmentVariable("OMAWEB_CAPTURE_FONT_FILE");
     if (!captureFontFile.isEmpty() && QFontDatabase::addApplicationFont(captureFontFile) < 0) {
@@ -168,16 +177,27 @@ int main(int argc, char *argv[])
     // the lab has to carry the same version the browser does.
     QCoreApplication::setApplicationVersion(QStringLiteral(OMAWEB_VERSION));
 
-    QTemporaryDir dataRoot;
-    if (!dataRoot.isValid()) {
-        qCritical("Could not create temporary UI-lab data directory.");
-        return 1;
+    // The lab keeps nothing between runs, so its data root is temporary unless
+    // a caller hands it one: the restore probe seeds a Space on disk first and
+    // then measures the lab bringing it back.
+    const auto arguments = application.arguments();
+    std::optional<QTemporaryDir> temporaryRoot;
+    QString dataRootPath;
+    const auto dataRootIndex = arguments.indexOf(QStringLiteral("--data-root"));
+    if (dataRootIndex >= 0 && dataRootIndex + 1 < arguments.size()) {
+        dataRootPath = arguments.at(dataRootIndex + 1);
+    } else {
+        temporaryRoot.emplace();
+        if (!temporaryRoot->isValid()) {
+            qCritical("Could not create temporary UI-lab data directory.");
+            return 1;
+        }
+        dataRootPath = temporaryRoot->path();
     }
+    const QDir dataRoot(dataRootPath);
 
-    omaweb::BrowserController browser(
-        omaweb::SpaceStorage(dataRoot.path(), QStringLiteral("mock")));
-    omaweb::ContentBlocker contentBlocker(
-        dataRoot.path(), omaweb::ContentBlocker::DefaultLists::None);
+    omaweb::BrowserController browser(omaweb::SpaceStorage(dataRootPath, QStringLiteral("mock")));
+    omaweb::ContentBlocker contentBlocker(dataRootPath, omaweb::ContentBlocker::DefaultLists::None);
     const auto keybindingsPath = dataRoot.filePath(QStringLiteral("keybindings.json"));
     QFile::copy(QStringLiteral(OMAWEB_DEFAULT_KEYBINDINGS_PATH), keybindingsPath);
     omaweb::KeyboardNavigation keyboardNavigation(
@@ -246,7 +266,47 @@ int main(int argc, char *argv[])
         [] { QCoreApplication::exit(1); }, Qt::QueuedConnection);
     engine.load(QUrl(QStringLiteral(OMAWEB_MAIN_QML_URL)));
 
-    const auto arguments = application.arguments();
+    // The two startup numbers the tests keep, in milliseconds since `main`:
+    // the first frame the window drew, and the first frame with the visible
+    // Space's page in it. A Space at rest has no page to draw, so the report
+    // ends at the first frame; anything else waits for the page.
+    if (arguments.contains(QStringLiteral("--report-startup"))) {
+        if (engine.rootObjects().isEmpty()) {
+            return 1;
+        }
+        auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().constFirst());
+        if (window == nullptr) {
+            qCritical("The root object is not a window");
+            return 1;
+        }
+        auto *engineLoader = window->findChild<QObject *>(QStringLiteral("engineLoader"));
+        QObject::connect(window, &QQuickWindow::frameSwapped, window,
+            [engineLoader, &startup, &browser, firstFrame = true, done = false]() mutable {
+                if (done) {
+                    return;
+                }
+                const auto elapsed = startup.nsecsElapsed() / 1e6;
+                if (firstFrame) {
+                    firstFrame = false;
+                    printf("first_frame_milliseconds=%.1f\n", elapsed);
+                    if (browser.atRest()) {
+                        done = true;
+                        fflush(stdout);
+                        QCoreApplication::quit();
+                        return;
+                    }
+                }
+                if (engineLoader == nullptr
+                    || engineLoader->property("item").value<QObject *>() == nullptr) {
+                    return;
+                }
+                printf("page_frame_milliseconds=%.1f\n", elapsed);
+                done = true;
+                fflush(stdout);
+                QCoreApplication::quit();
+            });
+    }
+
     // The lab comes up on a Space at rest, which draws neither the Pinned
     // section nor the tab list, so the sidebar that distinguishes this browser
     // is the one thing a capture of it cannot show. `--tabs` seeds a day.
