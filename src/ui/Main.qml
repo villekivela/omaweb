@@ -1672,6 +1672,7 @@ ApplicationWindow {
                 collapsed: window.sidebarCollapsed
                 floating: chromeRow.peekRevealed > 0 && window.sidebarCollapsed
                 blocker: contentBlocker
+                easeSpaces: window.easeSidebar
                 connectionState: window.connectionState
                 certificateDecisionsAvailable: window.certificateDecisionsAvailable
                 thirdPartyCookieControlAvailable: window.thirdPartyCookieControlAvailable

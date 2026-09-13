@@ -41,6 +41,60 @@ Rectangle {
     readonly property bool atRest: browser ? browser.atRest : false
 
     readonly property url activeUrl: browser ? browser.activeUrl : ""
+
+    // Spaces are a column behind the sidebar, and switching one moves the
+    // list the way the column would: a Space further down the list arrives
+    // from below, one further up from above. Only the arriving list moves,
+    // by less than a row, so the direction is felt rather than watched; the
+    // page keeps its own step. `easeSpaces` is the reader's refusal of the
+    // sidebar ease, which refuses this too.
+    property bool easeSpaces: true
+    property int settledSpaceRow: activeSpaceRow()
+    property real stackShift: 0
+    property real stackOpacity: 1
+    // The row is read off the model on each change rather than bound: a
+    // binding over model data does not see the model change.
+    function activeSpaceRow() {
+        if (!browser)
+            return 0;
+        const spaces = browser.spaces;
+        for (let row = 0; row < spaces.rowCount(); ++row) {
+            if (spaces.data(spaces.index(row, 0), Qt.UserRole + 4))
+                return row;
+        }
+        return 0;
+    }
+    Connections {
+        target: root.browser
+        function onActiveSpaceChanged() {
+            const from = root.settledSpaceRow;
+            const to = root.activeSpaceRow();
+            root.settledSpaceRow = to;
+            if (!root.easeSpaces || from === to)
+                return;
+            stackArrival.stop();
+            root.stackShift = to > from ? 18 : -18;
+            root.stackOpacity = 0;
+            stackArrival.start();
+        }
+    }
+    ParallelAnimation {
+        id: stackArrival
+        NumberAnimation {
+            target: root
+            property: "stackShift"
+            to: 0
+            duration: 240
+            easing.type: Easing.OutCubic
+        }
+        NumberAnimation {
+            target: root
+            property: "stackOpacity"
+            to: 1
+            duration: 180
+            easing.type: Easing.OutCubic
+        }
+    }
     // What Content blocking refused for the page on show.
     readonly property int refusalTally: refusals.count
 
@@ -515,6 +569,10 @@ Rectangle {
         anchors.topMargin: visible ? 12 : 0
         height: childrenRect.height
         visible: !root.privateWindow && root.pinnedCount > 0
+        opacity: root.stackOpacity
+        transform: Translate {
+            y: root.stackShift
+        }
         readonly property int capacity: Math.max(3, Math.min(5, Math.floor(width / 56)))
         readonly property int columns: Math.min(root.pinnedCount, capacity)
         spacing: 4
@@ -571,6 +629,10 @@ Rectangle {
         anchors.topMargin: 12
         anchors.bottomMargin: 12
         clip: true
+        opacity: root.stackOpacity
+        transform: Translate {
+            y: root.stackShift
+        }
 
         Column {
             id: ordinarySection

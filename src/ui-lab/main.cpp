@@ -155,6 +155,53 @@ void seedSampleTabs(omaweb::BrowserController &browser, const QVariantList &favi
     browser.activateTab(blankTabId);
 }
 
+// Two more Spaces, each with a page or two of its own, so that switching
+// Space has somewhere to go. The first Space is put back on show at the
+// end. This runs before the QML loads: a switch with the interface up tears
+// the leaving Space's engines down, which a seed has no reason to pay for.
+void seedSampleSpaces(omaweb::BrowserController &browser, const QVariantList &favicons)
+{
+    const auto firstSpaceId = browser.activeSpaceId();
+    auto *unpinned = browser.unpinnedTabs();
+    qsizetype icon = 0;
+    struct SampleSpace {
+        const char *name;
+        QList<SampleTab> tabs;
+    };
+    const QList<SampleSpace> spaces = {
+        {"home",
+            {{"https://news.ycombinator.com/", "Hacker News", false},
+                {"https://ratatui.rs/", "Ratatui", false},
+                {"https://www.reddit.com/r/unixporn/", "r/unixporn", true}}},
+        {"lab", {{"http://localhost:3000/", "localhost:3000", false}}},
+    };
+    for (const auto &space : spaces) {
+        const auto spaceId = browser.createSpace(QString::fromUtf8(space.name));
+        if (spaceId.isEmpty() || !browser.switchSpace(spaceId)) {
+            continue;
+        }
+        const auto restTabId = browser.activeTabId();
+        for (const auto &sample : space.tabs) {
+            const QUrl url(QString::fromUtf8(sample.url));
+            browser.openInputInBackground(url);
+            const auto tabId = lastTabId(unpinned);
+            if (tabId.isEmpty()) {
+                continue;
+            }
+            const auto favicon
+                = favicons.isEmpty() ? QUrl {} : favicons.at(icon++ % favicons.size()).toUrl();
+            browser.reportTabPageState(
+                tabId, url, QString::fromUtf8(sample.title), favicon, false, false);
+            if (sample.pinned) {
+                browser.activateTab(tabId);
+                browser.toggleActivePinned();
+            }
+        }
+        browser.activateTab(restTabId);
+    }
+    browser.switchSpace(firstSpaceId);
+}
+
 } // namespace
 
 int main(int argc, char *argv[])
@@ -269,6 +316,10 @@ int main(int argc, char *argv[])
     // PROTOTYPE — `--prototype [A|B|C]` loads the throwaway TUI-direction
     // window from the source tree in place of Main.qml. Remove with the
     // prototype.
+    // `--spaces` seeds the Spaces to switch between; see seedSampleSpaces.
+    if (arguments.contains(QStringLiteral("--spaces"))) {
+        seedSampleSpaces(browser, mockFavicons);
+    }
     const auto prototypeIndex = arguments.indexOf(QStringLiteral("--prototype"));
     if (prototypeIndex >= 0) {
         const auto spec = prototypeIndex + 1 < arguments.size()
@@ -364,6 +415,10 @@ int main(int argc, char *argv[])
             {QStringLiteral("site"), {{"sidebar", "statusOpen", true}}},
             {QStringLiteral("history"), {{"", "historyOpen", true}}},
             {QStringLiteral("shortcuts"), {{"", "shortcutsOpen", true}}},
+            // Steps to the next Space shortly before a capture, so the frame
+            // is taken part way through the list's arrival.
+            {QStringLiteral("space-step"), {}},
+            {QStringLiteral("space-settled"), {}},
         };
         const auto requested = arguments.at(showIndex + 1);
         auto *root = engine.rootObjects().constFirst();
@@ -411,7 +466,11 @@ int main(int argc, char *argv[])
                 state.append(rest);
             }
         }
-        if (state.isEmpty()) {
+        if (requested.startsWith(QLatin1String("space-"))) {
+            const auto delay = requested == QLatin1String("space-step") ? 600 : 300;
+            QTimer::singleShot(delay, root,
+                [root] { QMetaObject::invokeMethod(root, "stepSpace", Q_ARG(QVariant, 1)); });
+        } else if (state.isEmpty()) {
             qCritical("Unknown --show state %s", qPrintable(requested));
             return 1;
         }
