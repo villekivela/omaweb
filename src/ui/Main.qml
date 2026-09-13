@@ -1807,6 +1807,10 @@ ApplicationWindow {
                     // alone, over the ground that stays.
                     tabNudgeX: sidebar.tabOffsetX
                     tabNudgeY: sidebar.tabOffsetY
+                    // A page arriving from the left would otherwise start
+                    // over the seam and paint the sidebar's edge out for the
+                    // length of the nudge.
+                    clip: sidebar.tabOffsetX !== 0
                     anchors.left: parent.left
                     anchors.top: parent.top
                     anchors.bottom: parent.bottom
