@@ -59,11 +59,21 @@ until the Space database is next opened. The cleanup finds the oldest visit wort
 the recency index and deletes below it, naming that visit by id as well as by timestamp because a
 redirect chain lands several visits in one millisecond.
 
+The SQLite store runs on a thread of its own, with its connections opened and closed there. The
+three writes a session makes as it runs, the visit record, the coalesced tab write and the
+closed-tab write, are queued to it and answered as taken, so the interface never waits on the disk
+for them; the store names them `record`. Every other call, the `save` writes, the deletes and the
+reads, runs on the store thread while the interface waits for its answer, which is what a Space
+switch, move or delete needs before it goes on. The thread takes calls in the order they were made,
+so a call sees every queued write made before it, and closing the store at quit lands whatever is
+still queued. A Private window's store keeps nothing and has no thread.
+
 ## History search
 
-The Omnibar searches a Space's history on a thread of its own, through SQLite connections that
-thread opens and closes: the query scans and groups every matching visit, which is work the
-interface cannot do between keystrokes. One search runs and one waits, so typing faster than the
+The Omnibar searches a Space's history on the store's thread, behind the session's queued writes and
+through SQLite connections of its own that the thread opens and closes: the query scans and groups
+every matching visit, which is work the interface cannot do between keystrokes, and a search asked
+after a visit was recorded sees that visit. One search runs and one waits, so typing faster than the
 store answers replaces the waiting request instead of queueing another.
 
 Each request carries a generation and the Space it was asked about. The core drops an answer whose

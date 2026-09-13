@@ -10,10 +10,11 @@
 
 namespace omaweb {
 
-// The Omnibar's History search, run away from the interface. It lives on a
-// thread of its own and reads each Space database through a connection of its
-// own: a QSqlDatabase belongs to the thread that opened it, so nothing here is
-// shared with the connections the session writes through.
+// The Omnibar's History search, run away from the interface. It lives on the
+// session store's thread, behind the writes queued there, and reads each Space
+// database through a connection of its own: a QSqlDatabase belongs to the
+// thread that opened it, so nothing here is shared with the connections the
+// session writes through.
 //
 // A search never writes. It answers with the generation it was given, and
 // deciding which answer is still wanted is the caller's.

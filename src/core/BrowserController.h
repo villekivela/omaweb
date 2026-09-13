@@ -25,6 +25,7 @@
 namespace omaweb {
 
 class HistorySearch;
+class ThreadedSessionStore;
 
 // A window implements DownloadPermissions so its downloads can ask what an
 // origin has been allowed without holding the window's Site permissions
@@ -392,6 +393,7 @@ private:
     void ensureDefaultSpace();
     void ensureActiveTab();
     bool persistTabs();
+    void recordTabs();
     void schedulePersistTabs();
     void setActiveTab(const QString &tabId);
     qsizetype pinnedTabCount() const;
@@ -417,8 +419,14 @@ private:
     bool saveSearchEngines(const QVariantList &engines, const QString &defaultEngineId);
     void loadDownloadDirectory();
     static QString normalizedOrigin(const QUrl &url);
-    BrowserController(std::shared_ptr<SessionStore> store, std::optional<SpaceStorage> storage,
-        bool privateBrowsing, QSharedPointer<QHash<QString, int>> sessionPermissionDecisions,
+    BrowserController(std::shared_ptr<ThreadedSessionStore> store, SpaceStorage storage,
+        QString configRoot, QObject *parent);
+    // The thread the store takes its calls on, when it has one, is where the
+    // history search lives too, so a search never runs ahead of the visits
+    // recorded before it.
+    BrowserController(std::shared_ptr<SessionStore> store, QThread *storeThread,
+        std::optional<SpaceStorage> storage, bool privateBrowsing,
+        QSharedPointer<QHash<QString, int>> sessionPermissionDecisions,
         QSharedPointer<SessionSiteState> sessionSiteState, QString configRoot, QObject *parent);
 
     QString sessionPermissionKey(const QString &origin, const QString &permission) const;
@@ -432,9 +440,8 @@ private:
     // window that keeps nothing, which is what the profile-path readers answer
     // from rather than testing whether this window is private.
     std::optional<SpaceStorage> m_storage;
-    // The search thread and the object on it. Both are absent in a Private
-    // window, which has no history to search.
-    QThread *m_historyThread = nullptr;
+    // The search, on the store's thread. Absent in a Private window, which
+    // has no history to search.
     HistorySearch *m_historySearch = nullptr;
     // Which request the interface is waiting for. A result carrying an earlier
     // generation belongs to input the reader has already replaced.

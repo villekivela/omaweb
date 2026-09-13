@@ -155,7 +155,7 @@ void StartupProbes::aSpaceAtItsBoundsIsRestoredInsideItsBudget()
             tab.title = QStringLiteral("Closed %1").arg(index);
             closed.append(tab);
         }
-        QVERIFY(store.saveClosedTabs(spaceId, closed));
+        QVERIFY(store.recordClosedTabs(spaceId, closed));
 
         for (int index = 0; index < omaweb::history::retainedRows; ++index) {
             QVERIFY(store.recordVisit(spaceId,

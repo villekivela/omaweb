@@ -3,6 +3,7 @@
 #include "DownloadPolicy.h"
 #include "HistorySearch.h"
 #include "SqliteSessionStore.h"
+#include "ThreadedSessionStore.h"
 
 #include <QRegularExpression>
 #include <QDir>
@@ -79,8 +80,28 @@ namespace {
 
 } // namespace
 
+namespace {
+
+    // A window that keeps what it browses writes through a thread of its own, so
+    // the visits and tab changes a page reports never hold the interface for the
+    // disk. Built here rather than in the constructor's initialiser so the thread
+    // can be named beside the store that runs on it.
+    std::shared_ptr<ThreadedSessionStore> makeRecordingStore(const SpaceStorage &storage)
+    {
+        return std::make_shared<ThreadedSessionStore>(
+            std::make_unique<SqliteSessionStore>(storage.dataRoot()));
+    }
+
+} // namespace
+
 BrowserController::BrowserController(SpaceStorage storage, QString configRoot, QObject *parent)
-    : BrowserController(std::make_shared<SqliteSessionStore>(storage.dataRoot()), storage, false,
+    : BrowserController(makeRecordingStore(storage), storage, std::move(configRoot), parent)
+{
+}
+
+BrowserController::BrowserController(std::shared_ptr<ThreadedSessionStore> store,
+    SpaceStorage storage, QString configRoot, QObject *parent)
+    : BrowserController(store, store->thread(), std::move(storage), false,
           QSharedPointer<QHash<QString, int>>::create(), QSharedPointer<SessionSiteState>::create(),
           std::move(configRoot), parent)
 {
@@ -89,13 +110,13 @@ BrowserController::BrowserController(SpaceStorage storage, QString configRoot, Q
 BrowserController::BrowserController(std::shared_ptr<SessionStore> store, bool privateBrowsing,
     QSharedPointer<QHash<QString, int>> sessionPermissionDecisions,
     QSharedPointer<SessionSiteState> sessionSiteState, QString configRoot, QObject *parent)
-    : BrowserController(std::move(store), std::nullopt, privateBrowsing,
+    : BrowserController(std::move(store), nullptr, std::nullopt, privateBrowsing,
           std::move(sessionPermissionDecisions), std::move(sessionSiteState), std::move(configRoot),
           parent)
 {
 }
 
-BrowserController::BrowserController(std::shared_ptr<SessionStore> store,
+BrowserController::BrowserController(std::shared_ptr<SessionStore> store, QThread *storeThread,
     std::optional<SpaceStorage> storage, bool privateBrowsing,
     QSharedPointer<QHash<QString, int>> sessionPermissionDecisions,
     QSharedPointer<SessionSiteState> sessionSiteState, QString configRoot, QObject *parent)
@@ -117,7 +138,7 @@ BrowserController::BrowserController(std::shared_ptr<SessionStore> store,
     m_unpinnedTabs.setFilterRegularExpression(QRegularExpression(QStringLiteral("^false$")));
     m_persistTabsTimer.setSingleShot(true);
     m_persistTabsTimer.setInterval(persistTabsDelayMilliseconds);
-    connect(&m_persistTabsTimer, &QTimer::timeout, this, [this] { persistTabs(); });
+    connect(&m_persistTabsTimer, &QTimer::timeout, this, [this] { recordTabs(); });
     // Every route to a blank tab changes the tab model: opening the first
     // address, closing the last page, switching Space, restoring a session.
     // Watching the model is what keeps the answer from depending on a caller
@@ -131,15 +152,14 @@ BrowserController::BrowserController(std::shared_ptr<SessionStore> store,
     // Built once the store is open, because it reads the Space's Download
     // records to come up with the list it already has.
     m_downloads = new Downloads(m_store.get(), this, this);
-    // A window without History search has nothing to search and no thread to
-    // search it with, and neither has one that keeps nothing on disk: the
-    // search reads the Space databases a SpaceStorage names.
-    if (m_capabilities.allows(Capability::HistorySearch) && m_storage) {
-        m_historyThread = new QThread(this);
-        m_historyThread->setObjectName(QStringLiteral("omaweb-history-search"));
+    // A window without History search has nothing to search, and neither has
+    // one that keeps nothing on disk: the search reads the Space databases a
+    // SpaceStorage names. It lives on the store's thread, behind the session's
+    // queued writes, so a search sees every visit recorded before it was asked.
+    if (m_capabilities.allows(Capability::HistorySearch) && m_storage && storeThread) {
         m_historySearch = new HistorySearch(*m_storage);
-        m_historySearch->moveToThread(m_historyThread);
-        connect(m_historyThread, &QThread::finished, m_historySearch, &QObject::deleteLater);
+        m_historySearch->moveToThread(storeThread);
+        connect(storeThread, &QThread::finished, m_historySearch, &QObject::deleteLater);
         connect(this, &BrowserController::historySearchRequested, m_historySearch,
             &HistorySearch::search);
         connect(this, &BrowserController::historySearchSpaceForgotten, m_historySearch,
@@ -148,23 +168,18 @@ BrowserController::BrowserController(std::shared_ptr<SessionStore> store,
             &HistorySearch::setDelayForTests);
         connect(m_historySearch, &HistorySearch::resultsReady, this,
             &BrowserController::historySearchAnswered);
-        m_historyThread->start();
     }
 }
 
 // A quit while a coalesced write is still pending would drop the last address
-// or title a page reported.
+// or title a page reported. The write is queued here and lands when the store
+// closes, which it does once this window lets go of it; the search, which
+// owns SQLite connections of its own, is deleted on the store's thread as
+// that thread ends.
 BrowserController::~BrowserController()
 {
     if (m_persistTabsTimer.isActive()) {
-        persistTabs();
-    }
-    // The search owns SQLite connections, which have to be closed on the
-    // thread that opened them. Waiting is what makes the deleteLater above run
-    // there rather than leaving the connections behind.
-    if (m_historyThread) {
-        m_historyThread->quit();
-        m_historyThread->wait();
+        recordTabs();
     }
 }
 
@@ -840,7 +855,7 @@ void BrowserController::loadClosedTabs()
 // nothing behind, which is its store's answer rather than a test here.
 void BrowserController::persistClosedTabs()
 {
-    m_store->saveClosedTabs(m_activeSpaceId, m_closedTabs);
+    m_store->recordClosedTabs(m_activeSpaceId, m_closedTabs);
 }
 
 // Newest first, so repeated asking walks back through the closes in the order
@@ -2198,6 +2213,14 @@ bool BrowserController::persistTabs()
 {
     m_persistTabsTimer.stop();
     return m_store->saveTabs(m_activeSpaceId, m_tabs.items(), m_activeTabId);
+}
+
+// The coalesced write itself, which the store may land later: nothing here
+// waits for its answer.
+void BrowserController::recordTabs()
+{
+    m_persistTabsTimer.stop();
+    m_store->recordTabs(m_activeSpaceId, m_tabs.items(), m_activeTabId);
 }
 
 // A loading page reports a new address and then several titles in quick

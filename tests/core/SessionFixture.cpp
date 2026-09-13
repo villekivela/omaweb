@@ -223,7 +223,7 @@ namespace {
             return QStringLiteral("spaces[%1].tabs: could not save tabs").arg(spec.id);
         }
         const auto recentCloses = tabStates(spec.recentCloses, spec.id, TabIdSource::Generated);
-        if (!store.saveClosedTabs(spec.id, recentCloses)) {
+        if (!store.recordClosedTabs(spec.id, recentCloses)) {
             return QStringLiteral("spaces[%1].recentCloses: could not save recent closes")
                 .arg(spec.id);
         }

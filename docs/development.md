@@ -580,12 +580,14 @@ browser on Linux hardware has been taken yet.
 
 ### Runtime probes
 
-Five runtime numbers are measurements the test suites keep rather than budgets. Each probe prints a
+Eight runtime numbers are measurements the test suites keep rather than budgets. Each probe prints a
 `probe <name>: <value> <unit> (threshold <limit> <unit>)` line and fails naming both numbers when
 the value crosses the threshold. Each threshold is a round number set after the first measurement:
 about four times it for the two startup probes, seven and ten times for the tab switch and the
 frame, which are under ten milliseconds, where scheduling jitter is a larger share of a sample than
-the machine is, and about twice for memory. All five run under `ctest --preset ci`.
+the machine is, and about twice for memory. The three session writes hold the 2 ms that #214 set as
+the point to take them off the interface thread, which is the bound they were moved for rather than
+a margin over their first measurement. All eight run under `ctest --preset ci`.
 
 Baseline measured on the initial macOS development machine, an Apple M2 Max on macOS 26.6.2, with
 the `dev` preset on 2026-09-12:
@@ -597,6 +599,9 @@ the `dev` preset on 2026-09-12:
 | Tab switch to the destination page's frame        | 7 ms           | 50 ms     | `omaweb-ui`, `tst_performance.qml` |
 | Chromeless frame time over an animated page       | 0.8 to 1.0 ms  | 10 ms     | `omaweb-ui`, `tst_performance.qml` |
 | Resident memory per frozen tab                    | 103 to 104 MiB | 200 MiB   | `omaweb-qt-engine-contract`        |
+| Visit record, on the interface thread             | 2 to 15 us     | 2000 us   | `omaweb-session-store`             |
+| Coalesced tab write, on the interface thread      | 1 to 2 us      | 2000 us   | `omaweb-session-store`             |
+| Closed-tab write, on the interface thread         | 1 to 2 us      | 2000 us   | `omaweb-session-store`             |
 
 What each one measures:
 
@@ -627,6 +632,14 @@ What each one measures:
   retained-tab report reads it, for four pages served over HTTP in one shared profile, as a Space's
   tabs are, hidden and frozen, summed over their distinct renderer processes and divided by the tab
   count.
+- The three session writes are what the interface thread pays to hand each one to the store thread,
+  against a Space at the same bounds the restore probe uses: the longest of 257 visits, so the one
+  that restores the history bound is among them, and the longest of twenty writes of 100 tabs and of
+  25 closed tabs. The probe first takes the same writes on the calling thread, which is what they
+  cost before the store thread existed, and prints those as `<name>-on-the-calling-thread` without
+  holding them. On the M2 Max on 2026-09-13 that control put the trimming visit at 2.1 to 2.8 ms,
+  the tab write at 1.3 to 1.6 ms with the odd checkpoint at 5.6 ms, and the closed-tab write at 0.2
+  to 0.3 ms.
 
 Re-run the probes on their own with:
 
@@ -634,9 +647,10 @@ Re-run the probes on their own with:
 ctest --preset dev -R omaweb-startup-probes -V
 build/dev/omaweb-ui-tests -input tests/ui/tst_performance.qml
 build/dev/omaweb-qt-engine-contract-tests qtKeepsAFrozenTabInsideItsMemoryBudget
+build/dev/omaweb-session-store-tests aThreadedStoreTakesTheSessionsRunningWritesInsideTheirBudget
 ```
 
-Set `QT_QPA_PLATFORM=offscreen` for the last two, or `QT_QPA_PLATFORM=cocoa QSG_RHI_PROFILE=1` to
+Set `QT_QPA_PLATFORM=offscreen` for the middle two, or `QT_QPA_PLATFORM=cocoa QSG_RHI_PROFILE=1` to
 draw the frame probe through Metal and read what the frames cost the GPU. The Linux numbers are
 still to be taken: re-run on Linux hardware when it is available and record them here beside the
 macOS ones.
