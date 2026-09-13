@@ -102,6 +102,7 @@ Rectangle {
                 return;
             }
             spaceArrival.stop();
+            root.settledTabX = -1;
             root.settledTabY = -1;
             root.switchDirection = to > from ? 1 : -1;
             root.arrivalOffset = root.switchDirection;
@@ -256,27 +257,50 @@ Rectangle {
     // above. The distance is the page's; the direction is measured here,
     // where the rows are. A Space switch moves the page its own way and
     // this stays out of it.
+    property real settledTabX: -1
     property real settledTabY: -1
-    property real tabOffset: 0
+    property real tabOffsetX: 0
+    property real tabOffsetY: 0
     onActiveTabItemChanged: {
         if (activeTabItem === null)
             return;
-        const y = activeTabItem.mapToItem(root, 0, 0).y;
-        const from = settledTabY;
-        settledTabY = y;
-        if (!easeSpaces || arriving || from < 0 || from === y)
+        const at = activeTabItem.mapToItem(root, 0, 0);
+        const fromX = settledTabX;
+        const fromY = settledTabY;
+        settledTabX = at.x;
+        settledTabY = at.y;
+        if (!easeSpaces || arriving || fromY < 0)
             return;
-        tabArrival.stop();
-        tabOffset = y > from ? 10 : -10;
-        tabArrival.start();
+        // Rows stand under one another, so a different row is a vertical
+        // move; pins stand beside one another, so the same row and a
+        // different column is a horizontal one.
+        if (at.y !== fromY) {
+            tabOffsetX = 0;
+            tabOffsetY = at.y > fromY ? 10 : -10;
+        } else if (at.x !== fromX) {
+            tabOffsetY = 0;
+            tabOffsetX = at.x > fromX ? 10 : -10;
+        } else {
+            return;
+        }
+        tabArrival.restart();
     }
-    NumberAnimation {
+    ParallelAnimation {
         id: tabArrival
-        target: root
-        property: "tabOffset"
-        to: 0
-        duration: 160
-        easing.type: Easing.OutCubic
+        NumberAnimation {
+            target: root
+            property: "tabOffsetX"
+            to: 0
+            duration: 160
+            easing.type: Easing.OutCubic
+        }
+        NumberAnimation {
+            target: root
+            property: "tabOffsetY"
+            to: 0
+            duration: 160
+            easing.type: Easing.OutCubic
+        }
     }
 
     // The row in the hand, and where the arrangement would put it if it were

@@ -1802,9 +1802,11 @@ ApplicationWindow {
                 TabEngineHost {
                     id: engineLoader
                     // A tab further down the list arrives from below, one
-                    // further up from above, by less than a row: the arriving
-                    // page alone, over the ground that stays.
-                    tabNudge: sidebar.tabOffset
+                    // further up from above, and a pin further along the row
+                    // from the right, by less than a row: the arriving page
+                    // alone, over the ground that stays.
+                    tabNudgeX: sidebar.tabOffsetX
+                    tabNudgeY: sidebar.tabOffsetY
                     anchors.left: parent.left
                     anchors.top: parent.top
                     anchors.bottom: parent.bottom

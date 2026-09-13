@@ -41,15 +41,18 @@ Item {
                                              false
     property var activeEngine: null
     // How far from its place the page on show stands while it arrives, in
-    // pixels down. Measured by the sidebar, where the rows are; applied here
+    // pixels right and down. Measured by the sidebar, where the rows are; applied here
     // to the arriving engine and to nothing else, so the page it replaces and
     // the ground under both stay where they are.
-    property real tabNudge: 0
+    property real tabNudgeX: 0
+    property real tabNudgeY: 0
     Component {
         id: tabSlideComponent
         Translate {
             property var engine: null
-            y: engine !== null && engine === root.activeEngine ? root.tabNudge : 0
+            readonly property bool arriving: engine !== null && engine === root.activeEngine
+            x: arriving ? root.tabNudgeX : 0
+            y: arriving ? root.tabNudgeY : 0
         }
     }
     property bool suspended: true
