@@ -93,6 +93,7 @@ Rectangle {
     property bool tintFavicons: false
     property bool floatingControls: true
     property bool easeChrome: true
+    property bool glanceEnabled: true
     property string lastReportedSyncError: ""
     property var engines: []
     // Every tab still running for a Space that is not on show, and what each
@@ -289,6 +290,7 @@ Rectangle {
     signal tintFaviconsToggled(bool enabled)
     signal floatingControlsToggled(bool enabled)
     signal easeChromeToggled(bool enabled)
+    signal glanceToggled(bool enabled)
 
     Dialogs.FileDialog {
         id: recoveryKeySaveDialog
@@ -655,6 +657,17 @@ Rectangle {
                         accessibleName: "Ease the chrome"
                         checked: root.easeChrome
                         onClicked: root.easeChromeToggled(!checked)
+                    }
+
+                    SettingToggle {
+                        objectName: "glanceEnabled"
+                        width: pane.width
+                        colors: root.colors
+                        title: "Glance at a page's new tabs"
+                        note: "A link that asks for a new tab opens over the page instead, for a look. Escape closes it; one command keeps it as a tab. When off, the link opens a tab."
+                        accessibleName: "Glance at a page's new tabs"
+                        checked: root.glanceEnabled
+                        onClicked: root.glanceToggled(!checked)
                     }
                 }
 

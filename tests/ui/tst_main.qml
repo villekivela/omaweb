@@ -2999,9 +2999,12 @@ TestCase {
         });
     }
 
+    // With the Glance refused, a page's new-tab request is a tab, as it was
+    // before there was a Glance to open it in.
     function test_newWindowRequestsRouteToTabsOrAuxiliaryWindows() {
         const engineLoader = findChild(window.contentItem, "engineLoader");
         verify(engineLoader !== null);
+        window.setGlanceEnabled(false);
         const previousTabCount = browser.tabs.rowCount();
         const previousActiveTabId = browser.activeTabId;
 
@@ -3039,6 +3042,7 @@ TestCase {
         tryVerify(function () {
             return window.active;
         });
+        window.setGlanceEnabled(true);
     }
 
     // A page names no address at all while a navigation is in flight, and a
@@ -3052,6 +3056,7 @@ TestCase {
         const startPage = findChild(window.contentItem, "startPage");
         verify(engineLoader !== null);
         verify(startPage !== null);
+        window.setGlanceEnabled(false);
 
         openPage("https://opener.example");
         engineLoader.item.simulateNewWindowRequest("https://opened.example/page", false);
@@ -3076,6 +3081,7 @@ TestCase {
             return browser.activeUrl.toString() === "https://opened.example/next";
         });
         verify(!startPage.visible);
+        window.setGlanceEnabled(true);
     }
 
     // Every engine the host holds answers for a tab that exists, and the tab
@@ -3086,6 +3092,7 @@ TestCase {
     function test_everyEngineAnswersForATabThatExists() {
         const engineLoader = findChild(window.contentItem, "engineLoader");
         verify(engineLoader !== null);
+        window.setGlanceEnabled(false);
 
         const openerEngine = openPage("https://opener.example");
         const openerTabId = browser.activeTabId;
@@ -3111,6 +3118,245 @@ TestCase {
         compare(engineLoader.engines[openerTabId], openerEngine);
         verify(openerEngine.visible);
         verify(!engineLoader.engines[openedTabId].visible);
+        window.setGlanceEnabled(true);
+    }
+
+    // A page's new-tab request, with the Glance on, and the Glance it opens:
+    // over the page, with the requested address, adding no tab.
+    function openGlance(requestedUrl) {
+        const engineLoader = findChild(window.contentItem, "engineLoader");
+        const glance = findChild(window.contentItem, "glance");
+        verify(engineLoader !== null);
+        verify(glance !== null);
+        window.setGlanceEnabled(true);
+        const tabCount = browser.tabs.rowCount();
+        engineLoader.item.simulateNewWindowRequest(requestedUrl, false);
+        tryVerify(function () {
+            return window.glanceEngine !== null && String(window.glanceEngine.currentUrl)
+                    === requestedUrl;
+        });
+        tryVerify(function () {
+            return glance.visible;
+        });
+        compare(browser.tabs.rowCount(), tabCount);
+        return glance;
+    }
+
+    function test_aPagesNewTabRequestOpensAGlanceOverThePage() {
+        const engineLoader = findChild(window.contentItem, "engineLoader");
+        const opener = openPage("https://opener.example");
+        const openerTabId = browser.activeTabId;
+        const tabCount = browser.tabs.rowCount();
+        const glance = openGlance("https://glanced.example/page");
+        const engine = window.glanceEngine;
+
+        // The Glance's page is a page of the Space on show, drawn in the
+        // Glance rather than in the host, and answering for no tab.
+        compare(engine.sharedProfile, opener.browserProfile);
+        compare(engine.parent, glance.pageHost);
+        verify(engine.visible);
+        for (const tabId in engineLoader.engines)
+            verify(engineLoader.engines[tabId] !== engine);
+        compare(engineLoader.item, opener);
+
+        // The chrome goes on answering for the tab beneath; the Glance names
+        // its own page.
+        compare(browser.activeTabId, openerTabId);
+        compare(browser.activeUrl.toString(), "https://opener.example");
+        const address = findChild(glance, "glanceAddress");
+        verify(address !== null);
+        compare(address.text, "https://glanced.example/page");
+        verify(window.commands.available("glance-to-tab"));
+
+        // Escape closes it whatever the page does with the key, the engine goes
+        // with it, and the keyboard returns to the page beneath.
+        keyClick(Qt.Key_Escape);
+        tryVerify(function () {
+            return window.glanceEngine === null;
+        });
+        tryVerify(function () {
+            return !glance.visible;
+        });
+        compare(browser.tabs.rowCount(), tabCount);
+        compare(browser.activeTabId, openerTabId);
+        verify(!window.commands.available("glance-to-tab"));
+        tryVerify(function () {
+            return opener.activeFocus;
+        });
+    }
+
+    // Keeping a Glance makes it a tab, engine and all: the tab is listed after
+    // the one the Glance stood over, holds the same engine, and reports the
+    // Glance's address.
+    function test_aGlanceBecomesATabWithItsEngine() {
+        const engineLoader = findChild(window.contentItem, "engineLoader");
+        const opener = openPage("https://opener.example");
+        const openerTabId = browser.activeTabId;
+        const tabCount = browser.tabs.rowCount();
+        const glance = openGlance("https://kept.example/page");
+        const engine = window.glanceEngine;
+
+        verify(window.commands.run("glance-to-tab", -1));
+        tryVerify(function () {
+            return browser.tabs.rowCount() === tabCount + 1;
+        });
+        const keptTabId = browser.activeTabId;
+        verify(keptTabId !== openerTabId);
+        tryVerify(function () {
+            return browser.activeUrl.toString() === "https://kept.example/page";
+        });
+        compare(engineLoader.engines[keptTabId], engine);
+        tryVerify(function () {
+            return engineLoader.item === engine;
+        });
+        compare(engine.parent, engineLoader);
+        verify(engine.visible);
+        compare(window.glanceEngine, null);
+        tryVerify(function () {
+            return !glance.visible;
+        });
+
+        // The tab it stood over still draws the page it left.
+        browser.activateTab(openerTabId);
+        tryVerify(function () {
+            return engineLoader.item === opener;
+        });
+        verify(!engine.visible);
+        browser.closeTab(keptTabId);
+    }
+
+    // The close-tab key closes what is in front, which is the Glance, and the
+    // tab it stood over is untouched. Every other way the tab on show changes
+    // ends the Glance too: a tab switch, a Space switch, and a sheet taking the
+    // page area.
+    function test_aGlanceEndsWithTheTabItStandsOver() {
+        openPage("https://opener.example");
+        const openerTabId = browser.activeTabId;
+        const tabCount = browser.tabs.rowCount();
+
+        openGlance("https://first.example/page");
+        verify(window.commands.run("close-tab", -1));
+        tryVerify(function () {
+            return window.glanceEngine === null;
+        });
+        compare(browser.tabs.rowCount(), tabCount);
+        compare(browser.activeTabId, openerTabId);
+
+        openGlance("https://second.example/page");
+        openPageInNewTab("https://other.example");
+        const otherTabId = browser.activeTabId;
+        tryVerify(function () {
+            return window.glanceEngine === null;
+        });
+        browser.activateTab(openerTabId);
+        tryVerify(function () {
+            return browser.activeTabId === openerTabId;
+        });
+
+        openGlance("https://third.example/page");
+        window.requestSettings();
+        tryVerify(function () {
+            return window.glanceEngine === null;
+        });
+        window.settingsOpen = false;
+        browser.closeTab(otherTabId);
+    }
+
+    // A link followed from inside a Glance that asks for a new tab gets one,
+    // which is the tab on show changing, so the Glance ends. A second request
+    // from the page beneath replaces the Glance rather than stacking one over
+    // another.
+    function test_aGlanceOpensNoGlanceOfItsOwn() {
+        const engineLoader = findChild(window.contentItem, "engineLoader");
+        openPage("https://opener.example");
+        const tabCount = browser.tabs.rowCount();
+
+        openGlance("https://first.example/page");
+        const first = window.glanceEngine;
+        engineLoader.item.simulateNewWindowRequest("https://second.example/page", false);
+        tryVerify(function () {
+            return window.glanceEngine !== null && window.glanceEngine !== first;
+        });
+        compare(String(window.glanceEngine.currentUrl), "https://second.example/page");
+        compare(browser.tabs.rowCount(), tabCount);
+
+        window.glanceEngine.simulateNewWindowRequest("https://opened.example/page", false);
+        tryVerify(function () {
+            return browser.tabs.rowCount() === tabCount + 1;
+        });
+        compare(browser.activeUrl.toString(), "https://opened.example/page");
+        tryVerify(function () {
+            return window.glanceEngine === null;
+        });
+        browser.closeActiveTab();
+    }
+
+    // The Glance grows out of the link the reader pressed and retreats into
+    // it, so it is that link opened rather than a panel that appeared. What is
+    // inside keeps its resting size the whole way: the page is revealed, never
+    // laid out again for the movement. A page that named no press gets a
+    // sheet's lift instead.
+    function test_aGlanceGrowsOutOfTheLinkThatAskedForIt() {
+        const engineLoader = findChild(window.contentItem, "engineLoader");
+        const originalEase = window.easeChrome;
+        window.setEaseChrome(false);
+        const opener = openPage("https://opener.example");
+        opener.simulatePress(120, 300, 160, 20);
+        const glance = openGlance("https://linked.example/page");
+        const panel = findChild(glance, "glancePanel");
+        const pageHost = findChild(glance, "glancePageHost");
+        verify(panel !== null);
+        verify(pageHost !== null);
+
+        const expected = opener.mapToItem(glance, Qt.rect(120, 300, 160, 20));
+        compare(glance.origin, expected);
+        compare(glance.arrival, 1);
+        compare(Math.round(panel.x), 40);
+        compare(Math.round(panel.y), 40);
+        compare(Math.round(panel.width), Math.round(glance.width - 80));
+        const restPageHeight = pageHost.height;
+
+        glance.arrival = 0;
+        compare(Math.round(panel.x), Math.round(expected.x));
+        compare(Math.round(panel.y), Math.round(expected.y));
+        compare(Math.round(panel.width), Math.round(expected.width));
+        compare(Math.round(panel.height), Math.round(expected.height));
+        compare(pageHost.height, restPageHeight);
+        compare(panel.opacity, 1);
+        glance.arrival = 1;
+        window.closeGlance();
+        tryVerify(function () {
+            return !glance.visible;
+        });
+
+        // A press the page did not name: the panel lifts from below its place.
+        opener.simulatePress(0, 0, 0, 0);
+        openGlance("https://unplaced.example/page");
+        verify(!glance.fromOrigin);
+        glance.arrival = 0;
+        compare(Math.round(panel.x), 40);
+        compare(Math.round(panel.y), 64);
+        compare(panel.opacity, 0);
+        glance.arrival = 1;
+        window.closeGlance();
+        window.setEaseChrome(originalEase);
+    }
+
+    // The Glance is the reader's to refuse, from Settings, and the refusal
+    // survives a restart because it is a preference like the others there.
+    function test_theGlanceIsRefusedFromSettings() {
+        window.setGlanceEnabled(true);
+        window.requestSettings();
+        const toggle = findChild(window.contentItem, "glanceEnabled");
+        verify(toggle !== null);
+        compare(window.glanceEnabled, true);
+        toggle.clicked();
+        compare(window.glanceEnabled, false);
+        compare(browser.preference("glance", "true"), "false");
+        toggle.clicked();
+        compare(window.glanceEnabled, true);
+        compare(browser.preference("glance", "false"), "true");
+        window.settingsOpen = false;
     }
 
     function test_omnibarShowsOnlyActiveSpaceHistory() {

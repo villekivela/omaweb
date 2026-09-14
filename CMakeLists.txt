@@ -448,6 +448,7 @@ set(omaweb_ui_files
     src/ui/DeveloperToolsDock.qml
     src/ui/DownloadMark.qml
     src/ui/FindBar.qml
+    src/ui/Glance.qml
     src/ui/HistoryPage.qml
     src/ui/KeyHint.qml
     src/ui/KeyMap.qml

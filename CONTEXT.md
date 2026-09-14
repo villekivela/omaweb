@@ -72,6 +72,12 @@ own surfaces towards it, so a theme identifies private browsing by naming a hue 
 naming a palette, and a Private window keeps the darkness the theme drew its chrome in. A theme that
 names a ground itself keeps it. _Avoid_: Private colour, incognito accent
 
+**Glance**: A page opened by a link that asked for a new tab, shown over the tab it came from
+instead of as a tab. It runs on the Space's engine profile and records its visits, but it is not
+listed, saved, or synced, and the chrome goes on answering for the tab beneath. It ends with
+`Escape`, the close-tab command, or anything that changes the tab on show, and one command keeps it
+as an ordinary tab, page and all. _Avoid_: Peek, preview, popup, quick look, overlay tab
+
 **Auxiliary window**: A temporary, minimally framed window requested by a site to complete a flow
 such as authentication or payment. It inherits the browsing identity of its opener and is not an
 ordinary Omaweb browsing window. _Avoid_: Browser window, pop-up tab

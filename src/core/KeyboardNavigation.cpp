@@ -66,6 +66,7 @@ namespace {
         QStringLiteral("pin-tab"),
         QStringLiteral("keep-tab-active"),
         QStringLiteral("duplicate-tab"),
+        QStringLiteral("glance-to-tab"),
         QStringLiteral("move-tab-up"),
         QStringLiteral("move-tab-down"),
         QStringLiteral("close-other-tabs"),

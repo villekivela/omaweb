@@ -365,41 +365,55 @@ Item {
     // window handed down. A retained tab of another Space names its own: its
     // pages are that Space's browsing identity and nothing else's.
     function createEngine(tabId, tabUrl, spaceId, profilePath, sharedProfile) {
-        if (!engineComponent)
-            engineComponent = Qt.createComponent(root.engineSource);
-        const engine = engineComponent.createObject(root, {
-                                                        "profilePath": profilePath !== undefined
-                                                                       ? profilePath :
-                                                                         root.profilePath,
-                                                        "currentUrl": tabUrl,
-                                                        "sharedProfile": sharedProfile
-                                                                         !== undefined
-                                                                         ? sharedProfile :
-                                                                           root.sharedProfile,
-                                                        "permissionController":
-                                                        root.permissionController,
-                                                        "contentBlocker": root.blocker,
-                                                        "engineContentBlocker": root.engineBlocker,
-                                                        // The Space of the
-                                                        // profile this view
-                                                        // runs on, which is
-                                                        // what Content
-                                                        // blocking keys its
-                                                        // Refusal tally by.
-                                                        "spaceId": spaceId !== undefined ? spaceId :
-                                                                                           root.sessionSpaceId,
-                                                        "keyboardNavigationConfiguration":
-                                                        root.keyboardConfiguration(tabUrl),
-                                                        "keyboardNavigationScriptSource":
-                                                        root.keyboardManager.pageScript,
-                                                        "pageBackgroundColor":
-                                                        root.pageBackgroundColor,
-                                                        "developerToolsColors":
-                                                        root.developerToolsColors,
-                                                        "visible": false
-                                                    });
+        const engine = root.buildEngine(root, tabUrl, spaceId, profilePath, sharedProfile);
         if (!engine)
             return null;
+        root.registerEngine(tabId, engine, spaceId);
+        return engine;
+    }
+
+    // An engine that answers for no tab: a Glance's page, drawn where the
+    // Glance puts it. It is built the way a tab's engine is, on the same
+    // profile and with the same configuration, so the page it shows is a
+    // page of the Space on show. Nothing here keeps it: whoever asked for it
+    // destroys it, or hands it to a tab with `adoptEngine`.
+    function createDetachedEngine(parent, tabUrl) {
+        return root.buildEngine(parent, tabUrl, undefined, undefined, undefined);
+    }
+
+    function buildEngine(parent, tabUrl, spaceId, profilePath, sharedProfile) {
+        if (!engineComponent)
+            engineComponent = Qt.createComponent(root.engineSource);
+        return engineComponent.createObject(parent, {
+                                                "profilePath": profilePath !== undefined
+                                                               ? profilePath : root.profilePath,
+                                                "currentUrl": tabUrl,
+                                                "sharedProfile": sharedProfile !== undefined
+                                                                 ? sharedProfile :
+                                                                   root.sharedProfile,
+                                                "permissionController": root.permissionController,
+                                                "contentBlocker": root.blocker,
+                                                "engineContentBlocker": root.engineBlocker,
+                                                // The Space of the profile
+                                                // this view runs on, which is
+                                                // what Content blocking keys
+                                                // its Refusal tally by.
+                                                "spaceId": spaceId !== undefined ? spaceId :
+                                                                                   root.sessionSpaceId,
+                                                "keyboardNavigationConfiguration":
+                                                root.keyboardConfiguration(tabUrl),
+                                                "keyboardNavigationScriptSource":
+                                                root.keyboardManager.pageScript,
+                                                "pageBackgroundColor": root.pageBackgroundColor,
+                                                "developerToolsColors": root.developerToolsColors,
+                                                "visible": false
+                                            });
+    }
+
+    // The engine becomes the named tab's: drawn in the host, keyed to the tab,
+    // and from here on shown, hidden and taken away with it.
+    function registerEngine(tabId, engine, spaceId) {
+        engine.parent = root;
         engine.anchors.fill = root;
         engine.transform = [tabSlideComponent.createObject(engine, {
                                                                "engine": engine
@@ -411,7 +425,23 @@ Item {
         // first time — so the attachment is made as soon as there is one.
         if (tabId === root.inspectedTabId)
             root.syncDeveloperTools();
-        return engine;
+    }
+
+    // A detached engine becomes a tab's, page and all: what the Glance was
+    // showing, with its history, scroll and form state, rather than a fresh
+    // load of the same address. The tab starts blank, so it is named for
+    // adoption the way a new-window request's tab is, and finds the engine
+    // already keyed to it rather than building one. The engine's page state is
+    // reported once by hand: the tab reads the address off reports, and an
+    // engine that is not navigating has none to make.
+    function adoptEngine(tabId, engine) {
+        engine.visible = false;
+        root.registerEngine(tabId, engine, undefined);
+        root.adoptingTabId = tabId;
+        root.browserController.reportTabPageState(tabId, engine.currentUrl, engine.pageTitle,
+                                                  engine.pageIconUrl, engine.loading,
+                                                  engine.pageAudible);
+        root.adoptingTabId = "";
     }
 
     function discardEngine(tabId) {

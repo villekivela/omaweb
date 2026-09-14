@@ -219,6 +219,13 @@ ApplicationWindow {
     property bool settingsOpen: false
     property bool historyOpen: false
     property bool shortcutsOpen: false
+    // A page's new-tab request opens a Glance over the page, unless the reader
+    // has asked for tabs instead. One Glance at a time: the engine drawing its
+    // page, and the tab it stands over, which is the tab it ends with.
+    property bool glanceEnabled: true
+    property var glanceEngine: null
+    property string glanceTabId: ""
+    readonly property bool glanceOpen: glanceEngine !== null
     // What the reader pointed at on the page, and the menu Omaweb draws for it.
     property var pageContext: null
     property var pageContextEngine: null
@@ -557,6 +564,115 @@ ApplicationWindow {
         window.shortcutsOpen = !window.shortcutsOpen;
     }
 
+    // What a page's new-tab request becomes when it is not a Glance: a tab,
+    // active, with the request handed to that tab's engine.
+    function openRequestedTab(request, requestedUrl) {
+        const destination = requestedUrl.toString().length > 0 ? requestedUrl.toString() :
+                                                                 "about:blank";
+        window.windowBrowser.openInput(request ? "about:blank" : destination, true);
+        // The tab the request opened is the active one, and it is named rather
+        // than left to `item`: the tab starts blank, a blank tab is given no
+        // engine, and the request has to reach that tab's engine and not
+        // whichever page happened to be showing.
+        if (request)
+            engineLoader.adoptNewWindowRequest(window.windowBrowser.activeTabId, request);
+    }
+
+    // The Glance's page is an engine of the Space on show that answers for no
+    // tab: the window builds it, draws it in the Glance, and takes it down
+    // again. It is one page at a time, so a second request from the page
+    // beneath replaces the first rather than stacking over it.
+    function openGlance(request, requestedUrl) {
+        window.closeGlance();
+        const destination = requestedUrl.toString().length > 0 ? requestedUrl.toString() :
+                                                                 "about:blank";
+        const opener = engineLoader.item;
+        const engine = engineLoader.createDetachedEngine(glance.pageHost, request ? "about:blank" :
+                                                                                    destination);
+        if (!engine)
+            return false;
+        // From the link the reader pressed, where the page named one.
+        glance.origin = opener && opener.pressOrigin.width > 0 ? opener.mapToItem(glance,
+                                                                                  opener.pressOrigin) :
+                                                                 Qt.rect(0, 0, 0, 0);
+        engine.anchors.fill = glance.pageHost;
+        engine.visible = true;
+        window.glanceTabId = window.windowBrowser.activeTabId;
+        window.glanceEngine = engine;
+        if (request)
+            engine.acceptNewWindowRequest(request);
+        return true;
+    }
+
+    // The engine stays drawn for the length of the drop, so the panel does not
+    // empty before it has gone.
+    function closeGlance() {
+        const engine = window.glanceEngine;
+        if (!engine)
+            return;
+        window.refuseRequestsFrom(engine);
+        window.glanceEngine = null;
+        window.glanceTabId = "";
+        engine.destroy(window.easeChrome ? 120 : 0);
+        window.focusPage();
+    }
+
+    // The Glance's page becomes an ordinary tab, engine and all, so what the
+    // reader scrolled to and typed into comes with it. The Glance is let go of
+    // before the tab is made: making the tab changes the tab on show, which
+    // would otherwise end the Glance and take the engine down with it.
+    function openGlanceAsTab() {
+        const engine = window.glanceEngine;
+        if (!engine)
+            return;
+        window.refuseRequestsFrom(engine);
+        window.glanceEngine = null;
+        window.glanceTabId = "";
+        window.windowBrowser.openInput("about:blank", true);
+        engineLoader.adoptEngine(window.windowBrowser.activeTabId, engine);
+    }
+
+    // A question an engine asked is dropped with the engine: a bar left
+    // standing would answer to a page that is gone, and a prompt left pending
+    // would hold a page nobody can reach. Nothing is recorded, because the
+    // reader did not answer.
+    function refuseRequestsFrom(engine) {
+        if (window.pendingBrowserPromptResponder === engine)
+            window.respondToBrowserPrompt(false, "", "", "", false, false);
+        if (window.pendingFileSelectionResponder === engine)
+            window.respondToFileSelection([]);
+        if (window.pendingPermissionResponder === engine) {
+            window.permissionOpen = false;
+            window.pendingPermissionResponder = null;
+        }
+        if (window.pendingCertificateResponder === engine) {
+            window.certificateQuestionOpen = false;
+            window.pendingCertificateResponder = null;
+            window.pendingCertificateFailureId = "";
+        }
+        if (window.pageContextEngine === engine)
+            window.pageMenuOpen = false;
+        if (window.pendingSaveEngine === engine)
+            window.forgetPendingSave();
+    }
+
+    // The close-tab key closes what the reader is looking at, and a Glance is
+    // in front of the tab.
+    function closeActiveTab() {
+        if (window.glanceOpen) {
+            window.closeGlance();
+            return;
+        }
+        window.windowBrowser.closeActiveTab();
+    }
+
+    // A Glance stands over one tab and ends with it: a switch to another tab or
+    // Space, the tab closing, or a sheet taking the page area.
+    onSettingsOpenChanged: if (settingsOpen)
+                               window.closeGlance()
+    onHistoryOpenChanged: if (historyOpen)
+                              window.closeGlance()
+
     // The two halves of the shell, each one key away from the other: the
     // outline of what is open, and the page itself.
     function focusSidebar() {
@@ -682,7 +798,7 @@ ApplicationWindow {
     function openPageMenu(engine, context) {
         // The engine reports the point in its own coordinates; the menu lives
         // in the window, so the point has to travel with it.
-        const point = engineLoader.mapToItem(shell, context.x, context.y);
+        const point = engine.mapToItem(shell, context.x, context.y);
         window.pageContext = context;
         window.pageContextEngine = engine;
         window.pageMenuActions = window.pageMenuFor(context);
@@ -696,7 +812,7 @@ ApplicationWindow {
         const context = window.pageContext;
         const engine = window.pageContextEngine;
         window.pageMenuOpen = false;
-        if (!action || !context || engine !== engineLoader.item || Number(context.pageGeneration)
+        if (!action || !context || !window.inFront(engine) || Number(context.pageGeneration)
                 !== Number(engine.pageGeneration))
             return;
         if (action.command) {
@@ -987,6 +1103,7 @@ ApplicationWindow {
         window.floatingControls = window.windowBrowser.preference("floating-controls", "true")
                 === "true";
         window.easeChrome = window.windowBrowser.preference("ease-sidebar", "true") === "true";
+        window.glanceEnabled = window.windowBrowser.preference("glance", "true") === "true";
     }
 
     function setFloatingControls(enabled) {
@@ -1003,6 +1120,11 @@ ApplicationWindow {
         window.windowBrowser.setPreference("ease-sidebar", enabled ? "true" : "false");
     }
 
+    function setGlanceEnabled(enabled) {
+        window.glanceEnabled = enabled;
+        window.windowBrowser.setPreference("glance", enabled ? "true" : "false");
+    }
+
     function setUseFavicons(enabled) {
         window.useFavicons = enabled;
         window.windowBrowser.setPreference("use-favicons", enabled ? "true" : "false");
@@ -1017,7 +1139,7 @@ ApplicationWindow {
         target: window.windowBrowser
 
         function onPreferenceChanged(name) {
-            if (name === "floating-controls" || name === "ease-sidebar")
+            if (name === "floating-controls" || name === "ease-sidebar" || name === "glance")
                 window.restoreChromeAppearance();
             else if (name === "use-favicons" || name === "tint-favicons")
                 window.restoreTabAppearance();
@@ -1065,7 +1187,7 @@ ApplicationWindow {
         // cannot answer, so it is refused: a retained tab in another Space
         // reaches no bar. An Auxiliary window is in front of them by
         // definition, and says so.
-        const visible = inFront === true || engine === engineLoader.item;
+        const visible = inFront === true || window.inFront(engine);
         const offerable = visible && window.windowBrowser.mayOfferCertificateException(failure.url,
                                                                                        failure.overridable
                                                                                        === true, failure.mainFrame
@@ -1175,8 +1297,14 @@ ApplicationWindow {
                             "");
     }
 
+    // The page the reader is looking at: the tab on show, or the Glance over
+    // it. A question from any other page is one they cannot answer.
+    function inFront(engine) {
+        return engine !== null && (engine === engineLoader.item || engine === window.glanceEngine);
+    }
+
     function showBrowserPrompt(engine, requestId, prompt) {
-        if (engine !== engineLoader.item) {
+        if (!window.inFront(engine)) {
             engine.respondToBrowserPrompt(requestId, false, {});
             return;
         }
@@ -1250,7 +1378,7 @@ ApplicationWindow {
     }
 
     function showFileSelection(engine, requestId, selection) {
-        if (engine !== engineLoader.item) {
+        if (!window.inFront(engine)) {
             engine.respondToFileSelection(requestId, []);
             return;
         }
@@ -1610,6 +1738,19 @@ ApplicationWindow {
         onActivated: window.exitSiteFullscreen()
     }
 
+    // A Glance closes with Escape whatever its page does with the key, for the
+    // same reason: the reader must not have to know their keymap to get back to
+    // the page they were on.
+    Shortcut {
+        sequence: "Esc"
+        enabled: window.glanceOpen && !engineLoader.siteFullscreenActive && !window.omnibarOpen &&
+                 !window.settingsOpen && !window.historyOpen && !window.pageMenuOpen &&
+                 !window.permissionOpen && !window.certificateQuestionOpen
+                 && window.dialogMode.length === 0
+        context: Qt.WindowShortcut
+        onActivated: window.closeGlance()
+    }
+
     Rectangle {
         id: shell
         anchors.fill: parent
@@ -1856,19 +1997,14 @@ ApplicationWindow {
                                                               });
                     }
 
+                    // A Glance is opened by the page on show. A page the
+                    // reader cannot see, a Keep active tab say, has nothing
+                    // to stand its Glance over, and gets a tab as before.
                     onNewTabRequested: function (engine, request, requestedUrl) {
-                        const destination = requestedUrl.toString().length > 0
-                              ? requestedUrl.toString() : "about:blank";
-                        window.windowBrowser.openInput(request ? "about:blank" : destination, true);
-                        // The tab the request opened is the active one, and it
-                        // is named rather than left to `item`: the tab starts
-                        // blank, a blank tab is given no engine, and the
-                        // request has to reach that tab's engine and not
-                        // whichever page happened to be showing.
-                        if (request) {
-                            engineLoader.adoptNewWindowRequest(window.windowBrowser.activeTabId,
-                                                               request);
-                        }
+                        if (window.glanceEnabled && engine === engineLoader.item
+                                && window.openGlance(request, requestedUrl))
+                            return;
+                        window.openRequestedTab(request, requestedUrl);
                     }
 
                     onBackgroundTabRequested: function (requestedUrl) {
@@ -1992,6 +2128,97 @@ ApplicationWindow {
                         window.setDeveloperToolsWidth(width);
                     }
                     onPageFocusRequested: window.focusPage()
+                }
+
+                Glance {
+                    id: glance
+                    // The page's own extent, not the viewport's: the dock
+                    // beside the page is not covered.
+                    anchors.fill: engineLoader
+                    z: 25
+                    colors: window.colors
+                    iconFontFamily: materialSymbols.name
+                    open: window.glanceOpen
+                    ease: window.easeChrome
+                    pageSource: window.pagelessViewport ? null : engineLoader
+                    engine: window.glanceEngine
+
+                    onClosed: window.closeGlance()
+                    onOpenAsTabRequested: window.openGlanceAsTab()
+                }
+
+                // What the Glance's page asks of the browser, answered as the
+                // page on show is answered, since it is. What it asks to open
+                // is a tab, or a background tab, or an Auxiliary window, as
+                // before, and a tab ends the Glance since the tab on show
+                // changes. Its visits are the Space's history: the tab path
+                // records them off the tab's report, and a Glance has no tab.
+                Connections {
+                    target: window.glanceEngine
+                    ignoreUnknownSignals: true
+
+                    function onWindowCloseRequested() {
+                        window.closeGlance();
+                    }
+
+                    function onNewTabRequested(request, requestedUrl) {
+                        window.openRequestedTab(request, requestedUrl);
+                    }
+
+                    function onBackgroundTabRequested(requestedUrl) {
+                        window.windowBrowser.openInputInBackground(requestedUrl);
+                    }
+
+                    function onAuxiliaryWindowRequested(request, requestedUrl) {
+                        auxiliaryWindowComponent.createObject(window, {
+                                                                  "openerEngine":
+                                                                  window.glanceEngine,
+                                                                  "request": request,
+                                                                  "requestedUrl": requestedUrl
+                                                              });
+                    }
+
+                    function onPageContextRequested(context) {
+                        window.openPageMenu(window.glanceEngine, context);
+                    }
+
+                    function onSitePermissionRequested(requestId, origin, permission) {
+                        window.pendingPermissionRequest = requestId;
+                        window.pendingPermissionResponder = window.glanceEngine;
+                        window.pendingPermissionOrigin = origin;
+                        window.pendingPermissionType = permission;
+                        window.permissionOpen = true;
+                    }
+
+                    function onCertificateErrorRaised(requestId, failure) {
+                        window.showCertificateError(window.glanceEngine, requestId, failure, true);
+                    }
+
+                    function onBrowserPromptRequested(requestId, prompt) {
+                        window.showBrowserPrompt(window.glanceEngine, requestId, prompt);
+                    }
+
+                    function onFileSelectionRequested(requestId, selection) {
+                        window.showFileSelection(window.glanceEngine, requestId, selection);
+                    }
+
+                    function onUserActivated() {
+                        window.windowBrowser.recordOriginInteraction(
+                                    window.glanceEngine.currentUrl);
+                    }
+
+                    function onLoadingChanged() {
+                        const engine = window.glanceEngine;
+                        if (engine.loading || String(engine.currentUrl) === "about:blank")
+                            return;
+                        window.windowBrowser.recordVisit(engine.currentUrl, engine.pageTitle);
+                    }
+
+                    function onRendererFailed(reason) {
+                        window.closeGlance();
+                        window.showNotice("error", "The Glance's page stopped working", reason,
+                                          4200);
+                    }
                 }
 
                 StartPage {
@@ -2256,6 +2483,7 @@ ApplicationWindow {
                     tintFavicons: window.tintFavicons
                     floatingControls: window.floatingControls
                     easeChrome: window.easeChrome
+                    glanceEnabled: window.glanceEnabled
                     retainedTabs: window.visibleRetainedTabs
 
                     downloads: window.downloads
@@ -2295,6 +2523,9 @@ ApplicationWindow {
                     }
                     onUseFaviconsToggled: function (enabled) {
                         window.setUseFavicons(enabled);
+                    }
+                    onGlanceToggled: function (enabled) {
+                        window.setGlanceEnabled(enabled);
                     }
                     onTintFaviconsToggled: function (enabled) {
                         window.setTintFavicons(enabled);
@@ -2379,6 +2610,7 @@ ApplicationWindow {
                     // inspector is attached to. The profile stays, so coming
                     // back does not reopen the Space's cookies and cache.
                     function onSpaceSuspended(spaceId, retainedTabIds) {
+                        window.closeGlance();
                         engineLoader.suspend(spaceId, retainedTabIds);
                     }
 
@@ -2416,6 +2648,9 @@ ApplicationWindow {
                     // The find bar stands for one tab, so it comes and goes
                     // with the tab it was opened on.
                     function onActiveTabChanged() {
+                        if (window.glanceOpen && window.windowBrowser.activeTabId
+                                !== window.glanceTabId)
+                            window.closeGlance();
                         window.reconcileTabModalRequests();
                         window.refreshFindOpen();
                         window.reportPdfHandling(window.windowBrowser.activeUrl);

@@ -73,6 +73,12 @@ QStringList validateEngineViewContract(const QObject &adapter)
         // path that turns this off, so an adapter reporting false is one the
         // shell must say so about rather than quietly draw a lock over.
         {"insecureContentBlocked", QMetaType::Bool},
+        // Where the page was last pressed, in the view's own coordinates: the
+        // link or control under the press, or the point itself where there was
+        // no element to name. Empty until the page has been pressed. The shell
+        // reads it when a page asks for a window, so what the ask opens can
+        // come from where the reader pointed.
+        {"pressOrigin", QMetaType::QRectF},
     };
     static constexpr Method requiredMethods[] = {
         {"goBack", false, 0},
