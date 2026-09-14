@@ -23,8 +23,10 @@ reports the gap and remains experimental rather than imitating behavior it canno
   identifies every retained tab and its resource cost.
 - Private browsing uses separate frameless windows and one temporary identity shared until the last
   Private window closes.
-- Site-requested Auxiliary windows are allowed for authentication, payment, and similar flows. Other
-  new-window requests become tabs.
+- Site-requested Auxiliary windows are allowed for authentication, payment, and similar flows. A
+  page's other new-window requests open a Glance over the page on show, or a tab where the reader
+  has turned the Glance off; a background-tab request, from a middle click or the background link
+  hint, opens a tab behind either way.
 - Pinned tabs belong to one Space and restore with it. Bookmarks are not part of Omaweb.
 - Downloads are application-wide. Private downloads remain on disk but do not enter persistent
   download history.
@@ -54,6 +56,17 @@ reports the gap and remains experimental rather than imitating behavior it canno
 - A Space at rest, one whose only ordinary tab is blank, also lists no ordinary tab row. Any other
   blank tab is a tab in its own right and keeps its row, its close button, and the engine a page's
   new-window request was handed to.
+- A Glance is one accent-bordered panel over the page area, the page blurred under the sheet tint
+  around it. Its head names its page and address, offers Open as tab and close, and says that
+  `Escape` closes it. It takes the opener's engine profile, so logins hold, and its visits enter the
+  Space's history. It is not a tab: the outline does not list it, the session store and the Sync
+  projection do not carry it, and the address trigger, find bar, prompt bars and page commands keep
+  answering for the tab beneath. It ends with `Escape`, its close button, a click outside its panel,
+  the close-tab command, and anything that changes the tab on show: a tab or Space switch, the tab
+  closing, settings or history opening. `Primary+Shift+Return` or the head's button makes it an
+  ordinary tab after the tab it stood over, keeping its engine and so its history, scroll and form
+  state. A new-tab request from inside a Glance opens a tab, which ends the Glance; a second request
+  from the page beneath replaces it. Settings' interface section turns the Glance off, locally.
 - The same sheet answers the Keyboard shortcuts command on demand, from the command panel or
   `Primary+/` and `?`. Summoned over a live page it closes with `Escape` or its close button; asking
   for it while it already stands in for the page does nothing.

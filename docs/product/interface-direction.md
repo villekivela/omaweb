@@ -32,7 +32,8 @@ Motion is felt rather than watched: it says which way something went, and no mor
   grows to its resting place. With the sidebar hidden there is no field, and the panel arrives from
   just above its place instead. Site information unfolds from the address it reports on.
 - **Sheets lift.** The Start page, settings and history are one kind of thing: a sheet that lifts
-  from a little below its place. The download detail rises from its mark the same way.
+  from a little below its place. The download detail rises from its mark the same way, and so does a
+  Glance, whose scrim stands still and fades while its panel lifts.
 - **Notices belong to the edge.** A page notice comes down from the top edge as it fades in and goes
   back up as it fades out.
 
