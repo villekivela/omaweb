@@ -2030,6 +2030,7 @@ ApplicationWindow {
                     // Chromium's own pre-paint colour, so a navigation never
                     // flashes a bright frame through the dark shell.
                     pageBackgroundColor: window.colors.windowOpaque
+                    pageControlAccent: window.colors.accent
                     spaceId: window.windowBrowser.activeSpaceId
 
                     onAuxiliaryWindowRequested: function (engine, request, requestedUrl) {

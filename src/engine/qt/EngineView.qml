@@ -88,6 +88,10 @@ Item {
     // no Space of its own.
     property string spaceId: ""
     property color pageBackgroundColor: "#16151d"
+    // The colour a page's own controls are drawn in: the checked box, the
+    // selected option, the filled track. Chromium draws them itself and has no
+    // idea what the window around them looks like, so the shell says.
+    property color pageControlAccent: "transparent"
     property var keyboardNavigationConfiguration: ({})
     property string keyboardNavigationScriptSource: ""
     property bool keyboardNavigationHintModeActive: false
@@ -727,6 +731,54 @@ Item {
     property int cosmeticRuleGeneration: 0
     property int cosmeticSurveyGeneration: 0
     property bool genericCosmeticRulesInjected: false
+    readonly property string controlAccentElementId: "__omaweb_control_accent"
+
+    // `accent-color` is inherited, so naming it once on the root element
+    // reaches every control on the page.
+    //
+    // `:where()` is what keeps this a fallback rather than an override. The
+    // sheet is appended to the head the page is still being parsed into, so it
+    // lands after the page's own and would win every tie on document order.
+    // `:where(html)` has no specificity at all, so a page naming an accent — on
+    // `html`, on `:root`, or on the control itself — outranks this whatever the
+    // order turns out to be.
+    //
+    // The colour is written out as components rather than as Qt's hex, which
+    // puts alpha at the front where CSS reads it last.
+    readonly property string controlAccentStyleSheet: {
+        const accent = root.pageControlAccent;
+        if (!accent || accent.a === 0)
+            return "";
+        const channel = value => Math.round(value * 255);
+        const rgb = channel(accent.r) + " " + channel(accent.g) + " " + channel(accent.b);
+        return ":where(html) { accent-color: rgb(" + rgb + "); }";
+    }
+
+    property var controlAccentScript: {
+        const script = WebEngine.script();
+        script.name = "Omaweb control accent";
+        // Before the page paints, so no control is ever seen in the engine's
+        // blue first. Subframes draw controls of their own and are their own
+        // documents, so they need it too.
+        script.injectionPoint = WebEngineScript.DocumentCreation;
+        script.worldId = WebEngineScript.MainWorld;
+        script.runsOnSubFrames = true;
+        script.sourceCode = root.styleSheetSnippet(root.controlAccentElementId,
+                                                   root.controlAccentStyleSheet);
+        return script;
+    }
+
+    // A theme the reader changes has to reach what is already open. The script
+    // above answers for the next load; this answers for the page on show, and
+    // the snippet updates the sheet it already appended rather than appending a
+    // second one further down the document, where it would start outranking the
+    // page.
+    onControlAccentStyleSheetChanged: {
+        webView.userScripts.collection = root.userScriptList();
+        webView.runJavaScript(root.styleSheetSnippet(root.controlAccentElementId,
+                                                     root.controlAccentStyleSheet));
+    }
+
     readonly property string cosmeticElementId: "__omaweb_content_blocking"
     readonly property string genericCosmeticElementId: "__omaweb_content_blocking_generic"
 
@@ -1342,7 +1394,7 @@ Item {
     function userScriptList() {
         const scripts = [root.editedStateScript, root.keyboardNavigationScript,
                          root.externalProtocolOriginScript, root.userActivationScript,
-                         root.pressOriginScript];
+                         root.pressOriginScript, root.controlAccentScript];
         if (root.blockingScript)
             scripts.push(root.blockingScript);
         return scripts;

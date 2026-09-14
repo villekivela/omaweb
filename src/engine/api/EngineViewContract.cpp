@@ -37,6 +37,10 @@ QStringList validateEngineViewContract(const QObject &adapter)
         {"developerToolsAttached", QMetaType::Bool},
         {"developerToolsView", QMetaType::QVariant},
         {"developerToolsColors", QMetaType::QVariant},
+        // The accent a page's own controls are drawn in. The engine draws them
+        // and the shell knows what the window looks like, so the shell says
+        // rather than each adapter inventing a colour.
+        {"pageControlAccent", QMetaType::QColor},
         // Find belongs to one tab, and a tab is one adapter, so the query and
         // where it has reached live here rather than in a table the shell keeps
         // beside the tabs.
