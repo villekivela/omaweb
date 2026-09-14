@@ -1325,6 +1325,7 @@ Rectangle {
 
                             SettingRow {
                                 id: spaceRow
+                                required property int index
                                 required property string spaceId
                                 required property string spaceName
                                 required property bool active
@@ -1339,7 +1340,8 @@ Rectangle {
                                 Flow {
                                     id: spaceActions
                                     width: Math.min(pane.width * 0.7, renameSpace.implicitWidth
-                                                    + deleteSpace.implicitWidth + spacing)
+                                                    + deleteSpace.implicitWidth + moveSpaceUp.width
+                                                    + moveSpaceDown.width + spacing * 3)
                                     spacing: Style.spacing.sm
 
                                     ActionButton {
@@ -1364,6 +1366,40 @@ Rectangle {
                                         onClicked: root.spaceActionRequested("delete",
                                                                              spaceRow.spaceId,
                                                                              spaceRow.spaceName)
+                                    }
+
+                                    // Where the Space sits in the list, at the end of the row:
+                                    // an arrow each way, the same pair the find bar steps its
+                                    // matches with. A move is one step, so the row at either end
+                                    // has nowhere to go that way and says so rather than
+                                    // refusing on the click. The name is on the answer rather
+                                    // than in it: an arrow reads as up, not as "move Work up".
+                                    ChromeButton {
+                                        id: moveSpaceUp
+                                        objectName: "moveSpaceUp-" + spaceRow.spaceId
+                                        width: 28
+                                        height: 26
+                                        icon: "keyboard_arrow_up"
+                                        fontFamily: root.iconFontFamily
+                                        foreground: root.colors.mutedText
+                                        accent: root.colors.accent
+                                        accessibleName: "Move " + spaceRow.spaceName + " up"
+                                        enabled: spaceRow.index > 0
+                                        onClicked: root.browser.moveSpaceBy(spaceRow.spaceId, -1)
+                                    }
+
+                                    ChromeButton {
+                                        id: moveSpaceDown
+                                        objectName: "moveSpaceDown-" + spaceRow.spaceId
+                                        width: 28
+                                        height: 26
+                                        icon: "keyboard_arrow_down"
+                                        fontFamily: root.iconFontFamily
+                                        foreground: root.colors.mutedText
+                                        accent: root.colors.accent
+                                        accessibleName: "Move " + spaceRow.spaceName + " down"
+                                        enabled: spaceRow.index < spaceList.count - 1
+                                        onClicked: root.browser.moveSpaceBy(spaceRow.spaceId, 1)
                                     }
                                 }
                             }

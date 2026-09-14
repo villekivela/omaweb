@@ -77,4 +77,30 @@ void SpaceListModel::reset(QVector<SpaceState> spaces)
     endResetModel();
 }
 
+qsizetype SpaceListModel::rowOf(const QString &id) const
+{
+    for (qsizetype row = 0; row < m_spaces.size(); ++row) {
+        if (m_spaces.at(row).id == id) {
+            return row;
+        }
+    }
+    return -1;
+}
+
+bool SpaceListModel::move(const QString &id, qsizetype destinationRow)
+{
+    const auto sourceRow = rowOf(id);
+    if (sourceRow < 0 || destinationRow < 0 || destinationRow >= m_spaces.size()) {
+        return false;
+    }
+    if (sourceRow == destinationRow) {
+        return true;
+    }
+    const auto destinationChild = destinationRow > sourceRow ? destinationRow + 1 : destinationRow;
+    beginMoveRows({}, sourceRow, sourceRow, {}, destinationChild);
+    m_spaces.move(sourceRow, destinationRow);
+    endMoveRows();
+    return true;
+}
+
 } // namespace omaweb

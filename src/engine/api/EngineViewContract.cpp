@@ -37,6 +37,10 @@ QStringList validateEngineViewContract(const QObject &adapter)
         {"developerToolsAttached", QMetaType::Bool},
         {"developerToolsView", QMetaType::QVariant},
         {"developerToolsColors", QMetaType::QVariant},
+        // The accent a page's own controls are drawn in. The engine draws them
+        // and the shell knows what the window looks like, so the shell says
+        // rather than each adapter inventing a colour.
+        {"pageControlAccent", QMetaType::QColor},
         // Find belongs to one tab, and a tab is one adapter, so the query and
         // where it has reached live here rather than in a table the shell keeps
         // beside the tabs.
@@ -116,6 +120,10 @@ QStringList validateEngineViewContract(const QObject &adapter)
         {"developerToolsClosed", true, 0},
         {"printFinished", true, 2, QMetaType::QString},
         {"pageContextRequested", true, 1},
+        // A page's own tooltip, reported rather than drawn. The shell owes the
+        // reader one tooltip in one style, so an adapter that lets its engine
+        // draw its own puts a second one in the window.
+        {"pageTooltipRequested", true, 1},
         {"browserPromptRequested", true, 2},
         {"certificateErrorRaised", true, 2},
         {"pageSiteDataCleared", true, 3, QMetaType::QString},

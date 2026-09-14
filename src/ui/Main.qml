@@ -233,6 +233,23 @@ ApplicationWindow {
     property real pageMenuX: 0
     property real pageMenuY: 0
     property var pageMenuActions: []
+    // A page's own tooltip: the text, where the page asked for it, and which
+    // engine at which page raised it. The last two are what keep a tooltip from
+    // outliving what it describes, because a page that navigates or a tab the
+    // reader leaves never says Hide.
+    property var pageTooltipEngine: null
+    property string pageTooltipText: ""
+    property real pageTooltipX: 0
+    property real pageTooltipY: 0
+    property int pageTooltipGeneration: -1
+    property bool pageTooltipOpen: false
+    // The engine still entitled to the tooltip on show: null once the reader
+    // has left the tab that raised it, so a Glance closing takes its tooltip.
+    readonly property var pageTooltipHolder: window.inFront(window.pageTooltipEngine)
+                                             ? window.pageTooltipEngine : null
+    readonly property bool pageTooltipVisible: window.pageTooltipOpen && window.pageTooltipHolder
+                                               && window.pageTooltipHolder.pageGeneration
+                                               === window.pageTooltipGeneration
     property bool permissionOpen: false
     // A certificate failure the engine is holding a load for. Refusing is the
     // default and has already happened; what is decided here is only whether
@@ -868,6 +885,32 @@ ApplicationWindow {
         window.pageMenuX = point.x;
         window.pageMenuY = point.y;
         window.pageMenuOpen = true;
+    }
+
+    function showPageTooltip(engine, tooltip) {
+        if (!tooltip.visible) {
+            window.hidePageTooltip(engine);
+            return;
+        }
+        // The engine reports the point in its own coordinates; the tooltip
+        // lives in the window, so the point has to travel with it.
+        const point = engine.mapToItem(shell, tooltip.x, tooltip.y);
+        window.pageTooltipEngine = engine;
+        window.pageTooltipText = String(tooltip.text);
+        window.pageTooltipX = point.x;
+        window.pageTooltipY = point.y;
+        window.pageTooltipGeneration = Number(tooltip.pageGeneration);
+        window.pageTooltipOpen = true;
+    }
+
+    // A withdrawal from an engine that is not the one holding the tooltip says
+    // nothing about the tooltip on show: two engines run at once whenever a
+    // Glance stands over the page it came from.
+    function hidePageTooltip(engine) {
+        if (engine && window.pageTooltipEngine && engine !== window.pageTooltipEngine)
+            return;
+        window.pageTooltipOpen = false;
+        window.pageTooltipEngine = null;
     }
 
     function runPageMenu(index) {
@@ -2072,6 +2115,7 @@ ApplicationWindow {
                     // Chromium's own pre-paint colour, so a navigation never
                     // flashes a bright frame through the dark shell.
                     pageBackgroundColor: window.colors.windowOpaque
+                    pageControlAccent: window.colors.accent
                     colors: window.colors
                     ease: window.easeChrome
                     spaceId: window.windowBrowser.activeSpaceId
@@ -2100,6 +2144,10 @@ ApplicationWindow {
 
                     onPageContextRequested: function (engine, context) {
                         window.openPageMenu(engine, context);
+                    }
+
+                    onPageTooltipRequested: function (engine, tooltip) {
+                        window.showPageTooltip(engine, tooltip);
                     }
 
                     onPrintFinished: function (destination, succeeded) {
@@ -2296,6 +2344,10 @@ ApplicationWindow {
 
                     function onPageContextRequested(context) {
                         window.openPageMenu(window.glanceEngine, context);
+                    }
+
+                    function onPageTooltipRequested(tooltip) {
+                        window.showPageTooltip(window.glanceEngine, tooltip);
                     }
 
                     function onSitePermissionRequested(requestId, origin, permission) {
@@ -3136,6 +3188,19 @@ ApplicationWindow {
         onTriggered: function (index) {
             window.runTabMenu(index);
         }
+    }
+
+    // Under the menus, which are the reader's own and outrank anything a page
+    // asked to put on screen.
+    PageToolTip {
+        id: pageTooltip
+        objectName: "pageTooltip"
+        anchors.fill: parent
+        z: 55
+        open: window.pageTooltipVisible
+        text: window.pageTooltipText
+        anchorX: window.pageTooltipX
+        anchorY: window.pageTooltipY
     }
 
     ChromeMenu {

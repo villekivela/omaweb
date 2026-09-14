@@ -121,6 +121,13 @@ img {
   max-width: 100%;
 }
 
+/* The sprite sheet holding the GitHub mark. Taken out of the flow so the
+   symbols it defines take no space. A rule rather than a style attribute,
+   because the site's Content-Security-Policy allows no inline style. */
+.t-sprite {
+  position: absolute;
+}
+
 /* --- shared kit primitives ------------------------------------- */
 
 /* Emphasis is bold + tint + accent border. The kit has no filled

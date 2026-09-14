@@ -61,6 +61,7 @@ Rectangle {
     property bool keyboardNavigationHintModeActive: false
     property string keyboardInput: ""
     property color pageBackgroundColor: "#16151d"
+    property color pageControlAccent: "transparent"
     readonly property bool pageHasFocus: root.activeFocus
     // The lab is also the engine that cannot do everything. Each everyday page
     // operation is switchable on its own, because the shell has to be
@@ -227,6 +228,7 @@ Rectangle {
     property int pageGeneration: 0
 
     signal pageContextRequested(var context)
+    signal pageTooltipRequested(var tooltip)
     signal developerToolsClosed
     signal rendererFailed(string reason)
     signal newTabRequested(var request, url requestedUrl)

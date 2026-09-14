@@ -25,6 +25,10 @@ Item {
     // The window's palette, for the divider between a split's panes.
     property var colors: null
     property color pageBackgroundColor: "#16151d"
+    // The accent a page's own controls are drawn in, which differs per window:
+    // a Private window's chrome carries its own, and so should the controls on
+    // its pages.
+    property color pageControlAccent: "transparent"
     property string spaceId: ""
     // The Space the window's own profile belongs to, which is not the Space on
     // show in a Private window: that session is shared and has no Space of its
@@ -227,6 +231,7 @@ Item {
     signal certificateErrorRaised(var engine, string requestId, var failure)
     signal pageSiteDataCleared(string origin, var cleared, string error)
     signal pageContextRequested(var engine, var context)
+    signal pageTooltipRequested(var engine, var tooltip)
     signal browserPromptRequested(var engine, string requestId, var prompt)
     signal fileSelectionRequested(var engine, string requestId, var selection)
 
@@ -562,6 +567,7 @@ Item {
                                                 "keyboardNavigationScriptSource":
                                                 root.keyboardManager.pageScript,
                                                 "pageBackgroundColor": root.pageBackgroundColor,
+                                                "pageControlAccent": root.pageControlAccent,
                                                 "developerToolsColors": root.developerToolsColors,
                                                 "visible": false
                                             });
@@ -1010,6 +1016,10 @@ Item {
                     root.pageContextRequested(tabSlot.engine, context);
                 }
 
+                function onPageTooltipRequested(tooltip) {
+                    root.pageTooltipRequested(tabSlot.engine, tooltip);
+                }
+
                 function onPrintFinished(destination, succeeded) {
                     root.printFinished(destination, succeeded);
                 }
@@ -1118,6 +1128,11 @@ Item {
                                                                   root.activeEngine.currentUrl));
             }
         }
+    }
+
+    onPageControlAccentChanged: {
+        for (const tabId in root.engines)
+            root.engines[tabId].pageControlAccent = root.pageControlAccent;
     }
 
     onDeveloperToolsColorsChanged: {
