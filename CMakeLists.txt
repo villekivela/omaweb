@@ -444,6 +444,7 @@ set(omaweb_ui_files
     src/ui/BrowserCommands.qml
     src/ui/ChromeButton.qml
     src/ui/ChromeMenu.qml
+    src/ui/ChromeScrollBar.qml
     src/ui/CommandPanel.qml
     src/ui/DeveloperToolsDock.qml
     src/ui/DownloadMark.qml

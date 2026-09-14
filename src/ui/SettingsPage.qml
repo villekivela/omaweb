@@ -537,6 +537,11 @@ Rectangle {
             contentWidth: availableWidth
             clip: true
 
+            ScrollBar.vertical: ChromeScrollBar {
+                view: scroll
+                colors: root.colors
+            }
+
             Column {
                 id: pane
                 objectName: "settingsPane"
