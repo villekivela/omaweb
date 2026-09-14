@@ -779,6 +779,108 @@ Item {
                                                      root.controlAccentStyleSheet));
     }
 
+    // ---- the page's own scrollbar ------------------------------------------
+    //
+    // The engine's scrollbar answers to nothing the theme says, so Omaweb hides
+    // the one the document itself scrolls in and draws that bar for the shell
+    // to place. What is hidden is only the viewport's: `scrollbar-width` on the
+    // root element reaches the document's own scroller and leaves every box
+    // inside the page scrolling in a bar of its own, which stays the engine's
+    // to draw and is only coloured. Hiding all of them would put every
+    // `overflow: auto` box on the page in Omaweb's hands.
+    //
+    // `:where(html)` for the same reason the accent uses it: no specificity, so
+    // a page that names either property outranks Omaweb and keeps the bar it
+    // drew for itself.
+    readonly property string pageScrollbarElementId: "__omaweb_scrollbars"
+    property color pageScrollbarThumb: "transparent"
+    property color pageScrollbarTrack: "transparent"
+
+    readonly property string pageScrollbarStyleSheet: {
+        const thumb = root.pageScrollbarThumb;
+        const track = root.pageScrollbarTrack;
+        if (!thumb || thumb.a === 0 || !track || track.a === 0)
+            return "";
+        const rgb = colour => Math.round(colour.r * 255) + " " + Math.round(colour.g * 255) + " "
+                              + Math.round(colour.b * 255);
+        return ":where(html) { scrollbar-width: none; scrollbar-color: rgb(" + rgb(thumb)
+                + ") rgb(" + rgb(track) + "); }";
+    }
+
+    property var pageScrollbarScript: {
+        const script = WebEngine.script();
+        script.name = "Omaweb page scrollbar";
+        script.injectionPoint = WebEngineScript.DocumentCreation;
+        script.worldId = WebEngineScript.MainWorld;
+        // The document's own scroller only. A subframe is its own document with
+        // its own scroller, and the shell draws one bar for the page it is
+        // showing rather than one per frame.
+        script.runsOnSubFrames = false;
+        script.sourceCode = root.styleSheetSnippet(root.pageScrollbarElementId,
+                                                   root.pageScrollbarStyleSheet) + ";"
+                + root.pageScrollReportSource;
+        return script;
+    }
+
+    onPageScrollbarStyleSheetChanged: {
+        webView.userScripts.collection = root.userScriptList();
+        webView.runJavaScript(root.styleSheetSnippet(root.pageScrollbarElementId,
+                                                     root.pageScrollbarStyleSheet));
+    }
+
+    // Where the page stands in its own length, reported by the document rather
+    // than measured from outside: the engine draws the page and only the page
+    // knows how far it runs. Zero until a document says otherwise, which is the
+    // honest answer for a view with nothing in it.
+    property real pageScrollOffset: 0
+    property real pageScrollLength: 0
+    property real pageViewportLength: 0
+
+    // Reported on the page's own scroll and resize, and once more on a timer
+    // slow enough to cost nothing: a page that changes its own length without
+    // scrolling or resizing — anything that loads in below the fold — would
+    // otherwise leave the bar drawn for a length the document no longer has.
+    readonly property string pageScrollReportSource: "(() => {"
+                                                     + "if (globalThis.__omawebScrollReport) return;"
+                                                     + "const send = () => {"
+                                                     + "const root = document.documentElement;"
+                                                     + "if (!root) return;"
+                                                     + "console.log('__omaweb_page_scroll__' + JSON.stringify({"
+                                                     + "offset: window.scrollY, length: root.scrollHeight, viewport: window.innerHeight}));"
+                                                     + "};" + "globalThis.__omawebScrollReport = send;"
+                                                     + "addEventListener('scroll', send, { passive: true });"
+                                                     + "addEventListener('resize', send, { passive: true });"
+                                                     + "addEventListener('load', send);"
+                                                     + "setInterval(send, 1000);" + "send();"
+                                                     + "})()"
+
+    // The shell drives the page from the bar it drew. Asked for in the
+    // document's own units, which are what it reported.
+    function scrollPageTo(offset) {
+        webView.runJavaScript("window.scrollTo(0," + Math.round(offset) + ")");
+    }
+
+    function readPageScroll(text) {
+        try {
+            const report = JSON.parse(text);
+            root.pageScrollOffset = Number(report.offset) || 0;
+            root.pageScrollLength = Number(report.length) || 0;
+            root.pageViewportLength = Number(report.viewport) || 0;
+        } catch (error) {
+            root.pageScrollOffset = 0;
+            root.pageScrollLength = 0;
+            root.pageViewportLength = 0;
+        }
+    }
+
+    // A page that goes away takes its measurements with it, so the bar is not
+    // drawn for the length of the document before it while the next one loads.
+    function forgetPageScroll() {
+        root.pageScrollOffset = 0;
+        root.pageScrollLength = 0;
+        root.pageViewportLength = 0;
+    }
+
     readonly property string cosmeticElementId: "__omaweb_content_blocking"
     readonly property string genericCosmeticElementId: "__omaweb_content_blocking_generic"
 
@@ -1394,7 +1496,8 @@ Item {
     function userScriptList() {
         const scripts = [root.editedStateScript, root.keyboardNavigationScript,
                          root.externalProtocolOriginScript, root.userActivationScript,
-                         root.pressOriginScript, root.controlAccentScript];
+                         root.pressOriginScript, root.controlAccentScript,
+                         root.pageScrollbarScript];
         if (root.blockingScript)
             scripts.push(root.blockingScript);
         return scripts;
@@ -1525,6 +1628,9 @@ Item {
             root.refreshRenderProcessPid();
             if (loadRequest.status === WebEngineView.LoadStartedStatus) {
                 root.pageGeneration += 1;
+                // The page being left takes its length with it, so the bar is
+                // not drawn for the last document while the next one arrives.
+                root.forgetPageScroll();
                 // A press on the page being left says nothing about where a
                 // window the next page asks for should come from.
                 root.pressOrigin = Qt.rect(0, 0, 0, 0);
@@ -1646,6 +1752,8 @@ Item {
                 } catch (error) {
                     console.warn("Could not read the press origin: " + error);
                 }
+            } else if (message.startsWith("__omaweb_page_scroll__")) {
+                root.readPageScroll(message.substring("__omaweb_page_scroll__".length));
             } else if (message === "__omaweb_user_activation__") {
                 root.userActivated();
             } else if (message === "__omaweb_keyboard_hint_mode__:1")

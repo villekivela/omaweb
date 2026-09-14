@@ -24,6 +24,10 @@ Item {
     property var developerToolsColors: ({})
     // The window's palette, for the divider between a split's panes.
     property var colors: null
+    // The two colours the engine keeps drawing with: a box inside the page that
+    // scrolls keeps the engine's bar, and only its colour is Omaweb's to say.
+    readonly property color pageScrollbarThumb: root.colors ? root.colors.mutedText : "transparent"
+    readonly property color pageScrollbarTrack: root.colors ? root.colors.surface : "transparent"
     property color pageBackgroundColor: "#16151d"
     // The accent a page's own controls are drawn in, which differs per window:
     // a Private window's chrome carries its own, and so should the controls on
@@ -550,30 +554,99 @@ Item {
     function buildEngine(parent, tabUrl, spaceId, profilePath, sharedProfile) {
         if (!engineComponent)
             engineComponent = Qt.createComponent(root.engineSource);
-        return engineComponent.createObject(parent, {
-                                                "profilePath": profilePath !== undefined
-                                                               ? profilePath : root.profilePath,
-                                                "currentUrl": tabUrl,
-                                                "sharedProfile": sharedProfile !== undefined
-                                                                 ? sharedProfile :
-                                                                   root.sharedProfile,
-                                                "permissionController": root.permissionController,
-                                                "contentBlocker": root.blocker,
-                                                "engineContentBlocker": root.engineBlocker,
-                                                // The Space of the profile
-                                                // this view runs on, which is
-                                                // what Content blocking keys
-                                                // its Refusal tally by.
-                                                "spaceId": spaceId !== undefined ? spaceId :
-                                                                                   root.sessionSpaceId,
-                                                "keyboardNavigationConfiguration":
-                                                root.keyboardConfiguration(tabUrl),
-                                                "keyboardNavigationScriptSource":
-                                                root.keyboardManager.pageScript,
-                                                "pageBackgroundColor": root.pageBackgroundColor,
-                                                "pageControlAccent": root.pageControlAccent,
-                                                "developerToolsColors": root.developerToolsColors,
-                                                "visible": false
+        const engine = engineComponent.createObject(parent, {
+                                                        "profilePath": profilePath !== undefined
+                                                                       ? profilePath :
+                                                                         root.profilePath,
+                                                        "currentUrl": tabUrl,
+                                                        "sharedProfile": sharedProfile
+                                                                         !== undefined
+                                                                         ? sharedProfile :
+                                                                           root.sharedProfile,
+                                                        "permissionController":
+                                                        root.permissionController,
+                                                        "contentBlocker": root.blocker,
+                                                        "engineContentBlocker": root.engineBlocker,
+                                                        // The Space of the profile
+                                                        // this view runs on, which is
+                                                        // what Content blocking keys
+                                                        // its Refusal tally by.
+                                                        "spaceId": spaceId !== undefined ? spaceId :
+                                                                                           root.sessionSpaceId,
+                                                        "keyboardNavigationConfiguration":
+                                                        root.keyboardConfiguration(tabUrl),
+                                                        "keyboardNavigationScriptSource":
+                                                        root.keyboardManager.pageScript,
+                                                        "pageBackgroundColor":
+                                                        root.pageBackgroundColor,
+                                                        "pageControlAccent": root.pageControlAccent,
+                                                        // What the engine goes on
+                                                        // drawing: the bars inside the
+                                                        // page, which stay its own.
+                                                        "pageScrollbarThumb":
+                                                        root.pageScrollbarThumb,
+                                                        "pageScrollbarTrack":
+                                                        root.pageScrollbarTrack,
+                                                        "developerToolsColors":
+                                                        root.developerToolsColors,
+                                                        "visible": false
+                                                    });
+        root.giveScrollbar(engine);
+        return engine;
+    }
+
+    // The bar the page scrolls in, drawn by the chrome rather than the engine.
+    //
+    // Parented into the engine, so it travels with the page wherever the page
+    // is put — a pane of a split, a Glance over the tab it came from, a window
+    // of its own — and is taken away when the engine is. That is also what
+    // keeps the engine adapter free of chrome: the adapter reports where the
+    // page stands and hides the engine's own bar; what is drawn for it is the
+    // shell's, and is the same component the sidebar and Settings scroll in.
+    Component {
+        id: pageScrollbarComponent
+
+        ChromeScrollBar {
+            id: pageBar
+            objectName: "pageScrollBar"
+
+            required property var engine
+
+            view: engine
+            colors: root.colors
+            // Derived here rather than asked of the adapter: the three numbers
+            // it reports already say it, and a fourth property would be one
+            // more thing every engine has to answer for to say nothing new.
+            visible: engine.pageScrollLength > engine.pageViewportLength + 1
+            size: engine.pageScrollLength > 0 ? engine.pageViewportLength / engine.pageScrollLength :
+                                                1
+            position: pageBar.pageRange > 0 ? engine.pageScrollOffset / pageBar.pageRange * (1
+                                                                                             - pageBar.size) :
+                                              0
+
+            readonly property real pageRange: Math.max(engine.pageScrollLength
+                                                       - engine.pageViewportLength, 0)
+
+            // The page is driven only while the reader is driving the bar.
+            // `position` is bound to what the page reported, and a drag writes
+            // over that binding; asking the page to scroll whenever it changed
+            // would send the page's own scrolling straight back to it.
+            onPositionChanged: {
+                if (!pageBar.pressed || pageBar.pageRange <= 0)
+                    return;
+                const travel = Math.max(1 - pageBar.size, 0.0001);
+                engine.scrollPageTo(Math.max(0, Math.min(1, pageBar.position / travel))
+                                    * pageBar.pageRange);
+
+            }
+        }
+    }
+
+    function giveScrollbar(engine) {
+        if (!engine || !root.colors)
+            return;
+        pageScrollbarComponent.createObject(engine, {
+                                                "engine": engine
                                             });
     }
 
@@ -1137,6 +1210,18 @@ Item {
     onPageControlAccentChanged: {
         for (const tabId in root.engines)
             root.engines[tabId].pageControlAccent = root.pageControlAccent;
+    }
+
+    // A theme the reader changes has to reach the pages already open, not only
+    // the next one to load.
+    onPageScrollbarThumbChanged: {
+        for (const tabId in root.engines)
+            root.engines[tabId].pageScrollbarThumb = root.pageScrollbarThumb;
+    }
+
+    onPageScrollbarTrackChanged: {
+        for (const tabId in root.engines)
+            root.engines[tabId].pageScrollbarTrack = root.pageScrollbarTrack;
     }
 
     onDeveloperToolsColorsChanged: {

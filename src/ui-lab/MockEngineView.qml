@@ -62,6 +62,14 @@ Rectangle {
     property string keyboardInput: ""
     property color pageBackgroundColor: "#16151d"
     property color pageControlAccent: "transparent"
+    property real pageScrollOffset: 0
+    property real pageScrollLength: 0
+    property real pageViewportLength: 0
+    property color pageScrollbarThumb: "transparent"
+    property color pageScrollbarTrack: "transparent"
+    function scrollPageTo(offset) {
+        root.pageScrollOffset = offset;
+    }
     readonly property bool pageHasFocus: root.activeFocus
     // The lab is also the engine that cannot do everything. Each everyday page
     // operation is switchable on its own, because the shell has to be

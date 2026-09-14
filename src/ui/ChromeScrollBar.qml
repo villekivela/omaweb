@@ -44,24 +44,48 @@ ScrollBar {
     implicitHeight: root.gutter
     padding: 0
 
+    // A `ScrollView` insets its content and can be laid out right to left; a
+    // webpage's view is a plain `Item` and carries none of that. Read through
+    // rather than required, so one bar serves a scrolling region of the chrome
+    // and a page the engine draws without the call sites dividing into two
+    // kinds.
+    readonly property real viewTopInset: root.view && root.view.topPadding !== undefined
+                                         ? root.view.topPadding : 0
+    readonly property real viewLeftInset: root.view && root.view.leftPadding !== undefined
+                                          ? root.view.leftPadding : 0
+    readonly property real viewLengthDown: {
+        if (!root.view)
+            return 0;
+        return root.view.availableHeight !== undefined ? root.view.availableHeight :
+                                                         root.view.height;
+    }
+    readonly property real viewLengthAcross: {
+        if (!root.view)
+            return 0;
+        return root.view.availableWidth !== undefined ? root.view.availableWidth : root.view.width;
+    }
+    readonly property bool viewMirrored: root.view && root.view.mirrored !== undefined
+                                         ? root.view.mirrored : false
+
     parent: root.view
     x: {
         if (!root.view)
             return 0;
         if (root.orientation === Qt.Horizontal)
-            return root.view.leftPadding;
-        return root.view.mirrored ? 0 : root.view.width - root.width;
+            return root.viewLeftInset;
+        return root.viewMirrored ? 0 : root.view.width - root.width;
     }
     y: {
         if (!root.view)
             return 0;
         return root.orientation === Qt.Horizontal ? root.view.height - root.height :
-                                                    root.view.topPadding;
+                                                    root.viewTopInset;
     }
-    width: root.orientation === Qt.Horizontal && root.view ? root.view.availableWidth :
+    width: root.orientation === Qt.Horizontal && root.view ? root.viewLengthAcross :
                                                              root.implicitWidth
+
     height: root.orientation === Qt.Horizontal || !root.view ? root.implicitHeight :
-                                                               root.view.availableHeight
+                                                               root.viewLengthDown
 
     // Proportional sizing alone leaves a long list with a few pixels of thumb,
     // which is visible but not catchable. Capped as well as floored: the length

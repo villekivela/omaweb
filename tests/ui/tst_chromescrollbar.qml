@@ -77,6 +77,30 @@ TestCase {
         }
     }
 
+    // A bar that takes its length from its view, rather than the fixed one the
+    // standalone fixture pins so the other tests have a length to assert
+    // against.
+    Component {
+        id: viewedBarComponent
+
+        Omaweb.ChromeScrollBar {
+            colors: testCase.colorsFixture
+            orientation: Qt.Vertical
+            size: 0.25
+        }
+    }
+
+    // A view with no insets and no layout direction, which is what a webpage's
+    // engine view is.
+    Component {
+        id: plainViewComponent
+
+        Item {
+            width: 300
+            height: 500
+        }
+    }
+
     property var liveBar: null
 
     function cleanup() {
@@ -152,6 +176,27 @@ TestCase {
 
         bar.colors = testCase.otherColorsFixture;
         tryCompare(thumb, "color", testCase.otherColorsFixture.border);
+    }
+
+    // The same bar serves a webpage, which the engine draws into a plain
+    // `Item` carrying none of a `ScrollView`'s insets or layout direction. The
+    // geometry reads those through rather than requiring them, so a view
+    // without them is laid out down its trailing edge just the same.
+    function test_aPlainItemCanCarryTheBarToo() {
+        const plain = plainViewComponent.createObject(testCase);
+        verify(plain !== null);
+        const bar = viewedBarComponent.createObject(testCase, {
+                                                        "view": plain
+                                                    });
+        verify(bar !== null);
+
+        tryCompare(bar, "height", plain.height);
+        compare(bar.parent, plain);
+        compare(bar.y, 0);
+        compare(bar.x, plain.width - bar.width);
+
+        bar.destroy();
+        plain.destroy();
     }
 
     // A long list still has to offer something catchable: proportional sizing
