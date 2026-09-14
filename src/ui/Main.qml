@@ -2181,14 +2181,31 @@ ApplicationWindow {
                     }
                 }
 
+                // One mark per pane: each page reports its own work, over its
+                // own half while a split is on show.
                 PageLoadingIndicator {
-                    anchors.horizontalCenter: engineLoader.horizontalCenter
+                    x: engineLoader.x + engineLoader.activePaneX + (engineLoader.activePaneWidth
+                                                                    - width) / 2
                     anchors.top: engineLoader.top
                     anchors.topMargin: 8
                     z: 3
                     colors: window.colors
                     active: engineLoader.item !== null && engineLoader.item.loading
                     allowed: !window.pagelessViewport && !window.settingsOpen &&
+                             !window.historyOpen && !window.shortcutsOpen &&
+                             !engineLoader.siteFullscreenActive
+                }
+
+                PageLoadingIndicator {
+                    objectName: "besideLoadingIndicator"
+                    x: engineLoader.x + engineLoader.besidePaneX + (engineLoader.besidePaneWidth
+                                                                    - width) / 2
+                    anchors.top: engineLoader.top
+                    anchors.topMargin: 8
+                    z: 3
+                    colors: window.colors
+                    active: engineLoader.besideEngine !== null && engineLoader.besideEngine.loading
+                    allowed: engineLoader.splitOnShow && !window.settingsOpen &&
                              !window.historyOpen && !window.shortcutsOpen &&
                              !engineLoader.siteFullscreenActive
                 }

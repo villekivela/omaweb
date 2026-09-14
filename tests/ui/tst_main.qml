@@ -2803,6 +2803,26 @@ TestCase {
         compare(engineHost.tabNudgeX, 0);
         compare(engineHost.tabNudgeY, 0);
 
+        // Each pane reports its own loading, over its own half.
+        const besideMark = findChild(window.contentItem, "besideLoadingIndicator");
+        const marks = findChild(window.contentItem, "engineViewport").children.filter(function (
+            child) {
+            return child.objectName === "pageLoadingIndicator";
+        });
+        compare(marks.length, 1);
+        const activeMark = marks[0];
+        left.loading = true;
+        tryCompare(besideMark, "opacity", 1);
+        compare(activeMark.opacity, 0);
+        verify(besideMark.x + besideMark.width / 2 < engineHost.x + left.width);
+        left.loading = false;
+        right.loading = true;
+        tryCompare(activeMark, "opacity", 1);
+        tryCompare(besideMark, "opacity", 0);
+        verify(activeMark.x + activeMark.width / 2 > engineHost.x + right.x);
+        right.loading = false;
+        tryCompare(activeMark, "opacity", 0);
+
         // Reload and find go to the focused pane.
         const generationBefore = right.pageGeneration;
         const leftGeneration = left.pageGeneration;

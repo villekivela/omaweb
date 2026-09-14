@@ -197,6 +197,12 @@ Item {
                                                                                 - root.leftPaneWidth
                                                                                 - root.dividerWidth :
                                                                                 root.leftPaneWidth)
+    readonly property real besidePaneX: root.tabBesideId === root.splitLeftTabId ? 0 :
+                                                                                   root.leftPaneWidth
+                                                                                   + root.dividerWidth
+    readonly property real besidePaneWidth: !root.splitOnShow ? 0 : root.width
+                                                                - root.activePaneWidth
+                                                                - root.dividerWidth
 
     // What the page the reader is looking at is doing with the whole screen,
     // read off the engine that draws it rather than kept beside it. Either
