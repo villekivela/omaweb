@@ -91,7 +91,8 @@ QVector<TabState> SqliteSessionStore::loadTabs(const QString &spaceId) const
 {
     QVector<TabState> tabs;
     QSqlQuery query(spaceDatabase(spaceId));
-    query.prepare(QStringLiteral("SELECT id, url, title, pinned, active, zoom, muted, keep_active "
+    query.prepare(QStringLiteral("SELECT id, url, title, pinned, active, zoom, muted, keep_active, "
+                                 "split_partner, split_focused "
                                  "FROM tabs ORDER BY pinned DESC, position"));
     query.exec();
     while (query.next()) {
@@ -108,6 +109,8 @@ QVector<TabState> SqliteSessionStore::loadTabs(const QString &spaceId) const
             .muted = query.value(6).toBool(),
             .zoom = query.value(5).toDouble(),
             .keepActive = query.value(7).toBool(),
+            .splitPartnerId = query.value(8).toString(),
+            .splitFocused = query.value(9).toBool(),
         });
     }
     return tabs;
@@ -308,12 +311,14 @@ bool SqliteSessionStore::saveTab(const TabState &tab, int position)
     QSqlQuery query(spaceDatabase(tab.spaceId));
     query.prepare(QStringLiteral(
         "INSERT INTO tabs"
-        "(id, url, title, pinned, active, position, zoom, muted, keep_active) "
-        "VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?) "
+        "(id, url, title, pinned, active, position, zoom, muted, keep_active, "
+        "split_partner, split_focused) "
+        "VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
         "ON CONFLICT(id) DO UPDATE SET url = excluded.url, "
         "title = excluded.title, pinned = excluded.pinned, active = excluded.active, "
         "position = excluded.position, zoom = excluded.zoom, muted = excluded.muted, "
-        "keep_active = excluded.keep_active"));
+        "keep_active = excluded.keep_active, split_partner = excluded.split_partner, "
+        "split_focused = excluded.split_focused"));
     query.addBindValue(tab.id);
     query.addBindValue(tab.url.toString());
     query.addBindValue(tab.title);
@@ -323,6 +328,8 @@ bool SqliteSessionStore::saveTab(const TabState &tab, int position)
     query.addBindValue(tab.zoom);
     query.addBindValue(tab.muted);
     query.addBindValue(tab.keepActive);
+    query.addBindValue(tab.splitPartnerId);
+    query.addBindValue(tab.splitFocused);
     return query.exec();
 }
 
@@ -397,8 +404,8 @@ bool SqliteSessionStore::saveSpaceMove(const QString &sourceSpaceId,
                   QSqlQuery insert(m_database);
                   insert.prepare(QStringLiteral("INSERT INTO %1.tabs"
                                                 "(id, url, title, pinned, active, position, zoom, "
-                                                "muted, keep_active) "
-                                                "VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)")
+                                                "muted, keep_active, split_partner, split_focused) "
+                                                "VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
                           .arg(schema));
                   insert.addBindValue(tab.id);
                   insert.addBindValue(tab.url.toString());
@@ -409,6 +416,8 @@ bool SqliteSessionStore::saveSpaceMove(const QString &sourceSpaceId,
                   insert.addBindValue(tab.zoom);
                   insert.addBindValue(tab.muted);
                   insert.addBindValue(tab.keepActive);
+                  insert.addBindValue(tab.splitPartnerId);
+                  insert.addBindValue(tab.splitFocused);
                   if (!insert.exec()) {
                       return false;
                   }
@@ -888,7 +897,9 @@ QSqlDatabase SqliteSessionStore::spaceDatabase(const QString &spaceId) const
                                "position INTEGER NOT NULL DEFAULT 0, "
                                "zoom REAL NOT NULL DEFAULT 1.0, "
                                "muted INTEGER NOT NULL DEFAULT 0, "
-                               "keep_active INTEGER NOT NULL DEFAULT 0)"));
+                               "keep_active INTEGER NOT NULL DEFAULT 0, "
+                               "split_partner TEXT, "
+                               "split_focused INTEGER NOT NULL DEFAULT 0)"));
     // A Space whose store predates per-tab zoom keeps its tabs; the column is
     // added beside them, at the size every tab was drawn at before it existed.
     // Adding a column that is already there fails, and that failure is the
@@ -900,6 +911,12 @@ QSqlDatabase SqliteSessionStore::spaceDatabase(const QString &spaceId) const
     schema.exec(QStringLiteral("ALTER TABLE tabs ADD COLUMN muted INTEGER NOT NULL DEFAULT 0"));
     schema.exec(
         QStringLiteral("ALTER TABLE tabs ADD COLUMN keep_active INTEGER NOT NULL DEFAULT 0"));
+    // The split came last. A Space that predates it has no tab paired with
+    // another, which is what the defaults say. The partner column takes NULL
+    // for "none" because that is what an empty QString binds as.
+    schema.exec(QStringLiteral("ALTER TABLE tabs ADD COLUMN split_partner TEXT"));
+    schema.exec(
+        QStringLiteral("ALTER TABLE tabs ADD COLUMN split_focused INTEGER NOT NULL DEFAULT 0"));
     // The tabs this Space has lost, so Reopen closed tab answers after a
     // restart as well as within a session. Position 0 is the newest.
     schema.exec(QStringLiteral("CREATE TABLE IF NOT EXISTS closed_tabs ("

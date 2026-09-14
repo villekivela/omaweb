@@ -32,6 +32,21 @@ reports the gap and remains experimental rather than imitating behavior it canno
   download history.
 - Zoom and mute belong to a tab, survive navigation and restart, and never become origin-wide
   preferences. New tabs start at 100 percent and unmuted.
+- A split shows two ordinary tabs of the Space on show side by side, listed as one sidebar row of
+  two halves, with a draggable divider that starts in the middle and is remembered only while the
+  window lives. The focused pane's tab is the active tab: the address field, find bar, notices,
+  prompt bars, loading indicator, zoom, lock and navigation follow it, and the tab beside shows its
+  page and nothing else until it is focused. Both panes run; a split of an away Space freezes like
+  its other pages. Focus moves by a press in the other pane or `Primary+;`. A split is entered from
+  another row's Add split view, which pairs it with the active tab, or from the active row's, which
+  puts a blank tab beside it and focuses it; the command panel's `add-split` offers a chooser of the
+  unpaired ordinary tabs, headed by a blank tab. Selecting any other tab shows it alone and leaves
+  the row in place; either half brings the split back, and tab cycling treats the row as one stop
+  entered on its last-focused half. Separate split view puts two adjacent ordinary rows back.
+  Closing either tab, or moving one to another Space, ends the split. Pinned tabs are never paired,
+  a tab is in at most one split, and a split's tab is separated before it can be pinned or moved.
+  The pairing is kept with the Space's tabs and restored after a restart, and is not part of the
+  Sync projection.
 - Each Space retains its 25 most recently closed tabs across restart. Reopening restores address,
   title, pin state, zoom, and mute in reverse closing order. A Private session keeps the same stack
   only in memory.

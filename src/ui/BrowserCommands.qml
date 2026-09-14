@@ -82,6 +82,15 @@ QtObject {
         case "move-tab":
             window.requestMoveTab();
             return true;
+        case "add-split":
+            window.requestAddSplit();
+            return true;
+        case "separate-split":
+            browser.separateSplit();
+            return true;
+        case "focus-split-partner":
+            browser.focusSplitPartner();
+            return true;
         case "next-space":
             window.stepSpace(1);
             return true;
@@ -231,7 +240,8 @@ QtObject {
                                              },
                                              "pin-tab": {
                                                  group: "tabs",
-                                                 title: "Pin or unpin this tab"
+                                                 title: "Pin or unpin this tab",
+                                                 requires: "unpaired-tab"
                                              },
                                              "keep-tab-active": {
                                                  group: "tabs",
@@ -273,6 +283,21 @@ QtObject {
                                              "move-tab": {
                                                  group: "tabs",
                                                  title: "Move tab to another Space"
+                                             },
+                                             "add-split": {
+                                                 group: "tabs",
+                                                 title: "Add split view",
+                                                 requires: "unpaired-ordinary-tab"
+                                             },
+                                             "separate-split": {
+                                                 group: "tabs",
+                                                 title: "Separate split view",
+                                                 requires: "split"
+                                             },
+                                             "focus-split-partner": {
+                                                 group: "tabs",
+                                                 title: "Focus the tab beside",
+                                                 requires: "split"
                                              },
                                              "next-space": {
                                                  group: "spaces",
@@ -441,6 +466,15 @@ QtObject {
             return browser.activeTabPinned && !window.privateWindow;
         case "ordinary-tab":
             return !browser.activeTabPinned;
+            // A split takes ordinary tabs that are in none, and parts only
+            // where there is one; a tab in a split is separated before it is
+            // pinned.
+        case "unpaired-tab":
+            return !browser.splitOnShow;
+        case "unpaired-ordinary-tab":
+            return !browser.activeTabPinned && !browser.splitOnShow;
+        case "split":
+            return browser.splitOnShow;
         }
         return true;
     }

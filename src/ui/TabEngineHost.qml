@@ -22,6 +22,8 @@ Item {
     // the same window as the chrome around it rather than the engine's own idea
     // of a colour scheme.
     property var developerToolsColors: ({})
+    // The window's palette, for the divider between a split's panes.
+    property var colors: null
     property color pageBackgroundColor: "#16151d"
     // The accent a page's own controls are drawn in, which differs per window:
     // a Private window's chrome carries its own, and so should the controls on
@@ -44,29 +46,182 @@ Item {
                                            ? root.activeEngine.keyboardNavigationHintModeActive :
                                              false
     property var activeEngine: null
+    // The engine of the tab beside, while a split is on show. It is drawn and
+    // runs, and that is all: every command and answer above is the active
+    // engine's.
+    property var besideEngine: null
+    // Whether the chrome moves at all, which is the reader's one switch.
+    property bool ease: true
     // How far from its place the page on show stands while it arrives, in
     // pixels right and down. Measured by the sidebar, where the rows are; applied here
     // to the arriving engine and to nothing else, so the page it replaces and
     // the ground under both stay where they are.
     property real tabNudgeX: 0
     property real tabNudgeY: 0
+    // The tabs whose engines came on screen in the latest turn, which are the
+    // ones the nudge belongs to: a page already on show when a pane arrives
+    // beside it stays where it is. A focus move between the halves shows
+    // nothing new, and the sidebar starts no nudge for it.
+    property var arrivals: []
+    property bool arrivalsOpen: false
+    function noteArrival(tabId) {
+        if (!root.arrivalsOpen) {
+            root.arrivals = [];
+            root.arrivalsOpen = true;
+            Qt.callLater(function () {
+                root.arrivalsOpen = false;
+            });
+        }
+        root.arrivals = root.arrivals.concat([tabId]);
+    }
     Component {
         id: tabSlideComponent
         Translate {
             property var engine: null
-            readonly property bool arriving: engine !== null && engine === root.activeEngine
-            x: arriving ? root.tabNudgeX : 0
+            property string tabId: ""
+            readonly property bool arriving: engine !== null && engine.visible
+                                             && root.arrivals.indexOf(tabId) >= 0
+            // The leaving pane's own travel, run by `departure` below.
+            property real departureX: 0
+            x: (arriving ? root.tabNudgeX : 0) + departureX
             y: arriving ? root.tabNudgeY : 0
         }
     }
+    // A pane that leaves goes back the way it came, the arrival reversed and
+    // quicker: to the side its row is on, and hidden once it has gone. One
+    // pane leaves at a time; a second departure finishes the first.
+    NumberAnimation {
+        id: departure
+        property string tabId: ""
+        property: "departureX"
+        duration: 120
+        easing.type: Easing.InCubic
+        onFinished: root.settleDeparture()
+    }
+    // The pane keeps the place and size it had for the length of the move,
+    // over the page that has already taken the whole width, and is laid out
+    // by the panes again once it is hidden.
+    function departEngine(tabId, pane, direction) {
+        const engine = root.engines[tabId];
+        if (!engine || !root.ease || !engine.visible || direction === 0) {
+            root.setEngineVisible(tabId, false);
+            return;
+        }
+        if (departure.running) {
+            departure.stop();
+            root.settleDeparture();
+        }
+        engine.x = pane.x;
+        engine.width = pane.width;
+        engine.z = 2;
+        departure.tabId = tabId;
+        departure.target = engine.transform[0];
+        departure.from = 0;
+        departure.to = 10 * direction;
+        departure.start();
+    }
+    function settleDeparture() {
+        const tabId = departure.tabId;
+        departure.tabId = "";
+        const engine = root.engines[tabId];
+        if (!engine)
+            return;
+        engine.transform[0].departureX = 0;
+        engine.z = 0;
+        root.bindPane(tabId, engine);
+        // Hidden only if nothing has shown it again on the way out.
+        if (!root.shownTabIds[tabId])
+            root.setEngineVisible(tabId, false);
+    }
+    // Which tabs the rows say are on show, kept here so a departure can tell
+    // a pane that has left from one that was called back.
+    readonly property var shownTabIds: ({})
     property bool suspended: true
 
+    // The split on show, as the core answers it. The page area lays the two
+    // panes out left and right of one divider; everything else about the
+    // window keeps reading the active tab.
+    readonly property string splitLeftTabId: root.browserController
+                                             ? root.browserController.splitLeftTabId : ""
+    readonly property string splitRightTabId: root.browserController
+                                              ? root.browserController.splitRightTabId : ""
+    readonly property string tabBesideId: root.browserController
+                                          ? root.browserController.tabBesideId : ""
+    readonly property bool splitOnShow: root.splitLeftTabId.length > 0
+    // Where the divider stands, as the left pane's share of the width. Held
+    // per split for as long as the window lives, and never written down: a
+    // restart puts every divider back in the middle.
+    property real dividerFraction: 0.5
+    readonly property var dividerFractions: ({})
+    readonly property real paneMinimumWidth: 120
+    readonly property real leftPaneWidth: Math.round(root.width * root.dividerFraction)
+    readonly property real dividerWidth: 1
+    onSplitLeftTabIdChanged: root.restoreDivider()
+    onSplitRightTabIdChanged: root.restoreDivider()
+    function splitKey() {
+        return root.splitLeftTabId + "|" + root.splitRightTabId;
+    }
+    function restoreDivider() {
+        if (!root.splitOnShow)
+            return;
+        const kept = root.dividerFractions[root.splitKey()];
+        root.dividerFraction = kept !== undefined ? kept : 0.5;
+    }
+    function setLeftPaneWidth(width) {
+        if (!root.splitOnShow || root.width <= 0)
+            return;
+        const clamped = Math.max(root.paneMinimumWidth, Math.min(root.width - root.paneMinimumWidth,
+                                                                 width));
+        root.dividerFraction = clamped / root.width;
+        root.dividerFractions[root.splitKey()] = root.dividerFraction;
+    }
+    // Which pane a tab's engine is drawn in. A page that has the screen takes
+    // the whole host whichever pane it sits in, and a tab in no split takes
+    // it as before.
+    function paneX(tabId, engine) {
+        if (!root.splitOnShow || engine.siteFullscreenActive || tabId !== root.splitRightTabId)
+            return 0;
+        return root.leftPaneWidth + root.dividerWidth;
+    }
+    function paneWidth(tabId, engine) {
+        if (!root.splitOnShow || engine.siteFullscreenActive)
+            return root.width;
+        if (tabId === root.splitLeftTabId)
+            return root.leftPaneWidth;
+        if (tabId === root.splitRightTabId)
+            return root.width - root.leftPaneWidth - root.dividerWidth;
+        return root.width;
+    }
+    readonly property real activePaneX: root.splitOnShow && root.tabBesideId
+                                        === root.splitLeftTabId ? root.leftPaneWidth
+                                                                  + root.dividerWidth : 0
+    readonly property real activePaneWidth: !root.splitOnShow ? root.width : (root.tabBesideId
+                                                                              === root.splitLeftTabId
+                                                                              ? root.width
+                                                                                - root.leftPaneWidth
+                                                                                - root.dividerWidth :
+                                                                                root.leftPaneWidth)
+    readonly property real besidePaneX: root.tabBesideId === root.splitLeftTabId ? 0 :
+                                                                                   root.leftPaneWidth
+                                                                                   + root.dividerWidth
+    readonly property real besidePaneWidth: !root.splitOnShow ? 0 : root.width
+                                                                - root.activePaneWidth
+                                                                - root.dividerWidth
+
     // What the page the reader is looking at is doing with the whole screen,
-    // read off the engine that draws it rather than kept beside it.
-    readonly property bool siteFullscreenActive: root.activeEngine
-                                                 ? root.activeEngine.siteFullscreenActive : false
-    readonly property string siteFullscreenOrigin: root.activeEngine
-                                                   ? root.activeEngine.siteFullscreenOrigin : ""
+    // read off the engine that draws it rather than kept beside it. Either
+    // pane of a split may take the window.
+    readonly property var fullscreenEngine: root.activeEngine
+                                            && root.activeEngine.siteFullscreenActive
+                                            ? root.activeEngine : (root.besideEngine
+                                                                   && root.besideEngine.siteFullscreenActive
+                                                                   ? root.besideEngine : null)
+    // The origin stands before the flag: bindings answer a change in the
+    // order they are declared, and the window reads the origin from the
+    // flag's change handler.
+    readonly property string siteFullscreenOrigin: root.fullscreenEngine
+                                                   ? root.fullscreenEngine.siteFullscreenOrigin : ""
+    readonly property bool siteFullscreenActive: root.fullscreenEngine !== null
 
     signal printFinished(string destination, bool succeeded)
     signal auxiliaryWindowRequested(var engine, var request, url requestedUrl)
@@ -184,8 +339,8 @@ Item {
     }
 
     function exitSiteFullscreen() {
-        if (root.activeEngine)
-            root.activeEngine.exitSiteFullscreen();
+        if (root.fullscreenEngine)
+            root.fullscreenEngine.exitSiteFullscreen();
     }
 
     // The core owns which tab is inspected; the engines are told about it here.
@@ -259,6 +414,8 @@ Item {
         const engine = root.engines[tabId];
         if (!engine)
             return;
+        if (visible && !engine.visible)
+            root.noteArrival(tabId);
         engine.visible = visible;
         root.applyPageLifecycle(tabId);
     }
@@ -416,13 +573,26 @@ Item {
                                             });
     }
 
+    function bindPane(tabId, engine) {
+        engine.x = Qt.binding(function () {
+            return root.paneX(tabId, engine);
+        });
+        engine.width = Qt.binding(function () {
+            return root.paneWidth(tabId, engine);
+        });
+    }
+
     // The engine becomes the named tab's: drawn in the host, keyed to the tab,
     // and from here on shown, hidden and taken away with it.
     function registerEngine(tabId, engine, spaceId) {
         engine.parent = root;
-        engine.anchors.fill = root;
+        engine.anchors.fill = undefined;
+        engine.anchors.top = root.top;
+        engine.anchors.bottom = root.bottom;
+        root.bindPane(tabId, engine);
         engine.transform = [tabSlideComponent.createObject(engine, {
-                                                               "engine": engine
+                                                               "engine": engine,
+                                                               "tabId": tabId
                                                            })];
         root.engines[tabId] = engine;
         root.engineSpaces[tabId] = spaceId !== undefined ? spaceId : root.spaceId;
@@ -463,8 +633,15 @@ Item {
         }
         if (root.activeEngine === engine)
             root.activeEngine = null;
+        if (root.besideEngine === engine)
+            root.besideEngine = null;
+        if (departure.tabId === tabId) {
+            departure.stop();
+            departure.tabId = "";
+        }
         delete root.engines[tabId];
         delete root.engineSpaces[tabId];
+        delete root.shownTabIds[tabId];
         engine.destroy();
     }
 
@@ -516,6 +693,17 @@ Item {
             required property string tabId
             required property url tabUrl
             required property bool active
+            // On show beside the active tab. The page is drawn and runs, and
+            // nothing else here is asked of it: the active tab answers for
+            // the window.
+            required property bool tabBeside
+            required property string splitPartnerId
+            // The partner this tab last had, since a separation clears the
+            // pairing in the same announcement that hides the pane.
+            property string lastPartnerId: ""
+            onSplitPartnerIdChanged: if (splitPartnerId.length > 0)
+                                         lastPartnerId = splitPartnerId
+            readonly property bool shown: active || tabBeside
             // The reader's standing decision about this tab's sound. The
             // engine holds it while the tab has one, and is told again
             // whenever it changes or a new engine takes the tab over.
@@ -538,8 +726,8 @@ Item {
             // A restored Space can hold many tabs, and each engine costs a
             // renderer process and a page load. Only a tab the user has
             // actually looked at gets one; the rest keep their saved title and
-            // address until they are first selected.
-            property bool everActive: active
+            // address until they are first selected, or first shown beside.
+            property bool everActive: shown
             property var engine: null
 
             // A blank tab has no page, and the shortcut sheet stands in for it.
@@ -569,10 +757,15 @@ Item {
                                                                      || root.adoptingTabId
                                                                      === tabId)
 
+            // Whether this engine is on show as the tab beside, as of the last
+            // time it was shown or hidden.
+            property bool besideSeen: false
+
             function showEngine() {
                 if (!engine)
                     return;
-                root.setEngineVisible(tabSlot.tabId, tabSlot.active);
+                root.shownTabIds[tabSlot.tabId] = tabSlot.shown;
+                root.setEngineVisible(tabSlot.tabId, tabSlot.shown);
                 engine.z = tabSlot.active ? 1 : 0;
                 if (tabSlot.active) {
                     root.activeEngine = engine;
@@ -581,6 +774,45 @@ Item {
                             root.focusPage();
                     });
                 }
+                besideSeen = tabSlot.tabBeside;
+                if (tabSlot.tabBeside)
+                    root.besideEngine = engine;
+                else if (root.besideEngine === engine)
+                    root.besideEngine = null;
+            }
+
+            // The pane goes off screen. A tab beside that has been separated
+            // leaves towards its row, over the page that stays; anything else
+            // is hidden where it stands. Which of the two it is can only be
+            // read once the core has finished announcing the change, so the
+            // pane's place is noted now and the decision waits a turn.
+            function hideEngine() {
+                root.shownTabIds[tabSlot.tabId] = false;
+                if (root.besideEngine === engine)
+                    root.besideEngine = null;
+                const wasBeside = besideSeen;
+                besideSeen = false;
+                if (!engine)
+                    return;
+                if (!wasBeside || !root.ease || !engine.visible) {
+                    root.setEngineVisible(tabSlot.tabId, false);
+                    return;
+                }
+                const leaving = tabSlot.tabId;
+                const partnerId = tabSlot.lastPartnerId;
+                const pane = Qt.rect(engine.x, 0, engine.width, engine.height);
+                const direction = pane.x > 0 ? 1 : -1;
+                Qt.callLater(function () {
+                    if (root.shownTabIds[leaving])
+                        return;
+                    const separated = !root.splitOnShow && root.activeEngine
+                          && root.activeEngine.visible && root.browserController
+                          && root.browserController.activeTabId === partnerId;
+                    if (separated)
+                        root.departEngine(leaving, pane, direction);
+                    else
+                        root.setEngineVisible(leaving, false);
+                });
             }
 
             function loadEngine() {
@@ -631,6 +863,15 @@ Item {
             onWantsEngineChanged: if (wantsEngine)
                                       loadEngine()
 
+            onShownChanged: {
+                if (shown) {
+                    everActive = true;
+                    loadEngine();
+                } else {
+                    hideEngine();
+                }
+            }
+
             onActiveChanged: {
                 if (active) {
                     everActive = true;
@@ -642,12 +883,24 @@ Item {
                     // forward would answer for another tab's history.
                     if (!engine)
                         root.activeEngine = null;
-                } else if (engine) {
-                    root.setEngineVisible(tabId, false);
+                } else if (engine && shown) {
+                    // Focus left for the other half: this page stays on show
+                    // and stops answering.
+                    if (root.activeEngine === engine)
+                        root.activeEngine = null;
+                    showEngine();
                 }
             }
 
+            // Becoming the tab beside, with an engine already: shown as such.
+            // Ceasing to be it is heard through `shown` or `active`, and read
+            // there rather than here, since `shown` may not have followed
+            // this change yet when this handler runs.
+            onTabBesideChanged: if (engine && tabBeside)
+                                    showEngine()
+
             Component.onCompleted: {
+                lastPartnerId = splitPartnerId;
                 loadEngine();
             }
 
@@ -661,6 +914,8 @@ Item {
                     root.setEngineVisible(tabId, false);
                     if (root.activeEngine === engine)
                         root.activeEngine = null;
+                    if (root.besideEngine === engine)
+                        root.besideEngine = null;
                 } else {
                     root.discardEngine(tabId);
                 }
@@ -799,6 +1054,61 @@ Item {
                 }
             }
         }
+    }
+
+    // A press in the tab beside makes it the active tab. The handler is a
+    // passive one, so the press reaches the page as well: focusing a pane is
+    // not a click the page loses.
+    Item {
+        objectName: "tabBesidePane"
+        visible: root.splitOnShow && root.besideEngine !== null
+        x: root.besideEngine ? root.besideEngine.x : 0
+        width: root.besideEngine ? root.besideEngine.width : 0
+        height: root.height
+        z: 5
+
+        PointHandler {
+            acceptedButtons: Qt.AllButtons
+            onActiveChanged: {
+                if (active && root.browserController)
+                    root.browserController.activateTab(root.tabBesideId);
+            }
+        }
+    }
+
+    // The seam between the panes, drawn as the sidebar draws its own, and the
+    // handle over it that moves it.
+    Rectangle {
+        objectName: "splitDivider"
+        visible: root.splitOnShow && !root.siteFullscreenActive
+        x: root.leftPaneWidth
+        width: root.dividerWidth
+        height: root.height
+        z: 5
+        color: root.colors && root.colors.separator !== undefined ? root.colors.separator :
+                                                                    "transparent"
+
+    }
+
+    PanelResizer {
+        id: splitResizer
+        objectName: "splitResizer"
+        visible: root.splitOnShow && !root.siteFullscreenActive
+        enabled: visible
+        height: parent.height
+        x: root.leftPaneWidth + root.dividerWidth / 2 - width / 2
+        z: 6
+        colors: root.colors
+        panelName: "Left pane"
+        currentWidth: root.leftPaneWidth
+        minimumWidth: root.paneMinimumWidth
+        maximumWidth: Math.max(root.paneMinimumWidth, root.width - root.paneMinimumWidth)
+        defaultWidth: Math.round(root.width / 2)
+
+        onWidthRequested: function (width) {
+            root.setLeftPaneWidth(width);
+        }
+        onPageFocusRequested: root.focusPage()
     }
 
     Connections {

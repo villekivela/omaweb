@@ -102,6 +102,7 @@ Rectangle {
                 return;
             }
             spaceArrival.stop();
+            root.settledTabItem = null;
             root.settledTabX = -1;
             root.settledTabY = -1;
             root.switchDirection = to > from ? 1 : -1;
@@ -261,16 +262,74 @@ Rectangle {
     property real settledTabY: -1
     property real tabOffsetX: 0
     property real tabOffsetY: 0
+    // The row of the tab beside, while a split is on show. A pane arriving
+    // beside the page on show comes from this row, the way a page arrives
+    // from its own.
+    property var besideTabItem: null
+    // The row the page on show was measured from, which is the row that was
+    // active when the last arrival was settled.
+    property var settledTabItem: null
+    // Set while focus is moving between the halves of a split, for the rest
+    // of the turn: the half that was active is announced as beside after the
+    // other half is announced as active, and neither arrival is one.
+    property bool focusMoving: false
+    // Set while a row's arrival is being measured, for the rest of the turn:
+    // a split whose row arrived whole comes on show with the active half's
+    // move, not with one of its own.
+    property bool activeArriving: false
+    onBesideTabItemChanged: {
+        if (besideTabItem === null || activeTabItem === null || !easeSpaces || arriving)
+            return;
+        // The page that was on show is now the tab beside: focus moved to the
+        // other half, or a blank tab was put beside it, and nothing arrived.
+        // A row that arrived whole, both halves with it, is already on its
+        // way from the active half's move.
+        if (focusMoving || activeArriving || besideTabItem === settledTabItem)
+            return;
+        // The row is heard of before the model has finished saying what it
+        // is: its own half of the pairing lands after the other half's. The
+        // measurement waits a turn for both, and for the list to have placed
+        // the row where it now belongs.
+        const beside = besideTabItem;
+        Qt.callLater(function () {
+            if (root.besideTabItem !== beside || root.activeTabItem === null)
+                return;
+            ordinarySection.forceLayout();
+            const at = beside.mapToItem(root, 0, 0);
+            const from = root.activeTabItem.mapToItem(root, 0, 0);
+            if (at.x === from.x)
+                return;
+            root.tabOffsetY = 0;
+            root.tabOffsetX = at.x > from.x ? 10 : -10;
+            tabArrival.restart();
+        });
+    }
     onActiveTabItemChanged: {
         if (activeTabItem === null)
             return;
         const at = activeTabItem.mapToItem(root, 0, 0);
         const fromX = settledTabX;
         const fromY = settledTabY;
+        // Focus moving to the other half of a split shows nothing new, so
+        // nothing arrives: the row now active is the partner of the row the
+        // page on show was measured from.
+        const focusMoved = settledTabItem !== null && activeTabItem.splitPartnerId
+              === settledTabItem.tabId;
+        if (focusMoved) {
+            focusMoving = true;
+            Qt.callLater(function () {
+                root.focusMoving = false;
+            });
+        }
+        settledTabItem = activeTabItem;
         settledTabX = at.x;
         settledTabY = at.y;
-        if (!easeSpaces || arriving || fromY < 0)
+        if (!easeSpaces || arriving || fromY < 0 || focusMoved)
             return;
+        activeArriving = true;
+        Qt.callLater(function () {
+            root.activeArriving = false;
+        });
         // Rows stand under one another, so a different row is a vertical
         // move; pins stand beside one another, so the same row and a
         // different column is a horizontal one.
@@ -791,13 +850,19 @@ Rectangle {
                 x: root.arrivalOffset * listLayer.width
             }
 
-            Column {
+            // A flow rather than a column: a split's two tabs are one row of
+            // two, so each takes half the width and the two share a line,
+            // while every other row takes the whole width and a line of its
+            // own. The pair stands together in the model, which is what puts
+            // the two halves on one line.
+            Flow {
                 id: ordinarySection
                 objectName: "ordinaryList"
                 width: tabScroll.availableWidth
 
                 // The list gaps its rows as the pinned section gaps its pins, so
-                // the two halves of the sidebar read as one list.
+                // the two halves of the sidebar read as one list, and the two
+                // halves of a split row as a row of the kit's distinct options.
                 spacing: pinnedSection.spacing
 
                 Repeater {
@@ -807,7 +872,7 @@ Rectangle {
                         id: ordinaryRow
                         required property int index
                         placeInSection: index
-                        width: parent.width
+                        width: inSplit ? (parent.width - ordinarySection.spacing) / 2 : parent.width
                         colors: root.colors
                         iconFontFamily: root.iconFontFamily
                         useFavicons: root.useFavicons
@@ -831,8 +896,20 @@ Rectangle {
                         }
                         onActiveChanged: if (active)
                                              root.activeTabItem = this
-                        Component.onCompleted: if (active)
-                                                   root.activeTabItem = this
+                        onTabBesideChanged: {
+                            if (tabBeside)
+                                root.besideTabItem = this;
+                            else if (root.besideTabItem === this)
+                                root.besideTabItem = null;
+                        }
+                        Component.onCompleted: {
+                            if (active)
+                                root.activeTabItem = this;
+                            if (tabBeside)
+                                root.besideTabItem = this;
+                        }
+                        Component.onDestruction: if (root.besideTabItem === this)
+                                                     root.besideTabItem = null
                     }
                 }
             }

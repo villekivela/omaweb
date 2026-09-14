@@ -164,6 +164,15 @@ an inspector is attached to, a tab making sound, and a Pinned tab marked Keep ac
 reader asking for a page that goes on running while they are elsewhere. The first two stop being
 exempt as soon as the reason does, and the third when the setting is taken away.
 
+A split is what makes the rule show two pages at once. The core holds it as two tabs of one Space
+naming each other, side by side in the tab model with the left one first and one of them focused,
+and answers the split on show, the active tab's, as its left and right tab and the tab beside. The
+engine host draws both engines, each in its pane of the same host, and routes every command for "the
+page on show" to the active engine as before; the tab beside is visible, so the freeze rule runs it
+without a new case, and it stops with the Space like any other page. The pairing is written with the
+Space's tabs and read back on every load, where anything that does not add up to a whole split is
+read as ordinary tabs; the Sync projection never carries it.
+
 A tab holding the camera, a microphone or the screen is not named in that rule and does not need to
 be. The engine refuses to freeze a page that is capturing and says so by recommending Active for a
 view that is hidden, and the Qt adapter applies the shell's decision against that recommendation

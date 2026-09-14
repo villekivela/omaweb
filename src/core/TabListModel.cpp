@@ -46,6 +46,12 @@ QVariant TabListModel::data(const QModelIndex &index, int role) const
         return tab.keepActive;
     case SoundSuppressedRole:
         return tab.soundSuppressed;
+    case SplitPartnerIdRole:
+        return tab.splitPartnerId;
+    case TabBesideRole: {
+        const auto *partner = tab.splitPartnerId.isEmpty() ? nullptr : find(tab.splitPartnerId);
+        return partner && partner->active && !tab.active;
+    }
     default:
         return {};
     }
@@ -67,6 +73,8 @@ QHash<int, QByteArray> TabListModel::roleNames() const
         {ZoomRole, "tabZoom"},
         {KeepActiveRole, "tabKeepActive"},
         {SoundSuppressedRole, "tabSoundSuppressed"},
+        {SplitPartnerIdRole, "splitPartnerId"},
+        {TabBesideRole, "tabBeside"},
     };
 }
 
@@ -154,10 +162,29 @@ bool TabListModel::move(const QString &id, qsizetype destinationRow)
 void TabListModel::notifyChanged(const QString &id, const QList<int> &roles)
 {
     for (qsizetype row = 0; row < m_tabs.size(); ++row) {
-        if (m_tabs.at(row).id == id) {
+        if (m_tabs.at(row).id != id) {
+            continue;
+        }
+        const auto &partnerId = m_tabs.at(row).splitPartnerId;
+        const auto besideMayChange = !partnerId.isEmpty()
+            && (roles.contains(ActiveRole) || roles.contains(SplitPartnerIdRole));
+        // Whether either half is the tab beside reads off both halves' active
+        // flags, so a change to one is announced for both.
+        if (besideMayChange && !roles.contains(TabBesideRole)) {
+            emit dataChanged(index(row), index(row), roles + QList<int> {TabBesideRole});
+        } else {
             emit dataChanged(index(row), index(row), roles);
+        }
+        if (!besideMayChange) {
             return;
         }
+        for (qsizetype partnerRow = 0; partnerRow < m_tabs.size(); ++partnerRow) {
+            if (m_tabs.at(partnerRow).id == partnerId) {
+                emit dataChanged(index(partnerRow), index(partnerRow), {TabBesideRole});
+                return;
+            }
+        }
+        return;
     }
 }
 

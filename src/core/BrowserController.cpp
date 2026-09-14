@@ -147,6 +147,10 @@ BrowserController::BrowserController(std::shared_ptr<SessionStore> store, QThrea
     connect(&m_tabs, &QAbstractItemModel::rowsRemoved, this, [this] { refreshAtRest(); });
     connect(&m_tabs, &QAbstractItemModel::dataChanged, this, [this] { refreshAtRest(); });
     connect(&m_tabs, &QAbstractItemModel::modelReset, this, [this] { refreshAtRest(); });
+    // The split on show is the active tab's, so every route to a new active
+    // tab, a tab opened, reopened or duplicated as much as one selected, is a
+    // route to a new answer.
+    connect(this, &BrowserController::activeTabChanged, this, [this] { refreshSplit(); });
     loadDownloadDirectory();
     initialize();
     // Built once the store is open, because it reads the Space's Download
@@ -291,6 +295,50 @@ bool BrowserController::activeTabInspected() const
     return !m_developerToolsTabId.isEmpty() && m_developerToolsTabId == m_activeTabId;
 }
 
+// Left is the earlier of the two in the list: the pair stands side by side
+// there, and the page area lays the panes out in the same order.
+std::pair<QString, QString> BrowserController::splitOnShowPair() const
+{
+    const auto beside = tabBesideId();
+    if (beside.isEmpty()) {
+        return {};
+    }
+    return tabRow(beside) < tabRow(m_activeTabId) ? std::pair {beside, m_activeTabId}
+                                                  : std::pair {m_activeTabId, beside};
+}
+
+QString BrowserController::splitLeftTabId() const { return splitOnShowPair().first; }
+
+QString BrowserController::splitRightTabId() const { return splitOnShowPair().second; }
+
+QString BrowserController::tabBesideId() const
+{
+    const auto *active = m_tabs.find(m_activeTabId);
+    if (!active || active->splitPartnerId.isEmpty() || !m_tabs.find(active->splitPartnerId)) {
+        return {};
+    }
+    return active->splitPartnerId;
+}
+
+bool BrowserController::splitOnShow() const { return !tabBesideId().isEmpty(); }
+
+bool BrowserController::tabInSplit(const QString &tabId) const
+{
+    const auto *tab = m_tabs.find(tabId);
+    return tab && !tab->splitPartnerId.isEmpty();
+}
+
+QStringList BrowserController::splittableTabIds() const
+{
+    QStringList ids;
+    for (const auto &tab : m_tabs.items()) {
+        if (!tab.pinned && tab.splitPartnerId.isEmpty() && tab.id != m_activeTabId) {
+            ids.append(tab.id);
+        }
+    }
+    return ids;
+}
+
 bool BrowserController::activeRendererFailed() const
 {
     const auto *tab = m_tabs.find(m_activeTabId);
@@ -386,6 +434,192 @@ void BrowserController::activateTab(const QString &tabId)
         return;
     }
     setActiveTab(tabId);
+}
+
+// The list read as rows: a split's two tabs are one stop, counted at the left
+// one, and the stop holding the active tab is where the count starts.
+void BrowserController::stepTab(int delta)
+{
+    QStringList stops;
+    qsizetype current = 0;
+    const auto &items = m_tabs.items();
+    for (qsizetype row = 0; row < items.size(); ++row) {
+        const auto &tab = items.at(row);
+        if (!tab.splitPartnerId.isEmpty() && tabRow(tab.splitPartnerId) < row) {
+            continue;
+        }
+        if (tab.id == m_activeTabId || tab.splitPartnerId == m_activeTabId) {
+            current = stops.size();
+        }
+        stops.append(tab.id);
+    }
+    if (stops.isEmpty()) {
+        return;
+    }
+    const auto next = (current + delta % stops.size() + stops.size()) % stops.size();
+    activateTab(splitEntryTab(stops.at(next)));
+}
+
+QString BrowserController::splitEntryTab(const QString &tabId) const
+{
+    const auto *tab = m_tabs.find(tabId);
+    if (!tab || tab->splitPartnerId.isEmpty() || tab->splitFocused) {
+        return tabId;
+    }
+    const auto *partner = m_tabs.find(tab->splitPartnerId);
+    return partner && partner->splitFocused ? partner->id : tabId;
+}
+
+bool BrowserController::addSplit(const QString &tabId)
+{
+    const auto *active = m_tabs.find(m_activeTabId);
+    if (!active || active->pinned || !active->splitPartnerId.isEmpty()) {
+        return false;
+    }
+    const auto activeRow = tabRow(m_activeTabId);
+    // The tab beside goes to the right of the active tab: the row the split
+    // takes is the active tab's, and the partner leaves its own.
+    if (tabId.isEmpty() || tabId == m_activeTabId) {
+        auto blank = makeBlankTab(m_activeSpaceId);
+        const auto leftTabId = m_activeTabId;
+        if (auto *current = m_tabs.find(leftTabId)) {
+            current->active = false;
+            m_tabs.notifyChanged(current->id, {TabListModel::ActiveRole});
+        }
+        m_tabs.insert(blank, activeRow + 1);
+        m_activeTabId = blank.id;
+        pairTabs(leftTabId, blank.id);
+    } else {
+        const auto *partner = m_tabs.find(tabId);
+        if (!partner || partner->pinned || !partner->splitPartnerId.isEmpty()) {
+            return false;
+        }
+        const auto partnerRow = tabRow(tabId);
+        m_tabs.move(tabId, partnerRow < activeRow ? activeRow : activeRow + 1);
+        pairTabs(m_activeTabId, tabId);
+    }
+    refreshSoundSuppression();
+    persistTabs();
+    refreshSplit();
+    emit activeTabChanged();
+    return true;
+}
+
+bool BrowserController::separateSplit(const QString &tabId)
+{
+    const auto separated = tabId.isEmpty() ? m_activeTabId : tabId;
+    const auto *tab = m_tabs.find(separated);
+    if (!tab || tab->splitPartnerId.isEmpty()) {
+        return false;
+    }
+    unpairTab(separated);
+    persistTabs();
+    refreshSplit();
+    return true;
+}
+
+bool BrowserController::focusSplitPartner()
+{
+    const auto beside = tabBesideId();
+    if (beside.isEmpty()) {
+        return false;
+    }
+    setActiveTab(beside);
+    return true;
+}
+
+// Focus goes to whichever half is the active tab, and the other half is the
+// tab beside: what the interface reads to show one page and answer for the
+// other.
+void BrowserController::pairTabs(const QString &leftTabId, const QString &rightTabId)
+{
+    auto *left = m_tabs.find(leftTabId);
+    auto *right = m_tabs.find(rightTabId);
+    left->splitPartnerId = rightTabId;
+    left->splitFocused = leftTabId == m_activeTabId;
+    right->splitPartnerId = leftTabId;
+    right->splitFocused = rightTabId == m_activeTabId;
+    for (const auto &id : {leftTabId, rightTabId}) {
+        m_tabs.notifyChanged(id, {TabListModel::SplitPartnerIdRole, TabListModel::TabBesideRole});
+    }
+}
+
+void BrowserController::unpairTab(const QString &tabId)
+{
+    auto *tab = m_tabs.find(tabId);
+    if (!tab || tab->splitPartnerId.isEmpty()) {
+        return;
+    }
+    const auto partnerId = tab->splitPartnerId;
+    tab->splitPartnerId.clear();
+    tab->splitFocused = false;
+    if (auto *partner = m_tabs.find(partnerId)) {
+        partner->splitPartnerId.clear();
+        partner->splitFocused = false;
+    }
+    for (const auto &id : {tabId, partnerId}) {
+        m_tabs.notifyChanged(id, {TabListModel::SplitPartnerIdRole, TabListModel::TabBesideRole});
+    }
+}
+
+void BrowserController::refreshSplit()
+{
+    const QStringList split {splitLeftTabId(), splitRightTabId(), tabBesideId()};
+    if (split == m_announcedSplit) {
+        return;
+    }
+    m_announcedSplit = split;
+    emit splitChanged();
+}
+
+void BrowserController::repairSplits(QVector<TabState> &tabs, const QString &activeTabId)
+{
+    const auto rowOf = [&tabs](const QString &id) {
+        for (qsizetype row = 0; row < tabs.size(); ++row) {
+            if (tabs.at(row).id == id) {
+                return row;
+            }
+        }
+        return qsizetype {-1};
+    };
+    for (qsizetype row = 0; row < tabs.size(); ++row) {
+        auto &tab = tabs[row];
+        if (tab.splitPartnerId.isEmpty()) {
+            tab.splitFocused = false;
+            continue;
+        }
+        const auto partnerRow = rowOf(tab.splitPartnerId);
+        const auto paired = partnerRow >= 0 && partnerRow != row
+            && tabs.at(partnerRow).splitPartnerId == tab.id && !tab.pinned
+            && !tabs.at(partnerRow).pinned;
+        if (!paired) {
+            tab.splitPartnerId.clear();
+            tab.splitFocused = false;
+        }
+    }
+    for (qsizetype row = 0; row < tabs.size(); ++row) {
+        const auto partnerRow = tabs.at(row).splitPartnerId.isEmpty()
+            ? qsizetype {-1}
+            : rowOf(tabs.at(row).splitPartnerId);
+        if (partnerRow <= row) {
+            continue;
+        }
+        if (partnerRow != row + 1) {
+            tabs.move(partnerRow, row + 1);
+        }
+        auto &left = tabs[row];
+        auto &right = tabs[row + 1];
+        // The active tab is the focused half while the split is on show; away
+        // from it the record stands, and a record that names neither half or
+        // both is read as the left one.
+        if (left.id == activeTabId || right.id == activeTabId) {
+            left.splitFocused = left.id == activeTabId;
+            right.splitFocused = right.id == activeTabId;
+        } else if (left.splitFocused == right.splitFocused) {
+            left.splitFocused = true;
+            right.splitFocused = false;
+        }
+    }
 }
 
 QString BrowserController::createSpace(const QString &name)
@@ -632,16 +866,29 @@ bool BrowserController::confirmTabMoveToSpace(
     }
 
     const auto movingActiveTab = tabId == m_activeTabId;
+    // A tab leaving the Space leaves its split too: the pairing is written to
+    // neither Space, and the tab that stays is an ordinary row again.
+    // Written unpaired to both Spaces before the model is touched, so a write
+    // that fails leaves the split standing.
+    const auto partnerId = sourceTab->splitPartnerId;
     auto sourceTabs = m_tabs.items();
     TabState movedTab = *sourceTab;
+    movedTab.splitPartnerId.clear();
+    movedTab.splitFocused = false;
     sourceTabs.removeIf([&tabId](const TabState &tab) { return tab.id == tabId; });
+    for (auto &tab : sourceTabs) {
+        if (tab.id == partnerId) {
+            tab.splitPartnerId.clear();
+            tab.splitFocused = false;
+        }
+    }
     QString sourceActiveTabId = m_activeTabId;
     if (sourceTabs.isEmpty()) {
         auto blankTab = makeBlankTab(m_activeSpaceId);
         sourceActiveTabId = blankTab.id;
         sourceTabs.append(blankTab);
     } else if (movingActiveTab) {
-        sourceActiveTabId = sourceTabs.first().id;
+        sourceActiveTabId = partnerId.isEmpty() ? sourceTabs.first().id : partnerId;
     }
 
     auto destinationTabs = m_store->loadTabs(destinationSpaceId);
@@ -672,6 +919,7 @@ bool BrowserController::confirmTabMoveToSpace(
         closeDeveloperTools();
     }
     m_livePageStates.remove(tabId);
+    unpairTab(tabId);
     m_activeTabId = sourceActiveTabId;
     m_tabs.remove(tabId);
     if (m_tabs.rowCount() == 0) {
@@ -682,6 +930,7 @@ bool BrowserController::confirmTabMoveToSpace(
         m_tabs.notifyChanged(replacement->id, {TabListModel::ActiveRole});
     }
     refreshRetainedTabs();
+    refreshSplit();
     emit activeTabChanged();
     return true;
 }
@@ -794,9 +1043,15 @@ void BrowserController::closeTab(const QString &tabId)
     }
 
     rememberClosedTab(*tab);
+    // A split ends with either of its tabs, and the survivor is an ordinary
+    // row. Closing the active half shows the tab that was beside it, which is
+    // the page the reader was already looking at.
+    const auto partnerId = tab->splitPartnerId;
+    unpairTab(tabId);
     if (tabId != m_activeTabId) {
         m_tabs.remove(tabId);
         schedulePersistTabs();
+        refreshSplit();
         return;
     }
 
@@ -809,19 +1064,26 @@ void BrowserController::closeTab(const QString &tabId)
         nextId = items.at(index == 0 ? 1 : index - 1).id;
         break;
     }
+    if (!partnerId.isEmpty()) {
+        nextId = partnerId;
+    }
 
     m_tabs.remove(tabId);
     setActiveTab(nextId);
 }
 
+// Both sweeps are about the other rows, and a split is one row: the tab beside
+// the one the command was asked on is spared with it.
 void BrowserController::closeOtherTabs(const QString &tabId)
 {
-    if (!m_tabs.find(tabId)) {
+    const auto *anchor = m_tabs.find(tabId);
+    if (!anchor) {
         return;
     }
+    const auto sparedId = anchor->splitPartnerId;
     QStringList doomed;
     for (const auto &tab : m_tabs.items()) {
-        if (!tab.pinned && tab.id != tabId) {
+        if (!tab.pinned && tab.id != tabId && tab.id != sparedId) {
             doomed.append(tab.id);
         }
     }
@@ -838,6 +1100,7 @@ void BrowserController::closeTabsBelow(const QString &tabId)
     if (!anchor || anchor->pinned) {
         return;
     }
+    const auto sparedId = anchor->splitPartnerId;
     QStringList doomed;
     bool below = false;
     for (const auto &tab : m_tabs.items()) {
@@ -845,7 +1108,7 @@ void BrowserController::closeTabsBelow(const QString &tabId)
             below = true;
             continue;
         }
-        if (below && !tab.pinned) {
+        if (below && !tab.pinned && tab.id != sparedId) {
             doomed.append(tab.id);
         }
     }
@@ -960,7 +1223,13 @@ QString BrowserController::duplicateTab(const QString &tabId)
     // A pin is the Space's furniture rather than something a copy inherits, and
     // zoom and muting are decisions about the tab the reader made, not about
     // the address. So the duplicate is an ordinary tab at 100 percent, unmuted.
-    const auto destination = source->pinned ? m_tabs.items().size() : tabRow(tabId) + 1;
+    // A split's two tabs stay side by side, so a copy of its left half lands
+    // after the right one rather than between them.
+    auto after = tabId;
+    if (!source->splitPartnerId.isEmpty() && tabRow(source->splitPartnerId) > tabRow(tabId)) {
+        after = source->splitPartnerId;
+    }
+    const auto destination = source->pinned ? m_tabs.items().size() : tabRow(after) + 1;
 
     if (auto *current = m_tabs.find(m_activeTabId)) {
         current->active = false;
@@ -1015,10 +1284,12 @@ int BrowserController::tabSectionCount(const QString &tabId) const
     return static_cast<int>(tab->pinned ? pinned : m_tabs.items().size() - pinned);
 }
 
+// A split's tabs are one row and stay where they are: moving one would either
+// part the pair or move the row, and neither is what a step of one tab means.
 bool BrowserController::moveTab(const QString &tabId, int destinationIndex)
 {
     const auto *tab = m_tabs.find(tabId);
-    if (!tab) {
+    if (!tab || !tab->splitPartnerId.isEmpty()) {
         return false;
     }
     const auto pinned = pinnedTabCount();
@@ -1053,7 +1324,9 @@ void BrowserController::toggleActivePinned()
         return;
     }
     auto *tab = m_tabs.find(m_activeTabId);
-    if (!tab) {
+    // A split holds ordinary tabs only, so one of them is separated before it
+    // can be pinned.
+    if (!tab || !tab->splitPartnerId.isEmpty()) {
         return;
     }
 
@@ -2204,9 +2477,11 @@ void BrowserController::reloadSyncedState()
     for (auto &tab : tabs) {
         tab.active = tab.id == m_activeTabId;
     }
+    repairSplits(tabs, m_activeTabId);
     m_tabs.reset(std::move(tabs));
     loadClosedTabs();
     refreshRetainedTabs();
+    refreshSplit();
     emit spaceSuspended(previousSpace, {});
     emit spaceRestored(m_activeSpaceId);
     emit activeSpaceChanged();
@@ -2293,9 +2568,11 @@ void BrowserController::ensureActiveTab()
         }
     }
     m_activeTabId = active->id;
+    repairSplits(tabs, m_activeTabId);
     m_tabs.reset(std::move(tabs));
     refreshSoundSuppression();
     persistTabs();
+    refreshSplit();
 }
 
 bool BrowserController::persistTabs()
@@ -2324,19 +2601,32 @@ void BrowserController::schedulePersistTabs()
     m_persistTabsTimer.start();
 }
 
+// The tab becoming active is announced before the one it replaces: a half of a
+// split losing focus to the other half is still on show, and the interface
+// hears that it is the tab beside before it hears that it is no longer active,
+// so its page is never hidden on the way.
 void BrowserController::setActiveTab(const QString &tabId)
 {
+    if (auto *tab = m_tabs.find(tabId); tab && !tab->active) {
+        tab->active = true;
+        m_tabs.notifyChanged(tab->id, {TabListModel::ActiveRole});
+    }
     for (const auto &item : m_tabs.items()) {
-        if (auto *tab = m_tabs.find(item.id)) {
-            const auto shouldBeActive = tab->id == tabId;
-            if (tab->active != shouldBeActive) {
-                tab->active = shouldBeActive;
-                m_tabs.notifyChanged(tab->id, {TabListModel::ActiveRole});
-            }
+        if (auto *tab = m_tabs.find(item.id); tab && tab->active && tab->id != tabId) {
+            tab->active = false;
+            m_tabs.notifyChanged(tab->id, {TabListModel::ActiveRole});
         }
     }
     m_activeTabId = tabId;
+    // Entering a split's half is what the split is later re-entered on.
+    if (auto *tab = m_tabs.find(tabId); tab && !tab->splitPartnerId.isEmpty()) {
+        tab->splitFocused = true;
+        if (auto *partner = m_tabs.find(tab->splitPartnerId)) {
+            partner->splitFocused = false;
+        }
+    }
     schedulePersistTabs();
+    refreshSplit();
     emit activeTabChanged();
 }
 
