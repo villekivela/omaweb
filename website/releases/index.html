@@ -1,0 +1,76 @@
+<!doctype html>
+<!--
+  The fallback. `website/build/site.mjs` overwrites this in `dist/` with the
+  newest release's notes, and writes a page per version beside it, whenever it
+  can reach the GitHub API. This is what deploys when it cannot: a page that
+  says where the releases are rather than a build that failed.
+
+  Nothing here is a copy of a release. The notes live on the tags and are
+  fetched at build time, so there is nothing in this repository to fall behind
+  them.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Omaweb releases</title>
+    <meta name="description" content="Every published Omaweb release and what changed in it." />
+    <meta name="application-name" content="Omaweb" />
+    <meta name="robots" content="index, follow" />
+    <meta name="theme-color" content="#06060c" />
+    <meta property="og:type" content="article" />
+    <meta property="og:site_name" content="Omaweb" />
+    <meta property="og:title" content="Omaweb releases" />
+    <meta property="og:description" content="Every published Omaweb release and its notes." />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="Omaweb releases" />
+    <meta name="twitter:description" content="Every published Omaweb release and its notes." />
+    <link rel="icon" href="../favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="../styles.css" />
+    <link rel="stylesheet" href="../themes.css" />
+  </head>
+
+  <body data-theme="hackerman">
+    <canvas class="t-rain" aria-hidden="true"></canvas>
+
+    <div class="t-wrap">
+      <header class="t-top">
+        <a href="../">
+          <img
+            data-themed="../assets/icons/wordmark-{theme}.svg"
+            src="../assets/icons/wordmark-hackerman.svg"
+            width="160"
+            height="20"
+            alt="Omaweb"
+          />
+        </a>
+        <nav class="t-nav" aria-label="Sections">
+          <a href="../features/">Features</a>
+          <a href="../docs/">Docs</a>
+          <a href="./" aria-current="page">Releases</a>
+          <a href="../#install">Install</a>
+        </nav>
+      </header>
+
+      <section class="t-hero t-hero--short">
+        <p class="t-section__index">Release notes</p>
+        <h1>The releases are on GitHub.</h1>
+        <p>
+          This page normally carries every release and its notes, read from the tags when the site
+          is built. That read did not happen for this deploy, so here is where they live instead.
+        </p>
+        <div class="t-hero__actions">
+          <a class="btn btn--emphasis" href="https://github.com/villekivela/omaweb/releases"
+            >Every release on GitHub</a
+          >
+        </div>
+      </section>
+
+      <footer class="t-foot">
+        <span>Omaweb &middot; alpha &middot; MPL 2.0</span>
+        <a href="https://github.com/villekivela/omaweb">github.com/villekivela/omaweb</a>
+      </footer>
+    </div>
+    <script src="../script.js"></script>
+  </body>
+</html>

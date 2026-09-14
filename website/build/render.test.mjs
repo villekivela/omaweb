@@ -1,18 +1,11 @@
-// The release notes are written into the site at build time, so nothing here
-// runs in a reader's browser and no test needs one. `node --test` is the whole
-// harness; CI runs it in the job that already installs Node for the
-// formatters.
+// The release pages are written at build time, so nothing here runs in a
+// reader's browser and no test needs one. `node --test` is the whole harness;
+// CI runs it in the job that already installs Node for the formatters.
 
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import {
-  markdownToHtml,
-  releasePath,
-  renderReleaseList,
-  renderReleasePage,
-  writeReleases,
-} from "./render.mjs";
+import { markdownToHtml, releasePath, renderReleaseNav, renderReleasePage } from "./render.mjs";
 
 test("markdown: a heading of any depth becomes h3, under the page's own h1", () => {
   assert.equal(markdownToHtml("### Features"), "<h3>Features</h3>");
@@ -96,12 +89,16 @@ const RELEASE = {
       browser_download_url: "https://github.com/villekivela/omaweb/releases/download/v0.3.0/pkg",
       size: 10686839,
     },
-    {
-      name: "omaweb-v0.3.0-sbom.json",
-      browser_download_url: "https://github.com/villekivela/omaweb/releases/download/v0.3.0/sbom",
-      size: 26925,
-    },
   ],
+};
+
+const OLDER = {
+  ...RELEASE,
+  tag_name: "v0.2.1",
+  name: "v0.2.1",
+  published_at: "2026-09-09T12:20:29Z",
+  html_url: "https://github.com/villekivela/omaweb/releases/tag/v0.2.1",
+  body: "Changes since v0.2.0.\n",
 };
 
 test("path: a tag becomes a directory of its own, and an unusable one becomes nothing", () => {
@@ -111,101 +108,83 @@ test("path: a tag becomes a directory of its own, and an unusable one becomes no
   assert.equal(releasePath(""), null);
 });
 
-test("list: each release is a row that opens its own page", () => {
-  const html = renderReleaseList([RELEASE, { ...RELEASE, tag_name: "v0.2.1", name: "v0.2.1" }]);
-  assert.match(html, /href="releases\/v0\.3\.0\/"/);
-  assert.match(html, /href="releases\/v0\.2\.1\/"/);
-  assert.equal((html.match(/<li class="t-release">/g) || []).length, 2);
+test("nav: every release is a row, addressed from the page's own depth", () => {
+  const nav = renderReleaseNav([RELEASE, OLDER], "v0.3.0", "../..");
+  assert.match(nav, /href="\.\.\/\.\.\/releases\/v0\.3\.0\/"/);
+  assert.match(nav, /href="\.\.\/\.\.\/releases\/v0\.2\.1\/"/);
+  assert.equal((nav.match(/<li>/g) || []).length, 2);
 });
 
-test("list: a row names its tag, its date and its state", () => {
-  const html = renderReleaseList([RELEASE]);
-  assert.match(html, /v0\.3\.0/);
-  assert.match(html, /<time datetime="2026-09-13">13 September 2026<\/time>/);
-  assert.match(html, /Prerelease/);
+test("nav: the release being read is marked as the current page", () => {
+  const nav = renderReleaseNav([RELEASE, OLDER], "v0.2.1", "..");
+  assert.match(nav, /href="\.\.\/releases\/v0\.2\.1\/" aria-current="page"/);
+  assert.equal(nav.includes('href="../releases/v0.3.0/" aria-current'), false);
 });
 
-test("list: the package is offered beside the row and the other assets are not", () => {
-  const html = renderReleaseList([RELEASE]);
-  assert.match(html, /releases\/download\/v0\.3\.0\/pkg/);
-  assert.equal(html.includes("/sbom"), false);
-  assert.match(html, /10\.2 MiB/);
+test("nav: a row carries the tag and a short date, in that order, for the columns", () => {
+  const nav = renderReleaseNav([RELEASE], "v0.3.0", "..");
+  assert.match(
+    nav,
+    /<span class="t-versions__tag">v0\.3\.0<\/span><time datetime="2026-09-13">13 Sept 2026<\/time>/,
+  );
 });
 
-test("list: a debug package is not the download", () => {
-  const debugOnly = {
-    ...RELEASE,
-    assets: [
-      {
-        name: "omaweb-git-debug-0.3.0-1-x86_64.pkg.tar.zst",
-        browser_download_url: "https://example.com/debug",
-        size: 1,
-      },
-    ],
-  };
-  assert.equal(renderReleaseList([debugOnly]).includes("https://example.com/debug"), false);
+test("nav: the list keeps its semantics where the bullets are styled away", () => {
+  assert.match(renderReleaseNav([RELEASE], "v0.3.0", ".."), /<ol class="t-versions" role="list">/);
 });
 
-test("list: a release whose tag cannot be a path is left out rather than guessed at", () => {
-  assert.equal(renderReleaseList([{ ...RELEASE, tag_name: "../x", name: "../x" }]), "");
+test("nav: a release whose tag cannot be a path is left out rather than guessed at", () => {
+  assert.equal(renderReleaseNav([{ ...RELEASE, tag_name: "../x" }], "v0.3.0", ".."), "");
 });
 
-test("list: the list keeps its semantics where the bullets are styled away", () => {
-  assert.match(renderReleaseList([RELEASE]), /<ol class="t-releases" role="list">/);
+test("nav: the site offers no package, so no asset reaches the markup", () => {
+  const nav = renderReleaseNav([RELEASE], "v0.3.0", "..");
+  assert.equal(nav.includes("pkg.tar.zst"), false);
+  assert.equal(nav.includes("/download/"), false);
 });
 
 const TEMPLATE = [
   "<title>{{title}}</title>",
   '<meta name="description" content="{{description}}" />',
+  '<link rel="stylesheet" href="{{root}}/styles.css" />',
+  "<nav>{{nav}}</nav>",
   "<h1>{{tag}}</h1>",
   "<p>{{marks}}</p>",
   "<div>{{notes}}</div>",
-  "<p>{{links}}</p>",
+  "<p>{{github}}</p>",
 ].join("\n");
 
-test("page: the template is filled with the release's own notes and links", () => {
-  const html = renderReleasePage(RELEASE, TEMPLATE);
+test("page: the template is filled with the release's notes, its siblings and its depth", () => {
+  const html = renderReleasePage(RELEASE, [RELEASE, OLDER], TEMPLATE, "../..");
   assert.match(html, /<title>Omaweb v0\.3\.0 release notes<\/title>/);
   assert.match(html, /<h1>v0\.3\.0<\/h1>/);
   assert.match(html, /<h3>Features<\/h3>/);
   assert.match(html, /close things the way they came/);
-  assert.match(html, /releases\/download\/v0\.3\.0\/pkg/);
+  assert.match(html, /href="\.\.\/\.\.\/styles\.css"/);
+  assert.match(html, /href="\.\.\/\.\.\/releases\/v0\.2\.1\/"/);
   assert.match(html, /releases\/tag\/v0\.3\.0/);
-  assert.match(html, /<time datetime="2026-09-13">/);
+  assert.match(html, /<time datetime="2026-09-13">13 September 2026<\/time>/);
+  assert.match(html, /Prerelease/);
 });
 
 test("page: no placeholder is left unfilled", () => {
-  assert.equal(renderReleasePage(RELEASE, TEMPLATE).includes("{{"), false);
+  assert.equal(renderReleasePage(RELEASE, [RELEASE], TEMPLATE, "..").includes("{{"), false);
 });
 
 test("page: a release with no body still renders, pointing at GitHub", () => {
-  const html = renderReleasePage({ ...RELEASE, body: "" }, TEMPLATE);
+  const html = renderReleasePage({ ...RELEASE, body: "" }, [RELEASE], TEMPLATE, "..");
   assert.match(html, /releases\/tag\/v0\.3\.0/);
+  assert.match(html, /published no notes/);
 });
 
 test("page: the description is attribute-safe whatever the release is called", () => {
-  const html = renderReleasePage({ ...RELEASE, name: 'v1 "beta"' }, TEMPLATE);
+  const odd = { ...RELEASE, name: 'v1 "beta"' };
+  const html = renderReleasePage(odd, [odd], TEMPLATE, "..");
   assert.match(html, /content="[^"]*&quot;beta&quot;[^"]*"/);
 });
 
-const PAGE = [
-  "<p>before</p>",
-  "<!-- releases:start -->",
-  "<p>the fallback</p>",
-  "<!-- releases:end -->",
-  "<p>after</p>",
-].join("\n");
-
-test("write: the block between the markers is replaced and the markers stay", () => {
-  const written = writeReleases(PAGE, "<p>the list</p>");
-  assert.match(written, /<!-- releases:start -->/);
-  assert.match(written, /<!-- releases:end -->/);
-  assert.match(written, /<p>the list<\/p>/);
-  assert.equal(written.includes("the fallback"), false);
-  assert.match(written, /<p>before<\/p>/);
-  assert.match(written, /<p>after<\/p>/);
-});
-
-test("write: a page without the markers is a build error, not a silent no-op", () => {
-  assert.throws(() => writeReleases("<p>nothing here</p>", "<p>x</p>"), /releases:start/);
+test("page: the site offers no package, so no asset reaches the markup", () => {
+  const html = renderReleasePage(RELEASE, [RELEASE], TEMPLATE, "..");
+  assert.equal(html.includes("pkg.tar.zst"), false);
+  assert.equal(html.includes("/download/"), false);
 });

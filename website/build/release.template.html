@@ -1,13 +1,16 @@
 <!doctype html>
 <!--
-  The page one release gets, filled in by build/render.mjs and written to
-  dist/releases/<tag>/index.html. It lives under build/ rather than beside the
-  site because it is not a page: its {{placeholders}} are not markup and it is
-  never deployed.
+  The page one release gets, filled in by build/render.mjs and written both to
+  dist/releases/index.html (the newest) and to dist/releases/<tag>/index.html.
+  It lives under build/ rather than beside the site because it is not a page:
+  its {{placeholders}} are not markup and it is never deployed.
 
-  Two levels down from the site root, so every path here climbs twice. The
-  chrome is the landing page's, down to the stylesheets and the script, so a
-  release page follows the reader's chosen theme like everything else.
+  Master and detail are both markup here, not a pane the script swaps. Every
+  version is its own address, so a release can be linked to and read with the
+  script blocked, and the list is the navigation rather than a control.
+
+  {{root}} is the way back to the site root, which differs between the two
+  places this is written to, so every path below is relative to it.
 -->
 <html lang="en">
   <head>
@@ -25,49 +28,54 @@
     <meta name="twitter:card" content="summary" />
     <meta name="twitter:title" content="{{title}}" />
     <meta name="twitter:description" content="{{description}}" />
-    <link rel="icon" href="../../favicon.svg" type="image/svg+xml" />
-    <link rel="stylesheet" href="../../styles.css" />
-    <link rel="stylesheet" href="../../themes.css" />
+    <link rel="icon" href="{{root}}/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="{{root}}/styles.css" />
+    <link rel="stylesheet" href="{{root}}/themes.css" />
   </head>
 
   <body data-theme="hackerman">
-    <canvas class="t-rain" aria-hidden="true"></canvas>
-
     <div class="t-wrap">
       <header class="t-top">
-        <a href="../../">
+        <a href="{{root}}/">
           <img
-            data-themed="../../assets/icons/wordmark-{theme}.svg"
-            src="../../assets/icons/wordmark-hackerman.svg"
+            data-themed="{{root}}/assets/icons/wordmark-{theme}.svg"
+            src="{{root}}/assets/icons/wordmark-hackerman.svg"
             width="160"
             height="20"
             alt="Omaweb"
           />
         </a>
         <nav class="t-nav" aria-label="Sections">
-          <a href="../../#features">Features</a>
-          <a href="../../#install">Install</a>
-          <a href="../../#docs">Docs</a>
-          <a href="../../#releases">Releases</a>
+          <a href="{{root}}/features/">Features</a>
+          <a href="{{root}}/docs/">Docs</a>
+          <a href="{{root}}/releases/" aria-current="true">Releases</a>
+          <a href="{{root}}/#install">Install</a>
         </nav>
       </header>
 
-      <section class="t-hero t-hero--short">
-        <p class="t-section__index">Release notes</p>
-        <h1>{{tag}}</h1>
-        <p class="t-release__marks">{{marks}}</p>
-        <div class="t-hero__actions">{{links}}</div>
-      </section>
+      <div class="t-detail">
+        <nav class="t-detail__master" aria-label="Releases">
+          <p class="t-detail__masthead">Versions</p>
+          {{nav}}
+          <a class="t-detail__all" href="https://github.com/villekivela/omaweb/releases"
+            >All releases on GitHub</a
+          >
+        </nav>
 
-      <section class="t-section">
-        <div class="t-prose">{{notes}}</div>
-      </section>
+        <main class="t-detail__pane">
+          <p class="t-section__index">Release notes</p>
+          <h1>{{tag}}</h1>
+          <p class="t-release__marks">{{marks}}</p>
+          <div class="t-prose">{{notes}}</div>
+          <p class="t-detail__foot">{{github}}</p>
+        </main>
+      </div>
 
       <footer class="t-foot">
         <span>Omaweb &middot; alpha &middot; MPL 2.0</span>
-        <a href="../../#releases">All releases</a>
+        <a href="https://github.com/villekivela/omaweb">github.com/villekivela/omaweb</a>
       </footer>
     </div>
-    <script src="../../script.js"></script>
+    <script src="{{root}}/script.js"></script>
   </body>
 </html>

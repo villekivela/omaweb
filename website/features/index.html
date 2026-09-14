@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>What is in Omaweb</title>
+    <meta
+      name="description"
+      content="What Omaweb does: Spaces, Split, the Omnibar, keyboard navigation, content blocking, site information, download safety, Sync and desktop themes."
+    />
+    <meta name="application-name" content="Omaweb" />
+    <meta name="robots" content="index, follow" />
+    <meta name="theme-color" content="#06060c" />
+    <meta property="og:type" content="article" />
+    <meta property="og:site_name" content="Omaweb" />
+    <meta property="og:title" content="What is in Omaweb" />
+    <meta
+      property="og:description"
+      content="The browser's features, listed: Spaces, Split, the Omnibar, keyboard navigation, content blocking and more."
+    />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="What is in Omaweb" />
+    <meta
+      name="twitter:description"
+      content="The browser's features, listed: Spaces, Split, the Omnibar, keyboard navigation, content blocking and more."
+    />
+    <link rel="icon" href="../favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="../styles.css" />
+    <link rel="stylesheet" href="../themes.css" />
+  </head>
+
+  <body data-theme="hackerman">
+    <canvas class="t-rain" aria-hidden="true"></canvas>
+
+    <div class="t-wrap">
+      <header class="t-top">
+        <a href="../">
+          <img
+            data-themed="../assets/icons/wordmark-{theme}.svg"
+            src="../assets/icons/wordmark-hackerman.svg"
+            width="160"
+            height="20"
+            alt="Omaweb"
+          />
+        </a>
+        <nav class="t-nav" aria-label="Sections">
+          <a href="./" aria-current="page">Features</a>
+          <a href="../docs/">Docs</a>
+          <a href="../releases/">Releases</a>
+          <a href="../#install">Install</a>
+        </nav>
+      </header>
+
+      <section class="t-hero t-hero--short">
+        <p class="t-section__index">Features</p>
+        <h1>What is in the browser.</h1>
+        <p>
+          Everything here works today, on the release you can download, unless the item says
+          otherwise. The <a href="../">landing page</a> says why the browser is the way it is; this
+          is what is actually in it.
+        </p>
+      </section>
+
+      <section class="t-section">
+        <!-- `role="list"`, because the CSS takes the bullets off and Safari
+             then stops reporting the element as a list at all. -->
+        <ul class="t-features" role="list">
+          <li class="t-feature">
+            <h2>Spaces</h2>
+            <p>
+              Separate browsing identities in one window. Each Space keeps its own cookies, logins,
+              history, permissions, sessions and tabs.
+            </p>
+          </li>
+          <li class="t-feature">
+            <h2>Split</h2>
+            <p>
+              Two tabs of a Space side by side where one webpage would be, listed as one sidebar
+              row. <span class="t-feature__when">Lands in the next release.</span>
+            </p>
+          </li>
+          <li class="t-feature">
+            <h2>The Omnibar</h2>
+            <p>
+              One centred overlay opens addresses, searches the web, selects tabs and Spaces, and
+              invokes browser commands. Every browser action is reachable from it.
+            </p>
+          </li>
+          <li class="t-feature">
+            <h2>Keyboard navigation</h2>
+            <p>
+              Configurable bindings, link hints, and a shortcut sheet generated from the keymap you
+              are actually running rather than from a written list of it.
+            </p>
+          </li>
+          <li class="t-feature">
+            <h2>Tabs that come back</h2>
+            <p>
+              Pinned tabs, Private windows, site-requested Auxiliary windows, and recently closed
+              tabs. Mark a Pinned tab Keep active and its page keeps running in the background.
+            </p>
+          </li>
+          <li class="t-feature">
+            <h2>Content blocking</h2>
+            <p>
+              EasyList, EasyPrivacy, cosmetic rules, Scriptlets and Substitute resources. Your own
+              rules use uBlock Origin&rsquo;s syntax, and Settings reports what each list
+              contributed and what it skipped.
+            </p>
+          </li>
+          <li class="t-feature">
+            <h2>Site information</h2>
+            <p>
+              Connection state, certificate errors, permissions, stored data and what Content
+              blocking did, for the page in front of you.
+            </p>
+          </li>
+          <li class="t-feature">
+            <h2>Downloads that ask first</h2>
+            <p>
+              A high-risk download is confirmed before it starts, loses its execute permission, and
+              is never opened for you.
+            </p>
+          </li>
+          <li class="t-feature">
+            <h2>Sync, if you want it</h2>
+            <p>
+              Optional, and local-only until you connect it. It copies Spaces, tabs, keybindings and
+              a few settings between your machines through a private repository you own.
+              <a href="../sync/">What it copies</a>.
+            </p>
+          </li>
+          <li class="t-feature">
+            <h2>Themes without a restart</h2>
+            <p>
+              Omaweb follows the desktop theme and can import terminal and Omarchy themes while it
+              is running.
+            </p>
+          </li>
+        </ul>
+      </section>
+
+      <section class="t-section">
+        <div class="t-section__head">
+          <div class="t-section__intro">
+            <h2>What Omaweb does not do.</h2>
+            <p>
+              These are scope decisions rather than unfinished work, so none of them is on the way.
+            </p>
+          </div>
+        </div>
+        <div class="t-cols t-cols--2">
+          <div>
+            <p>
+              No bookmarks, password management, third-party WebExtensions, Account system,
+              installed web applications, Reader mode, translation, browser-data import, View
+              source, spellchecking or DRM.
+            </p>
+          </div>
+          <div>
+            <p>
+              No telemetry, advertising identifier, browser account, hosted Omaweb service, push
+              service or automatic crash upload. The
+              <a href="https://github.com/villekivela/omaweb/blob/main/docs/network-requests.md"
+                >network request ledger</a
+              >
+              lists every automatic request the browser makes.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <footer class="t-foot">
+        <span>Omaweb &middot; alpha &middot; MPL 2.0</span>
+        <a href="https://github.com/villekivela/omaweb">github.com/villekivela/omaweb</a>
+      </footer>
+    </div>
+    <script src="../script.js"></script>
+  </body>
+</html>

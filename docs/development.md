@@ -505,11 +505,20 @@ cd website && node build/site.mjs   # write dist/, the site as it deploys
 node --test website/build/          # the rendering the build step does
 ```
 
-The build step fetches the published releases, writes the list into the `releases:start` block in
-`website/index.html`, and writes one page per release from `website/build/release.template.html`. It
-writes only into `dist/`, so a local run leaves the sources alone. Set `GITHUB_TOKEN` to raise the
-API rate limit; without one the unauthenticated limit applies and is shared with everything else
-building from the same address.
+The site is four pages a reader navigates between. `index.html` says what Omaweb is, `features/` and
+`docs/` are written by hand, and `releases/` is generated.
+
+The build step is the only generated part. It fetches the published releases and writes, from
+`website/build/release.template.html`, one page per version at `dist/releases/<tag>/index.html` plus
+`dist/releases/index.html` for the newest. Every page carries the whole version list beside the
+notes, so master and detail are both markup and a version is an address rather than a pane the
+script swaps. It writes only into `dist/`, so a local run leaves the sources alone. Set
+`GITHUB_TOKEN` to raise the API rate limit; without one the unauthenticated limit applies and is
+shared with everything else building from the same address.
+
+The site offers no packages. Installing is one section on the landing page and the same two commands
+whichever release it is, so a release page links to its GitHub release for the assets instead of
+repeating the download per version.
 
 A release body is Markdown from somewhere else, so `website/build/render.mjs` escapes it and emits
 only the elements it recognises. That is also what keeps the generated pages inside the site's
@@ -517,8 +526,9 @@ only the elements it recognises. That is also what keeps the generated pages ins
 checks the sources rather than `dist/`, so the check reads the same files whether or not a build has
 run.
 
-A failed fetch is not a failed deploy. The build keeps the fallback the committed page carries, a
-link to the releases on GitHub, and says so on standard error.
+A failed fetch is not a failed deploy. The build leaves the committed `website/releases/index.html`,
+which says where the releases are, and warns on standard error. Force that path with
+`GITHUB_TOKEN=nonsense node build/site.mjs`, which makes the API answer 401.
 
 Rebuild the per-theme palettes, screenshots, favicons and wordmarks with
 `scripts/build_website_themes.py` after a chrome change or an upstream theme change.

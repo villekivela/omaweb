@@ -1,7 +1,7 @@
-// Turns the published GitHub releases into the markup the site carries: a row
-// per release for the landing page, and a page per release holding its notes.
-// Pure string work, so it is testable without a network or a browser;
-// `site.mjs` does the fetching and the writing.
+// Turns the published GitHub releases into the release pages: the list of
+// every version, and the notes for the one being read. Pure string work, so it
+// is testable without a network or a browser; `site.mjs` does the fetching and
+// the writing.
 //
 // The notes are a release body written by `scripts/release_notes.sh` and,
 // after #237, rewritten by a model. Either way they are Markdown produced
@@ -9,12 +9,13 @@
 // the markup comes only from the patterns below. That is also what keeps the
 // generated pages inside `default-src 'self'`. No rule here can emit a
 // subresource, only links, which the policy governs as navigations.
+//
+// The packages are not offered here. Installing is one section on the landing
+// page and the same two commands whichever release it is, so a download button
+// per version would be a third place saying it. `This release on GitHub`
+// reaches the assets for anyone who wants a particular one.
 
 const REPOSITORY = "https://github.com/villekivela/omaweb";
-
-// The release's own package for Arch, not the debug build beside it and not
-// the SBOM. A reader looking at a release wants the thing they install.
-const PACKAGE = /^omaweb-git-(?!debug-).*\.pkg\.tar\.zst$/;
 
 const SAFE_URL = /^https?:\/\//i;
 
@@ -136,119 +137,76 @@ export function releasePath(tag) {
 
 function formatDate(published) {
   const date = new Date(published);
+  const on = (month) =>
+    date.toLocaleDateString("en-GB", { day: "numeric", month, year: "numeric", timeZone: "UTC" });
   return {
     machine: date.toISOString().slice(0, 10),
-    reader: date.toLocaleDateString("en-GB", {
-      day: "numeric",
-      month: "long",
-      year: "numeric",
-      timeZone: "UTC",
-    }),
+    // Two lengths for two places. The version list is a column of dates beside
+    // a column of tags, and the long form makes that column wider than the
+    // pane it sits in.
+    reader: on("long"),
+    brief: on("short"),
   };
 }
 
-// MiB, because pacman reports the package in MiB and this is the same file.
-function formatSize(bytes) {
-  return `${(bytes / 1024 / 1024).toFixed(1)} MiB`;
-}
-
-function packageOf(release) {
-  return (release.assets || []).find((candidate) => PACKAGE.test(candidate.name));
-}
-
-function marksOf(release) {
-  const date = formatDate(release.published_at);
-  const marks = [`<time datetime="${date.machine}">${date.reader}</time>`];
-  if (release.prerelease) marks.push('<span class="t-release__state">Prerelease</span>');
-  return marks.join("");
-}
-
-function downloadOf(release, classes) {
-  const asset = packageOf(release);
-  if (!asset) return "";
-  return (
-    `<a class="${classes}" href="${escapeHtml(asset.browser_download_url)}">` +
-    `Package <span class="t-release__size">${formatSize(asset.size)}</span></a>`
-  );
-}
-
 /**
- * The list on the landing page: one row per release, each opening the release's
- * own page, with the package beside it so a reader who only wants the download
- * never leaves the page.
+ * The list of every version, the master half of the release pages. `root` is
+ * the way back to the site root from the page being rendered, so one function
+ * serves `releases/` and `releases/<tag>/` alike.
  */
-export function renderReleaseList(releases) {
+export function renderReleaseNav(releases, currentTag, root) {
   const rows = releases
     .map((release) => {
       const path = releasePath(release.tag_name);
       if (!path) return "";
+      const date = formatDate(release.published_at);
       const tag = escapeHtml(release.name || release.tag_name);
-      return [
-        `<li class="t-release">`,
-        `<a class="t-release__open" href="releases/${path}/">`,
-        `<span class="t-release__tag">${tag}</span>`,
-        `<span class="t-release__marks">${marksOf(release)}</span>`,
-        `<span class="t-release__more">Release notes &rsaquo;</span>`,
-        `</a>`,
-        downloadOf(release, "btn t-release__get"),
-        `</li>`,
-      ].join("");
+      const current = release.tag_name === currentTag ? ' aria-current="page"' : "";
+      return (
+        `<li><a href="${root}/releases/${path}/"${current}>` +
+        `<span class="t-versions__tag">${tag}</span>` +
+        `<time datetime="${date.machine}">${date.brief}</time>` +
+        `</a></li>`
+      );
     })
     .join("");
   // `role="list"`, because the CSS takes the bullets off and Safari then stops
   // reporting the element as a list at all.
-  return rows ? `<ol class="t-releases" role="list">${rows}</ol>` : "";
+  return rows ? `<ol class="t-versions" role="list">${rows}</ol>` : "";
 }
 
 /**
  * One release's page, filled into `release.template.html`. The template carries
- * the site's chrome so a release page is the same page as the rest of the site
+ * the site's chrome, so a release page is the same page as the rest of the site
  * and not a second design to keep in step.
  */
-export function renderReleasePage(release, template) {
+export function renderReleasePage(release, releases, template, root) {
   const tag = escapeHtml(release.name || release.tag_name);
+  const date = formatDate(release.published_at);
   const notes = markdownToHtml(release.body || "");
   const page = release.html_url || `${REPOSITORY}/releases/tag/${release.tag_name}`;
   const state = release.prerelease ? "prerelease" : "release";
 
-  const links = [
-    downloadOf(release, "btn btn--emphasis"),
-    `<a class="btn" href="${escapeHtml(page)}">This release on GitHub</a>`,
-  ].join("");
+  const marks = [`<time datetime="${date.machine}">${date.reader}</time>`];
+  if (release.prerelease) marks.push('<span class="t-release__state">Prerelease</span>');
 
   const fields = {
+    root,
     title: `Omaweb ${tag} release notes`,
     // Built from the raw name rather than from `tag`, which is already
     // escaped: escaping it again would put a literal `&quot;` in the sentence.
     // `escapeHtml` covers the attribute here as it covers the element above.
     description: escapeHtml(
-      `What changed in the Omaweb ${state} ${release.name || release.tag_name}, ` +
-        `and where to get it.`,
+      `What changed in the Omaweb ${state} ${release.name || release.tag_name}.`,
     ),
+    nav: renderReleaseNav(releases, release.tag_name, root),
     tag,
-    marks: marksOf(release),
+    marks: marks.join(""),
     notes: notes || "<p>This release published no notes.</p>",
-    links,
+    github: `<a class="btn" href="${escapeHtml(page)}">This release on GitHub</a>`,
   };
 
   return template.replace(/\{\{(\w+)\}\}/g, (whole, name) =>
     name in fields ? fields[name] : whole,
   );
-}
-
-const START = "<!-- releases:start -->";
-const END = "<!-- releases:end -->";
-
-/**
- * Puts the rendered list between the markers in the landing page, keeping the
- * markers so the next build finds them. The committed page holds a fallback
- * there, which is what a reader gets when the build cannot reach the API.
- */
-export function writeReleases(page, releases) {
-  const from = page.indexOf(START);
-  const to = page.indexOf(END);
-  if (from === -1 || to === -1 || to < from) {
-    throw new Error(`the page has no ${START} ... ${END} block to write the releases into`);
-  }
-  return page.slice(0, from + START.length) + "\n" + releases + "\n" + page.slice(to);
 }
