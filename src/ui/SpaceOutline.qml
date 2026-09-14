@@ -851,6 +851,7 @@ Rectangle {
             }
 
             ScrollBar.vertical: ChromeScrollBar {
+                view: tabScroll
                 colors: root.colors
             }
 

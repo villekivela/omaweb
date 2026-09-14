@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Controls
 import QtTest
 import "../../src/ui" as Omaweb
 
@@ -43,6 +44,40 @@ TestCase {
             orientation: Qt.Vertical
             height: 400
             size: 0.25
+        }
+    }
+
+    // A real scrolling region, because the bar's geometry is only meaningful
+    // once a view has placed it: content taller than the view, so the bar has
+    // something to represent.
+    Component {
+        id: viewComponent
+
+        ScrollView {
+            id: probeView
+
+            width: 400
+            height: 600
+            contentWidth: availableWidth
+
+            ScrollBar.vertical: Omaweb.ChromeScrollBar {
+                view: probeView
+                colors: testCase.colorsFixture
+            }
+
+            Column {
+                width: 400
+
+                Repeater {
+                    model: 60
+
+                    Rectangle {
+                        width: 400
+                        height: 40
+                        color: "#202020"
+                    }
+                }
+            }
         }
     }
 
@@ -141,10 +176,40 @@ TestCase {
     }
 
     // A long list still has to offer something catchable: proportional sizing
-    // alone leaves a few pixels of thumb on a list of any depth.
+    // alone leaves a few pixels of thumb on a list of any depth. Capped as well
+    // as floored: before the view has laid the bar out there is no length to
+    // take a ratio of, and a ratio above 1 asks for a thumb longer than the
+    // track it runs in.
     function test_theThumbKeepsALengthWorthGrabbing() {
         const bar = makeBar();
         bar.size = 0.001;
-        verify(bar.minimumSize * bar.height >= 32);
+        verify(bar.minimumSize > 0);
+        verify(bar.minimumSize <= 0.5);
+    }
+
+    // Qt's `ScrollView` does not lay its scrollbars out. The parent, the
+    // position and the length are bindings inside the default `ScrollBar` its
+    // style file declares, so replacing `ScrollBar.vertical` drops them along
+    // with the painting and leaves the bar at the view's top corner at its
+    // implicit size.
+    //
+    // Asserted against a real view for that reason: a bar built on its own is
+    // unlaid whether or not it carries the bindings, so a fixture that skips
+    // the view cannot tell working from broken.
+    function test_theBarIsLaidOutDownTheEdgeOfItsView() {
+        const view = viewComponent.createObject(testCase);
+        verify(view !== null);
+        const bar = view.ScrollBar.vertical;
+        verify(bar !== null);
+
+        tryCompare(bar, "height", view.availableHeight);
+        compare(bar.parent, view);
+        compare(bar.y, view.topPadding);
+        // Down the trailing edge, fully inside the view.
+        compare(bar.x, view.width - bar.width);
+        verify(bar.width > 0);
+        verify(view.availableHeight > bar.width);
+
+        view.destroy();
     }
 }

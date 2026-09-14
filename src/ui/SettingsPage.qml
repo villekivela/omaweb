@@ -538,6 +538,7 @@ Rectangle {
             clip: true
 
             ScrollBar.vertical: ChromeScrollBar {
+                view: scroll
                 colors: root.colors
             }
 

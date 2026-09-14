@@ -17,6 +17,16 @@ ScrollBar {
 
     property var colors
 
+    // The scrolling region this bar belongs to, and the reason it is named
+    // rather than inferred: Qt's `ScrollView` does not lay its scrollbars out.
+    // The geometry lives inside the default `ScrollBar` its style file
+    // declares, so replacing `ScrollBar.vertical` drops the parent, the
+    // position and the length along with the painting, and an unlaid bar sits
+    // at the view's top corner at its implicit size. Every call site hands the
+    // view over; the bindings below are the ones the style file would have
+    // carried.
+    property Item view: null
+
     // The gutter is wider than the thumb it rests: the reader aims at the edge
     // of the list, not at a six-pixel line, and the widened form has to have
     // somewhere to widen into. It is never painted, so the extra width costs
@@ -33,10 +43,34 @@ ScrollBar {
     implicitWidth: root.gutter
     implicitHeight: root.gutter
     padding: 0
+
+    parent: root.view
+    x: {
+        if (!root.view)
+            return 0;
+        if (root.orientation === Qt.Horizontal)
+            return root.view.leftPadding;
+        return root.view.mirrored ? 0 : root.view.width - root.width;
+    }
+    y: {
+        if (!root.view)
+            return 0;
+        return root.orientation === Qt.Horizontal ? root.view.height - root.height :
+                                                    root.view.topPadding;
+    }
+    width: root.orientation === Qt.Horizontal && root.view ? root.view.availableWidth :
+                                                             root.implicitWidth
+    height: root.orientation === Qt.Horizontal || !root.view ? root.implicitHeight :
+                                                               root.view.availableHeight
+
     // Proportional sizing alone leaves a long list with a few pixels of thumb,
-    // which is visible but not catchable.
-    minimumSize: root.orientation === Qt.Horizontal ? 32 / Math.max(root.width, 1) : 32 / Math.max(
-                                                          root.height, 1)
+    // which is visible but not catchable. Capped as well as floored: the length
+    // this is measured against is zero before the view has laid the bar out,
+    // and an uncapped ratio would ask for a thumb longer than its own track.
+    minimumSize: {
+        const along = root.orientation === Qt.Horizontal ? root.width : root.height;
+        return Math.min(0.5, 32 / Math.max(along, 64));
+    }
 
     // The track stands only under the pointer. While the reader is merely
     // scrolling, a bare thumb says the same thing without drawing a second
