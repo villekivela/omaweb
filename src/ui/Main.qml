@@ -768,6 +768,134 @@ ApplicationWindow {
         engineLoader.focusPage();
     }
 
+    // The regions the keyboard moves between, each one a rectangle in the
+    // window and the way into it: the outline, the page — one region per pane
+    // while a split is on show — and the inspector. A region that is not on
+    // screen is left out of the list, so a move never lands on a collapsed
+    // outline, a closed inspector, or a page area a sheet is standing in, and
+    // never shows one either.
+    function visibleRegions() {
+        const regions = [];
+        if (sidebar.visible && !window.sidebarCollapsed)
+            regions.push(window.measureRegion("sidebar", sidebar, 0, sidebar.width));
+        if (!window.settingsOpen && !window.historyOpen) {
+            if (engineLoader.splitOnShow) {
+                regions.push(window.measureRegion("split-left", engineLoader, 0,
+                                                  engineLoader.leftPaneWidth));
+                regions.push(window.measureRegion("split-right", engineLoader,
+                                                  engineLoader.rightPaneX,
+                                                  engineLoader.rightPaneWidth));
+            } else {
+                regions.push(window.measureRegion("page", engineLoader, 0, engineLoader.width));
+            }
+        }
+        if (developerToolsDock.visible)
+            regions.push(window.measureRegion("developer-tools", developerToolsDock, 0,
+                                              developerToolsDock.width));
+        return regions;
+    }
+
+    // A region named and measured in the window's own coordinates, so the
+    // regions of a row can be compared however each one is anchored.
+    function measureRegion(name, item, offsetX, width) {
+        const at = item.mapToItem(null, offsetX, 0);
+        return {
+            "name": name,
+            "x": at.x,
+            "y": at.y,
+            "width": width,
+            "height": item.height
+        };
+    }
+
+    // The page area is one region, or one per pane: the pane the reader is in
+    // is the one drawing the active tab, since that is what being in a pane
+    // means.
+    function pageRegionName() {
+        if (!engineLoader.splitOnShow)
+            return "page";
+        return window.windowBrowser.activeTabId === engineLoader.splitLeftTabId ? "split-left" :
+                                                                                  "split-right";
+    }
+
+    // Which region a piece of the chrome belongs to. A seam handle belongs to
+    // the panel it moves, as it does everywhere else in the window, and the
+    // Start page stands where the page would.
+    function regionOf(item) {
+        if (item === sidebar || item === sidebarResizer)
+            return "sidebar";
+        if (item === developerToolsDock || item === developerToolsResizer)
+            return "developer-tools";
+        if (item === engineLoader || item === startPage)
+            return window.pageRegionName();
+        return "";
+    }
+
+    function focusedRegionName() {
+        let at = window.activeFocusItem;
+        while (at) {
+            const name = window.regionOf(at);
+            if (name.length > 0)
+                return name;
+            at = at.parent;
+        }
+        return "";
+    }
+
+    function focusRegion(name) {
+        if (name === "sidebar") {
+            sidebar.focusOutline();
+            return;
+        }
+        if (name === "developer-tools") {
+            developerToolsDock.focusInspector();
+            return;
+        }
+        // The pane that is not showing the active tab is reached by focusing
+        // the tab beside: the page then takes the keyboard as it does on any
+        // other switch.
+        if (name !== window.pageRegionName()) {
+            window.windowBrowser.focusSplitPartner();
+            return;
+        }
+        window.focusPage();
+    }
+
+    // The nearest region whose centre lies in the direction asked for, within
+    // 45 degrees of it, measured between centres. Nothing that way leaves the
+    // keyboard where it is, and so does a keyboard that is in none of the
+    // regions: a sheet or a dialog owns its own keys.
+    function moveFocus(stepX, stepY) {
+        const regions = window.visibleRegions();
+        const fromName = window.focusedRegionName();
+        let from = null;
+        for (let index = 0; index < regions.length; ++index) {
+            if (regions[index].name === fromName)
+                from = regions[index];
+        }
+        if (!from)
+            return;
+        let best = null;
+        let bestAlong = 0;
+        for (let index = 0; index < regions.length; ++index) {
+            const region = regions[index];
+            if (region.name === from.name)
+                continue;
+            const across = region.x + region.width / 2 - (from.x + from.width / 2);
+            const down = region.y + region.height / 2 - (from.y + from.height / 2);
+            const along = across * stepX + down * stepY;
+            const aside = Math.abs(across * stepY - down * stepX);
+            if (along <= aside)
+                continue;
+            if (best === null || along < bestAlong) {
+                best = region;
+                bestAlong = along;
+            }
+        }
+        if (best !== null)
+            window.focusRegion(best.name);
+    }
+
     function openPageContextMenu() {
         engineLoader.requestPageContextMenu();
     }

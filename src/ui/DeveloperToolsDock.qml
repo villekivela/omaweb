@@ -21,6 +21,13 @@ Item {
         root.developerToolsView.visible = true;
     }
 
+    // The inspector takes the keyboard the way a page does, on the view
+    // itself: the dock around it is a frame and holds no keys of its own.
+    function focusInspector() {
+        if (root.developerToolsView)
+            root.developerToolsView.forceActiveFocus();
+    }
+
     onDeveloperToolsViewChanged: root.adopt()
     Component.onCompleted: root.adopt()
 

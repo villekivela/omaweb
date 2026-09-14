@@ -118,6 +118,18 @@ QtObject {
         case "focus-page":
             window.focusPage();
             return true;
+        case "move-focus-left":
+            window.moveFocus(-1, 0);
+            return true;
+        case "move-focus-down":
+            window.moveFocus(0, 1);
+            return true;
+        case "move-focus-up":
+            window.moveFocus(0, -1);
+            return true;
+        case "move-focus-right":
+            window.moveFocus(1, 0);
+            return true;
         case "copy-address":
             window.copyAddress();
             return true;
@@ -334,6 +346,22 @@ QtObject {
                                              "focus-page": {
                                                  group: "interface",
                                                  title: "Focus the page"
+                                             },
+                                             "move-focus-left": {
+                                                 group: "interface",
+                                                 title: "Move focus left"
+                                             },
+                                             "move-focus-down": {
+                                                 group: "interface",
+                                                 title: "Move focus down"
+                                             },
+                                             "move-focus-up": {
+                                                 group: "interface",
+                                                 title: "Move focus up"
+                                             },
+                                             "move-focus-right": {
+                                                 group: "interface",
+                                                 title: "Move focus right"
                                              },
                                              "copy-address": {
                                                  group: "navigation",
