@@ -783,8 +783,7 @@ Item {
         script.sourceCode = (css.length > 0 ? root.styleSheetSnippet(root.cosmeticElementId, css)
                                               + ";\n" : "") + root.scriptletSnippet(scriptlets);
         root.blockingScript = script;
-        webView.userScripts.collection = [root.editedStateScript, root.keyboardNavigationScript,
-                                          script];
+        webView.userScripts.collection = root.userScriptList();
         // The document about to be created carries whatever this script adds
         // and nothing else, so what the last one had is no longer there.
         root.cosmeticRulesInjected = css.length > 0;
@@ -1330,6 +1329,19 @@ Item {
         return script;
     }
 
+    // Every script the view runs in a page, in one place: the collection is
+    // written whole, both when the view is built and again with each page's
+    // Content blocking script, and a list kept in two places lost the scripts
+    // added to only one of them on the first page load.
+    function userScriptList() {
+        const scripts = [root.editedStateScript, root.keyboardNavigationScript,
+                         root.externalProtocolOriginScript, root.userActivationScript,
+                         root.pressOriginScript];
+        if (root.blockingScript)
+            scripts.push(root.blockingScript);
+        return scripts;
+    }
+
     property var externalProtocolOriginScript: {
         const script = WebEngine.script();
         script.name = "Omaweb external protocol origin";
@@ -1375,8 +1387,7 @@ Item {
         // every navigation, so it follows the theme instead.
         backgroundColor: root.pageBackgroundColor
         focus: true
-        userScripts.collection: [root.editedStateScript, root.keyboardNavigationScript,
-            root.externalProtocolOriginScript, root.userActivationScript, root.pressOriginScript]
+        userScripts.collection: root.userScriptList()
         // Chromium's autoplay policy is per view. Requiring a gesture blocks
         // muted autoplay along with audible autoplay, so the shell decides
         // instead: it turns the requirement off once the page has nothing left

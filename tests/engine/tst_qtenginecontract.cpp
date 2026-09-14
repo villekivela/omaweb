@@ -145,6 +145,7 @@ private slots:
     void qtRejectsObsoleteCosmeticSurveys();
     void qtRunsScriptletsBeforeThePageRuns();
     void qtRefusesTheWindowsTheListsNameAndNoOthers();
+    void qtReportsWhereThePageWasPressed();
     void qtServesTheSubstitutesTheListsName();
     void qtStripsTheParametersTheListsName();
     void qtAttachesBlockingToTheProfileQmlCreates();
@@ -1438,6 +1439,60 @@ void QtEngineContractTest::qtRunsScriptletsBeforeThePageRuns()
     QVERIFY(QMetaObject::invokeMethod(adapter.get(), "reloadPage"));
     QTRY_COMPARE_WITH_TIMEOUT(
         adapter->property("pageTitle").toString(), QStringLiteral("undefined"), 15000);
+}
+
+// A window the page asks for comes from somewhere on the page, and the request
+// does not say where, so the adapter reports where the page was last pressed:
+// the link or control under the click, in the view's own coordinates, and so
+// through the zoom. A click the page synthesised has no point and names the
+// element as well. Content blocking is on for the page, because installing its
+// script once replaced the whole collection and took every later script with
+// it: a report that survives the blocker is one that will be there in use.
+void QtEngineContractTest::qtReportsWhereThePageWasPressed()
+{
+    PageServer server(R"HTML(<!doctype html><html><body style="margin:0">
+        <a id="link" href="#pressed"
+           style="position:absolute;left:30px;top:50px;width:100px;height:20px;display:block">x</a>
+        <script>
+            addEventListener("load", () => setTimeout(() => {
+                document.getElementById("link").click();
+                document.title = "pressed";
+            }, 50));
+        </script>
+    </body></html>)HTML");
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    omaweb::ContentBlocker contentBlocker(root.path(), omaweb::ContentBlocker::DefaultLists::None);
+    contentBlocker.setUserRules(QStringLiteral("127.0.0.1##.nothing-here"));
+    QTRY_VERIFY_WITH_TIMEOUT(!contentBlocker.compiling(), 5000);
+
+    QQmlEngine engine;
+    QQmlComponent component(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
+        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
+        {QStringLiteral("contentBlocker"), QVariant::fromValue<QObject *>(&contentBlocker)},
+    }));
+    QVERIFY2(adapter, qPrintable(component.errorString()));
+    QQuickWindow window;
+    qobject_cast<QQuickItem *>(adapter.get())->setParentItem(window.contentItem());
+    window.show();
+
+    QCOMPARE(adapter->property("pressOrigin").toRectF(), QRectF());
+    QVERIFY(QMetaObject::invokeMethod(adapter.get(), "setZoomFactor", Q_ARG(QVariant, 2.0)));
+    const QUrl pageUrl(QStringLiteral("http://127.0.0.1:%1/page.html").arg(server.serverPort()));
+    QVERIFY(adapter->setProperty("currentUrl", pageUrl));
+    QTRY_COMPARE_WITH_TIMEOUT(
+        adapter->property("pageTitle").toString(), QStringLiteral("pressed"), 15000);
+
+    QTRY_COMPARE_WITH_TIMEOUT(
+        adapter->property("pressOrigin").toRectF(), QRectF(60, 100, 200, 40), 5000);
+
+    // A press on the page being left says nothing about the next page.
+    QVERIFY(QMetaObject::invokeMethod(adapter.get(), "reloadPage"));
+    QTRY_COMPARE_WITH_TIMEOUT(adapter->property("pressOrigin").toRectF(), QRectF(), 15000);
 }
 
 // A page that asks for a tracker and is handed nothing waits forever, which is
