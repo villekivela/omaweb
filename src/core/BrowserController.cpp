@@ -147,6 +147,10 @@ BrowserController::BrowserController(std::shared_ptr<SessionStore> store, QThrea
     connect(&m_tabs, &QAbstractItemModel::rowsRemoved, this, [this] { refreshAtRest(); });
     connect(&m_tabs, &QAbstractItemModel::dataChanged, this, [this] { refreshAtRest(); });
     connect(&m_tabs, &QAbstractItemModel::modelReset, this, [this] { refreshAtRest(); });
+    // The split on show is the active tab's, so every route to a new active
+    // tab, a tab opened, reopened or duplicated as much as one selected, is a
+    // route to a new answer.
+    connect(this, &BrowserController::activeTabChanged, this, [this] { refreshSplit(); });
     loadDownloadDirectory();
     initialize();
     // Built once the store is open, because it reads the Space's Download

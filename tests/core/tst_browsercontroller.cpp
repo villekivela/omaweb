@@ -2854,6 +2854,26 @@ void BrowserControllerTest::keepsTheSplitRowWhileAnotherTabIsOnShowAndStepsOverI
     controller.stepTab(-1);
     QCOMPARE(controller.activeTabId(), thirdId);
 
+    // Any way to another tab shows it alone: one opened, one reopened, one
+    // duplicated.
+    controller.activateTab(leftId);
+    QSignalSpy splitChanged(&controller, &BrowserController::splitChanged);
+    controller.openInput(QStringLiteral("https://opened.example"), true);
+    QVERIFY(!controller.splitOnShow());
+    QVERIFY(controller.splitLeftTabId().isEmpty());
+    // Announced, since the interface caches the answer until it is.
+    QCOMPARE(splitChanged.count(), 1);
+    controller.activateTab(leftId);
+    controller.duplicateTab(thirdId);
+    QVERIFY(!controller.splitOnShow());
+    controller.closeActiveTab();
+    controller.activateTab(leftId);
+    controller.reopenClosedTab();
+    QVERIFY(!controller.splitOnShow());
+    controller.closeActiveTab();
+    controller.closeTab(controller.activeTabId());
+    controller.activateTab(thirdId);
+
     // Activating either half brings the split back with that half active.
     controller.activateTab(leftId);
     QVERIFY(controller.splitOnShow());
