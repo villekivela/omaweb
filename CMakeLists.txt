@@ -786,6 +786,14 @@ if(BUILD_TESTING)
             COMMAND ${Python3_EXECUTABLE}
                 ${CMAKE_CURRENT_SOURCE_DIR}/tests/scripts/tst_release_notes.py
         )
+        # The notes a model rewrites publish unattended, so what is checked is
+        # what nothing reviews in between: the compare URL survives, markup the
+        # release page cannot render is refused, and a failure publishes the
+        # generated notes rather than none.
+        add_test(NAME omaweb-rewrite-release-notes
+            COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/tests/scripts/tst_rewrite_release_notes.py
+        )
         add_test(NAME omaweb-security-baseline
             COMMAND ${Python3_EXECUTABLE}
                 ${CMAKE_CURRENT_SOURCE_DIR}/tests/scripts/tst_security_baseline.py

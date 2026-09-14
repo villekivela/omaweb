@@ -3,12 +3,13 @@
 // is testable without a network or a browser; `site.mjs` does the fetching and
 // the writing.
 //
-// The notes are a release body written by `scripts/release_notes.sh` and,
-// after #237, rewritten by a model. Either way they are Markdown produced
-// elsewhere, so nothing here trusts them: every character is escaped first and
-// the markup comes only from the patterns below. That is also what keeps the
-// generated pages inside `default-src 'self'`. No rule here can emit a
-// subresource, only links, which the policy governs as navigations.
+// The notes are a release body written by `scripts/release_notes.sh` and
+// rewritten by a model in `scripts/rewrite_release_notes.py`. Either way they
+// are Markdown produced elsewhere, so nothing here trusts them: every
+// character is escaped first and the markup comes only from the patterns
+// below. That is also what keeps the generated pages inside `default-src
+// 'self'`. No rule here can emit a subresource, only links, which the policy
+// governs as navigations.
 //
 // The packages are not offered here. Installing is one section on the landing
 // page and the same two commands whichever release it is, so a download button

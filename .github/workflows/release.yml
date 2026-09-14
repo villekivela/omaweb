@@ -15,6 +15,10 @@ on:
 
 permissions:
   contents: write
+  # The notes rewrite reads the issues and pull requests the commits reference.
+  # Naming any scope sets every other one to none, so these are not spare.
+  issues: read
+  pull-requests: read
 
 jobs:
   # Built in the same container CI checks the package in, so what a release
@@ -81,7 +85,9 @@ jobs:
   release:
     needs: package
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # The notes rewrite retries an API that does not answer, so the budget
+    # leaves the publish step time even when every attempt runs to its timeout.
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -99,7 +105,42 @@ jobs:
       - name: Generate notes
         run: |
           scripts/release_notes.sh "${GITHUB_REF_NAME}" > notes.md
-          cat notes.md >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo "## Generated from the commits"
+            echo
+            cat notes.md
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # The commit list above is accurate and written for the people who wrote
+      # the commits. This rewrites it as what a reader gets from upgrading,
+      # from the same range's commit bodies and the issues behind them.
+      #
+      # `ANTHROPIC_API_KEY` is the one piece of setup a human does once. A tag
+      # push publishes with nothing in between, so every way this can fail ends
+      # the same way: the generated notes publish and the job summary says the
+      # rewrite did not happen. A plainer release beats a blocked one.
+      - name: Rewrite the notes for a reader
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          # The rewrite reads the issues the commits reference, which is what
+          # keeps it describing what was asked for rather than what a subject
+          # line happens to say.
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if scripts/rewrite_release_notes.py "${GITHUB_REF_NAME}" \
+              --generated notes.md --output rewritten.md; then
+            mv rewritten.md notes.md
+            heading="## Published"
+          else
+            echo "::warning::the notes were not rewritten, publishing the generated list"
+            heading="## Published, unrewritten"
+          fi
+          {
+            echo
+            echo "$heading"
+            echo
+            cat notes.md
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
