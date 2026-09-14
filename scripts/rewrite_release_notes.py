@@ -44,7 +44,14 @@ import urllib.request
 # model. `--model` overrides this where a range turns out to need more.
 MODEL = "claude-sonnet-5"
 API_VERSION = "2023-06-01"
-MAX_TOKENS = 4000
+
+# Thinking is on by default on this model and its tokens come out of the same
+# budget as the notes, so a ceiling sized for the notes alone truncates the
+# answer and the truncation check turns a release into an unrewritten one.
+# Low effort is what the work is: the range is already in the prompt, and the
+# judgement asked for is which fix belongs to which feature.
+MAX_TOKENS = 16000
+EFFORT = "low"
 
 # A range with more commits than this is summarised from the first COMMIT_LIMIT
 # of them rather than from a request too large to answer. The generated notes
@@ -55,12 +62,13 @@ BODY_LIMIT = 2000
 ISSUE_LIMIT = 40
 ISSUE_BODY_LIMIT = 4000
 
-# The release job has ten minutes for the whole of itself, and the step that
-# publishes comes after this one, so the worst case here is a budget rather
-# than a preference: three attempts of REQUEST_TIMEOUT plus the backoff between
-# them has to leave the release time to publish.
-ATTEMPTS = 3
-REQUEST_TIMEOUT = 60
+# The step that publishes comes after this one, so the worst case here is a
+# budget rather than a preference: every attempt of REQUEST_TIMEOUT plus the
+# backoff between them has to leave the release time to publish inside the
+# job's fifteen minutes. A request that thinks before it answers needs minutes
+# rather than seconds, which is what pays for the second attempt going.
+ATTEMPTS = 2
+REQUEST_TIMEOUT = 180
 RETRY_DELAY = 5
 
 # A shorter answer than this is not notes, whatever the API said about it.
@@ -211,6 +219,7 @@ def ask(text: str, model: str, key: str, base_url: str) -> str:
         {
             "model": model,
             "max_tokens": MAX_TOKENS,
+            "output_config": {"effort": EFFORT},
             "system": SYSTEM,
             "messages": [{"role": "user", "content": text}],
         }

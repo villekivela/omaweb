@@ -489,10 +489,12 @@ from the commit bodies in the range and the issues they reference. It runs on ev
 included. The rewrite carries the compare URL over itself and refuses markup the release page cannot
 render, so the published body stays inside the Markdown subset `website/build/render.mjs` supports.
 
-It needs an `ANTHROPIC_API_KEY` secret. Without one, or when the API refuses or does not answer, the
-generated commit list publishes unchanged and the job summary says the rewrite did not happen. The
-summary carries both the generated list and what was published, which is how a release is checked
-after the fact. Nothing about the rewrite can block a release.
+It needs an `ANTHROPIC_API_KEY` secret. Without one, or when the API refuses, does not answer, or
+returns an answer that ran out of tokens, the generated commit list publishes unchanged and the job
+summary says the rewrite did not happen. The model thinks before it answers and that thinking is
+spent from the same token budget as the notes, so the budget is sized for both; v0.4.0 published
+unrewritten because it was not. The summary carries both the generated list and what was published,
+which is how a release is checked after the fact. Nothing about the rewrite can block a release.
 
 The rewritten notes reach the website through the release body: the release pages are generated from
 the GitHub releases API at deploy time, so they render whatever the release published.

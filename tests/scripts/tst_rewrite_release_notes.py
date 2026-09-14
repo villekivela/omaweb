@@ -165,6 +165,18 @@ class Rewrite(unittest.TestCase):
             self.assertIn("Why this matters to a reader.", asked)
             self.assertIn("a feature", asked)
 
+    def test_the_budget_leaves_room_to_think_and_still_answer(self):
+        # v0.4.0 published unrewritten because the model's thinking spent a
+        # budget sized for the notes alone, and a truncated answer is refused.
+        with tempfile.TemporaryDirectory() as directory, Api() as api:
+            repo = repository(directory, ["feat: a feature"])
+
+            run(repo, api.url)
+
+            asked = api.requests[0]
+            self.assertGreaterEqual(asked["max_tokens"], 8000)
+            self.assertIn("effort", asked["output_config"])
+
     def test_a_commit_outside_the_range_is_not_described(self):
         with tempfile.TemporaryDirectory() as directory, Api() as api:
             repo = repository(directory, ["feat: in the range"])
