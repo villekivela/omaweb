@@ -23,6 +23,10 @@ Item {
     // of a colour scheme.
     property var developerToolsColors: ({})
     property color pageBackgroundColor: "#16151d"
+    // The accent a page's own controls are drawn in, which differs per window:
+    // a Private window's chrome carries its own, and so should the controls on
+    // its pages.
+    property color pageControlAccent: "transparent"
     property string spaceId: ""
     // The Space the window's own profile belongs to, which is not the Space on
     // show in a Private window: that session is shared and has no Space of its
@@ -406,6 +410,7 @@ Item {
                                                 "keyboardNavigationScriptSource":
                                                 root.keyboardManager.pageScript,
                                                 "pageBackgroundColor": root.pageBackgroundColor,
+                                                "pageControlAccent": root.pageControlAccent,
                                                 "developerToolsColors": root.developerToolsColors,
                                                 "visible": false
                                             });
@@ -813,6 +818,11 @@ Item {
                                                                   root.activeEngine.currentUrl));
             }
         }
+    }
+
+    onPageControlAccentChanged: {
+        for (const tabId in root.engines)
+            root.engines[tabId].pageControlAccent = root.pageControlAccent;
     }
 
     onDeveloperToolsColorsChanged: {
