@@ -21,9 +21,7 @@ TestCase {
     readonly property var colorsFixture: ({
                                               accent: "#9b87ff",
                                               border: "#4a4658",
-                                              mutedText: "#8d88a3",
-                                              separator: "#4a4658",
-                                              surface: "#26232f"
+                                              mutedText: "#8d88a3"
                                           })
 
     // A second theme sharing no colour with the first, so a value written down
@@ -31,9 +29,7 @@ TestCase {
     readonly property var otherColorsFixture: ({
                                                    accent: "#1d6f42",
                                                    border: "#c9c4b8",
-                                                   mutedText: "#7a7566",
-                                                   separator: "#ded9cd",
-                                                   surface: "#f4f1e8"
+                                                   mutedText: "#7a7566"
                                                })
 
     Component {
@@ -121,15 +117,24 @@ TestCase {
         compare(bar.opacity, 0);
     }
 
-    // Scrolling shows the bar, and the track stays away: a bare thumb says how
-    // far down the list stands without drawing a second shape over it.
-    function test_scrollingShowsTheThumbWithoutTheTrack() {
+    // Scrolling shows the bar at its resting width.
+    function test_scrollingShowsTheThumbAtItsRestingWidth() {
         const bar = makeBar();
         bar.active = true;
         compare(bar.opacity, 1);
         compare(bar.expanded, false);
-        compare(bar.trackOpacity, 0);
         compare(bar.thumbThickness, bar.restingThumb);
+    }
+
+    // No lane behind the thumb, in any state. The style this derives from
+    // paints one under a high-contrast desktop, so the absence is named rather
+    // than left to the default.
+    function test_noTrackIsEverDrawn() {
+        const bar = makeBar();
+        compare(bar.background, null);
+
+        bar.active = true;
+        compare(bar.background, null);
     }
 
     // Every colour is read from the window's palette, so a theme change and a
@@ -147,32 +152,6 @@ TestCase {
 
         bar.colors = testCase.otherColorsFixture;
         tryCompare(thumb, "color", testCase.otherColorsFixture.border);
-    }
-
-    // The track is the same story, down to the hairline that divides it from
-    // the list it overlays.
-    function test_theTrackTakesItsColoursFromThePalette() {
-        const bar = makeBar();
-        const track = bar.background;
-        verify(track !== null);
-        compare(track.children.length, 1);
-        const hairline = track.children[0];
-
-        compare(String(track.color), testCase.colorsFixture.surface);
-        compare(String(hairline.color), testCase.colorsFixture.separator);
-
-        bar.colors = testCase.otherColorsFixture;
-        compare(String(track.color), testCase.otherColorsFixture.surface);
-        compare(String(hairline.color), testCase.otherColorsFixture.separator);
-    }
-
-    // The hairline divides the bar from the list, so it runs along the inner
-    // edge rather than around the track or along the window's own edge.
-    function test_theHairlineIsAnEdgeRatherThanABorder() {
-        const bar = makeBar();
-        const hairline = bar.background.children[0];
-        compare(hairline.width, 1);
-        compare(hairline.height, bar.background.height);
     }
 
     // A long list still has to offer something catchable: proportional sizing

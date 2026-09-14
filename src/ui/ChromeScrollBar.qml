@@ -72,35 +72,12 @@ ScrollBar {
         return Math.min(0.5, 32 / Math.max(along, 64));
     }
 
-    // The track stands only under the pointer. While the reader is merely
-    // scrolling, a bare thumb says the same thing without drawing a second
-    // shape over the list.
-    background: Rectangle {
-        visible: root.trackOpacity > 0
-        opacity: root.trackOpacity
-        color: root.colors ? root.colors.surface : "transparent"
-
-        // The hairline divides the track from the list it overlays, so it goes
-        // on the inner edge — the left of a vertical bar, the top of a
-        // horizontal one — and never along the window's own edge.
-        Rectangle {
-            width: root.orientation === Qt.Horizontal ? parent.width : 1
-            height: root.orientation === Qt.Horizontal ? 1 : parent.height
-            color: root.colors ? root.colors.separator : "transparent"
-        }
-    }
-
-    // Bound rather than `readonly`, here and for the thumb's width: a Behavior
-    // animates by writing the property it is attached to, so a readonly one
-    // fails to load rather than simply refusing to move.
-    property real trackOpacity: root.expanded ? 1.0 : 0.0
-
-    Behavior on trackOpacity {
-        NumberAnimation {
-            duration: 120
-            easing.type: Easing.OutCubic
-        }
-    }
+    // No track, in any state. The thumb alone says where the reader stands in
+    // the list, and a lane drawn behind it is a second shape laid over the
+    // content to say the same thing again. Named as null rather than left out:
+    // the style this derives from paints a track of its own under a
+    // high-contrast desktop, which would be the one place the lane came back.
+    background: null
 
     contentItem: Item {
         implicitWidth: root.gutter
@@ -109,9 +86,8 @@ ScrollBar {
         Rectangle {
             id: thumb
 
-            // The thumb hugs the window's edge and grows inward, so the shape
-            // the reader is already tracking does not jump sideways when the
-            // track arrives under it.
+            // The thumb hugs the window's edge and grows inward, so widening
+            // does not shift the shape the reader is already aiming at.
             anchors.right: root.orientation === Qt.Horizontal ? undefined : parent.right
             anchors.bottom: root.orientation === Qt.Horizontal ? parent.bottom : undefined
             anchors.rightMargin: root.orientation === Qt.Horizontal ? 0 : 2
@@ -142,6 +118,9 @@ ScrollBar {
         }
     }
 
+    // Bound rather than `readonly`: a Behavior animates by writing the property
+    // it is attached to, so a readonly one fails to load rather than simply
+    // refusing to move.
     property real thumbThickness: root.expanded ? root.hoveredThumb : root.restingThumb
 
     Behavior on thumbThickness {
