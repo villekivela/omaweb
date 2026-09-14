@@ -461,6 +461,7 @@ set(omaweb_ui_files
     src/ui/PageLoadingIndicator.qml
     src/ui/PageNotice.qml
     src/ui/PageQuestionBar.qml
+    src/ui/PageToolTip.qml
     src/ui/PagePromptBar.qml
     src/ui/RefusalTally.qml
     src/ui/RetainedEngines.qml

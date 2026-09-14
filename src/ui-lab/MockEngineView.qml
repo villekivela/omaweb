@@ -227,6 +227,7 @@ Rectangle {
     property int pageGeneration: 0
 
     signal pageContextRequested(var context)
+    signal pageTooltipRequested(var tooltip)
     signal developerToolsClosed
     signal rendererFailed(string reason)
     signal newTabRequested(var request, url requestedUrl)
