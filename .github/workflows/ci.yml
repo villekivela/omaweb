@@ -15,7 +15,7 @@ jobs:
     container: archlinux:base-devel
     steps:
       - name: Install formatters
-        run: pacman -Syu --noconfirm git clang qt6-declarative nodejs npm
+        run: pacman -Syu --noconfirm git clang qt6-declarative nodejs npm python
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
@@ -34,6 +34,11 @@ jobs:
             scripts/check_qml.sh --all
             git diff --check
           fi
+
+      # The policy is enforced at the reader's end, so a violation deploys
+      # green and breaks the page for everyone. Checked here instead.
+      - name: Check the website against its own policy
+        run: scripts/check_website_csp.py
 
   commit-messages:
     runs-on: ubuntu-latest
