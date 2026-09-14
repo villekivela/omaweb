@@ -499,6 +499,14 @@ which is how a release is checked after the fact. Nothing about the rewrite can 
 The rewritten notes reach the website through the release body: the release pages are generated from
 the GitHub releases API at deploy time, so they render whatever the release published.
 
+A release that published before the rewrite worked keeps the commit list it was published with, and
+the release workflow cannot repair it: that workflow only ever sees the tag being cut. The
+`Rewrite published release notes` workflow rewrites the body of releases that are already out. Run
+it from the Actions tab with `all` or a space-separated list of tags, and `dry_run` to see the notes
+in the job summary without touching anything. A release whose rewrite fails keeps the body it has
+and the job ends red naming it, so a partial run says what it left behind. It asks Vercel for a
+deploy afterwards, because the release pages only change on one.
+
 The rewrite reads issue bodies, which anyone with a GitHub account can write, and the release body
 it produces publishes without review. Wording from an issue can therefore reach a release note and
 the release page on the website. What an issue cannot do is change the markup: the compare URL is
