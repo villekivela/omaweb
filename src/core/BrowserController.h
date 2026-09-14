@@ -21,6 +21,7 @@
 
 #include <memory>
 #include <optional>
+#include <utility>
 
 namespace omaweb {
 
@@ -453,6 +454,7 @@ private:
     void pairTabs(const QString &leftTabId, const QString &rightTabId);
     void unpairTab(const QString &tabId);
     void refreshSplit();
+    std::pair<QString, QString> splitOnShowPair() const;
     // The tab a split is entered on: its focused half, or the tab itself when
     // it is in no split.
     QString splitEntryTab(const QString &tabId) const;

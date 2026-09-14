@@ -293,23 +293,19 @@ bool BrowserController::activeTabInspected() const
 
 // Left is the earlier of the two in the list: the pair stands side by side
 // there, and the page area lays the panes out in the same order.
-QString BrowserController::splitLeftTabId() const
+std::pair<QString, QString> BrowserController::splitOnShowPair() const
 {
     const auto beside = tabBesideId();
     if (beside.isEmpty()) {
         return {};
     }
-    return tabRow(beside) < tabRow(m_activeTabId) ? beside : m_activeTabId;
+    return tabRow(beside) < tabRow(m_activeTabId) ? std::pair {beside, m_activeTabId}
+                                                  : std::pair {m_activeTabId, beside};
 }
 
-QString BrowserController::splitRightTabId() const
-{
-    const auto beside = tabBesideId();
-    if (beside.isEmpty()) {
-        return {};
-    }
-    return tabRow(beside) < tabRow(m_activeTabId) ? m_activeTabId : beside;
-}
+QString BrowserController::splitLeftTabId() const { return splitOnShowPair().first; }
+
+QString BrowserController::splitRightTabId() const { return splitOnShowPair().second; }
 
 QString BrowserController::tabBesideId() const
 {
@@ -839,6 +835,8 @@ bool BrowserController::confirmTabMoveToSpace(
     const auto movingActiveTab = tabId == m_activeTabId;
     // A tab leaving the Space leaves its split too: the pairing is written to
     // neither Space, and the tab that stays is an ordinary row again.
+    // Written unpaired to both Spaces before the model is touched, so a write
+    // that fails leaves the split standing.
     const auto partnerId = sourceTab->splitPartnerId;
     auto sourceTabs = m_tabs.items();
     TabState movedTab = *sourceTab;

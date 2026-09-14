@@ -2829,6 +2829,23 @@ TestCase {
         keyClick(Qt.Key_Semicolon, Qt.ControlModifier);
         tryCompare(browser, "activeTabId", rightTabId);
 
+        // A question the tab beside asks waits until the pane is focused.
+        const permissionBar = findChild(window.contentItem, "sitePermissionBar");
+        verify(permissionBar !== null);
+        const requestId = left.simulateSitePermission("https://focus-left.example", "camera");
+        verify(requestId.length > 0);
+        wait(20);
+        verify(!window.permissionOpen);
+        compare(window.heldPermissionRequests.length, 1);
+        keyClick(Qt.Key_Semicolon, Qt.ControlModifier);
+        tryCompare(browser, "activeTabId", leftTabId);
+        tryCompare(window, "permissionOpen", true);
+        compare(window.pendingPermissionResponder, left);
+        compare(window.pendingPermissionRequest, requestId);
+        compare(window.heldPermissionRequests.length, 0);
+        window.respondToPermission(BrowserController.Block);
+        verify(!window.permissionOpen);
+
         browser.closeTab(rightTabId);
         browser.closeTab(leftTabId);
     }

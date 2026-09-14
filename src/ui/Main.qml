@@ -1230,6 +1230,38 @@ ApplicationWindow {
 
     // 1 allow once, 2 always allow, 3 block — the decisions BrowserController
     // stores, in the order the bar offers them.
+    function askPermission(engine, requestId, origin, permission) {
+        window.pendingPermissionRequest = requestId;
+        window.pendingPermissionResponder = engine;
+        window.pendingPermissionOrigin = origin;
+        window.pendingPermissionType = permission;
+        window.permissionOpen = true;
+    }
+
+    // What the tab beside asked while it was beside, asked once it is the
+    // active tab. One question stands at a time; the rest wait their turn
+    // behind it, and a question whose page is gone is dropped.
+    property var heldPermissionRequests: []
+    function presentHeldPermissionRequests() {
+        if (window.permissionOpen || window.heldPermissionRequests.length === 0)
+            return;
+        const held = window.heldPermissionRequests.filter(function (request) {
+            return request.engine !== null;
+        });
+        window.heldPermissionRequests = held;
+        for (let index = 0; index < held.length; ++index) {
+            const request = held[index];
+            if (request.engine !== engineLoader.item)
+                continue;
+            window.heldPermissionRequests = held.slice(0, index).concat(held.slice(index + 1));
+            window.askPermission(request.engine, request.requestId, request.origin,
+                                 request.permission);
+            return;
+        }
+    }
+    onPermissionOpenChanged: if (!permissionOpen)
+                                 window.presentHeldPermissionRequests()
+
     function respondToPermission(decision) {
         window.windowBrowser.setPermissionDecision(window.pendingPermissionOrigin,
                                                    window.pendingPermissionType, decision);
@@ -2097,12 +2129,24 @@ ApplicationWindow {
                         pageNotice.dismiss();
                     }
 
+                    // The tab beside shows its page and nothing else: a
+                    // question its page asks waits until the pane is
+                    // focused, and is asked then.
                     onSitePermissionRequested: function (engine, requestId, origin, permission) {
-                        window.pendingPermissionRequest = requestId;
-                        window.pendingPermissionResponder = engine;
-                        window.pendingPermissionOrigin = origin;
-                        window.pendingPermissionType = permission;
-                        window.permissionOpen = true;
+                        if (engine === engineLoader.besideEngine) {
+                            window.heldPermissionRequests = window.heldPermissionRequests.concat([
+                                                                                                     {
+                                                                                                         "engine": engine,
+                                                                                                         "requestId":
+                                                                                                         requestId,
+                                                                                                         "origin": origin,
+                                                                                                         "permission":
+                                                                                                         permission
+                                                                                                     }
+                                                                                                 ]);
+                            return;
+                        }
+                        window.askPermission(engine, requestId, origin, permission);
                     }
 
                     onCertificateErrorRaised: function (engine, requestId, failure) {
@@ -2718,6 +2762,8 @@ ApplicationWindow {
                         window.reconcileTabModalRequests();
                         window.refreshFindOpen();
                         window.reportPdfHandling(window.windowBrowser.activeUrl);
+                        // The engine follows the tab a turn later.
+                        Qt.callLater(window.presentHeldPermissionRequests);
                     }
 
                     // A split changes what is on show, which is what ends a
