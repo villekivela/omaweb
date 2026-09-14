@@ -46,6 +46,15 @@ page has been closed. Its only ordinary tab is blank. A Space at rest lists no o
 shows the Start page in place of a webpage; its Pinned tabs are unaffected. _Avoid_: Empty tab,
 blank tab, new tab
 
+**Split**: Two ordinary tabs of one Space shown side by side where one webpage would be, and listed
+as one sidebar row. One of the two is the active tab; the other is the tab beside. A split belongs
+to its Space, stays listed while the reader looks at other tabs, and ends when either tab closes or
+leaves the Space. _Avoid_: Split view (as the name of the thing), tab group, pane group
+
+**Tab beside**: The tab of a split that is on show but not active. Its page runs and is seen, and
+nothing else about the browser answers for it until the reader focuses it. _Avoid_: Companion tab,
+secondary tab, other pane
+
 **Start page**: What Omaweb draws where a webpage would be whenever the tab on show has no address
 to load, in a Space at rest or on `about:blank` itself: the browser's keyboard commands and the keys
 that run them, rather than a document loaded from anywhere. It costs no engine and takes the
