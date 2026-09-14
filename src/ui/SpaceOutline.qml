@@ -273,6 +273,10 @@ Rectangle {
     // of the turn: the half that was active is announced as beside after the
     // other half is announced as active, and neither arrival is one.
     property bool focusMoving: false
+    // Set while a row's arrival is being measured, for the rest of the turn:
+    // a split whose row arrived whole comes on show with the active half's
+    // move, not with one of its own.
+    property bool activeArriving: false
     onBesideTabItemChanged: {
         if (besideTabItem === null || activeTabItem === null || !easeSpaces || arriving)
             return;
@@ -280,7 +284,7 @@ Rectangle {
         // other half, or a blank tab was put beside it, and nothing arrived.
         // A row that arrived whole, both halves with it, is already on its
         // way from the active half's move.
-        if (focusMoving || besideTabItem === settledTabItem || tabArrival.running)
+        if (focusMoving || activeArriving || besideTabItem === settledTabItem)
             return;
         // The row is heard of before the model has finished saying what it
         // is: its own half of the pairing lands after the other half's. The
@@ -322,6 +326,10 @@ Rectangle {
         settledTabY = at.y;
         if (!easeSpaces || arriving || fromY < 0 || focusMoved)
             return;
+        activeArriving = true;
+        Qt.callLater(function () {
+            root.activeArriving = false;
+        });
         // Rows stand under one another, so a different row is a vertical
         // move; pins stand beside one another, so the same row and a
         // different column is a horizontal one.
