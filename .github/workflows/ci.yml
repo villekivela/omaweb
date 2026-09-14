@@ -40,6 +40,13 @@ jobs:
       - name: Check the website against its own policy
         run: scripts/check_website_csp.py
 
+      # The build step that writes the release notes into the site. Vercel runs
+      # it on deploy, where a failure is a page nobody has looked at yet, so
+      # the rendering it does is held here. `node --test` is the whole harness
+      # and this job already has Node for the formatters.
+      - name: Test the website build
+        run: node --test website/build/
+
   commit-messages:
     runs-on: ubuntu-latest
     steps:

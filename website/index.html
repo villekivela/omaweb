@@ -73,7 +73,15 @@
           height="20"
           alt="Omaweb"
         />
-        <p class="t-status">Browser for Omarchy</p>
+        <!-- The page is long enough that scrolling is no longer a way through
+             it. The links are in-page anchors, so they work with the script
+             blocked and a shared one lands where it says. -->
+        <nav class="t-nav" aria-label="Sections">
+          <a href="#features">Features</a>
+          <a href="#install">Install</a>
+          <a href="#docs">Docs</a>
+          <a href="#releases">Releases</a>
+        </nav>
       </header>
 
       <section class="t-hero">
@@ -256,9 +264,93 @@
         </div>
       </section>
 
+      <!-- The two narrative sections below say why the browser is the way it
+           is. This is the index they do not give: what is actually in it,
+           short enough to scan and specific enough to check against. The
+           source is the README's Highlights, and the two lists say the same
+           thing on purpose. -->
+      <section class="t-section" id="features">
+        <div class="t-section__head">
+          <p class="t-section__index">02 / what it does</p>
+          <div class="t-section__intro">
+            <h2>What is in the browser.</h2>
+            <p>
+              Everything here works today, on the release you can download, unless the item says
+              otherwise.
+            </p>
+          </div>
+        </div>
+
+        <ul class="t-features">
+          <li class="t-feature">
+            <h3>Spaces</h3>
+            <p>
+              Separate browsing identities in one window. Each Space keeps its own cookies, logins,
+              history, permissions, sessions and tabs.
+            </p>
+          </li>
+          <li class="t-feature">
+            <h3>Split</h3>
+            <p>
+              Two tabs of a Space side by side where one webpage would be, listed as one sidebar
+              row. <span class="t-feature__when">Lands in the next release.</span>
+            </p>
+          </li>
+          <li class="t-feature">
+            <h3>The Omnibar</h3>
+            <p>
+              One field opens addresses, searches the web, switches tabs and Spaces, and runs
+              commands. Every browser action is reachable from the command panel.
+            </p>
+          </li>
+          <li class="t-feature">
+            <h3>Keyboard navigation</h3>
+            <p>
+              Configurable bindings, link hints, and a shortcut sheet generated from the keymap you
+              are actually running rather than from a written list of it.
+            </p>
+          </li>
+          <li class="t-feature">
+            <h3>Tabs that come back</h3>
+            <p>
+              Pinned tabs, Private windows, site-requested Auxiliary windows, and recently closed
+              tabs. Mark a tab Keep active and it keeps running in the background.
+            </p>
+          </li>
+          <li class="t-feature">
+            <h3>Content blocking</h3>
+            <p>
+              EasyList, EasyPrivacy, cosmetic rules, Scriptlets and Substitute resources, with
+              uBlock Origin&rsquo;s filter syntax for rules of your own.
+            </p>
+          </li>
+          <li class="t-feature">
+            <h3>Site information</h3>
+            <p>
+              Connection state, certificate errors, permissions, stored data and what Content
+              blocking did, for the page in front of you.
+            </p>
+          </li>
+          <li class="t-feature">
+            <h3>Downloads that ask first</h3>
+            <p>
+              A high-risk download is confirmed before it starts, loses its execute permission, and
+              is never opened for you.
+            </p>
+          </li>
+          <li class="t-feature">
+            <h3>Themes without a restart</h3>
+            <p>
+              Omaweb follows the desktop theme and can import terminal and Omarchy themes while it
+              is running.
+            </p>
+          </li>
+        </ul>
+      </section>
+
       <section class="t-section">
         <div class="t-section__head">
-          <p class="t-section__index">02 / your keys, your data</p>
+          <p class="t-section__index">03 / your keys, your data</p>
           <div class="t-section__intro">
             <h2>Your browser. Your bindings. Your files.</h2>
             <p>
@@ -289,7 +381,7 @@
 
       <section class="t-section">
         <div class="t-section__head">
-          <p class="t-section__index">03 / your spaces</p>
+          <p class="t-section__index">04 / your spaces</p>
           <div class="t-section__intro">
             <h2>Work and personal stay in the same window.</h2>
             <p>Spaces are separate browsing identities inside one window.</p>
@@ -316,7 +408,7 @@
 
       <section class="t-section" id="install">
         <div class="t-section__head">
-          <p class="t-section__index">04 / getting it</p>
+          <p class="t-section__index">05 / getting it</p>
           <div class="t-section__intro">
             <h2>Built for Arch.</h2>
             <p>
@@ -357,6 +449,126 @@
             </div>
           </div>
         </div>
+      </section>
+
+      <!-- Not the docs tree as it stands. `docs/agents/` is written for the
+           agents working on the repository and `docs/adr/` is a record of
+           decisions rather than a thing to read, so neither is here. What is
+           left is split by what a reader came for: running Omaweb, or working
+           on it. The links go to the files on GitHub, so there is one copy of
+           each document and the site cannot fall behind it. -->
+      <section class="t-section" id="docs">
+        <div class="t-section__head">
+          <p class="t-section__index">06 / the manual</p>
+          <div class="t-section__intro">
+            <h2>Read the rest.</h2>
+            <p>
+              The documentation lives in the repository beside the code it describes. These are the
+              parts written to be read.
+            </p>
+          </div>
+        </div>
+        <div class="t-cols t-cols--2">
+          <div>
+            <h3>Running it</h3>
+            <ul class="t-docs">
+              <li>
+                <a href="https://github.com/villekivela/omaweb#readme">README</a>
+                <span>What Omaweb is, how to install it, and every default binding.</span>
+              </li>
+              <li>
+                <a href="sync/">Sync privacy and permissions</a>
+                <span>What Sync copies between your machines, and what it never touches.</span>
+              </li>
+              <li>
+                <a href="https://github.com/villekivela/omaweb/blob/main/docs/network-requests.md"
+                  >Network request ledger</a
+                >
+                <span>Every automatic request the browser makes, and what makes it.</span>
+              </li>
+              <li>
+                <a href="https://github.com/villekivela/omaweb/blob/main/SECURITY.md"
+                  >Security policy</a
+                >
+                <span>What is in scope, and how to report something you find.</span>
+              </li>
+              <li>
+                <a href="https://github.com/villekivela/omaweb/blob/main/docs/roadmap.md"
+                  >Roadmap</a
+                >
+                <span>What alpha meant, what answered it, and what is left.</span>
+              </li>
+            </ul>
+          </div>
+          <div>
+            <h3>Working on it</h3>
+            <ul class="t-docs">
+              <li>
+                <a href="https://github.com/villekivela/omaweb/blob/main/docs/development.md"
+                  >Development guide</a
+                >
+                <span>Build presets, the UI lab, packaging and releases.</span>
+              </li>
+              <li>
+                <a href="https://github.com/villekivela/omaweb/blob/main/docs/architecture.md"
+                  >Architecture</a
+                >
+                <span>The boundaries between core, engine, platform and the QML shell.</span>
+              </li>
+              <li>
+                <a
+                  href="https://github.com/villekivela/omaweb/blob/main/docs/product/requirements.md"
+                  >Product requirements</a
+                >
+                <span>The behaviour the browser is held to, stated as requirements.</span>
+              </li>
+              <li>
+                <a href="https://github.com/villekivela/omaweb/blob/main/CONTEXT.md"
+                  >Domain glossary</a
+                >
+                <span>Space, Split, Pinned tab, Start page: the words and what they mean.</span>
+              </li>
+              <li>
+                <a href="https://github.com/villekivela/omaweb/blob/main/CONTRIBUTING.md"
+                  >Contributing</a
+                >
+                <span>The workflow a change goes through to get in.</span>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section class="t-section" id="releases">
+        <div class="t-section__head">
+          <p class="t-section__index">07 / releases</p>
+          <div class="t-section__intro">
+            <h2>What changed, and when.</h2>
+            <p>
+              Every <code>v0.*</code> tag ships as a prerelease while the major version is 0. That
+              records what a build is compatible with, not how finished it is.
+            </p>
+          </div>
+        </div>
+
+        <!-- Written here by build/site.mjs at deploy time, from the GitHub
+             releases API: the notes cannot drift from the tags, and no reader
+             spends a request or a rate limit on them. What is committed
+             between the markers is the fallback, and it is what a deploy that
+             could not reach the API still serves. -->
+        <!-- releases:start -->
+        <p class="t-releases__none">
+          The published releases, their notes and their packages are
+          <a href="https://github.com/villekivela/omaweb/releases">on GitHub</a>.
+        </p>
+        <!-- releases:end -->
+
+        <p class="t-releases__all">
+          <a class="btn" href="https://github.com/villekivela/omaweb/releases">
+            <svg class="btn__mark" aria-hidden="true"><use href="#mark-github" /></svg>
+            Every release on GitHub
+          </a>
+        </p>
       </section>
 
       <!-- The viewer the thumbnails open into. `<dialog>` rather than a

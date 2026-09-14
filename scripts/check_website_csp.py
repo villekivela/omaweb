@@ -37,6 +37,12 @@ from pathlib import Path
 WEBSITE = Path(__file__).resolve().parent.parent / "website"
 POLICY = WEBSITE / "vercel.json"
 
+# `website/build/site.mjs` writes the deployable site here. Skipped, so this
+# check reads the same files whether or not someone has run a local build. What
+# lands in there is the sources below plus the release markup, and
+# `website/build/render.mjs` emits links and nothing the browser fetches.
+BUILT = WEBSITE / "dist"
+
 # An origin this page may not reach: an absolute URL, or a protocol-relative
 # one. `data:` is caught separately so it can say something more useful.
 FOREIGN = re.compile(r"""^(?:[a-zA-Z][a-zA-Z0-9+.-]*:)?//""")
@@ -130,8 +136,12 @@ def main() -> int:
     check_policy(problems)
 
     for path in sorted(WEBSITE.rglob("*.html")):
+        if BUILT in path.parents:
+            continue
         check_markup(path, problems)
     for path in sorted(WEBSITE.rglob("*.css")):
+        if BUILT in path.parents:
+            continue
         check_stylesheet(path, problems)
 
     if problems:

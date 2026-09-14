@@ -487,6 +487,39 @@ development artifacts and are not attached ([ADR 0029](adr/0029-distribute-only-
 `cmake --preset dev` prints the version it derived. A tree with no tags falls back to
 `OMAWEB_FALLBACK_VERSION` in `cmake/OmawebVersion.cmake`.
 
+Publishing a release also changes the website. Its releases section and the page each release gets
+are generated from the GitHub releases API on the next deploy, so a new tag reaches the site without
+an edit.
+
+## Website
+
+`website/` is the deployed site. Vercel builds it with the `buildCommand` in `website/vercel.json`,
+which runs `website/build/site.mjs` from `website/` and serves the `dist/` it writes.
+
+```sh
+scripts/serve_website.sh            # the committed sources, on localhost:8000
+cd website && node build/site.mjs   # write dist/, the site as it deploys
+node --test website/build/          # the rendering the build step does
+```
+
+The build step fetches the published releases, writes the list into the `releases:start` block in
+`website/index.html`, and writes one page per release from `website/build/release.template.html`. It
+writes only into `dist/`, so a local run leaves the sources alone. Set `GITHUB_TOKEN` to raise the
+API rate limit; without one the unauthenticated limit applies and is shared with everything else
+building from the same address.
+
+A release body is Markdown from somewhere else, so `website/build/render.mjs` escapes it and emits
+only the elements it recognises. That is also what keeps the generated pages inside the site's
+`default-src 'self'` policy: nothing it renders is a subresource. `scripts/check_website_csp.py`
+checks the sources rather than `dist/`, so the check reads the same files whether or not a build has
+run.
+
+A failed fetch is not a failed deploy. The build keeps the fallback the committed page carries, a
+link to the releases on GitHub, and says so on standard error.
+
+Rebuild the per-theme palettes, screenshots, favicons and wordmarks with
+`scripts/build_website_themes.py` after a chrome change or an upstream theme change.
+
 ## Hardware video decode
 
 Omaweb asks Chromium for VA-API decoding by adding `--enable-features=VaapiVideoDecodeLinuxGL` to

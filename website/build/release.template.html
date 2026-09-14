@@ -1,0 +1,73 @@
+<!doctype html>
+<!--
+  The page one release gets, filled in by build/render.mjs and written to
+  dist/releases/<tag>/index.html. It lives under build/ rather than beside the
+  site because it is not a page: its {{placeholders}} are not markup and it is
+  never deployed.
+
+  Two levels down from the site root, so every path here climbs twice. The
+  chrome is the landing page's, down to the stylesheets and the script, so a
+  release page follows the reader's chosen theme like everything else.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{{title}}</title>
+    <meta name="description" content="{{description}}" />
+    <meta name="application-name" content="Omaweb" />
+    <meta name="robots" content="index, follow" />
+    <meta name="theme-color" content="#06060c" />
+    <meta property="og:type" content="article" />
+    <meta property="og:site_name" content="Omaweb" />
+    <meta property="og:title" content="{{title}}" />
+    <meta property="og:description" content="{{description}}" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="{{title}}" />
+    <meta name="twitter:description" content="{{description}}" />
+    <link rel="icon" href="../../favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="../../styles.css" />
+    <link rel="stylesheet" href="../../themes.css" />
+  </head>
+
+  <body data-theme="hackerman">
+    <canvas class="t-rain" aria-hidden="true"></canvas>
+
+    <div class="t-wrap">
+      <header class="t-top">
+        <a href="../../">
+          <img
+            data-themed="../../assets/icons/wordmark-{theme}.svg"
+            src="../../assets/icons/wordmark-hackerman.svg"
+            width="160"
+            height="20"
+            alt="Omaweb"
+          />
+        </a>
+        <nav class="t-nav" aria-label="Sections">
+          <a href="../../#features">Features</a>
+          <a href="../../#install">Install</a>
+          <a href="../../#docs">Docs</a>
+          <a href="../../#releases">Releases</a>
+        </nav>
+      </header>
+
+      <section class="t-hero t-hero--short">
+        <p class="t-section__index">Release notes</p>
+        <h1>{{tag}}</h1>
+        <p class="t-release__marks">{{marks}}</p>
+        <div class="t-hero__actions">{{links}}</div>
+      </section>
+
+      <section class="t-section">
+        <div class="t-prose">{{notes}}</div>
+      </section>
+
+      <footer class="t-foot">
+        <span>Omaweb &middot; alpha &middot; MPL 2.0</span>
+        <a href="../../#releases">All releases</a>
+      </footer>
+    </div>
+    <script src="../../script.js"></script>
+  </body>
+</html>
