@@ -643,6 +643,63 @@ TestCase {
         browser.closeActiveTab();
     }
 
+    // The bar a webpage scrolls in is the chrome's, not the engine's. The
+    // engine hides the one it would have drawn for the document's own scroller
+    // and reports where the page stands; the shell draws that in the same
+    // component the sidebar and Settings scroll in.
+    //
+    // It is parented into the engine rather than placed beside it, which is
+    // what carries it into a pane of a split, a Glance, or a window of its own
+    // without any of those having to know the bar exists.
+    function test_theChromeDrawsTheBarAWebpageScrollsIn() {
+        const engine = openPage("https://scrolling.example");
+        const bar = findChild(engine, "pageScrollBar");
+        verify(bar !== null);
+        compare(bar.parent, engine);
+
+        // A page that fits shows nothing at all.
+        engine.pageScrollLength = 400;
+        engine.pageViewportLength = 400;
+        engine.pageScrollOffset = 0;
+        verify(!bar.visible);
+
+        // A page four times its viewport gives a thumb a quarter of the track,
+        // standing at the top.
+        engine.pageScrollLength = 4000;
+        engine.pageViewportLength = 1000;
+        verify(bar.visible);
+        fuzzyCompare(bar.size, 0.25, 0.001);
+        fuzzyCompare(bar.position, 0, 0.001);
+
+        // Halfway down its travel puts the thumb halfway down the track it has
+        // left to run in, not halfway down the track.
+        engine.pageScrollOffset = 1500;
+        fuzzyCompare(bar.position, 0.375, 0.001);
+
+        // The end of the page puts the thumb's far edge at the end of the bar.
+        engine.pageScrollOffset = 3000;
+        fuzzyCompare(bar.position + bar.size, 1, 0.001);
+    }
+
+    // The page is driven only while the reader is driving the bar. `position`
+    // follows what the page reported, so a bar that asked the page to scroll
+    // every time it moved would send the page's own scrolling straight back to
+    // it and fight the reader's wheel.
+    function test_theBarScrollsThePageOnlyWhileItIsBeingDragged() {
+        const engine = openPage("https://dragging.example");
+        const bar = findChild(engine, "pageScrollBar");
+        verify(bar !== null);
+
+        engine.pageScrollLength = 4000;
+        engine.pageViewportLength = 1000;
+        engine.pageScrollOffset = 0;
+
+        // The page scrolling itself moves the bar and is not sent back.
+        engine.pageScrollOffset = 600;
+        fuzzyCompare(bar.position, 0.15, 0.001);
+        compare(engine.pageScrollOffset, 600);
+    }
+
     // Developer tools take a column of their own beside the tab they inspect:
     // the page gives up that width rather than being covered by it, and the
     // view in the dock is the one the engine handed over.

@@ -41,6 +41,15 @@ QStringList validateEngineViewContract(const QObject &adapter)
         // and the shell knows what the window looks like, so the shell says
         // rather than each adapter inventing a colour.
         {"pageControlAccent", QMetaType::QColor},
+        // The page's own scrollbar. The shell hides the one the engine draws
+        // for the document's own scroller and draws that bar itself, so the
+        // adapter reports where the page stands in its own length and takes
+        // the two colours the bars inside the page keep the engine drawing.
+        {"pageScrollOffset", QMetaType::Double},
+        {"pageScrollLength", QMetaType::Double},
+        {"pageViewportLength", QMetaType::Double},
+        {"pageScrollbarThumb", QMetaType::QColor},
+        {"pageScrollbarTrack", QMetaType::QColor},
         // Find belongs to one tab, and a tab is one adapter, so the query and
         // where it has reached live here rather than in a table the shell keeps
         // beside the tabs.
@@ -93,6 +102,7 @@ QStringList validateEngineViewContract(const QObject &adapter)
         {"findText", false, 2},
         {"clearFind", false, 0},
         {"setZoomFactor", false, 1},
+        {"scrollPageTo", false, 1},
         // The adapter renders the page; presenting it belongs to the platform's
         // own print dialog, so the destination is named by the shell.
         {"printPage", false, 1},
