@@ -160,10 +160,20 @@
   var favicon = document.querySelector('link[rel="icon"]');
   var themeColor = document.querySelector('meta[name="theme-color"]');
 
+  // Which themes exist, from the `--themes` list `themes.css` is generated
+  // with. The switcher buttons are only on the landing page, so asking them
+  // would leave every other page unable to tell a stored theme from a stale
+  // one: it would fall back to the default and the reader's choice would stop
+  // at the first link they followed.
+  var themeNames = getComputedStyle(document.documentElement)
+    .getPropertyValue("--themes")
+    .replace(/["']/g, "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+
   function hasTheme(name) {
-    return themeButtons.some(function (button) {
-      return button.dataset.theme === name;
-    });
+    return themeNames.indexOf(name) !== -1;
   }
 
   function readSavedTheme() {
