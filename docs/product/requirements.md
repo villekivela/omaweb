@@ -37,16 +37,16 @@ reports the gap and remains experimental rather than imitating behavior it canno
   window lives. The focused pane's tab is the active tab: the address field, find bar, notices,
   prompt bars, loading indicator, zoom, lock and navigation follow it, and the tab beside shows its
   page and nothing else until it is focused. Both panes run; a split of an away Space freezes like
-  its other pages. Focus moves by a press in the other pane or `Primary+;`. A split is entered from
-  another row's Add split view, which pairs it with the active tab, or from the active row's, which
-  puts a blank tab beside it and focuses it; the command panel's `add-split` offers a chooser of the
-  unpaired ordinary tabs, headed by a blank tab. Selecting any other tab shows it alone and leaves
-  the row in place; either half brings the split back, and tab cycling treats the row as one stop
-  entered on its last-focused half. Separate split view puts two adjacent ordinary rows back.
-  Closing either tab, or moving one to another Space, ends the split. Pinned tabs are never paired,
-  a tab is in at most one split, and a split's tab is separated before it can be pinned or moved.
-  The pairing is kept with the Space's tabs and restored after a restart, and is not part of the
-  Sync projection.
+  its other pages. Focus moves by a press in the other pane, by `Primary+;`, or by the key that
+  moves the keyboard to the region on that side. A split is entered from another row's Add split
+  view, which pairs it with the active tab, or from the active row's, which puts a blank tab beside
+  it and focuses it; the command panel's `add-split` offers a chooser of the unpaired ordinary tabs,
+  headed by a blank tab. Selecting any other tab shows it alone and leaves the row in place; either
+  half brings the split back, and tab cycling treats the row as one stop entered on its last-focused
+  half. Separate split view puts two adjacent ordinary rows back. Closing either tab, or moving one
+  to another Space, ends the split. Pinned tabs are never paired, a tab is in at most one split, and
+  a split's tab is separated before it can be pinned or moved. The pairing is kept with the Space's
+  tabs and restored after a restart, and is not part of the Sync projection.
 - Each Space retains its 25 most recently closed tabs across restart. Reopening restores address,
   title, pin state, zoom, and mute in reverse closing order. A Private session keeps the same stack
   only in memory.
@@ -118,6 +118,10 @@ reports the gap and remains experimental rather than imitating behavior it canno
 - `Primary+E` moves the keyboard into the outline, landing on the row the reader is already reading,
   and `Escape` or `Primary+Shift+E` hands it back to the page. Focusing a hidden outline shows it
   first.
+- `Alt+H`, `Alt+J`, `Alt+K` and `Alt+L` move the keyboard left, down, up and right between the
+  regions on screen: the outline, the page area, which is a pane at a time while a split is on show,
+  and the Developer tools dock. A region that is hidden is skipped rather than shown, and a move
+  with nothing in that direction leaves the keyboard where it is.
 - In Settings, an unhandled letter selects the next section whose name begins with it and moves the
   keyboard onto that name in the rail. Repeated presses cycle through matching sections. A field
   keeps the letters typed into it.
@@ -258,6 +262,7 @@ The default browser commands include:
 - `gs` for the next Space and `Primary+1`–`Primary+9` for a specific one.
 - `Primary+B` to hide the sidebar, `Primary+E` to focus it, `Primary+,` for settings, and
   `Primary+K` or `:` for the command panel.
+- `Alt+H`, `Alt+J`, `Alt+K` and `Alt+L` to move the keyboard between the regions on screen.
 - `Primary+Shift+I` for Developer tools, `Primary+Alt+C` to inspect an element, and
   `Primary+Shift+C` to copy the address of the page on show.
 - `Primary+F` or `/` to find in the page, `Primary+G` or `n` for the next match and

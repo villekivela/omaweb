@@ -171,6 +171,18 @@ TestCase {
         tryCompare(findChild(window.contentItem, "startPage"), "visible", false);
     }
 
+    // Where the keyboard is, asked of the chrome rather than of the window's
+    // own idea of its regions.
+    function focusIsInside(item) {
+        let at = window.activeFocusItem;
+        while (at) {
+            if (at === item)
+                return true;
+            at = at.parent;
+        }
+        return false;
+    }
+
     // A button in a row the positioner has not laid out yet sits on top of its
     // neighbours, so a press meant for one lands on another. The first answer
     // in a row is at the left edge; every one after it has been moved.
@@ -1964,6 +1976,150 @@ TestCase {
         window.commands.run("focus-sidebar", -1);
         compare(window.sidebarCollapsed, false);
         window.commands.run("focus-page", -1);
+    }
+
+    // The keyboard moves between the regions on screen by direction: the
+    // outline, the page — a pane at a time while a split is on show — and the
+    // inspector. A move with nothing that way leaves the keyboard where it
+    // is, and a region that is not on screen is neither landed on nor shown.
+    function test_focusMovesBetweenTheRegionsOnScreen() {
+        const engineHost = findChild(window.contentItem, "engineLoader");
+        const outline = findChild(window.contentItem, "sidebar");
+        const dock = findChild(window.contentItem, "developerToolsDock");
+        window.settingsOpen = false;
+        window.sidebarCollapsed = false;
+        window.requestActivate();
+        tryVerify(function () {
+            return window.active;
+        });
+        openPage("https://regions.example/");
+        const pageTabId = browser.activeTabId;
+        settleMotion();
+        window.commands.run("focus-page", -1);
+        tryVerify(function () {
+            return engineHost.item.activeFocus;
+        });
+
+        // Left of the page is the outline, under the keys the default table
+        // binds.
+        keyClick(Qt.Key_H, Qt.AltModifier);
+        tryVerify(function () {
+            return focusIsInside(outline);
+        });
+
+        // Nothing stands left of the outline, and nothing above or below any
+        // of the regions.
+        const landed = window.activeFocusItem;
+        keyClick(Qt.Key_H, Qt.AltModifier);
+        compare(window.activeFocusItem, landed);
+        keyClick(Qt.Key_J, Qt.AltModifier);
+        compare(window.activeFocusItem, landed);
+        keyClick(Qt.Key_K, Qt.AltModifier);
+        compare(window.activeFocusItem, landed);
+
+        keyClick(Qt.Key_L, Qt.AltModifier);
+        tryVerify(function () {
+            return engineHost.item.activeFocus;
+        });
+
+        // The inspector is a region of its own for as long as it is docked.
+        window.commands.run("developer-tools", -1);
+        tryVerify(function () {
+            return dock.visible;
+        });
+        keyClick(Qt.Key_L, Qt.AltModifier);
+        tryVerify(function () {
+            return focusIsInside(dock);
+        });
+        keyClick(Qt.Key_L, Qt.AltModifier);
+        verify(focusIsInside(dock));
+        keyClick(Qt.Key_H, Qt.AltModifier);
+        tryVerify(function () {
+            return engineHost.item.activeFocus;
+        });
+        window.commands.run("developer-tools", -1);
+        tryVerify(function () {
+            return !dock.visible;
+        });
+
+        // A closed inspector and a hidden outline are not regions: the move
+        // finds nothing that way and shows neither of them.
+        keyClick(Qt.Key_L, Qt.AltModifier);
+        verify(engineHost.item.activeFocus);
+        window.sidebarCollapsed = true;
+        keyClick(Qt.Key_H, Qt.AltModifier);
+        verify(engineHost.item.activeFocus);
+        compare(window.sidebarCollapsed, true);
+        window.sidebarCollapsed = false;
+
+        // A sheet standing in the page area takes it out of the row: a move
+        // towards it finds nothing rather than landing on a page the reader
+        // cannot see.
+        window.historyOpen = true;
+        window.commands.run("focus-sidebar", -1);
+        tryVerify(function () {
+            return focusIsInside(outline);
+        });
+        const inOutline = window.activeFocusItem;
+        keyClick(Qt.Key_L, Qt.AltModifier);
+        compare(window.activeFocusItem, inOutline);
+        window.historyOpen = false;
+
+        // Each pane of a split is a region: the move between them is the move
+        // that focuses the tab beside, and the outline is still one step left
+        // of the left pane rather than of whichever pane is focused.
+        browser.openInput("https://regions-beside.example/", true);
+        const besideTabId = browser.activeTabId;
+        browser.activateTab(pageTabId);
+        verify(browser.addSplit(besideTabId));
+        tryCompare(browser, "splitOnShow", true);
+        compare(browser.splitLeftTabId, pageTabId);
+        settleMotion();
+        window.commands.run("focus-page", -1);
+        tryVerify(function () {
+            return engineHost.item.activeFocus;
+        });
+
+        keyClick(Qt.Key_L, Qt.AltModifier);
+        tryCompare(browser, "activeTabId", besideTabId);
+        keyClick(Qt.Key_H, Qt.AltModifier);
+        tryCompare(browser, "activeTabId", pageTabId);
+        keyClick(Qt.Key_H, Qt.AltModifier);
+        tryVerify(function () {
+            return focusIsInside(outline);
+        });
+        compare(browser.activeTabId, pageTabId);
+
+        // Right of the outline is the pane nearest it, not the one beside.
+        keyClick(Qt.Key_L, Qt.AltModifier);
+        tryVerify(function () {
+            return engineHost.item.activeFocus;
+        });
+        compare(browser.activeTabId, pageTabId);
+
+        // Right of the outline is the pane nearest it whichever pane the
+        // keyboard left, and entering a pane is what makes its tab the active
+        // one: the reader lands where they pressed towards.
+        window.commands.run("focus-split-partner", -1);
+        tryCompare(browser, "activeTabId", besideTabId);
+        // The page that has just been focused takes the keyboard a turn
+        // later, so the outline is asked for it once that has happened.
+        tryVerify(function () {
+            return engineHost.item.activeFocus;
+        });
+        window.commands.run("focus-sidebar", -1);
+        tryVerify(function () {
+            return focusIsInside(outline);
+        });
+        compare(browser.activeTabId, besideTabId);
+        keyClick(Qt.Key_L, Qt.AltModifier);
+        tryCompare(browser, "activeTabId", pageTabId);
+        tryVerify(function () {
+            return engineHost.item.activeFocus;
+        });
+
+        browser.closeTab(besideTabId);
+        browser.closeTab(pageTabId);
     }
 
     function test_pageHintsReceiveTheActiveThemeAndFont() {

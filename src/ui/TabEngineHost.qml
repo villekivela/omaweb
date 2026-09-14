@@ -207,6 +207,10 @@ Item {
     readonly property real besidePaneWidth: !root.splitOnShow ? 0 : root.width
                                                                 - root.activePaneWidth
                                                                 - root.dividerWidth
+    // The same two panes as they stand, left and right rather than focused and
+    // beside, which is how the keyboard crosses them.
+    readonly property real rightPaneX: root.leftPaneWidth + root.dividerWidth
+    readonly property real rightPaneWidth: root.width - root.leftPaneWidth - root.dividerWidth
 
     // What the page the reader is looking at is doing with the whole screen,
     // read off the engine that draws it rather than kept beside it. Either
