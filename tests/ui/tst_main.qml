@@ -1655,6 +1655,44 @@ TestCase {
             verify(row.visible);
         }
         compare(findChild(settings, "settingsSpace-" + activeId).note, "Current Space");
+
+        // The order Spaces are listed in is the reader's. The row actions
+        // follow the Space rather than the place it started in, and the
+        // outline in the sidebar is listing the same model, so it moves with
+        // Settings rather than waiting for a reload.
+        const sidebarSpaceOrder = function () {
+            return [activeId, otherId, thirdId].map(function (spaceId) {
+                return findChild(sidebar, "space-" + spaceId);
+            }).sort(function (left, right) {
+                return left.mapToItem(sidebar, 0, 0).x - right.mapToItem(sidebar, 0, 0).x;
+            }).map(function (button) {
+                return button.objectName;
+            });
+        };
+        const settingsRowY = function (spaceId) {
+            return findChild(settings, "settingsSpace-" + spaceId).mapToItem(settings, 0, 0).y;
+        };
+        compare(sidebarSpaceOrder(), ["space-" + activeId, "space-" + otherId, "space-" + thirdId]);
+        verify(!findChild(settings, "moveSpaceUp-" + activeId).enabled);
+        verify(!findChild(settings, "moveSpaceDown-" + thirdId).enabled);
+
+        const moveUp = findChild(settings, "moveSpaceUp-" + thirdId);
+        settleActions(moveUp);
+        mouseClick(moveUp, moveUp.width / 2, moveUp.height / 2);
+        tryVerify(function () {
+            return settingsRowY(thirdId) < settingsRowY(otherId);
+        });
+        tryCompare(browser, "activeSpaceId", activeId);
+        compare(sidebarSpaceOrder(), ["space-" + activeId, "space-" + thirdId, "space-" + otherId]);
+        verify(findChild(settings, "moveSpaceDown-" + thirdId).enabled);
+        verify(!findChild(settings, "moveSpaceDown-" + otherId).enabled);
+        // Back the way it was, so the rename and the delete below read the
+        // order they were written against.
+        verify(browser.moveSpaceBy(thirdId, 1));
+        tryVerify(function () {
+            return settingsRowY(otherId) < settingsRowY(thirdId);
+        });
+
         const rename = findChild(settings, "renameSpace-" + otherId);
         verify(rename !== null);
         settleActions(rename);

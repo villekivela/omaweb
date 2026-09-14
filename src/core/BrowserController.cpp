@@ -495,6 +495,35 @@ bool BrowserController::renameSpace(const QString &spaceId, const QString &name)
     return false;
 }
 
+bool BrowserController::moveSpaceBy(const QString &spaceId, int offset)
+{
+    if (!m_capabilities.allows(Capability::Spaces)) {
+        return false;
+    }
+    if (offset == 0) {
+        return false;
+    }
+
+    const auto index = m_spaces.rowOf(spaceId);
+    if (index < 0) {
+        return false;
+    }
+    const auto destination = index + offset;
+    if (destination < 0 || destination >= m_spaces.items().size()) {
+        return false;
+    }
+
+    // The store is written first, so a store that refuses leaves it and the
+    // model on the order they both already held. The move that follows cannot
+    // refuse: its destination was just measured against the same list.
+    auto reordered = m_spaces.items();
+    reordered.move(index, destination);
+    if (!m_store->saveSpaces(reordered)) {
+        return false;
+    }
+    return m_spaces.move(spaceId, destination);
+}
+
 bool BrowserController::deleteSpace(const QString &spaceId, const QString &confirmationName)
 {
     if (!m_capabilities.allows(Capability::Spaces)) {

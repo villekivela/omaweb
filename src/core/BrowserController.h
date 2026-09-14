@@ -191,6 +191,12 @@ public:
     Q_INVOKABLE bool switchSpace(const QString &spaceId);
     Q_INVOKABLE bool renameSpace(const QString &spaceId, const QString &name);
     Q_INVOKABLE bool deleteSpace(const QString &spaceId, const QString &confirmationName);
+    // The order Spaces are listed in is the reader's, like the order of tabs
+    // within a Space, and it is a property of the Space records rather than of
+    // what is open: a move writes the new positions through and leaves the
+    // active Space, the active tab, and every Space's tabs where they were. A
+    // move that would carry a Space past either end is refused.
+    Q_INVOKABLE bool moveSpaceBy(const QString &spaceId, int offset);
     Q_INVOKABLE bool requestTabMoveToSpace(
         const QString &tabId, const QString &destinationSpaceId, bool hasEditedFormState);
     Q_INVOKABLE bool confirmTabMoveToSpace(const QString &tabId, const QString &destinationSpaceId);

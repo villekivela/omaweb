@@ -80,6 +80,7 @@ private slots:
     void createsAndSwitchesSpaces();
     void switchesSpacesWithoutReportingAStructuralChange();
     void renamesSpacePersistently();
+    void reordersSpacesPersistently();
     void requiresNameToDeletePopulatedSpace();
     void treatsEngineStateAsPopulatedSpaceData();
     void suspendsInactiveSpaceAndRestoresItsTabs();
@@ -250,6 +251,110 @@ void BrowserControllerTest::renamesSpacePersistently()
     BrowserController restored(SpaceStorage(root.path(), QStringLiteral("test")));
     QCOMPARE(restored.activeSpaceId(), workSpaceId);
     QCOMPARE(restored.activeSpaceName(), QStringLiteral("Research"));
+}
+
+void BrowserControllerTest::reordersSpacesPersistently()
+{
+    const auto spaceOrder = [](BrowserController &controller) {
+        auto *model = controller.spaces();
+        QStringList names;
+        for (int row = 0; row < model->rowCount(); ++row) {
+            names.append(model->data(model->index(row, 0), SpaceListModel::NameRole).toString());
+        }
+        return names;
+    };
+    const auto tabsOf = [](BrowserController &controller, const QString &spaceId) {
+        QStringList ids;
+        for (const auto &tab : controller.sessionStore()->loadTabs(spaceId)) {
+            ids.append(tab.id);
+        }
+        return ids;
+    };
+
+    SessionFixture fixture(SessionSpec {
+        .spaces = {
+            SpaceSpec {
+                .id = QStringLiteral("personal"),
+                .name = QStringLiteral("Personal"),
+                .tabs = {TabSpec {
+                    .id = QStringLiteral("personal-tab"),
+                    .url = QUrl(QStringLiteral("https://personal.example/session")),
+                }},
+            },
+            SpaceSpec {
+                .id = QStringLiteral("work"),
+                .name = QStringLiteral("Work"),
+                .tabs = {TabSpec {
+                             .id = QStringLiteral("work-pin"),
+                             .url = QUrl(QStringLiteral("https://work.example/pinned")),
+                             .pinned = true,
+                         },
+                    TabSpec {
+                        .id = QStringLiteral("work-tab"),
+                        .url = QUrl(QStringLiteral("https://work.example/session")),
+                    }},
+                .activeTabId = QStringLiteral("work-tab"),
+            },
+            SpaceSpec {
+                .id = QStringLiteral("reading"),
+                .name = QStringLiteral("Reading"),
+                .tabs = {TabSpec {
+                    .id = QStringLiteral("reading-tab"),
+                    .url = QUrl(QStringLiteral("https://reading.example/session")),
+                }},
+            },
+        },
+        .activeSpaceId = QStringLiteral("personal"),
+    });
+    QVERIFY_SESSION_READY(fixture);
+
+    const QStringList createdOrder {
+        QStringLiteral("Personal"), QStringLiteral("Work"), QStringLiteral("Reading")};
+    const QStringList movedOrder {
+        QStringLiteral("Personal"), QStringLiteral("Reading"), QStringLiteral("Work")};
+
+    {
+        const auto controller = fixture.createController();
+        QCOMPARE(spaceOrder(*controller), createdOrder);
+        const auto activeTabId = controller->activeTabId();
+
+        // A move reports itself as a move, so a list watching the model keeps
+        // the rows it already has.
+        QSignalSpy resetSpy(controller->spaces(), &QAbstractItemModel::modelReset);
+        QSignalSpy movedSpy(controller->spaces(), &QAbstractItemModel::rowsMoved);
+
+        QVERIFY(controller->moveSpaceBy(QStringLiteral("reading"), -1));
+        QCOMPARE(spaceOrder(*controller), movedOrder);
+        QCOMPARE(movedSpy.count(), 1);
+        QCOMPARE(resetSpy.count(), 0);
+
+        // Either end has nowhere to go that way, a Space the list does not
+        // hold has no place in it at all, and none of these changes anything.
+        QVERIFY(!controller->moveSpaceBy(QStringLiteral("personal"), -1));
+        QVERIFY(!controller->moveSpaceBy(QStringLiteral("work"), 1));
+        QVERIFY(!controller->moveSpaceBy(QStringLiteral("no-such-space"), -1));
+        QVERIFY(!controller->moveSpaceBy(QStringLiteral("reading"), 0));
+        QCOMPARE(spaceOrder(*controller), movedOrder);
+        QCOMPARE(movedSpy.count(), 1);
+
+        // Only positions change. The Space on show, the tab on show in it, and
+        // what every Space holds are where the reader left them, the Space
+        // that moved and the one it moved past included.
+        QCOMPARE(controller->activeSpaceId(), QStringLiteral("personal"));
+        QCOMPARE(controller->activeTabId(), activeTabId);
+        QCOMPARE(tabsOf(*controller, QStringLiteral("personal")),
+            QStringList {QStringLiteral("personal-tab")});
+        QCOMPARE(tabsOf(*controller, QStringLiteral("work")),
+            QStringList({QStringLiteral("work-pin"), QStringLiteral("work-tab")}));
+        QCOMPARE(tabsOf(*controller, QStringLiteral("reading")),
+            QStringList {QStringLiteral("reading-tab")});
+    }
+
+    const auto restored = fixture.createController();
+    QCOMPARE(spaceOrder(*restored), movedOrder);
+    QCOMPARE(restored->activeSpaceId(), QStringLiteral("personal"));
+    QCOMPARE(tabsOf(*restored, QStringLiteral("work")),
+        QStringList({QStringLiteral("work-pin"), QStringLiteral("work-tab")}));
 }
 
 void BrowserControllerTest::requiresNameToDeletePopulatedSpace()
@@ -1195,6 +1300,7 @@ void exerciseSpaces(Window window)
     QCOMPARE(controller->requestTabMoveToSpace(tabId, workSpaceId, true), allowed);
     QCOMPARE(confirmationSpy.count(), allowed ? 1 : 0);
     QCOMPARE(controller->confirmTabMoveToSpace(tabId, workSpaceId), allowed);
+    QCOMPARE(controller->moveSpaceBy(workSpaceId, -1), allowed);
     QCOMPARE(controller->deleteSpace(workSpaceId, QStringLiteral("Deep work")), allowed);
 }
 
