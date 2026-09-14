@@ -3,6 +3,8 @@
 // CI runs it in the job that already installs Node for the formatters.
 
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import test from "node:test";
 
 import { markdownToHtml, releasePath, renderReleaseNav, renderReleasePage } from "./render.mjs";
@@ -169,6 +171,18 @@ test("page: the template is filled with the release's notes, its siblings and it
 
 test("page: no placeholder is left unfilled", () => {
   assert.equal(renderReleasePage(RELEASE, [RELEASE], TEMPLATE, "..").includes("{{"), false);
+});
+
+test("page: the themed favicon is reached from the page's own depth", () => {
+  // Against the shipped template rather than the fixture above: a release page
+  // sits two levels down and the landing page none, so the path the theme
+  // script writes has to come from the page rather than from the script.
+  const shipped = readFileSync(
+    fileURLToPath(new URL("./release.template.html", import.meta.url)),
+    "utf8",
+  );
+  const html = renderReleasePage(RELEASE, [RELEASE], shipped, "../..");
+  assert.match(html, /data-themed="\.\.\/\.\.\/assets\/icons\/favicon-\{theme\}\.svg"/);
 });
 
 test("page: a release with no body still renders, pointing at GitHub", () => {

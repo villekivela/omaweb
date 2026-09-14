@@ -155,9 +155,10 @@
   // The screenshots, the wordmark and the favicon are generated one per
   // theme, under paths that differ only in the theme's name. Each element
   // carries its own path with `{theme}` where that name goes, so adding a
-  // themed image is markup and nothing here.
+  // themed image is markup and nothing here. That is also what keeps the
+  // favicon working away from the landing page: the path is relative to the
+  // page it is written on, and pages live at three different depths.
   var themed = [].slice.call(document.querySelectorAll("[data-themed]"));
-  var favicon = document.querySelector('link[rel="icon"]');
   var themeColor = document.querySelector('meta[name="theme-color"]');
 
   // Which themes exist, from the `--themes` list `themes.css` is generated
@@ -202,10 +203,9 @@
 
     themed.forEach(function (element) {
       var path = element.dataset.themed.replace("{theme}", name);
-      if (element.tagName === "A") element.href = path;
+      if (element.tagName === "A" || element.tagName === "LINK") element.href = path;
       else element.src = path;
     });
-    if (favicon) favicon.href = "assets/icons/favicon-" + name + ".svg";
     // The browser chrome around the page follows the palette too, read off
     // the ground the theme just painted rather than listed a second time.
     if (themeColor) {
