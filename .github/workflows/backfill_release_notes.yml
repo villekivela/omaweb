@@ -1,0 +1,114 @@
+name: Rewrite published release notes
+
+# A release's notes are its body, and every release published before the
+# rewrite worked carries the generated commit list. The release workflow
+# cannot repair those: it only ever sees the tag being cut. This rewrites the
+# body of releases that are already out, from the Actions tab.
+#
+# `tags` takes `all` or a space-separated list. A release whose rewrite fails
+# keeps the body it has, and the job ends red naming which ones, so a partial
+# run says exactly what it left behind.
+
+on:
+  workflow_dispatch:
+    inputs:
+      tags:
+        description: "all, or a space-separated list of tags"
+        default: all
+      dry_run:
+        description: "write the notes to the job summary and change nothing"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  issues: read
+  pull-requests: read
+
+jobs:
+  rewrite:
+    runs-on: ubuntu-latest
+    # One release at a time against an API that thinks before it answers, so
+    # the budget is the whole backlog rather than one tag.
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Each release's notes are the range since the tag before it, so the
+          # whole history and every tag has to be here.
+          fetch-depth: 0
+
+      - name: Rewrite the notes
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GH_TOKEN: ${{ github.token }}
+          TAGS: ${{ inputs.tags }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          if [ "$TAGS" = all ]; then
+            mapfile -t tags < <(gh release list --limit 100 --json tagName --jq '.[].tagName')
+          else
+            read -r -a tags <<< "$TAGS"
+          fi
+          if [ "${#tags[@]}" -eq 0 ]; then
+            echo "::error::no releases to rewrite" >&2
+            exit 1
+          fi
+
+          kept=()
+          for tag in "${tags[@]}"; do
+            if ! scripts/release_notes.sh "$tag" > notes.md; then
+              echo "::warning::${tag}: no notes could be generated, keeping its body"
+              kept+=("$tag")
+              continue
+            fi
+            if ! scripts/rewrite_release_notes.py "$tag" \
+                --generated notes.md --output rewritten.md; then
+              echo "::warning::${tag} keeps the notes it has"
+              kept+=("$tag")
+              continue
+            fi
+            if [ "$DRY_RUN" = true ]; then
+              title="${tag} (dry run, not published)"
+            else
+              gh release edit "$tag" --notes-file rewritten.md
+              title="$tag"
+            fi
+            {
+              echo "## ${title}"
+              echo
+              cat rewritten.md
+              echo
+            } >> "$GITHUB_STEP_SUMMARY"
+          done
+
+          if [ "${#kept[@]}" -ne 0 ]; then
+            {
+              echo "## Unchanged"
+              echo
+              echo "These releases kept the notes they had: ${kept[*]}"
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "::error::${#kept[@]} release(s) kept their notes: ${kept[*]}" >&2
+            exit 1
+          fi
+
+      # The release pages are generated from the releases API at deploy time,
+      # so a rewritten body only reaches the site on the next deploy. Same hook
+      # and the same graceful absence as the release workflow.
+      - name: Deploy the website
+        if: ${{ !inputs.dry_run }}
+        env:
+          HOOK: ${{ secrets.VERCEL_DEPLOY_HOOK_URL }}
+        run: |
+          if [ -z "$HOOK" ]; then
+            echo "No VERCEL_DEPLOY_HOOK_URL secret: the website keeps the previous notes" \
+              >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          status=$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
+            --max-time 30 --request POST "$HOOK") || status="no answer"
+          echo "Vercel deploy hook answered ${status}" >> "$GITHUB_STEP_SUMMARY"
+          case "$status" in
+            2*) ;;
+            *) echo "::warning::the deploy hook answered ${status}, so the site is behind" ;;
+          esac
