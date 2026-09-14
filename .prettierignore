@@ -1,3 +1,4 @@
-build/
+/build/
 docs/archive/
 third_party/
+website/dist/

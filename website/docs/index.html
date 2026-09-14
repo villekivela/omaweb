@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Omaweb documentation</title>
+    <meta
+      name="description"
+      content="The Omaweb documentation worth reading: the README, the network request ledger, the security policy, the development guide, the architecture and the domain glossary."
+    />
+    <meta name="application-name" content="Omaweb" />
+    <meta name="robots" content="index, follow" />
+    <meta name="theme-color" content="#06060c" />
+    <meta property="og:type" content="article" />
+    <meta property="og:site_name" content="Omaweb" />
+    <meta property="og:title" content="Omaweb documentation" />
+    <meta
+      property="og:description"
+      content="Where to read about running Omaweb and about working on it."
+    />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="Omaweb documentation" />
+    <meta
+      name="twitter:description"
+      content="Where to read about running Omaweb and about working on it."
+    />
+    <link rel="icon" href="../favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="../styles.css" />
+    <link rel="stylesheet" href="../themes.css" />
+  </head>
+
+  <body data-theme="hackerman">
+    <canvas class="t-rain" aria-hidden="true"></canvas>
+
+    <div class="t-wrap">
+      <header class="t-top">
+        <a href="../">
+          <img
+            data-themed="../assets/icons/wordmark-{theme}.svg"
+            src="../assets/icons/wordmark-hackerman.svg"
+            width="160"
+            height="20"
+            alt="Omaweb"
+          />
+        </a>
+        <nav class="t-nav" aria-label="Sections">
+          <a href="../features/">Features</a>
+          <a href="./" aria-current="page">Docs</a>
+          <a href="../releases/">Releases</a>
+          <a href="../#install">Install</a>
+        </nav>
+      </header>
+
+      <section class="t-hero t-hero--short">
+        <p class="t-section__index">Documentation</p>
+        <h1>Read the rest.</h1>
+        <p>
+          The documentation lives in the repository beside the code it describes, so there is one
+          copy of each document and this page cannot fall behind it. These are the parts written to
+          be read.
+        </p>
+      </section>
+
+      <!-- Not the docs tree as it stands. `docs/agents/` is written for the
+           agents working on the repository and `docs/adr/` is a record of
+           decisions rather than a thing to read, so neither is here. What is
+           left is split by what a reader came for. -->
+      <section class="t-section">
+        <div class="t-cols t-cols--2">
+          <div>
+            <h2>Running it</h2>
+            <!-- `role="list"`, because the CSS takes the bullets off and
+                 Safari then stops reporting the element as a list at all. -->
+            <ul class="t-docs" role="list">
+              <li>
+                <a href="https://github.com/villekivela/omaweb#readme">README</a>
+                <span>What Omaweb is, how to install it, and every default binding.</span>
+              </li>
+              <li>
+                <a href="../sync/">Sync privacy and permissions</a>
+                <span>What Sync copies between your machines, and what it never touches.</span>
+              </li>
+              <li>
+                <a href="https://github.com/villekivela/omaweb/blob/main/docs/network-requests.md"
+                  >Network request ledger</a
+                >
+                <span>Every automatic request the browser makes, and what makes it.</span>
+              </li>
+              <li>
+                <a href="https://github.com/villekivela/omaweb/blob/main/SECURITY.md"
+                  >Security policy</a
+                >
+                <span>What is in scope, and how to report something you find.</span>
+              </li>
+              <li>
+                <a href="https://github.com/villekivela/omaweb/blob/main/docs/roadmap.md"
+                  >Roadmap</a
+                >
+                <span>What alpha meant, what answered it, and what is left.</span>
+              </li>
+            </ul>
+          </div>
+          <div>
+            <h2>Working on it</h2>
+            <ul class="t-docs" role="list">
+              <li>
+                <a href="https://github.com/villekivela/omaweb/blob/main/docs/development.md"
+                  >Development guide</a
+                >
+                <span>Build presets, the UI lab, packaging and releases.</span>
+              </li>
+              <li>
+                <a href="https://github.com/villekivela/omaweb/blob/main/docs/architecture.md"
+                  >Architecture</a
+                >
+                <span>The boundaries between core, engine, platform and the QML shell.</span>
+              </li>
+              <li>
+                <a
+                  href="https://github.com/villekivela/omaweb/blob/main/docs/product/requirements.md"
+                  >Product requirements</a
+                >
+                <span>The behaviour the browser is held to, stated as requirements.</span>
+              </li>
+              <li>
+                <a href="https://github.com/villekivela/omaweb/blob/main/CONTEXT.md"
+                  >Domain glossary</a
+                >
+                <span>Space, Split, Pinned tab, Start page: the words and what they mean.</span>
+              </li>
+              <li>
+                <a href="https://github.com/villekivela/omaweb/blob/main/CONTRIBUTING.md"
+                  >Contributing</a
+                >
+                <span>The workflow a change goes through to get in.</span>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <footer class="t-foot">
+        <span>Omaweb &middot; alpha &middot; MPL 2.0</span>
+        <a href="https://github.com/villekivela/omaweb">github.com/villekivela/omaweb</a>
+      </footer>
+    </div>
+    <script src="../script.js"></script>
+  </body>
+</html>

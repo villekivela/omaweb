@@ -173,6 +173,40 @@ img {
   flex: none;
 }
 
+/* The page's own sections, in the header that follows the reader down it.
+   Pushed to the right with `margin-left`, where `.t-status` used to sit: the
+   header has room for one of the two, and a way through a long page is worth
+   more than a tagline the hero repeats. */
+.t-nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-xl);
+  margin-left: auto;
+}
+.t-nav a {
+  color: var(--muted);
+  font-size: var(--fs-caption);
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  padding-bottom: var(--sp-xxs);
+  transition: color 90ms linear;
+}
+.t-nav a:hover {
+  color: var(--fg);
+  border-bottom-color: var(--accent);
+}
+/* The page the reader is on. `aria-current="true"` rather than `page` on a
+   release, where the current page is the release below it in the list and the
+   nav entry only says which part of the site this is. */
+.t-nav a[aria-current] {
+  color: var(--fg);
+  border-bottom-color: var(--line-normal);
+}
+
 .t-status {
   margin: 0 0 0 auto;
   color: var(--muted);
@@ -477,6 +511,7 @@ img {
     border-left: 1px solid var(--line-quiet);
   }
 }
+.t-cols h2,
 .t-cols h3 {
   margin: 0 0 var(--sp-lg);
   font-family: var(--display);
@@ -493,6 +528,274 @@ img {
   font: inherit;
   font-weight: 700;
   color: var(--accent);
+}
+
+/* ---------------- the feature index ---------------------------------
+   A list, so it reads as one to a screen reader and to anyone scanning
+   it, laid out in columns wide enough for a sentence. The rule above
+   each item is the divider, which works in a grid that wraps unevenly
+   where a border between columns does not. */
+.t-features {
+  display: grid;
+  gap: var(--panel-padding) calc(var(--panel-padding) * 1.5);
+  margin: var(--panel-padding) 0 0;
+  padding: 0;
+  list-style: none;
+}
+@media (min-width: 44rem) {
+  .t-features {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (min-width: 68rem) {
+  .t-features {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+.t-feature {
+  min-width: 0;
+  padding-top: var(--sp-xxl);
+  border-top: 1px solid var(--line-quiet);
+}
+.t-feature h2 {
+  margin: 0 0 var(--sp-md);
+  font-family: var(--display);
+  font-size: var(--fs-title);
+  font-weight: 700;
+  line-height: 1.25;
+}
+.t-feature p {
+  margin: 0;
+  color: color-mix(in srgb, var(--fg) 76%, var(--bg));
+  font-size: var(--fs-body-sm);
+}
+/* An item that is true of the next release rather than of the one a reader
+   can download. The accent marks it as a note about time, not a caveat about
+   the feature, which is what `--urgent` would say. */
+.t-feature__when {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+/* ---------------- the documentation index ---------------------------
+   Title on its own line, what it is underneath: the titles line up, so
+   the list can be read by title alone and then by the line under one. */
+.t-docs {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.t-docs li + li {
+  margin-top: var(--sp-xl);
+  padding-top: var(--sp-xl);
+  border-top: 1px solid var(--line-quiet);
+}
+.t-docs a {
+  display: block;
+  font-size: var(--fs-body-sm);
+  font-weight: 700;
+  text-decoration-color: var(--line-normal);
+  text-underline-offset: 0.25em;
+}
+.t-docs a:hover {
+  color: var(--accent);
+  text-decoration-color: var(--accent);
+}
+.t-docs span {
+  display: block;
+  margin-top: var(--sp-xs);
+  color: var(--muted);
+  font-size: var(--fs-caption);
+}
+
+/* ---------------- the releases, master and detail --------------------
+   The version list on the left, the notes on the right. Both are markup
+   in every generated page rather than a pane the script swaps, so each
+   version is an address of its own and the list is navigation.
+   One column below the breakpoint, list first: on a narrow screen the
+   list is a short run of links above the notes, which is the order the
+   page reads in anyway. */
+.t-detail {
+  display: grid;
+  gap: calc(var(--panel-padding) * 1.5);
+  padding-block: calc(var(--panel-padding) * 1.5);
+}
+@media (min-width: 56rem) {
+  .t-detail {
+    /* A fixed master, so the notes do not reflow between one version and
+       the next as the tags change width. */
+    grid-template-columns: 15rem minmax(0, 1fr);
+    align-items: start;
+  }
+  .t-detail__master {
+    position: sticky;
+    top: calc(var(--control-h) + var(--sp-xl) * 2);
+    padding-right: var(--panel-padding);
+    border-right: 1px solid var(--line-quiet);
+  }
+}
+.t-detail__masthead {
+  margin: 0 0 var(--sp-xl);
+  color: var(--muted);
+  font-size: var(--fs-caption);
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.t-detail__pane {
+  min-width: 0;
+}
+.t-detail__pane h1 {
+  margin: var(--sp-md) 0 0;
+  font-family: var(--display);
+  font-size: clamp(var(--fs-display), 4vw, var(--fs-display-lg));
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+.t-detail__pane .t-prose {
+  margin-top: var(--panel-padding);
+  padding-top: var(--panel-padding);
+  border-top: 1px solid var(--line-quiet);
+}
+.t-detail__foot {
+  margin: calc(var(--panel-padding) * 1.5) 0 0;
+  padding-top: var(--panel-padding);
+  border-top: 1px solid var(--line-quiet);
+}
+.t-detail__all {
+  display: inline-block;
+  margin-top: var(--panel-padding);
+  color: var(--muted);
+  font-size: var(--fs-caption);
+  text-underline-offset: 0.25em;
+}
+.t-detail__all:hover {
+  color: var(--accent);
+}
+
+/* Every row is the same two-column grid, so the tags line up down one
+   edge and the dates down the other however long either happens to be.
+   `tabular-nums` keeps the dates from shifting between rows. */
+.t-versions {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.t-versions a {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: var(--sp-lg);
+  padding: var(--sp-md) var(--sp-lg);
+  border-left: 2px solid transparent;
+  color: var(--muted);
+  text-decoration: none;
+  transition:
+    background 90ms linear,
+    color 90ms linear;
+}
+.t-versions a:hover {
+  background: var(--fill-hover);
+  color: var(--fg);
+}
+.t-versions a[aria-current="page"] {
+  background: var(--fill-accent);
+  border-left-color: var(--accent);
+  color: var(--fg);
+}
+.t-versions__tag {
+  font-family: var(--display);
+  font-size: var(--fs-body-sm);
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+.t-versions a[aria-current="page"] .t-versions__tag {
+  color: var(--accent);
+}
+.t-versions time {
+  font-size: var(--fs-caption);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* When the release was published, and whether it is a prerelease. A flex row
+   rather than two inline spans, so the gap between them is the theme's step
+   and not a space character in the markup. */
+.t-release__marks {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--sp-xl);
+  margin: var(--panel-gap) 0 0;
+  color: var(--muted);
+  font-size: var(--fs-caption);
+}
+.t-release__state {
+  color: var(--accent);
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+/* ---------------- the heads of the inner pages ----------------------
+   Features, Docs and the releases fallback head a page rather than open
+   the site, so the line is a statement and not the landing page's
+   poster. Sized to that, and the measure comes back so the sentence
+   under it wraps like prose. */
+.t-hero--short h1 {
+  max-width: 24ch;
+  font-size: clamp(var(--fs-display), 4vw, var(--fs-display-lg));
+}
+.t-hero--short p {
+  max-width: 64ch;
+  font-size: var(--fs-body-sm);
+}
+
+/* The notes as the release wrote them. Only the elements
+   build/render.mjs emits are styled, because they are the only ones
+   that can appear. */
+.t-prose {
+  max-width: 74ch;
+  font-size: var(--fs-body-sm);
+  color: color-mix(in srgb, var(--fg) 82%, var(--bg));
+}
+.t-prose h3 {
+  margin: calc(var(--panel-padding) * 1.5) 0 var(--sp-xl);
+  font-family: var(--display);
+  font-size: var(--fs-heading);
+  font-weight: 700;
+  line-height: 1.25;
+  color: var(--fg);
+}
+.t-prose > :first-child {
+  margin-top: 0;
+}
+.t-prose p {
+  margin: 0 0 var(--sp-xl);
+}
+.t-prose ul {
+  margin: 0 0 var(--sp-xl);
+  padding-left: var(--sp-xxl);
+}
+.t-prose li {
+  margin-bottom: var(--sp-md);
+}
+.t-prose li::marker {
+  color: var(--accent);
+}
+.t-prose code {
+  font: inherit;
+  color: var(--accent);
+}
+.t-prose a {
+  text-decoration-color: var(--line-normal);
+  text-underline-offset: 0.25em;
+  overflow-wrap: anywhere;
+}
+.t-prose a:hover {
+  color: var(--accent);
+  text-decoration-color: var(--accent);
 }
 
 /* A command the reader is meant to run, drawn as the terminal it goes in:

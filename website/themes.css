@@ -6,6 +6,10 @@
  * ground they sit on. Re-run the script to pick up an upstream change.
  */
 
+:root {
+  --themes: "hackerman oligarchy tokyo-night catppuccin nord everforest gruvbox";
+}
+
 body[data-theme="hackerman"] {
   --bg: #06060c;
   --sidebar: #080910;

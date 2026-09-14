@@ -854,6 +854,19 @@ def stylesheet(palettes: dict[str, tuple[dict, dict]]) -> str:
         " */",
         "",
     ]
+
+    # Which themes exist, for the pages that do not offer the switcher. Only
+    # the landing page carries the buttons, so without this every other page
+    # has no way to tell a stored theme name from a stale one and falls back to
+    # the default, which is the reader's choice not following them through the
+    # site. A custom property because this stylesheet is the one place that
+    # knows, and it is generated.
+    offered = [name for name, _ in THEMES if name in palettes]
+    lines.append(":root {")
+    lines.append(f"  --themes: \"{' '.join(offered)}\";")
+    lines.append("}")
+    lines.append("")
+
     for name, _ in THEMES:
         if name not in palettes:
             continue
