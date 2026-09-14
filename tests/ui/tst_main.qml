@@ -3291,6 +3291,57 @@ TestCase {
         browser.closeActiveTab();
     }
 
+    // The Glance grows out of the link the reader pressed and retreats into
+    // it, so it is that link opened rather than a panel that appeared. What is
+    // inside keeps its resting size the whole way: the page is revealed, never
+    // laid out again for the movement. A page that named no press gets a
+    // sheet's lift instead.
+    function test_aGlanceGrowsOutOfTheLinkThatAskedForIt() {
+        const engineLoader = findChild(window.contentItem, "engineLoader");
+        const originalEase = window.easeChrome;
+        window.setEaseChrome(false);
+        const opener = openPage("https://opener.example");
+        opener.simulatePress(120, 300, 160, 20);
+        const glance = openGlance("https://linked.example/page");
+        const panel = findChild(glance, "glancePanel");
+        const pageHost = findChild(glance, "glancePageHost");
+        verify(panel !== null);
+        verify(pageHost !== null);
+
+        const expected = opener.mapToItem(glance, Qt.rect(120, 300, 160, 20));
+        compare(glance.origin, expected);
+        compare(glance.arrival, 1);
+        compare(Math.round(panel.x), 40);
+        compare(Math.round(panel.y), 40);
+        compare(Math.round(panel.width), Math.round(glance.width - 80));
+        const restPageHeight = pageHost.height;
+
+        glance.arrival = 0;
+        compare(Math.round(panel.x), Math.round(expected.x));
+        compare(Math.round(panel.y), Math.round(expected.y));
+        compare(Math.round(panel.width), Math.round(expected.width));
+        compare(Math.round(panel.height), Math.round(expected.height));
+        compare(pageHost.height, restPageHeight);
+        compare(panel.opacity, 1);
+        glance.arrival = 1;
+        window.closeGlance();
+        tryVerify(function () {
+            return !glance.visible;
+        });
+
+        // A press the page did not name: the panel lifts from below its place.
+        opener.simulatePress(0, 0, 0, 0);
+        openGlance("https://unplaced.example/page");
+        verify(!glance.fromOrigin);
+        glance.arrival = 0;
+        compare(Math.round(panel.x), 40);
+        compare(Math.round(panel.y), 64);
+        compare(panel.opacity, 0);
+        glance.arrival = 1;
+        window.closeGlance();
+        window.setEaseChrome(originalEase);
+    }
+
     // The Glance is the reader's to refuse, from Settings, and the refusal
     // survives a restart because it is a preference like the others there.
     function test_theGlanceIsRefusedFromSettings() {

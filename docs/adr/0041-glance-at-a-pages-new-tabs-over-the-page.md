@@ -34,6 +34,14 @@ replaces the first, and a request from inside a Glance opens a tab, which ends t
 the tab on show changes. A page the reader cannot see, a Keep active tab say, gets a tab as before,
 since it has nothing to stand a Glance over.
 
+The Glance comes from the link. The engine's new-window request does not say where on the page it
+was asked for, so the engine adapter reports where the page was last pressed: a script on every main
+frame names the link or control under a click, or the point itself, and the view keeps it in its own
+coordinates (`pressOrigin`), forgotten on the next navigation. The window reads it when a page asks
+for a window and the Glance grows from that rectangle to its place, and back into it when it closes.
+A press in a subframe is not reported, since its coordinates are the frame's, and such a Glance
+lifts as a sheet instead.
+
 Only a page-initiated new-tab request glances. A background-tab request is the reader asking for a
 tab behind, by middle click or the background link hint, and stays one; a dialog-shaped request
 stays an Auxiliary window; and Content blocking's `$popup` refusal runs first, unchanged. The

@@ -586,10 +586,15 @@ ApplicationWindow {
         window.closeGlance();
         const destination = requestedUrl.toString().length > 0 ? requestedUrl.toString() :
                                                                  "about:blank";
+        const opener = engineLoader.item;
         const engine = engineLoader.createDetachedEngine(glance.pageHost, request ? "about:blank" :
                                                                                     destination);
         if (!engine)
             return false;
+        // From the link the reader pressed, where the page named one.
+        glance.origin = opener && opener.pressOrigin.width > 0 ? opener.mapToItem(glance,
+                                                                                  opener.pressOrigin) :
+                                                                 Qt.rect(0, 0, 0, 0);
         engine.anchors.fill = glance.pageHost;
         engine.visible = true;
         window.glanceTabId = window.windowBrowser.activeTabId;

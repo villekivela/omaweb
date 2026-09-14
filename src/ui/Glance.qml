@@ -31,6 +31,16 @@ FocusScope {
     // The engine drawing the Glance's page, parented to `pageHost` by whoever
     // built it. Null while the Glance is closed.
     property var engine: null
+    // Where the Glance comes from: the link the reader pressed, in this item's
+    // coordinates. A panel that grows out of the link is the link, opened,
+    // rather than a second thing that appeared over the page, and it goes back
+    // into the link when it closes. An empty origin means the panel lifts from
+    // a little below its place instead, as a sheet does.
+    property rect origin: Qt.rect(0, 0, 0, 0)
+    // 0 at the origin, 1 at rest.
+    property real arrival: 1
+    property bool leaving: false
+    readonly property bool fromOrigin: origin.width > 0
 
     readonly property string pageTitle: root.engine && root.engine.pageTitle.length > 0
                                         ? root.engine.pageTitle : "Glance"
@@ -42,18 +52,69 @@ FocusScope {
     signal closed
     signal openAsTabRequested
 
-    SheetLift {
-        id: lift
-        shown: root.open
-        ease: root.ease
+    // Inset enough that the page beneath is seen around it and the panel
+    // reads as over the page rather than as the page.
+    readonly property real inset: 40
+    readonly property real restWidth: Math.max(0, width - 2 * inset)
+    readonly property real restHeight: Math.max(0, height - 2 * inset)
+    // Where the panel starts and ends: the link, or its own place a sheet's
+    // lift below.
+    readonly property real fromX: fromOrigin ? origin.x : inset
+    readonly property real fromY: fromOrigin ? origin.y : inset + 24
+    readonly property real fromWidth: fromOrigin ? origin.width : restWidth
+    readonly property real fromHeight: fromOrigin ? origin.height : restHeight
+
+    function lerp(a, b) {
+        return a + (b - a) * arrival;
     }
 
-    // Drawn for the length of the drop.
-    visible: lift.showing
+    NumberAnimation {
+        id: arrivalEase
+        target: root
+        property: "arrival"
+        to: 1
+        duration: 180
+        easing.type: Easing.OutCubic
+    }
+    // Back into the link it grew from, quicker than it came.
+    NumberAnimation {
+        id: departure
+        target: root
+        property: "arrival"
+        to: 0
+        duration: 120
+        easing.type: Easing.InCubic
+        onFinished: {
+            root.leaving = false;
+            root.arrival = 1;
+        }
+    }
+
+    // Drawn for the length of the retreat.
+    visible: open || leaving
     focus: root.open
 
-    onOpenChanged: if (open)
-                       root.focusPage()
+    onOpenChanged: {
+        if (open) {
+            departure.stop();
+            leaving = false;
+            if (ease) {
+                arrival = 0;
+                arrivalEase.restart();
+            } else {
+                arrival = 1;
+            }
+            root.focusPage();
+            return;
+        }
+        arrivalEase.stop();
+        if (!ease) {
+            arrival = 1;
+            return;
+        }
+        leaving = true;
+        departure.restart();
+    }
 
     function focusPage() {
         root.forceActiveFocus();
@@ -68,14 +129,14 @@ FocusScope {
         }
     }
 
-    // The scrim stands still while the panel lifts: a ground that moved would
-    // show the page's edge above it for the length of the lift.
+    // The scrim stands still while the panel grows: a ground that moved would
+    // show the page's edge above it for the length of the arrival.
     PageBackdrop {
         objectName: "glanceBackdrop"
         anchors.fill: parent
         source: root.pageSource
         tint: root.colors.sheet
-        opacity: lift.progress
+        opacity: root.arrival
 
         MouseArea {
             anchors.fill: parent
@@ -83,15 +144,18 @@ FocusScope {
         }
     }
 
+    // Between the origin and rest by `arrival`. What is inside keeps its
+    // resting size the whole way and the panel clips it, so the page is
+    // revealed rather than laid out again at every size the panel passes
+    // through: a webpage viewport is never resized for a movement.
     Rectangle {
         id: panel
         objectName: "glancePanel"
-        anchors.fill: parent
-        // Inset enough that the page beneath is seen around it and the panel
-        // reads as over the page rather than as the page.
-        anchors.margins: 40
-        transform: lift
-        opacity: lift.progress
+        x: root.lerp(root.fromX, root.inset)
+        y: root.lerp(root.fromY, root.inset)
+        width: root.lerp(root.fromWidth, root.restWidth)
+        height: root.lerp(root.fromHeight, root.restHeight)
+        opacity: root.fromOrigin ? 1 : root.arrival
         radius: 3
         color: root.colors.overlay
         border.width: 1
@@ -105,10 +169,9 @@ FocusScope {
 
         Item {
             id: head
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.top: parent.top
-            anchors.margins: panel.border.width
+            x: panel.border.width
+            y: panel.border.width
+            width: root.restWidth - 2 * panel.border.width
             height: 38
 
             SectionLabel {
@@ -200,11 +263,10 @@ FocusScope {
         Rectangle {
             id: pageHost
             objectName: "glancePageHost"
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.top: head.bottom
-            anchors.bottom: parent.bottom
-            anchors.margins: panel.border.width
+            x: panel.border.width
+            y: head.y + head.height
+            width: head.width
+            height: root.restHeight - y - panel.border.width
             color: root.colors.windowOpaque
         }
     }

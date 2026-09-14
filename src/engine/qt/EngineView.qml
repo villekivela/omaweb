@@ -91,6 +91,18 @@ Item {
     property var keyboardNavigationConfiguration: ({})
     property string keyboardNavigationScriptSource: ""
     property bool keyboardNavigationHintModeActive: false
+    // Reported by the page in CSS pixels of its main frame and kept here in
+    // the view's own, so the shell need not know the zoom. A press in a
+    // subframe is not reported: its coordinates are the frame's, and the
+    // view cannot place them.
+    property rect pressOrigin: Qt.rect(0, 0, 0, 0)
+    function recordPressOrigin(report) {
+        const scale = webView.zoomFactor;
+        root.pressOrigin = Qt.rect(Number(report.x) * scale, Number(report.y) * scale, Math.max(1,
+                                                                                                Number(report.width)
+                                                                                                * scale), Math.max(
+                                       1, Number(report.height) * scale));
+    }
     property var editedStateScript: {
         const script = WebEngine.script();
         script.name = "Omaweb edited form state";
@@ -1288,6 +1300,36 @@ Item {
         return script;
     }
 
+    // What the reader pressed, reported as the click is dispatched and before
+    // anything the press does reaches the browser, so a window the click asks
+    // for can be placed by it. The link or control pressed is the element a
+    // window would come from; a press on nothing in particular is the point.
+    // A click the page synthesised, a link hint following a link say, has no
+    // point, and names the element instead.
+    property var pressOriginScript: {
+        const script = WebEngine.script();
+        script.name = "Omaweb press origin";
+        script.injectionPoint = WebEngineScript.DocumentReady;
+        script.worldId = WebEngineScript.MainWorld;
+        script.runsOnSubFrames = false;
+        script.sourceCode = `document.addEventListener('click', event => {
+            const target = event.target && event.target.closest
+                ? event.target.closest('a[href], button, [role="button"], [role="link"]')
+                : null;
+            let origin;
+            if (target) {
+                const rect = target.getBoundingClientRect();
+                origin = {x: rect.left, y: rect.top, width: rect.width, height: rect.height};
+            } else if (event.isTrusted) {
+                origin = {x: event.clientX, y: event.clientY, width: 1, height: 1};
+            } else {
+                return;
+            }
+            console.info('__omaweb_press_origin__' + JSON.stringify(origin));
+        }, {capture: true, passive: true});`;
+        return script;
+    }
+
     property var externalProtocolOriginScript: {
         const script = WebEngine.script();
         script.name = "Omaweb external protocol origin";
@@ -1334,7 +1376,7 @@ Item {
         backgroundColor: root.pageBackgroundColor
         focus: true
         userScripts.collection: [root.editedStateScript, root.keyboardNavigationScript,
-            root.externalProtocolOriginScript, root.userActivationScript]
+            root.externalProtocolOriginScript, root.userActivationScript, root.pressOriginScript]
         // Chromium's autoplay policy is per view. Requiring a gesture blocks
         // muted autoplay along with audible autoplay, so the shell decides
         // instead: it turns the requirement off once the page has nothing left
@@ -1397,6 +1439,9 @@ Item {
             root.refreshRenderProcessPid();
             if (loadRequest.status === WebEngineView.LoadStartedStatus) {
                 root.pageGeneration += 1;
+                // A press on the page being left says nothing about where a
+                // window the next page asks for should come from.
+                root.pressOrigin = Qt.rect(0, 0, 0, 0);
                 // The address being loaded, not the one still on show: a
                 // refusal the outgoing document earned belongs to it.
                 root.announcePage(loadRequest.url);
@@ -1507,6 +1552,13 @@ Item {
                                 report.origin);
                 } catch (error) {
                     console.warn("Could not read external protocol origin: " + error);
+                }
+            } else if (message.startsWith("__omaweb_press_origin__")) {
+                try {
+                    root.recordPressOrigin(JSON.parse(message.substring(
+                                                          "__omaweb_press_origin__".length)));
+                } catch (error) {
+                    console.warn("Could not read the press origin: " + error);
                 }
             } else if (message === "__omaweb_user_activation__") {
                 root.userActivated();

@@ -238,6 +238,10 @@ Rectangle {
     signal fileSelectionRequested(string requestId, var selection)
     signal printFinished(string destination, bool succeeded)
     signal userActivated
+    property rect pressOrigin: Qt.rect(0, 0, 0, 0)
+    function simulatePress(x, y, width, height) {
+        root.pressOrigin = Qt.rect(x, y, width, height);
+    }
     function simulateUserActivation() {
         root.userActivated();
     }
