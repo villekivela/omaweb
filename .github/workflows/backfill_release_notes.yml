@@ -8,6 +8,11 @@ name: Rewrite published release notes
 # `tags` takes `all` or a space-separated list. A release whose rewrite fails
 # keeps the body it has, and the job ends red naming which ones, so a partial
 # run says exactly what it left behind.
+#
+# The notes go to the step log as well as the job summary. GitHub's REST API
+# serves the log and not the summary, so a dry run whose output only reached
+# the summary could be read in a browser and nowhere else, which is half of
+# what a dry run is for.
 
 on:
   workflow_dispatch:
@@ -79,7 +84,7 @@ jobs:
               echo
               cat rewritten.md
               echo
-            } >> "$GITHUB_STEP_SUMMARY"
+            } | tee -a "$GITHUB_STEP_SUMMARY"
           done
 
           if [ "${#kept[@]}" -ne 0 ]; then
