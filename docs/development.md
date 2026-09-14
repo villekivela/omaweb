@@ -485,7 +485,9 @@ development artifacts and are not attached ([ADR 0029](adr/0029-distribute-only-
 [ADR 0028](adr/0028-derive-the-version-from-the-release-tag.md).
 
 `scripts/rewrite_release_notes.py` then rewrites that commit list into notes addressed to a reader,
-from the commit bodies in the range and the issues they reference. It runs on every tag, prerelease
+from the commit bodies in the range, the issues they reference, and the glossary in
+[CONTEXT.md](../CONTEXT.md), which is what keeps the notes calling things what the project calls
+them rather than what a commit subject happened to call them. It runs on every tag, prerelease
 included. The rewrite carries the compare URL over itself and refuses markup the release page cannot
 render, so the published body stays inside the Markdown subset `website/build/render.mjs` supports.
 
