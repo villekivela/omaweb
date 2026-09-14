@@ -110,6 +110,65 @@ TestCase {
         }
     }
 
+    // The Spaces the page lists, and the one command it submits about them.
+    // The stub reorders itself the way the core command does, so a row that
+    // has moved is a thing this test reads off the page rather than off the
+    // click it sent.
+    ListModel {
+        id: spacesFixture
+
+        ListElement {
+            spaceId: "personal"
+            spaceName: "Personal"
+            spaceColor: "#9b87ff"
+            active: true
+        }
+
+        ListElement {
+            spaceId: "work"
+            spaceName: "Work"
+            spaceColor: "#7ad3ff"
+            active: false
+        }
+
+        ListElement {
+            spaceId: "reading"
+            spaceName: "Reading"
+            spaceColor: "#ffb37a"
+            active: false
+        }
+    }
+
+    QtObject {
+        id: browserStub
+
+        property bool privateBrowsing: false
+        property url activeUrl: "https://one.example/"
+        property string activeSpaceName: "Personal"
+        property string downloadDirectory: "/home/reader/Downloads"
+        property var spaces: spacesFixture
+
+        function moveSpaceBy(spaceId, offset) {
+            for (let row = 0; row < spacesFixture.count; ++row) {
+                if (spacesFixture.get(row).spaceId !== spaceId)
+                    continue;
+                const destination = row + offset;
+                if (offset === 0 || destination < 0 || destination >= spacesFixture.count)
+                    return false;
+                spacesFixture.move(row, destination, 1);
+                return true;
+            }
+            return false;
+        }
+
+        function preference(key, fallback) {
+            return fallback;
+        }
+
+        function setPreference(key, value) {
+        }
+    }
+
     SignalSpy {
         id: settingsClosedSpy
         signalName: "closed"
@@ -225,6 +284,8 @@ TestCase {
         syncControllerStub.enabled = false;
         syncControllerStub.login = "";
         syncControllerStub.status = "Waiting for Forge authorization";
+        browserStub.privateBrowsing = false;
+        resetSpacesFixture();
         theme.restore();
         if (livePage !== null) {
             livePage.destroy();
@@ -236,6 +297,73 @@ TestCase {
         livePage = pageComponent.createObject(testCase);
         verify(livePage !== null);
         return livePage;
+    }
+
+    // The page reads the Spaces off the browser it is given rather than a
+    // fixture of its own, so a test that reorders them puts the order back.
+    function resetSpacesFixture() {
+        spacesFixture.clear();
+        spacesFixture.append({
+                                 spaceId: "personal",
+                                 spaceName: "Personal",
+                                 spaceColor: "#9b87ff",
+                                 active: true
+                             });
+        spacesFixture.append({
+                                 spaceId: "work",
+                                 spaceName: "Work",
+                                 spaceColor: "#7ad3ff",
+                                 active: false
+                             });
+        spacesFixture.append({
+                                 spaceId: "reading",
+                                 spaceName: "Reading",
+                                 spaceColor: "#ffb37a",
+                                 active: false
+                             });
+    }
+
+    // The page with a browser behind it, opened on the Spaces section.
+    function makeSpacesPage() {
+        const page = makePage();
+        page.browser = browserStub;
+        page.section = page.sections.indexOf("spaces");
+        return page;
+    }
+
+    // A button the positioner has finished placing. One read before its row is
+    // laid out sits on top of its neighbours, so a press meant for it lands
+    // elsewhere. A width alone is not enough: the Flow gives every button its
+    // width before it moves any of them off the left edge, so this waits for a
+    // place that has stopped changing.
+    function settleAction(action) {
+        verify(action !== null);
+        let previous = -1;
+        let steady = 0;
+        tryVerify(function () {
+            const placed = action.mapToItem(testCase, 0, 0).x;
+            steady = action.width > 0 && placed === previous ? steady + 1 : 0;
+            previous = placed;
+            return steady >= 2;
+        });
+        return action;
+    }
+
+    // The Spaces as the page draws them, top to bottom, so the order under
+    // test is the one the reader sees rather than the one the model holds.
+    function spaceOrder(page) {
+        const rows = [];
+        for (const spaceId of ["personal", "work", "reading"]) {
+            const row = findChild(page, "settingsSpace-" + spaceId);
+            verify(row !== null);
+            rows.push(row);
+        }
+        rows.sort(function (left, right) {
+            return left.mapToItem(page, 0, 0).y - right.mapToItem(page, 0, 0).y;
+        });
+        return rows.map(function (row) {
+            return row.title;
+        });
     }
 
     // The room between where one item stops being drawn and the next starts,
@@ -256,6 +384,101 @@ TestCase {
                 return deeper;
         }
         return null;
+    }
+
+    // The order Spaces are listed in is the reader's, and Settings is where
+    // they set it. A move is one step, so the row at either end has nowhere to
+    // go that way and says so before the click rather than after it.
+    function test_aSpaceMovesOneStepAndTheEndsSayTheyCannot() {
+        const page = makeSpacesPage();
+        compare(spaceOrder(page), ["Personal", "Work", "Reading"]);
+
+        const firstUp = settleAction(findChild(page, "moveSpaceUp-personal"));
+        const lastDown = settleAction(findChild(page, "moveSpaceDown-reading"));
+        verify(!firstUp.enabled);
+        verify(!lastDown.enabled);
+        verify(settleAction(findChild(page, "moveSpaceDown-personal")).enabled);
+        verify(settleAction(findChild(page, "moveSpaceUp-reading")).enabled);
+
+        const readingUp = settleAction(findChild(page, "moveSpaceUp-reading"));
+        mouseClick(readingUp, readingUp.width / 2, readingUp.height / 2);
+        tryVerify(function () {
+            return spaceOrder(page)[1] === "Reading";
+        });
+        compare(spaceOrder(page), ["Personal", "Reading", "Work"]);
+
+        // The ends are where the moved rows now are, so the disabled edge
+        // followed the Space rather than staying with the row it started in.
+        tryVerify(function () {
+            return !findChild(page, "moveSpaceDown-work").enabled;
+        });
+        verify(findChild(page, "moveSpaceUp-work").enabled);
+        verify(findChild(page, "moveSpaceDown-reading").enabled);
+
+        const workUp = settleAction(findChild(page, "moveSpaceUp-work"));
+        mouseClick(workUp, workUp.width / 2, workUp.height / 2);
+        tryVerify(function () {
+            return spaceOrder(page)[1] === "Work";
+        });
+        compare(spaceOrder(page), ["Personal", "Work", "Reading"]);
+    }
+
+    // Four answers where a row carried two. The row keeps the pane's measure:
+    // the answers wrap within their own share of it rather than crowding the
+    // Space's name out or running off the edge.
+    function test_theArrowsEndTheSpaceRowWithoutCrowdingItsName() {
+        const page = makeSpacesPage();
+        const row = findChild(page, "settingsSpace-work");
+        const up = settleAction(findChild(page, "moveSpaceUp-work"));
+        const down = findChild(page, "moveSpaceDown-work");
+        const actions = up.parent;
+        const leftEdge = function (item) {
+            return item.mapToItem(row, 0, 0).x;
+        };
+
+        verify(leftEdge(findChild(page, "renameSpace-work")) < leftEdge(up));
+        verify(leftEdge(findChild(page, "deleteSpace-work")) < leftEdge(up));
+        verify(leftEdge(up) < leftEdge(down));
+        compare(Math.round(leftEdge(down) + down.width), row.width);
+
+        verify(actions.width <= row.width * 0.7);
+        verify(leftEdge(actions) > 0);
+        compare(row.height, Math.max(row.implicitHeight, actions.implicitHeight
+                                     + row.verticalPadding * 2));
+    }
+
+    // Both arrows are keyboard answers, and each says which Space it moves and
+    // which way: an arrow draws a direction and names nothing at all, so the
+    // name a screen reader reads has to carry the Space.
+    function test_movingASpaceIsAKeyboardAnswerThatNamesIt() {
+        const page = makeSpacesPage();
+        const workUp = settleAction(findChild(page, "moveSpaceUp-work"));
+        const workDown = settleAction(findChild(page, "moveSpaceDown-work"));
+        compare(workUp.Accessible.name, "Move Work up");
+        compare(workDown.Accessible.name, "Move Work down");
+        verify(workUp.activeFocusOnTab);
+        verify(workDown.activeFocusOnTab);
+
+        workUp.forceActiveFocus();
+        verify(workUp.activeFocus);
+        keyClick(Qt.Key_Space);
+        tryVerify(function () {
+            return spaceOrder(page)[0] === "Work";
+        });
+        compare(spaceOrder(page), ["Work", "Personal", "Reading"]);
+    }
+
+    // Space management belongs to a regular window, so a Private window is
+    // offered none of it, the new answers included.
+    function test_aPrivateWindowIsOfferedNoSpaceActions() {
+        browserStub.privateBrowsing = true;
+        const page = makeSpacesPage();
+        for (const spaceId of ["personal", "work", "reading"]) {
+            compare(findChild(page, "moveSpaceUp-" + spaceId), null);
+            compare(findChild(page, "moveSpaceDown-" + spaceId), null);
+            compare(findChild(page, "settingsSpace-" + spaceId), null);
+        }
+        compare(findChild(page, "newSpaceButton").visible, false);
     }
 
     function test_aLetterSelectsAndFocusesItsSection() {
