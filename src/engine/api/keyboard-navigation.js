@@ -210,16 +210,89 @@
       target.click();
     }
   };
+  // One glide, steered. Every press moves a single target and a frame loop
+  // eases what is left of the distance toward it, so a held key reads as one
+  // continuous run and a press lands on the next frame. The engine's own
+  // smooth scroll cannot do either: each call restarts its ease from a stop,
+  // and a jump to an end animates the document's whole length.
+  const glide = { frame: 0, time: 0, position: 0, target: 0 };
+  // What is left of the distance halves every 40 ms. The pace is the same at
+  // any frame rate, and it holds when a frame arrives late.
+  const glideHalfLife = 40;
+  // Within a pixel of the target the run is over: the page cannot draw the
+  // difference, and the scroller reports its position rounded anyway.
+  const glideEpsilon = 0.5;
+  // The scroller rounds what it is given to the device's pixels, so the
+  // position it reports back is never exactly the position asked for. A wheel
+  // or a drag moves the page by far more than this, which is what the loop is
+  // watching for.
+  const glideRounding = 2;
+  const scroller = () => document.scrollingElement || document.documentElement;
+  const viewport = () => scroller().clientHeight || innerHeight;
+  const scrollLimit = () => Math.max(0, scroller().scrollHeight - viewport());
+  const placeScroll = (offset) => scroller().scrollTo({ top: offset, behavior: "instant" });
+  // The page is free to go elsewhere: the reader turns a wheel, an end is
+  // reached, the document shrinks. Whatever the scroller says beats what the
+  // run intended, and the run ends there rather than dragging the page back.
+  // Idle the target is the position, so this also reads the page back in
+  // before a press extends a run that is already over.
+  const resyncGlide = () => {
+    const standing = scroller().scrollTop;
+    if (Math.abs(standing - glide.position) <= glideRounding) return;
+    glide.position = standing;
+    glide.target = standing;
+  };
+  const stepGlide = (now) => {
+    resyncGlide();
+    if (glide.position === glide.target) {
+      glide.frame = 0;
+      return;
+    }
+    // A frame's timestamp is when the frame began, which can predate the press
+    // that started the run, and a late frame must not ease the whole distance
+    // at once. Both ends of the step are held to a frame's worth of time.
+    const elapsed = Math.min(64, Math.max(0, now - glide.time));
+    glide.time = now;
+    glide.position += (glide.target - glide.position) * (1 - Math.pow(2, -elapsed / glideHalfLife));
+    if (Math.abs(glide.target - glide.position) < glideEpsilon) glide.position = glide.target;
+    placeScroll(glide.position);
+    glide.frame = glide.position === glide.target ? 0 : requestAnimationFrame(stepGlide);
+  };
+  const glideTo = (offset) => {
+    resyncGlide();
+    glide.target = Math.min(scrollLimit(), Math.max(0, offset));
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      cancelAnimationFrame(glide.frame);
+      glide.frame = 0;
+      glide.position = glide.target;
+      placeScroll(glide.target);
+      return;
+    }
+    // Anything past the last two screens of the distance is covered at once,
+    // so an end lands at the same speed on a short page and on a long one.
+    const reach = viewport() * 2;
+    if (Math.abs(glide.target - glide.position) > reach) {
+      glide.position = glide.target + (glide.target > glide.position ? -reach : reach);
+      placeScroll(glide.position);
+    }
+    if (glide.frame || glide.position === glide.target) return;
+    glide.time = performance.now();
+    glide.frame = requestAnimationFrame(stepGlide);
+  };
+  // Measured from the target rather than from the page, so a held key adds to
+  // the run in flight instead of restarting it a step ahead of where the page
+  // happens to have reached.
+  const glideBy = (distance) => {
+    resyncGlide();
+    glideTo(glide.target + distance);
+  };
   const execute = (command) => {
-    const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const behavior = reduced ? "instant" : "smooth";
-    if (command === "scroll-down") scrollBy({ top: 60, behavior });
-    else if (command === "scroll-up") scrollBy({ top: -60, behavior });
-    else if (command === "scroll-half-page-down") scrollBy({ top: innerHeight * 0.5, behavior });
-    else if (command === "scroll-half-page-up") scrollBy({ top: -innerHeight * 0.5, behavior });
-    else if (command === "scroll-top") scrollTo({ top: 0, behavior });
-    else if (command === "scroll-bottom")
-      scrollTo({ top: document.documentElement.scrollHeight, behavior });
+    if (command === "scroll-down") glideBy(60);
+    else if (command === "scroll-up") glideBy(-60);
+    else if (command === "scroll-half-page-down") glideBy(viewport() * 0.5);
+    else if (command === "scroll-half-page-up") glideBy(viewport() * -0.5);
+    else if (command === "scroll-top") glideTo(0);
+    else if (command === "scroll-bottom") glideTo(scrollLimit());
     else if (command === "open-link" || command === "open-link-background") showHints(command);
   };
   addEventListener(

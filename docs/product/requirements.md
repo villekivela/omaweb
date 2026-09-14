@@ -276,7 +276,10 @@ The default page commands include:
 - `f` labels click targets and activates the selected target in the current tab.
 - `Shift+F` labels the same targets and opens the selected target in a background tab.
 - Vim-style scrolling commands such as `j`, `k`, `gg`, and `G` when the site does not own those
-  keys.
+  keys. Presses add to one glide rather than queueing separate animations, so a held key is one
+  continuous run. A jump to either end covers the same last stretch whatever the page's length. A
+  scroll from anywhere else, a wheel or the page itself, ends the glide where it landed, and
+  `prefers-reduced-motion` moves the page in one step.
 
 ## Privacy and security
 

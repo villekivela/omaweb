@@ -909,6 +909,50 @@ void QtEngineContractTest::qtKeyboardNavigationHonorsInputContracts_data()
                 })), 300);
             </script>)HTML")
         << int(Qt::Key_unknown) << QStringLiteral("bottom") << false << QStringList {};
+    QTest::newRow("presses in flight add to one run")
+        << QByteArray(R"HTML(<!doctype html><title>ready</title>
+            <div style="height:3000px"></div><script>
+                addEventListener('scroll', () => {
+                    if (scrollY >= 170) document.title = 'stacked';
+                });
+                setTimeout(() => {
+                    for (let press = 0; press < 3; press++)
+                        dispatchEvent(new KeyboardEvent('keydown', {
+                            key: 'j', bubbles: true, cancelable: true
+                        }));
+                }, 300);
+            </script>)HTML")
+        << int(Qt::Key_unknown) << QStringLiteral("stacked") << false << QStringList {};
+    QTest::newRow("an end is reached in the same last stretch however long the page")
+        << QByteArray(R"HTML(<!doctype html><title>ready</title>
+            <div style="height:200000px"></div><script>
+                addEventListener('scroll', () => {
+                    if (document.title === 'crawled') return;
+                    const end = document.documentElement.scrollHeight - innerHeight;
+                    if (scrollY < end - innerHeight * 3) document.title = 'crawled';
+                    else if (scrollY >= end - 1) document.title = 'bottom';
+                });
+                setTimeout(() => dispatchEvent(new KeyboardEvent('keydown', {
+                    key: 'G', shiftKey: true, bubbles: true, cancelable: true
+                })), 300);
+            </script>)HTML")
+        << int(Qt::Key_unknown) << QStringLiteral("bottom") << false << QStringList {};
+    QTest::newRow("a scroll from elsewhere ends the run where it landed")
+        << QByteArray(R"HTML(<!doctype html><title>ready</title>
+            <div style="height:30000px"></div><script>
+                setTimeout(() => {
+                    dispatchEvent(new KeyboardEvent('keydown', {
+                        key: 'G', shiftKey: true, bubbles: true, cancelable: true
+                    }));
+                    setTimeout(() => {
+                        scrollTo({ top: 120, behavior: 'instant' });
+                        setTimeout(() => {
+                            document.title = Math.abs(scrollY - 120) <= 2 ? 'held' : 'dragged';
+                        }, 600);
+                    }, 60);
+                }, 300);
+            </script>)HTML")
+        << int(Qt::Key_unknown) << QStringLiteral("held") << false << QStringList {};
     QTest::newRow("link hints expose readable screen-reader text")
         << QByteArray(R"HTML(<!doctype html><title>ready</title>
             <a href="#target" aria-label="Read documentation">Docs</a>
