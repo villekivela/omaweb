@@ -72,6 +72,7 @@ Item {
     signal certificateErrorRaised(var engine, string requestId, var failure)
     signal pageSiteDataCleared(string origin, var cleared, string error)
     signal pageContextRequested(var engine, var context)
+    signal pageTooltipRequested(var engine, var tooltip)
     signal browserPromptRequested(var engine, string requestId, var prompt)
     signal fileSelectionRequested(var engine, string requestId, var selection)
 
@@ -753,6 +754,10 @@ Item {
 
                 function onPageContextRequested(context) {
                     root.pageContextRequested(tabSlot.engine, context);
+                }
+
+                function onPageTooltipRequested(tooltip) {
+                    root.pageTooltipRequested(tabSlot.engine, tooltip);
                 }
 
                 function onPrintFinished(destination, succeeded) {

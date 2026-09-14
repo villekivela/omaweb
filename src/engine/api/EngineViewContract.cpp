@@ -116,6 +116,10 @@ QStringList validateEngineViewContract(const QObject &adapter)
         {"developerToolsClosed", true, 0},
         {"printFinished", true, 2, QMetaType::QString},
         {"pageContextRequested", true, 1},
+        // A page's own tooltip, reported rather than drawn. The shell owes the
+        // reader one tooltip in one style, so an adapter that lets its engine
+        // draw its own puts a second one in the window.
+        {"pageTooltipRequested", true, 1},
         {"browserPromptRequested", true, 2},
         {"certificateErrorRaised", true, 2},
         {"pageSiteDataCleared", true, 3, QMetaType::QString},

@@ -161,6 +161,12 @@ Item {
     // the engine's own never appears and nothing about Chromium's menu model
     // crosses this line.
     signal pageContextRequested(var context)
+    // The text a page wants shown beside a point of its own, and whether it is
+    // raising one or taking it back. The shell draws it, on the same terms as
+    // the menu above: the engine reports the ask and keeps no tooltip of its
+    // own. A withdrawal carries no text and no point, because the page is
+    // saying only that what it raised is over.
+    signal pageTooltipRequested(var tooltip)
     signal developerToolsClosed
     signal rendererFailed(string reason)
     signal newTabRequested(var request, url requestedUrl)
@@ -1441,6 +1447,23 @@ Item {
                                           "mediaUrl": request.mediaUrl,
                                           "mediaType": root.mediaTypeName(request.mediaType),
                                           "editable": request.isContentEditable,
+                                          "pageGeneration": root.pageGeneration
+                                      });
+        }
+
+        // Accepting the request is what stops the engine's own tooltip, in the
+        // way the menu above is taken. Chromium reports the point in the view's
+        // coordinates and leaves the text on a withdrawal, so the type decides
+        // what is passed on rather than the text being tested for emptiness: a
+        // page may raise a tooltip whose title really is empty.
+        onTooltipRequested: function (request) {
+            request.accepted = true;
+            const showing = request.type === TooltipRequest.Show;
+            root.pageTooltipRequested({
+                                          "visible": showing,
+                                          "text": showing ? request.text : "",
+                                          "x": request.x,
+                                          "y": request.y,
                                           "pageGeneration": root.pageGeneration
                                       });
         }
