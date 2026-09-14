@@ -1,5 +1,4 @@
 import QtQuick
-import QtQuick.Controls
 
 Item {
     id: root
@@ -615,7 +614,6 @@ Item {
 
             view: engine
             colors: root.colors
-            policy: ScrollBar.AsNeeded
             // Derived here rather than asked of the adapter: the three numbers
             // it reports already say it, and a fourth property would be one
             // more thing every engine has to answer for to say nothing new.
