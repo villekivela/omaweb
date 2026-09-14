@@ -14,8 +14,8 @@
 //   node build/site.mjs            # from website/
 //
 // The build never fails on the API. A rate limit or an outage leaves the
-// fallback the committed page already carries -- a link to the releases on
-// GitHub -- because a missing list is worth less than a deploy that does not
+// fallback the committed page already carries, a link to the releases on
+// GitHub, because a missing list is worth less than a deploy that does not
 // happen.
 
 import { cp, mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
@@ -28,11 +28,13 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const WEBSITE = resolve(HERE, "..");
 const OUTPUT = join(WEBSITE, "dist");
 
-const RELEASES = "https://api.github.com/repos/villekivela/omaweb/releases?per_page=10";
-
 // Enough that a reader sees the recent history without the landing page
 // carrying every release forever. The section links to the rest on GitHub.
 const LISTED = 8;
+
+// Asked for one more than are listed, so a draft at the top of the list costs
+// a row rather than the oldest release on the page.
+const RELEASES = `https://api.github.com/repos/villekivela/omaweb/releases?per_page=${LISTED + 1}`;
 
 // None of these belongs in the deployed site: `build/` is this script, its
 // tests and the page template, `dist/` is where they put their output,
@@ -85,22 +87,35 @@ async function main() {
   await mkdir(OUTPUT, { recursive: true });
   await copyStaticFiles();
 
-  let releases;
+  // The fetch and the rendering are guarded together. A release the API
+  // answers with is data from elsewhere, so rendering it can fail on
+  // something no fixed input would have shown, such as a date that will not
+  // parse, and that is still a reason to keep the fallback rather than to
+  // fail the deploy.
+  let list = "";
+  let releases = [];
   try {
     releases = await fetchReleases();
+    list = renderReleaseList(releases);
   } catch (error) {
     console.warn(`website: keeping the fallback release list: ${error.message}`);
     return;
   }
 
-  if (!releases.length) {
-    console.warn("website: keeping the fallback release list: no published release");
+  // An empty list is every bit as empty as a failed fetch, and writing it
+  // would replace the fallback with nothing at all.
+  if (!list) {
+    console.warn("website: keeping the fallback release list: no release the site can name");
     return;
   }
 
-  const page = await readFile(join(WEBSITE, "index.html"), "utf8");
-  await writeFile(join(OUTPUT, "index.html"), writeReleases(page, renderReleaseList(releases)));
   await writeReleasePages(releases);
+
+  // Outside the guard above. The markers are ours, in a file in this
+  // repository, so a page missing them is a mistake to fix rather than a
+  // condition to degrade around.
+  const page = await readFile(join(WEBSITE, "index.html"), "utf8");
+  await writeFile(join(OUTPUT, "index.html"), writeReleases(page, list));
   console.log(`website: wrote ${releases.length} releases and their pages`);
 }
 

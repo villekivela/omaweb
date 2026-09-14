@@ -281,7 +281,9 @@
           </div>
         </div>
 
-        <ul class="t-features">
+        <!-- `role="list"`, because the CSS takes the bullets off and Safari
+             then stops reporting the element as a list at all. -->
+        <ul class="t-features" role="list">
           <li class="t-feature">
             <h3>Spaces</h3>
             <p>
@@ -299,8 +301,8 @@
           <li class="t-feature">
             <h3>The Omnibar</h3>
             <p>
-              One field opens addresses, searches the web, switches tabs and Spaces, and runs
-              commands. Every browser action is reachable from the command panel.
+              One centred overlay opens addresses, searches the web, selects tabs and Spaces, and
+              invokes browser commands. Every browser action is reachable from it.
             </p>
           </li>
           <li class="t-feature">
@@ -314,14 +316,15 @@
             <h3>Tabs that come back</h3>
             <p>
               Pinned tabs, Private windows, site-requested Auxiliary windows, and recently closed
-              tabs. Mark a tab Keep active and it keeps running in the background.
+              tabs. Mark a Pinned tab Keep active and its page keeps running in the background.
             </p>
           </li>
           <li class="t-feature">
             <h3>Content blocking</h3>
             <p>
-              EasyList, EasyPrivacy, cosmetic rules, Scriptlets and Substitute resources, with
-              uBlock Origin&rsquo;s filter syntax for rules of your own.
+              EasyList, EasyPrivacy, cosmetic rules, Scriptlets and Substitute resources. Your own
+              rules use uBlock Origin&rsquo;s syntax, and Settings reports what each list
+              contributed and what it skipped.
             </p>
           </li>
           <li class="t-feature">
@@ -336,6 +339,14 @@
             <p>
               A high-risk download is confirmed before it starts, loses its execute permission, and
               is never opened for you.
+            </p>
+          </li>
+          <li class="t-feature">
+            <h3>Sync, if you want it</h3>
+            <p>
+              Optional, and local-only until you connect it. It copies Spaces, tabs, keybindings and
+              a few settings between your machines through a private repository you own.
+              <a href="sync/">What it copies</a>.
             </p>
           </li>
           <li class="t-feature">
@@ -471,7 +482,7 @@
         <div class="t-cols t-cols--2">
           <div>
             <h3>Running it</h3>
-            <ul class="t-docs">
+            <ul class="t-docs" role="list">
               <li>
                 <a href="https://github.com/villekivela/omaweb#readme">README</a>
                 <span>What Omaweb is, how to install it, and every default binding.</span>
@@ -502,7 +513,7 @@
           </div>
           <div>
             <h3>Working on it</h3>
-            <ul class="t-docs">
+            <ul class="t-docs" role="list">
               <li>
                 <a href="https://github.com/villekivela/omaweb/blob/main/docs/development.md"
                   >Development guide</a

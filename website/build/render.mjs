@@ -7,7 +7,7 @@
 // after #237, rewritten by a model. Either way they are Markdown produced
 // elsewhere, so nothing here trusts them: every character is escaped first and
 // the markup comes only from the patterns below. That is also what keeps the
-// generated pages inside `default-src 'self'` -- no rule here can emit a
+// generated pages inside `default-src 'self'`. No rule here can emit a
 // subresource, only links, which the policy governs as navigations.
 
 const REPOSITORY = "https://github.com/villekivela/omaweb";
@@ -31,19 +31,52 @@ function escapeHtml(text) {
     .replace(/"/g, "&quot;");
 }
 
-// Runs over already-escaped text, so the entities it must not cut through are
-// the ones it wrote itself: a `&quot;` inside a bare URL would end the link
-// several characters early. Trailing sentence punctuation is left outside the
-// link for the same reason a reader would leave it: it belongs to the
-// sentence, not to the address.
+// A bare address, taken to the first space, `<` or closing bracket. Where it
+// really ends is decided by `trimAddress` rather than by the character class,
+// because the two cases pull opposite ways.
+const AUTOLINK = /(^|[\s(])(https?:\/\/[^\s<)]+)/g;
+
+// Sentence punctuation at the end of a bare address belongs to the sentence,
+// not to the address, and a reader reading aloud would drop it too. The
+// exception is a semicolon closing an entity: this runs over escaped text, so
+// the `&` of a query string arrives as `&amp;` and dropping that semicolon
+// would leave a broken entity in the href.
+function trimAddress(address) {
+  let end = address.length;
+  while (end > 0 && ".,;:!?".includes(address[end - 1])) {
+    const closesEntity =
+      address[end - 1] === ";" && /&(?:#\d+|[a-zA-Z][a-zA-Z0-9]*);$/.test(address.slice(0, end));
+    if (closesEntity) break;
+    end -= 1;
+  }
+  return address.slice(0, end);
+}
+
+// Runs over already-escaped text, so `<` cannot occur in it and a `<n>` marker
+// cannot collide with anything the body wrote. Code spans and links are held
+// behind such a marker as soon as they are rendered, which is what stops the
+// bare-address pass from linking an address that is already inside a link's
+// own label, or inside a code span that is meant to read literally.
 function renderInline(escaped) {
-  return escaped
-    .replace(/`([^`]+)`/g, "<code>$1</code>")
+  const held = [];
+  const hold = (html) => `<${held.push(html) - 1}>`;
+
+  const rendered = escaped
+    .replace(/`([^`]+)`/g, (whole, code) => hold(`<code>${code}</code>`))
     .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
     .replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (whole, label, href) =>
-      SAFE_URL.test(href) ? `<a href="${href}">${label}</a>` : whole,
+      SAFE_URL.test(href) ? hold(`<a href="${href}">${label}</a>`) : whole,
     )
-    .replace(/(^|[\s(])(https?:\/\/[^\s<)]*[^\s<).,;:!?])/g, '$1<a href="$2">$2</a>');
+    .replace(AUTOLINK, (whole, before, address) => {
+      const href = trimAddress(address);
+      return `${before}${hold(`<a href="${href}">${href}</a>`)}${address.slice(href.length)}`;
+    });
+
+  // Recursive, because held markup can hold a marker of its own: a code span
+  // inside a link's label is held before the link that contains it.
+  const restore = (text) =>
+    text.replace(/<(\d+)>/g, (whole, index) => restore(held[Number(index)]));
+  return restore(rendered);
 }
 
 /**
@@ -162,7 +195,9 @@ export function renderReleaseList(releases) {
       ].join("");
     })
     .join("");
-  return rows ? `<ol class="t-releases">${rows}</ol>` : "";
+  // `role="list"`, because the CSS takes the bullets off and Safari then stops
+  // reporting the element as a list at all.
+  return rows ? `<ol class="t-releases" role="list">${rows}</ol>` : "";
 }
 
 /**

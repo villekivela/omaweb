@@ -56,6 +56,32 @@ test("markdown: a link to anything but http or https stays text", () => {
   assert.equal(markdownToHtml("[run](javascript:alert(1))"), "<p>[run](javascript:alert(1))</p>");
 });
 
+test("markdown: a URL inside a link's own label does not become a second link", () => {
+  assert.equal(
+    markdownToHtml("[see https://x.test/a](https://y.test/b)"),
+    '<p><a href="https://y.test/b">see https://x.test/a</a></p>',
+  );
+});
+
+test("markdown: a link inside a code span stays code", () => {
+  assert.equal(markdownToHtml("`[a](https://x.test)`"), "<p><code>[a](https://x.test)</code></p>");
+  assert.equal(markdownToHtml("`https://x.test/a`"), "<p><code>https://x.test/a</code></p>");
+});
+
+test("markdown: a bare URL keeps the semicolon that closes an escaped entity", () => {
+  assert.equal(
+    markdownToHtml("https://x.test/?a=1&b=2"),
+    '<p><a href="https://x.test/?a=1&amp;b=2">https://x.test/?a=1&amp;b=2</a></p>',
+  );
+});
+
+test("markdown: bold inside a link's label renders", () => {
+  assert.equal(
+    markdownToHtml("[**loud**](https://x.test)"),
+    '<p><a href="https://x.test"><strong>loud</strong></a></p>',
+  );
+});
+
 const RELEASE = {
   tag_name: "v0.3.0",
   name: "v0.3.0",
@@ -122,6 +148,10 @@ test("list: a debug package is not the download", () => {
 
 test("list: a release whose tag cannot be a path is left out rather than guessed at", () => {
   assert.equal(renderReleaseList([{ ...RELEASE, tag_name: "../x", name: "../x" }]), "");
+});
+
+test("list: the list keeps its semantics where the bullets are styled away", () => {
+  assert.match(renderReleaseList([RELEASE]), /<ol class="t-releases" role="list">/);
 });
 
 const TEMPLATE = [

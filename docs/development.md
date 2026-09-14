@@ -487,9 +487,12 @@ development artifacts and are not attached ([ADR 0029](adr/0029-distribute-only-
 `cmake --preset dev` prints the version it derived. A tree with no tags falls back to
 `OMAWEB_FALLBACK_VERSION` in `cmake/OmawebVersion.cmake`.
 
-Publishing a release also changes the website. Its releases section and the page each release gets
-are generated from the GitHub releases API on the next deploy, so a new tag reaches the site without
-an edit.
+Publishing a release also changes the website, whose releases section and per-release pages are
+generated from the GitHub releases API at deploy time. Vercel builds on a push to a branch and this
+ref is a tag, so the `Deploy the website` step asks Vercel for a build itself. It needs a
+`VERCEL_DEPLOY_HOOK_URL` secret holding a Deploy Hook from the Vercel project's Git settings. With
+no secret the step says so in the job summary and the release still publishes; the site then shows
+the previous release until the next push to `main`.
 
 ## Website
 
