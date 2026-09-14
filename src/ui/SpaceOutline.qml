@@ -850,6 +850,10 @@ Rectangle {
                 x: root.arrivalOffset * listLayer.width
             }
 
+            ScrollBar.vertical: ChromeScrollBar {
+                colors: root.colors
+            }
+
             // A flow rather than a column: a split's two tabs are one row of
             // two, so each takes half the width and the two share a line,
             // while every other row takes the whole width and a line of its
