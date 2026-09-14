@@ -46,6 +46,7 @@
     "Primary+Shift+Up": "move-tab-up",
     "Primary+Shift+Down": "move-tab-down",
     "Primary+D": "duplicate-tab",
+    "Primary+Shift+Return": "glance-to-tab",
     "Primary+[": "back",
     "Primary+]": "forward",
     "Primary+1": "select-space",

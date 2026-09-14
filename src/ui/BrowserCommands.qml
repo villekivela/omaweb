@@ -38,7 +38,10 @@ QtObject {
             window.openOmnibar(true);
             return true;
         case "close-tab":
-            browser.closeActiveTab();
+            window.closeActiveTab();
+            return true;
+        case "glance-to-tab":
+            window.openGlanceAsTab();
             return true;
         case "reopen-tab":
             browser.reopenClosedTab();
@@ -235,6 +238,11 @@ QtObject {
                                                  title: "Keep this Pinned tab active",
                                                  requires: "pinned-tab"
                                              },
+                                             "glance-to-tab": {
+                                                 group: "tabs",
+                                                 title: "Open the Glance as a tab",
+                                                 requires: "glance"
+                                             },
                                              "duplicate-tab": {
                                                  group: "tabs",
                                                  title: "Duplicate tab",
@@ -413,6 +421,8 @@ QtObject {
         switch (description ? description.requires : "") {
         case "page":
             return !browser.activeTabBlank;
+        case "glance":
+            return window.glanceOpen;
         case "find":
             return window.findAvailable;
         case "zoom":
