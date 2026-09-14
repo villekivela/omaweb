@@ -15,6 +15,10 @@ on:
 
 permissions:
   contents: write
+  # The notes rewrite reads the issues and pull requests the commits reference.
+  # Naming any scope sets every other one to none, so these are not spare.
+  issues: read
+  pull-requests: read
 
 jobs:
   # Built in the same container CI checks the package in, so what a release
@@ -81,7 +85,9 @@ jobs:
   release:
     needs: package
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # The notes rewrite retries an API that does not answer, so the budget
+    # leaves the publish step time even when every attempt runs to its timeout.
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

@@ -52,7 +52,12 @@ BODY_LIMIT = 2000
 ISSUE_LIMIT = 40
 ISSUE_BODY_LIMIT = 4000
 
+# The release job has ten minutes for the whole of itself, and the step that
+# publishes comes after this one, so the worst case here is a budget rather
+# than a preference: three attempts of REQUEST_TIMEOUT plus the backoff between
+# them has to leave the release time to publish.
 ATTEMPTS = 3
+REQUEST_TIMEOUT = 60
 RETRY_DELAY = 5
 
 # A shorter answer than this is not notes, whatever the API said about it.
@@ -100,22 +105,24 @@ class Unavailable(Exception):
     """The rewrite did not happen. The caller publishes the generated notes."""
 
 
+def run(*arguments: str) -> tuple[int, str]:
+    result = subprocess.run(arguments, capture_output=True, text=True)
+    return result.returncode, result.stdout if result.returncode == 0 else result.stderr
+
+
 def git(*arguments: str) -> str:
-    result = subprocess.run(("git", *arguments), capture_output=True, text=True)
-    if result.returncode != 0:
-        raise Unavailable(f"git {' '.join(arguments)}: {result.stderr.strip()}")
-    return result.stdout
+    status, output = run("git", *arguments)
+    if status != 0:
+        raise Unavailable(f"git {' '.join(arguments)}: {output.strip()}")
+    return output
 
 
 def previous_tag(tag: str) -> str:
     """The tag the range starts at, by the rule `release_notes.sh` uses. Empty
     when this is the first release: the range is then the whole history."""
-    result = subprocess.run(
-        ("git", "describe", "--tags", "--abbrev=0", "--match", "v[0-9]*", f"{tag}^"),
-        capture_output=True,
-        text=True,
-    )
-    return result.stdout.strip() if result.returncode == 0 else ""
+    status, output = run("git", "describe", "--tags", "--abbrev=0", "--match", "v[0-9]*",
+                         f"{tag}^")
+    return output.strip() if status == 0 else ""
 
 
 def commits(tag: str, previous: str) -> list[dict[str, str]]:
@@ -135,9 +142,9 @@ def commits(tag: str, previous: str) -> list[dict[str, str]]:
     return found[:COMMIT_LIMIT]
 
 
-def issue_numbers(found: list[dict[str, str]]) -> list[int]:
+def issue_numbers(changes: list[dict[str, str]]) -> list[int]:
     numbers: list[int] = []
-    for commit in found:
+    for commit in changes:
         for match in ISSUE_REFERENCE.finditer(f"{commit['subject']}\n{commit['body']}"):
             number = int(match.group(1))
             if number not in numbers:
@@ -147,18 +154,18 @@ def issue_numbers(found: list[dict[str, str]]) -> list[int]:
 
 def issues(numbers: list[int]) -> list[dict[str, str]]:
     """What each referenced issue asked for. A number that does not resolve is
-    left out: an unreachable issue is less context, not a failed release."""
+    left out: an unreachable issue is less context, not a failed release.
+
+    Read through `gh api` rather than `gh issue view`, because a `#nnn` in a
+    subject is as often a pull request, and the issues endpoint answers for
+    both while `gh issue view` refuses one of them."""
     fetched = []
     for number in numbers:
-        result = subprocess.run(
-            ("gh", "issue", "view", str(number), "--json", "number,title,body"),
-            capture_output=True,
-            text=True,
-        )
-        if result.returncode != 0:
+        status, output = run("gh", "api", f"repos/{{owner}}/{{repo}}/issues/{number}")
+        if status != 0:
             continue
         try:
-            issue = json.loads(result.stdout)
+            issue = json.loads(output)
         except json.JSONDecodeError:
             continue
         fetched.append(
@@ -171,10 +178,10 @@ def issues(numbers: list[int]) -> list[dict[str, str]]:
     return fetched
 
 
-def prompt(tag: str, generated: str, found: list[dict[str, str]],
+def prompt(tag: str, generated: str, changes: list[dict[str, str]],
            referenced: list[dict[str, str]]) -> str:
     parts = [f"Release: {tag}", "", "## Generated notes", "", generated.strip(), "", "## Commits"]
-    for commit in found:
+    for commit in changes:
         parts.append("")
         parts.append(f"### {commit['hash']} {commit['subject']}")
         if commit["body"]:
@@ -218,7 +225,7 @@ def ask(text: str, model: str, key: str, base_url: str) -> str:
     last = ""
     for attempt in range(1, ATTEMPTS + 1):
         try:
-            with urllib.request.urlopen(request, timeout=120) as response:
+            with urllib.request.urlopen(request, timeout=REQUEST_TIMEOUT) as response:
                 answer = json.load(response)
             break
         except urllib.error.HTTPError as error:
@@ -233,6 +240,11 @@ def ask(text: str, model: str, key: str, base_url: str) -> str:
     else:
         raise Unavailable(last)
 
+    # Notes that ran out of tokens end mid-sentence, and every check below
+    # passes on them, so the truncation would publish looking deliberate.
+    if answer.get("stop_reason") == "max_tokens":
+        raise Unavailable("the answer ran out of tokens")
+
     blocks = [
         block.get("text", "")
         for block in answer.get("content", [])
@@ -241,15 +253,20 @@ def ask(text: str, model: str, key: str, base_url: str) -> str:
     return "".join(blocks).strip()
 
 
-def finish(rewritten: str, generated: str) -> str:
-    """The rewrite as it publishes, or `Unavailable` when it is not notes."""
+def as_published(rewritten: str, generated: str) -> str:
+    """The gate between what the model said and what a release publishes:
+    either the notes as they go out, or `Unavailable`."""
     if len(rewritten) < MINIMUM_LENGTH:
         raise Unavailable("the answer was too short to be notes")
     if FENCE.search(rewritten) or TABLE_ROW.search(rewritten):
         raise Unavailable("the answer used Markdown the release page cannot render")
 
+    # A compare URL the model wrote is a URL nobody checked, and one that names
+    # the wrong range reads exactly like one that names the right one. Whatever
+    # it wrote goes, and the generated line takes its place.
     link = CHANGELOG.search(generated)
-    if link and not CHANGELOG.search(rewritten):
+    rewritten = CHANGELOG.sub("", rewritten).rstrip()
+    if link:
         rewritten = f"{rewritten}\n\n{link.group(0)}"
     return f"{rewritten.rstrip()}\n"
 
@@ -259,7 +276,6 @@ def main() -> int:
     parser.add_argument("tag", help="the tag being released")
     parser.add_argument("--generated", required=True, help="the notes release_notes.sh wrote")
     parser.add_argument("--output", required=True, help="where the rewritten notes go")
-    parser.add_argument("--previous", default="", help="the tag the range starts at")
     parser.add_argument("--model", default=MODEL)
     arguments = parser.parse_args()
 
@@ -271,12 +287,12 @@ def main() -> int:
             raise Unavailable("no ANTHROPIC_API_KEY")
         with open(arguments.generated, encoding="utf-8") as handle:
             generated = handle.read()
-        previous = arguments.previous or previous_tag(arguments.tag)
-        found = commits(arguments.tag, previous)
-        if not found:
+        previous = previous_tag(arguments.tag)
+        changes = commits(arguments.tag, previous)
+        if not changes:
             raise Unavailable(f"no commits in {previous or 'the range'}..{arguments.tag}")
-        text = prompt(arguments.tag, generated, found, issues(issue_numbers(found)))
-        notes = finish(ask(text, arguments.model, key, base_url), generated)
+        text = prompt(arguments.tag, generated, changes, issues(issue_numbers(changes)))
+        notes = as_published(ask(text, arguments.model, key, base_url), generated)
     except (Unavailable, OSError) as error:
         print(f"release notes were not rewritten: {error}", file=sys.stderr)
         return 1
