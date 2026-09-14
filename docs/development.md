@@ -484,6 +484,25 @@ the Arch package and its inventory. Every `v0.*` tag is marked a prerelease. mac
 development artifacts and are not attached ([ADR 0029](adr/0029-distribute-only-for-linux.md)). See
 [ADR 0028](adr/0028-derive-the-version-from-the-release-tag.md).
 
+`scripts/rewrite_release_notes.py` then rewrites that commit list into notes addressed to a reader,
+from the commit bodies in the range and the issues they reference. It runs on every tag, prerelease
+included. The rewrite carries the compare URL over itself and refuses markup the release page cannot
+render, so the published body stays inside the Markdown subset `website/build/render.mjs` supports.
+
+It needs an `ANTHROPIC_API_KEY` secret. Without one, or when the API refuses or does not answer, the
+generated commit list publishes unchanged and the job summary says the rewrite did not happen. The
+summary carries both the generated list and what was published, which is how a release is checked
+after the fact. Nothing about the rewrite can block a release.
+
+The rewritten notes reach the website through the release body: the release pages are generated from
+the GitHub releases API at deploy time, so they render whatever the release published.
+
+The rewrite reads issue bodies, which anyone with a GitHub account can write, and the release body
+it produces publishes without review. Wording from an issue can therefore reach a release note and
+the release page on the website. What an issue cannot do is change the markup: the compare URL is
+carried over rather than generated, the notes are refused if they carry markup the release page
+cannot render, and `website/build/render.mjs` escapes the body before applying its own patterns.
+
 `cmake --preset dev` prints the version it derived. A tree with no tags falls back to
 `OMAWEB_FALLBACK_VERSION` in `cmake/OmawebVersion.cmake`.
 
