@@ -80,6 +80,9 @@ private slots:
     void adaptersAnswerASitePermissionTheyWereGiven();
     void adaptersAnswerASitePermissionTheyWereGiven_data();
     void aRecordingStoreKeepsItsSessionAcrossAReopen();
+    void adaptersRecordASplitWithItsTabsOnlyIfTheyRecord();
+    void adaptersRecordASplitWithItsTabsOnlyIfTheyRecord_data();
+    void aRecordingStoreKeepsASplitAcrossAReopenAndASpaceMove();
     void aRecordingStoreRetriesCreatingASpaceDirectory();
     void aPrivateStoreLeavesTheRootItWasGivenEmpty();
     void aPrivateStoreSharesItsDecisionsWithTheSession();
@@ -245,6 +248,79 @@ void SessionStoreTest::aRecordingStoreKeepsItsSessionAcrossAReopen()
     QCOMPARE(reopened.loadSpaces().size(), 1);
     QCOMPARE(reopened.loadTabs(spaceId()).size(), 1);
     QCOMPARE(reopened.preference(QStringLiteral("sidebar-width")), QStringLiteral("280"));
+}
+
+void SessionStoreTest::adaptersRecordASplitWithItsTabsOnlyIfTheyRecord_data() { adapterRows(); }
+
+// The pairing is part of the tab record: it goes in with the tabs and comes
+// back with them, from the adapter that records and not from the one that
+// keeps nothing.
+void SessionStoreTest::adaptersRecordASplitWithItsTabsOnlyIfTheyRecord()
+{
+    QFETCH(QString, kind);
+    QFETCH(bool, records);
+    QTemporaryDir root;
+    auto store = makeStore(kind, root.path());
+    QVERIFY(store->open());
+    store->saveSpace(makeSpace());
+
+    auto left = makeTab(QStringLiteral("tab-1"), QStringLiteral("https://a.example"));
+    auto right = makeTab(QStringLiteral("tab-2"), QStringLiteral("https://b.example"));
+    left.splitPartnerId = right.id;
+    left.splitFocused = true;
+    right.splitPartnerId = left.id;
+    QCOMPARE(store->saveTabs(spaceId(), {left, right}, left.id), records);
+
+    const auto tabs = store->loadTabs(spaceId());
+    QCOMPARE(tabs.size(), records ? 2 : 0);
+    if (!records) {
+        return;
+    }
+    QCOMPARE(tabs.at(0).splitPartnerId, right.id);
+    QCOMPARE(tabs.at(0).splitFocused, true);
+    QCOMPARE(tabs.at(1).splitPartnerId, left.id);
+    QCOMPARE(tabs.at(1).splitFocused, false);
+}
+
+void SessionStoreTest::aRecordingStoreKeepsASplitAcrossAReopenAndASpaceMove()
+{
+    QTemporaryDir root;
+    auto left = makeTab(QStringLiteral("tab-1"), QStringLiteral("https://a.example"));
+    auto right = makeTab(QStringLiteral("tab-2"), QStringLiteral("https://b.example"));
+    left.splitPartnerId = right.id;
+    right.splitPartnerId = left.id;
+    right.splitFocused = true;
+    {
+        SqliteSessionStore store(root.path());
+        QVERIFY(store.open());
+        QVERIFY(store.saveSpace(makeSpace()));
+        QVERIFY(store.saveTabs(spaceId(), {left, right}, right.id));
+    }
+
+    SqliteSessionStore reopened(root.path());
+    QVERIFY(reopened.open());
+    auto tabs = reopened.loadTabs(spaceId());
+    QCOMPARE(tabs.size(), 2);
+    QCOMPARE(tabs.at(0).splitPartnerId, right.id);
+    QCOMPARE(tabs.at(0).splitFocused, false);
+    QCOMPARE(tabs.at(1).splitPartnerId, left.id);
+    QCOMPARE(tabs.at(1).splitFocused, true);
+
+    // A move between Spaces writes both Spaces' tabs in one transaction, and
+    // a pairing among the tabs that stay is written with them.
+    auto other = makeSpace();
+    other.id = QStringLiteral("space-2");
+    other.active = false;
+    QVERIFY(reopened.saveSpace(other));
+    auto moved = makeTab(QStringLiteral("tab-3"), QStringLiteral("https://c.example"));
+    moved.spaceId = other.id;
+    QVERIFY(reopened.saveSpaceMove(spaceId(), tabs, right.id, other.id, {moved}, moved.id));
+    tabs = reopened.loadTabs(spaceId());
+    QCOMPARE(tabs.size(), 2);
+    QCOMPARE(tabs.at(0).splitPartnerId, right.id);
+    QCOMPARE(tabs.at(1).splitPartnerId, left.id);
+    QCOMPARE(tabs.at(1).splitFocused, true);
+    QCOMPARE(reopened.loadTabs(other.id).size(), 1);
 }
 
 void SessionStoreTest::aRecordingStoreRetriesCreatingASpaceDirectory()

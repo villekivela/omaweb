@@ -399,6 +399,8 @@ int main(int argc, char *argv[])
             {QStringLiteral("site"), {{"sidebar", "statusOpen", true}}},
             {QStringLiteral("history"), {{"", "historyOpen", true}}},
             {QStringLiteral("shortcuts"), {{"", "shortcutsOpen", true}}},
+            // The last two seeded tabs side by side, the last one active.
+            {QStringLiteral("split"), {{"", "sidebarPeeked", false}}},
             // Steps to the next Space shortly before a capture, so the frame
             // is taken part way through the list's arrival.
             {QStringLiteral("space-step"), {}},
@@ -419,6 +421,15 @@ int main(int argc, char *argv[])
             const auto tabId = lastTabId(browser.unpinnedTabs());
             if (!tabId.isEmpty()) {
                 browser.activateTab(tabId);
+            }
+        }
+        if (requested == QLatin1String("split")) {
+            auto *unpinned = browser.unpinnedTabs();
+            const auto rows = unpinned->rowCount();
+            if (rows >= 2) {
+                browser.activateTab(lastTabId(unpinned));
+                browser.addSplit(
+                    unpinned->data(unpinned->index(rows - 2, 0), Qt::UserRole + 1).toString());
             }
         }
 

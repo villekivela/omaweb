@@ -27,6 +27,14 @@ Item {
     // setting appears, so the row draws it: a standing decision the reader
     // cannot see is one they cannot tell they have made, or undo.
     required property bool tabKeepActive
+    // The split this tab is in, as the other tab of it, and whether this tab
+    // is the one on show beside the active tab. A split's two rows are one
+    // row of two: each is half the width, the active half is marked as the
+    // active tab is, and the tab beside is marked as on show, bordered the
+    // way the kit borders every option of a row of them.
+    required property string splitPartnerId
+    required property bool tabBeside
+    readonly property bool inSplit: splitPartnerId.length > 0
     property var colors
     property string iconFontFamily
     property bool useFavicons: true
@@ -118,15 +126,13 @@ Item {
     height: pinned ? 44 : 36
     activeFocusOnTab: true
     Accessible.role: Accessible.PageTab
-    Accessible.name: (pinned ? "Pinned: " + tabTitle : tabTitle) + (tabMuted ? " (muted)" : (
-                                                                                   tabSoundSuppressed
-                                                                                   && tabAudible
-                                                                                   ? " (playing silently)" :
-                                                                                     (tabAudible
-                                                                                      ? " (playing audio)" :
-                                                                                        ""))) + (showsKeepActive
-                                                                                                 ? " (kept active)" :
-                                                                                                   "")
+    Accessible.name: (pinned ? "Pinned: " + tabTitle : tabTitle) + (tabBeside ? " (beside)" : "") + (
+                         tabMuted ? " (muted)" : (tabSoundSuppressed && tabAudible
+                                                  ? " (playing silently)" : (tabAudible
+                                                                             ? " (playing audio)" :
+                                                                               ""))) + (showsKeepActive
+                                                                                        ? " (kept active)" :
+                                                                                          "")
     Accessible.onPressAction: root.activated(root.tabId)
 
     Keys.onPressed: function (event) {
@@ -167,7 +173,9 @@ Item {
         // A pin is a bordered tile at rest, as the reader's own address field
         // is; an ordinary row takes its border only when it is the current tab,
         // which is what makes one row in the list read as the page on show.
-        bordered: root.pinned || root.active
+        // The tab beside is on show too, and takes the border without the
+        // fill.
+        bordered: root.pinned || root.active || root.tabBeside
         foreground: root.siteColored && root.active ? root.siteColor : (root.pinned
                                                                         ? root.colors.mutedText :
                                                                           root.colors.text)
@@ -232,7 +240,7 @@ Item {
         anchors.rightMargin: closeButton.width + 10
         anchors.verticalCenter: parent.verticalCenter
         text: root.tabTitle.length > 0 ? root.tabTitle : tile.host
-        color: root.active ? root.colors.text : root.colors.mutedText
+        color: root.active || root.tabBeside ? root.colors.text : root.colors.mutedText
         elide: Text.ElideRight
         font.family: Style.font.family
         font.pixelSize: Style.font.body
@@ -277,6 +285,10 @@ Item {
                 return;
             const scene = root.mapToItem(null, mouse.x, mouse.y);
             if (!root.lifted) {
+                // A split's half stays with its row: the core refuses to move
+                // it, so the hand is not offered a drag it cannot finish.
+                if (root.inSplit)
+                    return;
                 const travelled = Math.max(Math.abs(scene.x - hoverArea.pressedAt.x), Math.abs(
                                                scene.y - hoverArea.pressedAt.y));
                 if (travelled < hoverArea.liftThreshold)

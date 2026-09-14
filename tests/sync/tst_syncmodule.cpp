@@ -644,6 +644,24 @@ void SyncModuleTest::localSyncStateRecognizesOnlyItsProjection()
     QCOMPARE(stale.status, LocalSyncApplyStatus::Stale);
     QCOMPARE(stale.error.failure, SyncFailure::LocalStateChanged);
 
+    // A split is not in the projection. Pairing two tabs that already stand
+    // side by side, moving focus between them and separating them again
+    // leave the tab records as they were.
+    changed.clear();
+    browser.openInput(QStringLiteral("https://left.example"), false);
+    QTRY_COMPARE(changed.count(), 1);
+    const auto leftId = browser.activeTabId();
+    browser.openInput(QStringLiteral("https://right.example"), true);
+    QTRY_COMPARE(changed.count(), 2);
+    const auto rightId = browser.activeTabId();
+    changed.clear();
+    browser.activateTab(leftId);
+    QVERIFY(browser.addSplit(rightId));
+    QVERIFY(browser.focusSplitPartner());
+    QVERIFY(browser.separateSplit());
+    QTest::qWait(10);
+    QCOMPARE(changed.count(), 0);
+
     changed.clear();
     const auto workSpace = browser.createSpace(QStringLiteral("Work"));
     QVERIFY(!workSpace.isEmpty());

@@ -397,38 +397,61 @@ ApplicationWindow {
                         }
                     ];
         }
-        return [
-                    {
-                        "label": "Duplicate tab",
-                        "command": "duplicate-tab"
-                    },
-                    {
-                        "label": "Pin tab",
-                        "command": "pin-tab",
-                        "enabled": !window.privateWindow
-                    },
-                    {
-                        "label": "Move to another Space",
-                        "command": "move-tab",
-                        "enabled": !window.privateWindow
-                    },
-                    {
-                        "separator": true
-                    },
-                    {
-                        "label": "Close other tabs",
-                        "command": "close-other-tabs"
-                    },
-                    {
-                        "label": "Close tabs below",
-                        "command": "close-tabs-below"
-                    },
-                    {
-                        "label": "Close tab",
-                        "command": "close-tab",
-                        "destructive": true
-                    }
-                ];
+        // A split's tab cannot be pinned until it is separated, so the entry
+        // that would pin it gives way to the one that separates it. Any other
+        // ordinary tab can be put beside the active one, or, if it is the
+        // active one, be given a blank tab beside it. The entry stands even
+        // when the active tab cannot take a partner, unavailable rather than
+        // missing, so the reader learns why: they are on a pin, or already in
+        // a split.
+        const inSplit = window.windowBrowser.tabInSplit(tabId);
+        const activeTabId = window.windowBrowser.activeTabId;
+        const actions = [];
+        actions.push({
+                         "label": "Duplicate tab",
+                         "command": "duplicate-tab"
+                     });
+        if (inSplit) {
+            actions.push({
+                             "label": "Separate split view",
+                             "command": "separate-split"
+                         });
+        } else {
+            actions.push({
+                             "label": "Add split view",
+                             "command": "add-split",
+                             "enabled": tabId === activeTabId || (
+                                            !window.windowBrowser.activeTabPinned &&
+                                            !window.windowBrowser.splitOnShow)
+                         });
+            actions.push({
+                             "label": "Pin tab",
+                             "command": "pin-tab",
+                             "enabled": !window.privateWindow
+                         });
+        }
+        actions.push({
+                         "label": "Move to another Space",
+                         "command": "move-tab",
+                         "enabled": !window.privateWindow
+                     });
+        actions.push({
+                         "separator": true
+                     });
+        actions.push({
+                         "label": "Close other tabs",
+                         "command": "close-other-tabs"
+                     });
+        actions.push({
+                         "label": "Close tabs below",
+                         "command": "close-tabs-below"
+                     });
+        actions.push({
+                         "label": "Close tab",
+                         "command": "close-tab",
+                         "destructive": true
+                     });
+        return actions;
     }
 
     // The command panel's way in: the menu belongs to the tab on show, and
@@ -476,6 +499,15 @@ ApplicationWindow {
             window.windowBrowser.setTabKeepActive(tabId, !window.windowBrowser.tabKeepActive(
                                                       tabId));
             break;
+        case "add-split":
+            // Both are about the row the menu was opened on and the tab on
+            // show as it stands: pairing the row with the active tab, or
+            // parting the row.
+            window.windowBrowser.addSplit(tabId);
+            break;
+        case "separate-split":
+            window.windowBrowser.separateSplit(tabId);
+            break;
         default:
             window.windowBrowser.activateTab(tabId);
             window.commands.run(action.command, -1);
@@ -512,6 +544,37 @@ ApplicationWindow {
         }
         window.moveTargets = targets;
         window.dialogMode = targets.length > 0 ? "move" : "";
+    }
+
+    // The command panel's way into a split: a chooser of the tabs a split
+    // could still take, headed by a blank tab, which is what confirming with
+    // nothing picked gives.
+    property var splitTargets: []
+    function requestAddSplit() {
+        if (window.windowBrowser.activeTabPinned || window.windowBrowser.splitOnShow)
+            return;
+        const tabs = window.windowBrowser.tabs;
+        const targets = [
+                  {
+                      "id": "",
+                      "label": "New blank tab"
+                  }
+              ];
+        const wanted = window.windowBrowser.splittableTabIds();
+        for (let row = 0; row < tabs.rowCount(); ++row) {
+            const index = tabs.index(row, 0);
+            const tabId = tabs.data(index, Qt.UserRole + 1);
+            if (wanted.indexOf(tabId) === -1)
+                continue;
+            targets.push({
+                             "id": tabId,
+                             "label": tabs.data(index, Qt.UserRole + 4),
+                             "note": String(tabs.data(index, Qt.UserRole + 3)).replace(
+                                         /^[a-z]+:\/\//, "")
+                         });
+        }
+        window.splitTargets = targets;
+        window.dialogMode = "split";
     }
 
     function requestMoveToSpace(spaceId) {
@@ -1469,20 +1532,9 @@ ApplicationWindow {
         window.forgetPendingSave();
     }
 
+    // The core counts the stops: a split is one of them.
     function stepTab(delta) {
-        const tabs = window.windowBrowser.tabs;
-        const count = tabs.rowCount();
-        if (count === 0)
-            return;
-        let current = 0;
-        for (let row = 0; row < count; ++row) {
-            if (tabs.data(tabs.index(row, 0), Qt.UserRole + 6)) {
-                current = row;
-                break;
-            }
-        }
-        const next = (current + delta + count) % count;
-        window.windowBrowser.activateTab(tabs.data(tabs.index(next, 0), Qt.UserRole + 1));
+        window.windowBrowser.stepTab(delta);
     }
 
     function activateTabAt(position) {
@@ -1940,7 +1992,8 @@ ApplicationWindow {
                 Rectangle {
                     objectName: "engineBacking"
                     anchors.fill: parent
-                    visible: !window.pagelessViewport
+                    // A split with a blank half still has a page beside it.
+                    visible: !window.pagelessViewport || window.windowBrowser.splitOnShow
                     color: window.colors.windowOpaque
                 }
 
@@ -1987,6 +2040,8 @@ ApplicationWindow {
                     // Chromium's own pre-paint colour, so a navigation never
                     // flashes a bright frame through the dark shell.
                     pageBackgroundColor: window.colors.windowOpaque
+                    colors: window.colors
+                    ease: window.easeChrome
                     spaceId: window.windowBrowser.activeSpaceId
 
                     onAuxiliaryWindowRequested: function (engine, request, requestedUrl) {
@@ -2223,7 +2278,16 @@ ApplicationWindow {
 
                 StartPage {
                     id: startPage
-                    anchors.fill: parent
+                    // The sheet stands where the page would: in the focused
+                    // pane while a split is on show, or over the whole area.
+                    // Only a blank half takes it; the sheet summoned over a
+                    // live page is the page's.
+                    readonly property bool inPane: window.windowBrowser.splitOnShow
+                                                   && window.pagelessViewport
+                    x: inPane ? engineLoader.x + engineLoader.activePaneX : 0
+                    y: 0
+                    width: inPane ? engineLoader.activePaneWidth : parent.width
+                    height: parent.height
                     z: 30
                     SheetLift {
                         id: startPageLift
@@ -2655,6 +2719,12 @@ ApplicationWindow {
                         window.refreshFindOpen();
                         window.reportPdfHandling(window.windowBrowser.activeUrl);
                     }
+
+                    // A split changes what is on show, which is what ends a
+                    // Glance.
+                    function onSplitChanged() {
+                        window.closeGlance();
+                    }
                 }
 
                 Rectangle {
@@ -3051,6 +3121,8 @@ ApplicationWindow {
                 return "delete space";
             case "move":
                 return "move tab to a space";
+            case "split":
+                return "add split view";
             case "confirm-move":
                 return "discard edited form state";
             case "site-storage":
@@ -3125,6 +3197,8 @@ ApplicationWindow {
                 return "⏎ delete " + window.dialogSpaceName;
             case "move":
                 return "↑↓ choose      ⏎ move the tab";
+            case "split":
+                return "↑↓ choose      ⏎ show it beside this tab";
             case "confirm-move":
                 return "⏎ discard the edits and move";
             case "site-storage":
@@ -3143,6 +3217,8 @@ ApplicationWindow {
             switch (window.dialogMode) {
             case "move":
                 return window.moveTargets;
+            case "split":
+                return window.splitTargets;
             case "third-party":
                 return window.thirdPartyRows;
             }
@@ -3185,6 +3261,13 @@ ApplicationWindow {
             if (window.dialogMode === "third-party") {
                 window.dialogMode = "";
                 window.answerThirdPartyRow(index);
+                return;
+            }
+            if (window.dialogMode === "split") {
+                const chosen = window.splitTargets[index];
+                window.dialogMode = "";
+                if (chosen)
+                    window.windowBrowser.addSplit(chosen.id);
                 return;
             }
             const target = window.moveTargets[index];

@@ -159,6 +159,18 @@ TestCase {
         return engineHost.item;
     }
 
+    // Whatever the chrome is still moving: a Space or a page arriving, or the
+    // Start page dropping away from a page that replaced it. A test about a
+    // movement of its own starts from rest.
+    function settleMotion() {
+        const engineHost = findChild(window.contentItem, "engineLoader");
+        const outline = findChild(window.contentItem, "sidebar");
+        tryCompare(outline, "arriving", false);
+        tryCompare(engineHost, "tabNudgeX", 0);
+        tryCompare(engineHost, "tabNudgeY", 0);
+        tryCompare(findChild(window.contentItem, "startPage"), "visible", false);
+    }
+
     // A button in a row the positioner has not laid out yet sits on top of its
     // neighbours, so a press meant for one lands on another. The first answer
     // in a row is at the left edge; every one after it has been moved.
@@ -2642,6 +2654,374 @@ TestCase {
         browser.activateTab(tabId);
         browser.toggleActivePinned();
         browser.closeTab(tabId);
+    }
+
+    // Two tabs of one Space side by side, listed as one row of two. Both
+    // pages are drawn, each in its half, and the row holds both halves on one
+    // line with the active half marked as the active tab and the tab beside
+    // marked as on show. The arriving pane comes from its row: to the right
+    // of the active half, so from the right, by the page nudge.
+    function test_splitShowsTwoPagesSideBySideAsOneRow() {
+        const engineHost = findChild(window.contentItem, "engineLoader");
+        const viewport = findChild(window.contentItem, "engineViewport");
+        const outline = findChild(window.contentItem, "sidebar");
+        window.easeChrome = true;
+        const work = openPage("https://split-work.example/");
+        const workTabId = browser.activeTabId;
+        browser.openInput("https://split-reference.example/", true);
+        const referenceTabId = browser.activeTabId;
+        tryVerify(function () {
+            return engineHost.engines[referenceTabId] !== undefined;
+        });
+        const reference = engineHost.engines[referenceTabId];
+        work.pageBackgroundColor = "#ff0000";
+        reference.pageBackgroundColor = "#0000ff";
+        browser.activateTab(workTabId);
+        tryCompare(engineHost, "item", work);
+        tryCompare(reference, "visible", false);
+        // The window is shared with every other test: whatever was still
+        // arriving from the last one is let settle first.
+        settleMotion();
+
+        // The menu on the other row pairs it with the tab on show.
+        window.openTabMenu(referenceTabId, 0, 0);
+        const labels = window.tabMenuItems.map(function (action) {
+            return action.label;
+        });
+        verify(labels.indexOf("Add split view") >= 0);
+        window.runTabMenu(labels.indexOf("Add split view"));
+        tryVerify(function () {
+            return browser.splitOnShow;
+        });
+        compare(browser.activeTabId, workTabId);
+        compare(browser.tabBesideId, referenceTabId);
+        compare(engineHost.item, work);
+        compare(engineHost.besideEngine, reference);
+
+        // The arriving pane stands to the right of its place by the nudge and
+        // the page already on show does not move.
+        tryVerify(function () {
+            return reference.transform[0].x > 0 && reference.transform[0].x <= 10;
+        });
+        compare(engineHost.tabNudgeX, reference.transform[0].x);
+        compare(work.transform[0].x, 0);
+
+        // Both engines are drawn, one in each half of the page area, and
+        // both run.
+        verify(work.visible);
+        verify(reference.visible);
+        compare(work.pageFrozen, false);
+        compare(reference.pageFrozen, false);
+        compare(work.x, 0);
+        compare(Math.round(work.width), Math.round(engineHost.width / 2));
+        compare(Math.round(reference.x), Math.round(engineHost.width / 2) + 1);
+        compare(Math.round(reference.x + reference.width), Math.round(engineHost.width));
+        tryCompare(engineHost, "tabNudgeX", 0);
+        const painted = grabImage(viewport);
+        const middle = Math.round(viewport.height / 2);
+        verify(Qt.colorEqual(painted.pixel(Math.round(engineHost.width / 4), middle), "#ff0000"));
+        verify(Qt.colorEqual(painted.pixel(Math.round(engineHost.width * 3 / 4), middle),
+                             "#0000ff"));
+        // Separating reverses the arrival: the pane leaves towards its row,
+        // over the page that has already taken the whole width, and is hidden
+        // once it has gone. The control: the same pixels with the split
+        // separated are the one page's.
+        verify(browser.separateSplit());
+        tryVerify(function () {
+            return reference.transform[0].x > 0;
+        });
+        verify(reference.visible);
+        compare(reference.z, 2);
+        verify(reference.width < engineHost.width);
+        tryCompare(reference, "visible", false);
+        compare(reference.transform[0].x, 0);
+        compare(reference.z, 0);
+        tryVerify(function () {
+            return Math.round(work.width) === Math.round(engineHost.width);
+        });
+        const alone = grabImage(viewport);
+        verify(Qt.colorEqual(alone.pixel(Math.round(engineHost.width / 4), middle), "#ff0000"));
+        verify(Qt.colorEqual(alone.pixel(Math.round(engineHost.width * 3 / 4), middle), "#ff0000"));
+
+        // The row: two halves on one line, the active one filled and the tab
+        // beside bordered as on show.
+        verify(browser.addSplit(referenceTabId));
+        const workRow = findChild(window.contentItem, "tab-" + workTabId);
+        const referenceRow = findChild(window.contentItem, "tab-" + referenceTabId);
+        verify(workRow !== null);
+        verify(referenceRow !== null);
+        tryVerify(function () {
+            return workRow.width < outline.width / 2 && referenceRow.width === workRow.width;
+        });
+        settleRow(referenceRow);
+        compare(workRow.mapToItem(outline, 0, 0).y, referenceRow.mapToItem(outline, 0, 0).y);
+        verify(workRow.mapToItem(outline, 0, 0).x < referenceRow.mapToItem(outline, 0, 0).x);
+        verify(workRow.active);
+        verify(!workRow.tabBeside);
+        verify(referenceRow.tabBeside);
+        verify(!referenceRow.active);
+        verify(referenceRow.inSplit);
+
+        // The address field, and everything the chrome answers, is the active
+        // half's.
+        compare(String(browser.activeUrl), "https://split-work.example/");
+
+        browser.closeTab(referenceTabId);
+        browser.closeTab(workTabId);
+        window.easeChrome = true;
+    }
+
+    // Focus moves to the other pane by its key and by a press in the pane,
+    // and the chrome follows it: the address field, the find bar and reload
+    // all answer for the focused pane. The pages stay where they are.
+    function test_splitFocusFollowsTheKeyAndThePointer() {
+        const engineHost = findChild(window.contentItem, "engineLoader");
+        const left = openPage("https://focus-left.example/");
+        const leftTabId = browser.activeTabId;
+        browser.openInput("https://focus-right.example/", true);
+        const rightTabId = browser.activeTabId;
+        const right = engineHost.engines[rightTabId];
+        browser.activateTab(leftTabId);
+        verify(browser.addSplit(rightTabId));
+        tryCompare(engineHost, "besideEngine", right);
+        window.requestActivate();
+        tryVerify(function () {
+            return window.active;
+        });
+        settleMotion();
+
+        keyClick(Qt.Key_Semicolon, Qt.ControlModifier);
+        tryCompare(browser, "activeTabId", rightTabId);
+        compare(engineHost.item, right);
+        compare(engineHost.besideEngine, left);
+        compare(String(browser.activeUrl), "https://focus-right.example/");
+        verify(left.visible);
+        verify(right.visible);
+        compare(left.x, 0);
+        verify(right.x > left.width);
+        // The engines are not arriving: focus moved, nothing came on show.
+        compare(engineHost.tabNudgeX, 0);
+        compare(engineHost.tabNudgeY, 0);
+
+        // Reload and find go to the focused pane.
+        const generationBefore = right.pageGeneration;
+        const leftGeneration = left.pageGeneration;
+        window.commands.run("reload", -1);
+        compare(right.pageGeneration, generationBefore + 1);
+        compare(left.pageGeneration, leftGeneration);
+        window.openFind();
+        tryVerify(function () {
+            return window.findOpen;
+        });
+        window.closeFind();
+
+        // A press in the other pane focuses it, and the page still gets the
+        // press. The Start page is given time to drop away first.
+        const pane = findChild(window.contentItem, "tabBesidePane");
+        verify(pane.visible);
+        compare(pane.x, left.x);
+        settleMotion();
+        mouseClick(engineHost, left.x + left.width / 2, engineHost.height / 2);
+        tryCompare(browser, "activeTabId", leftTabId);
+        compare(engineHost.item, left);
+        compare(String(browser.activeUrl), "https://focus-left.example/");
+
+        keyClick(Qt.Key_Semicolon, Qt.ControlModifier);
+        tryCompare(browser, "activeTabId", rightTabId);
+
+        browser.closeTab(rightTabId);
+        browser.closeTab(leftTabId);
+    }
+
+    // The menu and the chooser offer a split only where one can be made: on
+    // any unpaired ordinary tab, never on a pin or a tab already paired. A
+    // paired tab is offered Separate split view instead of Pin tab. The
+    // chooser lists the unpaired ordinary tabs but the active one, headed by
+    // a blank tab, which confirming with nothing picked gives.
+    function test_splitMenuEntriesAndChooserOfferOnlyWhatCanBePaired() {
+        openPage("https://chooser-active.example/");
+        const activeTabId = browser.activeTabId;
+        browser.openInput("https://chooser-other.example/", true);
+        const otherTabId = browser.activeTabId;
+        browser.openInput("https://chooser-pin.example/", true);
+        const pinTabId = browser.activeTabId;
+        browser.toggleActivePinned();
+        browser.activateTab(activeTabId);
+
+        const labelsOf = function (tabId) {
+            return window.tabMenuActionsFor(tabId).map(function (action) {
+                return action.label;
+            });
+        };
+        verify(labelsOf(otherTabId).indexOf("Add split view") >= 0);
+        verify(labelsOf(activeTabId).indexOf("Add split view") >= 0);
+        verify(labelsOf(pinTabId).indexOf("Add split view") === -1);
+
+        // The chooser: the blank tab first, then the tabs a split could take,
+        // which other tests may have left in the window too: never the
+        // active tab, and never a pin.
+        verify(window.commands.run("add-split", -1));
+        tryCompare(window, "dialogMode", "split");
+        const offered = window.splitTargets.map(function (row) {
+            return row.id;
+        });
+        compare(offered[0], "");
+        verify(offered.indexOf(otherTabId) > 0);
+        verify(offered.indexOf(activeTabId) === -1);
+        verify(offered.indexOf(pinTabId) === -1);
+        const dialog = findChild(window.contentItem, "spaceDialog");
+        verify(dialog !== null);
+        tryVerify(function () {
+            return dialog.open;
+        });
+        compare(dialog.selected, 0);
+        dialog.accept();
+        tryVerify(function () {
+            return browser.splitOnShow;
+        });
+        compare(window.dialogMode, "");
+        // A blank tab beside, focused, so the next address lands in it.
+        verify(browser.activeTabBlank);
+        compare(browser.tabBesideId, activeTabId);
+        const blankTabId = browser.activeTabId;
+        browser.openInput("https://chooser-landed.example/", false);
+        compare(browser.activeTabId, blankTabId);
+        compare(String(browser.activeUrl), "https://chooser-landed.example/");
+
+        // Paired tabs are offered separation and not a pin; the command
+        // panel says the same.
+        const pairedLabels = labelsOf(blankTabId);
+        verify(pairedLabels.indexOf("Separate split view") >= 0);
+        verify(pairedLabels.indexOf("Add split view") === -1);
+        verify(pairedLabels.indexOf("Pin tab") === -1);
+        verify(!window.commands.available("pin-tab"));
+        verify(!window.commands.available("add-split"));
+        verify(window.commands.available("separate-split"));
+        verify(window.commands.available("focus-split-partner"));
+        window.commands.run("pin-tab", -1);
+        verify(!browser.activeTabPinned);
+
+        // The chooser lists nothing that is paired, and the entry on an
+        // unpaired row is there but unavailable while the active tab cannot
+        // take a partner.
+        browser.activateTab(otherTabId);
+        verify(window.commands.available("add-split"));
+        verify(window.commands.run("add-split", -1));
+        tryCompare(window, "dialogMode", "split");
+        const paired = window.splitTargets.map(function (row) {
+            return row.id;
+        });
+        compare(paired[0], "");
+        verify(paired.indexOf(activeTabId) === -1);
+        verify(paired.indexOf(blankTabId) === -1);
+        verify(paired.indexOf(otherTabId) === -1);
+        window.dialogMode = "";
+        browser.activateTab(blankTabId);
+        const otherEntry = window.tabMenuActionsFor(otherTabId).filter(function (action) {
+            return action.label === "Add split view";
+        })[0];
+        verify(otherEntry !== undefined);
+        compare(otherEntry.enabled, false);
+
+        // Separate split view from the menu puts two ordinary rows back.
+        window.openTabMenu(activeTabId, 0, 0);
+        window.runTabMenu(window.tabMenuItems.map(function (action) {
+            return action.label;
+        }).indexOf("Separate split view"));
+        tryVerify(function () {
+            return !browser.splitOnShow;
+        });
+        verify(!browser.tabInSplit(activeTabId));
+        verify(!browser.tabInSplit(blankTabId));
+
+        browser.activateTab(pinTabId);
+        browser.toggleActivePinned();
+        browser.closeTab(pinTabId);
+        browser.closeTab(blankTabId);
+        browser.closeTab(otherTabId);
+        browser.closeTab(activeTabId);
+    }
+
+    // The divider drags with the same handle the sidebar's seam uses, and
+    // where it was left is remembered for the split while the window lives:
+    // another tab on show, or the Space away and back, finds it where it was.
+    // The tab beside runs while on show and freezes with the Space when it
+    // is put away, and comes back as it was left.
+    function test_splitDividerAndPanesFollowTheSpace() {
+        const engineHost = findChild(window.contentItem, "engineLoader");
+        const left = openPage("https://divider-left.example/");
+        const leftTabId = browser.activeTabId;
+        browser.openInput("https://divider-right.example/", true);
+        const rightTabId = browser.activeTabId;
+        const right = engineHost.engines[rightTabId];
+        browser.openInput("https://divider-third.example/", true);
+        const thirdTabId = browser.activeTabId;
+        browser.activateTab(leftTabId);
+        verify(browser.addSplit(rightTabId));
+        tryCompare(engineHost, "besideEngine", right);
+        const resizer = findChild(window.contentItem, "splitResizer");
+        verify(resizer !== null);
+        tryVerify(function () {
+            return resizer.visible;
+        });
+        verify(Math.abs(resizer.x + resizer.width / 2 - engineHost.width / 2) <= 1);
+        // The Start page still dropping away from the page that replaced it
+        // would take the press.
+        settleMotion();
+
+        mousePress(resizer, resizer.width / 2, 200);
+        mouseMove(resizer, resizer.width / 2 + 80, 200);
+        mouseRelease(resizer, resizer.width / 2 + 80, 200);
+        tryVerify(function () {
+            return Math.abs(engineHost.leftPaneWidth - (engineHost.width / 2 + 80)) <= 1;
+        });
+        const leftWidth = engineHost.leftPaneWidth;
+        compare(Math.round(left.width), Math.round(leftWidth));
+        compare(Math.round(right.x), Math.round(leftWidth) + 1);
+
+        // Another tab shows alone; both panes go off screen and stop.
+        browser.activateTab(thirdTabId);
+        tryCompare(left, "visible", false);
+        tryCompare(right, "visible", false);
+        tryCompare(left, "pageFrozen", true);
+        tryCompare(right, "pageFrozen", true);
+        verify(!resizer.visible);
+
+        // Back on either half, the split returns with the divider where it
+        // was left.
+        browser.activateTab(rightTabId);
+        tryCompare(right, "visible", true);
+        tryCompare(left, "visible", true);
+        compare(left.pageFrozen, false);
+        compare(right.pageFrozen, false);
+        compare(engineHost.leftPaneWidth, leftWidth);
+        compare(engineHost.item, right);
+
+        // Away in another Space the split is frozen like any of its pages,
+        // and comes back as it was left.
+        const personalSpaceId = browser.activeSpaceId;
+        const workSpaceId = browser.createSpace("Split away");
+        verify(browser.switchSpace(workSpaceId));
+        tryCompare(left, "pageFrozen", true);
+        tryCompare(right, "pageFrozen", true);
+        verify(!left.visible);
+        verify(!right.visible);
+        verify(browser.switchSpace(personalSpaceId));
+        tryCompare(browser, "activeTabId", rightTabId);
+        tryVerify(function () {
+            return browser.splitOnShow && engineHost.engines[leftTabId] === left
+                    && engineHost.engines[rightTabId] === right;
+        });
+        tryCompare(left, "visible", true);
+        tryCompare(right, "visible", true);
+        tryCompare(left, "pageFrozen", false);
+        tryCompare(right, "pageFrozen", false);
+        compare(engineHost.leftPaneWidth, leftWidth);
+
+        verify(browser.deleteSpace(workSpaceId, "Split away"));
+        browser.closeTab(thirdTabId);
+        browser.closeTab(rightTabId);
+        browser.closeTab(leftTabId);
     }
 
     // Order is the reader's, within one section. A drag down the ordinary list

@@ -73,6 +73,15 @@ class BrowserController final : public QObject, public DownloadPermissions {
     // come back after a restart, and nothing about them is written to a session.
     Q_PROPERTY(QString developerToolsTabId READ developerToolsTabId NOTIFY developerToolsChanged)
     Q_PROPERTY(bool activeTabInspected READ activeTabInspected NOTIFY activeTabChanged)
+    // The split on show: the active tab's split, as its left and right tab and
+    // the tab beside, or nothing while the active tab is not in one. A split
+    // the reader has left for another tab is still in the tab model, as two
+    // tabs naming each other, and is not answered here: the interface draws
+    // that from the rows and the page area draws this.
+    Q_PROPERTY(QString splitLeftTabId READ splitLeftTabId NOTIFY splitChanged)
+    Q_PROPERTY(QString splitRightTabId READ splitRightTabId NOTIFY splitChanged)
+    Q_PROPERTY(QString tabBesideId READ tabBesideId NOTIFY splitChanged)
+    Q_PROPERTY(bool splitOnShow READ splitOnShow NOTIFY splitChanged)
     Q_PROPERTY(bool activeRendererFailed READ activeRendererFailed NOTIFY activeTabChanged)
     Q_PROPERTY(QString activeRendererFailureReason READ activeRendererFailureReason NOTIFY
             activeTabChanged)
@@ -170,6 +179,10 @@ public:
     bool atRest() const;
     QString developerToolsTabId() const;
     bool activeTabInspected() const;
+    QString splitLeftTabId() const;
+    QString splitRightTabId() const;
+    QString tabBesideId() const;
+    bool splitOnShow() const;
     bool activeRendererFailed() const;
     QString activeRendererFailureReason() const;
     bool privateBrowsing() const;
@@ -187,6 +200,23 @@ public:
     bool rememberAutomaticDownloadDecision(const QString &origin, int decision) override;
 
     Q_INVOKABLE void activateTab(const QString &tabId);
+    // The next or previous stop in the tab list, wrapping at either end. A
+    // split is one stop, entered on the half the reader was last in.
+    Q_INVOKABLE void stepTab(int delta);
+    // Pairs the named tab with the active tab, or pairs a new blank tab with
+    // it when none is named: the blank one is on the right and focused, so the
+    // next address opened lands in it. Both must be ordinary tabs of the Space
+    // on show and in no split yet. Answers whether it acted.
+    Q_INVOKABLE bool addSplit(const QString &tabId = {});
+    // Ends the split the named tab is in, or the active tab's. Both tabs stay,
+    // as two adjacent ordinary rows, and the active tab is shown alone.
+    Q_INVOKABLE bool separateSplit(const QString &tabId = {});
+    // Moves focus to the tab beside, which makes it the active tab.
+    Q_INVOKABLE bool focusSplitPartner();
+    Q_INVOKABLE bool tabInSplit(const QString &tabId) const;
+    // The ordinary tabs of the Space on show that a split could still take:
+    // unpaired, and not the active tab. What the command panel's chooser lists.
+    Q_INVOKABLE QStringList splittableTabIds() const;
     Q_INVOKABLE QString createSpace(const QString &name);
     Q_INVOKABLE bool switchSpace(const QString &spaceId);
     Q_INVOKABLE bool renameSpace(const QString &spaceId, const QString &name);
@@ -349,6 +379,9 @@ signals:
     void activeSpaceChanged();
     void activeTabChanged();
     void atRestChanged();
+    // The split on show changed: a pairing was made or ended, focus moved
+    // between the halves, or the active tab entered or left a split.
+    void splitChanged();
     void developerToolsChanged();
     void closedTabsChanged();
     void downloadDirectoryChanged();
@@ -412,6 +445,17 @@ private:
     const RetainedTab *findRetainedTab(const QString &tabId) const;
     QString originInteractionKey(const QUrl &url) const;
     static TabState makeBlankTab(const QString &spaceId);
+    // What the tab model holds a split as: two tabs naming each other, side by
+    // side with the left one first, both ordinary, one of them focused. Read
+    // off every load, since a store is only trusted to hand back what it was
+    // given, and put right where it is not.
+    static void repairSplits(QVector<TabState> &tabs, const QString &activeTabId);
+    void pairTabs(const QString &leftTabId, const QString &rightTabId);
+    void unpairTab(const QString &tabId);
+    void refreshSplit();
+    // The tab a split is entered on: its focused half, or the tab itself when
+    // it is in no split.
+    QString splitEntryTab(const QString &tabId) const;
     static double steppedZoom(double zoom, int direction);
     static bool isBlank(const QUrl &url);
     bool restingOnBlankTab() const;
@@ -480,6 +524,9 @@ private:
     bool m_ready = false;
     bool m_startedWithEmptyState = false;
     bool m_atRest = false;
+    // The last answer given for the split on show, so a change is announced
+    // once and only when there is one.
+    QStringList m_announcedSplit;
     bool m_privateBrowsing = false;
     // Built from the flag above at construction and never from anything else,
     // and with no default: a window is given one kind's table or the other's.

@@ -42,6 +42,17 @@ struct TabState {
     // active. Only a Pinned tab can carry it, a pin never implies it, and it
     // survives restart with the rest of the tab.
     bool keepActive = false;
+    // The other tab of this tab's split, or nothing. Both tabs of a split name
+    // each other, stand next to each other in the list with the left one
+    // first, and are ordinary tabs of one Space. A tab is in at most one split
+    // because it has one partner to name. The pairing is the session's to keep
+    // and comes back after a restart; Sync never reads it.
+    QString splitPartnerId {};
+    // Which half of the split the reader was last in. Exactly one tab of a
+    // split carries it, and while the split is on show it is the active tab:
+    // this is what a split comes back with when the reader returns to its row
+    // from another tab.
+    bool splitFocused = false;
     QString rendererFailureReason {};
 };
 
@@ -65,6 +76,11 @@ public:
         ZoomRole,
         KeepActiveRole,
         SoundSuppressedRole,
+        SplitPartnerIdRole,
+        // Whether this tab is on show beside the active tab: in a split, and
+        // its partner is the active tab. Read off the partner, so an active
+        // change on either half changes the answer for the other.
+        TabBesideRole,
     };
     Q_ENUM(Role)
 
@@ -82,6 +98,10 @@ public:
     void insert(TabState tab, qsizetype row);
     bool remove(const QString &id);
     bool move(const QString &id, qsizetype destinationRow);
+    // Announces the roles that changed on one tab. A change to whether a tab
+    // is active is also a change to whether its split partner is the tab
+    // beside, and the partner's row is announced here rather than by every
+    // caller remembering to.
     void notifyChanged(const QString &id, const QList<int> &roles);
 
 private:

@@ -151,6 +151,17 @@ private slots:
     void remembersOriginInteractionWithinOneSpaceAndSession();
     void holdsBackSoundUntilTheOriginIsDealtWith();
     void neverRestoresTheInspectorAfterRestart();
+    void pairsTwoOrdinaryTabsOfTheSpaceAsOneSplit();
+    void pairsABlankTabBesideTheActiveOneWhenNoneIsNamed();
+    void refusesASplitOfPinnedPairedOrUnknownTabs();
+    void movesFocusBetweenTheHalvesOfASplit();
+    void keepsTheSplitRowWhileAnotherTabIsOnShowAndStepsOverItAsOneStop();
+    void separatesASplitIntoTwoAdjacentOrdinaryRows();
+    void endsASplitWhenEitherTabClosesOrLeavesTheSpace();
+    void keepsASplitTabFromBeingPinnedOrMoved();
+    void keepsASplitAcrossARestartAndASpaceSwitch();
+    void repairsAPairingTheStoreHandsBackBroken();
+    void splitsInAPrivateWindowAndWritesNothing();
 };
 
 void BrowserControllerTest::createsPersonalSpaceAndBlankTab()
@@ -2617,6 +2628,518 @@ void BrowserControllerTest::measuresTheSiteDataHeldForOneSpace()
     // so is a Space with nowhere on disk to look.
     QCOMPARE(controller.siteDataBytes(spaceId, {}), -1);
     QCOMPARE(controller.siteDataBytes(QString(), named), -1);
+}
+
+namespace {
+
+QString tabIdAt(BrowserController &controller, int row)
+{
+    return controller.tabs()
+        ->data(controller.tabs()->index(row, 0), TabListModel::IdRole)
+        .toString();
+}
+
+bool tabBesideAt(BrowserController &controller, int row)
+{
+    return controller.tabs()
+        ->data(controller.tabs()->index(row, 0), TabListModel::TabBesideRole)
+        .toBool();
+}
+
+QString splitPartnerAt(BrowserController &controller, int row)
+{
+    return controller.tabs()
+        ->data(controller.tabs()->index(row, 0), TabListModel::SplitPartnerIdRole)
+        .toString();
+}
+
+} // namespace
+
+// A split pairs the named tab with the active one. The active tab stays
+// active and keeps its place; the partner leaves its own row and stands to
+// the right of it, and the model says which of the two is the tab beside.
+void BrowserControllerTest::pairsTwoOrdinaryTabsOfTheSpaceAsOneSplit()
+{
+    QTemporaryDir root;
+    BrowserController controller(SpaceStorage(root.path(), QStringLiteral("test")));
+    controller.openInput(QStringLiteral("https://reference.example"), false);
+    const auto referenceId = controller.activeTabId();
+    controller.openInput(QStringLiteral("https://work.example"), true);
+    const auto workId = controller.activeTabId();
+    controller.openInput(QStringLiteral("https://other.example"), true);
+    const auto otherId = controller.activeTabId();
+    controller.activateTab(workId);
+    QSignalSpy splitChanged(&controller, &BrowserController::splitChanged);
+
+    QVERIFY(!controller.splitOnShow());
+    QVERIFY(controller.addSplit(referenceId));
+    QCOMPARE(splitChanged.count(), 1);
+    QVERIFY(controller.splitOnShow());
+    QCOMPARE(controller.activeTabId(), workId);
+    QCOMPARE(controller.splitLeftTabId(), workId);
+    QCOMPARE(controller.splitRightTabId(), referenceId);
+    QCOMPARE(controller.tabBesideId(), referenceId);
+    QVERIFY(controller.tabInSplit(workId));
+    QVERIFY(controller.tabInSplit(referenceId));
+    QVERIFY(!controller.tabInSplit(otherId));
+
+    QCOMPARE(tabIdAt(controller, 0), workId);
+    QCOMPARE(tabIdAt(controller, 1), referenceId);
+    QCOMPARE(tabIdAt(controller, 2), otherId);
+    QCOMPARE(splitPartnerAt(controller, 0), referenceId);
+    QCOMPARE(splitPartnerAt(controller, 1), workId);
+    QVERIFY(splitPartnerAt(controller, 2).isEmpty());
+    QVERIFY(!tabBesideAt(controller, 0));
+    QVERIFY(tabBesideAt(controller, 1));
+    QVERIFY(!tabBesideAt(controller, 2));
+
+    // The chooser lists what is left to pair: neither half, and never the
+    // active tab.
+    QCOMPARE(controller.splittableTabIds(), QStringList {otherId});
+
+    // The tab beside is the page it shows and nothing else: the chrome's
+    // answers stay the active tab's.
+    QCOMPARE(controller.activeUrl(), QUrl(QStringLiteral("https://work.example")));
+}
+
+void BrowserControllerTest::pairsABlankTabBesideTheActiveOneWhenNoneIsNamed()
+{
+    QTemporaryDir root;
+    BrowserController controller(SpaceStorage(root.path(), QStringLiteral("test")));
+    controller.openInput(QStringLiteral("https://work.example"), false);
+    const auto workId = controller.activeTabId();
+    controller.openInput(QStringLiteral("https://later.example"), true);
+    const auto laterId = controller.activeTabId();
+    controller.activateTab(workId);
+
+    QVERIFY(controller.addSplit());
+    QCOMPARE(controller.tabs()->rowCount(), 3);
+    const auto blankId = controller.activeTabId();
+    QVERIFY(blankId != workId);
+    QVERIFY(controller.activeTabBlank());
+    QCOMPARE(controller.splitLeftTabId(), workId);
+    QCOMPARE(controller.splitRightTabId(), blankId);
+    QCOMPARE(controller.tabBesideId(), workId);
+    QCOMPARE(tabIdAt(controller, 1), blankId);
+    QCOMPARE(tabIdAt(controller, 2), laterId);
+    // A Space with a split is not at rest, even with a blank half.
+    QVERIFY(!controller.atRest());
+
+    // The next address opened lands in the focused pane, which is the blank
+    // one.
+    controller.openInput(QStringLiteral("https://opened.example"), false);
+    QCOMPARE(controller.activeTabId(), blankId);
+    QCOMPARE(controller.activeUrl(), QUrl(QStringLiteral("https://opened.example")));
+    QCOMPARE(controller.tabBesideId(), workId);
+
+    // Naming the active tab itself asks for the same thing.
+    controller.activateTab(laterId);
+    QVERIFY(controller.addSplit(laterId));
+    QCOMPARE(controller.tabs()->rowCount(), 4);
+    QCOMPARE(controller.tabBesideId(), laterId);
+    QVERIFY(controller.activeTabBlank());
+}
+
+void BrowserControllerTest::refusesASplitOfPinnedPairedOrUnknownTabs()
+{
+    QTemporaryDir root;
+    BrowserController controller(SpaceStorage(root.path(), QStringLiteral("test")));
+    controller.openInput(QStringLiteral("https://pinned.example"), false);
+    const auto pinnedId = controller.activeTabId();
+    controller.toggleActivePinned();
+    controller.openInput(QStringLiteral("https://one.example"), true);
+    const auto oneId = controller.activeTabId();
+    controller.openInput(QStringLiteral("https://two.example"), true);
+    const auto twoId = controller.activeTabId();
+    controller.openInput(QStringLiteral("https://three.example"), true);
+    const auto threeId = controller.activeTabId();
+
+    // A Pinned tab is never paired, on either side.
+    QVERIFY(!controller.addSplit(pinnedId));
+    controller.activateTab(pinnedId);
+    QVERIFY(!controller.addSplit(oneId));
+    QVERIFY(!controller.addSplit());
+    QVERIFY(!controller.splitOnShow());
+
+    // Nor a tab that is not there.
+    controller.activateTab(twoId);
+    QVERIFY(!controller.addSplit(QStringLiteral("nowhere")));
+
+    // Each tab is in at most one split: a paired tab cannot be paired again,
+    // and neither can a tab be paired with the active one while that is
+    // already paired.
+    QVERIFY(controller.addSplit(oneId));
+    QVERIFY(!controller.addSplit(threeId));
+    controller.activateTab(threeId);
+    QVERIFY(!controller.addSplit(oneId));
+    QVERIFY(!controller.addSplit(twoId));
+    QCOMPARE(controller.splittableTabIds(), QStringList {});
+    QVERIFY(controller.tabInSplit(oneId));
+    QVERIFY(controller.tabInSplit(twoId));
+    QVERIFY(!controller.tabInSplit(threeId));
+}
+
+void BrowserControllerTest::movesFocusBetweenTheHalvesOfASplit()
+{
+    QTemporaryDir root;
+    BrowserController controller(SpaceStorage(root.path(), QStringLiteral("test")));
+    controller.openInput(QStringLiteral("https://left.example"), false);
+    const auto leftId = controller.activeTabId();
+    controller.openInput(QStringLiteral("https://right.example"), true);
+    const auto rightId = controller.activeTabId();
+    controller.activateTab(leftId);
+    QVERIFY(controller.addSplit(rightId));
+    QSignalSpy splitChanged(&controller, &BrowserController::splitChanged);
+    QSignalSpy activeTabChanged(&controller, &BrowserController::activeTabChanged);
+
+    // Focus moves to the tab beside and everything the active tab answers for
+    // moves with it; the pair and its order stay.
+    QVERIFY(controller.focusSplitPartner());
+    QCOMPARE(controller.activeTabId(), rightId);
+    QCOMPARE(controller.activeUrl(), QUrl(QStringLiteral("https://right.example")));
+    QCOMPARE(controller.tabBesideId(), leftId);
+    QCOMPARE(controller.splitLeftTabId(), leftId);
+    QCOMPARE(controller.splitRightTabId(), rightId);
+    QCOMPARE(splitChanged.count(), 1);
+    QCOMPARE(activeTabChanged.count(), 1);
+    QVERIFY(tabBesideAt(controller, 0));
+    QVERIFY(!tabBesideAt(controller, 1));
+
+    // Activating a half is the same move.
+    controller.activateTab(leftId);
+    QCOMPARE(controller.activeTabId(), leftId);
+    QCOMPARE(controller.tabBesideId(), rightId);
+    QVERIFY(controller.focusSplitPartner());
+    QCOMPARE(controller.activeTabId(), rightId);
+
+    // With no split on show there is no partner to focus.
+    controller.openInput(QStringLiteral("https://alone.example"), true);
+    QVERIFY(!controller.focusSplitPartner());
+}
+
+void BrowserControllerTest::keepsTheSplitRowWhileAnotherTabIsOnShowAndStepsOverItAsOneStop()
+{
+    QTemporaryDir root;
+    BrowserController controller(SpaceStorage(root.path(), QStringLiteral("test")));
+    controller.openInput(QStringLiteral("https://left.example"), false);
+    const auto leftId = controller.activeTabId();
+    controller.openInput(QStringLiteral("https://right.example"), true);
+    const auto rightId = controller.activeTabId();
+    controller.openInput(QStringLiteral("https://third.example"), true);
+    const auto thirdId = controller.activeTabId();
+    controller.activateTab(leftId);
+    QVERIFY(controller.addSplit(rightId));
+    QVERIFY(controller.focusSplitPartner());
+    QCOMPARE(controller.activeTabId(), rightId);
+
+    // Selecting a third tab shows it alone. The row stays: both tabs still
+    // name each other, and neither is the tab beside.
+    controller.activateTab(thirdId);
+    QVERIFY(!controller.splitOnShow());
+    QVERIFY(controller.splitLeftTabId().isEmpty());
+    QVERIFY(controller.tabInSplit(leftId));
+    QVERIFY(controller.tabInSplit(rightId));
+    QVERIFY(!tabBesideAt(controller, 0));
+    QVERIFY(!tabBesideAt(controller, 1));
+
+    // Cycling treats the row as one stop and enters on the half the reader
+    // was last in.
+    controller.stepTab(1);
+    QCOMPARE(controller.activeTabId(), rightId);
+    QVERIFY(controller.splitOnShow());
+    controller.stepTab(1);
+    QCOMPARE(controller.activeTabId(), thirdId);
+    controller.stepTab(-1);
+    QCOMPARE(controller.activeTabId(), rightId);
+    controller.stepTab(-1);
+    QCOMPARE(controller.activeTabId(), thirdId);
+
+    // Activating either half brings the split back with that half active.
+    controller.activateTab(leftId);
+    QVERIFY(controller.splitOnShow());
+    QCOMPARE(controller.tabBesideId(), rightId);
+    controller.activateTab(thirdId);
+    controller.stepTab(-1);
+    QCOMPARE(controller.activeTabId(), leftId);
+}
+
+void BrowserControllerTest::separatesASplitIntoTwoAdjacentOrdinaryRows()
+{
+    QTemporaryDir root;
+    BrowserController controller(SpaceStorage(root.path(), QStringLiteral("test")));
+    controller.openInput(QStringLiteral("https://first.example"), false);
+    const auto firstId = controller.activeTabId();
+    controller.openInput(QStringLiteral("https://second.example"), true);
+    const auto secondId = controller.activeTabId();
+    controller.openInput(QStringLiteral("https://third.example"), true);
+    const auto thirdId = controller.activeTabId();
+    QVERIFY(controller.addSplit(firstId));
+    QCOMPARE(tabIdAt(controller, 0), secondId);
+    QCOMPARE(tabIdAt(controller, 1), thirdId);
+    QCOMPARE(tabIdAt(controller, 2), firstId);
+
+    // Nothing to separate on a tab in no split.
+    QVERIFY(!controller.separateSplit(secondId));
+
+    QSignalSpy splitChanged(&controller, &BrowserController::splitChanged);
+    QVERIFY(controller.separateSplit());
+    QCOMPARE(splitChanged.count(), 1);
+    QVERIFY(!controller.splitOnShow());
+    QVERIFY(!controller.tabInSplit(thirdId));
+    QVERIFY(!controller.tabInSplit(firstId));
+    QCOMPARE(controller.activeTabId(), thirdId);
+    QCOMPARE(tabIdAt(controller, 1), thirdId);
+    QCOMPARE(tabIdAt(controller, 2), firstId);
+    QCOMPARE(controller.tabs()->rowCount(), 3);
+    QVERIFY(!controller.separateSplit());
+
+    // Separating from the other half, and from away, does the same.
+    QVERIFY(controller.addSplit(firstId));
+    controller.activateTab(secondId);
+    QVERIFY(controller.separateSplit(firstId));
+    QVERIFY(!controller.tabInSplit(thirdId));
+    QCOMPARE(controller.activeTabId(), secondId);
+}
+
+void BrowserControllerTest::endsASplitWhenEitherTabClosesOrLeavesTheSpace()
+{
+    QTemporaryDir root;
+    BrowserController controller(SpaceStorage(root.path(), QStringLiteral("test")));
+    const auto workSpaceId = controller.createSpace(QStringLiteral("Work"));
+    controller.openInput(QStringLiteral("https://first.example"), false);
+    const auto firstId = controller.activeTabId();
+    controller.openInput(QStringLiteral("https://second.example"), true);
+    const auto secondId = controller.activeTabId();
+    controller.openInput(QStringLiteral("https://third.example"), true);
+    const auto thirdId = controller.activeTabId();
+
+    // Closing the tab beside leaves the active tab as an ordinary row, still
+    // on show.
+    controller.activateTab(firstId);
+    QVERIFY(controller.addSplit(secondId));
+    controller.closeTab(secondId);
+    QVERIFY(!controller.splitOnShow());
+    QVERIFY(!controller.tabInSplit(firstId));
+    QCOMPARE(controller.activeTabId(), firstId);
+
+    // Closing the active half shows the tab that was beside it.
+    QVERIFY(controller.addSplit(thirdId));
+    controller.closeActiveTab();
+    QCOMPARE(controller.activeTabId(), thirdId);
+    QVERIFY(!controller.tabInSplit(thirdId));
+    QVERIFY(!controller.splitOnShow());
+    QCOMPARE(controller.tabs()->rowCount(), 1);
+
+    // Moving either tab to another Space ends the split. The tab that stays
+    // is an ordinary row, and the pairing is written to neither Space.
+    controller.openInput(QStringLiteral("https://fourth.example"), true);
+    const auto fourthId = controller.activeTabId();
+    QVERIFY(controller.addSplit(thirdId));
+    QVERIFY(controller.confirmTabMoveToSpace(fourthId, workSpaceId));
+    QCOMPARE(controller.activeTabId(), thirdId);
+    QVERIFY(!controller.tabInSplit(thirdId));
+    QVERIFY(!controller.splitOnShow());
+    for (const auto &tab : controller.sessionStore()->loadTabs(workSpaceId)) {
+        QVERIFY(tab.splitPartnerId.isEmpty());
+        QVERIFY(!tab.splitFocused);
+    }
+    for (const auto &tab : controller.sessionStore()->loadTabs(controller.activeSpaceId())) {
+        QVERIFY(tab.splitPartnerId.isEmpty());
+    }
+
+    // The sweeping closes are about the other rows, and the split is one row:
+    // the tab beside is spared with the tab the command was asked on.
+    controller.openInput(QStringLiteral("https://fifth.example"), true);
+    const auto fifthId = controller.activeTabId();
+    controller.openInput(QStringLiteral("https://sixth.example"), true);
+    controller.activateTab(thirdId);
+    QVERIFY(controller.addSplit(fifthId));
+    controller.closeTabsBelow(thirdId);
+    QCOMPARE(controller.tabs()->rowCount(), 2);
+    QVERIFY(controller.splitOnShow());
+    controller.openInput(QStringLiteral("https://seventh.example"), true);
+    controller.activateTab(fifthId);
+    controller.closeOtherTabs(fifthId);
+    QCOMPARE(controller.tabs()->rowCount(), 2);
+    QVERIFY(controller.splitOnShow());
+    QCOMPARE(controller.tabBesideId(), thirdId);
+}
+
+void BrowserControllerTest::keepsASplitTabFromBeingPinnedOrMoved()
+{
+    QTemporaryDir root;
+    BrowserController controller(SpaceStorage(root.path(), QStringLiteral("test")));
+    controller.openInput(QStringLiteral("https://first.example"), false);
+    const auto firstId = controller.activeTabId();
+    controller.openInput(QStringLiteral("https://second.example"), true);
+    const auto secondId = controller.activeTabId();
+    controller.openInput(QStringLiteral("https://third.example"), true);
+    const auto thirdId = controller.activeTabId();
+    controller.activateTab(firstId);
+    QVERIFY(controller.addSplit(secondId));
+
+    controller.toggleActivePinned();
+    QVERIFY(!controller.activeTabPinned());
+    QVERIFY(controller.splitOnShow());
+    QVERIFY(!controller.moveTab(firstId, 2));
+    QVERIFY(!controller.moveTabBy(secondId, 1));
+    QCOMPARE(tabIdAt(controller, 0), firstId);
+    QCOMPARE(tabIdAt(controller, 1), secondId);
+
+    // A copy of the left half lands after the pair rather than between it.
+    const auto copyId = controller.duplicateTab(firstId);
+    QCOMPARE(tabIdAt(controller, 2), copyId);
+    QCOMPARE(tabIdAt(controller, 3), thirdId);
+    QVERIFY(!controller.tabInSplit(copyId));
+
+    // Separated, the tab is an ordinary one again and can be pinned.
+    controller.activateTab(firstId);
+    QVERIFY(controller.separateSplit());
+    controller.toggleActivePinned();
+    QVERIFY(controller.activeTabPinned());
+}
+
+void BrowserControllerTest::keepsASplitAcrossARestartAndASpaceSwitch()
+{
+    QTemporaryDir root;
+    QString leftId;
+    QString rightId;
+    QString thirdId;
+    QString workSpaceId;
+    {
+        BrowserController controller(SpaceStorage(root.path(), QStringLiteral("test")));
+        workSpaceId = controller.createSpace(QStringLiteral("Work"));
+        controller.openInput(QStringLiteral("https://left.example"), false);
+        leftId = controller.activeTabId();
+        controller.openInput(QStringLiteral("https://right.example"), true);
+        rightId = controller.activeTabId();
+        controller.openInput(QStringLiteral("https://third.example"), true);
+        thirdId = controller.activeTabId();
+        controller.activateTab(leftId);
+        QVERIFY(controller.addSplit(rightId));
+        QVERIFY(controller.focusSplitPartner());
+
+        // Away and back finds the split as it was left, focused half and all.
+        QVERIFY(controller.switchSpace(workSpaceId));
+        QVERIFY(!controller.splitOnShow());
+        QVERIFY(controller.switchSpace(controller.spaces()
+                ->data(controller.spaces()->index(0, 0), SpaceListModel::IdRole)
+                .toString()));
+        QCOMPARE(controller.activeTabId(), rightId);
+        QCOMPARE(controller.tabBesideId(), leftId);
+        QCOMPARE(controller.splitLeftTabId(), leftId);
+
+        // Left for another tab, the row remembers which half was last focused
+        // through a Space switch too.
+        controller.activateTab(thirdId);
+        QVERIFY(controller.switchSpace(workSpaceId));
+        QVERIFY(controller.switchSpace(controller.spaces()
+                ->data(controller.spaces()->index(0, 0), SpaceListModel::IdRole)
+                .toString()));
+        QCOMPARE(controller.activeTabId(), thirdId);
+        controller.stepTab(-1);
+        QCOMPARE(controller.activeTabId(), rightId);
+    }
+
+    // A restart brings the split back with the Space's active tab as the
+    // focused half.
+    BrowserController restored(SpaceStorage(root.path(), QStringLiteral("test")));
+    QCOMPARE(restored.activeTabId(), rightId);
+    QVERIFY(restored.splitOnShow());
+    QCOMPARE(restored.splitLeftTabId(), leftId);
+    QCOMPARE(restored.splitRightTabId(), rightId);
+    QCOMPARE(restored.tabBesideId(), leftId);
+    QCOMPARE(tabIdAt(restored, 0), leftId);
+    QCOMPARE(tabIdAt(restored, 1), rightId);
+    QCOMPARE(tabIdAt(restored, 2), thirdId);
+}
+
+// A store hands back what it was given, and what it was given may be a
+// record another version wrote or a half of a pair that was lost on the way.
+// The tab model only ever holds a whole split, so what does not add up to one
+// is read as ordinary tabs.
+void BrowserControllerTest::repairsAPairingTheStoreHandsBackBroken()
+{
+    QTemporaryDir root;
+    QString spaceId;
+    {
+        BrowserController controller(SpaceStorage(root.path(), QStringLiteral("test")));
+        spaceId = controller.activeSpaceId();
+    }
+    const auto makeTab
+        = [&spaceId](const QString &id, const QString &partner, bool focused, bool pinned = false) {
+              omaweb::TabState tab;
+              tab.id = id;
+              tab.spaceId = spaceId;
+              tab.url = QUrl(QStringLiteral("https://%1.example").arg(id));
+              tab.title = id;
+              tab.pinned = pinned;
+              tab.splitPartnerId = partner;
+              tab.splitFocused = focused;
+              return tab;
+          };
+    {
+        omaweb::SqliteSessionStore store(root.path());
+        QVERIFY(store.open());
+        // "one" names a partner that names it back but is not beside it;
+        // "lost" names a tab that is gone; "pin" is pinned and paired with
+        // "five", which names it; "six" and "seven" both claim focus.
+        QVERIFY(store.saveTabs(spaceId,
+            {
+                makeTab(QStringLiteral("one"), QStringLiteral("two"), false),
+                makeTab(QStringLiteral("lost"), QStringLiteral("gone"), true),
+                makeTab(QStringLiteral("two"), QStringLiteral("one"), false),
+                makeTab(QStringLiteral("pin"), QStringLiteral("five"), true, true),
+                makeTab(QStringLiteral("five"), QStringLiteral("pin"), false),
+                makeTab(QStringLiteral("six"), QStringLiteral("seven"), true),
+                makeTab(QStringLiteral("seven"), QStringLiteral("six"), true),
+            },
+            QStringLiteral("lost")));
+    }
+
+    BrowserController controller(SpaceStorage(root.path(), QStringLiteral("test")));
+    QCOMPARE(controller.activeTabId(), QStringLiteral("lost"));
+    QVERIFY(!controller.tabInSplit(QStringLiteral("lost")));
+    QVERIFY(!controller.tabInSplit(QStringLiteral("pin")));
+    QVERIFY(!controller.tabInSplit(QStringLiteral("five")));
+    QVERIFY(controller.tabInSplit(QStringLiteral("one")));
+    QVERIFY(controller.tabInSplit(QStringLiteral("two")));
+    // The pins are listed first, then the pair stands together.
+    QCOMPARE(tabIdAt(controller, 0), QStringLiteral("pin"));
+    QCOMPARE(tabIdAt(controller, 1), QStringLiteral("one"));
+    QCOMPARE(tabIdAt(controller, 2), QStringLiteral("two"));
+    QCOMPARE(tabIdAt(controller, 3), QStringLiteral("lost"));
+    controller.stepTab(-1);
+    QCOMPARE(controller.activeTabId(), QStringLiteral("one"));
+    // Both halves claiming focus reads as the left one.
+    controller.activateTab(QStringLiteral("lost"));
+    controller.stepTab(1);
+    QCOMPARE(controller.activeTabId(), QStringLiteral("five"));
+    controller.stepTab(1);
+    QCOMPARE(controller.activeTabId(), QStringLiteral("six"));
+    QCOMPARE(controller.tabBesideId(), QStringLiteral("seven"));
+}
+
+void BrowserControllerTest::splitsInAPrivateWindowAndWritesNothing()
+{
+    QTemporaryDir configRoot;
+    PrivateSessionFixture fixture(configRoot.path());
+    const auto controller = fixture.createController();
+    controller->openInput(QStringLiteral("https://left.example"), false);
+    const auto leftId = controller->activeTabId();
+    controller->openInput(QStringLiteral("https://right.example"), true);
+    const auto rightId = controller->activeTabId();
+    controller->activateTab(leftId);
+
+    QVERIFY(controller->addSplit(rightId));
+    QVERIFY(controller->splitOnShow());
+    QCOMPARE(controller->tabBesideId(), rightId);
+    QVERIFY(controller->focusSplitPartner());
+    QCOMPARE(controller->activeTabId(), rightId);
+    QVERIFY(controller->separateSplit());
+    QVERIFY(!controller->tabInSplit(leftId));
+    QVERIFY(controller->sessionStore()->loadTabs({}).isEmpty());
+    QVERIFY(entriesUnder(configRoot.path()).isEmpty());
 }
 
 QTEST_GUILESS_MAIN(BrowserControllerTest)
