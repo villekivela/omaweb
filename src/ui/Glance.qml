@@ -259,7 +259,9 @@ FocusScope {
         }
 
         // The page, on the opaque ground a webpage needs, inside the border
-        // rather than under it.
+        // rather than under it. Clipped at its own bounds: the engine paints a
+        // pixel past its item, which is the border's pixel on the two sides the
+        // page meets.
         Rectangle {
             id: pageHost
             objectName: "glancePageHost"
@@ -268,6 +270,7 @@ FocusScope {
             width: head.width
             height: root.restHeight - y - panel.border.width
             color: root.colors.windowOpaque
+            clip: true
         }
     }
 }
