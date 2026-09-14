@@ -62,6 +62,15 @@ BODY_LIMIT = 2000
 ISSUE_LIMIT = 40
 ISSUE_BODY_LIMIT = 4000
 
+# The project's own words. `CONTEXT.md` names every domain term and, for each,
+# the names not to use for it, which is exactly what a writer who has only read
+# the commits would otherwise guess at: v0.4.0's notes called a split a "Split
+# view", a name the glossary lists as one to avoid.
+GLOSSARY = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "CONTEXT.md"
+)
+GLOSSARY_SECTION = "## Language"
+
 # The step that publishes comes after this one, so the worst case here is a
 # budget rather than a preference: every attempt of REQUEST_TIMEOUT plus the
 # backoff between them has to leave the release time to publish inside the
@@ -103,6 +112,10 @@ rather than heading it and saying none. The same goes for every other section.
 - Say only what the commits and issues say. You have no other source for this \
 project's behavior, so anything you cannot point at in the input does not go in \
 the notes.
+- Call things what the project calls them. The vocabulary below is the \
+project's own, and each entry ends with the names that are not to be used for \
+that thing. A commit or an issue that uses one of those names is not licence to \
+repeat it.
 - Leave out changes with no reader-visible effect unless the range is nothing \
 else. Internal work, refactors, and test changes belong in the commit list, \
 which the compare URL reaches.
@@ -191,6 +204,21 @@ def issues(numbers: list[int]) -> list[dict[str, str]]:
     return fetched
 
 
+def vocabulary() -> str:
+    """The glossary section of `CONTEXT.md`, or nothing. An unreadable glossary
+    is notes in looser words, not a failed release."""
+    try:
+        with open(GLOSSARY, encoding="utf-8") as handle:
+            text = handle.read()
+    except OSError:
+        return ""
+    start = text.find(f"\n{GLOSSARY_SECTION}\n")
+    if start < 0:
+        return ""
+    end = text.find("\n## ", start + 1)
+    return text[start:end if end > 0 else len(text)].strip()
+
+
 def prompt(tag: str, generated: str, changes: list[dict[str, str]],
            referenced: list[dict[str, str]]) -> str:
     parts = [f"Release: {tag}", "", "## Generated notes", "", generated.strip(), "", "## Commits"]
@@ -200,6 +228,12 @@ def prompt(tag: str, generated: str, changes: list[dict[str, str]],
         if commit["body"]:
             parts.append("")
             parts.append(commit["body"])
+    words = vocabulary()
+    if words:
+        parts.append("")
+        parts.append("## The project's vocabulary")
+        parts.append("")
+        parts.append(words)
     if referenced:
         parts.append("")
         parts.append("## Issues these commits reference")

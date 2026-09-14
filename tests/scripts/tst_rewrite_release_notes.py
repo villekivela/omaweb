@@ -289,6 +289,32 @@ class Truncation(unittest.TestCase):
             self.assertIn("### Features", notes)
 
 
+class Vocabulary(unittest.TestCase):
+    def test_the_projects_words_reach_the_model(self):
+        # v0.4.0's notes called a split a "Split view", which the glossary
+        # lists as a name for it not to use. The glossary was not in the ask.
+        with tempfile.TemporaryDirectory() as directory, Api() as api:
+            repo = repository(directory, ["feat: a feature"])
+
+            run(repo, api.url)
+
+            asked = api.requests[0]["messages"][0]["content"]
+            self.assertIn("**Split**", asked)
+            self.assertIn("Split view (as the name of the thing)", asked)
+
+    def test_an_unreadable_glossary_is_looser_words_not_a_failed_release(self):
+        missing = rewrite.GLOSSARY
+        rewrite.GLOSSARY = "/nonexistent/CONTEXT.md"
+        try:
+            self.assertEqual(rewrite.vocabulary(), "")
+            text = rewrite.prompt("v1.1.0", GENERATED, [
+                {"hash": "abc1234", "subject": "feat: a feature", "body": ""}
+            ], [])
+            self.assertIn("a feature", text)
+        finally:
+            rewrite.GLOSSARY = missing
+
+
 class Issues(unittest.TestCase):
     def test_every_reference_is_looked_up_once(self):
         found = [
