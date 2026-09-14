@@ -97,7 +97,9 @@ Conventional Commit type.
 it repairs. Neither the reader nor the release ever saw the broken state, so \
 reporting the repair as news is reporting a state that never shipped.
 - Keep breaking changes first, under a `## Breaking changes` heading, and exact \
-about what a reader has to do.
+about what a reader has to do. Write that heading only when the range has one: \
+a heading that announces nothing is noise, so leave the section out entirely \
+rather than heading it and saying none. The same goes for every other section.
 - Say only what the commits and issues say. You have no other source for this \
 project's behavior, so anything you cannot point at in the input does not go in \
 the notes.
