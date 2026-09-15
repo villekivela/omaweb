@@ -523,9 +523,36 @@ git push origin v0.2.0
 
 The `Release` workflow refuses a tag that is not on `main`, generates notes from the Conventional
 Commit subjects since the previous tag with `scripts/release_notes.sh`, and publishes them beside
-the Arch package and its inventory. Every `v0.*` tag is marked a prerelease. macOS bundles are
+the Arch packages and their inventory. Every `v0.*` tag is marked a prerelease. macOS bundles are
 development artifacts and are not attached ([ADR 0029](adr/0029-distribute-only-for-linux.md)). See
 [ADR 0028](adr/0028-derive-the-version-from-the-release-tag.md).
+
+### Both architectures
+
+A release carries an `x86_64` package and an `aarch64` one, each built on a machine of its own
+architecture: `x86_64` in the official Arch container, `aarch64` on an Arm runner in a community
+Arch Linux ARM image pinned by digest. What that image costs and what it buys is
+[ADR 0044](adr/0044-build-the-aarch64-package-on-arch-linux-arm.md). The inventory is generated once
+for the release rather than per package, because what it records is written down in this repository
+and does not depend on the machine that built anything.
+
+The two legs are the same steps with a different runner, and the `aarch64` one runs nowhere else, so
+the workflow can be run by hand from a branch:
+
+```sh
+gh workflow run Release --ref <branch>
+```
+
+That builds both packages, attaches them to the run, and stops: no release, no repository, no tag.
+It is how a change to the packaging path is exercised before it is exercised by a release. GitHub
+accepts a dispatch only for a workflow that declares the trigger on the default branch, so a change
+to `release.yml` itself is dispatched from `main` once it has merged; `--ref` then chooses which
+branch is built.
+
+A dispatched run has no tag of its own, so `scripts/release_version.sh` answers what is being built:
+the tag on a release, and the nearest release tag plus the commit being built on a dispatch. Every
+job asks it rather than working it out, so the packages and the inventory of one run cannot end up
+named differently.
 
 ### The pacman repository
 
@@ -542,11 +569,10 @@ scripts/publish_repo.sh --package <file.pkg.tar.zst> --repo-dir <dir> --key <sig
 signs the package, writes the signed `omaweb.db` and `omaweb.files` databases with `repo-add`, and
 removes the package the replaced database entry named. The repository holds one version per
 architecture: the GitHub releases are this project's archive, and serving history would make the
-branch a second one. Packages sit under an architecture directory from the first commit, which is
-what lets `aarch64` ([#185](https://github.com/villekivela/omaweb/issues/185)) be added later as a
-build rather than as a change every reader makes to their `pacman.conf`. Each release replaces the
-branch with a single commit, because a branch that kept every package it ever served would grow by
-the size of a browser each time.
+branch a second one. Packages sit under a directory named for their architecture, which is the
+`$arch` a reader's `Server` line resolves, so the script is called once per package and says nothing
+about which architectures there are. Each release replaces the branch with a single commit, because
+a branch that kept every package it ever served would grow by the size of a browser each time.
 
 `repo-add` links `omaweb.db` to `omaweb.db.tar.gz`, and a static host serves files rather than
 following links, so the short names are written as copies. Without that the repository answers 404

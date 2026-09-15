@@ -5,13 +5,18 @@ name: Release
 #
 #   git tag v0.2.0 && git push origin v0.2.0
 #
-# A release carries the Arch package, the inventory of what is in it, and the
-# notes. macOS bundles are development artifacts and are not attached
-# (ADR 0029).
+# A release carries an Arch package for each architecture Omaweb is built for,
+# the inventory of what is in them, and the notes. macOS bundles are development
+# artifacts and are not attached (ADR 0029).
 
 on:
   push:
     tags: ["v[0-9]*"]
+  # A dry run: the packages are built and attached to the run, and nothing is
+  # published. The `aarch64` package is built on a runner and a base image no
+  # other workflow uses, so this is how that leg is exercised without a tag,
+  # which would publish whatever it produced.
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -21,12 +26,39 @@ permissions:
   pull-requests: read
 
 jobs:
-  # Built in the same container CI checks the package in, so what a release
-  # carries is what was already checked to install, upgrade and remove.
+  # One package per architecture, each built natively. There is no official Arch
+  # container for `arm64`, because Arch Linux ARM is a separate distribution from
+  # Arch, and building under emulation runs far past any timeout this job could
+  # be given. So `aarch64` is built on an Arm runner from a community image, and
+  # ADR 0044 records what that costs and what it buys.
   package:
-    runs-on: ubuntu-latest
-    container: archlinux:base-devel
-    timeout-minutes: 30
+    name: Package ${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+    container: ${{ matrix.container }}
+    timeout-minutes: ${{ matrix.minutes }}
+    strategy:
+      # One architecture failing is not a reason to stop learning whether the
+      # other one built. Neither is published without the other: the release
+      # waits on the whole matrix.
+      fail-fast: false
+      matrix:
+        include:
+          # Built in the same container CI checks the package in, so what a
+          # release carries is what was already checked to install, upgrade and
+          # remove.
+          - arch: x86_64
+            runner: ubuntu-latest
+            container: archlinux:base-devel
+            minutes: 30
+          # Pinned by digest, unlike the official image above, because this one
+          # is a community rebuild of Arch Linux ARM rather than a distribution
+          # image. The tag it was taken from is `base-devel-20260915`, which is
+          # how a later one is found when this is refreshed. An Arm runner has
+          # fewer cores than the x86_64 one, so the build gets longer.
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+            container: menci/archlinuxarm:base-devel@sha256:a7a04e07d5feb063229eb3796a96743a9a3c28a5facce749c4d0ebfbfddece14
+            minutes: 60
     steps:
       - name: Install toolchain
         run:
@@ -40,6 +72,21 @@ jobs:
       - name: Trust checkout in container
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
+      # Every job here asks the same script what is being built, so a dry run
+      # and a release cannot end up naming one thing two ways.
+      - name: Name what is being built
+        id: version
+        run: |
+          # Assigned before they are written, so that a script that failed ends
+          # the step. `echo "$(...)"` would report the exit status of `echo` and
+          # write an empty version, which fails later and somewhere else.
+          version=$(scripts/release_version.sh)
+          fragment=$(scripts/release_version.sh --source-fragment)
+          {
+            echo "version=$version"
+            echo "fragment=$fragment"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Build the package
         # The binary package, `omaweb`, derived from the `omaweb-git` PKGBUILD
         # the repository keeps. The two cannot disagree about dependencies or
@@ -49,13 +96,17 @@ jobs:
         # user it makes for the purpose. The source is this checkout at the tag
         # rather than a fresh clone, so the package is built from the commit the
         # release names.
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          SOURCE_FRAGMENT: ${{ steps.version.outputs.fragment }}
+          ARCH: ${{ matrix.arch }}
         run: |
           useradd --create-home builder
           mkdir -p artifacts
           scripts/make_release_pkgbuild.sh \
-            --version "$GITHUB_REF_NAME" \
+            --version "$VERSION" \
             --output /tmp/build \
-            --source-url "omaweb::git+file://$GITHUB_WORKSPACE#tag=$GITHUB_REF_NAME"
+            --source-url "omaweb::git+file://$GITHUB_WORKSPACE#$SOURCE_FRAGMENT"
           chown -R builder /tmp/build
           su builder -c 'cd /tmp/build && makepkg -f --noconfirm'
           # A container whose makepkg.conf enables `debug`, which Arch's own
@@ -74,20 +125,63 @@ jobs:
             find artifacts -maxdepth 1 -name '*.pkg.tar.*' >&2
             exit 1
           fi
-
-      - name: Generate the inventory
-        run:
-          scripts/generate_sbom.py --output "artifacts/omaweb-$GITHUB_REF_NAME-sbom.json" --version
-          "${GITHUB_REF_NAME#v}"
+          # The runner decides the architecture and the matrix only names it, so
+          # the two are held to each other here. A package whose name disagreed
+          # with this leg would be filed under a directory of the repository no
+          # client asking for that architecture reads.
+          built=$(find artifacts -maxdepth 1 -name '*.pkg.tar.*' -exec basename {} \;)
+          case "$built" in
+            *-"$ARCH".pkg.tar.*) ;;
+            *)
+              echo "::error::$ARCH was asked for and $built was built" >&2
+              exit 1
+              ;;
+          esac
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: release-artifacts
+          name: release-package-${{ matrix.arch }}
+          path: artifacts/
+          if-no-files-found: error
+
+  # One inventory for the release rather than one per package. What it records —
+  # the Rust dependency graph, the vendored assets, the approved engine — is
+  # written down in this repository and is the same whichever machine built the
+  # package, so a second copy could only invite the question of how the two
+  # differ.
+  inventory:
+    runs-on: ubuntu-latest
+    container: archlinux:base-devel
+    timeout-minutes: 15
+    steps:
+      - name: Install toolchain
+        # `cargo metadata` reads the licence of every crate the content blocker
+        # links, which is most of what an inventory is for.
+        run: pacman -Syu --noconfirm git rust python
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Trust checkout in container
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Generate the inventory
+        run: |
+          version=$(scripts/release_version.sh)
+          mkdir -p artifacts
+          scripts/generate_sbom.py --output "artifacts/omaweb-$version-sbom.json" \
+            --version "${version#v}"
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-inventory
           path: artifacts/
           if-no-files-found: error
 
   release:
-    needs: package
+    needs: [package, inventory]
+    # A dry run stops with the packages attached to the run. Everything below
+    # publishes, and there is nothing to publish without a tag.
+    if: github.ref_type == 'tag'
     runs-on: ubuntu-latest
     # The notes rewrite retries an API that does not answer, so the budget
     # leaves the publish step time even when every attempt runs to its timeout.
@@ -146,9 +240,12 @@ jobs:
             cat notes.md
           } >> "$GITHUB_STEP_SUMMARY"
 
+      # Every package and the inventory, into one directory, because that
+      # directory is what the release carries.
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: release-artifacts
+          pattern: release-*
+          merge-multiple: true
           path: artifacts
 
       - name: Publish the release
@@ -214,9 +311,12 @@ jobs:
         run: pacman -Syu --noconfirm git gnupg
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # The packages alone: the inventory belongs to the release, and a
+      # pacman repository is a directory of packages and a database.
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: release-artifacts
+          pattern: release-package-*
+          merge-multiple: true
           path: artifacts
 
       # `PACMAN_SIGNING_KEY` is the armored private half of the repository's
@@ -270,9 +370,10 @@ jobs:
           echo "fingerprint=$fingerprint" >> "$GITHUB_OUTPUT"
           echo "signed=true" >> "$GITHUB_OUTPUT"
 
-      # The published branch is the repository's state: it carries the
-      # architectures this release did not build, which is what lets `aarch64`
-      # (#185) arrive without every reader reconfiguring anything.
+      # The published branch is the repository's state. A release writes the
+      # architectures it built into what is already there rather than starting
+      # a branch of its own, which is what keeps `x86_64` and `aarch64` beside
+      # each other instead of one replacing the other.
       - name: Fetch what is published
         if: steps.key.outputs.signed == 'true'
         env:
@@ -289,9 +390,26 @@ jobs:
       - name: Publish the package to the repository
         if: steps.key.outputs.signed == 'true'
         run: |
-          package=$(find artifacts -maxdepth 1 -name '*.pkg.tar.*' ! -name '*.sig' -print)
-          scripts/publish_repo.sh --package "$package" --repo-dir /tmp/pages \
-            --key "${{ steps.key.outputs.fingerprint }}"
+          # Each package in turn. `publish_repo.sh` reads the architecture out
+          # of the package's own name and files it under that directory, so the
+          # loop says nothing about which architectures there are.
+          #
+          # That every architecture is here is the matrix's doing rather than
+          # this loop's: a leg that failed fails `needs`, and the release this
+          # job waits on never runs. What is checked here is the case the
+          # matrix cannot rule out, a directory of packages with none in it.
+          published=0
+          for package in artifacts/*.pkg.tar.*; do
+            [ -e "$package" ] || continue
+            case "$package" in *.sig) continue ;; esac
+            scripts/publish_repo.sh --package "$package" --repo-dir /tmp/pages \
+              --key "${{ steps.key.outputs.fingerprint }}"
+            published=$(( published + 1 ))
+          done
+          if [ "$published" -eq 0 ]; then
+            echo "::error::no package reached the repository" >&2
+            exit 1
+          fi
           # Pages runs Jekyll over a branch unless told not to, and Jekyll drops
           # files whose names begin with an underscore or a dot.
           touch /tmp/pages/.nojekyll

@@ -14,9 +14,9 @@
 #         --key <signing key>
 #
 # The directory is served whole, so its layout is the URL a reader writes into
-# `pacman.conf`. An architecture directory from the first commit is what lets
-# `aarch64` (#185) be added later as a build rather than as a change every
-# reader has to make to their configuration.
+# `pacman.conf`: the architecture directory is the `$arch` their `Server` line
+# resolves. One package at a time, so a release with a package per architecture
+# calls this once per package and nothing here names an architecture it serves.
 
 set -euo pipefail
 

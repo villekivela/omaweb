@@ -15,6 +15,13 @@ Every Tuesday, `.github/workflows/security-baseline.yml` compares the baseline w
 QtWebEngine and Chromium's stable release. It keeps one issue open while the baseline is outdated.
 Updating the baseline requires a review of the Qt release notes and a qualified build.
 
+One baseline covers both published packages. The comparison reads Arch's `qt6-webengine`, and the
+`aarch64` package is built on Arch Linux ARM, which rebuilds that package on a schedule of its own
+([ADR 0044](docs/adr/0044-build-the-aarch64-package-on-arch-linux-arm.md)). A distribution behind
+Arch therefore ships an engine below the approved baseline, and Settings reports the engine each
+build is running, so a reader is told which one they have rather than which one the release was
+built against.
+
 ## Response to a security-bearing Qt patch
 
 When a Qt patch release includes security fixes, qualify it and publish the raised baseline within
