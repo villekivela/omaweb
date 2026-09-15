@@ -92,11 +92,8 @@ jobs:
             echo "source=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          if scripts/source_changed.sh "$BASE" "$HEAD"; then
-            echo "source=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "source=false" >> "$GITHUB_OUTPUT"
-          fi
+          echo "EXPERIMENT: forcing the skip to observe required-check behaviour"
+          echo "source=false" >> "$GITHUB_OUTPUT"
 
   arch-linux:
     needs: changes
