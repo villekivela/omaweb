@@ -1,4 +1,5 @@
 import QtQuick
+import Omaweb
 
 Item {
     id: root
@@ -407,6 +408,10 @@ Item {
         const runsUnwatched = tabId === root.inspectedTabId || engine.pageAudible || root.retains(
                   tabId);
         engine.pageFrozen = !engine.visible && !runsUnwatched;
+        // A stopped page answers no key. The desktop hears that it has left
+        // rather than being offered controls that reach nothing.
+        if (engine.pageFrozen)
+            SoundingTabs.forget(tabId);
     }
 
     function applyEveryPageLifecycle() {
@@ -697,10 +702,21 @@ Item {
         root.adoptingTabId = "";
     }
 
+    // The desktop's media key, for the tab the core says it is for. A window
+    // that does not hold that tab leaves it to the one that does.
+    function invokeMediaAction(tabId, command) {
+        const engine = root.engines[tabId];
+        if (engine)
+            engine.invokeMediaAction(command);
+    }
+
     function discardEngine(tabId) {
         const engine = root.engines[tabId];
         if (!engine)
             return;
+        // The page is going. Nothing left to play, and nothing left for a
+        // media key to reach.
+        SoundingTabs.forget(tabId);
         // The inspector is the engine's to destroy, and nothing else holds it:
         // the dock only borrowed it.
         if (engine.developerToolsAttached) {
@@ -914,6 +930,19 @@ Item {
                 tabSlot.engine.audioMuted = tabSlot.tabMuted || tabSlot.tabSoundSuppressed;
             }
 
+            // What the desktop is told about this tab: whether it is making
+            // sound, the title to fall back on when the page declares none,
+            // and whatever the page does declare. A Private window sends the
+            // sound and nothing that says what it is (ADR 0012).
+            function reportSound() {
+                if (!tabSlot.engine || tabSlot.engine.pageFrozen)
+                    return;
+                SoundingTabs.reportSound(tabSlot.tabId, tabSlot.engine.pageAudible,
+                                         tabSlot.engine.pageTitle,
+                                         root.browserController.privateBrowsing,
+                                         tabSlot.engine.pageMediaSession);
+            }
+
             onTabKeepActiveChanged: root.applyPageLifecycle(tabId)
             onTabMutedChanged: tabSlot.applySoundPolicy()
             onTabSoundSuppressedChanged: tabSlot.applySoundPolicy()
@@ -1050,6 +1079,7 @@ Item {
                                                               tabSlot.engine.pageIconUrl,
                                                               tabSlot.engine.loading,
                                                               tabSlot.engine.pageAudible);
+                    tabSlot.reportSound();
                 }
 
                 function onPageAudibleChanged() {
@@ -1062,6 +1092,19 @@ Item {
                     // Sound is the other reason a hidden page runs, and it
                     // starts and stops on the page's own account.
                     root.applyPageLifecycle(tabSlot.tabId);
+                    tabSlot.reportSound();
+                }
+
+                function onPageMediaSessionChanged() {
+                    tabSlot.reportSound();
+                }
+
+                // A page that stopped running was dropped from what the desktop
+                // is told. Continuing it says so again: the page declares
+                // nothing new on its own, because nothing about it changed
+                // while it was stopped.
+                function onPageFrozenChanged() {
+                    tabSlot.reportSound();
                 }
 
                 function onLoadingChanged() {

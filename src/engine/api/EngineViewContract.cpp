@@ -14,6 +14,11 @@ QStringList validateEngineViewContract(const QObject &adapter)
         {"pageIconUrl", QMetaType::QUrl},
         {"loading", QMetaType::Bool},
         {"pageAudible", QMetaType::Bool},
+        // What the page declares about what it is playing, which the desktop
+        // is told. The engine does not hand out a page's media session, so an
+        // adapter reads it from the page or reports that it knows none: an
+        // engine that cannot say is not a reason for Omaweb to invent a title.
+        {"pageMediaSession", QMetaType::QVariant},
         {"audioMuted", QMetaType::Bool},
         {"canGoBack", QMetaType::Bool},
         {"canGoForward", QMetaType::Bool},
@@ -111,6 +116,8 @@ QStringList validateEngineViewContract(const QObject &adapter)
         {"checkForEditedFormState", false, 1},
         {"acceptNewWindowRequest", false, 1},
         {"configureKeyboardNavigation", false, 1},
+        // The media key the desktop sent, given to the page that is sounding.
+        {"invokeMediaAction", false, 1},
         {"attachDeveloperTools", false, 0},
         {"detachDeveloperTools", false, 0},
         {"inspectElement", false, 0},

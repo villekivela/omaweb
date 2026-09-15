@@ -15,6 +15,12 @@ Item {
     // pause between clips. Muting is the embedder's to set and survives
     // navigation within the view, so the tab keeps its decision across pages.
     readonly property bool pageAudible: webView.recentlyAudible
+    // What the page declares about what it is playing, in the shape the shell
+    // hands the desktop: "state" as one of "none", "playing" or "paused", and
+    // the "title", "artist", "album", "artwork", "canGoNext" and
+    // "canGoPrevious" the page named. Empty for a page that has declared
+    // nothing yet, which a new document is until its script has run.
+    property var pageMediaSession: ({})
     property alias audioMuted: webView.audioMuted
     // Whether this page may start playing without a gesture of its own. It is
     // the shell's decision rather than the engine's default, and the shell
@@ -705,6 +711,17 @@ Item {
         root.siteFullscreenOrigin = "";
         webView.fullScreenCancelled();
     }
+    // The desktop's media key, handed to the page. One of "play", "pause",
+    // "playpause", "stop", "next" or "previous".
+    function invokeMediaAction(command) {
+        if (!webView)
+            return;
+        webView.runJavaScript("globalThis.__omawebMediaSession && "
+                              + "globalThis.__omawebMediaSession.invoke(" + JSON.stringify(String(
+                                                                                               command))
+                              + ");");
+    }
+
     function configureKeyboardNavigation(configuration) {
         keyboardNavigationHintModeActive = false;
         keyboardNavigationConfiguration = configuration;
@@ -1472,6 +1489,133 @@ Item {
         return script;
     }
 
+    // What the page says it is playing, and the page's own answer to a media
+    // key. The Media Session API is the page's statement about itself, and the
+    // engine does not hand it out, so first-party script reads it and reports
+    // it the way the other page facts here are reported.
+    //
+    // A page that registered its own handler for an action gets that handler
+    // called, because the page knows what its next track is and Omaweb does
+    // not. A page that registered none is answered by the element that is
+    // sounding, which is what a video in a tab with no media session is.
+    property var mediaSessionScript: {
+        const script = WebEngine.script();
+        script.name = "Omaweb media session";
+        script.injectionPoint = WebEngineScript.DocumentCreation;
+        script.worldId = WebEngineScript.MainWorld;
+        script.runsOnSubFrames = false;
+        script.sourceCode = `(() => {
+            if (globalThis.__omawebMediaSession) return;
+            const session = navigator.mediaSession;
+            const handlers = new Map();
+            let reported = '';
+            const elements = () => Array.from(document.querySelectorAll('video, audio'));
+            // The element the keys are for: the one that is running, or failing
+            // that the one that has been played and stopped part way.
+            const sounding = () => elements().find(element => !element.paused && !element.ended)
+                || elements().find(element => element.currentTime > 0 && !element.ended)
+                || null;
+            const state = () => {
+                const declared = session && session.playbackState;
+                if (declared === 'playing' || declared === 'paused') return declared;
+                const element = sounding();
+                if (!element) return 'none';
+                return element.paused ? 'paused' : 'playing';
+            };
+            // The largest picture the page named, as an address. Omaweb does
+            // not fetch it: whoever draws it asks the site for it themselves.
+            const artwork = metadata => {
+                const pictures = (metadata && metadata.artwork) || [];
+                let chosen = '';
+                let widest = -1;
+                for (const picture of pictures) {
+                    const size = String(picture.sizes || '').split('x')[0];
+                    const width = Number.parseInt(size, 10) || 0;
+                    if (width >= widest) {
+                        widest = width;
+                        chosen = String(picture.src || '');
+                    }
+                }
+                return chosen;
+            };
+            const report = () => {
+                const metadata = session ? session.metadata : null;
+                const declaration = {
+                    state: state(),
+                    title: metadata ? String(metadata.title || '') : '',
+                    artist: metadata ? String(metadata.artist || '') : '',
+                    album: metadata ? String(metadata.album || '') : '',
+                    artwork: artwork(metadata),
+                    canGoNext: handlers.has('nexttrack'),
+                    canGoPrevious: handlers.has('previoustrack'),
+                };
+                const encoded = JSON.stringify(declaration);
+                if (encoded === reported) return;
+                reported = encoded;
+                console.info('__omaweb_media_session__' + encoded);
+            };
+            // The API reports no change of its own, so the two properties a
+            // page writes are wrapped where they are defined. The page's own
+            // write happens first and this reports what it left behind.
+            if (session) {
+                for (const name of ['metadata', 'playbackState']) {
+                    const property = Object.getOwnPropertyDescriptor(
+                        Object.getPrototypeOf(session), name);
+                    if (!property || !property.set) continue;
+                    Object.defineProperty(session, name, {
+                        configurable: true,
+                        enumerable: true,
+                        get() { return property.get.call(this); },
+                        set(value) { property.set.call(this, value); report(); },
+                    });
+                }
+                const setActionHandler = session.setActionHandler.bind(session);
+                session.setActionHandler = (action, handler) => {
+                    setActionHandler(action, handler);
+                    if (handler) handlers.set(action, handler);
+                    else handlers.delete(action);
+                    report();
+                };
+            }
+            // Media events do not bubble, so the document listens in the
+            // capture phase: a page that plays without a media session is still
+            // a page the desktop hears.
+            for (const name of ['play', 'pause', 'ended', 'emptied', 'loadedmetadata'])
+                document.addEventListener(name, report, {capture: true, passive: true});
+            globalThis.__omawebMediaSession = {
+                invoke(command) {
+                    const wanted = command === 'playpause'
+                        ? (state() === 'playing' ? 'pause' : 'play') : command;
+                    const action = {play: 'play', pause: 'pause', stop: 'stop',
+                                    next: 'nexttrack', previous: 'previoustrack'}[wanted];
+                    const handler = handlers.get(action);
+                    if (handler) {
+                        try {
+                            handler({action: action});
+                            report();
+                            return;
+                        } catch (error) {
+                            // The page's own handler threw. The element below it
+                            // is still there, so the key does something.
+                        }
+                    }
+                    const element = sounding() || elements()[0];
+                    if (!element) return;
+                    if (wanted === 'play') element.play();
+                    else if (wanted === 'pause') element.pause();
+                    else if (wanted === 'stop') {
+                        element.pause();
+                        element.currentTime = 0;
+                    }
+                    report();
+                },
+            };
+            report();
+        })();`;
+
+        return script;
+    }
+
     // What the reader pressed, reported as the click is dispatched and before
     // anything the press does reaches the browser, so a window the click asks
     // for can be placed by it. The link or control pressed is the element a
@@ -1509,8 +1653,8 @@ Item {
     function userScriptList() {
         const scripts = [root.editedStateScript, root.keyboardNavigationScript,
                          root.externalProtocolOriginScript, root.userActivationScript,
-                         root.pressOriginScript, root.controlAccentScript,
-                         root.pageScrollbarScript];
+                         root.pressOriginScript, root.controlAccentScript, root.pageScrollbarScript,
+                         root.mediaSessionScript];
         if (root.blockingScript)
             scripts.push(root.blockingScript);
         return scripts;
@@ -1767,6 +1911,15 @@ Item {
                 }
             } else if (message.startsWith("__omaweb_page_scroll__")) {
                 root.readPageScroll(message.substring("__omaweb_page_scroll__".length));
+            } else if (message.startsWith("__omaweb_media_session__")) {
+                try {
+                    root.pageMediaSession = JSON.parse(message.substring(
+                                                           "__omaweb_media_session__".length));
+                } catch (error) {
+                    // A page that cannot be read declares nothing, which is
+                    // what a page with no media session declares too.
+                    root.pageMediaSession = {};
+                }
             } else if (message === "__omaweb_user_activation__") {
                 root.userActivated();
             } else if (message === "__omaweb_keyboard_hint_mode__:1")

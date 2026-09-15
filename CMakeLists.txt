@@ -185,6 +185,8 @@ add_library(omaweb-core STATIC
     src/core/SqliteSessionStore.h
     src/core/ThreadedSessionStore.cpp
     src/core/ThreadedSessionStore.h
+    src/core/SoundingTabs.cpp
+    src/core/SoundingTabs.h
     src/core/SpaceListModel.cpp
     src/core/SpaceListModel.h
     src/core/SpaceStorage.cpp
@@ -374,6 +376,8 @@ add_library(omaweb-platform STATIC
     src/platform/ExternalProtocolHandler.h
     src/platform/InputMethod.cpp
     src/platform/InputMethod.h
+    src/platform/MediaAnnouncer.cpp
+    src/platform/MediaAnnouncer.h
     src/platform/OmarchyTheme.cpp
     src/platform/OmarchyTheme.h
     src/platform/PagePrinter.cpp
@@ -425,6 +429,7 @@ else()
         src/platform/LinuxDefaultBrowser.cpp
         src/platform/LinuxPagePrinter.cpp
         src/platform/LinuxPortalWindow.cpp
+        src/platform/LinuxMediaAnnouncer.cpp
         src/platform/LinuxRunningBrowser.cpp
         src/platform/LinuxSystemNotifier.cpp
         src/platform/WindowChrome.cpp
@@ -457,6 +462,7 @@ set(omaweb_ui_files
     src/ui/HistoryPage.qml
     src/ui/KeyHint.qml
     src/ui/KeyMap.qml
+    src/ui/MediaAnnouncement.qml
     src/ui/NavigationCluster.qml
     src/ui/NoticeBox.qml
     src/ui/ActionButton.qml
@@ -856,6 +862,11 @@ if(BUILD_TESTING)
     omaweb_strict_target(omaweb-space-storage-tests)
     add_test(NAME omaweb-space-storage COMMAND omaweb-space-storage-tests)
 
+    qt_add_executable(omaweb-sounding-tabs-tests tests/core/tst_soundingtabs.cpp)
+    target_link_libraries(omaweb-sounding-tabs-tests PRIVATE omaweb-core Qt6::Test)
+    omaweb_strict_target(omaweb-sounding-tabs-tests)
+    add_test(NAME omaweb-sounding-tabs COMMAND omaweb-sounding-tabs-tests)
+
     qt_add_executable(omaweb-keyboard-navigation-tests
         tests/core/tst_keyboardnavigation.cpp
     )
@@ -988,6 +999,25 @@ if(BUILD_TESTING)
             COMMAND dbus-run-session -- $<TARGET_FILE:omaweb-notification-service-tests>
         )
         set_tests_properties(omaweb-notification-service PROPERTIES
+            ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        )
+
+        # The MPRIS export is a conversation with the session bus rather than
+        # a value a test can read off the object, so the test holds one of its
+        # own and reads the player back the way a bar's media widget would.
+        qt_add_executable(omaweb-media-announcer-tests
+            tests/platform/tst_mediaannouncer.cpp
+        )
+        target_link_libraries(omaweb-media-announcer-tests PRIVATE
+            omaweb-platform
+            Qt6::DBus
+            Qt6::Test
+        )
+        omaweb_strict_target(omaweb-media-announcer-tests)
+        add_test(NAME omaweb-media-announcer
+            COMMAND dbus-run-session -- $<TARGET_FILE:omaweb-media-announcer-tests>
+        )
+        set_tests_properties(omaweb-media-announcer PROPERTIES
             ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
         )
 

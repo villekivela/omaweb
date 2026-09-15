@@ -31,6 +31,12 @@ Rectangle {
     // The lab plays nothing, so both sides of the tab's speaker are set by
     // hand: `simulateAudible` stands in for a page that started making sound.
     property bool pageAudible: false
+    // The lab runs no page, so what a page would declare about what it is
+    // playing is set by hand through `simulateMediaSession`.
+    property var pageMediaSession: ({})
+    // What the desktop last asked of this page, so a review can see that the
+    // media key reached the tab it was meant for.
+    property string lastMediaAction: ""
     property bool audioMuted: false
     // The lab starts no page and no process, so both sides of autoplay are set
     // by hand: `autoplayAllowed` is what the shell decides, and
@@ -505,6 +511,9 @@ Rectangle {
     function configureKeyboardNavigation(configuration) {
         keyboardNavigationConfiguration = configuration;
     }
+    function invokeMediaAction(command) {
+        root.lastMediaAction = String(command);
+    }
     function checkForEditedFormState(callback) {
         callback(false);
     }
@@ -586,6 +595,9 @@ Rectangle {
     }
     function simulateAudible(audible) {
         root.pageAudible = audible;
+    }
+    function simulateMediaSession(declaration) {
+        root.pageMediaSession = declaration ? declaration : {};
     }
     function simulateRendererFailure() {
         rendererFailed("Renderer exited unexpectedly");

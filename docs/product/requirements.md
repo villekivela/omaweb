@@ -183,6 +183,12 @@ reports the gap and remains experimental rather than imitating behavior it canno
 - Audio indicators and mute controls remain visible for audible tabs. Muted autoplay is allowed,
   while audible autoplay waits for interaction with the origin. A retained Pinned tab may continue
   playback while its Space is inactive.
+- The Sounding tab is announced to the desktop as one media player for the browser. It carries what
+  the page declares about what is playing, falling back to the tab's title, and answers the play,
+  pause, next, previous, and stop the desktop sends by invoking the page's own handlers. A paused
+  page keeps the player and yields it to a tab that is still playing; a page that stops playing
+  withdraws it. A Private window announces playback and the controls, and nothing that says what is
+  playing.
 - Video decodes on the GPU where the host has a working VA-API driver, and in software where it has
   none. A missing driver is not a refusal to start, and the driver packages are `optdepends` rather
   than dependencies because which one a host needs depends on its GPU.

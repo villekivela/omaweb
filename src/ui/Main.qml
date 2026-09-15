@@ -3311,6 +3311,10 @@ ApplicationWindow {
         }
     }
 
+    MediaAnnouncement {
+        engineHost: engineLoader
+    }
+
     ChromeMenu {
         id: tabMenu
         objectName: "tabMenu"
