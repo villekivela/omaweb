@@ -107,6 +107,33 @@ pins `adblock` 0.12.5 to Ladybird revision `e5a41dfb6930fe5471c2c203d2dc32a1a782
 verifies the cached artifact but never invokes Cargo. Run the bootstrap again only after changing
 the Rust wrapper, its manifest, or its lockfile.
 
+### What CI runs
+
+`.github/workflows/ci.yml` runs six jobs, on a pull request and on a push to `main`. `style` runs
+the formatters, `qmllint`, the website's own policy check and the release-page tests;
+`commit-messages` checks every non-merge subject in the range; and three Arch containers build the
+tree: `arch-linux` under clang, which goes on to build the `release` preset and load the compiled
+QML, `arch-linux-gcc` under GCC, and `arch-package` through `scripts/check_package.sh`.
+
+Those three take around ten minutes each, and a change confined to `docs/`, `website/` or Markdown
+cannot break a compile, so a `changes` job decides whether they run at all. It prints the files it
+decided on, and the same question can be asked of any range:
+
+```sh
+scripts/source_changed.sh origin/main
+```
+
+The test is inverted on purpose. Everything counts as source unless it is prose, so a directory
+nobody has thought of yet builds rather than quietly skipping: the cost of forgetting that way is
+ten minutes, and the cost of the other way is a break that reaches `main`. Prose beside source is
+source, and a range with no base to compare against builds.
+
+It is a gate job rather than a `paths-ignore:` on the workflow, and the two are not interchangeable.
+`arch-linux` is a required check on `main`. A job skipped by a job-level `if:` reports as skipped
+and the pull request still merges; a workflow skipped by path filtering leaves its required checks
+pending indefinitely, with no job to re-run. Path filtering would also take `style` with it, and
+that has to run on prose.
+
 ### Platform gaps on Linux
 
 `omaweb-platform` supplies the window-system services the browser cannot supply itself. On Linux
