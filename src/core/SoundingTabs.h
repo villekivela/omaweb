@@ -16,15 +16,17 @@ namespace omaweb {
 // windows put what they hear from their pages, and where the platform layer
 // reads the single tab the desktop is told about.
 //
-// The tab that answers is the last one to have started, which is what makes a
-// media key predictable: a second page starting takes the keys, and when it
-// stops they fall back to the one that was playing before it.
+// The tab that answers is the last one playing, which is what makes a media key
+// predictable: a second page starting takes the keys, and when it stops they
+// fall back to the one that was playing before it.
 //
-// A tab whose page declares it is paused is still the player. Pausing from the
+// A tab whose page declares it is paused is still here. Pausing from the
 // desktop would otherwise withdraw the player that the next key press needs,
-// and the reader would have to find the tab to start it again. A tab that goes
-// silent while declaring nothing, and one whose page declares that its media
-// session is over, both leave.
+// and the reader would have to find the tab to start it again. A paused tab
+// yields to one that is playing, though, so a reader who pauses a video does
+// not leave the keys pointed at it while music plays in another tab. A tab that
+// goes silent while declaring nothing, and one whose page declares that its
+// media session is over, both leave.
 class SoundingTabs final : public QObject {
     Q_OBJECT
     Q_PROPERTY(QVariantMap announcement READ announcement NOTIFY announcementChanged)
@@ -32,17 +34,17 @@ class SoundingTabs final : public QObject {
 public:
     explicit SoundingTabs(QObject *parent = nullptr);
 
-    // Whether this tab is making sound, with the title its own row carries and
-    // whether it belongs to a Private window. The title is what the desktop is
-    // told when the page declares nothing of its own.
-    Q_INVOKABLE void reportSound(
-        const QString &tabId, bool sounding, const QString &tabTitle, bool privateTab);
-    // What the page declares through its own media session: "state" as one of
-    // "none", "playing" or "paused", and the optional "title", "artist",
-    // "album", "artwork", "canGoNext" and "canGoPrevious". An empty map is a
-    // page that declares nothing, which is not the same as one declaring that
-    // nothing is playing.
-    Q_INVOKABLE void reportDeclared(const QString &tabId, const QVariantMap &declared);
+    // Everything about one tab in one call, the way a tab's page state is
+    // already reported (ADR 0038): whether it is making sound, the title its
+    // own row carries, whether it belongs to a Private window, and what its
+    // page declares through its own media session.
+    //
+    // A declaration carries "state" as one of "none", "playing" or "paused",
+    // and the optional "title", "artist", "album", "artwork", "canGoNext" and
+    // "canGoPrevious". An empty map is a page that declares nothing, which is
+    // not the same as one declaring that nothing is playing.
+    Q_INVOKABLE void reportSound(const QString &tabId, bool sounding, const QString &tabTitle,
+        bool privateTab, const QVariantMap &declared);
     // The tab is gone: closed, or its engine discarded. Nothing left to play.
     Q_INVOKABLE void forget(const QString &tabId);
 
@@ -67,8 +69,12 @@ private:
     };
 
     TabSound &entryFor(const QString &tabId);
-    const TabSound *player() const;
-    static bool answers(const TabSound &tab);
+    // The tab the desktop is told about: the last one playing, or the last one
+    // paused where none is playing.
+    const TabSound *soundingTab() const;
+    // Whether the tab has anything to announce at all, playing or paused.
+    static bool hasMedia(const TabSound &tab);
+    static bool isPlaying(const TabSound &tab);
     void republish();
 
     // In the order the tabs started, so the last one to start is the last one

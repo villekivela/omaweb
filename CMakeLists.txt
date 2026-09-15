@@ -185,10 +185,10 @@ add_library(omaweb-core STATIC
     src/core/SqliteSessionStore.h
     src/core/ThreadedSessionStore.cpp
     src/core/ThreadedSessionStore.h
-    src/core/SpaceListModel.cpp
-    src/core/SpaceListModel.h
     src/core/SoundingTabs.cpp
     src/core/SoundingTabs.h
+    src/core/SpaceListModel.cpp
+    src/core/SpaceListModel.h
     src/core/SpaceStorage.cpp
     src/core/SpaceStorage.h
     src/core/SyncFeature.h
@@ -376,10 +376,10 @@ add_library(omaweb-platform STATIC
     src/platform/ExternalProtocolHandler.h
     src/platform/InputMethod.cpp
     src/platform/InputMethod.h
-    src/platform/OmarchyTheme.cpp
-    src/platform/OmarchyTheme.h
     src/platform/MediaAnnouncer.cpp
     src/platform/MediaAnnouncer.h
+    src/platform/OmarchyTheme.cpp
+    src/platform/OmarchyTheme.h
     src/platform/PagePrinter.cpp
     src/platform/PagePrinter.h
     src/platform/PortalWindow.h

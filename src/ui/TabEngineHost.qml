@@ -939,8 +939,8 @@ Item {
                     return;
                 SoundingTabs.reportSound(tabSlot.tabId, tabSlot.engine.pageAudible,
                                          tabSlot.engine.pageTitle,
-                                         root.browserController.privateBrowsing);
-                SoundingTabs.reportDeclared(tabSlot.tabId, tabSlot.engine.pageMediaSession);
+                                         root.browserController.privateBrowsing,
+                                         tabSlot.engine.pageMediaSession);
             }
 
             onTabKeepActiveChanged: root.applyPageLifecycle(tabId)

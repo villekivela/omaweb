@@ -40,17 +40,30 @@ SoundingTabs::TabSound &SoundingTabs::entryFor(const QString &tabId)
     return m_tabs.last();
 }
 
-bool SoundingTabs::answers(const TabSound &tab)
+bool SoundingTabs::isPlaying(const TabSound &tab)
 {
-    const auto state = tab.declared.value(kState).toString();
-    return tab.audible || state == kPlaying || state == kPaused;
+    // A page making sound is playing, whatever it declares. What it declares
+    // decides only for a page that has gone quiet, which is where a paused
+    // video and a finished one differ.
+    return tab.audible || tab.declared.value(kState).toString() == kPlaying;
 }
 
-const SoundingTabs::TabSound *SoundingTabs::player() const
+bool SoundingTabs::hasMedia(const TabSound &tab)
 {
-    for (auto index = m_tabs.size() - 1; index >= 0; --index) {
-        if (answers(m_tabs.at(index))) {
-            return &m_tabs.at(index);
+    return isPlaying(tab) || tab.declared.value(kState).toString() == kPaused;
+}
+
+const SoundingTabs::TabSound *SoundingTabs::soundingTab() const
+{
+    // A tab that is playing outranks one that is paused however long ago each
+    // started: a reader who pauses a video and leaves music running in another
+    // tab means the music. Among equals, the one that started last.
+    for (const auto playing : {true, false}) {
+        for (auto index = m_tabs.size() - 1; index >= 0; --index) {
+            const auto &tab = m_tabs.at(index);
+            if (isPlaying(tab) == playing) {
+                return &tab;
+            }
         }
     }
     return nullptr;
@@ -63,16 +76,12 @@ void SoundingTabs::republish()
     // starts again. Dropping it is also what keeps this list in the order tabs
     // started in, so a tab that starts again is last rather than back where it
     // used to be.
-    m_tabs.removeIf([](const TabSound &tab) { return !answers(tab); });
+    m_tabs.removeIf([](const TabSound &tab) { return !hasMedia(tab); });
 
     QVariantMap announcement;
-    if (const auto *sounding = player()) {
+    if (const auto *sounding = soundingTab()) {
         announcement.insert(QStringLiteral("tabId"), sounding->tabId);
-        // A page making sound is playing, whatever it declares. What it
-        // declares decides only for a page that has gone quiet, which is where
-        // a paused video and a finished one differ.
-        const auto state = sounding->declared.value(kState).toString();
-        announcement.insert(QStringLiteral("playing"), sounding->audible || state == kPlaying);
+        announcement.insert(QStringLiteral("playing"), isPlaying(*sounding));
         announcement.insert(QStringLiteral("canGoNext"),
             sounding->declared.value(QStringLiteral("canGoNext")).toBool());
         announcement.insert(QStringLiteral("canGoPrevious"),
@@ -100,8 +109,8 @@ void SoundingTabs::republish()
     emit announcementChanged();
 }
 
-void SoundingTabs::reportSound(
-    const QString &tabId, bool sounding, const QString &tabTitle, bool privateTab)
+void SoundingTabs::reportSound(const QString &tabId, bool sounding, const QString &tabTitle,
+    bool privateTab, const QVariantMap &declared)
 {
     if (tabId.isEmpty()) {
         return;
@@ -110,15 +119,7 @@ void SoundingTabs::reportSound(
     tab.audible = sounding;
     tab.tabTitle = tabTitle;
     tab.privateTab = privateTab;
-    republish();
-}
-
-void SoundingTabs::reportDeclared(const QString &tabId, const QVariantMap &declared)
-{
-    if (tabId.isEmpty()) {
-        return;
-    }
-    entryFor(tabId).declared = declared;
+    tab.declared = declared;
     republish();
 }
 

@@ -6,9 +6,10 @@ own.
 
 One player, not one per tab. A player per tab is legal MPRIS and unreadable on a desktop: the bar
 lists a row for every tab that has ever played, and a media key has a choice to make rather than a
-target. The Sounding tab is the tab that started last, so the keys go somewhere a reader can
-predict, and the tab the player is following is named in `xesam:title` so the entry says which tab
-it is.
+target. The Sounding tab is the last tab playing, so the keys go somewhere a reader can predict, and
+the tab the player is following is named in `xesam:title` so the entry says which tab it is. A
+paused tab yields to one that is playing, whichever started first: a reader who pauses a video and
+leaves music running in another tab means the music.
 
 Metadata comes from the page rather than from the engine. Qt reports whether a page is audible and
 whether it is muted, and reports nothing about `navigator.mediaSession`. First-party script in the
@@ -39,6 +40,17 @@ press needs, and the reader would have to find the tab to start it again. What w
 is a page that declares its media session over, a tab that goes quiet having declared nothing, a tab
 whose page is Frozen, and a tab that closes.
 
+The interface is answered whole, including the parts Omaweb has no answer for. MPRIS names `Stop`,
+`Volume`, `Position` and `Seeked` as part of the player, and a consumer that reads a player's
+properties in one call reads all of them, so they are exported rather than omitted: `Volume` is a
+constant, `Position` is zero, `CanSeek` is false, and `Seeked` is never emitted. Exporting them is
+not implementing them. Per-tab volume stays out, because the desktop's own mixer already has one
+slider per process and a second answer is worse than none.
+
+Two Omawebs on one bus do not fight over the name. The second takes
+`org.mpris.MediaPlayer2.omaweb.instance<pid>`, which MPRIS provides for exactly this, and goes back
+to the plain name once it is free rather than keeping the instance name for the rest of the process.
+
 What was rejected:
 
 - **A player per tab.** Above.
@@ -46,8 +58,8 @@ What was rejected:
   then reading something else in another tab would find the media key pointed at a page playing
   nothing.
 - **`Raise` and `Quit`.** A media widget is not where a reader quits a browser, and the window a
-  Sounding tab belongs to is not always a window there is one of.
-- **`Volume` and `TrackList`.** The desktop's own mixer already has a slider per process, and a
-  browser tab is not a track list.
+  Sounding tab belongs to is not always a window there is one of. Both are exported as refusals:
+  `CanQuit` and `CanRaise` are false.
+- **`TrackList` and `Playlists`.** Neither has a meaning for a browser tab.
 
 See [#271](https://github.com/villekivela/omaweb/issues/271).

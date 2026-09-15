@@ -84,6 +84,24 @@ namespace {
                                                                    : QStringLiteral("Paused");
     }
 
+    // Every player property that follows the sounding tab, in one place. The
+    // adaptor's getters answer from here and so does the change signal, so a
+    // consumer that reads and one that listens cannot be told different things.
+    QVariantMap currentPlayerProperties()
+    {
+        return {
+            {QStringLiteral("PlaybackStatus"), currentPlaybackStatus()},
+            {QStringLiteral("Metadata"), currentMetadata()},
+            {QStringLiteral("CanGoNext"), announced.value(QStringLiteral("canGoNext")).toBool()},
+            {QStringLiteral("CanGoPrevious"),
+                announced.value(QStringLiteral("canGoPrevious")).toBool()},
+            {QStringLiteral("CanPlay"), !announced.isEmpty()},
+            {QStringLiteral("CanPause"), !announced.isEmpty()},
+        };
+    }
+
+    QVariant playerProperty(const QString &name) { return currentPlayerProperties().value(name); }
+
     void report(const QString &name)
     {
         if (auto *announcer = currentAnnouncer.data()) {
@@ -151,15 +169,18 @@ namespace {
         {
         }
 
-        QString playbackStatus() const { return currentPlaybackStatus(); }
-        QVariantMap metadata() const { return currentMetadata(); }
-        bool canGoNext() const { return announced.value(QStringLiteral("canGoNext")).toBool(); }
+        QString playbackStatus() const
+        {
+            return playerProperty(QStringLiteral("PlaybackStatus")).toString();
+        }
+        QVariantMap metadata() const { return playerProperty(QStringLiteral("Metadata")).toMap(); }
+        bool canGoNext() const { return playerProperty(QStringLiteral("CanGoNext")).toBool(); }
         bool canGoPrevious() const
         {
-            return announced.value(QStringLiteral("canGoPrevious")).toBool();
+            return playerProperty(QStringLiteral("CanGoPrevious")).toBool();
         }
-        bool canPlay() const { return !announced.isEmpty(); }
-        bool canPause() const { return !announced.isEmpty(); }
+        bool canPlay() const { return playerProperty(QStringLiteral("CanPlay")).toBool(); }
+        bool canPause() const { return playerProperty(QStringLiteral("CanPause")).toBool(); }
         bool canSeek() const { return false; }
         bool canControl() const { return true; }
         double rate() const { return 1.0; }
@@ -201,16 +222,7 @@ namespace {
     {
         auto signal = QDBusMessage::createSignal(
             kPath, kPropertiesInterface, QStringLiteral("PropertiesChanged"));
-        QVariantMap changed;
-        changed.insert(QStringLiteral("PlaybackStatus"), currentPlaybackStatus());
-        changed.insert(QStringLiteral("Metadata"), currentMetadata());
-        changed.insert(
-            QStringLiteral("CanGoNext"), announced.value(QStringLiteral("canGoNext")).toBool());
-        changed.insert(QStringLiteral("CanGoPrevious"),
-            announced.value(QStringLiteral("canGoPrevious")).toBool());
-        changed.insert(QStringLiteral("CanPlay"), !announced.isEmpty());
-        changed.insert(QStringLiteral("CanPause"), !announced.isEmpty());
-        signal << kPlayerInterface << changed << QStringList {};
+        signal << kPlayerInterface << currentPlayerProperties() << QStringList {};
         QDBusConnection::sessionBus().send(signal);
     }
 
@@ -248,6 +260,10 @@ void MediaAnnouncer::announce(const QVariantMap &announcement)
         if (wasExported) {
             bus.unregisterObject(kPath);
             bus.unregisterService(exportedName);
+            // The plain name is asked for again next time. Holding an instance
+            // name for the rest of the process would keep Omaweb a second-class
+            // player on a desktop where the first Omaweb has since gone.
+            exportedName = kService;
         }
         return;
     }

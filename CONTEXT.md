@@ -44,10 +44,11 @@ discarded tab
 **Sounding tab**: The tab that is making sound, and the one Omaweb announces to the desktop so the
 media keys, the bar's media widget, and anything else that asks reach it. There is one for the whole
 browser rather than one per tab: where two tabs are playing, the one that started last is the
-Sounding tab, and when it stops the one before it takes over. What the desktop is told is what the
-page declares about itself, falling back to the tab's own title, and a tab that is paused stays the
-Sounding tab so the next key press has somewhere to go. A Private window's Sounding tab announces
-that something is playing and nothing about what. _Avoid_: Now playing, media tab, active player
+Sounding tab, and when it stops or is paused the one still playing takes over. What the desktop is
+told is what the page declares about itself, falling back to the tab's own title, and a tab that is
+paused stays the Sounding tab so the next key press has somewhere to go. A Private window's Sounding
+tab announces that something is playing and nothing about what. _Avoid_: Now playing, media tab,
+active player
 
 **Space at rest**: A Space with nothing open in it, because nothing has been opened yet or the last
 page has been closed. Its only ordinary tab is blank. A Space at rest lists no ordinary tab and
