@@ -45,7 +45,7 @@ Omaweb uses the system QtWebEngine, so engine security updates arrive through th
 To install a downloaded release package:
 
 ```sh
-sudo pacman -U omaweb-git-*.pkg.tar.zst
+sudo pacman -U omaweb-*.pkg.tar.zst
 ```
 
 Install `fcitx5-qt` if you use an input method. Omarchy configures Qt applications to use `fcitx`

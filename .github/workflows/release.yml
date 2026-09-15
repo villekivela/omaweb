@@ -41,17 +41,21 @@ jobs:
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
       - name: Build the package
+        # The binary package, `omaweb`, derived from the `omaweb-git` PKGBUILD
+        # the repository keeps. The two cannot disagree about dependencies or
+        # about how the browser is built, because one is written from the other.
+        #
         # makepkg refuses to run as root, so the container's root builds as a
         # user it makes for the purpose. The source is this checkout at the tag
         # rather than a fresh clone, so the package is built from the commit the
         # release names.
         run: |
           useradd --create-home builder
-          mkdir -p /tmp/build artifacts
-          cp packaging/PKGBUILD /tmp/build/PKGBUILD
-          cp packaging/omaweb-git.install /tmp/build/omaweb-git.install
-          sed -i "s|^source=.*|source=(\"\$_pkgname::git+file://$GITHUB_WORKSPACE#tag=$GITHUB_REF_NAME\")|" \
-            /tmp/build/PKGBUILD
+          mkdir -p artifacts
+          scripts/make_release_pkgbuild.sh \
+            --version "$GITHUB_REF_NAME" \
+            --output /tmp/build \
+            --source-url "omaweb::git+file://$GITHUB_WORKSPACE#tag=$GITHUB_REF_NAME"
           chown -R builder /tmp/build
           su builder -c 'cd /tmp/build && makepkg -f --noconfirm'
           # A container whose makepkg.conf enables `debug`, which Arch's own
@@ -192,3 +196,118 @@ jobs:
             2*) ;;
             *) echo "::warning::the website deploy hook answered ${status}, so the site is behind" ;;
           esac
+
+  # The upgrade path. The release above is what a reader downloads once; this is
+  # what reaches the machines of everyone who already has Omaweb, through their
+  # ordinary `pacman -Syu`.
+  #
+  # It runs after the release rather than beside it, because a repository
+  # serving a version whose release failed to publish would be offering an
+  # upgrade to a thing that does not exist.
+  publish-repo:
+    needs: [package, release]
+    runs-on: ubuntu-latest
+    container: archlinux:base-devel
+    timeout-minutes: 15
+    steps:
+      - name: Install toolchain
+        run: pacman -Syu --noconfirm git gnupg
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: release-artifacts
+          path: artifacts
+
+      # `PACMAN_SIGNING_KEY` is the armored private half of the repository's
+      # signing subkey, and `PACMAN_SIGNING_KEY_PASSPHRASE` unlocks it when it
+      # has one. Until the key exists this step says so and the job ends
+      # green: the release is already published and a reader can still install
+      # it by hand, which is where they are today.
+      - name: Take up the signing key
+        id: key
+        env:
+          SIGNING_KEY: ${{ secrets.PACMAN_SIGNING_KEY }}
+          PASSPHRASE: ${{ secrets.PACMAN_SIGNING_KEY_PASSPHRASE }}
+        run: |
+          if [ -z "$SIGNING_KEY" ]; then
+            echo "No PACMAN_SIGNING_KEY secret: the repository keeps the previous release" \
+              >> "$GITHUB_STEP_SUMMARY"
+            echo "signed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          export GNUPGHOME=/tmp/gnupg
+          mkdir -p "$GNUPGHOME"
+          chmod 700 "$GNUPGHOME"
+          # A workflow has no terminal to ask on, so the passphrase is handed to
+          # gpg rather than prompted for. It is written where only this job's
+          # keyring can read it and leaves with the container.
+          if [ -n "$PASSPHRASE" ]; then
+            printf '%s' "$PASSPHRASE" > "$GNUPGHOME/passphrase"
+            chmod 600 "$GNUPGHOME/passphrase"
+            {
+              echo "pinentry-mode loopback"
+              echo "passphrase-file $GNUPGHOME/passphrase"
+            } > "$GNUPGHOME/gpg.conf"
+            echo "allow-loopback-pinentry" > "$GNUPGHOME/gpg-agent.conf"
+          fi
+          printf '%s' "$SIGNING_KEY" | gpg --batch --quiet --import
+          fingerprint=$(gpg --list-secret-keys --with-colons | awk -F: '/^fpr:/ { print $10; exit }')
+          if [ -z "$fingerprint" ]; then
+            echo "::error::PACMAN_SIGNING_KEY carried no secret key" >&2
+            exit 1
+          fi
+          # Its own key, so that verifying what it just signed is not a warning.
+          echo "$fingerprint:6:" | gpg --batch --import-ownertrust
+          echo "GNUPGHOME=$GNUPGHOME" >> "$GITHUB_ENV"
+          echo "fingerprint=$fingerprint" >> "$GITHUB_OUTPUT"
+          echo "signed=true" >> "$GITHUB_OUTPUT"
+
+      # The published branch is the repository's state: it carries the
+      # architectures this release did not build, which is what lets `aarch64`
+      # (#185) arrive without every reader reconfiguring anything.
+      - name: Fetch what is published
+        if: steps.key.outputs.signed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          remote="https://x-access-token:$GH_TOKEN@github.com/${GITHUB_REPOSITORY}.git"
+          if ! git clone --depth 1 --branch gh-pages "$remote" /tmp/pages 2>/dev/null; then
+            echo "No gh-pages branch yet, so this release starts one"
+            git init --initial-branch=gh-pages /tmp/pages
+            git -C /tmp/pages remote add origin "$remote"
+          fi
+
+      - name: Publish the package to the repository
+        if: steps.key.outputs.signed == 'true'
+        run: |
+          package=$(find artifacts -maxdepth 1 -name '*.pkg.tar.*' ! -name '*.sig' -print)
+          scripts/publish_repo.sh --package "$package" --repo-dir /tmp/pages \
+            --key "${{ steps.key.outputs.fingerprint }}"
+          # Pages runs Jekyll over a branch unless told not to, and Jekyll drops
+          # files whose names begin with an underscore or a dot.
+          touch /tmp/pages/.nojekyll
+
+      - name: Serve it
+        if: steps.key.outputs.signed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd /tmp/pages
+          git config user.name "Ville Kivelä"
+          git config user.email "5814559+villekivela@users.noreply.github.com"
+          git add --all
+          # One commit, replacing whatever was there. The branch holds packages,
+          # and a branch that keeps every package it has ever served would grow
+          # by the size of a browser at every release and never shrink, for a
+          # history nobody reads: the releases are this project's archive.
+          git checkout --orphan published
+          git commit --quiet --message "Serve Omaweb ${GITHUB_REF_NAME}"
+          git push --force origin published:gh-pages
+          {
+            echo
+            echo "## Published to the pacman repository"
+            echo
+            echo "\`${GITHUB_REF_NAME}\` is served from the \`gh-pages\` branch."
+          } >> "$GITHUB_STEP_SUMMARY"
