@@ -35,7 +35,7 @@ fix: finish schema query before legacy migration
 test: cover space restoration after restart
 ```
 
-CI checks every commit after `35e01d4`. Earlier commits are retained as historical exceptions. Two
+CI checks every commit after `35e01d4`. Earlier commits are retained as historical exceptions. Three
 published commits after the baseline exceed the 72-character limit and are exempt by full hash in
 `scripts/check_commit_messages.sh`.
 
@@ -53,6 +53,16 @@ six entries and a reader has to work out that five of them repair the first. Squ
 history where it belongs, on the branch and in the pull request, and leaves `main` with the change
 itself.
 
-GitHub fills the squash commit's subject from the pull request title, so the title has to follow the
-convention above: CI checks the commit, not the pull request, and a title that was written as a
-sentence fails the branch it lands on rather than the one it came from.
+GitHub fills the squash commit's subject from the pull request title and appends ` (#123)` to it, so
+a title has 64 characters rather than the subject's 72, and it has to follow the convention above.
+CI checks the commit, not the pull request, so a title that is too long or written as a sentence
+fails on the branch it lands on rather than the one it came from. Check one before opening a pull
+request:
+
+```sh
+scripts/check_commit_messages.sh --pr-title "fix(ui): keep the divider off the page"
+```
+
+The squash commit's body is the messages of the commits being squashed, so the prose written on the
+branch is the prose that lands. A description is free to be a review aid, with headings and
+checklists, because it is not what `main` keeps.

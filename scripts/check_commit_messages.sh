@@ -25,12 +25,41 @@ check_subject() {
 is_historical_exception() {
     case "$1" in
         b2a076730c42a96dbc46052af3289878b149b4c6 | \
-            48127cd012b1cf83b885b0a7d543b39b84620a02)
+            48127cd012b1cf83b885b0a7d543b39b84620a02 | \
+            c97277fe7e90dd7040ef46e6d6b90426b880e26a)
             return 0
             ;;
     esac
     return 1
 }
+
+# The subject a squash merge writes is the pull request title with ` (#123)`
+# appended by GitHub, so a title that fits inside the limit lands over it. This
+# is the budget a title actually has: the limit, less the longest reference the
+# repository is going to grow into.
+readonly reference_room=8
+
+check_pull_request_title() {
+    local title="$1"
+    if (( ${#title} + reference_room > 72 )); then
+        return 1
+    fi
+    check_subject "$title"
+}
+
+if [[ "${1:-}" == "--pr-title" ]]; then
+    if (( $# != 2 )); then
+        echo "usage: $0 --pr-title <title>" >&2
+        exit 2
+    fi
+    if ! check_pull_request_title "$2"; then
+        echo "invalid pull request title: $2" >&2
+        echo "a squash merge appends the number, so a title has $((72 - reference_room))" \
+            "characters" >&2
+        exit 1
+    fi
+    exit 0
+fi
 
 if [[ "${1:-}" == "--message" ]]; then
     if (( $# != 2 )); then
