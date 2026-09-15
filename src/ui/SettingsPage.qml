@@ -89,6 +89,9 @@ Rectangle {
         browser: root.browser
         pageAddress: root.browser ? root.browser.activeUrl : ""
     }
+    // What Omaweb knows about its own age, so About can say whether this build
+    // is current and offer the reader the switch that stops it asking.
+    property var releaseWatch: null
     property bool useFavicons: true
     property bool tintFavicons: false
     property bool floatingControls: true
@@ -1772,6 +1775,39 @@ Rectangle {
                         wrapMode: Text.WordWrap
                         font.family: Style.font.family
                         font.pixelSize: Style.font.caption
+                    }
+
+                    // What the daily check found. It is stated here as well as
+                    // marked in the outline footer, because About is where a
+                    // reader comes to ask how old their browser is.
+                    Text {
+                        objectName: "aboutNewerRelease"
+                        visible: !!root.releaseWatch && root.releaseWatch.announcing
+                        width: pane.width
+                        text: root.releaseWatch && root.releaseWatch.announcing ? "Omaweb "
+                                                                                  + root.releaseWatch.release
+                                                                                  + " is out. "
+                                                                                  + root.releaseWatch.instruction :
+                                                                                  ""
+                        color: root.colors.text
+                        wrapMode: Text.WordWrap
+                        font.family: Style.font.family
+                        font.pixelSize: Style.font.body
+                    }
+
+                    SettingToggle {
+                        objectName: "checkForReleases"
+                        visible: !!root.releaseWatch
+                        width: pane.width
+                        colors: root.colors
+                        title: "Check for new releases"
+                        note: "Asks GitHub once a day what the newest release is, and sends nothing about this machine."
+                        accessibleName: "Check for new releases"
+                        checked: !!root.releaseWatch && root.releaseWatch.checkEnabled
+                        onClicked: {
+                            if (root.releaseWatch)
+                                root.releaseWatch.checkEnabled = !checked;
+                        }
                     }
 
                     // Being the default browser is the desktop's setting, so it

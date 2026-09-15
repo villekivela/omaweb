@@ -29,6 +29,9 @@ Rectangle {
                                               && root.sync.login.length > 0
     readonly property bool activeSync: root.authenticatedSync && root.sync.enabled
     property var downloads: null
+    // What Omaweb knows about its own age. Null in the UI lab and in tests,
+    // where nothing asks GitHub anything.
+    property var releaseWatch: null
     property bool savedFileNoticeShowing: false
 
     // An empty pinned section takes no room at all.
@@ -228,6 +231,7 @@ Rectangle {
         return Qt.rect(corner.x, corner.y, addressButton.width, addressButton.height);
     }
     signal downloadsRequested
+    signal releaseNotesRequested(url notes)
     // What the reader asked Site information for, on its way to the window's
     // own dialog. The outline states; the window asks.
     signal siteActionRequested(string action)
@@ -1037,6 +1041,25 @@ Rectangle {
             font.pixelSize: Style.font.iconLarge
             Accessible.role: Accessible.StaticText
             Accessible.name: "Private window"
+        }
+
+        ReleaseMark {
+            id: releaseMark
+            objectName: "releaseMark"
+            anchors.right: downloadMark.visible ? downloadMark.left : (syncMark.visible
+                                                                       ? syncMark.left :
+                                                                         settingsButton.left)
+            anchors.rightMargin: 4
+            anchors.verticalCenter: parent.verticalCenter
+            width: 26
+            height: 26
+            colors: root.colors
+            iconFontFamily: root.iconFontFamily
+            watch: root.releaseWatch
+            privateWindow: root.privateWindow
+            onNotesRequested: function (notes) {
+                root.releaseNotesRequested(notes);
+            }
         }
 
         DownloadMark {

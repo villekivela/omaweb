@@ -1,5 +1,6 @@
 #include "BrowserController.h"
 #include "ContentBlocker.h"
+#include "ReleaseWatch.h"
 #include "EngineCapabilities.h"
 #include "FaviconTint.h"
 #include "DefaultBrowser.h"
@@ -294,6 +295,13 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty(QStringLiteral("windowManager"), &windowManager);
     engine.rootContext()->setContextProperty(
         QStringLiteral("syncLauncher"), static_cast<QObject *>(nullptr));
+    // A release the lab is behind, so the Release mark is there to be reviewed.
+    // The lab asks GitHub nothing: what is being drawn is the mark, and the
+    // answer it would get depends on when somebody last cut a release.
+    static omaweb::ReleaseWatch releaseWatch(
+        QStringLiteral("0.0.1"), omaweb::ReleaseWatch::Ask::Never);
+    releaseWatch.showRelease(QStringLiteral("v9.9.9"));
+    engine.rootContext()->setContextProperty(QStringLiteral("releaseWatch"), &releaseWatch);
     engine.rootContext()->setContextProperty(
         QStringLiteral("engineViewSource"), QUrl(QStringLiteral(OMAWEB_ENGINE_VIEW_URL)));
     engine.rootContext()->setContextProperty(

@@ -5951,6 +5951,47 @@ TestCase {
         findChild(window.contentItem, "pageNotice").dismiss();
     }
 
+    // The mark's own rules, asked of a stand-in watch. What is behind it — the
+    // version comparison, the once-a-day question, the dismissal — is answered
+    // in C++ and checked in tst_releasecheck.
+    function test_theFooterMarksAReleaseTheReaderHasNotSeen() {
+        const outline = findChild(window.contentItem, "sidebar");
+        const mark = findChild(outline, "releaseMark");
+        verify(mark !== null);
+        // No watch at all, as the UI lab runs. The mark is not shown and asks
+        // the watch nothing.
+        tryCompare(mark, "visible", false);
+
+        const watch = Qt.createQmlObject('import QtQuick\nQtObject {\n'
+                                         + '    property bool announcing: true\n'
+                                         + '    property string release: "v9.9.9"\n'
+                                         + '    property string instruction: "Upgrade with the rest of the system: pacman -Syu"\n'
+                                         + '    property url notes: "https://example.invalid/releases/tag/v9.9.9"\n'
+                                         + '    property int dismissed: 0\n'
+                                         + '    function dismiss() { dismissed = dismissed + 1; }\n'
+                                         + '}', mark, "releaseMarkStandIn");
+        mark.watch = watch;
+        tryCompare(mark, "visible", true);
+        compare(mark.Accessible.name, "Omaweb v9.9.9 is out");
+        compare(mark.Accessible.description, "Upgrade with the rest of the system: pacman -Syu");
+
+        // A Private window says nothing about this installation, and its age is
+        // something about this installation.
+        mark.privateWindow = true;
+        tryCompare(mark, "visible", false);
+        mark.privateWindow = false;
+        tryCompare(mark, "visible", true);
+
+        // Selecting it opens the notes and has told the reader, so the mark
+        // goes. Nothing is installed by the browser either way.
+        mark.clicked();
+        compare(watch.dismissed, 1);
+
+        mark.watch = null;
+        tryCompare(mark, "visible", false);
+        watch.destroy();
+    }
+
     function test_theFooterMarksTheDownloadsStillRunning() {
         openPage("https://mirror.example/library");
         const host = window.spaceProfileHost;

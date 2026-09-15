@@ -174,6 +174,10 @@ add_library(omaweb-core STATIC
     src/core/RetainedTab.h
     src/core/SessionSiteState.cpp
     src/core/SessionSiteState.h
+    src/core/ReleaseCheck.cpp
+    src/core/ReleaseCheck.h
+    src/core/ReleaseWatch.cpp
+    src/core/ReleaseWatch.h
     src/core/PrivateSessionStore.cpp
     src/core/PrivateSessionStore.h
     src/core/SessionStore.h
@@ -481,6 +485,7 @@ set(omaweb_ui_files
     src/ui/PanelResizer.qml
     src/ui/SiteNotifications.qml
     src/ui/SiteTile.qml
+    src/ui/ReleaseMark.qml
     src/ui/SpaceOutline.qml
     src/ui/SpaceProfiles.qml
     src/ui/StartPage.qml
@@ -544,6 +549,7 @@ endfunction()
 function(omaweb_configure_qml target engine_view engine_profile engine_module)
     target_compile_definitions(${target} PRIVATE
         OMAWEB_VERSION="${OMAWEB_VERSION_STRING}"
+        OMAWEB_VERSION_DERIVED=$<BOOL:${OMAWEB_VERSION_DERIVED}>
         OMAWEB_UI_DIRECTORY="${CMAKE_CURRENT_SOURCE_DIR}/src/ui"
     )
 
@@ -897,6 +903,13 @@ if(BUILD_TESTING)
     omaweb_strict_target(omaweb-download-policy-tests)
     add_test(NAME omaweb-download-policy COMMAND omaweb-download-policy-tests)
 
+    qt_add_executable(omaweb-release-check-tests
+        tests/core/tst_releasecheck.cpp
+    )
+    target_link_libraries(omaweb-release-check-tests PRIVATE omaweb-core Qt6::Test)
+    omaweb_strict_target(omaweb-release-check-tests)
+    add_test(NAME omaweb-release-check COMMAND omaweb-release-check-tests)
+
     qt_add_executable(omaweb-content-blocker-tests
         tests/content-blocking/tst_contentmatcher.cpp
     )
@@ -1138,6 +1151,7 @@ if(BUILD_TESTING)
         )
         target_compile_definitions(omaweb-ui-tests PRIVATE
             OMAWEB_VERSION="${OMAWEB_VERSION_STRING}"
+            OMAWEB_VERSION_DERIVED=$<BOOL:${OMAWEB_VERSION_DERIVED}>
             OMAWEB_DEFAULT_KEYBINDINGS_PATH="${CMAKE_CURRENT_SOURCE_DIR}/assets/keybindings/default.json"
             QUICK_TEST_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/ui"
             OMAWEB_MOCK_ENGINE_VIEW_URL="file://${CMAKE_CURRENT_SOURCE_DIR}/src/ui-lab/MockEngineView.qml"
