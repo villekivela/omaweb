@@ -193,24 +193,27 @@ QByteArray measurementScript(int settleMilliseconds)
         settled: false,
     };
     const publish = () => { document.title = JSON.stringify(state); };
-    const styleNode = id => document.getElementById(id);
-    // The document-creation script appends the site stylesheet as soon as the
-    // first element exists, which may be after this script runs, so the watch
-    // waits for the node rather than assuming it.
-    const watch = () => {
-        const style = styleNode("__omaweb_content_blocking");
-        if (!style) return false;
-        state.siteStyleWatched = true;
-        new MutationObserver(records => {
-            state.siteStyleMutations += records.length;
-            publish();
-        }).observe(style, { childList: true, characterData: true, subtree: true });
-        return true;
+    const sheetFor = id =>
+        document.adoptedStyleSheets.find(sheet => sheet.omawebSheetId === id);
+    const bytes = sheet => {
+        if (!sheet) return 0;
+        let length = 0;
+        for (const rule of sheet.cssRules) length += rule.cssText.length;
+        return length;
     };
-    if (!watch()) {
-        const waiting = new MutationObserver(() => { if (watch()) waiting.disconnect(); });
-        waiting.observe(document, { childList: true, subtree: true });
-    }
+    // The document-creation script adopts the site stylesheet before this one
+    // runs, so the sheet is already there to count writes on. A page that
+    // drops it gets another, which is why the count is against the id rather
+    // than the object first seen.
+    state.siteStyleWatched = Boolean(sheetFor("__omaweb_content_blocking"));
+    const replaceSync = CSSStyleSheet.prototype.replaceSync;
+    CSSStyleSheet.prototype.replaceSync = function (rules) {
+        if (this.omawebSheetId === "__omaweb_content_blocking") {
+            state.siteStyleMutations += 1;
+            publish();
+        }
+        return replaceSync.call(this, rules);
+    };
     new PerformanceObserver(list => {
         for (const entry of list.getEntries()) {
             if (entry.name === "first-paint") state.firstPaint = entry.startTime;
@@ -227,10 +230,8 @@ QByteArray measurementScript(int settleMilliseconds)
     setTimeout(() => {
         // What the page ended up hiding, so two builds can be compared on the
         // blocking they actually delivered and not only on what it cost.
-        const site = styleNode("__omaweb_content_blocking");
-        const generic = styleNode("__omaweb_content_blocking_generic");
-        state.siteStyleBytes = site ? site.textContent.length : 0;
-        state.genericStyleBytes = generic ? generic.textContent.length : 0;
+        state.siteStyleBytes = bytes(sheetFor("__omaweb_content_blocking"));
+        state.genericStyleBytes = bytes(sheetFor("__omaweb_content_blocking_generic"));
         const sample = Array.from(document.querySelectorAll("div")).slice(0, 200);
         state.hiddenSample =
             sample.filter(node => getComputedStyle(node).display === "none").length;

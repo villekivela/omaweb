@@ -1311,9 +1311,9 @@ void QtEngineContractTest::qtHidesCosmeticRulesBeforeThePageRuns_data()
 {
     QTest::addColumn<QByteArray>("tamper");
     QTest::addColumn<int>("writes");
-    QTest::newRow("unchanged") << QByteArray() << 0;
-    QTest::newRow("missing") << QByteArray("style.remove();") << 0;
-    QTest::newRow("changed") << QByteArray("style.textContent = '';") << 2;
+    QTest::newRow("unchanged") << QByteArray() << 1;
+    QTest::newRow("dropped") << QByteArray("document.adoptedStyleSheets = [];") << 0;
+    QTest::newRow("cleared") << QByteArray("sheet.replaceSync('');") << 2;
     QTest::newRow("redirect") << QByteArray("redirect") << 0;
 }
 
@@ -1321,7 +1321,15 @@ void QtEngineContractTest::qtHidesCosmeticRulesBeforeThePageRuns()
 {
     QFETCH(QByteArray, tamper);
     QFETCH(int, writes);
-    const QByteArray body(R"HTML(<!doctype html><html><body>
+    // The policy refuses inline style, which is what a page's own <style>
+    // element carries and what an ad-hiding rule would arrive as. A rule that
+    // stops hiding under a policy hides nothing on the sites that send one, so
+    // every row here is read under one. Inline script is allowed back because
+    // the page reports what it can see by running one.
+    const QByteArray body(R"HTML(<!doctype html><html><head>
+        <meta http-equiv="Content-Security-Policy"
+              content="default-src 'self'; script-src 'unsafe-inline'">
+        </head><body>
         <div id="specific" class="local-ad">ad</div>
         <div id="generic" class="generic-ad">ad</div>
         <div id="article" class="story">article</div>
@@ -1331,12 +1339,14 @@ void QtEngineContractTest::qtHidesCosmeticRulesBeforeThePageRuns()
             const state = () => (hidden("specific") ? "S" : "-")
                 + (hidden("generic") ? "G" : "-") + (hidden("article") ? "A" : "-");
             const first = state();
-            const style = document.getElementById("__omaweb_content_blocking");
+            const sheet = document.adoptedStyleSheets.find(
+                adopted => adopted.omawebSheetId === "__omaweb_content_blocking");
             let writes = 0;
-            if (style) {
-                new MutationObserver(records => { writes += records.length; })
-                    .observe(style, { childList: true });
-            }
+            const replaceSync = CSSStyleSheet.prototype.replaceSync;
+            CSSStyleSheet.prototype.replaceSync = function (rules) {
+                if (this === sheet) writes += 1;
+                return replaceSync.call(this, rules);
+            };
             TAMPER
             const report = () => {
                 document.title = first + "|" + state() + "|" + writes;

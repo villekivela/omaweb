@@ -26,15 +26,15 @@ COUNTER_PROPERTIES = """    property bool cosmeticRulesInjected: false
 
 GENERIC_CLEAR_CALL = (
     "        webView.runJavaScript(root.styleSheetSnippet("
-    'root.genericCosmeticElementId, ""));\n'
+    'root.genericCosmeticSheetId, ""));\n'
 )
 
 ENGINE_VIEW_EDITS = [
     ("    property bool cosmeticRulesInjected: false\n", COUNTER_PROPERTIES),
     (
-        "        webView.runJavaScript(root.styleSheetSnippet(root.cosmeticElementId, css));\n",
+        "        webView.runJavaScript(root.styleSheetSnippet(root.cosmeticSheetId, css));\n",
         "        root.cosmeticScriptCalls += 1;\n"
-        "        webView.runJavaScript(root.styleSheetSnippet(root.cosmeticElementId, css));\n",
+        "        webView.runJavaScript(root.styleSheetSnippet(root.cosmeticSheetId, css));\n",
     ),
     (
         GENERIC_CLEAR_CALL,
