@@ -1,6 +1,6 @@
 # Contributing
 
-Omaweb is pre-alpha. Linux and Wayland are the distribution target and the only platform CI builds.
+Omaweb is alpha. Linux and Wayland are the distribution target and the only platform CI builds.
 macOS is a development platform whose bundles are never distributed. The Ladybird build stays
 experimental until its embedding and security contracts are ready. Patches for the Linux and macOS
 Qt builds are the most useful thing to send.

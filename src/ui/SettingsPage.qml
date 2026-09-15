@@ -1768,9 +1768,14 @@ Rectangle {
                         font.pixelSize: Style.font.body
                     }
 
+                    // The stage, and where the specifics are. What this build
+                    // verifies and what it leaves to the reader is the Security
+                    // section's to state, row by row, rather than a caption's
+                    // to summarise into advice about what to browse.
                     Text {
                         width: pane.width
-                        text: "Pre-alpha. Do not use it for sensitive browsing yet."
+                        text: "Alpha. Expect bugs. The Security section states what this build "
+                              + "verifies and what it leaves to you."
                         color: root.colors.mutedText
                         wrapMode: Text.WordWrap
                         font.family: Style.font.family
