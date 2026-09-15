@@ -5977,13 +5977,21 @@ TestCase {
         // The reader looking straight at it gets the same answer the screen
         // reader does. Omaweb's chrome draws no tooltip unless it is asked to,
         // so nothing but this says the instruction was asked for.
-        compare(mark.tooltipText,
-                "Omaweb v9.9.9 is out\nUpgrade with the rest of the system: pacman -Syu");
+        const tip = findChild(mark, "releaseMarkToolTip");
+        verify(tip !== null);
+        compare(tip.text, "Omaweb v9.9.9 is out\nUpgrade with the rest of the system: pacman -Syu");
+        // Not the icon face. The mark draws its glyph in Material Symbols, and
+        // the kit's button hands its own `fontFamily` to the tooltip it draws
+        // itself, so a sentence there arrives as glyph soup. Compared against
+        // the mark's own icon font rather than against a named family, because
+        // what matters is that the two are not the same one.
+        verify(tip.fontFamily.length > 0);
+        verify(tip.fontFamily !== mark.iconFontFamily);
 
         // Between knowing the release and knowing who owns the binary there is
         // no instruction to give, and the tooltip is the version alone.
         watch.instruction = "";
-        tryCompare(mark, "tooltipText", "Omaweb v9.9.9 is out");
+        tryCompare(tip, "text", "Omaweb v9.9.9 is out");
         watch.instruction = "Upgrade with the rest of the system: pacman -Syu";
 
         // A Private window says nothing about this installation, and its age is

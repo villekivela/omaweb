@@ -1,4 +1,6 @@
 import QtQuick
+import qs.Commons
+import qs.Ui as Omarchy
 
 // The outline footer control for a newer Omaweb. It appears when a release the
 // reader has not seen exists, and is gone the rest of the time: this is a
@@ -48,7 +50,6 @@ ChromeButton {
                                                                  "Omaweb " + root.watch.release
                                                                  + " is out")
 
-    tooltipText: root.summary
     accessibleName: root.announcing ? "Omaweb " + root.watch.release + " is out" : ""
     Accessible.description: root.announcing ? root.watch.instruction : ""
 
@@ -57,5 +58,17 @@ ChromeButton {
             return;
         root.notesRequested(root.watch.notes);
         root.watch.dismiss();
+    }
+
+    // Declared here rather than set through the kit button's own `tooltipText`.
+    // That one draws in the button's `fontFamily`, which for a mark is the icon
+    // face, and a sentence set in Material Symbols is not a sentence. The kit's
+    // tooltip is still the one used, with the face the rest of the chrome reads
+    // in.
+    Omarchy.PanelToolTip {
+        objectName: "releaseMarkToolTip"
+        visible: root.announcing && (root.hot || root.activeFocus)
+        text: root.summary
+        fontFamily: Style.font.family
     }
 }
