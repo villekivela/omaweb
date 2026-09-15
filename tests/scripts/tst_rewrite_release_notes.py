@@ -232,6 +232,88 @@ class Fallback(unittest.TestCase):
             self.assertEqual(len(api.requests), rewrite.ATTEMPTS)
 
 
+class Layout(unittest.TestCase):
+    """`repair_layout` is what makes every release page the same shape.
+
+    Each repair is one the body cannot be wrong about: a title restating the
+    version, a heading with nothing under it, a body opening at `#`. What the
+    sections are called is asked for in the prompt instead, because naming them
+    is the judgement the model is there to make.
+    """
+
+    def test_a_title_restating_the_version_goes(self):
+        # What v0.1.0 and v0.3.0 open with, in both spellings. The release
+        # page's own h1 already carries the version.
+        for title in (
+            "## Omaweb v0.3.0",
+            "# Omaweb v0.1.0",
+            "# v0.4.0",
+            "## Release notes for v0.2.0",
+        ):
+            with self.subTest(title=title):
+                repaired = rewrite.repair_layout(f"{title}\n\n## Fixes\n\n- a fix.\n")
+                self.assertEqual(repaired, "## Fixes\n\n- a fix.")
+
+    def test_an_underlined_title_goes_with_its_underline(self):
+        repaired = rewrite.repair_layout(
+            "Release notes for v0.2.0\n========================\n\n## Fixes\n\n- a fix.\n"
+        )
+        self.assertEqual(repaired, "## Fixes\n\n- a fix.")
+
+    def test_a_section_named_for_a_version_is_not_a_title(self):
+        # Only a leading heading restates the page. One further down is a
+        # section a release chose to write.
+        body = "## Highlights\n\n- a thing.\n\n## v0.4.0 in detail\n\n- more.\n"
+        self.assertEqual(rewrite.repair_layout(body), body.strip())
+
+    def test_a_heading_with_nothing_under_it_goes(self):
+        self.assertEqual(
+            rewrite.repair_layout("## Breaking changes\n\n## Highlights\n\n- a thing.\n"),
+            "## Highlights\n\n- a thing.",
+        )
+        # Including the last one, where the body simply ends under it.
+        self.assertEqual(
+            rewrite.repair_layout("## Highlights\n\n- a thing.\n\n## Fixes\n"),
+            "## Highlights\n\n- a thing.",
+        )
+
+    def test_a_section_that_says_there_is_nothing_is_not_empty(self):
+        # v0.2.0's Breaking changes section is prose saying what did not break.
+        # That is content, and dropping it would lose the reassurance.
+        body = "## Breaking changes\n\nNothing, but note this.\n\n## Fixes\n\n- a fix."
+        self.assertEqual(rewrite.repair_layout(body), body)
+
+    def test_a_body_opening_at_h1_shifts_down(self):
+        self.assertEqual(
+            rewrite.repair_layout("# Highlights\n\n- a thing.\n\n# Fixes\n\n- a fix.\n"),
+            "## Highlights\n\n- a thing.\n\n## Fixes\n\n- a fix.",
+        )
+
+    def test_a_shift_keeps_the_difference_between_levels(self):
+        # Shifted rather than clamped: the depth is the only thing a body's
+        # own levels were saying, so it survives the move.
+        self.assertEqual(
+            rewrite.repair_layout("# Highlights\n\n- a thing.\n\n## Detail\n\n- more.\n"),
+            "## Highlights\n\n- a thing.\n\n### Detail\n\n- more.",
+        )
+
+    def test_nothing_inside_a_fence_is_a_heading(self):
+        # `# ` starts a shell comment as readily as it starts a heading, and a
+        # release that tells a reader to type one must publish it unchanged.
+        body = "## Fixes\n\n```sh\n# a comment in a command\nomaweb --version\n```"
+        self.assertEqual(rewrite.repair_layout(body), body)
+
+    def test_a_body_already_in_shape_is_left_alone(self):
+        body = "## Breaking changes\n\n- a break.\n\n## Fixes\n\n- a fix."
+        self.assertEqual(rewrite.repair_layout(body), body)
+
+    def test_a_body_that_is_only_a_title_is_refused(self):
+        # Repaired to nothing, so there is nothing to publish. The generated
+        # commit list goes out instead, which is the right fallback.
+        with self.assertRaises(rewrite.Unavailable):
+            rewrite.as_published("## Omaweb v0.3.0\n", GENERATED)
+
+
 class Answers(unittest.TestCase):
     """`finish` is the gate between what the model said and what publishes."""
 

@@ -19,9 +19,14 @@ published unattended and nothing reviews it in between:
 - The compare URL survives. It is the one line that makes the commit detail
   reachable, so it is carried over from the generated notes rather than left to
   the rewrite to reproduce.
-- The compare URL is the only such guarantee. `website/build/render.mjs`
-  parses CommonMark, so what the model writes is what the release page shows
-  and the notes are not constrained by what a parser happens to understand.
+- The compare URL survives, carried over from the generated notes rather than
+  left to the rewrite to reproduce.
+- The layout is repaired rather than trusted. `repair_layout` drops a title
+  restating the version, drops a heading with nothing under it, and shifts a
+  body that opens at `#` down to `##`. Repaired rather than refused: refusing
+  publishes the generated commit list, which is a worse page than a heading in
+  the wrong place. What the sections are called is asked for in the prompt,
+  because naming them is the judgement the model is there to make.
 
 Usage:
 
@@ -87,6 +92,103 @@ MINIMUM_LENGTH = 40
 CHANGELOG = re.compile(r"^\*\*Full changelog\*\*: .*$", re.MULTILINE)
 ISSUE_REFERENCE = re.compile(r"#(\d{1,6})\b")
 
+# A heading, either way Markdown writes one. `SETEXT` needs the line above it,
+# so it is matched against the pair rather than a single line.
+ATX = re.compile(r"^(?P<hashes>#{1,6})\s+(?P<text>.*?)\s*#*\s*$")
+SETEXT = re.compile(r"^(?P<rule>=+|-+)\s*$")
+
+# A fenced block holds a command to type, and `# ` starts a shell comment as
+# readily as it starts a heading. Nothing inside a fence is markup.
+FENCE = re.compile(r"^\s{0,3}(?:`{3,}|~{3,})")
+
+# What a title restating the release looks like. The version alone, or the
+# project's name and the version, with or without the words around them: the
+# page already heads the notes with the version, so any of these says it twice.
+TITLE = re.compile(
+    r"^(?:release\s+notes?\s*(?:for)?\s*)?(?:omaweb\s*)?v?\d[\w.+-]*\s*"
+    r"(?:release\s*notes?)?$",
+    re.IGNORECASE,
+)
+
+
+def headings(body: str) -> list[tuple[int, int, str]]:
+    """Every heading as `(line, level, text)`, both spellings, in order."""
+    lines = body.split("\n")
+    found = []
+    fenced = False
+    for number, line in enumerate(lines):
+        if FENCE.match(line):
+            fenced = not fenced
+            continue
+        if fenced:
+            continue
+        atx = ATX.match(line)
+        if atx:
+            found.append((number, len(atx.group("hashes")), atx.group("text").strip()))
+            continue
+        rule = SETEXT.match(line)
+        # A rule underlines the line above it only when that line is text. With
+        # a blank line above it is a thematic break, which heads nothing.
+        if rule and number and lines[number - 1].strip() and not ATX.match(lines[number - 1]):
+            level = 1 if rule.group("rule").startswith("=") else 2
+            found.append((number - 1, level, lines[number - 1].strip()))
+    return found
+
+
+def drop_heading(lines: list[str], line: int, level: int) -> None:
+    """Blank out the heading at `line`, and the rule under it when it has one."""
+    lines[line] = ""
+    under = line + 1
+    if under < len(lines) and SETEXT.match(lines[under]) and not ATX.match(lines[line]):
+        lines[under] = ""
+    del level
+
+
+def repair_layout(body: str) -> str:
+    """The shape a release page can head, out of the shape the model wrote.
+
+    Three repairs, each unambiguous enough to make without guessing at prose. A
+    body that needs none comes back as it went in. Refusing any of these would
+    publish the generated commit list instead, which is a worse page than a
+    title in the wrong place.
+    """
+    lines = body.split("\n")
+
+    # A leading title restates the version the page's own `h1` already carries.
+    # Only a leading one: `## v0.4.0 in detail` further down is a section.
+    marks = headings(body)
+    if marks:
+        line, level, text = marks[0]
+        if not any(lines[index].strip() for index in range(line)) and TITLE.match(text):
+            drop_heading(lines, line, level)
+            marks = marks[1:]
+
+    # A section that heads nothing is noise. The prompt says so; this is what
+    # enforces it. The last heading counts too, when the body ends under it.
+    for index, (line, level, _) in enumerate(marks):
+        following = marks[index + 1][0] if index + 1 < len(marks) else len(lines)
+        under = range(line + 1, following)
+        if not any(lines[number].strip() and not SETEXT.match(lines[number]) for number in under):
+            drop_heading(lines, line, level)
+
+    body = "\n".join(lines)
+
+    # The page's outline starts under its own `h2`, so a body opens at `##`.
+    # Shifted rather than clamped: a body written `#`/`##` keeps the difference
+    # between its levels, which is the only thing its depth was saying.
+    marks = headings(body)
+    if marks and min(level for _, level, _ in marks) < 2:
+        lines = body.split("\n")
+        for line, level, text in reversed(marks):
+            under = line + 1
+            if under < len(lines) and SETEXT.match(lines[under]):
+                lines[under] = ""
+            lines[line] = f"{'#' * min(level + 1, 6)} {text}"
+        body = "\n".join(lines)
+
+    # Repairs leave blank lines where they took something out.
+    return re.sub(r"\n{3,}", "\n\n", body).strip()
+
 SYSTEM = """\
 You write the release notes for Omaweb, a web browser. You are given the notes \
 generated from the commit range, the commit bodies behind them, and the issues \
@@ -104,6 +206,11 @@ reporting the repair as news is reporting a state that never shipped.
 about what a reader has to do. Write that heading only when the range has one: \
 a heading that announces nothing is noise, so leave the section out entirely \
 rather than heading it and saying none. The same goes for every other section.
+- Put repairs last, under a `## Fixes` heading, when the range has any left \
+after folding. Those two headings are the skeleton and they are the only names \
+fixed in advance; name the sections between them for what actually changed, \
+because `## Linux platform integration` tells a reader more than `## What's \
+new` does.
 - Say only what the commits and issues say. You have no other source for this \
 project's behavior, so anything you cannot point at in the input does not go in \
 the notes.
@@ -115,9 +222,11 @@ repeat it.
 else. Internal work, refactors, and test changes belong in the commit list, \
 which the compare URL reaches.
 
-Format: Markdown, starting at `##` for the sections. Do not wrap the whole \
-answer in a fence and do not introduce it. The first line is the first line of \
-the notes.\
+Format: Markdown, starting at `##` for the sections. Never write a `#` \
+heading, and do not open with a title naming the release: the page these notes \
+become already heads them with the version, so a title repeats it. Do not wrap \
+the whole answer in a fence and do not introduce it. The first line is the \
+first line of the notes.\
 """
 
 
@@ -300,6 +409,10 @@ def as_published(rewritten: str, generated: str) -> str:
     either the notes as they go out, or `Unavailable`."""
     if len(rewritten) < MINIMUM_LENGTH:
         raise Unavailable("the answer was too short to be notes")
+
+    rewritten = repair_layout(rewritten)
+    if len(rewritten) < MINIMUM_LENGTH:
+        raise Unavailable("the answer was a layout with nothing under it")
 
     # A compare URL the model wrote is a URL nobody checked, and one that names
     # the wrong range reads exactly like one that names the right one. Whatever
