@@ -494,6 +494,109 @@ TestCase {
         compare(browser.preference("http-authentication", "missing"), "missing");
     }
 
+    // The bar is hidden rather than destroyed between prompts, so a credential
+    // left in a field outlives the question it answered.
+    function test_authenticationPromptKeepsNoCredentialAfterItCloses() {
+        const engine = openPage("https://leftover.example/private");
+        const bar = findChild(window.contentItem, "browserPromptBar");
+        const user = findChild(bar, "browserPromptUser");
+        const password = findChild(bar, "browserPromptPassword");
+        verify(user !== null);
+        verify(password !== null);
+
+        engine.simulateHttpAuthentication("https://leftover.example", "Members");
+        tryVerify(function () {
+            return bar.visible;
+        });
+        user.text = "reader";
+        password.text = "secret";
+        bar.submit(true);
+        compare(engine.lastPromptResponse.user, "reader");
+        compare(engine.lastPromptResponse.password, "secret");
+        compare(user.text, "");
+        compare(password.text, "");
+
+        engine.simulateHttpAuthentication("https://leftover.example", "Members");
+        tryVerify(function () {
+            return bar.visible;
+        });
+        compare(user.text, "");
+        compare(password.text, "");
+        user.text = "reader";
+        password.text = "secret";
+        bar.submit(false);
+        compare(engine.lastPromptAccepted, false);
+        compare(user.text, "");
+        compare(password.text, "");
+
+        engine.simulateHttpAuthentication("https://leftover.example", "Members");
+        tryVerify(function () {
+            return bar.visible;
+        });
+        password.text = "secret";
+        window.refuseRequestsFrom(engine);
+        verify(!window.browserPromptOpen);
+        compare(password.text, "");
+    }
+
+    // The routes out that never reach the Sign in or Cancel button: the key
+    // that dismisses the bar, and the page the question belonged to being
+    // replaced under it.
+    function test_authenticationPromptKeepsNoCredentialWhenItIsDroppedUnanswered() {
+        const engine = openPage("https://dropped.example/private");
+        const bar = findChild(window.contentItem, "browserPromptBar");
+        const password = findChild(bar, "browserPromptPassword");
+
+        engine.simulateHttpAuthentication("https://dropped.example", "Members");
+        tryVerify(function () {
+            return bar.visible && bar.activeFocus;
+        });
+        password.text = "secret";
+        keyClick(Qt.Key_Escape);
+        verify(!window.browserPromptOpen);
+        compare(password.text, "");
+
+        engine.simulateHttpAuthentication("https://dropped.example", "Members");
+        tryVerify(function () {
+            return bar.visible;
+        });
+        password.text = "secret";
+        engine.currentUrl = "https://dropped.example/elsewhere";
+        window.presentBrowserPromptForActiveTab();
+        verify(!window.browserPromptOpen);
+        compare(password.text, "");
+    }
+
+    // A second tab asking while the first is still asking swaps the prompt
+    // under a bar that never closes.
+    function test_authenticationPromptKeepsNoCredentialAcrossTabs() {
+        const first = openPage("https://tab-one.example/private");
+        const firstTabId = browser.activeTabId;
+        const bar = findChild(window.contentItem, "browserPromptBar");
+        const password = findChild(bar, "browserPromptPassword");
+        first.simulateHttpAuthentication("https://tab-one.example", "Members");
+        tryVerify(function () {
+            return bar.visible;
+        });
+        password.text = "first secret";
+
+        const second = openPageInNewTab("https://tab-two.example/private");
+        second.simulateHttpAuthentication("https://tab-two.example", "Members");
+        tryVerify(function () {
+            return window.browserPromptOpen && window.pendingBrowserPrompt.origin
+                    === "https://tab-two.example";
+        });
+        compare(password.text, "");
+
+        password.text = "second secret";
+        browser.activateTab(firstTabId);
+        tryVerify(function () {
+            return window.browserPromptOpen && window.pendingBrowserPrompt.origin
+                    === "https://tab-one.example";
+        });
+        compare(password.text, "");
+    }
+
     function test_externalProtocolConfirmationNamesDestinationAndCanBeRemembered() {
         const engine = openPage("https://calendar.example/event");
         const destination = "webcal://calendar.example/team?id=42";

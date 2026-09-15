@@ -22,14 +22,26 @@ Item {
     visible: open
     focus: open
 
-    onOpenChanged: {
-        if (!open)
-            return;
-        answer.text = String(prompt.defaultText || "");
+    // The bar is hidden between prompts rather than destroyed, so a password
+    // typed into it stays resident in a live text input until something writes
+    // over the field. Every route out of a prompt clears it: the reader
+    // answering, the bar closing, and the prompt being swapped for another
+    // tab's while the bar stays up.
+    onOpenChanged: root.open ? root.showPrompt() : root.clearFields()
+    onPromptChanged: if (root.open)
+                         root.showPrompt()
+
+    function clearFields() {
+        answer.text = "";
         user.text = "";
         password.text = "";
         stopPrompts.checked = false;
         remember.checked = false;
+    }
+
+    function showPrompt() {
+        root.clearFields();
+        answer.text = String(root.prompt.defaultText || "");
         Qt.callLater(function () {
             if (root.asksForCredentials)
                 user.forceActiveFocus();
@@ -40,9 +52,17 @@ Item {
         });
     }
 
+    // Read out and cleared before the answer is emitted: what the emit sets off
+    // may leave this bar open on another prompt, and that prompt's fields are
+    // its own.
     function submit(accepted) {
-        root.answered(accepted, answer.text, user.text, password.text, stopPrompts.checked,
-                      remember.checked);
+        const answerText = answer.text;
+        const userText = user.text;
+        const passwordText = password.text;
+        const stopChecked = stopPrompts.checked;
+        const rememberChecked = remember.checked;
+        root.clearFields();
+        root.answered(accepted, answerText, userText, passwordText, stopChecked, rememberChecked);
     }
 
     Keys.onPressed: function (event) {
