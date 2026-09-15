@@ -73,9 +73,12 @@ signals:
 private:
     QString preference(const QString &name, const QString &fallback = {}) const;
     void remember(const QString &name, const QString &value);
-    // Asks pacman who owns the running binary, once, and only when there is a
-    // notice to put an instruction in.
+    // Asks pacman how this browser got here, once, and only when there is a
+    // notice to put an instruction in. Two questions in sequence, then the
+    // answer.
     void findOrigin();
+    void askWhetherForeign(const QString &packageName);
+    void settleOrigin(ReleaseCheck::Origin origin);
 
     QString m_runningVersion;
     Ask m_ask = Ask::GitHub;

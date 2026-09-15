@@ -13,9 +13,29 @@
 namespace omaweb::ReleaseCheck {
 
 // How the running browser got onto this machine, which is what decides the
-// instruction. A packaged build upgrades with the system; a build from a
-// checkout is rebuilt by whoever built it.
-enum class Origin { Package, Checkout };
+// instruction.
+enum class Origin {
+    // A package a repository carries, which is the only one `pacman -Syu`
+    // upgrades.
+    Repository,
+    // A package installed by hand from a file. pacman knows it is there and no
+    // repository offers a newer one, so a system upgrade passes over it in
+    // silence.
+    DownloadedPackage,
+    // No package owns the binary, or the package that does was built from the
+    // source tree. Either way it is rebuilt by whoever built it.
+    Checkout,
+};
+
+// Which of those the running binary came from, given what pacman answered:
+// whether any package owns it, whether that package is one no repository
+// carries, and what it is called.
+//
+// The distinction that matters is the middle one. `pacman -Qo` alone says a
+// package owns the binary and stops there, and a reader who installed a
+// downloaded release that way would be told to run `pacman -Syu`, which finds
+// nothing to upgrade and says so about nothing.
+Origin originOf(bool owned, bool foreign, const QString &packageName);
 
 // Whether the running version is older than the release the tag names. A build
 // carrying a commit count is past the tag it is named for, so it is never

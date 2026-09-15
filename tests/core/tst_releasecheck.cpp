@@ -6,6 +6,7 @@
 using omaweb::ReleaseCheck::Origin;
 
 Q_DECLARE_METATYPE(omaweb::ReleaseCheck::Question)
+Q_DECLARE_METATYPE(omaweb::ReleaseCheck::Origin)
 
 class ReleaseCheckTest final : public QObject {
     Q_OBJECT
@@ -27,7 +28,10 @@ private slots:
     void sendsTheReaderToTheListWhenATagHasNoPage();
     void asksAgainTheNextDay_data();
     void asksAgainTheNextDay();
+    void readsHowTheBrowserGotHere_data();
+    void readsHowTheBrowserGotHere();
     void tellsAPackagedReaderToUpgradeWithTheSystem();
+    void tellsAHandInstalledReaderWhatASystemUpgradeWillNotDo();
     void tellsACheckoutReaderWhereTheVersionIs();
     void announcesAReleaseTheReaderHasNotSeen();
     void keepsQuiet_data();
@@ -225,12 +229,52 @@ void ReleaseCheckTest::asksAgainTheNextDay()
     QCOMPARE(omaweb::ReleaseCheck::due(lastCheck, now), due);
 }
 
+void ReleaseCheckTest::readsHowTheBrowserGotHere_data()
+{
+    QTest::addColumn<bool>("owned");
+    QTest::addColumn<bool>("foreign");
+    QTest::addColumn<QString>("packageName");
+    QTest::addColumn<Origin>("origin");
+
+    QTest::newRow("from the repository")
+        << true << false << QStringLiteral("omaweb") << Origin::Repository;
+    // The case `pacman -Qo` alone cannot see: pacman knows the package is
+    // there, and no repository has a newer one to give it.
+    QTest::newRow("a downloaded release, installed by hand")
+        << true << true << QStringLiteral("omaweb") << Origin::DownloadedPackage;
+    QTest::newRow("makepkg -si from a checkout")
+        << true << true << QStringLiteral("omaweb-git") << Origin::Checkout;
+    QTest::newRow("no package owns it") << false << false << QString() << Origin::Checkout;
+}
+
+void ReleaseCheckTest::readsHowTheBrowserGotHere()
+{
+    QFETCH(bool, owned);
+    QFETCH(bool, foreign);
+    QFETCH(QString, packageName);
+    QFETCH(Origin, origin);
+
+    QCOMPARE(omaweb::ReleaseCheck::originOf(owned, foreign, packageName), origin);
+}
+
 void ReleaseCheckTest::tellsAPackagedReaderToUpgradeWithTheSystem()
 {
     const auto instruction
-        = omaweb::ReleaseCheck::upgradeInstruction(Origin::Package, QStringLiteral("v0.5.0"));
+        = omaweb::ReleaseCheck::upgradeInstruction(Origin::Repository, QStringLiteral("v0.5.0"));
 
     QVERIFY(instruction.contains(QStringLiteral("pacman -Syu")));
+}
+
+// `pacman -Syu` passes over a package no repository carries, so telling this
+// reader to run it would be telling them to watch nothing happen.
+void ReleaseCheckTest::tellsAHandInstalledReaderWhatASystemUpgradeWillNotDo()
+{
+    const auto instruction = omaweb::ReleaseCheck::upgradeInstruction(
+        Origin::DownloadedPackage, QStringLiteral("v0.5.0"));
+
+    QVERIFY(!instruction.contains(QStringLiteral("pacman -Syu")));
+    QVERIFY(instruction.contains(QStringLiteral("pacman -U")));
+    QVERIFY(instruction.contains(QStringLiteral("v0.5.0")));
 }
 
 // A checkout build is not owned by any package, so the command that upgrades a

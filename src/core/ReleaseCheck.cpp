@@ -166,10 +166,32 @@ bool announce(const Question &question)
     return true;
 }
 
+Origin originOf(bool owned, bool foreign, const QString &packageName)
+{
+    if (!owned) {
+        return Origin::Checkout;
+    }
+    if (!foreign) {
+        return Origin::Repository;
+    }
+    // Foreign, so no repository offers it. A `-git` package is one makepkg
+    // built from a checkout, which is pulled and built again rather than
+    // downloaded.
+    return packageName.endsWith(QStringLiteral("-git")) ? Origin::Checkout
+                                                        : Origin::DownloadedPackage;
+}
+
 QString upgradeInstruction(Origin origin, const QString &releaseTag)
 {
-    if (origin == Origin::Package) {
+    switch (origin) {
+    case Origin::Repository:
         return QStringLiteral("Upgrade with the rest of the system: pacman -Syu");
+    case Origin::DownloadedPackage:
+        return QStringLiteral(
+            "Install %1 with pacman -U, or add the Omaweb repository to upgrade with the system.")
+            .arg(releaseTag);
+    case Origin::Checkout:
+        break;
     }
     return QStringLiteral("This build came from a checkout. Pull %1 and build it again.")
         .arg(releaseTag);

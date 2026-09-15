@@ -137,33 +137,69 @@ void ReleaseWatch::findOrigin()
         return;
     }
 
-    // Whether a package owns the running binary is what decides the
-    // instruction: a reader who installed the package upgrades with the system,
-    // and a build from a checkout is rebuilt by whoever built it.
+    // Two questions, because one is not enough. `pacman -Qo` says whether a
+    // package owns the running binary; `pacman -Qm` says whether that package
+    // is one no repository carries. A reader who installed a downloaded release
+    // by hand answers yes to both, and telling them to run `pacman -Syu` would
+    // be telling them to watch a system upgrade pass their browser over.
     //
-    // Asked of pacman rather than guessed from where the binary sits, and asked
-    // without waiting: this ends up in a QML binding, and a process that takes
-    // its time would take the window with it.
+    // Asked without waiting: this ends up in a QML binding, and a process that
+    // takes its time would take the window with it.
     m_askingOrigin = true;
-    auto *pacman = new QProcess(this);
-    connect(
-        pacman, &QProcess::finished, this, [this, pacman](int code, QProcess::ExitStatus status) {
-            pacman->deleteLater();
-            m_askingOrigin = false;
-            // A machine with no pacman, and one where nothing owns the binary,
-            // arrive here the same way and mean the same thing.
-            m_origin = status == QProcess::NormalExit && code == 0 ? ReleaseCheck::Origin::Package
-                                                                   : ReleaseCheck::Origin::Checkout;
-            emit changed();
-        });
-    connect(pacman, &QProcess::errorOccurred, this, [this, pacman] {
-        pacman->deleteLater();
-        m_askingOrigin = false;
-        m_origin = ReleaseCheck::Origin::Checkout;
-        emit changed();
+    auto *owner = new QProcess(this);
+    connect(owner, &QProcess::finished, this, [this, owner](int code, QProcess::ExitStatus status) {
+        owner->deleteLater();
+        const auto owned = status == QProcess::NormalExit && code == 0;
+        if (!owned) {
+            // No pacman, or nothing owns the binary. Both mean a build run from
+            // where it was built.
+            settleOrigin(ReleaseCheck::originOf(false, false, {}));
+            return;
+        }
+        // "/usr/bin/omaweb is owned by omaweb 0.5.0-1", whose second-to-last
+        // word is the name the next question needs.
+        const auto answer = QString::fromUtf8(owner->readAllStandardOutput()).trimmed();
+        const auto words = answer.split(QLatin1Char(' '), Qt::SkipEmptyParts);
+        if (words.size() < 2) {
+            settleOrigin(ReleaseCheck::originOf(false, false, {}));
+            return;
+        }
+        askWhetherForeign(words.at(words.size() - 2));
     });
-    pacman->start(
+    connect(owner, &QProcess::errorOccurred, this, [this, owner] {
+        owner->deleteLater();
+        settleOrigin(ReleaseCheck::Origin::Checkout);
+    });
+    owner->start(
         QStringLiteral("pacman"), {QStringLiteral("-Qo"), QCoreApplication::applicationFilePath()});
+}
+
+void ReleaseWatch::askWhetherForeign(const QString &packageName)
+{
+    auto *foreign = new QProcess(this);
+    connect(foreign, &QProcess::finished, this,
+        [this, foreign, packageName](int code, QProcess::ExitStatus status) {
+            foreign->deleteLater();
+            // `pacman -Qm <name>` succeeds for a package no repository carries
+            // and fails for one a repository does.
+            const auto unlistedAnywhere = status == QProcess::NormalExit && code == 0;
+            settleOrigin(ReleaseCheck::originOf(true, unlistedAnywhere, packageName));
+        });
+    connect(foreign, &QProcess::errorOccurred, this, [this, foreign, packageName] {
+        foreign->deleteLater();
+        // pacman answered the first question and not the second. A package that
+        // is owned is at least installed, so the reader is told what to install
+        // rather than told to rebuild something they never built.
+        settleOrigin(ReleaseCheck::originOf(true, true, packageName));
+    });
+    foreign->start(QStringLiteral("pacman"), {QStringLiteral("-Qm"), packageName});
+}
+
+void ReleaseWatch::settleOrigin(ReleaseCheck::Origin origin)
+{
+    m_askingOrigin = false;
+    m_origin = origin;
+    emit changed();
 }
 
 QUrl ReleaseWatch::notes() const
