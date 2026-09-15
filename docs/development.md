@@ -109,15 +109,16 @@ the Rust wrapper, its manifest, or its lockfile.
 
 ### What CI runs
 
-`.github/workflows/ci.yml` runs six jobs, on a pull request and on a push to `main`. `style` runs
+`.github/workflows/ci.yml` runs seven jobs, on a pull request and on a push to `main`. `style` runs
 the formatters, `qmllint`, the website's own policy check and the release-page tests;
-`commit-messages` checks every non-merge subject in the range; and three Arch containers build the
-tree: `arch-linux` under clang, which goes on to build the `release` preset and load the compiled
-QML, `arch-linux-gcc` under GCC, and `arch-package` through `scripts/check_package.sh`.
+`commit-messages` checks every non-merge subject in the range; and four Arch containers build and
+publish the tree: `arch-linux` under clang, which goes on to build the `release` preset and load the
+compiled QML, `arch-linux-gcc` under GCC, `arch-package` through `scripts/check_package.sh`, and
+`pacman-repo` through `scripts/check_repo_publish.sh`.
 
-Those three take around ten minutes each, and a change confined to `docs/`, `website/` or Markdown
-cannot break a compile, so a `changes` job decides whether they run at all. It prints the files it
-decided on, and the same question can be asked of any range:
+Those four cost between two and ten minutes each, and a change confined to `docs/`, `website/` or
+Markdown cannot break a compile, so a `changes` job decides whether they run at all. It prints the
+files it decided on, and the same question can be asked of any range:
 
 ```sh
 scripts/source_changed.sh origin/main
@@ -271,6 +272,21 @@ that tool is offered nothing rather than offered something that fails.
 from yet, so the version comes from the nearest release tag through `git describe`, which is where
 CMake takes it from as well, and the two cannot disagree
 ([ADR 0028](adr/0028-derive-the-version-from-the-release-tag.md)).
+
+Two packages come out of that one file. `omaweb-git` is what `makepkg -si` builds from a checkout,
+and it keeps the `-git` name because that is what pacman reads as a package to be rebuilt from
+source. `omaweb` is the binary package the pacman repository serves, and
+
+```sh
+scripts/make_release_pkgbuild.sh --version 0.5.0 --output <dir>
+```
+
+writes it. The two differ in four lines: the name, a version fixed by the tag instead of computed
+from a checkout the reader of a binary package does not have, a `conflicts` on each other, and a
+source naming the tag. Everything else — every dependency, the release preset, the inventory, the
+window-rule notice — is the same file, so the two cannot drift apart while nothing reports it. The
+script checks that each line it rewrites was there to rewrite, so a rename in `packaging/PKGBUILD`
+fails the derivation rather than quietly producing a package missing the change.
 
 Qt is a dependency rather than a bundle, which is
 [ADR 0013](adr/0013-preserve-engine-sandboxes-in-every-build.md)'s Linux packaging decision: an
@@ -510,6 +526,46 @@ Commit subjects since the previous tag with `scripts/release_notes.sh`, and publ
 the Arch package and its inventory. Every `v0.*` tag is marked a prerelease. macOS bundles are
 development artifacts and are not attached ([ADR 0029](adr/0029-distribute-only-for-linux.md)). See
 [ADR 0028](adr/0028-derive-the-version-from-the-release-tag.md).
+
+### The pacman repository
+
+A release is also an upgrade. The workflow publishes the `omaweb` package to a pacman repository on
+the `gh-pages` branch, so a reader who has Omaweb gets the next version from their own `pacman -Syu`
+rather than from noticing that one was released.
+
+```sh
+scripts/publish_repo.sh --package <file.pkg.tar.zst> --repo-dir <dir> --key <signing key>
+```
+
+signs the package, writes the signed `omaweb.db` and `omaweb.files` databases with `repo-add`, and
+removes the package the replaced database entry named. The repository holds one version per
+architecture: the GitHub releases are this project's archive, and serving history would make the
+branch a second one. Packages sit under an architecture directory from the first commit, which is
+what lets `aarch64` ([#185](https://github.com/villekivela/omaweb/issues/185)) be added later as a
+build rather than as a change every reader makes to their `pacman.conf`. Each release replaces the
+branch with a single commit, because a branch that kept every package it ever served would grow by
+the size of a browser each time.
+
+`repo-add` links `omaweb.db` to `omaweb.db.tar.gz`, and a static host serves files rather than
+following links, so the short names are written as copies. Without that the repository answers 404
+for the only name a client asks for.
+
+```sh
+scripts/check_repo_publish.sh
+```
+
+runs that whole path against a throwaway key and a scratch directory: it derives the binary
+PKGBUILD, signs and publishes two versions of a stand-in package, checks that the second one
+replaced the first, and, as root, installs from the repository with a pacman that trusts nothing but
+the signing key. The CI job `pacman-repo` runs it on every change. The reason it exists is that the
+first real run of a publishing path is otherwise a release, and by then the release is already out.
+
+The signing key is the one piece of setup a human does. It is a signing subkey whose private half is
+the `PACMAN_SIGNING_KEY` secret, with `PACMAN_SIGNING_KEY_PASSPHRASE` beside it when the export has
+one. Until that secret exists the `publish-repo` job says so in the job summary and ends green: the
+release publishes, and readers install it by hand. The repository is unserved until the first tag
+after the key lands, and the README gains the `[omaweb]` block and the key fingerprint then, because
+instructions for a repository that answers nothing are worse than none.
 
 `scripts/rewrite_release_notes.py` then rewrites that commit list into notes addressed to a reader,
 from the commit bodies in the range, the issues they reference, and the glossary in

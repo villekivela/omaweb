@@ -61,7 +61,7 @@ jobs:
       - name: Check commit messages
         run: scripts/check_commit_messages.sh
 
-  # The three Arch jobs below take around ten minutes each, and a change
+  # The four Arch jobs below cost between two and ten minutes each, and a change
   # confined to prose or the website cannot break a build, so they are asked
   # rather than assumed. `scripts/source_changed.sh` is the answer and the
   # reasoning both: it prints the files it decided on, so a pull request whose
@@ -189,6 +189,28 @@ jobs:
         run: su builder -c 'cmake --build --preset ci'
       - name: Test
         run: su builder -c 'ctest --preset ci'
+
+  # The publishing path a release takes to reach `pacman -Syu`. It is the one
+  # part of a release that has no dry run of its own: the first time it matters
+  # is a tag, and by then the release is already out. `check_repo_publish.sh`
+  # runs everything but the upload against a throwaway key and a scratch
+  # directory, so what a tag day carries is an upload rather than a first run.
+  #
+  # Root, because pacman refuses to sync as anyone else even into a scratch
+  # root, and this installs from the repository it just published to prove a
+  # client accepts it.
+  pacman-repo:
+    needs: changes
+    if: needs.changes.outputs.source == 'true'
+    runs-on: ubuntu-latest
+    container: archlinux:base-devel
+    timeout-minutes: 10
+    steps:
+      - name: Install toolchain
+        run: pacman -Syu --noconfirm git gnupg
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Publish to a scratch repository and install from it
+        run: scripts/check_repo_publish.sh
 
   arch-package:
     needs: changes

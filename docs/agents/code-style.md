@@ -52,7 +52,7 @@ ctest --preset ci
 ```
 
 The build and the tests are the gate for a change a compiler reads. A change confined to `docs/`,
-`website/` or Markdown is not one, and CI skips its three Arch jobs for the same reason;
+`website/` or Markdown is not one, and CI skips its four Arch jobs for the same reason;
 `scripts/source_changed.sh <base>` answers which kind a range is.
 
 CI runs the formatters and rejects any resulting diff. It then runs `qmllint`, the build, and the
