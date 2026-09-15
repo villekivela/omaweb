@@ -95,15 +95,25 @@ while IFS= read -r required; do
 done <<< "$required_lines"
 
 echo "==> Making a throwaway signing key"
+# Passphrase-protected, and unlocked the way the release workflow unlocks the
+# real key: a passphrase file named in gpg.conf. The protection is not the point
+# — this key lives for the length of one script in a directory the script made —
+# but the configuration is. `repo-add` signs the database with a plain
+# `gpg --detach-sign`, passing neither `--batch` nor a passphrase, so whether
+# that signature can be made at all depends on gpg reading the file on its own.
+# A check holding an unprotected key answers a question the release never asks.
+printf '%s' "the passphrase this check makes up" > "$GNUPGHOME/passphrase"
+chmod 600 "$GNUPGHOME/passphrase"
+{
+    echo "batch"
+    echo "pinentry-mode loopback"
+    echo "passphrase-file $GNUPGHOME/passphrase"
+} > "$GNUPGHOME/gpg.conf"
+echo "allow-loopback-pinentry" > "$GNUPGHOME/gpg-agent.conf"
+
 # `never` rather than an expiry, because a key that expires mid-run would fail
 # the check for a reason that has nothing to do with the change being checked.
-#
-# No passphrase, and the loopback that lets gpg accept an empty one without
-# asking. A key that lives for the length of one script in a directory the
-# script made has nothing to protect, and gpg's default is to open a pinentry
-# window and put the question to whoever ran the check.
-gpg --batch --quiet --pinentry-mode loopback --passphrase "" \
-    --quick-generate-key \
+gpg --quiet --quick-generate-key \
     "Omaweb repository check <check@omaweb.invalid>" default default never
 fingerprint=$(gpg --list-secret-keys --with-colons | awk -F: '/^fpr:/ { print $10; exit }')
 [ -n "$fingerprint" ] || { echo "No key was generated" >&2; exit 1; }

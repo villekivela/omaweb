@@ -245,7 +245,14 @@ jobs:
           if [ -n "$PASSPHRASE" ]; then
             printf '%s' "$PASSPHRASE" > "$GNUPGHOME/passphrase"
             chmod 600 "$GNUPGHOME/passphrase"
+            # `batch` because gpg documents `passphrase-file` as read only in
+            # batch mode, and `repo-add` signs the database with a plain
+            # `gpg --detach-sign` that passes neither it nor a passphrase.
+            # gpg 2.4 in fact reads the file either way, so this is a hedge
+            # against a container whose gpg does what the documentation says
+            # rather than a repair of something seen failing.
             {
+              echo "batch"
               echo "pinentry-mode loopback"
               echo "passphrase-file $GNUPGHOME/passphrase"
             } > "$GNUPGHOME/gpg.conf"
