@@ -531,7 +531,9 @@ development artifacts and are not attached ([ADR 0029](adr/0029-distribute-only-
 
 A release is also an upgrade. The workflow publishes the `omaweb` package to a pacman repository on
 the `gh-pages` branch, so a reader who has Omaweb gets the next version from their own `pacman -Syu`
-rather than from noticing that one was released.
+rather than from noticing that one was released. What was decided and why is
+[ADR 0043](adr/0043-serve-upgrades-from-a-signed-pacman-repository.md); what follows is how to run
+it.
 
 ```sh
 scripts/publish_repo.sh --package <file.pkg.tar.zst> --repo-dir <dir> --key <signing key>
