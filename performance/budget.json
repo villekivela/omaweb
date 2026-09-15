@@ -1,10 +1,26 @@
 {
-  "machine": "provisional",
+  "machine": "not yet measured",
   "recorded_on": "",
   "measurements": {
-    "startup_seconds": { "ceiling": 999.0, "recorded": 0 },
-    "resident_megabytes": { "ceiling": 99999.0, "recorded": 0 },
-    "space_megabytes": { "ceiling": 99999.0, "recorded": 0 },
-    "frozen_growth_megabytes": { "ceiling": 99999.0, "recorded": 0 }
+    "startup_seconds": {
+      "ceiling": 999.0,
+      "recorded": 0,
+      "note": "process start to the first buffer on the toplevel's surface, median of three launches"
+    },
+    "memory_mebibytes": {
+      "ceiling": 99999.0,
+      "recorded": 0,
+      "note": "proportional set size of the whole process tree, one Space, one page"
+    },
+    "space_mebibytes": {
+      "ceiling": 99999.0,
+      "recorded": 0,
+      "note": "what each Space after the first adds, each holding the same page"
+    },
+    "frozen_growth_mebibytes": {
+      "ceiling": 99999.0,
+      "recorded": 0,
+      "note": "what an away Space's page goes on taking once frozen, against ADR 0033"
+    }
   }
 }

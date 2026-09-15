@@ -126,13 +126,19 @@ jobs:
         # `rust` carries cargo, which the content-blocker bootstrap needs. This
         # container ships nothing it is not told to.
         #
-        # `sway`, `wtype` and `qt6-wayland` belong to the runtime budget below:
+        # `cage`, `wtype` and `qt6-wayland` belong to the runtime budget below:
         # a compositor for the browser to map a window on, a key synthesiser
-        # for the compositor that has no dispatcher of its own, and the Wayland
+        # for a compositor that has no dispatcher of its own, and the Wayland
         # platform plugin the browser needs to talk to either.
+        #
+        # Cage rather than sway. Arch ships sway with `cap_sys_nice` file
+        # capabilities, and execing a file with capabilities the container
+        # cannot grant fails with EPERM before sway prints anything. Cage also
+        # is the smaller thing to ask for: one program under one compositor,
+        # which is exactly the shape of this step.
         run:
           pacman -Syu --noconfirm git cmake ninja clang ccache rust qt6-base qt6-declarative
-          qt6-webengine qt6-wayland libsecret libsodium sway wtype
+          qt6-webengine qt6-wayland libsecret libsodium cage wtype
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Take the build off root
         # A container runs as root, and Chromium refuses to start as root
@@ -160,18 +166,21 @@ jobs:
       # timing measured in this container would be a software rasteriser's
       # rather than a reader's, and those stay on the machines that have both.
       #
-      # Sway runs the script rather than the other way round: started as a
+      # Cage runs the script rather than the other way round: started as a
       # sibling it would have to be asked which socket it opened, and started
-      # as its `exec` it hands the script `WAYLAND_DISPLAY` and this job the
-      # script's own output. The status is carried out through a file because
-      # what the job has to exit with is the script's answer, not sway's.
+      # as its one program it hands the script `WAYLAND_DISPLAY` and this job
+      # the script's own output. The status is carried out through a file
+      # because what the job has to exit with is the script's answer, not the
+      # compositor's.
       - name: Measure startup and memory against the budget
         run: |
           rm -f /tmp/budget.status
-          cat > /tmp/sway.config <<'CONFIG'
-          exec "scripts/benchmark_runtime.py --browser build/ci/omaweb; echo $? > /tmp/budget.status; swaymsg exit"
-          CONFIG
-          chmod 0644 /tmp/sway.config
+          printf 'cd %s\n' "$GITHUB_WORKSPACE" > /tmp/measure.sh
+          cat >> /tmp/measure.sh <<'SCRIPT'
+          scripts/benchmark_runtime.py --browser build/ci/omaweb
+          echo $? > /tmp/budget.status
+          SCRIPT
+          chmod 0755 /tmp/measure.sh
           su builder -c '
             set -eu
             export XDG_RUNTIME_DIR=/tmp/runtime-builder
@@ -180,11 +189,13 @@ jobs:
             # wlroots with no card to open: the headless backend renders into
             # memory through pixman and offers one output, which is a Wayland
             # session for the browser to be measured on rather than a desktop.
+            # Cage says it cannot start an XWayland it has no binary for and
+            # carries on; nothing measured here is an X11 client.
             export WLR_BACKENDS=headless WLR_RENDERER=pixman WLR_LIBINPUT_NO_DEVICES=1
-            sway -c /tmp/sway.config
+            cage -- /tmp/measure.sh
           '
-          # No status file means sway never ran the script, which is a failed
-          # job rather than a budget nobody measured.
+          # No status file means the compositor never ran the script, which is
+          # a failed job rather than a budget nobody measured.
           exit "$(cat /tmp/budget.status 2>/dev/null || echo 1)"
 
       - name: Publish content-blocking compatibility

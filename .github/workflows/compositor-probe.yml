@@ -17,12 +17,12 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Install candidates
-        run: pacman -Syu --noconfirm sway cage weston wtype libcap
+        run: pacman -Syu --noconfirm sway cage wtype libcap
       - name: Take the probe off root
         run: useradd --create-home --shell /bin/bash builder
       - name: Look at the binaries
         run: |
-          for binary in sway cage weston wtype; do
+          for binary in sway cage wtype; do
             path=$(command -v "$binary" || echo missing)
             echo "== $binary: $path"
             [ "$path" = missing ] && continue
@@ -42,8 +42,6 @@ jobs:
             echo "== cage"
             timeout 20 cage -- /bin/sh -c "echo cage ran, display is \$WAYLAND_DISPLAY"
             echo "cage exit $?"
-            echo "== weston"
-            timeout 20 weston --backend=headless --socket=wayland-9 &
-            sleep 5
-            ls -l "$XDG_RUNTIME_DIR" || true
+            echo "== wtype under cage"
+            timeout 30 cage -- /bin/sh -c "wtype -k a; echo wtype exit \$?" || true
           '

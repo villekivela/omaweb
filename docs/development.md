@@ -926,9 +926,12 @@ Four measurements, one subcommand each, so a developer can run the one they are 
   Space was on show is printed beside it as the control, and a page that did not grow there fails
   the run rather than passing it, because a flat line means nothing without one.
 
-It writes nothing outside the throwaway directories it launches its own browser on, so unlike the
-theme repaint and the default browser it needs no opt-in guard. It does take the keyboard focus
-while it runs. Off a Wayland display, or without a built browser, it says it skipped and succeeds.
+It writes nothing outside the throwaway directories it launches its own browser on, `--record`
+aside, so unlike the theme repaint and the default browser it needs no opt-in guard. It does take
+the keyboard focus while it runs. Off a Wayland display, without a built browser, or with no way to
+synthesise a key, it says it skipped and succeeds. A browser that fails to map a window, Spaces that
+never open and an allocator page that never allocates are not skips: each of those fails the run,
+because each is either a broken browser or a number that would mean nothing.
 
 CI runs it inside the `arch-linux` job, against the build that job has already made, under a sway on
 the headless backend. What it measures there is what needs no hardware. Time to first paint and

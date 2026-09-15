@@ -15,10 +15,10 @@ Four measurements, each its own subcommand so a developer can run the one they a
 - `freezing` puts away a Space whose page allocates on a timer and reports how much it went on
   taking, which is the claim ADR 0033 makes and nothing checked.
 
-This writes nothing outside the throwaway directories it launches its own browser on, and it
-launches that browser on a private session bus, so unlike the theme and default-browser checks it
-needs no opt-in guard: it puts nothing back because it put nothing anywhere. It does take the
-keyboard focus while it runs.
+This writes nothing outside the throwaway directories it launches its own browser on, `--record`
+aside, which writes the measurements into the budget in this repository. It launches that browser on
+a private session bus, so unlike the theme and default-browser checks it needs no opt-in guard: it
+puts nothing back because it put nothing anywhere. It does take the keyboard focus while it runs.
 
 The window mapping is read from the browser's own Wayland protocol log rather than from a
 compositor, because CI's compositor is not the reader's. `WAYLAND_DEBUG=1` costs about a thousand
@@ -33,6 +33,8 @@ the shared pages once per process.
 Keys reach the browser through Hyprland's own dispatcher where there is one, which aims them at the
 window under test, and through `wtype` otherwise, which aims them wherever focus is. A live desktop
 therefore keeps its keystrokes; a headless compositor with one window has nowhere else to put them.
+That second half is why the keyboard here is not `omaweb_session`'s: that one drives a live Hyprland
+and reads `hyprctl clients` back, and CI has neither.
 
 Usage:
 
@@ -140,8 +142,23 @@ TOPLEVEL_SURFACE = re.compile(r"-> xdg_wm_base#\d+\.get_xdg_surface\(new id xdg_
                               r"wl_surface#(\d+)\)")
 
 
-class BenchmarkError(RuntimeError):
-    """The machine cannot run this measurement, which is not a crossed budget."""
+class Unavailable(RuntimeError):
+    """This machine cannot take the measurement, which is not a failed one.
+
+    A desktop with no Wayland display, no built browser or no key synthesiser has nothing to say
+    about the budget, and a developer running the suite on one should not be told their change
+    broke something.
+    """
+
+
+class MeasurementFailed(RuntimeError):
+    """The browser did not do what the measurement needed, which is a failed run.
+
+    A launch that never mapped a window, Spaces that never opened, an allocator page that never
+    allocated: each is either a broken browser or a number that would mean nothing, and both are
+    worth a red gate. Keeping this apart from `Unavailable` is the difference between a budget that
+    catches a regression and one that reports `skipped` and exits zero.
+    """
 
 
 def log(message: str) -> None:
@@ -168,7 +185,7 @@ class Keyboard:
             subprocess.run(["hyprctl", "version"], capture_output=True, text=True,
                            check=False).stdout.strip())
         if not self.hyprland and shutil.which("wtype") is None:
-            raise BenchmarkError(
+            raise Unavailable(
                 "neither Hyprland nor wtype is here, and these measurements need a keyboard")
 
     def focus(self) -> None:
@@ -218,17 +235,25 @@ class Keyboard:
 
 
 def read_pss_kib(pid: int) -> int:
+    """One process's proportional set size, or nothing for a process that has gone.
+
+    The engine starts and ends processes while this reads them, and one that ended between the
+    scan and the read holds nothing. One that is still there and cannot be read is different: it
+    holds memory this would silently leave out of the total, so it is worth the run.
+    """
     try:
         with open(f"/proc/{pid}/smaps_rollup", encoding="utf-8") as handle:
             for line in handle:
                 if line.startswith("Pss:"):
                     return int(line.split()[1])
-    except (OSError, IndexError, ValueError):
-        return 0
+    except (OSError, IndexError, ValueError) as error:
+        if os.path.exists(f"/proc/{pid}"):
+            raise MeasurementFailed(f"process {pid} is running and its memory cannot be read: "
+                                    f"{error}") from error
     return 0
 
 
-def children_of() -> dict[int, list[int]]:
+def children_by_parent() -> dict[int, list[int]]:
     tree: dict[int, list[int]] = {}
     for entry in os.scandir("/proc"):
         if not entry.name.isdigit():
@@ -244,7 +269,7 @@ def children_of() -> dict[int, list[int]]:
 
 def tree_mib(root: int) -> float:
     """Proportional set size of a process and everything below it, in mebibytes."""
-    tree = children_of()
+    tree = children_by_parent()
     total = 0
     pending = [root]
     while pending:
@@ -306,7 +331,7 @@ class Browser:
         while time.time() < deadline:
             assert self.process is not None
             if self.process.poll() is not None:
-                raise BenchmarkError("the browser under test exited before it mapped a window")
+                raise MeasurementFailed("the browser under test exited before it mapped a window")
             with open(self.log_path, encoding="utf-8", errors="replace") as handle:
                 handle.seek(position)
                 for line in handle:
@@ -321,7 +346,7 @@ class Browser:
                         return time.time()
                 position = handle.tell()
             time.sleep(0.002)
-        raise BenchmarkError("the browser under test never mapped a window")
+        raise MeasurementFailed("the browser under test never mapped a window")
 
     def await_title(self, fragment: str) -> None:
         """Waits for the browser to name the page in its window title.
@@ -333,15 +358,18 @@ class Browser:
         """
         deadline = time.time() + READY_TIMEOUT
         wanted = f'set_title("{fragment}'
+        position = 0
         while time.time() < deadline:
             assert self.process is not None
             if self.process.poll() is not None:
-                raise BenchmarkError("the browser under test exited before it loaded a page")
+                raise MeasurementFailed("the browser under test exited before it loaded a page")
             with open(self.log_path, encoding="utf-8", errors="replace") as handle:
+                handle.seek(position)
                 if any(wanted in line for line in handle):
                     return
+                position = handle.tell()
             time.sleep(0.1)
-        raise BenchmarkError(f"the browser never showed a page titled {fragment!r}")
+        raise MeasurementFailed(f"the browser never showed a page titled {fragment!r}")
 
     @property
     def startup_seconds(self) -> float:
@@ -363,7 +391,7 @@ class Browser:
         engine's children, which carry the same name.
         """
         name = os.path.basename(self.executable)[:15]
-        tree = children_of()
+        tree = children_by_parent()
         pending = list(tree.get(self.pid, []))
         while pending:
             candidate = pending.pop(0)
@@ -374,7 +402,7 @@ class Browser:
             except OSError:
                 pass
             pending += tree.get(candidate, [])
-        raise BenchmarkError("the browser's own process is not under the launcher this started")
+        raise MeasurementFailed("the browser's own process is not under the launcher this started")
 
     def memory_mib(self) -> float:
         return tree_mib(self.pid)
@@ -471,7 +499,7 @@ def open_space(keyboard: Keyboard, workspace: Workspace, name: str, expected: in
         # Whatever took the keys, this closes, so the next attempt starts where the first did.
         keyboard.press("Escape")
     else:
-        raise BenchmarkError(f"the browser would not open Space {expected}")
+        raise MeasurementFailed(f"the browser would not open Space {expected}")
     keyboard.press("Primary+L")
     keyboard.write(url or workspace.page_url)
     keyboard.press("Return")
@@ -507,7 +535,7 @@ def measure_memory(executable: str) -> dict:
         browser.start(workspace.page_url)
         browser.await_title(PROBE_TITLE)
         time.sleep(LOAD_SETTLE)
-        return {"resident_megabytes": browser.memory_mib()}
+        return {"memory_mebibytes": browser.memory_mib()}
     finally:
         browser.stop()
         workspace.discard()
@@ -534,8 +562,8 @@ def measure_spaces(executable: str, count: int) -> dict:
         browser.stop()
         workspace.discard()
     if opened != count:
-        raise BenchmarkError(f"asked for {count} Spaces and the browser made {opened}")
-    return {"space_megabytes": (last - first) / max(count - 1, 1)}
+        raise MeasurementFailed(f"asked for {count} Spaces and the browser made {opened}")
+    return {"space_mebibytes": (last - first) / max(count - 1, 1)}
 
 
 def measure_freezing(executable: str) -> dict:
@@ -576,11 +604,12 @@ def measure_freezing(executable: str) -> dict:
         browser.stop()
         workspace.discard()
     if opened != 2:
-        raise BenchmarkError(f"this needs two Spaces to put one away, and the browser made {opened}")
+        raise MeasurementFailed(
+            f"this needs two Spaces to put one away, and the browser made {opened}")
     if grew <= 0:
-        raise BenchmarkError("the away Space's page never grew while it was on show, so its not "
-                             "growing afterwards says nothing about Freezing")
-    return {"frozen_growth_megabytes": growth}
+        raise MeasurementFailed("the away Space's page never grew while it was on show, so its "
+                                "not growing afterwards says nothing about Freezing")
+    return {"frozen_growth_mebibytes": growth}
 
 
 MEASUREMENTS = {
@@ -601,21 +630,16 @@ def report(results: dict, budget: dict) -> int:
     crossed = 0
     units = {"startup_seconds": "s"}
     log("")
-    log(f"budget recorded on: {budget['machine']}")
+    taken = budget["recorded_on"]
+    log(f"ceilings recorded on: {budget['machine']}, {taken}" if taken else "ceilings: not yet")
     log("")
     for name, value in results.items():
-        threshold = thresholds[name]
+        ceiling = thresholds[name]["ceiling"]
         unit = units.get(name, "MiB")
-        if "ceiling" in threshold:
-            over = value > threshold["ceiling"]
-            against = f"ceiling {threshold['ceiling']:.1f} {unit}"
-        else:
-            over = value < threshold["floor"]
-            against = f"floor {threshold['floor']:.1f} {unit}"
+        over = value > ceiling
         crossed += int(over)
-        headroom = abs(value - threshold.get("ceiling", threshold.get("floor")))
         log(f"{'CROSSED' if over else 'within '}  {name}: {value:.2f} {unit} "
-            f"against {against} ({headroom:.2f} {unit} of headroom)")
+            f"against {ceiling:.2f} {unit} ({ceiling - value:.2f} {unit} of headroom)")
     log("")
     return crossed
 
@@ -646,6 +670,7 @@ def main() -> int:
                         help="launches to take the median startup from")
     parser.add_argument("--spaces", type=int, default=4,
                         help="how many Spaces to open, the first one included")
+
     parser.add_argument("--record", action="store_true",
                         help="write the measurements into the budget as its recorded numbers")
     arguments = parser.parse_args()
@@ -653,6 +678,10 @@ def main() -> int:
     unknown = [name for name in arguments.measurement if name not in MEASUREMENTS]
     if unknown:
         parser.error(f"no such measurement: {', '.join(unknown)}")
+    if arguments.repetitions < 1:
+        parser.error("a median needs at least one launch")
+    if arguments.spaces < 2:
+        parser.error("a per-Space cost needs at least two Spaces")
 
     if not os.access(arguments.browser, os.X_OK):
         log(f"skipped: {arguments.browser} is not built")
@@ -663,18 +692,25 @@ def main() -> int:
 
     budget = load_budget()
     results: dict[str, float] = {}
+    failure = ""
     for name in arguments.measurement or list(MEASUREMENTS):
         log(f"{name}:")
         try:
             results.update(MEASUREMENTS[name](arguments))
-        except BenchmarkError as error:
+        except Unavailable as error:
             log(f"skipped: {error}")
             return 0
+        except MeasurementFailed as error:
+            # The measurements already taken are still worth printing: a run that fell over on the
+            # fourth one has three numbers in it, and the report is where the drift shows.
+            log(f"FAILED  {name}: {error}")
+            failure = name
+            break
 
     crossed = report(results, budget)
-    if arguments.record:
+    if arguments.record and not failure:
         record(results, budget)
-    return 1 if crossed else 0
+    return 1 if crossed or failure else 0
 
 
 if __name__ == "__main__":
