@@ -206,6 +206,112 @@ img {
   color: var(--fg);
   border-bottom-color: var(--line-normal);
 }
+/* A phone has no room beside the wordmark, so there the nav folds into a
+   menu: a button at the right of the header row, and the four entries stacked
+   under it when it is open, each a row tall enough to tap. The list hangs
+   below the header over the page rather than in the flow, so opening it does
+   not shove the hero down, and it carries a pane of its own since the
+   header's ends at the header's edge. The script reveals the button and
+   marks the header closed, so with the script blocked the entries stand in a
+   row under the wordmark and the page is still navigable. Above the
+   breakpoint the button is gone and the nav ignores the mark, so a window
+   widened with the menu shut does not lose its links. */
+.t-nav-toggle {
+  display: none;
+  margin-left: auto;
+  padding: var(--sp-xs) var(--sp-md);
+  border: 1px solid var(--line-normal);
+  border-radius: var(--radius);
+  background: var(--fill-normal);
+  color: var(--muted);
+  cursor: pointer;
+}
+.t-nav-toggle:hover,
+.t-nav-toggle[aria-expanded="true"] {
+  background: var(--fill-hover);
+  border-color: var(--line-hover);
+  color: var(--fg);
+}
+/* The icon turns a quarter as the bars give way to the cross, so the change
+   of state reads as one move rather than a swap. */
+.t-nav-toggle svg {
+  display: block;
+  width: 1.5em;
+  height: 1.5em;
+  transition: transform 220ms cubic-bezier(0.2, 0, 0, 1);
+}
+.t-nav-toggle[aria-expanded="true"] svg {
+  transform: rotate(90deg);
+}
+.t-nav-toggle[aria-expanded="false"] .t-nav-toggle__close,
+.t-nav-toggle[aria-expanded="true"] .t-nav-toggle__open {
+  display: none;
+}
+@media (max-width: 31.999rem) {
+  .t-nav-toggle:not([hidden]) {
+    display: inline-flex;
+  }
+  .t-nav {
+    position: absolute;
+    top: 100%;
+    /* Out to the page's edges: the header sits inside the wrap's gutters. */
+    inset-inline: calc(var(--sp-huge) * -1);
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+    padding: var(--sp-md) var(--sp-huge) var(--sp-lg);
+    /* The header's glass, with a denser ground and no lift: the header
+       stands over the rain, while this hangs over the hero's type, which
+       blurs to a paler field than the pane's recipe was mixed for. */
+    background:
+      linear-gradient(to bottom, color-mix(in srgb, var(--fg) 7%, transparent), transparent 40%),
+      color-mix(in srgb, var(--bg) 60%, transparent);
+    border-bottom: 1px solid var(--line-quiet);
+    box-shadow: 0 var(--sp-lg) calc(var(--sp-huge) * 1.5) color-mix(in srgb, #000 35%, transparent);
+    -webkit-backdrop-filter: blur(14px) saturate(160%);
+    backdrop-filter: blur(14px) saturate(160%);
+  }
+  .t-nav a {
+    padding-block: var(--sp-lg);
+    border-bottom: 0;
+  }
+  /* Opening: the pane drops in from just above where it lands and the rows
+     follow it one after another, a few frames apart. Closing runs the same
+     the other way, faster and without the stagger, since a reader who has
+     shut the menu is done with it. `visibility` rides on the transition, so
+     the closed list is out of the tab order and under no finger, but not
+     until the fade has finished. */
+  .t-nav,
+  .t-nav a {
+    transition:
+      opacity 200ms cubic-bezier(0.2, 0, 0, 1),
+      transform 200ms cubic-bezier(0.2, 0, 0, 1),
+      visibility 200ms;
+  }
+  .t-nav a {
+    transition-delay: calc(40ms * var(--row));
+  }
+  .t-nav a:nth-child(1) {
+    --row: 1;
+  }
+  .t-nav a:nth-child(2) {
+    --row: 2;
+  }
+  .t-nav a:nth-child(3) {
+    --row: 3;
+  }
+  .t-nav a:nth-child(4) {
+    --row: 4;
+  }
+  .t-top[data-menu="closed"] .t-nav,
+  .t-top[data-menu="closed"] .t-nav a {
+    opacity: 0;
+    transform: translateY(calc(var(--sp-md) * -1));
+    visibility: hidden;
+    transition-duration: 120ms;
+    transition-delay: 0s;
+  }
+}
 
 .t-status {
   margin: 0 0 0 auto;
@@ -261,6 +367,13 @@ img {
      edge of the page rather than a step below it. */
   margin-top: calc(var(--sp-huge) * -1);
   padding-block: var(--sp-xl);
+}
+/* Tighter on a phone, where the header is sticky and every pixel it takes is
+   taken from the page under it. */
+@media (max-width: 31.999rem) {
+  .t-top {
+    padding-block: var(--sp-lg);
+  }
 }
 .t-top::before {
   content: "";
