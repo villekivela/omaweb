@@ -788,6 +788,25 @@ img {
   font: inherit;
   color: var(--accent);
 }
+/* Commands in a release note, set like the install block on the landing page:
+   the same ground and border, so the one place a reader is told to type
+   something looks the same wherever they meet it. It scrolls rather than
+   wraps, because a wrapped command is a command typed wrong. */
+.t-prose__commands {
+  margin: var(--sp-lg) 0;
+  padding: var(--sp-lg) var(--sp-xl);
+  border: 1px solid var(--line-quiet);
+  border-radius: var(--radius);
+  background: var(--sidebar);
+  overflow-x: auto;
+}
+.t-prose__commands code {
+  font: inherit;
+  font-size: var(--fs-body-sm);
+  line-height: 1.65;
+  color: var(--fg);
+  white-space: pre;
+}
 .t-prose a {
   text-decoration-color: var(--line-normal);
   text-underline-offset: 0.25em;

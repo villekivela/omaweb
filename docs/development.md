@@ -489,7 +489,9 @@ from the commit bodies in the range, the issues they reference, and the glossary
 [CONTEXT.md](../CONTEXT.md), which is what keeps the notes calling things what the project calls
 them rather than what a commit subject happened to call them. It runs on every tag, prerelease
 included. The rewrite carries the compare URL over itself and refuses markup the release page cannot
-render, so the published body stays inside the Markdown subset `website/build/render.mjs` supports.
+render, so the published body stays inside the Markdown subset `website/build/render.mjs` supports:
+headings, dash lists, paragraphs, inline bold, code and links, and fenced blocks for the commands a
+release tells a reader to type.
 
 It needs an `ANTHROPIC_API_KEY` secret. Without one, or when the API refuses, does not answer, or
 returns an answer that ran out of tokens, the generated commit list publishes unchanged and the job
