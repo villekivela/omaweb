@@ -6,11 +6,13 @@
 #include "InputMethod.h"
 #include "KeyboardNavigation.h"
 #include "KitTheme.h"
+#include "MediaAnnouncer.h"
 #include "PagePrinter.h"
 #include "ProbeClock.h"
 #include "ProcessResources.h"
 #include "RuntimeSecurity.h"
 #include "SavedDownload.h"
+#include "SoundingTabs.h"
 #include "SystemNotifier.h"
 #include "Quickshell.h"
 #include "SystemClipboard.h"
@@ -79,6 +81,8 @@ public slots:
         omaweb::registerExternalProtocolHandler();
         omaweb::registerPagePrinter();
         omaweb::registerSystemNotifier();
+        omaweb::registerSoundingTabs();
+        omaweb::registerMediaAnnouncer();
         omaweb::registerProcessResources();
         omaweb::registerSavedDownload();
         m_runtimeSecurity = std::make_unique<omaweb::RuntimeSecurity>(

@@ -11,6 +11,7 @@
 #include "KeyboardNavigation.h"
 #include "KitTheme.h"
 #include "LaunchRequest.h"
+#include "MediaAnnouncer.h"
 #include "OmarchyTheme.h"
 #include "PagePrinter.h"
 #include "ProcessResources.h"
@@ -21,6 +22,7 @@
 #include "RunningBrowser.h"
 #include "RuntimeSecurity.h"
 #include "SavedDownload.h"
+#include "SoundingTabs.h"
 #include "SystemClipboard.h"
 #include "SystemNotifier.h"
 #include "SyncLauncher.h"
@@ -284,6 +286,8 @@ int main(int argc, char *argv[])
     omaweb::registerExternalProtocolHandler();
     omaweb::registerPagePrinter();
     omaweb::registerSystemNotifier();
+    omaweb::registerSoundingTabs();
+    omaweb::registerMediaAnnouncer();
     omaweb::registerProcessResources();
     omaweb::registerSavedDownload();
     omaweb::registerRuntimeSecurity(&runtimeSecurity);
