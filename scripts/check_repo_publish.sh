@@ -27,6 +27,11 @@ set -euo pipefail
 repo_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 work=${OMAWEB_REPO_WORK:-$(mktemp -d)}
 mkdir -p "$work"
+# `mktemp -d` makes a directory only its owner may enter, and a root run builds
+# as somebody else, who then cannot so much as `cd` here. Nothing secret is kept
+# in it: the keyring has its own directory, and what is here is packages and the
+# repository made from them.
+chmod 755 "$work"
 
 # Its own short directory rather than one under the scratch tree. gpg-agent
 # opens a Unix socket in GNUPGHOME, and a Unix socket path is 108 characters,
