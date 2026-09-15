@@ -5974,6 +5974,17 @@ TestCase {
         tryCompare(mark, "visible", true);
         compare(mark.Accessible.name, "Omaweb v9.9.9 is out");
         compare(mark.Accessible.description, "Upgrade with the rest of the system: pacman -Syu");
+        // The reader looking straight at it gets the same answer the screen
+        // reader does. Omaweb's chrome draws no tooltip unless it is asked to,
+        // so nothing but this says the instruction was asked for.
+        compare(mark.tooltipText,
+                "Omaweb v9.9.9 is out\nUpgrade with the rest of the system: pacman -Syu");
+
+        // Between knowing the release and knowing who owns the binary there is
+        // no instruction to give, and the tooltip is the version alone.
+        watch.instruction = "";
+        tryCompare(mark, "tooltipText", "Omaweb v9.9.9 is out");
+        watch.instruction = "Upgrade with the rest of the system: pacman -Syu";
 
         // A Private window says nothing about this installation, and its age is
         // something about this installation.

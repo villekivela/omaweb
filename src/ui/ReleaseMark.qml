@@ -32,6 +32,23 @@ ChromeButton {
     focusable: root.visible
     // The version and what to run about it, because a reader who is told a
     // release exists and not how to get it goes looking for instructions.
+    //
+    // Said in the tooltip the kit draws for any button that has one, as well as
+    // to a screen reader. Omaweb's chrome draws no tooltip unless it is asked
+    // to, so a mark carrying its instruction in the accessibility layer alone
+    // is a mark that answers everyone but the reader looking straight at it.
+    //
+    // The instruction is not there for the moment between the release being
+    // known and pacman saying who owns the binary, so the tooltip is the
+    // version until it arrives rather than a version with a dangling separator.
+    readonly property string summary: !root.announcing ? "" : (root.watch.instruction.length > 0
+                                                               ? "Omaweb " + root.watch.release
+                                                                 + " is out\n"
+                                                                 + root.watch.instruction :
+                                                                 "Omaweb " + root.watch.release
+                                                                 + " is out")
+
+    tooltipText: root.summary
     accessibleName: root.announcing ? "Omaweb " + root.watch.release + " is out" : ""
     Accessible.description: root.announcing ? root.watch.instruction : ""
 
