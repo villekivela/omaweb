@@ -788,6 +788,65 @@ img {
   font: inherit;
   color: var(--accent);
 }
+/* The rest of the Markdown. A release body is written elsewhere and may use any
+   of it, so each of these is styled once here rather than discovered on a
+   published page. They are deliberately quiet: notes are read, not browsed. */
+/* An indented block: code, but not the command block below, which is reserved
+   for what a release tells a reader to type. `:not` keeps it off that one,
+   which would otherwise lose to this rule on specificity. */
+.t-prose pre:not(.t-prose__commands) {
+  margin: var(--sp-lg) 0;
+  overflow-x: auto;
+}
+.t-prose pre:not(.t-prose__commands) code {
+  white-space: pre;
+  color: var(--fg);
+}
+/* A task list draws its own state, so the bullet beside it says nothing the
+   box has not already said. */
+.t-prose li:has(> input[type="checkbox"]) {
+  list-style: none;
+}
+.t-prose ol {
+  margin: 0 0 var(--sp-xl);
+  padding-left: var(--sp-xxl);
+}
+.t-prose li > ul,
+.t-prose li > ol {
+  margin: var(--sp-md) 0 0;
+}
+.t-prose blockquote {
+  margin: 0 0 var(--sp-xl);
+  padding-left: var(--sp-xl);
+  border-left: 2px solid var(--line-quiet);
+  color: color-mix(in srgb, var(--fg) 66%, var(--bg));
+}
+.t-prose hr {
+  margin: calc(var(--panel-padding) * 1.5) 0;
+  border: 0;
+  border-top: 1px solid var(--line-quiet);
+}
+/* Scrolls rather than reflows: a table narrower than its columns is a table
+   with no rows a reader can follow across. */
+.t-prose table {
+  display: block;
+  width: fit-content;
+  max-width: 100%;
+  margin: 0 0 var(--sp-xl);
+  border-collapse: collapse;
+  overflow-x: auto;
+}
+.t-prose th,
+.t-prose td {
+  padding: var(--sp-md) var(--sp-lg);
+  border: 1px solid var(--line-quiet);
+  text-align: left;
+  vertical-align: top;
+}
+.t-prose th {
+  color: var(--fg);
+  font-weight: 700;
+}
 /* Commands in a release note, set like the install block on the landing page:
    the same ground and border, so the one place a reader is told to type
    something looks the same wherever they meet it. It scrolls rather than

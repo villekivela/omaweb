@@ -43,7 +43,11 @@ jobs:
       # The build step that writes the release notes into the site. Vercel runs
       # it on deploy, where a failure is a page nobody has looked at yet, so
       # the rendering it does is held here. `node --test` is the whole harness
-      # and this job already has Node for the formatters.
+      # and this job already has Node for the formatters. The website's own
+      # `npm ci` is the Markdown parser the renderer imports, installed the
+      # same way the deploy installs it.
+      - name: Install the website build's dependency
+        run: npm ci --prefix website
       - name: Test the website build
         run: node --test website/build/
 

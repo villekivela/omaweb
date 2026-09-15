@@ -1,6 +1,8 @@
 // The website's build step. Vercel runs it from `website/` through the
-// `buildCommand` in `vercel.json`, and it is a plain Node script with no
-// dependencies: there is nothing to install and no toolchain to keep current.
+// `buildCommand` in `vercel.json`, installing `website/package.json` first.
+// That is one dependency, `marked`, which has none of its own, and it is what
+// renders a release body (see `render.mjs`). Nothing else here needs a
+// toolchain: this is a plain Node script otherwise.
 //
 // It does the one thing static files cannot. The releases are published on
 // GitHub, and they are pulled here rather than in the reader's browser, so the

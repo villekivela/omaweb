@@ -15,11 +15,11 @@ test("markdown: a heading of any depth becomes h3, under the page's own h1", () 
 });
 
 test("markdown: consecutive dashes become one list", () => {
-  assert.equal(markdownToHtml("- first\n- second"), "<ul><li>first</li><li>second</li></ul>");
+  assert.equal(markdownToHtml("- first\n- second"), "<ul>\n<li>first</li>\n<li>second</li>\n</ul>");
 });
 
 test("markdown: a blank line separates paragraphs, and a wrapped line joins", () => {
-  assert.equal(markdownToHtml("one\ntwo\n\nthree"), "<p>one two</p><p>three</p>");
+  assert.equal(markdownToHtml("one\ntwo\n\nthree"), "<p>one\ntwo</p>\n<p>three</p>");
 });
 
 test("markdown: bold, code and links render inline", () => {
@@ -50,17 +50,9 @@ test("markdown: an underlined title is a heading, not a row of punctuation", () 
   assert.equal(markdownToHtml("Title\n-----"), "<h3>Title</h3>");
 });
 
-test("markdown: an underline takes only the line above it", () => {
-  assert.equal(
-    markdownToHtml("An opening line.\nTitle\n====="),
-    "<p>An opening line.</p><h3>Title</h3>",
-  );
-});
-
-test("markdown: a rule underlining nothing is decoration and is dropped", () => {
-  assert.equal(markdownToHtml("---"), "");
-  // A dash list is not a rule: the item pattern needs the space after it.
-  assert.equal(markdownToHtml("- one\n- two"), "<ul><li>one</li><li>two</li></ul>");
+test("markdown: a rule is a rule, and a dash list is not one", () => {
+  assert.equal(markdownToHtml("---"), "<hr>");
+  assert.equal(markdownToHtml("- one\n- two"), "<ul>\n<li>one</li>\n<li>two</li>\n</ul>");
 });
 
 test("markdown: a fenced block is a command to type, not markup to read", () => {
@@ -80,6 +72,16 @@ test("markdown: nothing inside a fence is marked up", () => {
   assert.match(markdownToHtml("```\n<script>x</script>\n```"), /&lt;script&gt;/);
 });
 
+test("markdown: an indented block is code, but it is not a command to type", () => {
+  // Four spaces in a sentence are an accident as often as they are code, and a
+  // body written by a model has no way to say which. Only a fence is dressed
+  // as the thing a reader is meant to type.
+  assert.equal(
+    markdownToHtml("A sentence.\n\n    an indented block\n"),
+    "<p>A sentence.</p>\n<pre><code>an indented block\n</code></pre>",
+  );
+});
+
 test("markdown: a fence nobody closed still renders what it opened", () => {
   assert.equal(
     markdownToHtml("```\nomaweb --version"),
@@ -92,10 +94,30 @@ test("markdown: a release body cannot inject markup into the page", () => {
     markdownToHtml('<img src="https://evil.test/x" onerror="steal()">'),
     "<p>&lt;img src=&quot;https://evil.test/x&quot; onerror=&quot;steal()&quot;&gt;</p>",
   );
+  // Inline as well as block: a tag in the middle of a sentence is the text of
+  // that sentence, not an element in it.
+  assert.equal(markdownToHtml("a <b>bold</b> tag"), "<p>a &lt;b&gt;bold&lt;/b&gt; tag</p>");
+});
+
+test("markdown: an image becomes the link that reaches it, never a subresource", () => {
+  // The policy admits no image from anywhere, so a screenshot in a body is a
+  // click rather than a broken frame. One that names no origin this page may
+  // reach is its own alt text.
+  assert.equal(
+    markdownToHtml("![shot](https://x.test/s.png)"),
+    '<p><a href="https://x.test/s.png">shot</a></p>',
+  );
+  assert.equal(markdownToHtml("![shot](/local.png)"), "<p>shot</p>");
+  // A badge is an image inside a link, and two anchors cannot nest. The one
+  // the body wrote wins; the image is its label.
+  assert.equal(
+    markdownToHtml("[![build](https://img.test/b.svg)](https://ci.test/job)"),
+    '<p><a href="https://ci.test/job">build</a></p>',
+  );
 });
 
 test("markdown: a link to anything but http or https stays text", () => {
-  assert.equal(markdownToHtml("[run](javascript:alert(1))"), "<p>[run](javascript:alert(1))</p>");
+  assert.equal(markdownToHtml("[run](javascript:alert(1))"), "<p>run</p>");
 });
 
 test("markdown: a URL inside a link's own label does not become a second link", () => {
@@ -110,7 +132,7 @@ test("markdown: a link inside a code span stays code", () => {
   assert.equal(markdownToHtml("`https://x.test/a`"), "<p><code>https://x.test/a</code></p>");
 });
 
-test("markdown: a bare URL keeps the semicolon that closes an escaped entity", () => {
+test("markdown: a bare URL keeps the query string it was written with", () => {
   assert.equal(
     markdownToHtml("https://x.test/?a=1&b=2"),
     '<p><a href="https://x.test/?a=1&amp;b=2">https://x.test/?a=1&amp;b=2</a></p>',
@@ -122,6 +144,31 @@ test("markdown: bold inside a link's label renders", () => {
     markdownToHtml("[**loud**](https://x.test)"),
     '<p><a href="https://x.test"><strong>loud</strong></a></p>',
   );
+});
+
+test("markdown: the constructs the old parser had no rule for now render as themselves", () => {
+  // Each of these used to arrive as its own punctuation, and each was found by
+  // a reader rather than by a test (#260). They are here as the whole point of
+  // parsing CommonMark rather than a subset of it.
+  assert.equal(
+    markdownToHtml("- one\n  - nested"),
+    "<ul>\n<li>one<ul>\n<li>nested</li>\n</ul>\n</li>\n</ul>",
+  );
+  assert.equal(
+    markdownToHtml("1. first\n2. second"),
+    "<ol>\n<li>first</li>\n<li>second</li>\n</ol>",
+  );
+  assert.equal(markdownToHtml("> quoted"), "<blockquote>\n<p>quoted</p>\n</blockquote>");
+  assert.match(markdownToHtml("| a |\n| - |\n| 1 |"), /<table>.*<td>1<\/td>/s);
+  assert.equal(
+    markdownToHtml("[the diff][1]\n\n[1]: https://x.test/a"),
+    '<p><a href="https://x.test/a">the diff</a></p>',
+  );
+});
+
+test("markdown: an empty body is empty rather than markup", () => {
+  assert.equal(markdownToHtml(""), "");
+  assert.equal(markdownToHtml(undefined), "");
 });
 
 const RELEASE = {

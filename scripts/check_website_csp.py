@@ -43,6 +43,11 @@ POLICY = WEBSITE / "vercel.json"
 # `website/build/render.mjs` emits links and nothing the browser fetches.
 BUILT = WEBSITE / "dist"
 
+# The build's one dependency. It is a Markdown parser that runs at build time
+# and nothing in it is served, so it is not this check's to read; a package
+# shipping an example page would otherwise fail a policy it never meets.
+INSTALLED = WEBSITE / "node_modules"
+
 # An origin this page may not reach: an absolute URL, or a protocol-relative
 # one. `data:` is caught separately so it can say something more useful.
 FOREIGN = re.compile(r"""^(?:[a-zA-Z][a-zA-Z0-9+.-]*:)?//""")
@@ -136,11 +141,11 @@ def main() -> int:
     check_policy(problems)
 
     for path in sorted(WEBSITE.rglob("*.html")):
-        if BUILT in path.parents:
+        if BUILT in path.parents or INSTALLED in path.parents:
             continue
         check_markup(path, problems)
     for path in sorted(WEBSITE.rglob("*.css")):
-        if BUILT in path.parents:
+        if BUILT in path.parents or INSTALLED in path.parents:
             continue
         check_stylesheet(path, problems)
 

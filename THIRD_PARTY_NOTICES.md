@@ -12,6 +12,17 @@ The website ships a web copy of the JetBrains Mono variable font in `website/ass
 JetBrains Mono is licensed under the SIL Open Font License 1.1; the license text lives beside it as
 `OFL.txt`.
 
+## marked
+
+The website's build step renders a release body with `marked`, pinned in `website/package.json` and
+`website/package-lock.json`. marked is licensed under the MIT License, Copyright (c) 2018+ MarkedJS
+and Copyright (c) 2011-2018 Christopher Jeffrey. It has no dependencies of its own, which is why it
+is the one the website carries.
+
+It runs at build time and never reaches a reader: the deploy is the static HTML it produced, so no
+part of marked is served. That is also why it is not in the inventory below, which records what a
+distributed build contains.
+
 ## Omarchy shell component kit
 
 Omaweb vendors the QML component kit from the Omarchy shell (`shell/Ui` and `shell/Commons` of
