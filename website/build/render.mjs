@@ -9,7 +9,9 @@
 // character is escaped first and the markup comes only from the patterns
 // below. That is also what keeps the generated pages inside `default-src
 // 'self'`. No rule here can emit a subresource, only links, which the policy
-// governs as navigations.
+// governs as navigations. A fence is the strictest case of the same rule: what
+// is inside it is escaped and then shown literally, because it is a command to
+// be typed rather than markup to read.
 //
 // The packages are not offered here. Installing is one section on the landing
 // page and the same two commands whichever release it is, so a download button
@@ -83,15 +85,20 @@ function renderInline(escaped) {
 
 /**
  * Renders the Markdown subset a release body uses: headings, dash lists,
- * paragraphs, and inline bold, code and links. Anything else arrives as the
- * paragraph text it reads as, which is what lets a body this was not written
- * for still render, just plainly.
+ * fenced commands, paragraphs, and inline bold, code and links. Anything else
+ * arrives as the paragraph text it reads as, which is what lets a body this
+ * was not written for still render, just plainly.
  */
 export function markdownToHtml(markdown) {
   const lines = escapeHtml(markdown).split("\n");
   const parts = [];
   let list = [];
   let paragraph = [];
+  // A fence holds what is inside it literally: an install command is read and
+  // typed rather than parsed, so nothing in here is marked up, only escaped.
+  // The info string after the opening fence names a language this has no use
+  // for, and is dropped rather than rendered as content.
+  let fenced = null;
 
   const closeList = () => {
     if (list.length) parts.push(`<ul>${list.map((item) => `<li>${item}</li>`).join("")}</ul>`);
@@ -104,6 +111,24 @@ export function markdownToHtml(markdown) {
 
   for (const line of lines) {
     const text = line.trim();
+    const fence = /^(?:```|~~~)(.*)$/.exec(text);
+
+    if (fenced !== null) {
+      if (fence) {
+        parts.push(`<pre class="t-prose__commands"><code>${fenced.join("\n")}</code></pre>`);
+        fenced = null;
+      } else {
+        fenced.push(line);
+      }
+      continue;
+    }
+    if (fence) {
+      closeParagraph();
+      closeList();
+      fenced = [];
+      continue;
+    }
+
     const heading = /^#{1,6}\s+(.*)$/.exec(text);
     const item = /^[-*]\s+(.*)$/.exec(text);
 
@@ -126,6 +151,11 @@ export function markdownToHtml(markdown) {
     }
   }
 
+  // An unclosed fence is still the text someone wrote, so it renders as the
+  // block it was opening rather than vanishing with the body after it.
+  if (fenced !== null && fenced.length) {
+    parts.push(`<pre class="t-prose__commands"><code>${fenced.join("\n")}</code></pre>`);
+  }
   closeParagraph();
   closeList();
   return parts.join("");

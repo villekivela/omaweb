@@ -239,10 +239,14 @@ class Answers(unittest.TestCase):
         with self.assertRaises(rewrite.Unavailable):
             rewrite.as_published("ok", GENERATED)
 
-    def test_a_fenced_answer_is_refused(self):
-        answer = "## What is new\n\n```\nnot a release page's markup\n```"
-        with self.assertRaises(rewrite.Unavailable):
-            rewrite.as_published(answer, GENERATED)
+    def test_a_command_a_reader_types_survives_as_one(self):
+        # The release page renders a fence, so a release that has to tell a
+        # reader what to type can, and refusing one would lose the command.
+        answer = "## What is new\n\n```sh\nsudo pacman -U ./omaweb.pkg.tar.zst\n```"
+
+        notes = rewrite.as_published(answer, GENERATED)
+
+        self.assertIn("sudo pacman -U ./omaweb.pkg.tar.zst", notes)
 
     def test_a_table_is_refused(self):
         answer = "## What is new\n\n| Change | Why |\n| --- | --- |\n| a | b |"

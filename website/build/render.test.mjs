@@ -40,6 +40,30 @@ test("markdown: a bare https URL becomes a link, and trailing punctuation stays 
   );
 });
 
+test("markdown: a fenced block is a command to type, not markup to read", () => {
+  assert.equal(
+    markdownToHtml("```sh\nsudo pacman -U ./omaweb.pkg.tar.zst\n```"),
+    '<pre class="t-prose__commands"><code>sudo pacman -U ./omaweb.pkg.tar.zst</code></pre>',
+  );
+});
+
+test("markdown: nothing inside a fence is marked up", () => {
+  // `**` and a bare address are literal in a command, and a fenced `<script>`
+  // is the same escaped text it is anywhere else in a body.
+  assert.equal(
+    markdownToHtml("```\n**not bold** https://example.com\n```"),
+    '<pre class="t-prose__commands"><code>**not bold** https://example.com</code></pre>',
+  );
+  assert.match(markdownToHtml("```\n<script>x</script>\n```"), /&lt;script&gt;/);
+});
+
+test("markdown: a fence nobody closed still renders what it opened", () => {
+  assert.equal(
+    markdownToHtml("```\nomaweb --version"),
+    '<pre class="t-prose__commands"><code>omaweb --version</code></pre>',
+  );
+});
+
 test("markdown: a release body cannot inject markup into the page", () => {
   assert.equal(
     markdownToHtml('<img src="https://evil.test/x" onerror="steal()">'),
