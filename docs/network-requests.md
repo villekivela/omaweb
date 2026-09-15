@@ -11,6 +11,16 @@ history, Space identifier, Account information, or user-rule data. Disabling a s
 its update requests. Applying a changed subscription set from Sync performs the same enabled-list
 checks and may fetch a newly received or stale list from its displayed update address.
 
+Omaweb asks GitHub once a day what its newest release is, so that a reader running an old alpha is
+told one exists. The request is a GET to the releases endpoint of this repository. It carries the
+browser's name and version as its user agent and nothing else: no identifier, no history, no Space,
+no machine detail. The answer is read for a tag and nothing else is kept. The check runs off the
+engine, so it takes no Engine profile and appears in no Space's history, and a Private window is
+told nothing about it. A check that fails is silent, because being offline is not a browser fault.
+The day is counted from the last answer rather than the last attempt. Turning off "Check for new
+releases" in Settings stops the request. Omaweb never downloads or installs a release: pacman owns
+`/usr`.
+
 The browser sends network requests only after an explicit user or page action:
 
 - Committing an address in the Omnibar loads that address.

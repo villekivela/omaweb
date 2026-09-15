@@ -155,6 +155,10 @@ ApplicationWindow {
                                              !engineLoader.item
     property bool omnibarOpen: false
     property bool newTabIntent: false
+    // The application's release watch, named apart from the context property it
+    // holds: a binding written `releaseWatch: releaseWatch` inside a component
+    // that has a property of that name binds the property to itself.
+    readonly property var releases: releaseWatch
     // Which tabs have the find bar showing, by tab id. Find belongs to a tab,
     // so opening it on one page does not open it over the next — and a tab that
     // has been closed takes its entry with it rather than leaving the map to
@@ -2108,6 +2112,12 @@ ApplicationWindow {
                 // the rule rather than a matching pair of durations.
                 savedFileNoticeShowing: pageNotice.showing && pageNotice.glyph === "download_done"
                 onDownloadsRequested: window.requestDownloads()
+                onReleaseNotesRequested: function (notes) {
+                    // A new tab rather than this one: the reader was doing
+                    // something else, and a notice that takes the page away is
+                    // the interruption this deliberately is not.
+                    window.windowBrowser.openInput(notes.toString(), true);
+                }
 
                 // The panel states; the window asks. Opening the dialog puts
                 // the panel away, so there is one surface holding the question.
@@ -2146,6 +2156,7 @@ ApplicationWindow {
                 onSpaceActivated: function (spaceId) {
                     window.windowBrowser.switchSpace(spaceId);
                 }
+                releaseWatch: window.releases
                 onSettingsRequested: window.requestSettings()
                 onSyncRequested: window.requestSync()
                 onBackRequested: engineLoader.goBack()
@@ -2765,6 +2776,7 @@ ApplicationWindow {
                     objectName: "settingsSurface"
                     anchors.fill: parent
                     z: 45
+                    releaseWatch: window.releases
                     SheetLift {
                         id: settingsLift
                         shown: settingsSurface.open

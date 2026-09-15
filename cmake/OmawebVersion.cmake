@@ -4,6 +4,7 @@
 #   OMAWEB_VERSION        x.y.z, suitable for project(VERSION)
 #   OMAWEB_VERSION_STRING the full description, e.g. 0.2.0-14-gabc1234-dirty
 #   OMAWEB_BUILD_NUMBER   commits reachable from HEAD, monotonic across releases
+#   OMAWEB_VERSION_DERIVED whether a tag was found, rather than the fallback used
 #
 # A tarball with no .git, a clone with no tags, and a machine with no git all
 # fall back to OMAWEB_FALLBACK_VERSION below. Raise it when cutting a release
@@ -30,6 +31,13 @@ function(omaweb_resolve_version)
     set(version "${OMAWEB_FALLBACK_VERSION}")
     set(description "${OMAWEB_FALLBACK_VERSION}")
     set(build_number "0")
+    # The fallback is a real version number and reads as one, so nothing
+    # downstream can tell it from a version a tag gave. The release check has to
+    # know the difference: a build that fell back is not behind anything, it
+    # simply does not know what it is, and telling its reader to upgrade to
+    # something they may already be running would be a notice they can never
+    # get rid of.
+    set(derived FALSE)
 
     find_package(Git QUIET)
     if(Git_FOUND AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/.git")
@@ -44,6 +52,7 @@ function(omaweb_resolve_version)
             if(matched)
                 set(version "${CMAKE_MATCH_1}")
                 string(REGEX REPLACE "^v" "" description "${described}")
+                set(derived TRUE)
             endif()
         endif()
         if(counted)
@@ -54,6 +63,7 @@ function(omaweb_resolve_version)
     set(OMAWEB_VERSION "${version}" PARENT_SCOPE)
     set(OMAWEB_VERSION_STRING "${description}" PARENT_SCOPE)
     set(OMAWEB_BUILD_NUMBER "${build_number}" PARENT_SCOPE)
+    set(OMAWEB_VERSION_DERIVED "${derived}" PARENT_SCOPE)
 endfunction()
 
 # A new tag changes the version but touches no file CMake watches, so tell it to

@@ -1,5 +1,6 @@
 #include "BrowserController.h"
 #include "ContentBlocker.h"
+#include "ReleaseWatch.h"
 #include "EngineCapabilities.h"
 #include "DefaultBrowser.h"
 #include "DevelopmentLaunch.h"
@@ -261,6 +262,18 @@ int main(int argc, char *argv[])
         : QStringLiteral(OMAWEB_SYNC_INSTALLED_MODULE_PATH);
     omaweb::SyncLauncher syncLauncher(
         &browser, &contentBlocker, &keyboardNavigation, dataRoot(), configRoot(), syncModulePath);
+    // Omaweb is alpha and releases often, and a reader who installed one has no
+    // other way to learn that another exists. The version it compares against
+    // is the one the tag gave this build (ADR 0028).
+    //
+    // A build whose version did not come from a tag asks nothing. The fallback
+    // reads as an ordinary version number, so it would compare as one and leave
+    // its reader told to upgrade to a release they may already be running, with
+    // no way to be right about it.
+    omaweb::ReleaseWatch releaseWatch(QStringLiteral(OMAWEB_VERSION),
+        OMAWEB_VERSION_DERIVED ? omaweb::ReleaseWatch::Ask::GitHub
+                               : omaweb::ReleaseWatch::Ask::Never);
+    releaseWatch.follow(&browser);
 
     omaweb::registerBrowserController();
     omaweb::registerDownloads();
@@ -290,6 +303,7 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty(QStringLiteral("theme"), &theme);
     engine.rootContext()->setContextProperty(QStringLiteral("windowManager"), &windowManager);
     engine.rootContext()->setContextProperty(QStringLiteral("syncLauncher"), &syncLauncher);
+    engine.rootContext()->setContextProperty(QStringLiteral("releaseWatch"), &releaseWatch);
     engine.rootContext()->setContextProperty(
         QStringLiteral("engineViewSource"), QUrl(QStringLiteral(OMAWEB_ENGINE_VIEW_URL)));
     engine.rootContext()->setContextProperty(

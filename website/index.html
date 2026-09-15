@@ -346,27 +346,30 @@
               Every release from
               <a href="https://github.com/villekivela/omaweb/releases">v0.2.0</a> on includes a
               built package. Download it and install it with pacman. Packages are
-              <code>x86_64</code> only. On <code>aarch64</code>, build from the repository.
+              <code>x86_64</code> only; on <code>aarch64</code>, build it from the checkout as the
+              <a href="https://github.com/villekivela/omaweb#build">README</a> describes. Installing
+              does not make Omaweb your default browser. It is alpha, so that stays a choice you
+              make in Settings.
             </p>
             <div class="t-term">
               <pre
                 class="t-term__line"
-              ><span class="t-term__prompt" aria-hidden="true">$</span><code>sudo pacman -U omaweb-git-*.pkg.tar.zst</code><span class="t-term__cursor" aria-hidden="true"></span></pre>
+              ><span class="t-term__prompt" aria-hidden="true">$</span><code>sudo pacman -U omaweb-*.pkg.tar.zst</code><span class="t-term__cursor" aria-hidden="true"></span></pre>
               <button class="btn t-term__copy" type="button" data-copy>Copy</button>
             </div>
           </div>
           <div>
-            <h3>From the repository</h3>
+            <h3>Keeping it current</h3>
             <p>
-              Clone the repository and build the package yourself. This gives the same package on
-              either architecture. Installing does not make Omaweb your default browser. It is
-              alpha, so that stays a choice you make in Settings.
+              Omaweb tells you when a new version is out. A mark appears at the bottom of the
+              sidebar with the version and how to get it, and selecting it opens the release notes.
+              Omaweb never installs anything on its own: download the new package and install it the
+              way you installed the first one. You can turn the check off in Settings, under About.
             </p>
             <div class="t-term">
               <pre
                 class="t-term__line"
-              ><span class="t-term__prompt" aria-hidden="true">$</span><code>git clone https://github.com/villekivela/omaweb.git</code>
-<span class="t-term__prompt" aria-hidden="true">$</span><code>cd omaweb/packaging &amp;&amp; makepkg -si</code><span class="t-term__cursor" aria-hidden="true"></span></pre>
+              ><span class="t-term__prompt" aria-hidden="true">$</span><code>sudo pacman -U omaweb-*.pkg.tar.zst</code><span class="t-term__cursor" aria-hidden="true"></span></pre>
               <button class="btn t-term__copy" type="button" data-copy>Copy</button>
             </div>
           </div>

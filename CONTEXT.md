@@ -171,6 +171,15 @@ works in Private windows. After the last download finishes, the mark remains unt
 notice closes. It opens the downloads section. _Avoid_: Download badge, progress bar, download
 indicator, download tray
 
+**Release check**: The once-a-day question Omaweb asks GitHub about its own age. It sends nothing
+about the machine, runs off the engine so it belongs to no Space, and is silent when it fails. A
+Setting turns it off. _Avoid_: Update check, auto-update, version ping
+
+**Release mark**: The outline footer control for a release newer than the running build. It names
+the version and what to run to get it, opens the release notes, and is not shown in a Private
+window. Omaweb never installs the release itself. _Avoid_: Update badge, update banner, upgrade
+prompt
+
 **Engine security baseline**: The approved QtWebEngine version and the latest Chromium security
 patch it includes. Settings reports whether the running build meets the baseline, and CI checks for
 upstream changes each week. Builds below the baseline are unsupported previews. _Avoid_: Minimum Qt

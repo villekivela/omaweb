@@ -113,6 +113,12 @@ public slots:
             QStringLiteral("engineHeldDownloads"), QVariant::fromValue<QObject *>(nullptr));
         engine->rootContext()->setContextProperty(QStringLiteral("theme"), m_theme.get());
         engine->rootContext()->setContextProperty(QStringLiteral("syncLauncher"), &m_syncLauncher);
+        // The tests draw the chrome without asking GitHub anything, so the
+        // Release mark has no watch and is not shown. Registered rather than
+        // left out: an unregistered context property is a ReferenceError on
+        // every load.
+        engine->rootContext()->setContextProperty(
+            QStringLiteral("releaseWatch"), QVariant::fromValue<QObject *>(nullptr));
         engine->rootContext()->setContextProperty(
             QStringLiteral("windowManager"), m_windowManager.get());
         engine->rootContext()->setContextProperty(
