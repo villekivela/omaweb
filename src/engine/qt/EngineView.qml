@@ -731,17 +731,17 @@ Item {
     property int cosmeticRuleGeneration: 0
     property int cosmeticSurveyGeneration: 0
     property bool genericCosmeticRulesInjected: false
-    readonly property string controlAccentElementId: "__omaweb_control_accent"
+    readonly property string controlAccentSheetId: "__omaweb_control_accent"
 
     // `accent-color` is inherited, so naming it once on the root element
     // reaches every control on the page.
     //
-    // `:where()` is what keeps this a fallback rather than an override. The
-    // sheet is appended to the head the page is still being parsed into, so it
-    // lands after the page's own and would win every tie on document order.
-    // `:where(html)` has no specificity at all, so a page naming an accent — on
-    // `html`, on `:root`, or on the control itself — outranks this whatever the
-    // order turns out to be.
+    // `:where()` is what keeps this a fallback rather than an override. An
+    // adopted sheet is ordered after every sheet the document carries of its
+    // own, so it would win every tie on order. `:where(html)` has no
+    // specificity at all, so a page naming an accent — on `html`, on `:root`,
+    // or on the control itself — outranks this whatever the order turns out to
+    // be.
     //
     // The colour is written out as components rather than as Qt's hex, which
     // puts alpha at the front where CSS reads it last.
@@ -763,19 +763,18 @@ Item {
         script.injectionPoint = WebEngineScript.DocumentCreation;
         script.worldId = WebEngineScript.MainWorld;
         script.runsOnSubFrames = true;
-        script.sourceCode = root.styleSheetSnippet(root.controlAccentElementId,
+        script.sourceCode = root.styleSheetSnippet(root.controlAccentSheetId,
                                                    root.controlAccentStyleSheet);
         return script;
     }
 
     // A theme the reader changes has to reach what is already open. The script
     // above answers for the next load; this answers for the page on show, and
-    // the snippet updates the sheet it already appended rather than appending a
-    // second one further down the document, where it would start outranking the
-    // page.
+    // the snippet replaces the rules in the sheet the document already adopted
+    // rather than adopting a second one.
     onControlAccentStyleSheetChanged: {
         webView.userScripts.collection = root.userScriptList();
-        webView.runJavaScript(root.styleSheetSnippet(root.controlAccentElementId,
+        webView.runJavaScript(root.styleSheetSnippet(root.controlAccentSheetId,
                                                      root.controlAccentStyleSheet));
     }
 
@@ -792,7 +791,7 @@ Item {
     // `:where(html)` for the same reason the accent uses it: no specificity, so
     // a page that names either property outranks Omaweb and keeps the bar it
     // drew for itself.
-    readonly property string pageScrollbarElementId: "__omaweb_scrollbars"
+    readonly property string pageScrollbarSheetId: "__omaweb_scrollbars"
     property color pageScrollbarThumb: "transparent"
     property color pageScrollbarTrack: "transparent"
 
@@ -816,7 +815,7 @@ Item {
         // its own scroller, and the shell draws one bar for the page it is
         // showing rather than one per frame.
         script.runsOnSubFrames = false;
-        script.sourceCode = root.styleSheetSnippet(root.pageScrollbarElementId,
+        script.sourceCode = root.styleSheetSnippet(root.pageScrollbarSheetId,
                                                    root.pageScrollbarStyleSheet) + ";"
                 + root.pageScrollReportSource;
         return script;
@@ -824,7 +823,7 @@ Item {
 
     onPageScrollbarStyleSheetChanged: {
         webView.userScripts.collection = root.userScriptList();
-        webView.runJavaScript(root.styleSheetSnippet(root.pageScrollbarElementId,
+        webView.runJavaScript(root.styleSheetSnippet(root.pageScrollbarSheetId,
                                                      root.pageScrollbarStyleSheet));
     }
 
@@ -881,25 +880,38 @@ Item {
         root.pageViewportLength = 0;
     }
 
-    readonly property string cosmeticElementId: "__omaweb_content_blocking"
-    readonly property string genericCosmeticElementId: "__omaweb_content_blocking_generic"
+    readonly property string cosmeticSheetId: "__omaweb_content_blocking"
+    readonly property string genericCosmeticSheetId: "__omaweb_content_blocking_generic"
 
-    // A script that runs before the parser has produced even an <html> element
-    // cannot simply append a stylesheet: it waits for the first element to
-    // appear, which is still before the page's own scripts run and before
-    // anything is painted. Re-application into a document that is already open
-    // takes the same path and appends immediately.
-    function styleSheetSnippet(elementId, css) {
-        return "(() => {" + "const id = " + JSON.stringify(elementId) + ";" + "const css = "
-                + JSON.stringify(css) + ";" + "const apply = () => {"
-                + "const parent = document.head || document.documentElement;"
-                + "if (!parent) return false;" + "let style = document.getElementById(id);"
-                + "if (!style) {" + "style = document.createElement('style'); style.id = id;"
-                + "parent.append(style);" + "}"
-                + "if (style.textContent !== css) style.textContent = css;" + "return true;" + "};"
-                + "if (apply()) return;" + "const observer = new MutationObserver(() => {"
-                + "if (apply()) observer.disconnect();" + "});"
-                + "observer.observe(document, { childList: true, subtree: true });" + "})()";
+    // The browser's own styling is not the page's inline style, but a <style>
+    // element carrying it is indistinguishable from one: a page that sends
+    // `default-src 'self'` refuses the element's content, and the scrollbar
+    // stays drawn twice, the controls stay Chromium blue and the hiding rules
+    // hide nothing. So the sheet is constructed rather than written into the
+    // document, which is the same route an extension takes and is outside what
+    // a page's policy governs.
+    //
+    // A constructed sheet also needs no element to hang from, so there is
+    // nothing to wait for: the document exists before the parser has produced
+    // even an <html> element, which is where this runs. Re-application into a
+    // document that is already open finds the sheet it adopted before and
+    // replaces the rules in it, rather than adopting a second one.
+    //
+    // The sheet is found by a mark on the sheet itself because a document
+    // keeps no names for the sheets it adopts. An empty sheet is not worth
+    // adopting, so nothing is adopted until there are rules to carry, and a
+    // page that drops the sheet from the list gets it back on the next
+    // application. The rules are written every time rather than only when they
+    // differ from what was sent last: what a sheet carries is the page's to
+    // change, and the value last sent is no answer to what it carries now.
+    function styleSheetSnippet(sheetId, css) {
+        return "(() => {" + "const id = " + JSON.stringify(sheetId) + ";" + "const css = "
+                + JSON.stringify(css) + ";" + "const adopted = document.adoptedStyleSheets;"
+                + "let sheet = adopted.find(candidate => candidate.omawebSheetId === id);"
+                + "if (!sheet) {" + "if (css.length === 0) return;"
+                + "sheet = new CSSStyleSheet();" + "sheet.omawebSheetId = id;"
+                + "document.adoptedStyleSheets = [...adopted, sheet];" + "}"
+                + "sheet.replaceSync(css);" + "})()";
     }
 
     // A scriptlet is a function from the vendored uBlock Origin library that a
@@ -940,7 +952,7 @@ Item {
         // The stylesheet goes first: hiding what the page is about to render
         // does not depend on a scriptlet, and a scriptlet that throws must not
         // take the hiding with it.
-        script.sourceCode = (css.length > 0 ? root.styleSheetSnippet(root.cosmeticElementId, css)
+        script.sourceCode = (css.length > 0 ? root.styleSheetSnippet(root.cosmeticSheetId, css)
                                               + ";\n" : "") + root.scriptletSnippet(scriptlets);
         root.blockingScript = script;
         webView.userScripts.collection = root.userScriptList();
@@ -965,7 +977,7 @@ Item {
         if (css.length === 0 && !cosmeticRulesInjected)
             return;
         cosmeticRulesInjected = css.length > 0;
-        webView.runJavaScript(root.styleSheetSnippet(root.cosmeticElementId, css));
+        webView.runJavaScript(root.styleSheetSnippet(root.cosmeticSheetId, css));
     }
 
     // The generic rules are the ones written against no particular site, and
@@ -977,7 +989,7 @@ Item {
         if (!genericCosmeticRulesInjected)
             return;
         root.genericCosmeticRulesInjected = false;
-        webView.runJavaScript(root.styleSheetSnippet(root.genericCosmeticElementId, ""));
+        webView.runJavaScript(root.styleSheetSnippet(root.genericCosmeticSheetId, ""));
     }
     function surveyGenericCosmeticRules() {
         // Turning blocking off for a site, or a rule set that no longer hides
@@ -996,9 +1008,10 @@ Item {
         const blocker = root.contentBlocker;
         const css = blocker.cosmeticStyleSheet(surveyed);
         // Verify the site stylesheet in the survey's existing round trip. The page
-        // may have removed or changed it since document creation.
+        // may have dropped the sheet from `adoptedStyleSheets` since document
+        // creation.
         const repair = css.length > 0 || cosmeticRulesInjected ? root.styleSheetSnippet(
-                                                                     root.cosmeticElementId, css)
+                                                                     root.cosmeticSheetId, css)
                                                                  + ";" : "";
         root.cosmeticRulesInjected = css.length > 0;
         webView.runJavaScript(repair + "(() => {" + "const classes = new Set(), ids = new Set();"
@@ -1024,7 +1037,7 @@ Item {
                                   }
                                   root.genericCosmeticRulesInjected = true;
                                   webView.runJavaScript(root.styleSheetSnippet(
-                                                            root.genericCosmeticElementId, css));
+                                                            root.genericCosmeticSheetId, css));
                               });
     }
     function checkForEditedFormState(callback) {
@@ -1119,7 +1132,7 @@ Item {
         }
     }
 
-    readonly property string developerToolsElementId: "__omaweb_developer_tools"
+    readonly property string developerToolsSheetId: "__omaweb_developer_tools"
 
     // The palette arrives from the shell and may be empty until the theme has
     // loaded, so every colour read here names what to draw with instead.
@@ -1398,7 +1411,7 @@ Item {
                 + "if (element) element.classList.toggle('theme-with-dark-background', " + (
                     root.developerToolsDark() ? "true" : "false") + ");" + "})();\n"
                 + root.developerToolsShadowSnippet() + root.styleSheetSnippet(
-                    root.developerToolsElementId, root.developerToolsStyleSheet());
+                    root.developerToolsSheetId, root.developerToolsStyleSheet());
     }
 
     // The frontend has to open in Omaweb's colours rather than arrive in
