@@ -488,10 +488,10 @@ development artifacts and are not attached ([ADR 0029](adr/0029-distribute-only-
 from the commit bodies in the range, the issues they reference, and the glossary in
 [CONTEXT.md](../CONTEXT.md), which is what keeps the notes calling things what the project calls
 them rather than what a commit subject happened to call them. It runs on every tag, prerelease
-included. The rewrite carries the compare URL over itself and refuses markup the release page cannot
-render, so the published body stays inside the Markdown subset `website/build/render.mjs` supports:
-headings, dash lists, paragraphs, inline bold, code and links, and fenced blocks for the commands a
-release tells a reader to type.
+included. The rewrite carries the compare URL over itself; that is the only thing it holds in code
+rather than asking the model for. It has nothing to say about the notes' markup, because
+`website/build/render.mjs` parses CommonMark: what a release may write is a question of what
+CommonMark is rather than of what the release page has a rule for.
 
 It needs an `ANTHROPIC_API_KEY` secret. Without one, or when the API refuses, does not answer, or
 returns an answer that ran out of tokens, the generated commit list publishes unchanged and the job
@@ -514,8 +514,9 @@ deploy afterwards, because the release pages only change on one.
 The rewrite reads issue bodies, which anyone with a GitHub account can write, and the release body
 it produces publishes without review. Wording from an issue can therefore reach a release note and
 the release page on the website. What an issue cannot do is change the markup: the compare URL is
-carried over rather than generated, the notes are refused if they carry markup the release page
-cannot render, and `website/build/render.mjs` escapes the body before applying its own patterns.
+carried over rather than generated, and `website/build/render.mjs` decides what a body may become:
+markup embedded in it is escaped back into the text it reads as, an image becomes the link that
+reaches it, and a link the browser would not follow is nothing but its own label.
 
 `cmake --preset dev` prints the version it derived. A tree with no tags falls back to
 `OMAWEB_FALLBACK_VERSION` in `cmake/OmawebVersion.cmake`.
@@ -533,10 +534,14 @@ the previous release until the next push to `main`.
 which runs `website/build/site.mjs` from `website/` and serves the `dist/` it writes.
 
 ```sh
+npm ci --prefix website             # the Markdown parser the renderer imports
 scripts/serve_website.sh            # the committed sources, on localhost:8000
 cd website && node build/site.mjs   # write dist/, the site as it deploys
 node --test website/build/          # the rendering the build step does
 ```
+
+The install is once per clone. `website/package.json` pins one dependency, `marked`, which is what
+renders a release body; Vercel installs it the same way before running the build command.
 
 The site is four pages a reader navigates between. `index.html` says what Omaweb is, `features/` and
 `docs/` are written by hand, and `releases/` is generated.
@@ -553,11 +558,12 @@ The site offers no packages. Installing is one section on the landing page and t
 whichever release it is, so a release page links to its GitHub release for the assets instead of
 repeating the download per version.
 
-A release body is Markdown from somewhere else, so `website/build/render.mjs` escapes it and emits
-only the elements it recognises. That is also what keeps the generated pages inside the site's
-`default-src 'self'` policy: nothing it renders is a subresource. `scripts/check_website_csp.py`
-checks the sources rather than `dist/`, so the check reads the same files whether or not a build has
-run.
+A release body is Markdown from somewhere else, so `website/build/render.mjs` parses it with
+`marked` and its own renderer decides what the body may become. That is what keeps the generated
+pages inside the site's `default-src 'self'` policy: embedded markup is escaped back into text, an
+image becomes the link that reaches it, and nothing rendered is a subresource.
+`scripts/check_website_csp.py` checks the sources rather than `dist/`, so the check reads the same
+files whether or not a build has run.
 
 A failed fetch is not a failed deploy. The build leaves the committed `website/releases/index.html`,
 which says where the releases are, and warns on standard error. Force that path with

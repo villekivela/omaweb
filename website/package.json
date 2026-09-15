@@ -1,0 +1,9 @@
+{
+  "name": "omaweb-website",
+  "private": true,
+  "type": "module",
+  "description": "The website's build step. Vercel installs this before running buildCommand.",
+  "dependencies": {
+    "marked": "18.0.13"
+  }
+}

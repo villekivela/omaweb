@@ -239,19 +239,19 @@ class Answers(unittest.TestCase):
         with self.assertRaises(rewrite.Unavailable):
             rewrite.as_published("ok", GENERATED)
 
-    def test_a_command_a_reader_types_survives_as_one(self):
-        # The release page renders a fence, so a release that has to tell a
-        # reader what to type can, and refusing one would lose the command.
-        answer = "## What is new\n\n```sh\nsudo pacman -U ./omaweb.pkg.tar.zst\n```"
+    def test_markdown_the_page_renders_is_not_refused(self):
+        # The release page parses CommonMark, so nothing the model may
+        # reasonably write is held back here. A fence is the case that was:
+        # refusing one lost the command a release had to tell a reader to type.
+        answer = (
+            "## What is new\n\n```sh\nsudo pacman -U ./omaweb.pkg.tar.zst\n```\n\n"
+            "| Change | Why |\n| --- | --- |\n| a | b |"
+        )
 
         notes = rewrite.as_published(answer, GENERATED)
 
         self.assertIn("sudo pacman -U ./omaweb.pkg.tar.zst", notes)
-
-    def test_a_table_is_refused(self):
-        answer = "## What is new\n\n| Change | Why |\n| --- | --- |\n| a | b |"
-        with self.assertRaises(rewrite.Unavailable):
-            rewrite.as_published(answer, GENERATED)
+        self.assertIn("| Change | Why |", notes)
 
     def test_a_rewrite_that_kept_the_link_does_not_get_a_second_one(self):
         link = "**Full changelog**: https://github.com/villekivela/omaweb/compare/v1.0.0...v1.1.0"

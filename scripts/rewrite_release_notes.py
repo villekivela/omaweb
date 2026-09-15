@@ -19,8 +19,9 @@ published unattended and nothing reviews it in between:
 - The compare URL survives. It is the one line that makes the commit detail
   reachable, so it is carried over from the generated notes rather than left to
   the rewrite to reproduce.
-- The result stays inside the Markdown subset `website/build/render.mjs`
-  renders, since the same body becomes the release page on the website.
+- The compare URL is the only such guarantee. `website/build/render.mjs`
+  parses CommonMark, so what the model writes is what the release page shows
+  and the notes are not constrained by what a parser happens to understand.
 
 Usage:
 
@@ -86,12 +87,6 @@ MINIMUM_LENGTH = 40
 CHANGELOG = re.compile(r"^\*\*Full changelog\*\*: .*$", re.MULTILINE)
 ISSUE_REFERENCE = re.compile(r"#(\d{1,6})\b")
 
-# What `markdownToHtml` has no rule for arrives as the paragraph text it reads
-# as. For most constructs that is merely plain, but a table row renders as its
-# own punctuation, so the rewrite is rejected over one. Fences are rendered,
-# which is what lets a release tell a reader what to type.
-TABLE_ROW = re.compile(r"^\s*\|.*\|\s*$", re.MULTILINE)
-
 SYSTEM = """\
 You write the release notes for Omaweb, a web browser. You are given the notes \
 generated from the commit range, the commit bodies behind them, and the issues \
@@ -120,11 +115,9 @@ repeat it.
 else. Internal work, refactors, and test changes belong in the commit list, \
 which the compare URL reaches.
 
-Format: Markdown, using only `##` headings, `-` lists, paragraphs, inline \
-`**bold**`, `` `code` `` and `[links](https://example.com)`, and fenced blocks \
-for commands a reader is meant to type. No tables, no nested lists, no images. \
-Do not wrap the whole answer in a fence and do not introduce it. The first line \
-is the first line of the notes.\
+Format: Markdown, starting at `##` for the sections. Do not wrap the whole \
+answer in a fence and do not introduce it. The first line is the first line of \
+the notes.\
 """
 
 
@@ -307,8 +300,6 @@ def as_published(rewritten: str, generated: str) -> str:
     either the notes as they go out, or `Unavailable`."""
     if len(rewritten) < MINIMUM_LENGTH:
         raise Unavailable("the answer was too short to be notes")
-    if TABLE_ROW.search(rewritten):
-        raise Unavailable("the answer used Markdown the release page cannot render")
 
     # A compare URL the model wrote is a URL nobody checked, and one that names
     # the wrong range reads exactly like one that names the right one. Whatever

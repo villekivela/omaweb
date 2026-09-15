@@ -5,18 +5,28 @@
 //
 // The notes are a release body written by `scripts/release_notes.sh` and
 // rewritten by a model in `scripts/rewrite_release_notes.py`. Either way they
-// are Markdown produced elsewhere, so nothing here trusts them: every
-// character is escaped first and the markup comes only from the patterns
-// below. That is also what keeps the generated pages inside `default-src
-// 'self'`. No rule here can emit a subresource, only links, which the policy
-// governs as navigations. A fence is the strictest case of the same rule: what
-// is inside it is escaped and then shown literally, because it is a command to
-// be typed rather than markup to read.
+// are Markdown produced elsewhere, so nothing here trusts them. `marked`
+// parses the CommonMark and the renderer below decides what the body is
+// allowed to become, which is the part that matters: what a release may say is
+// then a question of what CommonMark is, rather than of what this file happens
+// to have a pattern for.
+//
+// That is also what keeps the generated pages inside `default-src 'self'`. No
+// rule here emits a subresource, only links, which the policy governs as
+// navigations. Embedded HTML is escaped back into the text it reads as, an
+// image becomes the link that reaches it, and a link the browser would not
+// follow is nothing but its own label.
+//
+// GitHub Flavored Markdown rather than bare CommonMark, because that is what
+// the bodies are: they are written in a GitHub release and read there too, so
+// a table or a task list should mean on the page what it means at the source.
 //
 // The packages are not offered here. Installing is one section on the landing
 // page and the same two commands whichever release it is, so a download button
 // per version would be a third place saying it. `This release on GitHub`
 // reaches the assets for anyone who wants a particular one.
+
+import { Marked } from "marked";
 
 const REPOSITORY = "https://github.com/villekivela/omaweb";
 
@@ -35,142 +45,84 @@ function escapeHtml(text) {
     .replace(/"/g, "&quot;");
 }
 
-// A bare address, taken to the first space, `<` or closing bracket. Where it
-// really ends is decided by `trimAddress` rather than by the character class,
-// because the two cases pull opposite ways.
-const AUTOLINK = /(^|[\s(])(https?:\/\/[^\s<)]+)/g;
-
-// Sentence punctuation at the end of a bare address belongs to the sentence,
-// not to the address, and a reader reading aloud would drop it too. The
-// exception is a semicolon closing an entity: this runs over escaped text, so
-// the `&` of a query string arrives as `&amp;` and dropping that semicolon
-// would leave a broken entity in the href.
-function trimAddress(address) {
-  let end = address.length;
-  while (end > 0 && ".,;:!?".includes(address[end - 1])) {
-    const closesEntity =
-      address[end - 1] === ";" && /&(?:#\d+|[a-zA-Z][a-zA-Z0-9]*);$/.test(address.slice(0, end));
-    if (closesEntity) break;
-    end -= 1;
-  }
-  return address.slice(0, end);
+// The one place the policy is kept: an address the browser may follow becomes
+// a link, and anything else is the text it would have been. Both the link and
+// the image rule end here, so there is a single answer to what may carry an
+// href off this page.
+function linkTo(href, label) {
+  return SAFE_URL.test(href) ? `<a href="${escapeHtml(href)}">${label}</a>` : label;
 }
 
-// Runs over already-escaped text, so `<` cannot occur in it and a `<n>` marker
-// cannot collide with anything the body wrote. Code spans and links are held
-// behind such a marker as soon as they are rendered, which is what stops the
-// bare-address pass from linking an address that is already inside a link's
-// own label, or inside a code span that is meant to read literally.
-function renderInline(escaped) {
-  const held = [];
-  const hold = (html) => `<${held.push(html) - 1}>`;
+// A fenced block is a command a reader is meant to type. An indented one is
+// four spaces in a sentence as often as it is code, and dressing that as a
+// command block tells a reader to type prose.
+const FENCED = /^\s{0,3}(?:`{3,}|~{3,})/;
 
-  const rendered = escaped
-    .replace(/`([^`]+)`/g, (whole, code) => hold(`<code>${code}</code>`))
-    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
-    .replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (whole, label, href) =>
-      SAFE_URL.test(href) ? hold(`<a href="${href}">${label}</a>`) : whole,
-    )
-    .replace(AUTOLINK, (whole, before, address) => {
-      const href = trimAddress(address);
-      return `${before}${hold(`<a href="${href}">${href}</a>`)}${address.slice(href.length)}`;
-    });
+// How deep inside a link's label the renderer currently is. An image that
+// became a link of its own would nest one anchor inside another, which no
+// browser keeps and which a badge written as `[![alt](image)](page)` produces
+// on the first try. Rendering is synchronous and single-pass, so a counter is
+// the whole of the bookkeeping.
+let labelDepth = 0;
 
-  // Recursive, because held markup can hold a marker of its own: a code span
-  // inside a link's label is held before the link that contains it.
-  const restore = (text) =>
-    text.replace(/<(\d+)>/g, (whole, index) => restore(held[Number(index)]));
-  return restore(rendered);
-}
+// Only the rules that have to differ from CommonMark's own. Everything a body
+// can write that is not named here renders as `marked` renders it, which is
+// what lets a body this was not written for arrive whole rather than as its
+// own punctuation.
+const PARSER = new Marked({
+  gfm: true,
+  renderer: {
+    // Every heading flattens to h3. The release page's own h1 names the
+    // release and h2 heads the notes, so a body's depth is not the page's
+    // outline and a body that starts at `##` does not skip a level.
+    heading({ tokens }) {
+      return `<h3>${this.parser.parseInline(tokens)}</h3>\n`;
+    },
+    // A fence holds what is inside it literally: an install command is read
+    // and typed rather than parsed. The info string after the opening fence
+    // names a language this has no use for, and is dropped rather than
+    // rendered as content.
+    code({ text, raw }) {
+      const commands = FENCED.test(raw) ? ' class="t-prose__commands"' : "";
+      return `<pre${commands}><code>${escapeHtml(text)}</code></pre>\n`;
+    },
+    // Markup embedded in a body is the text it reads as. A release body is
+    // written elsewhere and published unattended, so the one thing it may
+    // never do is become markup of the page's own.
+    html({ text, block }) {
+      const escaped = escapeHtml(text.trim());
+      return block ? `<p>${escaped}</p>\n` : escaped;
+    },
+    // A link the browser would follow, or nothing but its label. The scheme
+    // is checked here rather than trusted from the body: `marked` resolves the
+    // URL but does not judge it, and `javascript:` is a URL like any other to
+    // a parser.
+    link({ href, text, tokens, autolink }) {
+      labelDepth += 1;
+      const label = autolink ? escapeHtml(text) : this.parser.parseInline(tokens);
+      labelDepth -= 1;
+      // `[](https://x.test)` is a link with nothing to click and nothing to
+      // read out. The address is what it would have said anyway.
+      return linkTo(href, label || escapeHtml(href));
+    },
+    // An image is a subresource, and the policy admits none from anywhere. It
+    // becomes the link that reaches it instead, so a screenshot in a body is
+    // still a click away rather than gone. Inside a link's label it is its alt
+    // text, because the link around it already goes somewhere.
+    image({ href, text }) {
+      const label = escapeHtml(text || href);
+      return labelDepth === 0 ? linkTo(href, label) : label;
+    },
+  },
+});
 
 /**
- * Renders the Markdown subset a release body uses: headings written either
- * way, dash lists, fenced commands, paragraphs, and inline bold, code and
- * links. Anything else
- * arrives as the paragraph text it reads as, which is what lets a body this
- * was not written for still render, just plainly.
+ * Renders a release body as the notes on its page. CommonMark in, page markup
+ * out, narrowed by the rules above: headings flatten to `h3`, fenced blocks
+ * are commands to type, and nothing the browser would fetch comes out.
  */
 export function markdownToHtml(markdown) {
-  const lines = escapeHtml(markdown).split("\n");
-  const parts = [];
-  let list = [];
-  let paragraph = [];
-  // A fence holds what is inside it literally: an install command is read and
-  // typed rather than parsed, so nothing in here is marked up, only escaped.
-  // The info string after the opening fence names a language this has no use
-  // for, and is dropped rather than rendered as content.
-  let fenced = null;
-
-  const closeList = () => {
-    if (list.length) parts.push(`<ul>${list.map((item) => `<li>${item}</li>`).join("")}</ul>`);
-    list = [];
-  };
-  const closeParagraph = () => {
-    if (paragraph.length) parts.push(`<p>${paragraph.join(" ")}</p>`);
-    paragraph = [];
-  };
-
-  for (const line of lines) {
-    const text = line.trim();
-    const fence = /^(?:```|~~~)(.*)$/.exec(text);
-
-    if (fenced !== null) {
-      if (fence) {
-        parts.push(`<pre class="t-prose__commands"><code>${fenced.join("\n")}</code></pre>`);
-        fenced = null;
-      } else {
-        fenced.push(line);
-      }
-      continue;
-    }
-    if (fence) {
-      closeParagraph();
-      closeList();
-      fenced = [];
-      continue;
-    }
-
-    const heading = /^#{1,6}\s+(.*)$/.exec(text);
-    const item = /^[-*]\s+(.*)$/.exec(text);
-    // A line of nothing but `=` or `-` underlines the line above it into a
-    // heading. Without this the underline renders as itself, which is what a
-    // reader saw at the top of v0.2.0: a title followed by a row of `=`.
-    // A rule with nothing above it underlines nothing and is decoration, so it
-    // is dropped rather than shown as its own punctuation.
-    const underline = /^(?:={2,}|-{2,})$/.test(text);
-
-    if (underline) {
-      const title = paragraph.pop();
-      closeParagraph();
-      closeList();
-      if (title !== undefined) parts.push(`<h3>${title}</h3>`);
-    } else if (!text) {
-      closeParagraph();
-      closeList();
-    } else if (heading) {
-      closeParagraph();
-      closeList();
-      // Every heading flattens to h3. The release page's own h1 names the
-      // release and h2 heads the notes, so a body's depth is not the page's
-      // outline and a body that starts at `##` does not skip a level.
-      parts.push(`<h3>${renderInline(heading[1])}</h3>`);
-    } else if (item) {
-      closeParagraph();
-      list.push(renderInline(item[1]));
-    } else {
-      closeList();
-      paragraph.push(renderInline(text));
-    }
-  }
-
-  // An unclosed fence is still the text someone wrote, so it renders as the
-  // block it was opening rather than vanishing with the body after it.
-  if (fenced !== null && fenced.length) {
-    parts.push(`<pre class="t-prose__commands"><code>${fenced.join("\n")}</code></pre>`);
-  }
-  closeParagraph();
-  closeList();
-  return parts.join("");
+  return PARSER.parse(markdown || "").trim();
 }
 
 /** The directory a release's page lives in, or null when its tag cannot be one. */
