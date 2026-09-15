@@ -63,6 +63,6 @@ request:
 scripts/check_commit_messages.sh --pr-title "fix(ui): keep the divider off the page"
 ```
 
-The pull request's description becomes the commit body. Write it as one: prose, wrapped, saying why
-the change is what it is. Headings and checklists read as a review aid and land in `main` as
-punctuation.
+The squash commit's body is the messages of the commits being squashed, so the prose written on the
+branch is the prose that lands. A description is free to be a review aid, with headings and
+checklists, because it is not what `main` keeps.
