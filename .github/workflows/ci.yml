@@ -125,9 +125,14 @@ jobs:
       - name: Install toolchain
         # `rust` carries cargo, which the content-blocker bootstrap needs. This
         # container ships nothing it is not told to.
+        #
+        # `sway`, `wtype` and `qt6-wayland` belong to the runtime budget below:
+        # a compositor for the browser to map a window on, a key synthesiser
+        # for the compositor that has no dispatcher of its own, and the Wayland
+        # platform plugin the browser needs to talk to either.
         run:
           pacman -Syu --noconfirm git cmake ninja clang ccache rust qt6-base qt6-declarative
-          qt6-webengine libsecret libsodium
+          qt6-webengine qt6-wayland libsecret libsodium sway wtype
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Take the build off root
         # A container runs as root, and Chromium refuses to start as root
@@ -145,6 +150,43 @@ jobs:
         run: su builder -c 'cmake --build --preset ci'
       - name: Test
         run: su builder -c 'ctest --preset ci'
+      # What the browser costs at runtime, against the ceilings in
+      # `performance/budget.json`. It measures the build this job has already
+      # made, so it costs a few minutes rather than a second build.
+      #
+      # Only what is stable without hardware: process start to the window
+      # mapping, resident memory at rest and with Spaces open, and what
+      # Freezing gives back. There is no GPU and no desktop here, so a paint
+      # timing measured in this container would be a software rasteriser's
+      # rather than a reader's, and those stay on the machines that have both.
+      #
+      # Sway runs the script rather than the other way round: started as a
+      # sibling it would have to be asked which socket it opened, and started
+      # as its `exec` it hands the script `WAYLAND_DISPLAY` and this job the
+      # script's own output. The status is carried out through a file because
+      # what the job has to exit with is the script's answer, not sway's.
+      - name: Measure startup and memory against the budget
+        run: |
+          rm -f /tmp/budget.status
+          cat > /tmp/sway.config <<'CONFIG'
+          exec "scripts/benchmark_runtime.py --browser build/ci/omaweb; echo $? > /tmp/budget.status; swaymsg exit"
+          CONFIG
+          chmod 0644 /tmp/sway.config
+          su builder -c '
+            set -eu
+            export XDG_RUNTIME_DIR=/tmp/runtime-builder
+            mkdir -p "$XDG_RUNTIME_DIR"
+            chmod 700 "$XDG_RUNTIME_DIR"
+            # wlroots with no card to open: the headless backend renders into
+            # memory through pixman and offers one output, which is a Wayland
+            # session for the browser to be measured on rather than a desktop.
+            export WLR_BACKENDS=headless WLR_RENDERER=pixman WLR_LIBINPUT_NO_DEVICES=1
+            sway -c /tmp/sway.config
+          '
+          # No status file means sway never ran the script, which is a failed
+          # job rather than a budget nobody measured.
+          exit "$(cat /tmp/budget.status 2>/dev/null || echo 1)"
+
       - name: Publish content-blocking compatibility
         run: |
           echo '### Content-blocking compatibility' >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,10 @@
+{
+  "machine": "provisional",
+  "recorded_on": "",
+  "measurements": {
+    "startup_seconds": { "ceiling": 999.0, "recorded": 0 },
+    "resident_megabytes": { "ceiling": 99999.0, "recorded": 0 },
+    "space_megabytes": { "ceiling": 99999.0, "recorded": 0 },
+    "frozen_growth_megabytes": { "ceiling": 99999.0, "recorded": 0 }
+  }
+}
