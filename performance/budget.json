@@ -1,0 +1,26 @@
+{
+  "machine": "GitHub Actions ubuntu-latest, archlinux:base-devel container, no GPU, cage on the wlroots headless backend with the pixman renderer",
+  "recorded_on": "2026-09-15",
+  "measurements": {
+    "startup_seconds": {
+      "ceiling": 3.0,
+      "recorded": 0.69,
+      "note": "Process start to the first buffer on the toplevel's surface, median of three launches. The three were 1.127, 0.690 and 0.668 s, the first paying for a cold page cache. The ceiling is about four times the median, which is what the startup probes in docs/development.md use, because a shared runner's speed is not its own."
+    },
+    "memory_mebibytes": {
+      "ceiling": 960.0,
+      "recorded": 481.45,
+      "note": "Proportional set size of the whole process tree, one Space, one page. The ceiling is twice the measurement, as the frozen-tab probe's is."
+    },
+    "space_mebibytes": {
+      "ceiling": 150.0,
+      "recorded": 74.18,
+      "note": "What each Space after the first adds, each holding the same page, averaged over four Spaces. The run was 482.7, 659.8, 682.0 and 705.2 MiB: the second Space costs the engine a set of processes the rest then share, so the average is above the 23 MiB each later Space added. The ceiling is twice the average."
+    },
+    "frozen_growth_mebibytes": {
+      "ceiling": 5.0,
+      "recorded": 0.02,
+      "note": "What an away Space's page goes on taking once frozen, over ten seconds, against ADR 0033. Tighter than the others on purpose: the same page grew 30.1 MiB in the six seconds it was on show, so a page still running would add about fifty here, and a reading's own noise is a megabyte or two."
+    }
+  }
+}
