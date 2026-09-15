@@ -41,3 +41,18 @@ published commits after the baseline exceed the 72-character limit and are exemp
 
 Merge commits are not checked. GitHub generates their subject, and the convention governs the
 commits an author writes.
+
+## Merging
+
+Squash every pull request. One pull request is one commit on `main`, whatever it took to get there.
+
+The commits on a branch are a record of the work, including the parts that were wrong on the way.
+`main` is read by someone asking what changed and by `scripts/release_notes.sh`, which lists every
+non-merge commit in the range, so a feature that took six attempts arrives in the release notes as
+six entries and a reader has to work out that five of them repair the first. Squashing puts that
+history where it belongs, on the branch and in the pull request, and leaves `main` with the change
+itself.
+
+GitHub fills the squash commit's subject from the pull request title, so the title has to follow the
+convention above: CI checks the commit, not the pull request, and a title that was written as a
+sentence fails the branch it lands on rather than the one it came from.

@@ -56,3 +56,20 @@ test suite with compiler warnings enabled, under both clang and GCC, because war
 here and the two compilers do not report the same set. No preset names a compiler, so the commands
 above use whichever the host has, and either one is a configuration CI also checks. A change is
 ready to merge only when every applicable command passes.
+
+## Code that calls something this repository does not run
+
+A change that calls an external service is exercised against that service before it merges, not
+after. A stub answers the way the author expected; the service answers the way it answers, and the
+difference between those two is where this kind of change fails.
+
+Give it a way to be run against the real thing without publishing anything: a dry-run input, a flag
+that writes what it would have written, a single-item mode. Then run it, read the output, and say in
+the pull request what came back.
+
+The release notes rewrite is what this rule is made of. It was tested against a stubbed API, merged,
+and cut a release that published the generated commit list instead of notes, because the model's
+thinking spent a token budget sized for the answer alone. Five further pull requests found the rest
+by publishing them: a heading with nothing under it, notes that could not be read back, the
+project's own vocabulary, a fenced command, an underlined title. Each was one real call away from
+being found before it shipped.
