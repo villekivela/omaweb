@@ -341,6 +341,21 @@
         </div>
         <div class="t-cols t-cols--stack">
           <div>
+            <h3>From the Omaweb repository</h3>
+            <p>
+              Add Omaweb's package repository once and it arrives, and stays current, with the rest
+              of your system updates. The
+              <a href="https://github.com/villekivela/omaweb#install">README</a> has the lines to
+              add and the key to import. Packages are signed, and pacman refuses any that are not.
+            </p>
+            <div class="t-term">
+              <pre
+                class="t-term__line"
+              ><span class="t-term__prompt" aria-hidden="true">$</span><code>sudo pacman -Syu omaweb</code><span class="t-term__cursor" aria-hidden="true"></span></pre>
+              <button class="btn t-term__copy" type="button" data-copy>Copy</button>
+            </div>
+          </div>
+          <div>
             <h3>From a release</h3>
             <p>
               Every release from
@@ -363,13 +378,14 @@
             <p>
               Omaweb tells you when a new version is out. A mark appears at the bottom of the
               sidebar with the version and how to get it, and selecting it opens the release notes.
-              Omaweb never installs anything on its own: download the new package and install it the
+              Omaweb never installs anything on its own. With the repository added, the upgrade is
+              your ordinary system update; without it, download the new package and install it the
               way you installed the first one. You can turn the check off in Settings, under About.
             </p>
             <div class="t-term">
               <pre
                 class="t-term__line"
-              ><span class="t-term__prompt" aria-hidden="true">$</span><code>sudo pacman -U omaweb-*.pkg.tar.zst</code><span class="t-term__cursor" aria-hidden="true"></span></pre>
+              ><span class="t-term__prompt" aria-hidden="true">$</span><code>sudo pacman -Syu</code><span class="t-term__cursor" aria-hidden="true"></span></pre>
               <button class="btn t-term__copy" type="button" data-copy>Copy</button>
             </div>
           </div>

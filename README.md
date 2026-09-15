@@ -31,21 +31,40 @@ Every browser action is available from the command panel.
 
 ## Install
 
-Build and install the Arch Linux package from the repository:
+Add the Omaweb repository to `/etc/pacman.conf`, and Omaweb arrives and upgrades with the rest of
+the system:
+
+```ini
+[omaweb]
+SigLevel = Required DatabaseRequired
+Server = https://villekivela.github.io/omaweb/$arch
+```
+
+Import the key the packages are signed with, once. The fingerprint is the one thing to check here:
+it comes from this page rather than from the keyserver, and pacman refuses any package it did not
+sign.
+
+```sh
+sudo pacman-key --recv-keys FDA535B2185755EA718BEA585DBF15FE484EFA64
+sudo pacman-key --lsign-key FDA535B2185755EA718BEA585DBF15FE484EFA64
+sudo pacman -Syu omaweb
+```
+
+Removing the repository leaves the installed package alone.
+
+To install a downloaded release package instead, without the repository:
+
+```sh
+sudo pacman -U omaweb-*.pkg.tar.zst
+```
+
+Omaweb uses the system QtWebEngine, so engine security updates arrive through the distribution.
+Published packages are `x86_64` only. On `aarch64`, build the package from the checkout:
 
 ```sh
 git clone https://github.com/villekivela/omaweb.git
 cd omaweb/packaging
 makepkg -si
-```
-
-Omaweb uses the system QtWebEngine, so engine security updates arrive through the distribution. On
-`aarch64`, build from source. Published packages are `x86_64` only.
-
-To install a downloaded release package:
-
-```sh
-sudo pacman -U omaweb-*.pkg.tar.zst
 ```
 
 Install `fcitx5-qt` if you use an input method. Omarchy configures Qt applications to use `fcitx`
