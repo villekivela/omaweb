@@ -515,10 +515,20 @@ development artifacts and are not attached ([ADR 0029](adr/0029-distribute-only-
 from the commit bodies in the range, the issues they reference, and the glossary in
 [CONTEXT.md](../CONTEXT.md), which is what keeps the notes calling things what the project calls
 them rather than what a commit subject happened to call them. It runs on every tag, prerelease
-included. The rewrite carries the compare URL over itself; that is the only thing it holds in code
-rather than asking the model for. It has nothing to say about the notes' markup, because
-`website/build/render.mjs` parses CommonMark: what a release may write is a question of what
-CommonMark is rather than of what the release page has a rule for.
+included. The rewrite carries the compare URL over itself, and repairs the layout. It has nothing to
+say about the notes' markup, because `website/build/render.mjs` parses CommonMark: what a release
+may write is a question of what CommonMark is rather than of what the release page has a rule for.
+
+`repair_layout` makes every release page the same shape. It drops a title restating the version,
+which the page's own `h1` already carries; drops a heading with nothing under it; and shifts a body
+opening at `#` down to `##`, keeping the difference between its levels. Each is a thing a body
+cannot be right about, and each is repaired rather than refused: refusing publishes the generated
+commit list, which is a worse page than a heading in the wrong place.
+
+What the sections are called is asked for in the prompt instead, because naming them is the
+judgement the model is there to make. Only the skeleton is fixed: `## Breaking changes` first when
+the range has one, `## Fixes` last, and the sections between them named for what actually changed.
+`## Linux platform integration` tells a reader more than `## What's new` does.
 
 It needs an `ANTHROPIC_API_KEY` secret. Without one, or when the API refuses, does not answer, or
 returns an answer that ran out of tokens, the generated commit list publishes unchanged and the job
