@@ -1,7 +1,8 @@
-// Omaweb website behaviour. Three things, all optional: the page renders and
+// Omaweb website behaviour. Four things, all optional: the page renders and
 // reads correctly with this file blocked -- index.html names the theme every
 // themed asset starts on, each thumbnail is a plain link to its full
-// screenshot, and the canvas behind the hero is decoration.
+// screenshot, the canvas behind the hero is decoration, and the nav is in
+// view until the script folds it behind its button.
 //
 //   1. Theme switching. One palette drives the page, the generated
 //      screenshots, the wordmark and the favicon, so picking a theme restyles
@@ -12,6 +13,7 @@
 //      resolution, so the grid is thumbnails and this is how they are read.
 //   3. The rain behind the hero: the drawing the screenshots' wallpaper is
 //      made of, in the active palette, falling slowly.
+//   4. The menu a phone gets in place of the row of links in the header.
 
 (function () {
   "use strict";
@@ -233,6 +235,38 @@
   if (hasTheme(initialTheme)) setTheme(initialTheme, { save: Boolean(queryTheme), share: false });
 
   // ---------------------------------------------------------------- copy
+  // ---------------------------------------------------------------- menu
+  // On a phone the nav folds behind a button. The stylesheet does the
+  // folding, keyed on the header's `data-menu` mark and the button's
+  // expanded state, so this only flips them: on the button, on a link (the
+  // install one stays on the page, so nothing else would close it), and on
+  // Escape. Above the breakpoint the stylesheet ignores both, so the state is
+  // left alone across resizes.
+  var top = document.querySelector(".t-top");
+  var toggle = top && top.querySelector(".t-nav-toggle");
+  var sections = toggle && document.getElementById(toggle.getAttribute("aria-controls"));
+
+  if (toggle && sections) {
+    function setMenu(open) {
+      toggle.setAttribute("aria-expanded", String(open));
+      top.setAttribute("data-menu", open ? "open" : "closed");
+    }
+
+    setMenu(false);
+    toggle.hidden = false;
+    toggle.addEventListener("click", function () {
+      setMenu(toggle.getAttribute("aria-expanded") !== "true");
+    });
+    sections.addEventListener("click", function (event) {
+      if (event.target.closest("a")) setMenu(false);
+    });
+    addEventListener("keydown", function (event) {
+      if (event.key !== "Escape" || toggle.getAttribute("aria-expanded") !== "true") return;
+      setMenu(false);
+      toggle.focus();
+    });
+  }
+
   // The button copies the command beside it, not the prompt or the cursor,
   // which are drawn for the reader and would be wrong in a shell. Without
   // the clipboard API, which needs a secure context, the button goes away

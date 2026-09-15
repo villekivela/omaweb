@@ -48,7 +48,28 @@
             alt="Omaweb"
           />
         </a>
-        <nav class="t-nav" aria-label="Sections">
+        <!-- The menu on a phone. Hidden until the script wires it, so a page
+             without the script keeps its links in view. -->
+        <button
+          class="t-nav-toggle"
+          type="button"
+          aria-expanded="false"
+          aria-controls="sections"
+          aria-label="Menu"
+          hidden
+        >
+          <svg
+            viewBox="0 0 24 24"
+            aria-hidden="true"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <path class="t-nav-toggle__open" d="M4 7h16M4 12h16M4 17h16" />
+            <path class="t-nav-toggle__close" d="M6 6l12 12M18 6L6 18" />
+          </svg>
+        </button>
+        <nav class="t-nav" id="sections" aria-label="Sections">
           <a href="./" aria-current="page">Features</a>
           <a href="../docs/">Docs</a>
           <a href="../releases/">Releases</a>
