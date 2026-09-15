@@ -787,12 +787,18 @@ if(BUILD_TESTING)
                 ${CMAKE_CURRENT_SOURCE_DIR}/tests/scripts/tst_release_notes.py
         )
         # The notes a model rewrites publish unattended, so what is checked is
-        # what nothing reviews in between: the compare URL survives, markup the
-        # release page cannot render is refused, and a failure publishes the
-        # generated notes rather than none.
+        # what nothing reviews in between: the compare URL survives, and a
+        # failure publishes the generated notes rather than none.
         add_test(NAME omaweb-rewrite-release-notes
             COMMAND ${Python3_EXECUTABLE}
                 ${CMAKE_CURRENT_SOURCE_DIR}/tests/scripts/tst_rewrite_release_notes.py
+        )
+        # CI skips the build jobs when a range is prose only, so this decides
+        # whether a ten-minute build runs at all. The direction of its mistakes
+        # is the property: an unrecognised path has to build.
+        add_test(NAME omaweb-source-changed
+            COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/tests/scripts/tst_source_changed.py
         )
         add_test(NAME omaweb-security-baseline
             COMMAND ${Python3_EXECUTABLE}

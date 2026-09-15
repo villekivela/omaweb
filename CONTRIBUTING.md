@@ -47,9 +47,11 @@ frame to a PNG, which works headlessly and is the easiest way to show a chrome c
 request.
 
 `ctest --preset dev` must pass before you open a pull request. CI then runs the `ci` preset on Arch
-Linux and builds the `release` preset to check that the compiled QML still loads. Nothing builds
-macOS for you, so a patch that touches `src/platform` or the bundle needs a local run there before
-it is sent.
+Linux and builds the `release` preset to check that the compiled QML still loads. A pull request
+that changes only `docs/`, `website/` or Markdown skips those three build jobs, because none of it
+reaches a compiler; the formatting, policy and commit-message checks still run. Run
+`scripts/source_changed.sh <base>` to see which way a range falls and why. Nothing builds macOS for
+you, so a patch that touches `src/platform` or the bundle needs a local run there before it is sent.
 
 ## Things that will fail the build
 
