@@ -234,6 +234,27 @@ One finding worth keeping: a clipboard check has to focus the window first. Wayl
 set the selection only while it holds keyboard focus, so `Primary+Shift+C` sent to an unfocused
 window fires the command and copies nothing. That is the protocol rather than the browser.
 
+### Announcing the sounding tab
+
+```sh
+scripts/check_mpris_export.sh
+```
+
+drives the path a page's media session takes to the desktop: the first-party script in the page, the
+console channel the adapter reads it off, `SoundingTabs` picking the tab, and the window handing a
+media key back to the page. The unit tests cover each end of that on their own, and neither of them
+covers the join.
+
+It starts a browser of its own on a page that declares a media session, then reads the player and
+sends it commands the way a bar's media widget does. The browser runs on a session bus of its own
+and on throwaway directories, for the same reasons the Wayland check does: on the reader's bus the
+address would be handed to the browser already open, and the player would land in the reader's own
+bar. It needs a graphical session, so it is a check to run by hand rather than a CI gate.
+
+It says what the page declared, whether a media key reached the page's own handler, and whether the
+player went when the browser did. The bus it ran on is torn down after the last result, and its
+daemon prints as it goes; nothing below the last `OK` line is a result.
+
 ### Installing and opening links
 
 `cmake --install` puts the browser at `bin/omaweb`, the bootstrapped content-blocking library under
