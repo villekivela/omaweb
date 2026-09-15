@@ -35,6 +35,11 @@ scripts/format.sh --changed origin/main
 scripts/check_changed.sh origin/main
 ```
 
+A decision recorded under `docs/adr/` takes the next free number, which
+`scripts/check_adr_numbers.py` prints and CI enforces. Two branches open at once have already landed
+two decisions numbered 0038, so the number a branch chose is checked against the tree it merges into
+rather than the tree it was written in.
+
 Use the full-tree mode after changing format rules or upgrading a formatter:
 
 ```sh

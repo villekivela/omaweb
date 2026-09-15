@@ -47,6 +47,13 @@ jobs:
       - name: Check the repository instructions agree
         run: scripts/check_repository_instructions.py
 
+      # Two branches open at once, neither seeing the other's number, is how
+      # two decisions came to be numbered 0038 (#274). Nothing either author
+      # could have checked would have caught it: the number was free when each
+      # wrote their file, and the collision exists only in the merged tree.
+      - name: Check no two decisions hold one number
+        run: scripts/check_adr_numbers.py
+
       # The build step that writes the release notes into the site. Vercel runs
       # it on deploy, where a failure is a page nobody has looked at yet, so
       # the rendering it does is held here. `node --test` is the whole harness

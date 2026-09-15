@@ -186,7 +186,7 @@ an engine fact the browser relies on, and `tests/engine/tst_qtenginecontract.cpp
 to QML as a property on it. It holds the window's running downloads and the Download records its
 Space kept in one list, with a role saying which, and it publishes the Download activity the footer
 mark reports. Callers bind to it; nothing refreshes it
-([ADR 0038](adr/0038-own-a-windows-downloads-in-core.md)).
+([ADR 0042](adr/0042-own-a-windows-downloads-in-core.md)).
 
 `DownloadPolicy` classifies a download from its proposed filename. It uses the declared media type
 only when the filename is inconclusive. Both values are untrusted. `Downloads` combines the file
