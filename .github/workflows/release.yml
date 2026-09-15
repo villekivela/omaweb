@@ -50,6 +50,7 @@ jobs:
             runner: ubuntu-latest
             container: archlinux:base-devel
             minutes: 30
+            pacman-flags: ""
           # Pinned by digest, unlike the official image above, because this one
           # is a community rebuild of Arch Linux ARM rather than a distribution
           # image. The tag it was taken from is `base-devel-20260915`, which is
@@ -59,11 +60,23 @@ jobs:
             runner: ubuntu-24.04-arm
             container: menci/archlinuxarm:base-devel@sha256:a7a04e07d5feb063229eb3796a96743a9a3c28a5facce749c4d0ebfbfddece14
             minutes: 60
+            # pacman 7 downloads inside a Landlock sandbox, and on the Arm
+            # runner applying it fails with `Operation not permitted`, so a
+            # plain `pacman -Syu` cannot synchronise a database there. The same
+            # command on the x86_64 runner sandboxes itself and is left alone.
+            # What that sandbox protects is a download running as root on a
+            # machine that keeps its filesystem; this one is a container that
+            # exists for one job and is thrown away with it.
+            pacman-flags: "--disable-sandbox"
     steps:
       - name: Install toolchain
+        env:
+          PACMAN_FLAGS: ${{ matrix.pacman-flags }}
+        # Unquoted, because an empty value has to disappear rather than become
+        # an empty argument pacman would read as a package name.
         run:
-          pacman -Syu --noconfirm git cmake ninja clang rust python qt6-base qt6-declarative
-          qt6-webengine qt6-wayland hicolor-icon-theme xdg-utils libsecret libsodium
+          pacman -Syu --noconfirm $PACMAN_FLAGS git cmake ninja clang rust python qt6-base
+          qt6-declarative qt6-webengine qt6-wayland hicolor-icon-theme xdg-utils libsecret libsodium
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # The package takes its version from the nearest release tag, so the

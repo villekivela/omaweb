@@ -25,6 +25,13 @@ in the comment beside it and taking a newer one. The alternative, following a fl
 trusting every future push sight unseen in the job that signs packages, which is the wrong job to be
 relaxed in.
 
+The Arm leg installs its toolchain with pacman's own sandbox off. pacman 7 downloads inside a
+Landlock ruleset, that ruleset cannot be applied on the Arm runner, and the failure is a job that
+cannot synchronise a package database at all. The sandbox is there for a download running as root on
+a machine that keeps its filesystem; this one runs in a container that exists for one job. Nothing
+about what is installed changes, because the packages are still the distribution's own signed ones
+and pacman still verifies them.
+
 What the two packages are is not identical, and the difference is the engine. Omaweb depends on
 system `qt6-webengine` rather than bundling it
 ([ADR 0013](0013-preserve-engine-sandboxes-in-every-build.md)), so the `aarch64` package is built
