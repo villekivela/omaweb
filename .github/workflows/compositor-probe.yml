@@ -1,0 +1,49 @@
+# Temporary. Answers which headless compositor starts in this container, so the
+# runtime budget's CI step is not found out one twenty-minute build at a time.
+# Delete before this branch merges.
+name: Compositor probe
+
+on:
+  push:
+    branches: [test/273-budget-startup-and-memory]
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    container: archlinux:base-devel
+    timeout-minutes: 10
+    steps:
+      - name: Install candidates
+        run: pacman -Syu --noconfirm sway cage weston wtype libcap
+      - name: Take the probe off root
+        run: useradd --create-home --shell /bin/bash builder
+      - name: Look at the binaries
+        run: |
+          for binary in sway cage weston wtype; do
+            path=$(command -v "$binary" || echo missing)
+            echo "== $binary: $path"
+            [ "$path" = missing ] && continue
+            ls -l "$(readlink -f "$path")"
+            getcap "$(readlink -f "$path")" || true
+            file "$(readlink -f "$path")" || true
+          done
+      - name: Try to start each one
+        run: |
+          su builder -c '
+            export XDG_RUNTIME_DIR=/tmp/runtime-builder
+            mkdir -p "$XDG_RUNTIME_DIR"
+            chmod 700 "$XDG_RUNTIME_DIR"
+            export WLR_BACKENDS=headless WLR_RENDERER=pixman WLR_LIBINPUT_NO_DEVICES=1
+            echo "== sway"
+            timeout 20 sway -c /dev/null; echo "sway exit $?"
+            echo "== cage"
+            timeout 20 cage -- /bin/sh -c "echo cage ran, display is \$WAYLAND_DISPLAY"
+            echo "cage exit $?"
+            echo "== weston"
+            timeout 20 weston --backend=headless --socket=wayland-9 &
+            sleep 5
+            ls -l "$XDG_RUNTIME_DIR" || true
+          '
