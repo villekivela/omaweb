@@ -59,7 +59,8 @@ sudo pacman -U omaweb-*.pkg.tar.zst
 ```
 
 Omaweb uses the system QtWebEngine, so engine security updates arrive through the distribution.
-Published packages are `x86_64` only. On `aarch64`, build the package from the checkout:
+Packages are published for `x86_64` and for `aarch64`; the `aarch64` ones are built on Arch Linux
+ARM and use the QtWebEngine that distribution ships. To build the package from the checkout instead:
 
 ```sh
 git clone https://github.com/villekivela/omaweb.git
