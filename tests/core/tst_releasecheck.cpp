@@ -22,6 +22,9 @@ private slots:
     void readsNoReleaseFromAnAnswerItCannotUse();
     void readsTheReleaseNumberOffABuildDescription_data();
     void readsTheReleaseNumberOffABuildDescription();
+    void sendsTheReaderToOmawebsOwnReleasePage();
+    void sendsTheReaderToTheListWhenATagHasNoPage_data();
+    void sendsTheReaderToTheListWhenATagHasNoPage();
     void asksAgainTheNextDay_data();
     void asksAgainTheNextDay();
     void tellsAPackagedReaderToUpgradeWithTheSystem();
@@ -165,6 +168,34 @@ void ReleaseCheckTest::readsTheReleaseNumberOffABuildDescription()
     QFETCH(QString, number);
 
     QCOMPARE(omaweb::ReleaseCheck::releaseNumber(version), number);
+}
+
+// Omaweb's own page rather than GitHub's: it carries the notes and, beside
+// them, how to upgrade — which is the other half of what the notice is for.
+void ReleaseCheckTest::sendsTheReaderToOmawebsOwnReleasePage()
+{
+    QCOMPARE(omaweb::ReleaseCheck::notesPage(QStringLiteral("v0.5.0")),
+        QUrl(QStringLiteral("https://omaweb.app/releases/v0.5.0/")));
+}
+
+// The site makes a page for every tag it can name a directory after, and
+// nothing else. A tag it would skip has to land somewhere that exists.
+void ReleaseCheckTest::sendsTheReaderToTheListWhenATagHasNoPage_data()
+{
+    QTest::addColumn<QString>("tag");
+
+    QTest::newRow("no tag") << QString();
+    QTest::newRow("a path of its own") << QStringLiteral("v0.5.0/../etc");
+    QTest::newRow("a space") << QStringLiteral("v0.5.0 final");
+    QTest::newRow("leading punctuation") << QStringLiteral(".hidden");
+}
+
+void ReleaseCheckTest::sendsTheReaderToTheListWhenATagHasNoPage()
+{
+    QFETCH(QString, tag);
+
+    QCOMPARE(
+        omaweb::ReleaseCheck::notesPage(tag), QUrl(QStringLiteral("https://omaweb.app/releases/")));
 }
 
 // At most once a day, counted from when the last check finished.

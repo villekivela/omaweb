@@ -23,7 +23,6 @@ namespace {
     // the answer, and asking for fewer costs GitHub and this browser the same.
     constexpr auto releasesEndpoint
         = "https://api.github.com/repos/villekivela/omaweb/releases?per_page=10";
-    constexpr auto releasePage = "https://github.com/villekivela/omaweb/releases/tag/";
 
     // What Omaweb remembers between runs. The names are stored settings and are not
     // renamed without a migration.
@@ -172,7 +171,7 @@ QUrl ReleaseWatch::notes() const
     if (m_newestRelease.isEmpty()) {
         return {};
     }
-    return QUrl(QString::fromLatin1(releasePage) + m_newestRelease);
+    return ReleaseCheck::notesPage(m_newestRelease);
 }
 
 void ReleaseWatch::dismiss()

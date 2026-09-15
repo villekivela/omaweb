@@ -4,6 +4,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QList>
+#include <QRegularExpression>
 #include <QStringList>
 
 namespace omaweb::ReleaseCheck {
@@ -108,6 +109,20 @@ QString releaseNumber(const QString &version)
         parts.append(QString::number(number));
     }
     return parts.join(QLatin1Char('.'));
+}
+
+QUrl notesPage(const QString &releaseTag)
+{
+    // The site builds a page per release at `releases/<tag>/`, for every tag it
+    // can make a directory name of. The same rule is applied here rather than
+    // assumed, so a tag that would have no page sends the reader to the list
+    // rather than to a 404.
+    static const QRegularExpression pageable(QStringLiteral("^[A-Za-z0-9][A-Za-z0-9._-]*$"));
+    const auto releases = QStringLiteral("https://omaweb.app/releases/");
+    if (!pageable.match(releaseTag).hasMatch()) {
+        return QUrl(releases);
+    }
+    return QUrl(releases + releaseTag + QLatin1Char('/'));
 }
 
 bool due(const QDateTime &lastCheck, const QDateTime &now)

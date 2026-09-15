@@ -3,6 +3,7 @@
 #include <QByteArray>
 #include <QDateTime>
 #include <QString>
+#include <QUrl>
 
 // What Omaweb decides about its own age. The decisions are here, apart from the
 // request that answers them, because every one of them is a question with a
@@ -30,6 +31,12 @@ QString newestRelease(const QByteArray &releasesAnswer);
 // The release number a version begins with, as `x.y.z`, with the description a
 // build carries past its tag left off. Empty when there is no version to read.
 QString releaseNumber(const QString &version);
+
+// Where a reader is sent to read about the release: Omaweb's own release page,
+// which carries the notes and how to upgrade. A tag the site cannot make a page
+// for is sent to the list of releases instead, which is a page that is always
+// there.
+QUrl notesPage(const QString &releaseTag);
 
 // Whether a check is owed. At most one a day, counted from the last one that
 // finished.

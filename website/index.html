@@ -351,7 +351,7 @@
             <div class="t-term">
               <pre
                 class="t-term__line"
-              ><span class="t-term__prompt" aria-hidden="true">$</span><code>sudo pacman -U omaweb-git-*.pkg.tar.zst</code><span class="t-term__cursor" aria-hidden="true"></span></pre>
+              ><span class="t-term__prompt" aria-hidden="true">$</span><code>sudo pacman -U omaweb-*.pkg.tar.zst</code><span class="t-term__cursor" aria-hidden="true"></span></pre>
               <button class="btn t-term__copy" type="button" data-copy>Copy</button>
             </div>
           </div>
@@ -367,6 +367,22 @@
                 class="t-term__line"
               ><span class="t-term__prompt" aria-hidden="true">$</span><code>git clone https://github.com/villekivela/omaweb.git</code>
 <span class="t-term__prompt" aria-hidden="true">$</span><code>cd omaweb/packaging &amp;&amp; makepkg -si</code><span class="t-term__cursor" aria-hidden="true"></span></pre>
+              <button class="btn t-term__copy" type="button" data-copy>Copy</button>
+            </div>
+          </div>
+          <div>
+            <h3>Keeping it current</h3>
+            <p>
+              Omaweb checks once a day whether a newer release exists and marks one in the sidebar
+              footer. It never installs anything: updating is a command you run, and which one
+              depends on how you installed. A packaged install is replaced the same way it arrived,
+              and a build from the repository is pulled and built again. Turn the check off in
+              Settings, under About.
+            </p>
+            <div class="t-term">
+              <pre
+                class="t-term__line"
+              ><span class="t-term__prompt" aria-hidden="true">$</span><code>git pull &amp;&amp; cd packaging &amp;&amp; makepkg -si</code><span class="t-term__cursor" aria-hidden="true"></span></pre>
               <button class="btn t-term__copy" type="button" data-copy>Copy</button>
             </div>
           </div>
