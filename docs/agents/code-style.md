@@ -51,6 +51,10 @@ cmake --build --preset ci
 ctest --preset ci
 ```
 
+The build and the tests are the gate for a change a compiler reads. A change confined to `docs/`,
+`website/` or Markdown is not one, and CI skips its three Arch jobs for the same reason;
+`scripts/source_changed.sh <base>` answers which kind a range is.
+
 CI runs the formatters and rejects any resulting diff. It then runs `qmllint`, the build, and the
 test suite with compiler warnings enabled, under both clang and GCC, because warnings are `-Werror`
 here and the two compilers do not report the same set. No preset names a compiler, so the commands
