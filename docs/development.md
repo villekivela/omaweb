@@ -563,9 +563,17 @@ first real run of a publishing path is otherwise a release, and by then the rele
 The signing key is the one piece of setup a human does. It is a signing subkey whose private half is
 the `PACMAN_SIGNING_KEY` secret, with `PACMAN_SIGNING_KEY_PASSPHRASE` beside it when the export has
 one. Until that secret exists the `publish-repo` job says so in the job summary and ends green: the
-release publishes, and readers install it by hand. The repository is unserved until the first tag
-after the key lands, and the README gains the `[omaweb]` block and the key fingerprint then, because
-instructions for a repository that answers nothing are worse than none.
+release publishes, and readers install it by hand.
+
+The README and the website both carry the `[omaweb]` block and the signing key's fingerprint,
+because a reader installs from whichever of the two they opened.
+`scripts/check_repository_instructions.py` checks that the two agree and CI runs it: each page is
+correct on its own, so nothing else would report a fingerprint that had gone stale in one of them,
+and the reader would find out as a signature error on their own machine. Both landed with the tag
+that first served the repository rather than before it: instructions for a repository that answers
+nothing are worse than none. The fingerprint is published in the README rather than taken from the
+keyserver, because a keyserver will hand a reader any key that claims the name; naming the one key
+it must be is what makes `pacman-key --recv-keys` safe.
 
 `scripts/rewrite_release_notes.py` then rewrites that commit list into notes addressed to a reader,
 from the commit bodies in the range, the issues they reference, and the glossary in

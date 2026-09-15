@@ -40,6 +40,13 @@ jobs:
       - name: Check the website against its own policy
         run: scripts/check_website_csp.py
 
+      # The README and the website both tell a reader how to add the [omaweb]
+      # repository, and a reader follows whichever they opened. A fingerprint
+      # that is current in one and stale in the other fails at their machine
+      # with a signature error, which is the worst place to find out.
+      - name: Check the repository instructions agree
+        run: scripts/check_repository_instructions.py
+
       # The build step that writes the release notes into the site. Vercel runs
       # it on deploy, where a failure is a page nobody has looked at yet, so
       # the rendering it does is held here. `node --test` is the whole harness

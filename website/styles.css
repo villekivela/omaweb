@@ -890,6 +890,13 @@ img {
   border-radius: var(--radius);
   background: var(--sidebar);
 }
+/* A block is the last thing in a column everywhere else on the page, so nothing
+   had ever followed one and `.t-cols p` zeroes its margins. A paragraph that
+   does follow one takes the same space the block takes above itself, so a step
+   that comes after a block is as far from it as the step that came before. */
+.t-term + p {
+  margin-top: var(--sp-xxl);
+}
 .t-term__line {
   flex: 1;
   min-width: 0;
@@ -903,6 +910,14 @@ img {
   color: var(--fg);
   display: flex;
   align-items: center;
+}
+/* A block of more than one line. The single-line form is a flex row so the
+   prompt, the command and the cursor sit on one baseline; that same row would
+   lay several lines out side by side, because a flex container does not break
+   at a newline. Laid out as text instead, where `white-space: pre-wrap` above
+   makes the newlines in the markup the line breaks they look like. */
+.t-term__line--stack {
+  display: block;
 }
 .t-term__line code {
   font: inherit;

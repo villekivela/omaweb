@@ -341,20 +341,34 @@
         </div>
         <div class="t-cols t-cols--stack">
           <div>
-            <h3>From a release</h3>
+            <h3>From the Omaweb repository</h3>
             <p>
-              Every release from
-              <a href="https://github.com/villekivela/omaweb/releases">v0.2.0</a> on includes a
-              built package. Download it and install it with pacman. Packages are
-              <code>x86_64</code> only; on <code>aarch64</code>, build it from the checkout as the
-              <a href="https://github.com/villekivela/omaweb#build">README</a> describes. Installing
-              does not make Omaweb your default browser. It is alpha, so that stays a choice you
-              make in Settings.
+              Add these lines to <code>/etc/pacman.conf</code>. Omaweb then arrives, and stays
+              current, with the rest of your system updates.
+            </p>
+            <div class="t-term">
+              <pre class="t-term__line t-term__line--stack"><code>[omaweb]</code>
+<code>SigLevel = Required DatabaseRequired</code>
+<code>Server = https://villekivela.github.io/omaweb/$arch</code></pre>
+              <button class="btn t-term__copy" type="button" data-copy>Copy</button>
+            </div>
+            <p>
+              Then import the key the packages are signed with, once. Check the fingerprint against
+              this page: pacman installs nothing this key did not sign, and a keyserver will hand
+              out any key that claims the name.
+            </p>
+            <p>
+              Packages are <code>x86_64</code>. On <code>aarch64</code>, and if you would rather not
+              add a repository at all, the
+              <a href="https://github.com/villekivela/omaweb#install">README</a> has the other ways
+              in.
             </p>
             <div class="t-term">
               <pre
-                class="t-term__line"
-              ><span class="t-term__prompt" aria-hidden="true">$</span><code>sudo pacman -U omaweb-*.pkg.tar.zst</code><span class="t-term__cursor" aria-hidden="true"></span></pre>
+                class="t-term__line t-term__line--stack"
+              ><span class="t-term__prompt" aria-hidden="true">$</span><code>sudo pacman-key --recv-keys FDA535B2185755EA718BEA585DBF15FE484EFA64</code>
+<span class="t-term__prompt" aria-hidden="true">$</span><code>sudo pacman-key --lsign-key FDA535B2185755EA718BEA585DBF15FE484EFA64</code>
+<span class="t-term__prompt" aria-hidden="true">$</span><code>sudo pacman -Syu omaweb</code><span class="t-term__cursor" aria-hidden="true"></span></pre>
               <button class="btn t-term__copy" type="button" data-copy>Copy</button>
             </div>
           </div>
@@ -363,13 +377,14 @@
             <p>
               Omaweb tells you when a new version is out. A mark appears at the bottom of the
               sidebar with the version and how to get it, and selecting it opens the release notes.
-              Omaweb never installs anything on its own: download the new package and install it the
+              Omaweb never installs anything on its own. With the repository added, the upgrade is
+              your ordinary system update; without it, download the new package and install it the
               way you installed the first one. You can turn the check off in Settings, under About.
             </p>
             <div class="t-term">
               <pre
                 class="t-term__line"
-              ><span class="t-term__prompt" aria-hidden="true">$</span><code>sudo pacman -U omaweb-*.pkg.tar.zst</code><span class="t-term__cursor" aria-hidden="true"></span></pre>
+              ><span class="t-term__prompt" aria-hidden="true">$</span><code>sudo pacman -Syu</code><span class="t-term__cursor" aria-hidden="true"></span></pre>
               <button class="btn t-term__copy" type="button" data-copy>Copy</button>
             </div>
           </div>
