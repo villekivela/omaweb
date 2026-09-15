@@ -40,6 +40,29 @@ test("markdown: a bare https URL becomes a link, and trailing punctuation stays 
   );
 });
 
+test("markdown: an underlined title is a heading, not a row of punctuation", () => {
+  // What a reader saw on the v0.2.0 page: the title, then the underline as
+  // itself, because only `#` headings were understood.
+  assert.equal(
+    markdownToHtml("Release notes for v0.2.0\n=========================="),
+    "<h3>Release notes for v0.2.0</h3>",
+  );
+  assert.equal(markdownToHtml("Title\n-----"), "<h3>Title</h3>");
+});
+
+test("markdown: an underline takes only the line above it", () => {
+  assert.equal(
+    markdownToHtml("An opening line.\nTitle\n====="),
+    "<p>An opening line.</p><h3>Title</h3>",
+  );
+});
+
+test("markdown: a rule underlining nothing is decoration and is dropped", () => {
+  assert.equal(markdownToHtml("---"), "");
+  // A dash list is not a rule: the item pattern needs the space after it.
+  assert.equal(markdownToHtml("- one\n- two"), "<ul><li>one</li><li>two</li></ul>");
+});
+
 test("markdown: a fenced block is a command to type, not markup to read", () => {
   assert.equal(
     markdownToHtml("```sh\nsudo pacman -U ./omaweb.pkg.tar.zst\n```"),

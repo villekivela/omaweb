@@ -84,8 +84,9 @@ function renderInline(escaped) {
 }
 
 /**
- * Renders the Markdown subset a release body uses: headings, dash lists,
- * fenced commands, paragraphs, and inline bold, code and links. Anything else
+ * Renders the Markdown subset a release body uses: headings written either
+ * way, dash lists, fenced commands, paragraphs, and inline bold, code and
+ * links. Anything else
  * arrives as the paragraph text it reads as, which is what lets a body this
  * was not written for still render, just plainly.
  */
@@ -131,8 +132,19 @@ export function markdownToHtml(markdown) {
 
     const heading = /^#{1,6}\s+(.*)$/.exec(text);
     const item = /^[-*]\s+(.*)$/.exec(text);
+    // A line of nothing but `=` or `-` underlines the line above it into a
+    // heading. Without this the underline renders as itself, which is what a
+    // reader saw at the top of v0.2.0: a title followed by a row of `=`.
+    // A rule with nothing above it underlines nothing and is decoration, so it
+    // is dropped rather than shown as its own punctuation.
+    const underline = /^(?:={2,}|-{2,})$/.test(text);
 
-    if (!text) {
+    if (underline) {
+      const title = paragraph.pop();
+      closeParagraph();
+      closeList();
+      if (title !== undefined) parts.push(`<h3>${title}</h3>`);
+    } else if (!text) {
       closeParagraph();
       closeList();
     } else if (heading) {
