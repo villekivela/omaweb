@@ -55,6 +55,13 @@ leaves the Space. _Avoid_: Split view (as the name of the thing), tab group, pan
 nothing else about the browser answers for it until the reader focuses it. _Avoid_: Companion tab,
 secondary tab, other pane
 
+**Tab jump list**: The order in which a Space's tabs became active, kept in memory for the current
+run and never written down. Every activation of a tab appends it, a tab listed earlier moves to the
+end rather than appearing twice, and a tab that closes leaves the list. Jumping back and forward
+walks the list without changing it, so a new activation after a jump keeps the entries ahead of it
+and appends at the end. Each half of a split is its own entry. Each Space has one, and it survives a
+switch to another Space and back. _Avoid_: Tab history, recent tabs, tab stack, last tab
+
 **Start page**: What Omaweb draws where a webpage would be whenever the tab on show has no address
 to load, in a Space at rest or on `about:blank` itself: the browser's keyboard commands and the keys
 that run them, rather than a document loaded from anywhere. It costs no engine and takes the
