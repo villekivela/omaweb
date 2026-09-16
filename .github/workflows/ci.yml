@@ -161,10 +161,11 @@ jobs:
       # made, so it costs a few minutes rather than a second build.
       #
       # Only what is stable without hardware: process start to the window
-      # mapping, resident memory at rest and with Spaces open, and what
-      # Freezing gives back. There is no GPU and no desktop here, so a paint
-      # timing measured in this container would be a software rasteriser's
-      # rather than a reader's, and those stay on the machines that have both.
+      # mapping, the proportional set size of the process tree at rest and
+      # with Spaces open, and whether a frozen Space's pages are still
+      # running. There is no GPU and no desktop here, so a paint timing
+      # measured in this container would be a software rasteriser's rather
+      # than a reader's, and those stay on the machines that have both.
       #
       # Cage runs the script rather than the other way round: started as a
       # sibling it would have to be asked which socket it opened, and started
