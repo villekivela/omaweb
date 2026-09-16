@@ -4,6 +4,7 @@
 #include "EngineCapabilities.h"
 #include "EngineCapabilityExpectations.h"
 #include "ExternalProtocolHandler.h"
+#include "GlobalPrivacyControl.h"
 #include "QtContentBlocker.h"
 #include "QtHeldDownloads.h"
 #include "ContentBlockerContract.h"
@@ -149,6 +150,8 @@ private slots:
     void qtServesTheSubstitutesTheListsName();
     void qtStripsTheParametersTheListsName();
     void qtAttachesBlockingToTheProfileQmlCreates();
+    void qtTellsEverySiteNotToSellTheReadersData_data();
+    void qtTellsEverySiteNotToSellTheReadersData();
     void adaptersNameTheColoursTheirInspectorIsDrawnIn_data();
     void adaptersNameTheColoursTheirInspectorIsDrawnIn();
     void qtDocksAnInspectorDrawnInOmawebsColours();
@@ -1282,6 +1285,7 @@ public:
                 const auto fields = request.split(' ');
                 if (fields.size() > 1) {
                     m_requested.append(QString::fromUtf8(fields.at(1)));
+                    m_requests.append(QString::fromUtf8(request));
                 }
                 if (fields.value(1) == "/redirect") {
                     const auto destination = m_redirectTo.isEmpty()
@@ -1302,10 +1306,36 @@ public:
 
     QStringList requested() const { return m_requested; }
 
+    // The value of one header on the request for one path, or an empty
+    // string where the request never came or carried no such header. Header
+    // names are case-insensitive on the wire, and Chromium lowercases them.
+    QString header(const QString &path, const QString &name) const
+    {
+        for (const auto &request : m_requests) {
+            const auto lines = request.split(QStringLiteral("\r\n"));
+            if (lines.value(0).section(QLatin1Char(' '), 1, 1) != path) {
+                continue;
+            }
+            for (const auto &line : lines) {
+                if (line.startsWith(name + QLatin1Char(':'), Qt::CaseInsensitive)) {
+                    return line.section(QLatin1Char(':'), 1).trimmed();
+                }
+            }
+        }
+        return {};
+    }
+
+    void forget()
+    {
+        m_requested.clear();
+        m_requests.clear();
+    }
+
 private:
     QByteArray m_body;
     QByteArray m_redirectTo;
     QStringList m_requested;
+    QStringList m_requests;
 };
 
 } // namespace
@@ -1735,6 +1765,115 @@ void QtEngineContractTest::qtAttachesBlockingToTheProfileQmlCreates()
 
     QObject notAProfile;
     QVERIFY(!engineContentBlocker.attachToProfile(&notAProfile, QStringLiteral("space-1")));
+}
+
+void QtEngineContractTest::qtTellsEverySiteNotToSellTheReadersData_data()
+{
+    QTest::addColumn<bool>("privateWindow");
+    QTest::newRow("a Space's profile") << false;
+    QTest::newRow("the private profile") << true;
+}
+
+// Global Privacy Control is two halves the specification requires together:
+// `Sec-GPC: 1` on every request, and `navigator.globalPrivacyControl` reading
+// `true` in every frame. Both ride the profile, so a Space's profile and the
+// Private windows' shared one send them alike, and every request that leaves
+// a page sends the header — the document, a frame the engine loads on its
+// behalf, an image, a fetch. Off turns both off, and on brings both back.
+void QtEngineContractTest::qtTellsEverySiteNotToSellTheReadersData()
+{
+    QFETCH(bool, privateWindow);
+    PageServer server(R"HTML(<!doctype html><html><body>
+        <script>
+            if (window.top === window) {
+                const answers = {};
+                window.report = (name, value) => {
+                    answers[name] = String(value);
+                    if (Object.keys(answers).length < 4) return;
+                    document.title = ["main", "frame", "image", "fetch"]
+                        .map(key => key + ":" + answers[key]).join(" ");
+                };
+                report("main", navigator.globalPrivacyControl);
+                const image = new Image();
+                image.onload = image.onerror = () => report("image", "asked");
+                image.src = "/pixel.gif" + location.search;
+                fetch("/data.json" + location.search).then(() => report("fetch", "asked"));
+                const frame = document.createElement("iframe");
+                frame.src = "/frame.html" + location.search;
+                document.body.appendChild(frame);
+            } else {
+                parent.report("frame", navigator.globalPrivacyControl);
+            }
+        </script>
+    </body></html>)HTML");
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    omaweb::ContentBlocker contentBlocker(root.path(), omaweb::ContentBlocker::DefaultLists::None);
+    omaweb::GlobalPrivacyControl control(root.filePath(QStringLiteral("config")));
+    omaweb::QtContentBlocker engineContentBlocker(&contentBlocker, &control);
+
+    QQmlEngine engine;
+    QQmlComponent profileComponent(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_PROFILE_PATH)));
+    std::unique_ptr<QObject> profileHost;
+    QVariantMap viewProperties {
+        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
+        {QStringLiteral("engineContentBlocker"),
+            QVariant::fromValue<QObject *>(&engineContentBlocker)},
+    };
+    if (privateWindow) {
+        profileHost.reset(profileComponent.createWithInitialProperties({
+            {QStringLiteral("profilePath"), root.filePath(QStringLiteral("private"))},
+            {QStringLiteral("privateBrowsing"), true},
+            {QStringLiteral("engineContentBlocker"),
+                QVariant::fromValue<QObject *>(&engineContentBlocker)},
+        }));
+        QVERIFY2(profileHost, qPrintable(profileComponent.errorString()));
+        viewProperties.insert(QStringLiteral("sharedProfile"), profileHost->property("profile"));
+    }
+    QQmlComponent component(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    const std::unique_ptr<QObject> adapter(component.createWithInitialProperties(viewProperties));
+    QVERIFY2(adapter, qPrintable(component.errorString()));
+    QQuickWindow window;
+    qobject_cast<QQuickItem *>(adapter.get())->setParentItem(window.contentItem());
+    window.show();
+
+    const auto pageUrl = [&server](const QString &query) {
+        return QUrl(
+            QStringLiteral("http://127.0.0.1:%1/page.html?%2").arg(server.serverPort()).arg(query));
+    };
+    const QStringList paths {QStringLiteral("/page.html"), QStringLiteral("/frame.html"),
+        QStringLiteral("/pixel.gif"), QStringLiteral("/data.json")};
+    const auto header = [&server, &paths](const QString &query) {
+        QStringList values;
+        for (const auto &path : paths) {
+            values.append(
+                server.header(path + QLatin1Char('?') + query, QStringLiteral("Sec-GPC")));
+        }
+        return values;
+    };
+
+    QVERIFY(adapter->setProperty("currentUrl", pageUrl(QStringLiteral("on"))));
+    QTRY_COMPARE_WITH_TIMEOUT(adapter->property("pageTitle").toString(),
+        QStringLiteral("main:true frame:true image:asked fetch:asked"), 15000);
+    QCOMPARE(header(QStringLiteral("on")), QStringList(4, QStringLiteral("1")));
+
+    control.setEnabled(false);
+    server.forget();
+    QVERIFY(adapter->setProperty("currentUrl", pageUrl(QStringLiteral("off"))));
+    QTRY_COMPARE_WITH_TIMEOUT(adapter->property("pageTitle").toString(),
+        QStringLiteral("main:undefined frame:undefined image:asked fetch:asked"), 15000);
+    QCOMPARE(header(QStringLiteral("off")), QStringList(4, QString()));
+
+    control.setEnabled(true);
+    server.forget();
+    QVERIFY(adapter->setProperty("currentUrl", pageUrl(QStringLiteral("again"))));
+    QTRY_COMPARE_WITH_TIMEOUT(adapter->property("pageTitle").toString(),
+        QStringLiteral("main:true frame:true image:asked fetch:asked"), 15000);
+    QCOMPARE(header(QStringLiteral("again")), QStringList(4, QStringLiteral("1")));
 }
 
 void QtEngineContractTest::adaptersNameTheColoursTheirInspectorIsDrawnIn_data()

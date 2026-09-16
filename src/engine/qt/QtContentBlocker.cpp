@@ -2,16 +2,19 @@
 
 #include "ContentBlocker.h"
 #include "ContentMatcher.h"
+#include "GlobalPrivacyControl.h"
 
 #include <QBuffer>
 #include <QQuickWebEngineProfile>
 #include <QWebEngineProfile>
+#include <QWebEngineScriptCollection>
 #include <QWebEngineUrlRequestInfo>
 #include <QWebEngineUrlRequestInterceptor>
 #include <QWebEngineUrlRequestJob>
 #include <QWebEngineUrlScheme>
 #include <QWebEngineUrlSchemeHandler>
 
+#include <algorithm>
 #include <utility>
 
 namespace omaweb {
@@ -81,6 +84,13 @@ namespace {
 
         void interceptRequest(QWebEngineUrlRequestInfo &info) override
         {
+            // Set before the refusal is decided rather than after: a request
+            // refused below never leaves, and one redirected below comes
+            // through here again as the request that does.
+            if (m_contentBlocker->sendsGlobalPrivacyControl()) {
+                info.setHttpHeader(
+                    GlobalPrivacyControl::headerName(), GlobalPrivacyControl::headerValue());
+            }
             const auto decision = m_contentBlocker->checkRequest(
                 info.requestUrl(), info.firstPartyUrl(), info.resourceType(), m_spaceId);
             // Chromium drops a redirect on a request carrying a payload, and says
@@ -145,11 +155,65 @@ void QtContentBlocker::registerSubstituteScheme()
     QWebEngineUrlScheme::registerScheme(scheme);
 }
 
-QtContentBlocker::QtContentBlocker(ContentBlocker *contentBlocker, QObject *parent)
+QtContentBlocker::QtContentBlocker(ContentBlocker *contentBlocker,
+    const GlobalPrivacyControl *globalPrivacyControl, QObject *parent)
     : QObject(parent)
     , m_contentBlocker(contentBlocker)
+    , m_globalPrivacyControl(globalPrivacyControl)
     , m_substitutes(std::make_unique<SubstituteSchemeHandler>())
 {
+    // Document creation is the only point early enough: the property has to
+    // read `true` to the page's first script, and a consent script is often
+    // that script. Every frame, because a third party's frame is where the
+    // question is most often asked.
+    m_globalPrivacyControlScript.setName(QStringLiteral("Omaweb Global Privacy Control"));
+    m_globalPrivacyControlScript.setInjectionPoint(QWebEngineScript::DocumentCreation);
+    m_globalPrivacyControlScript.setWorldId(QWebEngineScript::MainWorld);
+    m_globalPrivacyControlScript.setRunsOnSubFrames(true);
+    m_globalPrivacyControlScript.setSourceCode(GlobalPrivacyControl::scriptSource());
+    if (m_globalPrivacyControl) {
+        connect(m_globalPrivacyControl, &GlobalPrivacyControl::enabledChanged, this,
+            &QtContentBlocker::applyGlobalPrivacyControl);
+        applyGlobalPrivacyControl();
+    }
+}
+
+bool QtContentBlocker::sendsGlobalPrivacyControl() const
+{
+    return m_sendGlobalPrivacyControl.load(std::memory_order_relaxed);
+}
+
+void QtContentBlocker::applyGlobalPrivacyControl()
+{
+    const auto enabled = m_globalPrivacyControl && m_globalPrivacyControl->enabled();
+    m_sendGlobalPrivacyControl.store(enabled, std::memory_order_relaxed);
+    std::erase_if(m_profiles, [](const QPointer<QObject> &profile) { return profile.isNull(); });
+    for (const auto &profile : m_profiles) {
+        installGlobalPrivacyControlScript(profile.data(), enabled);
+    }
+}
+
+// The QML profile's script collection is a class Qt keeps private, so it is
+// reached through the meta-object, the way QML itself reaches it.
+void QtContentBlocker::installGlobalPrivacyControlScript(QObject *profile, bool wanted) const
+{
+    if (auto *widgetProfile = qobject_cast<QWebEngineProfile *>(profile)) {
+        if (wanted) {
+            widgetProfile->scripts()->insert(m_globalPrivacyControlScript);
+        } else {
+            widgetProfile->scripts()->remove(m_globalPrivacyControlScript);
+        }
+        return;
+    }
+    auto *collection = profile->property("userScripts").value<QObject *>();
+    // A name the collection no longer answers to would otherwise fail in
+    // silence, and the page would go on reading `undefined` while the header
+    // still says the reader opted out.
+    if (!collection
+        || !QMetaObject::invokeMethod(collection, wanted ? "insert" : "remove",
+            Q_ARG(QWebEngineScript, m_globalPrivacyControlScript))) {
+        qWarning("Global Privacy Control could not reach the profile's script collection.");
+    }
 }
 
 RequestDecision QtContentBlocker::checkRequest(const QUrl &requestUrl, const QUrl &sourceUrl,
@@ -188,9 +252,15 @@ bool QtContentBlocker::attachToProfile(QObject *profileObject, const QString &sp
     if (!interceptor) {
         interceptor = std::make_unique<RequestInterceptor>(this, spaceId);
     }
-    const auto attach = [this, &interceptor](auto *profile) {
+    const auto attach = [this, &interceptor, profileObject](auto *profile) {
         profile->setUrlRequestInterceptor(interceptor.get());
         profile->installUrlSchemeHandler(substituteScheme, m_substitutes.get());
+        const auto attached = std::ranges::any_of(m_profiles,
+            [profileObject](const QPointer<QObject> &known) { return known == profileObject; });
+        if (!attached) {
+            m_profiles.emplace_back(profileObject);
+            installGlobalPrivacyControlScript(profileObject, sendsGlobalPrivacyControl());
+        }
         return true;
     };
     if (auto *profile = qobject_cast<QWebEngineProfile *>(profileObject)) {

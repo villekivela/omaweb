@@ -519,6 +519,39 @@ TestCase {
         verify(downloads.activeFocus);
     }
 
+    QtObject {
+        id: privacyControlStub
+
+        property bool enabled: true
+    }
+
+    // The signal is one switch for the whole browser, shown under privacy and
+    // bound to the browser's answer rather than to a state of its own: the
+    // switch flips the setting, and reads back what the setting says.
+    function test_globalPrivacyControlIsOneSwitchUnderPrivacy() {
+        const page = makePage();
+        page.section = page.sections.indexOf("privacy");
+        const toggle = findChild(page, "globalPrivacyControl");
+        verify(toggle !== null);
+        verify(!toggle.visible);
+
+        privacyControlStub.enabled = true;
+        page.globalPrivacyControl = privacyControlStub;
+        verify(toggle.visible);
+        verify(toggle.checked);
+        settleAction(toggle);
+        mouseClick(toggle, toggle.width / 2, toggle.height / 2);
+        tryVerify(function () {
+            return !privacyControlStub.enabled;
+        });
+        verify(!toggle.checked);
+        mouseClick(toggle, toggle.width / 2, toggle.height / 2);
+        tryVerify(function () {
+            return privacyControlStub.enabled;
+        });
+        verify(toggle.checked);
+    }
+
     function test_syncHasAnExplicitPrivacyBoundary() {
         const page = makePage();
         compare(page.sections.indexOf("sync") >= 0, true);

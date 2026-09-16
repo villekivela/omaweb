@@ -150,6 +150,13 @@ for the rest of the session and cannot be made to forget it, so Site information
 trigger keep reporting the connection as in error for as long as it stands. _Avoid_: Trusted
 certificate, security exception, certificate override
 
+**Global Privacy Control**: The one signal Omaweb sends every site about the reader: `Sec-GPC: 1` on
+every request an Engine profile makes and `navigator.globalPrivacyControl` reading `true` in every
+frame, which a site bound by the CCPA and the state laws written after it must treat as an opt-out
+of sale and sharing. It is one setting for the whole browser, on by default, kept with the reader's
+configuration, and every Space and Private window sends it alike. _Avoid_: Do Not Track, DNT,
+privacy header, opt-out signal
+
 **Third-party cookie allowance**: A temporary permission for one origin to keep cookies and site
 storage while embedded in another site, granted for a named authentication or payment flow inside
 one Space. It is held in memory only, listed in Site information, and revocable there, so it cannot

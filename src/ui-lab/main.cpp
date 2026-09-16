@@ -1,5 +1,6 @@
 #include "BrowserController.h"
 #include "ContentBlocker.h"
+#include "GlobalPrivacyControl.h"
 #include "ReleaseWatch.h"
 #include "EngineCapabilities.h"
 #include "FaviconTint.h"
@@ -306,6 +307,11 @@ int main(int argc, char *argv[])
         QStringLiteral("0.0.1"), omaweb::ReleaseWatch::Ask::Never);
     releaseWatch.showRelease(QStringLiteral("v9.9.9"));
     engine.rootContext()->setContextProperty(QStringLiteral("releaseWatch"), &releaseWatch);
+    // The switch is reviewed here; what it flips is written under the lab's
+    // own data root rather than the reader's configuration.
+    static omaweb::GlobalPrivacyControl globalPrivacyControl(dataRootPath);
+    engine.rootContext()->setContextProperty(
+        QStringLiteral("globalPrivacyControl"), &globalPrivacyControl);
     engine.rootContext()->setContextProperty(
         QStringLiteral("engineViewSource"), QUrl(QStringLiteral(OMAWEB_ENGINE_VIEW_URL)));
     engine.rootContext()->setContextProperty(

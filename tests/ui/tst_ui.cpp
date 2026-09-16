@@ -126,6 +126,8 @@ public slots:
         engine->rootContext()->setContextProperty(
             QStringLiteral("releaseWatch"), QVariant::fromValue<QObject *>(nullptr));
         engine->rootContext()->setContextProperty(
+            QStringLiteral("globalPrivacyControl"), QVariant::fromValue<QObject *>(nullptr));
+        engine->rootContext()->setContextProperty(
             QStringLiteral("windowManager"), m_windowManager.get());
         engine->rootContext()->setContextProperty(
             QStringLiteral("engineViewSource"), QUrl(QStringLiteral(OMAWEB_MOCK_ENGINE_VIEW_URL)));

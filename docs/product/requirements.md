@@ -323,6 +323,12 @@ The default page commands include:
   session and is read by whoever is at the machine.
 - Third-party cookies are blocked by default. Authentication and payment flows may receive a
   temporary origin-specific allowance visible and revocable in the site-information panel.
+- Global Privacy Control is on by default and browser-wide. While it is on, every request from every
+  Engine profile carries `Sec-GPC: 1`, subresources and the engine's own requests on a page's behalf
+  included, and `navigator.globalPrivacyControl` reads `true` in every frame. Spaces and Private
+  windows send it alike. The privacy section of Settings shows the setting and turns it off, which
+  turns off both the header and the property, and the choice survives a restart. Omaweb sends no Do
+  Not Track header and offers no per-site exception.
 - The address trigger reports secure connection, insecure connection, or certificate error only from
   facts the adapter can prove. The site-information panel shows origin, connection state,
   Space-specific permissions, blocked-request count, stored-data size, and confirmed actions to

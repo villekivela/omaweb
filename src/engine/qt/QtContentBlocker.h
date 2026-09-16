@@ -1,12 +1,16 @@
 #pragma once
 
 #include <QObject>
+#include <QPointer>
 #include <QString>
 #include <QUrl>
+#include <QWebEngineScript>
 #include <QWebEngineUrlRequestInfo>
 
+#include <atomic>
 #include <map>
 #include <memory>
+#include <vector>
 
 class QWebEngineUrlRequestInterceptor;
 class QWebEngineUrlSchemeHandler;
@@ -14,6 +18,7 @@ class QWebEngineUrlSchemeHandler;
 namespace omaweb {
 
 class ContentBlocker;
+class GlobalPrivacyControl;
 struct RequestDecision;
 
 class QtContentBlocker final : public QObject {
@@ -25,7 +30,12 @@ public:
     // before it starts, so this runs before QtWebEngineQuick::initialize().
     static void registerSubstituteScheme();
 
-    explicit QtContentBlocker(ContentBlocker *contentBlocker, QObject *parent = nullptr);
+    // Global Privacy Control rides the same attachment: the interceptor is
+    // the one thing that sees every request a profile makes, and a profile is
+    // the one thing every page of a Space or a Private window shares. Given
+    // no control, the adapter sends nothing.
+    explicit QtContentBlocker(ContentBlocker *contentBlocker,
+        const GlobalPrivacyControl *globalPrivacyControl = nullptr, QObject *parent = nullptr);
     ~QtContentBlocker() override;
 
     // One Space's profile and the Space it belongs to. A Private window has no
@@ -38,9 +48,24 @@ public:
     bool cosmeticSurveyWanted(const QUrl &url) const;
     QString genericCosmeticStyleSheet(
         const QUrl &url, const QStringList &classes, const QStringList &ids) const;
+    // Whether every request gets the `Sec-GPC: 1` header. Read on whichever
+    // thread Chromium runs the interceptor on, hence the atomic.
+    bool sendsGlobalPrivacyControl() const;
 
 private:
+    void applyGlobalPrivacyControl();
+    void installGlobalPrivacyControlScript(QObject *profile, bool wanted) const;
+
     ContentBlocker *m_contentBlocker;
+    const GlobalPrivacyControl *m_globalPrivacyControl;
+    std::atomic<bool> m_sendGlobalPrivacyControl {false};
+    // The script that defines `navigator.globalPrivacyControl`, one instance
+    // so that the collection it was inserted into can be asked to remove it.
+    QWebEngineScript m_globalPrivacyControlScript;
+    // Every profile attached so far, because turning the signal off has to
+    // reach the script already installed on each of them. A profile that has
+    // been destroyed reads as null and is skipped.
+    std::vector<QPointer<QObject>> m_profiles;
     // An interceptor for each Space, because the interceptor is the only thing
     // that sees a request and Chromium tells it nothing about where the
     // request came from. Interception attaches to a profile and a profile
