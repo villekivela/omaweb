@@ -179,6 +179,12 @@ reports the gap and remains experimental rather than imitating behavior it canno
   and again when the theme changes, and at no specificity, so the page's own definitions win. A page
   that does not ask is given nothing: which theme a reader runs is a fact about them, and a page
   learns it only by asking where the reader can see the asking. The website asks.
+- A page is painted on the canvas every browser gives it: white, or the dark canvas the engine draws
+  under a page that declares `color-scheme: dark`. A page that sets no background of its own is
+  white under a dark theme, as its author saw it. The theme's colour is shown only where no page has
+  painted yet, from the moment a document is created until its first paint, so a navigation under a
+  dark theme never flashes a bright rectangle through the chrome, and the page on show keeps its
+  canvas while the next document is fetched.
 
 ## Daily browser operations
 

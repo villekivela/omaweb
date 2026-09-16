@@ -15,6 +15,7 @@
 #include "ProcessResources.h"
 
 #include <QGuiApplication>
+#include <QColor>
 #include <QDir>
 #include <QDirIterator>
 #include <QFileInfo>
@@ -151,6 +152,7 @@ private slots:
     void qtRunsScriptletsBeforeThePageRuns();
     void qtHandsThePaletteOnlyToAPageThatAsks_data();
     void qtHandsThePaletteOnlyToAPageThatAsks();
+    void qtPaintsAPageOnWhiteAndTheThemeWhereNoneHasPainted();
     void qtRefusesTheWindowsTheListsNameAndNoOthers();
     void qtReportsWhereThePageWasPressed();
     void qtServesTheSubstitutesTheListsName();
@@ -1616,6 +1618,84 @@ void QtEngineContractTest::qtHandsThePaletteOnlyToAPageThatAsks()
     QVERIFY(adapter->setProperty("pagePalette", repainted));
     QTRY_COMPARE_WITH_TIMEOUT(
         adapter->property("pageTitle").toString(), first + "#" + changed, 15000);
+}
+
+// A page that draws no background of its own is painted on the canvas every
+// browser gives it, white, rather than on the theme: the engine paints the
+// colour it is handed under the page for the page's whole life. The theme's
+// colour is shown only where no page has painted yet, from a document's
+// creation to its first paint, so a navigation under a dark theme never
+// flashes a bright rectangle through the chrome. The second page is held open
+// after its title, created but with nothing yet to paint. Chromium's own rule
+// draws a page declaring `color-scheme: dark` on a dark canvas whatever colour
+// it is handed, which is checked by eye, because a window grabbed under the
+// offscreen platform carries no web frame.
+void QtEngineContractTest::qtPaintsAPageOnWhiteAndTheThemeWhereNoneHasPainted()
+{
+    QTcpServer server;
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+    QTcpSocket *pageSocket = nullptr;
+    bool requested = false;
+    const QByteArray body = QByteArrayLiteral("<!doctype html><title>held</title><p>page</p>");
+    const qsizetype bodySplitOffset
+        = body.indexOf("</title>") + QByteArrayLiteral("</title>").size();
+    connect(&server, &QTcpServer::newConnection, &server, [&] {
+        pageSocket = server.nextPendingConnection();
+        connect(pageSocket, &QTcpSocket::readyRead, pageSocket, [&, pageSocket] {
+            pageSocket->readAll();
+            requested = true;
+        });
+    });
+
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    QQmlEngine engine;
+    QQmlComponent component(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    const QColor theme(QStringLiteral("#123456"));
+    const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
+        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
+        {QStringLiteral("pageBackgroundColor"), theme},
+    }));
+    QVERIFY2(adapter, qPrintable(component.errorString()));
+    auto *view = qobject_cast<QQuickItem *>(adapter.get());
+    QVERIFY(view);
+    QQuickWindow window;
+    window.resize(320, 240);
+    view->setParentItem(window.contentItem());
+    view->setSize(QSizeF(320, 240));
+    window.show();
+    auto *webView = adapter->findChild<QObject *>(QStringLiteral("qtWebView"));
+    QVERIFY(webView);
+    const auto canvas = [&] { return webView->property("backgroundColor").value<QColor>(); };
+
+    // Nothing has painted, so the view shows the theme rather than a canvas.
+    QCOMPARE(canvas(), theme);
+
+    QVERIFY(adapter->setProperty(
+        "currentUrl", QUrl(QStringLiteral("data:text/html,<title>first</title><p>first</p>"))));
+    QTRY_COMPARE_WITH_TIMEOUT(canvas(), QColor(Qt::white), 15000);
+    QTRY_VERIFY(!adapter->property("loading").toBool());
+    QCOMPARE(canvas(), QColor(Qt::white));
+
+    // The page on show keeps its canvas while the next document is fetched,
+    // and loses it to the theme once that document exists.
+    const QUrl pageUrl(QStringLiteral("http://127.0.0.1:%1/page.html").arg(server.serverPort()));
+    QVERIFY(adapter->setProperty("currentUrl", pageUrl));
+    QTRY_VERIFY(requested);
+    QCOMPARE(canvas(), QColor(Qt::white));
+    pageSocket->write("HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: "
+        + QByteArray::number(body.size()) + "\r\nConnection: close\r\n\r\n"
+        + body.first(bodySplitOffset));
+    QTRY_COMPARE_WITH_TIMEOUT(
+        adapter->property("pageTitle").toString(), QStringLiteral("held"), 15000);
+    QTRY_COMPARE_WITH_TIMEOUT(canvas(), theme, 15000);
+
+    pageSocket->write(body.sliced(bodySplitOffset));
+    pageSocket->disconnectFromHost();
+    QTRY_COMPARE_WITH_TIMEOUT(canvas(), QColor(Qt::white), 15000);
+    QTRY_VERIFY(!adapter->property("loading").toBool());
+    QCOMPARE(canvas(), QColor(Qt::white));
 }
 
 // A window the page asks for comes from somewhere on the page, and the request
