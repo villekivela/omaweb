@@ -169,6 +169,29 @@ TestCase {
         Color.loadColors("");
     }
 
+    // The theme sets the base size and the reader may set it over the theme
+    // (#170). The reader's size is what the kit draws at, it outlasts a
+    // shell.toml that resets the base size the way the theme's own does, and
+    // reset hands the base size back to the theme.
+    function test_theReadersInterfaceSizeOutranksTheThemes() {
+        const themeSize = theme.palette.font.size;
+        compare(Style.font.baseSize, themeSize);
+        compare(fontSettings.themeFontSize, themeSize);
+
+        fontSettings.setInterfaceFontSize(themeSize + 4);
+        compare(Style.font.baseSize, themeSize + 4);
+        Color.loadUserShell("[font]\nbase-size = 20\n");
+        compare(Style.font.baseSize, themeSize + 4);
+        Color.loadUserShell("");
+
+        // A theme reload under an override is not a reason to lose it.
+        theme.reload();
+        compare(Style.font.baseSize, themeSize + 4);
+
+        fontSettings.resetInterfaceFontSize();
+        compare(Style.font.baseSize, themeSize);
+    }
+
     // Palette normalization can reject two different desktop palettes to the
     // same built-in colours. The desktop still switched, so the kit must
     // reread shell.toml even though ThemeController's palette did not change.

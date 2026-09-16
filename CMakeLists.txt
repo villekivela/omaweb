@@ -286,7 +286,7 @@ add_library(omaweb-ui STATIC
     src/ui/ThemeController.h
 )
 target_include_directories(omaweb-ui PUBLIC src/ui)
-target_link_libraries(omaweb-ui PUBLIC Qt6::Core Qt6::Gui Qt6::Qml Qt6::Quick)
+target_link_libraries(omaweb-ui PUBLIC omaweb-core Qt6::Core Qt6::Gui Qt6::Qml Qt6::Quick)
 omaweb_strict_target(omaweb-ui)
 
 # The vendored Omarchy component kit imports Quickshell types. Omaweb supplies
