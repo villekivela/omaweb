@@ -375,10 +375,10 @@ if(OMAWEB_BUILD_BROWSER)
     )
     target_sources(omaweb-engine-qt PUBLIC src/engine/qt/EngineView.qml)
     target_include_directories(omaweb-engine-qt PUBLIC src/engine/qt)
-    # `Qt6::WebEngineQuickPrivate` is here for one member, and
-    # `QtProfileSettings.cpp` says why: the settings a Quick profile carries
-    # are Qt's to reach and Qt does not offer them publicly. `Qt6::CorePrivate`
-    # is what its header includes. The same terms as `Qt6::GuiPrivate` below apply, and the call
+    # `Qt6::WebEngineQuickPrivate` is here for one member, and `QtProfileSettings.cpp`
+    # says why: the settings a Quick profile carries are Qt's to reach and Qt
+    # does not offer them publicly. `Qt6::CorePrivate` is what its header
+    # includes. The same terms as `Qt6::GuiPrivate` below apply, and the call
     # checks the running Qt is the compiled one.
     target_link_libraries(omaweb-engine-qt PUBLIC
         omaweb-core
