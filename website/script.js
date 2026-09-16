@@ -42,8 +42,20 @@
     return (state >>> 0) / 4294967296;
   }
 
+  // A palette value is whatever a stylesheet wrote: the generated themes are
+  // hex, and the one Omaweb hands over is `rgb(r g b)`. A canvas normalises
+  // any colour it is given to `#rrggbb`, so it is read through one rather
+  // than parsed here.
+  var colorProbe = document.createElement("canvas").getContext("2d");
+
   function parseColor(value) {
-    var digits = value.trim().replace("#", "");
+    var digits = value.trim();
+    if (colorProbe) {
+      colorProbe.fillStyle = "#000";
+      colorProbe.fillStyle = digits;
+      digits = colorProbe.fillStyle;
+    }
+    digits = digits.replace("#", "");
     if (digits.length === 3) {
       digits = digits.replace(/./g, function (digit) {
         return digit + digit;
@@ -251,22 +263,12 @@
   // themes.css defines them; seven style resolutions once, before the page
   // has painted anything the reader would see move.
   function nearestTheme(own) {
-    var probe = document.createElement("canvas").getContext("2d");
-    if (!probe) return null;
-    function channels(color) {
-      probe.fillStyle = "#000";
-      probe.fillStyle = color;
-      var hex = probe.fillStyle;
-      return [1, 3, 5].map(function (at) {
-        return parseInt(hex.substr(at, 2), 16);
-      });
-    }
     function distance(a, b) {
       var sum = 0;
       for (var index = 0; index < 3; index += 1) sum += Math.pow(a[index] - b[index], 2);
       return sum;
     }
-    var wanted = { bg: channels(own.bg), fg: channels(own.fg), accent: channels(own.accent) };
+    var wanted = { bg: parseColor(own.bg), fg: parseColor(own.fg), accent: parseColor(own.accent) };
     var was = document.body.dataset.theme;
     var best = null;
     var bestDistance = Infinity;
@@ -275,7 +277,7 @@
       var style = getComputedStyle(document.body);
       var total = 0;
       for (var role in wanted) {
-        total += distance(wanted[role], channels(style.getPropertyValue("--" + role).trim()));
+        total += distance(wanted[role], parseColor(style.getPropertyValue("--" + role)));
       }
       if (total < bestDistance) {
         bestDistance = total;
