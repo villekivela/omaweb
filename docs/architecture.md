@@ -358,3 +358,15 @@ tests keep: startup, session restore, tab switch, chromeless frame time and a fr
 each have a probe that CI runs and fails when the number crosses its threshold. The recorded
 baseline, the thresholds and the machine they came from are in
 [the development guide](development.md#performance).
+
+Those probes measure the browser's parts, on the offscreen platform and mostly without an engine.
+What the assembled browser costs on a Wayland session is held separately, to
+`performance/budget.json` by `scripts/benchmark_runtime.py`: process start to the window mapping,
+the proportional set size of the whole process tree at rest, what each Space adds to it, and whether
+a frozen Space's pages are still running. CI runs it against the build it has already made and fails
+when a ceiling is crossed.
+
+Time to first paint and scrolling are in neither. CI has no GPU and no compositor of the kind a
+reader runs, so a paint timing taken there is a software rasteriser's rather than a reader's. Those
+stay on real hardware, in the family of `scripts/check_theme_repaint.py` and
+`scripts/check_wayland_session.py`.

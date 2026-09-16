@@ -896,6 +896,70 @@ draw the frame probe through Metal and read what the frames cost the GPU. The Li
 still to be taken: re-run on Linux hardware when it is available and record them here beside the
 macOS ones.
 
+### The runtime budget
+
+The probes above measure the browser's parts on the offscreen platform, most of them without an
+engine. `scripts/benchmark_runtime.py` measures the assembled browser on a Wayland session, against
+the ceilings in [`performance/budget.json`](../performance/budget.json), and exits non-zero when one
+is crossed. It prints every measurement beside its ceiling whether or not it crossed one, because a
+budget that speaks only when it breaks hides the drift that is about to break it.
+
+```sh
+scripts/benchmark_runtime.py
+scripts/benchmark_runtime.py startup --browser build/dev/omaweb
+scripts/benchmark_runtime.py spaces --spaces 4
+```
+
+Four measurements, one subcommand each, so a developer can run the one they are working on:
+
+- `startup` is the median of three launches, from the process starting to the first buffer the
+  browser attached to its toplevel's surface.
+- `memory` is the proportional set size of the whole process tree, with one Space and one page.
+- `spaces` opens Spaces one at a time, each with the same page loaded, and reports what each one
+  after the first added. That is the price of the engine profile per Space that
+  [ADR 0008](adr/0008-isolate-space-storage-on-disk.md) buys.
+- `freezing` loads a page that takes a megabyte every fifth of a second into a second Space, puts
+  that Space away, and reports how much the process tree grew afterwards.
+  [ADR 0033](adr/0033-stop-an-away-spaces-pages-instead-of-taking-them.md) keeps a frozen page's
+  document and process and stops its timers, animations and script, so what the memory it holds buys
+  is not in question; a page still running in a Space nobody is reading is. The growth while that
+  Space was on show is printed beside it as the control, and a page that did not grow there fails
+  the run rather than passing it, because a flat line means nothing without one.
+
+It writes nothing outside the throwaway directories it launches its own browser on, `--record`
+aside, so unlike the theme repaint and the default browser it needs no opt-in guard. It does take
+the keyboard focus while it runs. Off a Wayland display, without a built browser, or with no way to
+synthesise a key, it says it skipped and succeeds. A browser that fails to map a window, Spaces that
+never open and an allocator page that never allocates are not skips: each of those fails the run,
+because each is either a broken browser or a number that would mean nothing.
+
+CI runs it inside the `arch-linux` job, against the build that job has already made, under a sway on
+the headless backend. What it measures there is what needs no hardware. Time to first paint and
+scrolling are not in it: the container has no GPU, so a paint timing taken there would be a software
+rasteriser's rather than a reader's.
+
+The window mapping is read from the browser's own Wayland protocol log rather than from a
+compositor, because the compositor CI runs is not the one a reader runs and the protocol is the same
+under both. Memory is the process tree's, because QtWebEngine runs its renderers as children and a
+number that omits them measures nothing that matters, and it is proportional set size rather than
+resident, because those processes share a great deal and adding their resident sizes counts every
+shared page once per process.
+
+Keys reach the browser through `hl.dsp.send_shortcut` where there is a Hyprland, which aims them at
+the window under test, and through `wtype` otherwise, which aims them wherever the focus is. A live
+desktop therefore keeps its own keystrokes, and the headless compositor CI runs has one window and
+nowhere else to put them.
+
+Each Space it opens is counted on disk before any memory is read. Keys sent to a window that was not
+ready for them land somewhere harmless and silently, and a run that reported four Spaces having
+opened one looks exactly like a measurement.
+
+The ceilings are ceilings with headroom rather than best-recorded times, because a budget that fails
+on noise is a budget that gets turned off. `performance/budget.json` records what each was last
+measured at and the machine class it was measured on; `--record` writes the measurements back
+without touching the ceilings, because what counts as too slow is a decision to be reviewed rather
+than a number a slow machine can move.
+
 ### The floating strip's cost
 
 Measured under Metal with `QT_QPA_PLATFORM=cocoa QSG_RHI_PROFILE=1`, which turns on the GPU
