@@ -33,6 +33,9 @@ class FontSettings final : public QObject {
         int themeFontSize READ themeFontSize WRITE setThemeFontSize NOTIFY interfaceFontSizeChanged)
     Q_PROPERTY(int minimumInterfaceFontSize READ minimumInterfaceSize CONSTANT)
     Q_PROPERTY(int maximumInterfaceFontSize READ maximumInterfaceSize CONSTANT)
+    Q_PROPERTY(int minimumPageFontSize READ minimumPageSize CONSTANT)
+    Q_PROPERTY(int maximumPageFontSize READ maximumPageSize CONSTANT)
+    Q_PROPERTY(int maximumPageMinimumFontSize READ maximumPageMinimumSize CONSTANT)
     Q_PROPERTY(QVariantMap pageFontsMap READ pageFontsMap NOTIFY pageFontsChanged)
 
 public:
@@ -102,6 +105,9 @@ signals:
 private:
     static int minimumInterfaceSize() { return minimumInterfaceFontSize; }
     static int maximumInterfaceSize() { return maximumInterfaceFontSize; }
+    static int minimumPageSize() { return minimumPageFontSize; }
+    static int maximumPageSize() { return maximumPageFontSize; }
+    static int maximumPageMinimumSize() { return maximumPageMinimumFontSize; }
     QString installedFamily(const QString &family) const;
     void load();
     void save() const;
@@ -114,5 +120,8 @@ private:
     // The reader's page fonts as stored: empty and zero where nothing is set.
     PageFonts m_pageFonts;
 };
+
+// Names the type to QML for its enums; the object itself is handed in.
+void registerFontSettings();
 
 } // namespace omaweb

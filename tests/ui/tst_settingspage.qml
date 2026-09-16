@@ -1,6 +1,7 @@
 import QtQuick
 import QtTest
 import Omaweb
+import Omaweb as Core
 import qs.Commons
 import "../../src/ui" as Omaweb
 
@@ -287,6 +288,7 @@ TestCase {
         browserStub.privateBrowsing = false;
         resetSpacesFixture();
         theme.restore();
+        fontSettings.resetInterfaceFontSize();
         if (livePage !== null) {
             livePage.destroy();
             livePage = null;
@@ -550,6 +552,273 @@ TestCase {
             return privacyControlStub.enabled;
         });
         verify(toggle.checked);
+    }
+
+    // The reader's type, stubbed the way the page reads it: the size on show,
+    // whether it is theirs, the theme's underneath, and a page's fonts each
+    // beside the engine's own. The real object is driven by the layout test
+    // below, through the kit, and by tst_omarchy_kit.
+    QtObject {
+        id: fontSettingsStub
+
+        property int themeFontSize: 12
+        property int override: 0
+        readonly property int interfaceFontSize: override > 0 ? override : themeFontSize
+        readonly property bool interfaceFontSizeOverridden: override > 0
+        readonly property int minimumInterfaceFontSize: 8
+        readonly property int maximumInterfaceFontSize: 24
+        readonly property int minimumPageFontSize: 9
+        readonly property int maximumPageFontSize: 72
+        readonly property int maximumPageMinimumFontSize: 24
+        property var pageFontsMap: ({})
+        property var familyCalls: []
+        property var sizeCalls: []
+
+        function reset() {
+            override = 0;
+            familyCalls = [];
+            sizeCalls = [];
+            pageFontsMap = {
+                "standardFamily": {
+                    "value": "Adwaita Sans",
+                    "overridden": false,
+                    "engine": "Adwaita Sans"
+                },
+                "fixedFamily": {
+                    "value": "Adwaita Mono",
+                    "overridden": false,
+                    "engine": "Adwaita Mono"
+                },
+                "fontSize": {
+                    "value": 16,
+                    "overridden": false,
+                    "engine": 16
+                },
+                "minimumFontSize": {
+                    "value": 0,
+                    "overridden": false,
+                    "engine": 0
+                }
+            };
+        }
+
+        function increaseInterfaceFontSize() {
+            override = interfaceFontSize + 1;
+        }
+        function decreaseInterfaceFontSize() {
+            override = interfaceFontSize - 1;
+        }
+        function resetInterfaceFontSize() {
+            override = 0;
+        }
+        function installedFamilies() {
+            return ["Adwaita Sans", "Noto Serif", Style.font.family];
+        }
+        function setPageFamily(which, family) {
+            familyCalls = familyCalls.concat([[which, family]]);
+        }
+        function setPageSize(which, size) {
+            sizeCalls = sizeCalls.concat([[which, size]]);
+        }
+    }
+
+    QtObject {
+        id: pageFontsStub
+
+        property bool available: true
+    }
+
+    function makeInterfacePage() {
+        fontSettingsStub.reset();
+        const page = makePage();
+        page.fontSettings = fontSettingsStub;
+        page.pageFonts = pageFontsStub;
+        page.section = page.sections.indexOf("interface");
+        return page;
+    }
+
+    function click(control) {
+        settleAction(control);
+        mouseClick(control, control.width / 2, control.height / 2);
+    }
+
+    // The interface size is stepped from the size on show and reset to the
+    // theme's, and the control names its value and its default to a screen
+    // reader along with each action (#170).
+    function test_theInterfaceSizeStepsFromTheThemesAndResetsToIt() {
+        const page = makeInterfacePage();
+        const stepper = findChild(page, "interfaceFontSize");
+        verify(stepper !== null);
+        const value = findChild(stepper, "value");
+        const reset = findChild(stepper, "reset");
+        compare(value.text, "12px");
+        verify(!reset.visible);
+        compare(stepper.Accessible.role, Accessible.SpinBox);
+        compare(stepper.Accessible.name, "Interface font size");
+        compare(stepper.Accessible.description, "12 pixels, the theme's");
+
+        click(findChild(stepper, "increase"));
+        compare(fontSettingsStub.override, 13);
+        compare(value.text, "13px");
+        compare(stepper.Accessible.description, "13 pixels");
+        verify(reset.visible);
+        compare(findChild(stepper, "increase").Accessible.name,
+                "Increase Interface font size, now 13 pixels");
+
+        click(findChild(stepper, "decrease"));
+        click(findChild(stepper, "decrease"));
+        compare(fontSettingsStub.override, 11);
+        click(reset);
+        compare(fontSettingsStub.override, 0);
+        compare(value.text, "12px");
+        verify(!reset.visible);
+
+        // The ends of the range are ends.
+        fontSettingsStub.override = 24;
+        verify(!findChild(stepper, "increase").enabled);
+        verify(findChild(stepper, "decrease").enabled);
+        fontSettingsStub.override = 8;
+        verify(findChild(stepper, "increase").enabled);
+        verify(!findChild(stepper, "decrease").enabled);
+    }
+
+    // A page's families are chosen from what the host has, with the engine's
+    // own answer leading the list and, for the fixed-width slot, the family
+    // the interface is drawn in offered next (#293). Choosing the engine's
+    // answer again is an empty family, which is how the setting says reset.
+    function test_pageFamiliesAreChosenFromTheHostBehindTheEngineDefault() {
+        const page = makeInterfacePage();
+        const standard = findChild(page, "pageStandardFamily");
+        const fixed = findChild(page, "pageFixedFamily");
+        verify(standard !== null);
+        verify(fixed !== null);
+        compare(standard.options[0].value, "");
+        compare(standard.options[0].label, "Engine default (Adwaita Sans)");
+        compare(standard.options.length, 4);
+        compare(standard.value, "");
+        compare(fixed.options[0].label, "Engine default (Adwaita Mono)");
+        compare(fixed.options[1].value, Style.font.family);
+        compare(fixed.options[1].label, "Interface's (" + Style.font.family + ")");
+        compare(fixed.options.length, 4);
+        compare(standard.Accessible.name, "Standard font for pages");
+        compare(fixed.Accessible.name, "Fixed-width font for pages");
+
+        standard.changed("Noto Serif");
+        fixed.changed(Style.font.family);
+        fixed.changed("");
+        compare(fontSettingsStub.familyCalls, [[Core.FontSettings.Standard, "Noto Serif"],
+                                               [Core.FontSettings.Fixed, Style.font.family],
+                                               [Core.FontSettings.Fixed, ""]]);
+
+        // A family the reader chose is what the list shows chosen.
+        fontSettingsStub.pageFontsMap = Object.assign({}, fontSettingsStub.pageFontsMap, {
+                                                          "standardFamily": {
+                                                              "value": "Noto Serif",
+                                                              "overridden": true,
+                                                              "engine": "Adwaita Sans"
+                                                          }
+                                                      });
+        compare(standard.value, "Noto Serif");
+    }
+
+    // A page's sizes step from the engine's own, a floor of none reads as
+    // none, and reset is a zero, which is how the setting says the engine's.
+    function test_pageSizesStepFromTheEnginesAndResetToThem() {
+        const page = makeInterfacePage();
+        const size = findChild(page, "pageFontSize");
+        const minimum = findChild(page, "pageMinimumFontSize");
+        verify(size !== null);
+        verify(minimum !== null);
+        compare(findChild(size, "value").text, "16px");
+        compare(size.Accessible.description, "16 pixels, the engine's");
+        verify(!findChild(size, "reset").visible);
+        compare(findChild(minimum, "value").text, "none");
+        compare(minimum.Accessible.description, "none, the engine's");
+        verify(!findChild(minimum, "decrease").enabled);
+
+        click(findChild(size, "increase"));
+        click(findChild(minimum, "increase"));
+        compare(fontSettingsStub.sizeCalls, [[Core.FontSettings.Default, 17],
+                                             [Core.FontSettings.Minimum, 1]]);
+
+        fontSettingsStub.pageFontsMap = Object.assign({}, fontSettingsStub.pageFontsMap, {
+                                                          "fontSize": {
+                                                              "value": 20,
+                                                              "overridden": true,
+                                                              "engine": 16
+                                                          },
+                                                          "minimumFontSize": {
+                                                              "value": 12,
+                                                              "overridden": true,
+                                                              "engine": 0
+                                                          }
+                                                      });
+        compare(findChild(size, "value").text, "20px");
+        compare(findChild(minimum, "value").text, "12px");
+        verify(findChild(size, "reset").visible);
+        click(findChild(size, "reset"));
+        click(findChild(minimum, "decrease"));
+        click(findChild(minimum, "reset"));
+        compare(fontSettingsStub.sizeCalls.slice(2), [[Core.FontSettings.Default, 0],
+                                                      [Core.FontSettings.Minimum, 11],
+                                                      [Core.FontSettings.Minimum, 0]]);
+    }
+
+    // On a Qt this build was not compiled against the engine's fonts are out
+    // of reach (ADR 0047), and the group says so in place of its controls.
+    function test_pageFontsSayWhenTheEngineIsOutOfReach() {
+        const page = makeInterfacePage();
+        verify(findChild(page, "pageFontsGroup").visible);
+        verify(!findChild(page, "pageFontsNotice").visible);
+        pageFontsStub.available = false;
+        verify(!findChild(page, "pageFontsGroup").visible);
+        verify(findChild(page, "pageFontsNotice").visible);
+        pageFontsStub.available = true;
+    }
+
+    // Without the reader's settings, as in a window that was handed none,
+    // the interface section is the three switches it was.
+    function test_theTypeGroupsWaitForTheReadersSettings() {
+        const page = makePage();
+        page.section = page.sections.indexOf("interface");
+        verify(!findChild(page, "interfaceFontSizeRow").visible);
+        verify(!findChild(page, "pageFontsGroup").visible);
+        verify(!findChild(page, "pageFontsNotice").visible);
+    }
+
+    // The reader's size reaches the kit's base size, which every measure on
+    // this page is derived from, so the whole page is asked the overflow
+    // question at both ends of the supported range, through the real setting
+    // rather than the theme axis (#170).
+    function describe(item) {
+        if (item === null)
+            return "nothing";
+        return (item.objectName || String(item)) + " " + item.width + "x" + item.height + " at "
+                + item.mapToItem(null, 0, 0).x + " text=" + (item.text || "");
+    }
+
+    function test_noSectionOverflowsThePaneAtTheSmallestAndLargestInterfaceSize() {
+        const page = makePage();
+        page.fontSettings = fontSettings;
+        page.pageFonts = pageFontsStub;
+        const pane = findChild(page, "settingsPane");
+        verify(pane !== null);
+        for (const size of [fontSettings.minimumInterfaceFontSize,
+                            fontSettings.maximumInterfaceFontSize]) {
+            fontSettings.setInterfaceFontSize(size);
+            tryCompare(Style.font, "baseSize", size);
+            for (let section = 0; section < page.sections.length; ++section) {
+                page.section = section;
+                tryVerify(function () {
+                    return testCase.overflowingItem(pane, pane) === null;
+                }, 5000, "section " + page.sections[section] + " overflows the pane at " + size
+                + "px: " + describe(testCase.overflowingItem(pane, pane)));
+                tryVerify(function () {
+                    return pane.height > 0;
+                });
+            }
+        }
+        fontSettings.resetInterfaceFontSize();
     }
 
     function test_syncHasAnExplicitPrivacyBoundary() {

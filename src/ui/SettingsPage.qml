@@ -93,6 +93,14 @@ Rectangle {
     // is current and offer the reader the switch that stops it asking.
     property var releaseWatch: null
     property var globalPrivacyControl: null
+    // The reader's type: the interface size over the theme's and a page's
+    // fonts over the engine's. The engine adapter beside it says whether this
+    // build can reach the engine's fonts at all; without one, as in the lab,
+    // the controls are shown and reach nothing.
+    property var fontSettings: null
+    property var pageFonts: null
+    readonly property bool pageFontsUnreachable: !!pageFonts && !pageFonts.available
+    readonly property var pageFontsMap: fontSettings ? fontSettings.pageFontsMap : ({})
     property bool useFavicons: true
     property bool tintFavicons: false
     property bool floatingControls: true
@@ -679,6 +687,225 @@ Rectangle {
                         accessibleName: "Glance at a page's new tabs"
                         checked: root.glanceEnabled
                         onClicked: root.glanceToggled(!checked)
+                    }
+
+                    SectionLabel {
+                        visible: !!root.fontSettings
+                        colors: root.colors
+                        text: "type"
+                    }
+
+                    // The theme sets the base size Omaweb's own type scale
+                    // grows from, and this is the reader's say over it (#170).
+                    // It is the interface's alone: a page and its zoom are
+                    // untouched, which is what the page fonts below are for.
+                    SettingRow {
+                        objectName: "interfaceFontSizeRow"
+                        visible: !!root.fontSettings
+                        width: pane.width
+                        colors: root.colors
+                        title: "Interface font size"
+                        note: "The size Omaweb's own type is drawn at; the theme's is " + (
+                                  root.fontSettings ? root.fontSettings.themeFontSize : 0)
+                              + "px. Pages and their zoom are not changed by it."
+
+                        SettingStepper {
+                            objectName: "interfaceFontSize"
+                            colors: root.colors
+                            value: root.fontSettings ? root.fontSettings.interfaceFontSize : 0
+                            minimum: root.fontSettings ? root.fontSettings.minimumInterfaceFontSize :
+                                                         0
+                            maximum: root.fontSettings ? root.fontSettings.maximumInterfaceFontSize :
+                                                         0
+                            overridden: !!root.fontSettings
+                                        && root.fontSettings.interfaceFontSizeOverridden
+                            accessibleName: "Interface font size"
+                            defaultName: "the theme's"
+                            onIncreased: root.fontSettings.increaseInterfaceFontSize()
+                            onDecreased: root.fontSettings.decreaseInterfaceFontSize()
+                            onReset: root.fontSettings.resetInterfaceFontSize()
+                        }
+                    }
+
+                    SectionLabel {
+                        visible: !!root.fontSettings
+                        colors: root.colors
+                        text: "page fonts"
+                    }
+
+                    // A build running on a Qt it was not compiled against
+                    // does not reach into the engine's settings (ADR 0047),
+                    // so the group says so rather than offering controls
+                    // that would change nothing.
+                    NoticeBox {
+                        objectName: "pageFontsNotice"
+                        width: pane.width
+                        visible: root.pageFontsUnreachable
+                        colors: root.colors
+                        iconFontFamily: root.iconFontFamily
+                        glyph: "text_fields"
+                        title: "This build cannot reach the engine's fonts"
+                        detail: "Omaweb was built against another Qt than the one it is running on, so pages are drawn in the engine's own fonts. A rebuild against this Qt brings the controls back."
+                    }
+
+                    // A page that names no family gets these, and a page that
+                    // names a smaller size than the floor gets the floor. Each
+                    // is the engine's own until the reader picks one, and
+                    // the families offered are the ones the host has (#293).
+                    Column {
+                        id: pageFontsGroup
+                        objectName: "pageFontsGroup"
+                        width: pane.width
+                        visible: !!root.fontSettings && !root.pageFontsUnreachable
+                        spacing: pane.spacing
+
+                        // The engine's own answer leads the list, and the
+                        // family the interface is drawn in is offered next for
+                        // the fixed-width slot, since the terminal and the
+                        // browser are often wanted to agree on code.
+                        function familyOptions(engineFamily, offerInterfaceFamily) {
+                            const engineLabel = engineFamily.length > 0 ? "Engine default ("
+                                                                          + engineFamily + ")" :
+                                                                          "Engine default";
+                            const options = [
+                                      {
+                                          value: "",
+                                          label: engineLabel
+                                      }
+                                  ];
+                            const installed = root.fontSettings
+                                  ? root.fontSettings.installedFamilies() : [];
+                            if (offerInterfaceFamily && installed.indexOf(Style.font.family) !== -1)
+                                options.push({
+                                                 value: Style.font.family,
+                                                 label: "Interface's (" + Style.font.family + ")"
+                                             });
+                            for (const family of installed) {
+                                if (!(offerInterfaceFamily && family === Style.font.family))
+                                    options.push({
+                                                     value: family,
+                                                     label: family
+                                                 });
+                            }
+                            return options;
+                        }
+
+                        function chosenFamily(entry) {
+                            return entry && entry.overridden ? entry.value : "";
+                        }
+
+                        // Wide enough for the longest name it can be asked to
+                        // show, in the face the kit's dropdown draws it in,
+                        // plus the padding and chevron that dropdown keeps
+                        // beside it; a family name is not a thing to elide.
+                        // Capped at half the pane, which is where the title
+                        // beside it would otherwise be squeezed out.
+                        function familyControlWidth(options) {
+                            void (fieldMetrics.font.pixelSize);
+                            void (fieldMetrics.font.family);
+                            let widest = 0;
+                            for (const option of options)
+                                widest = Math.max(widest, fieldMetrics.advanceWidth(option.label));
+                            return Math.min(Math.ceil(widest) + Style.spacing.controlPaddingX * 2 + Style.spacing.md
+                                            + Style.spacing.controlGap + Style.font.body * 2,
+                                            Math.floor(pane.width / 2));
+                        }
+
+                        SettingRow {
+                            width: pane.width
+                            colors: root.colors
+                            title: "Standard font"
+                            note: "A page that names no font is drawn in this one."
+
+                            SettingDropdown {
+                                objectName: "pageStandardFamily"
+                                width: pageFontsGroup.familyControlWidth(options)
+                                colors: root.colors
+                                options: pageFontsGroup.familyOptions(
+                                             root.pageFontsMap.standardFamily
+                                             ? root.pageFontsMap.standardFamily.engine : "", false)
+                                value: pageFontsGroup.chosenFamily(root.pageFontsMap.standardFamily)
+                                accessibleName: "Standard font for pages"
+                                onChanged: function (family) {
+                                    root.fontSettings.setPageFamily(FontSettings.Standard, family);
+                                }
+                            }
+                        }
+
+                        SettingRow {
+                            width: pane.width
+                            colors: root.colors
+                            title: "Fixed-width font"
+                            note: "Code on a page, and any text a page asks to have drawn monospaced."
+
+                            SettingDropdown {
+                                objectName: "pageFixedFamily"
+                                width: pageFontsGroup.familyControlWidth(options)
+                                colors: root.colors
+                                options: pageFontsGroup.familyOptions(root.pageFontsMap.fixedFamily
+                                                                      ? root.pageFontsMap.fixedFamily.engine :
+                                                                        "", true)
+                                value: pageFontsGroup.chosenFamily(root.pageFontsMap.fixedFamily)
+                                accessibleName: "Fixed-width font for pages"
+                                onChanged: function (family) {
+                                    root.fontSettings.setPageFamily(FontSettings.Fixed, family);
+                                }
+                            }
+                        }
+
+                        SettingRow {
+                            width: pane.width
+                            colors: root.colors
+                            title: "Font size"
+                            note: "The size a page that names none is read at. Code follows it a step smaller, as the engine keeps it."
+
+                            SettingStepper {
+                                objectName: "pageFontSize"
+                                colors: root.colors
+                                value: root.pageFontsMap.fontSize
+                                       ? root.pageFontsMap.fontSize.value : 0
+                                minimum: root.fontSettings ? root.fontSettings.minimumPageFontSize :
+                                                             0
+                                maximum: root.fontSettings ? root.fontSettings.maximumPageFontSize :
+                                                             0
+                                overridden: !!root.pageFontsMap.fontSize
+                                            && root.pageFontsMap.fontSize.overridden
+                                accessibleName: "Page font size"
+                                defaultName: "the engine's"
+                                onIncreased: root.fontSettings.setPageSize(FontSettings.Default,
+                                                                           value + 1)
+                                onDecreased: root.fontSettings.setPageSize(FontSettings.Default,
+                                                                           value - 1)
+                                onReset: root.fontSettings.setPageSize(FontSettings.Default, 0)
+                            }
+                        }
+
+                        SettingRow {
+                            width: pane.width
+                            colors: root.colors
+                            title: "Minimum font size"
+                            note: "No text on a page is drawn smaller than this, whatever size the page asks for. A tab's zoom multiplies it."
+
+                            SettingStepper {
+                                objectName: "pageMinimumFontSize"
+                                colors: root.colors
+                                value: root.pageFontsMap.minimumFontSize
+                                       ? root.pageFontsMap.minimumFontSize.value : 0
+                                minimum: 0
+                                maximum: root.fontSettings
+                                         ? root.fontSettings.maximumPageMinimumFontSize : 0
+                                zeroLabel: "none"
+                                overridden: !!root.pageFontsMap.minimumFontSize
+                                            && root.pageFontsMap.minimumFontSize.overridden
+                                accessibleName: "Minimum page font size"
+                                defaultName: "the engine's"
+                                onIncreased: root.fontSettings.setPageSize(FontSettings.Minimum,
+                                                                           value + 1)
+                                onDecreased: root.fontSettings.setPageSize(FontSettings.Minimum,
+                                                                           value - 1)
+                                onReset: root.fontSettings.setPageSize(FontSettings.Minimum, 0)
+                            }
+                        }
                     }
                 }
 

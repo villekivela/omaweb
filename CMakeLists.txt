@@ -503,6 +503,7 @@ set(omaweb_ui_files
     src/ui/SettingDropdown.qml
     src/ui/SettingField.qml
     src/ui/SettingRow.qml
+    src/ui/SettingStepper.qml
     src/ui/SettingToggle.qml
     src/ui/SettingsPage.qml
     src/ui/PanelResizer.qml

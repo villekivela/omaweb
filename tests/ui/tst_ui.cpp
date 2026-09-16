@@ -78,6 +78,7 @@ public slots:
         omaweb::registerBrowserController();
         omaweb::registerDownloads();
         omaweb::registerFaviconTint();
+        omaweb::registerFontSettings();
         omaweb::registerEngineCapabilities();
         omaweb::registerSystemClipboard();
         omaweb::registerExternalProtocolHandler();
@@ -126,6 +127,10 @@ public slots:
         engine->rootContext()->setContextProperty(QStringLiteral("theme"), m_theme.get());
         engine->rootContext()->setContextProperty(
             QStringLiteral("fontSettings"), m_fontSettings.get());
+        // The lab runs no engine, so there is nothing to draw a page's fonts
+        // with; the page shows the controls and they reach nothing.
+        engine->rootContext()->setContextProperty(
+            QStringLiteral("pageFonts"), QVariant::fromValue<QObject *>(nullptr));
         engine->rootContext()->setContextProperty(QStringLiteral("syncLauncher"), &m_syncLauncher);
         // The tests draw the chrome without asking GitHub anything, so the
         // Release mark has no watch and is not shown. Registered rather than

@@ -4,6 +4,7 @@
 #include <QFile>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QQmlEngine>
 #include <QSaveFile>
 
 #include <algorithm>
@@ -232,6 +233,12 @@ void FontSettings::save() const
     }
     file.write(QJsonDocument(object).toJson(QJsonDocument::Indented));
     file.commit();
+}
+
+void registerFontSettings()
+{
+    qmlRegisterUncreatableType<FontSettings>("Omaweb", 1, 0, "FontSettings",
+        QStringLiteral("The reader's font settings are handed to QML, not built there."));
 }
 
 } // namespace omaweb

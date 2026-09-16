@@ -296,6 +296,7 @@ int main(int argc, char *argv[])
     omaweb::registerBrowserController();
     omaweb::registerDownloads();
     omaweb::registerFaviconTint();
+    omaweb::registerFontSettings();
     omaweb::registerEngineCapabilities();
     omaweb::registerDefaultBrowser();
     omaweb::registerSystemClipboard();
