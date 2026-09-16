@@ -14,9 +14,9 @@ Per theme it writes:
   them and floors the quiet ones against the ground they sit on, so the roles
   are read back out of the browser through `omaweb-ui-lab --dump-palette`.
 - `website/favicon.svg`, the application icon in the default theme's ground
-  and foreground, which is where a browser asks for it. It is the one asset
-  the page repaints itself: the script fetches it and swaps its two fills for
-  the active palette's, so it is drawn once here rather than once per theme.
+  and foreground, which is where a browser asks for it. It is drawn once,
+  not once per theme: the page could redraw it only as a `data:` URL, and
+  Omaweb's engine shows no icon for one of those, so it stays as shipped.
   The wordmark needs nothing from here at all; it is inline in every page and
   drawn in `currentColor`.
 - `website/assets/shots/<theme>/<state>.webp`, one capture per interface state,

@@ -719,8 +719,8 @@ A failed fetch is not a failed deploy. The build leaves the committed `website/r
 which says where the releases are, and warns on standard error. Force that path with
 `GITHUB_TOKEN=nonsense node build/site.mjs`, which makes the API answer 401.
 
-Rebuild the per-theme palettes, screenshots, favicons and wordmarks with
-`scripts/build_website_themes.py` after a chrome change or an upstream theme change.
+Rebuild the per-theme palettes, screenshots and the favicon with `scripts/build_website_themes.py`
+after a chrome change or an upstream theme change.
 
 ## Hardware video decode
 

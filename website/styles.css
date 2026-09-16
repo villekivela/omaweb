@@ -333,8 +333,10 @@ img {
    The palettes themselves are not written here. Each is generated into
    `themes.css` by `scripts/build_website_themes.py`, out of the roles
    Omaweb resolves from that theme's own `colors.toml` -- alongside the
-   screenshots drawn in the same palette. The wordmark and the favicon
-   take theirs from the page at runtime, so they follow any palette.
+   screenshots drawn in the same palette. The wordmark is inline and
+   takes its colour from the page, so it follows any palette; the favicon
+   is one file in the default palette, since a `data:` icon drawn at
+   runtime is one Omaweb's engine never shows.
    =================================================================== */
 
 /* One wrap holds the whole page. There were two, so that the full-bleed
