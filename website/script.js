@@ -166,9 +166,10 @@
   // The favicon is a document of its own and sees none of the page's
   // colours, so it is redrawn rather than restyled: the shipped icon is
   // fetched once and its two fills, the ground and the mark, are replaced
-  // with the palette's before it goes back to the browser as a data URL. The
-  // shipped file is the default palette and stays the icon until the fetch
-  // returns, or for good if it never does.
+  // with the palette's before it goes back to the browser as a data URL,
+  // which is the one thing `img-src data:` in vercel.json is there to let in.
+  // The shipped file is the default palette and stays the icon until the
+  // fetch returns, or for good if it never does.
   var favicon = document.querySelector('link[rel="icon"]');
   var faviconSource = null;
   if (favicon && window.fetch) {

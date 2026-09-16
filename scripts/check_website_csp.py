@@ -19,8 +19,10 @@ Blocked by `default-src 'self'`:
 
 `<a href>` is a navigation rather than a subresource, so a link to github.com
 is left alone. `application/ld+json` is data the browser never executes, so it
-is left alone too. `data:` is reported: the policy admits no `data:` today, and
-adding one means widening the policy on purpose rather than by accident.
+is left alone too. `data:` is reported: the policy admits it for images alone,
+and only because `script.js` repaints the favicon into one at runtime; nothing
+shipped in the markup uses it, and adding one means widening the policy on
+purpose rather than by accident.
 
 Usage:
 
