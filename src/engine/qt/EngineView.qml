@@ -806,9 +806,92 @@ Item {
     // the snippet replaces the rules in the sheet the document already adopted
     // rather than adopting a second one.
     onControlAccentStyleSheetChanged: {
-        webView.userScripts.collection = root.userScriptList();
+        if (!root.completed)
+            return;
+        root.refreshUserScripts();
         webView.runJavaScript(root.styleSheetSnippet(root.controlAccentSheetId,
                                                      root.controlAccentStyleSheet));
+    }
+
+    // The handlers that reassign the collection are also fired while the
+    // component is being built, for any sheet a creation property gives a
+    // value to: bindings evaluate in declaration order, so a list read then
+    // has entries that are still undefined, and assigning it fails and takes
+    // the view's own binding with it, which leaves the first document with no
+    // scripts at all. Until completion the binding answers, and nothing here.
+    property bool completed: false
+
+    function refreshUserScripts() {
+        if (root.completed)
+            webView.userScripts.collection = root.userScriptList();
+    }
+
+    // ---- the palette a page may follow ---------------------------------------
+    //
+    // A page that says so is given the shell's palette as custom properties on
+    // its root element, so a site can be drawn in the reader's own theme rather
+    // than in one it guessed at. Saying so is a `<meta name="omaweb-palette">`
+    // in the document: the palette is the reader's to reveal, and which theme
+    // they run is a fact about them a page has no other way to learn, so a
+    // page learns nothing unless it asks in its markup where the reader can
+    // see the asking.
+    //
+    // `:where(html)` as the accent above: no specificity, so the page's own
+    // definition of any of these names outranks the shell's.
+    readonly property string pagePaletteSheetId: "__omaweb_palette"
+    property var pagePalette: null
+
+    readonly property string pagePaletteStyleSheet: {
+        const palette = root.pagePalette;
+        if (!palette)
+            return "";
+        const rgb = colour => Math.round(colour.r * 255) + " " + Math.round(colour.g * 255) + " "
+                              + Math.round(colour.b * 255);
+        // The shell's palette names its colours as strings; a colour either way.
+        let rules = "";
+        for (const role of ["bg", "sidebar", "fg", "accent", "urgent", "muted"]) {
+            if (!palette[role])
+                continue;
+            const colour = Qt.color(palette[role]);
+            if (colour.valid && colour.a > 0)
+                rules += "--omaweb-" + role + ": rgb(" + rgb(colour) + "); ";
+        }
+        return rules.length === 0 ? "" : ":where(html) { " + rules + "}";
+    }
+
+    // The sheet is adopted the moment the meta is parsed, which is before the
+    // body exists, so the page never paints in a palette it did not want. A
+    // document keeps nothing of the palette while nobody has asked, and the
+    // watch ends with the parse: the ask is markup, so a page that has not
+    // made it by then is one that is not making it.
+    function pagePaletteSnippet(css) {
+        return "(() => {" + "const asked = () => document.head"
+                + " && document.head.querySelector('meta[name=\"omaweb-palette\"]') !== null;"
+                + "const apply = () => " + root.styleSheetSnippet(root.pagePaletteSheetId, css)
+                + ";" + "if (asked()) { apply(); return; }"
+                + "if (document.readyState !== 'loading') return;"
+                + "const watch = new MutationObserver(() => {" + "if (!asked()) return;"
+                + "watch.disconnect();" + "apply();" + "});"
+                + "watch.observe(document, { childList: true, subtree: true });"
+                + "document.addEventListener('DOMContentLoaded', () => watch.disconnect(),"
+                + " { once: true });" + "})()";
+    }
+
+    property var pagePaletteScript: {
+        const script = WebEngine.script();
+        script.name = "Omaweb page palette";
+        script.injectionPoint = WebEngineScript.DocumentCreation;
+        script.worldId = WebEngineScript.MainWorld;
+        script.runsOnSubFrames = true;
+        script.sourceCode = root.pagePaletteSnippet(root.pagePaletteStyleSheet);
+        return script;
+    }
+
+    onPagePaletteStyleSheetChanged: {
+        if (!root.completed)
+            return;
+        root.refreshUserScripts();
+        webView.runJavaScript(root.pagePaletteSnippet(root.pagePaletteStyleSheet));
     }
 
     // ---- the page's own scrollbar ------------------------------------------
@@ -855,7 +938,9 @@ Item {
     }
 
     onPageScrollbarStyleSheetChanged: {
-        webView.userScripts.collection = root.userScriptList();
+        if (!root.completed)
+            return;
+        root.refreshUserScripts();
         webView.runJavaScript(root.styleSheetSnippet(root.pageScrollbarSheetId,
                                                      root.pageScrollbarStyleSheet));
     }
@@ -988,7 +1073,7 @@ Item {
         script.sourceCode = (css.length > 0 ? root.styleSheetSnippet(root.cosmeticSheetId, css)
                                               + ";\n" : "") + root.scriptletSnippet(scriptlets);
         root.blockingScript = script;
-        webView.userScripts.collection = root.userScriptList();
+        root.refreshUserScripts();
         // The document about to be created carries whatever this script adds
         // and nothing else, so what the last one had is no longer there.
         root.cosmeticRulesInjected = css.length > 0;
@@ -1139,6 +1224,7 @@ Item {
     }
 
     Component.onCompleted: {
+        root.completed = true;
         Qt.callLater(root.applyKeyboardNavigationConfiguration);
         root.announcePage(root.currentUrl);
     }
@@ -1669,8 +1755,8 @@ Item {
     function userScriptList() {
         const scripts = [root.editedStateScript, root.keyboardNavigationScript,
                          root.externalProtocolOriginScript, root.userActivationScript,
-                         root.pressOriginScript, root.controlAccentScript, root.pageScrollbarScript,
-                         root.mediaSessionScript];
+                         root.pressOriginScript, root.controlAccentScript, root.pagePaletteScript,
+                         root.pageScrollbarScript, root.mediaSessionScript];
         if (root.blockingScript)
             scripts.push(root.blockingScript);
         return scripts;

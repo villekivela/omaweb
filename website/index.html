@@ -10,6 +10,9 @@
     />
     <meta name="application-name" content="Omaweb" />
     <meta name="robots" content="index, follow" />
+    <!-- Omaweb draws a page that asks in the reader's own theme, and asks
+         nothing of a page that does not. -->
+    <meta name="omaweb-palette" content="follow" />
     <meta name="theme-color" content="#06060c" />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Omaweb" />
@@ -45,7 +48,7 @@
     <link rel="stylesheet" href="themes.css" />
   </head>
 
-  <body data-theme="hackerman">
+  <body>
     <!-- The same rain of cells the screenshots' wallpaper is drawn from,
          drawn live in the active palette behind the header and the hero.
          Decorative: it is hidden from assistive technology and the page is
@@ -177,6 +180,11 @@
 
         <div class="t-themes" role="group" aria-label="Preview theme">
           <span>Preview theme</span>
+          <!-- The reader's own theme, which only Omaweb can supply. The script
+               shows the button when the palette is there. -->
+          <button class="t-theme" type="button" aria-pressed="false" data-theme="own" hidden>
+            Yours
+          </button>
           <button class="t-theme" type="button" aria-pressed="true" data-theme="hackerman">
             Hackerman
           </button>

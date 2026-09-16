@@ -20,6 +20,9 @@
     <meta name="description" content="{{description}}" />
     <meta name="application-name" content="Omaweb" />
     <meta name="robots" content="index, follow" />
+    <!-- Omaweb draws a page that asks in the reader's own theme, and asks
+         nothing of a page that does not. -->
+    <meta name="omaweb-palette" content="follow" />
     <meta name="theme-color" content="#06060c" />
     <meta property="og:type" content="article" />
     <meta property="og:site_name" content="Omaweb" />
@@ -33,7 +36,7 @@
     <link rel="stylesheet" href="{{root}}/themes.css" />
   </head>
 
-  <body data-theme="hackerman">
+  <body>
     <div class="t-wrap">
       <header class="t-top">
         <a href="{{root}}/">

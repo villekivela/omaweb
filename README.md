@@ -25,7 +25,8 @@ a sidebar, separates browsing identities into Spaces, and follows the desktop th
   blocking activity.
 - High-risk downloads require confirmation, lose their execute permissions, and never open
   automatically.
-- Omaweb follows the desktop theme and can import terminal and Omarchy themes without restarting.
+- Omaweb follows the desktop theme and can import terminal and Omarchy themes without restarting. A
+  page that asks for it, with `<meta name="omaweb-palette">`, is handed the palette too.
 
 Every browser action is available from the command panel.
 
