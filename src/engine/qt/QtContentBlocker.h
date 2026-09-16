@@ -54,7 +54,7 @@ public:
 
 private:
     void applyGlobalPrivacyControl();
-    void installGlobalPrivacyControlScript(QObject *profile, bool installed) const;
+    void installGlobalPrivacyControlScript(QObject *profile, bool wanted) const;
 
     ContentBlocker *m_contentBlocker;
     const GlobalPrivacyControl *m_globalPrivacyControl;

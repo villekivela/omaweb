@@ -195,10 +195,10 @@ void QtContentBlocker::applyGlobalPrivacyControl()
 
 // The QML profile's script collection is a class Qt keeps private, so it is
 // reached through the meta-object, the way QML itself reaches it.
-void QtContentBlocker::installGlobalPrivacyControlScript(QObject *profile, bool installed) const
+void QtContentBlocker::installGlobalPrivacyControlScript(QObject *profile, bool wanted) const
 {
     if (auto *widgetProfile = qobject_cast<QWebEngineProfile *>(profile)) {
-        if (installed) {
+        if (wanted) {
             widgetProfile->scripts()->insert(m_globalPrivacyControlScript);
         } else {
             widgetProfile->scripts()->remove(m_globalPrivacyControlScript);
@@ -206,11 +206,14 @@ void QtContentBlocker::installGlobalPrivacyControlScript(QObject *profile, bool 
         return;
     }
     auto *collection = profile->property("userScripts").value<QObject *>();
-    if (!collection) {
-        return;
+    // A name the collection no longer answers to would otherwise fail in
+    // silence, and the page would go on reading `undefined` while the header
+    // still says the reader opted out.
+    if (!collection
+        || !QMetaObject::invokeMethod(collection, wanted ? "insert" : "remove",
+            Q_ARG(QWebEngineScript, m_globalPrivacyControlScript))) {
+        qWarning("Global Privacy Control could not reach the profile's script collection.");
     }
-    QMetaObject::invokeMethod(collection, installed ? "insert" : "remove",
-        Q_ARG(QWebEngineScript, m_globalPrivacyControlScript));
 }
 
 RequestDecision QtContentBlocker::checkRequest(const QUrl &requestUrl, const QUrl &sourceUrl,
@@ -253,7 +256,7 @@ bool QtContentBlocker::attachToProfile(QObject *profileObject, const QString &sp
         profile->setUrlRequestInterceptor(interceptor.get());
         profile->installUrlSchemeHandler(substituteScheme, m_substitutes.get());
         const auto attached = std::ranges::any_of(m_profiles,
-            [profileObject](const QPointer<QObject> &profile) { return profile == profileObject; });
+            [profileObject](const QPointer<QObject> &known) { return known == profileObject; });
         if (!attached) {
             m_profiles.emplace_back(profileObject);
             installGlobalPrivacyControlScript(profileObject, sendsGlobalPrivacyControl());
