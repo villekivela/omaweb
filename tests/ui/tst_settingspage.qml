@@ -47,9 +47,14 @@ TestCase {
 
         property int restoreCount: 0
         property var compilationReport: ({})
+        property var subscribed: []
 
         function restoreDefaultSubscriptions() {
             restoreCount += 1;
+        }
+
+        function subscribeKnownList(id) {
+            subscribed = subscribed.concat([id]);
         }
     }
 
@@ -1210,6 +1215,44 @@ TestCase {
                 ];
         tryVerify(function () {
             return !notice.visible;
+        });
+    }
+
+    // A list the browser knows but has not subscribed is offered by name with
+    // its source, whatever else is subscribed, and one action subscribes it.
+    // The offer goes once the list is a subscription, because a list that is
+    // both offered and subscribed reads as two lists (#291).
+    function test_aKnownListIsOfferedByNameAndSubscribedInOneAction() {
+        const page = makePage();
+        page.blocker = blockerStub;
+        page.section = page.sections.indexOf("content blocking");
+        page.knownLists = [
+                    {
+                        id: "easylist-cookie",
+                        title: "EasyList Cookie",
+                        source: "https://easylist.to/",
+                        license: "CC BY 3.0",
+                        updateAddress: "https://secure.fanboy.co.nz/fanboy-cookiemonster.txt"
+                    }
+                ];
+        const offers = findChild(page, "knownListOffers");
+        verify(offers !== null);
+        tryVerify(function () {
+            return offers.visible && offers.height > 0;
+        });
+        const offer = findChild(offers, "knownListOffer");
+        verify(offer !== null);
+        compare(offer.title, "EasyList Cookie");
+        verify(offer.note.indexOf("https://easylist.to/") >= 0);
+
+        const subscribe = findChild(offer, "subscribeKnownListButton");
+        verify(subscribe !== null);
+        subscribe.clicked();
+        compare(blockerStub.subscribed, ["easylist-cookie"]);
+
+        page.knownLists = [];
+        tryVerify(function () {
+            return !offers.visible;
         });
     }
 

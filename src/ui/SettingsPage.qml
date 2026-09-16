@@ -81,6 +81,9 @@ Rectangle {
     // it changes, so this page never asks for it again.
     property var downloads: null
     property var subscriptions: []
+    // The lists Content blocking knows by name and has not subscribed, offered
+    // beside the subscriptions so the reader never has to fetch an address.
+    property var knownLists: []
     // What Content blocking refused for the page on show.
     readonly property int refusalTally: refusals.count
 
@@ -343,6 +346,7 @@ Rectangle {
         root.engines = root.browser.searchEngines();
         root.enginePresets = root.browser.searchEnginePresets();
         root.subscriptions = root.blocker ? root.blocker.subscriptions : [];
+        root.knownLists = root.blocker ? root.blocker.knownLists : [];
         userRules.text = root.blocker ? root.blocker.userRules : "";
         root.loadBrowsingDataSelection();
     }
@@ -1044,6 +1048,46 @@ Rectangle {
                             onClicked: {
                                 root.blocker.restoreDefaultSubscriptions();
                                 root.refresh();
+                            }
+                        }
+                    }
+
+                    // A list Omaweb can name is offered by name, with the same
+                    // provenance a subscription shows, and one action takes
+                    // it. It waits for the blocker for the reason the offer
+                    // above does. The cookie list is here rather than seeded
+                    // because it takes a site's consent choice, which is the
+                    // reader's to give away (#291).
+                    Column {
+                        objectName: "knownListOffers"
+                        width: pane.width
+                        visible: root.blocker !== null && root.blocker !== undefined
+                                 && root.knownLists.length > 0
+
+                        Repeater {
+                            model: root.section === 3 ? root.knownLists : []
+
+                            SettingRow {
+                                required property var modelData
+
+                                objectName: "knownListOffer"
+                                width: pane.width
+                                colors: root.colors
+                                title: modelData.title
+                                note: "Not subscribed · " + modelData.license + "\nSource "
+                                      + modelData.source + "\nUpdates from "
+                                      + modelData.updateAddress
+
+                                ActionButton {
+                                    objectName: "subscribeKnownListButton"
+                                    colors: root.colors
+                                    label: "Subscribe"
+                                    accessibleName: "Subscribe to " + modelData.title
+                                    onClicked: {
+                                        root.blocker.subscribeKnownList(modelData.id);
+                                        root.refresh();
+                                    }
+                                }
                             }
                         }
                     }

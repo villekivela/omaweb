@@ -3,7 +3,9 @@
 A first run subscribes to EasyList and EasyPrivacy with both enabled, so the first startup check
 fetches both lists. Later runs read the stored subscriptions and subscribe to nothing on their own,
 so removing a list stops its requests for good. Turning a subscription off in Settings also stops
-its requests.
+its requests. EasyList Cookie is named in Settings and fetched only after the reader subscribes it,
+from `https://secure.fanboy.co.nz/fanboy-cookiemonster.txt`, the address easylist.to publishes for
+it.
 
 Omaweb checks enabled Content-blocking subscriptions when the browser starts. Each request goes only
 to the update address shown for that subscription. It sends a normal HTTP GET with no browsing

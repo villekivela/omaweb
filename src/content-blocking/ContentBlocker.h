@@ -17,11 +17,16 @@
 namespace omaweb {
 
 class ContentMatcher;
+struct KnownList;
 
 class ContentBlocker final : public QObject {
     Q_OBJECT
     Q_PROPERTY(QString userRules READ userRules WRITE setUserRules NOTIFY configurationChanged)
     Q_PROPERTY(QVariantList subscriptions READ subscriptions NOTIFY subscriptionsChanged)
+    // The lists Omaweb can name that are neither seeded nor subscribed.
+    // Settings offers each one by title and source, and subscribing moves it
+    // from here to subscriptions, so the two never list the same thing.
+    Q_PROPERTY(QVariantList knownLists READ knownLists NOTIFY subscriptionsChanged)
     Q_PROPERTY(bool compiling READ compiling NOTIFY compilingChanged)
     Q_PROPERTY(QVariantMap compilationReport READ compilationReport NOTIFY rulesChanged)
     // How many times a Refusal tally has moved. A tally is keyed by page
@@ -43,6 +48,7 @@ public:
     QString userRules() const;
     void setUserRules(const QString &rules);
     QVariantList subscriptions() const;
+    QVariantList knownLists() const;
     bool compiling() const;
     QVariantMap compilationReport() const;
 
@@ -55,6 +61,9 @@ public:
     // Settings offers the default lists back when there are none. Seeding is
     // otherwise a one-off, so this is the only way they return.
     Q_INVOKABLE void restoreDefaultSubscriptions();
+    // Subscribes one of the known lists under its own id, so an install that
+    // has it never gets it twice. A name that is not known does nothing.
+    Q_INVOKABLE void subscribeKnownList(const QString &id);
     void reloadSyncedConfiguration();
     Q_INVOKABLE bool siteEnabled(const QUrl &url) const;
     Q_INVOKABLE void setSiteEnabled(const QUrl &url, bool enabled);
@@ -149,6 +158,7 @@ private:
     QString listPath(const QString &id) const;
     void load();
     void seedDefaultSubscriptions();
+    bool subscribeKnownList(const KnownList &list);
     void countRefusal(const QUrl &sourceUrl, const QString &spaceId) const;
     void noteRefusal(const RefusalKey &key);
     void flushRefusals();
