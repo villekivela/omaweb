@@ -24,23 +24,31 @@ not have, and nothing is composited. The log says so under
 EGL Driver message (Error) eglCreateContext: Requested version is not supported
 ```
 
-Give Chromium a rendering path the guest can serve:
+Go around ANGLE to the driver's own EGL:
 
 ```sh
-QTWEBENGINE_CHROMIUM_FLAGS=--disable-gpu ./build/dev/omaweb
+QTWEBENGINE_CHROMIUM_FLAGS=--use-gl=egl ./build/dev/omaweb
 ```
 
-`--use-angle=gl`, which would have kept the acceleration virgl can offer, does not work here. The
-whole `--disable-gpu` hammer is the one that lands. The flag has to come through the environment:
-QtWebEngine builds Chromium's command line from `QTWEBENGINE_CHROMIUM_FLAGS`, and the same flag on
-Omaweb's own argv is ignored.
+Chromium then composites on virgl's OpenGL ES directly, and the page keeps everything the GPU
+process gives it: `backdrop-filter`, WebGL, canvas, and hardware video decode. The flag has to come
+through the environment: QtWebEngine builds Chromium's command line from
+`QTWEBENGINE_CHROMIUM_FLAGS`, and the same flag on Omaweb's own argv is ignored.
+
+`--disable-gpu` also paints the page, and used to be the advice here. It does so by putting Chromium
+on its software compositor, which drops `backdrop-filter` and WebGL: a page with a glass header
+shows the header with no blur, in Omaweb alone, and looks like a bug in the page. Measured on virgl
+with Mesa 26.2, `--use-angle=gl` and `--use-angle=gles` fall into the same ANGLE hole,
+`--use-angle=vulkan` lands on lavapipe and composites in software too, and Chromium's own
+`chrome://gpu` is not reachable, so read the state over `--remote-debugging` with the DevTools
+`SystemInfo.getInfo` method: `featureStatus.gpu_compositing` says `enabled` when the flag took.
 
 This is a property of the guest's graphics rather than of Omaweb, so it stays an environment
-variable rather than something the build decides. It also gives up hardware video decode, which has
-no GPU process to run in once the flag is set; see [Hardware video decode](#hardware-video-decode).
-Omaweb refuses `--no-sandbox`, `--single-process`, `--in-process-gpu`, and
-`--in-process-network-service` (see [Security rules](#security-rules)); the rendering flags above
-are not among them.
+variable rather than something the build decides. A shell that exports it for every launch is where
+a rendering difference between Omaweb and the desktop's Chromium comes from first; the variable's
+name does not start with `QT_`, so `env | grep QT_` does not show it. Omaweb refuses `--no-sandbox`,
+`--single-process`, `--in-process-gpu`, and `--in-process-network-service` (see
+[Security rules](#security-rules)); the rendering flags above are not among them.
 
 ## Presets
 
@@ -746,8 +754,7 @@ QTWEBENGINE_CHROMIUM_FLAGS=--enable-features=VaapiIgnoreDriverChecks ./build/dev
 
 Omaweb adds nothing where the host has already said no:
 
-- `--disable-gpu` or `--disable-accelerated-video-decode` leaves no GPU process to decode in, which
-  is the case for the virtual-machine workaround above.
+- `--disable-gpu` or `--disable-accelerated-video-decode` leaves no GPU process to decode in.
 - `--disable-features=VaapiVideoDecodeLinuxGL` refuses the feature on its own, without giving up the
   rest of the GPU process.
 
