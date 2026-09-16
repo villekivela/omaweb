@@ -4,6 +4,7 @@
 #include <QHash>
 #include <QMutex>
 #include <QObject>
+#include <QPair>
 #include <QPointer>
 #include <QSet>
 #include <QString>
@@ -52,6 +53,18 @@ public:
     // The origin a cookie access belongs to, in the shape the core's
     // allowances are keyed by.
     static QString cookieOrigin(const QUrl &url);
+    // A view says which document it is showing: the address the load set out
+    // from and the one it arrived at. The engine reports every access a
+    // document makes against the address its load set out from, so a document
+    // that arrived somewhere else through a cross-site redirect has its own
+    // cookies reported as a third party's (ADR 0046). The policy judges such an
+    // access against the arrival instead. One document per view, replaced by
+    // the next and let go of with the view.
+    Q_INVOKABLE void showDocument(QObject *view, const QUrl &setOutFrom, const QUrl &arrivedAt);
+    // Whether a cookie for `origin` belongs to the site a document arrived at,
+    // given the address its load set out from. Public for the test that pins
+    // the rule down without a page.
+    bool arrivedAtOwnSite(const QUrl &setOutFrom, const QUrl &origin) const;
 
 private:
     struct Attachment {
@@ -59,7 +72,12 @@ private:
         QString spaceId;
     };
 
+    // The address a load set out from and the host it arrived at.
+    using Document = QPair<QString, QString>;
+
     bool allows(const QString &spaceId, const QUrl &origin);
+    void forgetDocument(QObject *view);
+    void forgetArrival(const Document &document);
     void rememberRefusal(const QUrl &firstParty, const QUrl &origin);
     void refreshAllowances();
 
@@ -68,6 +86,12 @@ private:
     // Keyed by Space, so nothing here has to know how the core spells a key.
     QHash<QString, QSet<QString>> m_allowed;
     QHash<QString, QStringList> m_refusedOrigins;
+    // The document each view is showing, and the arrivals among them keyed by
+    // the address the load set out from, which is how the engine names the
+    // first party. Two views can arrive at one host from one address, so the
+    // arrivals are a multi-hash and a view takes out only its own.
+    QHash<QObject *, Document> m_documents;
+    QMultiHash<QString, QString> m_arrivals;
     QAtomicInt m_refused;
 };
 

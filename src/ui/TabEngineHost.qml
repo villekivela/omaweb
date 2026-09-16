@@ -16,6 +16,7 @@ Item {
     required property var permissionController
     required property var blocker
     required property var engineBlocker
+    required property var cookiePolicy
     required property var keyboardManager
     property bool pageFocusAllowed: true
     property var hintTheme: ({})
@@ -572,6 +573,7 @@ Item {
                                                         root.permissionController,
                                                         "contentBlocker": root.blocker,
                                                         "engineContentBlocker": root.engineBlocker,
+                                                        "engineCookiePolicy": root.cookiePolicy,
                                                         // The Space of the profile
                                                         // this view runs on, which is
                                                         // what Content blocking keys

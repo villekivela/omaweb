@@ -184,6 +184,8 @@ private slots:
     void mockReportsNothingWhereTheEngineCannotAnswer();
     void qtDefersACertificateFailureWithTheEnginesOwnFacts();
     void qtRefusesThirdPartyCookiesUntilAnOriginIsAllowed();
+    void qtCookiePolicyJudgesAnArrivalByItsOwnSite();
+    void qtKeepsADocumentsOwnCookiesAcrossARedirect();
     void qtNamesEveryPermissionTheShellHasAPolicyFor();
     void qtAsksTheShellAboutEveryPermissionRequest();
     void qtEmptiesTheCacheItWasAskedToClear();
@@ -1265,8 +1267,11 @@ namespace {
 
 class PageServer final : public QTcpServer {
 public:
-    explicit PageServer(QByteArray body)
+    // `/redirect` answers with the address it is given, and without one with
+    // this server's own page under its other loopback name.
+    explicit PageServer(QByteArray body, QByteArray redirectTo = {})
         : m_body(std::move(body))
+        , m_redirectTo(std::move(redirectTo))
     {
         connect(this, &QTcpServer::newConnection, this, [this] {
             auto *socket = nextPendingConnection();
@@ -1279,8 +1284,9 @@ public:
                     m_requested.append(QString::fromUtf8(fields.at(1)));
                 }
                 if (fields.value(1) == "/redirect") {
-                    const auto destination
-                        = "http://127.0.0.1:" + QByteArray::number(serverPort()) + "/page.html";
+                    const auto destination = m_redirectTo.isEmpty()
+                        ? "http://127.0.0.1:" + QByteArray::number(serverPort()) + "/page.html"
+                        : m_redirectTo;
                     socket->write("HTTP/1.1 302 Found\r\nLocation: " + destination
                         + "\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
                     socket->disconnectFromHost();
@@ -1298,6 +1304,7 @@ public:
 
 private:
     QByteArray m_body;
+    QByteArray m_redirectTo;
     QStringList m_requested;
 };
 
@@ -3326,6 +3333,111 @@ void QtEngineContractTest::qtRefusesThirdPartyCookiesUntilAnOriginIsAllowed()
     QVERIFY(QMetaObject::invokeMethod(adapter.get(), "reloadPage"));
     QTRY_COMPARE_WITH_TIMEOUT(
         adapter->property("pageTitle").toString(), QStringLiteral("blocked"), 20000);
+}
+
+// The engine names a document's first party by the address its load set out
+// from, so a document that arrived elsewhere through a cross-site redirect has
+// its own cookies reported as a third party's (#301). The policy judges such
+// an access by where the document arrived, for that document, and for no one
+// else.
+void QtEngineContractTest::qtCookiePolicyJudgesAnArrivalByItsOwnSite()
+{
+    omaweb::QtCookiePolicy policy;
+    QObject view;
+    const QUrl setOut(QStringLiteral("https://claude.com/cai/oauth/authorize?code=true#top"));
+    const QUrl arrived(QStringLiteral("https://claude.ai/oauth/authorize?code=true"));
+    const QUrl cookie(QStringLiteral("https://claude.ai/api/auth/verify_google"));
+
+    // Nothing is said until a view says it.
+    QVERIFY(!policy.arrivedAtOwnSite(setOut, cookie));
+
+    // The engine's spelling of the first party drops nothing but the fragment.
+    policy.showDocument(&view, setOut, arrived);
+    QVERIFY(policy.arrivedAtOwnSite(
+        QUrl(QStringLiteral("https://claude.com/cai/oauth/authorize?code=true")), cookie));
+    QVERIFY(policy.arrivedAtOwnSite(setOut, QUrl(QStringLiteral("https://api.claude.ai/v1"))));
+    // The arrival's site, and not any other, and not the address it set out
+    // from with a different path, which is a different document.
+    QVERIFY(
+        !policy.arrivedAtOwnSite(setOut, QUrl(QStringLiteral("https://tracker.example/pixel"))));
+    QVERIFY(!policy.arrivedAtOwnSite(setOut, QUrl(QStringLiteral("https://claude.com/"))));
+    QVERIFY(!policy.arrivedAtOwnSite(
+        QUrl(QStringLiteral("https://claude.com/cai/oauth/authorize")), cookie));
+
+    // A second view arriving the same way holds its own entry, so the first
+    // moving on takes only its own away.
+    QObject other;
+    policy.showDocument(&other, setOut, arrived);
+    policy.showDocument(&view, QUrl(QStringLiteral("https://example.test/")),
+        QUrl(QStringLiteral("https://example.test/")));
+    QVERIFY(policy.arrivedAtOwnSite(setOut, cookie));
+    // A view that goes away takes its entry with it.
+    {
+        QObject gone;
+        policy.showDocument(&gone, setOut, arrived);
+    }
+    QVERIFY(policy.arrivedAtOwnSite(setOut, cookie));
+    policy.showDocument(&other, arrived, arrived);
+    QVERIFY(!policy.arrivedAtOwnSite(setOut, cookie));
+}
+
+// A page reached through a redirect from another host can set and read its
+// own cookie. Two loopback names stand in for two sites: the reader asks for
+// one and the engine's own first party stays on it, while the document lives
+// on the other.
+void QtEngineContractTest::qtKeepsADocumentsOwnCookiesAcrossARedirect()
+{
+    PageServer pageServer(R"HTML(<!doctype html><html><body><title>waiting</title><script>
+        document.cookie = 'flow=kept; path=/';
+        document.title = document.cookie.includes('flow=kept') ? 'kept' : 'lost';
+    </script></body></html>)HTML");
+    QVERIFY(pageServer.listen(QHostAddress::LocalHost));
+    const auto page = QStringLiteral("http://localhost:%1/page.html").arg(pageServer.serverPort());
+    PageServer bounceServer(QByteArray(), page.toUtf8());
+    QVERIFY(bounceServer.listen(QHostAddress::LocalHost));
+    const QUrl bounce(
+        QStringLiteral("http://127.0.0.1:%1/redirect").arg(bounceServer.serverPort()));
+
+    QTemporaryDir dataRoot;
+    QVERIFY(dataRoot.isValid());
+    BrowserController browser(SpaceStorage(dataRoot.path(), QStringLiteral("qt")));
+    QVERIFY(browser.ready());
+    omaweb::QtCookiePolicy policy;
+
+    QTemporaryDir profileRoot;
+    QQmlEngine engine;
+    QQmlComponent profileComponent(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_PROFILE_PATH)));
+    const std::unique_ptr<QObject> host(profileComponent.createWithInitialProperties({
+        {QStringLiteral("profilePath"), profileRoot.filePath(QStringLiteral("space"))},
+        {QStringLiteral("privateBrowsing"), false},
+        {QStringLiteral("engineCookiePolicy"), QVariant::fromValue<QObject *>(&policy)},
+        {QStringLiteral("cookieController"), QVariant::fromValue<QObject *>(&browser)},
+        {QStringLiteral("spaceId"), browser.activeSpaceId()},
+    }));
+    QVERIFY2(host, qPrintable(profileComponent.errorString()));
+    QVERIFY(host->property("thirdPartyCookiesBlocked").toBool());
+
+    QQmlComponent viewComponent(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    const std::unique_ptr<QObject> adapter(viewComponent.createWithInitialProperties({
+        {QStringLiteral("sharedProfile"), host->property("profile")},
+        {QStringLiteral("engineCookiePolicy"), QVariant::fromValue<QObject *>(&policy)},
+    }));
+    QVERIFY2(adapter, qPrintable(viewComponent.errorString()));
+    QQuickWindow window;
+    window.resize(640, 480);
+    auto *view = qobject_cast<QQuickItem *>(adapter.get());
+    QVERIFY(view);
+    view->setParentItem(window.contentItem());
+    view->setSize(QSizeF(640, 480));
+    window.show();
+
+    QVERIFY(adapter->setProperty("currentUrl", bounce));
+    QTRY_COMPARE_WITH_TIMEOUT(
+        adapter->property("pageTitle").toString(), QStringLiteral("kept"), 20000);
+    QCOMPARE(adapter->property("currentUrl").toUrl(), QUrl(page));
+    QCOMPARE(policy.refusedCount(), 0);
 }
 
 // The shell's policy is written in Omaweb's words, so an engine's own

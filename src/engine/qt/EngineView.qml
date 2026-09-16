@@ -72,6 +72,10 @@ Item {
     property var permissionController: null
     property var contentBlocker: null
     property var engineContentBlocker: null
+    // The Qt cookie policy of the profile this view runs on, told which
+    // document the view is showing. Null where no policy is attached, as in a
+    // view on a profile of its own.
+    property var engineCookiePolicy: null
     readonly property var browserProfile: webView.profile
     readonly property bool pageHasFocus: webView.activeFocus
     readonly property int capabilities: EngineCapabilities.Navigation
@@ -743,6 +747,18 @@ Item {
     function announcePage(pageAddress) {
         if (root.contentBlocker)
             root.contentBlocker.showPage(root, root.spaceId, pageAddress, root.pageGeneration);
+    }
+    // The address the load on show set out from. The engine names a
+    // document's first party by this address rather than by the one the load
+    // arrived at, so the cookie policy is told both (ADR 0046). The address
+    // the load asks for at its start, kept while it redirects and while the
+    // document moves inside itself, and replaced by the next load's.
+    property url loadSetOutFrom: root.currentUrl
+    // Said when a load starts, and again for each redirect the load resolves
+    // to, with the address it is arriving at.
+    function announceDocument(arrivedAt) {
+        if (root.engineCookiePolicy)
+            root.engineCookiePolicy.showDocument(root, root.loadSetOutFrom, arrivedAt);
     }
     property bool cosmeticRulesInjected: false
     property int cosmeticRuleGeneration: 0
@@ -1785,6 +1801,8 @@ Item {
             root.refreshRenderProcessPid();
             if (loadRequest.status === WebEngineView.LoadStartedStatus) {
                 root.pageGeneration += 1;
+                root.loadSetOutFrom = loadRequest.url;
+                root.announceDocument(loadRequest.url);
                 // The page being left takes its length with it, so the bar is
                 // not drawn for the last document while the next one arrives.
                 root.forgetPageScroll();
@@ -1841,6 +1859,13 @@ Item {
         }
 
         onNavigationRequested: function (request) {
+            // A redirect is asked about here, before its destination is even
+            // fetched, which is the last moment before the arriving document
+            // runs its own scripts; the address property moves only once the
+            // document has committed, when those scripts have run already.
+            if (request.isMainFrame && request.navigationType
+                    === WebEngineNavigationRequest.RedirectNavigation)
+                root.announceDocument(request.url);
             const address = String(request.url);
             const scheme = address.substring(0, address.indexOf(":")).toLowerCase();
             if (scheme === "http" || scheme === "https" || scheme === "file" || scheme === "about"

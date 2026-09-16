@@ -12,6 +12,7 @@ ApplicationWindow {
     required property var permissionController
     required property var contentBlocker
     required property var engineContentBlocker
+    required property var cookiePolicy
     signal sitePermissionRequested(var responder, string requestId, string origin,
                                    string permission)
     // An Auxiliary window is where an authentication or payment flow finishes,
@@ -44,6 +45,7 @@ ApplicationWindow {
                                              "spaceId": auxiliary.openerEngine.spaceId,
                                              "contentBlocker": auxiliary.contentBlocker,
                                              "engineContentBlocker": auxiliary.engineContentBlocker,
+                                             "engineCookiePolicy": auxiliary.cookiePolicy,
                                              "keyboardNavigationConfiguration": Object.assign({},
                                                                                               keyboardNavigation.configurationForUrl(
                                                                                                   auxiliary.requestedUrl),

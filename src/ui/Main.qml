@@ -2244,6 +2244,7 @@ ApplicationWindow {
                     permissionController: window.windowBrowser
                     blocker: contentBlocker
                     engineBlocker: engineContentBlocker
+                    cookiePolicy: engineCookiePolicy
                     keyboardManager: keyboardNavigation
                     // A tab becomes active before its engine asks for focus on
                     // the next event turn. Settings keeps that later request
@@ -3118,6 +3119,7 @@ ApplicationWindow {
             permissionController: window.windowBrowser
             contentBlocker: contentBlocker
             engineContentBlocker: engineContentBlocker
+            cookiePolicy: engineCookiePolicy
             onSitePermissionRequested: function (responder, requestId, origin, permission) {
                 window.pendingPermissionRequest = requestId;
                 window.pendingPermissionResponder = responder;
