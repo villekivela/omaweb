@@ -3576,6 +3576,7 @@ ApplicationWindow {
         z: 50
         colors: window.colors
         commands: browserCommands
+        browser: window.windowBrowser
         // The window content behind the overlay, not the overlay's own parent,
         // so the blur never samples itself.
         backdropSource: shell

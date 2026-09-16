@@ -117,6 +117,8 @@ private slots:
     void resolvesAddressesBeforeSearches();
     void migratesAndUsesSearchEngineConfiguration();
     void addsPredefinedSearchEngineProviders();
+    void namesTheEngineATypedKeywordSelects();
+    void offersTheKeywordsATypedPrefixCouldBecome();
     void allowsEveryWindowCapabilityInAMainWindow();
     void refusesEveryWindowCapabilityInAPrivateWindow();
     void clearsSelectedBrowsingDataWithinConfirmedScope();
@@ -1272,6 +1274,95 @@ void BrowserControllerTest::addsPredefinedSearchEngineProviders()
 
     controller.openInput(QStringLiteral("br private search"), false);
     QCOMPARE(controller.activeUrl().host(), QStringLiteral("search.brave.com"));
+}
+
+// The Omnibar asks this on every keystroke and the commit reads the same
+// answer, so what the panel names is where Return goes.
+void BrowserControllerTest::namesTheEngineATypedKeywordSelects()
+{
+    QTemporaryDir root;
+    BrowserController controller(
+        SpaceStorage(root.filePath(QStringLiteral("data")), QStringLiteral("test")),
+        root.filePath(QStringLiteral("config")));
+    QVERIFY(controller.addSearchEnginePreset(QStringLiteral("google")));
+
+    auto intent = controller.searchIntent(QStringLiteral("g rust lifetimes"));
+    QCOMPARE(intent.value(QStringLiteral("engineId")).toString(), QStringLiteral("google"));
+    QCOMPARE(intent.value(QStringLiteral("engineName")).toString(), QStringLiteral("Google"));
+    QCOMPARE(intent.value(QStringLiteral("terms")).toString(), QStringLiteral("rust lifetimes"));
+    QCOMPARE(intent.value(QStringLiteral("keyword")).toString(), QStringLiteral("g"));
+    controller.openInput(QStringLiteral("g rust lifetimes"), false);
+    QCOMPARE(controller.activeUrl(),
+        QUrl(QStringLiteral("https://www.google.com/search?q=rust%20lifetimes")));
+
+    // The keyword alone is the engine's front page, not a search for the letter.
+    intent = controller.searchIntent(QStringLiteral("g"));
+    QCOMPARE(intent.value(QStringLiteral("engineId")).toString(), QStringLiteral("google"));
+    QCOMPARE(intent.value(QStringLiteral("terms")).toString(), QString {});
+    controller.openInput(QStringLiteral("g"), false);
+    QCOMPARE(controller.activeUrl(), QUrl(QStringLiteral("https://www.google.com/")));
+
+    // A mistyped keyword is a default-engine search for the whole text, and
+    // the intent says so rather than saying nothing.
+    intent = controller.searchIntent(QStringLiteral("gg rust"));
+    QCOMPARE(intent.value(QStringLiteral("engineId")).toString(), QStringLiteral("duckduckgo"));
+    QCOMPARE(intent.value(QStringLiteral("engineName")).toString(), QStringLiteral("DuckDuckGo"));
+    QCOMPARE(intent.value(QStringLiteral("terms")).toString(), QStringLiteral("gg rust"));
+    QCOMPARE(intent.value(QStringLiteral("keyword")).toString(), QString {});
+
+    QVERIFY(controller.searchIntent(QStringLiteral("example.com")).isEmpty());
+    QVERIFY(controller.searchIntent(QStringLiteral("localhost:3000 g")).isEmpty());
+    QVERIFY(controller.searchIntent(QStringLiteral("   ")).isEmpty());
+
+    // A held shift key does not change the engine.
+    intent = controller.searchIntent(QStringLiteral("G rust"));
+    QCOMPARE(intent.value(QStringLiteral("engineId")).toString(), QStringLiteral("google"));
+    QCOMPARE(intent.value(QStringLiteral("keyword")).toString(), QStringLiteral("g"));
+    controller.openInput(QStringLiteral("G rust"), false);
+    QCOMPARE(controller.activeUrl(), QUrl(QStringLiteral("https://www.google.com/search?q=rust")));
+
+    // Keywords are one namespace whatever their case, and are kept lowercased.
+    QVERIFY(!controller.addSearchEngine(QStringLiteral("Shouty"),
+        QStringLiteral("https://shouty.example/?q={query}"), QStringLiteral("G")));
+    QVERIFY(controller.addSearchEngine(QStringLiteral("Docs"),
+        QStringLiteral("https://docs.example/?q={query}"), QStringLiteral("DOC")));
+    QCOMPARE(controller.searchEngines().last().toMap().value(QStringLiteral("keyword")).toString(),
+        QStringLiteral("doc"));
+    QCOMPARE(controller.searchIntent(QStringLiteral("Doc api"))
+                 .value(QStringLiteral("engineId"))
+                 .toString(),
+        QStringLiteral("docs"));
+}
+
+void BrowserControllerTest::offersTheKeywordsATypedPrefixCouldBecome()
+{
+    QTemporaryDir root;
+    BrowserController controller(
+        SpaceStorage(root.filePath(QStringLiteral("data")), QStringLiteral("test")),
+        root.filePath(QStringLiteral("config")));
+    QVERIFY(controller.addSearchEnginePreset(QStringLiteral("bing")));
+    QVERIFY(controller.addSearchEnginePreset(QStringLiteral("brave")));
+    QVERIFY(controller.addSearchEnginePreset(QStringLiteral("google")));
+    QVERIFY(controller.setDefaultSearchEngine(QStringLiteral("bing")));
+
+    // The default engine is what plain text already searches, so it is not
+    // offered; Brave Search is.
+    auto offers = controller.searchKeywordOffers(QStringLiteral("b"));
+    QCOMPARE(offers.size(), 1);
+    QCOMPARE(offers.first().toMap().value(QStringLiteral("engineId")).toString(),
+        QStringLiteral("brave"));
+    QCOMPARE(offers.first().toMap().value(QStringLiteral("engineName")).toString(),
+        QStringLiteral("Brave Search"));
+    QCOMPARE(
+        offers.first().toMap().value(QStringLiteral("keyword")).toString(), QStringLiteral("br"));
+
+    QCOMPARE(controller.searchKeywordOffers(QStringLiteral("B")).size(), 1);
+    QCOMPARE(controller.searchKeywordOffers(QStringLiteral("br")).size(), 1);
+    QCOMPARE(controller.searchKeywordOffers(QStringLiteral("g")).size(), 1);
+    QCOMPARE(controller.searchKeywordOffers(QStringLiteral("x")).size(), 0);
+    // The empty Omnibar stays what it is, and a space has already chosen.
+    QCOMPARE(controller.searchKeywordOffers(QString {}).size(), 0);
+    QCOMPARE(controller.searchKeywordOffers(QStringLiteral("b ")).size(), 0);
 }
 
 namespace {

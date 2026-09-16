@@ -206,6 +206,13 @@ reports the gap and remains experimental rather than imitating behavior it canno
   of its browser-managed data after confirmation.
 - A configurable local search-engine list stores a name, query URL, and optional keyword. Omaweb
   ships DuckDuckGo as the initial default. Remote suggestions remain off.
+- A keyword is matched case-insensitively and stored lowercased, so two keywords that differ only in
+  case cannot both be saved. The Omnibar names the engine a typed keyword selects while it is typed:
+  the space after the keyword moves the engine into a chip ahead of the terms, Backspace on empty
+  terms puts the keyword back as text, and the destination row reads "Search <engine> for <terms>",
+  or the default engine for text with no keyword. The keyword alone opens the engine's front page.
+  While the text could still become a keyword, the Omnibar offers each matching engine other than
+  the default as a row beneath the history rows.
 - Bare public hosts try HTTPS first and offer an explicit insecure-HTTP retry after failure. Bare
   localhost addresses, IP literals, explicit ports, and reserved `.test` and `.localhost` names
   resolve as local addresses rather than searches. Explicit schemes remain unchanged.

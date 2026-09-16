@@ -93,8 +93,10 @@ public slots:
         m_inputMethod = std::make_unique<omaweb::InputMethodReport>(omaweb::InputMethodHost {});
         omaweb::registerInputMethodReport(m_inputMethod.get());
         m_dataRoot = std::make_unique<QTemporaryDir>();
+        // A config root of its own, so a test can save a search engine.
         m_browser = std::make_unique<omaweb::BrowserController>(
-            omaweb::SpaceStorage(m_dataRoot->path(), QStringLiteral("mock")));
+            omaweb::SpaceStorage(m_dataRoot->path(), QStringLiteral("mock")),
+            m_dataRoot->filePath(QStringLiteral("config")));
         m_contentBlocker = std::make_unique<omaweb::ContentBlocker>(m_dataRoot->path());
         const auto keybindingsPath = m_dataRoot->filePath(QStringLiteral("keybindings.json"));
         QFile::copy(QStringLiteral(OMAWEB_DEFAULT_KEYBINDINGS_PATH), keybindingsPath);
