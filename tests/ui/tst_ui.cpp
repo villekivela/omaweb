@@ -5,6 +5,7 @@
 #include "ExternalProtocolHandler.h"
 #include "InputMethod.h"
 #include "KeyboardNavigation.h"
+#include "FontSettings.h"
 #include "KitTheme.h"
 #include "MediaAnnouncer.h"
 #include "PagePrinter.h"
@@ -25,6 +26,7 @@
 #include <QPainter>
 #include <QQmlContext>
 #include <QFile>
+#include <QFontDatabase>
 #include <QQuickStyle>
 #include <QQmlEngine>
 #include <QTemporaryDir>
@@ -76,6 +78,7 @@ public slots:
         omaweb::registerBrowserController();
         omaweb::registerDownloads();
         omaweb::registerFaviconTint();
+        omaweb::registerFontSettings();
         omaweb::registerEngineCapabilities();
         omaweb::registerSystemClipboard();
         omaweb::registerExternalProtocolHandler();
@@ -103,6 +106,10 @@ public slots:
         QFile::setPermissions(keybindingsPath, QFileDevice::ReadOwner | QFileDevice::WriteOwner);
         m_keyboardNavigation = std::make_unique<omaweb::KeyboardNavigation>(keybindingsPath);
         m_theme = std::make_unique<omaweb::ThemeController>(QStringLiteral(OMAWEB_THEME_PATH));
+        // A config root of its own, so a test can set a size and the reader's
+        // configuration never learns of it.
+        m_fontSettings = std::make_unique<omaweb::FontSettings>(
+            m_dataRoot->filePath(QStringLiteral("config")), QFontDatabase::families());
         m_windowManager = std::make_unique<omaweb::WindowManager>();
         engine->rootContext()->setContextProperty(QStringLiteral("browser"), m_browser.get());
         engine->rootContext()->setContextProperty(
@@ -118,6 +125,12 @@ public slots:
         engine->rootContext()->setContextProperty(
             QStringLiteral("engineHeldDownloads"), QVariant::fromValue<QObject *>(nullptr));
         engine->rootContext()->setContextProperty(QStringLiteral("theme"), m_theme.get());
+        engine->rootContext()->setContextProperty(
+            QStringLiteral("fontSettings"), m_fontSettings.get());
+        // These tests run no engine, so there is nothing to draw a page's
+        // fonts with; the page shows the controls and they reach nothing.
+        engine->rootContext()->setContextProperty(
+            QStringLiteral("pageFonts"), QVariant::fromValue<QObject *>(nullptr));
         engine->rootContext()->setContextProperty(QStringLiteral("syncLauncher"), &m_syncLauncher);
         // The tests draw the chrome without asking GitHub anything, so the
         // Release mark has no watch and is not shown. Registered rather than
@@ -153,7 +166,8 @@ public slots:
         engine->rootContext()->setContextProperty(QStringLiteral("probeClock"), m_probeClock.get());
         engine->addImportPath(QStringLiteral(OMAWEB_UI_DIRECTORY));
         engine->addImportPath(QStringLiteral(OMAWEB_OMARCHY_IMPORT_PATH));
-        m_kitTheme = std::make_unique<omaweb::KitTheme>(engine, m_theme.get());
+        m_kitTheme
+            = std::make_unique<omaweb::KitTheme>(engine, m_theme.get(), m_fontSettings.get());
     }
 
     void cleanupTestCase()
@@ -161,6 +175,7 @@ public slots:
         m_probeClock.reset();
         m_kitTheme.reset();
         m_runtimeSecurity.reset();
+        m_fontSettings.reset();
         m_theme.reset();
         m_windowManager.reset();
         m_browser.reset();
@@ -176,6 +191,7 @@ private:
     std::unique_ptr<omaweb::ContentBlocker> m_contentBlocker;
     std::unique_ptr<omaweb::KeyboardNavigation> m_keyboardNavigation;
     std::unique_ptr<omaweb::ThemeController> m_theme;
+    std::unique_ptr<omaweb::FontSettings> m_fontSettings;
     std::unique_ptr<omaweb::KitTheme> m_kitTheme;
     std::unique_ptr<omaweb::WindowManager> m_windowManager;
     std::unique_ptr<omaweb::RuntimeSecurity> m_runtimeSecurity;

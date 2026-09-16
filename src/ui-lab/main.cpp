@@ -4,6 +4,7 @@
 #include "ReleaseWatch.h"
 #include "EngineCapabilities.h"
 #include "FaviconTint.h"
+#include "FontSettings.h"
 #include "DefaultBrowser.h"
 #include "ExternalProtocolHandler.h"
 #include "InputMethod.h"
@@ -262,10 +263,18 @@ int main(int argc, char *argv[])
     omaweb::ThemeController theme(
         themeOverride.isEmpty() ? QStringLiteral(OMAWEB_THEME_PATH) : themeOverride);
     omaweb::WindowManager windowManager;
+    // The size control is reviewed here; what it sets is written under the
+    // lab's own data root rather than the reader's configuration.
+    omaweb::FontSettings fontSettings(dataRootPath, QFontDatabase::families());
+    // No engine runs here to report its own fonts, so the group is reviewed
+    // over the values a Linux engine reports.
+    fontSettings.setEngineFonts(
+        {QStringLiteral("DejaVu Sans"), QStringLiteral("DejaVu Sans Mono"), 16, 0});
 
     omaweb::registerBrowserController();
     omaweb::registerDownloads();
     omaweb::registerFaviconTint();
+    omaweb::registerFontSettings();
     omaweb::registerEngineCapabilities();
     omaweb::registerDefaultBrowser();
     omaweb::registerSystemClipboard();
@@ -297,6 +306,9 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty(
         QStringLiteral("engineHeldDownloads"), QVariant::fromValue<QObject *>(nullptr));
     engine.rootContext()->setContextProperty(QStringLiteral("theme"), &theme);
+    engine.rootContext()->setContextProperty(QStringLiteral("fontSettings"), &fontSettings);
+    engine.rootContext()->setContextProperty(
+        QStringLiteral("pageFonts"), QVariant::fromValue<QObject *>(nullptr));
     engine.rootContext()->setContextProperty(QStringLiteral("windowManager"), &windowManager);
     engine.rootContext()->setContextProperty(
         QStringLiteral("syncLauncher"), static_cast<QObject *>(nullptr));
@@ -326,7 +338,7 @@ int main(int argc, char *argv[])
     // The kit's own colour and type come from an Omarchy theme on disk. Omaweb's
     // palette is the source of truth, so it is pushed into the kit's singletons
     // once the engine can resolve them.
-    omaweb::KitTheme kitTheme(&engine, &theme);
+    omaweb::KitTheme kitTheme(&engine, &theme, &fontSettings);
 
     QObject::connect(
         &engine, &QQmlApplicationEngine::objectCreationFailed, &application,

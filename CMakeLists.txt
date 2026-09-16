@@ -85,7 +85,8 @@ if(UNIX AND NOT APPLE)
     list(APPEND omaweb_qt_components DBus GuiPrivate)
 endif()
 if(OMAWEB_BUILD_BROWSER)
-    list(APPEND omaweb_qt_components WebEngineCore WebEngineQuick)
+    # `WebEngineQuickPrivate` is for `QtPageFonts.cpp`; its target says why.
+    list(APPEND omaweb_qt_components CorePrivate WebEngineCore WebEngineQuick WebEngineQuickPrivate)
 endif()
 if(BUILD_TESTING)
     # `GuiPrivate` for the UI tests' frame-time probe, which reads a frame's
@@ -161,6 +162,8 @@ add_library(omaweb-core STATIC
     src/core/DownloadPolicy.h
     src/core/Downloads.cpp
     src/core/Downloads.h
+    src/core/FontSettings.cpp
+    src/core/FontSettings.h
     src/core/GlobalPrivacyControl.cpp
     src/core/GlobalPrivacyControl.h
     src/core/HardwareVideoDecode.cpp
@@ -284,7 +287,7 @@ add_library(omaweb-ui STATIC
     src/ui/ThemeController.h
 )
 target_include_directories(omaweb-ui PUBLIC src/ui)
-target_link_libraries(omaweb-ui PUBLIC Qt6::Core Qt6::Gui Qt6::Qml Qt6::Quick)
+target_link_libraries(omaweb-ui PUBLIC omaweb-core Qt6::Core Qt6::Gui Qt6::Qml Qt6::Quick)
 omaweb_strict_target(omaweb-ui)
 
 # The vendored Omarchy component kit imports Quickshell types. Omaweb supplies
@@ -359,14 +362,24 @@ if(OMAWEB_BUILD_BROWSER)
         src/engine/qt/QtCookiePolicy.h
         src/engine/qt/QtHeldDownloads.cpp
         src/engine/qt/QtHeldDownloads.h
+        src/engine/qt/QtPageFonts.cpp
+        src/engine/qt/QtPageFonts.h
     )
     target_sources(omaweb-engine-qt PUBLIC src/engine/qt/EngineView.qml)
     target_include_directories(omaweb-engine-qt PUBLIC src/engine/qt)
+    # `Qt6::WebEngineQuickPrivate` is here for one member, and `QtPageFonts.cpp`
+    # says why: the font settings a Quick profile carries are Qt's to reach and
+    # Qt does not offer them publicly. `Qt6::CorePrivate` is what its header
+    # includes. The same terms as `Qt6::GuiPrivate` below apply, and the call
+    # checks the running Qt is the compiled one.
     target_link_libraries(omaweb-engine-qt PUBLIC
         omaweb-core
         omaweb-engine-api
         Qt6::WebEngineCore
         Qt6::WebEngineQuick
+        PRIVATE
+        Qt6::CorePrivate
+        Qt6::WebEngineQuickPrivate
     )
     omaweb_strict_target(omaweb-engine-qt)
 endif()
@@ -489,6 +502,7 @@ set(omaweb_ui_files
     src/ui/SettingDropdown.qml
     src/ui/SettingField.qml
     src/ui/SettingRow.qml
+    src/ui/SettingStepper.qml
     src/ui/SettingToggle.qml
     src/ui/SettingsPage.qml
     src/ui/PanelResizer.qml
@@ -930,6 +944,11 @@ if(BUILD_TESTING)
     target_link_libraries(omaweb-global-privacy-control-tests PRIVATE omaweb-core Qt6::Test)
     omaweb_strict_target(omaweb-global-privacy-control-tests)
     add_test(NAME omaweb-global-privacy-control COMMAND omaweb-global-privacy-control-tests)
+
+    qt_add_executable(omaweb-font-settings-tests tests/core/tst_fontsettings.cpp)
+    target_link_libraries(omaweb-font-settings-tests PRIVATE omaweb-core Qt6::Test)
+    omaweb_strict_target(omaweb-font-settings-tests)
+    add_test(NAME omaweb-font-settings COMMAND omaweb-font-settings-tests)
 
     qt_add_executable(omaweb-content-blocker-tests
         tests/content-blocking/tst_contentmatcher.cpp

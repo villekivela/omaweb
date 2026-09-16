@@ -110,6 +110,21 @@ reports the gap and remains experimental rather than imitating behavior it canno
   section turns each off: without the floating controls a hidden sidebar leaves the page the whole
   window, and without the ease the seam and the page arrive at their settled widths in one step.
   Both survive a restart, and the keys that hide and show the sidebar work the same either way.
+- The size Omaweb's own type is drawn at is the theme's until the reader sets it. Settings'
+  interface section steps it up and down a pixel at a time within a supported range and resets it,
+  the change reaches every Omaweb surface at once, Private windows included, and it survives a
+  restart. Reset removes the override, so a theme switch changes the size only while no override
+  stands. A page and its zoom are not changed by it. The control names its value, its default and
+  its actions to accessibility tools.
+- A page's fonts are the engine's own until the reader names one. The same section's page fonts
+  group offers a standard family, a fixed-width family, a default size and a minimum size, each
+  showing the engine's own value while unset and returning to it on reset. Families are chosen from
+  the fonts the host has, the fixed-width slot offers the interface's own family beside them, and a
+  chosen family the host has since lost reads as the engine's again. A page that names no family is
+  drawn in the chosen one; a page that names a size under the minimum is drawn at the minimum, and a
+  tab's zoom multiplies that. The values apply to every Space and Private window, reach open pages
+  without a reload, and survive a restart. A page's own declarations are never overridden. The
+  controls name their value, their default and their actions to accessibility tools.
 - The sidebar's width belongs to the reader. The seam between it and the page drags, and
   `Primary+Shift+]` and `Primary+Shift+[` move that same seam from the keyboard, so a resize never
   depends on a pointer. The width is clamped so a tab row stays readable and the page keeps at least

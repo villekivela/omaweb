@@ -1,5 +1,6 @@
 #include "KitTheme.h"
 
+#include "FontSettings.h"
 #include "ThemeController.h"
 
 #include <QColor>
@@ -29,10 +30,15 @@ namespace {
 
 } // namespace
 
-KitTheme::KitTheme(QQmlEngine *engine, const ThemeController *theme, QObject *parent)
+KitTheme::KitTheme(
+    QQmlEngine *engine, const ThemeController *theme, FontSettings *fonts, QObject *parent)
     : QObject(parent)
     , m_theme(theme)
+    , m_fonts(fonts)
 {
+    if (m_fonts) {
+        connect(m_fonts, &FontSettings::interfaceFontSizeChanged, this, &KitTheme::apply);
+    }
     m_color = engine->singletonInstance<QObject *>(
         QStringLiteral("qs.Commons"), QStringLiteral("Color"));
     m_style = engine->singletonInstance<QObject *>(
@@ -120,7 +126,12 @@ void KitTheme::apply()
     // `integrations/omarchy/omaweb.json.tpl` rendering it into the palette.
     assign(m_style, QStringLiteral("fontFamily"), family);
     assign(m_style, QStringLiteral("resolvedFontFamily"), family);
-    assign(m_style, QStringLiteral("fontBaseSize"), font.value(QStringLiteral("size")));
+    auto size = font.value(QStringLiteral("size"));
+    if (m_fonts) {
+        m_fonts->setThemeFontSize(size.toInt());
+        size = m_fonts->interfaceFontSize();
+    }
+    assign(m_style, QStringLiteral("fontBaseSize"), size);
     m_applying = false;
 }
 

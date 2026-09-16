@@ -162,6 +162,10 @@ ApplicationWindow {
     // The browser's Global Privacy Control, named apart from its context
     // property for the same reason.
     readonly property var privacyControl: globalPrivacyControl
+    // The reader's type and the engine adapter that draws pages in it, named
+    // apart from their context properties for the same reason again.
+    readonly property var readerFonts: fontSettings
+    readonly property var enginePageFonts: pageFonts
     // Which tabs have the find bar showing, by tab id. Find belongs to a tab,
     // so opening it on one page does not open it over the next — and a tab that
     // has been closed takes its entry with it rather than leaving the map to
@@ -2782,6 +2786,8 @@ ApplicationWindow {
                     z: 45
                     releaseWatch: window.releases
                     globalPrivacyControl: window.privacyControl
+                    fontSettings: window.readerFonts
+                    pageFonts: window.enginePageFonts
                     SheetLift {
                         id: settingsLift
                         shown: settingsSurface.open

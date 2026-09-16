@@ -4,9 +4,11 @@
 #include "EngineCapabilities.h"
 #include "EngineCapabilityExpectations.h"
 #include "ExternalProtocolHandler.h"
+#include "FontSettings.h"
 #include "GlobalPrivacyControl.h"
 #include "QtContentBlocker.h"
 #include "QtHeldDownloads.h"
+#include "QtPageFonts.h"
 #include "ContentBlockerContract.h"
 #include "EngineViewContract.h"
 #include "PerformanceProbe.h"
@@ -17,6 +19,7 @@
 #include <QDirIterator>
 #include <QFileInfo>
 #include <QFile>
+#include <QFontDatabase>
 #include <QMetaMethod>
 #include <QQmlComponent>
 #include <QQmlContext>
@@ -32,6 +35,7 @@
 #include <QTcpSocket>
 #include <QTest>
 #include <QTemporaryDir>
+#include <QUrlQuery>
 #include <QtWebEngineQuick/qtwebenginequickglobal.h>
 #include <QtWebEngineCore/QWebEngineCertificateError>
 #include <QtWebEngineCore/QWebEnginePermission>
@@ -196,6 +200,8 @@ private slots:
     void qtEmptiesTheCacheItWasAskedToClear();
     void qtEmptiesOneOriginsStorageFromInsideItsPage();
     void qtHoldsARiskyDownloadUntilTheShellHasAnswered();
+    void qtDrawsAPageInTheReadersFonts_data();
+    void qtDrawsAPageInTheReadersFonts();
 };
 
 namespace {
@@ -1954,6 +1960,197 @@ void QtEngineContractTest::qtTellsEverySiteNotToSellTheReadersData()
     QTRY_COMPARE_WITH_TIMEOUT(adapter->property("pageTitle").toString(),
         QStringLiteral("main:true frame:true image:asked fetch:asked"), 15000);
     QCOMPARE(header(QStringLiteral("again")), QStringList(4, QStringLiteral("1")));
+}
+
+void QtEngineContractTest::qtDrawsAPageInTheReadersFonts_data()
+{
+    QTest::addColumn<bool>("privateWindow");
+    QTest::newRow("a Space's profile") << false;
+    QTest::newRow("the private profile") << true;
+}
+
+// A page that names no family is drawn in the reader's, a page that names a
+// size under the reader's floor is drawn at the floor, and both reach a page
+// already open. The reader's fonts ride the profile, so a Space's profile and
+// the Private windows' shared one draw alike. A family or a default size
+// restyles the open page at once; the floor alone does not, and lands on the
+// page's next layout, a reload or any other font change, which is what #293
+// asked for and what the engine does. Zoom is a tab's and composes with the
+// floor the way the engine composes them: the floor is a CSS size, so a
+// zoomed page's floored text is zoomed too rather than floored again after,
+// and a font change under a zoom leaves the zoom where the tab put it.
+void QtEngineContractTest::qtDrawsAPageInTheReadersFonts()
+{
+    QFETCH(bool, privateWindow);
+    // The title is what the page computes, re-read on a timer so that a
+    // change reaching the open page shows up without a reload. A generic
+    // family resolves to a name only when drawn, so the fixed-width face is
+    // told apart by measuring the same word in the two candidate families,
+    // named in the query, against the word as `pre` draws it.
+    PageServer server(R"HTML(<!doctype html><html><body>
+        <p id="text">text</p><pre><span id="code">code</span></pre>
+        <span id="small" style="font-size: 6px">small</span>
+        <span id="engine">code</span><span id="chosen">code</span>
+        <script>
+            const params = new URLSearchParams(location.search);
+            const probes = ["engine", "chosen"];
+            for (const probe of probes) {
+                document.getElementById(probe).style.fontFamily =
+                    JSON.stringify(params.get(probe));
+            }
+            const style = (id) => getComputedStyle(document.getElementById(id));
+            const width = (id) => document.getElementById(id).getBoundingClientRect().width;
+            const read = () => {
+                for (const probe of probes) {
+                    document.getElementById(probe).style.fontSize = style("code").fontSize;
+                }
+                const fixed = probes.find((probe) => width(probe) === width("code")) || "neither";
+                return [style("text").fontFamily, style("text").fontSize, "fixed:" + fixed,
+                    style("code").fontSize, style("small").fontSize,
+                    "zoom:" + window.devicePixelRatio].join(" | ");
+            };
+            setInterval(() => {
+                const now = read();
+                if (document.title !== now) document.title = now;
+            }, 50);
+        </script>
+    </body></html>)HTML");
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+
+    const auto installed = QFontDatabase::families();
+    QVERIFY2(installed.size() >= 2, "the host offers too few families to choose between");
+
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    omaweb::ContentBlocker contentBlocker(root.path(), omaweb::ContentBlocker::DefaultLists::None);
+    omaweb::QtContentBlocker engineContentBlocker(&contentBlocker);
+    omaweb::FontSettings fontSettings(root.filePath(QStringLiteral("config")), installed);
+    omaweb::QtPageFonts pageFonts(&fontSettings);
+    QVERIFY(pageFonts.available());
+    connect(&engineContentBlocker, &omaweb::QtContentBlocker::profileAttached, &pageFonts,
+        &omaweb::QtPageFonts::attachToProfile);
+
+    QQmlEngine engine;
+    QQmlComponent profileComponent(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_PROFILE_PATH)));
+    std::unique_ptr<QObject> profileHost;
+    QVariantMap viewProperties {
+        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
+        {QStringLiteral("engineContentBlocker"),
+            QVariant::fromValue<QObject *>(&engineContentBlocker)},
+    };
+    if (privateWindow) {
+        profileHost.reset(profileComponent.createWithInitialProperties({
+            {QStringLiteral("profilePath"), root.filePath(QStringLiteral("private"))},
+            {QStringLiteral("privateBrowsing"), true},
+            {QStringLiteral("engineContentBlocker"),
+                QVariant::fromValue<QObject *>(&engineContentBlocker)},
+        }));
+        QVERIFY2(profileHost, qPrintable(profileComponent.errorString()));
+        viewProperties.insert(QStringLiteral("sharedProfile"), profileHost->property("profile"));
+    }
+    QQmlComponent component(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    const std::unique_ptr<QObject> adapter(component.createWithInitialProperties(viewProperties));
+    QVERIFY2(adapter, qPrintable(component.errorString()));
+    auto *view = qobject_cast<QQuickItem *>(adapter.get());
+    QVERIFY(view);
+    QQuickWindow window;
+    window.resize(640, 480);
+    view->setParentItem(window.contentItem());
+    view->setSize(QSizeF(640, 480));
+    window.show();
+
+    // The engine's own defaults were read off the profile as it attached.
+    const auto engineFonts = fontSettings.pageFonts();
+    QVERIFY(!engineFonts.standardFamily.isEmpty());
+    QVERIFY(!engineFonts.fixedFamily.isEmpty());
+    QVERIFY(engineFonts.fontSize > 0);
+    // Families the engine was not going to use, so that a change can only
+    // have come from the setting; a proportional face for the fixed slot,
+    // whose word measures unlike any monospace one.
+    const auto other = [&installed](const QString &current) {
+        for (const auto &family : installed) {
+            if (family != current && !QFontDatabase::isFixedPitch(family)) {
+                return family;
+            }
+        }
+        return QString {};
+    };
+    const auto standard = other(engineFonts.standardFamily);
+    const auto fixed = other(engineFonts.fixedFamily);
+    QVERIFY(!standard.isEmpty());
+    QVERIFY(!fixed.isEmpty());
+
+    QUrl pageUrl(QStringLiteral("http://127.0.0.1:%1/page.html").arg(server.serverPort()));
+    QUrlQuery query;
+    query.addQueryItem(QStringLiteral("engine"), engineFonts.fixedFamily);
+    query.addQueryItem(QStringLiteral("chosen"), fixed);
+    pageUrl.setQuery(query);
+    QVERIFY(adapter->setProperty("currentUrl", pageUrl));
+    const auto quoted = [](const QString &family) {
+        return family.contains(QLatin1Char(' ')) ? QLatin1Char('"') + family + QLatin1Char('"')
+                                                 : family;
+    };
+    const auto report = [&quoted](const QString &standard, int size, const QString &fixed,
+                            int codeSize, const QString &small, const QString &zoom) {
+        return QStringLiteral("%1 | %2px | fixed:%3 | %4px | %5 | zoom:%6")
+            .arg(quoted(standard), QString::number(size), fixed, QString::number(codeSize), small,
+                zoom);
+    };
+    // The page is drawn in the engine's fonts until the reader says otherwise.
+    QTRY_VERIFY_WITH_TIMEOUT(
+        adapter->property("pageTitle").toString().contains(QStringLiteral("fixed:")), 15000);
+    const auto initial = adapter->property("pageTitle").toString();
+    const auto engineFixedSize = initial.section(QStringLiteral(" | "), 3, 3).chopped(2).toInt();
+    QVERIFY(engineFixedSize > 0);
+    QCOMPARE(initial,
+        report(engineFonts.standardFamily, engineFonts.fontSize, QStringLiteral("engine"),
+            engineFixedSize, QStringLiteral("6px"), QStringLiteral("1")));
+
+    // The floor alone leaves the open page as it was, and a reload takes it.
+    fontSettings.setPageSize(omaweb::FontSettings::PageSize::Minimum, 12);
+    QTest::qWait(500);
+    QCOMPARE(adapter->property("pageTitle").toString(), initial);
+    QVERIFY(QMetaObject::invokeMethod(adapter.get(), "reloadPage"));
+    QTRY_COMPARE_WITH_TIMEOUT(adapter->property("pageTitle").toString(),
+        report(engineFonts.standardFamily, engineFonts.fontSize, QStringLiteral("engine"),
+            engineFixedSize, QStringLiteral("12px"), QStringLiteral("1")),
+        15000);
+
+    // The fixed-width size keeps the engine's own distance below the default
+    // size, so code stays a step smaller than prose the way it was.
+    const auto chosenFixedSize = 20 - (engineFonts.fontSize - engineFixedSize);
+    fontSettings.setPageFamily(omaweb::FontSettings::PageFamily::Standard, standard);
+    fontSettings.setPageFamily(omaweb::FontSettings::PageFamily::Fixed, fixed);
+    fontSettings.setPageSize(omaweb::FontSettings::PageSize::Default, 20);
+    QTRY_COMPARE_WITH_TIMEOUT(adapter->property("pageTitle").toString(),
+        report(standard, 20, QStringLiteral("chosen"), chosenFixedSize, QStringLiteral("12px"),
+            QStringLiteral("1")),
+        15000);
+
+    QVERIFY(QMetaObject::invokeMethod(adapter.get(), "setZoomFactor", Q_ARG(QVariant, 1.5)));
+    QTRY_COMPARE_WITH_TIMEOUT(adapter->property("pageTitle").toString(),
+        report(standard, 20, QStringLiteral("chosen"), chosenFixedSize, QStringLiteral("12px"),
+            QStringLiteral("1.5")),
+        15000);
+    // A default size restyles the page, and the floor set beside it rides
+    // along; neither touches the zoom.
+    fontSettings.setPageSize(omaweb::FontSettings::PageSize::Minimum, 14);
+    fontSettings.setPageSize(omaweb::FontSettings::PageSize::Default, 22);
+    QTRY_COMPARE_WITH_TIMEOUT(adapter->property("pageTitle").toString(),
+        report(standard, 22, QStringLiteral("chosen"), chosenFixedSize + 2, QStringLiteral("14px"),
+            QStringLiteral("1.5")),
+        15000);
+    QCOMPARE(adapter->property("zoomFactor").toDouble(), 1.5);
+    QVERIFY(QMetaObject::invokeMethod(adapter.get(), "setZoomFactor", Q_ARG(QVariant, 1.0)));
+
+    // Reset is the engine's own again, not a number remembered from before.
+    fontSettings.setPageFamily(omaweb::FontSettings::PageFamily::Standard, QString());
+    fontSettings.setPageFamily(omaweb::FontSettings::PageFamily::Fixed, QString());
+    fontSettings.setPageSize(omaweb::FontSettings::PageSize::Default, 0);
+    fontSettings.setPageSize(omaweb::FontSettings::PageSize::Minimum, 0);
+    QTRY_COMPARE_WITH_TIMEOUT(adapter->property("pageTitle").toString(), initial, 15000);
 }
 
 void QtEngineContractTest::adaptersNameTheColoursTheirInspectorIsDrawnIn_data()

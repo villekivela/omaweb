@@ -19,13 +19,18 @@ class QQmlEngine;
 
 namespace omaweb {
 
+class FontSettings;
 class ThemeController;
 
 class KitTheme final : public QObject {
     Q_OBJECT
 
 public:
-    KitTheme(QQmlEngine *engine, const ThemeController *theme, QObject *parent = nullptr);
+    // The reader's font settings outrank the theme's base size (#170) and
+    // are told the theme's, so that reset has something to return to. Without
+    // them, the theme's size is the size.
+    KitTheme(QQmlEngine *engine, const ThemeController *theme, FontSettings *fonts = nullptr,
+        QObject *parent = nullptr);
 
 private slots:
     void apply();
@@ -36,6 +41,7 @@ private:
     void followResets(QObject *target, const QStringList &properties);
 
     const ThemeController *m_theme = nullptr;
+    FontSettings *m_fonts = nullptr;
     QObject *m_color = nullptr;
     QObject *m_style = nullptr;
     bool m_applying = false;

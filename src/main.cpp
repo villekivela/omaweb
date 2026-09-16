@@ -6,6 +6,7 @@
 #include "DevelopmentLaunch.h"
 #include "ExternalProtocolHandler.h"
 #include "FaviconTint.h"
+#include "FontSettings.h"
 #include "GlobalPrivacyControl.h"
 #include "HardwareVideoDecode.h"
 #include "InputMethod.h"
@@ -19,6 +20,7 @@
 #include "QtContentBlocker.h"
 #include "QtCookiePolicy.h"
 #include "QtHeldDownloads.h"
+#include "QtPageFonts.h"
 #include "Quickshell.h"
 #include "RunningBrowser.h"
 #include "RuntimeSecurity.h"
@@ -35,6 +37,7 @@
 #include <QDir>
 #include <QFileInfo>
 #include <QFile>
+#include <QFontDatabase>
 #include <QGuiApplication>
 #include <QProcess>
 #include <QQmlApplicationEngine>
@@ -251,6 +254,13 @@ int main(int argc, char *argv[])
         omaweb::OmarchyThemePaths::fromEnvironment(), QStringLiteral(OMAWEB_OMARCHY_TEMPLATE_PATH));
 #endif
     omaweb::ThemeController theme(themePaths());
+    // The reader's type: an interface size over the theme's, and a page's
+    // fonts over the engine's. One answer for every window, Private ones
+    // included, which is why it lives beside the theme and not in a store.
+    omaweb::FontSettings fontSettings(configRoot(), QFontDatabase::families());
+    omaweb::QtPageFonts pageFonts(&fontSettings);
+    QObject::connect(&engineContentBlocker, &omaweb::QtContentBlocker::profileAttached, &pageFonts,
+        &omaweb::QtPageFonts::attachToProfile);
     // The plugin an input method needs is the desktop's to install, and a
     // desktop that names one it has not installed leaves Qt with no input
     // context and Omaweb with no text-input protocol bound. Nothing about that
@@ -284,6 +294,7 @@ int main(int argc, char *argv[])
     omaweb::registerBrowserController();
     omaweb::registerDownloads();
     omaweb::registerFaviconTint();
+    omaweb::registerFontSettings();
     omaweb::registerEngineCapabilities();
     omaweb::registerDefaultBrowser();
     omaweb::registerSystemClipboard();
@@ -309,6 +320,8 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty(
         QStringLiteral("engineHeldDownloads"), &engineHeldDownloads);
     engine.rootContext()->setContextProperty(QStringLiteral("theme"), &theme);
+    engine.rootContext()->setContextProperty(QStringLiteral("fontSettings"), &fontSettings);
+    engine.rootContext()->setContextProperty(QStringLiteral("pageFonts"), &pageFonts);
     engine.rootContext()->setContextProperty(QStringLiteral("windowManager"), &windowManager);
     engine.rootContext()->setContextProperty(QStringLiteral("syncLauncher"), &syncLauncher);
     engine.rootContext()->setContextProperty(QStringLiteral("releaseWatch"), &releaseWatch);
@@ -326,7 +339,7 @@ int main(int argc, char *argv[])
     // The kit's own colour and type come from an Omarchy theme on disk. Omaweb's
     // palette is the source of truth, so it is pushed into the kit's singletons
     // once the engine can resolve them.
-    omaweb::KitTheme kitTheme(&engine, &theme);
+    omaweb::KitTheme kitTheme(&engine, &theme, &fontSettings);
 
     QObject::connect(
         &engine, &QQmlApplicationEngine::objectCreationFailed, &application,
