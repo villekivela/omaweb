@@ -396,6 +396,8 @@ Rectangle {
         id: sheetInsets
     }
 
+    SheetFloor {}
+
     PageBackdrop {
         objectName: "settingsBackdrop"
         anchors.fill: parent

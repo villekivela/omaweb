@@ -162,6 +162,8 @@ Rectangle {
     border.width: 1
     border.color: root.colors.accent
 
+    SheetFloor {}
+
     MouseArea {
         anchors.fill: parent
     }

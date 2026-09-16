@@ -129,6 +129,10 @@ FocusScope {
         }
     }
 
+    // The Glance's page takes the wheel over the panel; the scrim takes it
+    // for the page beneath.
+    SheetFloor {}
+
     // The scrim stands still while the panel grows: a ground that moved would
     // show the page's edge above it for the length of the arrival.
     PageBackdrop {

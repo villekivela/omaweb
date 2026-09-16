@@ -251,6 +251,8 @@ Item {
         commands.invoke(action);
     }
 
+    SheetFloor {}
+
     Rectangle {
         anchors.fill: parent
         color: "#99000000"
