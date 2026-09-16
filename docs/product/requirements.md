@@ -417,6 +417,13 @@ visible blocked-request count.
 The first run is recorded, so a list a user removes stays removed across restarts. When there are no
 subscriptions, Settings says so and offers the two default lists back.
 
+EasyList Cookie, the easylist.to list that hides consent banners, is a Known list: Settings names it
+with its source and license, and one action subscribes it. A first run does not subscribe it, so a
+site's consent choice stays the reader's unless the reader asked the browser to take it. Subscribed,
+it is a subscription like EasyList, with the same updates, per-site disabling, and Refusal tally,
+and a reader who removes it is offered it again rather than given it. Fanboy's Annoyances,
+anti-adblock lists, and regional lists are not offered.
+
 A list's `$popup` rules decide which windows a page gets to open, and a window they refuse counts as
 a blocked request. A middle- or ctrl-clicked link, which opens a background tab, is the user asking
 rather than the page, and is never refused.

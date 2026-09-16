@@ -1,6 +1,7 @@
 #include "ContentBlocker.h"
 
 #include <QCoreApplication>
+#include <QDateTime>
 #include <QDir>
 #include <QFile>
 #include <QJsonArray>
@@ -47,6 +48,10 @@ private slots:
     void aSettingsFileWithNoMarkerSeedsOnceMore();
     void anEmptyListTheReaderChoseSurvivesTheNextRun();
     void aSettingsFileThatDoesNotParseIsLeftAlone();
+    void theCookieListIsOfferedAndNotSubscribedOnAFirstRun();
+    void subscribingTheCookieListTakesItOffTheOffer();
+    void aCookieListTheReaderRemovedStaysRemoved();
+    void theCookieListHidesAConsentBannerWhileItIsOn();
 };
 
 namespace {
@@ -571,6 +576,139 @@ void ContentBlockerTest::aSettingsFileThatDoesNotParseIsLeftAlone()
 
     QVERIFY(file.open(QIODevice::ReadOnly));
     QCOMPARE(file.readAll(), truncated);
+}
+
+// The cookie list is a list nearly every reader wants and one that takes a
+// choice off a site, so it is known rather than seeded: named in Settings with
+// its source, and subscribed only when the reader asks (#291).
+void ContentBlockerTest::theCookieListIsOfferedAndNotSubscribedOnAFirstRun()
+{
+    QTemporaryDir root;
+    ContentBlocker blocker(root.path());
+
+    QCOMPARE(blocker.subscriptions().size(), 2);
+    const auto known = blocker.knownLists();
+    QCOMPARE(known.size(), 1);
+    const auto cookie = known.first().toMap();
+    QCOMPARE(cookie.value(QStringLiteral("id")).toString(), QStringLiteral("easylist-cookie"));
+    QCOMPARE(cookie.value(QStringLiteral("title")).toString(), QStringLiteral("EasyList Cookie"));
+    QCOMPARE(cookie.value(QStringLiteral("source")).toUrl(),
+        QUrl(QStringLiteral("https://easylist.to/")));
+    QVERIFY(!cookie.value(QStringLiteral("license")).toString().isEmpty());
+    QVERIFY(cookie.value(QStringLiteral("updateAddress")).toUrl().isValid());
+}
+
+// Subscribed, it is a subscription like the other two, and the offer is gone:
+// a list that is both offered and subscribed reads as two lists. It comes back
+// with the same identity on the next run rather than being seeded again.
+void ContentBlockerTest::subscribingTheCookieListTakesItOffTheOffer()
+{
+    QTemporaryDir root;
+    ContentBlocker blocker(root.path());
+    QSignalSpy changed(&blocker, &ContentBlocker::subscriptionsChanged);
+
+    blocker.subscribeKnownList(QStringLiteral("easylist-cookie"));
+    QVERIFY(changed.count() > 0);
+    QCOMPARE(blocker.knownLists().size(), 0);
+    QCOMPARE(blocker.subscriptions().size(), 3);
+    const auto cookie = blocker.subscriptions().last().toMap();
+    QCOMPARE(cookie.value(QStringLiteral("id")).toString(), QStringLiteral("easylist-cookie"));
+    QCOMPARE(cookie.value(QStringLiteral("title")).toString(), QStringLiteral("EasyList Cookie"));
+    QVERIFY(cookie.value(QStringLiteral("enabled")).toBool());
+
+    // Asking twice subscribes once, and a name that is not known does nothing.
+    blocker.subscribeKnownList(QStringLiteral("easylist-cookie"));
+    blocker.subscribeKnownList(QStringLiteral("fanboy-annoyances"));
+    QCOMPARE(blocker.subscriptions().size(), 3);
+
+    ContentBlocker resumed(root.path());
+    QCOMPARE(resumed.subscriptions().size(), 3);
+    QCOMPARE(resumed.knownLists().size(), 0);
+}
+
+// Known is not seeded. An install that subscribed the list and then took it
+// out of its settings again is offered it, not given it: seeding once more on
+// the next run is what makes the default lists come back, and the cookie list
+// is not one of them.
+void ContentBlockerTest::aCookieListTheReaderRemovedStaysRemoved()
+{
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    {
+        ContentBlocker blocker(root.path());
+        blocker.subscribeKnownList(QStringLiteral("easylist-cookie"));
+        QCOMPARE(blocker.subscriptions().size(), 3);
+    }
+    auto settings = storedSettings(root);
+    QJsonArray kept;
+    for (const auto &value : settings.value(QStringLiteral("subscriptions")).toArray()) {
+        if (value.toObject().value(QStringLiteral("id")).toString()
+            != QStringLiteral("easylist-cookie")) {
+            kept.append(value);
+        }
+    }
+    QCOMPARE(kept.size(), 2);
+    settings.insert(QStringLiteral("subscriptions"), kept);
+    writeSettings(root, settings);
+
+    ContentBlocker resumed(root.path());
+    QCOMPARE(resumed.subscriptions().size(), 2);
+    QCOMPARE(resumed.knownLists().size(), 1);
+    // The same holds for an install that took every list out: the defaults
+    // are offered back, and the cookie list is offered, and nothing arrives.
+    resumed.restoreDefaultSubscriptions();
+    QCOMPARE(resumed.subscriptions().size(), 2);
+    QCOMPARE(resumed.knownLists().size(), 1);
+}
+
+// The list goes through the subscription record every other list does, so the
+// rules it stored are in force the way theirs are: hiding a consent banner
+// while the list is on, and leaving it while the list is off.
+void ContentBlockerTest::theCookieListHidesAConsentBannerWhileItIsOn()
+{
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    writeSettings(root,
+        {{QStringLiteral("seeded"), true},
+            {QStringLiteral("subscriptions"),
+                QJsonArray {QJsonObject {
+                    {QStringLiteral("id"), QStringLiteral("easylist-cookie")},
+                    {QStringLiteral("title"), QStringLiteral("EasyList Cookie")},
+                    {QStringLiteral("source"), QStringLiteral("https://easylist.to/")},
+                    {QStringLiteral("license"), QStringLiteral("CC BY 3.0")},
+                    {QStringLiteral("updateAddress"),
+                        QStringLiteral("https://secure.fanboy.co.nz/fanboy-cookiemonster.txt")},
+                    {QStringLiteral("updateStatus"), QStringLiteral("current")},
+                    {QStringLiteral("lastUpdated"),
+                        QDateTime::currentDateTimeUtc().toString(Qt::ISODate)},
+                    {QStringLiteral("enabled"), true},
+                }}}});
+    QVERIFY(QDir(root.path()).mkpath(QStringLiteral("content-blocking/lists")));
+    QFile list(root.filePath(QStringLiteral("content-blocking/lists/easylist-cookie.txt")));
+    QVERIFY(list.open(QIODevice::WriteOnly));
+    // Two rules in the shape the published list is made of: a generic cosmetic
+    // rule and a network rule for a consent script.
+    QVERIFY(list.write("##.cookie-consent-banner\n-cookie-consent.js\n") > 0);
+    list.close();
+
+    ContentBlocker blocker(root.path(), ContentBlocker::DefaultLists::None);
+    QTRY_VERIFY_WITH_TIMEOUT(!blocker.compiling(), 5000);
+    const QUrl page(QStringLiteral("https://site.example/article"));
+    const auto banner = QStringList {QStringLiteral("cookie-consent-banner")};
+    QVERIFY(blocker.genericCosmeticStyleSheet(page, banner, {})
+            .contains(QStringLiteral(".cookie-consent-banner")));
+    QVERIFY(blocker
+            .checkRequest(QUrl(QStringLiteral("https://cdn.example/js/x-cookie-consent.js")), page,
+                QStringLiteral("script"), space)
+            .blocked);
+
+    blocker.setSubscriptionEnabled(QStringLiteral("easylist-cookie"), false);
+    QTRY_VERIFY_WITH_TIMEOUT(!blocker.compiling(), 5000);
+    QVERIFY(blocker.genericCosmeticStyleSheet(page, banner, {}).isEmpty());
+    QVERIFY(!blocker
+            .checkRequest(QUrl(QStringLiteral("https://cdn.example/js/x-cookie-consent.js")), page,
+                QStringLiteral("script"), space)
+            .blocked);
 }
 
 QTEST_GUILESS_MAIN(ContentBlockerTest)

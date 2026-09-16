@@ -217,6 +217,12 @@ browser. _Avoid_: GPU acceleration, VA-API, hardware acceleration
 subscribed filter lists. Content blocking is a browser capability and does not depend on an
 installed extension. _Avoid_: Ad-blocking extension
 
+**Known list**: A filter list Omaweb names on its own, with its source and license, so a reader
+subscribes it in Settings with one action rather than by address. EasyList and EasyPrivacy are Known
+lists subscribed on a first run; EasyList Cookie is a Known list subscribed only when the reader
+asks. Subscribed, a Known list is a subscription like any other. _Avoid_: Built-in list, preset,
+recommended list
+
 **Refusal tally**: What Content blocking refused for one page address in one Space: how many
 requests the document loaded there has been prevented from making. A new document at that address
 starts the tally again, and a navigation within that document carries it on, so the tally follows

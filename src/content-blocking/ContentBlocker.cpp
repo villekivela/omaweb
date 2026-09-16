@@ -16,9 +16,22 @@
 #include <QUuid>
 #include <QtConcurrentRun>
 
+#include <algorithm>
+#include <array>
 #include <utility>
 
 namespace omaweb {
+
+// A list Omaweb names on its own. The seeded ones arrive on a first run; the
+// rest wait to be asked for.
+struct KnownList {
+    QString id;
+    QString title;
+    QString license;
+    QString updateAddress;
+    bool seeded;
+};
+
 namespace {
 
     constexpr int startupUpdateDelayMilliseconds = 5000;
@@ -28,6 +41,25 @@ namespace {
     // together.
     constexpr int refusalFlushIntervalMilliseconds = 250;
     constexpr qint64 updateIntervalSeconds = 24 * 60 * 60;
+
+    // Every list here is maintained beside EasyList at easylist.to and uses
+    // only rule kinds this contract parses. The two seeded ones are what the
+    // filter-list ecosystem is built around; docs/network-requests.md records
+    // the startup requests they cost. The cookie list is known and not seeded:
+    // it takes a site's consent choice, and that is the reader's to give away
+    // (#291). Fanboy's Annoyances is broader and slower to match, and is not
+    // offered.
+    const QString easylistSource = QStringLiteral("https://easylist.to/");
+    const QString easylistLicense = QStringLiteral("GPLv3 or CC BY-SA 3.0");
+    const std::array<KnownList, 3> knownListTable = {{
+        {QStringLiteral("easylist"), QStringLiteral("EasyList"), easylistLicense,
+            QStringLiteral("https://easylist.to/easylist/easylist.txt"), true},
+        {QStringLiteral("easyprivacy"), QStringLiteral("EasyPrivacy"), easylistLicense,
+            QStringLiteral("https://easylist.to/easylist/easyprivacy.txt"), true},
+        {QStringLiteral("easylist-cookie"), QStringLiteral("EasyList Cookie"),
+            QStringLiteral("CC BY 3.0"),
+            QStringLiteral("https://secure.fanboy.co.nz/fanboy-cookiemonster.txt"), false},
+    }};
 
 // Requests are matched on whichever thread the engine hands them to, while a
 // finished compile replaces the rule set from this object's thread, so the
@@ -232,6 +264,29 @@ QVariantList ContentBlocker::subscriptions() const
             {QStringLiteral("updateStatus"), subscription.updateStatus},
             {QStringLiteral("lastUpdated"), subscription.lastUpdated},
             {QStringLiteral("enabled"), subscription.enabled},
+        });
+    }
+    return result;
+}
+
+// The seeded lists are not here even when they are gone: an install with no
+// subscriptions is offered them back as a pair by restoreDefaultSubscriptions,
+// and listing them here as well would offer the same thing twice.
+QVariantList ContentBlocker::knownLists() const
+{
+    QVariantList result;
+    for (const auto &list : knownListTable) {
+        if (list.seeded || std::ranges::any_of(m_subscriptions, [&](const auto &subscription) {
+                return subscription.id == list.id;
+            })) {
+            continue;
+        }
+        result.append(QVariantMap {
+            {QStringLiteral("id"), list.id},
+            {QStringLiteral("title"), list.title},
+            {QStringLiteral("source"), QUrl(easylistSource)},
+            {QStringLiteral("license"), list.license},
+            {QStringLiteral("updateAddress"), QUrl(list.updateAddress)},
         });
     }
     return result;
@@ -480,34 +535,51 @@ QString ContentBlocker::listPath(const QString &id) const
     return QDir(m_dataRoot).filePath(QStringLiteral("content-blocking/lists/%1.txt").arg(id));
 }
 
+// The stored record for a known list, which is the same record a list the
+// reader typed in gets, under the id the table gives it rather than a fresh
+// one: an install that kept the list, or one migrating from before the seeded
+// marker, must not end up subscribed to it twice.
+bool ContentBlocker::appendKnownList(const KnownList &list)
+{
+    if (findSubscription(list.id)) {
+        return false;
+    }
+    Subscription subscription;
+    subscription.id = list.id;
+    subscription.title = list.title;
+    subscription.source = QUrl(easylistSource);
+    subscription.license = list.license;
+    subscription.updateAddress = QUrl(list.updateAddress);
+    subscription.updateStatus = QStringLiteral("not updated");
+    m_subscriptions.append(std::move(subscription));
+    return true;
+}
+
 // A browser whose blocking stays off until the user types four fields of list
-// provenance blocks nothing for almost everyone. These two lists are the ones
-// the filter-list ecosystem is built around; docs/network-requests.md records
-// the startup requests they cost and Settings can disable either one.
+// provenance blocks nothing for almost everyone, so the seeded lists arrive on
+// a first run and Settings can disable either one.
 void ContentBlocker::seedDefaultSubscriptions()
 {
-    const auto seed
-        = [this](const QString &id, const QString &title, const QString &updateAddress) {
-              // An install that kept one of the two, or one migrating from
-              // before the marker, must not end up subscribed to it twice.
-              if (findSubscription(id)) {
-                  return;
-              }
-              Subscription subscription;
-              subscription.id = id;
-              subscription.title = title;
-              subscription.source = QUrl(QStringLiteral("https://easylist.to/"));
-              subscription.license = QStringLiteral("GPLv3 or CC BY-SA 3.0");
-              subscription.updateAddress = QUrl(updateAddress);
-              subscription.updateStatus = QStringLiteral("not updated");
-              m_subscriptions.append(std::move(subscription));
-          };
-    seed(QStringLiteral("easylist"), QStringLiteral("EasyList"),
-        QStringLiteral("https://easylist.to/easylist/easylist.txt"));
-    seed(QStringLiteral("easyprivacy"), QStringLiteral("EasyPrivacy"),
-        QStringLiteral("https://easylist.to/easylist/easyprivacy.txt"));
+    for (const auto &list : knownListTable) {
+        if (list.seeded) {
+            appendKnownList(list);
+        }
+    }
     m_seeded = true;
     save();
+}
+
+// The one way a known list that is not seeded arrives. Like a list the reader
+// typed in, it is fetched as soon as it is subscribed.
+void ContentBlocker::subscribeKnownList(const QString &id)
+{
+    const auto list = std::ranges::find(knownListTable, id, &KnownList::id);
+    if (list == knownListTable.end() || !appendKnownList(*list)) {
+        return;
+    }
+    save();
+    emit subscriptionsChanged();
+    updateSubscription(id);
 }
 
 // Seeding on its own only reaches the stored subscriptions, because load()
