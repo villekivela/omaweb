@@ -483,6 +483,7 @@ private:
     QUrl resolveConfiguredInput(const QString &input) const;
     std::optional<QUrl> resolveTypedAddress(const QString &value) const;
     bool loadSearchEngines();
+    QVariantMap searchEngine(const QString &id) const;
     bool saveSearchEngines(const QVariantList &engines, const QString &defaultEngineId);
     void loadDownloadDirectory();
     static QString normalizedOrigin(const QUrl &url);

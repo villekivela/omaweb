@@ -1332,6 +1332,35 @@ void BrowserControllerTest::namesTheEngineATypedKeywordSelects()
                  .value(QStringLiteral("engineId"))
                  .toString(),
         QStringLiteral("docs"));
+
+    // A file from before keywords shared one case keeps every engine; the
+    // second `g` loses its keyword rather than the reader losing the list.
+    QFile file(QDir(root.filePath(QStringLiteral("config")))
+            .filePath(QStringLiteral("search-engines.json")));
+    QVERIFY(file.open(QIODevice::WriteOnly));
+    const auto written = file.write(R"JSON({
+        "version": 1, "default": "duckduckgo",
+        "engines": [
+            {"id": "duckduckgo", "name": "DuckDuckGo",
+             "queryUrl": "https://duckduckgo.com/?q={query}", "keyword": ""},
+            {"id": "google", "name": "Google",
+             "queryUrl": "https://www.google.com/search?q={query}", "keyword": "g"},
+            {"id": "shouty", "name": "Shouty",
+             "queryUrl": "https://shouty.example/?q={query}", "keyword": "G"}
+        ]
+    })JSON");
+    QVERIFY(written > 0);
+    file.close();
+    BrowserController reloaded(
+        SpaceStorage(root.filePath(QStringLiteral("reloaded")), QStringLiteral("test")),
+        root.filePath(QStringLiteral("config")));
+    QCOMPARE(reloaded.searchEngines().size(), 3);
+    QCOMPARE(reloaded.searchEngines().last().toMap().value(QStringLiteral("keyword")).toString(),
+        QString {});
+    QCOMPARE(reloaded.searchIntent(QStringLiteral("G rust"))
+                 .value(QStringLiteral("engineId"))
+                 .toString(),
+        QStringLiteral("google"));
 }
 
 void BrowserControllerTest::offersTheKeywordsATypedPrefixCouldBecome()

@@ -1959,6 +1959,16 @@ bool BrowserController::deleteHistorySince(qint64 since)
     return true;
 }
 
+QVariantMap BrowserController::searchEngine(const QString &id) const
+{
+    for (const auto &candidate : m_searchEngines) {
+        if (candidate.toMap().value(QStringLiteral("id")).toString() == id) {
+            return candidate.toMap();
+        }
+    }
+    return {};
+}
+
 QVariantList BrowserController::searchEngines() const
 {
     QVariantList engines;
@@ -1975,10 +1985,8 @@ QVariantList BrowserController::searchEnginePresets() const { return predefinedS
 
 bool BrowserController::addSearchEnginePreset(const QString &id)
 {
-    for (const auto &configured : m_searchEngines) {
-        if (configured.toMap().value(QStringLiteral("id")).toString() == id) {
-            return false;
-        }
+    if (!searchEngine(id).isEmpty()) {
+        return false;
     }
     for (const auto &preset : predefinedSearchEngines()) {
         if (preset.toMap().value(QStringLiteral("id")).toString() != id) {
@@ -2671,11 +2679,17 @@ bool BrowserController::loadSearchEngines()
         const auto id = engine.value(QStringLiteral("id")).toString().trimmed();
         const auto name = engine.value(QStringLiteral("name")).toString().trimmed();
         const auto queryUrl = engine.value(QStringLiteral("queryUrl")).toString().trimmed();
-        const auto keyword = engine.value(QStringLiteral("keyword")).toString().trimmed().toLower();
+        auto keyword = engine.value(QStringLiteral("keyword")).toString().trimmed().toLower();
         valid = valid && !id.isEmpty() && !name.isEmpty()
             && queryUrl.contains(QStringLiteral("{query}")) && QUrl(queryUrl).isValid()
-            && !ids.contains(id) && (keyword.isEmpty() || !keywords.contains(keyword));
+            && !ids.contains(id);
         ids.insert(id);
+        // A file written before keywords were one namespace whatever their
+        // case may hold `g` and `G`. The first keeps its keyword; the second
+        // loses it, rather than the reader losing every engine.
+        if (keywords.contains(keyword)) {
+            keyword.clear();
+        }
         if (!keyword.isEmpty()) {
             keywords.insert(keyword);
         }
@@ -2710,14 +2724,7 @@ QUrl BrowserController::resolveConfiguredInput(const QString &input) const
     if (intent.isEmpty()) {
         return resolveInput(value);
     }
-    const auto engineId = intent.value(QStringLiteral("engineId")).toString();
-    QVariantMap selected;
-    for (const auto &candidate : m_searchEngines) {
-        if (candidate.toMap().value(QStringLiteral("id")).toString() == engineId) {
-            selected = candidate.toMap();
-            break;
-        }
-    }
+    const auto selected = searchEngine(intent.value(QStringLiteral("engineId")).toString());
     const auto terms = intent.value(QStringLiteral("terms")).toString();
     auto queryUrl = selected.value(QStringLiteral("queryUrl")).toString().toUtf8();
     if (terms.isEmpty()) {
@@ -2751,13 +2758,7 @@ QVariantMap BrowserController::searchIntent(const QString &text) const
     }
     const auto matched = selected.isEmpty() ? QString {} : keyword;
     if (selected.isEmpty()) {
-        for (const auto &candidate : m_searchEngines) {
-            if (candidate.toMap().value(QStringLiteral("id")).toString()
-                == m_defaultSearchEngineId) {
-                selected = candidate.toMap();
-                break;
-            }
-        }
+        selected = searchEngine(m_defaultSearchEngineId);
     }
     if (selected.isEmpty()) {
         return {};

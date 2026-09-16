@@ -167,12 +167,12 @@ Item {
 
     // Empty terms are the engine's front page, so the reader is told it opens
     // rather than searches.
-    function describe(intent) {
-        if (intent.engineId === undefined)
+    function describe(search) {
+        if (search.engineId === undefined)
             return "";
-        if (intent.terms.length === 0)
-            return "Open " + intent.engineName;
-        return "Search " + intent.engineName + " for " + intent.terms;
+        if (search.terms.length === 0)
+            return "Open " + search.engineName;
+        return "Search " + search.engineName + " for " + search.terms;
     }
 
     // The space after a keyword is what enters the mode: the field gives the
