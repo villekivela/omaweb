@@ -161,6 +161,8 @@ add_library(omaweb-core STATIC
     src/core/DownloadPolicy.h
     src/core/Downloads.cpp
     src/core/Downloads.h
+    src/core/FontSettings.cpp
+    src/core/FontSettings.h
     src/core/GlobalPrivacyControl.cpp
     src/core/GlobalPrivacyControl.h
     src/core/HardwareVideoDecode.cpp
@@ -930,6 +932,11 @@ if(BUILD_TESTING)
     target_link_libraries(omaweb-global-privacy-control-tests PRIVATE omaweb-core Qt6::Test)
     omaweb_strict_target(omaweb-global-privacy-control-tests)
     add_test(NAME omaweb-global-privacy-control COMMAND omaweb-global-privacy-control-tests)
+
+    qt_add_executable(omaweb-font-settings-tests tests/core/tst_fontsettings.cpp)
+    target_link_libraries(omaweb-font-settings-tests PRIVATE omaweb-core Qt6::Test)
+    omaweb_strict_target(omaweb-font-settings-tests)
+    add_test(NAME omaweb-font-settings COMMAND omaweb-font-settings-tests)
 
     qt_add_executable(omaweb-content-blocker-tests
         tests/content-blocking/tst_contentmatcher.cpp
