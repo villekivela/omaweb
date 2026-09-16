@@ -840,6 +840,7 @@ Rectangle {
 
         ScrollView {
             id: tabScroll
+            objectName: "tabScroll"
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.top: pinnedSection.bottom

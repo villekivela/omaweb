@@ -803,6 +803,175 @@ TestCase {
         compare(engine.pageScrollOffset, 600);
     }
 
+    // A sheet or overlay standing over the page takes the wheel, at the end
+    // of its own scroll view's travel and over a margin alike. The page is
+    // still there beneath it and still answers, and a wheel let through would
+    // move it under the sheet that covers it.
+    function test_aSheetOverThePageTakesTheWheel() {
+        const engine = openPage("https://covered.example");
+        settleMotion();
+        engine.pageScrollLength = 4000;
+        engine.pageViewportLength = 1000;
+        engine.pageScrollOffset = 600;
+
+        // Somewhere a sheet's own scroll view stands, and somewhere it does
+        // not: the margin beside the Settings rail, the inset above a
+        // heading, the Start page's gutter.
+        const spots = [Qt.point(engine.width / 2, engine.height / 2), Qt.point(12, engine.height
+                                                                               / 2), Qt.point(
+                           engine.width / 2, 20)];
+        const wheelOverThePage = function (sheet) {
+            for (let index = 0; index < spots.length; ++index) {
+                mouseWheel(engine, spots[index].x, spots[index].y, 0, 120);
+                compare(engine.pageScrollOffset, 600, sheet + " let the wheel up through at "
+                        + spots[index]);
+                mouseWheel(engine, spots[index].x, spots[index].y, 0, -120);
+                compare(engine.pageScrollOffset, 600, sheet + " let the wheel down through at "
+                        + spots[index]);
+            }
+        };
+
+        // With nothing over it the page scrolls: the wheel reaches it.
+        mouseWheel(engine, spots[0].x, spots[0].y, 0, -120);
+        compare(engine.pageScrollOffset, 720);
+        mouseWheel(engine, spots[1].x, spots[1].y, 0, 120);
+        compare(engine.pageScrollOffset, 600);
+
+        const sheets = [
+                  {
+                      "name": "Settings",
+                      "open": function () {
+                          window.settingsOpen = true;
+                      },
+                      "close": function () {
+                          window.settingsOpen = false;
+                      }
+                  },
+                  {
+                      "name": "History",
+                      "open": function () {
+                          window.historyOpen = true;
+                      },
+                      "close": function () {
+                          window.historyOpen = false;
+                      }
+                  },
+                  {
+                      "name": "the Start page over a page",
+                      "open": function () {
+                          window.shortcutsOpen = true;
+                      },
+                      "close": function () {
+                          window.shortcutsOpen = false;
+                      }
+                  },
+                  {
+                      "name": "the Omnibar",
+                      "open": function () {
+                          window.openOmnibar(true);
+                      },
+                      "close": function () {
+                          window.closeOmnibar();
+                      }
+                  },
+                  {
+                      "name": "the clear-browsing-data dialog",
+                      "open": function () {
+                          window.settingsOpen = true;
+                          findChild(window.contentItem, "settingsSurface").clearDataOpen = true;
+                      },
+                      "close": function () {
+                          findChild(window.contentItem, "settingsSurface").clearDataOpen = false;
+                          window.settingsOpen = false;
+                      }
+                  },
+                  {
+                      "name": "the Space dialog",
+                      "open": function () {
+                          window.dialogMode = "new";
+                      },
+                      "close": function () {
+                          window.dialogMode = "";
+                      }
+                  }
+              ];
+        for (let index = 0; index < sheets.length; ++index) {
+            sheets[index].open();
+            wait(400);
+            wheelOverThePage(sheets[index].name);
+            sheets[index].close();
+            wait(400);
+        }
+
+        // The Glance's page takes the wheel over the panel; the scrim beside
+        // it takes the wheel for the page beneath.
+        const glance = openGlance("https://glanced.example/page");
+        const glanced = window.glanceEngine;
+        glanced.pageScrollLength = 4000;
+        glanced.pageViewportLength = 1000;
+        glanced.pageScrollOffset = 0;
+        const panel = findChild(glance, "glancePanel");
+        mouseWheel(panel, panel.width / 2, panel.height / 2, 0, -120);
+        compare(glanced.pageScrollOffset, 120, "the Glance's page did not take the wheel");
+        compare(engine.pageScrollOffset, 600);
+        mouseWheel(engine, 4, engine.height / 2, 0, -120);
+        mouseWheel(engine, 4, engine.height / 2, 0, 120);
+        compare(engine.pageScrollOffset, 600, "the Glance let the wheel through");
+        window.closeGlance();
+
+        // Once everything has closed the wheel reaches the page again.
+        wait(250);
+        mouseWheel(engine, spots[0].x, spots[0].y, 0, -120);
+        compare(engine.pageScrollOffset, 720);
+        engine.pageScrollOffset = 0;
+    }
+
+    // Site information stands over the outline rather than the page, and the
+    // outline's tab list scrolls by wheel the same way.
+    function test_siteInformationTakesTheWheelOverTheOutline() {
+        openPage("https://reported.example");
+        const sidebar = findChild(window.contentItem, "sidebar");
+        const panel = findChild(window.contentItem, "siteInformationPanel");
+        const tabScroll = findChild(sidebar, "tabScroll");
+        verify(tabScroll !== null);
+        const tabList = tabScroll.contentItem;
+        for (let index = 0; index < 40; ++index)
+            browser.openInput("https://reported.example/" + index, true);
+        tryVerify(function () {
+            return tabList.contentHeight > tabList.height;
+        });
+        tabList.contentY = 0;
+
+        sidebar.statusOpen = true;
+        tryVerify(function () {
+            return panel.visible;
+        });
+        wait(250);
+        // The panel's foot, which stands over the list rather than over the
+        // address it unfolded from. With the panel away the list scrolls
+        // there; with it open, the same wheel stops at the panel.
+        const foot = panel.mapToItem(tabList, panel.width / 2, panel.height - 8);
+        verify(tabList.contains(foot), "the panel does not reach the tab list");
+        sidebar.statusOpen = false;
+        wait(250);
+        // The list scrolls over the frames that follow rather than at once.
+        mouseWheel(tabList, foot.x, foot.y, 0, -120);
+        tryVerify(function () {
+            return tabList.contentY > 0;
+        }, 2000, "the list does not scroll by wheel");
+        tryCompare(tabList, "moving", false);
+        tabList.contentY = 0;
+
+        sidebar.statusOpen = true;
+        wait(250);
+        mouseWheel(tabList, foot.x, foot.y, 0, -120);
+        wait(400);
+        compare(tabList.contentY, 0);
+        sidebar.statusOpen = false;
+        while (browser.tabs.rowCount() > 1)
+            browser.closeTab(browser.activeTabId);
+    }
+
     // Developer tools take a column of their own beside the tab they inspect:
     // the page gives up that width rather than being covered by it, and the
     // view in the dock is the one the engine handed over.

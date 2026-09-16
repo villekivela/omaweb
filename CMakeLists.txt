@@ -479,6 +479,7 @@ set(omaweb_ui_files
     src/ui/RefusalTally.qml
     src/ui/RetainedEngines.qml
     src/ui/SectionLabel.qml
+    src/ui/SheetFloor.qml
     src/ui/SheetInsets.qml
     src/ui/SheetLift.qml
     src/ui/SiteInformationPanel.qml

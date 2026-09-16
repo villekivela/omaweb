@@ -53,6 +53,8 @@ Rectangle {
         }
     }
 
+    SheetFloor {}
+
     PageBackdrop {
         anchors.fill: parent
         source: root.pageSource

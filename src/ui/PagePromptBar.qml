@@ -72,6 +72,8 @@ Item {
         }
     }
 
+    SheetFloor {}
+
     MouseArea {
         anchors.fill: parent
     }

@@ -625,6 +625,18 @@ Rectangle {
         onTriggered: root.loading = false
     }
 
+    // The lab draws no document, so the wheel moves the offset the page would
+    // have reported, by the wheel's own step and no further than the page
+    // runs. That the offset moved is how a test knows the wheel reached the
+    // page rather than something standing over it.
+    WheelHandler {
+        onWheel: function (event) {
+            const travel = Math.max(0, root.pageScrollLength - root.pageViewportLength);
+            root.pageScrollOffset = Math.min(travel, Math.max(0, root.pageScrollOffset
+                                                              - event.angleDelta.y));
+        }
+    }
+
     Row {
         anchors.fill: parent
         visible: root.blurReviewPattern

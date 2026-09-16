@@ -41,6 +41,8 @@ FocusScope {
     visible: open
     focus: open
 
+    SheetFloor {}
+
     Rectangle {
         anchors.fill: parent
         color: "#99000000"

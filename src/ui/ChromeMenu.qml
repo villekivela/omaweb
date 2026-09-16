@@ -82,6 +82,8 @@ Item {
         event.accepted = true;
     }
 
+    SheetFloor {}
+
     MouseArea {
         anchors.fill: parent
         onClicked: root.dismissed()
