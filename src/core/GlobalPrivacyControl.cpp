@@ -1,20 +1,13 @@
 #include "GlobalPrivacyControl.h"
 
-#include <QDir>
-#include <QFile>
-#include <QJsonDocument>
-#include <QJsonObject>
-#include <QSaveFile>
+#include "PrivacyFile.h"
 
 #include <utility>
 
 namespace omaweb {
 namespace {
 
-    // The file is named for the Settings section it belongs to rather than
-    // for its one key, so the next privacy decision has somewhere to go.
-    constexpr auto fileName = "privacy.json";
-    constexpr auto enabledKey = "global-privacy-control";
+    constexpr QLatin1StringView enabledKey("global-privacy-control");
 
 } // namespace
 
@@ -59,33 +52,10 @@ QString GlobalPrivacyControl::scriptSource()
 // nobody: only an explicit `false` does.
 void GlobalPrivacyControl::load()
 {
-    m_enabled = true;
-    if (m_configRoot.isEmpty()) {
-        return;
-    }
-    QFile file(QDir(m_configRoot).filePath(QLatin1String(fileName)));
-    if (!file.open(QIODevice::ReadOnly)) {
-        return;
-    }
-    const auto value
-        = QJsonDocument::fromJson(file.readAll()).object().value(QLatin1String(enabledKey));
-    if (value.isBool()) {
-        m_enabled = value.toBool();
-    }
+    const auto value = PrivacyFile::read(m_configRoot, enabledKey);
+    m_enabled = value.isBool() ? value.toBool() : true;
 }
 
-void GlobalPrivacyControl::save() const
-{
-    if (m_configRoot.isEmpty() || !QDir().mkpath(m_configRoot)) {
-        return;
-    }
-    QSaveFile file(QDir(m_configRoot).filePath(QLatin1String(fileName)));
-    if (!file.open(QIODevice::WriteOnly)) {
-        return;
-    }
-    file.write(QJsonDocument(QJsonObject {{QLatin1String(enabledKey), m_enabled}})
-            .toJson(QJsonDocument::Indented));
-    file.commit();
-}
+void GlobalPrivacyControl::save() const { PrivacyFile::write(m_configRoot, enabledKey, m_enabled); }
 
 } // namespace omaweb

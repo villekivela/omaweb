@@ -167,9 +167,10 @@ That private call has one cost worth stating plainly. Qt warns that a private mo
 one Qt build, and it is right: `portalWindowIdentifier` is reached as a virtual through
 `QDesktopUnixServices`, so a Qt that renamed or removed it would break the build, and a Qt that kept
 the name and moved it in the vtable would not — printing would call whatever took its place. The
-only other private Qt in Omaweb is the reader's page fonts, which
+only other private Qt in Omaweb is a Quick profile's settings, which
 [ADR 0047](adr/0047-reach-a-quick-profiles-font-settings-through-private-qt.md) accounts for on the
-same terms and whose exposure is a page drawn in the engine's own fonts.
+same terms and whose exposure is a page drawn in the engine's own fonts and a call offered every
+interface the machine has.
 
 So the browser does not ask on a Qt it was not compiled against. `portalNameIsSafeToAsk` compares
 `QT_VERSION_STR` with `qVersion()` and wants them identical, not compatible: public Qt keeps its ABI

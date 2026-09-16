@@ -350,6 +350,16 @@ The default page commands include:
   windows send it alike. The privacy section of Settings shows the setting and turns it off, which
   turns off both the header and the property, and the choice survives a restart. Omaweb sends no Do
   Not Track header and offers no per-site exception.
+- A page's WebRTC calls are offered the public interface only, on by default and browser-wide. Every
+  Engine profile, a Space's and the Private windows' shared one, carries the engine's
+  `WebRTCPublicInterfacesOnly` policy, so a page gathering candidates reads the address of the
+  default route and not the reader's other interfaces, a VPN's hidden one included. A call still
+  connects through that route or a TURN relay. The privacy section of Settings shows the setting and
+  turns it off for a reader whose peer is on the same network, which reaches the open profiles
+  without a restart, and the choice survives one. Site information does not report it: it is a
+  browser policy, not a page's state. A build running on a Qt it was not compiled against cannot set
+  the policy, leaves the engine's default of every interface, and says so in the setting's place.
+  Omaweb offers no per-site exception and cannot disable WebRTC outright.
 - The address trigger reports secure connection, insecure connection, or certificate error only from
   facts the adapter can prove. The site-information panel shows origin, connection state,
   Space-specific permissions, blocked-request count, stored-data size, and confirmed actions to

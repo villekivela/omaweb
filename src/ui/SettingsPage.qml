@@ -96,6 +96,12 @@ Rectangle {
     // is current and offer the reader the switch that stops it asking.
     property var releaseWatch: null
     property var globalPrivacyControl: null
+    // What a page's call may learn about the reader's network, and the engine
+    // adapter that says whether this build can set it at all (ADR 0047).
+    property var webRtcPolicy: null
+    property var engineWebRtcPolicy: null
+    readonly property bool webRtcPolicyUnreachable: !!engineWebRtcPolicy &&
+                                                    !engineWebRtcPolicy.available
     // The reader's type: the interface size over the theme's and a page's
     // fonts over the engine's. The engine adapter beside it says whether this
     // build can reach the engine's fonts at all; without one, as in the lab,
@@ -1574,6 +1580,46 @@ Rectangle {
                             if (root.globalPrivacyControl)
                                 root.globalPrivacyControl.enabled = !checked;
                         }
+                    }
+
+                    // A page gathers a call's candidate addresses before any
+                    // call is placed, on every interface the host has, so
+                    // browser-wide for the same reason as the signal above: a
+                    // Space says nothing about what the reader wants leaked.
+                    SettingToggle {
+                        objectName: "webRtcPublicInterfacesOnly"
+                        visible: !!root.webRtcPolicy && !root.webRtcPolicyUnreachable
+                        width: pane.width
+                        colors: root.colors
+                        title: "Keep calls off your other addresses"
+                        note: "A page setting up a call learns only the address of the "
+                              + "connection it leaves on, not your local network's or the one a "
+                              + "VPN hides. Calls still connect. Turn off to reach a peer on your "
+                              + "own network directly."
+                        accessibleName: "Keep calls off your other addresses"
+                        checked: !!root.webRtcPolicy && root.webRtcPolicy.publicInterfacesOnly
+                        onClicked: {
+                            if (root.webRtcPolicy)
+                                root.webRtcPolicy.publicInterfacesOnly = !checked;
+                        }
+                    }
+
+                    // The engine's own default offers every interface, and a
+                    // build that cannot reach the profile's settings leaves
+                    // it there. Named as a fact rather than hidden behind a
+                    // switch that would change nothing.
+                    NoticeBox {
+                        objectName: "webRtcPolicyNotice"
+                        width: pane.width
+                        visible: root.webRtcPolicyUnreachable
+                        colors: root.colors
+                        iconFontFamily: root.iconFontFamily
+                        glyph: "call"
+                        title: "This build cannot keep calls off your other addresses"
+                        detail: "Omaweb was built against another Qt than the one it is running "
+                                + "on, so a page setting up a call is offered every address this "
+                                + "machine has, the engine's own default. A rebuild against this "
+                                + "Qt brings the setting back."
                     }
 
                     SectionLabel {

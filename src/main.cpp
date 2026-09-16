@@ -8,6 +8,7 @@
 #include "FaviconTint.h"
 #include "FontSettings.h"
 #include "GlobalPrivacyControl.h"
+#include "WebRtcPolicy.h"
 #include "HardwareVideoDecode.h"
 #include "InputMethod.h"
 #include "KeyboardNavigation.h"
@@ -21,6 +22,7 @@
 #include "QtCookiePolicy.h"
 #include "QtHeldDownloads.h"
 #include "QtPageFonts.h"
+#include "QtWebRtcPolicy.h"
 #include "Quickshell.h"
 #include "RunningBrowser.h"
 #include "RuntimeSecurity.h"
@@ -261,6 +263,12 @@ int main(int argc, char *argv[])
     omaweb::QtPageFonts pageFonts(&fontSettings);
     QObject::connect(&engineContentBlocker, &omaweb::QtContentBlocker::profileAttached, &pageFonts,
         &omaweb::QtPageFonts::attachToProfile);
+    // What a page's call may learn about the reader's network, one answer for
+    // every profile and set on each as it is built, the way the fonts are.
+    omaweb::WebRtcPolicy webRtcPolicy(configRoot());
+    omaweb::QtWebRtcPolicy engineWebRtcPolicy(&webRtcPolicy);
+    QObject::connect(&engineContentBlocker, &omaweb::QtContentBlocker::profileAttached,
+        &engineWebRtcPolicy, &omaweb::QtWebRtcPolicy::attachToProfile);
     // The plugin an input method needs is the desktop's to install, and a
     // desktop that names one it has not installed leaves Qt with no input
     // context and Omaweb with no text-input protocol bound. Nothing about that
@@ -327,6 +335,9 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty(QStringLiteral("releaseWatch"), &releaseWatch);
     engine.rootContext()->setContextProperty(
         QStringLiteral("globalPrivacyControl"), &globalPrivacyControl);
+    engine.rootContext()->setContextProperty(QStringLiteral("webRtcPolicy"), &webRtcPolicy);
+    engine.rootContext()->setContextProperty(
+        QStringLiteral("engineWebRtcPolicy"), &engineWebRtcPolicy);
     engine.rootContext()->setContextProperty(
         QStringLiteral("engineViewSource"), QUrl(QStringLiteral(OMAWEB_ENGINE_VIEW_URL)));
     engine.rootContext()->setContextProperty(

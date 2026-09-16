@@ -85,7 +85,7 @@ if(UNIX AND NOT APPLE)
     list(APPEND omaweb_qt_components DBus GuiPrivate)
 endif()
 if(OMAWEB_BUILD_BROWSER)
-    # `WebEngineQuickPrivate` is for `QtPageFonts.cpp`; its target says why.
+    # `WebEngineQuickPrivate` is for `QtProfileSettings.cpp`; its target says why.
     list(APPEND omaweb_qt_components CorePrivate WebEngineCore WebEngineQuick WebEngineQuickPrivate)
 endif()
 if(BUILD_TESTING)
@@ -183,6 +183,8 @@ add_library(omaweb-core STATIC
     src/core/ReleaseCheck.h
     src/core/ReleaseWatch.cpp
     src/core/ReleaseWatch.h
+    src/core/PrivacyFile.cpp
+    src/core/PrivacyFile.h
     src/core/PrivateSessionStore.cpp
     src/core/PrivateSessionStore.h
     src/core/SessionStore.h
@@ -202,6 +204,8 @@ add_library(omaweb-core STATIC
     src/core/TabListModel.cpp
     src/core/TabListModel.h
     src/core/WindowCapabilities.h
+    src/core/WebRtcPolicy.cpp
+    src/core/WebRtcPolicy.h
     src/core/WindowManager.cpp
     src/core/WindowManager.h
 )
@@ -364,13 +368,17 @@ if(OMAWEB_BUILD_BROWSER)
         src/engine/qt/QtHeldDownloads.h
         src/engine/qt/QtPageFonts.cpp
         src/engine/qt/QtPageFonts.h
+        src/engine/qt/QtProfileSettings.cpp
+        src/engine/qt/QtProfileSettings.h
+        src/engine/qt/QtWebRtcPolicy.cpp
+        src/engine/qt/QtWebRtcPolicy.h
     )
     target_sources(omaweb-engine-qt PUBLIC src/engine/qt/EngineView.qml)
     target_include_directories(omaweb-engine-qt PUBLIC src/engine/qt)
-    # `Qt6::WebEngineQuickPrivate` is here for one member, and `QtPageFonts.cpp`
-    # says why: the font settings a Quick profile carries are Qt's to reach and
-    # Qt does not offer them publicly. `Qt6::CorePrivate` is what its header
-    # includes. The same terms as `Qt6::GuiPrivate` below apply, and the call
+    # `Qt6::WebEngineQuickPrivate` is here for one member, and
+    # `QtProfileSettings.cpp` says why: the settings a Quick profile carries
+    # are Qt's to reach and Qt does not offer them publicly. `Qt6::CorePrivate`
+    # is what its header includes. The same terms as `Qt6::GuiPrivate` below apply, and the call
     # checks the running Qt is the compiled one.
     target_link_libraries(omaweb-engine-qt PUBLIC
         omaweb-core
@@ -944,6 +952,11 @@ if(BUILD_TESTING)
     target_link_libraries(omaweb-global-privacy-control-tests PRIVATE omaweb-core Qt6::Test)
     omaweb_strict_target(omaweb-global-privacy-control-tests)
     add_test(NAME omaweb-global-privacy-control COMMAND omaweb-global-privacy-control-tests)
+
+    qt_add_executable(omaweb-webrtc-policy-tests tests/core/tst_webrtcpolicy.cpp)
+    target_link_libraries(omaweb-webrtc-policy-tests PRIVATE omaweb-core Qt6::Test)
+    omaweb_strict_target(omaweb-webrtc-policy-tests)
+    add_test(NAME omaweb-webrtc-policy COMMAND omaweb-webrtc-policy-tests)
 
     qt_add_executable(omaweb-font-settings-tests tests/core/tst_fontsettings.cpp)
     target_link_libraries(omaweb-font-settings-tests PRIVATE omaweb-core Qt6::Test)

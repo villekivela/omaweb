@@ -164,6 +164,15 @@ of sale and sharing. It is one setting for the whole browser, on by default, kep
 configuration, and every Space and Private window sends it alike. _Avoid_: Do Not Track, DNT,
 privacy header, opt-out signal
 
+**WebRTC address policy**: What a page's call may learn about the reader's network. WebRTC gathers a
+candidate address on every interface the host has and hands the list to the page before any call is
+placed, so the policy offers the public interface only: the address of the default route, which is
+what a call connects through, and not the reader's LAN address or the one a VPN hides. It is one
+setting for the whole browser, on by default, kept with the reader's configuration beside Global
+Privacy Control, and every Engine profile, a Space's and the Private windows' shared one, carries it
+alike. Off is for a reader whose peer is on their own network. _Avoid_: WebRTC leak protection, IP
+leak, disable WebRTC
+
 **Third-party cookie allowance**: A temporary permission for one origin to keep cookies and site
 storage while embedded in another site, granted for a named authentication or payment flow inside
 one Space. It is held in memory only, listed in Site information, and revocable there, so it cannot
