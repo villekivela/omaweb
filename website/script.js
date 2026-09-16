@@ -5,9 +5,9 @@
 // view until the script folds it behind its button.
 //
 //   1. Theme switching. One palette drives the page, the generated
-//      screenshots, the wordmark and the favicon, so picking a theme restyles
-//      all of them at once. The choice is saved locally, and a `theme` query
-//      parameter lets a shared URL choose its palette.
+//      screenshots and the favicon, so picking a theme restyles all of them
+//      at once. The choice is saved locally, and a `theme` query parameter
+//      lets a shared URL choose its palette.
 //   2. Opening a screenshot in a viewer instead of navigating to the file.
 //      A whole window drawn at grid width is unreadable whatever its
 //      resolution, so the grid is thumbnails and this is how they are read.
@@ -154,14 +154,61 @@
   var themeButtons = [].slice.call(document.querySelectorAll(".t-theme"));
   var THEME_STORAGE_KEY = "omaweb.preview-theme";
 
-  // The screenshots, the wordmark and the favicon are generated one per
-  // theme, under paths that differ only in the theme's name. Each element
-  // carries its own path with `{theme}` where that name goes, so adding a
-  // themed image is markup and nothing here. That is also what keeps the
-  // favicon working away from the landing page: the path is relative to the
-  // page it is written on, and pages live at three different depths.
+  // The screenshots are generated one per theme, under paths that differ
+  // only in the theme's name. Each element carries its own path with
+  // `{theme}` where that name goes, so adding a themed image is markup and
+  // nothing here, and the path is relative to the page it is written on,
+  // which is what keeps it working at every depth the site has pages at.
   var themed = [].slice.call(document.querySelectorAll("[data-themed]"));
   var themeColor = document.querySelector('meta[name="theme-color"]');
+
+  // The favicon is a document of its own and sees none of the page's
+  // colours, so it is redrawn rather than restyled: the shipped icon is
+  // fetched once and its two fills, the ground and the mark, are replaced
+  // with the palette's before it goes back to the browser as a data URL. The
+  // shipped file is the default palette and stays the icon until the fetch
+  // returns, or for good if it never does.
+  var favicon = document.querySelector('link[rel="icon"]');
+  var faviconSource = null;
+  if (favicon && window.fetch) {
+    fetch(favicon.href)
+      .then(function (response) {
+        return response.ok ? response.text() : null;
+      })
+      .then(function (svg) {
+        if (svg && svg.indexOf("<svg") !== -1) {
+          faviconSource = svg;
+          paintFavicon();
+        }
+      })
+      .catch(function () {
+        // The shipped icon stays.
+      });
+  }
+
+  function paintFavicon() {
+    if (!faviconSource) return;
+    var style = getComputedStyle(document.body);
+    var fills = [style.getPropertyValue("--bg").trim(), style.getPropertyValue("--fg").trim()];
+    if (!fills[0] || !fills[1]) return;
+    var index = 0;
+    var svg = faviconSource.replace(/fill="[^"]*"/g, function (match) {
+      var fill = fills[index];
+      index += 1;
+      return fill ? 'fill="' + fill + '"' : match;
+    });
+    favicon.href = "data:image/svg+xml," + encodeURIComponent(svg);
+  }
+
+  function paintPalette() {
+    // The browser chrome around the page follows the palette too, read off
+    // the ground the theme just painted rather than listed a second time.
+    if (themeColor) {
+      themeColor.content = getComputedStyle(document.body).getPropertyValue("--bg").trim();
+    }
+    paintFavicon();
+    if (rainContext) startRain();
+  }
 
   // Which themes exist, from the `--themes` list `themes.css` is generated
   // with. The switcher buttons are only on the landing page, so asking them
@@ -205,15 +252,10 @@
 
     themed.forEach(function (element) {
       var path = element.dataset.themed.replace("{theme}", name);
-      if (element.tagName === "A" || element.tagName === "LINK") element.href = path;
+      if (element.tagName === "A") element.href = path;
       else element.src = path;
     });
-    // The browser chrome around the page follows the palette too, read off
-    // the ground the theme just painted rather than listed a second time.
-    if (themeColor) {
-      themeColor.content = getComputedStyle(document.body).getPropertyValue("--bg").trim();
-    }
-    if (rainContext) startRain();
+    paintPalette();
 
     if (options.save) saveTheme(name);
     if (options.share) {

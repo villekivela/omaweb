@@ -330,8 +330,8 @@ img {
    The palettes themselves are not written here. Each is generated into
    `themes.css` by `scripts/build_website_themes.py`, out of the roles
    Omaweb resolves from that theme's own `colors.toml` -- alongside the
-   screenshots and favicons drawn in the same palette, so a theme's
-   colours reach the page, its pictures and its icon from one place.
+   screenshots drawn in the same palette. The wordmark and the favicon
+   take theirs from the page at runtime, so they follow any palette.
    =================================================================== */
 
 /* One wrap holds the whole page. There were two, so that the full-bleed
@@ -391,10 +391,12 @@ img {
   -webkit-backdrop-filter: blur(14px) saturate(160%) brightness(1.1);
   backdrop-filter: blur(14px) saturate(160%) brightness(1.1);
 }
-/* The wordmark is generated in the theme's own foreground, so it needs no
-   inversion to be visible: the page used to invert a black drawing to get
-   white out of it, which no theme could reach. */
-.t-top img {
+/* The wordmark is inline and drawn in `currentColor`, so it is set in the
+   foreground like the text beside it, whatever palette that is. It was a
+   generated image per theme, and before that a black drawing the page
+   inverted to get white out of, which no theme could reach. */
+.t-wordmark {
+  display: block;
   width: calc(88px * var(--scale));
   height: auto;
 }

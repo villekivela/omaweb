@@ -267,16 +267,17 @@ test("page: no placeholder is left unfilled", () => {
   assert.equal(renderReleasePage(RELEASE, [RELEASE], TEMPLATE, "..").includes("{{"), false);
 });
 
-test("page: the themed favicon is reached from the page's own depth", () => {
+test("page: the favicon is reached from the page's own depth", () => {
   // Against the shipped template rather than the fixture above: a release page
-  // sits two levels down and the landing page none, so the path the theme
-  // script writes has to come from the page rather than from the script.
+  // sits two levels down and the landing page none, so the path the script
+  // fetches the icon from has to come from the page rather than from the
+  // script.
   const shipped = readFileSync(
     fileURLToPath(new URL("./release.template.html", import.meta.url)),
     "utf8",
   );
   const html = renderReleasePage(RELEASE, [RELEASE], shipped, "../..");
-  assert.match(html, /data-themed="\.\.\/\.\.\/assets\/icons\/favicon-\{theme\}\.svg"/);
+  assert.match(html, /<link rel="icon" href="\.\.\/\.\.\/favicon\.svg"/);
 });
 
 test("page: a release with no body still renders, pointing at GitHub", () => {
