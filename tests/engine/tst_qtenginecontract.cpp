@@ -1971,11 +1971,14 @@ void QtEngineContractTest::qtDrawsAPageInTheReadersFonts_data()
 
 // A page that names no family is drawn in the reader's, a page that names a
 // size under the reader's floor is drawn at the floor, and both reach a page
-// already open without a reload. The reader's fonts ride the profile, so a
-// Space's profile and the Private windows' shared one draw alike. Zoom is a
-// tab's and composes with the floor the way the engine composes them: the
-// floor is a CSS size, so a zoomed page's floored text is zoomed too rather
-// than floored again after.
+// already open. The reader's fonts ride the profile, so a Space's profile and
+// the Private windows' shared one draw alike. A family or a default size
+// restyles the open page at once; the floor alone does not, and lands on the
+// page's next layout, a reload or any other font change, which is what #293
+// asked for and what the engine does. Zoom is a tab's and composes with the
+// floor the way the engine composes them: the floor is a CSS size, so a
+// zoomed page's floored text is zoomed too rather than floored again after,
+// and a font change under a zoom leaves the zoom where the tab put it.
 void QtEngineContractTest::qtDrawsAPageInTheReadersFonts()
 {
     QFETCH(bool, privateWindow);
@@ -2105,13 +2108,22 @@ void QtEngineContractTest::qtDrawsAPageInTheReadersFonts()
         report(engineFonts.standardFamily, engineFonts.fontSize, QStringLiteral("engine"),
             engineFixedSize, QStringLiteral("6px"), QStringLiteral("1")));
 
+    // The floor alone leaves the open page as it was, and a reload takes it.
+    fontSettings.setPageSize(omaweb::FontSettings::PageSize::Minimum, 12);
+    QTest::qWait(500);
+    QCOMPARE(adapter->property("pageTitle").toString(), initial);
+    QVERIFY(QMetaObject::invokeMethod(adapter.get(), "reloadPage"));
+    QTRY_COMPARE_WITH_TIMEOUT(adapter->property("pageTitle").toString(),
+        report(engineFonts.standardFamily, engineFonts.fontSize, QStringLiteral("engine"),
+            engineFixedSize, QStringLiteral("12px"), QStringLiteral("1")),
+        15000);
+
     // The fixed-width size keeps the engine's own distance below the default
     // size, so code stays a step smaller than prose the way it was.
+    const auto chosenFixedSize = 20 - (engineFonts.fontSize - engineFixedSize);
     fontSettings.setPageFamily(omaweb::FontSettings::PageFamily::Standard, standard);
     fontSettings.setPageFamily(omaweb::FontSettings::PageFamily::Fixed, fixed);
     fontSettings.setPageSize(omaweb::FontSettings::PageSize::Default, 20);
-    fontSettings.setPageSize(omaweb::FontSettings::PageSize::Minimum, 12);
-    const auto chosenFixedSize = 20 - (engineFonts.fontSize - engineFixedSize);
     QTRY_COMPARE_WITH_TIMEOUT(adapter->property("pageTitle").toString(),
         report(standard, 20, QStringLiteral("chosen"), chosenFixedSize, QStringLiteral("12px"),
             QStringLiteral("1")),
@@ -2122,6 +2134,15 @@ void QtEngineContractTest::qtDrawsAPageInTheReadersFonts()
         report(standard, 20, QStringLiteral("chosen"), chosenFixedSize, QStringLiteral("12px"),
             QStringLiteral("1.5")),
         15000);
+    // A default size restyles the page, and the floor set beside it rides
+    // along; neither touches the zoom.
+    fontSettings.setPageSize(omaweb::FontSettings::PageSize::Minimum, 14);
+    fontSettings.setPageSize(omaweb::FontSettings::PageSize::Default, 22);
+    QTRY_COMPARE_WITH_TIMEOUT(adapter->property("pageTitle").toString(),
+        report(standard, 22, QStringLiteral("chosen"), chosenFixedSize + 2, QStringLiteral("14px"),
+            QStringLiteral("1.5")),
+        15000);
+    QCOMPARE(adapter->property("zoomFactor").toDouble(), 1.5);
     QVERIFY(QMetaObject::invokeMethod(adapter.get(), "setZoomFactor", Q_ARG(QVariant, 1.0)));
 
     // Reset is the engine's own again, not a number remembered from before.

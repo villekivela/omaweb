@@ -258,8 +258,6 @@ int main(int argc, char *argv[])
     // fonts over the engine's. One answer for every window, Private ones
     // included, which is why it lives beside the theme and not in a store.
     omaweb::FontSettings fontSettings(configRoot(), QFontDatabase::families());
-    // A page's fonts ride every profile Content blocking attaches to, which
-    // is every profile there is.
     omaweb::QtPageFonts pageFonts(&fontSettings);
     QObject::connect(&engineContentBlocker, &omaweb::QtContentBlocker::profileAttached, &pageFonts,
         &omaweb::QtPageFonts::attachToProfile);

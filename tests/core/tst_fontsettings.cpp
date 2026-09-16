@@ -94,17 +94,21 @@ void FontSettingsTest::followsAThemeChangeOnlyWhileNoOverrideStands()
     FontSettings fonts(root.filePath(QStringLiteral("config")), installed);
     fonts.setThemeFontSize(12);
     QSignalSpy changed(&fonts, &FontSettings::interfaceFontSizeChanged);
+    QSignalSpy themeChanged(&fonts, &FontSettings::themeFontSizeChanged);
 
     fonts.setThemeFontSize(14);
     QCOMPARE(fonts.interfaceFontSize(), 14);
     QCOMPARE(changed.count(), 1);
+    QCOMPARE(themeChanged.count(), 1);
 
     fonts.setInterfaceFontSize(18);
     fonts.setThemeFontSize(10);
     QCOMPARE(fonts.interfaceFontSize(), 18);
     QCOMPARE(fonts.themeFontSize(), 10);
-    // The theme moved under an override, which changes nothing on show.
+    // The theme moved under an override, which changes nothing on show but
+    // is still a theme change to whoever names the theme's size.
     QCOMPARE(changed.count(), 2);
+    QCOMPARE(themeChanged.count(), 2);
 
     fonts.resetInterfaceFontSize();
     QCOMPARE(fonts.interfaceFontSize(), 10);

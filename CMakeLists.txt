@@ -85,8 +85,7 @@ if(UNIX AND NOT APPLE)
     list(APPEND omaweb_qt_components DBus GuiPrivate)
 endif()
 if(OMAWEB_BUILD_BROWSER)
-    # `WebEngineQuickPrivate` is one member in `QtPageFonts.cpp`, which says
-    # why it is the only route to the font settings a Quick profile carries.
+    # `WebEngineQuickPrivate` is for `QtPageFonts.cpp`; its target says why.
     list(APPEND omaweb_qt_components CorePrivate WebEngineCore WebEngineQuick WebEngineQuickPrivate)
 endif()
 if(BUILD_TESTING)

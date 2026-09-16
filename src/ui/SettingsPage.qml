@@ -745,7 +745,9 @@ Rectangle {
                         iconFontFamily: root.iconFontFamily
                         glyph: "text_fields"
                         title: "This build cannot reach the engine's fonts"
-                        detail: "Omaweb was built against another Qt than the one it is running on, so pages are drawn in the engine's own fonts. A rebuild against this Qt brings the controls back."
+                        detail: "Omaweb was built against another Qt than the one it is running "
+                                + "on, so pages are drawn in the engine's own fonts. A rebuild "
+                                + "against this Qt brings the controls back."
                     }
 
                     // A page that names no family gets these, and a page that
@@ -836,7 +838,8 @@ Rectangle {
                             width: pane.width
                             colors: root.colors
                             title: "Fixed-width font"
-                            note: "Code on a page, and any text a page asks to have drawn monospaced."
+                            note: "Code on a page, and any text a page asks to have drawn "
+                                  + "monospaced."
 
                             SettingDropdown {
                                 objectName: "pageFixedFamily"
@@ -857,7 +860,8 @@ Rectangle {
                             width: pane.width
                             colors: root.colors
                             title: "Font size"
-                            note: "The size a page that names none is read at. Code follows it a step smaller, as the engine keeps it."
+                            note: "The size a page that names none is read at. Code follows it "
+                                  + "a step smaller, as the engine keeps it."
 
                             SettingStepper {
                                 objectName: "pageFontSize"
@@ -884,7 +888,10 @@ Rectangle {
                             width: pane.width
                             colors: root.colors
                             title: "Minimum font size"
-                            note: "No text on a page is drawn smaller than this, whatever size the page asks for. A tab's zoom multiplies it."
+                            note: "No text on a page is drawn smaller than this, whatever size "
+                                  + "the page asks for. A tab's zoom multiplies it. A page "
+                                  + "already open takes it when it next lays out; reload to "
+                                  + "see it now."
 
                             SettingStepper {
                                 objectName: "pageMinimumFontSize"

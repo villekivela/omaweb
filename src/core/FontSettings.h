@@ -99,7 +99,10 @@ public:
     Q_INVOKABLE QStringList installedFamilies() const;
 
 signals:
+    // The size on show changed. A theme moving under an override is not
+    // that, and says so through themeFontSizeChanged alone.
     void interfaceFontSizeChanged();
+    void themeFontSizeChanged();
     void pageFontsChanged();
 
 private:
@@ -109,6 +112,10 @@ private:
     static int maximumPageSize() { return maximumPageFontSize; }
     static int maximumPageMinimumSize() { return maximumPageMinimumFontSize; }
     QString installedFamily(const QString &family) const;
+    QString &storedFamily(PageFamily which);
+    const QString &storedFamily(PageFamily which) const;
+    int &storedSize(PageSize which);
+    int storedSize(PageSize which) const;
     void load();
     void save() const;
 

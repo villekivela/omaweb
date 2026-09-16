@@ -53,8 +53,7 @@ void FontSettings::setThemeFontSize(int size)
         return;
     }
     m_themeFontSize = size;
-    // Under an override the theme's size is not the size on show, so nothing
-    // drawn from this changes.
+    emit themeFontSizeChanged();
     if (!m_interfaceFontSize) {
         emit interfaceFontSizeChanged();
     }
@@ -149,7 +148,7 @@ void FontSettings::setPageFamily(PageFamily which, const QString &family)
 
 void FontSettings::setPageSize(PageSize which, int size)
 {
-    auto &stored = which == PageSize::Default ? m_pageFonts.fontSize : m_pageFonts.minimumFontSize;
+    auto &stored = storedSize(which);
     const auto clamped = size <= 0   ? 0
         : which == PageSize::Default ? std::clamp(size, minimumPageFontSize, maximumPageFontSize)
                                      : std::min(size, maximumPageMinimumFontSize);
@@ -168,6 +167,26 @@ void FontSettings::setEngineFonts(const PageFonts &fonts)
 }
 
 QStringList FontSettings::installedFamilies() const { return m_installedFamilies; }
+
+QString &FontSettings::storedFamily(PageFamily which)
+{
+    return which == PageFamily::Standard ? m_pageFonts.standardFamily : m_pageFonts.fixedFamily;
+}
+
+const QString &FontSettings::storedFamily(PageFamily which) const
+{
+    return which == PageFamily::Standard ? m_pageFonts.standardFamily : m_pageFonts.fixedFamily;
+}
+
+int &FontSettings::storedSize(PageSize which)
+{
+    return which == PageSize::Default ? m_pageFonts.fontSize : m_pageFonts.minimumFontSize;
+}
+
+int FontSettings::storedSize(PageSize which) const
+{
+    return which == PageSize::Default ? m_pageFonts.fontSize : m_pageFonts.minimumFontSize;
+}
 
 QString FontSettings::installedFamily(const QString &family) const
 {

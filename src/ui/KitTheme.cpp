@@ -128,8 +128,6 @@ void KitTheme::apply()
     assign(m_style, QStringLiteral("resolvedFontFamily"), family);
     auto size = font.value(QStringLiteral("size"));
     if (m_fonts) {
-        // The theme's size is what the reader's settings fall back to, and
-        // the reader's answer is what the kit draws at.
         m_fonts->setThemeFontSize(size.toInt());
         size = m_fonts->interfaceFontSize();
     }

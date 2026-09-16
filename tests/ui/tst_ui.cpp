@@ -127,8 +127,8 @@ public slots:
         engine->rootContext()->setContextProperty(QStringLiteral("theme"), m_theme.get());
         engine->rootContext()->setContextProperty(
             QStringLiteral("fontSettings"), m_fontSettings.get());
-        // The lab runs no engine, so there is nothing to draw a page's fonts
-        // with; the page shows the controls and they reach nothing.
+        // These tests run no engine, so there is nothing to draw a page's
+        // fonts with; the page shows the controls and they reach nothing.
         engine->rootContext()->setContextProperty(
             QStringLiteral("pageFonts"), QVariant::fromValue<QObject *>(nullptr));
         engine->rootContext()->setContextProperty(QStringLiteral("syncLauncher"), &m_syncLauncher);

@@ -14,8 +14,9 @@ class FontSettings;
 // The reader's page fonts, set on every Engine profile QtWebEngine runs: a
 // Space's and the Private windows' shared one alike. A profile's settings are
 // the root every view of it inherits from, so a change reaches every open
-// page of every attached profile at once, and the engine relays out the
-// pages already showing.
+// page of every attached profile at once. A family or a default size has the
+// engine restyle the pages already showing; the minimum size alone does not,
+// and lands on a page's next layout.
 //
 // Qt's Quick profile keeps its font settings behind a private class, and this
 // is the one place Omaweb reaches past that (ADR 0047). A Qt other than the
