@@ -205,7 +205,10 @@ reports the gap and remains experimental rather than imitating behavior it canno
   range by default. Clearing every Space is a separate explicit choice. Deleting a Space removes all
   of its browser-managed data after confirmation.
 - A configurable local search-engine list stores a name, query URL, and optional keyword. Omaweb
-  ships DuckDuckGo as the initial default. Remote suggestions remain off.
+  ships DuckDuckGo (`d`), Google (`g`), Bing (`b`), Brave Search (`br`), Kagi (`k`), Ecosia (`e`)
+  and Startpage (`sp`) configured, with DuckDuckGo as the default. A list saved before they shipped
+  is given the ones it lacks once, and an engine deleted afterwards stays deleted. Remote
+  suggestions remain off.
 - A keyword is matched case-insensitively and stored lowercased, so two keywords that differ only in
   case cannot both be saved. The Omnibar names the engine a typed keyword selects while it is typed:
   the space after the keyword moves the engine into a chip ahead of the terms, Backspace on empty

@@ -328,6 +328,8 @@ public:
     Q_INVOKABLE bool deleteHistoryOrigin(const QUrl &url);
     Q_INVOKABLE bool deleteHistorySince(qint64 since);
     Q_INVOKABLE QVariantList searchEngines() const;
+    // One configured engine by id, or an empty map.
+    Q_INVOKABLE QVariantMap searchEngine(const QString &id) const;
     Q_INVOKABLE QVariantList searchEnginePresets() const;
     Q_INVOKABLE bool addSearchEnginePreset(const QString &id);
     Q_INVOKABLE bool addSearchEngine(
@@ -483,7 +485,6 @@ private:
     QUrl resolveConfiguredInput(const QString &input) const;
     std::optional<QUrl> resolveTypedAddress(const QString &value) const;
     bool loadSearchEngines();
-    QVariantMap searchEngine(const QString &id) const;
     bool saveSearchEngines(const QVariantList &engines, const QString &defaultEngineId);
     void loadDownloadDirectory();
     static QString normalizedOrigin(const QUrl &url);

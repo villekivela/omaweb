@@ -1241,17 +1241,35 @@ void BrowserControllerTest::migratesAndUsesSearchEngineConfiguration()
     BrowserController controller(
         SpaceStorage(root.filePath(QStringLiteral("data")), QStringLiteral("test")), configRoot);
     QVERIFY(controller.ready());
-    QCOMPARE(controller.searchEngines().size(), 1);
+    // The reader's engine stays the default and keeps `d`; the shipped ones
+    // arrive behind it, DuckDuckGo without the keyword that is taken.
+    QCOMPARE(controller.searchEngines().size(), 8);
+    QCOMPARE(controller.searchEngines().first().toMap().value(QStringLiteral("id")).toString(),
+        QStringLiteral("docs"));
+    QCOMPARE(controller.searchEngines().at(1).toMap().value(QStringLiteral("keyword")).toString(),
+        QString {});
     controller.openInput(QStringLiteral("migration guide"), false);
     QCOMPARE(controller.activeUrl().host(), QStringLiteral("docs.example"));
     controller.openInput(QStringLiteral("d shortcuts"), false);
+    QCOMPARE(controller.activeUrl().host(), QStringLiteral("docs.example"));
     QCOMPARE(QUrlQuery(controller.activeUrl()).queryItemValue(QStringLiteral("q")),
         QStringLiteral("shortcuts"));
+    controller.openInput(QStringLiteral("k shortcuts"), false);
+    QCOMPARE(controller.activeUrl().host(), QStringLiteral("kagi.com"));
 
     QFile migrated(legacy.fileName());
     QVERIFY(migrated.open(QIODevice::ReadOnly));
     const auto document = QJsonDocument::fromJson(migrated.readAll());
-    QCOMPARE(document.object().value(QStringLiteral("version")).toInt(), 1);
+    QCOMPARE(document.object().value(QStringLiteral("version")).toInt(), 2);
+    migrated.close();
+
+    // Given once: an engine deleted after the migration stays deleted.
+    QVERIFY(controller.deleteSearchEngine(QStringLiteral("kagi")));
+    BrowserController reopened(
+        SpaceStorage(root.filePath(QStringLiteral("reopened")), QStringLiteral("test")),
+        configRoot);
+    QCOMPARE(reopened.searchEngines().size(), 7);
+    QVERIFY(reopened.searchEngine(QStringLiteral("kagi")).isEmpty());
 
     PrivateSessionFixture privateSession(configRoot);
     auto privateController = privateSession.createController();
@@ -1266,11 +1284,20 @@ void BrowserControllerTest::addsPredefinedSearchEngineProviders()
         SpaceStorage(root.filePath(QStringLiteral("data")), QStringLiteral("test")),
         root.filePath(QStringLiteral("config")));
 
+    // Every preset ships configured, keyword and all, so a fresh browser
+    // answers each keyword out of the box.
     const auto presets = controller.searchEnginePresets();
-    QVERIFY(presets.size() >= 5);
-    QVERIFY(controller.addSearchEnginePreset(QStringLiteral("brave")));
+    QCOMPARE(controller.searchEngines().size(), presets.size());
+    const QStringList keywords {QStringLiteral("d"), QStringLiteral("g"), QStringLiteral("b"),
+        QStringLiteral("br"), QStringLiteral("k"), QStringLiteral("e"), QStringLiteral("sp")};
+    for (int index = 0; index < presets.size(); ++index) {
+        QCOMPARE(presets.at(index).toMap().value(QStringLiteral("keyword")).toString(),
+            keywords.at(index));
+    }
     QVERIFY(!controller.addSearchEnginePreset(QStringLiteral("brave")));
-    QCOMPARE(controller.searchEngines().size(), 2);
+    QVERIFY(controller.deleteSearchEngine(QStringLiteral("brave")));
+    QVERIFY(controller.addSearchEnginePreset(QStringLiteral("brave")));
+    QCOMPARE(controller.searchEngines().size(), presets.size());
 
     controller.openInput(QStringLiteral("br private search"), false);
     QCOMPARE(controller.activeUrl().host(), QStringLiteral("search.brave.com"));
@@ -1284,7 +1311,6 @@ void BrowserControllerTest::namesTheEngineATypedKeywordSelects()
     BrowserController controller(
         SpaceStorage(root.filePath(QStringLiteral("data")), QStringLiteral("test")),
         root.filePath(QStringLiteral("config")));
-    QVERIFY(controller.addSearchEnginePreset(QStringLiteral("google")));
 
     auto intent = controller.searchIntent(QStringLiteral("g rust lifetimes"));
     QCOMPARE(intent.value(QStringLiteral("engineId")).toString(), QStringLiteral("google"));
@@ -1326,7 +1352,8 @@ void BrowserControllerTest::namesTheEngineATypedKeywordSelects()
         QStringLiteral("https://shouty.example/?q={query}"), QStringLiteral("G")));
     QVERIFY(controller.addSearchEngine(QStringLiteral("Docs"),
         QStringLiteral("https://docs.example/?q={query}"), QStringLiteral("DOC")));
-    QCOMPARE(controller.searchEngines().last().toMap().value(QStringLiteral("keyword")).toString(),
+    QCOMPARE(
+        controller.searchEngine(QStringLiteral("docs")).value(QStringLiteral("keyword")).toString(),
         QStringLiteral("doc"));
     QCOMPARE(controller.searchIntent(QStringLiteral("Doc api"))
                  .value(QStringLiteral("engineId"))
@@ -1339,7 +1366,7 @@ void BrowserControllerTest::namesTheEngineATypedKeywordSelects()
             .filePath(QStringLiteral("search-engines.json")));
     QVERIFY(file.open(QIODevice::WriteOnly));
     const auto written = file.write(R"JSON({
-        "version": 1, "default": "duckduckgo",
+        "version": 2, "default": "duckduckgo",
         "engines": [
             {"id": "duckduckgo", "name": "DuckDuckGo",
              "queryUrl": "https://duckduckgo.com/?q={query}", "keyword": ""},
@@ -1355,7 +1382,8 @@ void BrowserControllerTest::namesTheEngineATypedKeywordSelects()
         SpaceStorage(root.filePath(QStringLiteral("reloaded")), QStringLiteral("test")),
         root.filePath(QStringLiteral("config")));
     QCOMPARE(reloaded.searchEngines().size(), 3);
-    QCOMPARE(reloaded.searchEngines().last().toMap().value(QStringLiteral("keyword")).toString(),
+    QCOMPARE(
+        reloaded.searchEngine(QStringLiteral("shouty")).value(QStringLiteral("keyword")).toString(),
         QString {});
     QCOMPARE(reloaded.searchIntent(QStringLiteral("G rust"))
                  .value(QStringLiteral("engineId"))
@@ -1369,9 +1397,6 @@ void BrowserControllerTest::offersTheKeywordsATypedPrefixCouldBecome()
     BrowserController controller(
         SpaceStorage(root.filePath(QStringLiteral("data")), QStringLiteral("test")),
         root.filePath(QStringLiteral("config")));
-    QVERIFY(controller.addSearchEnginePreset(QStringLiteral("bing")));
-    QVERIFY(controller.addSearchEnginePreset(QStringLiteral("brave")));
-    QVERIFY(controller.addSearchEnginePreset(QStringLiteral("google")));
     QVERIFY(controller.setDefaultSearchEngine(QStringLiteral("bing")));
 
     // The default engine is what plain text already searches, so it is not

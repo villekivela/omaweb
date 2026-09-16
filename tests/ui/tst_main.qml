@@ -4214,9 +4214,6 @@ TestCase {
         const homeSpaceId = browser.activeSpaceId;
         const keywordSpaceId = browser.createSpace("Keyword Space");
         verify(browser.switchSpace(keywordSpaceId));
-        verify(browser.addSearchEnginePreset("google"));
-        verify(browser.addSearchEnginePreset("bing"));
-        verify(browser.addSearchEnginePreset("brave"));
         window.openOmnibar(true);
         const panel = findChild(window.contentItem, "commandPanel");
         const input = findChild(window.contentItem, "omnibarInput");
@@ -4290,9 +4287,6 @@ TestCase {
         compare(browser.activeUrl.toString(), "https://search.brave.com/");
         compare(window.omnibarOpen, false);
 
-        verify(browser.deleteSearchEngine("google"));
-        verify(browser.deleteSearchEngine("bing"));
-        verify(browser.deleteSearchEngine("brave"));
         verify(browser.switchSpace(homeSpaceId));
         verify(browser.deleteSpace(keywordSpaceId, "Keyword Space"));
     }
@@ -4402,7 +4396,7 @@ TestCase {
         searchSection.Accessible.pressAction();
         const engines = findChild(window.contentItem, "searchEngineList");
         verify(engines !== null);
-        compare(engines.count, 1);
+        compare(engines.count, 7);
         verify(String(engines.model[0].name).indexOf("DuckDuckGo") >= 0);
         const providerPicker = findChild(window.contentItem, "searchProviderPreset");
         const addProvider = findChild(window.contentItem, "addSearchProviderButton");

@@ -39,6 +39,12 @@ namespace {
     // a rung is recognised by nearness rather than by equality.
     constexpr double zoomTolerance = 0.001;
 
+    // The engines Omaweb ships, keywords and all. Version 2 of the file is
+    // the one that has them: a version-1 file was seeded with DuckDuckGo
+    // alone, and is given the rest once.
+    constexpr int searchEnginesVersion = 2;
+    const auto defaultSearchEngineId = QStringLiteral("duckduckgo");
+
     QVariantList predefinedSearchEngines()
     {
         return {
@@ -2091,8 +2097,8 @@ bool BrowserController::saveSearchEngines(
         return false;
     }
     file.write(QJsonDocument(
-        QJsonObject {{QStringLiteral("version"), 1}, {QStringLiteral("default"), defaultEngineId},
-            {QStringLiteral("engines"), jsonEngines}})
+        QJsonObject {{QStringLiteral("version"), searchEnginesVersion},
+            {QStringLiteral("default"), defaultEngineId}, {QStringLiteral("engines"), jsonEngines}})
             .toJson(QJsonDocument::Indented));
     if (!file.commit()) {
         return false;
@@ -2645,26 +2651,25 @@ void BrowserController::setActiveTab(const QString &tabId)
 
 bool BrowserController::loadSearchEngines()
 {
-    auto duckDuckGo = predefinedSearchEngines().first().toMap();
-    duckDuckGo.insert(QStringLiteral("keyword"), QString {});
+    const auto shipped = predefinedSearchEngines();
     const auto path = QDir(m_configRoot).filePath(QStringLiteral("search-engines.json"));
     if (m_configRoot.isEmpty()) {
-        m_searchEngines = {duckDuckGo};
-        m_defaultSearchEngineId = QStringLiteral("duckduckgo");
+        m_searchEngines = shipped;
+        m_defaultSearchEngineId = defaultSearchEngineId;
         return true;
     }
     QFile file(path);
     if (!file.exists()) {
         if (m_privateBrowsing) {
-            m_searchEngines = {duckDuckGo};
-            m_defaultSearchEngineId = QStringLiteral("duckduckgo");
+            m_searchEngines = shipped;
+            m_defaultSearchEngineId = defaultSearchEngineId;
             return true;
         }
-        return saveSearchEngines({duckDuckGo}, QStringLiteral("duckduckgo"));
+        return saveSearchEngines(shipped, defaultSearchEngineId);
     }
     if (!file.open(QIODevice::ReadOnly)) {
-        m_searchEngines = {duckDuckGo};
-        m_defaultSearchEngineId = QStringLiteral("duckduckgo");
+        m_searchEngines = shipped;
+        m_defaultSearchEngineId = defaultSearchEngineId;
         return false;
     }
     QJsonParseError error;
@@ -2699,13 +2704,32 @@ bool BrowserController::loadSearchEngines()
     }
     const auto defaultId = object.value(QStringLiteral("default")).toString();
     if (!valid || engines.isEmpty() || !ids.contains(defaultId)) {
-        m_searchEngines = {duckDuckGo};
-        m_defaultSearchEngineId = QStringLiteral("duckduckgo");
+        m_searchEngines = shipped;
+        m_defaultSearchEngineId = defaultSearchEngineId;
         return false;
+    }
+    const auto version = object.value(QStringLiteral("version")).toInt();
+    if (version < searchEnginesVersion) {
+        // The shipped engines the file does not have yet, once: a reader who
+        // deletes one afterwards is not given it again. An engine of the
+        // reader's own keeps a keyword a shipped one would have used.
+        for (const auto &value : shipped) {
+            auto engine = value.toMap();
+            if (ids.contains(engine.value(QStringLiteral("id")).toString())) {
+                continue;
+            }
+            const auto keyword = engine.value(QStringLiteral("keyword")).toString();
+            if (keywords.contains(keyword)) {
+                engine.insert(QStringLiteral("keyword"), QString {});
+            } else {
+                keywords.insert(keyword);
+            }
+            engines.append(engine);
+        }
     }
     m_searchEngines = engines;
     m_defaultSearchEngineId = defaultId;
-    if (object.value(QStringLiteral("version")).toInt() != 1) {
+    if (version != searchEnginesVersion) {
         return saveSearchEngines(engines, defaultId);
     }
     return true;
