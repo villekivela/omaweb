@@ -59,6 +59,7 @@ Rectangle {
     property var sharedProfile: null
     property var contentBlocker: null
     property var engineContentBlocker: null
+    property var engineCookiePolicy: null
     property var permissionController: null
     readonly property var browserProfile: root.sharedProfile ? root.sharedProfile : root
     property string spaceId: ""
