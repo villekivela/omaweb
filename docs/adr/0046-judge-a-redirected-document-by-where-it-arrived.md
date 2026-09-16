@@ -46,7 +46,8 @@ What was rejected:
 - **Comparing sites with a public suffix list of Omaweb's own.** The content blocker vendors one
   inside its matcher, behind an interface that answers about requests and not about hosts, and a
   second copy is a second thing to keep current for a rule that the engine's own fix will retire.
-- **Waiting for the engine.** The fault is Qt's to fix, and a fixed engine leaves the entries idle:
-  a load that arrives where it set out from records nothing, and a correctly named first party never
-  matches a set-out address. Nothing here has to be removed when the engine is fixed, and a reader
-  on an engine that still carries the fault keeps the correction.
+- **Waiting for the engine.** The fault is Qt's to fix, reported as
+  [QTBUG-150342](https://qt-project.atlassian.net/browse/QTBUG-150342), and a fixed engine leaves
+  the entries idle: a load that arrives where it set out from records nothing, and a correctly named
+  first party never matches a set-out address. Nothing here has to be removed when the engine is
+  fixed, and a reader on an engine that still carries the fault keeps the correction.
