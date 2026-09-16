@@ -158,7 +158,7 @@ private:
     QString listPath(const QString &id) const;
     void load();
     void seedDefaultSubscriptions();
-    bool subscribeKnownList(const KnownList &list);
+    bool appendKnownList(const KnownList &list);
     void countRefusal(const QUrl &sourceUrl, const QString &spaceId) const;
     void noteRefusal(const RefusalKey &key);
     void flushRefusals();

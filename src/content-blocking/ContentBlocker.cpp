@@ -539,7 +539,7 @@ QString ContentBlocker::listPath(const QString &id) const
 // reader typed in gets, under the id the table gives it rather than a fresh
 // one: an install that kept the list, or one migrating from before the seeded
 // marker, must not end up subscribed to it twice.
-bool ContentBlocker::subscribeKnownList(const KnownList &list)
+bool ContentBlocker::appendKnownList(const KnownList &list)
 {
     if (findSubscription(list.id)) {
         return false;
@@ -562,7 +562,7 @@ void ContentBlocker::seedDefaultSubscriptions()
 {
     for (const auto &list : knownListTable) {
         if (list.seeded) {
-            subscribeKnownList(list);
+            appendKnownList(list);
         }
     }
     m_seeded = true;
@@ -574,7 +574,7 @@ void ContentBlocker::seedDefaultSubscriptions()
 void ContentBlocker::subscribeKnownList(const QString &id)
 {
     const auto list = std::ranges::find(knownListTable, id, &KnownList::id);
-    if (list == knownListTable.end() || !subscribeKnownList(*list)) {
+    if (list == knownListTable.end() || !appendKnownList(*list)) {
         return;
     }
     save();
