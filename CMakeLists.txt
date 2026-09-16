@@ -161,6 +161,8 @@ add_library(omaweb-core STATIC
     src/core/DownloadPolicy.h
     src/core/Downloads.cpp
     src/core/Downloads.h
+    src/core/GlobalPrivacyControl.cpp
+    src/core/GlobalPrivacyControl.h
     src/core/HardwareVideoDecode.cpp
     src/core/HardwareVideoDecode.h
     src/core/HistoryQuery.cpp
@@ -920,6 +922,13 @@ if(BUILD_TESTING)
     target_link_libraries(omaweb-release-check-tests PRIVATE omaweb-core Qt6::Test)
     omaweb_strict_target(omaweb-release-check-tests)
     add_test(NAME omaweb-release-check COMMAND omaweb-release-check-tests)
+
+    qt_add_executable(omaweb-global-privacy-control-tests
+        tests/core/tst_globalprivacycontrol.cpp
+    )
+    target_link_libraries(omaweb-global-privacy-control-tests PRIVATE omaweb-core Qt6::Test)
+    omaweb_strict_target(omaweb-global-privacy-control-tests)
+    add_test(NAME omaweb-global-privacy-control COMMAND omaweb-global-privacy-control-tests)
 
     qt_add_executable(omaweb-content-blocker-tests
         tests/content-blocking/tst_contentmatcher.cpp

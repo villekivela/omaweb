@@ -6,6 +6,7 @@
 #include "DevelopmentLaunch.h"
 #include "ExternalProtocolHandler.h"
 #include "FaviconTint.h"
+#include "GlobalPrivacyControl.h"
 #include "HardwareVideoDecode.h"
 #include "InputMethod.h"
 #include "KeyboardNavigation.h"
@@ -234,7 +235,10 @@ int main(int argc, char *argv[])
     omaweb::ContentBlocker contentBlocker(dataRoot());
     omaweb::KeyboardNavigation keyboardNavigation(
         keybindingsPath(), QStringLiteral(OMAWEB_KEYBOARD_NAVIGATION_SCRIPT_PATH));
-    omaweb::QtContentBlocker engineContentBlocker(&contentBlocker);
+    // One answer for the whole browser: every Space's profile and the Private
+    // windows' shared one tell sites the same thing about the reader.
+    omaweb::GlobalPrivacyControl globalPrivacyControl(configRoot());
+    omaweb::QtContentBlocker engineContentBlocker(&contentBlocker, &globalPrivacyControl);
     // One filter for the process, attached to every Space's profile as it is
     // built. Third-party cookies are blocked by it; whether an origin has been
     // given an allowance is the core's answer, read per Space.
@@ -308,6 +312,8 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty(QStringLiteral("windowManager"), &windowManager);
     engine.rootContext()->setContextProperty(QStringLiteral("syncLauncher"), &syncLauncher);
     engine.rootContext()->setContextProperty(QStringLiteral("releaseWatch"), &releaseWatch);
+    engine.rootContext()->setContextProperty(
+        QStringLiteral("globalPrivacyControl"), &globalPrivacyControl);
     engine.rootContext()->setContextProperty(
         QStringLiteral("engineViewSource"), QUrl(QStringLiteral(OMAWEB_ENGINE_VIEW_URL)));
     engine.rootContext()->setContextProperty(

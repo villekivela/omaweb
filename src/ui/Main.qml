@@ -159,6 +159,9 @@ ApplicationWindow {
     // holds: a binding written `releaseWatch: releaseWatch` inside a component
     // that has a property of that name binds the property to itself.
     readonly property var releases: releaseWatch
+    // The browser's Global Privacy Control, named apart from its context
+    // property for the same reason.
+    readonly property var privacyControl: globalPrivacyControl
     // Which tabs have the find bar showing, by tab id. Find belongs to a tab,
     // so opening it on one page does not open it over the next — and a tab that
     // has been closed takes its entry with it rather than leaving the map to
@@ -2778,6 +2781,7 @@ ApplicationWindow {
                     anchors.fill: parent
                     z: 45
                     releaseWatch: window.releases
+                    globalPrivacyControl: window.privacyControl
                     SheetLift {
                         id: settingsLift
                         shown: settingsSurface.open

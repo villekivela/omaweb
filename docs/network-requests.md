@@ -21,6 +21,11 @@ The day is counted from the last answer rather than the last attempt. Turning of
 releases" in Settings stops the request. Omaweb never downloads or installs a release: pacman owns
 `/usr`.
 
+Every request an Engine profile makes carries `Sec-GPC: 1`, the Global Privacy Control header, while
+the setting is on; it is on by default and the privacy section of Settings turns it off. The header
+adds no request of its own and goes on requests from every Space and Private window alike. The
+subscription checks and the release check above run off the engine and do not carry it.
+
 The browser sends network requests only after an explicit user or page action:
 
 - Committing an address in the Omnibar loads that address.

@@ -92,6 +92,7 @@ Rectangle {
     // What Omaweb knows about its own age, so About can say whether this build
     // is current and offer the reader the switch that stops it asking.
     property var releaseWatch: null
+    property var globalPrivacyControl: null
     property bool useFavicons: true
     property bool tintFavicons: false
     property bool floatingControls: true
@@ -1271,6 +1272,27 @@ Rectangle {
                             destructive: true
                             label: "Clear browsing data…"
                             onClicked: root.clearDataOpen = true
+                        }
+                    }
+
+                    // Browser-wide rather than per Space: a Space separates
+                    // identities and says nothing about what the reader wants
+                    // said about them, so there is one switch and a Private
+                    // window is bound by it too.
+                    SettingToggle {
+                        objectName: "globalPrivacyControl"
+                        visible: !!root.globalPrivacyControl
+                        width: pane.width
+                        colors: root.colors
+                        title: "Global Privacy Control"
+                        note: "Tells every site not to sell or share your data, with the Sec-GPC "
+                              + "header on every request and navigator.globalPrivacyControl on "
+                              + "every page. Sites bound by the CCPA and similar laws must honour it."
+                        accessibleName: "Global Privacy Control"
+                        checked: !!root.globalPrivacyControl && root.globalPrivacyControl.enabled
+                        onClicked: {
+                            if (root.globalPrivacyControl)
+                                root.globalPrivacyControl.enabled = !checked;
                         }
                     }
 
