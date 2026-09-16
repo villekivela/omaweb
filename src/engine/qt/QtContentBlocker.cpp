@@ -260,6 +260,7 @@ bool QtContentBlocker::attachToProfile(QObject *profileObject, const QString &sp
         if (!attached) {
             m_profiles.emplace_back(profileObject);
             installGlobalPrivacyControlScript(profileObject, sendsGlobalPrivacyControl());
+            emit profileAttached(profileObject);
         }
         return true;
     };

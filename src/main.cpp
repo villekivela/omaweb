@@ -20,6 +20,7 @@
 #include "QtContentBlocker.h"
 #include "QtCookiePolicy.h"
 #include "QtHeldDownloads.h"
+#include "QtPageFonts.h"
 #include "Quickshell.h"
 #include "RunningBrowser.h"
 #include "RuntimeSecurity.h"
@@ -257,6 +258,11 @@ int main(int argc, char *argv[])
     // fonts over the engine's. One answer for every window, Private ones
     // included, which is why it lives beside the theme and not in a store.
     omaweb::FontSettings fontSettings(configRoot(), QFontDatabase::families());
+    // A page's fonts ride every profile Content blocking attaches to, which
+    // is every profile there is.
+    omaweb::QtPageFonts pageFonts(&fontSettings);
+    QObject::connect(&engineContentBlocker, &omaweb::QtContentBlocker::profileAttached, &pageFonts,
+        &omaweb::QtPageFonts::attachToProfile);
     // The plugin an input method needs is the desktop's to install, and a
     // desktop that names one it has not installed leaves Qt with no input
     // context and Omaweb with no text-input protocol bound. Nothing about that
@@ -316,6 +322,7 @@ int main(int argc, char *argv[])
         QStringLiteral("engineHeldDownloads"), &engineHeldDownloads);
     engine.rootContext()->setContextProperty(QStringLiteral("theme"), &theme);
     engine.rootContext()->setContextProperty(QStringLiteral("fontSettings"), &fontSettings);
+    engine.rootContext()->setContextProperty(QStringLiteral("pageFonts"), &pageFonts);
     engine.rootContext()->setContextProperty(QStringLiteral("windowManager"), &windowManager);
     engine.rootContext()->setContextProperty(QStringLiteral("syncLauncher"), &syncLauncher);
     engine.rootContext()->setContextProperty(QStringLiteral("releaseWatch"), &releaseWatch);

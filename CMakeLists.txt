@@ -85,7 +85,9 @@ if(UNIX AND NOT APPLE)
     list(APPEND omaweb_qt_components DBus GuiPrivate)
 endif()
 if(OMAWEB_BUILD_BROWSER)
-    list(APPEND omaweb_qt_components WebEngineCore WebEngineQuick)
+    # `WebEngineQuickPrivate` is one member in `QtPageFonts.cpp`, which says
+    # why it is the only route to the font settings a Quick profile carries.
+    list(APPEND omaweb_qt_components CorePrivate WebEngineCore WebEngineQuick WebEngineQuickPrivate)
 endif()
 if(BUILD_TESTING)
     # `GuiPrivate` for the UI tests' frame-time probe, which reads a frame's
@@ -361,14 +363,24 @@ if(OMAWEB_BUILD_BROWSER)
         src/engine/qt/QtCookiePolicy.h
         src/engine/qt/QtHeldDownloads.cpp
         src/engine/qt/QtHeldDownloads.h
+        src/engine/qt/QtPageFonts.cpp
+        src/engine/qt/QtPageFonts.h
     )
     target_sources(omaweb-engine-qt PUBLIC src/engine/qt/EngineView.qml)
     target_include_directories(omaweb-engine-qt PUBLIC src/engine/qt)
+    # `Qt6::WebEngineQuickPrivate` is here for one member, and `QtPageFonts.cpp`
+    # says why: the font settings a Quick profile carries are Qt's to reach and
+    # Qt does not offer them publicly. `Qt6::CorePrivate` is what its header
+    # includes. The same terms as `Qt6::GuiPrivate` below apply, and the call
+    # checks the running Qt is the compiled one.
     target_link_libraries(omaweb-engine-qt PUBLIC
         omaweb-core
         omaweb-engine-api
         Qt6::WebEngineCore
         Qt6::WebEngineQuick
+        PRIVATE
+        Qt6::CorePrivate
+        Qt6::WebEngineQuickPrivate
     )
     omaweb_strict_target(omaweb-engine-qt)
 endif()

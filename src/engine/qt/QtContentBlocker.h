@@ -52,6 +52,13 @@ public:
     // thread Chromium runs the interceptor on, hence the atomic.
     bool sendsGlobalPrivacyControl() const;
 
+signals:
+    // A profile attached for the first time. The interceptor is the one
+    // thing every profile is handed to, so this is where the rest of what
+    // rides a profile, a page's fonts for one, learns of it without a second
+    // attachment path through the QML.
+    void profileAttached(QObject *profile);
+
 private:
     void applyGlobalPrivacyControl();
     void installGlobalPrivacyControlScript(QObject *profile, bool wanted) const;
