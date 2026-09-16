@@ -39,6 +39,12 @@ namespace {
     // a rung is recognised by nearness rather than by equality.
     constexpr double zoomTolerance = 0.001;
 
+    // The engines Omaweb ships, keywords and all. Version 2 of the file is
+    // the one that has them: a version-1 file was seeded with DuckDuckGo
+    // alone, and is given the rest once.
+    constexpr int searchEnginesVersion = 2;
+    const auto defaultSearchEngineId = QStringLiteral("duckduckgo");
+
     QVariantList predefinedSearchEngines()
     {
         return {
@@ -1959,6 +1965,16 @@ bool BrowserController::deleteHistorySince(qint64 since)
     return true;
 }
 
+QVariantMap BrowserController::searchEngine(const QString &id) const
+{
+    for (const auto &candidate : m_searchEngines) {
+        if (candidate.toMap().value(QStringLiteral("id")).toString() == id) {
+            return candidate.toMap();
+        }
+    }
+    return {};
+}
+
 QVariantList BrowserController::searchEngines() const
 {
     QVariantList engines;
@@ -1975,10 +1991,8 @@ QVariantList BrowserController::searchEnginePresets() const { return predefinedS
 
 bool BrowserController::addSearchEnginePreset(const QString &id)
 {
-    for (const auto &configured : m_searchEngines) {
-        if (configured.toMap().value(QStringLiteral("id")).toString() == id) {
-            return false;
-        }
+    if (!searchEngine(id).isEmpty()) {
+        return false;
     }
     for (const auto &preset : predefinedSearchEngines()) {
         if (preset.toMap().value(QStringLiteral("id")).toString() != id) {
@@ -2049,6 +2063,7 @@ bool BrowserController::saveSearchEngines(
         return false;
     }
     QJsonArray jsonEngines;
+    QVariantList normalized;
     QSet<QString> ids;
     QSet<QString> keywords;
     bool foundDefault = false;
@@ -2057,7 +2072,7 @@ bool BrowserController::saveSearchEngines(
         const auto id = engine.value(QStringLiteral("id")).toString().trimmed();
         const auto name = engine.value(QStringLiteral("name")).toString().trimmed();
         const auto queryUrl = engine.value(QStringLiteral("queryUrl")).toString().trimmed();
-        const auto keyword = engine.value(QStringLiteral("keyword")).toString().trimmed();
+        const auto keyword = engine.value(QStringLiteral("keyword")).toString().trimmed().toLower();
         if (id.isEmpty() || name.isEmpty() || !queryUrl.contains(QStringLiteral("{query}"))
             || !QUrl(queryUrl).isValid() || ids.contains(id)
             || (!keyword.isEmpty() && keywords.contains(keyword))) {
@@ -2068,8 +2083,11 @@ bool BrowserController::saveSearchEngines(
             keywords.insert(keyword);
         }
         foundDefault = foundDefault || id == defaultEngineId;
-        jsonEngines.append(QJsonObject {{QStringLiteral("id"), id}, {QStringLiteral("name"), name},
-            {QStringLiteral("queryUrl"), queryUrl}, {QStringLiteral("keyword"), keyword}});
+        const QJsonObject normalizedEngine {{QStringLiteral("id"), id},
+            {QStringLiteral("name"), name}, {QStringLiteral("queryUrl"), queryUrl},
+            {QStringLiteral("keyword"), keyword}};
+        jsonEngines.append(normalizedEngine);
+        normalized.append(normalizedEngine.toVariantMap());
     }
     if (!foundDefault || !QDir().mkpath(m_configRoot)) {
         return false;
@@ -2079,13 +2097,14 @@ bool BrowserController::saveSearchEngines(
         return false;
     }
     file.write(QJsonDocument(
-        QJsonObject {{QStringLiteral("version"), 1}, {QStringLiteral("default"), defaultEngineId},
-            {QStringLiteral("engines"), jsonEngines}})
+        QJsonObject {{QStringLiteral("version"), searchEnginesVersion},
+            {QStringLiteral("default"), defaultEngineId}, {QStringLiteral("engines"), jsonEngines}})
             .toJson(QJsonDocument::Indented));
     if (!file.commit()) {
         return false;
     }
-    m_searchEngines = engines;
+    // What is kept is what was written: trimmed, and keywords lowercased.
+    m_searchEngines = normalized;
     m_defaultSearchEngineId = defaultEngineId;
     return true;
 }
@@ -2632,26 +2651,25 @@ void BrowserController::setActiveTab(const QString &tabId)
 
 bool BrowserController::loadSearchEngines()
 {
-    auto duckDuckGo = predefinedSearchEngines().first().toMap();
-    duckDuckGo.insert(QStringLiteral("keyword"), QString {});
+    const auto shipped = predefinedSearchEngines();
     const auto path = QDir(m_configRoot).filePath(QStringLiteral("search-engines.json"));
     if (m_configRoot.isEmpty()) {
-        m_searchEngines = {duckDuckGo};
-        m_defaultSearchEngineId = QStringLiteral("duckduckgo");
+        m_searchEngines = shipped;
+        m_defaultSearchEngineId = defaultSearchEngineId;
         return true;
     }
     QFile file(path);
     if (!file.exists()) {
         if (m_privateBrowsing) {
-            m_searchEngines = {duckDuckGo};
-            m_defaultSearchEngineId = QStringLiteral("duckduckgo");
+            m_searchEngines = shipped;
+            m_defaultSearchEngineId = defaultSearchEngineId;
             return true;
         }
-        return saveSearchEngines({duckDuckGo}, QStringLiteral("duckduckgo"));
+        return saveSearchEngines(shipped, defaultSearchEngineId);
     }
     if (!file.open(QIODevice::ReadOnly)) {
-        m_searchEngines = {duckDuckGo};
-        m_defaultSearchEngineId = QStringLiteral("duckduckgo");
+        m_searchEngines = shipped;
+        m_defaultSearchEngineId = defaultSearchEngineId;
         return false;
     }
     QJsonParseError error;
@@ -2666,25 +2684,52 @@ bool BrowserController::loadSearchEngines()
         const auto id = engine.value(QStringLiteral("id")).toString().trimmed();
         const auto name = engine.value(QStringLiteral("name")).toString().trimmed();
         const auto queryUrl = engine.value(QStringLiteral("queryUrl")).toString().trimmed();
-        const auto keyword = engine.value(QStringLiteral("keyword")).toString().trimmed();
+        auto keyword = engine.value(QStringLiteral("keyword")).toString().trimmed().toLower();
         valid = valid && !id.isEmpty() && !name.isEmpty()
             && queryUrl.contains(QStringLiteral("{query}")) && QUrl(queryUrl).isValid()
-            && !ids.contains(id) && (keyword.isEmpty() || !keywords.contains(keyword));
+            && !ids.contains(id);
         ids.insert(id);
+        // A file written before keywords were one namespace whatever their
+        // case may hold `g` and `G`. The first keeps its keyword; the second
+        // loses it, rather than the reader losing every engine.
+        if (keywords.contains(keyword)) {
+            keyword.clear();
+        }
         if (!keyword.isEmpty()) {
             keywords.insert(keyword);
         }
-        engines.append(engine);
+        auto lowered = engine;
+        lowered.insert(QStringLiteral("keyword"), keyword);
+        engines.append(lowered);
     }
     const auto defaultId = object.value(QStringLiteral("default")).toString();
     if (!valid || engines.isEmpty() || !ids.contains(defaultId)) {
-        m_searchEngines = {duckDuckGo};
-        m_defaultSearchEngineId = QStringLiteral("duckduckgo");
+        m_searchEngines = shipped;
+        m_defaultSearchEngineId = defaultSearchEngineId;
         return false;
+    }
+    const auto version = object.value(QStringLiteral("version")).toInt();
+    if (version < searchEnginesVersion) {
+        // The shipped engines the file does not have yet, once: a reader who
+        // deletes one afterwards is not given it again. An engine of the
+        // reader's own keeps a keyword a shipped one would have used.
+        for (const auto &value : shipped) {
+            auto engine = value.toMap();
+            if (ids.contains(engine.value(QStringLiteral("id")).toString())) {
+                continue;
+            }
+            const auto keyword = engine.value(QStringLiteral("keyword")).toString();
+            if (keywords.contains(keyword)) {
+                engine.insert(QStringLiteral("keyword"), QString {});
+            } else {
+                keywords.insert(keyword);
+            }
+            engines.append(engine);
+        }
     }
     m_searchEngines = engines;
     m_defaultSearchEngineId = defaultId;
-    if (object.value(QStringLiteral("version")).toInt() != 1) {
+    if (version != searchEnginesVersion) {
         return saveSearchEngines(engines, defaultId);
     }
     return true;
@@ -2696,7 +2741,81 @@ QUrl BrowserController::resolveConfiguredInput(const QString &input) const
     if (value.isEmpty()) {
         return {};
     }
+    if (const auto address = resolveTypedAddress(value)) {
+        return *address;
+    }
+    const auto intent = searchIntent(value);
+    if (intent.isEmpty()) {
+        return resolveInput(value);
+    }
+    const auto selected = searchEngine(intent.value(QStringLiteral("engineId")).toString());
+    const auto terms = intent.value(QStringLiteral("terms")).toString();
+    auto queryUrl = selected.value(QStringLiteral("queryUrl")).toString().toUtf8();
+    if (terms.isEmpty()) {
+        // The keyword alone is the engine itself: its origin, not a search for
+        // nothing.
+        auto origin = QUrl::fromEncoded(queryUrl).adjusted(
+            QUrl::RemovePath | QUrl::RemoveQuery | QUrl::RemoveFragment);
+        origin.setPath(QStringLiteral("/"));
+        return origin;
+    }
+    queryUrl.replace("{query}", QUrl::toPercentEncoding(terms));
+    return QUrl::fromEncoded(queryUrl);
+}
 
+QVariantMap BrowserController::searchIntent(const QString &text) const
+{
+    const auto value = text.trimmed();
+    if (value.isEmpty() || resolveTypedAddress(value)) {
+        return {};
+    }
+    auto terms = value;
+    QVariantMap selected;
+    const auto firstSpace = value.indexOf(' ');
+    const auto keyword = (firstSpace > 0 ? value.left(firstSpace) : value).toLower();
+    for (const auto &candidate : m_searchEngines) {
+        if (candidate.toMap().value(QStringLiteral("keyword")).toString() == keyword) {
+            selected = candidate.toMap();
+            terms = firstSpace > 0 ? value.mid(firstSpace + 1).trimmed() : QString {};
+            break;
+        }
+    }
+    const auto matched = selected.isEmpty() ? QString {} : keyword;
+    if (selected.isEmpty()) {
+        selected = searchEngine(m_defaultSearchEngineId);
+    }
+    if (selected.isEmpty()) {
+        return {};
+    }
+    return {{QStringLiteral("engineId"), selected.value(QStringLiteral("id"))},
+        {QStringLiteral("engineName"), selected.value(QStringLiteral("name"))},
+        {QStringLiteral("terms"), terms}, {QStringLiteral("keyword"), matched}};
+}
+
+QVariantList BrowserController::searchKeywordOffers(const QString &text) const
+{
+    const auto prefix = text.toLower();
+    if (prefix.isEmpty() || prefix.contains(' ')) {
+        return {};
+    }
+    QVariantList offers;
+    for (const auto &candidate : m_searchEngines) {
+        const auto engine = candidate.toMap();
+        const auto keyword = engine.value(QStringLiteral("keyword")).toString();
+        if (engine.value(QStringLiteral("id")).toString() == m_defaultSearchEngineId
+            || !keyword.startsWith(prefix)) {
+            continue;
+        }
+        offers.append(QVariantMap {{QStringLiteral("engineId"), engine.value(QStringLiteral("id"))},
+            {QStringLiteral("engineName"), engine.value(QStringLiteral("name"))},
+            {QStringLiteral("keyword"), keyword}});
+    }
+    return offers;
+}
+
+// The address `value` names, or nothing when it is a search.
+std::optional<QUrl> BrowserController::resolveTypedAddress(const QString &value) const
+{
     static const QRegularExpression explicitScheme(QStringLiteral("^[A-Za-z][A-Za-z0-9+.-]*:"));
     static const QRegularExpression hostWithPort(QStringLiteral("^[^/\\s:]+:[0-9]+(?:/|$)"));
     if (explicitScheme.match(value).hasMatch() && !hostWithPort.match(value).hasMatch()) {
@@ -2730,34 +2849,7 @@ QUrl BrowserController::resolveConfiguredInput(const QString &input) const
             (insecureLocal ? QStringLiteral("http://") : QStringLiteral("https://")) + address);
     }
 
-    auto terms = value;
-    QVariantMap selected;
-    const auto firstSpace = value.indexOf(' ');
-    if (firstSpace > 0) {
-        const auto keyword = value.left(firstSpace);
-        for (const auto &candidate : m_searchEngines) {
-            if (candidate.toMap().value(QStringLiteral("keyword")).toString() == keyword) {
-                selected = candidate.toMap();
-                terms = value.mid(firstSpace + 1).trimmed();
-                break;
-            }
-        }
-    }
-    if (selected.isEmpty()) {
-        for (const auto &candidate : m_searchEngines) {
-            if (candidate.toMap().value(QStringLiteral("id")).toString()
-                == m_defaultSearchEngineId) {
-                selected = candidate.toMap();
-                break;
-            }
-        }
-    }
-    if (selected.isEmpty()) {
-        return resolveInput(value);
-    }
-    auto queryUrl = selected.value(QStringLiteral("queryUrl")).toString().toUtf8();
-    queryUrl.replace("{query}", QUrl::toPercentEncoding(terms));
-    return QUrl::fromEncoded(queryUrl);
+    return std::nullopt;
 }
 
 QUrl BrowserController::resolveInput(const QString &input)

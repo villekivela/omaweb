@@ -328,12 +328,24 @@ public:
     Q_INVOKABLE bool deleteHistoryOrigin(const QUrl &url);
     Q_INVOKABLE bool deleteHistorySince(qint64 since);
     Q_INVOKABLE QVariantList searchEngines() const;
+    // One configured engine by id, or an empty map.
+    Q_INVOKABLE QVariantMap searchEngine(const QString &id) const;
     Q_INVOKABLE QVariantList searchEnginePresets() const;
     Q_INVOKABLE bool addSearchEnginePreset(const QString &id);
     Q_INVOKABLE bool addSearchEngine(
         const QString &name, const QString &queryUrl, const QString &keyword = {});
     Q_INVOKABLE bool deleteSearchEngine(const QString &id);
     Q_INVOKABLE bool setDefaultSearchEngine(const QString &id);
+    // What committing `text` would search: `engineId`, `engineName`, the
+    // `terms`, and the lowercased `keyword` that chose the engine, empty when
+    // the default engine answers for text with no keyword, so a mistyped
+    // keyword reads as the search it is. Empty when the text is an address or
+    // blank. Terms that are empty mean the engine's front page.
+    Q_INVOKABLE QVariantMap searchIntent(const QString &text) const;
+    // The engines whose keyword begins with `text`, each as `engineId`,
+    // `engineName` and `keyword`. Nothing for blank text, text with a space,
+    // or the default engine, which plain text already searches.
+    Q_INVOKABLE QVariantList searchKeywordOffers(const QString &text) const;
     Q_INVOKABLE bool clearBrowsingData(const QStringList &dataTypes, qint64 since,
         bool everySpace = false, const QString &confirmation = {});
     Q_INVOKABLE int permissionDecision(const QUrl &url, const QString &permission);
@@ -471,6 +483,7 @@ private:
     void setDeveloperToolsTab(const QString &tabId, const QString &spaceId);
     static QUrl resolveInput(const QString &input);
     QUrl resolveConfiguredInput(const QString &input) const;
+    std::optional<QUrl> resolveTypedAddress(const QString &value) const;
     bool loadSearchEngines();
     bool saveSearchEngines(const QVariantList &engines, const QString &defaultEngineId);
     void loadDownloadDirectory();

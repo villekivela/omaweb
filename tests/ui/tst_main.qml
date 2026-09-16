@@ -4135,7 +4135,7 @@ TestCase {
         browser.recordVisit("https://personal.example/docs", "Personal docs");
         window.openOmnibar(true);
         const input = findChild(window.contentItem, "omnibarInput");
-        const suggestions = findChild(window.contentItem, "historySuggestionList");
+        const suggestions = findChild(window.contentItem, "omnibarRowList");
         verify(input !== null);
         verify(suggestions !== null);
         input.text = "docs";
@@ -4173,7 +4173,7 @@ TestCase {
         browser.setHistorySearchDelayForTests(40);
         window.openOmnibar(true);
         const input = findChild(window.contentItem, "omnibarInput");
-        const suggestions = findChild(window.contentItem, "historySuggestionList");
+        const suggestions = findChild(window.contentItem, "omnibarRowList");
         verify(input !== null);
         verify(suggestions !== null);
 
@@ -4205,6 +4205,90 @@ TestCase {
         browser.setHistorySearchDelayForTests(0);
         verify(browser.deleteHistoryOrigin("https://alpha-omni.example/one"));
         verify(browser.deleteHistoryOrigin("https://omega-omni.example/two"));
+    }
+
+    // The engine a keyword selects is named while it is typed, so where the
+    // search goes is read off the panel rather than off the page that loads.
+    function test_omnibarNamesTheEngineAKeywordSelects() {
+        // A Space with no history, so the rows are the keywords alone.
+        const homeSpaceId = browser.activeSpaceId;
+        const keywordSpaceId = browser.createSpace("Keyword Space");
+        verify(browser.switchSpace(keywordSpaceId));
+        window.openOmnibar(true);
+        const panel = findChild(window.contentItem, "commandPanel");
+        const input = findChild(window.contentItem, "omnibarInput");
+        const chip = findChild(window.contentItem, "omnibarEngineChip");
+        const destination = findChild(window.contentItem, "omnibarDestination");
+        const rows = findChild(window.contentItem, "omnibarRowList");
+        verify(panel !== null);
+        verify(input !== null);
+        verify(chip !== null);
+        verify(destination !== null);
+        verify(rows !== null);
+        compare(chip.visible, false);
+        compare(destination.visible, false);
+
+        // The space after the keyword is what enters the mode.
+        input.text = "g";
+        compare(chip.visible, false);
+        compare(destination.text, "Open Google");
+        input.text = "g ";
+        compare(chip.visible, true);
+        compare(chip.Accessible.name, "Google");
+        compare(input.text, "");
+        compare(destination.text, "Open Google");
+        input.text = "rust lifetimes";
+        compare(destination.text, "Search Google for rust lifetimes");
+        compare(input.Accessible.name, "Search Google");
+        compare(input.Accessible.description, "Search Google for rust lifetimes");
+        compare(panel.selected, -1);
+        panel.accept();
+        compare(browser.activeUrl.toString(), "https://www.google.com/search?q=rust lifetimes");
+        compare(window.omnibarOpen, false);
+
+        // Backspace on empty terms is the key that undoes entering the mode.
+        window.openOmnibar(true);
+        input.text = "g ";
+        compare(chip.visible, true);
+        input.text = "";
+        input.forceActiveFocus();
+        keyClick(Qt.Key_Backspace);
+        compare(chip.visible, false);
+        compare(input.text, "g");
+
+        // A mistyped keyword is visibly a default-engine search.
+        input.text = "gg rust";
+        compare(chip.visible, false);
+        compare(destination.text, "Search DuckDuckGo for gg rust");
+        // An address is not a search, so nothing is said.
+        input.text = "example.com";
+        compare(destination.visible, false);
+
+        // A prefix offers the keywords it could become, beneath the history.
+        input.text = "b";
+        tryCompare(rows, "count", 2);
+        tryVerify(function () {
+            return rows.itemAtIndex(1) !== null;
+        });
+        compare(rows.itemAtIndex(0).Accessible.name, "Search Bing");
+        compare(rows.itemAtIndex(1).Accessible.name, "Search Brave Search");
+        panel.step(1);
+        panel.step(1);
+        compare(panel.selected, 1);
+        panel.accept();
+        compare(chip.visible, true);
+        compare(chip.Accessible.name, "Brave Search");
+        compare(input.text, "");
+        compare(window.omnibarOpen, true);
+        compare(rows.count, 0);
+
+        // Return with no terms is the engine's front page.
+        panel.accept();
+        compare(browser.activeUrl.toString(), "https://search.brave.com/");
+        compare(window.omnibarOpen, false);
+
+        verify(browser.switchSpace(homeSpaceId));
+        verify(browser.deleteSpace(keywordSpaceId, "Keyword Space"));
     }
 
     function test_historyIsAFilteredBrowserOwnedSheet() {
@@ -4312,7 +4396,7 @@ TestCase {
         searchSection.Accessible.pressAction();
         const engines = findChild(window.contentItem, "searchEngineList");
         verify(engines !== null);
-        compare(engines.count, 1);
+        compare(engines.count, 7);
         verify(String(engines.model[0].name).indexOf("DuckDuckGo") >= 0);
         const providerPicker = findChild(window.contentItem, "searchProviderPreset");
         const addProvider = findChild(window.contentItem, "addSearchProviderButton");
