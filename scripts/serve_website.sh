@@ -4,7 +4,7 @@
 #   scripts/serve_website.sh            # the site
 #   scripts/serve_website.sh 8080       # on another port
 #
-# Rebuild the per-theme palettes, screenshots, favicons and wordmarks after a
+# Rebuild the per-theme palettes, screenshots and the favicon after a
 # chrome change or an upstream theme change:
 # scripts/build_website_themes.py
 set -euo pipefail

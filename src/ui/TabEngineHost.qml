@@ -35,6 +35,19 @@ Item {
     // a Private window's chrome carries its own, and so should the controls on
     // its pages.
     property color pageControlAccent: "transparent"
+    // The palette a page that asks for it is drawn in: the roles a page with
+    // one ground spends, under the names the website's own tokens use. The
+    // opaque grounds, since what a page draws is flat, and the muted text as
+    // the theme named it rather than as Omaweb floored it for its own six
+    // grounds, on one of which the floor lands near white.
+    readonly property var pagePalette: root.colors ? {
+                                                         "bg": root.colors.windowOpaque,
+                                                         "sidebar": root.colors.sidebarOpaque,
+                                                         "fg": root.colors.text,
+                                                         "accent": root.colors.accent,
+                                                         "urgent": root.colors.urgent,
+                                                         "muted": root.colors.pageMutedText
+                                                     } : null
     property string spaceId: ""
     // The Space the window's own profile belongs to, which is not the Space on
     // show in a Private window: that session is shared and has no Space of its
@@ -587,6 +600,7 @@ Item {
                                                         "pageBackgroundColor":
                                                         root.pageBackgroundColor,
                                                         "pageControlAccent": root.pageControlAccent,
+                                                        "pagePalette": root.pagePalette,
                                                         // What the engine goes on
                                                         // drawing: the bars inside the
                                                         // page, which stay its own.
@@ -1255,6 +1269,11 @@ Item {
     onPageControlAccentChanged: {
         for (const tabId in root.engines)
             root.engines[tabId].pageControlAccent = root.pageControlAccent;
+    }
+
+    onPagePaletteChanged: {
+        for (const tabId in root.engines)
+            root.engines[tabId].pagePalette = root.pagePalette;
     }
 
     // A theme the reader changes has to reach the pages already open, not only

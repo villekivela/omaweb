@@ -69,6 +69,7 @@ Rectangle {
     property string keyboardInput: ""
     property color pageBackgroundColor: "#16151d"
     property color pageControlAccent: "transparent"
+    property var pagePalette: null
     property real pageScrollOffset: 0
     property real pageScrollLength: 0
     property real pageViewportLength: 0

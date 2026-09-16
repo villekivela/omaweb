@@ -29,6 +29,7 @@ private slots:
     void namesOneColourForSomethingBeingWrong();
     void keepsQuietTextReadableOnEverySurfaceItIsDrawnOn();
     void keepsQuietTextReadableOnPrivateAndHoverSurfaces();
+    void handsAPageTheQuietTextTheThemeNamed();
     void keepsQuietTextAheadOfADisabledControl();
     void quietensATextColourAThemeNamesNoMutedTextFor();
     void keepsAMutedColourAThemeGotRight();
@@ -553,6 +554,43 @@ void ThemeControllerTest::keepsQuietTextReadableOnPrivateAndHoverSurfaces()
         QVERIFY2(ground.isValid(), key);
         QVERIFY2(contrastRatio(privateMuted, ground) >= minimumContrast, key);
     }
+}
+
+// A page following the theme has one ground, so it takes the quiet text the
+// theme named rather than the one floored for Omaweb's six; where the theme
+// named none, the floored value is the only one there is.
+void ThemeControllerTest::handsAPageTheQuietTextTheThemeNamed()
+{
+    QTemporaryDir root;
+    QFile named(root.filePath(QStringLiteral("named.json")));
+    QVERIFY(named.open(QIODevice::WriteOnly));
+    named.write(R"JSON({
+        "sidebar": "#101010",
+        "overlay": "#101010",
+        "surface": "#101010",
+        "surfaceHover": "#65486f",
+        "text": "#ffffff",
+        "mutedText": "#888888"
+    })JSON");
+    named.close();
+    const auto namedPalette = ThemeController(named.fileName()).palette();
+    QCOMPARE(
+        namedPalette.value(QStringLiteral("pageMutedText")).toString(), QStringLiteral("#888888"));
+    QVERIFY(namedPalette.value(QStringLiteral("mutedText")).toString()
+        != namedPalette.value(QStringLiteral("pageMutedText")).toString());
+
+    QFile unnamed(root.filePath(QStringLiteral("unnamed.json")));
+    QVERIFY(unnamed.open(QIODevice::WriteOnly));
+    unnamed.write(R"JSON({
+        "sidebar": "#101010",
+        "overlay": "#101010",
+        "surface": "#101010",
+        "text": "#ffffff"
+    })JSON");
+    unnamed.close();
+    const auto unnamedPalette = ThemeController(unnamed.fileName()).palette();
+    QCOMPARE(unnamedPalette.value(QStringLiteral("pageMutedText")).toString(),
+        unnamedPalette.value(QStringLiteral("mutedText")).toString());
 }
 
 // The defect the floor exists to prevent: muted text drawn fainter than the

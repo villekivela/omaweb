@@ -64,17 +64,20 @@ body {
   /* Hyprland decoration:rounding */
   --radius: 0px;
 
-  /* Palette roles, as the ground to paint before themes.css arrives.
-     Every palette the page actually offers, including this one, is
-     generated into themes.css from its Omarchy theme's own colors.toml,
-     and index.html names the default on <body>. These are the default
-     theme's values, kept here so the page is never unpainted. */
-  --bg: #06060c;
-  --sidebar: #080910;
-  --fg: #ddf7ff;
-  --accent: #82fb9c;
-  --urgent: #50f872;
-  --muted: #6a6e95;
+  /* Palette roles. Omaweb hands a page that asks for it the reader's own
+     theme, as `--omaweb-*` on the root element, and the page asks in its
+     <head>; so the ground here is the reader's theme wherever there is one,
+     with no script and before the first paint. Everywhere else it is the
+     default theme's values, which are also what the page paints before
+     themes.css arrives. Every palette the picker offers is generated into
+     themes.css from its Omarchy theme's own colors.toml and named on <body>,
+     where it outranks this block. */
+  --bg: var(--omaweb-bg, #06060c);
+  --sidebar: var(--omaweb-sidebar, #080910);
+  --fg: var(--omaweb-fg, #ddf7ff);
+  --accent: var(--omaweb-accent, #82fb9c);
+  --urgent: var(--omaweb-urgent, #50f872);
+  --muted: var(--omaweb-muted, #6a6e95);
 
   /* State tokens. Kit alphas exactly, including the hover border
      dropping BELOW normal (0.25 vs 0.40). */
@@ -330,8 +333,10 @@ img {
    The palettes themselves are not written here. Each is generated into
    `themes.css` by `scripts/build_website_themes.py`, out of the roles
    Omaweb resolves from that theme's own `colors.toml` -- alongside the
-   screenshots and favicons drawn in the same palette, so a theme's
-   colours reach the page, its pictures and its icon from one place.
+   screenshots drawn in the same palette. The wordmark is inline and
+   takes its colour from the page, so it follows any palette; the favicon
+   is one file in the default palette, since a `data:` icon drawn at
+   runtime is one Omaweb's engine never shows.
    =================================================================== */
 
 /* One wrap holds the whole page. There were two, so that the full-bleed
@@ -391,10 +396,12 @@ img {
   -webkit-backdrop-filter: blur(14px) saturate(160%) brightness(1.1);
   backdrop-filter: blur(14px) saturate(160%) brightness(1.1);
 }
-/* The wordmark is generated in the theme's own foreground, so it needs no
-   inversion to be visible: the page used to invert a black drawing to get
-   white out of it, which no theme could reach. */
-.t-top img {
+/* The wordmark is inline and drawn in `currentColor`, so it is set in the
+   foreground like the text beside it, whatever palette that is. It was a
+   generated image per theme, and before that a black drawing the page
+   inverted to get white out of, which no theme could reach. */
+.t-wordmark {
+  display: block;
   width: calc(88px * var(--scale));
   height: auto;
 }

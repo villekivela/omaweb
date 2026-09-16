@@ -158,6 +158,12 @@ reports the gap and remains experimental rather than imitating behavior it canno
   always follows the desktop's colours.
 - Private windows must remain visually distinct. Reduced-motion, increased-contrast, and
   reduced-transparency system settings override themes.
+- A page that asks follows the theme. A document carrying `<meta name="omaweb-palette">` in its head
+  is given the window's palette as `--omaweb-bg`, `--omaweb-sidebar`, `--omaweb-fg`,
+  `--omaweb-accent`, `--omaweb-urgent` and `--omaweb-muted` on its root element, before it paints
+  and again when the theme changes, and at no specificity, so the page's own definitions win. A page
+  that does not ask is given nothing: which theme a reader runs is a fact about them, and a page
+  learns it only by asking where the reader can see the asking. The website asks.
 
 ## Daily browser operations
 

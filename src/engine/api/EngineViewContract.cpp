@@ -46,6 +46,10 @@ QStringList validateEngineViewContract(const QObject &adapter)
         // and the shell knows what the window looks like, so the shell says
         // rather than each adapter inventing a colour.
         {"pageControlAccent", QMetaType::QColor},
+        // The palette a page that asks for it is drawn in, by role name. The
+        // shell says which roles a page may have, so a page reads the same
+        // names from every adapter.
+        {"pagePalette", QMetaType::QVariant},
         // The page's own scrollbar. The shell hides the one the engine draws
         // for the document's own scroller and draws that bar itself, so the
         // adapter reports where the page stands in its own length and takes

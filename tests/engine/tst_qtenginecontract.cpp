@@ -145,6 +145,8 @@ private slots:
     void qtRejectsObsoleteCosmeticSurveys_data();
     void qtRejectsObsoleteCosmeticSurveys();
     void qtRunsScriptletsBeforeThePageRuns();
+    void qtHandsThePaletteOnlyToAPageThatAsks_data();
+    void qtHandsThePaletteOnlyToAPageThatAsks();
     void qtRefusesTheWindowsTheListsNameAndNoOthers();
     void qtReportsWhereThePageWasPressed();
     void qtServesTheSubstitutesTheListsName();
@@ -1530,6 +1532,84 @@ void QtEngineContractTest::qtRunsScriptletsBeforeThePageRuns()
     QVERIFY(QMetaObject::invokeMethod(adapter.get(), "reloadPage"));
     QTRY_COMPARE_WITH_TIMEOUT(
         adapter->property("pageTitle").toString(), QStringLiteral("undefined"), 15000);
+}
+
+// The shell's palette reaches a page as custom properties on its root, and
+// only a page whose markup asks for it: which theme the reader runs is a fact
+// about them, so a page that has not asked reads nothing. The page that asks
+// reads it before its own script runs, under a policy that refuses inline
+// style, and reads the change when the theme changes without a reload.
+void QtEngineContractTest::qtHandsThePaletteOnlyToAPageThatAsks_data()
+{
+    QTest::addColumn<QByteArray>("head");
+    QTest::addColumn<QString>("first");
+    QTest::addColumn<QString>("changed");
+    QTest::newRow("asked") << QByteArray(R"HTML(<meta name="omaweb-palette" content="follow">)HTML")
+                           << QStringLiteral("rgb(16 16 32)|rgb(1 2 3)|rgb(200 200 200)")
+                           << QStringLiteral("rgb(255 255 255)|rgb(1 2 3)|rgb(200 200 200)");
+    QTest::newRow("silent") << QByteArray() << QStringLiteral("||") << QStringLiteral("||");
+}
+
+void QtEngineContractTest::qtHandsThePaletteOnlyToAPageThatAsks()
+{
+    QFETCH(QByteArray, head);
+    QFETCH(QString, first);
+    QFETCH(QString, changed);
+    const QByteArray body(R"HTML(<!doctype html><html><head>
+        <meta http-equiv="Content-Security-Policy"
+              content="default-src 'self'; script-src 'unsafe-inline'">
+        HEAD
+        </head><body>
+        <script>
+            const read = () => {
+                const style = getComputedStyle(document.documentElement);
+                return ["bg", "accent", "muted"]
+                    .map(role => style.getPropertyValue("--omaweb-" + role).trim())
+                    .join("|");
+            };
+            const first = read();
+            const report = () => {
+                document.title = first + "#" + read();
+                requestAnimationFrame(report);
+            };
+            report();
+        </script>
+    </body></html>)HTML");
+    PageServer server(QByteArray(body).replace("HEAD", head));
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    QQmlEngine engine;
+    QQmlComponent component(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    // Strings as the shell's palette names them, and a role the shell has no
+    // colour for, which the page is not handed.
+    const QVariantMap palette {
+        {QStringLiteral("bg"), QStringLiteral("#101020")},
+        {QStringLiteral("accent"), QStringLiteral("#010203")},
+        {QStringLiteral("muted"), QStringLiteral("#c8c8c8")},
+        {QStringLiteral("fg"), QString()},
+    };
+    const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
+        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
+        {QStringLiteral("pagePalette"), palette},
+    }));
+    QVERIFY2(adapter, qPrintable(component.errorString()));
+    QQuickWindow window;
+    qobject_cast<QQuickItem *>(adapter.get())->setParentItem(window.contentItem());
+    window.show();
+
+    const QUrl pageUrl(QStringLiteral("http://127.0.0.1:%1/page.html").arg(server.serverPort()));
+    QVERIFY(adapter->setProperty("currentUrl", pageUrl));
+    QTRY_COMPARE_WITH_TIMEOUT(
+        adapter->property("pageTitle").toString(), first + "#" + first, 15000);
+
+    auto repainted = palette;
+    repainted.insert(QStringLiteral("bg"), QStringLiteral("#ffffff"));
+    QVERIFY(adapter->setProperty("pagePalette", repainted));
+    QTRY_COMPARE_WITH_TIMEOUT(
+        adapter->property("pageTitle").toString(), first + "#" + changed, 15000);
 }
 
 // A window the page asks for comes from somewhere on the page, and the request

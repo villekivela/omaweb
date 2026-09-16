@@ -4,10 +4,11 @@
 // screenshot, the canvas behind the hero is decoration, and the nav is in
 // view until the script folds it behind its button.
 //
-//   1. Theme switching. One palette drives the page, the generated
-//      screenshots, the wordmark and the favicon, so picking a theme restyles
-//      all of them at once. The choice is saved locally, and a `theme` query
-//      parameter lets a shared URL choose its palette.
+//   1. Theme switching. One palette drives the page and the generated
+//      screenshots, so picking a theme restyles both at once. The choice is
+//      saved locally, and a `theme` query parameter
+//      lets a shared URL choose its palette. In Omaweb the reader's own
+//      theme is one of the choices, and the one the page starts on.
 //   2. Opening a screenshot in a viewer instead of navigating to the file.
 //      A whole window drawn at grid width is unreadable whatever its
 //      resolution, so the grid is thumbnails and this is how they are read.
@@ -41,8 +42,20 @@
     return (state >>> 0) / 4294967296;
   }
 
+  // A palette value is whatever a stylesheet wrote: the generated themes are
+  // hex, and the one Omaweb hands over is `rgb(r g b)`. A canvas normalises
+  // any colour it is given to `#rrggbb`, so it is read through one rather
+  // than parsed here.
+  var colorProbe = document.createElement("canvas").getContext("2d");
+
   function parseColor(value) {
-    var digits = value.trim().replace("#", "");
+    var digits = value.trim();
+    if (colorProbe) {
+      colorProbe.fillStyle = "#000";
+      colorProbe.fillStyle = digits;
+      digits = colorProbe.fillStyle;
+    }
+    digits = digits.replace("#", "");
     if (digits.length === 3) {
       digits = digits.replace(/./g, function (digit) {
         return digit + digit;
@@ -154,14 +167,28 @@
   var themeButtons = [].slice.call(document.querySelectorAll(".t-theme"));
   var THEME_STORAGE_KEY = "omaweb.preview-theme";
 
-  // The screenshots, the wordmark and the favicon are generated one per
-  // theme, under paths that differ only in the theme's name. Each element
-  // carries its own path with `{theme}` where that name goes, so adding a
-  // themed image is markup and nothing here. That is also what keeps the
-  // favicon working away from the landing page: the path is relative to the
-  // page it is written on, and pages live at three different depths.
+  // The screenshots are generated one per theme, under paths that differ
+  // only in the theme's name. Each element carries its own path with
+  // `{theme}` where that name goes, so adding a themed image is markup and
+  // nothing here, and the path is relative to the page it is written on,
+  // which is what keeps it working at every depth the site has pages at.
   var themed = [].slice.call(document.querySelectorAll("[data-themed]"));
   var themeColor = document.querySelector('meta[name="theme-color"]');
+
+  // The favicon is left alone. It is a document of its own and sees none of
+  // the page's colours, and the one way to redraw it from here, a `data:`
+  // URL, is an icon Omaweb's engine never picks up: the site's tab in the
+  // browser this is for would have no icon at all. So it is the shipped
+  // file in the default palette, in every theme.
+
+  function paintPalette() {
+    // The browser chrome around the page follows the palette too, read off
+    // the ground the theme just painted rather than listed a second time.
+    if (themeColor) {
+      themeColor.content = getComputedStyle(document.body).getPropertyValue("--bg").trim();
+    }
+    if (rainContext) startRain();
+  }
 
   // Which themes exist, from the `--themes` list `themes.css` is generated
   // with. The switcher buttons are only on the landing page, so asking them
@@ -174,6 +201,59 @@
     .trim()
     .split(/\s+/)
     .filter(Boolean);
+
+  // The reader's own theme, which Omaweb hands a page that asks for it as
+  // `--omaweb-*` on the root element. The stylesheet already paints in it
+  // wherever it is there; this makes it a theme the picker knows, so it can
+  // be left for a preview and come back to. There is no screenshot set in
+  // an arbitrary palette, so "own" shows the shipped set whose palette is
+  // nearest, measured on the ground, the text and the accent.
+  var OWN_THEME = "own";
+  var ownPalette = readOwnPalette();
+  var nearestShipped = ownPalette ? nearestTheme(ownPalette) : null;
+  if (ownPalette) themeNames.unshift(OWN_THEME);
+
+  function readOwnPalette() {
+    var style = getComputedStyle(document.documentElement);
+    var palette = {};
+    var roles = ["bg", "fg", "accent"];
+    for (var index = 0; index < roles.length; index += 1) {
+      var value = style.getPropertyValue("--omaweb-" + roles[index]).trim();
+      if (!value) return null;
+      palette[roles[index]] = value;
+    }
+    return palette;
+  }
+
+  // Read off the body under each shipped theme in turn, which is where
+  // themes.css defines them; seven style resolutions once, before the page
+  // has painted anything the reader would see move.
+  function nearestTheme(own) {
+    function distance(a, b) {
+      var sum = 0;
+      for (var index = 0; index < 3; index += 1) sum += Math.pow(a[index] - b[index], 2);
+      return sum;
+    }
+    var wanted = { bg: parseColor(own.bg), fg: parseColor(own.fg), accent: parseColor(own.accent) };
+    var was = document.body.dataset.theme;
+    var best = null;
+    var bestDistance = Infinity;
+    themeNames.forEach(function (name) {
+      document.body.dataset.theme = name;
+      var style = getComputedStyle(document.body);
+      var total = 0;
+      for (var role in wanted) {
+        total += distance(wanted[role], parseColor(style.getPropertyValue("--" + role)));
+      }
+      if (total < bestDistance) {
+        bestDistance = total;
+        best = name;
+      }
+    });
+    if (was === undefined) delete document.body.dataset.theme;
+    else document.body.dataset.theme = was;
+    return best;
+  }
 
   function hasTheme(name) {
     return themeNames.indexOf(name) !== -1;
@@ -198,27 +278,30 @@
   function setTheme(name, options) {
     if (!hasTheme(name)) return;
 
-    document.body.dataset.theme = name;
+    // No named theme on the body is the reader's own: the stylesheet's ground
+    // is `--omaweb-*` wherever Omaweb supplies it, and a named theme outranks
+    // that.
+    if (name === OWN_THEME) delete document.body.dataset.theme;
+    else document.body.dataset.theme = name;
     themeButtons.forEach(function (button) {
       button.setAttribute("aria-pressed", String(button.dataset.theme === name));
     });
 
+    var pictured = name === OWN_THEME ? nearestShipped : name;
     themed.forEach(function (element) {
-      var path = element.dataset.themed.replace("{theme}", name);
-      if (element.tagName === "A" || element.tagName === "LINK") element.href = path;
+      var path = element.dataset.themed.replace("{theme}", pictured);
+      if (element.tagName === "A") element.href = path;
       else element.src = path;
     });
-    // The browser chrome around the page follows the palette too, read off
-    // the ground the theme just painted rather than listed a second time.
-    if (themeColor) {
-      themeColor.content = getComputedStyle(document.body).getPropertyValue("--bg").trim();
-    }
-    if (rainContext) startRain();
+    paintPalette();
 
     if (options.save) saveTheme(name);
+    // A link can name a shipped theme; the reader's own is not one another
+    // reader can be sent to.
     if (options.share) {
       var url = new URL(location.href);
-      url.searchParams.set("theme", name);
+      if (name === OWN_THEME) url.searchParams.delete("theme");
+      else url.searchParams.set("theme", name);
       history.replaceState(null, "", url);
     }
   }
@@ -229,9 +312,15 @@
     });
   });
 
+  // A shared link names its palette on purpose and wins. Otherwise the
+  // reader's own theme wins over a saved preview: the preview was picked to
+  // see a theme, and their own theme is the one they see everywhere else.
+  themeButtons.forEach(function (button) {
+    if (button.dataset.theme === OWN_THEME) button.hidden = !ownPalette;
+  });
   var queryTheme = new URLSearchParams(location.search).get("theme");
   var savedTheme = readSavedTheme();
-  var initialTheme = hasTheme(queryTheme) ? queryTheme : savedTheme;
+  var initialTheme = hasTheme(queryTheme) ? queryTheme : ownPalette ? OWN_THEME : savedTheme;
   if (hasTheme(initialTheme)) setTheme(initialTheme, { save: Boolean(queryTheme), share: false });
 
   // ---------------------------------------------------------------- copy
