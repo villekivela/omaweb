@@ -935,8 +935,13 @@ TestCase {
         const tabScroll = findChild(sidebar, "tabScroll");
         verify(tabScroll !== null);
         const tabList = tabScroll.contentItem;
-        for (let index = 0; index < 40; ++index)
+        // Enough rows to overflow the list, closed again at the end so the
+        // tests after this one find the outline as they would have.
+        const opened = [];
+        for (let index = 0; index < 40; ++index) {
             browser.openInput("https://reported.example/" + index, true);
+            opened.push(browser.activeTabId);
+        }
         tryVerify(function () {
             return tabList.contentHeight > tabList.height;
         });
@@ -968,8 +973,8 @@ TestCase {
         wait(400);
         compare(tabList.contentY, 0);
         sidebar.statusOpen = false;
-        while (browser.tabs.rowCount() > 1)
-            browser.closeTab(browser.activeTabId);
+        for (let index = 0; index < opened.length; ++index)
+            browser.closeTab(opened[index]);
     }
 
     // Developer tools take a column of their own beside the tab they inspect:
