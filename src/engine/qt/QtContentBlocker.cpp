@@ -5,6 +5,7 @@
 #include "GlobalPrivacyControl.h"
 
 #include <QBuffer>
+#include <QPointer>
 #include <QQuickWebEngineProfile>
 #include <QWebEngineProfile>
 #include <QWebEngineScriptCollection>
@@ -25,6 +26,29 @@ namespace {
     // to redirect a request to a `data:` URL, which is the form the library hands
     // a body over in, so the substitutes get a scheme of their own.
     constexpr auto substituteScheme = "omaweb-resource";
+
+    // How long refused addresses wait for company before the page is told.
+    // Long enough that a page load's refusals arrive in a few batches rather
+    // than hundreds, short enough that a broken-image icon is not seen first.
+    constexpr int refusedElementFlushIntervalMilliseconds = 100;
+
+    // Whether a request of this type is one an element made and is drawn by:
+    // an image, a frame, a plugin's object, a video or an audio track. A
+    // refused script or stylesheet leaves nothing in the layout to take out.
+    bool drawnByAnElement(QWebEngineUrlRequestInfo::ResourceType type)
+    {
+        using Info = QWebEngineUrlRequestInfo;
+        switch (type) {
+        case Info::ResourceTypeImage:
+        case Info::ResourceTypeSubFrame:
+        case Info::ResourceTypeObject:
+        case Info::ResourceTypePluginResource:
+        case Info::ResourceTypeMedia:
+            return true;
+        default:
+            return false;
+        }
+    }
 
     // The address one substitute is served at. A canonical resource name is a
     // bare filename — `noop.js`, `1x1.gif` — so the whole address is the scheme
@@ -91,8 +115,11 @@ namespace {
                 info.setHttpHeader(
                     GlobalPrivacyControl::headerName(), GlobalPrivacyControl::headerValue());
             }
+            // Read before the answer is given: a redirect below replaces the
+            // request address, and the element names the one it asked for.
+            const auto requestUrl = info.requestUrl();
             const auto decision = m_contentBlocker->checkRequest(
-                info.requestUrl(), info.firstPartyUrl(), info.resourceType(), m_spaceId);
+                requestUrl, info.firstPartyUrl(), info.resourceType(), m_spaceId);
             // Chromium drops a redirect on a request carrying a payload, and says
             // so only in a warning. Both answers below are redirects, so a request
             // that cannot take one falls back to what it can take.
@@ -102,6 +129,12 @@ namespace {
                     info.block(true);
                 } else {
                     info.redirect(substituteUrl(decision.substitute));
+                }
+                // A substitute collapses the element too: a 1x1 stand-in is
+                // as much of a hole in the page as a broken image.
+                if (drawnByAnElement(info.resourceType())) {
+                    m_contentBlocker->noteRefusedElement(
+                        m_spaceId, info.firstPartyUrl(), requestUrl);
                 }
                 return;
             }
@@ -171,6 +204,10 @@ QtContentBlocker::QtContentBlocker(ContentBlocker *contentBlocker,
     m_globalPrivacyControlScript.setWorldId(QWebEngineScript::MainWorld);
     m_globalPrivacyControlScript.setRunsOnSubFrames(true);
     m_globalPrivacyControlScript.setSourceCode(GlobalPrivacyControl::scriptSource());
+    m_refusedElementFlush.setSingleShot(true);
+    m_refusedElementFlush.setInterval(refusedElementFlushIntervalMilliseconds);
+    connect(
+        &m_refusedElementFlush, &QTimer::timeout, this, &QtContentBlocker::flushRefusedElements);
     if (m_globalPrivacyControl) {
         connect(m_globalPrivacyControl, &GlobalPrivacyControl::enabledChanged, this,
             &QtContentBlocker::applyGlobalPrivacyControl);
@@ -213,6 +250,39 @@ void QtContentBlocker::installGlobalPrivacyControlScript(QObject *profile, bool 
         || !QMetaObject::invokeMethod(collection, wanted ? "insert" : "remove",
             Q_ARG(QWebEngineScript, m_globalPrivacyControlScript))) {
         qWarning("Global Privacy Control could not reach the profile's script collection.");
+    }
+}
+
+// Requests are matched on whichever thread the engine hands them to, and the
+// pending batch belongs to this object's thread. The page address loses its
+// fragment here, the way the Refusal tally's key does: a fragment jump is the
+// same document, and the view compares the address it is showing the same way.
+void QtContentBlocker::noteRefusedElement(
+    const QString &spaceId, const QUrl &pageAddress, const QUrl &requestUrl) const
+{
+    QPointer<QtContentBlocker> guard(const_cast<QtContentBlocker *>(this));
+    const auto page = pageAddress.adjusted(QUrl::RemoveFragment).toString(QUrl::FullyEncoded);
+    const auto address = requestUrl.toString(QUrl::FullyEncoded);
+    QMetaObject::invokeMethod(
+        const_cast<QtContentBlocker *>(this),
+        [guard, spaceId, page, address] {
+            if (!guard) {
+                return;
+            }
+            guard->m_pendingRefusedElements[{spaceId, page}].append(address);
+            if (!guard->m_refusedElementFlush.isActive()) {
+                guard->m_refusedElementFlush.start();
+            }
+        },
+        Qt::QueuedConnection);
+}
+
+void QtContentBlocker::flushRefusedElements()
+{
+    m_refusedElementFlush.stop();
+    const auto pending = std::exchange(m_pendingRefusedElements, {});
+    for (auto it = pending.cbegin(); it != pending.cend(); ++it) {
+        emit requestsRefused(it.key().first, QUrl(it.key().second), it.value());
     }
 }
 

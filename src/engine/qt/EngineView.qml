@@ -1257,6 +1257,61 @@ Item {
         }
     }
 
+    // ---- the element a refusal leaves behind ----------------------------------
+    //
+    // Chromium draws an image whose request failed as a broken-image icon, so
+    // a refusal on its own leaves a hole where the ad was, and a page measuring
+    // its own bait reads the bait as shown. The interceptor knows the address
+    // it refused and the page knows the element that asked, so the adapter
+    // delivers the addresses in batches and this takes the elements that asked
+    // for them out of the layout. The script only hides: what was refused was
+    // decided in the core, and a request that failed any other way is left as
+    // the engine draws it.
+    //
+    // Every frame, because the address says nothing about which frame's
+    // element asked for it, and the page cannot reach into a frame of another
+    // origin. An element's own addresses are the one it settled on and the one
+    // it was given, and a media element's tracks besides; a substitute answers
+    // under the address that was asked for, so the element still names it.
+    function collapseSnippet(addresses) {
+        return "(() => {" + "const refused = new Set();" + "for (const address of " + JSON.stringify(
+                    addresses) + ") {"
+                + "try { refused.add(new URL(address).href); } catch (error) {}" + "}"
+                + "const asked = element => {"
+                + "const addresses = [element.currentSrc, element.src, element.data];"
+                + "for (const source of element.querySelectorAll('source')) "
+                + "addresses.push(source.src);" + "return addresses;" + "};"
+                + "for (const element of document.querySelectorAll("
+                + "'img, iframe, object, embed, video, audio')) {"
+                + "if (asked(element).some(address => address && refused.has(address))) "
+                + "element.style.setProperty('display', 'none', 'important');" + "}" + "})()";
+    }
+    // A frame's runJavaScript is overloaded and needs the callback to pick one.
+    function collapseRefusedElements(frame, addresses) {
+        frame.runJavaScript(root.collapseSnippet(addresses), function () {});
+        for (let index = 0; index < frame.children.length; ++index)
+            root.collapseRefusedElements(frame.children[index], addresses);
+    }
+    // The page address without its fragment, which is how the adapter keys a
+    // batch: a fragment jump is the same document (ADR 0037).
+    function documentAddress(address) {
+        return String(address).split("#")[0];
+    }
+
+    Connections {
+        target: root.engineContentBlocker
+        ignoreUnknownSignals: true
+
+        // A batch for a page this view has left says nothing about the page
+        // it is on now, and is dropped rather than applied.
+        function onRequestsRefused(spaceId, pageAddress, addresses) {
+            if (spaceId !== root.spaceId || root.documentAddress(pageAddress)
+                    !== root.documentAddress(root.currentUrl))
+                return;
+            root.collapseRefusedElements(webView.mainFrame, addresses);
+        }
+    }
+
     readonly property string developerToolsSheetId: "__omaweb_developer_tools"
 
     // The palette arrives from the shell and may be empty until the theme has

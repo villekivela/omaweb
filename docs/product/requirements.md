@@ -464,6 +464,13 @@ reported as unsupported rather than counted among the rules the list contributed
 rule refuses nothing: the request goes out with the tracking parameters the rule names stripped off
 the address the site receives.
 
+The element whose request was refused, or answered with a substitute, is taken out of the layout: an
+image, frame, object, embed, video, or audio element whose address Content blocking refused reads
+`display: none`, in the main frame and in every subframe, so a reader sees no broken-image icon
+where an ad was and a page measuring its own bait reads it as hidden. An element whose request
+failed for any other reason is left as the engine draws it, the collapse does not move the Refusal
+tally, and a refused script or stylesheet has no element to collapse.
+
 Omaweb does not claim full uBlock Origin compatibility. Procedural selectors, response rewriting,
 content security policies, HTML filtering, dynamic rules, and CNAME uncloaking are outside the first
 contract. A subscribed list keeps the rules this contract does parse; Settings reports what each
