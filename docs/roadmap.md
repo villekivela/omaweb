@@ -23,7 +23,7 @@ carry it, one theme each, in this order:
 3. [v0.9.0](https://github.com/villekivela/omaweb/milestone/3), forms and autofill: what was typed
    remembered, then addresses filled, then payment cards, on the storage decision v0.7.0 takes.
 
-Beta is those three closed.
+What makes Omaweb beta is not yet decided. The milestones are the planned work, not a gate.
 
 ## Open on Linux
 
