@@ -447,7 +447,14 @@ rather than the page, and is never refused.
 Hiding rules written against a page's own hostname are in the document before the page's markup
 renders, so a hidden element never appears first. Rules written against no particular site are
 matched against the classes and ids the page actually carries rather than sent in full, and a site
-with a `$generichide` exception is not matched against them at all.
+with a `$generichide` exception is not matched against them at all. Each frame of a page is surveyed
+for those names as soon as its DOM is parsed and watched afterwards: an element added later that
+carries a class or id the survey did not see is hidden within a fraction of a second, whether a
+script filled an ad slot or a detection page inserted its bait. The watch asks only about names the
+frame has not been asked about before, the first of them at once and the rest at most once per short
+interval, and a document that keeps producing new names stops being asked about after a fixed number
+of surveys. A frame that was not surveyed is not watched, and a navigation starts the new document's
+survey and count from nothing.
 
 A `##+js(...)` rule names a function from the vendored uBlock Origin scriptlet library and supplies
 its arguments; a list never supplies code. The named function runs in the page before the page's own

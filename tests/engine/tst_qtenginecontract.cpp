@@ -102,6 +102,10 @@ static QByteArray blockerFakeSource()
         import QtQml
         QtObject {
             property int genericRequests: 0
+            // Every survey as it was asked, so a test can say what the page
+            // reported and not only how often.
+            property var surveys: []
+            property bool surveyWanted: true
             signal rulesChanged()
             signal configurationChanged()
             signal elementsRefused(var view, var addresses)
@@ -109,9 +113,11 @@ static QByteArray blockerFakeSource()
             function shouldBlockPopup(requestUrl, openerUrl, spaceId) { return false; }
             function cosmeticStyleSheet(url) { return ""; }
             function scriptletSource(url) { return ""; }
-            function cosmeticSurveyWanted(url) { return true; }
+            function cosmeticSurveyWanted(url) { return surveyWanted; }
             function genericCosmeticStyleSheet(url, classes, ids) {
                 genericRequests += 1;
+                surveys = surveys.concat([{ url: String(url), classes: Array.from(classes),
+                                            ids: Array.from(ids) }]);
                 return ".ad { display: none !important; }";
             }
         }
@@ -153,6 +159,11 @@ private slots:
     void qtHidesCosmeticRulesBeforeThePageRuns();
     void qtRejectsObsoleteCosmeticSurveys_data();
     void qtRejectsObsoleteCosmeticSurveys();
+    void qtHidesElementsAddedAfterLoad_data();
+    void qtHidesElementsAddedAfterLoad();
+    void qtSurveysOnlyWhatThePageAddsAnew();
+    void qtSkipsTheLateSurveyOnAGenerichideSite();
+    void qtStartsTheWatchOverOnNavigation();
     void qtRunsScriptletsBeforeThePageRuns();
     void qtHandsThePaletteOnlyToAPageThatAsks_data();
     void qtHandsThePaletteOnlyToAPageThatAsks();
@@ -1516,6 +1527,324 @@ void QtEngineContractTest::qtRejectsObsoleteCosmeticSurveys()
     QTRY_COMPARE_WITH_TIMEOUT(blocker->property("genericRequests").toInt(), 2, 15000);
     QTest::qWait(250);
     QCOMPARE(blocker->property("genericRequests").toInt(), 2);
+}
+
+// The generic survey runs when the document's DOM is parsed, and an ad slot a
+// script fills in afterwards carries a class the survey never saw. The page
+// keeps watching itself after that first survey, so the late element is hidden
+// too, in the main frame and in a frame of another origin. Both pages wait for
+// the first survey's answer before adding anything, so the element is one the
+// first survey could not have seen.
+void QtEngineContractTest::qtHidesElementsAddedAfterLoad_data()
+{
+    QTest::addColumn<QString>("path");
+    QTest::addColumn<QString>("exception");
+    QTest::addColumn<QString>("expected");
+    QTest::newRow("surveyed") << QStringLiteral("/page.html") << QString()
+                              << QStringLiteral("main:EL|frame:EL");
+    // The page names its address escaped and the view names it as Qt writes
+    // it; a report has to find its frame either way.
+    QTest::newRow("escaped-path") << QStringLiteral("/sivu %C3%A4.html") << QString()
+                                  << QStringLiteral("main:EL|frame:EL");
+    // A $generichide site is not surveyed, and a page that is not surveyed is
+    // not watched either. The frame's origin has no exception and goes on
+    // being surveyed.
+    QTest::newRow("generichide") << QStringLiteral("/page.html")
+                                 << QStringLiteral("@@||127.0.0.1^$generichide")
+                                 << QStringLiteral("main:--|frame:EL");
+}
+
+void QtEngineContractTest::qtHidesElementsAddedAfterLoad()
+{
+    QFETCH(QString, path);
+    QFETCH(QString, exception);
+    QFETCH(QString, expected);
+    // Hidden or not, for the element that was there at load and for the one
+    // added after the first survey answered, reported as two letters. The frame
+    // reports its own pair to the page it is in.
+    const QByteArray watcher(R"JS(
+        const hidden = id => {
+            const element = document.getElementById(id);
+            return element && getComputedStyle(element).display === "none";
+        };
+        const surveyed = () => document.adoptedStyleSheets.some(
+            sheet => sheet.omawebSheetId === "__omaweb_content_blocking_generic");
+        const started = performance.now();
+        const arm = () => {
+            if (!surveyed() && performance.now() - started < 2000) {
+                setTimeout(arm, 20);
+                return;
+            }
+            document.body.insertAdjacentHTML(
+                "beforeend", '<div id="late" class="late-ad">late</div>');
+            // On a timer rather than an animation frame: Chromium stops
+            // painting a frame of another origin that is not on screen, and
+            // the view under test has no size for it to be on.
+            const report = () => {
+                REPORT((hidden("early") ? "E" : "-") + (hidden("late") ? "L" : "-"));
+                setTimeout(report, 50);
+            };
+            report();
+        };
+        addEventListener("load", arm);
+    )JS");
+    PageServer frameServer(QByteArray(R"HTML(<!doctype html><html><body>
+        <div id="early" class="early-ad">early</div>
+        <script>
+            const REPORT = state => parent.postMessage(state, "*");
+            WATCHER
+        </script></body></html>)HTML")
+            .replace("WATCHER", watcher));
+    QVERIFY(frameServer.listen(QHostAddress::LocalHost));
+    PageServer server(QByteArray(R"HTML(<!doctype html><html><body>
+        <div id="early" class="early-ad">early</div>
+        <iframe src="http://localhost:@PORT@/frame.html"></iframe>
+        <script>
+            const states = { main: "--", frame: "--" };
+            const publish = () => {
+                document.title = "main:" + states.main + "|frame:" + states.frame;
+            };
+            addEventListener("message", event => {
+                states.frame = String(event.data);
+                publish();
+            });
+            const REPORT = state => { states.main = state; publish(); };
+            WATCHER
+        </script></body></html>)HTML")
+            .replace("@PORT@", QByteArray::number(frameServer.serverPort()))
+            .replace("WATCHER", watcher));
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    omaweb::ContentBlocker contentBlocker(root.path(), omaweb::ContentBlocker::DefaultLists::None);
+    contentBlocker.setUserRules(QStringLiteral("##.early-ad\n##.late-ad\n") + exception);
+    QTRY_VERIFY_WITH_TIMEOUT(!contentBlocker.compiling(), 5000);
+
+    QQmlEngine engine;
+    QQmlComponent component(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
+        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
+        {QStringLiteral("contentBlocker"), QVariant::fromValue<QObject *>(&contentBlocker)},
+    }));
+    QVERIFY2(adapter, qPrintable(component.errorString()));
+    QQuickWindow window;
+    qobject_cast<QQuickItem *>(adapter.get())->setParentItem(window.contentItem());
+    window.show();
+
+    const QUrl pageUrl(QStringLiteral("http://127.0.0.1:%1%2").arg(server.serverPort()).arg(path));
+    QVERIFY(adapter->setProperty("currentUrl", pageUrl));
+    QTRY_COMPARE_WITH_TIMEOUT(adapter->property("pageTitle").toString(), expected, 15000);
+    // A late element that is to stay shown must still be shown once the watch
+    // would have had time to hide it.
+    QTest::qWait(500);
+    QCOMPARE(adapter->property("pageTitle").toString(), expected);
+}
+
+// What the watch asks about is only what the page has not been asked about
+// before: an element with a class the first survey saw costs nothing, a burst
+// of additions costs one round trip, and a document that has asked its share
+// stops asking. A rule change surveys the whole document again and starts the
+// count over.
+void QtEngineContractTest::qtSurveysOnlyWhatThePageAddsAnew()
+{
+    PageServer server(R"HTML(<!doctype html><html><body class="ad"><script>
+        const surveyed = () => document.adoptedStyleSheets.some(
+            sheet => sheet.omawebSheetId === "__omaweb_content_blocking_generic");
+        const add = (className, id) => {
+            const element = document.createElement("div");
+            if (className) element.className = className;
+            if (id) element.id = id;
+            document.body.appendChild(element);
+        };
+        const wait = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds));
+        // Each phase is reported after a pause, and the next phase starts
+        // after another, so the test reads each count while it still holds.
+        const pause = 400;
+        const phase = async name => {
+            await wait(pause);
+            document.title = name;
+            await wait(pause);
+        };
+        (async () => {
+            while (!surveyed()) await wait(20);
+            await phase("surveyed");
+            add("ad", "");
+            add("", "");
+            await phase("repeated");
+            add("fresh-one", "fresh-bait");
+            document.body.classList.add("fresh-two");
+            await phase("added");
+            for (let index = 0; index < 100; ++index) add("burst-" + index, "");
+            await phase("burst");
+            add("over-one", "");
+            await wait(pause);
+            add("over-two", "");
+            await phase("done");
+        })();
+    </script></body></html>)HTML");
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+    QTemporaryDir root;
+    QQmlEngine engine;
+    QQmlComponent blockerComponent(&engine);
+    blockerComponent.setData(blockerFakeSource(), QUrl());
+    const std::unique_ptr<QObject> blocker(blockerComponent.create());
+    QVERIFY2(blocker, qPrintable(blockerComponent.errorString()));
+    QQmlComponent component(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
+        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
+        {QStringLiteral("contentBlocker"), QVariant::fromValue(blocker.get())},
+        // Three late surveys per document, so the ceiling is reached within
+        // the page's own script rather than after a minute of churn.
+        {QStringLiteral("lateCosmeticSurveyLimit"), 3},
+    }));
+    QVERIFY2(adapter, qPrintable(component.errorString()));
+    QQuickWindow window;
+    qobject_cast<QQuickItem *>(adapter.get())->setParentItem(window.contentItem());
+    window.show();
+    const QUrl page(QStringLiteral("http://127.0.0.1:%1/page.html").arg(server.serverPort()));
+    QVERIFY(adapter->setProperty("currentUrl", page));
+
+    const auto surveys = [&blocker] { return blocker->property("surveys").toList(); };
+    const auto names = [](const QVariantMap &survey, const char *field) {
+        const auto list = survey.value(QString::fromLatin1(field)).toStringList();
+        return QSet<QString>(list.cbegin(), list.cend());
+    };
+    QTRY_COMPARE_WITH_TIMEOUT(
+        adapter->property("pageTitle").toString(), QStringLiteral("repeated"), 15000);
+    // A class the first survey saw, and an element with nothing to ask about.
+    QCOMPARE(surveys().size(), 1);
+
+    QTRY_COMPARE_WITH_TIMEOUT(
+        adapter->property("pageTitle").toString(), QStringLiteral("added"), 15000);
+    QCOMPARE(surveys().size(), 2);
+    const auto late = surveys().at(1).toMap();
+    QCOMPARE(late.value(QStringLiteral("url")).toString(), page.toString());
+    QCOMPARE(names(late, "classes"), (QSet<QString> {"fresh-one", "fresh-two"}));
+    QCOMPARE(names(late, "ids"), (QSet<QString> {"fresh-bait"}));
+
+    QTRY_COMPARE_WITH_TIMEOUT(
+        adapter->property("pageTitle").toString(), QStringLiteral("burst"), 15000);
+    QCOMPARE(surveys().size(), 3);
+    const auto burst = surveys().at(2).toMap();
+    QCOMPARE(names(burst, "classes").size(), 100);
+    QVERIFY(names(burst, "classes").contains(QStringLiteral("burst-99")));
+    QVERIFY(!names(burst, "classes").contains(QStringLiteral("ad")));
+
+    QTRY_COMPARE_WITH_TIMEOUT(
+        adapter->property("pageTitle").toString(), QStringLiteral("done"), 15000);
+    // The third late survey is the last one this document gets.
+    QCOMPARE(surveys().size(), 4);
+    QCOMPARE(names(surveys().at(3).toMap(), "classes"), (QSet<QString> {"over-one"}));
+
+    // A rule change is a fresh survey of the whole document, and it counts
+    // from nothing again.
+    QVERIFY(QMetaObject::invokeMethod(blocker.get(), "rulesChanged"));
+    QTRY_COMPARE_WITH_TIMEOUT(surveys().size(), 5, 15000);
+    const auto whole = names(surveys().at(4).toMap(), "classes");
+    QVERIFY(whole.contains(QStringLiteral("ad")));
+    QVERIFY(whole.contains(QStringLiteral("over-two")));
+    QVERIFY(whole.contains(QStringLiteral("burst-99")));
+}
+
+// A site with a $generichide exception is not surveyed at load, and an
+// element it adds afterwards is not asked about either: nothing watches a
+// page nothing was asked about.
+void QtEngineContractTest::qtSkipsTheLateSurveyOnAGenerichideSite()
+{
+    PageServer server(R"HTML(<!doctype html><html><body class="ad"><script>
+        addEventListener("load", () => {
+            setTimeout(() => {
+                const element = document.createElement("div");
+                element.className = "late-ad";
+                element.id = "late-bait";
+                document.body.appendChild(element);
+                setTimeout(() => { document.title = "done"; }, 400);
+            }, 300);
+        });
+    </script></body></html>)HTML");
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+    QTemporaryDir root;
+    QQmlEngine engine;
+    QQmlComponent blockerComponent(&engine);
+    blockerComponent.setData(blockerFakeSource(), QUrl());
+    const std::unique_ptr<QObject> blocker(blockerComponent.create());
+    QVERIFY2(blocker, qPrintable(blockerComponent.errorString()));
+    QVERIFY(blocker->setProperty("surveyWanted", false));
+    QQmlComponent component(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
+        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
+        {QStringLiteral("contentBlocker"), QVariant::fromValue(blocker.get())},
+    }));
+    QVERIFY2(adapter, qPrintable(component.errorString()));
+    QQuickWindow window;
+    qobject_cast<QQuickItem *>(adapter.get())->setParentItem(window.contentItem());
+    window.show();
+    const QUrl page(QStringLiteral("http://127.0.0.1:%1/page.html").arg(server.serverPort()));
+    QVERIFY(adapter->setProperty("currentUrl", page));
+    QTRY_COMPARE_WITH_TIMEOUT(
+        adapter->property("pageTitle").toString(), QStringLiteral("done"), 15000);
+    QCOMPARE(blocker->property("genericRequests").toInt(), 0);
+}
+
+// A navigation replaces the document, and the watch and the sheet go with it:
+// the new document surveys itself from nothing and is watched from nothing,
+// so a name the old document was asked about is asked about again.
+void QtEngineContractTest::qtStartsTheWatchOverOnNavigation()
+{
+    PageServer server(R"HTML(<!doctype html><html><body class="ad"><script>
+        const surveyed = () => document.adoptedStyleSheets.some(
+            sheet => sheet.omawebSheetId === "__omaweb_content_blocking_generic");
+        const arm = () => {
+            if (!surveyed()) {
+                setTimeout(arm, 20);
+                return;
+            }
+            const element = document.createElement("div");
+            element.className = "late";
+            document.body.appendChild(element);
+        };
+        arm();
+    </script></body></html>)HTML");
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+    QTemporaryDir root;
+    QQmlEngine engine;
+    QQmlComponent blockerComponent(&engine);
+    blockerComponent.setData(blockerFakeSource(), QUrl());
+    const std::unique_ptr<QObject> blocker(blockerComponent.create());
+    QVERIFY2(blocker, qPrintable(blockerComponent.errorString()));
+    QQmlComponent component(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
+        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
+        {QStringLiteral("contentBlocker"), QVariant::fromValue(blocker.get())},
+    }));
+    QVERIFY2(adapter, qPrintable(component.errorString()));
+    QQuickWindow window;
+    qobject_cast<QQuickItem *>(adapter.get())->setParentItem(window.contentItem());
+    window.show();
+    const QUrl page(QStringLiteral("http://127.0.0.1:%1/page.html").arg(server.serverPort()));
+    QVERIFY(adapter->setProperty("currentUrl", page));
+
+    const auto surveys = [&blocker] { return blocker->property("surveys").toList(); };
+    const auto classes = [&surveys](int index) {
+        const auto list
+            = surveys().at(index).toMap().value(QStringLiteral("classes")).toStringList();
+        return QSet<QString>(list.cbegin(), list.cend());
+    };
+    QTRY_COMPARE_WITH_TIMEOUT(surveys().size(), 2, 15000);
+    QCOMPARE(classes(0), (QSet<QString> {"ad"}));
+    QCOMPARE(classes(1), (QSet<QString> {"late"}));
+
+    QVERIFY(QMetaObject::invokeMethod(adapter.get(), "reloadPage"));
+    QTRY_COMPARE_WITH_TIMEOUT(surveys().size(), 4, 15000);
+    QCOMPARE(classes(2), (QSet<QString> {"ad"}));
+    QCOMPARE(classes(3), (QSet<QString> {"late"}));
+    QTest::qWait(250);
+    QCOMPARE(surveys().size(), 4);
 }
 
 // A `##+js(...)` rule is worth something only if its scriptlet has already run
