@@ -105,6 +105,14 @@ signals:
     void compilingChanged();
     void rulesChanged();
     void refusalTallyGenerationChanged();
+    // The addresses refused for the page a view is showing, in the batch its
+    // tally moves in, for the view to take the elements that asked for them
+    // out of the layout: a refused image is otherwise drawn as a broken
+    // picture, and a page measuring its own bait reads it as shown. Only a
+    // request an element is drawn by is delivered; a refused script has no
+    // element to collapse. Delivered to the view rather than announced by
+    // address, so the view compares nothing (#316).
+    void elementsRefused(QObject *view, const QStringList &addresses);
 
 private:
     struct Subscription {
@@ -159,8 +167,9 @@ private:
     void load();
     void seedDefaultSubscriptions();
     bool appendKnownList(const KnownList &list);
-    void countRefusal(const QUrl &sourceUrl, const QString &spaceId) const;
-    void noteRefusal(const RefusalKey &key);
+    void countRefusal(
+        const QUrl &sourceUrl, const QString &spaceId, const QUrl &elementAddress = {}) const;
+    void noteRefusal(const RefusalKey &key, const QString &elementAddress);
     void flushRefusals();
     void save() const;
     void recompile();
@@ -178,8 +187,14 @@ private:
     QList<Subscription> m_subscriptions;
     QSet<QString> m_disabledSites;
     std::shared_ptr<const Runtime> m_runtime;
+    // What one page has been refused since the last batch: how many requests,
+    // and the addresses among them that an element is drawn by.
+    struct PendingRefusals {
+        int count = 0;
+        QStringList elementAddresses;
+    };
     // Refusals waiting to be credited, and the batch that delivers them.
-    QHash<RefusalKey, int> m_pendingRefusals;
+    QHash<RefusalKey, PendingRefusals> m_pendingRefusals;
     QTimer m_refusalFlush;
     QHash<RefusalKey, RefusalTally> m_refusalTallies;
     // Kept here rather than in the view: what a load does to a tally is

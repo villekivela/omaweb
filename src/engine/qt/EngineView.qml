@@ -1255,6 +1255,64 @@ Item {
             root.cosmeticRuleGeneration += 1;
             root.surveyGenericCosmeticRules();
         }
+
+        // Delivered to the view showing the page, so a batch for another view
+        // is another view's.
+        function onElementsRefused(view, addresses) {
+            if (view === root)
+                root.collapseRefusedElements(webView.mainFrame, addresses);
+        }
+    }
+
+    // ---- the element a refusal leaves behind ----------------------------------
+    //
+    // Chromium draws an image whose request failed as a broken-image icon, so
+    // a refusal on its own leaves a hole where the ad was, and a page measuring
+    // its own bait reads the bait as shown. Content blocking delivers the
+    // addresses it refused for the page on show, and this takes the elements
+    // that asked for them out of the layout. The script only hides: what was
+    // refused was decided in the core, and a request that failed any other way
+    // is left as the engine draws it.
+    //
+    // Every frame, because the address says nothing about which frame's
+    // element asked for it, and the page cannot reach into a frame of another
+    // origin. In the application world, so a page that redefines what the
+    // script leans on in its own world takes nothing away from it.
+    //
+    // The refused addresses stay with the document, because a request can be
+    // made before its element is in the document: the preload scanner asks
+    // for an image the parser has not reached yet. An element that settles
+    // after the batch is checked against what was refused before it, on the
+    // error a refusal fires and the load a substitute does. An element's own
+    // addresses are the one it settled on and the one it was given, and a
+    // media element's tracks besides; a substitute answers under the address
+    // that was asked for, so the element still names it.
+    function collapseSnippet(addresses) {
+        return "(() => {" + "const first = !globalThis.__omawebRefused;"
+                + "const refused = globalThis.__omawebRefused ??= new Set();"
+                + "const asked = element => {"
+                + "const addresses = [element.currentSrc, element.src, element.data];"
+                + "for (const source of element.querySelectorAll('source')) "
+                + "addresses.push(source.src);" + "return addresses;" + "};"
+                + "const collapse = element => {"
+                + "if (asked(element).some(address => address && refused.has(address))) "
+                + "element.style.setProperty('display', 'none', 'important');" + "};"
+                + "if (first) {"
+                + "const settled = event => { if (event.target instanceof Element "
+                + "&& event.target.matches('img, iframe, object, embed, video, audio')) "
+                + "collapse(event.target); };" + "addEventListener('error', settled, true);"
+                + "addEventListener('load', settled, true);" + "}" + "for (const address of "
+                + JSON.stringify(addresses) + ") {"
+                + "try { refused.add(new URL(address).href); } catch (error) {}" + "}"
+                + "for (const element of document.querySelectorAll("
+                + "'img, iframe, object, embed, video, audio')) collapse(element);" + "})()";
+    }
+    // A frame's runJavaScript is overloaded and needs the callback to pick one.
+    function collapseRefusedElements(frame, addresses) {
+        frame.runJavaScript(root.collapseSnippet(addresses), WebEngineScript.ApplicationWorld,
+                            function () {});
+        for (let index = 0; index < frame.children.length; ++index)
+            root.collapseRefusedElements(frame.children[index], addresses);
     }
 
     readonly property string developerToolsSheetId: "__omaweb_developer_tools"

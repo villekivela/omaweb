@@ -90,6 +90,7 @@ public:
 signals:
     void rulesChanged();
     void configurationChanged();
+    void elementsRefused(QObject *view, const QStringList &addresses);
 
 private:
     QList<QPair<QString, QUrl>> m_announced;
@@ -103,6 +104,7 @@ static QByteArray blockerFakeSource()
             property int genericRequests: 0
             signal rulesChanged()
             signal configurationChanged()
+            signal elementsRefused(var view, var addresses)
             function showPage(view, spaceId, pageAddress, pageGeneration) {}
             function shouldBlockPopup(requestUrl, openerUrl, spaceId) { return false; }
             function cosmeticStyleSheet(url) { return ""; }
@@ -158,6 +160,7 @@ private slots:
     void qtRefusesTheWindowsTheListsNameAndNoOthers();
     void qtReportsWhereThePageWasPressed();
     void qtServesTheSubstitutesTheListsName();
+    void qtCollapsesTheElementWhoseRequestItRefused();
     void qtStripsTheParametersTheListsName();
     void qtAttachesBlockingToTheProfileQmlCreates();
     void qtTellsEverySiteNotToSellTheReadersData_data();
@@ -1812,6 +1815,94 @@ void QtEngineContractTest::qtServesTheSubstitutesTheListsName()
     // library rather than off the network, and the refusal was a refusal.
     QVERIFY(!server.requested().contains(QStringLiteral("/tracker.gif")));
     QVERIFY(!server.requested().contains(QStringLiteral("/banner.gif")));
+}
+
+// Chromium draws an image whose request failed as a broken-image icon, so a
+// refusal on its own leaves a hole where the ad was, and a page measuring its
+// own bait reads the bait as shown. The element whose request was refused, or
+// answered with a substitute, is taken out of the layout instead, in a
+// subframe as in the main frame. A request that failed for any other reason is
+// left as the engine draws it: the collapse follows a refusal, not an error.
+// The tally counts the refusals as before; the collapse is not a fifth.
+//
+// The late image is added once the first batch has long been delivered, and
+// reads its own display from its error handler, which runs after the
+// document's own listener: an address refused earlier is still held against
+// the element that names it later. The address carries characters the page
+// and the engine each write their own way, so the two spellings have to meet.
+void QtEngineContractTest::qtCollapsesTheElementWhoseRequestItRefused()
+{
+    // The frame reports its own image to the page, because the page cannot
+    // read into a frame of another origin, and the page puts both in its title
+    // every time either changes.
+    PageServer frameServer(R"HTML(<!doctype html><html><body>
+        <img id="refused" src="/banner.gif">
+        <script>
+            const report = () => parent.postMessage("frame=" + getComputedStyle(
+                document.getElementById("refused")).display, "*");
+            setInterval(report, 50);
+        </script>
+    </body></html>)HTML");
+    QVERIFY(frameServer.listen(QHostAddress::LocalHost));
+    PageServer server(QStringLiteral(R"HTML(<!doctype html><html><body>
+        <img id="refused" src="/banner.gif?bait=&auml; b">
+        <img id="substituted" src="/tracker.gif">
+        <img id="failed" src="http://127.0.0.1:1/unreachable.gif">
+        <iframe src="http://127.0.0.1:%1/frame.html"></iframe>
+        <script>
+            let frame = "frame=?";
+            let late = "late=?";
+            addEventListener("message", event => { frame = event.data; });
+            const display = id => id + "=" + getComputedStyle(
+                document.getElementById(id)).display;
+            setInterval(() => {
+                document.title = [display("refused"), display("substituted"),
+                    display("failed"), frame, late].join(" ");
+            }, 50);
+            setTimeout(() => {
+                const image = document.createElement("img");
+                image.onerror = () => { late = "late=" + getComputedStyle(image).display; };
+                image.src = "/banner.gif?bait=\u00e4 b";
+                document.body.appendChild(image);
+            }, 1500);
+        </script>
+    </body></html>)HTML")
+            .arg(frameServer.serverPort())
+            .toUtf8());
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    omaweb::ContentBlocker contentBlocker(root.path(), omaweb::ContentBlocker::DefaultLists::None);
+    contentBlocker.setUserRules(QStringLiteral("/tracker.gif$image,redirect=1x1.gif\n"
+                                               "/banner.gif$image"));
+    QTRY_VERIFY_WITH_TIMEOUT(!contentBlocker.compiling(), 5000);
+    omaweb::QtContentBlocker engineContentBlocker(&contentBlocker);
+
+    QQmlEngine engine;
+    QQmlComponent component(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
+        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
+        {QStringLiteral("contentBlocker"), QVariant::fromValue<QObject *>(&contentBlocker)},
+        {QStringLiteral("engineContentBlocker"),
+            QVariant::fromValue<QObject *>(&engineContentBlocker)},
+    }));
+    QVERIFY2(adapter, qPrintable(component.errorString()));
+    QQuickWindow window;
+    qobject_cast<QQuickItem *>(adapter.get())->setParentItem(window.contentItem());
+    window.show();
+
+    const QUrl pageUrl(QStringLiteral("http://127.0.0.1:%1/page.html").arg(server.serverPort()));
+    QVERIFY(adapter->setProperty("currentUrl", pageUrl));
+
+    QTRY_COMPARE_WITH_TIMEOUT(adapter->property("pageTitle").toString(),
+        QStringLiteral("refused=none substituted=none failed=inline frame=none late=none"), 15000);
+    // A refusal, a substitute and the late refusal in the page, and a refusal
+    // in its frame.
+    QTRY_COMPARE_WITH_TIMEOUT(contentBlocker.refusalTally(QString(), pageUrl), 4, 5000);
+    QVERIFY(!server.requested().contains(QStringLiteral("/banner.gif")));
+    QVERIFY(!frameServer.requested().contains(QStringLiteral("/banner.gif")));
 }
 
 // A $removeparam rule refuses nothing. The request goes out, with the tracking

@@ -464,6 +464,7 @@ public:
 signals:
     void rulesChanged();
     void configurationChanged();
+    void elementsRefused(QObject *view, const QStringList &addresses);
 
 private:
     std::shared_ptr<const ContentMatcher> m_matcher;
