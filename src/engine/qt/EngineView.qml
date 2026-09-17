@@ -97,7 +97,13 @@ Item {
     // profile (ADR 0037). Empty in a Private window, whose shared session has
     // no Space of its own.
     property string spaceId: ""
+    // What the view shows where no page has painted yet. A page itself sits on
+    // the canvas every browser gives it, white or the dark one Chromium draws
+    // under `color-scheme: dark`; the theme's colour is shown only from the
+    // moment a document is created until it first paints, which is the window
+    // in which white would flash through dark chrome.
     property color pageBackgroundColor: "#16151d"
+    property bool documentPainted: false
     // The colour a page's own controls are drawn in: the checked box, the
     // selected option, the filled track. Chromium draws them itself and has no
     // idea what the window around them looks like, so the shell says.
@@ -1568,6 +1574,36 @@ Item {
         return script;
     }
 
+    // When the document exists and when it has first painted. Chromium keeps
+    // the outgoing page on show until the next one's first paint, so the
+    // canvas matters from the moment that page's frames are the ones shown:
+    // theme until the page has drawn something of its own, white after. The
+    // engine does not hand either moment out, so the page reports them, the
+    // paint through the timing entry Chromium records for it.
+    property var documentPaintedScript: {
+        const script = WebEngine.script();
+        script.name = "Omaweb document painted";
+        script.injectionPoint = WebEngineScript.DocumentCreation;
+        script.worldId = WebEngineScript.MainWorld;
+        script.runsOnSubFrames = false;
+        script.sourceCode = `(() => {
+            console.info('__omaweb_document_created__');
+            let reported = false;
+            const report = () => {
+                if (reported) return;
+                reported = true;
+                console.info('__omaweb_document_painted__');
+            };
+            try {
+                new PerformanceObserver(report).observe({type: 'paint', buffered: true});
+            } catch (error) {
+                report();
+            }
+        })();`;
+
+        return script;
+    }
+
     // A first-hand gesture on the page, reported once per document. Chromium
     // has its own record of user activation but does not hand it out, and the
     // shell needs it per origin rather than per page, so the page says so.
@@ -1754,9 +1790,9 @@ Item {
     // added to only one of them on the first page load.
     function userScriptList() {
         const scripts = [root.editedStateScript, root.keyboardNavigationScript,
-                         root.externalProtocolOriginScript, root.userActivationScript,
-                         root.pressOriginScript, root.controlAccentScript, root.pagePaletteScript,
-                         root.pageScrollbarScript, root.mediaSessionScript];
+                         root.externalProtocolOriginScript, root.documentPaintedScript,
+                         root.userActivationScript, root.pressOriginScript, root.controlAccentScript,
+                         root.pagePaletteScript, root.pageScrollbarScript, root.mediaSessionScript];
         if (root.blockingScript)
             scripts.push(root.blockingScript);
         return scripts;
@@ -1802,10 +1838,12 @@ Item {
         // page written against a browser renders here as its author saw it.
         settings.localContentCanAccessFileUrls: false
         settings.localContentCanAccessRemoteUrls: true
-        // Chromium paints this before a page supplies its own background.
-        // Left at white it flashes a bright rectangle through dark chrome on
-        // every navigation, so it follows the theme instead.
-        backgroundColor: root.pageBackgroundColor
+        // Chromium paints this under the page for the page's whole life, not
+        // only before the page supplies a background, so a page that draws
+        // none gets the white it was written against. The theme stands in
+        // only between a document's creation and its first paint, where white
+        // would flash a bright rectangle through dark chrome.
+        backgroundColor: root.documentPainted ? "white" : root.pageBackgroundColor
         focus: true
         userScripts.collection: root.userScriptList()
         // Chromium's autoplay policy is per view. Requiring a gesture blocks
@@ -1919,6 +1957,12 @@ Item {
             if (loadRequest.status === WebEngineView.LoadFailedStatus) {
                 root.lastLoadFailed = true;
             }
+            // A document the script does not reach, a `data:` page, an error
+            // page or a viewer of the engine's own, reports neither moment: it
+            // keeps the canvas of the page before it, white after any page has
+            // painted, and is on show once its load is over.
+            if (!loading)
+                root.documentPainted = true;
             // A load that arrived without a certificate failure clears the
             // report. The certificate that failed may since have been fixed,
             // and the adapter must not keep saying otherwise — the engine's
@@ -2031,6 +2075,10 @@ Item {
                     // what a page with no media session declares too.
                     root.pageMediaSession = {};
                 }
+            } else if (message === "__omaweb_document_created__") {
+                root.documentPainted = false;
+            } else if (message === "__omaweb_document_painted__") {
+                root.documentPainted = true;
             } else if (message === "__omaweb_user_activation__") {
                 root.userActivated();
             } else if (message === "__omaweb_keyboard_hint_mode__:1")
