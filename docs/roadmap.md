@@ -44,7 +44,9 @@ not distribute its bundles ([ADR 0029](adr/0029-distribute-only-for-linux.md)).
   [#13](https://github.com/villekivela/omaweb/issues/13)) wait on Omarchy.
 - Extensions wait on Qt's extension surface
   ([#175](https://github.com/villekivela/omaweb/issues/175),
-  [#288](https://github.com/villekivela/omaweb/issues/288)).
+  [#288](https://github.com/villekivela/omaweb/issues/288)). Whether Omaweb hosts password managers
+  as Known extensions on a patched development engine is decided in
+  [#344](https://github.com/villekivela/omaweb/issues/344).
 - The Ladybird adapter ([#7](https://github.com/villekivela/omaweb/issues/7)) stays experimental and
   outside the default build graph until it satisfies the daily-driver contract.
 - Account and Sync with replaceable providers are deferred.
