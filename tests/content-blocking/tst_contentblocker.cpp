@@ -44,6 +44,7 @@ private slots:
     void twoSpacesKeepSeparateTalliesForOneAddress();
     void aJumpInsideTheDocumentLeavesTheTallyRunning();
     void aPageNoViewIsShowingHasNoTally();
+    void aRefusedElementsAddressReachesTheViewShowingThePage();
     void firstRunSubscribesToTheDefaultLists();
     void aSettingsFileWithNoMarkerSeedsOnceMore();
     void anEmptyListTheReaderChoseSurvivesTheNextRun();
@@ -492,6 +493,48 @@ void ContentBlockerTest::aPageNoViewIsShowingHasNoTally()
     refuse(*blocker, page, space);
     QTest::qWait(500);
     QCOMPARE(blocker->refusalTally(space, page), 0);
+}
+
+// The interceptor knows the address it refused and the page knows the
+// element that asked, and the join is made here: a refused address that an
+// element is drawn by goes to the view showing the page, in the batch the
+// tally moves in, so the view can take the element out of the layout. A
+// refused script has no element and is not delivered; a page nobody is
+// showing has no view to deliver to (#316).
+void ContentBlockerTest::aRefusedElementsAddressReachesTheViewShowingThePage()
+{
+    QTemporaryDir root;
+    const auto blocker = refusingBlocker(root);
+    QTRY_VERIFY_WITH_TIMEOUT(!blocker->compiling(), 5000);
+    const QUrl page(QStringLiteral("https://site.example/article"));
+    const QUrl banner(QStringLiteral("https://ads.example/banner.gif"));
+    const QUrl frame(QStringLiteral("https://ads.example/frame.html"));
+    QObject view;
+    QObject other;
+    QSignalSpy delivered(blocker.get(), &ContentBlocker::elementsRefused);
+    blocker->showPage(&view, space, page, 1);
+    blocker->showPage(&other, space, QUrl(QStringLiteral("https://site.example/other")), 1);
+
+    QVERIFY(blocker->checkRequest(banner, page, QStringLiteral("image"), space).blocked);
+    QVERIFY(blocker->checkRequest(frame, page, QStringLiteral("subdocument"), space).blocked);
+    refuse(*blocker, page, space);
+    QTRY_COMPARE_WITH_TIMEOUT(blocker->refusalTally(space, page), 3, 5000);
+    QCOMPARE(delivered.count(), 1);
+    QCOMPARE(delivered.first().at(0).value<QObject *>(), &view);
+    QCOMPARE(
+        delivered.first().at(1).toStringList(), QStringList({banner.toString(), frame.toString()}));
+
+    // The script alone moves the tally and delivers nothing.
+    delivered.clear();
+    refuse(*blocker, page, space);
+    QTRY_COMPARE_WITH_TIMEOUT(blocker->refusalTally(space, page), 4, 5000);
+    QCOMPARE(delivered.count(), 0);
+
+    // A page nobody is showing has no view to deliver to.
+    const QUrl unshown(QStringLiteral("https://site.example/unshown"));
+    QVERIFY(blocker->checkRequest(banner, unshown, QStringLiteral("image"), space).blocked);
+    QTest::qWait(500);
+    QCOMPARE(delivered.count(), 0);
 }
 
 void ContentBlockerTest::firstRunSubscribesToTheDefaultLists()

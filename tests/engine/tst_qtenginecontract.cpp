@@ -90,6 +90,7 @@ public:
 signals:
     void rulesChanged();
     void configurationChanged();
+    void elementsRefused(QObject *view, const QStringList &addresses);
 
 private:
     QList<QPair<QString, QUrl>> m_announced;
@@ -103,6 +104,7 @@ static QByteArray blockerFakeSource()
             property int genericRequests: 0
             signal rulesChanged()
             signal configurationChanged()
+            signal elementsRefused(var view, var addresses)
             function showPage(view, spaceId, pageAddress, pageGeneration) {}
             function shouldBlockPopup(requestUrl, openerUrl, spaceId) { return false; }
             function cosmeticStyleSheet(url) { return ""; }
@@ -1821,7 +1823,13 @@ void QtEngineContractTest::qtServesTheSubstitutesTheListsName()
 // answered with a substitute, is taken out of the layout instead, in a
 // subframe as in the main frame. A request that failed for any other reason is
 // left as the engine draws it: the collapse follows a refusal, not an error.
-// The tally counts the refusals as before; the collapse is not a fourth.
+// The tally counts the refusals as before; the collapse is not a fifth.
+//
+// The late image is added once the first batch has long been delivered, and
+// reads its own display from its error handler, which runs after the
+// document's own listener: an address refused earlier is still held against
+// the element that names it later. The address carries characters the page
+// and the engine each write their own way, so the two spellings have to meet.
 void QtEngineContractTest::qtCollapsesTheElementWhoseRequestItRefused()
 {
     // The frame reports its own image to the page, because the page cannot
@@ -1837,19 +1845,26 @@ void QtEngineContractTest::qtCollapsesTheElementWhoseRequestItRefused()
     </body></html>)HTML");
     QVERIFY(frameServer.listen(QHostAddress::LocalHost));
     PageServer server(QStringLiteral(R"HTML(<!doctype html><html><body>
-        <img id="refused" src="/banner.gif">
+        <img id="refused" src="/banner.gif?bait=&auml; b">
         <img id="substituted" src="/tracker.gif">
         <img id="failed" src="http://127.0.0.1:1/unreachable.gif">
         <iframe src="http://127.0.0.1:%1/frame.html"></iframe>
         <script>
             let frame = "frame=?";
+            let late = "late=?";
             addEventListener("message", event => { frame = event.data; });
             const display = id => id + "=" + getComputedStyle(
                 document.getElementById(id)).display;
             setInterval(() => {
                 document.title = [display("refused"), display("substituted"),
-                    display("failed"), frame].join(" ");
+                    display("failed"), frame, late].join(" ");
             }, 50);
+            setTimeout(() => {
+                const image = document.createElement("img");
+                image.onerror = () => { late = "late=" + getComputedStyle(image).display; };
+                image.src = "/banner.gif?bait=\u00e4 b";
+                document.body.appendChild(image);
+            }, 1500);
         </script>
     </body></html>)HTML")
             .arg(frameServer.serverPort())
@@ -1882,9 +1897,10 @@ void QtEngineContractTest::qtCollapsesTheElementWhoseRequestItRefused()
     QVERIFY(adapter->setProperty("currentUrl", pageUrl));
 
     QTRY_COMPARE_WITH_TIMEOUT(adapter->property("pageTitle").toString(),
-        QStringLiteral("refused=none substituted=none failed=inline frame=none"), 15000);
-    // A refusal and a substitute in the page, and a refusal in its frame.
-    QTRY_COMPARE_WITH_TIMEOUT(contentBlocker.refusalTally(QString(), pageUrl), 3, 5000);
+        QStringLiteral("refused=none substituted=none failed=inline frame=none late=none"), 15000);
+    // A refusal, a substitute and the late refusal in the page, and a refusal
+    // in its frame.
+    QTRY_COMPARE_WITH_TIMEOUT(contentBlocker.refusalTally(QString(), pageUrl), 4, 5000);
     QVERIFY(!server.requested().contains(QStringLiteral("/banner.gif")));
     QVERIFY(!frameServer.requested().contains(QStringLiteral("/banner.gif")));
 }

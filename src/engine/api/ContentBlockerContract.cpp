@@ -27,6 +27,9 @@ QStringList validateEngineBlockerContract(const QObject &blocker)
         // different, so the view asks for them again.
         {"rulesChanged", true, 0},
         {"configurationChanged", true, 0},
+        // The addresses refused for the page a view is showing, for that view
+        // to take the elements that asked for them out of the layout (#316).
+        {"elementsRefused", true, 2},
     };
     return contract::missing(blocker, {}, requiredMethods);
 }

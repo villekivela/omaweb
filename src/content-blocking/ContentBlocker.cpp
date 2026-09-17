@@ -40,6 +40,16 @@ namespace {
     // times over a single load, so the refusals are batched and delivered
     // together.
     constexpr int refusalFlushIntervalMilliseconds = 250;
+
+    // Whether a request of this type is one an element is drawn by: an image,
+    // a frame, a plugin's object, a video or an audio track. A refused script
+    // or stylesheet leaves nothing in the layout to take out.
+    bool drawnByAnElement(const QString &resourceType)
+    {
+        return resourceType == QLatin1String("image")
+            || resourceType == QLatin1String("subdocument")
+            || resourceType == QLatin1String("object") || resourceType == QLatin1String("media");
+    }
     constexpr qint64 updateIntervalSeconds = 24 * 60 * 60;
 
     // Every list here is maintained beside EasyList at easylist.to and uses
@@ -123,9 +133,13 @@ ContentBlocker::RefusalKey ContentBlocker::refusalKey(
         spaceId, pageAddress.adjusted(QUrl::RemoveFragment).toString(QUrl::FullyEncoded)};
 }
 
-void ContentBlocker::noteRefusal(const RefusalKey &key)
+void ContentBlocker::noteRefusal(const RefusalKey &key, const QString &elementAddress)
 {
-    m_pendingRefusals[key] += 1;
+    auto &pending = m_pendingRefusals[key];
+    pending.count += 1;
+    if (!elementAddress.isEmpty()) {
+        pending.elementAddresses.append(elementAddress);
+    }
     if (!m_refusalFlush.isActive()) {
         m_refusalFlush.start();
     }
@@ -145,8 +159,16 @@ void ContentBlocker::flushRefusals()
         if (tally == m_refusalTallies.end()) {
             continue;
         }
-        tally->refused += it.value();
+        tally->refused += it->count;
         moved = true;
+        if (it->elementAddresses.isEmpty()) {
+            continue;
+        }
+        for (auto viewed = m_viewedPages.cbegin(); viewed != m_viewedPages.cend(); ++viewed) {
+            if (viewed->tally == it.key()) {
+                emit elementsRefused(viewed.key(), it->elementAddresses);
+            }
+        }
     }
     if (moved) {
         ++m_refusalTallyGeneration;
@@ -488,7 +510,7 @@ RequestDecision ContentBlocker::checkRequest(const QUrl &requestUrl, const QUrl 
     }
     const auto decision = matcher->check(requestUrl, sourceUrl, resourceType);
     if (decision.blocked) {
-        countRefusal(sourceUrl, spaceId);
+        countRefusal(sourceUrl, spaceId, drawnByAnElement(resourceType) ? requestUrl : QUrl());
     }
     return decision;
 }
@@ -508,16 +530,20 @@ bool ContentBlocker::shouldBlockPopup(
 }
 
 // Requests are matched on whichever thread the engine hands them to, and the
-// tallies belong to this object's thread.
-void ContentBlocker::countRefusal(const QUrl &sourceUrl, const QString &spaceId) const
+// tallies belong to this object's thread. The element's address, where the
+// request had one, travels in the form the page names it in, so the view has
+// nothing to translate.
+void ContentBlocker::countRefusal(
+    const QUrl &sourceUrl, const QString &spaceId, const QUrl &elementAddress) const
 {
     QPointer<ContentBlocker> guard(const_cast<ContentBlocker *>(this));
     const auto key = refusalKey(spaceId, sourceUrl);
+    const auto address = elementAddress.toString(QUrl::FullyEncoded);
     QMetaObject::invokeMethod(
         const_cast<ContentBlocker *>(this),
-        [guard, key] {
+        [guard, key, address] {
             if (guard) {
-                guard->noteRefusal(key);
+                guard->noteRefusal(key, address);
             }
         },
         Qt::QueuedConnection);

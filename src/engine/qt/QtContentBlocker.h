@@ -1,11 +1,8 @@
 #pragma once
 
-#include <QHash>
 #include <QObject>
 #include <QPointer>
 #include <QString>
-#include <QStringList>
-#include <QTimer>
 #include <QUrl>
 #include <QWebEngineScript>
 #include <QWebEngineUrlRequestInfo>
@@ -13,7 +10,6 @@
 #include <atomic>
 #include <map>
 #include <memory>
-#include <utility>
 #include <vector>
 
 class QWebEngineUrlRequestInterceptor;
@@ -55,23 +51,8 @@ public:
     // Whether every request gets the `Sec-GPC: 1` header. Read on whichever
     // thread Chromium runs the interceptor on, hence the atomic.
     bool sendsGlobalPrivacyControl() const;
-    // A request an element made was refused, or answered with a substitute.
-    // The interceptor knows the address and the page knows the element, and
-    // this is where the two are joined: the address is queued for the page it
-    // was refused on, and requestsRefused delivers the batch. Called on
-    // whichever thread the engine hands requests to.
-    void noteRefusedElement(
-        const QString &spaceId, const QUrl &pageAddress, const QUrl &requestUrl) const;
 
 signals:
-    // The addresses refused for one page since the last delivery, for the
-    // view showing that page to take the elements that asked for them out of
-    // the layout. Keyed the way the Refusal tally is, by Space and page
-    // address without its fragment, and batched for the same reason: a page
-    // load refuses hundreds of requests, and a script round trip per refusal
-    // in every open tab is what the batching spares (ADR 0037).
-    void requestsRefused(
-        const QString &spaceId, const QUrl &pageAddress, const QStringList &addresses);
     // A profile attached for the first time. The interceptor is the one
     // thing every profile is handed to, so this is where the rest of what
     // rides a profile, a page's fonts for one, learns of it without a second
@@ -81,7 +62,6 @@ signals:
 private:
     void applyGlobalPrivacyControl();
     void installGlobalPrivacyControlScript(QObject *profile, bool wanted) const;
-    void flushRefusedElements();
 
     ContentBlocker *m_contentBlocker;
     const GlobalPrivacyControl *m_globalPrivacyControl;
@@ -100,10 +80,6 @@ private:
     // carries and one shared instance cannot.
     std::map<QString, std::unique_ptr<QWebEngineUrlRequestInterceptor>> m_interceptors;
     std::unique_ptr<QWebEngineUrlSchemeHandler> m_substitutes;
-    // The refused addresses waiting to be delivered, per Space and page
-    // address, and the batch that delivers them.
-    QHash<std::pair<QString, QString>, QStringList> m_pendingRefusedElements;
-    QTimer m_refusedElementFlush;
 };
 
 } // namespace omaweb
