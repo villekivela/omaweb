@@ -157,6 +157,7 @@ private slots:
     void qtLinkHintsOwnSingleKeyShortcuts();
     void qtHidesCosmeticRulesBeforeThePageRuns_data();
     void qtHidesCosmeticRulesBeforeThePageRuns();
+    void qtScriptsEveryDocumentForItsOwnAddress();
     void qtRejectsObsoleteCosmeticSurveys_data();
     void qtRejectsObsoleteCosmeticSurveys();
     void qtHidesElementsAddedAfterLoad_data();
@@ -1312,7 +1313,8 @@ QMetaMethod signalNamed(const QObject *object, const char *name)
 class PageServer final : public QTcpServer {
 public:
     // `/redirect` answers with the address it is given, and without one with
-    // this server's own page under its other loopback name.
+    // this server's own page under its other loopback name, carrying the
+    // redirect's own query.
     explicit PageServer(QByteArray body, QByteArray redirectTo = {})
         : m_body(std::move(body))
         , m_redirectTo(std::move(redirectTo))
@@ -1328,9 +1330,11 @@ public:
                     m_requested.append(QString::fromUtf8(fields.at(1)));
                     m_requests.append(QString::fromUtf8(request));
                 }
-                if (fields.value(1) == "/redirect") {
+                const auto path = fields.value(1);
+                if (path == "/redirect" || path.startsWith("/redirect?")) {
                     const auto destination = m_redirectTo.isEmpty()
                         ? "http://127.0.0.1:" + QByteArray::number(serverPort()) + "/page.html"
+                            + path.mid(QByteArrayLiteral("/redirect").size())
                         : m_redirectTo;
                     socket->write("HTTP/1.1 302 Found\r\nLocation: " + destination
                         + "\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
@@ -1392,7 +1396,9 @@ void QtEngineContractTest::qtHidesCosmeticRulesBeforeThePageRuns_data()
     QTest::newRow("unchanged") << QByteArray() << 1;
     QTest::newRow("dropped") << QByteArray("document.adoptedStyleSheets = [];") << 0;
     QTest::newRow("cleared") << QByteArray("sheet.replaceSync('');") << 2;
-    QTest::newRow("redirect") << QByteArray("redirect") << 0;
+    // A redirect target is a page like any other: its own site sheet from
+    // its creation, written once more by its survey.
+    QTest::newRow("redirect") << QByteArray("redirect") << 1;
 }
 
 void QtEngineContractTest::qtHidesCosmeticRulesBeforeThePageRuns()
@@ -1464,14 +1470,12 @@ void QtEngineContractTest::qtHidesCosmeticRulesBeforeThePageRuns()
 
     // The hostname rule is in the document before the page's own script runs;
     // the generic rule arrives with the survey, once there is a DOM to survey.
-    if (redirected) {
+    // A redirect target runs the rules of the address it arrived at, not the
+    // one the load set out from, whose rule would hide the article instead.
+    if (redirected)
         QTRY_COMPARE_WITH_TIMEOUT(adapter->property("currentUrl").toUrl(), pageUrl, 15000);
-        QTRY_COMPARE_WITH_TIMEOUT(adapter->property("pageTitle").toString().section('|', 1, 1),
-            QStringLiteral("SG-"), 15000);
-    } else {
-        QTRY_COMPARE_WITH_TIMEOUT(adapter->property("pageTitle").toString(),
-            QStringLiteral("S--|SG-|%1").arg(writes), 15000);
-    }
+    QTRY_COMPARE_WITH_TIMEOUT(
+        adapter->property("pageTitle").toString(), QStringLiteral("S--|SG-|%1").arg(writes), 15000);
 
     // Turning the site off gives both back without a reload, the surveyed
     // rules included.
@@ -1481,6 +1485,102 @@ void QtEngineContractTest::qtHidesCosmeticRulesBeforeThePageRuns()
     contentBlocker.setSiteEnabled(pageUrl, true);
     QTRY_COMPARE_WITH_TIMEOUT(
         adapter->property("pageTitle").toString().section('|', 1, 1), QStringLiteral("SG-"), 15000);
+}
+
+// Every document a navigation creates runs the view's scripts and the
+// Content blocking script of its own address, whenever in the navigation it
+// is created. Two documents used to miss: the target of a cross-site
+// redirect, whose frame the engine creates once the redirect is known, and
+// the target of any navigation to another site, whose frame the engine
+// creates, in a renderer process of its own, before the view hears of the
+// navigation and with the scripts of the page being left. Twenty-one loads
+// alternate between the two loopback names, so every load but the first
+// changes process, through a cross-site redirect, a same-site one, and none;
+// each page carries a subframe, and every frame is surveyed with nothing
+// asking after it.
+void QtEngineContractTest::qtScriptsEveryDocumentForItsOwnAddress()
+{
+    // The same body serves as page and as subframe: the page embeds one
+    // frame and reads its state, the frame only offers it.
+    const QByteArray body(R"HTML(<!doctype html><html><head>
+        <meta http-equiv="Content-Security-Policy"
+              content="default-src 'self'; script-src 'unsafe-inline'">
+        </head><body>
+        <div id="specific" class="local-ad">ad</div>
+        <div id="generic" class="generic-ad">ad</div>
+        <div id="article" class="story">article</div>
+        <script>
+            const hidden = id =>
+                getComputedStyle(document.getElementById(id)).display === "none";
+            const state = () => (hidden("specific") ? "S" : "-")
+                + (hidden("generic") ? "G" : "-") + (hidden("article") ? "A" : "-");
+            if (window === top) {
+                const first = state();
+                const frame = document.createElement("iframe");
+                frame.src = "/frame.html" + location.search;
+                document.body.appendChild(frame);
+                const report = () => {
+                    const inner = frame.contentWindow && frame.contentWindow.omawebState
+                        ? frame.contentWindow.omawebState() : "";
+                    document.title = location.search + "|" + first + "|" + state() + "|" + inner;
+                    requestAnimationFrame(report);
+                };
+                report();
+            } else {
+                window.omawebState = state;
+            }
+        </script>
+    </body></html>)HTML");
+    PageServer server(body);
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    omaweb::ContentBlocker contentBlocker(root.path(), omaweb::ContentBlocker::DefaultLists::None);
+    contentBlocker.setUserRules(
+        QStringLiteral("127.0.0.1##.local-ad\nlocalhost##.story\n##.generic-ad"));
+    QTRY_VERIFY_WITH_TIMEOUT(!contentBlocker.compiling(), 5000);
+
+    QQmlEngine engine;
+    QQmlComponent component(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
+        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
+        {QStringLiteral("contentBlocker"), QVariant::fromValue<QObject *>(&contentBlocker)},
+    }));
+    QVERIFY2(adapter, qPrintable(component.errorString()));
+    QQuickWindow window;
+    qobject_cast<QQuickItem *>(adapter.get())->setParentItem(window.contentItem());
+    window.show();
+
+    // A page carries its own site rule from its creation, never the other
+    // name's, and the generic rule from its survey; the subframe is surveyed
+    // too, and site rules go into no subframe. Each load has a query of its
+    // own, so a title is only ever the document it names.
+    const int port = server.serverPort();
+    const QString page127 = QStringLiteral("S--|SG-|-G-");
+    const QString pageLocalhost = QStringLiteral("--A|-GA|-G-");
+    for (int load = 1; load <= 21; ++load) {
+        QString address;
+        QString expected;
+        switch (load % 3) {
+        case 1:
+            address = QStringLiteral("http://localhost:%1/redirect?load=%2");
+            expected = page127;
+            break;
+        case 2:
+            address = QStringLiteral("http://localhost:%1/page.html?load=%2");
+            expected = pageLocalhost;
+            break;
+        default:
+            address = QStringLiteral("http://127.0.0.1:%1/redirect?load=%2");
+            expected = page127;
+            break;
+        }
+        QVERIFY(adapter->setProperty("currentUrl", QUrl(address.arg(port).arg(load))));
+        QTRY_COMPARE_WITH_TIMEOUT(adapter->property("pageTitle").toString(),
+            QStringLiteral("?load=%1|%2").arg(load).arg(expected), 15000);
+    }
 }
 
 void QtEngineContractTest::qtRejectsObsoleteCosmeticSurveys_data()
@@ -1884,11 +1984,17 @@ void QtEngineContractTest::qtRunsScriptletsBeforeThePageRuns()
         adapter->property("pageTitle").toString(), QStringLiteral("true"), 15000);
 
     // A scriptlet is list-named code running in the page, so a site the user
-    // turned blocking off for runs none of it.
-    contentBlocker.setSiteEnabled(pageUrl, false);
-    QVERIFY(QMetaObject::invokeMethod(adapter.get(), "reloadPage"));
-    QTRY_COMPARE_WITH_TIMEOUT(
-        adapter->property("pageTitle").toString(), QStringLiteral("undefined"), 15000);
+    // turned blocking off for runs none of it, and a site turned back on runs
+    // it before the page's first script again. A reload is the document that
+    // used to run the scriptlet of the page before it, so the site is turned
+    // off and on by turns across twenty reloads.
+    for (int reload = 1; reload <= 20; ++reload) {
+        const bool enabled = reload % 2 == 0;
+        contentBlocker.setSiteEnabled(pageUrl, enabled);
+        QVERIFY(QMetaObject::invokeMethod(adapter.get(), "reloadPage"));
+        QTRY_COMPARE_WITH_TIMEOUT(adapter->property("pageTitle").toString(),
+            enabled ? QStringLiteral("true") : QStringLiteral("undefined"), 15000);
+    }
 }
 
 // The shell's palette reaches a page as custom properties on its root, and

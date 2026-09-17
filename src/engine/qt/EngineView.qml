@@ -772,10 +772,13 @@ Item {
     property int cosmeticRuleGeneration: 0
     property int cosmeticSurveyGeneration: 0
     // Whether the main frame has surveyed itself since the load started. The
-    // survey script is in the collection the view reassigns at each load
-    // start, and a document created while the engine is still taking that
-    // collection in runs none of it. An error page and the engine's own
-    // viewers run none either. A document that has not reported by load
+    // engine hands a frame the view's scripts when the frame is created, and
+    // the first main frame of a renderer process it has just started is
+    // sometimes handed them only once its document has parsed, so the survey
+    // script in it has run in nothing: seen in about one first navigation of
+    // a view in three here, a cross-site redirect into a cold process, with
+    // the subframe of the same document surveyed. An error page and the engine's
+    // own viewers run none either. A document that has not reported by load
     // success is asked.
     property bool documentSurveyed: false
     // Whether any frame of this document has been given generic rules, so a
@@ -820,6 +823,9 @@ Item {
         return script;
     }
 
+    onControlAccentScriptChanged: root.installUserScript(root.controlAccentScript.name,
+                                                         root.controlAccentScript)
+
     // A theme the reader changes has to reach what is already open. The script
     // above answers for the next load; this answers for the page on show, and
     // the snippet replaces the rules in the sheet the document already adopted
@@ -827,22 +833,39 @@ Item {
     onControlAccentStyleSheetChanged: {
         if (!root.completed)
             return;
-        root.refreshUserScripts();
         webView.runJavaScript(root.styleSheetSnippet(root.controlAccentSheetId,
                                                      root.controlAccentStyleSheet));
     }
 
-    // The handlers that reassign the collection are also fired while the
-    // component is being built, for any sheet a creation property gives a
-    // value to: bindings evaluate in declaration order, so a list read then
-    // has entries that are still undefined, and assigning it fails and takes
-    // the view's own binding with it, which leaves the first document with no
-    // scripts at all. Until completion the binding answers, and nothing here.
+    // The collection is written whole once, by its binding, while the view is
+    // built, and edited a script at a time from then on. The engine takes a
+    // whole assignment in as a clearing and one insertion per script, each a
+    // message of its own to the renderer, and a document created between the
+    // clearing and the last insertion runs none of the view's scripts. It
+    // also keeps one observer of the view per assignment, each resending
+    // every script to every new frame. Editing takes one script out and puts
+    // its successor in, so the rest are never gone, and a script equal to the
+    // one installed is left alone.
+    //
+    // The scripts' own change handlers are also fired while the component is
+    // being built, for any sheet a creation property gives a value to, when
+    // the collection's binding has not been evaluated yet. Until completion
+    // the binding answers, and nothing here.
     property bool completed: false
 
-    function refreshUserScripts() {
+    function installUserScript(name, script) {
         if (root.completed)
-            webView.userScripts.collection = root.userScriptList();
+            root.replaceScript(webView.userScripts, name, script);
+    }
+    // One script by name, in the view's collection or the Engine profile's:
+    // whatever carries the name goes, and `script`, if any, takes its place.
+    function replaceScript(collection, name, script) {
+        if (script && collection.contains(script))
+            return;
+        for (const installed of collection.find(name))
+            collection.remove(installed);
+        if (script)
+            collection.insert(script);
     }
 
     // ---- the palette a page may follow ---------------------------------------
@@ -906,10 +929,12 @@ Item {
         return script;
     }
 
+    onPagePaletteScriptChanged: root.installUserScript(root.pagePaletteScript.name,
+                                                       root.pagePaletteScript)
+
     onPagePaletteStyleSheetChanged: {
         if (!root.completed)
             return;
-        root.refreshUserScripts();
         webView.runJavaScript(root.pagePaletteSnippet(root.pagePaletteStyleSheet));
     }
 
@@ -965,10 +990,12 @@ Item {
         return script;
     }
 
+    onPageScrollbarScriptChanged: root.installUserScript(root.pageScrollbarScript.name,
+                                                         root.pageScrollbarScript)
+
     onPageScrollbarStyleSheetChanged: {
         if (!root.completed)
             return;
-        root.refreshUserScripts();
         webView.runJavaScript(root.styleSheetSnippet(root.pageScrollbarSheetId,
                                                      root.pageScrollbarStyleSheet));
     }
@@ -1157,29 +1184,57 @@ Item {
     // neutralises has already run. Document creation is the only injection
     // point early enough for either, and the script has to be rebuilt for each
     // navigation because both depend on the host being loaded.
-    property var blockingScript: null
+    //
+    // It is installed on the Engine profile, not on the view, and matched to
+    // its origin by the metadata header the engine reads (ADR 0048): a
+    // navigation to another site creates its frame before the view hears of
+    // the navigation, and a frame is handed the view's scripts only as it is
+    // created, whereas the Engine profile's reach every renderer process
+    // ahead of any document. Installed at the navigation request, which is
+    // raised for a redirect with the address the load is arriving at and for
+    // a reload the load-started report is not raised for. The origins
+    // installed longest ago go once there are more than the limit; one left
+    // stale by a rule or site change is replaced by the next navigation to
+    // it, before any document there is created.
+    readonly property string blockingScriptNamePrefix: "Omaweb content blocking "
+    readonly property int blockingScriptLimit: 16
+    // The pattern the engine matches against the document's address, which
+    // it spells without the scheme's default port.
+    function blockingScriptPattern(url) {
+        return root.originAddress(url).replace(/^(http:\/\/.*):80$/, "$1").replace(
+                    /^(https:\/\/.*):443$/, "$1") + "/*";
+    }
     function installBlockingScript(url) {
         if (!contentBlocker)
             return;
         const css = contentBlocker.cosmeticStyleSheet(url);
         const scriptlets = contentBlocker.scriptletSource(url);
-        const script = WebEngine.script();
-        script.name = "Omaweb content blocking";
-        script.injectionPoint = WebEngineScript.DocumentCreation;
-        script.worldId = WebEngineScript.MainWorld;
-        script.runsOnSubFrames = false;
         // The stylesheet goes first: hiding what the page is about to render
         // does not depend on a scriptlet, and a scriptlet that throws must not
         // take the hiding with it.
-        script.sourceCode = (css.length > 0 ? root.styleSheetSnippet(root.cosmeticSheetId, css)
-                                              + ";\n" : "") + root.scriptletSnippet(scriptlets);
-        root.blockingScript = script;
-        root.refreshUserScripts();
+        const source = (css.length > 0 ? root.styleSheetSnippet(root.cosmeticSheetId, css) + ";\n" :
+                                         "") + root.scriptletSnippet(scriptlets);
+        const pattern = root.blockingScriptPattern(url);
+        const name = root.blockingScriptNamePrefix + pattern;
+        const scripts = webView.profile.userScripts;
+        let script = null;
+        if (source.length > 0) {
+            script = WebEngine.script();
+            script.name = name;
+            script.injectionPoint = WebEngineScript.DocumentCreation;
+            script.worldId = WebEngineScript.MainWorld;
+            script.runsOnSubFrames = false;
+            script.sourceCode = "// ==UserScript==\n// @include " + pattern
+                    + "\n// ==/UserScript==\n" + source;
+        }
+        root.replaceScript(scripts, name, script);
+        const blocking = scripts.collection.filter(installed => installed.name.startsWith(
+                                                                    root.blockingScriptNamePrefix));
+        while (blocking.length > root.blockingScriptLimit)
+            scripts.remove(blocking.shift());
         // The document about to be created carries whatever this script adds
         // and nothing else, so what the last one had is no longer there.
         root.cosmeticRulesInjected = css.length > 0;
-        root.genericCosmeticRulesInjected = false;
-        root.documentSurveyed = false;
     }
 
     // Re-application into a document that is already open, for a rule set or a
@@ -1483,6 +1538,11 @@ Item {
 
     Component.onCompleted: {
         root.completed = true;
+        // Written once more with what it already holds, which takes the
+        // binding off it: a script that changes from here on is put in by
+        // installUserScript, and the binding must not write the collection
+        // whole again for it.
+        webView.userScripts.collection = root.userScriptList();
         Qt.callLater(root.applyKeyboardNavigationConfiguration);
         root.announcePage(root.currentUrl);
     }
@@ -1883,6 +1943,8 @@ Item {
                     root.keyboardNavigationConfiguration) + ");";
         return script;
     }
+    onKeyboardNavigationScriptChanged: root.installUserScript(root.keyboardNavigationScript.name,
+                                                              root.keyboardNavigationScript)
 
     // When the document exists and when it has first painted. Chromium keeps
     // the outgoing page on show until the next one's first paint, so the
@@ -2098,19 +2160,17 @@ Item {
     }
 
     // Every script the view runs in a page, in one place: the collection is
-    // written whole, both when the view is built and again with each page's
-    // Content blocking script, and a list kept in two places lost the scripts
-    // added to only one of them on the first page load.
+    // written whole from this list while the view is built, and a list kept in
+    // two places lost the scripts added to only one of them on the first page
+    // load. A script that changes afterwards, a sheet with the theme or the
+    // keyboard navigation with its configuration, goes in by installUserScript.
+    // The Content blocking script is the Engine profile's, not the view's.
     function userScriptList() {
-        const scripts = [root.editedStateScript, root.keyboardNavigationScript,
-                         root.externalProtocolOriginScript, root.documentPaintedScript,
-                         root.userActivationScript, root.pressOriginScript, root.controlAccentScript,
-                         root.pagePaletteScript, root.pageScrollbarScript,
-                         root.pageScrollReportScript, root.mediaSessionScript,
-                         root.cosmeticSurveyScript];
-        if (root.blockingScript)
-            scripts.push(root.blockingScript);
-        return scripts;
+        return [root.editedStateScript, root.keyboardNavigationScript,
+                root.externalProtocolOriginScript, root.documentPaintedScript,
+                root.userActivationScript, root.pressOriginScript, root.controlAccentScript,
+                root.pagePaletteScript, root.pageScrollbarScript, root.pageScrollReportScript,
+                root.mediaSessionScript, root.cosmeticSurveyScript];
     }
 
     property var externalProtocolOriginScript: {
@@ -2259,7 +2319,10 @@ Item {
                 // The matches were in the page being replaced. The query is the
                 // reader's and stays, ready to run against what arrives.
                 root.forgetFindMatches();
-                root.installBlockingScript(loadRequest.url);
+                // The document about to be created has been given nothing
+                // yet, whatever the last one had.
+                root.genericCosmeticRulesInjected = false;
+                root.documentSurveyed = false;
                 return;
             }
             // A document that loaded surveyed itself when its DOM was parsed
@@ -2315,8 +2378,13 @@ Item {
             const address = String(request.url);
             const scheme = address.substring(0, address.indexOf(":")).toLowerCase();
             if (scheme === "http" || scheme === "https" || scheme === "file" || scheme === "about"
-                    || scheme === "data" || scheme === "omaweb")
+                    || scheme === "data" || scheme === "omaweb") {
+                // Site rules and scriptlets are named by host, which only a
+                // web address has.
+                if (request.isMainFrame && (scheme === "http" || scheme === "https"))
+                    root.installBlockingScript(request.url);
                 return;
+            }
             request.reject();
             root.requestExternalProtocol(request.url, request.isMainFrame);
         }
