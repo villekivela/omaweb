@@ -29,7 +29,14 @@ GENERIC_CLEAR_CALL = (
     'root.genericCosmeticSheetId, ""));\n'
 )
 
-ENGINE_VIEW_EDITS = [
+# The revisions under comparison do not all shape the cosmetic path the same
+# way. Before #317 the view surveyed the page once its load was over; since
+# #317 each frame surveys itself from a script of its own and reports over the
+# console, the view asks again only when the rules change, and every script
+# but that second survey goes in through runInFrame. Each list anchors the
+# same two counters on one shape: the survey replies taken back, whichever way
+# they arrive, and the scripts sent into the page.
+ENGINE_VIEW_EDITS_ONE_SHOT = [
     ("    property bool cosmeticRulesInjected: false\n", COUNTER_PROPERTIES),
     (
         "        webView.runJavaScript(root.styleSheetSnippet(root.cosmeticSheetId, css));\n",
@@ -54,6 +61,36 @@ ENGINE_VIEW_EDITS = [
         "                                  root.genericCosmeticRulesInjected = true;\n",
         "                                  root.genericCosmeticRulesInjected = true;\n"
         "                                  root.cosmeticScriptCalls += 1;\n",
+    ),
+]
+
+RUN_IN_FRAME_CALL = (
+    "        frame.runJavaScript(script, WebEngineScript.MainWorld, function () {});\n"
+)
+RESURVEY_CALL = (
+    "        frame.runJavaScript(root.cosmeticSurveySnippet(false), "
+    "WebEngineScript.ApplicationWorld,\n"
+    "                            function (survey) {\n"
+)
+
+ENGINE_VIEW_EDITS_WATCHED = [
+    ("    property bool cosmeticRulesInjected: false\n", COUNTER_PROPERTIES),
+    (
+        "        webView.runJavaScript(root.styleSheetSnippet(root.cosmeticSheetId, css));\n",
+        "        root.cosmeticScriptCalls += 1;\n"
+        "        webView.runJavaScript(root.styleSheetSnippet(root.cosmeticSheetId, css));\n",
+    ),
+    (RUN_IN_FRAME_CALL, "        root.cosmeticScriptCalls += 1;\n" + RUN_IN_FRAME_CALL),
+    (
+        RESURVEY_CALL,
+        "        root.cosmeticScriptCalls += 1;\n"
+        + RESURVEY_CALL
+        + "            root.cosmeticSurveyCallbacks += 1;\n",
+    ),
+    (
+        "    function readCosmeticSurvey(text) {\n",
+        "    function readCosmeticSurvey(text) {\n"
+        "        root.cosmeticSurveyCallbacks += 1;\n",
     ),
 ]
 
@@ -110,7 +147,8 @@ def instrument_engine_view(root):
     text = path.read_text()
     if "cosmeticScriptCalls" in text:
         return
-    for edit in ENGINE_VIEW_EDITS:
+    watched = "readCosmeticSurvey" in text
+    for edit in ENGINE_VIEW_EDITS_WATCHED if watched else ENGINE_VIEW_EDITS_ONE_SHOT:
         text = replace(text, edit[0], edit[1], edit[2] if len(edit) > 2 else None)
     path.write_text(text)
 

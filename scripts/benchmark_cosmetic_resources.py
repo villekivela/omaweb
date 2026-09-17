@@ -24,7 +24,7 @@ import statistics
 import subprocess
 import sys
 
-FIXTURES = ("site-css", "scriptlets", "large-dom")
+FIXTURES = ("site-css", "scriptlets", "large-dom", "churn")
 CONDITIONS = ("cold", "warm")
 TRACE_CATEGORIES = "blink,devtools.timeline"
 BENCHMARK_TARGET = "omaweb-cosmetic-benchmark"
@@ -204,6 +204,7 @@ METRICS = (
     ("surveyCallbacks", lambda sample: sample["surveyCallbacks"]),
     ("siteStyleMutations", lambda sample: sample["siteStyleMutations"]),
     ("blockerCallTotal", lambda sample: sum(sample["blockerCalls"].values())),
+    ("lateHidden", lambda sample: sample.get("lateHidden", 0)),
     ("cpuMilliseconds", lambda sample: sample["cpuMilliseconds"]),
     ("firstPaintMilliseconds", lambda sample: sample["firstPaintMilliseconds"]),
     (
@@ -228,6 +229,7 @@ REPORT_METRICS = (
     ("cosmeticScriptCalls", "Cosmetic scripts sent into the page", ""),
     ("surveyCallbacks", "Survey callbacks taken back", ""),
     ("siteStyleMutations", "Site stylesheet text mutations", ""),
+    ("lateHidden", "Elements added after load and hidden", ""),
     ("cpuMilliseconds", "CPU over the navigation window", " ms"),
     ("firstPaintMilliseconds", "First paint", " ms"),
     ("largestContentfulPaintMilliseconds", "Largest contentful paint", " ms"),

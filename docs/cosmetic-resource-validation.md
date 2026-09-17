@@ -244,3 +244,56 @@ largest contentful paint claim is made in either direction.
   The issue is about cosmetic resources.
 - Raw samples and traces are kept outside the repository, under `.cache/benchmark/samples` and
   `.cache/benchmark/traces` on the measuring host: 210 sample files and 66 traces for this run.
+
+## Late surveys
+
+Issue #317 moves the generic survey into a script of each frame's own, run when its DOM is parsed,
+and keeps a watch on the document afterwards that reports names the frame has not been asked about.
+The stable-page figures above must hold, and a page that keeps adding to itself must pay a bounded
+cost. The `churn` fixture is the `site-css` page plus a script that adds ten bursts after load, 80
+ms apart, each carrying ten classes the pinned lists hide that the page did not carry at load, and
+ten it did.
+
+Baseline `0a594b1` against implementation `4a32bf0`, on the same virtual machine as above, Qt
+6.11.2, in a native Wayland session. The root filesystem had 330 MB free, which rules out the two
+release worktrees `scripts/benchmark_cosmetic_resources.py` builds, so this run used one harness
+binary from the `ci` preset, a Debug build, and swapped `src/engine/qt/EngineView.qml` between the
+two revisions, instrumented by `tests/benchmarks/instrument.py`. The harness loads that file from
+the source tree at start, and no C++ the harness links differs between the revisions. Warm batches
+of five navigations alternated between the revisions four times, cold navigations five times each.
+The Debug build inflates every timing against the tables above; the two columns of one table are
+comparable with each other and with nothing else. Each cell reads median / p95 (standard deviation,
+sample count).
+
+### site-css
+
+| Metric                   | Condition | Baseline                      | Implementation               |
+| ------------------------ | --------- | ----------------------------- | ---------------------------- |
+| URL resource assemblies  | warm      | 0 / 0 (sd 0, n=20)            | 0 / 0 (sd 0, n=20)           |
+| Cosmetic questions       | warm      | 5 / 5 (sd 0, n=20)            | 5 / 5 (sd 0, n=20)           |
+| Scripts into the page    | warm      | 2 / 2 (sd 0, n=20)            | 1 / 1 (sd 0, n=20)           |
+| Survey replies           | warm      | 1 / 1 (sd 0, n=20)            | 1 / 1 (sd 0, n=20)           |
+| Site sheet mutations     | warm      | 1 / 1 (sd 0, n=20)            | 1 / 1 (sd 0, n=20)           |
+| Hidden of the 200 sample | warm      | 200 / 200 (sd 0, n=20)        | 200 / 200 (sd 0, n=20)       |
+| CPU                      | warm      | 410 ms / 750 ms (sd 206)      | 255 ms / 420 ms (sd 130)     |
+| CPU                      | cold      | 210 ms / 490 ms (sd 117, n=5) | 210 ms / 310 ms (sd 42, n=5) |
+
+The blocker answers the same five questions and assembles the same one result. The survey's own
+round trip is gone: the page posts its survey rather than being asked, so one script goes in, the
+answer, where two did. CPU does not separate in either direction at this spread.
+
+### churn
+
+| Metric                            | Condition | Baseline                        | Implementation                  |
+| --------------------------------- | --------- | ------------------------------- | ------------------------------- |
+| Cosmetic questions                | warm      | 5 / 5 (sd 0, n=20)              | 23 / 23 (sd 0.44, n=20)         |
+| Scripts into the page             | warm      | 2 / 2 (sd 0, n=20)              | 10 / 10 (sd 0.22, n=20)         |
+| Survey replies                    | warm      | 1 / 1 (sd 0, n=20)              | 10 / 10 (sd 0.22, n=20)         |
+| Elements added after load, hidden | warm      | 0 of 100                        | 100 of 100                      |
+| CPU                               | warm      | 385 ms / 630 ms (sd 166)        | 575 ms / 930 ms (sd 276)        |
+| CPU                               | cold      | 1270 ms / 2100 ms (sd 376, n=5) | 1870 ms / 2770 ms (sd 763, n=5) |
+
+Ten bursts cost nine late reports, each two questions at the blocker and one script into the page,
+and 24 of 25 navigations counted exactly that; one merged two bursts into one report, which the 100
+ms hold allows. The baseline hid none of the hundred late elements. The late reports and the style
+work for the elements they hide are what the CPU column pays for.

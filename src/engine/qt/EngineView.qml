@@ -771,6 +771,17 @@ Item {
     property bool cosmeticRulesInjected: false
     property int cosmeticRuleGeneration: 0
     property int cosmeticSurveyGeneration: 0
+    // Whether the main frame has surveyed itself since the load started. The
+    // survey script is in the collection the view reassigns at each load
+    // start, and a document created while the engine is still taking that
+    // collection in runs none of it. An error page and the engine's own
+    // viewers run none either. A document that has not reported by load
+    // success is asked.
+    property bool documentSurveyed: false
+    // Whether any frame of this document has been given generic rules, so a
+    // frame that is no longer to carry them can be cleared without asking
+    // every frame every time. Set at the first injection and reset by the
+    // next document.
     property bool genericCosmeticRulesInjected: false
     readonly property string controlAccentSheetId: "__omaweb_control_accent"
 
@@ -1097,13 +1108,29 @@ Item {
     // differ from what was sent last: what a sheet carries is the page's to
     // change, and the value last sent is no answer to what it carries now.
     function styleSheetSnippet(sheetId, css) {
+        return root.sheetSnippet(sheetId, css, "if (css.length === 0) return;",
+                                 "sheet.replaceSync(css);");
+    }
+
+    // A late survey adds to what the sheet carries rather than replacing it:
+    // what the first survey hid stays hidden. The rules are parsed apart
+    // first, because a sheet takes one rule per insertion.
+    function appendStyleSheetSnippet(sheetId, css) {
+        return root.sheetSnippet(sheetId, css, "", "const parsed = new CSSStyleSheet();"
+                                 + "parsed.replaceSync(css);"
+                                 + "for (const rule of parsed.cssRules) "
+                                 + "sheet.insertRule(rule.cssText, sheet.cssRules.length);");
+    }
+
+    // The sheet found or adopted, `withoutSheet` run before one would be
+    // adopted, and `withSheet` run on it.
+    function sheetSnippet(sheetId, css, withoutSheet, withSheet) {
         return "(() => {" + "const id = " + JSON.stringify(sheetId) + ";" + "const css = "
                 + JSON.stringify(css) + ";" + "const adopted = document.adoptedStyleSheets;"
                 + "let sheet = adopted.find(candidate => candidate.omawebSheetId === id);"
-                + "if (!sheet) {" + "if (css.length === 0) return;"
-                + "sheet = new CSSStyleSheet();" + "sheet.omawebSheetId = id;"
-                + "document.adoptedStyleSheets = [...adopted, sheet];" + "}"
-                + "sheet.replaceSync(css);" + "})()";
+                + "if (!sheet) {" + withoutSheet + "sheet = new CSSStyleSheet();"
+                + "sheet.omawebSheetId = id;"
+                + "document.adoptedStyleSheets = [...adopted, sheet];" + "}" + withSheet + "})()";
     }
 
     // A scriptlet is a function from the vendored uBlock Origin library that a
@@ -1152,6 +1179,7 @@ Item {
         // and nothing else, so what the last one had is no longer there.
         root.cosmeticRulesInjected = css.length > 0;
         root.genericCosmeticRulesInjected = false;
+        root.documentSurveyed = false;
     }
 
     // Re-application into a document that is already open, for a rule set or a
@@ -1173,64 +1201,220 @@ Item {
     }
 
     // The generic rules are the ones written against no particular site, and
-    // sending all of them cost a 617 KB stylesheet on every page. The page
+    // sending all of them cost a 617 KB stylesheet on every page. Each frame
     // reports the classes and ids it actually carries, and only the generic
-    // rules those could trigger come back. A site with a $generichide
-    // exception is surveyed not at all.
-    function clearGenericCosmeticRules() {
-        if (!genericCosmeticRulesInjected)
-            return;
-        root.genericCosmeticRulesInjected = false;
-        webView.runJavaScript(root.styleSheetSnippet(root.genericCosmeticSheetId, ""));
+    // rules those could trigger come back. A frame with a $generichide
+    // exception is answered with nothing and told to stop reporting.
+    //
+    // A frame surveys itself as soon as its DOM is parsed, from a script of
+    // its own, rather than being asked once its load is over: a detection
+    // page inserts its bait during the load and measures it as soon as the
+    // bait's own images have settled, which is before the load event, and a
+    // survey that waits for the load loses to it. The survey goes on
+    // watching the document afterwards, because an ad slot a script fills in
+    // later carries a class no survey has seen. The watch reports only names
+    // the frame has not been asked about, and stops after the limit below.
+    // The first new names go out on the next task, for the same detection
+    // page; whatever appears within the interval after a report is held for
+    // one more, so a page that churns its DOM pays at most one round trip per
+    // interval and a page that adds nothing new pays nothing. The reports
+    // come back as page reports do, and each names the frame's address,
+    // because a report says nothing about which frame spoke; two frames at
+    // one address get the same answer, which is the answer either would have
+    // got.
+    //
+    // The survey and its watch run in the application world, as the
+    // reporting scripts do, so a page that replaces `MutationObserver` in its
+    // own world, as a page hiding from a content blocker does, takes nothing
+    // away from them. The stylesheets stay in the page's world, where the
+    // page's own scripts and the tests can see them.
+    property int lateCosmeticSurveyLimit: 32
+    property int lateCosmeticSurveyInterval: 100
+
+    function forEachFrame(frame, act) {
+        act(frame);
+        for (let index = 0; index < frame.children.length; ++index)
+            root.forEachFrame(frame.children[index], act);
     }
-    function surveyGenericCosmeticRules() {
-        // Turning blocking off for a site, or a rule set that no longer hides
-        // anything here, has to take back what the last survey hid.
-        const surveyGeneration = ++root.cosmeticSurveyGeneration;
-        if (loading)
-            return;
-        if (!contentBlocker || !contentBlocker.cosmeticSurveyWanted(currentUrl)) {
-            root.applyCosmeticRules();
-            root.clearGenericCosmeticRules();
-            return;
-        }
-        const surveyed = currentUrl;
-        const documentGeneration = root.pageGeneration;
-        const ruleGeneration = root.cosmeticRuleGeneration;
-        const blocker = root.contentBlocker;
-        const css = blocker.cosmeticStyleSheet(surveyed);
-        // Verify the site stylesheet in the survey's existing round trip. The page
-        // may have dropped the sheet from `adoptedStyleSheets` since document
-        // creation.
+    // A frame's runJavaScript is overloaded and needs the callback to pick one.
+    function runInFrame(frame, script) {
+        frame.runJavaScript(script, WebEngineScript.MainWorld, function () {});
+    }
+    function runInFrameApplicationWorld(frame, script) {
+        frame.runJavaScript(script, WebEngineScript.ApplicationWorld, function () {});
+    }
+    // The survey of the whole document, either posted to the adapter or
+    // returned to a caller, and the watch that follows it. A survey that runs
+    // again, for rules that changed under the document, starts the watch over:
+    // every name is fresh again to the new rules.
+    function cosmeticSurveySnippet(post) {
+        const deliver = post ? "report('cosmetic_survey', survey);" : "return survey;";
+        const survey = "const classes = new Set(), ids = new Set();"
+              + "for (const element of document.querySelectorAll('[class], [id]')) {"
+              + "if (element.id) ids.add(element.id);"
+              + "for (const name of element.classList) classes.add(name);" + "}"
+              + "const watch = globalThis.__omawebCosmeticWatch ??= {};"
+              + "watch.seen = new Set([...Array.from(classes, name => '.' + name),"
+              + " ...Array.from(ids, name => '#' + name)]);"
+              + "watch.fresh = { classes: [], ids: [] };" + "watch.surveys = 0;"
+              + "watch.asked = -Infinity;" + "clearTimeout(watch.timer);" + "watch.timer = 0;"
+              + "if (!watch.observer) {" + "const note = element => {"
+              + "if (element.id && !watch.seen.has('#' + element.id)) {"
+              + "watch.seen.add('#' + element.id);" + "watch.fresh.ids.push(element.id);" + "}"
+              + "for (const name of element.classList) {"
+              + "if (watch.seen.has('.' + name)) continue;" + "watch.seen.add('.' + name);"
+              + "watch.fresh.classes.push(name);" + "}" + "};" + "const ask = () => {"
+              + "watch.timer = 0;" + "watch.asked = performance.now();"
+              + "const fresh = watch.fresh;" + "watch.fresh = { classes: [], ids: [] };"
+              + "if (++watch.surveys >= " + root.lateCosmeticSurveyLimit
+              + ") watch.observer.disconnect();" + "report('cosmetic_survey', {"
+              + "url: location.href, classes: fresh.classes, ids: fresh.ids });" + "};"
+              + "watch.observer = new MutationObserver(records => {"
+              + "for (const record of records) {"
+              + "if (record.type === 'attributes') { note(record.target); continue; }"
+              + "for (const node of record.addedNodes) {"
+              + "if (node.nodeType !== Node.ELEMENT_NODE) continue;" + "note(node);"
+              + "for (const element of node.querySelectorAll('[class], [id]')) note(element);"
+              + "}" + "}"
+              + "if (watch.timer || !(watch.fresh.classes.length || watch.fresh.ids.length))"
+              + " return;" + "watch.timer = setTimeout(ask, Math.max(0, watch.asked + "
+              + root.lateCosmeticSurveyInterval + " - performance.now()));" + "});" + "}"
+              + "if (document.documentElement) "
+              + "watch.observer.observe(document.documentElement, { childList: true,"
+              + " subtree: true, attributes: true, attributeFilter: ['class', 'id'] });"
+              + "const survey = { url: location.href, whole: true,"
+              + " classes: Array.from(classes), ids: Array.from(ids) };" + deliver;
+        return root.reporting("return (() => {" + survey + "})();");
+    }
+    readonly property string stopCosmeticWatchSnippet:
+        "globalThis.__omawebCosmeticWatch?.observer?.disconnect()"
+
+    property var cosmeticSurveyScript: {
+        const script = WebEngine.script();
+        script.name = "Omaweb cosmetic survey";
+        script.injectionPoint = WebEngineScript.DocumentReady;
+        script.worldId = WebEngineScript.ApplicationWorld;
+        script.runsOnSubFrames = true;
+        script.sourceCode = root.cosmeticSurveySnippet(true);
+        return script;
+    }
+
+    // The site stylesheet is verified in the survey's round trip. The page may
+    // have dropped the sheet from `adoptedStyleSheets` since document creation.
+    // Only the main frame has one: the site rules go in at document creation,
+    // and that script runs in no subframe.
+    function siteRepairSnippet(frame) {
+        if (!frame.isMainFrame)
+            return "";
+        const css = root.contentBlocker.cosmeticStyleSheet(frame.url);
         const repair = css.length > 0 || cosmeticRulesInjected ? root.styleSheetSnippet(
                                                                      root.cosmeticSheetId, css)
                                                                  + ";" : "";
         root.cosmeticRulesInjected = css.length > 0;
-        webView.runJavaScript(repair + "(() => {" + "const classes = new Set(), ids = new Set();"
-                              + "for (const element of document.querySelectorAll('[class], [id]')) {"
-                              + "if (element.id) ids.add(element.id);"
-                              + "for (const name of element.classList) classes.add(name);" + "}"
-                              + "return { classes: Array.from(classes), ids: Array.from(ids) };"
-                              + "})()", function (survey) {
-                                  // The page can navigate away while the survey is in flight,
-                                  // and its classes say nothing about where the view landed.
-                                  if (!survey || root.loading || blocker !== root.contentBlocker
-                                          || documentGeneration !== root.pageGeneration
-                                          || ruleGeneration !== root.cosmeticRuleGeneration
-                                          || surveyGeneration !== root.cosmeticSurveyGeneration
-                                          || surveyed !== root.currentUrl)
-                                      return;
-                                  const css = root.contentBlocker.genericCosmeticStyleSheet(surveyed,
-                                                                                            survey.classes,
-                                                                                            survey.ids);
-                                  if (css.length === 0) {
-                                      root.clearGenericCosmeticRules();
-                                      return;
-                                  }
-                                  root.genericCosmeticRulesInjected = true;
-                                  webView.runJavaScript(root.styleSheetSnippet(
-                                                            root.genericCosmeticSheetId, css));
-                              });
+        return repair;
+    }
+    // What takes a frame's generic rules back, and its watch with them.
+    function clearGenericCosmeticRules(frame, siteRepair) {
+        const clear = genericCosmeticRulesInjected ? root.styleSheetSnippet(
+                                                         root.genericCosmeticSheetId, "") : "";
+        if (siteRepair.length > 0 || clear.length > 0)
+            root.runInFrame(frame, siteRepair + clear);
+        root.runInFrameApplicationWorld(frame, root.stopCosmeticWatchSnippet);
+    }
+    // What a frame reported: the whole document, which replaces what the frame
+    // was given before, or the names that appeared since, which add to it.
+    function answerCosmeticSurvey(frame, survey) {
+        const blocker = root.contentBlocker;
+        if (survey.whole && frame.isMainFrame)
+            root.documentSurveyed = true;
+        if (!blocker.cosmeticSurveyWanted(frame.url)) {
+            if (survey.whole)
+                root.clearGenericCosmeticRules(frame, root.siteRepairSnippet(frame));
+            return;
+        }
+        const css = blocker.genericCosmeticStyleSheet(frame.url, survey.classes, survey.ids);
+        if (!survey.whole) {
+            if (css.length > 0) {
+                root.genericCosmeticRulesInjected = true;
+                root.runInFrame(frame, root.appendStyleSheetSnippet(root.genericCosmeticSheetId,
+                                                                    css));
+            }
+            return;
+        }
+        // An empty answer takes back what an earlier one gave, if any did.
+        const repair = root.siteRepairSnippet(frame);
+        const sheet = css.length > 0 || genericCosmeticRulesInjected ? root.styleSheetSnippet(
+                                                                           root.genericCosmeticSheetId,
+                                                                           css) : "";
+        if (css.length > 0)
+            root.genericCosmeticRulesInjected = true;
+        if (repair.length > 0 || sheet.length > 0)
+            root.runInFrame(frame, repair + sheet);
+    }
+    function readCosmeticSurvey(text) {
+        let survey;
+        try {
+            survey = JSON.parse(text);
+        } catch (error) {
+            return;
+        }
+        if (!survey || !root.contentBlocker || !Array.isArray(survey.classes) || !Array.isArray(
+                    survey.ids))
+            return;
+        survey.classes = survey.classes.map(String);
+        survey.ids = survey.ids.map(String);
+        // The page writes its address the way the platform does, escaped, and
+        // the view writes a URL the way Qt does; resolving the page's through
+        // Qt gives the two one spelling. The main frame's is also held to the
+        // address being loaded, because a document that replaces itself
+        // reports after the next load has started and before its frame has
+        // let go of its address.
+        const reported = String(Qt.resolvedUrl(String(survey.url)));
+        root.forEachFrame(webView.mainFrame, function (frame) {
+            if (String(frame.url) !== reported)
+                return;
+            if (frame.isMainFrame && String(root.currentUrl) !== reported)
+                return;
+            root.answerCosmeticSurvey(frame, survey);
+        });
+    }
+    // Rules or a site's own decision that changed under an open document: every
+    // frame is surveyed again, because what it was given answers to rules that
+    // are gone. Turning blocking off for a site has to take back what the
+    // survey hid.
+    function surveyGenericCosmeticRules() {
+        const surveyGeneration = ++root.cosmeticSurveyGeneration;
+        if (loading)
+            return;
+        if (!contentBlocker) {
+            root.forEachFrame(webView.mainFrame, function (frame) {
+                root.clearGenericCosmeticRules(frame, "");
+            });
+            return;
+        }
+        root.forEachFrame(webView.mainFrame, function (frame) {
+            root.surveyFrameForGenericCosmeticRules(frame, surveyGeneration);
+        });
+    }
+    function surveyFrameForGenericCosmeticRules(frame, surveyGeneration) {
+        const blocker = root.contentBlocker;
+        const surveyed = String(frame.url);
+        const documentGeneration = root.pageGeneration;
+        const ruleGeneration = root.cosmeticRuleGeneration;
+        frame.runJavaScript(root.cosmeticSurveySnippet(false), WebEngineScript.ApplicationWorld,
+                            function (survey) {
+                                // The page can navigate away while the survey is in flight, and
+                                // its classes say nothing about where the frame landed. A survey
+                                // asked before the next change answers to rules that are gone.
+                                const obsolete = root.loading || blocker !== root.contentBlocker
+                                      || documentGeneration !== root.pageGeneration
+                                      || ruleGeneration !== root.cosmeticRuleGeneration
+                                      || surveyGeneration !== root.cosmeticSurveyGeneration ||
+                                      !frame.isValid || surveyed !== String(frame.url);
+                                if (!survey || obsolete)
+                                    return;
+                                root.answerCosmeticSurvey(frame, survey);
+                            });
     }
     function checkForEditedFormState(callback) {
         webView.runJavaScript("(() => {"
@@ -1922,7 +2106,8 @@ Item {
                          root.externalProtocolOriginScript, root.documentPaintedScript,
                          root.userActivationScript, root.pressOriginScript, root.controlAccentScript,
                          root.pagePaletteScript, root.pageScrollbarScript,
-                         root.pageScrollReportScript, root.mediaSessionScript];
+                         root.pageScrollReportScript, root.mediaSessionScript,
+                         root.cosmeticSurveyScript];
         if (root.blockingScript)
             scripts.push(root.blockingScript);
         return scripts;
@@ -2077,11 +2262,14 @@ Item {
                 root.installBlockingScript(loadRequest.url);
                 return;
             }
-            if (loadRequest.status === WebEngineView.LoadSucceededStatus) {
-                root.surveyGenericCosmeticRules();
-            } else {
+            // A document that loaded surveyed itself when its DOM was parsed
+            // and verified the site stylesheet with the answer, unless the
+            // survey script never reached it. One that did not load gets the
+            // site stylesheet verified here.
+            if (loadRequest.status !== WebEngineView.LoadSucceededStatus)
                 root.applyCosmeticRules();
-            }
+            else if (!root.documentSurveyed)
+                root.surveyGenericCosmeticRules();
             if (loadRequest.status === WebEngineView.LoadFailedStatus) {
                 root.lastLoadFailed = true;
             }
@@ -2198,6 +2386,8 @@ Item {
                 }
             } else if (report.channel === "page_scroll") {
                 root.readPageScroll(report.body);
+            } else if (report.channel === "cosmetic_survey") {
+                root.readCosmeticSurvey(report.body);
             } else if (report.channel === "media_session") {
                 try {
                     root.pageMediaSession = JSON.parse(report.body);

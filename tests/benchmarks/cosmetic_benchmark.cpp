@@ -9,6 +9,7 @@
 
 #include "ContentMatcher.h"
 #include "ContentBlockerContract.h"
+#include "EngineCapabilities.h"
 #include "ExternalProtocolHandler.h"
 #include "QtContentBlocker.h"
 
@@ -43,8 +44,8 @@
 
 using omaweb::ContentMatcher;
 
-static const QStringList fixtureNames {
-    QStringLiteral("site-css"), QStringLiteral("scriptlets"), QStringLiteral("large-dom")};
+static const QStringList fixtureNames {QStringLiteral("site-css"), QStringLiteral("scriptlets"),
+    QStringLiteral("large-dom"), QStringLiteral("churn")};
 
 namespace {
 
@@ -187,6 +188,8 @@ QByteArray measurementScript(int settleMilliseconds)
         siteStyleBytes: 0,
         genericStyleBytes: 0,
         hiddenSample: 0,
+        lateElements: 0,
+        lateHidden: 0,
         firstPaint: null,
         firstContentfulPaint: null,
         largestContentfulPaint: null,
@@ -235,6 +238,12 @@ QByteArray measurementScript(int settleMilliseconds)
         const sample = Array.from(document.querySelectorAll("div")).slice(0, 200);
         state.hiddenSample =
             sample.filter(node => getComputedStyle(node).display === "none").length;
+        // What the churn fixture added after load, and how much of it the
+        // late surveys hid. Zero on every other fixture.
+        const late = Array.from(document.querySelectorAll("div.fixture-late"));
+        state.lateElements = late.length;
+        state.lateHidden =
+            late.filter(node => getComputedStyle(node).display === "none").length;
         state.settled = true;
         publish();
     }, SETTLE);
@@ -316,7 +325,16 @@ Fixture buildFixture(const QString &name, const QString &lists, int settleMillis
     }
 
     const int elements = name == QStringLiteral("large-dom") ? 6000 : 400;
-    const auto selectors = genericSelectors(lists, elements);
+    // The churn fixture is the site-css page plus a script that keeps adding to
+    // it after load, in bursts, the way an ad script fills its slots: each
+    // burst carries classes the lists hide that the page did not carry at load,
+    // beside classes it already carried. The late names come from further down
+    // the same lists, so none of them is on the page at load.
+    const bool churn = name == QStringLiteral("churn");
+    const int lateBursts = 10;
+    const int lateBurstSize = 10;
+    const int lateNames = churn ? lateBursts * lateBurstSize : 0;
+    const auto selectors = genericSelectors(lists, elements + lateNames);
     QSet<QString> classNames;
     QSet<QString> identifiers;
     for (int index = 0; index < elements; ++index) {
@@ -343,6 +361,45 @@ Fixture buildFixture(const QString &name, const QString &lists, int settleMillis
                               "fixture %3</span></div>")
                 .arg(identifier, tokens.join(u' '))
                 .arg(index));
+    }
+
+    if (churn) {
+        QStringList fresh;
+        for (int index = 0; index < lateNames && elements + index < selectors.classNames.size();
+            ++index) {
+            fresh.append(selectors.classNames.at(elements + index));
+        }
+        const auto seen = selectors.classNames.mid(0, lateBurstSize);
+        append(QStringLiteral(R"JS(
+<script>
+addEventListener("load", () => {
+    const fresh = FRESH;
+    const seen = SEEN;
+    let burst = 0;
+    const tick = () => {
+        for (let index = 0; index < SIZE; ++index) {
+            const late = document.createElement("div");
+            late.className = fresh[(burst * SIZE + index) % fresh.length] + " fixture-late";
+            late.textContent = "late";
+            document.body.appendChild(late);
+            const repeat = document.createElement("div");
+            repeat.className = seen[index % seen.length];
+            document.body.appendChild(repeat);
+        }
+        if (++burst < BURSTS) setTimeout(tick, 80);
+    };
+    setTimeout(tick, 100);
+});
+</script>
+)JS")
+                .replace(QStringLiteral("FRESH"),
+                    QString::fromUtf8(QJsonDocument(QJsonArray::fromStringList(fresh))
+                            .toJson(QJsonDocument::Compact)))
+                .replace(QStringLiteral("SEEN"),
+                    QString::fromUtf8(QJsonDocument(QJsonArray::fromStringList(seen))
+                            .toJson(QJsonDocument::Compact)))
+                .replace(QStringLiteral("SIZE"), QString::number(lateBurstSize))
+                .replace(QStringLiteral("BURSTS"), QString::number(lateBursts)));
     }
 
     fixture.elements = elements * 2;
@@ -551,7 +608,7 @@ int main(int argc, char *argv[])
         QStringLiteral("Measures what one navigation costs the cosmetic blocking path."));
     parser.addHelpOption();
     const QCommandLineOption fixtureOption(QStringLiteral("fixture"),
-        QStringLiteral("site-css, scriptlets, or large-dom"), QStringLiteral("name"),
+        QStringLiteral("site-css, scriptlets, large-dom, or churn"), QStringLiteral("name"),
         QStringLiteral("site-css"));
     const QCommandLineOption listsOption(QStringLiteral("lists"),
         QStringLiteral("Directory holding easylist.txt and easyprivacy.txt"),
@@ -608,11 +665,13 @@ int main(int argc, char *argv[])
     }
 
     // The same registrations the shell makes, because EngineView.qml imports
-    // the Omaweb module and reaches the external protocol handler through it.
+    // the Omaweb modules and reaches the external protocol handler through
+    // them.
     omaweb::QtContentBlocker::registerSubstituteScheme();
     QtWebEngineQuick::initialize();
     QGuiApplication application(argc, argv);
     omaweb::registerExternalProtocolHandler();
+    omaweb::registerEngineCapabilities();
 
     // The server needs the application's event dispatcher before it can accept
     // a connection, so it comes up after it rather than beside the fixture.
@@ -730,6 +789,8 @@ int main(int argc, char *argv[])
             {QStringLiteral("siteStyleBytes"), state.value(QStringLiteral("siteStyleBytes"))},
             {QStringLiteral("genericStyleBytes"), state.value(QStringLiteral("genericStyleBytes"))},
             {QStringLiteral("hiddenSample"), state.value(QStringLiteral("hiddenSample"))},
+            {QStringLiteral("lateElements"), state.value(QStringLiteral("lateElements"))},
+            {QStringLiteral("lateHidden"), state.value(QStringLiteral("lateHidden"))},
             {QStringLiteral("cpuMilliseconds"), cpuAfter.milliseconds - cpuBefore.milliseconds},
             {QStringLiteral("cpuProcesses"), cpuAfter.processes},
             {QStringLiteral("wallMilliseconds"), double(wall.nsecsElapsed()) / 1000000.0},
@@ -743,14 +804,16 @@ int main(int argc, char *argv[])
         };
         fprintf(stderr,
             "navigation %d: surveyed=%d settled=%d watched=%d lookups=%d mutations=%d "
-            "site=%d generic=%d hidden=%d\n",
+            "site=%d generic=%d hidden=%d late=%d/%d\n",
             index, int(surveyed), int(settled),
             int(state.value(QStringLiteral("siteStyleWatched")).toBool()),
             int(sample.value(QStringLiteral("lookups")).toDouble()),
             sample.value(QStringLiteral("siteStyleMutations")).toInt(),
             state.value(QStringLiteral("siteStyleBytes")).toInt(),
             state.value(QStringLiteral("genericStyleBytes")).toInt(),
-            state.value(QStringLiteral("hiddenSample")).toInt());
+            state.value(QStringLiteral("hiddenSample")).toInt(),
+            state.value(QStringLiteral("lateHidden")).toInt(),
+            state.value(QStringLiteral("lateElements")).toInt());
         samples.append(sample);
     }
 
