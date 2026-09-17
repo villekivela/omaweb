@@ -273,14 +273,14 @@ Item {
     //
     // The work is asynchronous and `runJavaScript` does not wait for a promise,
     // so the page reports back through the console the way the rest of this
-    // adapter's page reports do.
+    // adapter's page reports do, from the world they report from.
     function clearPageSiteData() {
         const address = String(webView.url);
         if (address.length === 0 || address.startsWith("about:")) {
             root.pageSiteDataCleared("", [], "there is no page to clear");
             return;
         }
-        webView.runJavaScript(`(async () => {
+        webView.runJavaScript(root.reporting(`(async () => {
             const cleared = [];
             const refused = [];
             const attempt = async (name, work) => {
@@ -314,10 +314,12 @@ Item {
                 await Promise.all(registered.map(one => one.unregister()));
                 return registered.length > 0;
             });
-            console.info('__omaweb_site_data_cleared__' + JSON.stringify({
+            report('site_data_cleared', {
                 origin: location.origin, cleared: cleared, refused: refused
-            }));
-        })()`);
+            });
+        })()`), WebEngineScript.ApplicationWorld,
+                              // The overload with a world needs the callback to pick it.
+                              function () {});
     }
 
     function respondToCertificateError(requestId, accepted) {
@@ -938,8 +940,17 @@ Item {
         // showing rather than one per frame.
         script.runsOnSubFrames = false;
         script.sourceCode = root.styleSheetSnippet(root.pageScrollbarSheetId,
-                                                   root.pageScrollbarStyleSheet) + ";"
-                + root.pageScrollReportSource;
+                                                   root.pageScrollbarStyleSheet);
+        return script;
+    }
+
+    property var pageScrollReportScript: {
+        const script = WebEngine.script();
+        script.name = "Omaweb page scroll";
+        script.injectionPoint = WebEngineScript.DocumentCreation;
+        script.worldId = WebEngineScript.ApplicationWorld;
+        script.runsOnSubFrames = false;
+        script.sourceCode = root.pageScrollReportSource;
         return script;
     }
 
@@ -951,6 +962,57 @@ Item {
                                                      root.pageScrollbarStyleSheet));
     }
 
+    // How a page reports a fact to the shell. The engine hands out no channel
+    // of its own, so the report goes over the console, and the console is the
+    // page's: anything written there in the page's world the page can read,
+    // patch, or write itself. So the scripts that report run in the
+    // application world, where the page's `console` is not theirs, and the
+    // one that has to run in the page's world binds the console before the
+    // page runs. Each report is sealed with a name drawn once per view that
+    // the page never sees, so a page shouting the shell's prefix into its own
+    // console is not believed. The level is the one an inspector hides by
+    // default, so a reader debugging their own page does not read the shell's
+    // traffic between their own lines. The keyboard navigation script's hint
+    // mode report is the one line still sent unsealed, from the shared script
+    // in `src/engine/api`.
+    readonly property string reportHead: "__omaweb_"
+    readonly property string reportToken: {
+        let drawn = "";
+        for (let part = 0; part < 3; ++part)
+            drawn += Math.random().toString(36).slice(2);
+        return drawn;
+    }
+    readonly property string reportSeal: "__" + root.reportToken
+
+    // `report` is declared for the source that follows, in a scope of its own:
+    // scripts in one world share a global scope, and a second declaration
+    // there would be a syntax error that took the script with it.
+    function reportSnippet() {
+        return "const report = (() => {" + "const say = console.debug.bind(console);"
+                + "const head = " + JSON.stringify(root.reportHead) + ";" + "const seal = "
+                + JSON.stringify(root.reportSeal) + ";"
+                + "return (channel, payload) => say(head + channel + seal"
+                + " + (payload === undefined ? '' : JSON.stringify(payload)));" + "})();";
+    }
+
+    function reporting(source) {
+        return "(() => {" + root.reportSnippet() + source + "})();";
+    }
+
+    // The report a console message carries, or null for a line that is the
+    // page's own.
+    function pageReport(message) {
+        if (!message.startsWith(root.reportHead))
+            return null;
+        const end = message.indexOf(root.reportSeal, root.reportHead.length);
+        if (end < 0)
+            return null;
+        return {
+            "channel": message.substring(root.reportHead.length, end),
+            "body": message.substring(end + root.reportSeal.length)
+        };
+    }
+
     // Where the page stands in its own length, reported by the document rather
     // than measured from outside: the engine draws the page and only the page
     // knows how far it runs. Zero until a document says otherwise, which is the
@@ -959,18 +1021,24 @@ Item {
     property real pageScrollLength: 0
     property real pageViewportLength: 0
 
-    // Reported on the page's own scroll and resize, and once more on a timer
+    // Measured on the page's own scroll and resize, and once more on a timer
     // slow enough to cost nothing: a page that changes its own length without
     // scrolling or resizing — anything that loads in below the fold — would
     // otherwise leave the bar drawn for a length the document no longer has.
+    // Reported only when the measurement moved, so the timer costs a page
+    // that stands still nothing but the measuring.
     readonly property string pageScrollReportSource: "(() => {"
                                                      + "if (globalThis.__omawebScrollReport) return;"
+                                                     + root.reportSnippet() + "let last = '';"
                                                      + "const send = () => {"
                                                      + "const root = document.documentElement;"
-                                                     + "if (!root) return;"
-                                                     + "console.log('__omaweb_page_scroll__' + JSON.stringify({"
-                                                     + "offset: window.scrollY, length: root.scrollHeight, viewport: window.innerHeight}));"
-                                                     + "};" + "globalThis.__omawebScrollReport = send;"
+                                                     + "if (!root) return;" + "const measured = {"
+                                                     + "offset: window.scrollY, length: root.scrollHeight, viewport: window.innerHeight};"
+                                                     + "const encoded = JSON.stringify(measured);"
+                                                     + "if (encoded === last) return;"
+                                                     + "last = encoded;"
+                                                     + "report('page_scroll', measured);" + "};"
+                                                     + "globalThis.__omawebScrollReport = send;"
                                                      + "addEventListener('scroll', send, { passive: true });"
                                                      + "addEventListener('resize', send, { passive: true });"
                                                      + "addEventListener('load', send);"
@@ -1642,22 +1710,21 @@ Item {
         const script = WebEngine.script();
         script.name = "Omaweb document painted";
         script.injectionPoint = WebEngineScript.DocumentCreation;
-        script.worldId = WebEngineScript.MainWorld;
+        script.worldId = WebEngineScript.ApplicationWorld;
         script.runsOnSubFrames = false;
-        script.sourceCode = `(() => {
-            console.info('__omaweb_document_created__');
-            let reported = false;
-            const report = () => {
-                if (reported) return;
-                reported = true;
-                console.info('__omaweb_document_painted__');
+        script.sourceCode = root.reporting(`
+            report('document_created');
+            let painted = false;
+            const paint = () => {
+                if (painted) return;
+                painted = true;
+                report('document_painted');
             };
             try {
-                new PerformanceObserver(report).observe({type: 'paint', buffered: true});
+                new PerformanceObserver(paint).observe({type: 'paint', buffered: true});
             } catch (error) {
-                report();
-            }
-        })();`;
+                paint();
+            }`);
 
         return script;
     }
@@ -1669,18 +1736,17 @@ Item {
         const script = WebEngine.script();
         script.name = "Omaweb user activation";
         script.injectionPoint = WebEngineScript.DocumentReady;
-        script.worldId = WebEngineScript.MainWorld;
+        script.worldId = WebEngineScript.ApplicationWorld;
         script.runsOnSubFrames = false;
-        script.sourceCode = `(() => {
+        script.sourceCode = root.reporting(`
             let reported = false;
-            const report = () => {
+            const activated = () => {
                 if (reported) return;
                 reported = true;
-                console.info('__omaweb_user_activation__');
+                report('user_activation');
             };
             for (const name of ['pointerdown', 'keydown', 'touchstart'])
-                document.addEventListener(name, report, {capture: true, passive: true});
-        })();`;
+                document.addEventListener(name, activated, {capture: true, passive: true});`);
 
         return script;
     }
@@ -1694,6 +1760,10 @@ Item {
     // called, because the page knows what its next track is and Omaweb does
     // not. A page that registered none is answered by the element that is
     // sounding, which is what a video in a tab with no media session is.
+    //
+    // This one runs in the page's world, because the setters it wraps are the
+    // page's own and a wrapper in another world would see none of the page's
+    // writes. It runs before the page does and keeps the console it found.
     property var mediaSessionScript: {
         const script = WebEngine.script();
         script.name = "Omaweb media session";
@@ -1702,6 +1772,7 @@ Item {
         script.runsOnSubFrames = false;
         script.sourceCode = `(() => {
             if (globalThis.__omawebMediaSession) return;
+            ` + root.reportSnippet() + `
             const session = navigator.mediaSession;
             const handlers = new Map();
             let reported = '';
@@ -1734,7 +1805,7 @@ Item {
                 }
                 return chosen;
             };
-            const report = () => {
+            const declare = () => {
                 const metadata = session ? session.metadata : null;
                 const declaration = {
                     state: state(),
@@ -1748,7 +1819,7 @@ Item {
                 const encoded = JSON.stringify(declaration);
                 if (encoded === reported) return;
                 reported = encoded;
-                console.info('__omaweb_media_session__' + encoded);
+                report('media_session', declaration);
             };
             // The API reports no change of its own, so the two properties a
             // page writes are wrapped where they are defined. The page's own
@@ -1762,7 +1833,7 @@ Item {
                         configurable: true,
                         enumerable: true,
                         get() { return property.get.call(this); },
-                        set(value) { property.set.call(this, value); report(); },
+                        set(value) { property.set.call(this, value); declare(); },
                     });
                 }
                 const setActionHandler = session.setActionHandler.bind(session);
@@ -1770,14 +1841,14 @@ Item {
                     setActionHandler(action, handler);
                     if (handler) handlers.set(action, handler);
                     else handlers.delete(action);
-                    report();
+                    declare();
                 };
             }
             // Media events do not bubble, so the document listens in the
             // capture phase: a page that plays without a media session is still
             // a page the desktop hears.
             for (const name of ['play', 'pause', 'ended', 'emptied', 'loadedmetadata'])
-                document.addEventListener(name, report, {capture: true, passive: true});
+                document.addEventListener(name, declare, {capture: true, passive: true});
             globalThis.__omawebMediaSession = {
                 invoke(command) {
                     const wanted = command === 'playpause'
@@ -1788,7 +1859,7 @@ Item {
                     if (handler) {
                         try {
                             handler({action: action});
-                            report();
+                            declare();
                             return;
                         } catch (error) {
                             // The page's own handler threw. The element below it
@@ -1803,10 +1874,10 @@ Item {
                         element.pause();
                         element.currentTime = 0;
                     }
-                    report();
+                    declare();
                 },
             };
-            report();
+            declare();
         })();`;
 
         return script;
@@ -1822,9 +1893,9 @@ Item {
         const script = WebEngine.script();
         script.name = "Omaweb press origin";
         script.injectionPoint = WebEngineScript.DocumentReady;
-        script.worldId = WebEngineScript.MainWorld;
+        script.worldId = WebEngineScript.ApplicationWorld;
         script.runsOnSubFrames = false;
-        script.sourceCode = `document.addEventListener('click', event => {
+        script.sourceCode = root.reporting(`document.addEventListener('click', event => {
             const target = event.target && event.target.closest
                 ? event.target.closest('a[href], button, [role="button"], [role="link"]')
                 : null;
@@ -1837,8 +1908,8 @@ Item {
             } else {
                 return;
             }
-            console.info('__omaweb_press_origin__' + JSON.stringify(origin));
-        }, {capture: true, passive: true});`;
+            report('press_origin', origin);
+        }, {capture: true, passive: true});`);
         return script;
     }
 
@@ -1850,7 +1921,8 @@ Item {
         const scripts = [root.editedStateScript, root.keyboardNavigationScript,
                          root.externalProtocolOriginScript, root.documentPaintedScript,
                          root.userActivationScript, root.pressOriginScript, root.controlAccentScript,
-                         root.pagePaletteScript, root.pageScrollbarScript, root.mediaSessionScript];
+                         root.pagePaletteScript, root.pageScrollbarScript,
+                         root.pageScrollReportScript, root.mediaSessionScript];
         if (root.blockingScript)
             scripts.push(root.blockingScript);
         return scripts;
@@ -1860,18 +1932,16 @@ Item {
         const script = WebEngine.script();
         script.name = "Omaweb external protocol origin";
         script.injectionPoint = WebEngineScript.DocumentReady;
-        script.worldId = WebEngineScript.MainWorld;
+        script.worldId = WebEngineScript.ApplicationWorld;
         script.runsOnSubFrames = true;
-        script.sourceCode = `document.addEventListener('click', event => {
+        script.sourceCode = root.reporting(`document.addEventListener('click', event => {
             const link = event.target && event.target.closest
                 ? event.target.closest('a[href]') : null;
             if (!link) return;
             const scheme = String(link.protocol || '').replace(':', '').toLowerCase();
             if (['http', 'https', 'file', 'about', 'data', 'omaweb'].includes(scheme)) return;
-            console.info('__omaweb_external_protocol__' + JSON.stringify({
-                destination: link.href, origin: location.origin
-            }));
-        }, true);`;
+            report('external_protocol', {destination: link.href, origin: location.origin});
+        }, true);`);
 
         return script;
     }
@@ -2094,55 +2164,55 @@ Item {
         }
 
         onJavaScriptConsoleMessage: function (level, message, lineNumber, sourceId) {
-            if (message.startsWith("__omaweb_site_data_cleared__")) {
+            const report = root.pageReport(message);
+            if (!report) {
+                if (message === "__omaweb_keyboard_hint_mode__:1")
+                    root.keyboardNavigationHintModeActive = true;
+                else if (message === "__omaweb_keyboard_hint_mode__:0")
+                    root.keyboardNavigationHintModeActive = false;
+                return;
+            }
+            if (report.channel === "site_data_cleared") {
                 try {
-                    const report = JSON.parse(message.substring(
-                                                  "__omaweb_site_data_cleared__".length));
-                    root.pageSiteDataCleared(String(report.origin), report.cleared,
-                                             report.refused.length > 0 ? report.refused.join(
-                                                                             " and ")
-                                                                         + " could not be emptied" :
-                                                                         "");
+                    const cleared = JSON.parse(report.body);
+                    root.pageSiteDataCleared(String(cleared.origin), cleared.cleared,
+                                             cleared.refused.length > 0 ? cleared.refused.join(
+                                                                              " and ")
+                                                                          + " could not be emptied" :
+                                                                          "");
                 } catch (error) {
                     root.pageSiteDataCleared("", [], "the page did not answer");
                 }
-            } else if (message.startsWith("__omaweb_external_protocol__")) {
+            } else if (report.channel === "external_protocol") {
                 try {
-                    const report = JSON.parse(message.substring(
-                                                  "__omaweb_external_protocol__".length));
-                    root.externalProtocolOrigins[String(report.destination)] = String(
-                                report.origin);
+                    const named = JSON.parse(report.body);
+                    root.externalProtocolOrigins[String(named.destination)] = String(named.origin);
                 } catch (error) {
                     console.warn("Could not read external protocol origin: " + error);
                 }
-            } else if (message.startsWith("__omaweb_press_origin__")) {
+            } else if (report.channel === "press_origin") {
                 try {
-                    root.recordPressOrigin(JSON.parse(message.substring(
-                                                          "__omaweb_press_origin__".length)));
+                    root.recordPressOrigin(JSON.parse(report.body));
                 } catch (error) {
                     console.warn("Could not read the press origin: " + error);
                 }
-            } else if (message.startsWith("__omaweb_page_scroll__")) {
-                root.readPageScroll(message.substring("__omaweb_page_scroll__".length));
-            } else if (message.startsWith("__omaweb_media_session__")) {
+            } else if (report.channel === "page_scroll") {
+                root.readPageScroll(report.body);
+            } else if (report.channel === "media_session") {
                 try {
-                    root.pageMediaSession = JSON.parse(message.substring(
-                                                           "__omaweb_media_session__".length));
+                    root.pageMediaSession = JSON.parse(report.body);
                 } catch (error) {
                     // A page that cannot be read declares nothing, which is
                     // what a page with no media session declares too.
                     root.pageMediaSession = {};
                 }
-            } else if (message === "__omaweb_document_created__") {
+            } else if (report.channel === "document_created") {
                 root.documentPainted = false;
-            } else if (message === "__omaweb_document_painted__") {
+            } else if (report.channel === "document_painted") {
                 root.documentPainted = true;
-            } else if (message === "__omaweb_user_activation__") {
+            } else if (report.channel === "user_activation") {
                 root.userActivated();
-            } else if (message === "__omaweb_keyboard_hint_mode__:1")
-                root.keyboardNavigationHintModeActive = true;
-            else if (message === "__omaweb_keyboard_hint_mode__:0")
-                root.keyboardNavigationHintModeActive = false;
+            }
         }
 
         onPermissionRequested: function (request) {
