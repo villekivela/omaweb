@@ -297,3 +297,33 @@ Ten bursts cost nine late reports, each two questions at the blocker and one scr
 and 24 of 25 navigations counted exactly that; one merged two bursts into one report, which the 100
 ms hold allows. The baseline hid none of the hundred late elements. The late reports and the style
 work for the elements they hide are what the CPU column pays for.
+
+## Scripts in place across a navigation
+
+Issue #321 moves the Content blocking script from the view's script collection to the Engine
+profile's, matched to its origin, and stops the view from assigning its own collection whole at each
+load ([ADR 0048](adr/0048-install-the-content-blocking-script-on-the-engine-profile.md)). The
+stable-page figures above must hold. On the same virtual machine, Qt 6.11.2, offscreen, one `ci`
+harness binary with the instrumented `EngineView.qml` of
+`fix/321-script-each-document-for-its-own-address` in place, seven warm `site-css` navigations, two
+of them warm-up:
+
+| Metric                   | Every navigation |
+| ------------------------ | ---------------- |
+| Cosmetic questions       | 5                |
+| Scripts into the page    | 1                |
+| Survey replies           | 1                |
+| URL resource assemblies  | 0                |
+| Hidden of the 200 sample | 200              |
+
+The two questions the script costs, the site stylesheet and the scriptlet source, are asked at the
+navigation request instead of the load start, once per navigation as before.
+
+The contract tests are the rest of the validation. `qtScriptsEveryDocumentForItsOwnAddress` loads 21
+documents alternating between the two loopback names, so every load but the first changes renderer
+process, through a cross-site redirect, a same-site one, and none, and reads each page's state at
+its first script and once settled, subframe included. `qtRunsScriptletsBeforeThePageRuns` reloads 20
+times with the site turned off and on by turns. On main, the same matrix runs the script of the page
+being left in every navigation to another site, and the set-out address's script in every redirect
+target. Both tests passed six runs of the suite in a row here, and the `redirect` row of
+`qtHidesCosmeticRulesBeforeThePageRuns` with them.
