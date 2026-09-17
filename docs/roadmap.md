@@ -23,8 +23,7 @@ carry it, one theme each, in this order:
 3. [v0.9.0](https://github.com/villekivela/omaweb/milestone/3), forms and autofill: what was typed
    remembered, then addresses filled, then payment cards, on the storage decision v0.7.0 takes.
 
-Beta needs at least one thing the milestones cannot supply: Omaweb run as a daily driver on Omarchy
-on real hardware, which has not happened yet. What else it needs is not decided.
+What makes Omaweb beta is not yet decided. The milestones are the planned work, not a gate.
 
 ## Open on Linux
 
