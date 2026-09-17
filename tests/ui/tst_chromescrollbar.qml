@@ -77,6 +77,40 @@ TestCase {
         }
     }
 
+    // The same region with padding along the edge the bar runs down, which is
+    // what the sidebar's list and the Settings pane give it.
+    Component {
+        id: paddedViewComponent
+
+        ScrollView {
+            id: paddedView
+
+            width: 400
+            height: 600
+            rightPadding: 24
+            contentWidth: availableWidth
+
+            ScrollBar.vertical: Omaweb.ChromeScrollBar {
+                view: paddedView
+                colors: testCase.colorsFixture
+            }
+
+            Column {
+                width: paddedView.availableWidth
+
+                Repeater {
+                    model: 60
+
+                    Rectangle {
+                        width: parent.width
+                        height: 40
+                        color: "#202020"
+                    }
+                }
+            }
+        }
+    }
+
     // A bar that takes its length from its view, rather than the fixed one the
     // standalone fixture pins so the other tests have a length to assert
     // against.
@@ -148,6 +182,33 @@ TestCase {
         compare(bar.opacity, 1);
         compare(bar.expanded, false);
         compare(bar.thumbThickness, bar.restingThumb);
+    }
+
+    // Content that fits its view leaves nothing to say, hovered or not. Qt's
+    // own style hides the bar inside the painting this component replaces, so
+    // a bar that forgot to would draw a thumb the length of the whole track
+    // whenever the pointer rested at the edge of a short list.
+    //
+    // Under the window rather than the test case, because `visible` is read as
+    // seen: the test case's own item is not shown, so a bar under it reads
+    // false whatever it decided.
+    function test_nothingIsShownOverContentThatFits() {
+        const plain = plainViewComponent.createObject(testCase.Window.window.contentItem);
+        verify(plain !== null);
+        const bar = viewedBarComponent.createObject(testCase, {
+                                                        "view": plain
+                                                    });
+        verify(bar !== null);
+        compare(bar.visible, true);
+
+        bar.size = 1.0;
+        compare(bar.visible, false);
+
+        bar.size = 0.5;
+        compare(bar.visible, true);
+
+        bar.destroy();
+        plain.destroy();
     }
 
     // No lane behind the thumb, in any state. The style this derives from
@@ -233,6 +294,30 @@ TestCase {
         compare(bar.x, view.width - bar.width);
         verify(bar.width > 0);
         verify(view.availableHeight > bar.width);
+
+        view.destroy();
+    }
+
+    // Where the view pads its trailing edge the bar runs in the padding, and
+    // the rows keep their full width under it: a gutter laid inside the
+    // content covered the last of every row while the padding stood empty.
+    function test_theBarRunsInTheViewsPaddingWhereThereIsSome() {
+        const view = paddedViewComponent.createObject(testCase);
+        verify(view !== null);
+        const bar = view.ScrollBar.vertical;
+        verify(bar !== null);
+
+        tryCompare(bar, "height", view.availableHeight);
+        compare(bar.width, view.rightPadding);
+        compare(bar.x, view.width - view.rightPadding);
+        compare(view.availableWidth, view.width - view.rightPadding);
+        verify(bar.x >= view.availableWidth);
+
+        // The thumb stands in the middle of the padding, not against its edge.
+        const thumb = thumbOf(bar);
+        verify(bar.thumbInset > 0);
+        compare(bar.thumbInset, Math.floor((view.rightPadding - bar.hoveredThumb) / 2));
+        compare(thumb.anchors.rightMargin, bar.thumbInset);
 
         view.destroy();
     }
