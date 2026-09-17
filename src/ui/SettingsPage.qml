@@ -492,7 +492,8 @@ Rectangle {
         anchors.top: header.bottom
         anchors.bottom: parent.bottom
         anchors.leftMargin: root.sideMargin
-        anchors.rightMargin: root.sideMargin
+        // The trailing side margin is the pane's padding instead, so the
+        // scrollbar has the margin to run in rather than the settings' edge.
         anchors.topMargin: root.headerGap
         anchors.bottomMargin: root.bottomInset
         spacing: root.railGap
@@ -558,6 +559,7 @@ Rectangle {
             id: scroll
             width: body.width - rail.width - body.spacing
             height: parent.height
+            rightPadding: root.sideMargin
             contentWidth: availableWidth
             clip: true
 

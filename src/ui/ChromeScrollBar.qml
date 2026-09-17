@@ -67,6 +67,23 @@ ScrollBar {
     readonly property bool viewMirrored: root.view && root.view.mirrored !== undefined
                                          ? root.view.mirrored : false
 
+    // The padding the view keeps along the edge the bar runs down. A bar the
+    // width of the gutter laid inside `availableWidth` covers the last of every
+    // row while the region's own padding stands empty beside it, so where the
+    // view has padding at least as wide as the gutter the bar runs in the
+    // padding and the content keeps its full width. A view without padding — a
+    // webpage's — gets the gutter over its edge as before.
+    readonly property real viewTrailingInset: {
+        if (!root.view)
+            return 0;
+        if (root.orientation === Qt.Horizontal)
+            return root.view.bottomPadding !== undefined ? root.view.bottomPadding : 0;
+        const inset = root.viewMirrored ? root.view.leftPadding : root.view.rightPadding;
+        return inset !== undefined ? inset : 0;
+    }
+    readonly property real lane: Math.max(root.viewTrailingInset, root.gutter)
+    readonly property int thumbInset: Math.floor((root.lane - root.hoveredThumb) / 2)
+
     parent: root.view
     x: {
         if (!root.view)
@@ -81,11 +98,16 @@ ScrollBar {
         return root.orientation === Qt.Horizontal ? root.view.height - root.height :
                                                     root.viewTopInset;
     }
-    width: root.orientation === Qt.Horizontal && root.view ? root.viewLengthAcross :
-                                                             root.implicitWidth
+    width: root.orientation === Qt.Horizontal && root.view ? root.viewLengthAcross : root.lane
 
-    height: root.orientation === Qt.Horizontal || !root.view ? root.implicitHeight :
-                                                               root.viewLengthDown
+    height: root.orientation === Qt.Horizontal || !root.view ? root.lane : root.viewLengthDown
+
+    // Content that fits its view has nothing for a bar to say. Qt's own style
+    // hides the bar for an `AsNeeded` policy inside the painting this file
+    // replaces, so the rule is restated here: without it a pointer resting at
+    // the edge of a short list draws a thumb the length of the whole track.
+    visible: root.policy === ScrollBar.AlwaysOn || (root.policy !== ScrollBar.AlwaysOff
+                                                    && root.size < 1.0)
 
     // Proportional sizing alone leaves a long list with a few pixels of thumb,
     // which is visible but not catchable. Capped as well as floored: the length
@@ -114,8 +136,11 @@ ScrollBar {
             // does not shift the shape the reader is already aiming at.
             anchors.right: root.orientation === Qt.Horizontal ? undefined : parent.right
             anchors.bottom: root.orientation === Qt.Horizontal ? parent.bottom : undefined
-            anchors.rightMargin: root.orientation === Qt.Horizontal ? 0 : 2
-            anchors.bottomMargin: root.orientation === Qt.Horizontal ? 2 : 0
+            // Centred across the lane at its widened width, so a lane that is
+            // the region's padding carries the thumb in the middle of the
+            // padding rather than against the window's edge.
+            anchors.rightMargin: root.orientation === Qt.Horizontal ? 0 : root.thumbInset
+            anchors.bottomMargin: root.orientation === Qt.Horizontal ? root.thumbInset : 0
             anchors.verticalCenter: root.orientation === Qt.Horizontal ? undefined :
                                                                          parent.verticalCenter
             anchors.horizontalCenter: root.orientation === Qt.Horizontal ? parent.horizontalCenter :

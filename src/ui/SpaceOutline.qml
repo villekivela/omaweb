@@ -846,9 +846,12 @@ Rectangle {
             anchors.top: pinnedSection.bottom
             anchors.bottom: parent.bottom
             anchors.leftMargin: 16
-            anchors.rightMargin: 16
             anchors.topMargin: 12
             anchors.bottomMargin: 12
+            // Padding rather than a margin on the trailing side: the scrollbar
+            // runs in the view's padding, and a margin would leave it no lane
+            // but the rows themselves.
+            rightPadding: 16
             clip: true
             opacity: root.arrivalOpacity
             transform: Translate {
