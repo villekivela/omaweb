@@ -1286,6 +1286,18 @@ void QtEngineContractTest::qtKeyboardNavigationHonorsInputContracts()
 // hostname and a file:// page has none.
 namespace {
 
+// A signal found by name, for a type the test does not link against.
+QMetaMethod signalNamed(const QObject *object, const char *name)
+{
+    const auto *meta = object->metaObject();
+    for (int index = 0; index < meta->methodCount(); ++index) {
+        const auto method = meta->method(index);
+        if (method.methodType() == QMetaMethod::Signal && method.name() == name)
+            return method;
+    }
+    return {};
+}
+
 class PageServer final : public QTcpServer {
 public:
     // `/redirect` answers with the address it is given, and without one with
@@ -1785,6 +1797,7 @@ void QtEngineContractTest::qtKeepsItsPageReportsOutOfThePagesReach()
     </head><body style="margin:0"><div style="height:3000px"></div>
         <script>
             addEventListener("load", () => setTimeout(() => {
+                navigator.mediaSession.metadata = new MediaMetadata({title: "genuine"});
                 found.log('__omaweb_page_scroll__'
                     + JSON.stringify({offset: 0, length: 99999, viewport: 1}));
                 found.info('__omaweb_media_session__' + JSON.stringify({
@@ -1816,14 +1829,7 @@ void QtEngineContractTest::qtKeepsItsPageReportsOutOfThePagesReach()
 
     auto *webView = adapter->findChild<QObject *>(QStringLiteral("qtWebView"));
     QVERIFY(webView);
-    QMetaMethod consoleSignal;
-    for (int index = 0; index < webView->metaObject()->methodCount(); ++index) {
-        const auto method = webView->metaObject()->method(index);
-        if (method.name() == "javaScriptConsoleMessage") {
-            consoleSignal = method;
-            break;
-        }
-    }
+    const auto consoleSignal = signalNamed(webView, "javaScriptConsoleMessage");
     QVERIFY(consoleSignal.isValid());
     QSignalSpy consoleSpy(webView, consoleSignal);
     QVERIFY(consoleSpy.isValid());
@@ -1836,25 +1842,34 @@ void QtEngineContractTest::qtKeepsItsPageReportsOutOfThePagesReach()
         adapter->property("pageTitle").toString(), QStringLiteral("shouted"), 15000);
 
     // The shell's reports were not overheard, and the page's forgeries were
-    // not believed.
+    // not believed: the metadata the page set arrived and the forgery sent
+    // after it did not replace it.
     QTRY_COMPARE_WITH_TIMEOUT(adapter->property("pageScrollLength").toReal(), 3000.0, 5000);
-    QCOMPARE(adapter->property("pageMediaSession").toMap().value("title").toString(), QString());
+    QTRY_COMPARE_WITH_TIMEOUT(
+        adapter->property("pageMediaSession").toMap().value("title").toString(),
+        QStringLiteral("genuine"), 5000);
     QCOMPARE(activation.count(), 0);
 
-    // A press of the reader's own is still heard.
+    // A press of the reader's own is still heard. The page has settled before
+    // the press, the way it has when a reader presses on it.
+    QTest::qWait(500);
     QTest::mouseClick(&window, Qt::LeftButton, Qt::NoModifier, QPoint(100, 100));
     QTRY_COMPARE_WITH_TIMEOUT(activation.count(), 1, 5000);
 
-    // A page that stands still is reported once, whatever the timer does.
+    // A page that stands still is measured on the timer and not reported
+    // again: the sealed scroll reports are the one or two the document sent
+    // as it came up, and no more arrive while nothing moves.
+    const auto seal = adapter->property("reportSeal").toString();
     const auto scrollReports = [&] {
         int count = 0;
         for (const auto &message : consoleSpy) {
-            if (message.at(1).toString().contains(QStringLiteral("__omaweb_page_scroll__")))
+            if (message.at(1).toString().startsWith(QStringLiteral("__omaweb_page_scroll") + seal))
                 ++count;
         }
         return count;
     };
     const int settled = scrollReports();
+    QVERIFY2(settled >= 1 && settled <= 2, qPrintable(QString::number(settled)));
     QTest::qWait(2500);
     QCOMPARE(scrollReports(), settled);
 }
@@ -2584,14 +2599,7 @@ void QtEngineContractTest::qtDocksAnInspectorDrawnInOmawebsColours()
     // its own document title and rewrites it as the inspected page reports one,
     // so the answer comes back over the console instead: nothing else writes to
     // it under this prefix, and nothing overwrites what was already said.
-    QMetaMethod consoleSignal;
-    for (int index = 0; index < tools->metaObject()->methodCount(); ++index) {
-        const auto method = tools->metaObject()->method(index);
-        if (method.name() == "javaScriptConsoleMessage") {
-            consoleSignal = method;
-            break;
-        }
-    }
+    const auto consoleSignal = signalNamed(tools, "javaScriptConsoleMessage");
     QVERIFY(consoleSignal.isValid());
     QSignalSpy consoleSpy(tools, consoleSignal);
     QVERIFY(consoleSpy.isValid());
@@ -2995,14 +3003,7 @@ void QtEngineContractTest::qtDrawsMarkupDelimitersApartFromTheNamesBetweenThem()
     toolsItem->setSize(QSizeF(600, 800));
     QTRY_VERIFY_WITH_TIMEOUT(!tools->property("loading").toBool(), 20000);
 
-    QMetaMethod consoleSignal;
-    for (int index = 0; index < tools->metaObject()->methodCount(); ++index) {
-        const auto method = tools->metaObject()->method(index);
-        if (method.name() == "javaScriptConsoleMessage") {
-            consoleSignal = method;
-            break;
-        }
-    }
+    const auto consoleSignal = signalNamed(tools, "javaScriptConsoleMessage");
     QVERIFY(consoleSignal.isValid());
     QSignalSpy consoleSpy(tools, consoleSignal);
     QVERIFY(consoleSpy.isValid());

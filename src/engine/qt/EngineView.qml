@@ -317,7 +317,9 @@ Item {
             report('site_data_cleared', {
                 origin: location.origin, cleared: cleared, refused: refused
             });
-        })()`), WebEngineScript.ApplicationWorld, function () {});
+        })()`), WebEngineScript.ApplicationWorld,
+                              // The overload with a world needs the callback to pick it.
+                              function () {});
     }
 
     function respondToCertificateError(requestId, accepted) {
@@ -966,25 +968,30 @@ Item {
     // patch, or write itself. So the scripts that report run in the
     // application world, where the page's `console` is not theirs, and the
     // one that has to run in the page's world binds the console before the
-    // page runs. Each report carries a name drawn once per view that the page
-    // never sees, so a page shouting the shell's prefix into its own console
-    // is not believed. The level is the one an inspector hides by default, so
-    // a reader debugging their own page does not read the shell's traffic
-    // between their own lines.
+    // page runs. Each report is sealed with a name drawn once per view that
+    // the page never sees, so a page shouting the shell's prefix into its own
+    // console is not believed. The level is the one an inspector hides by
+    // default, so a reader debugging their own page does not read the shell's
+    // traffic between their own lines. The keyboard navigation script's hint
+    // mode report is the one line still sent unsealed, from the shared script
+    // in `src/engine/api`.
+    readonly property string reportHead: "__omaweb_"
     readonly property string reportToken: {
         let drawn = "";
         for (let part = 0; part < 3; ++part)
             drawn += Math.random().toString(36).slice(2);
         return drawn;
     }
+    readonly property string reportSeal: "__" + root.reportToken
 
     // `report` is declared for the source that follows, in a scope of its own:
     // scripts in one world share a global scope, and a second declaration
     // there would be a syntax error that took the script with it.
     function reportSnippet() {
         return "const report = (() => {" + "const say = console.debug.bind(console);"
-                + "const token = " + JSON.stringify(root.reportToken) + ";"
-                + "return (channel, payload) => say('__omaweb_' + channel + '__' + token"
+                + "const head = " + JSON.stringify(root.reportHead) + ";" + "const seal = "
+                + JSON.stringify(root.reportSeal) + ";"
+                + "return (channel, payload) => say(head + channel + seal"
                 + " + (payload === undefined ? '' : JSON.stringify(payload)));" + "})();";
     }
 
@@ -995,16 +1002,14 @@ Item {
     // The report a console message carries, or null for a line that is the
     // page's own.
     function pageReport(message) {
-        const head = "__omaweb_";
-        if (!message.startsWith(head))
+        if (!message.startsWith(root.reportHead))
             return null;
-        const seal = "__" + root.reportToken;
-        const end = message.indexOf(seal, head.length);
+        const end = message.indexOf(root.reportSeal, root.reportHead.length);
         if (end < 0)
             return null;
         return {
-            "channel": message.substring(head.length, end),
-            "body": message.substring(end + seal.length)
+            "channel": message.substring(root.reportHead.length, end),
+            "body": message.substring(end + root.reportSeal.length)
         };
     }
 
