@@ -18,6 +18,12 @@ Issues and specs for this repo live as GitHub issues. Use the `gh` CLI for all o
 
 The `gh` CLI infers `villekivela/omaweb` from the Git remote when run inside this repository.
 
+## Releases
+
+A release is planned as a GitHub milestone named for its tag, such as `v0.7.0`. List its issues with
+`gh issue list --milestone v0.7.0` and attach one with `gh issue edit <number> --milestone v0.7.0`.
+`docs/roadmap.md` states the order of the milestones and why.
+
 ## Pull requests as a triage request source
 
 **PRs as a request surface: no.**
