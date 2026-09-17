@@ -167,9 +167,10 @@ That private call has one cost worth stating plainly. Qt warns that a private mo
 one Qt build, and it is right: `portalWindowIdentifier` is reached as a virtual through
 `QDesktopUnixServices`, so a Qt that renamed or removed it would break the build, and a Qt that kept
 the name and moved it in the vtable would not — printing would call whatever took its place. The
-only other private Qt in Omaweb is the reader's page fonts, which
+only other private Qt in Omaweb is a Quick profile's settings, which
 [ADR 0047](adr/0047-reach-a-quick-profiles-font-settings-through-private-qt.md) accounts for on the
-same terms and whose exposure is a page drawn in the engine's own fonts.
+same terms and whose exposure is a page drawn in the engine's own fonts and a call offered every
+interface the machine has.
 
 So the browser does not ask on a Qt it was not compiled against. `portalNameIsSafeToAsk` compares
 `QT_VERSION_STR` with `qVersion()` and wants them identical, not compatible: public Qt keeps its ABI
@@ -264,6 +265,22 @@ bar. It needs a graphical session, so it is a check to run by hand rather than a
 It says what the page declared, whether a media key reached the page's own handler, and whether the
 player went when the browser did. The bus it ran on is torn down after the last result, and its
 daemon prints as it goes; nothing below the last `OK` line is a result.
+
+### What a call learns about the machine
+
+```sh
+scripts/check_webrtc_candidates.sh
+```
+
+asks the engine what a page setting up a call is told about this machine's addresses, once with the
+WebRTC address policy on and once with it off. The contract test reads the policy back off a
+profile's settings, which is what the engine promises and all a runner with one interface can check;
+this starts the browser on a page that gathers ICE candidates and prints what the page saw. On, the
+page sees the server-reflexive address of the default route and no host candidate. Off, it sees a
+host candidate for each interface as well, each hidden behind an mDNS name because the page holds no
+media permission, so the difference reads as candidates present or absent rather than as addresses.
+It puts a browser window on screen twice, on throwaway data and configuration roots, and sends one
+STUN request per run, so it is a check to run by hand rather than a CI gate.
 
 ### Installing and opening links
 

@@ -559,6 +559,56 @@ TestCase {
         verify(toggle.checked);
     }
 
+    QtObject {
+        id: webRtcPolicyStub
+
+        property bool publicInterfacesOnly: true
+    }
+
+    QtObject {
+        id: engineWebRtcPolicyStub
+
+        property bool available: true
+    }
+
+    // One switch under privacy for what a page's call may learn about the
+    // reader's network, bound to the policy rather than to a state of its own.
+    // A build whose engine adapter cannot reach the profile's settings shows
+    // the fact in the switch's place.
+    function test_webRtcAddressPolicyIsOneSwitchUnderPrivacy() {
+        const page = makePage();
+        page.section = page.sections.indexOf("privacy");
+        const toggle = findChild(page, "webRtcPublicInterfacesOnly");
+        const notice = findChild(page, "webRtcPolicyNotice");
+        verify(toggle !== null);
+        verify(notice !== null);
+        verify(!toggle.visible);
+        verify(!notice.visible);
+
+        webRtcPolicyStub.publicInterfacesOnly = true;
+        engineWebRtcPolicyStub.available = true;
+        page.webRtcPolicy = webRtcPolicyStub;
+        page.engineWebRtcPolicy = engineWebRtcPolicyStub;
+        verify(toggle.visible);
+        verify(!notice.visible);
+        verify(toggle.checked);
+        settleAction(toggle);
+        mouseClick(toggle, toggle.width / 2, toggle.height / 2);
+        tryVerify(function () {
+            return !webRtcPolicyStub.publicInterfacesOnly;
+        });
+        verify(!toggle.checked);
+        mouseClick(toggle, toggle.width / 2, toggle.height / 2);
+        tryVerify(function () {
+            return webRtcPolicyStub.publicInterfacesOnly;
+        });
+        verify(toggle.checked);
+
+        engineWebRtcPolicyStub.available = false;
+        verify(!toggle.visible);
+        verify(notice.visible);
+    }
+
     // The reader's type, stubbed the way the page reads it: the size on show,
     // whether it is theirs, the theme's underneath, and a page's fonts each
     // beside the engine's own. The real object is driven by the layout test

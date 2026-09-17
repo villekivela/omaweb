@@ -1,6 +1,7 @@
 #include "BrowserController.h"
 #include "ContentBlocker.h"
 #include "GlobalPrivacyControl.h"
+#include "WebRtcPolicy.h"
 #include "ReleaseWatch.h"
 #include "EngineCapabilities.h"
 #include "FaviconTint.h"
@@ -324,6 +325,11 @@ int main(int argc, char *argv[])
     static omaweb::GlobalPrivacyControl globalPrivacyControl(dataRootPath);
     engine.rootContext()->setContextProperty(
         QStringLiteral("globalPrivacyControl"), &globalPrivacyControl);
+    static omaweb::WebRtcPolicy webRtcPolicy(dataRootPath);
+    engine.rootContext()->setContextProperty(QStringLiteral("webRtcPolicy"), &webRtcPolicy);
+    // The lab runs no engine, so there is nothing to report unreachable.
+    engine.rootContext()->setContextProperty(
+        QStringLiteral("engineWebRtcPolicy"), QVariant::fromValue<QObject *>(nullptr));
     engine.rootContext()->setContextProperty(
         QStringLiteral("engineViewSource"), QUrl(QStringLiteral(OMAWEB_ENGINE_VIEW_URL)));
     engine.rootContext()->setContextProperty(

@@ -9,10 +9,12 @@
 #include "QtContentBlocker.h"
 #include "QtHeldDownloads.h"
 #include "QtPageFonts.h"
+#include "QtWebRtcPolicy.h"
 #include "ContentBlockerContract.h"
 #include "EngineViewContract.h"
 #include "PerformanceProbe.h"
 #include "ProcessResources.h"
+#include "WebRtcPolicy.h"
 
 #include <QGuiApplication>
 #include <QColor>
@@ -204,6 +206,8 @@ private slots:
     void qtHoldsARiskyDownloadUntilTheShellHasAnswered();
     void qtDrawsAPageInTheReadersFonts_data();
     void qtDrawsAPageInTheReadersFonts();
+    void qtOffersACallThePublicInterfaceOnly_data();
+    void qtOffersACallThePublicInterfaceOnly();
 };
 
 namespace {
@@ -2231,6 +2235,74 @@ void QtEngineContractTest::qtDrawsAPageInTheReadersFonts()
     fontSettings.setPageSize(omaweb::FontSettings::PageSize::Default, 0);
     fontSettings.setPageSize(omaweb::FontSettings::PageSize::Minimum, 0);
     QTRY_COMPARE_WITH_TIMEOUT(adapter->property("pageTitle").toString(), initial, 15000);
+}
+
+void QtEngineContractTest::qtOffersACallThePublicInterfaceOnly_data()
+{
+    QTest::addColumn<bool>("privateWindow");
+    QTest::newRow("a Space's profile") << false;
+    QTest::newRow("the private profile") << true;
+}
+
+// The WebRTC address policy rides the profile the way the reader's fonts do,
+// so a Space's profile and the Private windows' shared one restrict a call
+// alike, and a view reads the restriction off its profile. The attribute is
+// what the engine promises about a candidate list, and this reads it back
+// through the view's public settings rather than gathering candidates: what a
+// host offers depends on its interfaces, and a runner with one interface
+// gathers the same one address either way.
+void QtEngineContractTest::qtOffersACallThePublicInterfaceOnly()
+{
+    QFETCH(bool, privateWindow);
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    omaweb::ContentBlocker contentBlocker(root.path(), omaweb::ContentBlocker::DefaultLists::None);
+    omaweb::QtContentBlocker engineContentBlocker(&contentBlocker);
+    omaweb::WebRtcPolicy policy(root.filePath(QStringLiteral("config")));
+    omaweb::QtWebRtcPolicy enginePolicy(&policy);
+    QVERIFY(enginePolicy.available());
+    connect(&engineContentBlocker, &omaweb::QtContentBlocker::profileAttached, &enginePolicy,
+        &omaweb::QtWebRtcPolicy::attachToProfile);
+
+    QQmlEngine engine;
+    QQmlComponent profileComponent(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_PROFILE_PATH)));
+    std::unique_ptr<QObject> profileHost;
+    QVariantMap viewProperties {
+        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
+        {QStringLiteral("engineContentBlocker"),
+            QVariant::fromValue<QObject *>(&engineContentBlocker)},
+    };
+    if (privateWindow) {
+        profileHost.reset(profileComponent.createWithInitialProperties({
+            {QStringLiteral("profilePath"), root.filePath(QStringLiteral("private"))},
+            {QStringLiteral("privateBrowsing"), true},
+            {QStringLiteral("engineContentBlocker"),
+                QVariant::fromValue<QObject *>(&engineContentBlocker)},
+        }));
+        QVERIFY2(profileHost, qPrintable(profileComponent.errorString()));
+        viewProperties.insert(QStringLiteral("sharedProfile"), profileHost->property("profile"));
+    }
+    QQmlComponent component(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    const std::unique_ptr<QObject> adapter(component.createWithInitialProperties(viewProperties));
+    QVERIFY2(adapter, qPrintable(component.errorString()));
+    auto *webView = adapter->findChild<QObject *>(QStringLiteral("qtWebView"));
+    QVERIFY(webView);
+    auto *settings = webView->property("settings").value<QObject *>();
+    QVERIFY(settings);
+    const auto publicInterfacesOnly
+        = [settings] { return settings->property("webRTCPublicInterfacesOnly").toBool(); };
+
+    // On from the first page, before the reader has set anything up.
+    QVERIFY(publicInterfacesOnly());
+
+    // Off reaches the open profile without a restart, and on comes back the
+    // same way.
+    policy.setPublicInterfacesOnly(false);
+    QVERIFY(!publicInterfacesOnly());
+    policy.setPublicInterfacesOnly(true);
+    QVERIFY(publicInterfacesOnly());
 }
 
 void QtEngineContractTest::adaptersNameTheColoursTheirInspectorIsDrawnIn_data()

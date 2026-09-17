@@ -162,6 +162,8 @@ ApplicationWindow {
     // The browser's Global Privacy Control, named apart from its context
     // property for the same reason.
     readonly property var privacyControl: globalPrivacyControl
+    readonly property var webRtcAddressPolicy: webRtcPolicy
+    readonly property var engineWebRtcAddressPolicy: engineWebRtcPolicy
     // The reader's type and the engine adapter that draws pages in it, named
     // apart from their context properties for the same reason again.
     readonly property var readerFonts: fontSettings
@@ -2786,6 +2788,8 @@ ApplicationWindow {
                     z: 45
                     releaseWatch: window.releases
                     globalPrivacyControl: window.privacyControl
+                    webRtcPolicy: window.webRtcAddressPolicy
+                    engineWebRtcPolicy: window.engineWebRtcAddressPolicy
                     fontSettings: window.readerFonts
                     pageFonts: window.enginePageFonts
                     SheetLift {
