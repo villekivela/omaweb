@@ -767,6 +767,38 @@ application answers it, and an extension assembled some other way is refused by 
 rule rather than by anything Omaweb decides. The refusal is covered by an autotest, since it is the
 half that matters for security.
 
+### 2026-09-18, autofill
+
+Bitwarden fills a login form on the patched engine, from a real vault. Signed in against
+`bitwarden.eu` in the probe's own profile, with one item saved for the fixture's address, the
+extension's own code collects the page's fields and writes both of them. The trace is Bitwarden's,
+not the prototype's: `collectPageDetailsResponse` carries 1683 bytes of page details to the worker,
+and `updateIsFieldCurrentlyFilling` and the inline-menu visibility checks follow.
+
+Two failures on the way, both worth recording because neither was an engine gap and both cost time:
+
+1. A page loaded before the extension was enabled has no autofill script in it, and Bitwarden's fill
+   then ends in its own "Unable to autofill". The content script answers
+   `collectPageDetailsImmediately` with nothing while `isMonitoring` is false, which is the cheapest
+   way to tell this state apart from a broken message path. Reloading the page fixes it. An
+   application that enables a Known extension after a page is already open has to reload or inject
+   into the pages that were open, which is a real integration requirement rather than a test
+   artefact.
+2. The inline menu is drawn only when the reader has turned it on.
+   `getBootstrapAutofillContentScript` chooses between four content scripts from
+   `inlineMenuVisibility` and the two notification prompts, so with the menu off Bitwarden injects
+   `bootstrap-autofill-overlay-notifications.js` and no menu appears in the field. Nothing to fix
+   here, but it means the in-field menu cannot be used as a signal that autofill is working.
+
+One engine defect the session did find: the extension's own popup was listed as a tab, because every
+page of the profile was. `chrome.tabs.query` then reported the popup alongside the page, and an
+extension asking for the active tab could be told about its own popup. Extension pages are now
+excluded, which is what Chrome does, and `tabs.query` from the popup reports one tab, the page.
+
+`chrome.action` is the remaining rough edge in ordinary use: the namespace exists but its functions
+do not, so Bitwarden logs "Failed to set badge state" whenever it would update its badge. Harmless,
+and the badge is a surface an application would draw itself anyway.
+
 ## What the prototype verifies first
 
 1. The empty-popup cause. Answered in the prototype log: a `TypeError` on an `undefined` namespace.
