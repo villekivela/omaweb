@@ -1,17 +1,24 @@
 #!/usr/bin/env bash
-# Serve website/ on http://localhost:8000 for local review.
+# Build website/ into website/dist/ and serve that on http://localhost:8000
+# for local review. Every page is written through the shell, so the sources
+# are not the site and the build is the only way to see them as one; it runs
+# without the network, with the committed releases page in place of the
+# generated ones.
 #
 #   scripts/serve_website.sh            # the site
 #   scripts/serve_website.sh 8080       # on another port
 #
-# Rebuild the per-theme palettes, screenshots and the favicon after a
-# chrome change or an upstream theme change:
-# scripts/build_website_themes.py
+# A change to a page or the shell wants the build run again: stop this and
+# start it again, or run `node build/site.mjs --local` from website/ while it
+# serves. Rebuild the per-theme palettes, screenshots and the favicon after a
+# chrome change or an upstream theme change: scripts/build_website_themes.py
 set -euo pipefail
 
 port="${1:-8000}"
-root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/website"
+website="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/website"
+root="$website/dist"
 
+(cd "$website" && node build/site.mjs --local)
 printf 'website  http://localhost:%s/\n' "$port"
 
 # `python3 -m http.server` types a file from the system mime table, and an Arch

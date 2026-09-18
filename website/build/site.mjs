@@ -10,23 +10,29 @@
 // per reader. A release's notes only change when a tag is pushed, which is a
 // deploy anyway.
 //
-// Only the release pages are generated. Everything else is a file in this
-// directory, copied across as it is.
+// Every page is written through `build/shell.html`, which holds the head,
+// the header and its nav, the footer and the script once: a page under
+// `pages/` is what goes between the header and the footer. `pages/index.html`
+// becomes `dist/index.html` and any other `pages/<name>.html` becomes
+// `dist/<name>/index.html`, so each page is a directory and its address ends
+// in a slash. Everything else in this directory is copied across as it is.
 //
 // It writes into `dist/` rather than over the source files, so a local run
 // leaves the working tree as it found it.
 //
 //   node build/site.mjs            # from website/
+//   node build/site.mjs --local    # the same, without asking GitHub
 //
 // The build never fails on the API. A rate limit or an outage leaves the
 // `releases/index.html` committed here, which says where the releases are, so
 // the site deploys a page that is thin rather than not deploying at all.
 
 import { cp, mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
-import { dirname, join, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { releasePath, renderReleasePage } from "./render.mjs";
+import { releasePath, renderRelease } from "./render.mjs";
+import { parsePage, renderShell } from "./shell.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const WEBSITE = resolve(HERE, "..");
@@ -40,12 +46,19 @@ const LISTED = 12;
 // a row rather than the oldest release on the page.
 const RELEASES = `https://api.github.com/repos/villekivela/omaweb/releases?per_page=${LISTED + 1}`;
 
-// None of these belongs in the deployed site: `build/` is this script, its
-// tests and the page template, `dist/` is where they put their output,
-// `.vercel` is the CLI's own state, and `vercel.json` is read from the project
-// root rather than from the output, so copying it would only serve the
-// deployment's own configuration at `/vercel.json`.
-const NOT_DEPLOYED = new Set(["build", "dist", "node_modules", ".vercel", "vercel.json"]);
+// None of these belongs in the deployed site as it is: `build/` is this
+// script, its tests and the templates, `pages/` is what the script writes
+// into the shell, `dist/` is where they put their output, `.vercel` is the
+// CLI's own state, and `vercel.json` is read from the project root rather than
+// from the output, so copying it would only serve the deployment's own
+// configuration at `/vercel.json`.
+const NOT_DEPLOYED = new Set(["build", "pages", "dist", "node_modules", ".vercel", "vercel.json"]);
+
+const PAGES = join(WEBSITE, "pages");
+
+// Asked for without the network: the pages are written and the releases page
+// is the committed one, which is what a local review of the pages wants.
+const LOCAL = process.argv.includes("--local");
 
 // Entry by entry rather than one `cp` of the whole directory: the output lives
 // inside the input, and `cp` refuses that however the filter is written.
@@ -54,6 +67,28 @@ async function copyStaticFiles() {
     if (NOT_DEPLOYED.has(entry)) continue;
     await cp(join(WEBSITE, entry), join(OUTPUT, entry), { recursive: true });
   }
+}
+
+async function readShell() {
+  return readFile(join(HERE, "shell.html"), "utf8");
+}
+
+async function writePage(shell, directory, root, page) {
+  await mkdir(directory, { recursive: true });
+  await writeFile(join(directory, "index.html"), renderShell(shell, { root, ...page }));
+}
+
+// Every page under `pages/`, into the shell. The landing page is the root;
+// any other is a directory named after its file, one level down.
+async function writePages(shell) {
+  const names = (await readdir(PAGES)).filter((name) => name.endsWith(".html")).sort();
+  for (const name of names) {
+    const page = parsePage(await readFile(join(PAGES, name), "utf8"));
+    const stem = basename(name, ".html");
+    if (stem === "index") await writePage(shell, OUTPUT, ".", page);
+    else await writePage(shell, join(OUTPUT, stem), "..", page);
+  }
+  return names.length;
 }
 
 async function fetchReleases() {
@@ -76,24 +111,19 @@ async function fetchReleases() {
     .slice(0, LISTED);
 }
 
-async function writeReleasePages(releases) {
-  const template = await readFile(join(HERE, "release.template.html"), "utf8");
+async function writeReleasePages(shell, releases) {
+  const template = await readFile(join(HERE, "release.html"), "utf8");
 
   // `releases/` is the newest release rather than a page of its own. A reader
   // arriving without a version in mind wants the latest notes, and the list
-  // beside them is the way to any other.
-  await writeFile(
-    join(OUTPUT, "releases", "index.html"),
-    renderReleasePage(releases[0], releases, template, ".."),
-  );
+  // beside them is the way to any other. It replaces the page `writePages`
+  // wrote there, which only says where the releases are.
+  const newest = renderRelease(releases[0], releases, template, "..");
+  await writePage(shell, join(OUTPUT, "releases"), "..", newest);
 
   for (const release of releases) {
     const directory = join(OUTPUT, "releases", releasePath(release.tag_name));
-    await mkdir(directory, { recursive: true });
-    await writeFile(
-      join(directory, "index.html"),
-      renderReleasePage(release, releases, template, "../.."),
-    );
+    await writePage(shell, directory, "../..", renderRelease(release, releases, template, "../.."));
   }
 }
 
@@ -101,6 +131,9 @@ async function main() {
   await rm(OUTPUT, { recursive: true, force: true });
   await mkdir(OUTPUT, { recursive: true });
   await copyStaticFiles();
+  const shell = await readShell();
+  console.log(`website: wrote ${await writePages(shell)} pages`);
+  if (LOCAL) return;
 
   // The fetch and the rendering are guarded together. A release the API
   // answers with is data from elsewhere, so rendering it can fail on
@@ -113,7 +146,7 @@ async function main() {
       console.warn("website: keeping the committed releases page: no release the site can name");
       return;
     }
-    await writeReleasePages(releases);
+    await writeReleasePages(shell, releases);
     console.log(`website: wrote ${releases.length} release pages`);
   } catch (error) {
     console.warn(`website: keeping the committed releases page: ${error.message}`);

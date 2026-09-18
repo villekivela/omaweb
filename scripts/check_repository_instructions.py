@@ -23,7 +23,7 @@ import re
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-PAGES = ("README.md", "website/index.html")
+PAGES = ("README.md", "website/pages/index.html")
 
 # A full OpenPGP fingerprint, which is the only form worth publishing: a short
 # key id can be collided with, and a reader comparing one is checking nothing.
