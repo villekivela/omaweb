@@ -6,8 +6,17 @@ extensions on the Development engine. It answers
 go or no-go decision. The evidence was read on 2026-09-17 from the sources below. Every claim cites
 a file, and a line number where one helps.
 
-The patches this note reports are exported beside it in
-[`qtwebengine-patches/`](qtwebengine-patches/).
+The patches this note reports are not in this repository. They are Chromium and Qt source under
+their own licences, and an engine belongs outside Omaweb's tree, so they live in a separate
+QtWebEngine checkout on top of the 6.11.1 tarball, tagged `v6.11.1-tarball`:
+
+1. `extensions: bind EventRouter and RendererHost at every registration point`
+2. `build: define the pure-computation seatbelt profile name ourselves` (a local SDK fix, not part
+   of the series)
+3. `extensions: keep ExtensionPrefs valid when the PrefService is rebuilt`
+4. `extensions: offer the tabs, windows, permissions and event namespaces`
+5. `extensions: offer the scripting namespace`
+6. `extensions: connect an extension to a native messaging host`
 
 ## Sources
 
@@ -667,9 +676,8 @@ debugging port to read consoles and execution contexts.
 ### 2026-09-18, patched engine
 
 QtWebEngine 6.11.1 built from the source tarball on this Mac against Homebrew's Qt, with the series
-in [`qtwebengine-patches/`](qtwebengine-patches/) applied. Each patch carries a
-`tst_qwebengineextension` case that fails on the Homebrew build and passes on the patched one; the
-whole suite passes, 20 of 20.
+from the series named above applied. Each patch carries a `tst_qwebengineextension` case that fails
+on the Homebrew build and passes on the patched one; the whole suite passes, 20 of 20.
 
 1. `RendererHost` has to be offered twice. A frame reaches the browser through the render process's
    associated interface registry, but a service worker reaches it through its own provider, which
