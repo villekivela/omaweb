@@ -7,16 +7,7 @@
  */
 
 :root {
-  --themes: "hackerman oligarchy tokyo-night catppuccin nord everforest gruvbox";
-}
-
-body[data-theme="hackerman"] {
-  --bg: #06060c;
-  --sidebar: #080910;
-  --fg: #ddf7ff;
-  --accent: #82fb9c;
-  --urgent: #50f872;
-  --muted: #6a6e95;
+  --themes: "oligarchy hackerman tokyo-night catppuccin nord everforest gruvbox";
 }
 
 body[data-theme="oligarchy"] {
@@ -26,6 +17,15 @@ body[data-theme="oligarchy"] {
   --accent: #9aa3ad;
   --urgent: #7a2e2e;
   --muted: #929ca6;
+}
+
+body[data-theme="hackerman"] {
+  --bg: #06060c;
+  --sidebar: #080910;
+  --fg: #ddf7ff;
+  --accent: #82fb9c;
+  --urgent: #50f872;
+  --muted: #6a6e95;
 }
 
 body[data-theme="tokyo-night"] {

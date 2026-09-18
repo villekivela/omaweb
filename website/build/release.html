@@ -1,0 +1,28 @@
+<!--
+  The page one release gets, filled in by build/render.mjs and written into
+  the shell both at dist/releases/index.html (the newest) and at
+  dist/releases/<tag>/index.html. Under build/ rather than pages/ because its
+  placeholders are not markup and it is one page per release rather than
+  a page of its own.
+
+  Master and detail are both markup here, not a pane the script swaps. Every
+  version is its own address, so a release can be linked to and read with the
+  script blocked, and the list is the navigation rather than a control.
+-->
+<div class="t-detail">
+  <nav class="t-detail__master" aria-label="Releases">
+    <p class="t-detail__masthead">Versions</p>
+    {{nav}}
+    <a class="t-detail__all" href="https://github.com/villekivela/omaweb/releases"
+      >All releases on GitHub</a
+    >
+  </nav>
+
+  <main class="t-detail__pane">
+    <p class="t-section__index">Release notes</p>
+    <h1>{{tag}}</h1>
+    <p class="t-release__marks">{{marks}}</p>
+    <div class="t-prose">{{notes}}</div>
+    <p class="t-detail__foot">{{github}}</p>
+  </main>
+</div>

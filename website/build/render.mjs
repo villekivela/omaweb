@@ -171,11 +171,12 @@ export function renderReleaseNav(releases, currentTag, root) {
 }
 
 /**
- * One release's page, filled into `release.template.html`. The template carries
- * the site's chrome, so a release page is the same page as the rest of the site
- * and not a second design to keep in step.
+ * One release's page: what its opening comment would name, and its markup
+ * filled into `release.html`. `site.mjs` writes the result into the shell
+ * like any other page, so a release page is the same page as the rest of
+ * the site and not a second design to keep in step.
  */
-export function renderReleasePage(release, releases, template, root) {
+export function renderRelease(release, releases, template, root) {
   const tag = escapeHtml(release.name || release.tag_name);
   const date = formatDate(release.published_at);
   const notes = markdownToHtml(release.body || "");
@@ -186,14 +187,6 @@ export function renderReleasePage(release, releases, template, root) {
   if (release.prerelease) marks.push('<span class="t-release__state">Prerelease</span>');
 
   const fields = {
-    root,
-    title: `Omaweb ${tag} release notes`,
-    // Built from the raw name rather than from `tag`, which is already
-    // escaped: escaping it again would put a literal `&quot;` in the sentence.
-    // `escapeHtml` covers the attribute here as it covers the element above.
-    description: escapeHtml(
-      `What changed in the Omaweb ${state} ${release.name || release.tag_name}.`,
-    ),
     nav: renderReleaseNav(releases, release.tag_name, root),
     tag,
     marks: marks.join(""),
@@ -201,7 +194,18 @@ export function renderReleasePage(release, releases, template, root) {
     github: `<a class="btn" href="${escapeHtml(page)}">This release on GitHub</a>`,
   };
 
-  return template.replace(/\{\{(\w+)\}\}/g, (whole, name) =>
-    name in fields ? fields[name] : whole,
-  );
+  return {
+    meta: {
+      // Raw rather than `tag`, which is already escaped: the shell escapes
+      // what it writes into the head, and escaping twice would put a literal
+      // `&quot;` in the sentence.
+      title: `${release.name || release.tag_name} · Omaweb`,
+      description: `What changed in the Omaweb ${state} ${release.name || release.tag_name}.`,
+      current: "releases",
+      mark: "true",
+    },
+    body: template
+      .replace(/^<!--[\s\S]*?-->\n/, "")
+      .replace(/\{\{(\w+)\}\}/g, (whole, name) => (name in fields ? fields[name] : whole)),
+  };
 }
