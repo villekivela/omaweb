@@ -202,6 +202,26 @@ img {
   color: var(--fg);
   border-bottom-color: var(--accent);
 }
+/* The mark alone on a wide screen, where it reads as the site's one way
+   out; the word beside it in the phone's menu, where every entry is a word. */
+.t-nav__github {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-md);
+}
+.t-nav__mark {
+  width: 1.4em;
+  height: 1.4em;
+  flex: none;
+}
+.t-nav__github span {
+  display: none;
+}
+@media (max-width: 31.999rem) {
+  .t-nav__github span {
+    display: inline;
+  }
+}
 /* The page the reader is on. `aria-current="true"` rather than `page` on a
    release, where the current page is the release below it in the list and the
    nav entry only says which part of the site this is. */
@@ -305,6 +325,9 @@ img {
   }
   .t-nav a:nth-child(4) {
     --row: 4;
+  }
+  .t-nav a:nth-child(5) {
+    --row: 5;
   }
   .t-top[data-menu="closed"] .t-nav,
   .t-top[data-menu="closed"] .t-nav a {
@@ -584,8 +607,7 @@ img {
 /* The buttons stand over the rain, so they sit on the header's glass: the
    cells behind them blur into a tint rather than running through the label.
    The ground is a touch denser than the kit's fill for the same reason. */
-.t-hero__actions .btn,
-.t-hero__actions .badge {
+.t-hero__actions .btn {
   background-color: color-mix(in srgb, var(--bg) 55%, transparent);
   background-image: linear-gradient(var(--fill-normal), var(--fill-normal));
   -webkit-backdrop-filter: blur(14px) saturate(160%);
@@ -602,88 +624,6 @@ img {
     color-mix(in srgb, var(--accent) 26%, transparent),
     color-mix(in srgb, var(--accent) 26%, transparent)
   );
-}
-.t-hero__actions .badge {
-  background-image: linear-gradient(
-    color-mix(in srgb, var(--urgent) 16%, transparent),
-    color-mix(in srgb, var(--urgent) 16%, transparent)
-  );
-}
-
-/* A state, not an action, so it stands beside the buttons rather than among
-   them: the theme's urgent colour instead of its accent, because what it says
-   is a caveat and not an invitation.
-
-   The box and the type are the button's own, down to the tokens, so the three
-   sit on one line at any theme spacing. A <span> rather than a <p> because
-   `.t-hero p` sets a paragraph's size and would win over this. */
-.badge {
-  display: inline-flex;
-  align-items: center;
-  min-height: var(--control-h);
-  padding: var(--control-py) var(--control-px);
-  border: 1px solid color-mix(in srgb, var(--urgent) 60%, transparent);
-  border-radius: var(--radius);
-  background: color-mix(in srgb, var(--urgent) 16%, transparent);
-  color: var(--fg);
-  font-size: var(--fs-body-sm);
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  text-decoration: none;
-}
-
-/* The badge carries its own caveat, shown on hover and on keyboard focus.
-   `visibility` rather than `display`, so the note is laid out and can be
-   transitioned, and so `aria-describedby` still finds it. */
-.badge-host {
-  position: relative;
-  display: inline-flex;
-}
-/* A hidden note still counts towards the page's scrollable width, and on a
-   phone this one reached past the right edge and gave the page a sideways
-   scroll, so while hidden it has no width to speak of. The collapse waits
-   for the fade, so the text is not clipped on its way out; on the way in the
-   width comes first and the fade after. */
-.badge__note {
-  position: absolute;
-  top: calc(100% + var(--sp-lg));
-  left: 0;
-  z-index: 5;
-  width: max-content;
-  max-width: 0;
-  overflow: hidden;
-  padding: var(--control-py) var(--control-px);
-  border: 1px solid var(--line-normal);
-  border-radius: var(--radius);
-  background: var(--sidebar);
-  color: var(--muted);
-  font-size: var(--fs-caption);
-  font-weight: 400;
-  letter-spacing: normal;
-  line-height: 1.5;
-  text-transform: none;
-  opacity: 0;
-  visibility: hidden;
-  transition:
-    opacity 120ms ease,
-    visibility 120ms ease,
-    max-width 0s 120ms;
-}
-.badge-host:hover .badge__note,
-.badge-host:focus-within .badge__note {
-  max-width: min(42ch, 80vw);
-  opacity: 1;
-  visibility: visible;
-  transition-delay: 0s;
-}
-/* On a phone the badge ends its row, so the note hangs from its right edge
-   and stays on the page. */
-@media (max-width: 31.999rem) {
-  .badge__note {
-    left: auto;
-    right: 0;
-  }
 }
 
 .t-section {
