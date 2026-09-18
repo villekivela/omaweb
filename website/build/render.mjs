@@ -199,7 +199,7 @@ export function renderRelease(release, releases, template, root) {
       // Raw rather than `tag`, which is already escaped: the shell escapes
       // what it writes into the head, and escaping twice would put a literal
       // `&quot;` in the sentence.
-      title: `Omaweb ${release.name || release.tag_name} release notes`,
+      title: `${release.name || release.tag_name} · Omaweb`,
       description: `What changed in the Omaweb ${state} ${release.name || release.tag_name}.`,
       current: "releases",
       mark: "true",

@@ -252,7 +252,7 @@ const TEMPLATE = [
 
 test("release: the fragment is filled with the release's notes, its siblings and its depth", () => {
   const { meta, body } = renderRelease(RELEASE, [RELEASE, OLDER], TEMPLATE, "../..");
-  assert.equal(meta.title, "Omaweb v0.3.0 release notes");
+  assert.equal(meta.title, "v0.3.0 · Omaweb");
   assert.equal(meta.description, "What changed in the Omaweb prerelease v0.3.0.");
   assert.equal(meta.current, "releases");
   assert.match(body, /<h1>v0\.3\.0<\/h1>/);
@@ -286,7 +286,7 @@ test("release: a release with no body still renders, pointing at GitHub", () => 
 test("release: the title is the raw name, for the shell to escape once", () => {
   const odd = { ...RELEASE, name: 'v1 "beta"' };
   const { meta, body } = renderRelease(odd, [odd], TEMPLATE, "..");
-  assert.equal(meta.title, 'Omaweb v1 "beta" release notes');
+  assert.equal(meta.title, 'v1 "beta" · Omaweb');
   assert.match(body, /<h1>v1 &quot;beta&quot;<\/h1>/);
 });
 
