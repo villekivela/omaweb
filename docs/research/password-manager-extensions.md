@@ -7,8 +7,10 @@ go or no-go decision. The evidence was read on 2026-09-17 from the sources below
 a file, and a line number where one helps.
 
 The patches this note reports are not in this repository. They are Chromium and Qt source under
-their own licences, and an engine belongs outside Omaweb's tree, so they live in a separate
-QtWebEngine checkout on top of the 6.11.1 tarball, tagged `v6.11.1-tarball`:
+their own licences, and an engine belongs outside Omaweb's tree, so they live in
+[`omaweb-qtwebengine-patches`](https://github.com/villekivela/omaweb-qtwebengine-patches), on top of
+the 6.11.1 tarball. The harness that measured all of this is
+[`omaweb-extension-probe`](https://github.com/villekivela/omaweb-extension-probe). The series:
 
 1. `extensions: bind EventRouter and RendererHost at every registration point`
 2. `build: define the pure-computation seatbelt profile name ourselves` (a local SDK fix, not part
@@ -806,6 +808,22 @@ excluded, which is what Chrome does, and `tabs.query` from the popup reports one
 `chrome.action` is the remaining rough edge in ordinary use: the namespace exists but its functions
 do not, so Bitwarden logs "Failed to set badge state" whenever it would update its badge. Harmless,
 and the badge is a surface an application would draw itself anyway.
+
+### 2026-09-18, rebasing onto 6.11.2
+
+Qt 6.11.2 released during the session. All six patches apply to it with no conflicts and no fuzz, so
+the rebase cost for this release is no one's time at all. One collision was reported and it was the
+series' own fault: patch 0001 carried a build ignore file, which any checkout that ignores its own
+build directory already has. That is fixed in the series rather than in the checkout.
+
+Nothing this note reports has been fixed upstream. Against 6.11.2, 6.12.0-beta3 and `dev`:
+`content_browser_client_qt.cpp` still mentions `RendererHost` nowhere, the service worker registry
+still carries `ServiceWorkerHost` alone, `messaging_delegate_qt.cpp` still implements neither
+`IsNativeMessagingHostAllowed` nor `CreateReceiverForNativeApp`, `ProfileQt::setupPrefService` still
+replaces the `ExtensionPrefs` instance other services hold, and the Qt schema list is still the same
+four files with the chrome-layer schemas stripped to two private IDLs. Three releases on, the
+decision about what to enable has not moved, which is worth weighing when judging how a proposal to
+widen it will be received.
 
 ## What the prototype verifies first
 
