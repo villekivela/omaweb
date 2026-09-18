@@ -581,6 +581,34 @@ img {
   gap: var(--sp-xxl);
   margin-top: var(--panel-padding);
 }
+/* The buttons stand over the rain, so they sit on the header's glass: the
+   cells behind them blur into a tint rather than running through the label.
+   The ground is a touch denser than the kit's fill for the same reason. */
+.t-hero__actions .btn,
+.t-hero__actions .badge {
+  background-color: color-mix(in srgb, var(--bg) 55%, transparent);
+  background-image: linear-gradient(var(--fill-normal), var(--fill-normal));
+  -webkit-backdrop-filter: blur(14px) saturate(160%);
+  backdrop-filter: blur(14px) saturate(160%);
+}
+.t-hero__actions .btn:hover {
+  background-image: linear-gradient(var(--fill-hover), var(--fill-hover));
+}
+.t-hero__actions .btn--emphasis {
+  background-image: linear-gradient(var(--fill-accent), var(--fill-accent));
+}
+.t-hero__actions .btn--emphasis:hover {
+  background-image: linear-gradient(
+    color-mix(in srgb, var(--accent) 26%, transparent),
+    color-mix(in srgb, var(--accent) 26%, transparent)
+  );
+}
+.t-hero__actions .badge {
+  background-image: linear-gradient(
+    color-mix(in srgb, var(--urgent) 16%, transparent),
+    color-mix(in srgb, var(--urgent) 16%, transparent)
+  );
+}
 
 /* A state, not an action, so it stands beside the buttons rather than among
    them: the theme's urgent colour instead of its accent, because what it says
