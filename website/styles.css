@@ -777,16 +777,32 @@ img {
   border-top: 1px solid var(--line-quiet);
 }
 .t-feature h2 {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
   margin: 0 0 var(--sp-md);
   font-family: var(--display);
   font-size: var(--fs-title);
   font-weight: 700;
   line-height: 1.25;
 }
+/* The glyph sits in the title's line, in the muted colour and sized to the
+   type, the way a glyph sits beside a label in the chrome. */
+.t-feature__mark {
+  flex: none;
+  width: 1.15em;
+  height: 1.15em;
+  color: var(--muted);
+}
 .t-feature p {
   margin: 0;
   color: color-mix(in srgb, var(--fg) 76%, var(--bg));
   font-size: var(--fs-body-sm);
+}
+.t-feature code {
+  font: inherit;
+  font-weight: 700;
+  color: var(--accent);
 }
 /* An item that is true of the next release rather than of the one a reader
    can download. The accent marks it as a note about time, not a caveat about
@@ -794,6 +810,35 @@ img {
 .t-feature__when {
   color: var(--accent);
   font-weight: 700;
+}
+
+/* ---------------- the rest of the features --------------------------
+   Term and line, two abreast where there is room: a reader scanning for
+   one thing finds it by its name, and the line under it says enough. */
+.t-also {
+  display: grid;
+  gap: var(--panel-padding) calc(var(--panel-padding) * 1.5);
+  margin: var(--panel-padding) 0 0;
+}
+@media (min-width: 52rem) {
+  .t-also {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+.t-also > div {
+  min-width: 0;
+}
+.t-also dt {
+  margin: 0 0 var(--sp-xs);
+  font-family: var(--display);
+  font-size: var(--fs-body);
+  font-weight: 700;
+}
+.t-also dd {
+  margin: 0;
+  max-width: 54ch;
+  color: color-mix(in srgb, var(--fg) 76%, var(--bg));
+  font-size: var(--fs-body-sm);
 }
 
 /* ---------------- the documentation index ---------------------------
