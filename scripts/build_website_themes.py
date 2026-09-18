@@ -121,8 +121,8 @@ THEME_DIRECTORIES = [
 # The themes the site offers, in the order it offers them. The first is the
 # default: the one the page comes up in and the one its shipped favicon is.
 THEMES = [
-    ("hackerman", "Hackerman"),
     ("oligarchy", "Oligarchy"),
+    ("hackerman", "Hackerman"),
     ("tokyo-night", "Tokyo Night"),
     ("catppuccin", "Catppuccin"),
     ("nord", "Nord"),

@@ -72,12 +72,12 @@ body {
      themes.css arrives. Every palette the picker offers is generated into
      themes.css from its Omarchy theme's own colors.toml and named on <body>,
      where it outranks this block. */
-  --bg: var(--omaweb-bg, #06060c);
-  --sidebar: var(--omaweb-sidebar, #080910);
-  --fg: var(--omaweb-fg, #ddf7ff);
-  --accent: var(--omaweb-accent, #82fb9c);
-  --urgent: var(--omaweb-urgent, #50f872);
-  --muted: var(--omaweb-muted, #6a6e95);
+  --bg: var(--omaweb-bg, #090a0e);
+  --sidebar: var(--omaweb-sidebar, #0d0f14);
+  --fg: var(--omaweb-fg, #d8dbe3);
+  --accent: var(--omaweb-accent, #9aa3ad);
+  --urgent: var(--omaweb-urgent, #7a2e2e);
+  --muted: var(--omaweb-muted, #929ca6);
 
   /* State tokens. Kit alphas exactly, including the hover border
      dropping BELOW normal (0.25 vs 0.40). */
@@ -546,6 +546,31 @@ img {
   to {
     clip-path: circle(160vmax at var(--sweep-x, 50%) var(--sweep-y, 50%));
   }
+}
+/* The header is captured on its own. A snapshot is a picture, and a
+   picture has no backdrop to blur, so for the length of the sweep the pane
+   went flat over the rain; the blur is put on the snapshot itself instead,
+   where it has the page's snapshot beneath it. The header's own capture
+   sits at the top of the window at full width, the same space the root's
+   does, so the same circle from the same point sweeps it too. */
+.t-top {
+  view-transition-name: top;
+}
+::view-transition-group(top) {
+  animation: none;
+}
+::view-transition-old(top),
+::view-transition-new(top) {
+  -webkit-backdrop-filter: blur(14px) saturate(160%) brightness(1.1);
+  backdrop-filter: blur(14px) saturate(160%) brightness(1.1);
+}
+::view-transition-old(top) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+::view-transition-new(top) {
+  animation: sweep 560ms cubic-bezier(0.2, 0, 0, 1);
+  mix-blend-mode: normal;
 }
 
 /* The rain behind the header and the hero. Pinned to the top of the page and
