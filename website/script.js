@@ -310,7 +310,13 @@
       var box = from.getBoundingClientRect();
       document.documentElement.style.setProperty("--sweep-x", box.left + box.width / 2 + "px");
       document.documentElement.style.setProperty("--sweep-y", box.top + box.height / 2 + "px");
-      document.startViewTransition(apply);
+      // Marked for the sweep's length, and the mark taken off however the
+      // transition ends: a second pick skips the first, and `finished`
+      // rejects for a skipped one.
+      document.documentElement.classList.add("is-sweeping");
+      document.startViewTransition(apply).finished.finally(function () {
+        document.documentElement.classList.remove("is-sweeping");
+      });
     } else {
       apply();
     }

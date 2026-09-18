@@ -547,32 +547,16 @@ img {
     clip-path: circle(160vmax at var(--sweep-x, 50%) var(--sweep-y, 50%));
   }
 }
-/* The header is captured on its own. A snapshot is a picture, and a
-   picture has no backdrop to blur, so for the length of the sweep the pane
-   went flat over the rain; the blur is put on the snapshot itself instead,
-   where it has the page's snapshot beneath it. The header's own capture
-   sits at the top of the window at full width, the same space the root's
-   does, so the same circle from the same point sweeps it too. */
-.t-top {
-  view-transition-name: top;
+/* For the length of the sweep the header's pane stands on a near-solid
+   ground instead of its blur. A snapshot is drawn by the engine as it sees
+   fit, and one engine drew the pane flat over the rain for those frames;
+   a ground that needs no backdrop looks the same in every one. The script
+   marks the root while a sweep runs. */
+.is-sweeping .t-top::before {
+  background:
+    linear-gradient(to bottom, color-mix(in srgb, var(--fg) 7%, transparent), transparent 40%),
+    color-mix(in srgb, var(--bg) 94%, transparent);
 }
-::view-transition-group(top) {
-  animation: none;
-}
-::view-transition-old(top),
-::view-transition-new(top) {
-  -webkit-backdrop-filter: blur(14px) saturate(160%) brightness(1.1);
-  backdrop-filter: blur(14px) saturate(160%) brightness(1.1);
-}
-::view-transition-old(top) {
-  animation: none;
-  mix-blend-mode: normal;
-}
-::view-transition-new(top) {
-  animation: sweep 560ms cubic-bezier(0.2, 0, 0, 1);
-  mix-blend-mode: normal;
-}
-
 /* The rain behind the header and the hero. Pinned to the top of the page and
    painted under the flow, where the first section's own full-width band hides
    its lower edge. The mask fades it out on the way down and the opacity keeps
