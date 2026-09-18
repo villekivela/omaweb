@@ -655,11 +655,34 @@ debugging port to read consoles and execution contexts.
    (`qt/src/core/content_browser_client_qt.cpp:520-522`). This is the first patch: any extension
    that localises from its worker hangs on stock Qt.
 
+### 2026-09-18, patched engine
+
+QtWebEngine 6.11.1 built from the source tarball on this Mac against Homebrew's Qt, with the series
+in [`qtwebengine-patches/`](qtwebengine-patches/) applied. Each patch carries a
+`tst_qwebengineextension` case that fails on the Homebrew build and passes on the patched one; the
+whole suite passes, 20 of 20.
+
+1. `RendererHost` has to be offered twice. A frame reaches the browser through the render process's
+   associated interface registry, but a service worker reaches it through its own provider, which
+   `RegisterAssociatedInterfaceBindersForServiceWorker` serves. Qt registered only
+   `ServiceWorkerHost` there, where Chrome also registers `EventRouter` and `RendererHost`. Binding
+   `RendererHost` on the process registry alone left the worker blocked exactly as before.
+2. With both bound, Bitwarden's worker evaluates. `chrome.i18n.getMessage` is answered and the
+   script runs until `chrome.webNavigation.onCommitted`, which is `undefined`, so registration fails
+   with status 15 (`kErrorScriptEvaluateFailed`). Every failure from here is a missing chrome-layer
+   namespace from the rewrite bucket rather than a broken piece of plumbing.
+3. The `ExtensionPrefs` fix re-points the existing instance through a hook on `ExtensionPrefs`
+   guarded by `IS_QTWEBENGINE`, since `ExtensionRegistrar` and `EventRouter` cache the pointer at
+   construction and nothing short of tearing down every keyed service would refresh a replacement.
+4. The Xcode 27 SDK dropped `kSBXProfilePureComputation`; a local build fix outside the series
+   defines the profile name itself.
+
 ## What the prototype verifies first
 
 1. The empty-popup cause. Answered in the prototype log: a `TypeError` on an `undefined` namespace.
-2. Bitwarden loads with no manifest error.
-3. The service worker starts and `runtime` messaging round-trips.
+2. Bitwarden loads with no manifest error. Passes on stock Qt.
+3. The service worker starts and `runtime` messaging round-trips. Starts on the patched engine;
+   evaluation stops at `webNavigation`, the first rewrite-bucket namespace.
 4. The popup renders its unlock screen in an Omaweb-hosted view. This is where `windows`,
    `tabs.query`, and `permissions.contains` are first hit.
 5. Sign-in to a throwaway bitwarden.com account succeeds from that popup. This is where
