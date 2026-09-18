@@ -6,6 +6,9 @@ extensions on the Development engine. It answers
 go or no-go decision. The evidence was read on 2026-09-17 from the sources below. Every claim cites
 a file, and a line number where one helps.
 
+The patches this note reports are exported beside it in
+[`qtwebengine-patches/`](qtwebengine-patches/).
+
 ## Sources
 
 - `qt/`: the qtwebengine tag `v6.11.1` tarball (`.cmake.conf` sets `QT_REPO_MODULE_VERSION` to
@@ -677,16 +680,53 @@ whole suite passes, 20 of 20.
 4. The Xcode 27 SDK dropped `kSBXProfilePureComputation`; a local build fix outside the series
    defines the profile name itself.
 
+### 2026-09-18, the namespaces
+
+Four patches now, each with a `tst_qwebengineextension` case that fails on the Homebrew build and
+passes on the patched one. The suite passes 21 of 21.
+
+1. `RendererHost` and `EventRouter` have to be offered three times, not once. A frame reaches the
+   browser through its own associated interface registry, a service worker through a third, and Qt
+   registered `EventRouter` only for the render process and `RendererHost` nowhere. Binding all
+   three at every registration point is what let Bitwarden's worker finish evaluating and its popup
+   receive `storage.onChanged`, without which the popup boots Angular and no route activates.
+2. The rewrite bucket cost one 150-line registry. `TabRegistryQt` assigns a tab id that lives on the
+   `WebContents`, and a `TabsDelegateQt` answers which of a context's pages are tabs and which is
+   active. `ExtensionsBrowserClientQt` implements it from the profile's adapter clients, and the
+   core layer's `GetTabAndWindowIdForWebContents`, `IsValidTabId` and the messaging delegate answer
+   from the same registry, so `sender.tab` and `tabs.query` agree.
+3. The schemas are Chrome's own. Nine of them compile through QtWebEngine's list with the functions
+   that have no implementation marked `nocompile`, which is how Chrome itself ships partial
+   namespaces. `action`, `extension` and their JSON-only siblings follow Chrome's
+   `uncompiled_sources_` split. Implemented so far: `tabs.get`, `getCurrent`, `query`, `update`,
+   `windows.get`, `getCurrent`, `getLastFocused`, `getAll`, `permissions.contains` and `getAll`.
+4. The compile-with-delegate bucket held. `chrome/browser/extensions/api/scripting/scripting_api.cc`
+   compiles unchanged once its own two includes point at QtWebEngine's copies; it reaches a tab
+   through `IsValidTabId` and `GetScriptExecutorForTab`, and the registry answers the second with a
+   `ScriptExecutor` owned by the tab's `WebContents`. No other Chrome browser file was needed.
+
+Bitwarden on the patched engine: the extension loads, its service worker runs, the popup renders its
+real interface (account carousel, "Create account", "Log in"), `chrome.runtime` messages and ports
+round-trip in both directions, `tabs.query` and `windows.getAll` report the browser's own pages, and
+`chrome.scripting.executeScript` injects a file or a function into a tab. Bitwarden's own autofill
+script is injected only for a logged-in account, so the collector was exercised directly instead: a
+script injected into the fixture login page answers a `tabs.sendMessage` with the page's fields
+(`username`, `current-password`) and fills both, which the page's own world reads back. The
+remaining gap to real autofill is a vault, not an engine capability.
+
 ## What the prototype verifies first
 
 1. The empty-popup cause. Answered in the prototype log: a `TypeError` on an `undefined` namespace.
 2. Bitwarden loads with no manifest error. Passes on stock Qt.
-3. The service worker starts and `runtime` messaging round-trips. Starts on the patched engine;
-   evaluation stops at `webNavigation`, the first rewrite-bucket namespace.
-4. The popup renders its unlock screen in an Omaweb-hosted view. This is where `windows`,
+3. The service worker starts and `runtime` messaging round-trips. Passes on the patched engine.
+4. The popup renders its unlock screen in an Omaweb-hosted view. Passes on the patched engine.
+5. A content script reports the fields of a fixture login page and fills them. Passes on the patched
+   engine, with the script injected by the test rather than by Bitwarden, which gates its own
+   injection on a logged-in account.
+6. The popup renders its unlock screen in an Omaweb-hosted view. This is where `windows`,
    `tabs.query`, and `permissions.contains` are first hit.
-5. Sign-in to a throwaway bitwarden.com account succeeds from that popup. This is where
+7. Sign-in to a throwaway bitwarden.com account succeeds from that popup. This is where
    `windows.create` or `tabs.create` opens the sign-in page.
-6. The content script reports the fields of a `tests/ui` fixture login page. This is where
+8. The content script reports the fields of a `tests/ui` fixture login page. This is where
    `tabs.sendMessage`, `scripting`, and `webNavigation` are first hit.
-7. The patch series rebases across one Qt patch release.
+9. The patch series rebases across one Qt patch release.

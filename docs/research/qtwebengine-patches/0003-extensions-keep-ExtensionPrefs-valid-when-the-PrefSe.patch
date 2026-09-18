@@ -1,7 +1,7 @@
-From f42e9e6ae9cd4db2afc4bc7bb1a880ea73519916 Mon Sep 17 00:00:00 2001
+From f10303392335a9c5866743b49d0bcddf8e9379f0 Mon Sep 17 00:00:00 2001
 From: =?UTF-8?q?Ville=20Kivela=CC=88?= <vkivela@hotmail.com>
-Date: Fri, 18 Sep 2026 07:38:21 +0300
-Subject: [PATCH 3/3] extensions: keep ExtensionPrefs valid when the
+Date: Fri, 18 Sep 2026 17:47:04 +0300
+Subject: [PATCH 3/5] extensions: keep ExtensionPrefs valid when the
  PrefService is rebuilt
 
 Changing a profile's storage name, off-the-record flag or storage path
@@ -12,22 +12,12 @@ the next setExtensionEnabled() dereferenced the destroyed PrefService in
 ExtensionPrefs::GetExtensionPref(). Re-point the existing instance instead,
 through a small hook on ExtensionPrefs guarded by IS_QTWEBENGINE.
 ---
- .gitignore                                    |  2 ++
  .../extensions/browser/extension_prefs.cc     | 14 +++++++++++
  .../extensions/browser/extension_prefs.h      |  9 ++++++++
  src/core/profile_qt.cpp                       | 20 +++++-----------
  .../extensions/tst_qwebengineextension.cpp    | 23 +++++++++++++++++++
- 5 files changed, 54 insertions(+), 14 deletions(-)
+ 4 files changed, 52 insertions(+), 14 deletions(-)
 
-diff --git a/.gitignore b/.gitignore
-index 41ae81158e..e61acf454c 100644
---- a/.gitignore
-+++ b/.gitignore
-@@ -1,2 +1,4 @@
- build/
- *.log
-+build.sh
-+__pycache__/
 diff --git a/src/3rdparty/chromium/extensions/browser/extension_prefs.cc b/src/3rdparty/chromium/extensions/browser/extension_prefs.cc
 index 134efed8ef..1ebd391878 100644
 --- a/src/3rdparty/chromium/extensions/browser/extension_prefs.cc

@@ -1,27 +1,42 @@
-From 18f971cd272ea52f7ee0f87708d084f6379a54b1 Mon Sep 17 00:00:00 2001
+From 662317ab7d56648ca080f354979cfdb3495afc4a Mon Sep 17 00:00:00 2001
 From: =?UTF-8?q?Ville=20Kivela=CC=88?= <vkivela@hotmail.com>
-Date: Fri, 18 Sep 2026 06:38:15 +0300
-Subject: [PATCH 1/3] extensions: bind RendererHost for every renderer
+Date: Fri, 18 Sep 2026 17:47:01 +0300
+Subject: [PATCH 1/5] extensions: bind EventRouter and RendererHost at every
+ registration point
 
 chrome.i18n.getMessage() is a synchronous mojo call to RendererHost, which
 Qt never bound, so a service worker that localises at its top level blocks
-in evaluation forever. Mirrors the EventRouter line beside it and what
-ChromeContentBrowserClient::ExposeInterfacesToRenderer registers.
+in evaluation forever. A frame's extension bindings register their event
+listeners through the frame's own associated interfaces, where Qt offered
+neither EventRouter nor RendererHost, so an extension page never received
+an event such as storage.onChanged that its worker did. Mirror what
+ChromeContentBrowserClient registers for a render process, a render frame
+and a service worker.
 ---
- src/core/content_browser_client_qt.cpp        | 13 +++++++++++++
+ .gitignore                                    |  2 ++
+ src/core/content_browser_client_qt.cpp        | 21 +++++++++++++++++++
  .../_locales/en/messages.json                 |  4 ++++
  .../localized_worker_ext/content_script.js    |  6 ++++++
- .../localized_worker_ext/manifest.json        | 19 +++++++++++++++++++
+ .../localized_worker_ext/manifest.json        | 19 +++++++++++++++++
  .../localized_worker_ext/service_worker.js    |  7 +++++++
- .../extensions/tst_qwebengineextension.cpp    | 18 ++++++++++++++++++
- 6 files changed, 67 insertions(+)
+ .../extensions/tst_qwebengineextension.cpp    | 18 ++++++++++++++++
+ 7 files changed, 77 insertions(+)
  create mode 100644 tests/auto/widgets/extensions/resources/localized_worker_ext/_locales/en/messages.json
  create mode 100644 tests/auto/widgets/extensions/resources/localized_worker_ext/content_script.js
  create mode 100644 tests/auto/widgets/extensions/resources/localized_worker_ext/manifest.json
  create mode 100644 tests/auto/widgets/extensions/resources/localized_worker_ext/service_worker.js
 
+diff --git a/.gitignore b/.gitignore
+index 41ae81158e..e61acf454c 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -1,2 +1,4 @@
+ build/
+ *.log
++build.sh
++__pycache__/
 diff --git a/src/core/content_browser_client_qt.cpp b/src/core/content_browser_client_qt.cpp
-index 98cd0f958a..bbab25b32c 100644
+index 98cd0f958a..7306e6ec29 100644
 --- a/src/core/content_browser_client_qt.cpp
 +++ b/src/core/content_browser_client_qt.cpp
 @@ -128,6 +128,7 @@
@@ -45,7 +60,22 @@ index 98cd0f958a..bbab25b32c 100644
  #else
      Q_UNUSED(associated_registry);
  #endif
-@@ -591,6 +598,12 @@ void ContentBrowserClientQt::RegisterAssociatedInterfaceBindersForServiceWorker(
+@@ -583,6 +590,14 @@ void ContentBrowserClientQt::RegisterAssociatedInterfaceBindersForRenderFrameHos
+             &extensions::ExtensionsGuestView::CreateForComponents, rfh.GetGlobalId()));
+     associated_registry.AddInterface<extensions::mojom::GuestView>(base::BindRepeating(
+             &extensions::ExtensionsGuestView::CreateForExtensions, rfh.GetGlobalId()));
++    // A frame's extension bindings register their event listeners and reach the browser through
++    // the frame's own associated interfaces, so EventRouter and RendererHost are offered a third
++    // time here. Without this a page of an extension never registers a listener, and an event
++    // such as storage.onChanged reaches its worker but never its popup.
++    associated_registry.AddInterface<extensions::mojom::EventRouter>(base::BindRepeating(
++            &extensions::EventRouter::BindForRenderer, rfh.GetProcess()->GetDeprecatedID()));
++    associated_registry.AddInterface<extensions::mojom::RendererHost>(base::BindRepeating(
++            &extensions::RendererStartupHelper::BindForRenderer, rfh.GetProcess()->GetDeprecatedID()));
+ #endif
+ }
+ 
+@@ -591,6 +606,12 @@ void ContentBrowserClientQt::RegisterAssociatedInterfaceBindersForServiceWorker(
          const content::ServiceWorkerVersionBaseInfo &service_worker_version_info,
          blink::AssociatedInterfaceRegistry &associated_registry)
  {
