@@ -1,4 +1,4 @@
-From 4df295511f2a5761f27b15c71bc25fc82729a8c1 Mon Sep 17 00:00:00 2001
+From 9a7b4803583cbeb9a8edf2de17154ac13be2811f Mon Sep 17 00:00:00 2001
 From: =?UTF-8?q?Ville=20Kivela=CC=88?= <vkivela@hotmail.com>
 Date: Fri, 18 Sep 2026 19:38:52 +0300
 Subject: [PATCH 6/6] extensions: connect an extension to a native messaging

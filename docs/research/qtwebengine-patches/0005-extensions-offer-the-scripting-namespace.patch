@@ -1,4 +1,4 @@
-From fc3d16e6ef799ad15c54aaa38c6b08c35eba1b62 Mon Sep 17 00:00:00 2001
+From f82b1d2de7757c8f560a38be44b96d2c81740ac8 Mon Sep 17 00:00:00 2001
 From: =?UTF-8?q?Ville=20Kivela=CC=88?= <vkivela@hotmail.com>
 Date: Fri, 18 Sep 2026 18:12:40 +0300
 Subject: [PATCH 5/6] extensions: offer the scripting namespace
@@ -1705,10 +1705,10 @@ index 0000000000..f029ede3ff
 +  };
 +};
 diff --git a/src/core/extensions/extensions_browser_client_qt.cpp b/src/core/extensions/extensions_browser_client_qt.cpp
-index efeee03821..bf3006cd04 100644
+index cc9afea200..eacf5e86ba 100644
 --- a/src/core/extensions/extensions_browser_client_qt.cpp
 +++ b/src/core/extensions/extensions_browser_client_qt.cpp
-@@ -288,6 +288,11 @@ content::WebContents *ExtensionsBrowserClientQt::GetActiveTab(content::BrowserCo
+@@ -300,6 +300,11 @@ content::WebContents *ExtensionsBrowserClientQt::GetActiveTab(content::BrowserCo
      return active;
  }
  

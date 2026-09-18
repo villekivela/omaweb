@@ -1,4 +1,4 @@
-From 175d4297ae3ebb81ea7ef6eadc6b62ebfe1147b9 Mon Sep 17 00:00:00 2001
+From a7511de20d4125a2743f10afbb77ff8f17707971 Mon Sep 17 00:00:00 2001
 From: =?UTF-8?q?Ville=20Kivela=CC=88?= <vkivela@hotmail.com>
 Date: Fri, 18 Sep 2026 17:47:06 +0300
 Subject: [PATCH 4/6] extensions: offer the tabs, windows, permissions and
@@ -43,14 +43,14 @@ they are and registered by the renderer API provider.
  .../common/extensions/api/web_navigation.json |  743 +++++++
  .../common/extensions/api/windows.json        |  538 ++++++
  src/core/configure/BUILD.root.gn.in           |    5 +
- .../extensions_browser_client_qt.cpp          |   54 +
+ .../extensions_browser_client_qt.cpp          |   66 +
  .../extensions/extensions_browser_client_qt.h |   13 +-
  src/core/extensions/messaging_delegate_qt.cpp |   18 +-
  src/core/extensions/messaging_delegate_qt.h   |    1 +
  src/core/profile_adapter.h                    |    4 +
  .../extensions_renderer_api_provider_qt.cpp   |   17 +
  .../extensions_renderer_api_provider_qt.h     |    2 +-
- 31 files changed, 5805 insertions(+), 55 deletions(-)
+ 31 files changed, 5817 insertions(+), 55 deletions(-)
  create mode 100644 src/3rdparty/chromium/qtwebengine/browser/extensions/api/permissions/permissions_api.cc
  create mode 100644 src/3rdparty/chromium/qtwebengine/browser/extensions/api/permissions/permissions_api.h
  create mode 100644 src/3rdparty/chromium/qtwebengine/browser/extensions/api/permissions/permissions_api_helpers.cc
@@ -6131,10 +6131,18 @@ index 0333d758ed..2ab768d59d 100644
        "//extensions/browser/zipfile_installer.h",
        "//components/update_client/update_query_params.cc",
 diff --git a/src/core/extensions/extensions_browser_client_qt.cpp b/src/core/extensions/extensions_browser_client_qt.cpp
-index ad62c920b9..efeee03821 100644
+index ad62c920b9..cc9afea200 100644
 --- a/src/core/extensions/extensions_browser_client_qt.cpp
 +++ b/src/core/extensions/extensions_browser_client_qt.cpp
-@@ -48,6 +48,10 @@
+@@ -32,6 +32,7 @@
+ #include "extensions/browser/extensions_browser_api_provider.h"
+ #include "extensions/browser/extensions_browser_interface_binders.h"
+ #include "extensions/browser/url_request_util.h"
++#include "extensions/common/constants.h"
+ #include "extensions/common/file_util.h"
+ #include "net/base/mime_util.h"
+ #include "qtwebengine/browser/extensions/api/generated_api_registration.h"
+@@ -48,6 +49,10 @@
  #include "extensions_api_client_qt.h"
  #include "extensions_browser_client_qt.h"
  #include "extension_host_delegate_qt.h"
@@ -6145,7 +6153,7 @@ index ad62c920b9..efeee03821 100644
  #include "web_engine_library_info.h"
  
  using content::BrowserContext;
-@@ -246,10 +250,60 @@ public:
+@@ -246,10 +251,71 @@ public:
  
  ExtensionsBrowserClientQt::ExtensionsBrowserClientQt()
  {
@@ -6157,6 +6165,15 @@ index ad62c920b9..efeee03821 100644
 +    TabRegistryQt::Get()->SetDelegate(nullptr);
 +}
 +
++// A page the extension itself put on show, such as the view an application loads
++// QWebEngineExtensionInfo::actionPopupUrl() into, is not a tab. Chrome does not list its own
++// extension views either, and an extension that finds its popup in tabs.query() answers the popup
++// instead of the page the reader is looking at.
++static bool isExtensionPage(content::WebContents *contents)
++{
++    return contents->GetLastCommittedURL().SchemeIs(extensions::kExtensionScheme);
++}
++
 +std::vector<content::WebContents *> ExtensionsBrowserClientQt::GetTabs(content::BrowserContext *context)
 +{
 +    std::vector<content::WebContents *> tabs;
@@ -6165,7 +6182,8 @@ index ad62c920b9..efeee03821 100644
 +        return tabs;
 +    for (QtWebEngineCore::WebContentsAdapterClient *client : adapter->webContentsAdapterClients()) {
 +        QtWebEngineCore::WebContentsAdapter *contents = client->webContentsAdapter();
-+        if (contents && contents->isInitialized() && contents->webContents())
++        if (contents && contents->isInitialized() && contents->webContents()
++            && !isExtensionPage(contents->webContents()))
 +            tabs.push_back(contents->webContents());
 +    }
 +    return tabs;
@@ -6179,7 +6197,8 @@ index ad62c920b9..efeee03821 100644
 +    content::WebContents *active = nullptr;
 +    for (QtWebEngineCore::WebContentsAdapterClient *client : adapter->webContentsAdapterClients()) {
 +        QtWebEngineCore::WebContentsAdapter *contents = client->webContentsAdapter();
-+        if (!contents || !contents->isInitialized() || !contents->webContents())
++        if (!contents || !contents->isInitialized() || !contents->webContents()
++            || isExtensionPage(contents->webContents()))
 +            continue;
 +        if (!active || contents->isVisible())
 +            active = contents->webContents();
