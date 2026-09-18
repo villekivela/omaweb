@@ -609,12 +609,55 @@ upstream list reshuffles with the `is_qtwebengine` block unchanged, checked by h
 Counts over the rows: compile with delegate 5, rewrite behind delegate 10, stop 1. Counting `tabs`
 and `tabs.sendMessage` as one API, the rewrite bucket holds 9.
 
+## Prototype log
+
+Findings from running the extension against stock Homebrew Qt 6.11.1 on macOS, before any patch. The
+harness is a forty-line Qt Widgets program that creates a named `QWebEngineProfile`, loads an
+unpacked extension through `QWebEngineExtensionManager`, enables it on `loadFinished`, loads
+`actionPopupUrl()` in a `QWebEngineView`, and attaches to every DevTools target over the remote
+debugging port to read consoles and execution contexts.
+
+### 2026-09-18
+
+1. Bitwarden 2026.9.0 loads with no manifest error. Its id is `fjifgjjmkmpmjjmniponjainkdijegam`,
+   derived from the unpacked path, which confirms that a host manifest allowing only the store id
+   would refuse it.
+2. Calling `QWebEngineProfile::setPersistentStoragePath` after constructing the profile makes
+   `setExtensionEnabled` segfault in `PrefService::GetPreferenceValue` under
+   `ExtensionRegistrar::EnableExtension` → `blocklist_prefs::IsExtensionBlocklisted` →
+   `ExtensionPrefs::GetExtensionPref`. `ProfileQt::setupPrefService` (`qt/src/core/profile_qt.cpp`)
+   rebuilds the `PrefService` on a path change and re-creates `ExtensionPrefs` through
+   `SetInstanceForTesting`, but the `ExtensionPrefs` the registrar reads still points at the old
+   service. Omaweb sets a storage path per Space, so this is on the critical path.
+3. The empty popup is a JavaScript error, not a renderer fatal, which settles the hypothesis above.
+   The popup document loads (`loadFinished` true) and its console reports
+   `TypeError: Cannot read properties of undefined (reading 'getBackgroundPage')` from
+   `chrome.extension`, then `chrome.tabs.getCurrent is not a function`. The `chrome` object in the
+   popup holds `alarms`, `clipboard`, `i18n`, `idle`, `management`, `offscreen`, `runtime`,
+   `storage`, `tabs` (`update` and `TAB_ID_NONE` only), and `webRequest`.
+4. The content script injects: the fixture login page served over HTTP gains an isolated world named
+   "Bitwarden Password Manager". Served over `file://` it does not, which is the unpacked
+   extension's default file-access setting rather than a Qt gap.
+5. The service worker never starts. Its DevTools target exists but answers nothing, and at shutdown
+   Chromium reports "Service worker registration failed. Status code: 2" (`kErrorAbort`), then the
+   browser process traps in `~ServiceWorkerTaskQueue` destroying the popup's pending
+   `runtime.sendMessage` channels. Qt's own `service_worker_ext` fixture starts, Bitwarden's
+   manifest with a trivial worker starts, a 3.4 MB worker starts, and a worker that only calls
+   `importScripts` starts, so the script's content is what blocks. Sampling the renderer's
+   "ServiceWorker thread" shows it inside `V8ScriptRunner::CompileAndRunScript` →
+   `I18nHooksDelegate::HandleGetMessage` → `SharedL10nMap::GetMapForExtension` →
+   `mojom::RendererHostProxy::GetMessageBundle` → `mojo::SyncHandleRegistry::Wait`. The worker calls
+   `chrome.i18n.getMessage` at the top level, that call is a synchronous mojo request to the
+   browser, and nothing in the browser answers it. Upstream registers two extension interfaces per
+   renderer in `ExposeInterfacesToRenderer`, `EventRouter::BindForRenderer` and
+   `RendererStartupHelper::BindForRenderer` for `mojom::RendererHost`
+   (`fork/extensions/browser/renderer_startup_helper.cc:546`). Qt registers only the first
+   (`qt/src/core/content_browser_client_qt.cpp:520-522`). This is the first patch: any extension
+   that localises from its worker hangs on stock Qt.
+
 ## What the prototype verifies first
 
-1. The empty-popup cause. Load Bitwarden, open the popup with DevTools attached, and read the
-   console and the renderer log. Record whether the renderer dies with "Unknown API" from
-   `native_extension_bindings_system.cc:214` or the page throws a `TypeError` on an `undefined`
-   namespace. The rest of the order assumes the second.
+1. The empty-popup cause. Answered in the prototype log: a `TypeError` on an `undefined` namespace.
 2. Bitwarden loads with no manifest error.
 3. The service worker starts and `runtime` messaging round-trips.
 4. The popup renders its unlock screen in an Omaweb-hosted view. This is where `windows`,
