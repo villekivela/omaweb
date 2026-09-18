@@ -1,20 +1,24 @@
-// Omaweb website behaviour. Four things, all optional: the page renders and
+// Omaweb website behaviour. Five things, all optional: the page renders and
 // reads correctly with this file blocked -- index.html names the theme every
-// themed asset starts on, each thumbnail is a plain link to its full
-// screenshot, the canvas behind the hero is decoration, and the nav is in
-// view until the script folds it behind its button.
+// themed asset starts on, each shot is a plain link to its full screenshot,
+// the first shot is the one on show, the canvas behind the hero is
+// decoration, and the nav is in view until the script folds it behind its
+// button.
 //
 //   1. Theme switching. One palette drives the page and the generated
-//      screenshots, so picking a theme restyles both at once. The choice is
-//      saved locally, and a `theme` query parameter
-//      lets a shared URL choose its palette. In Omaweb the reader's own
-//      theme is one of the choices, and the one the page starts on.
-//   2. Opening a screenshot in a viewer instead of navigating to the file.
-//      A whole window drawn at grid width is unreadable whatever its
-//      resolution, so the grid is thumbnails and this is how they are read.
-//   3. The rain behind the hero: the drawing the screenshots' wallpaper is
+//      screenshots, so picking a theme restyles both at once, and a pick
+//      sweeps the new palette out of the button pressed. The choice is saved
+//      locally, and a `theme` query parameter lets a shared URL choose its
+//      palette. In Omaweb the reader's own theme is one of the choices, and
+//      the one the page starts on.
+//   2. The walk: which shot the pinned frame shows, which is the one beside
+//      the step nearest the middle of the window.
+//   3. Opening a screenshot in a viewer instead of navigating to the file:
+//      a whole window drawn at column width is unreadable whatever its
+//      resolution, and this is how it is read.
+//   4. The rain behind the hero: the drawing the screenshots' wallpaper is
 //      made of, in the active palette, falling slowly.
-//   4. The menu a phone gets in place of the row of links in the header.
+//   5. The menu a phone gets in place of the row of links in the header.
 
 (function () {
   "use strict";
@@ -278,22 +282,38 @@
   function setTheme(name, options) {
     if (!hasTheme(name)) return;
 
-    // No named theme on the body is the reader's own: the stylesheet's ground
-    // is `--omaweb-*` wherever Omaweb supplies it, and a named theme outranks
-    // that.
-    if (name === OWN_THEME) delete document.body.dataset.theme;
-    else document.body.dataset.theme = name;
-    themeButtons.forEach(function (button) {
-      button.setAttribute("aria-pressed", String(button.dataset.theme === name));
-    });
+    function apply() {
+      // No named theme on the body is the reader's own: the stylesheet's
+      // ground is `--omaweb-*` wherever Omaweb supplies it, and a named theme
+      // outranks that.
+      if (name === OWN_THEME) delete document.body.dataset.theme;
+      else document.body.dataset.theme = name;
+      themeButtons.forEach(function (button) {
+        button.setAttribute("aria-pressed", String(button.dataset.theme === name));
+      });
 
-    var pictured = name === OWN_THEME ? nearestShipped : name;
-    themed.forEach(function (element) {
-      var path = element.dataset.themed.replace("{theme}", pictured);
-      if (element.tagName === "A") element.href = path;
-      else element.src = path;
-    });
-    paintPalette();
+      var pictured = name === OWN_THEME ? nearestShipped : name;
+      themed.forEach(function (element) {
+        var path = element.dataset.themed.replace("{theme}", pictured);
+        if (element.tagName === "A") element.href = path;
+        else element.src = path;
+      });
+      paintPalette();
+    }
+
+    // A pick made with a button sweeps the new palette out of it: the change
+    // runs inside a view transition, and the stylesheet grows the new page as
+    // a circle from the point handed over here. Without the API, or with
+    // motion reduced, the change is the same and simply immediate.
+    var from = options.from;
+    if (from && !reducedMotion.matches && typeof document.startViewTransition === "function") {
+      var box = from.getBoundingClientRect();
+      document.documentElement.style.setProperty("--sweep-x", box.left + box.width / 2 + "px");
+      document.documentElement.style.setProperty("--sweep-y", box.top + box.height / 2 + "px");
+      document.startViewTransition(apply);
+    } else {
+      apply();
+    }
 
     if (options.save) saveTheme(name);
     // A link can name a shipped theme; the reader's own is not one another
@@ -308,9 +328,35 @@
 
   themeButtons.forEach(function (button) {
     button.addEventListener("click", function () {
-      setTheme(button.dataset.theme, { save: true, share: true });
+      if (button.getAttribute("aria-pressed") === "true") return;
+      setTheme(button.dataset.theme, { save: true, share: true, from: button });
     });
   });
+
+  // Each button carries its theme's own ground, accent and foreground, read
+  // off the body under that theme the way nearestTheme reads them, and
+  // written onto the swatch through the CSSOM: the site's policy allows no
+  // inline style attribute. The reader's own theme takes its colours from
+  // the `--omaweb-*` properties the stylesheet already resolves.
+  function paintSwatches() {
+    var was = document.body.dataset.theme;
+    themeButtons.forEach(function (button) {
+      if (button.hidden) return;
+      if (button.dataset.theme === OWN_THEME) delete document.body.dataset.theme;
+      else document.body.dataset.theme = button.dataset.theme;
+      var style = getComputedStyle(document.body);
+      var swatch = document.createElement("span");
+      swatch.className = "t-theme__swatch";
+      swatch.setAttribute("aria-hidden", "true");
+      ["bg", "accent", "fg"].forEach(function (role) {
+        swatch.appendChild(document.createElement("i"));
+        swatch.style.setProperty("--swatch-" + role, style.getPropertyValue("--" + role));
+      });
+      button.insertBefore(swatch, button.firstChild);
+    });
+    if (was === undefined) delete document.body.dataset.theme;
+    else document.body.dataset.theme = was;
+  }
 
   // A shared link names its palette on purpose and wins. Otherwise the
   // reader's own theme wins over a saved preview: the preview was picked to
@@ -318,6 +364,7 @@
   themeButtons.forEach(function (button) {
     if (button.dataset.theme === OWN_THEME) button.hidden = !ownPalette;
   });
+  paintSwatches();
   var queryTheme = new URLSearchParams(location.search).get("theme");
   var savedTheme = readSavedTheme();
   var initialTheme = hasTheme(queryTheme) ? queryTheme : ownPalette ? OWN_THEME : savedTheme;
@@ -388,6 +435,57 @@
     });
   });
 
+  // ---------------------------------------------------------------- walk
+  // The frame shows the shot of the step nearest the middle of the window.
+  // Every intersection change re-picks from scratch rather than following
+  // which step just crossed a line, so a fast scroll cannot skip one and a
+  // resize cannot leave the wrong one on. The frame is told which way the
+  // reader went, so the incoming shot slides from that side.
+  var walk = document.querySelector(".t-walk");
+  var walkSteps = walk ? [].slice.call(walk.querySelectorAll(".t-step")) : [];
+  var walkShots = walk ? [].slice.call(walk.querySelectorAll(".t-walk__shot")) : [];
+  var walkCount = walk && walk.querySelector(".t-walk__count");
+
+  if (walk && walkSteps.length === walkShots.length && "IntersectionObserver" in window) {
+    var walkAt = 0;
+
+    function showStep(index) {
+      if (index === walkAt) return;
+      walk.style.setProperty("--walk-direction", index > walkAt ? 1 : -1);
+      walkAt = index;
+      walkShots.forEach(function (shot, which) {
+        shot.classList.toggle("is-on", which === index);
+      });
+      walkSteps.forEach(function (step, which) {
+        step.classList.toggle("is-on", which === index);
+      });
+      if (walkCount) walkCount.textContent = index + 1 + " / " + walkSteps.length;
+    }
+
+    function pickStep() {
+      var middle = innerHeight / 2;
+      var best = 0;
+      var bestDistance = Infinity;
+      walkSteps.forEach(function (step, index) {
+        var box = step.getBoundingClientRect();
+        var distance = Math.abs(box.top + box.height / 2 - middle);
+        if (distance < bestDistance) {
+          bestDistance = distance;
+          best = index;
+        }
+      });
+      showStep(best);
+    }
+
+    if (walkCount) walkCount.textContent = "1 / " + walkSteps.length;
+    var stepObserver = new IntersectionObserver(pickStep, {
+      threshold: [0, 0.25, 0.5, 0.75, 1],
+    });
+    walkSteps.forEach(function (step) {
+      stepObserver.observe(step);
+    });
+  }
+
   // -------------------------------------------------------------- viewer
   // The dialog is the browser's own, so Escape, the backdrop and the focus
   // trap are not ours to write. The set is walked by the two buttons in its
@@ -406,14 +504,15 @@
     function show(index) {
       at = (index + openers.length) % openers.length;
       var opener = openers[at];
-      var thumbnail = opener.querySelector("img");
+      var picture = opener.querySelector("img");
       shot.src = opener.href;
-      shot.alt = thumbnail ? thumbnail.alt : "";
-      // The caption the figure already carries, rather than a second copy of
-      // it written for the viewer and left to drift from the first.
+      shot.alt = picture ? picture.alt : "";
+      // The caption the figure already carries, or failing that the shot's
+      // own description, rather than a second copy of either written for the
+      // viewer and left to drift.
       var figure = opener.closest("figure");
       var text = figure && figure.querySelector("figcaption");
-      caption.textContent = text ? text.textContent.trim() : "";
+      caption.textContent = text ? text.textContent.trim() : shot.alt;
       if (count) count.textContent = at + 1 + " / " + openers.length;
     }
 

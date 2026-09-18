@@ -407,7 +407,11 @@ img {
 }
 
 /* The switcher heads the screenshots it changes, so it stands off the
-   section's own text above it rather than abutting the paragraph. */
+   section's own text above it rather than abutting the paragraph. The
+   buttons are a row of their own so that on a phone, where seven names wrap
+   into a ragged block, the row scrolls sideways under the label instead: a
+   row the thumb flicks is how a phone shows a list of choices that does not
+   fit. */
 .t-themes {
   display: flex;
   flex-wrap: wrap;
@@ -421,6 +425,36 @@ img {
   letter-spacing: 0.14em;
   text-transform: uppercase;
 }
+.t-themes__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-md);
+}
+@media (max-width: 51.999rem) {
+  .t-themes {
+    display: block;
+  }
+  .t-themes > span {
+    display: block;
+    margin-bottom: var(--sp-md);
+  }
+  .t-themes__row {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scroll-snap-type: x proximity;
+    scrollbar-width: none;
+    /* Room for the focus ring, which the scroll box would otherwise clip. */
+    padding: 3px;
+    margin: -3px;
+  }
+  .t-themes__row::-webkit-scrollbar {
+    display: none;
+  }
+  .t-themes__row .t-theme {
+    flex: none;
+    scroll-snap-align: start;
+  }
+}
 .t-theme {
   padding: var(--sp-xs) var(--sp-lg);
   border: 1px solid var(--line-normal);
@@ -429,6 +463,7 @@ img {
   color: var(--muted);
   font: inherit;
   font-size: var(--fs-caption);
+  white-space: nowrap;
   cursor: pointer;
 }
 .t-theme:hover {
@@ -441,6 +476,53 @@ img {
   border-color: var(--accent);
   color: var(--fg);
   font-weight: 700;
+}
+/* A theme's own ground, accent and foreground, drawn into its button by the
+   script, which reads them off the palette it names: a reader picks a theme
+   by its colours before its name. */
+.t-theme__swatch {
+  display: inline-grid;
+  grid-auto-flow: column;
+  width: 1.6em;
+  height: 0.8em;
+  margin-right: 0.5em;
+  border: 1px solid var(--line-quiet);
+  vertical-align: -0.05em;
+}
+.t-theme__swatch i {
+  display: block;
+}
+.t-theme__swatch i:nth-child(1) {
+  background: var(--swatch-bg);
+}
+.t-theme__swatch i:nth-child(2) {
+  background: var(--swatch-accent);
+}
+.t-theme__swatch i:nth-child(3) {
+  background: var(--swatch-fg);
+}
+
+/* A pick sweeps the new palette across the page from the button pressed:
+   the new page grows as a circle out of it while the old one holds still
+   underneath, which is `omarchy theme set` seen from the browser's side.
+   The script runs the change inside a view transition and puts the
+   button's centre in `--sweep-x` and `--sweep-y`; without the API, or with
+   motion reduced, the change is instant and this is never reached. */
+::view-transition-old(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+::view-transition-new(root) {
+  animation: sweep 560ms cubic-bezier(0.2, 0, 0, 1);
+  mix-blend-mode: normal;
+}
+@keyframes sweep {
+  from {
+    clip-path: circle(0 at var(--sweep-x, 50%) var(--sweep-y, 50%));
+  }
+  to {
+    clip-path: circle(160vmax at var(--sweep-x, 50%) var(--sweep-y, 50%));
+  }
 }
 
 /* The rain behind the header and the hero. Pinned to the top of the page and
@@ -530,13 +612,19 @@ img {
   position: relative;
   display: inline-flex;
 }
+/* A hidden note still counts towards the page's scrollable width, and on a
+   phone this one reached past the right edge and gave the page a sideways
+   scroll, so while hidden it has no width to speak of. The collapse waits
+   for the fade, so the text is not clipped on its way out; on the way in the
+   width comes first and the fade after. */
 .badge__note {
   position: absolute;
   top: calc(100% + var(--sp-lg));
   left: 0;
   z-index: 5;
   width: max-content;
-  max-width: min(42ch, 80vw);
+  max-width: 0;
+  overflow: hidden;
   padding: var(--control-py) var(--control-px);
   border: 1px solid var(--line-normal);
   border-radius: var(--radius);
@@ -551,12 +639,23 @@ img {
   visibility: hidden;
   transition:
     opacity 120ms ease,
-    visibility 120ms ease;
+    visibility 120ms ease,
+    max-width 0s 120ms;
 }
 .badge-host:hover .badge__note,
 .badge-host:focus-within .badge__note {
+  max-width: min(42ch, 80vw);
   opacity: 1;
   visibility: visible;
+  transition-delay: 0s;
+}
+/* On a phone the badge ends its row, so the note hangs from its right edge
+   and stays on the page. */
+@media (max-width: 31.999rem) {
+  .badge__note {
+    left: auto;
+    right: 0;
+  }
 }
 
 .t-section {
@@ -1091,64 +1190,148 @@ img {
   border-top: 1px solid var(--line-quiet);
 }
 
-/* ---------------- the generated screenshots -------------------------
+/* ---------------- the walk: the shots and the steps ------------------
    The shots already carry their own desktop: each is the window
-   composited over a wallpaper drawn from the same palette, so the
-   figure adds a frame and a caption and nothing else. Sizing is by
-   aspect ratio rather than by height, because every shot is one
-   capture size and the page decides how wide it is drawn. */
-.t-shot {
-  margin: 0;
-  min-width: 0;
+   composited over a wallpaper drawn from the same palette, so the frame
+   adds a border and nothing else. One frame holds every shot and stays
+   put while the steps scroll past it, and the step nearest the middle of
+   the window is the one whose shot is on show. Above the breakpoint the
+   steps run down the left and the frame sticks on the right; below it the
+   walk is one column, the frame stuck under the header and the steps
+   scrolling by beneath it. */
+.t-walk {
+  margin-top: var(--panel-padding);
 }
-.t-shot img {
+@media (min-width: 60rem) {
+  .t-walk {
+    display: grid;
+    grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+    gap: calc(var(--panel-padding) * 2);
+    align-items: start;
+  }
+  .t-walk__steps {
+    grid-column: 1;
+    grid-row: 1;
+  }
+  .t-walk__frame {
+    grid-column: 2;
+    grid-row: 1;
+    top: calc(var(--control-h) + var(--sp-xl) * 2 + var(--panel-padding));
+  }
+}
+/* A step is read beside the frame, so the next one need only be a scroll
+   away; the padding below lets the last one reach the middle of the window
+   and so come on. Tighter on a phone, where the step is read under the
+   frame and half the window is already taken. */
+.t-walk__steps {
+  display: grid;
+  gap: 32vh;
+  padding-bottom: 30vh;
+}
+@media (max-width: 59.999rem) {
+  .t-walk__steps {
+    gap: 10vh;
+    padding-block: 4vh 12vh;
+  }
+  .t-walk__frame {
+    top: calc(var(--control-h) + var(--sp-lg) * 2);
+  }
+}
+/* Sized by aspect ratio, because every shot is one capture size and the
+   page decides how wide it is drawn. `position: sticky` at every width, and
+   the offset per breakpoint above, so the base rule cannot undo it. */
+.t-walk__frame {
+  position: sticky;
+  z-index: 5;
+  aspect-ratio: 3264 / 2264;
+  border: 1px solid var(--line-normal);
+  border-radius: var(--radius);
+  background: var(--sidebar);
+  overflow: hidden;
+}
+.t-walk__shot {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  opacity: 0;
+  visibility: hidden;
+  /* The shot on its way in slides a step from the direction the reader is
+     scrolling, and the one on its way out is only fading. */
+  transform: translateY(calc(var(--walk-direction, 1) * 2%));
+  transition:
+    opacity 320ms cubic-bezier(0.2, 0, 0, 1),
+    transform 320ms cubic-bezier(0.2, 0, 0, 1),
+    visibility 320ms;
+}
+.t-walk__shot.is-on {
+  opacity: 1;
+  visibility: visible;
+  transform: none;
+}
+.t-walk__shot img {
   display: block;
   width: 100%;
-  height: auto;
-  border: 1px solid var(--line-quiet);
-  border-radius: var(--radius);
+  height: 100%;
 }
-.t-shot figcaption {
-  margin-top: var(--sp-lg);
+.t-walk__count {
+  position: absolute;
+  right: var(--sp-lg);
+  bottom: var(--sp-lg);
+  padding: var(--sp-xxs) var(--sp-md);
+  border: 1px solid var(--line-quiet);
+  background: color-mix(in srgb, var(--bg) 70%, transparent);
   color: var(--muted);
   font-size: var(--fs-caption);
 }
-.t-shot--lead {
-  margin-top: var(--panel-padding);
+.t-walk__count:empty {
+  display: none;
 }
-.t-shot-grid {
-  display: grid;
-  gap: calc(var(--panel-padding) * 1.5);
-  margin-top: calc(var(--panel-padding) * 1.5);
+/* The step on show is set in full; the others wait in the muted colour, so
+   the eye finds the one the frame is showing. */
+.t-step {
+  opacity: 0.35;
+  transition: opacity 240ms linear;
 }
-@media (min-width: 52rem) {
-  .t-shot-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
+.t-step.is-on {
+  opacity: 1;
+}
+.t-step h3 {
+  margin: 0 0 var(--sp-lg);
+  font-family: var(--display);
+  font-size: clamp(var(--fs-heading), 2.2vw, var(--fs-display));
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+}
+.t-step p {
+  margin: 0;
+  max-width: 44ch;
+  color: color-mix(in srgb, var(--fg) 76%, var(--bg));
+  font-size: var(--fs-body-sm);
+}
+.t-step p + p {
+  margin-top: var(--sp-lg);
+}
+.t-step code {
+  font: inherit;
+  font-weight: 700;
+  color: var(--accent);
 }
 
-/* A thumbnail is a link to its own full capture, so it says so on hover and
-   takes a focus ring like any other link. */
+/* A shot is a link to its own full capture, so it says so on hover and
+   takes a focus ring like any other link. It is already drawn large, so it
+   says it opens by lifting rather than by outlining a metre of border in
+   the accent. */
 .t-shot__open {
   display: block;
+  height: 100%;
   text-decoration: none;
 }
 .t-shot__open img {
-  transition: border-color 140ms ease;
+  transition: opacity 140ms ease;
 }
-.t-shot-grid .t-shot__open:hover img,
-.t-shot-grid .t-shot__open:focus-visible img {
-  border-color: var(--accent);
-}
-/* The lead is already drawn large, so it says it opens by lifting rather
-   than by outlining a metre of border in the accent. */
-.t-shot--lead .t-shot__open img {
-  transition:
-    border-color 140ms ease,
-    opacity 140ms ease;
-}
-.t-shot--lead .t-shot__open:hover img,
-.t-shot--lead .t-shot__open:focus-visible img {
+.t-shot__open:hover img,
+.t-shot__open:focus-visible img {
   opacity: 0.92;
 }
 

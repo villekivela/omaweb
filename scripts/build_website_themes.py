@@ -20,8 +20,7 @@ Per theme it writes:
   The wordmark needs nothing from here at all; it is inline in every page and
   drawn in `currentColor`.
 - `website/assets/shots/<theme>/<state>.webp`, one capture per interface state,
-  composited over a wallpaper generated from the same palette, and a
-  `<state>-thumb.webp` beside it for the grid that opens it.
+  composited over a wallpaper generated from the same palette.
 
 The wallpaper is one drawing in every palette, colours only: square cells on a
 coarse grid, raining from the top edge and thinning out as they fall, in a few
@@ -77,10 +76,8 @@ ImageMagick. Everything else is the standard library.
 
 Captures are taken at twice the size the page draws them, so the browser's own
 type is rendered at two device pixels per logical one rather than resampled
-down to nine. That costs bytes, and the full captures are encoded lossless
-anyway: they are the file a reader opens to read the type in. The thumbnails
-carry the saving instead -- lossy, and a quarter of what lossless wants for a
-picture nobody reads.
+down to nine. That costs bytes, and the captures are encoded lossless anyway:
+each is the file a reader opens to read the type in.
 
 Themes are read from `/usr/share/omarchy/themes` and `~/.config/omarchy/themes`,
 the user directory winning, and from any directory named with `--themes`, which
@@ -195,11 +192,6 @@ CAPTURE_OPACITY = {"sheet": 0.8, "sidebar": 0.86}
 # made the shots read as soft. Qt scales the whole layout, so the shot is the
 # same window at the same proportions and only the pixel count changes.
 SCALE = 2
-
-# What the grid under the lead shot draws. A whole window at 600 CSS pixels is
-# unreadable however many pixels it holds, so those are thumbnails that open
-# the full capture rather than shrunken copies pretending to be legible.
-THUMBNAIL_WIDTH = 720
 
 
 # ------------------------------------------------------------------ themes
@@ -688,7 +680,7 @@ def find_encoder() -> str | None:
     """The tool that turns a PNG on stdin into WebP on stdout.
 
     WebP because the captures are taken at twice the size the page draws them,
-    and a thumbnail of one has to be cheap. `cwebp` is libwebp's own tool;
+    and lossless WebP is a third of the PNG. `cwebp` is libwebp's own tool;
     ImageMagick is the fallback because a machine that renders this site tends
     to have it already.
     """
@@ -698,38 +690,21 @@ def find_encoder() -> str | None:
     return None
 
 
-def encoding(encoder: str, width: int | None, lossless: bool) -> list[str]:
-    """The command line for one encode, scaling on the way through if asked.
+def encoding(encoder: str) -> list[str]:
+    """The command line for one encode.
 
-    The full capture is encoded losslessly: it is the file a reader opens to
-    read the type in. A thumbnail is the opposite case. Nobody reads one, and
-    lossless spends four times what it needs to.
+    Lossless: the capture is the file a reader opens to read the type in.
     """
     if encoder == "cwebp":
         # -z 9 is the slowest and smallest of the lossless presets.
-        quality = ["-lossless", "-z", "9"] if lossless else ["-q", "82"]
-        resize = ["-resize", str(width), "0"] if width else []
-        return ["cwebp", "-quiet", *quality, *resize, "-o", "-", "--", "-"]
+        return ["cwebp", "-quiet", "-lossless", "-z", "9", "-o", "-", "--", "-"]
     # ImageMagick reads its operators between the input and the output.
-    quality = ["-define", "webp:lossless=true"] if lossless else ["-quality", "82"]
-    resize = ["-filter", "Lanczos", "-resize", f"{width}x"] if width else []
-    return [encoder, "png:-", *resize, *quality, "webp:-"]
+    return [encoder, "png:-", "-define", "webp:lossless=true", "webp:-"]
 
 
-def write_webp(
-    path: pathlib.Path,
-    encoder: str,
-    png: bytes,
-    width: int | None = None,
-    lossless: bool = True,
-) -> None:
-    """Encode one composite, scaled to `width` on the way through if given.
-
-    The encoder does the scaling because it is decoding the image anyway, and
-    a box average written in Python over a canvas this size costs more than
-    every other step here put together.
-    """
-    command = encoding(encoder, width, lossless)
+def write_webp(path: pathlib.Path, encoder: str, png: bytes) -> None:
+    """Encode one composite."""
+    command = encoding(encoder)
     result = subprocess.run(command, input=png, capture_output=True)
     if result.returncode != 0 or not result.stdout:
         sys.exit(f"{encoder} could not encode {path.name}: {result.stderr.decode().strip()}")
@@ -916,13 +891,6 @@ def build(
         pixels = composite(capture, ground, canvas, (horizontal_margin, vertical_margin))
         png = png_bytes(*canvas, pixels)
         write_webp(SHOTS / theme / f"{state}.webp", encoder, png)
-        write_webp(
-            SHOTS / theme / f"{state}-thumb.webp",
-            encoder,
-            png,
-            width=THUMBNAIL_WIDTH,
-            lossless=False,
-        )
         print(f"  {theme}/{state}.webp")
     return palette, named
 
