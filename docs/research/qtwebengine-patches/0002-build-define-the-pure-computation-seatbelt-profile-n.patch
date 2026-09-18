@@ -1,7 +1,7 @@
 From cbbb8f8d30658cfc6693409ea257f9ab203ccca8 Mon Sep 17 00:00:00 2001
 From: =?UTF-8?q?Ville=20Kivela=CC=88?= <vkivela@hotmail.com>
 Date: Fri, 18 Sep 2026 17:47:03 +0300
-Subject: [PATCH 2/5] build: define the pure-computation seatbelt profile name
+Subject: [PATCH 2/6] build: define the pure-computation seatbelt profile name
  ourselves
 
 Local build fix for the Xcode 27 / macOS 26 SDK, which dropped

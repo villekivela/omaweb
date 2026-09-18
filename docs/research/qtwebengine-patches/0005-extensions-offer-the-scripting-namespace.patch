@@ -1,7 +1,7 @@
 From fc3d16e6ef799ad15c54aaa38c6b08c35eba1b62 Mon Sep 17 00:00:00 2001
 From: =?UTF-8?q?Ville=20Kivela=CC=88?= <vkivela@hotmail.com>
 Date: Fri, 18 Sep 2026 18:12:40 +0300
-Subject: [PATCH 5/5] extensions: offer the scripting namespace
+Subject: [PATCH 5/6] extensions: offer the scripting namespace
 
 Bitwarden asks the browser to inject its autofill content script through
 chrome.scripting.executeScript, which QtWebEngine did not offer, so a

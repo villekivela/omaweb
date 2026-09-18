@@ -1,7 +1,7 @@
 From f10303392335a9c5866743b49d0bcddf8e9379f0 Mon Sep 17 00:00:00 2001
 From: =?UTF-8?q?Ville=20Kivela=CC=88?= <vkivela@hotmail.com>
 Date: Fri, 18 Sep 2026 17:47:04 +0300
-Subject: [PATCH 3/5] extensions: keep ExtensionPrefs valid when the
+Subject: [PATCH 3/6] extensions: keep ExtensionPrefs valid when the
  PrefService is rebuilt
 
 Changing a profile's storage name, off-the-record flag or storage path

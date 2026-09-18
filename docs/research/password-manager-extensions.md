@@ -612,6 +612,12 @@ upstream list reshuffles with the `is_qtwebengine` block unchanged, checked by h
 Counts over the rows: compile with delegate 5, rewrite behind delegate 10, stop 1. Counting `tabs`
 and `tabs.sendMessage` as one API, the rewrite bucket holds 9.
 
+Six of those rows are now implemented and measured rather than predicted, and every bucket held:
+`scripting` and `nativeMessaging` compiled from Chrome with their includes rewritten, `tabs`,
+`windows` and `permissions` were rewritten behind the tab delegate, and `webNavigation`,
+`contextMenus`, `notifications`, `privacy`, `commands` and `action` exist as schemas whose events an
+extension can register for. Nothing needed `Browser`, `TabStripModel` or `chrome/browser/ui`.
+
 ## Prototype log
 
 Findings from running the extension against stock Homebrew Qt 6.11.1 on macOS, before any patch. The
@@ -713,6 +719,37 @@ script is injected only for a logged-in account, so the collector was exercised 
 script injected into the fixture login page answers a `tabs.sendMessage` with the page's fields
 (`username`, `current-password`) and fills both, which the page's own world reads back. The
 remaining gap to real autofill is a vault, not an engine capability.
+
+### 2026-09-18, native messaging
+
+`runtime.connectNative` answers. An extension declaring `nativeMessaging` opens a port to
+`com.example.echo`, QtWebEngine launches the program the host manifest names, and the reply reaches
+the extension and then the page through its content script. The autotest installs the manifest for
+the running application, so it exercises the lookup rather than assuming it.
+
+What that cost, against the bucket the note predicted:
+
+- Chrome's `native_messaging_host_manifest`, `native_process_launcher`, `launch_context`,
+  `launch_context_posix`, `native_message_process_host` and `chrome_native_message_port_dispatcher`
+  compile with their includes rewritten. Two changes were needed. The manifest lookup uses
+  QtWebEngine path keys of its own, because `chrome_paths` is not compiled and its key range is the
+  range QtWebEngine already uses for storage paths. And `NativeMessageHost::Create` passes no
+  profile directory, dropping `native_messaging_launch_from_native` and with it the
+  `g_browser_process` dependency the survey flagged; what it drops is a host starting a connection
+  by relaunching the browser, which neither vendor declares.
+- `chrome_features` is not compiled either, so `kOnConnectNative` is declared in an eighteen-line
+  shim, disabled by default as it is in Chrome.
+- `MessagingDelegateQt` answers `ALLOW_ALL` and builds the port. Which hosts may run stays the
+  application's decision, which is the shape
+  [issue #344](https://github.com/villekivela/omaweb/issues/344) settled: a Known extension names
+  its hosts, and a host manifest already names the extensions it answers.
+- The per-user lookup directory is the application's own `NativeMessagingHosts`. The machine-wide
+  one is Chromium's, which is where the hosts that exist today install themselves.
+
+Neither vendor's host will answer an unpacked build: both list Web Store extension ids in
+`allowed_origins`, and an unpacked extension's id is derived from its path. Whatever acquires the
+package has to carry the store public key as `key` in the manifest, which is the package-acquisition
+question this note already raised.
 
 ## What the prototype verifies first
 

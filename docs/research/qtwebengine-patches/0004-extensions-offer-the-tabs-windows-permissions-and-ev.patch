@@ -1,7 +1,7 @@
 From 175d4297ae3ebb81ea7ef6eadc6b62ebfe1147b9 Mon Sep 17 00:00:00 2001
 From: =?UTF-8?q?Ville=20Kivela=CC=88?= <vkivela@hotmail.com>
 Date: Fri, 18 Sep 2026 17:47:06 +0300
-Subject: [PATCH 4/5] extensions: offer the tabs, windows, permissions and
+Subject: [PATCH 4/6] extensions: offer the tabs, windows, permissions and
  event namespaces
 
 Compile Chrome's schemas for tabs, windows, permissions, webNavigation,
