@@ -746,10 +746,26 @@ What that cost, against the bucket the note predicted:
 - The per-user lookup directory is the application's own `NativeMessagingHosts`. The machine-wide
   one is Chromium's, which is where the hosts that exist today install themselves.
 
-Neither vendor's host will answer an unpacked build: both list Web Store extension ids in
-`allowed_origins`, and an unpacked extension's id is derived from its path. Whatever acquires the
-package has to carry the store public key as `key` in the manifest, which is the package-acquisition
-question this note already raised.
+### 2026-09-18, extension identity
+
+Neither vendor's host answers an unpacked build, because both list Web Store extension ids in
+`allowed_origins` and an unpacked extension's id is derived from its path. Carrying the store's
+public key in the manifest fixes that, and the key is public: it is in the CRX the Web Store serves.
+
+Bitwarden's CRX header holds two RSA proofs, Google's signing key and the publisher's. The
+publisher's key hashes to `nngceckbapebfimnlniiiahkandclblb`, the id the store lists, so adding it
+to an unpacked build as `key` makes QtWebEngine load that build under the store id. Measured both
+ways against a host manifest named `com.8bit.bitwarden` that allows only that id:
+
+| Build              | Id QtWebEngine derives             | `connectNative("com.8bit.bitwarden")`                         |
+| ------------------ | ---------------------------------- | ------------------------------------------------------------- |
+| With the store key | `nngceckbapebfimnlniiiahkandclblb` | the host answers                                              |
+| Without it         | path-derived, differs per machine  | "Access to the specified native messaging host is forbidden." |
+
+So a Known extension acquired as a store package keeps its identity and the vendor's desktop
+application answers it, and an extension assembled some other way is refused by the vendor's own
+rule rather than by anything Omaweb decides. The refusal is covered by an autotest, since it is the
+half that matters for security.
 
 ## What the prototype verifies first
 

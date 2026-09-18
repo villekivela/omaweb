@@ -1,4 +1,4 @@
-From 40fb168cf16aaa8060a33e4d1334f3e38c8855d5 Mon Sep 17 00:00:00 2001
+From 4df295511f2a5761f27b15c71bc25fc82729a8c1 Mon Sep 17 00:00:00 2001
 From: =?UTF-8?q?Ville=20Kivela=CC=88?= <vkivela@hotmail.com>
 Date: Fri, 18 Sep 2026 19:38:52 +0300
 Subject: [PATCH 6/6] extensions: connect an extension to a native messaging
@@ -47,11 +47,11 @@ Claude-Session: https://claude.ai/code/session_018xbboRpMqGunvBB9DyGVY2
  src/core/extensions/messaging_delegate_qt.cpp |  30 ++
  src/core/extensions/messaging_delegate_qt.h   |   8 +
  .../widgets/extensions/resources/echo_host.py |  32 ++
- .../native_messaging_ext/content_script.js    |   6 +
+ .../native_messaging_ext/content_script.js    |  14 +
  .../native_messaging_ext/manifest.json        |  21 +
- .../native_messaging_ext/service_worker.js    |  14 +
- .../extensions/tst_qwebengineextension.cpp    |  50 +++
- 25 files changed, 2033 insertions(+)
+ .../native_messaging_ext/service_worker.js    |  23 ++
+ .../extensions/tst_qwebengineextension.cpp    |  68 ++++
+ 25 files changed, 2068 insertions(+)
  create mode 100644 src/3rdparty/chromium/qtwebengine/browser/extensions/api/messaging/chrome_native_message_port_dispatcher.cc
  create mode 100644 src/3rdparty/chromium/qtwebengine/browser/extensions/api/messaging/chrome_native_message_port_dispatcher.h
  create mode 100644 src/3rdparty/chromium/qtwebengine/browser/extensions/api/messaging/launch_context.cc
@@ -2203,16 +2203,24 @@ index 0000000000..8f63d0a79d
 +    main()
 diff --git a/tests/auto/widgets/extensions/resources/native_messaging_ext/content_script.js b/tests/auto/widgets/extensions/resources/native_messaging_ext/content_script.js
 new file mode 100644
-index 0000000000..73b6aa49f7
+index 0000000000..a5a6ce1d93
 --- /dev/null
 +++ b/tests/auto/widgets/extensions/resources/native_messaging_ext/content_script.js
-@@ -0,0 +1,6 @@
-+chrome.runtime.sendMessage("probe", (response) => {
+@@ -0,0 +1,14 @@
++const results = {}
++
++function report(name, response) {
++    results[name] = response
++    if (!("allowed" in results) || !("forbidden" in results))
++        return
 +    let testNode = document.createElement("div")
 +    testNode.id = "testNode"
-+    testNode.textContent = JSON.stringify(response)
++    testNode.textContent = JSON.stringify(results)
 +    document.body.appendChild(testNode)
-+})
++}
++
++chrome.runtime.sendMessage("probe", response => report("allowed", response))
++chrome.runtime.sendMessage("probeForbidden", response => report("forbidden", response))
 diff --git a/tests/auto/widgets/extensions/resources/native_messaging_ext/manifest.json b/tests/auto/widgets/extensions/resources/native_messaging_ext/manifest.json
 new file mode 100644
 index 0000000000..35d88ca74a
@@ -2242,14 +2250,12 @@ index 0000000000..35d88ca74a
 +}
 diff --git a/tests/auto/widgets/extensions/resources/native_messaging_ext/service_worker.js b/tests/auto/widgets/extensions/resources/native_messaging_ext/service_worker.js
 new file mode 100644
-index 0000000000..83c36ac54b
+index 0000000000..3901e5fc75
 --- /dev/null
 +++ b/tests/auto/widgets/extensions/resources/native_messaging_ext/service_worker.js
-@@ -0,0 +1,14 @@
-+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-+    if (message !== "probe")
-+        return false;
-+    const port = chrome.runtime.connectNative("com.example.echo")
+@@ -0,0 +1,23 @@
++function connect(hostName, sendResponse) {
++    const port = chrome.runtime.connectNative(hostName)
 +    port.onMessage.addListener(response => {
 +        sendResponse({ echoed: response.echo })
 +        port.disconnect()
@@ -2258,22 +2264,34 @@ index 0000000000..83c36ac54b
 +        sendResponse({ error: chrome.runtime.lastError ? chrome.runtime.lastError.message : "closed" })
 +    })
 +    port.postMessage({ value: "sent through the host" })
-+    return true;
++}
++
++chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
++    if (message === "probe") {
++        connect("com.example.echo", sendResponse)
++        return true;
++    }
++    if (message === "probeForbidden") {
++        connect("com.example.forbidden", sendResponse)
++        return true;
++    }
++    return false;
 +})
 diff --git a/tests/auto/widgets/extensions/tst_qwebengineextension.cpp b/tests/auto/widgets/extensions/tst_qwebengineextension.cpp
-index a70d1e98e0..7d88cae9d2 100644
+index a70d1e98e0..8b1398f323 100644
 --- a/tests/auto/widgets/extensions/tst_qwebengineextension.cpp
 +++ b/tests/auto/widgets/extensions/tst_qwebengineextension.cpp
-@@ -9,6 +9,8 @@
+@@ -9,6 +9,9 @@
  #include <QtWebEngineCore/qwebenginedownloadrequest.h>
  #include <QtWebEngineCore/qwebengineextensionmanager.h>
  #include <httpserver.h>
 +#include <QtCore/qscopeguard.h>
++#include <memory>
 +#include <QtCore/qstandardpaths.h>
  #include <QtWebEngineCore/qwebengineextensioninfo.h>
  #include <QtWebEngineWidgets/qwebengineview.h>
  #include <QtWebEngineCore/qwebengineprofilebuilder.h>
-@@ -45,6 +47,7 @@ private Q_SLOTS:
+@@ -45,6 +48,7 @@ private Q_SLOTS:
      void serviceWorkerLocalization();
      void enableAfterStoragePathChange();
      void tabsWindowsAndScripting();
@@ -2281,7 +2299,7 @@ index a70d1e98e0..7d88cae9d2 100644
  
  private:
      int installedFiles();
-@@ -479,5 +482,52 @@ void tst_QWebEngineExtension::tabsWindowsAndScripting()
+@@ -479,5 +483,69 @@ void tst_QWebEngineExtension::tabsWindowsAndScripting()
      QTRY_COMPARE(evaluateJavaScriptSync(m_page, "document.title"), "injected"_L1);
  }
  
@@ -2300,19 +2318,33 @@ index a70d1e98e0..7d88cae9d2 100644
 +            QStandardPaths::writableLocation(QStandardPaths::AppDataLocation)
 +            + QStringLiteral("/NativeMessagingHosts");
 +    QVERIFY(QDir().mkpath(hostsDir));
-+    QFile manifest(hostsDir + QStringLiteral("/com.example.echo.json"));
-+    QVERIFY(manifest.open(QIODevice::WriteOnly | QIODevice::Truncate));
-+    manifest.write(QStringLiteral("{\n"
-+                                  "  \"name\": \"com.example.echo\",\n"
-+                                  "  \"description\": \"Echo host\",\n"
-+                                  "  \"path\": \"%1\",\n"
-+                                  "  \"type\": \"stdio\",\n"
-+                                  "  \"allowed_origins\": [\"chrome-extension://%2/\"]\n"
-+                                  "}\n")
-+                           .arg(resourcesPath() + "echo_host.py"_L1, extension.id())
-+                           .toUtf8());
-+    manifest.close();
-+    auto removeManifest = qScopeGuard([&manifest] { manifest.remove(); });
++    auto writeManifest = [&](const QString &hostName, const QString &allowedId) {
++        auto manifest = std::make_unique<QFile>(hostsDir + u'/' + hostName + ".json"_L1);
++        if (!manifest->open(QIODevice::WriteOnly | QIODevice::Truncate))
++            return std::unique_ptr<QFile>();
++        manifest->write(QStringLiteral("{\n"
++                                       "  \"name\": \"%1\",\n"
++                                       "  \"description\": \"Echo host\",\n"
++                                       "  \"path\": \"%2\",\n"
++                                       "  \"type\": \"stdio\",\n"
++                                       "  \"allowed_origins\": [\"chrome-extension://%3/\"]\n"
++                                       "}\n")
++                                .arg(hostName, resourcesPath() + "echo_host.py"_L1, allowedId)
++                                .toUtf8());
++        manifest->close();
++        return manifest;
++    };
++    // One host names this extension, the other names a different one and must be refused.
++    std::unique_ptr<QFile> allowed = writeManifest("com.example.echo"_L1, extension.id());
++    QVERIFY(allowed);
++    std::unique_ptr<QFile> forbidden =
++            writeManifest("com.example.forbidden"_L1,
++                          "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"_L1);
++    QVERIFY(forbidden);
++    auto removeManifests = qScopeGuard([&] {
++        allowed->remove();
++        forbidden->remove();
++    });
 +
 +    m_manager->setExtensionEnabled(extension, true);
 +
@@ -2328,7 +2360,10 @@ index a70d1e98e0..7d88cae9d2 100644
 +            evaluateJavaScriptSync(m_page,
 +                                   "JSON.parse(document.getElementById('testNode').textContent)")
 +                    .toMap();
-+    QCOMPARE(result["echoed"_L1].toMap()["value"_L1].toString(), "sent through the host"_L1);
++    QCOMPARE(result["allowed"_L1].toMap()["echoed"_L1].toMap()["value"_L1].toString(),
++             "sent through the host"_L1);
++    QCOMPARE(result["forbidden"_L1].toMap()["error"_L1].toString(),
++             "Access to the specified native messaging host is forbidden."_L1);
 +#endif
 +}
 +
