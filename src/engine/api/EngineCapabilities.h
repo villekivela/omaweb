@@ -36,6 +36,12 @@ public:
         // PersistentProfiles says the engine keeps it.
         CertificateDecisions = 1 << 12,
         ThirdPartyCookieControl = 1 << 13,
+        // Whether this engine can host a Known extension. An engine that
+        // cannot is not missing a setting, it is missing the runtime: Omaweb
+        // hides the surfaces rather than offering a control that would load
+        // an extension into a browser that hangs on its first message
+        // (ADR 0049).
+        KnownExtensions = 1 << 14,
     };
     Q_DECLARE_FLAGS(Capabilities, Capability)
     Q_FLAG(Capabilities)

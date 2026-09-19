@@ -90,7 +90,9 @@ Item {
                                         | EngineCapabilities.SiteFullscreen
                                         | EngineCapabilities.InlinePdfViewing
                                         | EngineCapabilities.CertificateDecisions
-                                        | EngineCapabilities.ThirdPartyCookieControl
+                                        | EngineCapabilities.ThirdPartyCookieControl | (
+                                            EngineBuild.knownExtensions
+                                            ? EngineCapabilities.KnownExtensions : 0)
     // Which Space's browsing identity these pages belong to. Handed down with
     // the profile, because it is the profile that decides it: Content blocking
     // keys the Refusal tally by it, and its interception is attached per
