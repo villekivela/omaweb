@@ -30,6 +30,9 @@ namespace {
     // went with the old frame view.
     void ensureBackdrop(QWindow *window, NSWindow *nativeWindow)
     {
+        // The Qt window is what the caller has and what the next thing here
+        // will need; AppKit answers this one entirely from the native window.
+        Q_UNUSED(window);
         NSView *contentView = nativeWindow.contentView;
         NSView *frameView = contentView.superview;
         if (!frameView) {
