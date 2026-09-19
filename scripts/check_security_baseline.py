@@ -4,8 +4,8 @@
 `security/baseline.json` names the QtWebEngine an Omaweb build is supported on
 and the Chromium release whose security fixes that engine carries. Both go stale
 on someone else's schedule: Qt publishes a patch release, Chromium publishes a
-security fix, and nothing in this repository changes. So this looks weekly and
-leaves one issue behind.
+security fix, and nothing in this repository changes. So this looks daily and
+leaves one issue behind, editing it rather than commenting on it.
 
 What it opens an issue for is a newer QtWebEngine than the approved one, because
 that is the actionable half: a security-bearing Qt patch has to produce a tested
