@@ -64,14 +64,14 @@ class BaselineReport(unittest.TestCase):
         self.assertEqual(result["approved"]["qtwebengine"], "6.11.2")
         self.assertEqual(result["available"]["qtwebengine"], "6.11.2")
 
-    def test_a_newer_packaged_engine_moves_the_baseline(self):
+    def test_a_newer_released_engine_moves_the_baseline(self):
         result = report(engine="6.11.3")
 
         self.assertTrue(result["engineBehind"])
         self.assertTrue(result["behind"])
         self.assertTrue(any("6.11.3" in reason for reason in result["reasons"]))
 
-    def test_an_older_packaged_engine_is_not_drift(self):
+    def test_an_older_released_engine_is_not_drift(self):
         result = report(engine="6.11.1")
 
         self.assertFalse(result["behind"])
@@ -129,7 +129,9 @@ class TrackingIssue(unittest.TestCase):
         self.assertIn(baseline.TRIAGE_LABEL, created[0])
         body = created[0][created[0].index("--body") + 1]
         self.assertIn(baseline.MARKER, body)
-        self.assertIn("2026-09-11", body)
+        due = datetime.date(2026, 9, 4) + datetime.timedelta(
+            days=baseline.RESPONSE_DAYS)
+        self.assertIn(str(due), body)
         self.assertIn("security/baseline.json", body)
         self.assertIn("Raise the engine security baseline", output)
 

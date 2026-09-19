@@ -25,11 +25,16 @@ built against.
 ## Response to a security-bearing Qt patch
 
 When a Qt patch release includes security fixes, qualify it and publish the raised baseline within
-seven days after the baseline issue opens. The issue includes its due date. The seven days cover the
-qualification and the release, which is the whole of what Omaweb controls. The engine itself arrives
-from the distribution, because the package depends on system Qt rather than bundling it
+two days after the baseline issue opens. The issue includes its due date. The two days cover the
+qualification and the release, which is the whole of what Omaweb controls.
+
+The clock starts when Qt publishes, not when a distribution packages. The engine itself still
+arrives from the distribution, because the package depends on system Qt rather than bundling it
 ([ADR 0013](docs/adr/0013-preserve-engine-sandboxes-in-every-build.md)), so a reader takes the
-patched engine through a system upgrade on their own schedule. To update the baseline:
+patched engine through a system upgrade on their own schedule. Arch has been quick: it built
+QtWebEngine 6.11.2 within an hour of Qt publishing it and had it in the repository two days later.
+
+To update the baseline:
 
 1. Read the Qt release notes for the fixes the release carries.
 2. Build against the new engine and run `ctest --preset ci` in full.

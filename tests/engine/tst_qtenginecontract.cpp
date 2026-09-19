@@ -1,6 +1,7 @@
 #include "BrowserController.h"
 #include "ContentBlocker.h"
 #include "QtCookiePolicy.h"
+#include "EngineBuild.h"
 #include "EngineCapabilities.h"
 #include "EngineCapabilityExpectations.h"
 #include "ExternalProtocolHandler.h"
@@ -4987,6 +4988,7 @@ int main(int argc, char *argv[])
     QtWebEngineQuick::initialize();
     QGuiApplication application(argc, argv);
     omaweb::registerEngineCapabilities();
+    omaweb::registerEngineBuild();
     omaweb::registerBrowserController();
     omaweb::registerExternalProtocolHandler();
     QtEngineContractTest test;

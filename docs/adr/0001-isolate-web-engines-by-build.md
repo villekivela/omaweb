@@ -11,7 +11,11 @@ embedding on macOS and Wayland. Ladybird's own web-content and service processes
 bitmap-painted QML bridge may prove the first Ladybird adapter, but daily-driver status requires a
 Qt Quick texture path and frame-time validation.
 
-The engine contract reports capabilities instead of pretending every engine behaves alike. Omaweb
-does not expose third-party extensions unless both engines can support the same extension system.
-Engine-specific extensions remain outside the product feature set, so core features such as content
-blocking and keyboard navigation cannot depend on them.
+The engine contract reports capabilities instead of pretending every engine behaves alike. Core
+features such as content blocking and keyboard navigation cannot depend on an extension, whatever
+the engine offers.
+
+[ADR 0049](0049-ship-omawebs-own-engine-build.md) supersedes the condition that withheld extensions
+until both engines support the same system. Extensions are a per-engine capability: each engine has
+its own extension story, Ladybird's is its own, and the engine contract reports what each one can
+host.

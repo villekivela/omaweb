@@ -22,6 +22,11 @@ else()
     set(omaweb_build_sync_default OFF)
 endif()
 option(OMAWEB_BUILD_SYNC "Build the Linux Sync Feature module" ${omaweb_build_sync_default})
+# A Known extension needs the patched engine ADR 0049 ships, not the
+# distribution's QtWebEngine. The package that carries that engine turns this
+# on; every other build leaves the capability unreported, so the surfaces are
+# absent rather than dead.
+option(OMAWEB_KNOWN_EXTENSIONS "Report that the engine can host a Known extension" OFF)
 set(OMAWEB_GITHUB_APP_CLIENT_ID "Iv23liYr7TPLsmgsxLfl" CACHE STRING
     "Public client ID of the Omaweb GitHub App")
 set(OMAWEB_GITHUB_APP_SLUG "omaweb-sync" CACHE STRING
@@ -351,11 +356,15 @@ add_library(omaweb-engine-api STATIC
     src/engine/api/EngineCapabilities.h
     src/engine/api/EngineViewContract.cpp
     src/engine/api/EngineViewContract.h
+    src/engine/api/EngineBuild.cpp
+    src/engine/api/EngineBuild.h
     src/engine/api/QmlContract.cpp
     src/engine/api/QmlContract.h
 )
 target_include_directories(omaweb-engine-api PUBLIC src/engine/api)
 target_link_libraries(omaweb-engine-api PUBLIC Qt6::Core Qt6::Qml)
+target_compile_definitions(omaweb-engine-api PUBLIC
+    OMAWEB_KNOWN_EXTENSIONS=$<BOOL:${OMAWEB_KNOWN_EXTENSIONS}>)
 omaweb_strict_target(omaweb-engine-api)
 
 if(OMAWEB_BUILD_BROWSER)
