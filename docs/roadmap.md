@@ -50,6 +50,11 @@ not distribute its bundles ([ADR 0029](adr/0029-distribute-only-for-linux.md)).
 
 ## Known extensions
 
+The release loop: the daily baseline check assigns an issue when Qt publishes, a daily check in the
+patch repository says whether the series still applies and reports to this tracker,
+`/engine-release` qualifies the series on whichever machine you are at, and a workflow started by
+hand builds the engine on rented Linux machines. Packaging and signing stay local.
+
 Omaweb ships its own QtWebEngine build so a password manager's extension runs
 ([ADR 0049](adr/0049-ship-omawebs-own-engine-build.md),
 [#344](https://github.com/villekivela/omaweb/issues/344)). The patch series and the build process

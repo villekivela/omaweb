@@ -44,6 +44,10 @@ LABEL_DESCRIPTION = "The approved QtWebEngine baseline is behind upstream"
 
 TRIAGE_LABEL = "ready-for-human"
 
+# An issue a workflow opens notifies nobody. Assigning it puts it where the
+# person who has to act on it already looks.
+ASSIGNEE = "villekivela"
+
 MARKER = "<!-- omaweb:engine-security-baseline -->"
 
 RESPONSE_DAYS = 2
@@ -204,7 +208,7 @@ def sync_issue(report: dict, run=gh, today: datetime.date | None = None) -> int:
     run("label", "create", LABEL, "--force", "--color", LABEL_COLOR,
         "--description", LABEL_DESCRIPTION)
     run("issue", "create", "--title", title, "--body", body,
-        "--label", LABEL, "--label", TRIAGE_LABEL)
+        "--label", LABEL, "--label", TRIAGE_LABEL, "--assignee", ASSIGNEE)
     print(f"Opened an issue: {title}")
     return 0
 
