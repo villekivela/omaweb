@@ -16,6 +16,23 @@ live outside this repository, because they carry Qt and Chromium source under th
 an engine does not belong in Omaweb's tree. What they buy is a **Known extension**: Bitwarden and
 1Password run, and a reader's password manager fills a form.
 
+## What is promised, and what is not
+
+Omaweb does not promise that Chromium extensions work. It promises the ones it names. A Known
+extension is one Omaweb has run against these patches and tested, and it is the only kind Omaweb
+loads.
+
+The patches are generic API work rather than accommodations for one vendor: they implement
+namespaces as Chromium defines them, behind an embedder delegate. So extensions Omaweb has never
+tried may well run, and some certainly will. That is a property of the engine, not an offer. An
+untested extension becomes supported by being tested and named, which costs a reader nothing and
+Omaweb a run of the extension probe.
+
+Large parts of the surface are still missing: `cookies`, `contextMenus` and `notifications` have
+schemas but no implementation, `action` cannot draw a badge, `webRequest` listeners never fire, and
+`tabs` carries only its read side. An extension that needs any of them fails, and finding out which
+is what naming one costs.
+
 ## Why this and not the alternatives
 
 Waiting for Qt was the first plan and it is still the preferred ending, but it cannot be the plan.
