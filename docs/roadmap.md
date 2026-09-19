@@ -42,14 +42,22 @@ not distribute its bundles ([ADR 0029](adr/0029-distribute-only-for-linux.md)).
 - The Omarchy window rule ([#75](https://github.com/villekivela/omaweb/issues/75)) and the component
   kit ([#9](https://github.com/villekivela/omaweb/issues/9),
   [#13](https://github.com/villekivela/omaweb/issues/13)) wait on Omarchy.
-- Extensions wait on Qt's extension surface
-  ([#175](https://github.com/villekivela/omaweb/issues/175),
-  [#288](https://github.com/villekivela/omaweb/issues/288)). Whether Omaweb hosts password managers
-  as Known extensions on a patched development engine is decided in
-  [#344](https://github.com/villekivela/omaweb/issues/344).
+- What a reader could extend in Omaweb's own chrome waits on the command registry question
+  ([#175](https://github.com/villekivela/omaweb/issues/175)).
 - The Ladybird adapter ([#7](https://github.com/villekivela/omaweb/issues/7)) stays experimental and
   outside the default build graph until it satisfies the daily-driver contract.
 - Account and Sync with replaceable providers are deferred.
+
+## Known extensions
+
+Omaweb ships its own QtWebEngine build so a password manager's extension runs
+([ADR 0049](adr/0049-ship-omawebs-own-engine-build.md),
+[#344](https://github.com/villekivela/omaweb/issues/344)). The patch series and the build process
+live outside this repository. What remains before a reader sees this: the engine package and its
+Linux builders, the Settings surface that enables a Known extension per Space, the popup surface,
+and package acquisition that keeps a store extension's identity. The two engine bug fixes go to Qt
+in parallel, and the day Qt carries the rest the series is deleted
+([#288](https://github.com/villekivela/omaweb/issues/288)).
 
 ## Settled without work
 
