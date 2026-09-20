@@ -2874,6 +2874,8 @@ ApplicationWindow {
                     engineWebRtcPolicy: window.engineWebRtcAddressPolicy
                     fontSettings: window.readerFonts
                     pageFonts: window.enginePageFonts
+                    knownExtensions: window.knownExtensions
+                    knownExtensionsAvailable: window.knownExtensionsAvailable
                     SheetLift {
                         id: settingsLift
                         shown: settingsSurface.open
@@ -2909,6 +2911,10 @@ ApplicationWindow {
                         window.dialogMode = action;
                     }
                     onClosed: window.settingsOpen = false
+                    onKnownExtensionToggled: function (key, enabled) {
+                        if (window.windowBrowser.setKnownExtensionEnabled(key, enabled))
+                            window.readKnownExtensions();
+                    }
                     onSyncCodeCopied: function (notice) {
                         window.showNotice("content_copy", notice,
                                           "Paste it into the authorization page", 3000);
