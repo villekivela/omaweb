@@ -609,6 +609,91 @@ TestCase {
         verify(notice.visible);
     }
 
+    // Two Known extensions as the controller reports them: one whose package
+    // is here and on, one Omaweb names but has not downloaded. The second is
+    // the state the section exists to explain, so it is in the fixture rather
+    // than assumed away.
+    readonly property var extensionsFixture: [
+        {
+            "key": "bitwarden",
+            "name": "Bitwarden Password Manager",
+            "publisher": "Bitwarden, Inc.",
+            "licence": "GPL-3.0-or-later",
+            "summary": "Fills and saves passwords.",
+            "installed": true,
+            "enabled": true
+        },
+        {
+            "key": "onepassword",
+            "name": "1Password",
+            "publisher": "AgileBits Inc.",
+            "licence": "Proprietary",
+            "summary": "Fills and saves passwords.",
+            "installed": false,
+            "enabled": false
+        }
+    ]
+
+    SignalSpy {
+        id: extensionToggleSpy
+        signalName: "knownExtensionToggled"
+    }
+
+    // A build running the engine the system supplies cannot host an extension,
+    // and says so where the list would be rather than drawing switches that
+    // would reach nothing.
+    function test_aBuildThatCannotHostAnExtensionSaysSoRatherThanListing() {
+        const page = makePage();
+        page.knownExtensions = testCase.extensionsFixture;
+        page.section = page.sections.indexOf("extensions");
+        const notice = findChild(page, "extensionsUnavailableNotice");
+        verify(notice !== null);
+        verify(notice.visible);
+        const toggle = findChild(page, "knownExtension-bitwarden");
+        verify(toggle !== null);
+        verify(!toggle.visible);
+
+        page.knownExtensionsAvailable = true;
+        verify(!notice.visible);
+        verify(toggle.visible);
+    }
+
+    // One switch per Known extension, carrying what the reader needs to judge
+    // it. A package that has not arrived leaves a switch that says why it
+    // cannot be turned on, because a name with no explanation reads as a
+    // browser that has lost it.
+    function test_eachKnownExtensionIsOneSwitchThatSaysWhoPublishesIt() {
+        const page = makePage();
+        page.knownExtensionsAvailable = true;
+        page.knownExtensions = testCase.extensionsFixture;
+        page.section = page.sections.indexOf("extensions");
+
+        const present = findChild(page, "knownExtension-bitwarden");
+        verify(present !== null);
+        verify(present.enabled);
+        verify(present.checked);
+        verify(present.note.indexOf("Bitwarden, Inc.") >= 0);
+        verify(present.note.indexOf("GPL-3.0-or-later") >= 0);
+        verify(present.note.indexOf("not downloaded yet") < 0);
+
+        const absent = findChild(page, "knownExtension-onepassword");
+        verify(absent !== null);
+        verify(!absent.enabled);
+        verify(!absent.checked);
+        verify(absent.note.indexOf("not downloaded yet") >= 0);
+
+        // The switch reports the key and the answer; what that answer costs is
+        // the controller's, and the page never holds a state of its own.
+        extensionToggleSpy.target = page;
+        extensionToggleSpy.clear();
+        settleAction(present);
+        mouseClick(present, present.width / 2, present.height / 2);
+        tryCompare(extensionToggleSpy, "count", 1);
+        compare(extensionToggleSpy.signalArguments[0][0], "bitwarden");
+        compare(extensionToggleSpy.signalArguments[0][1], false);
+        extensionToggleSpy.target = null;
+    }
+
     // The reader's type, stubbed the way the page reads it: the size on show,
     // whether it is theirs, the theme's underneath, and a page's fonts each
     // beside the engine's own. The real object is driven by the layout test
