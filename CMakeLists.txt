@@ -179,6 +179,8 @@ add_library(omaweb-core STATIC
     src/core/HardwareVideoDecode.h
     src/core/HistoryQuery.cpp
     src/core/HistoryQuery.h
+    src/core/ExtensionInstaller.cpp
+    src/core/ExtensionInstaller.h
     src/core/ExtensionPackage.cpp
     src/core/ExtensionPackage.h
     src/core/KnownExtensions.cpp

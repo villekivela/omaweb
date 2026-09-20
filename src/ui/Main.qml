@@ -229,6 +229,8 @@ ApplicationWindow {
     // extension belongs to the profile, which is there first. The adapter
     // reports the same thing per view for the engine contract.
     readonly property bool knownExtensionsAvailable: EngineBuild.knownExtensions
+    // Why the last package did not arrive, kept until the reader asks again.
+    property string extensionFailure: ""
     // The menu the extension mark opens, and where it was asked from. The
     // rectangle is kept because the popup grows out of the mark, not out of
     // the menu row that chose it.
@@ -1513,6 +1515,14 @@ ApplicationWindow {
 
         function onKnownExtensionsChanged() {
             window.readKnownExtensions();
+        }
+
+        // Said where the reader asked, which is Settings, and also as a notice:
+        // a download starts from a switch and finishes minutes later, by which
+        // time the reader has gone back to reading.
+        function onKnownExtensionFailed(key, reason) {
+            window.extensionFailure = reason;
+            window.showNotice("extension_off", "The extension was not installed", reason, 8000);
         }
     }
 
@@ -2928,6 +2938,7 @@ ApplicationWindow {
                     pageFonts: window.enginePageFonts
                     knownExtensions: window.knownExtensions
                     knownExtensionsAvailable: window.knownExtensionsAvailable
+                    extensionFailure: window.extensionFailure
                     SheetLift {
                         id: settingsLift
                         shown: settingsSurface.open
@@ -2964,6 +2975,8 @@ ApplicationWindow {
                     }
                     onClosed: window.settingsOpen = false
                     onKnownExtensionToggled: function (key, enabled) {
+                        if (enabled)
+                            window.extensionFailure = "";
                         if (window.windowBrowser.setKnownExtensionEnabled(key, enabled))
                             window.readKnownExtensions();
                     }
@@ -3400,6 +3413,12 @@ ApplicationWindow {
         // After the engine, with the rest of what a window restores: what is
         // in Settings is never a reason for the page not to come up.
         window.readKnownExtensions();
+        // A Private window loads no extension and has no storage to keep one
+        // in, so it asks about none. The check is a day apart whatever a reader
+        // does, so every window asking is one window asking.
+        if (!window.privateWindow && window.knownExtensionsAvailable
+                && window.windowBrowser.refreshKnownExtensionsIfDue)
+            window.windowBrowser.refreshKnownExtensionsIfDue();
         // Last, and on its own: how wide a panel was left is never a reason
         // for the page not to come up.
         window.restoreSidebarWidth();

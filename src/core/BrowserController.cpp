@@ -3,6 +3,7 @@
 #include "KnownExtensions.h"
 
 #include "DownloadPolicy.h"
+#include "ExtensionPackage.h"
 #include "HistorySearch.h"
 #include "SqliteSessionStore.h"
 #include "ThreadedSessionStore.h"
@@ -2539,11 +2540,68 @@ QVariantList BrowserController::knownExtensions() const
             {QStringLiteral("path"), path},
             {QStringLiteral("installed"), installed},
             {QStringLiteral("iconUrl"), installed ? extensionIconUrl(path) : QUrl {}},
+            {QStringLiteral("fetching"),
+                m_extensionInstaller && m_extensionInstaller->fetching(extension.key)},
             {QStringLiteral("enabled"),
                 preference(extensionPreferenceName(extension.key)) == QStringLiteral("true")},
         });
     }
     return entries;
+}
+
+namespace {
+
+    // When this extension was last asked about, so the daily check is daily.
+    QString extensionCheckName(const QString &key)
+    {
+        return QStringLiteral("known-extension-%1-checked").arg(key);
+    }
+
+} // namespace
+
+ExtensionInstaller *BrowserController::extensionInstaller()
+{
+    if (!m_extensionInstaller) {
+        m_extensionInstaller = std::make_unique<ExtensionInstaller>();
+        connect(m_extensionInstaller.get(), &ExtensionInstaller::installed, this,
+            [this](const QString &) { emit knownExtensionsChanged(); });
+        connect(m_extensionInstaller.get(), &ExtensionInstaller::fetchingChanged, this,
+            [this](const QString &, bool) { emit knownExtensionsChanged(); });
+        connect(m_extensionInstaller.get(), &ExtensionInstaller::failed, this,
+            [this](const QString &key, const QString &reason) {
+                emit knownExtensionFailed(key, reason);
+                emit knownExtensionsChanged();
+            });
+    }
+    return m_extensionInstaller.get();
+}
+
+void BrowserController::downloadKnownExtension(const QString &key)
+{
+    const KnownExtension extension = omaweb::knownExtension(key);
+    if (extension.key.isEmpty() || !m_storage) {
+        return;
+    }
+    setPreference(extensionCheckName(key), QDate::currentDate().toString(Qt::ISODate));
+    extensionInstaller()->fetch(extension, m_storage->extensionPathFor(key));
+}
+
+void BrowserController::refreshKnownExtensionsIfDue()
+{
+    if (!m_storage) {
+        return;
+    }
+    const QString today = QDate::currentDate().toString(Qt::ISODate);
+    for (const KnownExtension &extension : omaweb::knownExtensions()) {
+        if (preference(extensionPreferenceName(extension.key)) != QStringLiteral("true")) {
+            continue;
+        }
+        if (preference(extensionCheckName(extension.key)) == today) {
+            continue;
+        }
+        setPreference(extensionCheckName(extension.key), today);
+        extensionInstaller()->refresh(extension, m_storage->extensionPathFor(extension.key));
+    }
 }
 
 bool BrowserController::setKnownExtensionEnabled(const QString &key, bool enabled)
@@ -2559,6 +2617,13 @@ bool BrowserController::setKnownExtensionEnabled(const QString &key, bool enable
         return false;
     }
     emit knownExtensionsChanged();
+    // Turning one on is asking for it. A reader who enabled an extension and
+    // found nothing there would have to go looking for a second control that
+    // fetches it, and there is no reason for that control to exist.
+    if (enabled && m_storage
+        && ExtensionPackage::versionInstalled(m_storage->extensionPathFor(key)).isEmpty()) {
+        downloadKnownExtension(key);
+    }
     return true;
 }
 

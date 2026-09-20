@@ -8,6 +8,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QSaveFile>
+#include <QXmlStreamReader>
 #include <QSet>
 
 #include <QtCore/private/qzipreader_p.h>
@@ -195,6 +196,50 @@ QUrl ExtensionPackage::storeAddress(const QString &storeId)
                                     "&prodversion=140.0.0.0&x=")
         + request);
     return address;
+}
+
+QUrl ExtensionPackage::updateAddress(const QString &storeId)
+{
+    QUrl address(QStringLiteral("https://clients2.google.com/service/update2/crx"));
+    const QString request
+        = QString::fromLatin1(QUrl::toPercentEncoding(QStringLiteral("id=%1&uc").arg(storeId)));
+    address.setQuery(QStringLiteral("response=updatecheck&prodversion=140.0.0.0&x=") + request);
+    return address;
+}
+
+QString ExtensionPackage::versionOffered(const QByteArray &answer)
+{
+    // Omaha's answer is XML with one `updatecheck` element carrying the
+    // version. Read for that one attribute rather than modelled: the rest of
+    // the protocol is Chrome's business, and an answer Omaweb half-understands
+    // is one it should treat as no answer.
+    QXmlStreamReader reader(answer);
+    while (!reader.atEnd()) {
+        if (reader.readNext() != QXmlStreamReader::StartElement) {
+            continue;
+        }
+        if (reader.name() != QLatin1String("updatecheck")) {
+            continue;
+        }
+        const QXmlStreamAttributes attributes = reader.attributes();
+        if (attributes.value(QLatin1String("status")) != QLatin1String("ok")) {
+            return {};
+        }
+        return attributes.value(QLatin1String("version")).toString();
+    }
+    return {};
+}
+
+QString ExtensionPackage::versionInstalled(const QString &path)
+{
+    QFile manifest(QDir(path).filePath(QStringLiteral("manifest.json")));
+    if (!manifest.open(QIODevice::ReadOnly)) {
+        return {};
+    }
+    return QJsonDocument::fromJson(manifest.readAll())
+        .object()
+        .value(QStringLiteral("version"))
+        .toString();
 }
 
 QString ExtensionPackage::identityFor(const QByteArray &publisherKey)

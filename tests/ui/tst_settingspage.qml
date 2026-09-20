@@ -676,9 +676,11 @@ TestCase {
         verify(present.note.indexOf("GPL-3.0-or-later") >= 0);
         verify(present.note.indexOf("not downloaded yet") < 0);
 
+        // Not downloaded is not a reason to refuse the switch: turning it on
+        // is what fetches it. A download already running is the only reason.
         const absent = findChild(page, "knownExtension-onepassword");
         verify(absent !== null);
-        verify(!absent.enabled);
+        verify(absent.enabled);
         verify(!absent.checked);
         verify(absent.note.indexOf("not downloaded yet") >= 0);
 
@@ -692,6 +694,30 @@ TestCase {
         compare(extensionToggleSpy.signalArguments[0][0], "bitwarden");
         compare(extensionToggleSpy.signalArguments[0][1], false);
         extensionToggleSpy.target = null;
+    }
+
+    // A download already running is the one reason the switch refuses: pressing
+    // it again would ask for the same folder twice while the first answer is
+    // still being written into it.
+    function test_anExtensionBeingDownloadedSaysSoAndCannotBePressed() {
+        const page = makePage();
+        page.knownExtensionsAvailable = true;
+        const arriving = testCase.extensionsFixture.map(function (entry) {
+            return Object.assign({}, entry, {
+                                     "fetching": entry.key === "onepassword"
+                                 });
+        });
+        page.knownExtensions = arriving;
+        page.section = page.sections.indexOf("extensions");
+
+        const downloading = findChild(page, "knownExtension-onepassword");
+        verify(downloading !== null);
+        verify(!downloading.enabled);
+        verify(downloading.note.indexOf("downloading") >= 0);
+        verify(downloading.note.indexOf("not downloaded yet") < 0);
+
+        // The one that is not being fetched is untouched by another's download.
+        verify(findChild(page, "knownExtension-bitwarden").enabled);
     }
 
     // The reader's type, stubbed the way the page reads it: the size on show,

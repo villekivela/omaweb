@@ -4,6 +4,7 @@
 #include "RetainedTab.h"
 #include "SessionSiteState.h"
 #include "SessionStore.h"
+#include "ExtensionInstaller.h"
 #include "SpaceListModel.h"
 #include "SpaceStorage.h"
 #include "TabListModel.h"
@@ -401,6 +402,16 @@ public:
     Q_INVOKABLE QVariantList knownExtensions() const;
     Q_INVOKABLE bool setKnownExtensionEnabled(const QString &key, bool enabled);
 
+    // Fetch this extension's package from the store, whatever is on disk. The
+    // reader's own doing: turning a switch on asks for this, and nothing else
+    // does.
+    Q_INVOKABLE void downloadKnownExtension(const QString &key);
+    // Ask the store what version it offers for every enabled extension whose
+    // last ask was more than a day ago, and fetch only what has moved. A
+    // password manager left to go stale is a real problem, and asking costs a
+    // few hundred bytes.
+    Q_INVOKABLE void refreshKnownExtensionsIfDue();
+
 signals:
     void activeSpaceChanged();
     void activeTabChanged();
@@ -411,6 +422,10 @@ signals:
     void developerToolsChanged();
     void closedTabsChanged();
     void knownExtensionsChanged();
+    // A download ended with nothing written, with a sentence saying why. The
+    // switch stays on: the reader asked for the extension, and what failed is
+    // the fetching, which is worth another try.
+    void knownExtensionFailed(const QString &key, const QString &reason);
     void downloadDirectoryChanged();
     void retainedTabsChanged();
     // The Space being put away, and the tabs inside it that keep running
@@ -516,7 +531,12 @@ private:
     // history search opens the same files from its own thread. Empty in a
     // window that keeps nothing, which is what the profile-path readers answer
     // from rather than testing whether this window is private.
+    // Built on the first ask rather than with the controller: a window that
+    // never names an extension never builds a network stack for one.
+    ExtensionInstaller *extensionInstaller();
+
     std::optional<SpaceStorage> m_storage;
+    std::unique_ptr<ExtensionInstaller> m_extensionInstaller;
     // The search, on the store's thread. Absent in a Private window, which
     // has no history to search.
     HistorySearch *m_historySearch = nullptr;

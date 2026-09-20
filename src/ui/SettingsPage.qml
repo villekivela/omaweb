@@ -86,6 +86,8 @@ Rectangle {
     // says so rather than offering switches that would load an extension into
     // a browser that hangs on its first message.
     property bool knownExtensionsAvailable: false
+    // Why the last download ended with nothing written, when one did.
+    property string extensionFailure: ""
     property var subscriptions: []
     // The lists Content blocking knows by name and has not subscribed, offered
     // beside the subscriptions so the reader never has to fetch an address.
@@ -1800,6 +1802,17 @@ Rectangle {
                     }
 
                     NoticeBox {
+                        objectName: "extensionFailureNotice"
+                        width: pane.width
+                        visible: root.extensionFailure.length > 0
+                        colors: root.colors
+                        iconFontFamily: root.iconFontFamily
+                        glyph: "extension_off"
+                        title: "The extension was not installed"
+                        detail: root.extensionFailure
+                    }
+
+                    NoticeBox {
                         objectName: "extensionsUnavailableNotice"
                         width: pane.width
                         visible: !root.knownExtensionsAvailable
@@ -1818,10 +1831,17 @@ Rectangle {
                         color: root.colors.mutedText
                         font.family: Style.font.family
                         font.pixelSize: Style.font.bodySmall
+                        // The reader is told about the download before they ask
+                        // for it, because it is the one request Omaweb makes to
+                        // Google and they should not find out afterwards.
                         text: "Omaweb names the extensions it has tested and loads no others. "
                               + "One that is on is on in every Space, and each Space keeps its "
                               + "own logins for it, so it is unlocked where it is used. A "
-                              + "Private window loads none."
+                              + "Private window loads none.\n\nTurning one on downloads it from "
+                              + "the Chrome Web Store, which tells Google which extension you "
+                              + "are installing. Omaweb accepts it only if the publisher signed "
+                              + "it with the key this build carries, and asks once a day whether "
+                              + "a newer one has been published."
                     }
 
                     Column {
@@ -1843,10 +1863,17 @@ Rectangle {
                                 // publishes it, under what terms, and whether
                                 // the package is here yet.
                                 note: modelData.publisher + " · " + modelData.licence + (
-                                          modelData.installed ? "" : " · not downloaded yet")
+                                          modelData.fetching ? " · downloading" : (
+                                                                   modelData.installed ? "" :
+                                                                                         " · not downloaded yet"))
                                       + "\n" + modelData.summary
                                 accessibleName: modelData.name
-                                enabled: modelData.installed
+                                // Turning one on is what fetches it, so a
+                                // package that is not here yet is not a reason
+                                // to refuse the switch. Only a download already
+                                // running is: pressing again would ask for the
+                                // same folder twice.
+                                enabled: !modelData.fetching
                                 checked: modelData.enabled
                                 onClicked: root.knownExtensionToggled(modelData.key,
                                                                       !modelData.enabled)

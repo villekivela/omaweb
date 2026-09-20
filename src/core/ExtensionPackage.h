@@ -35,6 +35,19 @@ public:
     // endpoint, asked for a package this version of Chromium accepts.
     static QUrl storeAddress(const QString &storeId);
 
+    // Where the store answers what version it is offering, without sending the
+    // package itself. A freshness check that downloaded twenty megabytes to
+    // discover nothing had changed would be a reason not to check.
+    static QUrl updateAddress(const QString &storeId);
+
+    // The version in an update answer, or an empty string when the answer says
+    // nothing Omaweb understands. The store answers in Omaha's XML.
+    static QString versionOffered(const QByteArray &answer);
+
+    // The version of the package unpacked at `path`, or an empty string when
+    // there is none there.
+    static QString versionInstalled(const QString &path);
+
     // Verify `crx` against the extension's pinned key and unpack it into
     // `destination`, which is emptied first. The manifest is written back with
     // the publisher's key in it, which is what makes the engine load the
