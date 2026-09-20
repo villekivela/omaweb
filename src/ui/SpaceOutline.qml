@@ -235,7 +235,12 @@ Rectangle {
     signal downloadsRequested
     // Where the popup should come from, in window coordinates. A panel that
     // grows out of the mark is the mark, opened, rather than a second thing
-    // that appeared over the page.
+    // that appeared over the page. The keyboard asks for the same rectangle,
+    // so the command and the pointer open from the same place.
+    function extensionMarkRect() {
+        const corner = extensionMark.mapToItem(null, 0, 0);
+        return Qt.rect(corner.x, corner.y, extensionMark.width, extensionMark.height);
+    }
     signal extensionRequested(rect origin)
     signal releaseNotesRequested(url notes)
     // What the reader asked Site information for, on its way to the window's
@@ -1085,9 +1090,7 @@ Rectangle {
             colors: root.colors
             iconFontFamily: root.iconFontFamily
             hosted: root.hostedExtensions
-            onClicked: root.extensionRequested(root.mapToItem(null, extensionMark.x, extensionMark.y,
-                                                              extensionMark.width,
-                                                              extensionMark.height))
+            onClicked: root.extensionRequested(root.extensionMarkRect())
         }
 
         DownloadMark {

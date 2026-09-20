@@ -59,6 +59,11 @@ FocusScope {
     // drawn for a panel of its own size and spreads badly over a whole page
     // area. Zero is a page, which takes the room it is given.
     property size preferredSize: Qt.size(0, 0)
+    // Whether keeping the page is on offer. A Glance from a link is a page the
+    // reader may want to stay on. An extension's popup is not a page: it is a
+    // control that closes when it is done with, and a tab holding one would go
+    // on showing a menu for a window it no longer belongs to.
+    property bool openAsTabAllowed: true
     // The head sits above the page, so a panel asked for a page's room is that
     // much taller.
     readonly property real chrome: 38 + 2
@@ -241,7 +246,7 @@ FocusScope {
             Text {
                 id: hint
                 objectName: "glanceHint"
-                anchors.right: openAsTab.left
+                anchors.right: openAsTab.visible ? openAsTab.left : closeButton.left
                 anchors.rightMargin: Style.spacing.md
                 anchors.verticalCenter: parent.verticalCenter
                 text: "esc closes"
@@ -253,6 +258,7 @@ FocusScope {
             ChromeButton {
                 id: openAsTab
                 objectName: "openGlanceAsTabButton"
+                visible: root.openAsTabAllowed
                 anchors.right: closeButton.left
                 anchors.verticalCenter: parent.verticalCenter
                 width: 30

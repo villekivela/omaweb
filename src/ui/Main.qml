@@ -229,6 +229,25 @@ ApplicationWindow {
     // extension belongs to the profile, which is there first. The adapter
     // reports the same thing per view for the engine contract.
     readonly property bool knownExtensionsAvailable: EngineBuild.knownExtensions
+    // The menu the extension mark opens, and where it was asked from. The
+    // rectangle is kept because the popup grows out of the mark, not out of
+    // the menu row that chose it.
+    property bool extensionMenuOpen: false
+    property real extensionMenuX: 0
+    property real extensionMenuY: 0
+    property rect extensionMenuOrigin: Qt.rect(0, 0, 0, 0)
+    // One row per enabled Known extension, saying whether the engine is
+    // actually running it. An extension that is enabled and installed but has
+    // not come up in this Space is named rather than hidden, because a reader
+    // looking for it wants to know it is not there.
+    readonly property var extensionMenuItems: window.enabledExtensions.map(function (entry) {
+        const hosted = window.hostedExtensions.some(item => item.key === entry.key);
+        return {
+            "label": hosted ? entry.name : entry.name + " (not running)",
+            "enabled": hosted,
+            "key": entry.key
+        };
+    })
     property var omnibarSuggestions: []
     // What the retained-tab list is showing. Rebuilt when the retained set
     // changes and while the list is open, because a renderer's resident memory
@@ -261,6 +280,9 @@ ApplicationWindow {
     property bool glanceEnabled: true
     property var glanceEngine: null
     property string glanceTabId: ""
+    // Whether the Glance on show is an extension's popup rather than a page.
+    // A popup is a control, so it is not kept as a tab.
+    property bool glanceIsExtension: false
     readonly property bool glanceOpen: glanceEngine !== null
     // What the reader pointed at on the page, and the menu Omaweb draws for it.
     property var pageContext: null
@@ -701,6 +723,7 @@ ApplicationWindow {
     function openGlance(request, requestedUrl) {
         window.closeGlance();
         glance.preferredSize = Qt.size(0, 0);
+        window.glanceIsExtension = false;
         const destination = requestedUrl.toString().length > 0 ? requestedUrl.toString() :
                                                                  "about:blank";
         const opener = engineLoader.item;
@@ -732,18 +755,40 @@ ApplicationWindow {
                 ? window.windowBrowser.knownExtensions() : [];
     }
 
-    // A Known extension's popup is a page drawn over the page, which is what a
-    // Glance is, so it opens as one: the same panel, the same blur, the same
-    // Escape, and the same command for keeping it as a tab. It lifts from the
-    // sidebar mark rather than from a link, because the mark is where the
-    // reader asked from.
+    // The mark answers with what this window hosts rather than with a page:
+    // which extensions are enabled, and which of them the engine is actually
+    // running. Even one gets the menu, because the reader pressing the mark is
+    // asking what is there, and an answer that sometimes lists and sometimes
+    // opens is two controls wearing one icon.
     //
-    // One extension opens straight away. Nothing else is decided here: a
-    // window hosting several is the reader choosing which, and that is a menu
-    // the mark asks for rather than a guess made on their behalf.
-    function openExtensionPopup(origin) {
-        const hosted = window.hostedExtensions;
-        if (hosted.length !== 1)
+    // An empty origin is the keyboard asking, which still means the mark: the
+    // menu hangs off it and the popup grows out of it either way.
+    function openExtensionMenu(origin) {
+        const mark = origin && origin.width > 0 ? origin : sidebar.extensionMarkRect();
+        if (mark.width <= 0)
+            return false;
+        window.extensionMenuOrigin = mark;
+        window.extensionMenuX = mark.x + mark.width;
+        window.extensionMenuY = mark.y + mark.height;
+        window.extensionMenuOpen = true;
+        return true;
+    }
+
+    function runExtensionMenu(index) {
+        const item = window.extensionMenuItems[index];
+        window.extensionMenuOpen = false;
+        if (!item || item.enabled === false)
+            return;
+        window.openExtensionPopup(item.key, window.extensionMenuOrigin);
+    }
+
+    // A Known extension's popup is a page drawn over the page, which is what a
+    // Glance is, so it opens as one: the same panel, the same blur, and the
+    // same Escape. It lifts from the sidebar mark rather than from a link,
+    // because the mark is where the reader asked from.
+    function openExtensionPopup(key, origin) {
+        const hosted = window.hostedExtensions.filter(entry => entry.key === key);
+        if (hosted.length === 0)
             return false;
         const popupUrl = hosted[0].popupUrl;
         if (!popupUrl || popupUrl.length === 0)
@@ -757,7 +802,9 @@ ApplicationWindow {
         // manager's is narrower than that and lays out badly when it is given
         // a page's worth of room.
         glance.preferredSize = Qt.size(400, 600);
-        glance.origin = origin ? glance.mapFromItem(null, origin) : Qt.rect(0, 0, 0, 0);
+        glance.origin = origin && origin.width > 0 ? glance.mapFromItem(null, origin) : Qt.rect(0, 0,
+                                                                                                0, 0);
+        window.glanceIsExtension = true;
         engine.anchors.fill = glance.pageHost;
         engine.visible = true;
         window.glanceTabId = window.windowBrowser.activeTabId;
@@ -769,6 +816,7 @@ ApplicationWindow {
     // empty before it has gone.
     function closeGlance() {
         const engine = window.glanceEngine;
+        window.glanceIsExtension = false;
         if (!engine)
             return;
         window.refuseRequestsFrom(engine);
@@ -2195,7 +2243,7 @@ ApplicationWindow {
                 onDownloadsRequested: window.requestDownloads()
                 hostedExtensions: window.hostedExtensions
                 onExtensionRequested: function (origin) {
-                    window.openExtensionPopup(origin);
+                    window.openExtensionMenu(origin);
                 }
                 onReleaseNotesRequested: function (notes) {
                     // A new tab rather than this one: the reader was doing
@@ -2535,6 +2583,7 @@ ApplicationWindow {
                     iconFontFamily: materialSymbols.name
                     open: window.glanceOpen
                     ease: window.easeChrome
+                    openAsTabAllowed: !window.glanceIsExtension
                     pageSource: window.pagelessViewport ? null : engineLoader
                     engine: window.glanceEngine
 
@@ -3453,6 +3502,24 @@ ApplicationWindow {
         text: window.pageTooltipText
         anchorX: window.pageTooltipX
         anchorY: window.pageTooltipY
+    }
+
+    ChromeMenu {
+        id: extensionMenu
+        objectName: "extensionMenu"
+        anchors.fill: parent
+        z: 56
+        colors: window.colors
+        open: window.extensionMenuOpen
+        itemWidth: 224
+        anchorX: window.extensionMenuX
+        anchorY: window.extensionMenuY
+        items: window.extensionMenuItems
+
+        onDismissed: window.extensionMenuOpen = false
+        onTriggered: function (index) {
+            window.runExtensionMenu(index);
+        }
     }
 
     ChromeMenu {

@@ -41,7 +41,7 @@ QtObject {
             window.closeActiveTab();
             return true;
         case "extension-popup":
-            window.openExtensionPopup(Qt.rect(0, 0, 0, 0));
+            window.openExtensionMenu(Qt.rect(0, 0, 0, 0));
             return true;
         case "glance-to-tab":
             window.openGlanceAsTab();
@@ -265,7 +265,7 @@ QtObject {
                                              },
                                              "extension-popup": {
                                                  group: "tabs",
-                                                 title: "Open the extension",
+                                                 title: "Show the extensions",
                                                  requires: "extension"
                                              },
                                              "glance-to-tab": {
@@ -488,7 +488,9 @@ QtObject {
             // cannot host one, is none hosted rather than a missing condition.
             return window.hostedExtensions.length > 0;
         case "glance":
-            return window.glanceOpen;
+            // An extension's popup is drawn as a Glance but is not a page to
+            // keep, so the command that keeps one is not on offer for it.
+            return window.glanceOpen && !window.glanceIsExtension;
         case "find":
             return window.findAvailable;
         case "zoom":
