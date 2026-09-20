@@ -13,12 +13,22 @@ Item {
     // hangs from there, so it never covers the button that summoned it.
     property real anchorX: 0
     property real anchorY: 0
+    // The top of the control, for a menu with no room to hang and no way to
+    // know how tall the control is: rising from the bottom edge would put the
+    // menu over the button that summoned it. A pointer's menu has no control
+    // to clear, so its top is where it is.
+    property real anchorTop: root.anchorY
     // A menu the pointer opened starts at the pointer instead, the way every
     // context menu does: there is no control under it to keep clear of.
     property bool fromPointer: false
     property var items: []
     property int selected: 0
     property real itemWidth: 232
+    // A menu of things that carry their own mark can drop the type and stand
+    // as a column of marks, which is how a browser lists what it is running.
+    // The name is still what the row answers to, for the screen reader and for
+    // anything asking what the row is.
+    property bool labelsVisible: true
 
     signal triggered(int index)
     signal dismissed
@@ -98,7 +108,7 @@ Item {
         // hanging off the edge where its last row would be unreachable.
         x: Math.max(8, Math.min(root.fromPointer ? root.anchorX : root.anchorX - width, root.width - width
                                 - 8))
-        y: root.anchorY + height + 8 < root.height ? root.anchorY + 6 : Math.max(8, root.anchorY
+        y: root.anchorY + height + 8 < root.height ? root.anchorY + 6 : Math.max(8, root.anchorTop
                                                                                  - height - 6)
         radius: 3
         color: root.colors.overlay
@@ -159,8 +169,10 @@ Item {
                         id: mark
                         objectName: "chromeMenuIcon" + index
                         visible: parent.iconSource.toString().length > 0 && !parent.separator
-                        anchors.left: parent.left
+                        anchors.left: root.labelsVisible ? parent.left : undefined
                         anchors.leftMargin: 14
+                        anchors.horizontalCenter: root.labelsVisible ? undefined :
+                                                                       parent.horizontalCenter
                         anchors.verticalCenter: parent.verticalCenter
                         width: 16
                         height: 16
@@ -177,7 +189,7 @@ Item {
                     }
 
                     Text {
-                        visible: !parent.separator
+                        visible: !parent.separator && root.labelsVisible
                         anchors.left: parent.left
                         anchors.leftMargin: mark.visible ? 14 + mark.width + 8 : 14
                         anchors.right: parent.right

@@ -235,6 +235,7 @@ ApplicationWindow {
     property bool extensionMenuOpen: false
     property real extensionMenuX: 0
     property real extensionMenuY: 0
+    property real extensionMenuTop: 0
     property rect extensionMenuOrigin: Qt.rect(0, 0, 0, 0)
     // One row per enabled Known extension, under the publisher's own mark. An
     // extension that is enabled and installed but has not come up in this
@@ -771,6 +772,7 @@ ApplicationWindow {
         window.extensionMenuOrigin = mark;
         window.extensionMenuX = mark.x + mark.width;
         window.extensionMenuY = mark.y + mark.height;
+        window.extensionMenuTop = mark.y;
         window.extensionMenuOpen = true;
         return true;
     }
@@ -3512,12 +3514,14 @@ ApplicationWindow {
         z: 56
         colors: window.colors
         open: window.extensionMenuOpen
-        // Wider than a menu of the browser's own verbs: an extension is named
-        // by its publisher, and a name eliding to "Bitwarden Password Man..."
-        // is the list failing at the one thing it is for.
-        itemWidth: 264
+        // Marks alone, standing over the mark that opened them: an extension
+        // is recognised by its icon, and the publisher's name spelled out is a
+        // sentence where a column of icons says the same thing.
+        labelsVisible: false
+        itemWidth: 44
         anchorX: window.extensionMenuX
         anchorY: window.extensionMenuY
+        anchorTop: window.extensionMenuTop
         items: window.extensionMenuItems
 
         onDismissed: window.extensionMenuOpen = false
