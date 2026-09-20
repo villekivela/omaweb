@@ -1,5 +1,7 @@
 #include "BrowserController.h"
 
+#include "KnownExtensions.h"
+
 #include "DownloadPolicy.h"
 #include "HistorySearch.h"
 #include "SqliteSessionStore.h"
@@ -2463,6 +2465,59 @@ bool BrowserController::setPreference(const QString &name, const QString &value)
         return false;
     }
     emit preferenceChanged(name);
+    return true;
+}
+
+namespace {
+
+    // What a reader's answer about one Known extension is stored under. Named once
+    // so the Settings switch and the engine read the same key.
+    QString extensionPreferenceName(const QString &key)
+    {
+        return QStringLiteral("known-extension-%1-enabled").arg(key);
+    }
+
+} // namespace
+
+QVariantList BrowserController::knownExtensions() const
+{
+    QVariantList entries;
+    for (const KnownExtension &extension : omaweb::knownExtensions()) {
+        const QString path = m_storage ? m_storage->extensionPathFor(extension.key) : QString {};
+        // A package is a directory with a manifest in it. Anything else is not
+        // one, however much of it has been written so far.
+        const bool installed = !path.isEmpty()
+            && QFileInfo::exists(QDir(path).filePath(QStringLiteral("manifest.json")));
+        entries.append(QVariantMap {
+            {QStringLiteral("key"), extension.key},
+            {QStringLiteral("name"), extension.name},
+            {QStringLiteral("publisher"), extension.publisher},
+            {QStringLiteral("licence"), extension.licence},
+            {QStringLiteral("homepage"), extension.homepage},
+            {QStringLiteral("storeId"), extension.storeId},
+            {QStringLiteral("summary"), extension.summary},
+            {QStringLiteral("path"), path},
+            {QStringLiteral("installed"), installed},
+            {QStringLiteral("enabled"),
+                preference(extensionPreferenceName(extension.key)) == QStringLiteral("true")},
+        });
+    }
+    return entries;
+}
+
+bool BrowserController::setKnownExtensionEnabled(const QString &key, bool enabled)
+{
+    // A key Omaweb does not name is refused rather than stored: a preference
+    // for an extension that does not exist would outlive the build that named
+    // it and be handed to an engine as a package that is not there.
+    if (omaweb::knownExtension(key).key.isEmpty()) {
+        return false;
+    }
+    if (!setPreference(extensionPreferenceName(key),
+            enabled ? QStringLiteral("true") : QStringLiteral("false"))) {
+        return false;
+    }
+    emit knownExtensionsChanged();
     return true;
 }
 

@@ -206,6 +206,24 @@ ApplicationWindow {
     // without a parent, and this list is what keeps it alive and closable.
     readonly property var privateWindows: []
     property var spaceProfileHost: null
+    // The Known extensions this window hosts: what the reader enabled, that is
+    // actually on disk, and only where the engine can host one at all. A
+    // Private window hosts none, whatever is enabled.
+    readonly property var enabledExtensions: window.privateWindow ||
+                                             !window.knownExtensionsAvailable ? [] :
+                                                                                window.windowBrowser.knownExtensions(
+                                                                                    ).filter(entry
+                                                                                             => entry.enabled
+                                                                                                && entry.installed)
+    // What this window's Space is hosting right now. A window whose profile
+    // host keeps none, which is every window of an engine that cannot host an
+    // extension, reports an empty list rather than nothing.
+    readonly property var hostedExtensions: window.spaceProfileHost
+                                            && window.spaceProfileHost.hostedExtensions
+                                            ? window.spaceProfileHost.hostedExtensions : []
+    readonly property bool knownExtensionsAvailable: engineLoader.item !== null && (
+                                                         engineLoader.item.capabilities
+                                                         & EngineCapabilities.KnownExtensions) !== 0
     property var omnibarSuggestions: []
     // What the retained-tab list is showing. Rebuilt when the retained set
     // changes and while the list is open, because a renderer's resident memory
@@ -694,6 +712,34 @@ ApplicationWindow {
         window.glanceEngine = engine;
         if (request)
             engine.acceptNewWindowRequest(request);
+        return true;
+    }
+
+    // A Known extension's popup is a page drawn over the page, which is what a
+    // Glance is, so it opens as one: the same panel, the same blur, the same
+    // Escape, and the same command for keeping it as a tab. It lifts from the
+    // sidebar mark rather than from a link, because the mark is where the
+    // reader asked from.
+    //
+    // One extension opens straight away. Nothing else is decided here: a
+    // window hosting several is the reader choosing which, and that is a menu
+    // the mark asks for rather than a guess made on their behalf.
+    function openExtensionPopup(origin) {
+        const hosted = window.hostedExtensions;
+        if (hosted.length !== 1)
+            return false;
+        const popupUrl = hosted[0].popupUrl;
+        if (!popupUrl || popupUrl.length === 0)
+            return false;
+        window.closeGlance();
+        const engine = engineLoader.createDetachedEngine(glance.pageHost, popupUrl);
+        if (!engine)
+            return false;
+        glance.origin = origin ? glance.mapFromItem(null, origin) : Qt.rect(0, 0, 0, 0);
+        engine.anchors.fill = glance.pageHost;
+        engine.visible = true;
+        window.glanceTabId = window.windowBrowser.activeTabId;
+        window.glanceEngine = engine;
         return true;
     }
 
@@ -2121,6 +2167,10 @@ ApplicationWindow {
                 // the rule rather than a matching pair of durations.
                 savedFileNoticeShowing: pageNotice.showing && pageNotice.glyph === "download_done"
                 onDownloadsRequested: window.requestDownloads()
+                hostedExtensions: window.hostedExtensions
+                onExtensionRequested: function (origin) {
+                    window.openExtensionPopup(origin);
+                }
                 onReleaseNotesRequested: function (notes) {
                     // A new tab rather than this one: the reader was doing
                     // something else, and a notice that takes the page away is
@@ -3299,6 +3349,7 @@ ApplicationWindow {
         contentBlocker: engineContentBlocker
         cookiePolicy: engineCookiePolicy
         downloadHolds: engineHeldDownloads
+        knownExtensions: window.enabledExtensions
         owner: window
 
         onCreated: function (spaceId, host) {

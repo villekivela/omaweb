@@ -394,6 +394,13 @@ public:
     Q_INVOKABLE QString preference(const QString &name, const QString &fallback = {}) const;
     Q_INVOKABLE bool setPreference(const QString &name, const QString &value);
 
+    // Every Known extension Omaweb names, with what the reader decided and what
+    // is actually on disk. `enabled` is the reader's answer and `installed` is
+    // the package: a reader can enable one before it has been fetched, and what
+    // the engine is handed is the pair.
+    Q_INVOKABLE QVariantList knownExtensions() const;
+    Q_INVOKABLE bool setKnownExtensionEnabled(const QString &key, bool enabled);
+
 signals:
     void activeSpaceChanged();
     void activeTabChanged();
@@ -403,6 +410,7 @@ signals:
     void splitChanged();
     void developerToolsChanged();
     void closedTabsChanged();
+    void knownExtensionsChanged();
     void downloadDirectoryChanged();
     void retainedTabsChanged();
     // The Space being put away, and the tabs inside it that keep running
