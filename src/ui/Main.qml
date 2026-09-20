@@ -211,10 +211,9 @@ ApplicationWindow {
     // Private window hosts none, whatever is enabled.
     readonly property var enabledExtensions: window.privateWindow ||
                                              !window.knownExtensionsAvailable ? [] :
-                                                                                window.windowBrowser.knownExtensions(
-                                                                                    ).filter(entry
-                                                                                             => entry.enabled
-                                                                                                && entry.installed)
+                                                                                window.knownExtensions.filter(
+                                                                                    entry => entry.enabled
+                                                                                             && entry.installed)
     // What this window's Space is hosting right now. A window whose profile
     // host keeps none, which is every window of an engine that cannot host an
     // extension, reports an empty list rather than nothing.
@@ -713,6 +712,17 @@ ApplicationWindow {
         if (request)
             engine.acceptNewWindowRequest(request);
         return true;
+    }
+
+    // What Omaweb names, what the reader answered, and what is on disk. Read
+    // rather than bound, because the package arriving is a change to the
+    // filesystem that nothing in QML is watching.
+    function readKnownExtensions() {
+        // A controller that does not name extensions is not an error to
+        // report: the UI lab runs the chrome without one, and a build whose
+        // engine cannot host an extension has nothing to list either.
+        window.knownExtensions = window.windowBrowser && window.windowBrowser.knownExtensions
+                ? window.windowBrowser.knownExtensions() : [];
     }
 
     // A Known extension's popup is a page drawn over the page, which is what a
@@ -1436,6 +1446,10 @@ ApplicationWindow {
                 window.restoreChromeAppearance();
             else if (name === "use-favicons" || name === "tint-favicons")
                 window.restoreTabAppearance();
+        }
+
+        function onKnownExtensionsChanged() {
+            window.readKnownExtensions();
         }
     }
 
@@ -3307,6 +3321,9 @@ ApplicationWindow {
         window.createSpaceProfile();
         window.visibleSubscriptions = contentBlocker.subscriptions;
         engineLoader.resume();
+        // After the engine, with the rest of what a window restores: what is
+        // in Settings is never a reason for the page not to come up.
+        window.readKnownExtensions();
         // Last, and on its own: how wide a panel was left is never a reason
         // for the page not to come up.
         window.restoreSidebarWidth();

@@ -80,6 +80,12 @@ Rectangle {
     // The window's download list. A model rather than an array: it says when
     // it changes, so this page never asks for it again.
     property var downloads: null
+    // Every Known extension Omaweb names, as the controller reports them.
+    property var knownExtensions: []
+    // Whether this build's engine can host one at all. Without it the section
+    // says so rather than offering switches that would load an extension into
+    // a browser that hangs on its first message.
+    property bool knownExtensionsAvailable: false
     property var subscriptions: []
     // The lists Content blocking knows by name and has not subscribed, offered
     // beside the subscriptions so the reader never has to fetch an address.
@@ -149,7 +155,7 @@ Rectangle {
     readonly property bool needsAttention: keyboardReport.length > 0 || inputMethodMissing
 
     readonly property var sections: ["tabs", "interface", "keyboard", "content blocking", "network",
-        "downloads", "search", "privacy", "spaces", "sync", "about"]
+        "downloads", "search", "privacy", "spaces", "extensions", "sync", "about"]
 
     // The rail is as wide as the longest section name it draws, measured in the
     // bold face the current section takes so the pane beside it does not shift
@@ -307,6 +313,10 @@ Rectangle {
         root.closed();
         root.syncConsentRequested(url);
     }
+    // A reader turning a Known extension on or off. One answer, not one per
+    // Space: every Space loads the same package, and what they keep apart is
+    // the storage the extension writes.
+    signal knownExtensionToggled(string key, bool enabled)
     signal useFaviconsToggled(bool enabled)
     signal tintFaviconsToggled(bool enabled)
     signal floatingControlsToggled(bool enabled)
@@ -1775,11 +1785,81 @@ Rectangle {
                     }
                 }
 
-                // ---- about -------------------------------------------------
+                // ---- extensions --------------------------------------------
 
                 Column {
                     width: pane.width
                     visible: root.section === 9
+                    spacing: pane.spacing
+
+                    Text {
+                        text: "Known extensions"
+                        color: root.colors.text
+                        font.family: Style.font.family
+                        font.pixelSize: Style.font.display
+                    }
+
+                    NoticeBox {
+                        objectName: "extensionsUnavailableNotice"
+                        width: pane.width
+                        visible: !root.knownExtensionsAvailable
+                        colors: root.colors
+                        iconFontFamily: root.iconFontFamily
+                        glyph: "extension_off"
+                        title: "This build cannot host an extension"
+                        detail: "Known extensions need the engine Omaweb builds for itself. "
+                                + "This Omaweb runs the engine the system supplies."
+                    }
+
+                    Text {
+                        width: pane.width
+                        visible: root.knownExtensionsAvailable
+                        wrapMode: Text.WordWrap
+                        color: root.colors.mutedText
+                        font.family: Style.font.family
+                        font.pixelSize: Style.font.small
+                        text: "Omaweb names the extensions it has tested and loads no others. "
+                              + "One that is on is on in every Space, and each Space keeps its "
+                              + "own logins for it, so it is unlocked where it is used. A "
+                              + "Private window loads none."
+                    }
+
+                    Column {
+                        width: pane.width
+                        spacing: 0
+                        visible: root.knownExtensionsAvailable
+
+                        Repeater {
+                            model: root.section === 9 ? root.knownExtensions : []
+
+                            SettingToggle {
+                                required property var modelData
+
+                                objectName: "knownExtension-" + modelData.key
+                                width: pane.width
+                                colors: root.colors
+                                title: modelData.name
+                                // What the reader needs to judge it: who
+                                // publishes it, under what terms, and whether
+                                // the package is here yet.
+                                note: modelData.publisher + " · " + modelData.licence + (
+                                          modelData.installed ? "" : " · not downloaded yet")
+                                      + "\n" + modelData.summary
+                                accessibleName: modelData.name
+                                enabled: modelData.installed
+                                checked: modelData.enabled
+                                onClicked: root.knownExtensionToggled(modelData.key,
+                                                                      !modelData.enabled)
+                            }
+                        }
+                    }
+                }
+
+                // ---- sync --------------------------------------------------
+
+                Column {
+                    width: pane.width
+                    visible: root.section === 10
                     spacing: pane.spacing
 
                     Text {
@@ -2096,7 +2176,7 @@ Rectangle {
 
                 Column {
                     width: pane.width
-                    visible: root.section === 10
+                    visible: root.section === 11
                     spacing: pane.spacing
 
                     Text {

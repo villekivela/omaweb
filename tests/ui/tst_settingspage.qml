@@ -1346,7 +1346,7 @@ TestCase {
         const page = makePage();
         const pane = findChild(page, "settingsPane");
         verify(pane !== null);
-        compare(page.sections.length, 11);
+        compare(page.sections.length, 12);
 
         theme.useTypeTokens(2);
         for (let section = 0; section < page.sections.length; ++section) {
