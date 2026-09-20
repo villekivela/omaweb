@@ -30,6 +30,13 @@ public:
     // history search reads the same file from its own thread, so the layout is
     // named here rather than spelled out twice.
     QString databasePathFor(const QString &spaceId) const;
+    // Where the package of one Known extension is unpacked. It sits beside the
+    // Spaces rather than inside one, because a reader enables a Known extension
+    // once and every Space loads the same package; what each Space keeps apart
+    // is the extension's storage, which the engine writes into that Space's own
+    // Engine profile. The package is an engine's own format, so it is named
+    // under the engine that reads it.
+    QString extensionPathFor(const QString &extensionKey) const;
 
 private:
     QString m_dataRoot;

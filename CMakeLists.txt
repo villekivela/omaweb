@@ -175,6 +175,8 @@ add_library(omaweb-core STATIC
     src/core/HardwareVideoDecode.h
     src/core/HistoryQuery.cpp
     src/core/HistoryQuery.h
+    src/core/KnownExtensions.cpp
+    src/core/KnownExtensions.h
     src/core/HistorySearch.cpp
     src/core/HistorySearch.h
     src/core/KeyboardNavigation.cpp
@@ -890,6 +892,11 @@ if(BUILD_TESTING)
     omaweb_strict_target(omaweb-session-fixture-tests)
     omaweb_declarative_fixture_target(omaweb-session-fixture-tests)
     add_test(NAME omaweb-session-fixture COMMAND omaweb-session-fixture-tests)
+
+    qt_add_executable(omaweb-known-extensions-tests tests/core/tst_knownextensions.cpp)
+    target_link_libraries(omaweb-known-extensions-tests PRIVATE omaweb-core Qt6::Test)
+    omaweb_strict_target(omaweb-known-extensions-tests)
+    add_test(NAME omaweb-known-extensions COMMAND omaweb-known-extensions-tests)
 
     qt_add_executable(omaweb-space-storage-tests tests/core/tst_spacestorage.cpp)
     target_link_libraries(omaweb-space-storage-tests PRIVATE omaweb-core Qt6::Test)

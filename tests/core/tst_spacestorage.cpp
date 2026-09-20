@@ -23,6 +23,12 @@ void SpaceStorageTest::keepsEachSpaceUnderTheDataRoot()
 
     QCOMPARE(storage.dataRoot(), QStringLiteral("/data"));
     QCOMPARE(storage.engineName(), QStringLiteral("qt"));
+
+    // A package is shared by every Space, so it sits beside them rather than
+    // inside one, under the engine whose format it is.
+    QCOMPARE(storage.extensionPathFor(QStringLiteral("bitwarden")),
+        QStringLiteral("/data/extensions/qt/bitwarden"));
+
     QCOMPARE(storage.databasePathFor(QStringLiteral("personal")),
         QStringLiteral("/data/spaces/personal/browser.sqlite"));
     QCOMPARE(storage.profilePathFor(QStringLiteral("personal")),
