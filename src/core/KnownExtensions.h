@@ -30,6 +30,13 @@ struct KnownExtension {
     // what the publisher's own desktop application allows; a package that loses
     // it is refused by the vendor rather than by us.
     QString storeId;
+    // The publisher's own signing key, as the store serves it in the package's
+    // CRX header and as the manifest carries it. Two jobs, one string: the id
+    // above is the first sixteen bytes of its SHA-256, and a downloaded package
+    // is accepted only if it is signed by this key. Pinning it here is what
+    // makes the download safe to make at all, because then nothing the network
+    // or the store says can install something else under this name.
+    QString publisherKey;
     QString summary;
 };
 

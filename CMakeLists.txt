@@ -80,7 +80,11 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-set(omaweb_qt_components Concurrent Core Gui Network Qml Quick QuickControls2 Sql)
+# `CorePrivate` is one header in `ExtensionPackage.cpp`: `QZipReader`, which
+# Qt ships privately and which is what reads a store package's archive. Writing
+# a ZIP reader by hand, or taking a dependency for one, would both be worse
+# than a header that has been in the same place since Qt 5.
+set(omaweb_qt_components Concurrent Core CorePrivate Gui Network Qml Quick QuickControls2 Sql)
 if(UNIX AND NOT APPLE)
     # The desktop's notification service is a session-bus service, so the Linux
     # platform layer needs D-Bus. macOS reaches its own through AppKit.
@@ -91,7 +95,7 @@ if(UNIX AND NOT APPLE)
 endif()
 if(OMAWEB_BUILD_BROWSER)
     # `WebEngineQuickPrivate` is for `QtProfileSettings.cpp`; its target says why.
-    list(APPEND omaweb_qt_components CorePrivate WebEngineCore WebEngineQuick WebEngineQuickPrivate)
+    list(APPEND omaweb_qt_components WebEngineCore WebEngineQuick WebEngineQuickPrivate)
 endif()
 if(BUILD_TESTING)
     # `GuiPrivate` for the UI tests' frame-time probe, which reads a frame's
@@ -175,6 +179,8 @@ add_library(omaweb-core STATIC
     src/core/HardwareVideoDecode.h
     src/core/HistoryQuery.cpp
     src/core/HistoryQuery.h
+    src/core/ExtensionPackage.cpp
+    src/core/ExtensionPackage.h
     src/core/KnownExtensions.cpp
     src/core/KnownExtensions.h
     src/core/HistorySearch.cpp
@@ -218,8 +224,13 @@ add_library(omaweb-core STATIC
 )
 set_target_properties(omaweb-core PROPERTIES POSITION_INDEPENDENT_CODE ON)
 target_include_directories(omaweb-core PUBLIC src/core src/content-blocking)
+# OpenSSL verifies a store package's publisher signature. Qt links it already
+# for TLS but exposes no signing, and a browser that installs signed packages
+# needs to check the signature itself rather than trust the transport.
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(LIBCRYPTO REQUIRED IMPORTED_TARGET libcrypto)
 target_link_libraries(omaweb-core PUBLIC Qt6::Core Qt6::Network Qt6::Qml Qt6::Sql
-    PRIVATE Qt6::Concurrent omaweb-content-blocking)
+    PRIVATE Qt6::Concurrent Qt6::CorePrivate PkgConfig::LIBCRYPTO omaweb-content-blocking)
 omaweb_strict_target(omaweb-core)
 
 if(OMAWEB_BUILD_SYNC)
@@ -892,6 +903,12 @@ if(BUILD_TESTING)
     omaweb_strict_target(omaweb-session-fixture-tests)
     omaweb_declarative_fixture_target(omaweb-session-fixture-tests)
     add_test(NAME omaweb-session-fixture COMMAND omaweb-session-fixture-tests)
+
+    qt_add_executable(omaweb-extension-package-tests tests/core/tst_extensionpackage.cpp)
+    target_link_libraries(omaweb-extension-package-tests PRIVATE omaweb-core Qt6::Test
+        Qt6::CorePrivate PkgConfig::LIBCRYPTO)
+    omaweb_strict_target(omaweb-extension-package-tests)
+    add_test(NAME omaweb-extension-package COMMAND omaweb-extension-package-tests)
 
     qt_add_executable(omaweb-known-extensions-tests tests/core/tst_knownextensions.cpp)
     target_link_libraries(omaweb-known-extensions-tests PRIVATE omaweb-core Qt6::Test)
