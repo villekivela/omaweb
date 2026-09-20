@@ -18,6 +18,7 @@
 #include <QJsonObject>
 #include <QSaveFile>
 #include <QSet>
+#include <QUrl>
 #include <QUrlQuery>
 #include <QUuid>
 #include <QQmlEngine>
@@ -2477,6 +2478,45 @@ namespace {
         return QStringLiteral("known-extension-%1-enabled").arg(key);
     }
 
+    // The publisher's own mark for the extension, so a list of them is read the
+    // way the reader recognises them rather than as a row of identical glyphs.
+    // The package's own icons first, which is the mark the publisher draws at
+    // the sizes a list uses; the action's icon otherwise, which is drawn small
+    // and flat for a browser's own chrome. Smallest that is still big enough
+    // for a sharp 26 point mark on a doubled display, and the largest there is
+    // when none of them is.
+    QUrl extensionIconUrl(const QString &path)
+    {
+        QFile manifest(QDir(path).filePath(QStringLiteral("manifest.json")));
+        if (!manifest.open(QIODevice::ReadOnly)) {
+            return {};
+        }
+        const QJsonObject root = QJsonDocument::fromJson(manifest.readAll()).object();
+        QJsonObject icons = root.value(QStringLiteral("icons")).toObject();
+        if (icons.isEmpty()) {
+            icons = root.value(QStringLiteral("action"))
+                        .toObject()
+                        .value(QStringLiteral("default_icon"))
+                        .toObject();
+        }
+        QString chosen;
+        int chosenSize = 0;
+        for (auto it = icons.constBegin(); it != icons.constEnd(); ++it) {
+            const int size = it.key().toInt();
+            const bool better = chosen.isEmpty() || (chosenSize < 52 && size > chosenSize)
+                || (size >= 52 && size < chosenSize);
+            if (size > 0 && better) {
+                chosen = it.value().toString();
+                chosenSize = size;
+            }
+        }
+        if (chosen.isEmpty()) {
+            return {};
+        }
+        const QString file = QDir(path).filePath(chosen);
+        return QFileInfo::exists(file) ? QUrl::fromLocalFile(file) : QUrl {};
+    }
+
 } // namespace
 
 QVariantList BrowserController::knownExtensions() const
@@ -2498,6 +2538,7 @@ QVariantList BrowserController::knownExtensions() const
             {QStringLiteral("summary"), extension.summary},
             {QStringLiteral("path"), path},
             {QStringLiteral("installed"), installed},
+            {QStringLiteral("iconUrl"), installed ? extensionIconUrl(path) : QUrl {}},
             {QStringLiteral("enabled"),
                 preference(extensionPreferenceName(extension.key)) == QStringLiteral("true")},
         });

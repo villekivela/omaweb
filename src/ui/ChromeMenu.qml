@@ -126,6 +126,13 @@ Item {
                     readonly property bool separator: modelData.separator === true
                     readonly property bool runnable: root.runnable(index)
 
+                    // A row's own mark, where the list is of things that have
+                    // one. Absent rather than reserved when nothing in the
+                    // menu carries an icon, so an ordinary menu keeps its
+                    // type against the left edge.
+                    readonly property url iconSource: modelData.icon !== undefined ? modelData.icon :
+                                                                                     ""
+
                     objectName: separator ? "chromeMenuSeparator" + index : "chromeMenuItem" + index
                     width: parent.width
                     height: separator ? 9 : 30
@@ -148,10 +155,31 @@ Item {
                         color: root.colors.separator
                     }
 
+                    Image {
+                        id: mark
+                        objectName: "chromeMenuIcon" + index
+                        visible: parent.iconSource.toString().length > 0 && !parent.separator
+                        anchors.left: parent.left
+                        anchors.leftMargin: 14
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: 16
+                        height: 16
+                        // A row the keyboard cannot land on is dimmed, and its
+                        // mark dims with it: an icon at full strength beside
+                        // grey type reads as the row being available.
+                        opacity: parent.runnable ? 1 : 0.4
+                        source: parent.iconSource
+                        sourceSize.width: 32
+                        sourceSize.height: 32
+                        fillMode: Image.PreserveAspectFit
+                        smooth: true
+                        asynchronous: true
+                    }
+
                     Text {
                         visible: !parent.separator
                         anchors.left: parent.left
-                        anchors.leftMargin: 14
+                        anchors.leftMargin: mark.visible ? 14 + mark.width + 8 : 14
                         anchors.right: parent.right
                         anchors.rightMargin: 14
                         anchors.verticalCenter: parent.verticalCenter

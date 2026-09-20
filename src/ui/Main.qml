@@ -236,15 +236,16 @@ ApplicationWindow {
     property real extensionMenuX: 0
     property real extensionMenuY: 0
     property rect extensionMenuOrigin: Qt.rect(0, 0, 0, 0)
-    // One row per enabled Known extension, saying whether the engine is
-    // actually running it. An extension that is enabled and installed but has
-    // not come up in this Space is named rather than hidden, because a reader
-    // looking for it wants to know it is not there.
+    // One row per enabled Known extension, under the publisher's own mark. An
+    // extension that is enabled and installed but has not come up in this
+    // Space is listed rather than hidden, dimmed the way any row the keyboard
+    // cannot land on is: a reader looking for it wants to see that it is there
+    // and not running, rather than wonder where it went.
     readonly property var extensionMenuItems: window.enabledExtensions.map(function (entry) {
-        const hosted = window.hostedExtensions.some(item => item.key === entry.key);
         return {
-            "label": hosted ? entry.name : entry.name + " (not running)",
-            "enabled": hosted,
+            "label": entry.name,
+            "icon": entry.iconUrl,
+            "enabled": window.hostedExtensions.some(item => item.key === entry.key),
             "key": entry.key
         };
     })
@@ -3511,7 +3512,10 @@ ApplicationWindow {
         z: 56
         colors: window.colors
         open: window.extensionMenuOpen
-        itemWidth: 224
+        // Wider than a menu of the browser's own verbs: an extension is named
+        // by its publisher, and a name eliding to "Bitwarden Password Man..."
+        // is the list failing at the one thing it is for.
+        itemWidth: 264
         anchorX: window.extensionMenuX
         anchorY: window.extensionMenuY
         items: window.extensionMenuItems
