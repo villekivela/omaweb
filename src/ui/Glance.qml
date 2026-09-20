@@ -55,8 +55,36 @@ FocusScope {
     // Inset enough that the page beneath is seen around it and the panel
     // reads as over the page rather than as the page.
     readonly property real inset: 40
-    readonly property real restWidth: Math.max(0, width - 2 * inset)
-    readonly property real restHeight: Math.max(0, height - 2 * inset)
+    // What the page inside asks to be, where it knows: an extension's popup is
+    // drawn for a panel of its own size and spreads badly over a whole page
+    // area. Zero is a page, which takes the room it is given.
+    property size preferredSize: Qt.size(0, 0)
+    // The head sits above the page, so a panel asked for a page's room is that
+    // much taller.
+    readonly property real chrome: 38 + 2
+    readonly property real restWidth: root.preferredSize.width > 0 ? Math.min(
+                                                                         root.preferredSize.width,
+                                                                         Math.max(0, width - 2
+                                                                                  * inset)) :
+                                                                     Math.max(0, width - 2 * inset)
+    readonly property real restHeight: root.preferredSize.height > 0 ? Math.min(
+                                                                           root.preferredSize.height
+                                                                           + root.chrome, Math.max(0,
+                                                                                                   height - 2
+                                                                                                   * inset)) :
+                                                                       Math.max(0, height - 2
+                                                                                * inset)
+    // A panel the size of the page area sits where the page would. One the
+    // size of a popup stands in the middle of it, because a small panel pinned
+    // to a corner reads as something that slipped rather than something that
+    // opened.
+    readonly property real restX: root.preferredSize.width > 0 ? Math.max(root.inset, (width
+                                                                                       - root.restWidth)
+                                                                          / 2) : root.inset
+    readonly property real restY: root.preferredSize.height > 0 ? Math.max(root.inset, (height
+                                                                                        - root.restHeight)
+                                                                           / 2) : root.inset
+
     // Where the panel starts and ends: the link, or its own place a sheet's
     // lift below.
     readonly property real fromX: fromOrigin ? origin.x : inset
@@ -155,8 +183,8 @@ FocusScope {
     Rectangle {
         id: panel
         objectName: "glancePanel"
-        x: root.lerp(root.fromX, root.inset)
-        y: root.lerp(root.fromY, root.inset)
+        x: root.lerp(root.fromX, root.restX)
+        y: root.lerp(root.fromY, root.restY)
         width: root.lerp(root.fromWidth, root.restWidth)
         height: root.lerp(root.fromHeight, root.restHeight)
         opacity: root.fromOrigin ? 1 : root.arrival

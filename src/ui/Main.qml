@@ -700,6 +700,7 @@ ApplicationWindow {
     // beneath replaces the first rather than stacking over it.
     function openGlance(request, requestedUrl) {
         window.closeGlance();
+        glance.preferredSize = Qt.size(0, 0);
         const destination = requestedUrl.toString().length > 0 ? requestedUrl.toString() :
                                                                  "about:blank";
         const opener = engineLoader.item;
@@ -751,6 +752,11 @@ ApplicationWindow {
         const engine = engineLoader.createDetachedEngine(glance.pageHost, popupUrl);
         if (!engine)
             return false;
+        // What a browser gives an extension's popup, and what the popup is
+        // drawn for. Chromium's own maximum is 800 by 600; a password
+        // manager's is narrower than that and lays out badly when it is given
+        // a page's worth of room.
+        glance.preferredSize = Qt.size(400, 600);
         glance.origin = origin ? glance.mapFromItem(null, origin) : Qt.rect(0, 0, 0, 0);
         engine.anchors.fill = glance.pageHost;
         engine.visible = true;
