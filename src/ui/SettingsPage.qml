@@ -1817,7 +1817,7 @@ Rectangle {
                         wrapMode: Text.WordWrap
                         color: root.colors.mutedText
                         font.family: Style.font.family
-                        font.pixelSize: Style.font.small
+                        font.pixelSize: Style.font.bodySmall
                         text: "Omaweb names the extensions it has tested and loads no others. "
                               + "One that is on is on in every Space, and each Space keeps its "
                               + "own logins for it, so it is unlocked where it is used. A "

@@ -2379,8 +2379,13 @@ Item {
                 root.announceDocument(request.url);
             const address = String(request.url);
             const scheme = address.substring(0, address.indexOf(":")).toLowerCase();
+            // chrome-extension is the engine's own scheme for a Known
+            // extension's pages, and it belongs to this browser as much as
+            // omaweb does. Sending it down the external-protocol path would
+            // ask the reader whether to hand their password manager's popup to
+            // another application.
             if (scheme === "http" || scheme === "https" || scheme === "file" || scheme === "about"
-                    || scheme === "data" || scheme === "omaweb") {
+                    || scheme === "data" || scheme === "omaweb" || scheme === "chrome-extension") {
                 // Site rules and scriptlets are named by host, which only a
                 // web address has.
                 if (request.isMainFrame && (scheme === "http" || scheme === "https"))

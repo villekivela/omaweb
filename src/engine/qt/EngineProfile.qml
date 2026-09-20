@@ -273,7 +273,10 @@ QtObject {
     // to be the same word.
     function extensionKeyFor(id) {
         for (const known of root.knownExtensions) {
-            if (known.id === id) {
+            // The engine derives an id from the publisher's key in the
+            // package, which is the id the store lists and the publisher's own
+            // desktop application allows.
+            if (known.storeId === id) {
                 return known.key;
             }
         }

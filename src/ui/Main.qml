@@ -206,6 +206,10 @@ ApplicationWindow {
     // without a parent, and this list is what keeps it alive and closable.
     readonly property var privateWindows: []
     property var spaceProfileHost: null
+    // Every Known extension Omaweb names, with the reader's answer and what is
+    // on disk. Read rather than bound: a package arriving is a change to the
+    // filesystem that nothing in QML is watching.
+    property var knownExtensions: []
     // The Known extensions this window hosts: what the reader enabled, that is
     // actually on disk, and only where the engine can host one at all. A
     // Private window hosts none, whatever is enabled.
@@ -220,9 +224,11 @@ ApplicationWindow {
     readonly property var hostedExtensions: window.spaceProfileHost
                                             && window.spaceProfileHost.hostedExtensions
                                             ? window.spaceProfileHost.hostedExtensions : []
-    readonly property bool knownExtensionsAvailable: engineLoader.item !== null && (
-                                                         engineLoader.item.capabilities
-                                                         & EngineCapabilities.KnownExtensions) !== 0
+    // Whether an extension can be hosted at all is a property of the build
+    // rather than of a page: a Space at rest has no engine view to ask, and the
+    // extension belongs to the profile, which is there first. The adapter
+    // reports the same thing per view for the engine contract.
+    readonly property bool knownExtensionsAvailable: EngineBuild.knownExtensions
     property var omnibarSuggestions: []
     // What the retained-tab list is showing. Rebuilt when the retained set
     // changes and while the list is open, because a renderer's resident memory
@@ -2512,7 +2518,13 @@ ApplicationWindow {
                     // The page's own extent, not the viewport's: the dock
                     // beside the page is not covered.
                     anchors.fill: engineLoader
-                    z: 25
+                    // Above the Start page, which stands where a page would:
+                    // a Glance is a panel over whatever the tab is showing,
+                    // and a Space at rest is showing something. A Glance used
+                    // to arrive only from a link on a live page, where the
+                    // Start page is not drawn, so the order never came up
+                    // until an extension's popup could open at rest.
+                    z: 35
                     colors: window.colors
                     iconFontFamily: materialSymbols.name
                     open: window.glanceOpen
