@@ -2700,6 +2700,24 @@ TestCase {
         compare(matches[0].command, "reopen-tab");
     }
 
+    // The panel groups by where a command acts. Showing the extensions opens a
+    // surface the window owns, the way Settings and Downloads do; it acts on no
+    // tab, and under TABS a reader looking for it would be reading the wrong
+    // list.
+    function test_showingTheExtensionsIsGroupedWithTheWindowsOwnSurfaces() {
+        const actions = window.commands.actions();
+        const grouped = {};
+        for (let index = 0; index < actions.length; ++index) {
+            grouped[actions[index].command] = actions[index].group;
+        }
+        compare(grouped["extension-popup"], "interface");
+        // Named beside the surfaces it belongs with, so a later move takes
+        // these three together or fails here.
+        compare(grouped["settings"], "interface");
+        compare(grouped["downloads"], "interface");
+        compare(grouped["history"], "interface");
+    }
+
     function test_tabCommandsWalkTheModelInOrder() {
         const start = browser.activeTabId;
         const count = browser.tabs.rowCount();

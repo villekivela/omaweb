@@ -264,7 +264,7 @@ QtObject {
                                                  requires: "pinned-tab"
                                              },
                                              "extension-popup": {
-                                                 group: "tabs",
+                                                 group: "interface",
                                                  title: "Show the extensions",
                                                  requires: "extension"
                                              },

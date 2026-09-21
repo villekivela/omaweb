@@ -803,7 +803,10 @@ if(BUILD_TESTING)
     )
 
     # The release build ships compiled QML and the source-tree builds ship
-    # none, so both configurations check their own build graph.
+    # none, so both configurations check their own build graph. The graph is
+    # the generator's own, named by the generator rather than by one file, so
+    # a Make build is checked the same as a Ninja one;
+    # scripts/check_generators.sh is what says both still are.
     if(OMAWEB_SOURCE_QML)
         set(omaweb_expected_qml_build "source")
     else()
@@ -811,7 +814,8 @@ if(BUILD_TESTING)
     endif()
     add_test(NAME omaweb-qml-build-graph
         COMMAND ${CMAKE_COMMAND}
-            -DOMAWEB_BUILD_GRAPH=${CMAKE_BINARY_DIR}/build.ninja
+            -DOMAWEB_BUILD_DIRECTORY=${CMAKE_BINARY_DIR}
+            -DOMAWEB_GENERATOR=${CMAKE_GENERATOR}
             -DOMAWEB_EXPECTED=${omaweb_expected_qml_build}
             -P ${CMAKE_CURRENT_SOURCE_DIR}/tests/cmake/check_qml_aot.cmake
     )
