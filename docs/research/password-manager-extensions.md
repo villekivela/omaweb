@@ -342,7 +342,8 @@ which routes to `NotificationDisplayService`; `browser_process.h` and
 From Omaweb's model: a presenter. Qt already routes web notifications through
 `QWebEngineProfile::setNotificationPresenter` (`qt/src/core/api/qwebengineprofile.cpp:729`).
 
-Bucket: **rewrite behind delegate**.
+Bucket: **rewrite behind delegate**. Implemented on 2026-09-21, exactly that way. Its absence stops
+1Password's worker starting; see the log entry.
 
 ### privacy
 
@@ -388,6 +389,10 @@ From Omaweb's model: tab ids, and the "which tab opened which" relation for
 `onCreatedNavigationTarget`. From Chromium's services: nothing beyond `WebContentsObserver`.
 
 Bucket: **rewrite behind delegate**. The compile route is a stop (`TabStripModel`).
+
+Corrected on 2026-09-21: the stop holds for the events and not for the functions. `getFrame` and
+`getAllFrames` are implemented on the tab registry, reading each frame's own committed URL, and need
+no tab-strip observer. See the log entry.
 
 ### webRequest and webRequestAuthProvider
 
@@ -601,24 +606,24 @@ upstream list reshuffles with the `is_qtwebengine` block unchanged, checked by h
 
 ## Summary
 
-| API                                 | Needed by               | Qt 6.11.1 status                                              | Bucket                  |
-| ----------------------------------- | ----------------------- | ------------------------------------------------------------- | ----------------------- |
-| tabs (query, get, create, ...)      | both                    | `update` only, sender-scoped                                  | rewrite behind delegate |
-| tabs.sendMessage                    | both                    | renderer hook in fork, unregistered; browser needs tab lookup | rewrite behind delegate |
-| windows                             | both                    | absent                                                        | rewrite behind delegate |
-| action                              | both                    | manifest parses, popup URL exposed, no namespace              | rewrite behind delegate |
-| commands                            | both                    | manifest parses, no namespace                                 | rewrite behind delegate |
-| scripting                           | both                    | absent; implementation has no browser includes                | compile with delegate   |
-| contextMenus                        | both (Bitwarden guards) | absent                                                        | rewrite behind delegate |
-| notifications                       | both (Bitwarden guards) | absent                                                        | rewrite behind delegate |
-| privacy                             | both (Bitwarden guards) | absent                                                        | rewrite behind delegate |
-| webNavigation                       | both                    | absent                                                        | rewrite behind delegate |
-| webRequest, webRequestAuthProvider  | both                    | compiled, no proxy installed                                  | compile with delegate   |
-| offscreen                           | Bitwarden (guarded)     | compiled, host delegate present, untested                     | compile with delegate   |
-| permissions                         | both                    | absent                                                        | rewrite behind delegate |
-| sidePanel                           | Bitwarden (guarded)     | absent                                                        | stop                    |
-| declarativeNetRequestWithHostAccess | 1Password               | compiled, inert without the webRequest proxy                  | compile with delegate   |
-| nativeMessaging                     | both                    | function exists, delegate refuses                             | compile with delegate   |
+| API                                 | Needed by               | Qt 6.11.1 status                                              | Bucket                                |
+| ----------------------------------- | ----------------------- | ------------------------------------------------------------- | ------------------------------------- |
+| tabs (query, get, create, ...)      | both                    | `update` only, sender-scoped                                  | rewrite behind delegate               |
+| tabs.sendMessage                    | both                    | renderer hook in fork, unregistered; browser needs tab lookup | rewrite behind delegate               |
+| windows                             | both                    | absent                                                        | rewrite behind delegate               |
+| action                              | both                    | manifest parses, popup URL exposed, no namespace              | rewrite behind delegate               |
+| commands                            | both                    | manifest parses, no namespace                                 | rewrite behind delegate               |
+| scripting                           | both                    | absent; implementation has no browser includes                | compile with delegate                 |
+| contextMenus                        | both (Bitwarden guards) | absent                                                        | rewrite behind delegate               |
+| notifications                       | both (Bitwarden guards) | absent                                                        | implemented, see 2026-09-21           |
+| privacy                             | both (Bitwarden guards) | absent                                                        | rewrite behind delegate               |
+| webNavigation                       | both                    | absent                                                        | functions implemented, see 2026-09-21 |
+| webRequest, webRequestAuthProvider  | both                    | compiled, no proxy installed                                  | compile with delegate                 |
+| offscreen                           | Bitwarden (guarded)     | compiled, host delegate present, untested                     | compile with delegate                 |
+| permissions                         | both                    | absent                                                        | rewrite behind delegate               |
+| sidePanel                           | Bitwarden (guarded)     | absent                                                        | stop                                  |
+| declarativeNetRequestWithHostAccess | 1Password               | compiled, inert without the webRequest proxy                  | compile with delegate                 |
+| nativeMessaging                     | both                    | function exists, delegate refuses                             | compile with delegate                 |
 
 Counts over the rows: compile with delegate 5, rewrite behind delegate 10, stop 1. Counting `tabs`
 and `tabs.sendMessage` as one API, the rewrite bucket holds 9.
@@ -824,6 +829,36 @@ replaces the `ExtensionPrefs` instance other services hold, and the Qt schema li
 four files with the chrome-layer schemas stripped to two private IDLs. Three releases on, the
 decision about what to enable has not moved, which is worth weighing when judging how a proposal to
 widen it will be received.
+
+### 2026-09-21, one bucket wrong, one severity missed
+
+Running Omaweb on real hardware answered two per-API findings above differently.
+
+**`webNavigation` was bucketed "rewrite behind delegate", and the compile route called a stop
+because of `TabStripModel`. That was wrong for half the namespace.** `getFrame` and `getAllFrames`
+need neither. Chrome answers them from a per-document `FrameNavigationState` its tab-strip observer
+maintains, but a `RenderFrameHost` already knows its committed URL and whether it is an error
+document, and the core `ExtensionApiFrameIdMap` numbers frames and documents. Both functions are
+about sixty lines over the tab registry patch 0004 already provides. The events are the part that
+needs the observer, and they are declared and unraised.
+
+It mattered more than an API bucket usually does. Bitwarden's worker registers `runtime.onMessage`
+inside asynchronous set-up, so the first page's message is dropped, in Chrome as well; Chrome users
+never notice because the worker then reaches back into every open tab with `tabs.query`,
+`webNavigation.getAllFrames` and `scripting.executeScript`. With `getAllFrames` unknown, the
+callback never fires and the first page after a launch has no autofill until it is reloaded. The gap
+was read as a message-delivery problem for a day before the reach-back was found.
+
+**`notifications` was bucketed correctly and its severity was missed.** The finding named the
+presenter and the route, and the implementation is what it said it would be. What the survey did not
+say is that this namespace is not a feature an extension degrades without: 1Password registers
+`notifications.onClicked` at the top level of its worker, so an absent namespace throws on the
+worker's first line and it never starts at all. A namespace an extension touches before it does
+anything belongs in a class of its own, separate from one it calls when it has something to say.
+
+The general lesson for the remaining buckets: what Chrome's implementation includes is evidence
+about Chrome, not about the API. `webNavigation`'s stop was reached by reading Chrome's includes,
+and it did not survive being tried. The others were reached the same way.
 
 ## What the prototype verifies first
 

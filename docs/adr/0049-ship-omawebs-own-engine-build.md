@@ -28,16 +28,18 @@ tried may well run, and some certainly will. That is a property of the engine, n
 untested extension becomes supported by being tested and named, which costs a reader nothing and
 Omaweb a run of the extension probe.
 
-Large parts of the surface are still missing: `cookies`, `contextMenus` and `notifications` have
-schemas but no implementation, `action` cannot draw a badge, `webRequest` listeners never fire, and
-`tabs` carries only its read side. An extension that needs any of them fails, and finding out which
-is what naming one costs.
+Parts of the surface are still missing: `cookies` and `contextMenus` have schemas but no
+implementation, `action` cannot draw a badge, `webRequest` listeners never fire, and `tabs` carries
+only its read side. `webNavigation` answers `getFrame` and `getAllFrames` but raises none of its
+events, and `notifications` shows what an application can show, which is a title and a message, so
+an extension's buttons and images are read and dropped. An extension that needs any of that fails,
+and finding out which is what naming one costs.
 
 ## Why this and not the alternatives
 
 Waiting for Qt was the first plan and it is still the preferred ending, but it cannot be the plan.
 Qt strips the chrome-layer extension schemas deliberately, has not moved in three releases, and its
-documentation now avoids both "extension" and "browser". The two bug fixes will likely land
+documentation now avoids both "extension" and "browser". The four bug fixes will likely land
 upstream. The rest ask Qt for an application-supplied tab model it has shown no appetite for. A
 capability that ships only if that request succeeds does not ship.
 
@@ -59,8 +61,8 @@ had it in the repository two days later, which is lag Omaweb now owns instead of
 
 Because Omaweb ships the engine, a late rebase delays a release rather than breaking one. Readers
 keep the build they have and their extensions go on working. Where a rebase cannot make the window,
-Omaweb drops the extension patches and ships the engine anyway: the two bug fixes apply to anything,
-so the Chromium fix reaches readers and Known extensions go missing until a follow-up engine update
+Omaweb drops the extension patches and ships the engine anyway: the bug fixes apply to anything, so
+the Chromium fix reaches readers and Known extensions go missing until a follow-up engine update
 restores them. The vault data is untouched, because it belongs to the Space's engine profile.
 
 Distributing a modified QtWebEngine means publishing the modified source, keeping it a separate
