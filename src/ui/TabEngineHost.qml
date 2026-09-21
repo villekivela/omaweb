@@ -573,11 +573,20 @@ Item {
     function buildEngine(parent, tabUrl, spaceId, profilePath, sharedProfile) {
         if (!engineComponent)
             engineComponent = Qt.createComponent(root.engineSource);
+        // The extension belongs to the profile, and the profile is there
+        // first; but its packages arrive a moment after it, and a document
+        // created in that moment runs none of their scripts. So a page asked
+        // for while the profile is still waiting on one starts blank and is
+        // pointed at its address when the wait ends.
+        const host = root.spaceProfiles ? root.spaceProfiles.hostFor(spaceId !== undefined ? spaceId :
+                                                                                             root.sessionSpaceId) :
+                                          null;
+        const held = host && host.extensionLoadsPending > 0 && !root.blankAddress(tabUrl);
         const engine = engineComponent.createObject(parent, {
                                                         "profilePath": profilePath !== undefined
                                                                        ? profilePath :
                                                                          root.profilePath,
-                                                        "currentUrl": tabUrl,
+                                                        "currentUrl": held ? "" : tabUrl,
                                                         "sharedProfile": sharedProfile
                                                                          !== undefined
                                                                          ? sharedProfile :
@@ -612,8 +621,26 @@ Item {
                                                         root.developerToolsColors,
                                                         "visible": false
                                                     });
+        if (held)
+            root.releaseWhenExtensionsLoaded(engine, host, tabUrl);
         root.giveScrollbar(engine);
         return engine;
+    }
+
+    function releaseWhenExtensionsLoaded(engine, host, tabUrl) {
+        let alive = true;
+        const release = function () {
+            if (host.extensionLoadsPending > 0)
+                return;
+            host.extensionLoadsPendingChanged.disconnect(release);
+            if (alive && String(engine.currentUrl).length === 0)
+                engine.currentUrl = tabUrl;
+        };
+        engine.Component.destruction.connect(function () {
+            alive = false;
+            host.extensionLoadsPendingChanged.disconnect(release);
+        });
+        host.extensionLoadsPendingChanged.connect(release);
     }
 
     // The bar the page scrolls in, drawn by the chrome rather than the engine.

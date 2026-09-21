@@ -3407,12 +3407,13 @@ ApplicationWindow {
     Component.onCompleted: {
         if (window.privateWindow && window.privateProfileHost)
             window.adoptSpaceProfile("", window.privateProfileHost);
+        // Before the profile, which loads what the list names as it is built,
+        // and before the first page, which holds for those loads: a page that
+        // came up first would run without its password manager until reloaded.
+        window.readKnownExtensions();
         window.createSpaceProfile();
         window.visibleSubscriptions = contentBlocker.subscriptions;
         engineLoader.resume();
-        // After the engine, with the rest of what a window restores: what is
-        // in Settings is never a reason for the page not to come up.
-        window.readKnownExtensions();
         // A Private window loads no extension and has no storage to keep one
         // in, so it asks about none. The check is a day apart whatever a reader
         // does, so every window asking is one window asking.

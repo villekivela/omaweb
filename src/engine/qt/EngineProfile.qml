@@ -42,6 +42,12 @@ QtObject {
     // the same answer an engine that cannot host one gives.
     property var hostedExtensions: []
     signal extensionsChanged
+    // How many packages the engine has been asked for and not yet answered
+    // about. A document created before its profile's extensions are enabled
+    // runs none of their content scripts, so a view built while this is above
+    // zero holds its first load until it is not. The wait is the engine
+    // reading a manifest, which is over in milliseconds.
+    property int extensionLoadsPending: 0
     property string downloadNamespace: ""
     property int activeDownloadCount: 0
     property bool retired: false
@@ -304,6 +310,7 @@ QtObject {
                 if (profileExtensions.requested[known.path])
                     continue;
                 profileExtensions.requested[known.path] = true;
+                root.extensionLoadsPending += 1;
                 privateProfile.extensionManager.loadExtension(known.path);
             }
         }
@@ -320,9 +327,13 @@ QtObject {
         function onLoadFinished(extension) {
             if (!extension.isLoaded) {
                 console.warn("Known extension not loaded:", extension.error);
+                root.extensionLoadsPending = Math.max(0, root.extensionLoadsPending - 1);
                 return;
             }
             privateProfile.extensionManager.setExtensionEnabled(extension, true);
+            // Enabled first: a view released here navigates into an
+            // extension that is already on.
+            root.extensionLoadsPending = Math.max(0, root.extensionLoadsPending - 1);
             const hosted = root.hostedExtensions.slice();
             hosted.push({
                             "key": root.extensionKeyFor(extension.id),
