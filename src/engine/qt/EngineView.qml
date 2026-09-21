@@ -2012,33 +2012,6 @@ Item {
     // This one runs in the page's world, because the setters it wraps are the
     // page's own and a wrapper in another world would see none of the page's
     // writes. It runs before the page does and keeps the console it found.
-    // An extension's popup closes itself when its work is done, the way
-    // Bitwarden's does after a fill, by calling `window.close()`. Blink only
-    // honours that from a page a script opened or one with a single history
-    // entry, and a popup that routes by hash has many; Chrome lets every
-    // extension document past the check with a web preference the engine does
-    // not expose. So the call is heard here instead: the document's own world,
-    // before the page runs, and only for the engine's extension scheme, where a
-    // page cannot reach the same report. The engine's own close is still
-    // asked first, so nothing changes when it learns to answer.
-    property var extensionCloseScript: {
-        const script = WebEngine.script();
-        script.name = "Omaweb extension close";
-        script.injectionPoint = WebEngineScript.DocumentCreation;
-        script.worldId = WebEngineScript.MainWorld;
-        script.runsOnSubFrames = false;
-        script.sourceCode = `(() => {
-            if (location.protocol !== 'chrome-extension:') return;
-            ` + root.reportSnippet() + `
-            const close = window.close.bind(window);
-            window.close = () => {
-                close();
-                report('window_close');
-            };
-        })();`;
-        return script;
-    }
-
     property var mediaSessionScript: {
         const script = WebEngine.script();
         script.name = "Omaweb media session";
@@ -2199,7 +2172,7 @@ Item {
                 root.externalProtocolOriginScript, root.documentPaintedScript,
                 root.userActivationScript, root.pressOriginScript, root.controlAccentScript,
                 root.pagePaletteScript, root.pageScrollbarScript, root.pageScrollReportScript,
-                root.mediaSessionScript, root.cosmeticSurveyScript, root.extensionCloseScript];
+                root.mediaSessionScript, root.cosmeticSurveyScript];
     }
 
     property var externalProtocolOriginScript: {
@@ -2488,8 +2461,6 @@ Item {
                 }
             } else if (report.channel === "page_scroll") {
                 root.readPageScroll(report.body);
-            } else if (report.channel === "window_close") {
-                root.windowCloseRequested();
             } else if (report.channel === "cosmetic_survey") {
                 root.readCosmeticSurvey(report.body);
             } else if (report.channel === "media_session") {
