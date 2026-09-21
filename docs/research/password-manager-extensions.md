@@ -860,6 +860,110 @@ The general lesson for the remaining buckets: what Chrome's implementation inclu
 about Chrome, not about the API. `webNavigation`'s stop was reached by reading Chrome's includes,
 and it did not survive being tried. The others were reached the same way.
 
+### 2026-09-21, 1Password unlocks, and the one gap that still stops the fill
+
+Run against the round five engine, patches 0001 to 0013, with 1Password 8.12.36 installed on the
+test machine for the first time.
+
+**The twenty-one functions answer.** Startup refusals fell from 225 in one session to two, both
+`Unknown Extension API - types.ChromeSetting.set` from 1Password, which the series leaves
+deliberately unregistered. Each throws as `Uncaught (in promise)` at the top of `background.js` and
+the worker starts anyway, so `privacy` is survivable in a way `notifications` was not. `action` was
+checked by calling it from Bitwarden's running worker rather than by reading the patch:
+`setBadgeText("7")` then `getBadgeText` returns `7`, `getTitle` returns the manifest title,
+`getPopup` returns the popup URL, `isEnabled` returns true. `contextMenus.removeAll`,
+`commands.getAll` and `notifications.getPermissionLevel` all answer. Bitwarden's
+`Failed to set badge state`, logged on every badge update before, is gone.
+
+**1Password ships an aarch64 Linux desktop build.** The AUR package is `arch=('x86_64')`, which is a
+fact about that package and not about what the vendor publishes;
+`downloads.1password.com/linux/tar/stable/aarch64/1password-latest.tar.gz` answers 200 with 213 MB.
+This is the same reasoning error the previous entry recorded for `webNavigation`, where Chrome's
+includes were read as the API's requirements.
+
+**No installer writes a manifest where the engine looks, and none ever will.** `after-install.sh` in
+the tarball writes the polkit policy, `/etc/1password/custom_allowed_browsers`, the desktop file and
+icons, the `onepassword` group and the setgid bit on the helper, and no native messaging manifest at
+all. The desktop app writes fifteen on first launch, every one of them user level and per browser:
+`~/.config/chromium/`, `google-chrome`, `google-chrome-beta`, `google-chrome-unstable`,
+`microsoft-edge-dev`, `vivaldi`, `vivaldi-snapshot`, and eight `BraveSoftware` variants. It writes
+no machine wide copy. The string `/etc/chromium/native-messaging-hosts` is in the app binary, and
+reading it as evidence that the app writes there was wrong; patch 0006 reads that directory, the app
+does not fill it.
+
+Two details in the section above are corrected by the installed copy. The host path is
+`/opt/1Password/1Password-BrowserSupport`, not `/usr/lib/opt/1Password/...` as the community README
+quoted, and `allowed_origins` lists six extension ids rather than five. One of them is
+`aeblfdkhhhdcdjpifhhbdiojplfjncoa`, the id the Known extension package already loads under, so the
+manifest needs no editing.
+
+**The recipe that works.** Install the desktop app from the official tarball, then
+`chown -R root:root /opt/1Password` and re-run `after-install.sh`. Install the browser binary root
+owned and put its filename, not its path, in `/etc/1password/custom_allowed_browsers`. Copy
+`com.1password.1password.json` from any `~/.config/*/NativeMessagingHosts/` into the profile's
+`<AppDataLocation>/NativeMessagingHosts/`.
+
+Two traps cost time. Moving the unpacked tarball into `/opt` from a user directory leaves it user
+owned, and `1Password-BrowserSupport` verifies both the browser binary's permissions and its own, so
+a setgid helper its owner can rewrite is refused. The shipped `custom_allowed_browsers` ends without
+a newline, so appending with `echo name | tee -a` produces `#name` and a silently empty allowlist.
+
+With all three in place the helper launches as a child of the browser and the extension connects:
+
+```text
+[AppIntegration] 💫 Looking for desktop app com.1password.1password
+[AppIntegration] 📤 Sending <NmRequestAccounts> message to native core <3423775968>
+[AppIntegration] 📥 Received message <NmRequestAccounts>. Duration: 283.7ms
+[AppIntegration] [DesktopApp] Initiation complete - B5X is connected to desktop app
+[AccountHandlers] Hooray!; Unlocked account NKSYUUVPY5AOHB4NUUHF76K6HU with MUK; 🎉
+[Sls] [SLS] Desktop connection changed from Connecting to Connected
+[Syncer] ✅ Sync completed for account NKSYUUVPY5AOHB4NUUHF76K6HU - took 833ms
+```
+
+`decryptKeysets OperationError` and `User is not connected to the desktop app` are gone, and the
+vault holds three items.
+
+**The form is still empty.** Every load of the fixture logs four `net::ERR_FAILED` and then
+`[InjectContentScripts]`, on a fresh launch and on a reload, so it is not the stale page state the
+autofill entry above records for Bitwarden.
+
+The cause is that the engine does not serve `chrome-extension://` subresources to a page.
+Bitwarden's `images/icon38.png`, `content/fido2-page-script.js` and `notification/bar.html` all
+exist on disk and are all declared under `web_accessible_resources` with `matches: ["<all_urls>"]`.
+None of them loads from a page, by `fetch` or by an `Image` element, while a `data:` image in the
+same context loads. `manifest.json` failing is correct, it is not web accessible; the three declared
+ones failing is not.
+
+That is enough to stop 1Password on its own. Its manifest declares one content script on
+`<all_urls>`, `inline/inject-content-scripts.js`, which builds URLs with `chrome.runtime.getURL` and
+pulls the real content scripts in with `import(r)` behind a retry wrapper that throws
+`Import failed ${t} times`. The four `ERR_FAILED` lines are the retries and the throw is what
+`[InjectContentScripts]` reports. No content script reaches the document, so there is nothing to
+fill the form.
+
+Bitwarden is unaffected because it declares its autofill scripts statically and imports nothing at
+runtime. Asked for page details in the same document, its content script answers with the form:
+
+```text
+bitwarden → collectPageDetailsImmediately → REPLIED {"title":"Sign in — fill probe","forms":{...}}
+```
+
+**The three fill diagnostics proposed in round five all come back negative.** `tabs.sendMessage`
+from 1Password's worker returns `Could not establish connection. Receiving end does not exist.`,
+which is an absent content script rather than a closed port. The four argument form carrying
+`frameId: 0` returns the identical error, so the routing difference between the two extensions' fill
+paths is not the cause. `webNavigation.getAllFrames` answers and reports one frame,
+`frameType: "outermost_frame"`, so the field is not in an iframe. `scripting.executeScript` runs in
+the page and counts its two inputs, which proves the worker can reach the document.
+
+**`tabs.create` has no application hook to refuse it.** `ExtensionsBrowserClientQt::OpenPage` and
+`TabRegistryQt::OpenPage` are in the engine binary, but `qwebengineextensionmanager.h` declares only
+the five load and install methods and four signals, `qwebengineprofile.h` adds only
+`extensionManager()`, and `plugins.qmltypes` registers no page opening signal on any QML type.
+Omaweb has no handler because there is nothing to connect one to, so
+`The application did not open a tab.` is the delegate lacking a public surface rather than
+`TabsDelegateQt` declining. No Glance was open when it was reproduced.
+
 ## What the prototype verifies first
 
 1. The empty-popup cause. Answered in the prototype log: a `TypeError` on an `undefined` namespace.
