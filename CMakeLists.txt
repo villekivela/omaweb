@@ -179,6 +179,8 @@ add_library(omaweb-core STATIC
     src/core/HardwareVideoDecode.h
     src/core/HistoryQuery.cpp
     src/core/HistoryQuery.h
+    src/core/EnginePaths.cpp
+    src/core/EnginePaths.h
     src/core/ExtensionInstaller.cpp
     src/core/ExtensionInstaller.h
     src/core/ExtensionPackage.cpp
@@ -905,6 +907,11 @@ if(BUILD_TESTING)
     omaweb_strict_target(omaweb-session-fixture-tests)
     omaweb_declarative_fixture_target(omaweb-session-fixture-tests)
     add_test(NAME omaweb-session-fixture COMMAND omaweb-session-fixture-tests)
+
+    qt_add_executable(omaweb-engine-paths-tests tests/core/tst_enginepaths.cpp)
+    target_link_libraries(omaweb-engine-paths-tests PRIVATE omaweb-core Qt6::Test)
+    omaweb_strict_target(omaweb-engine-paths-tests)
+    add_test(NAME omaweb-engine-paths COMMAND omaweb-engine-paths-tests)
 
     qt_add_executable(omaweb-extension-package-tests tests/core/tst_extensionpackage.cpp)
     target_link_libraries(omaweb-extension-package-tests PRIVATE omaweb-core Qt6::Test
