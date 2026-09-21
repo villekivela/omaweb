@@ -226,9 +226,11 @@ int main(int argc, char *argv[])
         const auto paths = omaweb::EnginePaths::beside(libraryDirectory);
         // An engine that is part of the Qt it was built against is already
         // where QtCore will look, and saying so again would only be a way to
-        // get it wrong.
+        // get it wrong. That is the engine in Qt's own library directory, not
+        // one anywhere under it: /usr/lib/omaweb/lib is under /usr/lib.
         const bool privatePrefix = !libraryDirectory.isEmpty()
-            && !libraryDirectory.startsWith(QLibraryInfo::path(QLibraryInfo::LibrariesPath));
+            && QDir::cleanPath(libraryDirectory)
+                != QDir::cleanPath(QLibraryInfo::path(QLibraryInfo::LibrariesPath));
         if (privatePrefix) {
             // Each one only if it is there, and never over the reader: a
             // missing file is the packaging's fault and pointing the engine at
