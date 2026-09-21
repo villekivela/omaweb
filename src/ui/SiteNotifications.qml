@@ -45,21 +45,24 @@ QtObject {
         const target = root.allowed ? root.browser.notificationTarget(spaceId, origin) : null;
         // A page whose Space has been put away, and which nothing is keeping
         // running, has no business interrupting: only a retained tab can speak
-        // for an inactive Space.
-        if (!target || !target.tabId) {
+        // for an inactive Space. An extension has no tab either way, and the
+        // core has already decided whether it is one Omaweb names.
+        if (!target || (!target.tabId && !target.extensionKey)) {
             host.dismissNotification(notificationId);
             return;
         }
         const key = spaceId + ":" + notificationId;
-        // Origin and Space, always and first: which site is asking, and which
-        // browsing identity it is asking in. The page's own words follow.
-        const heading = target.origin + " · " + target.spaceName;
+        // Sender and Space, always and first: which site or extension is
+        // asking, and which browsing identity it is asking in. Their own words
+        // follow.
+        const heading = target.sender + " · " + target.spaceName;
         const detail = title.length > 0 && message.length > 0 ? title + " — " + message : (
                                                                     title.length > 0 ? title :
                                                                                        message);
         root.pending[key] = {
             "spaceId": spaceId,
             "tabId": target.tabId,
+            "extensionKey": target.extensionKey || "",
             "host": host,
             "notificationId": notificationId,
             "heading": heading,
@@ -84,8 +87,12 @@ QtObject {
             waiting.host.dismissNotification(waiting.notificationId);
             return;
         }
+        // The extension hears the click and does whatever it meant by it. There
+        // is nowhere to take the reader, so the window is not asked to move.
         waiting.host.activateNotification(waiting.notificationId);
-        root.activationRequested(waiting.spaceId, waiting.tabId);
+        if (!waiting.extensionKey) {
+            root.activationRequested(waiting.spaceId, waiting.tabId);
+        }
     }
 
     property Connections desktop: Connections {

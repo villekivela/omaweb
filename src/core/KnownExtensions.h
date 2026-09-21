@@ -49,4 +49,11 @@ QList<KnownExtension> knownExtensions();
 // this one does.
 KnownExtension knownExtension(const QString &key);
 
+// The one the engine knows by this id, or a default-constructed entry when
+// Omaweb names no such extension. An extension identifies itself to the engine
+// by the id derived from its publisher's key, which is what a `chrome-extension`
+// URL carries, so this is the way back from something the engine said to the
+// extension Omaweb named.
+KnownExtension knownExtensionByStoreId(const QString &storeId);
+
 } // namespace omaweb

@@ -1507,11 +1507,6 @@ const RetainedTab *BrowserController::findRetainedTab(const QString &tabId) cons
 
 QVariantMap BrowserController::notificationTarget(const QString &spaceId, const QUrl &origin) const
 {
-    const auto wanted = normalizedOrigin(origin);
-    if (wanted.isEmpty()) {
-        return {};
-    }
-
     QString spaceName;
     for (const auto &space : m_spaces.items()) {
         if (space.id == spaceId) {
@@ -1520,22 +1515,44 @@ QVariantMap BrowserController::notificationTarget(const QString &spaceId, const 
         }
     }
 
-    const auto answer = [&](const QString &tabId, const QString &title) {
+    const auto answer = [&](const QString &tabId, const QString &sender, const QString &title) {
         return QVariantMap {
             {QStringLiteral("tabId"), tabId},
             {QStringLiteral("spaceId"), spaceId},
             {QStringLiteral("spaceName"),
                 m_privateBrowsing ? QStringLiteral("Private") : spaceName},
-            {QStringLiteral("origin"), wanted},
+            {QStringLiteral("origin"), sender},
+            {QStringLiteral("sender"), sender},
             {QStringLiteral("title"), title},
         };
     };
+
+    // An extension speaks for itself rather than for a page. Its worker belongs
+    // to the Space's profile and outlives any tab, so there is no tab to find
+    // and none to take the reader to; what the reader needs is the name of the
+    // extension that interrupted them. An id Omaweb does not name is refused,
+    // because a notification Omaweb cannot attribute is one the reader cannot
+    // judge.
+    if (origin.scheme() == QStringLiteral("chrome-extension")) {
+        const auto extension = knownExtensionByStoreId(origin.host());
+        if (extension.key.isEmpty()) {
+            return {};
+        }
+        auto target = answer(QString {}, extension.name, extension.name);
+        target.insert(QStringLiteral("extensionKey"), extension.key);
+        return target;
+    }
+
+    const auto wanted = normalizedOrigin(origin);
+    if (wanted.isEmpty()) {
+        return {};
+    }
 
     // The Space the reader is looking at: any of its pages may say something.
     if (spaceId == m_activeSpaceId) {
         for (const auto &tab : m_tabs.items()) {
             if (normalizedOrigin(tab.url) == wanted) {
-                return answer(tab.id, tab.title);
+                return answer(tab.id, wanted, tab.title);
             }
         }
         return {};
@@ -1545,7 +1562,7 @@ QVariantMap BrowserController::notificationTarget(const QString &spaceId, const 
     // page left to speak for.
     for (const auto &retained : m_retainedTabs) {
         if (retained.spaceId == spaceId && normalizedOrigin(retained.url) == wanted) {
-            return answer(retained.tabId, retained.title);
+            return answer(retained.tabId, wanted, retained.title);
         }
     }
     return {};

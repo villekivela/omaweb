@@ -55,4 +55,14 @@ KnownExtension knownExtension(const QString &key)
     return {};
 }
 
+KnownExtension knownExtensionByStoreId(const QString &storeId)
+{
+    for (const KnownExtension &extension : knownExtensions()) {
+        if (extension.storeId == storeId) {
+            return extension;
+        }
+    }
+    return {};
+}
+
 } // namespace omaweb
