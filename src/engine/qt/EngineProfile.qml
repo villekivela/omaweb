@@ -288,11 +288,22 @@ QtObject {
         target: root
         enabled: !root.privateBrowsing
 
+        // The packages this profile has asked the engine for, by path. The
+        // list of Known extensions is reassigned for every change to any of
+        // them, and a download ends in two such changes, so without this a
+        // package arriving is loaded twice within a tick. The engine answers
+        // a second load of a running extension by leaving its worker and
+        // popup without their `chrome` bindings until the profile is rebuilt.
+        readonly property var requested: ({})
+
         function load() {
             if (root.privateBrowsing || !privateProfile.extensionManager) {
                 return;
             }
             for (const known of root.knownExtensions) {
+                if (profileExtensions.requested[known.path])
+                    continue;
+                profileExtensions.requested[known.path] = true;
                 privateProfile.extensionManager.loadExtension(known.path);
             }
         }
