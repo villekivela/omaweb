@@ -1035,6 +1035,31 @@ A locked desktop app gives `[Cache] The item cache has not been initialized yet`
 no error naming the cause. `We successfully unlocked N account(s)` in the worker's log is the line
 to read first.
 
+### 2026-09-21, both Known extensions fill
+
+1Password fills a login form on Linux aarch64, from a real vault, through its desktop application
+over native messaging. Bitwarden already did. That is both Known extensions working end to end on
+the platform Omaweb ships to, which is what naming one is supposed to mean.
+
+The last thing in the way was not an API. QtWebEngine kept its own copy of the renderer's resource
+policy, from before the base class owned one, and overrode `WillSendRequest` to use it. Nothing ever
+told that copy which extensions had loaded, so its set of ids with web accessible resources was
+always empty and every such request was rewritten to `chrome-extension://invalid/`. An extension
+whose scripts are all declared in the manifest never notices. One that declares a small loader and
+imports its real bundle, which is how 1Password ships 443 KB of it, gets nothing into the page at
+all.
+
+Five rounds of testing Bitwarden could not have found it, and that is the general lesson rather than
+a remark about one bug: a Known extension is evidence about itself. Two extensions that both work
+are not twice the confidence, they are two different sets of assumptions about the engine, and every
+gap found since the first round was found by the one that had not been tried yet.
+
+Three refusals in this area turned out to be correct behaviour read as gaps, all from reading one
+artifact as evidence about the whole: Chrome's `#include`s as the API's dependencies, an AUR
+package's architecture as the vendor's, and Bitwarden's fixed URLs being refused when its manifest
+asks for dynamic ones. Both halves of that last rule are now covered by a test, because passing one
+while failing the other is the shape of both the bug and the overcorrection.
+
 ## What the prototype verifies first
 
 1. The empty-popup cause. Answered in the prototype log: a `TypeError` on an `undefined` namespace.

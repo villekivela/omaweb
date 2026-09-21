@@ -58,10 +58,11 @@ hand builds the engine on rented Linux machines. Packaging and signing stay loca
 Omaweb ships its own QtWebEngine build so a password manager's extension runs
 ([ADR 0049](adr/0049-ship-omawebs-own-engine-build.md),
 [#344](https://github.com/villekivela/omaweb/issues/344)). The patch series and the build process
-live outside this repository. The Settings surface, the popup surface and package acquisition that
-keeps a store extension's identity are built and tested on Linux. What remains before a reader sees
-this: the engine package, its Linux builders, and a run of 1Password, which has never started. The
-four engine bug fixes go to Qt in parallel, and the day Qt carries the rest the series is deleted
+live outside this repository. Both Known extensions now fill a login form on Linux aarch64,
+Bitwarden from its own vault and 1Password through its desktop application, so the Settings surface,
+the popup surface and package acquisition that keeps a store extension's identity are proved rather
+than built. What remains before a reader sees this: the engine package and its Linux builders. The
+five engine bug fixes go to Qt in parallel, and the day Qt carries the rest the series is deleted
 ([#288](https://github.com/villekivela/omaweb/issues/288)).
 
 ## Settled without work

@@ -28,12 +28,14 @@ tried may well run, and some certainly will. That is a property of the engine, n
 untested extension becomes supported by being tested and named, which costs a reader nothing and
 Omaweb a run of the extension probe.
 
-Parts of the surface are still missing: `cookies` and `contextMenus` have schemas but no
-implementation, `action` cannot draw a badge, `webRequest` listeners never fire, and `tabs` carries
-only its read side. `webNavigation` answers `getFrame` and `getAllFrames` but raises none of its
-events, and `notifications` shows what an application can show, which is a title and a message, so
-an extension's buttons and images are read and dropped. An extension that needs any of that fails,
-and finding out which is what naming one costs.
+Parts of the surface are still missing: `cookies`, `downloads` and `offscreen` have no
+implementation, `privacy` cannot read or write a setting, `webRequest` listeners never fire, and
+`tabs` carries only its read side. `action` and `contextMenus` answer and keep what they are told,
+and nothing draws either: no badge appears and no menu item is added. `webNavigation` answers
+`getFrame` and `getAllFrames` but raises none of its events, and `notifications` shows what an
+application can show, which is a title and a message, so an extension's buttons and images are read
+and dropped. An extension that needs any of that fails, and finding out which is what naming one
+costs.
 
 ## Why this and not the alternatives
 
