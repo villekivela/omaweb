@@ -983,6 +983,58 @@ Omaweb has no handler because there is nothing to connect one to, so
 `The application did not open a tab.` is the delegate lacking a public surface rather than
 `TabsDelegateQt` declining. No Glance was open when it was reproduced.
 
+### 2026-09-21, the fill completes
+
+Run against patches 0001 to 0014, which delete QtWebEngine's own copy of the renderer's resource
+policy and let the base `ExtensionsRendererClient` answer `WillSendRequest`. Nothing ever called
+`OnExtensionLoaded` on Qt's copy, so its set of ids with web accessible resources stayed empty and
+the renderer rewrote every such request to `chrome-extension://invalid/`.
+
+**1Password fills a login form and submits it.** The fixture server was changed to report what a
+POST carries:
+
+```text
+SUBMITTED {"username":"foo","password":"bar"}
+```
+
+Both values come from the vault item named `Local test`. Focusing the username field decorates it
+with 1Password's in-field button and floats its universal sign-on bar over the page. Two entry
+points fill: that bar's `Sign in`, and picking the item from the menu the in-field button opens.
+Both then submit the form, so the fields read empty afterwards because the document has already
+navigated.
+
+The submit is 1Password's own auto sign-in, not something the engine does. With a `submit` listener
+on the form calling `preventDefault`, the same menu pick leaves the page on `/` with
+`user=foo pass=set[3]` and one submit prevented. The extension announces the behaviour on first use
+as `Universal sign in has arrived`, adjustable in its settings.
+
+**The renderer knows about the extension.** `chrome-extension://invalid` appears nowhere in the
+session log. From the page, `inline/injected.js` fetches 443,693 bytes, which is the bundle
+`inline/inject-content-scripts.js` imports and could never reach before. With it in the document,
+`com-1password-uso` and `1p-uso-live-region` are children of `body`, and a reload logs no
+`net::ERR_FAILED` and no `[InjectContentScripts]` throw.
+
+**Bitwarden is unchanged.** Its content script answers `collectPageDetailsImmediately` with the
+fixture's form, and `action.setBadgeText` round-trips.
+
+The entry above reads Bitwarden's refused subresources as a general engine gap, and that is too
+wide. Bitwarden sets `"use_dynamic_url": true`, so the static `chrome-extension://nngcec.../` URLs
+probed there are supposed to be refused and the `Denying load` console line is correct behavior.
+`chrome.runtime.getURL` hands out a per-session host, and under that host `images/icon38.png`,
+`content/fido2-page-script.js` and `notification/bar.html` all load, by `fetch`, as an `Image`, and
+as a `script` element, while `manifest.json` stays refused. The gap the patch closed was real, but
+only 1Password's failures were evidence of it.
+
+**Two refusals remain, both `types.ChromeSetting`.** `.set` and `.get` each answer
+`Access to extension API denied.`, where the previous engine said
+`Unknown Extension API - types.ChromeSetting.set`. Two throw at startup and the worker starts
+anyway. `chrome.downloads` and `chrome.offscreen` are both `undefined` in the worker; 1Password
+declares `downloads` and does not declare `offscreen`.
+
+A locked desktop app gives `[Cache] The item cache has not been initialized yet` and no fill, with
+no error naming the cause. `We successfully unlocked N account(s)` in the worker's log is the line
+to read first.
+
 ## What the prototype verifies first
 
 1. The empty-popup cause. Answered in the prototype log: a `TypeError` on an `undefined` namespace.
