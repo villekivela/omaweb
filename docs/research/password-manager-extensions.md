@@ -1041,6 +1041,14 @@ to read first.
 over native messaging. Bitwarden already did. That is both Known extensions working end to end on
 the platform Omaweb ships to, which is what naming one is supposed to mean.
 
+Both do it in the form a reader recognises, from the field rather than from the popup. Bitwarden's
+inline menu draws its button in the input and opens its list there, and 1Password decorates the
+field and floats its sign-on bar. Each is built from the extension's own web accessible resources
+under a dynamic URL, which is the path that was refused until the renderer was told which extensions
+had loaded. Round two recorded the inline menu as untested and it stayed that way for four rounds,
+because it is the one part of autofill that cannot be driven from a test: it is drawn only when the
+reader has turned it on, and only when a field has focus.
+
 The last thing in the way was not an API. QtWebEngine kept its own copy of the renderer's resource
 policy, from before the base class owned one, and overrode `WillSendRequest` to use it. Nothing ever
 told that copy which extensions had loaded, so its set of ids with web accessible resources was
