@@ -934,6 +934,15 @@ None of them loads from a page, by `fetch` or by an `Image` element, while a `da
 same context loads. `manifest.json` failing is correct, it is not web accessible; the three declared
 ones failing is not.
 
+The gap is the subresource path alone, not the policy check. In the same page, a subframe navigation
+to `chrome-extension://<bitwarden>/notification/bar.html` loads, while a `script` element pointing
+at `chrome-extension://<bitwarden>/content/fido2-page-script.js` fails. Both are declared web
+accessible and both belong to the same extension, so the scheme is registered and
+`WebAccessibleResourcesInfo` already answers correctly for navigations. What is missing is the
+extension URL loader factory on the subresource path, which Chromium registers in
+`RegisterNonNetworkSubresourceURLLoaderFactories`. The navigation side is implemented and the
+subresource side is not.
+
 That is enough to stop 1Password on its own. Its manifest declares one content script on
 `<all_urls>`, `inline/inject-content-scripts.js`, which builds URLs with `chrome.runtime.getURL` and
 pulls the real content scripts in with `import(r)` behind a retry wrapper that throws
