@@ -937,11 +937,21 @@ ones failing is not.
 The gap is the subresource path alone, not the policy check. In the same page, a subframe navigation
 to `chrome-extension://<bitwarden>/notification/bar.html` loads, while a `script` element pointing
 at `chrome-extension://<bitwarden>/content/fido2-page-script.js` fails. Both are declared web
-accessible and both belong to the same extension, so the scheme is registered and
-`WebAccessibleResourcesInfo` already answers correctly for navigations. What is missing is the
-extension URL loader factory on the subresource path, which Chromium registers in
-`RegisterNonNetworkSubresourceURLLoaderFactories`. The navigation side is implemented and the
-subresource side is not.
+accessible and both belong to the same extension, so the scheme is registered and the web accessible
+check answers correctly for at least one path into the extension.
+
+Where it fails is not pinned. Stock 6.11.2 already registers the extension factory in
+`ContentBrowserClientQt::RegisterNonNetworkSubresourceURLLoaderFactories`:
+
+```cpp
+auto factory = extensions::CreateExtensionURLLoaderFactory(render_process_id, render_frame_id);
+if (factory)
+    factories->emplace(extensions::kExtensionScheme, std::move(factory));
+```
+
+So the refusal is below registration. Either that call returns null for a frame hosting an ordinary
+web page, or the request is rejected inside the extension protocol handler after the factory has it.
+Deciding between those needs the engine source and a breakpoint, not another probe from the page.
 
 That is enough to stop 1Password on its own. Its manifest declares one content script on
 `<all_urls>`, `inline/inject-content-scripts.js`, which builds URLs with `chrome.runtime.getURL` and
