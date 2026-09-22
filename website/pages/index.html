@@ -266,7 +266,8 @@
       <p>
         Then import the key the packages are signed with, once. Check the fingerprint against this
         page: pacman installs nothing this key did not sign, and a keyserver will hand out any key
-        that claims the name.
+        that claims the name. The key comes over HTTPS because keyservers answer on a port many
+        networks do not let out.
       </p>
       <p>
         Packages are published for <code>x86_64</code> and <code>aarch64</code>, and pacman asks for
@@ -276,7 +277,8 @@
       <div class="t-term">
         <pre
           class="t-term__line t-term__line--stack"
-        ><span class="t-term__prompt" aria-hidden="true">$</span><code>sudo pacman-key --recv-keys FDA535B2185755EA718BEA585DBF15FE484EFA64</code>
+        ><span class="t-term__prompt" aria-hidden="true">$</span><code>curl -fsSLO https://raw.githubusercontent.com/villekivela/omaweb/main/security/repo-signing-key.asc</code>
+<span class="t-term__prompt" aria-hidden="true">$</span><code>sudo pacman-key --add repo-signing-key.asc</code>
 <span class="t-term__prompt" aria-hidden="true">$</span><code>sudo pacman-key --lsign-key FDA535B2185755EA718BEA585DBF15FE484EFA64</code>
 <span class="t-term__prompt" aria-hidden="true">$</span><code>sudo pacman -Syu omaweb</code><span class="t-term__cursor" aria-hidden="true"></span></pre>
         <button class="btn t-term__copy" type="button" data-copy>Copy</button>

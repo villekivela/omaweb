@@ -46,10 +46,17 @@ it comes from this page rather than from the keyserver, and pacman refuses any p
 sign.
 
 ```sh
-sudo pacman-key --recv-keys FDA535B2185755EA718BEA585DBF15FE484EFA64
+curl -fsSLO https://raw.githubusercontent.com/villekivela/omaweb/main/security/repo-signing-key.asc
+sudo pacman-key --add repo-signing-key.asc
 sudo pacman-key --lsign-key FDA535B2185755EA718BEA585DBF15FE484EFA64
 sudo pacman -Syu omaweb
 ```
+
+The key is fetched over HTTPS rather than from a keyserver because keyservers answer on port 11371,
+which plenty of networks do not let out, and a machine that cannot reach one gets
+`keyserver receive failed: No route to host` with no hint of what to do next.
+`pacman-key --recv-keys FDA535B2185755EA718BEA585DBF15FE484EFA64` fetches the same key where that
+port is open. Either way it is the fingerprint above that decides whether the key is the right one.
 
 Removing the repository leaves the installed package alone.
 
