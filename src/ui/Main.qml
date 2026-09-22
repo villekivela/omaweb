@@ -2938,6 +2938,7 @@ ApplicationWindow {
                     pageFonts: window.enginePageFonts
                     knownExtensions: window.knownExtensions
                     knownExtensionsAvailable: window.knownExtensionsAvailable
+                    privateWindow: window.privateWindow
                     extensionFailure: window.extensionFailure
                     SheetLift {
                         id: settingsLift

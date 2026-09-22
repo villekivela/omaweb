@@ -86,6 +86,10 @@ Rectangle {
     // says so rather than offering switches that would load an extension into
     // a browser that hangs on its first message.
     property bool knownExtensionsAvailable: false
+    // Whether this window is a Private one. The capability above is the
+    // build's and is the same in every window, so without this the section
+    // offers a reader a switch that cannot do anything here.
+    property bool privateWindow: false
     // Why the last download ended with nothing written, when one did.
     property string extensionFailure: ""
     property var subscriptions: []
@@ -1824,9 +1828,22 @@ Rectangle {
                                 + "This Omaweb runs the engine the system supplies."
                     }
 
+                    NoticeBox {
+                        objectName: "extensionsPrivateNotice"
+                        width: pane.width
+                        visible: root.knownExtensionsAvailable && root.privateWindow
+                        colors: root.colors
+                        iconFontFamily: root.iconFontFamily
+                        glyph: "extension_off"
+                        title: "This window loads no extension"
+                        detail: "A Private window keeps nothing after it closes, and an "
+                                + "extension's vault is something to keep. Turn one on from an "
+                                + "ordinary window and it is on in every Space there."
+                    }
+
                     Text {
                         width: pane.width
-                        visible: root.knownExtensionsAvailable
+                        visible: root.knownExtensionsAvailable && !root.privateWindow
                         wrapMode: Text.WordWrap
                         color: root.colors.mutedText
                         font.family: Style.font.family
@@ -1847,7 +1864,7 @@ Rectangle {
                     Column {
                         width: pane.width
                         spacing: 0
-                        visible: root.knownExtensionsAvailable
+                        visible: root.knownExtensionsAvailable && !root.privateWindow
 
                         Repeater {
                             model: root.section === 9 ? root.knownExtensions : []

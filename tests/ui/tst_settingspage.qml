@@ -658,6 +658,32 @@ TestCase {
         verify(toggle.visible);
     }
 
+    // A Private window hosts no extension, and the capability that draws the
+    // switches belongs to the build rather than the window, so without this
+    // the section offers a reader a switch that cannot do anything here.
+    function test_aPrivateWindowSaysWhyItListsNoExtension() {
+        const page = makePage();
+        page.knownExtensionsAvailable = true;
+        page.knownExtensions = testCase.extensionsFixture;
+        page.section = page.sections.indexOf("extensions");
+
+        const toggle = findChild(page, "knownExtension-bitwarden");
+        verify(toggle !== null);
+        verify(toggle.visible);
+
+        page.privateWindow = true;
+        const notice = findChild(page, "extensionsPrivateNotice");
+        verify(notice !== null);
+        verify(notice.visible);
+        // The switch goes rather than greying out: a reader cannot act on it
+        // in this window at all, and a dimmed switch invites the try.
+        verify(!toggle.visible);
+
+        page.privateWindow = false;
+        verify(!notice.visible);
+        verify(toggle.visible);
+    }
+
     // One switch per Known extension, carrying what the reader needs to judge
     // it. A package that has not arrived leaves a switch that says why it
     // cannot be turned on, because a name with no explanation reads as a
