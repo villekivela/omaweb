@@ -100,7 +100,7 @@ source of truth for the routine; this skill runs it and reports.
    did and not what a client can get:
 
    ```sh
-   curl -fsSL https://villekivela.github.io/omaweb/<arch>/omaweb.db \
+   curl -fsSL https://github.com/villekivela/omaweb/releases/download/repo-<arch>/omaweb.db \
        | tar tz | sed -n 's|^\([^/]*\)/$|\1|p'
    ```
 

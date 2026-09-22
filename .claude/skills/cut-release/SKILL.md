@@ -41,7 +41,7 @@ Run all five. Each has produced a broken or unusable release at some point, or w
    ```sh
    for arch in x86_64 aarch64; do
        printf '%-8s ' "$arch"
-       curl -fsSL "https://villekivela.github.io/omaweb/$arch/omaweb.db" \
+       curl -fsSL "https://github.com/villekivela/omaweb/releases/download/repo-$arch/omaweb.db" \
            | tar tz 2>/dev/null | sed -n 's|^\([^/]*\)/$|\1|p' | tr '\n' ' '
        echo
    done
@@ -97,7 +97,7 @@ gh run watch "$(gh run list --workflow Release --limit 1 --json databaseId --jq 
 Then check the thing a reader will do, because none of the above proves it:
 
 ```sh
-curl -fsSL https://villekivela.github.io/omaweb/x86_64/omaweb.db \
+curl -fsSL https://github.com/villekivela/omaweb/releases/download/repo-x86_64/omaweb.db \
     | tar tz | sed -n 's|^\([^/]*\)/$|\1|p'
 ```
 

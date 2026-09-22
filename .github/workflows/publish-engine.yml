@@ -136,52 +136,36 @@ jobs:
           echo "GNUPGHOME=$GNUPGHOME" >> "$GITHUB_ENV"
           echo "fingerprint=$fingerprint" >> "$GITHUB_OUTPUT"
 
-      # The branch as it stands, because the browser packages already on it stay
-      # where they are. `publish_repo.sh` replaces older versions of the package
-      # it is given and leaves everything else alone.
-      - name: Fetch what is published
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          remote="https://x-access-token:$GH_TOKEN@github.com/${GITHUB_REPOSITORY}.git"
-          if ! git clone --depth 1 --branch gh-pages "$remote" /tmp/pages 2>/dev/null; then
-            echo "No gh-pages branch yet, so this starts one"
-            git init --initial-branch=gh-pages /tmp/pages
-            git -C /tmp/pages remote add origin "$remote"
-          fi
-
+      # The repository as it stands, so `repo-add` updates what is published
+      # rather than starting from nothing and dropping the browser package that
+      # is already there.
       - name: Publish the engine to the repository
-        run: |
-          for package in artifacts/*.pkg.tar.*; do
-            scripts/publish_repo.sh --package "$package" --repo-dir /tmp/pages \
-              --key "${{ steps.key.outputs.fingerprint }}"
-          done
-          # Pages runs Jekyll over a branch unless told not to, and Jekyll drops
-          # files whose names begin with an underscore or a dot.
-          touch /tmp/pages/.nojekyll
-
-      - name: Serve it
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ inputs.tag }}
         run: |
-          cd /tmp/pages
-          git config user.name "Ville Kivelä"
-          git config user.email "5814559+villekivela@users.noreply.github.com"
-          git add --all
-          # One commit replacing the branch, for the reason a release does the
-          # same: the branch holds packages, and keeping every one it ever
-          # served would grow it by the size of an engine each time.
-          git checkout --orphan published
-          git commit --quiet --message "Serve the engine from $TAG"
-          git push --force origin published:gh-pages
-          {
-            echo "### Published to the pacman repository"
-            echo
-            echo "The engine from \`$TAG\` is served from \`gh-pages\`."
-            echo
-            echo "A reader takes it with an ordinary \`pacman -Syu\`."
-          } >> "$GITHUB_STEP_SUMMARY"
+          for package in artifacts/*.pkg.tar.*; do
+            # The architecture is in the package's name, which is where
+            # `publish_repo.sh` reads it from too, and it decides which
+            # repository the package belongs to.
+            arch=$(basename "$package")
+            arch=${arch##*-}
+            arch=${arch%%.pkg.tar.*}
+
+            scripts/fetch_repo.sh --tag "repo-$arch" --dir "/tmp/repo/$arch"
+            scripts/publish_repo.sh --package "$package" --repo-dir /tmp/repo \
+              --key "${{ steps.key.outputs.fingerprint }}"
+            scripts/serve_repo.sh --tag "repo-$arch" --dir "/tmp/repo/$arch" \
+              --title "Package repository ($arch)"
+
+            {
+              echo "### Published to the pacman repository"
+              echo
+              echo "The engine from \`$TAG\` is served for \`$arch\`."
+              echo
+              echo "A reader takes it with an ordinary \`pacman -Syu\`."
+            } >> "$GITHUB_STEP_SUMMARY"
+          done
 
       # The baseline has to name the engine the repository now serves, or
       # Settings marks every reader's build an unsupported preview. A pull

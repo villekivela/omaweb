@@ -38,7 +38,7 @@ the system:
 ```ini
 [omaweb]
 SigLevel = Required DatabaseRequired
-Server = https://villekivela.github.io/omaweb/$arch
+Server = https://github.com/villekivela/omaweb/releases/download/repo-$arch
 ```
 
 Import the key the packages are signed with, once. The fingerprint is the one thing to check here:
