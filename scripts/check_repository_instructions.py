@@ -34,7 +34,7 @@ import re
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-PAGES = ("README.md", "website/index.html", ".github/workflows/release.yml")
+PAGES = ("README.md", "website/pages/index.html", ".github/workflows/release.yml")
 KEY = "security/repo-signing-key.asc"
 
 # A full OpenPGP fingerprint, which is the only form worth publishing: a short

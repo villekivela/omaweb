@@ -787,7 +787,7 @@ which runs `website/build/site.mjs` from `website/` and serves the `dist/` it wr
 
 ```sh
 npm ci --prefix website             # the Markdown parser the renderer imports
-scripts/serve_website.sh            # the committed sources, on localhost:8000
+scripts/serve_website.sh            # build without the network, serve dist/ on localhost:8000
 cd website && node build/site.mjs   # write dist/, the site as it deploys
 node --test website/build/          # the rendering the build step does
 ```
@@ -795,16 +795,21 @@ node --test website/build/          # the rendering the build step does
 The install is once per clone. `website/package.json` pins one dependency, `marked`, which is what
 renders a release body; Vercel installs it the same way before running the build command.
 
-The site is four pages a reader navigates between. `index.html` says what Omaweb is, `features/` and
-`docs/` are written by hand, and `releases/` is generated.
+Every page is written through one shell. `website/build/shell.html` holds the head, the header and
+its nav, the rain, the footer and the script, once; a page under `website/pages/` is what goes
+between the header and the footer, and opens with a comment naming its title, its description and,
+where one of the nav's entries is the page, which. `pages/index.html` becomes `dist/index.html` and
+any other `pages/<name>.html` becomes `dist/<name>/index.html`. The sources are therefore not the
+site, and `scripts/serve_website.sh` builds before it serves; `--local` skips the network, which
+leaves the committed `pages/releases.html` in place of the generated release pages.
 
-The build step is the only generated part. It fetches the published releases and writes, from
-`website/build/release.template.html`, one page per version at `dist/releases/<tag>/index.html` plus
-`dist/releases/index.html` for the newest. Every page carries the whole version list beside the
-notes, so master and detail are both markup and a version is an address rather than a pane the
-script swaps. It writes only into `dist/`, so a local run leaves the sources alone. Set
-`GITHUB_TOKEN` to raise the API rate limit; without one the unauthenticated limit applies and is
-shared with everything else building from the same address.
+The release pages are the generated part. The build fetches the published releases and writes, from
+`website/build/release.html` into the same shell, one page per version at
+`dist/releases/<tag>/index.html` plus `dist/releases/index.html` for the newest. Every page carries
+the whole version list beside the notes, so master and detail are both markup and a version is an
+address rather than a pane the script swaps. Set `GITHUB_TOKEN` to raise the API rate limit; without
+one the unauthenticated limit applies and is shared with everything else building from the same
+address.
 
 The site offers no packages. Installing is one section on the landing page and the same two commands
 whichever release it is, so a release page links to its GitHub release for the assets instead of
@@ -817,8 +822,8 @@ image becomes the link that reaches it, and nothing rendered is a subresource.
 `scripts/check_website_csp.py` checks the sources rather than `dist/`, so the check reads the same
 files whether or not a build has run.
 
-A failed fetch is not a failed deploy. The build leaves the committed `website/releases/index.html`,
-which says where the releases are, and warns on standard error. Force that path with
+A failed fetch is not a failed deploy. The build leaves the committed `pages/releases.html`, which
+says where the releases are, and warns on standard error. Force that path with
 `GITHUB_TOKEN=nonsense node build/site.mjs`, which makes the API answer 401.
 
 Rebuild the per-theme palettes, screenshots and the favicon with `scripts/build_website_themes.py`

@@ -5,9 +5,9 @@ are one set per Omarchy theme, each capture rendered headlessly from the source 
 over a wallpaper drawn from that theme's own palette.
 
 `<state>.webp` is the full capture, taken at twice the size the page draws it so the browser's own
-type is rendered rather than resampled. `<state>-thumb.webp` is what the grid shows, and each
-thumbnail is a link to the full one: a whole window drawn at grid width is unreadable whatever its
-resolution.
+type is rendered rather than resampled. The page shows one at a time in a frame that stays put while
+the text beside it scrolls, and each is a link to itself at full size: a whole window drawn at
+column width is unreadable whatever its resolution.
 
 Re-run the script after a chrome change or an upstream theme change. Nothing in CI compares these
 byte for byte: rendering differs across machines and fonts, and a flaky gate on a picture is worse

@@ -1,44 +1,65 @@
 <!doctype html>
 <!--
-  The fallback. `website/build/site.mjs` overwrites this in `dist/` with the
-  newest release's notes, and writes a page per version beside it, whenever it
-  can reach the GitHub API. This is what deploys when it cannot: a page that
-  says where the releases are rather than a build that failed.
+  The shell every page of the site is written into by build/site.mjs: the
+  head, the header with its nav, the rain behind the hero, the footer and the
+  script. A page under pages/ is only what goes between the header and the
+  footer, plus the few things named at its top, so the chrome is one copy
+  here rather than one per page.
 
-  Nothing here is a copy of a release. The notes live on the tags and are
-  fetched at build time, so there is nothing in this repository to fall behind
-  them.
+  It lives under build/ rather than beside the site because it is not a page:
+  its placeholders are not markup and it is never deployed. `root` is the
+  way back to the site root, which differs by how deep the page is written,
+  so every path below is relative to it.
 -->
 <html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Omaweb releases</title>
-    <meta name="description" content="Every published Omaweb release and what changed in it." />
+    <title>{{title}}</title>
+    <meta name="description" content="{{description}}" />
     <meta name="application-name" content="Omaweb" />
     <meta name="robots" content="index, follow" />
     <!-- Omaweb draws a page that asks in the reader's own theme, and asks
          nothing of a page that does not. -->
     <meta name="omaweb-palette" content="follow" />
-    <meta name="theme-color" content="#06060c" />
-    <meta property="og:type" content="article" />
+    <meta name="theme-color" content="#090a0e" />
+    <meta property="og:type" content="{{type}}" />
     <meta property="og:site_name" content="Omaweb" />
-    <meta property="og:title" content="Omaweb releases" />
-    <meta property="og:description" content="Every published Omaweb release and its notes." />
+    <meta property="og:title" content="{{title}}" />
+    <meta property="og:description" content="{{summary}}" />
     <meta name="twitter:card" content="summary" />
-    <meta name="twitter:title" content="Omaweb releases" />
-    <meta name="twitter:description" content="Every published Omaweb release and its notes." />
-    <link rel="icon" href="../favicon.svg" type="image/svg+xml" />
-    <link rel="stylesheet" href="../styles.css" />
-    <link rel="stylesheet" href="../themes.css" />
+    <meta name="twitter:title" content="{{title}}" />
+    <meta name="twitter:description" content="{{summary}}" />
+    <link rel="icon" href="{{root}}/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="{{root}}/styles.css" />
+    <!-- Generated from each Omarchy theme's own colors.toml by
+         scripts/build_website_themes.py, alongside the screenshots drawn in
+         the same palettes. -->
+    <link rel="stylesheet" href="{{root}}/themes.css" />
   </head>
 
   <body>
+    <!-- The same rain of cells the screenshots' wallpaper is drawn from,
+         drawn live in the active palette behind the header and the hero.
+         Decorative: it is hidden from assistive technology and the page is
+         complete without it. -->
     <canvas class="t-rain" aria-hidden="true"></canvas>
+    <!-- GitHub's own mark, defined once and referenced by every button that
+         goes there. `currentColor`, so it takes the button's text colour and
+         follows the theme with it. Used to link to GitHub, which is what
+         GitHub's brand guidance permits it for. -->
+    <svg width="0" height="0" aria-hidden="true" class="t-sprite">
+      <symbol id="mark-github" viewBox="0 0 16 16">
+        <path
+          fill="currentColor"
+          d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A7.995 7.995 0 0016 8c0-4.42-3.58-8-8-8z"
+        />
+      </symbol>
+    </svg>
 
     <div class="t-wrap">
       <header class="t-top">
-        <a href="../">
+        <a href="{{root}}/">
           <svg
             class="t-wordmark"
             viewBox="0 0 160 20"
@@ -59,6 +80,11 @@
             </g>
           </svg>
         </a>
+        <!-- The landing page says what Omaweb is. The list of what is in it,
+             the documentation and the releases are pages of their own,
+             because each is a thing a reader comes back to rather than
+             something to scroll past on the way to the install commands.
+             The build writes the entries and marks the current one. -->
         <!-- The menu on a phone. Hidden until the script wires it, so a page
              without the script keeps its links in view. -->
         <button
@@ -81,32 +107,24 @@
           </svg>
         </button>
         <nav class="t-nav" id="sections" aria-label="Sections">
-          <a href="../features/">Features</a>
-          <a href="../docs/">Docs</a>
-          <a href="./" aria-current="page">Releases</a>
-          <a href="../#install">Install</a>
+          {{nav}}
+          <!-- The source, as GitHub's own mark: the one link that leaves the
+               site, at the end of the row. The word is for the phone's menu,
+               where a row of links is words. -->
+          <a class="t-nav__github" href="https://github.com/villekivela/omaweb">
+            <svg class="t-nav__mark" aria-hidden="true"><use href="#mark-github" /></svg>
+            <span>GitHub</span>
+          </a>
         </nav>
       </header>
 
-      <section class="t-hero t-hero--short">
-        <p class="t-section__index">Release notes</p>
-        <h1>The releases are on GitHub.</h1>
-        <p>
-          This page normally carries every release and its notes, read from the tags when the site
-          is built. That read did not happen for this deploy, so here is where they live instead.
-        </p>
-        <div class="t-hero__actions">
-          <a class="btn btn--emphasis" href="https://github.com/villekivela/omaweb/releases"
-            >Every release on GitHub</a
-          >
-        </div>
-      </section>
+      {{body}}
 
       <footer class="t-foot">
         <span>Omaweb &middot; alpha &middot; MPL 2.0</span>
         <a href="https://github.com/villekivela/omaweb">github.com/villekivela/omaweb</a>
       </footer>
     </div>
-    <script src="../script.js"></script>
+    <script src="{{root}}/script.js"></script>
   </body>
 </html>

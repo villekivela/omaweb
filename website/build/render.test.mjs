@@ -7,7 +7,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 
-import { markdownToHtml, releasePath, renderReleaseNav, renderReleasePage } from "./render.mjs";
+import { markdownToHtml, releasePath, renderRelease, renderReleaseNav } from "./render.mjs";
 
 test("markdown: a heading of any depth becomes h3, under the page's own h1", () => {
   assert.equal(markdownToHtml("### Features"), "<h3>Features</h3>");
@@ -240,9 +240,9 @@ test("nav: the site offers no package, so no asset reaches the markup", () => {
 });
 
 const TEMPLATE = [
-  "<title>{{title}}</title>",
-  '<meta name="description" content="{{description}}" />',
-  '<link rel="stylesheet" href="{{root}}/styles.css" />',
+  "<!--",
+  "  a comment the fragment opens with, which is not part of the page",
+  "-->",
   "<nav>{{nav}}</nav>",
   "<h1>{{tag}}</h1>",
   "<p>{{marks}}</p>",
@@ -250,50 +250,48 @@ const TEMPLATE = [
   "<p>{{github}}</p>",
 ].join("\n");
 
-test("page: the template is filled with the release's notes, its siblings and its depth", () => {
-  const html = renderReleasePage(RELEASE, [RELEASE, OLDER], TEMPLATE, "../..");
-  assert.match(html, /<title>Omaweb v0\.3\.0 release notes<\/title>/);
-  assert.match(html, /<h1>v0\.3\.0<\/h1>/);
-  assert.match(html, /<h3>Features<\/h3>/);
-  assert.match(html, /close things the way they came/);
-  assert.match(html, /href="\.\.\/\.\.\/styles\.css"/);
-  assert.match(html, /href="\.\.\/\.\.\/releases\/v0\.2\.1\/"/);
-  assert.match(html, /releases\/tag\/v0\.3\.0/);
-  assert.match(html, /<time datetime="2026-09-13">13 September 2026<\/time>/);
-  assert.match(html, /Prerelease/);
+test("release: the fragment is filled with the release's notes, its siblings and its depth", () => {
+  const { meta, body } = renderRelease(RELEASE, [RELEASE, OLDER], TEMPLATE, "../..");
+  assert.equal(meta.title, "v0.3.0 · Omaweb");
+  assert.equal(meta.description, "What changed in the Omaweb prerelease v0.3.0.");
+  assert.equal(meta.current, "releases");
+  assert.match(body, /<h1>v0\.3\.0<\/h1>/);
+  assert.match(body, /<h3>Features<\/h3>/);
+  assert.match(body, /close things the way they came/);
+  assert.match(body, /href="\.\.\/\.\.\/releases\/v0\.2\.1\/"/);
+  assert.match(body, /releases\/tag\/v0\.3\.0/);
+  assert.match(body, /<time datetime="2026-09-13">13 September 2026<\/time>/);
+  assert.match(body, /Prerelease/);
 });
 
-test("page: no placeholder is left unfilled", () => {
-  assert.equal(renderReleasePage(RELEASE, [RELEASE], TEMPLATE, "..").includes("{{"), false);
+test("release: no placeholder is left unfilled, and the opening comment is not part of the page", () => {
+  const { body } = renderRelease(RELEASE, [RELEASE], TEMPLATE, "..");
+  assert.equal(body.includes("{{"), false);
+  assert.equal(body.includes("<!--"), false);
 });
 
-test("page: the favicon is reached from the page's own depth", () => {
-  // Against the shipped template rather than the fixture above: a release page
-  // sits two levels down and the landing page none, so the path the script
-  // fetches the icon from has to come from the page rather than from the
-  // script.
-  const shipped = readFileSync(
-    fileURLToPath(new URL("./release.template.html", import.meta.url)),
-    "utf8",
-  );
-  const html = renderReleasePage(RELEASE, [RELEASE], shipped, "../..");
-  assert.match(html, /<link rel="icon" href="\.\.\/\.\.\/favicon\.svg"/);
+test("release: the shipped fragment fills the same way", () => {
+  const shipped = readFileSync(fileURLToPath(new URL("./release.html", import.meta.url)), "utf8");
+  const { body } = renderRelease(RELEASE, [RELEASE], shipped, "../..");
+  assert.equal(body.includes("{{"), false);
+  assert.match(body, /<h1>v0\.3\.0<\/h1>/);
 });
 
-test("page: a release with no body still renders, pointing at GitHub", () => {
-  const html = renderReleasePage({ ...RELEASE, body: "" }, [RELEASE], TEMPLATE, "..");
-  assert.match(html, /releases\/tag\/v0\.3\.0/);
-  assert.match(html, /published no notes/);
+test("release: a release with no body still renders, pointing at GitHub", () => {
+  const { body } = renderRelease({ ...RELEASE, body: "" }, [RELEASE], TEMPLATE, "..");
+  assert.match(body, /releases\/tag\/v0\.3\.0/);
+  assert.match(body, /published no notes/);
 });
 
-test("page: the description is attribute-safe whatever the release is called", () => {
+test("release: the title is the raw name, for the shell to escape once", () => {
   const odd = { ...RELEASE, name: 'v1 "beta"' };
-  const html = renderReleasePage(odd, [odd], TEMPLATE, "..");
-  assert.match(html, /content="[^"]*&quot;beta&quot;[^"]*"/);
+  const { meta, body } = renderRelease(odd, [odd], TEMPLATE, "..");
+  assert.equal(meta.title, 'v1 "beta" · Omaweb');
+  assert.match(body, /<h1>v1 &quot;beta&quot;<\/h1>/);
 });
 
-test("page: the site offers no package, so no asset reaches the markup", () => {
-  const html = renderReleasePage(RELEASE, [RELEASE], TEMPLATE, "..");
-  assert.equal(html.includes("pkg.tar.zst"), false);
-  assert.equal(html.includes("/download/"), false);
+test("release: the site offers no package, so no asset reaches the markup", () => {
+  const { body } = renderRelease(RELEASE, [RELEASE], TEMPLATE, "..");
+  assert.equal(body.includes("pkg.tar.zst"), false);
+  assert.equal(body.includes("/download/"), false);
 });
