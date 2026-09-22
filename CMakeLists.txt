@@ -506,6 +506,7 @@ set(omaweb_ui_files
     src/ui/CommandPanel.qml
     src/ui/DeveloperToolsDock.qml
     src/ui/DownloadMark.qml
+    src/ui/ExtensionMark.qml
     src/ui/FindBar.qml
     src/ui/Glance.qml
     src/ui/HistoryPage.qml
