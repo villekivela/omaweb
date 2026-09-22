@@ -1,0 +1,30 @@
+<!doctype html>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>The Omaweb package repository moved</title>
+<style>
+  body { font: 16px/1.6 system-ui, sans-serif; max-width: 42rem; margin: 4rem auto; padding: 0 1rem; }
+  code, pre { font-family: ui-monospace, monospace; }
+  pre { background: #f4f4f5; padding: 1rem; overflow-x: auto; }
+</style>
+<h1>The package repository moved</h1>
+<p>
+  This address no longer serves packages. If <code>pacman</code> sent you here, the
+  <code>Server</code> line in your <code>/etc/pacman.conf</code> is the old one.
+</p>
+<pre>[omaweb]
+SigLevel = Required DatabaseRequired
+Server = https://github.com/villekivela/omaweb/releases/download/repo-$arch</pre>
+<p>
+  Then <code>sudo rm /var/lib/pacman/sync/omaweb.db</code> and <code>sudo pacman -Syu</code>. The
+  signing key has not changed.
+</p>
+<p>
+  It moved because the engine package is larger than the 100 MB a git push accepts, and this
+  repository was served from a branch. The
+  <a href="https://github.com/villekivela/omaweb/blob/main/docs/adr/0043-serve-upgrades-from-a-signed-pacman-repository.md"
+    >decision record</a
+  >
+  has the rest. Installing instructions are in the
+  <a href="https://github.com/villekivela/omaweb#install">README</a>.
+</p>
