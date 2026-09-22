@@ -808,6 +808,16 @@ if(BUILD_TESTING)
             -P ${CMAKE_CURRENT_SOURCE_DIR}/tests/cmake/check_shared_qml.cmake
     )
 
+    # A QML file on disk and not in the module is invisible until the release
+    # preset compiles one, because a source build reads the directory. This
+    # says so in every preset, and names the file.
+    add_test(NAME omaweb-qml-registered
+        COMMAND ${CMAKE_COMMAND}
+            -DOMAWEB_UI_DIRECTORY=${CMAKE_CURRENT_SOURCE_DIR}/src/ui
+            "-DOMAWEB_REGISTERED=${omaweb_ui_files}"
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/tests/cmake/check_qml_registered.cmake
+    )
+
     # The release build ships compiled QML and the source-tree builds ship
     # none, so both configurations check their own build graph. The graph is
     # the generator's own, named by the generator rather than by one file, so
