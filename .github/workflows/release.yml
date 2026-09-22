@@ -383,26 +383,15 @@ jobs:
           echo "fingerprint=$fingerprint" >> "$GITHUB_OUTPUT"
           echo "signed=true" >> "$GITHUB_OUTPUT"
 
-      # The published branch is the repository's state. A release writes the
-      # architectures it built into what is already there rather than starting
-      # a branch of its own, which is what keeps `x86_64` and `aarch64` beside
-      # each other instead of one replacing the other.
-      - name: Fetch what is published
+      # Each package in turn, into the repository for its own architecture.
+      # `publish_repo.sh` reads that architecture out of the package's name, and
+      # so does this, because it decides which release serves the package.
+      - name: Publish the package to the repository
         if: steps.key.outputs.signed == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
-          remote="https://x-access-token:$GH_TOKEN@github.com/${GITHUB_REPOSITORY}.git"
-          if ! git clone --depth 1 --branch gh-pages "$remote" /tmp/pages 2>/dev/null; then
-            echo "No gh-pages branch yet, so this release starts one"
-            git init --initial-branch=gh-pages /tmp/pages
-            git -C /tmp/pages remote add origin "$remote"
-          fi
-
-      - name: Publish the package to the repository
-        if: steps.key.outputs.signed == 'true'
-        run: |
           # Each package in turn. `publish_repo.sh` reads the architecture out
           # of the package's own name and files it under that directory, so the
           # loop says nothing about which architectures there are.
@@ -415,37 +404,23 @@ jobs:
           for package in artifacts/*.pkg.tar.*; do
             [ -e "$package" ] || continue
             case "$package" in *.sig) continue ;; esac
-            scripts/publish_repo.sh --package "$package" --repo-dir /tmp/pages \
+            arch=$(basename "$package")
+            arch=${arch##*-}
+            arch=${arch%%.pkg.tar.*}
+            scripts/fetch_repo.sh --tag "repo-$arch" --dir "/tmp/repo/$arch"
+            scripts/publish_repo.sh --package "$package" --repo-dir /tmp/repo \
               --key "${{ steps.key.outputs.fingerprint }}"
+            scripts/serve_repo.sh --tag "repo-$arch" --dir "/tmp/repo/$arch" \
+              --title "Package repository ($arch)"
             published=$(( published + 1 ))
           done
           if [ "$published" -eq 0 ]; then
             echo "::error::no package reached the repository" >&2
             exit 1
           fi
-          # Pages runs Jekyll over a branch unless told not to, and Jekyll drops
-          # files whose names begin with an underscore or a dot.
-          touch /tmp/pages/.nojekyll
-
-      - name: Serve it
-        if: steps.key.outputs.signed == 'true'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          cd /tmp/pages
-          git config user.name "Ville Kivelä"
-          git config user.email "5814559+villekivela@users.noreply.github.com"
-          git add --all
-          # One commit, replacing whatever was there. The branch holds packages,
-          # and a branch that keeps every package it has ever served would grow
-          # by the size of a browser at every release and never shrink, for a
-          # history nobody reads: the releases are this project's archive.
-          git checkout --orphan published
-          git commit --quiet --message "Serve Omaweb ${GITHUB_REF_NAME}"
-          git push --force origin published:gh-pages
           {
             echo
             echo "## Published to the pacman repository"
             echo
-            echo "\`${GITHUB_REF_NAME}\` is served from the \`gh-pages\` branch."
+            echo "\`${GITHUB_REF_NAME}\` is served from the \`repo-*\` releases."
           } >> "$GITHUB_STEP_SUMMARY"

@@ -604,11 +604,21 @@ named differently.
 
 ### The pacman repository
 
-A release is also an upgrade. The workflow publishes the `omaweb` package to a pacman repository on
-the `gh-pages` branch, so a reader who has Omaweb gets the next version from their own `pacman -Syu`
-rather than from noticing that one was released. What was decided and why is
+A release is also an upgrade. The workflow publishes the `omaweb` package to a pacman repository, so
+a reader who has Omaweb gets the next version from their own `pacman -Syu` rather than from noticing
+that one was released. What was decided and why is
 [ADR 0043](adr/0043-serve-upgrades-from-a-signed-pacman-repository.md); what follows is how to run
 it.
+
+The repository is the assets of one GitHub release per architecture, `repo-x86_64` and
+`repo-aarch64`. Those tags are places rather than versions: every release writes to them and nothing
+renames them, so the download URL is fixed, which is what a `Server` line needs.
+
+Three scripts, in the order a publish runs them. `fetch_repo.sh` takes the release's current assets
+into a directory, so `repo-add` updates what is published instead of starting from nothing and
+dropping the packages already there. `publish_repo.sh` makes that directory correct. `serve_repo.sh`
+uploads it back, replacing each asset and deleting any the directory no longer holds, because an
+asset the database does not name is a version the repository offers and cannot deliver.
 
 ```sh
 scripts/publish_repo.sh --package <file.pkg.tar.zst> --repo-dir <dir> --key <signing key>
