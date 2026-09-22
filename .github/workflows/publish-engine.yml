@@ -43,6 +43,10 @@ jobs:
           mkdir -p artifacts
           gh release download "$TAG" --repo "$GITHUB_REPOSITORY" \
             --pattern '*.pkg.tar.*' --dir artifacts
+          # What the build said it built, if it said. Absent on an engine built
+          # before the build wrote one, and then the baseline is left alone.
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" \
+            --pattern 'engine.json' --dir artifacts || true
           # A signature already on the release is not this job's to trust: it
           # signs what it publishes itself, so an attached `.sig` is dropped
           # rather than served.
@@ -178,3 +182,21 @@ jobs:
             echo
             echo "A reader takes it with an ordinary \`pacman -Syu\`."
           } >> "$GITHUB_STEP_SUMMARY"
+
+      # The baseline has to name the engine the repository now serves, or
+      # Settings marks every reader's build an unsupported preview. A pull
+      # request rather than a commit, because raising it means the release notes
+      # were read and a build was qualified, and neither is something this job
+      # can know. What is removed is the typing, not the judgement.
+      #
+      # Last, after the engine is already served. A pull request that could not
+      # be opened is worth a red run, and it is not worth holding the engine
+      # back over: readers get the engine either way, and the baseline is a
+      # claim about it that a person has to finish anyway.
+      - name: Offer the baseline this engine needs
+        if: hashFiles('artifacts/engine.json') != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          scripts/offer_engine_baseline.py --engine artifacts/engine.json \
+            --tag "${{ inputs.tag }}" --base "${{ github.ref_name }}"
