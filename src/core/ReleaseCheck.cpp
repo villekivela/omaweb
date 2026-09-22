@@ -83,6 +83,13 @@ QString newestRelease(const QByteArray &releasesAnswer)
     // install is the answer. Prereleases are kept: every `v0.*` tag is one
     // (ADR 0028), and asking GitHub for `latest` instead would skip them all
     // and leave this project with no release at all to report.
+    //
+    // Not every tag is a release. This repository also publishes `repo-x86_64`
+    // and `repo-aarch64`, which are the pacman repository, and `engine-*`,
+    // which is the engine package. They sort above the version tags, so taking
+    // the first tag of any kind answers one of those, `behind` cannot read a
+    // version out of it, and the reader is told about no upgrade ever again.
+    // A tag with no version in it is not a release to offer.
     const auto releases = document.array();
     for (const auto &entry : releases) {
         const auto release = entry.toObject();
@@ -90,7 +97,7 @@ QString newestRelease(const QByteArray &releasesAnswer)
             continue;
         }
         const auto tag = release.value(QStringLiteral("tag_name")).toString();
-        if (!tag.isEmpty()) {
+        if (!tag.isEmpty() && !versionNumbers(tag).isEmpty()) {
             return tag;
         }
     }

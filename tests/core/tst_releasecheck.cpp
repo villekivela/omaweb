@@ -19,6 +19,7 @@ private slots:
     void saysNothingAboutAVersionItCannotRead_data();
     void saysNothingAboutAVersionItCannotRead();
     void readsTheNewestReleaseIncludingPrereleases();
+    void skipsTagsThatAreNotReleases();
     void readsNoReleaseFromAnAnswerItCannotUse_data();
     void readsNoReleaseFromAnAnswerItCannotUse();
     void readsTheReleaseNumberOffABuildDescription_data();
@@ -129,6 +130,26 @@ void ReleaseCheckTest::readsTheNewestReleaseIncludingPrereleases()
     QCOMPARE(omaweb::ReleaseCheck::newestRelease(answer), QStringLiteral("v0.5.0"));
 }
 
+// The releases endpoint answers every tag, and this repository publishes tags
+// that are not releases: `repo-x86_64` and `repo-aarch64` are the pacman
+// repository, `engine-*` is the engine package. They sort above `v0.6.0`, so
+// reading the first tag of any kind answers one of those, `behind` cannot
+// compare it, and the reader is told about no upgrade ever again.
+void ReleaseCheckTest::skipsTagsThatAreNotReleases()
+{
+    const auto answer = QByteArrayLiteral(R"([
+        {"tag_name": "repo-x86_64", "draft": false},
+        {"tag_name": "repo-aarch64", "draft": false},
+        {"tag_name": "engine-6.11.2", "draft": false},
+        {"tag_name": "v0.6.0", "prerelease": true, "draft": false},
+        {"tag_name": "v0.5.1", "prerelease": true, "draft": false}
+    ])");
+
+    QCOMPARE(omaweb::ReleaseCheck::newestRelease(answer), QStringLiteral("v0.6.0"));
+    QVERIFY(omaweb::ReleaseCheck::behind(
+        QStringLiteral("0.5.1"), omaweb::ReleaseCheck::newestRelease(answer)));
+}
+
 void ReleaseCheckTest::readsNoReleaseFromAnAnswerItCannotUse_data()
 {
     QTest::addColumn<QByteArray>("answer");
@@ -141,6 +162,10 @@ void ReleaseCheckTest::readsNoReleaseFromAnAnswerItCannotUse_data()
     // A draft is visible only to the maintainer and is not something a reader
     // can install, so it is not an upgrade to announce.
     QTest::newRow("a draft") << QByteArrayLiteral(R"([{"tag_name": "v9.9.9", "draft": true}])");
+    // Tags this repository publishes that are not releases. An answer holding
+    // only those is an answer with no release in it.
+    QTest::newRow("only repository tags")
+        << QByteArrayLiteral(R"([{"tag_name": "repo-x86_64", "draft": false}])");
 }
 
 void ReleaseCheckTest::readsNoReleaseFromAnAnswerItCannotUse()
