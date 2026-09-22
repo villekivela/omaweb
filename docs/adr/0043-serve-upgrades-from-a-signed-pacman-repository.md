@@ -11,16 +11,27 @@ and what it distributes is a PKGBUILD rather than a binary, so every reader woul
 QtWebEngine-linked code themselves. Nothing about an upgrade path needs it: a pacman repository is a
 directory of packages and a database served over HTTP, and this project can serve its own.
 
-The repository is hosted on GitHub Pages, from a `gh-pages` branch this repository owns. Pages
-serves a fixed URL, which is what `Server =` needs; the release asset path carries the tag and
-therefore changes every release, so it cannot be one. The branch is replaced by a single orphan
-commit each time, because a branch that kept every package it ever served would grow by the size of
-a browser at every release for a history nobody reads. For the same reason the repository holds one
-version per architecture: the GitHub releases are this project's archive, and serving history here
-would make the branch a second one that nobody maintains. Packages sit under a directory named for
-their architecture from the first commit, so `aarch64`
-([#185](https://github.com/villekivela/omaweb/issues/185)) arrives as a build rather than as a
-change every reader has to make to a `pacman.conf` they already wrote.
+The repository is served from the assets of one GitHub release per architecture, tagged
+`repo-x86_64` and `repo-aarch64`. A release's assets sit flat under one download URL, which is the
+directory shape `Server =` needs, and each may be 2 GB.
+
+It began on a `gh-pages` branch, and this paragraph used to give the reason release assets could not
+work: the asset path carries the tag, and a tag that changes every release is not a fixed URL. That
+objection is answered rather than abandoned. These tags are not versions. `repo-x86_64` is a place,
+written to by every release and never renamed, so the URL is as fixed as Pages' was.
+
+What ended the branch is the engine. `omaweb-qtwebengine` is 101 MB, GitHub rejects a pushed file
+over 100 MB, and the package is Chromium: 284 MB of `libQt6WebEngineCore.so` before compression,
+against about two megabytes of anything a trim could remove. It was never going to fit, and it was
+never going to shrink.
+
+The repository still holds one version of each package per architecture, for the reason it always
+did: the GitHub releases are this project's archive, and serving history here would make a second
+one that nobody maintains. Packages carried an architecture in their path from the first commit, so
+`aarch64` ([#185](https://github.com/villekivela/omaweb/issues/185)) arrived as a build rather than
+as a change every reader has to make to a `pacman.conf` they already wrote. Moving off the branch is
+the exception: it changes the `Server` line, and a reader who added the repository before the move
+keeps pointing at a Pages URL that no longer updates.
 
 The published package is `omaweb`, and `packaging/PKGBUILD` keeps building `omaweb-git` for a reader
 building from a checkout. A `-git` package is one pacman expects to be rebuilt from source, and its

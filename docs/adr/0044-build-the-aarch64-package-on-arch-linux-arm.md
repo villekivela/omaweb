@@ -12,11 +12,12 @@ own package set, its own keyring and its own cadence, and the `archlinux` image 
 option: this build under emulation runs far past any timeout a release job can be given.
 
 Since [ADR 0043](0043-serve-upgrades-from-a-signed-pacman-repository.md) that gap is no longer one
-build behind. `Server = https://villekivela.github.io/omaweb/$arch` resolves the architecture, so an
-`aarch64` reader whose machine asks for a directory nothing was ever published to cannot sync the
-repository at all. That is not one version behind; it is outside the upgrade path, and the machine
-Omaweb is developed on is one of the machines there. An unofficial base image in the release path is
-a smaller thing to carry than an upgrade path a whole architecture cannot use.
+build behind. `Server = https://github.com/villekivela/omaweb/releases/download/repo-$arch` resolves
+the architecture, so an `aarch64` reader whose machine asks for a directory nothing was ever
+published to cannot sync the repository at all. That is not one version behind; it is outside the
+upgrade path, and the machine Omaweb is developed on is one of the machines there. An unofficial
+base image in the release path is a smaller thing to carry than an upgrade path a whole architecture
+cannot use.
 
 The image is pinned by digest, which the official one is not. A distribution publishes its own image
 and a community rebuild is one person's account; the digest is what makes the thing that runs on
