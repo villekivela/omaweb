@@ -70,3 +70,19 @@ addresses, commit authorship using the GitHub login, and the timing and approxim
 git traffic. Pause stops these requests. Disconnect also deletes local credentials and state, but
 leaves the private repository in GitHub. The [Sync privacy page](https://omaweb.app/sync) states the
 same boundary for readers.
+
+## Known extensions
+
+Turning a Known extension on downloads it from the Chrome Web Store, at
+`https://clients2.google.com/service/update2/crx`. Google learns which extension the reader asked
+for. Settings says so before the switch is used, because that request is the one Omaweb makes to
+Google and a reader should not find out afterwards.
+
+While an extension is on, the first window opened on a new day asks the same address whether a newer
+version has been published, and downloads it when there is one. The check is a day apart whatever a
+reader does, so several windows still make one request. A Private window asks nothing, and a build
+that cannot host an extension asks nothing.
+
+Both requests are ordinary HTTP GETs carrying the extension's store identifier. Neither sends
+browsing history, a Space identifier, or Account information. Turning the extension off stops both.
+Being offline is not reported: the package on disk goes on working and the next day asks again.
