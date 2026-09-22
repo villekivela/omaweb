@@ -68,8 +68,17 @@ the Chromium fix reaches readers and Known extensions go missing until a follow-
 restores them. The vault data is untouched, because it belongs to the Space's engine profile.
 
 Distributing a modified QtWebEngine means publishing the modified source, keeping it a separate
-shared library so it can be relinked, and marking it as modified. Chromium's attribution goes in
-`THIRD_PARTY_NOTICES.md`. Signing happens where the key lives and never on a build machine.
+shared library so it can be relinked, and marking it as modified. The engine package carries all
+three: `MODIFICATIONS.md` says what changed and where the corresponding source is, the library stays
+in a prefix of its own so a different build of the same version can replace it, and Chromium's
+notice travels with it, taken from the tree the engine was built from rather than restated. Omaweb's
+own `THIRD_PARTY_NOTICES.md` points at that package rather than repeating it, because a second
+answer could only disagree with the first.
+
+Signing happens where the key lives, and never on a rented machine. A rented builder holds the
+series and would hold the key for hours on a host someone else owns, which is the exposure worth
+refusing; the release workflow already signs every package Omaweb publishes with that key, so the
+engine is signed there too.
 
 Release builds are Linux, for x86_64 and aarch64. A macOS build is a development tool and cannot
 ship, so the engine is built on machines rented for the purpose and destroyed afterwards.

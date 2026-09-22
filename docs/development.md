@@ -661,10 +661,30 @@ declares the engine as a dependency, so what that install proves is the reader's
 every change. The reason it exists is that the first real run of a publishing path is otherwise a
 release, and by then the release is already out.
 
-The engine's own package is not published by a workflow. `scripts/package-locally.sh` in the patch
-repository builds it from an engine tarball in the container the engine was built in, and the
-detached signature is made on the machine the key is on, which is never a build machine (ADR 0049).
-`publish_repo.sh` then puts it in the repository the same way a browser package goes in.
+The engine has a publishing path of its own, because it has a release schedule of its own. The two
+repositories split it along what each one owns. `scripts/package-locally.sh` in the patch repository
+builds the package, because the PKGBUILD and the notices are there; the `Publish the engine`
+workflow here signs and publishes it, because the signing key and the pacman repository are here.
+One file crosses between them, the unsigned package, attached to a release in this repository:
+
+```sh
+gh release create engine-6.11.2 --title "Engine 6.11.2" out/*.pkg.tar.zst
+gh workflow run "Publish the engine" -f tag=engine-6.11.2
+```
+
+The workflow will not serve whatever happens to be attached. It drops any signature it finds, since
+it signs what it publishes itself, and it reads each package's `.PKGINFO` and stops unless the name
+is `omaweb-qtwebengine` and the architecture in the file's name is the one it was built for. It also
+holds the secret key's fingerprint against `security/repo-signing-key.asc` before signing, so a
+rotated secret that the pages have not followed fails the run rather than publishing a repository
+nobody can install from.
+
+Signing there rather than on a laptop is a departure from ADR 0049's wording, which says signing
+never happens on a build machine. What that rule is about is a _rented_ machine: a host someone else
+owns, kept for hours, with the series and the key both on it. GitHub Actions already holds this key
+and already signs every browser package with it, so the engine adds no one to the set of things that
+can sign. `package-locally.sh` still signs when `OMAWEB_REPO_KEY` names a usable key, which is the
+shorter path when there is one.
 
 The signing key is the one piece of setup a human does. It is a signing subkey whose private half is
 the `PACMAN_SIGNING_KEY` secret, with `PACMAN_SIGNING_KEY_PASSPHRASE` beside it when the export has
