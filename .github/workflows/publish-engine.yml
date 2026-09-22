@@ -1,0 +1,180 @@
+name: Publish the engine
+
+# The engine is Omaweb's own package on its own release schedule (ADR 0049), so
+# it reaches the pacman repository by itself rather than with a browser release.
+# Started by hand, because whether a built engine is worth serving to readers is
+# a judgement about what the Qt release carries and what the gate said.
+#
+# What it takes is an unsigned package built by `package-locally.sh` in the patch
+# repository, attached to a release here. That repository owns the PKGBUILD and
+# the notices; this one owns the signing key and the pacman repository, and this
+# workflow is the join. Nothing crosses between them but one file.
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description:
+          "The release here holding the unsigned engine package, for example engine-6.11.2"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    container: archlinux:base-devel
+    timeout-minutes: 20
+    steps:
+      - name: Install toolchain
+        # `pacman` carries `repo-add`, `libarchive` carries `bsdtar`, and both
+        # are what `publish_repo.sh` asks for.
+        run: pacman -Syu --noconfirm git gnupg github-cli libarchive
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Trust checkout in container
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Take the packages off the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          mkdir -p artifacts
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" \
+            --pattern '*.pkg.tar.*' --dir artifacts
+          # A signature already on the release is not this job's to trust: it
+          # signs what it publishes itself, so an attached `.sig` is dropped
+          # rather than served.
+          rm -f artifacts/*.sig
+          found=$(find artifacts -maxdepth 1 -name '*.pkg.tar.*' | wc -l)
+          if [ "$found" -eq 0 ]; then
+            echo "::error::$TAG carries no package" >&2
+            exit 1
+          fi
+          echo "took $found package(s) off $TAG"
+
+      - name: Refuse anything that is not the engine
+        # This workflow publishes to the repository readers install from, and
+        # its input is whatever someone attached to a release. So what it will
+        # serve is named here rather than inferred: a package of another name,
+        # or one whose name and contents disagree, stops the run.
+        run: |
+          for package in artifacts/*.pkg.tar.*; do
+            pkgname=$(bsdtar -xOf "$package" .PKGINFO | sed -n 's/^pkgname = //p' | head -n 1)
+            if [ "$pkgname" != "omaweb-qtwebengine" ]; then
+              echo "::error::$(basename "$package") is $pkgname, not omaweb-qtwebengine" >&2
+              exit 1
+            fi
+            # `publish_repo.sh` files a package by the architecture in its name,
+            # so a name disagreeing with the build inside it would serve an
+            # aarch64 engine to an x86_64 reader.
+            named=$(basename "$package")
+            named=${named##*-}
+            named=${named%%.pkg.tar.*}
+            built=$(bsdtar -xOf "$package" .PKGINFO | sed -n 's/^arch = //p' | head -n 1)
+            if [ "$named" != "$built" ]; then
+              echo "::error::$(basename "$package") is named $named and was built for $built" >&2
+              exit 1
+            fi
+            echo "$(basename "$package") is the engine, for $built"
+          done
+
+      # The same key and the same unlocking as a browser release, because it is
+      # the same repository being signed. Without the secret there is nothing to
+      # do and the job says so rather than publishing something unsigned, which
+      # a reader's `SigLevel = Required` would refuse anyway.
+      - name: Take up the signing key
+        id: key
+        env:
+          SIGNING_KEY: ${{ secrets.PACMAN_SIGNING_KEY }}
+          PASSPHRASE: ${{ secrets.PACMAN_SIGNING_KEY_PASSPHRASE }}
+        run: |
+          if [ -z "$SIGNING_KEY" ]; then
+            echo "::error::no PACMAN_SIGNING_KEY secret, so nothing can be published" >&2
+            exit 1
+          fi
+          export GNUPGHOME=/tmp/gnupg
+          mkdir -p "$GNUPGHOME"
+          chmod 700 "$GNUPGHOME"
+          if [ -n "$PASSPHRASE" ]; then
+            printf '%s' "$PASSPHRASE" > "$GNUPGHOME/passphrase"
+            chmod 600 "$GNUPGHOME/passphrase"
+            # `repo-add` signs the database with a plain `gpg --detach-sign`,
+            # passing neither `--batch` nor a passphrase, so whether that
+            # signature can be made at all depends on gpg reading the file on
+            # its own.
+            {
+              echo "batch"
+              echo "pinentry-mode loopback"
+              echo "passphrase-file $GNUPGHOME/passphrase"
+            } > "$GNUPGHOME/gpg.conf"
+            echo "allow-loopback-pinentry" > "$GNUPGHOME/gpg-agent.conf"
+          fi
+          printf '%s' "$SIGNING_KEY" | gpg --batch --quiet --import
+          fingerprint=$(gpg --list-secret-keys --with-colons | awk -F: '/^fpr:/ { print $10; exit }')
+          if [ -z "$fingerprint" ]; then
+            echo "::error::PACMAN_SIGNING_KEY carried no secret key" >&2
+            exit 1
+          fi
+          # The key the pages tell a reader to check, held against the key this
+          # is about to sign with. A secret that had been rotated without the
+          # pages following would otherwise publish a repository nobody can
+          # install from.
+          published=$(gpg --show-keys --with-colons security/repo-signing-key.asc \
+            | awk -F: '/^fpr:/ { print $10; exit }')
+          if [ "$fingerprint" != "$published" ]; then
+            echo "::error::the secret key is $fingerprint and the pages publish $published" >&2
+            exit 1
+          fi
+          # Its own key, so that verifying what it just signed is not a warning.
+          echo "$fingerprint:6:" | gpg --batch --import-ownertrust
+          echo "GNUPGHOME=$GNUPGHOME" >> "$GITHUB_ENV"
+          echo "fingerprint=$fingerprint" >> "$GITHUB_OUTPUT"
+
+      # The branch as it stands, because the browser packages already on it stay
+      # where they are. `publish_repo.sh` replaces older versions of the package
+      # it is given and leaves everything else alone.
+      - name: Fetch what is published
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          remote="https://x-access-token:$GH_TOKEN@github.com/${GITHUB_REPOSITORY}.git"
+          if ! git clone --depth 1 --branch gh-pages "$remote" /tmp/pages 2>/dev/null; then
+            echo "No gh-pages branch yet, so this starts one"
+            git init --initial-branch=gh-pages /tmp/pages
+            git -C /tmp/pages remote add origin "$remote"
+          fi
+
+      - name: Publish the engine to the repository
+        run: |
+          for package in artifacts/*.pkg.tar.*; do
+            scripts/publish_repo.sh --package "$package" --repo-dir /tmp/pages \
+              --key "${{ steps.key.outputs.fingerprint }}"
+          done
+          # Pages runs Jekyll over a branch unless told not to, and Jekyll drops
+          # files whose names begin with an underscore or a dot.
+          touch /tmp/pages/.nojekyll
+
+      - name: Serve it
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          cd /tmp/pages
+          git config user.name "Ville Kivelä"
+          git config user.email "5814559+villekivela@users.noreply.github.com"
+          git add --all
+          # One commit replacing the branch, for the reason a release does the
+          # same: the branch holds packages, and keeping every one it ever
+          # served would grow it by the size of an engine each time.
+          git checkout --orphan published
+          git commit --quiet --message "Serve the engine from $TAG"
+          git push --force origin published:gh-pages
+          {
+            echo "### Published to the pacman repository"
+            echo
+            echo "The engine from \`$TAG\` is served from \`gh-pages\`."
+            echo
+            echo "A reader takes it with an ordinary \`pacman -Syu\`."
+          } >> "$GITHUB_STEP_SUMMARY"
