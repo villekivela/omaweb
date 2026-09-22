@@ -22,6 +22,11 @@ else()
     set(omaweb_build_sync_default OFF)
 endif()
 option(OMAWEB_BUILD_SYNC "Build the Linux Sync Feature module" ${omaweb_build_sync_default})
+# A Known extension needs the patched engine ADR 0049 ships, not the
+# distribution's QtWebEngine. The package that carries that engine turns this
+# on; every other build leaves the capability unreported, so the surfaces are
+# absent rather than dead.
+option(OMAWEB_KNOWN_EXTENSIONS "Report that the engine can host a Known extension" OFF)
 set(OMAWEB_GITHUB_APP_CLIENT_ID "Iv23liYr7TPLsmgsxLfl" CACHE STRING
     "Public client ID of the Omaweb GitHub App")
 set(OMAWEB_GITHUB_APP_SLUG "omaweb-sync" CACHE STRING
@@ -75,7 +80,11 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-set(omaweb_qt_components Concurrent Core Gui Network Qml Quick QuickControls2 Sql)
+# `CorePrivate` is one header in `ExtensionPackage.cpp`: `QZipReader`, which
+# Qt ships privately and which is what reads a store package's archive. Writing
+# a ZIP reader by hand, or taking a dependency for one, would both be worse
+# than a header that has been in the same place since Qt 5.
+set(omaweb_qt_components Concurrent Core CorePrivate Gui Network Qml Quick QuickControls2 Sql)
 if(UNIX AND NOT APPLE)
     # The desktop's notification service is a session-bus service, so the Linux
     # platform layer needs D-Bus. macOS reaches its own through AppKit.
@@ -86,7 +95,7 @@ if(UNIX AND NOT APPLE)
 endif()
 if(OMAWEB_BUILD_BROWSER)
     # `WebEngineQuickPrivate` is for `QtProfileSettings.cpp`; its target says why.
-    list(APPEND omaweb_qt_components CorePrivate WebEngineCore WebEngineQuick WebEngineQuickPrivate)
+    list(APPEND omaweb_qt_components WebEngineCore WebEngineQuick WebEngineQuickPrivate)
 endif()
 if(BUILD_TESTING)
     # `GuiPrivate` for the UI tests' frame-time probe, which reads a frame's
@@ -170,6 +179,14 @@ add_library(omaweb-core STATIC
     src/core/HardwareVideoDecode.h
     src/core/HistoryQuery.cpp
     src/core/HistoryQuery.h
+    src/core/EnginePaths.cpp
+    src/core/EnginePaths.h
+    src/core/ExtensionInstaller.cpp
+    src/core/ExtensionInstaller.h
+    src/core/ExtensionPackage.cpp
+    src/core/ExtensionPackage.h
+    src/core/KnownExtensions.cpp
+    src/core/KnownExtensions.h
     src/core/HistorySearch.cpp
     src/core/HistorySearch.h
     src/core/KeyboardNavigation.cpp
@@ -211,8 +228,13 @@ add_library(omaweb-core STATIC
 )
 set_target_properties(omaweb-core PROPERTIES POSITION_INDEPENDENT_CODE ON)
 target_include_directories(omaweb-core PUBLIC src/core src/content-blocking)
+# OpenSSL verifies a store package's publisher signature. Qt links it already
+# for TLS but exposes no signing, and a browser that installs signed packages
+# needs to check the signature itself rather than trust the transport.
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(LIBCRYPTO REQUIRED IMPORTED_TARGET libcrypto)
 target_link_libraries(omaweb-core PUBLIC Qt6::Core Qt6::Network Qt6::Qml Qt6::Sql
-    PRIVATE Qt6::Concurrent omaweb-content-blocking)
+    PRIVATE Qt6::Concurrent Qt6::CorePrivate PkgConfig::LIBCRYPTO omaweb-content-blocking)
 omaweb_strict_target(omaweb-core)
 
 if(OMAWEB_BUILD_SYNC)
@@ -351,11 +373,15 @@ add_library(omaweb-engine-api STATIC
     src/engine/api/EngineCapabilities.h
     src/engine/api/EngineViewContract.cpp
     src/engine/api/EngineViewContract.h
+    src/engine/api/EngineBuild.cpp
+    src/engine/api/EngineBuild.h
     src/engine/api/QmlContract.cpp
     src/engine/api/QmlContract.h
 )
 target_include_directories(omaweb-engine-api PUBLIC src/engine/api)
 target_link_libraries(omaweb-engine-api PUBLIC Qt6::Core Qt6::Qml)
+target_compile_definitions(omaweb-engine-api PUBLIC
+    OMAWEB_KNOWN_EXTENSIONS=$<BOOL:${OMAWEB_KNOWN_EXTENSIONS}>)
 omaweb_strict_target(omaweb-engine-api)
 
 if(OMAWEB_BUILD_BROWSER)
@@ -480,6 +506,7 @@ set(omaweb_ui_files
     src/ui/CommandPanel.qml
     src/ui/DeveloperToolsDock.qml
     src/ui/DownloadMark.qml
+    src/ui/ExtensionMark.qml
     src/ui/FindBar.qml
     src/ui/Glance.qml
     src/ui/HistoryPage.qml
@@ -700,17 +727,22 @@ if(OMAWEB_BUILD_BROWSER)
     )
 
     if(UNIX AND NOT APPLE)
-        # The content blocker is a shared library the build resolves out of the
-        # bootstrap cache, so the binary's build-tree runpath names a directory
-        # on the machine that compiled it. An installed copy has to find it
-        # where the package puts it instead, or it loads nothing anywhere but
-        # here.
+        # Two directories an installed copy has to find for itself. The content
+        # blocker is a shared library the build resolves out of the bootstrap
+        # cache, so the build-tree runpath names a directory on the machine that
+        # compiled it and nowhere else. The engine is Omaweb's own patched
+        # QtWebEngine (ADR 0049), a separate package under a prefix nothing else
+        # on the machine reads; without it on the runpath the dynamic linker
+        # answers with the distribution's engine and no extension works.
         # Relative to the binary rather than to a prefix. `CMAKE_INSTALL_FULL_*`
         # bakes in whatever prefix configuring used, and a package sets its own
         # when it installs, which would leave the runpath naming a directory the
         # package never wrote to.
+        # The engine's QML plugin needs no path of its own: Omaweb links
+        # WebEngineQuick directly, so the patched library is loaded first and
+        # the plugin's request for that SONAME is already answered.
         set_target_properties(omaweb PROPERTIES
-            INSTALL_RPATH "$ORIGIN/../${CMAKE_INSTALL_LIBDIR}/omaweb")
+            INSTALL_RPATH "$ORIGIN/../${CMAKE_INSTALL_LIBDIR}/omaweb;$ORIGIN/../${CMAKE_INSTALL_LIBDIR}/omaweb/lib")
 
         install(TARGETS omaweb RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
         install(FILES "${omaweb_content_blocker_library}"
@@ -776,8 +808,21 @@ if(BUILD_TESTING)
             -P ${CMAKE_CURRENT_SOURCE_DIR}/tests/cmake/check_shared_qml.cmake
     )
 
+    # A QML file on disk and not in the module is invisible until the release
+    # preset compiles one, because a source build reads the directory. This
+    # says so in every preset, and names the file.
+    add_test(NAME omaweb-qml-registered
+        COMMAND ${CMAKE_COMMAND}
+            -DOMAWEB_UI_DIRECTORY=${CMAKE_CURRENT_SOURCE_DIR}/src/ui
+            "-DOMAWEB_REGISTERED=${omaweb_ui_files}"
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/tests/cmake/check_qml_registered.cmake
+    )
+
     # The release build ships compiled QML and the source-tree builds ship
-    # none, so both configurations check their own build graph.
+    # none, so both configurations check their own build graph. The graph is
+    # the generator's own, named by the generator rather than by one file, so
+    # a Make build is checked the same as a Ninja one;
+    # scripts/check_generators.sh is what says both still are.
     if(OMAWEB_SOURCE_QML)
         set(omaweb_expected_qml_build "source")
     else()
@@ -785,7 +830,8 @@ if(BUILD_TESTING)
     endif()
     add_test(NAME omaweb-qml-build-graph
         COMMAND ${CMAKE_COMMAND}
-            -DOMAWEB_BUILD_GRAPH=${CMAKE_BINARY_DIR}/build.ninja
+            -DOMAWEB_BUILD_DIRECTORY=${CMAKE_BINARY_DIR}
+            -DOMAWEB_GENERATOR=${CMAKE_GENERATOR}
             -DOMAWEB_EXPECTED=${omaweb_expected_qml_build}
             -P ${CMAKE_CURRENT_SOURCE_DIR}/tests/cmake/check_qml_aot.cmake
     )
@@ -841,6 +887,12 @@ if(BUILD_TESTING)
             COMMAND ${Python3_EXECUTABLE}
                 ${CMAKE_CURRENT_SOURCE_DIR}/tests/scripts/tst_security_baseline.py
         )
+        # The fingerprint read out of the signing key, which is what decides
+        # whether a release trusts the key a reader was told to check.
+        add_test(NAME omaweb-repository-instructions
+            COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/tests/scripts/tst_repository_instructions.py
+        )
         # Which construct each terminal colour is read as -- the same claim the
         # Omarchy template makes for a desktop that renders the palette itself.
         add_test(NAME omaweb-terminal-theme-import
@@ -881,6 +933,22 @@ if(BUILD_TESTING)
     omaweb_strict_target(omaweb-session-fixture-tests)
     omaweb_declarative_fixture_target(omaweb-session-fixture-tests)
     add_test(NAME omaweb-session-fixture COMMAND omaweb-session-fixture-tests)
+
+    qt_add_executable(omaweb-engine-paths-tests tests/core/tst_enginepaths.cpp)
+    target_link_libraries(omaweb-engine-paths-tests PRIVATE omaweb-core Qt6::Test)
+    omaweb_strict_target(omaweb-engine-paths-tests)
+    add_test(NAME omaweb-engine-paths COMMAND omaweb-engine-paths-tests)
+
+    qt_add_executable(omaweb-extension-package-tests tests/core/tst_extensionpackage.cpp)
+    target_link_libraries(omaweb-extension-package-tests PRIVATE omaweb-core Qt6::Test
+        Qt6::CorePrivate PkgConfig::LIBCRYPTO)
+    omaweb_strict_target(omaweb-extension-package-tests)
+    add_test(NAME omaweb-extension-package COMMAND omaweb-extension-package-tests)
+
+    qt_add_executable(omaweb-known-extensions-tests tests/core/tst_knownextensions.cpp)
+    target_link_libraries(omaweb-known-extensions-tests PRIVATE omaweb-core Qt6::Test)
+    omaweb_strict_target(omaweb-known-extensions-tests)
+    add_test(NAME omaweb-known-extensions COMMAND omaweb-known-extensions-tests)
 
     qt_add_executable(omaweb-space-storage-tests tests/core/tst_spacestorage.cpp)
     target_link_libraries(omaweb-space-storage-tests PRIVATE omaweb-core Qt6::Test)

@@ -17,6 +17,12 @@ QtObject {
     property var siteDataEntries: []
     property var retainedDataEntries: []
     property var resetPermissionOrigins: []
+    // What the window asks this profile to host, and what it reports hosting.
+    // The lab runs no engine, so nothing is ever loaded and the list stays
+    // empty; the property is here because the window sets one and reads the
+    // other, and a profile that answers neither hides that wiring.
+    property var knownExtensions: []
+    property var hostedExtensions: []
     // What this engine would not be able to take, so the shell's report of it
     // can be reviewed against an engine that falls short.
     property var untouchedCategories: []

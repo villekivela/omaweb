@@ -22,6 +22,12 @@ QString SpaceStorage::profilePathFor(const QString &spaceId) const
         .filePath(QStringLiteral("spaces/%1/engines/%2").arg(spaceId, m_engineName));
 }
 
+QString SpaceStorage::extensionPathFor(const QString &extensionKey) const
+{
+    return QDir(m_dataRoot)
+        .filePath(QStringLiteral("extensions/%1/%2").arg(m_engineName, extensionKey));
+}
+
 QString SpaceStorage::databasePathFor(const QString &spaceId) const
 {
     return QDir(m_dataRoot).filePath(QStringLiteral("spaces/%1/browser.sqlite").arg(spaceId));

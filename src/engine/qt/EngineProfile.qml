@@ -31,6 +31,23 @@ QtObject {
     property var answeredDownloads: ({})
     property var downloadRequests: ({})
     property bool privateBrowsing: true
+    // The Known extensions this profile should be hosting, as
+    // `{ key, name, path }`. A Private window is handed none: the engine
+    // refuses an off-the-record profile, and a vault that followed a reader
+    // into private browsing would be the opposite of what they asked for.
+    property var knownExtensions: []
+    // What is actually loaded here, as `{ key, name, id, popupUrl }`. Reported
+    // rather than assumed: a package that is missing, refused or built for
+    // another engine leaves the surfaces that would open it absent, which is
+    // the same answer an engine that cannot host one gives.
+    property var hostedExtensions: []
+    signal extensionsChanged
+    // How many packages the engine has been asked for and not yet answered
+    // about. A document created before its profile's extensions are enabled
+    // runs none of their content scripts, so a view built while this is above
+    // zero holds its first load until it is not. The wait is the engine
+    // reading a manifest, which is over in milliseconds.
+    property int extensionLoadsPending: 0
     property string downloadNamespace: ""
     property int activeDownloadCount: 0
     property bool retired: false
@@ -256,6 +273,79 @@ QtObject {
         }
     }
 
+    // Which Known extension an engine id belongs to. The engine names a package
+    // by the id it derives from the publisher's key, and Omaweb names it by the
+    // key the reader enabled, so the two are matched here rather than assumed
+    // to be the same word.
+    function extensionKeyFor(id) {
+        for (const known of root.knownExtensions) {
+            // The engine derives an id from the publisher's key in the
+            // package, which is the id the store lists and the publisher's own
+            // desktop application allows.
+            if (known.storeId === id) {
+                return known.key;
+            }
+        }
+        return "";
+    }
+
+    property Connections profileExtensionLoader: Connections {
+        id: profileExtensions
+        target: root
+        enabled: !root.privateBrowsing
+
+        // The packages this profile has asked the engine for, by path. The
+        // list of Known extensions is reassigned for every change to any of
+        // them, and a download ends in two such changes, so without this a
+        // package arriving is loaded twice within a tick. The engine answers
+        // a second load of a running extension by leaving its worker and
+        // popup without their `chrome` bindings until the profile is rebuilt.
+        readonly property var requested: ({})
+
+        function load() {
+            if (root.privateBrowsing || !privateProfile.extensionManager) {
+                return;
+            }
+            for (const known of root.knownExtensions) {
+                if (profileExtensions.requested[known.path])
+                    continue;
+                profileExtensions.requested[known.path] = true;
+                root.extensionLoadsPending += 1;
+                privateProfile.extensionManager.loadExtension(known.path);
+            }
+        }
+
+        function onKnownExtensionsChanged() {
+            profileExtensions.load();
+        }
+    }
+
+    property Connections profileExtensionWatch: Connections {
+        target: privateProfile.extensionManager
+        enabled: !root.privateBrowsing && privateProfile.extensionManager !== null
+
+        function onLoadFinished(extension) {
+            if (!extension.isLoaded) {
+                console.warn("Known extension not loaded:", extension.error);
+                root.extensionLoadsPending = Math.max(0, root.extensionLoadsPending - 1);
+                return;
+            }
+            privateProfile.extensionManager.setExtensionEnabled(extension, true);
+            // Enabled first: a view released here navigates into an
+            // extension that is already on.
+            root.extensionLoadsPending = Math.max(0, root.extensionLoadsPending - 1);
+            const hosted = root.hostedExtensions.slice();
+            hosted.push({
+                            "key": root.extensionKeyFor(extension.id),
+                            "name": extension.name,
+                            "id": extension.id,
+                            "popupUrl": String(extension.actionPopupUrl)
+                        });
+            root.hostedExtensions = hosted;
+            root.extensionsChanged();
+        }
+    }
+
     property WebEngineProfile privateProfile: WebEngineProfile {
         property string preparedDownloadPath: ""
         storageName: root.privateBrowsing ? "omaweb-private" : "omaweb-space"
@@ -279,6 +369,13 @@ QtObject {
         // the only place a site's decisions live, which is also what lets
         // allow-once mean once and clipboard read mean every time.
         persistentPermissionsPolicy: WebEngineProfile.PersistentPermissionsPolicy.AskEveryTime
+
+        // A Known extension is loaded once per Engine profile, which is once
+        // per Space, so each Space keeps the extension's own storage apart and
+        // a vault is unlocked where it is used. The engine loads a package
+        // disabled and it is enabled here, which is the order the manager
+        // asks for.
+        Component.onCompleted: profileExtensions.load()
 
         // Chromium hands the notification over and waits: nothing is shown
         // until `show` is called, and a page that is never told otherwise has

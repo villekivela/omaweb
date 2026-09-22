@@ -1,11 +1,14 @@
 name: Engine security baseline
 
-# Check weekly because Qt and Chromium releases do not change this repository.
-# Keep one issue open while the approved engine baseline is outdated. Updating
-# the baseline still requires release-note review and a qualified build.
+# Check daily. Qt and Chromium releases do not change this repository, so
+# nothing here notices one until this asks, and the response window starts when
+# the issue opens: a check that sleeps for six days spends those days of the
+# window on not having looked. The run edits one open issue rather than
+# commenting, so a daily cadence adds no noise. Updating the baseline still
+# requires release-note review and a qualified build.
 on:
   schedule:
-    - cron: "0 6 * * 2"
+    - cron: "0 6 * * *"
   workflow_dispatch:
 
 permissions:

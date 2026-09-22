@@ -4,12 +4,12 @@
 `security/baseline.json` names the QtWebEngine an Omaweb build is supported on
 and the Chromium release whose security fixes that engine carries. Both go stale
 on someone else's schedule: Qt publishes a patch release, Chromium publishes a
-security fix, and nothing in this repository changes. So this looks weekly and
-leaves one issue behind.
+security fix, and nothing in this repository changes. So this looks daily and
+leaves one issue behind, editing it rather than commenting on it.
 
-What it opens an issue for is a newer QtWebEngine than the approved one, because
+What it opens an issue for is a QtWebEngine newer than the approved one, because
 that is the actionable half: a security-bearing Qt patch has to produce a tested
-Omaweb update within seven days (SECURITY.md), and until the baseline is raised
+Omaweb update within two days (SECURITY.md), and until the baseline is raised
 every build below it is an unsupported preview. How far the approved engine's
 fixes are behind Chromium's own stable release is reported alongside, because it
 is what says whether the wait is urgent.
@@ -27,14 +27,14 @@ import datetime
 import json
 import subprocess
 import sys
+import re
 import urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 BASELINE = ROOT / "security" / "baseline.json"
 
-ARCH_PACKAGE = ("https://archlinux.org/packages/search/json/"
-                "?name=qt6-webengine&repo=Extra")
+QT_RELEASES = "https://download.qt.io/official_releases/qt/"
 CHROMIUM_STABLE = ("https://chromiumdash.appspot.com/fetch_releases"
                    "?channel=Stable&platform=Linux&num=1")
 
@@ -44,9 +44,13 @@ LABEL_DESCRIPTION = "The approved QtWebEngine baseline is behind upstream"
 
 TRIAGE_LABEL = "ready-for-human"
 
+# An issue a workflow opens notifies nobody. Assigning it puts it where the
+# person who has to act on it already looks.
+ASSIGNEE = "villekivela"
+
 MARKER = "<!-- omaweb:engine-security-baseline -->"
 
-RESPONSE_DAYS = 7
+RESPONSE_DAYS = 2
 
 
 def version(value: str) -> tuple[int, ...]:
@@ -68,25 +72,25 @@ def newer(candidate: str, than: str) -> bool:
     return left > right
 
 
-def baseline_report(baseline: dict, packaged_engine: str,
+def baseline_report(baseline: dict, released_engine: str,
                     chromium_stable: str) -> dict:
     """What the approved baseline is, what upstream has, and whether the
     baseline has to move. Pure, so the decision can be tested without the
     network the two versions come from."""
     approved_engine = baseline.get("qtwebengine", "")
     approved_patch = baseline.get("chromiumSecurityPatch", "")
-    engine_behind = newer(packaged_engine, approved_engine)
+    engine_behind = newer(released_engine, approved_engine)
     chromium_behind = newer(chromium_stable, approved_patch)
     reasons = []
     if engine_behind:
         reasons.append(
-            f"QtWebEngine {packaged_engine} is packaged; the approved baseline "
-            f"is {approved_engine}.")
+            f"Qt has released QtWebEngine {released_engine}; the approved "
+            f"baseline is {approved_engine}.")
     if chromium_behind:
         reasons.append(
             f"The approved engine carries Chromium security fixes up to "
             f"{approved_patch}; Chromium stable is {chromium_stable}.")
-    if not packaged_engine or not chromium_stable:
+    if not released_engine or not chromium_stable:
         reasons.append(
             "Upstream did not answer with a version for every check, so this "
             "report is incomplete.")
@@ -97,7 +101,7 @@ def baseline_report(baseline: dict, packaged_engine: str,
             "chromiumSecurityPatch": approved_patch,
         },
         "available": {
-            "qtwebengine": packaged_engine,
+            "qtwebengine": released_engine,
             "chromium": chromium_stable,
         },
         "reviewed": baseline.get("reviewed", ""),
@@ -114,7 +118,7 @@ def report_summary(report: dict) -> str:
         f"Approved: QtWebEngine {approved['qtwebengine']} on Chromium "
         f"{approved['chromium']}, security fixes up to "
         f"{approved['chromiumSecurityPatch']} (reviewed {report['reviewed']}).",
-        f"Packaged: QtWebEngine {available['qtwebengine'] or 'unknown'}.",
+        f"Released: QtWebEngine {available['qtwebengine'] or 'unknown'}.",
         f"Chromium stable: {available['chromium'] or 'unknown'}.",
     ]
     lines += [f"- {reason}" for reason in report["reasons"]]
@@ -142,7 +146,7 @@ def issue_body(report: dict, today: datetime.date | None = None) -> str:
     approved = report["approved"]
     lines = [
         MARKER,
-        f"A newer QtWebEngine is packaged than the one "
+        f"Qt has released a newer QtWebEngine than the one "
         f"`security/baseline.json` approves, so every build is below the "
         f"baseline it claims until this is reviewed.",
         "",
@@ -187,8 +191,8 @@ def sync_issue(report: dict, run=gh, today: datetime.date | None = None) -> int:
         if existing is not None:
             run("issue", "close", str(existing), "--comment",
                 f"The approved baseline is QtWebEngine "
-                f"{report['approved']['qtwebengine']}, which is the packaged "
-                f"engine.")
+                f"{report['approved']['qtwebengine']}, which is the engine Qt "
+                f"has released.")
             print(f"Closed #{existing}: the baseline is the current engine.")
         else:
             print("The approved baseline is the current engine. "
@@ -204,7 +208,7 @@ def sync_issue(report: dict, run=gh, today: datetime.date | None = None) -> int:
     run("label", "create", LABEL, "--force", "--color", LABEL_COLOR,
         "--description", LABEL_DESCRIPTION)
     run("issue", "create", "--title", title, "--body", body,
-        "--label", LABEL, "--label", TRIAGE_LABEL)
+        "--label", LABEL, "--label", TRIAGE_LABEL, "--assignee", ASSIGNEE)
     print(f"Opened an issue: {title}")
     return 0
 
@@ -214,9 +218,26 @@ def fetch_json(url: str):
         return json.loads(response.read().decode("utf-8"))
 
 
-def packaged_engine_version() -> str:
-    results = fetch_json(ARCH_PACKAGE).get("results") or []
-    return results[0].get("pkgver", "") if results else ""
+def fetch_text(url: str) -> str:
+    with urllib.request.urlopen(url, timeout=30) as response:
+        return response.read().decode("utf-8", "replace")
+
+
+def newest(listing: str, pattern: str) -> str:
+    """The highest version named by a download.qt.io directory listing."""
+    found = re.findall(pattern, listing)
+    return max(found, key=version) if found else ""
+
+
+def released_engine_version() -> str:
+    """The newest QtWebEngine Qt itself has published. Qt is the upstream that
+    matters here rather than a distribution's package, because the distribution
+    lags Qt by days and the response window starts when Qt publishes."""
+    series = newest(fetch_text(QT_RELEASES), r'href="(\d+\.\d+)/"')
+    if not series:
+        return ""
+    return newest(fetch_text(f"{QT_RELEASES}{series}/"),
+                  r'href="(\d+\.\d+\.\d+)/"')
 
 
 def chromium_stable_version() -> str:
@@ -238,7 +259,7 @@ def main() -> int:
         return sync_issue(json.loads(arguments.issue_from.read_text()))
 
     baseline = json.loads(BASELINE.read_text())
-    report = baseline_report(baseline, packaged_engine_version(),
+    report = baseline_report(baseline, released_engine_version(),
                              chromium_stable_version())
     print(report_summary(report))
     if arguments.report:

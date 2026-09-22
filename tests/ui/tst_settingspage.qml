@@ -609,6 +609,143 @@ TestCase {
         verify(notice.visible);
     }
 
+    // Two Known extensions as the controller reports them: one whose package
+    // is here and on, one Omaweb names but has not downloaded. The second is
+    // the state the section exists to explain, so it is in the fixture rather
+    // than assumed away.
+    readonly property var extensionsFixture: [
+        {
+            "key": "bitwarden",
+            "name": "Bitwarden Password Manager",
+            "publisher": "Bitwarden, Inc.",
+            "licence": "GPL-3.0-or-later",
+            "summary": "Fills and saves passwords.",
+            "installed": true,
+            "enabled": true
+        },
+        {
+            "key": "onepassword",
+            "name": "1Password",
+            "publisher": "AgileBits Inc.",
+            "licence": "Proprietary",
+            "summary": "Fills and saves passwords.",
+            "installed": false,
+            "enabled": false
+        }
+    ]
+
+    SignalSpy {
+        id: extensionToggleSpy
+        signalName: "knownExtensionToggled"
+    }
+
+    // A build running the engine the system supplies cannot host an extension,
+    // and says so where the list would be rather than drawing switches that
+    // would reach nothing.
+    function test_aBuildThatCannotHostAnExtensionSaysSoRatherThanListing() {
+        const page = makePage();
+        page.knownExtensions = testCase.extensionsFixture;
+        page.section = page.sections.indexOf("extensions");
+        const notice = findChild(page, "extensionsUnavailableNotice");
+        verify(notice !== null);
+        verify(notice.visible);
+        const toggle = findChild(page, "knownExtension-bitwarden");
+        verify(toggle !== null);
+        verify(!toggle.visible);
+
+        page.knownExtensionsAvailable = true;
+        verify(!notice.visible);
+        verify(toggle.visible);
+    }
+
+    // A Private window hosts no extension, and the capability that draws the
+    // switches belongs to the build rather than the window, so without this
+    // the section offers a reader a switch that cannot do anything here.
+    function test_aPrivateWindowSaysWhyItListsNoExtension() {
+        const page = makePage();
+        page.knownExtensionsAvailable = true;
+        page.knownExtensions = testCase.extensionsFixture;
+        page.section = page.sections.indexOf("extensions");
+
+        const toggle = findChild(page, "knownExtension-bitwarden");
+        verify(toggle !== null);
+        verify(toggle.visible);
+
+        page.privateWindow = true;
+        const notice = findChild(page, "extensionsPrivateNotice");
+        verify(notice !== null);
+        verify(notice.visible);
+        // The switch goes rather than greying out: a reader cannot act on it
+        // in this window at all, and a dimmed switch invites the try.
+        verify(!toggle.visible);
+
+        page.privateWindow = false;
+        verify(!notice.visible);
+        verify(toggle.visible);
+    }
+
+    // One switch per Known extension, carrying what the reader needs to judge
+    // it. A package that has not arrived leaves a switch that says why it
+    // cannot be turned on, because a name with no explanation reads as a
+    // browser that has lost it.
+    function test_eachKnownExtensionIsOneSwitchThatSaysWhoPublishesIt() {
+        const page = makePage();
+        page.knownExtensionsAvailable = true;
+        page.knownExtensions = testCase.extensionsFixture;
+        page.section = page.sections.indexOf("extensions");
+
+        const present = findChild(page, "knownExtension-bitwarden");
+        verify(present !== null);
+        verify(present.enabled);
+        verify(present.checked);
+        verify(present.note.indexOf("Bitwarden, Inc.") >= 0);
+        verify(present.note.indexOf("GPL-3.0-or-later") >= 0);
+        verify(present.note.indexOf("not downloaded yet") < 0);
+
+        // Not downloaded is not a reason to refuse the switch: turning it on
+        // is what fetches it. A download already running is the only reason.
+        const absent = findChild(page, "knownExtension-onepassword");
+        verify(absent !== null);
+        verify(absent.enabled);
+        verify(!absent.checked);
+        verify(absent.note.indexOf("not downloaded yet") >= 0);
+
+        // The switch reports the key and the answer; what that answer costs is
+        // the controller's, and the page never holds a state of its own.
+        extensionToggleSpy.target = page;
+        extensionToggleSpy.clear();
+        settleAction(present);
+        mouseClick(present, present.width / 2, present.height / 2);
+        tryCompare(extensionToggleSpy, "count", 1);
+        compare(extensionToggleSpy.signalArguments[0][0], "bitwarden");
+        compare(extensionToggleSpy.signalArguments[0][1], false);
+        extensionToggleSpy.target = null;
+    }
+
+    // A download already running is the one reason the switch refuses: pressing
+    // it again would ask for the same folder twice while the first answer is
+    // still being written into it.
+    function test_anExtensionBeingDownloadedSaysSoAndCannotBePressed() {
+        const page = makePage();
+        page.knownExtensionsAvailable = true;
+        const arriving = testCase.extensionsFixture.map(function (entry) {
+            return Object.assign({}, entry, {
+                                     "fetching": entry.key === "onepassword"
+                                 });
+        });
+        page.knownExtensions = arriving;
+        page.section = page.sections.indexOf("extensions");
+
+        const downloading = findChild(page, "knownExtension-onepassword");
+        verify(downloading !== null);
+        verify(!downloading.enabled);
+        verify(downloading.note.indexOf("downloading") >= 0);
+        verify(downloading.note.indexOf("not downloaded yet") < 0);
+
+        // The one that is not being fetched is untouched by another's download.
+        verify(findChild(page, "knownExtension-bitwarden").enabled);
+    }
+
     // The reader's type, stubbed the way the page reads it: the size on show,
     // whether it is theirs, the theme's underneath, and a page's fonts each
     // beside the engine's own. The real object is driven by the layout test
@@ -1346,7 +1483,7 @@ TestCase {
         const page = makePage();
         const pane = findChild(page, "settingsPane");
         verify(pane !== null);
-        compare(page.sections.length, 11);
+        compare(page.sections.length, 12);
 
         theme.useTypeTokens(2);
         for (let section = 0; section < page.sections.length; ++section) {

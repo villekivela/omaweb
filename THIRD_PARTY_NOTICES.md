@@ -76,20 +76,26 @@ one, and the Arch package installs it as `share/omaweb/sbom.json`.
 
 It covers what Omaweb ships: the Rust dependency graph the content blocker links, the two vendored
 web-asset directories, and the icon font. It does not cover the web engine, and that is deliberate.
-The Arch package depends on `qt6-webengine` rather than bundling it, so the distribution's own
-package carries Qt's and Chromium's notices, and its package manager already knows which version is
-installed. A second answer from Omaweb could only disagree with that one. What the inventory records
-instead is the approved engine baseline, which is Omaweb's own claim about the engine it is
-supported on.
+The engine is its own package, `omaweb-qtwebengine`, which carries its own notices in
+`share/licenses/omaweb-qtwebengine`: the LGPL-3.0 text QtWebEngine's code is under, Chromium's
+notice taken from the tree it was built from, and a `MODIFICATIONS.md` saying what was changed and
+where the corresponding source is. Restating any of that here could only disagree with it. What the
+inventory records instead is the approved engine baseline, which is Omaweb's own claim about the
+engine it is supported on.
 
 Filter lists are not in it either. They are fetched on a first run rather than shipped, and the
 addresses and licences above are what applies to them.
 
-## A build that bundles its engine
+## The engine, and builds that bundle one
 
-A bundled build, an AppImage or a Flatpak, would carry Qt and Chromium itself, and none of the
-paragraph above would hold: it would need Qt and QtWebEngine licences, corresponding-source
-instructions and replacement guidance, plus Chromium component notices generated from the selected
-Qt SDK, and the same for Ladybird and its dependencies in the Ladybird variant. ADR 0013 defers both
-formats until Omaweb can maintain bundled engine security updates, and this inventory is not
-sufficient for one until it does.
+Omaweb ships its own QtWebEngine as a separate package (ADR 0049), which is why the notices above
+are that package's and not this file's. It is a distribution of modified LGPL-3.0 code, so three
+things have to hold and do: the modified source is published as a patch series against the released
+Qt tarball, the engine stays a shared library that a different build of the same version can
+replace, and the package says it is modified. Chromium's own third party components keep their
+notices in that source tarball rather than being restated, and no consolidated credits document is
+generated from it yet.
+
+A single-file bundled build, an AppImage or a Flatpak, is a further step and is not covered: it
+would carry the rest of Qt as well, and the same again for Ladybird and its dependencies in the
+Ladybird variant. ADR 0013 defers both formats, and this inventory is not sufficient for one.

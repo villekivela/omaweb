@@ -487,9 +487,9 @@ list contributed and what it skipped.
 
 - Bookmarks
 - Integrated terminal
-- Third-party WebExtensions
+- Web extensions other than a Known extension
 - Browser Account system
-- Password management
+- Password management by Omaweb itself
 - Browser data import
 - Installed web applications
 - Additional ordinary browser windows or detached tabs

@@ -1,5 +1,6 @@
 #include "BrowserController.h"
 #include "HistoryQuery.h"
+#include "KnownExtensions.h"
 #include "PrivateSessionFixture.h"
 #include "SessionFixture.h"
 #include "SpaceListModel.h"
@@ -2427,6 +2428,25 @@ void BrowserControllerTest::routesNotificationsToTheOriginatingTab()
     // A Space with no page at that origin has no tab to speak for it.
     QVERIFY(controller
             .notificationTarget(personalSpaceId, QUrl(QStringLiteral("https://elsewhere.example")))
+            .isEmpty());
+
+    // An extension speaks for itself. It has no tab, so the reader is told
+    // which extension interrupted them and the window is not asked to move.
+    const auto known = omaweb::knownExtensions().first();
+    const auto fromExtension = controller.notificationTarget(personalSpaceId,
+        QUrl(QStringLiteral("chrome-extension://%1/background.js").arg(known.storeId)));
+    QVERIFY(!fromExtension.isEmpty());
+    QVERIFY(fromExtension.value(QStringLiteral("tabId")).toString().isEmpty());
+    QCOMPARE(fromExtension.value(QStringLiteral("extensionKey")).toString(), known.key);
+    QCOMPARE(fromExtension.value(QStringLiteral("sender")).toString(), known.name);
+    QCOMPARE(
+        fromExtension.value(QStringLiteral("spaceName")).toString(), QStringLiteral("Personal"));
+
+    // An id Omaweb does not name cannot be attributed, so it is refused rather
+    // than shown as itself.
+    QVERIFY(controller
+            .notificationTarget(personalSpaceId,
+                QUrl(QStringLiteral("chrome-extension://elhgfnenlfpoklfdkdgpbkhkfnbmecen/x.js")))
             .isEmpty());
 
     QVERIFY(controller.switchSpace(workSpaceId));

@@ -69,14 +69,15 @@ jobs:
             # exists for one job and is thrown away with it.
             pacman-flags: "--disable-sandbox"
     steps:
-      - name: Install toolchain
+      # Before the checkout, because `actions/checkout` without git in the
+      # container falls back to the REST API, and a downloaded tarball carries
+      # no tags for the package to take its version from.
+      - name: Install git
         env:
           PACMAN_FLAGS: ${{ matrix.pacman-flags }}
         # Unquoted, because an empty value has to disappear rather than become
         # an empty argument pacman would read as a package name.
-        run:
-          pacman -Syu --noconfirm $PACMAN_FLAGS git cmake ninja clang rust python qt6-base
-          qt6-declarative qt6-webengine qt6-wayland hicolor-icon-theme xdg-utils libsecret libsodium
+        run: pacman -Syu --noconfirm $PACMAN_FLAGS git gnupg
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # The package takes its version from the nearest release tag, so the
@@ -84,6 +85,44 @@ jobs:
           fetch-depth: 0
       - name: Trust checkout in container
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      # The engine is Omaweb's own package (ADR 0049) and Omaweb's repository is
+      # the only place it is published, so a release has to install from there
+      # to build against the engine it will run on. The public half of the
+      # signing key is in the checkout rather than fetched, because a keyserver
+      # that does not answer would fail a release for a reason that has nothing
+      # to do with the release.
+      - name: Trust the repository that serves the engine
+        env:
+          # What the README and the website tell a reader to check. Held against
+          # the key file so that a replaced file is a failure rather than a
+          # silently different key.
+          PUBLISHED: FDA535B2185755EA718BEA585DBF15FE484EFA64
+        run: |
+          fingerprint=$(gpg --show-keys --with-colons security/repo-signing-key.asc \
+            | awk -F: '/^fpr:/ { print $10; exit }')
+          if [ "$fingerprint" != "$PUBLISHED" ]; then
+            echo "::error::security/repo-signing-key.asc is $fingerprint, not $PUBLISHED" >&2
+            exit 1
+          fi
+          pacman-key --add security/repo-signing-key.asc
+          pacman-key --lsign-key "$fingerprint"
+          # `$arch` stays literal: pacman expands it to the architecture the
+          # client asks for, which is how one Server line serves both.
+          {
+            echo
+            echo "[omaweb]"
+            echo "SigLevel = Required DatabaseRequired"
+            echo 'Server = https://github.com/villekivela/omaweb/releases/download/repo-$arch'
+          } >> /etc/pacman.conf
+
+      - name: Install toolchain
+        env:
+          PACMAN_FLAGS: ${{ matrix.pacman-flags }}
+        run:
+          pacman -Syu --noconfirm $PACMAN_FLAGS cmake ninja clang rust python qt6-base
+          qt6-declarative omaweb-qtwebengine qt6-wayland hicolor-icon-theme xdg-utils libsecret
+          libsodium
 
       # Every job here asks the same script what is being built, so a dry run
       # and a release cannot end up naming one thing two ways.
@@ -385,21 +424,19 @@ jobs:
 
       # Each package in turn, into the repository for its own architecture.
       # `publish_repo.sh` reads that architecture out of the package's name, and
-      # so does this, because it decides which release serves the package.
+      # so does this, because it decides which release the package is served
+      # from.
+      #
+      # That every architecture is here is the matrix's doing rather than this
+      # loop's: a leg that failed fails `needs`, and the release this job waits
+      # on never runs. What is checked here is the case the matrix cannot rule
+      # out, a directory of packages with none in it.
       - name: Publish the package to the repository
         if: steps.key.outputs.signed == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
-          # Each package in turn. `publish_repo.sh` reads the architecture out
-          # of the package's own name and files it under that directory, so the
-          # loop says nothing about which architectures there are.
-          #
-          # That every architecture is here is the matrix's doing rather than
-          # this loop's: a leg that failed fails `needs`, and the release this
-          # job waits on never runs. What is checked here is the case the
-          # matrix cannot rule out, a directory of packages with none in it.
           published=0
           for package in artifacts/*.pkg.tar.*; do
             [ -e "$package" ] || continue

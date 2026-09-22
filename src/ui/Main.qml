@@ -206,6 +206,52 @@ ApplicationWindow {
     // without a parent, and this list is what keeps it alive and closable.
     readonly property var privateWindows: []
     property var spaceProfileHost: null
+    // Every Known extension Omaweb names, with the reader's answer and what is
+    // on disk. Read rather than bound: a package arriving is a change to the
+    // filesystem that nothing in QML is watching.
+    property var knownExtensions: []
+    // The Known extensions this window hosts: what the reader enabled, that is
+    // actually on disk, and only where the engine can host one at all. A
+    // Private window hosts none, whatever is enabled.
+    readonly property var enabledExtensions: window.privateWindow ||
+                                             !window.knownExtensionsAvailable ? [] :
+                                                                                window.knownExtensions.filter(
+                                                                                    entry => entry.enabled
+                                                                                             && entry.installed)
+    // What this window's Space is hosting right now. A window whose profile
+    // host keeps none, which is every window of an engine that cannot host an
+    // extension, reports an empty list rather than nothing.
+    readonly property var hostedExtensions: window.spaceProfileHost
+                                            && window.spaceProfileHost.hostedExtensions
+                                            ? window.spaceProfileHost.hostedExtensions : []
+    // Whether an extension can be hosted at all is a property of the build
+    // rather than of a page: a Space at rest has no engine view to ask, and the
+    // extension belongs to the profile, which is there first. The adapter
+    // reports the same thing per view for the engine contract.
+    readonly property bool knownExtensionsAvailable: EngineBuild.knownExtensions
+    // Why the last package did not arrive, kept until the reader asks again.
+    property string extensionFailure: ""
+    // The menu the extension mark opens, and where it was asked from. The
+    // rectangle is kept because the popup grows out of the mark, not out of
+    // the menu row that chose it.
+    property bool extensionMenuOpen: false
+    property real extensionMenuX: 0
+    property real extensionMenuY: 0
+    property real extensionMenuTop: 0
+    property rect extensionMenuOrigin: Qt.rect(0, 0, 0, 0)
+    // One row per enabled Known extension, under the publisher's own mark. An
+    // extension that is enabled and installed but has not come up in this
+    // Space is listed rather than hidden, dimmed the way any row the keyboard
+    // cannot land on is: a reader looking for it wants to see that it is there
+    // and not running, rather than wonder where it went.
+    readonly property var extensionMenuItems: window.enabledExtensions.map(function (entry) {
+        return {
+            "label": entry.name,
+            "icon": entry.iconUrl,
+            "enabled": window.hostedExtensions.some(item => item.key === entry.key),
+            "key": entry.key
+        };
+    })
     property var omnibarSuggestions: []
     // What the retained-tab list is showing. Rebuilt when the retained set
     // changes and while the list is open, because a renderer's resident memory
@@ -238,6 +284,9 @@ ApplicationWindow {
     property bool glanceEnabled: true
     property var glanceEngine: null
     property string glanceTabId: ""
+    // Whether the Glance on show is an extension's popup rather than a page.
+    // A popup is a control, so it is not kept as a tab.
+    property bool glanceIsExtension: false
     readonly property bool glanceOpen: glanceEngine !== null
     // What the reader pointed at on the page, and the menu Omaweb draws for it.
     property var pageContext: null
@@ -677,6 +726,8 @@ ApplicationWindow {
     // beneath replaces the first rather than stacking over it.
     function openGlance(request, requestedUrl) {
         window.closeGlance();
+        glance.preferredSize = Qt.size(0, 0);
+        window.glanceIsExtension = false;
         const destination = requestedUrl.toString().length > 0 ? requestedUrl.toString() :
                                                                  "about:blank";
         const opener = engineLoader.item;
@@ -697,10 +748,80 @@ ApplicationWindow {
         return true;
     }
 
+    // What Omaweb names, what the reader answered, and what is on disk. Read
+    // rather than bound, because the package arriving is a change to the
+    // filesystem that nothing in QML is watching.
+    function readKnownExtensions() {
+        // A controller that does not name extensions is not an error to
+        // report: the UI lab runs the chrome without one, and a build whose
+        // engine cannot host an extension has nothing to list either.
+        window.knownExtensions = window.windowBrowser && window.windowBrowser.knownExtensions
+                ? window.windowBrowser.knownExtensions() : [];
+    }
+
+    // The mark answers with what this window hosts rather than with a page:
+    // which extensions are enabled, and which of them the engine is actually
+    // running. Even one gets the menu, because the reader pressing the mark is
+    // asking what is there, and an answer that sometimes lists and sometimes
+    // opens is two controls wearing one icon.
+    //
+    // An empty origin is the keyboard asking, which still means the mark: the
+    // menu hangs off it and the popup grows out of it either way.
+    function openExtensionMenu(origin) {
+        const mark = origin && origin.width > 0 ? origin : sidebar.extensionMarkRect();
+        if (mark.width <= 0)
+            return false;
+        window.extensionMenuOrigin = mark;
+        window.extensionMenuX = mark.x + mark.width;
+        window.extensionMenuY = mark.y + mark.height;
+        window.extensionMenuTop = mark.y;
+        window.extensionMenuOpen = true;
+        return true;
+    }
+
+    function runExtensionMenu(index) {
+        const item = window.extensionMenuItems[index];
+        window.extensionMenuOpen = false;
+        if (!item || item.enabled === false)
+            return;
+        window.openExtensionPopup(item.key, window.extensionMenuOrigin);
+    }
+
+    // A Known extension's popup is a page drawn over the page, which is what a
+    // Glance is, so it opens as one: the same panel, the same blur, and the
+    // same Escape. It lifts from the sidebar mark rather than from a link,
+    // because the mark is where the reader asked from.
+    function openExtensionPopup(key, origin) {
+        const hosted = window.hostedExtensions.filter(entry => entry.key === key);
+        if (hosted.length === 0)
+            return false;
+        const popupUrl = hosted[0].popupUrl;
+        if (!popupUrl || popupUrl.length === 0)
+            return false;
+        window.closeGlance();
+        const engine = engineLoader.createDetachedEngine(glance.pageHost, popupUrl);
+        if (!engine)
+            return false;
+        // What a browser gives an extension's popup, and what the popup is
+        // drawn for. Chromium's own maximum is 800 by 600; a password
+        // manager's is narrower than that and lays out badly when it is given
+        // a page's worth of room.
+        glance.preferredSize = Qt.size(400, 600);
+        glance.origin = origin && origin.width > 0 ? glance.mapFromItem(null, origin) : Qt.rect(0, 0,
+                                                                                                0, 0);
+        window.glanceIsExtension = true;
+        engine.anchors.fill = glance.pageHost;
+        engine.visible = true;
+        window.glanceTabId = window.windowBrowser.activeTabId;
+        window.glanceEngine = engine;
+        return true;
+    }
+
     // The engine stays drawn for the length of the drop, so the panel does not
     // empty before it has gone.
     function closeGlance() {
         const engine = window.glanceEngine;
+        window.glanceIsExtension = false;
         if (!engine)
             return;
         window.refuseRequestsFrom(engine);
@@ -1390,6 +1511,18 @@ ApplicationWindow {
                 window.restoreChromeAppearance();
             else if (name === "use-favicons" || name === "tint-favicons")
                 window.restoreTabAppearance();
+        }
+
+        function onKnownExtensionsChanged() {
+            window.readKnownExtensions();
+        }
+
+        // Said where the reader asked, which is Settings, and also as a notice:
+        // a download starts from a switch and finishes minutes later, by which
+        // time the reader has gone back to reading.
+        function onKnownExtensionFailed(key, reason) {
+            window.extensionFailure = reason;
+            window.showNotice("extension_off", "The extension was not installed", reason, 8000);
         }
     }
 
@@ -2121,6 +2254,10 @@ ApplicationWindow {
                 // the rule rather than a matching pair of durations.
                 savedFileNoticeShowing: pageNotice.showing && pageNotice.glyph === "download_done"
                 onDownloadsRequested: window.requestDownloads()
+                hostedExtensions: window.hostedExtensions
+                onExtensionRequested: function (origin) {
+                    window.openExtensionMenu(origin);
+                }
                 onReleaseNotesRequested: function (notes) {
                     // A new tab rather than this one: the reader was doing
                     // something else, and a notice that takes the page away is
@@ -2448,11 +2585,18 @@ ApplicationWindow {
                     // The page's own extent, not the viewport's: the dock
                     // beside the page is not covered.
                     anchors.fill: engineLoader
-                    z: 25
+                    // Above the Start page, which stands where a page would:
+                    // a Glance is a panel over whatever the tab is showing,
+                    // and a Space at rest is showing something. A Glance used
+                    // to arrive only from a link on a live page, where the
+                    // Start page is not drawn, so the order never came up
+                    // until an extension's popup could open at rest.
+                    z: 35
                     colors: window.colors
                     iconFontFamily: materialSymbols.name
                     open: window.glanceOpen
                     ease: window.easeChrome
+                    openAsTabAllowed: !window.glanceIsExtension
                     pageSource: window.pagelessViewport ? null : engineLoader
                     engine: window.glanceEngine
 
@@ -2792,6 +2936,10 @@ ApplicationWindow {
                     engineWebRtcPolicy: window.engineWebRtcAddressPolicy
                     fontSettings: window.readerFonts
                     pageFonts: window.enginePageFonts
+                    knownExtensions: window.knownExtensions
+                    knownExtensionsAvailable: window.knownExtensionsAvailable
+                    privateWindow: window.privateWindow
+                    extensionFailure: window.extensionFailure
                     SheetLift {
                         id: settingsLift
                         shown: settingsSurface.open
@@ -2827,6 +2975,12 @@ ApplicationWindow {
                         window.dialogMode = action;
                     }
                     onClosed: window.settingsOpen = false
+                    onKnownExtensionToggled: function (key, enabled) {
+                        if (enabled)
+                            window.extensionFailure = "";
+                        if (window.windowBrowser.setKnownExtensionEnabled(key, enabled))
+                            window.readKnownExtensions();
+                    }
                     onSyncCodeCopied: function (notice) {
                         window.showNotice("content_copy", notice,
                                           "Paste it into the authorization page", 3000);
@@ -3254,9 +3408,19 @@ ApplicationWindow {
     Component.onCompleted: {
         if (window.privateWindow && window.privateProfileHost)
             window.adoptSpaceProfile("", window.privateProfileHost);
+        // Before the profile, which loads what the list names as it is built,
+        // and before the first page, which holds for those loads: a page that
+        // came up first would run without its password manager until reloaded.
+        window.readKnownExtensions();
         window.createSpaceProfile();
         window.visibleSubscriptions = contentBlocker.subscriptions;
         engineLoader.resume();
+        // A Private window loads no extension and has no storage to keep one
+        // in, so it asks about none. The check is a day apart whatever a reader
+        // does, so every window asking is one window asking.
+        if (!window.privateWindow && window.knownExtensionsAvailable
+                && window.windowBrowser.refreshKnownExtensionsIfDue)
+            window.windowBrowser.refreshKnownExtensionsIfDue();
         // Last, and on its own: how wide a panel was left is never a reason
         // for the page not to come up.
         window.restoreSidebarWidth();
@@ -3299,6 +3463,7 @@ ApplicationWindow {
         contentBlocker: engineContentBlocker
         cookiePolicy: engineCookiePolicy
         downloadHolds: engineHeldDownloads
+        knownExtensions: window.enabledExtensions
         owner: window
 
         onCreated: function (spaceId, host) {
@@ -3361,6 +3526,29 @@ ApplicationWindow {
         text: window.pageTooltipText
         anchorX: window.pageTooltipX
         anchorY: window.pageTooltipY
+    }
+
+    ChromeMenu {
+        id: extensionMenu
+        objectName: "extensionMenu"
+        anchors.fill: parent
+        z: 56
+        colors: window.colors
+        open: window.extensionMenuOpen
+        // Marks alone, standing over the mark that opened them: an extension
+        // is recognised by its icon, and the publisher's name spelled out is a
+        // sentence where a column of icons says the same thing.
+        labelsVisible: false
+        itemWidth: 44
+        anchorX: window.extensionMenuX
+        anchorY: window.extensionMenuY
+        anchorTop: window.extensionMenuTop
+        items: window.extensionMenuItems
+
+        onDismissed: window.extensionMenuOpen = false
+        onTriggered: function (index) {
+            window.runExtensionMenu(index);
+        }
     }
 
     ChromeMenu {

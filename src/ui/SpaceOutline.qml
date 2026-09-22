@@ -11,6 +11,8 @@ Rectangle {
     property var colors
     property string iconFontFamily
     property var browser
+    // What this window's Space is hosting, as `{ key, name, id, popupUrl }`.
+    property var hostedExtensions: []
     property bool privateWindow: false
     property bool collapsed: false
     property bool floating: false
@@ -231,6 +233,15 @@ Rectangle {
         return Qt.rect(corner.x, corner.y, addressButton.width, addressButton.height);
     }
     signal downloadsRequested
+    // Where the popup should come from, in window coordinates. A panel that
+    // grows out of the mark is the mark, opened, rather than a second thing
+    // that appeared over the page. The keyboard asks for the same rectangle,
+    // so the command and the pointer open from the same place.
+    function extensionMarkRect() {
+        const corner = extensionMark.mapToItem(null, 0, 0);
+        return Qt.rect(corner.x, corner.y, extensionMark.width, extensionMark.height);
+    }
+    signal extensionRequested(rect origin)
     signal releaseNotesRequested(url notes)
     // What the reader asked Site information for, on its way to the window's
     // own dialog. The outline states; the window asks.
@@ -1064,6 +1075,22 @@ Rectangle {
             onNotesRequested: function (notes) {
                 root.releaseNotesRequested(notes);
             }
+        }
+
+        ExtensionMark {
+            id: extensionMark
+            objectName: "extensionMark"
+            anchors.right: downloadMark.visible ? downloadMark.left : (syncMark.visible
+                                                                       ? syncMark.left :
+                                                                         settingsButton.left)
+            anchors.rightMargin: 4
+            anchors.verticalCenter: parent.verticalCenter
+            width: 26
+            height: 26
+            colors: root.colors
+            iconFontFamily: root.iconFontFamily
+            hosted: root.hostedExtensions
+            onClicked: root.extensionRequested(root.extensionMarkRect())
         }
 
         DownloadMark {

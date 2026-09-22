@@ -22,6 +22,10 @@ QtObject {
     // attached, and the Space is what the allowances are keyed by.
     property var cookiePolicy: null
     property var downloadHolds: null
+    // The Known extensions every Space in this window hosts. Enablement is one
+    // decision, not one per Space: what each Space keeps apart is the storage
+    // the extension writes into that Space's own Engine profile.
+    property var knownExtensions: []
     // Where created profiles are parented, so they outlive the call that asked
     // for one and go away with the window rather than with a tab.
     property var owner: null
@@ -39,6 +43,14 @@ QtObject {
     }
 
     readonly property var hosts: ({})
+
+    // A reader who enables an extension while Spaces are already open should
+    // not have to reopen them, so the profiles that exist are told too.
+    onKnownExtensionsChanged: {
+        for (const spaceId in root.hosts) {
+            root.hosts[spaceId].knownExtensions = root.knownExtensions;
+        }
+    }
 
     function hostFor(spaceId) {
         const existing = root.hosts[spaceId];
@@ -64,7 +76,8 @@ QtObject {
                                                 "cookieController": root.browser,
                                                 "spaceId": spaceId,
                                                 "downloads": root.browser.downloads,
-                                                "downloadHolds": root.downloadHolds
+                                                "downloadHolds": root.downloadHolds,
+                                                "knownExtensions": root.knownExtensions
                                             });
         if (!host)
             return null;

@@ -1,6 +1,9 @@
 #include "BrowserController.h"
 
+#include "KnownExtensions.h"
+
 #include "DownloadPolicy.h"
+#include "ExtensionPackage.h"
 #include "HistorySearch.h"
 #include "SqliteSessionStore.h"
 #include "ThreadedSessionStore.h"
@@ -16,6 +19,7 @@
 #include <QJsonObject>
 #include <QSaveFile>
 #include <QSet>
+#include <QUrl>
 #include <QUrlQuery>
 #include <QUuid>
 #include <QQmlEngine>
@@ -1503,11 +1507,6 @@ const RetainedTab *BrowserController::findRetainedTab(const QString &tabId) cons
 
 QVariantMap BrowserController::notificationTarget(const QString &spaceId, const QUrl &origin) const
 {
-    const auto wanted = normalizedOrigin(origin);
-    if (wanted.isEmpty()) {
-        return {};
-    }
-
     QString spaceName;
     for (const auto &space : m_spaces.items()) {
         if (space.id == spaceId) {
@@ -1516,22 +1515,44 @@ QVariantMap BrowserController::notificationTarget(const QString &spaceId, const 
         }
     }
 
-    const auto answer = [&](const QString &tabId, const QString &title) {
+    const auto answer = [&](const QString &tabId, const QString &sender, const QString &title) {
         return QVariantMap {
             {QStringLiteral("tabId"), tabId},
             {QStringLiteral("spaceId"), spaceId},
             {QStringLiteral("spaceName"),
                 m_privateBrowsing ? QStringLiteral("Private") : spaceName},
-            {QStringLiteral("origin"), wanted},
+            {QStringLiteral("origin"), sender},
+            {QStringLiteral("sender"), sender},
             {QStringLiteral("title"), title},
         };
     };
+
+    // An extension speaks for itself rather than for a page. Its worker belongs
+    // to the Space's profile and outlives any tab, so there is no tab to find
+    // and none to take the reader to; what the reader needs is the name of the
+    // extension that interrupted them. An id Omaweb does not name is refused,
+    // because a notification Omaweb cannot attribute is one the reader cannot
+    // judge.
+    if (origin.scheme() == QStringLiteral("chrome-extension")) {
+        const auto extension = knownExtensionByStoreId(origin.host());
+        if (extension.key.isEmpty()) {
+            return {};
+        }
+        auto target = answer(QString {}, extension.name, extension.name);
+        target.insert(QStringLiteral("extensionKey"), extension.key);
+        return target;
+    }
+
+    const auto wanted = normalizedOrigin(origin);
+    if (wanted.isEmpty()) {
+        return {};
+    }
 
     // The Space the reader is looking at: any of its pages may say something.
     if (spaceId == m_activeSpaceId) {
         for (const auto &tab : m_tabs.items()) {
             if (normalizedOrigin(tab.url) == wanted) {
-                return answer(tab.id, tab.title);
+                return answer(tab.id, wanted, tab.title);
             }
         }
         return {};
@@ -1541,7 +1562,7 @@ QVariantMap BrowserController::notificationTarget(const QString &spaceId, const 
     // page left to speak for.
     for (const auto &retained : m_retainedTabs) {
         if (retained.spaceId == spaceId && normalizedOrigin(retained.url) == wanted) {
-            return answer(retained.tabId, retained.title);
+            return answer(retained.tabId, wanted, retained.title);
         }
     }
     return {};
@@ -2463,6 +2484,163 @@ bool BrowserController::setPreference(const QString &name, const QString &value)
         return false;
     }
     emit preferenceChanged(name);
+    return true;
+}
+
+namespace {
+
+    // What a reader's answer about one Known extension is stored under. Named once
+    // so the Settings switch and the engine read the same key.
+    QString extensionPreferenceName(const QString &key)
+    {
+        return QStringLiteral("known-extension-%1-enabled").arg(key);
+    }
+
+    // The publisher's own mark for the extension, so a list of them is read the
+    // way the reader recognises them rather than as a row of identical glyphs.
+    // The package's own icons first, which is the mark the publisher draws at
+    // the sizes a list uses; the action's icon otherwise, which is drawn small
+    // and flat for a browser's own chrome. Smallest that is still big enough
+    // for a sharp 26 point mark on a doubled display, and the largest there is
+    // when none of them is.
+    QUrl extensionIconUrl(const QString &path)
+    {
+        QFile manifest(QDir(path).filePath(QStringLiteral("manifest.json")));
+        if (!manifest.open(QIODevice::ReadOnly)) {
+            return {};
+        }
+        const QJsonObject root = QJsonDocument::fromJson(manifest.readAll()).object();
+        QJsonObject icons = root.value(QStringLiteral("icons")).toObject();
+        if (icons.isEmpty()) {
+            icons = root.value(QStringLiteral("action"))
+                        .toObject()
+                        .value(QStringLiteral("default_icon"))
+                        .toObject();
+        }
+        QString chosen;
+        int chosenSize = 0;
+        for (auto it = icons.constBegin(); it != icons.constEnd(); ++it) {
+            const int size = it.key().toInt();
+            const bool better = chosen.isEmpty() || (chosenSize < 52 && size > chosenSize)
+                || (size >= 52 && size < chosenSize);
+            if (size > 0 && better) {
+                chosen = it.value().toString();
+                chosenSize = size;
+            }
+        }
+        if (chosen.isEmpty()) {
+            return {};
+        }
+        const QString file = QDir(path).filePath(chosen);
+        return QFileInfo::exists(file) ? QUrl::fromLocalFile(file) : QUrl {};
+    }
+
+} // namespace
+
+QVariantList BrowserController::knownExtensions() const
+{
+    QVariantList entries;
+    for (const KnownExtension &extension : omaweb::knownExtensions()) {
+        const QString path = m_storage ? m_storage->extensionPathFor(extension.key) : QString {};
+        // A package is a directory with a manifest in it. Anything else is not
+        // one, however much of it has been written so far.
+        const bool installed = !path.isEmpty()
+            && QFileInfo::exists(QDir(path).filePath(QStringLiteral("manifest.json")));
+        entries.append(QVariantMap {
+            {QStringLiteral("key"), extension.key},
+            {QStringLiteral("name"), extension.name},
+            {QStringLiteral("publisher"), extension.publisher},
+            {QStringLiteral("licence"), extension.licence},
+            {QStringLiteral("homepage"), extension.homepage},
+            {QStringLiteral("storeId"), extension.storeId},
+            {QStringLiteral("summary"), extension.summary},
+            {QStringLiteral("path"), path},
+            {QStringLiteral("installed"), installed},
+            {QStringLiteral("iconUrl"), installed ? extensionIconUrl(path) : QUrl {}},
+            {QStringLiteral("fetching"),
+                m_extensionInstaller && m_extensionInstaller->fetching(extension.key)},
+            {QStringLiteral("enabled"),
+                preference(extensionPreferenceName(extension.key)) == QStringLiteral("true")},
+        });
+    }
+    return entries;
+}
+
+namespace {
+
+    // When this extension was last asked about, so the daily check is daily.
+    QString extensionCheckName(const QString &key)
+    {
+        return QStringLiteral("known-extension-%1-checked").arg(key);
+    }
+
+} // namespace
+
+ExtensionInstaller *BrowserController::extensionInstaller()
+{
+    if (!m_extensionInstaller) {
+        m_extensionInstaller = std::make_unique<ExtensionInstaller>();
+        connect(m_extensionInstaller.get(), &ExtensionInstaller::installed, this,
+            [this](const QString &) { emit knownExtensionsChanged(); });
+        connect(m_extensionInstaller.get(), &ExtensionInstaller::fetchingChanged, this,
+            [this](const QString &, bool) { emit knownExtensionsChanged(); });
+        connect(m_extensionInstaller.get(), &ExtensionInstaller::failed, this,
+            [this](const QString &key, const QString &reason) {
+                emit knownExtensionFailed(key, reason);
+                emit knownExtensionsChanged();
+            });
+    }
+    return m_extensionInstaller.get();
+}
+
+void BrowserController::downloadKnownExtension(const QString &key)
+{
+    const KnownExtension extension = omaweb::knownExtension(key);
+    if (extension.key.isEmpty() || !m_storage) {
+        return;
+    }
+    setPreference(extensionCheckName(key), QDate::currentDate().toString(Qt::ISODate));
+    extensionInstaller()->fetch(extension, m_storage->extensionPathFor(key));
+}
+
+void BrowserController::refreshKnownExtensionsIfDue()
+{
+    if (!m_storage) {
+        return;
+    }
+    const QString today = QDate::currentDate().toString(Qt::ISODate);
+    for (const KnownExtension &extension : omaweb::knownExtensions()) {
+        if (preference(extensionPreferenceName(extension.key)) != QStringLiteral("true")) {
+            continue;
+        }
+        if (preference(extensionCheckName(extension.key)) == today) {
+            continue;
+        }
+        setPreference(extensionCheckName(extension.key), today);
+        extensionInstaller()->refresh(extension, m_storage->extensionPathFor(extension.key));
+    }
+}
+
+bool BrowserController::setKnownExtensionEnabled(const QString &key, bool enabled)
+{
+    // A key Omaweb does not name is refused rather than stored: a preference
+    // for an extension that does not exist would outlive the build that named
+    // it and be handed to an engine as a package that is not there.
+    if (omaweb::knownExtension(key).key.isEmpty()) {
+        return false;
+    }
+    if (!setPreference(extensionPreferenceName(key),
+            enabled ? QStringLiteral("true") : QStringLiteral("false"))) {
+        return false;
+    }
+    emit knownExtensionsChanged();
+    // Turning one on is asking for it. A reader who enabled an extension and
+    // found nothing there would have to go looking for a second control that
+    // fetches it, and there is no reason for that control to exist.
+    if (enabled && m_storage
+        && ExtensionPackage::versionInstalled(m_storage->extensionPathFor(key)).isEmpty()) {
+        downloadKnownExtension(key);
+    }
     return true;
 }
 

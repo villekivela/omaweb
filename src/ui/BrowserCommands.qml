@@ -40,6 +40,9 @@ QtObject {
         case "close-tab":
             window.closeActiveTab();
             return true;
+        case "extension-popup":
+            window.openExtensionMenu(Qt.rect(0, 0, 0, 0));
+            return true;
         case "glance-to-tab":
             window.openGlanceAsTab();
             return true;
@@ -260,6 +263,11 @@ QtObject {
                                                  title: "Keep this Pinned tab active",
                                                  requires: "pinned-tab"
                                              },
+                                             "extension-popup": {
+                                                 group: "interface",
+                                                 title: "Show the extensions",
+                                                 requires: "extension"
+                                             },
                                              "glance-to-tab": {
                                                  group: "tabs",
                                                  title: "Open the Glance as a tab",
@@ -474,8 +482,15 @@ QtObject {
         switch (description ? description.requires : "") {
         case "page":
             return !browser.activeTabBlank;
+        case "extension":
+            // The window answers for what it hosts. A profile host that keeps
+            // no extensions at all, which is every window of an engine that
+            // cannot host one, is none hosted rather than a missing condition.
+            return window.hostedExtensions.length > 0;
         case "glance":
-            return window.glanceOpen;
+            // An extension's popup is drawn as a Glance but is not a page to
+            // keep, so the command that keeps one is not on offer for it.
+            return window.glanceOpen && !window.glanceIsExtension;
         case "find":
             return window.findAvailable;
         case "zoom":

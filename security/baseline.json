@@ -9,7 +9,7 @@
     "Settings marks builds below it as unsupported previews.",
     "`chromium` is the engine's Chromium version.",
     "`chromiumSecurityPatch` is the latest Chromium security patch it includes.",
-    "scripts/check_security_baseline.py checks upstream releases each week.",
+    "scripts/check_security_baseline.py checks upstream releases each day.",
     "See SECURITY.md for the update process."
   ]
 }

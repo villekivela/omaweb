@@ -114,6 +114,11 @@ platform
 **Web extension**: A third-party browser package that can modify pages or add browser behavior
 through a supported WebExtensions contract. _Avoid_: Feature module, plugin
 
+**Known extension**: A Web extension Omaweb names on its own, with its source and license, so a
+reader enables it in Settings with one action rather than by installing a package. Omaweb loads no
+Web extension it has not named, and a Known extension runs only on an engine that reports it can
+host one. _Avoid_: Installed extension, vendor extension, password-manager extension
+
 **Feature module**: An optional Omaweb component that adds a first-party product capability without
 becoming part of the browser core. Account and Sync are Feature modules. _Avoid_: Extension, plugin
 

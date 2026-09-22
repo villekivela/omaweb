@@ -19,6 +19,25 @@ if [ "$(id -u)" -eq 0 ] && [ ! -f /run/.containerenv ] && [ ! -f /.dockerenv ] \
     exit 2
 fi
 
+# The engine Omaweb runs on is a package of its own, published in Omaweb's
+# pacman repository rather than in Arch's (ADR 0049). Where this runs with that
+# repository configured the dependency resolves and the install is a reader's.
+# Where it does not, which is a CI container on an architecture whose engine has
+# not been built yet, the dependency is assumed and this check covers packaging
+# mechanics alone. It says which of the two it did rather than hiding it, and
+# needs no flag to stop assuming: publishing the engine is what stops it.
+engine=omaweb-qtwebengine
+if pacman -Si "$engine" > /dev/null 2>&1; then
+    makepkg_dep_flags=""
+    pacman_dep_flags=""
+    echo "==> $engine is available, so the dependency is resolved for real"
+else
+    makepkg_dep_flags="-d"
+    pacman_dep_flags="--assume-installed $engine"
+    echo "==> $engine is in no configured repository, so it is assumed"
+    echo "==> This run checks packaging and not that the browser can start"
+fi
+
 echo "==> Building the package"
 mkdir -p "$work"
 cp "$repo_root/packaging/PKGBUILD" "$work/PKGBUILD"
@@ -35,9 +54,9 @@ sed -i "s|^source=.*|source=(\"\$_pkgname::git+file://$repo_root#branch=$branch\
 if [ "$(id -u)" -eq 0 ]; then
     id -u builder >/dev/null 2>&1 || useradd --create-home builder
     chown -R builder "$work"
-    su builder -c "cd '$work' && makepkg -f --noconfirm"
+    su builder -c "cd '$work' && makepkg -f --noconfirm $makepkg_dep_flags"
 else
-    ( cd "$work" && makepkg -f --noconfirm )
+    ( cd "$work" && makepkg -f --noconfirm $makepkg_dep_flags )
 fi
 
 # A host whose `makepkg.conf` enables `debug`, which Arch's own build container
@@ -102,7 +121,10 @@ echo "written before the package existed" > "$witness"
 before=$(find /etc /usr/share/applications -type f 2>/dev/null | sort | md5sum)
 
 echo "==> Installing"
-install_output=$(pacman -U --noconfirm "$package" 2>&1) || {
+# Unquoted, because an empty value has to disappear rather than become an
+# argument pacman reads as a package name.
+# shellcheck disable=SC2086
+install_output=$(pacman -U --noconfirm $pacman_dep_flags "$package" 2>&1) || {
     printf '%s\n' "$install_output" >&2
     exit 1
 }
@@ -116,7 +138,8 @@ if ! printf '%s\n' "$install_output" | grep -q 'tag = "-default-opacity"'; then
 fi
 
 echo "==> Upgrading over itself"
-pacman -U --noconfirm "$package"
+# shellcheck disable=SC2086
+pacman -U --noconfirm $pacman_dep_flags "$package"
 
 echo "==> Removing"
 pacman -R --noconfirm omaweb-git

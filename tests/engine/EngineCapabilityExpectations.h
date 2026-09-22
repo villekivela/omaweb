@@ -16,7 +16,13 @@ inline int expectedMockCapabilities()
 
 inline int expectedQtCapabilities()
 {
-    return expectedMockCapabilities() | EngineCapabilities::PersistentProfiles;
+    int capabilities = expectedMockCapabilities() | EngineCapabilities::PersistentProfiles;
+    // Only a build against the patched engine can host a Known extension, and
+    // the adapter reports it from the same build option this reads.
+#if OMAWEB_KNOWN_EXTENSIONS
+    capabilities |= EngineCapabilities::KnownExtensions;
+#endif
+    return capabilities;
 }
 
 } // namespace omaweb::test
