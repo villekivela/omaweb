@@ -4,9 +4,11 @@
 # repository and takes its version from the nearest release tag, which is where
 # CMake takes it from as well (ADR 0028). The two cannot disagree.
 #
-# Qt comes from the system rather than from a bundle, which is ADR 0013's Linux
-# packaging decision: an engine security update is then the distribution's to
-# ship rather than Omaweb's to rebuild for.
+# Qt comes from the system, apart from the engine. Omaweb builds and ships its
+# own QtWebEngine, because a Known extension needs patches the distribution's
+# engine does not carry (ADR 0049, which supersedes ADR 0013 on this point).
+# That engine is its own package installed under /usr/lib/omaweb, so Omaweb
+# builds and runs against it rather than against qt6-webengine.
 
 pkgname=omaweb-git
 _pkgname=omaweb
@@ -19,7 +21,9 @@ license=('MPL-2.0')
 depends=(
     'qt6-base'
     'qt6-declarative'
-    'qt6-webengine'
+    # The patched engine, not the distribution's. Extensions do not work
+    # against qt6-webengine, and the two install side by side.
+    'omaweb-qtwebengine'
     # Native Wayland is the primary display platform. X11 stays a fallback Qt
     # supplies through qt6-base.
     'qt6-wayland'
@@ -93,8 +97,14 @@ build() {
     # project tests rather than a second configuration that drifts from it. It
     # embeds QML, themes and the icon font instead of reading them from a source
     # tree that will not be installed.
+    # Where the patched engine is. `CMAKE_PREFIX_PATH` does not reach it:
+    # `find_package(Qt6 COMPONENTS ...)` looks for each component beside the
+    # `Qt6Config.cmake` it already found, which is the system one, so the
+    # component search never leaves /usr/lib/cmake. Qt offers this variable for
+    # exactly this case, a module installed under a prefix of its own.
     cmake --preset release \
         -DCMAKE_INSTALL_PREFIX=/usr \
+        -DQT_ADDITIONAL_PACKAGES_PREFIX_PATH=/usr/lib/omaweb \
         -DBUILD_TESTING=OFF \
         -DOMAWEB_BUILD_UI_LAB=OFF \
         -DCMAKE_CXX_COMPILER_LAUNCHER=

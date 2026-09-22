@@ -726,17 +726,22 @@ if(OMAWEB_BUILD_BROWSER)
     )
 
     if(UNIX AND NOT APPLE)
-        # The content blocker is a shared library the build resolves out of the
-        # bootstrap cache, so the binary's build-tree runpath names a directory
-        # on the machine that compiled it. An installed copy has to find it
-        # where the package puts it instead, or it loads nothing anywhere but
-        # here.
+        # Two directories an installed copy has to find for itself. The content
+        # blocker is a shared library the build resolves out of the bootstrap
+        # cache, so the build-tree runpath names a directory on the machine that
+        # compiled it and nowhere else. The engine is Omaweb's own patched
+        # QtWebEngine (ADR 0049), a separate package under a prefix nothing else
+        # on the machine reads; without it on the runpath the dynamic linker
+        # answers with the distribution's engine and no extension works.
         # Relative to the binary rather than to a prefix. `CMAKE_INSTALL_FULL_*`
         # bakes in whatever prefix configuring used, and a package sets its own
         # when it installs, which would leave the runpath naming a directory the
         # package never wrote to.
+        # The engine's QML plugin needs no path of its own: Omaweb links
+        # WebEngineQuick directly, so the patched library is loaded first and
+        # the plugin's request for that SONAME is already answered.
         set_target_properties(omaweb PROPERTIES
-            INSTALL_RPATH "$ORIGIN/../${CMAKE_INSTALL_LIBDIR}/omaweb")
+            INSTALL_RPATH "$ORIGIN/../${CMAKE_INSTALL_LIBDIR}/omaweb;$ORIGIN/../${CMAKE_INSTALL_LIBDIR}/omaweb/lib")
 
         install(TARGETS omaweb RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
         install(FILES "${omaweb_content_blocker_library}"

@@ -387,12 +387,13 @@ licences; the two vendored web-asset directories, pinned to the upstream commit 
 GPL-licensed one; and the icon font, identified by the hash of the file being built rather than by a
 version, because upstream publishes it from a branch.
 
-The web engine is deliberately not in it. The package depends on `qt6-webengine` rather than
-bundling it, so the distribution's package carries Qt's and Chromium's notices and its package
-manager already knows the version installed; a second answer from Omaweb could only disagree with
-that one. What the inventory records instead is the approved engine baseline, which is Omaweb's own
-claim about the engine it is supported on. Filter lists are out for the same reason: they are
-fetched on a first run rather than shipped.
+The web engine is deliberately not in it. The package depends on `omaweb-qtwebengine`, which is
+Omaweb's own patched engine and its own package (ADR 0049), and that package carries its own
+notices: the LGPL-3.0 text, Chromium's notice from the tree it was built from, and a
+`MODIFICATIONS.md` saying what changed and where the corresponding source is. A second answer from
+Omaweb could only disagree with that one. What the inventory records instead is the approved engine
+baseline, which is Omaweb's own claim about the engine it is supported on. Filter lists are out for
+the same reason: they are fetched on a first run rather than shipped.
 
 A build that bundled its engine would need all of that, and `THIRD_PARTY_NOTICES.md` says so.
 [ADR 0013](adr/0013-preserve-engine-sandboxes-in-every-build.md) defers AppImage and Flatpak until
