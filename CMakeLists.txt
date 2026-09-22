@@ -876,6 +876,12 @@ if(BUILD_TESTING)
             COMMAND ${Python3_EXECUTABLE}
                 ${CMAKE_CURRENT_SOURCE_DIR}/tests/scripts/tst_security_baseline.py
         )
+        # The fingerprint read out of the signing key, which is what decides
+        # whether a release trusts the key a reader was told to check.
+        add_test(NAME omaweb-repository-instructions
+            COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/tests/scripts/tst_repository_instructions.py
+        )
         # Which construct each terminal colour is read as -- the same claim the
         # Omarchy template makes for a desktop that renders the palette itself.
         add_test(NAME omaweb-terminal-theme-import

@@ -4,11 +4,17 @@
 # leaves that directory ready to upload: the package, its detached signature,
 # and the signed databases `pacman -Sy` reads.
 #
-# The repository holds one version per architecture. The GitHub releases are
-# this project's archive, and serving history would make the published site a
-# second one that nobody maintains. `repo-add` replaces the database entry and
-# this removes the package file that entry used to name, in the same run, so
-# the directory never carries a version the database does not list.
+# The repository holds one version of each package per architecture. The GitHub
+# releases are this project's archive, and serving history would make the
+# published site a second one that nobody maintains. `repo-add` replaces the
+# database entry and this removes the package file that entry used to name, in
+# the same run, so the directory never carries a version the database does not
+# list.
+#
+# More than one package is served: the browser and the engine it runs on, which
+# are released on different schedules (ADR 0049). So superseded means an older
+# version of the same package, read from the package's own metadata, and never
+# the other package that happens to be in the same directory.
 #
 #     scripts/publish_repo.sh --package <file.pkg.tar.zst> --repo-dir <dir> \
 #         --key <signing key>
@@ -83,19 +89,37 @@ echo "==> Adding it to the database"
     "$repo_name.db.tar.gz" "$name" )
 
 echo "==> Removing superseded packages"
-# Anything named for this repository that is not the file just added. A package
-# built for a different architecture cannot be here: it is filed under its own
-# directory above.
+# Older versions of the package just added, and nothing else. A package built
+# for a different architecture cannot be here: it is filed under its own
+# directory above. A different package can be, and removing it would leave the
+# database naming a file that is gone.
+#
+# The name comes out of `.PKGINFO` rather than off the front of the filename,
+# because a filename is `pkgname-pkgver-pkgrel-arch` and a `pkgname` may carry
+# dashes of its own, which is exactly the case here: `omaweb-qtwebengine`.
+pkgname_of() {
+    bsdtar -xOf "$1" .PKGINFO 2> /dev/null \
+        | sed -n 's/^pkgname = //p' | head -n 1
+}
+
+published_name="$(pkgname_of "$package")"
+if [[ -z "$published_name" ]]; then
+    echo "publish_repo: $name carries no pkgname in its .PKGINFO" >&2
+    exit 1
+fi
+
 removed=0
 for stale in "$target"/*.pkg.tar.*; do
     [[ -e "$stale" ]] || continue
     case "$(basename -- "$stale")" in
         "$name" | "$name.sig") continue ;;
+        *.sig) continue ;;
     esac
-    rm -f "$stale"
+    [[ "$(pkgname_of "$stale")" == "$published_name" ]] || continue
+    rm -f "$stale" "$stale.sig"
     removed=$(( removed + 1 ))
 done
-echo "publish_repo: removed $removed superseded file(s)"
+echo "publish_repo: removed $removed superseded version(s) of $published_name"
 
 echo "==> Writing the names pacman asks for"
 # `repo-add` writes `omaweb.db.tar.gz` and links `omaweb.db` to it. pacman

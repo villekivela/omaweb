@@ -336,9 +336,23 @@ window-rule notice — is the same file, so the two cannot drift apart while not
 script checks that each line it rewrites was there to rewrite, so a rename in `packaging/PKGBUILD`
 fails the derivation rather than quietly producing a package missing the change.
 
-Qt is a dependency rather than a bundle, which is
-[ADR 0013](adr/0013-preserve-engine-sandboxes-in-every-build.md)'s Linux packaging decision: an
-engine security update is then the distribution's to ship rather than Omaweb's to rebuild for.
+Qt is a dependency rather than a bundle, apart from the engine. The engine is `omaweb-qtwebengine`,
+Omaweb's own build, a package of its own installed under `/usr/lib/omaweb` and published in the same
+pacman repository as the browser ([ADR 0049](adr/0049-ship-omawebs-own-engine-build.md), which
+supersedes [ADR 0013](adr/0013-preserve-engine-sandboxes-in-every-build.md) on this point). So an
+engine security update is Omaweb's to rebuild for, and it reaches a reader as a package update
+rather than as a new browser release.
+
+Three things follow, and each is in the file rather than in anyone's memory. The build is pointed at
+that prefix with `QT_ADDITIONAL_PACKAGES_PREFIX_PATH`, because `find_package(Qt6 COMPONENTS ...)`
+looks for each component beside the `Qt6Config.cmake` it already found and a `CMAKE_PREFIX_PATH`
+never reaches a module installed somewhere else. The installed binary's runpath names the engine's
+directory as well as its own, or the dynamic linker answers from `/usr/lib` and the browser runs the
+distribution's engine with the dependency satisfied on paper. And `scripts/check_package.sh`
+resolves the dependency where the repository is configured and assumes it where it is not, saying
+which of the two it did, so the check works on an architecture whose engine has not been built yet
+without quietly claiming to have installed one.
+
 `qt6-wayland` is a dependency in its own right because native Wayland is the primary display
 platform. The content-blocking library is the one thing that rides along, under `lib/omaweb`,
 because no distribution package supplies it.
@@ -616,12 +630,19 @@ scripts/publish_repo.sh --package <file.pkg.tar.zst> --repo-dir <dir> --key <sig
 ```
 
 signs the package, writes the signed `omaweb.db` and `omaweb.files` databases with `repo-add`, and
-removes the package the replaced database entry named. The repository holds one version per
-architecture: the GitHub releases are this project's archive, and serving history would make the
-branch a second one. Packages sit under a directory named for their architecture, which is the
-`$arch` a reader's `Server` line resolves, so the script is called once per package and says nothing
-about which architectures there are. Each release replaces the branch with a single commit, because
-a branch that kept every package it ever served would grow by the size of a browser each time.
+removes the package the replaced database entry named. The repository holds one version of each
+package per architecture: the GitHub releases are this project's archive, and serving history would
+make the branch a second one. Two packages are served, the browser and the engine, on release
+schedules of their own, so superseded means an older version of the same package, read from the
+package's own `.PKGINFO` rather than off the front of its filename. `omaweb-qtwebengine` carries
+dashes in its name and the filename is `pkgname-pkgver-pkgrel-arch`, which is the case a filename
+comparison gets wrong. Removing the other package instead would leave the database naming a file
+that is gone.
+
+Packages sit under a directory named for their architecture, which is the `$arch` a reader's
+`Server` line resolves, so the script is called once per package and says nothing about which
+architectures there are. Each release replaces the branch with a single commit, because a branch
+that kept every package it ever served would grow by the size of a browser each time.
 
 `repo-add` links `omaweb.db` to `omaweb.db.tar.gz`, and a static host serves files rather than
 following links, so the short names are written as copies. Without that the repository answers 404
@@ -632,25 +653,46 @@ scripts/check_repo_publish.sh
 ```
 
 runs that whole path against a throwaway key and a scratch directory: it derives the binary
-PKGBUILD, signs and publishes two versions of a stand-in package, checks that the second one
-replaced the first, and, as root, installs from the repository with a pacman that trusts nothing but
-the signing key. The CI job `pacman-repo` runs it on every change. The reason it exists is that the
-first real run of a publishing path is otherwise a release, and by then the release is already out.
+PKGBUILD, signs and publishes two versions of a browser stand-in and one engine stand-in, checks
+that the second browser replaced the first and left the engine where it was, and, as root, installs
+from the repository with a pacman that trusts nothing but the signing key. The browser stand-in
+declares the engine as a dependency, so what that install proves is the reader's own path: one
+`pacman -S omaweb` brings both packages out of one repository. The CI job `pacman-repo` runs it on
+every change. The reason it exists is that the first real run of a publishing path is otherwise a
+release, and by then the release is already out.
+
+The engine's own package is not published by a workflow. `scripts/package-locally.sh` in the patch
+repository builds it from an engine tarball in the container the engine was built in, and the
+detached signature is made on the machine the key is on, which is never a build machine (ADR 0049).
+`publish_repo.sh` then puts it in the repository the same way a browser package goes in.
 
 The signing key is the one piece of setup a human does. It is a signing subkey whose private half is
 the `PACMAN_SIGNING_KEY` secret, with `PACMAN_SIGNING_KEY_PASSPHRASE` beside it when the export has
 one. Until that secret exists the `publish-repo` job says so in the job summary and ends green: the
 release publishes, and readers install it by hand.
 
+A release installs from that repository as well as publishing to it: the `package` job adds the
+`[omaweb]` block to the container's `pacman.conf` and installs `omaweb-qtwebengine`, because the
+release has to be compiled against the engine it will run on. The public half of the signing key is
+`security/repo-signing-key.asc` in this repository rather than fetched from a keyserver, so a
+keyserver that does not answer cannot fail a release for a reason that has nothing to do with the
+release. The job holds the key file's fingerprint against the published one before trusting it.
+
 The README and the website both carry the `[omaweb]` block and the signing key's fingerprint,
 because a reader installs from whichever of the two they opened.
-`scripts/check_repository_instructions.py` checks that the two agree and CI runs it: each page is
-correct on its own, so nothing else would report a fingerprint that had gone stale in one of them,
-and the reader would find out as a signature error on their own machine. Both landed with the tag
-that first served the repository rather than before it: instructions for a repository that answers
-nothing are worse than none. The fingerprint is published in the README rather than taken from the
-keyserver, because a keyserver will hand a reader any key that claims the name; naming the one key
-it must be is what makes `pacman-key --recv-keys` safe.
+`scripts/check_repository_instructions.py` checks that everything naming the repository names the
+same one, and CI runs it: each place is correct on its own, so nothing else would report a
+fingerprint that had gone stale in one of them, and the reader would find out as a signature error
+on their own machine. The release workflow is the third place, since it installs the engine from
+that repository, and `security/repo-signing-key.asc` is the fourth and the only one that is not a
+copy. The others state a fingerprint; the key file has one. The check computes it from the key
+packet rather than asking gpg, so it runs the same way wherever it runs, and
+`tests/scripts/tst_repository_instructions.py` covers that computation against the published value.
+
+The pages landed with the tag that first served the repository rather than before it: instructions
+for a repository that answers nothing are worse than none. The fingerprint is published in the
+README rather than taken from the keyserver, because a keyserver will hand a reader any key that
+claims the name; naming the one key it must be is what makes `pacman-key --recv-keys` safe.
 
 `scripts/rewrite_release_notes.py` then rewrites that commit list into notes addressed to a reader,
 from the commit bodies in the range, the issues they reference, and the glossary in

@@ -136,6 +136,14 @@ jobs:
         # cannot grant fails with EPERM before sway prints anything. Cage also
         # is the smaller thing to ask for: one program under one compositor,
         # which is exactly the shape of this step.
+        #
+        # `qt6-webengine` rather than the engine Omaweb ships (ADR 0049).
+        # Nothing here tests an extension: the engine's own suite lives with the
+        # patch series, and a Known extension is fetched at runtime rather than
+        # built. What this job needs is an engine to render in, and the
+        # distribution's is the one that installs in seconds. The release
+        # workflow builds against Omaweb's, which is where the version the
+        # binary is compiled for has to match the one it runs on.
         run:
           pacman -Syu --noconfirm git cmake ninja clang ccache rust qt6-base qt6-declarative
           qt6-webengine qt6-wayland libsecret libsodium cage wtype

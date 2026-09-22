@@ -125,31 +125,49 @@ fingerprint=$(gpg --list-secret-keys --with-colons | awk -F: '/^fpr:/ { print $1
 echo "==> Key $fingerprint"
 
 echo "==> Building the stand-in packages"
-# Two versions, because one release is not what the repository has to get right.
-# A second release replaces the database entry and has to take the file the old
-# entry named with it, or the directory grows a version nothing lists.
+# Two versions of the browser, because one release is not what the repository
+# has to get right: a second release replaces the database entry and has to take
+# the file the old entry named with it, or the directory grows a version nothing
+# lists. And one engine, because the repository serves both packages and they
+# are released on different schedules (ADR 0049). A browser release must leave
+# the engine where it is, and the engine's name is a prefix of nothing and a
+# superstring of the browser's, which is the shape a filename comparison gets
+# wrong.
 build_standin() {
-    local version="$1"
+    local name="$1"
+    local version="$2"
     # Declared apart, because `local a=1 b=$a` does not see `a` under `set -u`.
-    local dir="$work/build/$version"
+    local dir="$work/build/$name-$version"
     mkdir -p "$dir"
+    # The browser depends on the engine, which is what makes a reader's single
+    # `pacman -S omaweb` pull both out of this one repository. Checking that
+    # here is checking the only path a reader takes.
+    local depends=""
+    if [ "$name" = "omaweb" ]; then
+        depends="depends=('omaweb-qtwebengine')"
+    fi
     cat > "$dir/PKGBUILD" <<PKGBUILD
-# A stand-in for the browser package. Only its name, its version and the fact
-# that it installs a file matter to what this script checks.
-pkgname=omaweb
+# A stand-in. Only its name, its version and the fact that it installs a file
+# matter to what this script checks.
+pkgname=$name
 pkgver=$version
 pkgrel=1
-pkgdesc="A keyboard-driven web browser"
+pkgdesc="A stand-in for what the repository serves"
 arch=('$arch')
 url="https://github.com/villekivela/omaweb"
 license=('MPL-2.0')
+$depends
 
 package() {
-    install -Dm644 /dev/null "\$pkgdir/usr/share/omaweb/published-by-the-check"
+    install -Dm644 /dev/null "\$pkgdir/usr/share/$name/published-by-the-check"
 }
 PKGBUILD
 
-    makepkg_in "$dir" -f --noconfirm >/dev/null
+    # `-d`, because the browser stand-in declares the engine stand-in as a
+    # dependency and neither is installed here. What is under test is that the
+    # dependency is recorded and that pacman resolves it out of the repository,
+    # not that this container has it.
+    makepkg_in "$dir" -f -d --noconfirm >/dev/null
 
     local built
     built=$(find "$dir" -maxdepth 1 -name '*.pkg.tar.*' ! -name '*.sig' \
@@ -162,26 +180,36 @@ PKGBUILD
     printf '%s\n' "$built"
 }
 
-first=$(build_standin 0.0.0)
-second=$(build_standin 0.0.1)
+first=$(build_standin omaweb 0.0.0)
+engine=$(build_standin omaweb-qtwebengine 0.0.0)
+second=$(build_standin omaweb 0.0.1)
 
 echo "==> Publishing"
 "$repo_root/scripts/publish_repo.sh" --package "$first" \
+    --repo-dir "$work/repo" --key "$fingerprint"
+
+echo "==> Publishing the engine, which is released on its own schedule"
+"$repo_root/scripts/publish_repo.sh" --package "$engine" \
     --repo-dir "$work/repo" --key "$fingerprint"
 
 echo "==> Publishing the next version, as a second release would"
 "$repo_root/scripts/publish_repo.sh" --package "$second" \
     --repo-dir "$work/repo" --key "$fingerprint"
 
-held=$(find "$work/repo/$arch" -maxdepth 1 -name '*.pkg.tar.*' ! -name '*.sig' -print)
-if [ "$(printf '%s\n' "$held" | wc -l)" -ne 1 ] \
-    || [ "$(basename -- "$held")" != "$(basename -- "$second")" ]; then
-    echo "The repository should hold the second version alone, and holds:" >&2
-    find "$work/repo/$arch" -maxdepth 1 >&2
+held=$(find "$work/repo/$arch" -maxdepth 1 -name '*.pkg.tar.*' ! -name '*.sig' \
+    -printf '%f\n' | sort)
+expected=$(printf '%s\n%s\n' "$(basename -- "$second")" "$(basename -- "$engine")" | sort)
+if [ "$held" != "$expected" ]; then
+    echo "The repository should hold the second browser and the engine, and holds:" >&2
+    printf '%s\n' "$held" >&2
     exit 1
 fi
 if bsdtar -tf "$work/repo/$arch/omaweb.db" | grep -q '^omaweb-0\.0\.0-1/'; then
     echo "The database still lists the version that was replaced" >&2
+    exit 1
+fi
+if ! bsdtar -tf "$work/repo/$arch/omaweb.db" | grep -q '^omaweb-qtwebengine-0\.0\.0-1/'; then
+    echo "The database dropped the engine when the browser was released" >&2
     exit 1
 fi
 
@@ -228,5 +256,12 @@ if [ ! -f "$root/root/usr/share/omaweb/published-by-the-check" ]; then
     echo "pacman reported success and installed nothing" >&2
     exit 1
 fi
+# Asking for the browser has to bring the engine, because a browser installed
+# without it runs against whatever `qt6-webengine` the machine has, where no
+# Known extension works.
+if [ ! -f "$root/root/usr/share/omaweb-qtwebengine/published-by-the-check" ]; then
+    echo "pacman installed the browser without the engine it depends on" >&2
+    exit 1
+fi
 
-echo "==> A client that trusts only the signing key installed from the repository"
+echo "==> A client that trusts only the signing key installed both packages"

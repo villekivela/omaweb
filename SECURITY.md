@@ -11,40 +11,51 @@ QtWebEngine's network service is not a sandboxed process of its own.
 latest Chromium security patch it includes. Settings reads this file and reports whether the running
 engine meets the baseline. Builds below the baseline are unsupported previews.
 
-Every Tuesday, `.github/workflows/security-baseline.yml` compares the baseline with the packaged
-QtWebEngine and Chromium's stable release. It keeps one issue open while the baseline is outdated.
-Updating the baseline requires a review of the Qt release notes and a qualified build.
+Every day, `.github/workflows/security-baseline.yml` compares the baseline with what Qt has
+published and with Chromium's stable release. Daily rather than weekly because the response window
+starts when the issue opens, and a check that sleeps for six days spends those days of the window on
+not having looked. It keeps one issue open while the baseline is outdated. Updating the baseline
+requires a review of the Qt release notes and a qualified build.
 
-One baseline covers both published packages. The comparison reads Arch's `qt6-webengine`, and the
-`aarch64` package is built on Arch Linux ARM, which rebuilds that package on a schedule of its own
-([ADR 0044](docs/adr/0044-build-the-aarch64-package-on-arch-linux-arm.md)). A distribution behind
-Arch therefore ships an engine below the approved baseline, and Settings reports the engine each
-build is running, so a reader is told which one they have rather than which one the release was
-built against.
+One baseline covers both published packages, and both run the engine Omaweb built for them:
+`omaweb-qtwebengine`, published in the same pacman repository as the browser
+([ADR 0049](docs/adr/0049-ship-omawebs-own-engine-build.md)). There is no distribution between Qt
+and the reader any more, so an engine below the baseline means Omaweb has not published the rebuild
+yet rather than that a distribution is behind. Settings still reports the engine each build is
+running, because a reader may have installed the package by hand and not taken the upgrade.
 
 ## Response to a security-bearing Qt patch
 
 When a Qt patch release includes security fixes, qualify it and publish the raised baseline within
-two days after the baseline issue opens. The issue includes its due date. The two days cover the
-qualification and the release, which is the whole of what Omaweb controls.
+two days after the baseline issue opens. The issue includes its due date.
 
-The clock starts when Qt publishes, not when a distribution packages. The engine itself still
-arrives from the distribution, because the package depends on system Qt rather than bundling it
-([ADR 0013](docs/adr/0013-preserve-engine-sandboxes-in-every-build.md)), so a reader takes the
-patched engine through a system upgrade on their own schedule. Arch has been quick: it built
-QtWebEngine 6.11.2 within an hour of Qt publishing it and had it in the repository two days later.
+The clock starts when Qt publishes. The two days cover applying the patch series, building the
+engine for both architectures, qualifying it, and publishing both packages, because all of that is
+now Omaweb's (ADR 0049). It is lag Omaweb owns rather than inherits: Arch was quick, building
+QtWebEngine 6.11.2 within an hour of Qt publishing it and having it in the repository two days
+later, and Omaweb has taken that job over rather than improved on it.
+
+Where a rebase cannot make the window, the extension patches are dropped and the engine ships
+anyway. The bug fixes apply to any build, so the Chromium fix still reaches readers; Known
+extensions stop loading until a later engine update restores them. A reader's vault is untouched,
+because it belongs to the Space's engine profile.
 
 To update the baseline:
 
 1. Read the Qt release notes for the fixes the release carries.
-2. Build against the new engine and run `ctest --preset ci` in full.
-3. Update `qtwebengine`, `chromium`, `chromiumSecurityPatch`, and `reviewed` in
+1. Rebase the patch series onto the release and build the engine for both architectures, which is
+   `PROCESS.md` in the patch repository. A conflict here is what a late rebase looks like, and the
+   paragraph above says what to do about one.
+1. Publish `omaweb-qtwebengine` to the pacman repository, so that the engine reaches readers whose
+   next `pacman -Syu` comes before the browser release.
+1. Build against the new engine and run `ctest --preset ci` in full.
+1. Update `qtwebengine`, `chromium`, `chromiumSecurityPatch`, and `reviewed` in
    `security/baseline.json`.
-4. Tag a release so the raised baseline reaches readers, which is what stops a build that meets it
+1. Tag a release so the raised baseline reaches readers, which is what stops a build that meets it
    reporting itself as unsupported. Omaweb has no application updater, so the package handles its
    own release and update delivery.
 
-Until step 3 lands, every build reports itself as below the approved baseline.
+Until the baseline lands, every build reports itself as below the approved baseline.
 
 ## Renderer isolation
 
