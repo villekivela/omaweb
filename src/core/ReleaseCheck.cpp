@@ -84,12 +84,14 @@ QString newestRelease(const QByteArray &releasesAnswer)
     // (ADR 0028), and asking GitHub for `latest` instead would skip them all
     // and leave this project with no release at all to report.
     //
-    // Not every tag is a release. This repository also publishes `repo-x86_64`
-    // and `repo-aarch64`, which are the pacman repository, and `engine-*`,
-    // which is the engine package. They sort above the version tags, so taking
-    // the first tag of any kind answers one of those, `behind` cannot read a
-    // version out of it, and the reader is told about no upgrade ever again.
-    // A tag with no version in it is not a release to offer.
+    // Not every release here is a release of the browser. The same repository
+    // publishes the patched engine as `engine-6.11.2` and a pacman database
+    // per architecture as `repo-aarch64`, both of them newer than any `v0.*`
+    // tag. Stopping at the first tag would make the newest release a thing the
+    // reader cannot install, and the notice would then say nothing for good
+    // rather than say something wrong, because a tag with no version in it is
+    // behind nothing. A release of the browser is one this can read a version
+    // number out of.
     const auto releases = document.array();
     for (const auto &entry : releases) {
         const auto release = entry.toObject();
@@ -97,7 +99,7 @@ QString newestRelease(const QByteArray &releasesAnswer)
             continue;
         }
         const auto tag = release.value(QStringLiteral("tag_name")).toString();
-        if (!tag.isEmpty() && !versionNumbers(tag).isEmpty()) {
+        if (!versionNumbers(tag).isEmpty()) {
             return tag;
         }
     }
