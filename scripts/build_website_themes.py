@@ -117,10 +117,10 @@ THEME_DIRECTORIES = [
 # The themes the site offers, in the order it offers them. The first is the
 # default: the one the page comes up in.
 THEMES = [
+    ("catppuccin", "Catppuccin"),
     ("oligarchy", "Oligarchy"),
     ("hackerman", "Hackerman"),
     ("tokyo-night", "Tokyo Night"),
-    ("catppuccin", "Catppuccin"),
     ("nord", "Nord"),
     ("everforest", "Everforest"),
     ("gruvbox", "Gruvbox"),

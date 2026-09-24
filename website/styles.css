@@ -80,12 +80,12 @@ body {
      with no script and before the first paint. Every palette the picker
      offers is generated into themes.css and named on <body>, where it
      outranks this block. */
-  --bg: var(--omaweb-bg, #090a0e);
-  --sidebar: var(--omaweb-sidebar, #0d0f14);
-  --fg: var(--omaweb-fg, #d8dbe3);
-  --accent: var(--omaweb-accent, #9aa3ad);
-  --urgent: var(--omaweb-urgent, #7a2e2e);
-  --muted: var(--omaweb-muted, #929ca6);
+  --bg: var(--omaweb-bg, #101019);
+  --sidebar: var(--omaweb-sidebar, #161622);
+  --fg: var(--omaweb-fg, #cdd6f4);
+  --accent: var(--omaweb-accent, #89b4fa);
+  --urgent: var(--omaweb-urgent, #f38ba8);
+  --muted: var(--omaweb-muted, #6c7086);
 
   /* The kit's state alphas. */
   --fill-normal: color-mix(in srgb, var(--fg) 4%, transparent);
