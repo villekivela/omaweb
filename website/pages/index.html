@@ -38,8 +38,8 @@
         <span class="t-title__post">for Omarchy.</span>
       </h1>
       <p>
-        It follows your desktop theme, keeps your data on your machine, and keeps work and personal
-        apart in one window.
+        Omaweb uses your Omarchy theme&rsquo;s colours, keeps your data on your machine, and lets
+        you stay signed in to work and personal accounts in the same window.
       </p>
       <div class="t-hero__actions">
         <a class="btn btn--emphasis btn--big" href="#install">Install</a>
@@ -105,13 +105,9 @@
      own, which is the page in order. -->
 <section class="t-section" id="browser">
   <div class="t-section__head">
-    <p class="t-section__index">01 / your theme, your browser</p>
+    <p class="t-section__index">01 / a tour, in your theme</p>
     <div class="t-section__intro">
-      <h2>Built into your theme.</h2>
-      <p>
-        Omaweb reads its colours from whichever Omarchy theme you are running. Pick one to see the
-        whole browser in it.
-      </p>
+      <h2>It follows your theme.</h2>
     </div>
   </div>
 
@@ -245,50 +241,48 @@
 
     <div class="t-walk__steps">
       <article class="t-step is-on">
-        <h3>Work and personal stay in the same window.</h3>
+        <h3>Work and personal, side by side.</h3>
         <p>
-          Spaces are separate browsing identities inside one window. Each has its own cookies,
-          logins, history, permissions and sessions, so you stay signed into work and personal
-          accounts at once, with no second browser and no private window.
+          Spaces are separate identities inside one window. Each has its own cookies, logins,
+          history, permissions and sessions, so you can be signed in to your work and personal
+          accounts at the same time without a second browser or a private window.
         </p>
         <p>
-          Pinned tabs sit across the top of the sidebar, the day&rsquo;s tabs run under them, and a
+          Pinned tabs sit at the top of the sidebar, today&rsquo;s tabs run underneath, and every
           new tab opens on the Start page.
         </p>
       </article>
       <article class="t-step">
-        <h3>Your bindings.</h3>
+        <h3>Your keybindings.</h3>
         <p>
-          Every browser binding lives in <code>keybindings.json</code>. Rebind a command there, or
-          hand a key back to the page when a site wants it. Settings open beside your tabs, in the
-          same window.
+          Every binding lives in <code>keybindings.json</code>. Rebind any command, or give a key
+          back to a site that wants it. Settings opens next to your tabs, in the same window.
         </p>
       </article>
       <article class="t-step">
-        <h3>Built-in content blocking.</h3>
+        <h3>Content blocking is built in.</h3>
         <p>
-          Filter lists come with the browser, and your own rules use uBlock Origin&rsquo;s filter
-          syntax.
+          EasyList and EasyPrivacy are on from the first run, along with cosmetic rules and
+          scriptlets. Write your own rules in uBlock Origin&rsquo;s syntax.
         </p>
       </article>
       <article class="t-step">
-        <h3>Your files.</h3>
+        <h3>No account. No telemetry.</h3>
         <p>
-          No browser account. No telemetry. No crash reports sent anywhere. Each Space keeps its own
-          history, and clears it alone.
+          There&rsquo;s nothing to sign up for, and no crash reports go anywhere. Each Space keeps
+          its own history, and you can clear one without touching the others.
         </p>
         <p>
-          Optional Sync copies Spaces, tabs, keybindings and a few settings between your own
-          machines through a private repository you own, and
-          <a href="sync/">says exactly what it copies</a>.
+          Sync is optional. It copies Spaces, tabs, keybindings and a few settings between your
+          machines through a private repository you own. The
+          <a href="sync/">Sync page</a> lists what it copies.
         </p>
       </article>
       <article class="t-step">
-        <h3>Hide the sidebar and the page takes the whole window.</h3>
+        <h3>Hide the sidebar and the page gets the whole window.</h3>
         <p>
-          Pinned tabs come back when a Space resumes. Mark one as Keep active and it keeps running
-          in the background. Settings lists every tab kept this way, with the memory each one is
-          using.
+          <kbd>Ctrl</kbd>+<kbd>B</kbd> brings it back. Mark a Pinned tab Keep active and it keeps
+          running in the background, and Settings shows how much memory each one is using.
         </p>
       </article>
     </div>
@@ -301,10 +295,10 @@
     <div class="t-section__intro">
       <h2>Built for Arch.</h2>
       <p>
-        Omaweb builds its own Qt WebEngine, for Arch on <code>x86_64</code> and Arch Linux ARM on
-        <code>aarch64</code>. It installs beside the one your system ships rather than over it, so
-        nothing else on your machine changes, and engine security updates arrive from Omaweb with
-        the rest of the browser.
+        Omaweb ships its own build of Qt WebEngine for Arch on <code>x86_64</code> and Arch Linux
+        ARM on <code>aarch64</code>. It installs alongside your system&rsquo;s copy instead of
+        replacing it, so nothing else on your machine changes, and engine security fixes arrive with
+        Omaweb&rsquo;s own updates.
       </p>
     </div>
   </div>
@@ -312,8 +306,8 @@
     <div>
       <h3>From the Omaweb repository</h3>
       <p>
-        Add these lines to <code>/etc/pacman.conf</code>. Omaweb then arrives, and stays current,
-        with the rest of your system updates.
+        Add these lines to <code>/etc/pacman.conf</code>. From then on Omaweb installs and updates
+        along with the rest of your system.
       </p>
       <div class="t-term">
         <pre class="t-term__line t-term__line--stack"><code>[omaweb]</code>
@@ -322,15 +316,16 @@
         <button class="btn t-term__copy" type="button" data-copy>Copy</button>
       </div>
       <p>
-        Then import the key the packages are signed with, once. Check the fingerprint against this
-        page: pacman installs nothing this key did not sign, and a keyserver will hand out any key
-        that claims the name. The key comes over HTTPS because keyservers answer on a port many
-        networks do not let out.
+        Next, import the key the packages are signed with. You only do this once. Pacman installs
+        nothing this key didn&rsquo;t sign, and a keyserver will hand out any key that claims the
+        right name, so the third command trusts only the fingerprint published on this page. The key
+        downloads over HTTPS because many networks block the port keyservers use.
       </p>
       <p>
-        Packages are published for <code>x86_64</code> and <code>aarch64</code>, and pacman asks for
-        the one your machine runs. If you would rather not add a repository at all, the
-        <a href="https://github.com/villekivela/omaweb#install">README</a> has the other ways in.
+        Packages are built for <code>x86_64</code> and <code>aarch64</code>, and pacman picks the
+        right one for your machine. If you&rsquo;d rather not add a repository, the
+        <a href="https://github.com/villekivela/omaweb#install">README</a> covers the other ways to
+        install.
       </p>
       <div class="t-term">
         <pre
@@ -345,11 +340,11 @@
     <div>
       <h3>Keeping it current</h3>
       <p>
-        Omaweb tells you when a new version is out. A mark appears at the bottom of the sidebar with
-        the version and how to get it, and selecting it opens the release notes. Omaweb never
-        installs anything on its own. With the repository added, the upgrade is your ordinary system
-        update; without it, download the new package and install it the way you installed the first
-        one. You can turn the check off in Settings, under About.
+        Omaweb tells you when a new version is out. A notice appears at the bottom of the sidebar
+        with the version and how to get it, and selecting it opens the release notes. Omaweb never
+        installs anything by itself. With the repository added, it updates with the rest of your
+        system. Without it, download the new package and install it the same way as the first one.
+        You can turn the check off in Settings, under About.
       </p>
       <div class="t-term">
         <pre
