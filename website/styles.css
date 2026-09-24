@@ -876,49 +876,6 @@ kbd {
   opacity: 0;
 }
 
-/* ---------------- the ticker ------------------------------------------
-   A band of the browser's promises running along the foot of the hero,
-   like the crawl under a broadcast. Two copies of the run end to end, so
-   sliding by one copy's width loops without a seam. */
-.t-ticker {
-  position: relative;
-  left: 50%;
-  width: 100vw;
-  margin-left: -50vw;
-  overflow: hidden;
-  border-block: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
-  background: color-mix(in srgb, var(--accent) 10%, var(--bg));
-  box-shadow: 0 0 28px var(--glow-soft);
-  font-family: var(--retro);
-  font-size: calc(var(--fs-caption) * 0.92);
-  font-weight: 700;
-  letter-spacing: 0.24em;
-  text-transform: uppercase;
-}
-.t-ticker__track {
-  display: flex;
-  width: max-content;
-  animation: t-crawl 42s linear infinite;
-}
-.t-ticker__run {
-  display: flex;
-  flex: none;
-}
-.t-ticker__run span {
-  padding: var(--sp-lg) 1.6em;
-  white-space: nowrap;
-}
-.t-ticker__run span::after {
-  content: "\2726";
-  margin-left: 3.2em;
-  color: var(--hot);
-}
-@keyframes t-crawl {
-  to {
-    transform: translateX(-50%);
-  }
-}
-
 /* The heads of the inner pages: a statement rather than a poster. */
 .t-hero--short h1 {
   max-width: 24ch;
