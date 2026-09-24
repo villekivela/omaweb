@@ -1,39 +1,38 @@
-// Omaweb website behaviour. Five things, all optional: the page renders and
-// reads correctly with this file blocked -- index.html names the theme every
-// themed asset starts on, each shot is a plain link to its full screenshot,
-// the first shot is the one on show, the canvas behind the hero is
-// decoration, and the nav is in view until the script folds it behind its
-// button.
+// Omaweb website behaviour. All of it optional: the page renders and reads
+// correctly with this file blocked -- index.html names the theme every themed
+// asset starts on, each shot is a plain link to its full screenshot, the
+// first shot is the one on show, the boot console is printed in full, the
+// canvas behind the hero is decoration, and the nav is in view until the
+// script folds it behind its button.
 //
-//   1. Theme switching. One palette drives the page and the generated
+//   1. The scene behind the hero: the drawing the screenshots' wallpaper is
+//      made of, in the active palette, falling slowly; and on the landing
+//      page a horizon under it, with a banded sun and a grid running out
+//      towards the reader.
+//   2. Theme switching. One palette drives the page and the generated
 //      screenshots, so picking a theme restyles both at once, and a pick
 //      sweeps the new palette out of the button pressed. The choice is saved
 //      locally, and a `theme` query parameter lets a shared URL choose its
 //      palette. In Omaweb the reader's own theme is one of the choices, and
 //      the one the page starts on.
-//   2. The walk: which shot the pinned frame shows, which is the one beside
+//   3. The menu a phone gets in place of the row of links in the header.
+//   4. The walk: which shot the pinned frame shows, which is the one beside
 //      the step nearest the middle of the window.
-//   3. Opening a screenshot in a viewer instead of navigating to the file:
-//      a whole window drawn at column width is unreadable whatever its
-//      resolution, and this is how it is read.
-//   4. The rain behind the hero: the drawing the screenshots' wallpaper is
-//      made of, in the active palette, falling slowly.
-//   5. The menu a phone gets in place of the row of links in the header.
+//   5. Opening a screenshot in a viewer instead of navigating to the file.
+//   6. The boot console printing its lines one at a time.
+//   7. The browser's own bindings, on its website: F for link hints and T
+//      for the next theme.
 
 (function () {
   "use strict";
 
-  // ----------------------------------------------------------------- rain
-  // Square cells on a coarse grid, falling in columns from the top edge and
-  // thinning out as they fall, in four tints of the accent. The same drawing
-  // as `wallpaper()` in scripts/build_website_themes.py, and a change to one
-  // wants the same change to the other; only the hash differs, since this one
-  // has no 64-bit integers to mix. Time enters as a per-column row offset
-  // into the hash, so the pattern slides down each column while the
-  // brightness stays anchored to the top, which is what falling looks like.
-  var rain = document.querySelector(".t-rain");
-  var rainContext = rain && rain.getContext && rain.getContext("2d");
   var reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
+
+  // ---------------------------------------------------------------- scene
+  var scene = document.querySelector(".t-scene");
+  var sceneContext = scene && scene.getContext && scene.getContext("2d");
+  var floor = document.querySelector(".t-hero__floor");
+  var bootConsole = document.querySelector(".t-console");
 
   function hash01() {
     var state = 0x9e3779b9;
@@ -76,33 +75,46 @@
     });
   }
 
-  function css(color) {
-    return "rgb(" + color.map(Math.round).join(",") + ")";
+  function css(color, alpha) {
+    var channels = color.map(Math.round).join(",");
+    return alpha === undefined ? "rgb(" + channels + ")" : "rgba(" + channels + "," + alpha + ")";
   }
 
-  function paintRain(time) {
+  var palette = null;
+
+  function readPalette() {
     var style = getComputedStyle(document.body);
     var background = parseColor(style.getPropertyValue("--bg"));
     var foreground = parseColor(style.getPropertyValue("--fg"));
     var accent = parseColor(style.getPropertyValue("--accent"));
-    var tints = [
-      mix(background, accent, 0.22),
-      mix(background, accent, 0.42),
-      mix(background, accent, 0.68),
-      accent,
-      mix(accent, foreground, 0.55),
-    ].map(css);
+    var urgent = parseColor(style.getPropertyValue("--urgent"));
+    palette = {
+      bg: background,
+      fg: foreground,
+      accent: accent,
+      // The stylesheet's `--hot`: urgent lifted towards the accent.
+      hot: mix(urgent, accent, 0.3),
+      rain: [
+        mix(background, accent, 0.22),
+        mix(background, accent, 0.42),
+        mix(background, accent, 0.68),
+        accent,
+        mix(accent, foreground, 0.55),
+      ].map(function (color) {
+        return css(color);
+      }),
+    };
+  }
 
-    var width = rain.clientWidth;
-    var height = rain.clientHeight;
-    var ratio = Math.min(devicePixelRatio || 1, 2);
-    if (rain.width !== width * ratio || rain.height !== height * ratio) {
-      rain.width = width * ratio;
-      rain.height = height * ratio;
-    }
-    rainContext.setTransform(ratio, 0, 0, ratio, 0, 0);
-    rainContext.clearRect(0, 0, width, height);
-
+  // Square cells on a coarse grid, falling in columns from the top edge and
+  // thinning out as they fall, in four tints of the accent. The same drawing
+  // as `wallpaper()` in scripts/build_website_themes.py, and a change to one
+  // wants the same change to the other; only the hash differs, since this one
+  // has no 64-bit integers to mix. Time enters as a per-column row offset
+  // into the hash, so the pattern slides down each column while the
+  // brightness stays anchored to the top, which is what falling looks like.
+  function paintRain(context, width, height, time) {
+    context.clearRect(0, 0, width, height);
     var pitch = Math.max(10, Math.round(width / 100));
     var cell = Math.round(pitch * 0.58);
     var inset = Math.floor((pitch - cell) / 2);
@@ -135,36 +147,376 @@
         var level = Math.min(3, Math.floor(brightness * 4));
         if (brightness < 0.08) level = 0;
         if (row === 0 && hash01(5, column, slid) < 0.2) level = 4;
-        rainContext.fillStyle = tints[level];
-        rainContext.fillRect(column * pitch + inset, row * pitch + inset, cell, cell);
+        context.fillStyle = palette.rain[level];
+        context.fillRect(column * pitch + inset, row * pitch + inset, cell, cell);
       }
     }
   }
 
-  var rainFrame = 0;
-  var rainPainted = -Infinity;
+  // The horizon. `layout` measures where it goes; everything else is drawn
+  // fresh each frame from that and the palette.
+  var horizonMode = Boolean(floor);
+  var rainLayer = document.createElement("canvas");
+  var rainLayerContext = rainLayer.getContext("2d");
+  var view = { width: 0, height: 0, horizon: 0, sunX: 0, sunRadius: 0, palmTop: 0, ratio: 1 };
 
-  function stepRain(time) {
-    // Cells move whole pitches, so nothing between one slide and the next
-    // needs drawing: a frame every 120ms keeps the canvas idle most of the
-    // time and the motion no less continuous.
-    if (time - rainPainted >= 120) {
-      paintRain(time);
-      rainPainted = time;
+  function layout() {
+    var ratio = Math.min(devicePixelRatio || 1, horizonMode ? 1.5 : 2);
+    var width = scene.clientWidth;
+    var height = scene.clientHeight;
+    if (horizonMode) {
+      // The canvas runs from the top of the page to the foot of the floor,
+      // and the horizon is the floor's top edge.
+      var box = floor.getBoundingClientRect();
+      height = Math.round(box.bottom + scrollY);
+      scene.style.height = height + "px";
+      view.horizon = Math.round(box.top + scrollY);
+      // The sun sets behind the console where the two columns stand side by
+      // side, and in the middle of the floor where they stack.
+      var panel = bootConsole && bootConsole.getBoundingClientRect();
+      var beside = panel && panel.left > width / 2;
+      view.sunX = beside ? panel.left + panel.width / 2 : width / 2;
+      view.sunRadius = beside
+        ? Math.min(width * 0.15, view.horizon * 0.3, 230)
+        : Math.min(width * 0.3, (view.horizon - (panel ? panel.bottom + scrollY : 0)) * 0.9, 150);
+      view.sunRadius = Math.max(view.sunRadius, 60);
+      // The palms stand between the copy and the sun where the two columns
+      // stand side by side; stacked, there is no room for them.
+      view.palmTop = beside
+        ? Math.max(view.horizon - Math.min(200, view.horizon * 0.3), panel.bottom + scrollY - 40)
+        : 0;
     }
-    rainFrame = requestAnimationFrame(stepRain);
+    view.width = width;
+    view.height = height;
+    view.ratio = ratio;
+    if (scene.width !== Math.round(width * ratio) || scene.height !== Math.round(height * ratio)) {
+      scene.width = Math.round(width * ratio);
+      scene.height = Math.round(height * ratio);
+    }
+    var rainHeight = horizonMode ? view.horizon : height;
+    rainLayer.width = Math.round(width * ratio);
+    rainLayer.height = Math.max(1, Math.round(rainHeight * ratio));
   }
 
-  function startRain() {
-    cancelAnimationFrame(rainFrame);
-    if (reducedMotion.matches) paintRain(0);
-    else rainFrame = requestAnimationFrame(stepRain);
+  function paintHorizon(context, time) {
+    var width = view.width;
+    var height = view.height;
+    var horizon = view.horizon;
+    var floorHeight = height - horizon;
+
+    context.clearRect(0, 0, width, height);
+
+    // The sky: the rain, fading into a haze of the accent above the horizon.
+    context.globalAlpha = 0.34;
+    context.drawImage(rainLayer, 0, 0, width, horizon);
+    context.globalAlpha = 1;
+    var haze = context.createLinearGradient(0, horizon * 0.35, 0, horizon);
+    haze.addColorStop(0, css(palette.bg, 0));
+    haze.addColorStop(0.75, css(palette.bg, 0.7));
+    haze.addColorStop(1, css(mix(palette.bg, palette.accent, 0.18), 0.95));
+    context.fillStyle = haze;
+    context.fillRect(0, 0, width, horizon);
+
+    // The sun: a glow, then the disc, run from the accent into the hot
+    // colour, with bands cut out of its lower half that drift downwards.
+    var radius = view.sunRadius;
+    var sunX = view.sunX;
+    var sunY = horizon - radius * 0.28;
+    var glow = context.createRadialGradient(sunX, sunY, radius * 0.6, sunX, sunY, radius * 2.4);
+    glow.addColorStop(0, css(palette.accent, 0.28));
+    glow.addColorStop(1, css(palette.accent, 0));
+    context.fillStyle = glow;
+    context.fillRect(sunX - radius * 2.4, sunY - radius * 2.4, radius * 4.8, radius * 4.8);
+
+    context.save();
+    context.beginPath();
+    context.arc(sunX, sunY, radius, 0, Math.PI * 2);
+    context.clip();
+    var disc = context.createLinearGradient(0, sunY - radius, 0, sunY + radius * 0.4);
+    disc.addColorStop(0, css(mix(palette.accent, palette.fg, 0.55)));
+    disc.addColorStop(0.45, css(palette.accent));
+    disc.addColorStop(1, css(palette.hot));
+    context.fillStyle = disc;
+    context.fillRect(sunX - radius, sunY - radius, radius * 2, radius * 2);
+    var bands = 9;
+    var drift = ((time / 1000) * 0.22) % 1;
+    var bandTop = sunY - radius * 0.45;
+    var bandSpan = radius * 1.45;
+    for (var band = 0; band < bands; band += 1) {
+      var along = (band + drift) / bands;
+      var bandY = bandTop + along * bandSpan;
+      context.clearRect(sunX - radius, bandY, radius * 2, 1 + along * radius * 0.09);
+    }
+    context.restore();
+
+    // The sea. The floor is a wireframe ocean: lines running out from the
+    // vanishing point and lines across it that roll towards the reader,
+    // both lifted by the same swell, so the mesh stays one surface. The
+    // swell is a function of a point's place on the water and the time, so
+    // the two families of lines agree wherever they cross, and it grows
+    // with nearness the way waves do in perspective.
+    var water = context.createLinearGradient(0, horizon, 0, height);
+    water.addColorStop(0, css(mix(palette.bg, palette.accent, 0.16)));
+    water.addColorStop(0.3, css(mix(palette.bg, palette.accent, 0.05)));
+    water.addColorStop(1, css(palette.bg));
+    context.fillStyle = water;
+    context.fillRect(0, horizon, width, floorHeight);
+
+    var seconds = time / 1000;
+    var vanishX = sunX;
+    var spread = Math.max(width, 900) / 9;
+    var crossings = 14;
+    var swellHeight = floorHeight * 0.05;
+
+    // Where a point at screen depth `depth` (0 at the horizon, 1 at the
+    // foot) and ray position `across` sits, before the swell lifts it.
+    function seaY(depth) {
+      return horizon + floorHeight * Math.pow(depth, 2.4);
+    }
+    function seaX(across, depth) {
+      return vanishX + across * spread * (0.04 + 1.56 * Math.pow(depth, 2.4));
+    }
+    function swell(across, depth) {
+      var phase = across * 0.8 + depth * crossings * 1.3 - seconds * 1.6;
+      return swellHeight * Math.pow(depth, 1.5) * Math.sin(phase);
+    }
+
+    var lines = context.createLinearGradient(0, horizon, 0, height);
+    lines.addColorStop(0, css(palette.accent, 0.05));
+    lines.addColorStop(0.35, css(palette.accent, 0.4));
+    lines.addColorStop(1, css(palette.accent, 0.85));
+    context.strokeStyle = lines;
+    context.lineWidth = 1;
+    context.beginPath();
+    var reach = Math.ceil(width / spread) * 3;
+    var samples = 28;
+    for (var ray = -reach; ray <= reach; ray += 1) {
+      for (var sample = 0; sample <= samples; sample += 1) {
+        var rayDepth = sample / samples;
+        var rayX = seaX(ray, rayDepth);
+        var rayY = seaY(rayDepth) + swell(ray, rayDepth);
+        if (sample === 0) context.moveTo(rayX, rayY);
+        else context.lineTo(rayX, rayY);
+      }
+    }
+    var travel = (seconds * 0.55) % 1;
+    var step = Math.max(8, width / 150);
+    for (var cross = 0; cross < crossings; cross += 1) {
+      var depth = (cross + travel) / crossings;
+      var rowY = seaY(depth);
+      var rowScale = spread * (0.04 + 1.56 * Math.pow(depth, 2.4));
+      for (var x = 0; x <= width + step; x += step) {
+        var y = rowY + swell((x - vanishX) / rowScale, depth);
+        if (x === 0) context.moveTo(x, y);
+        else context.lineTo(x, y);
+      }
+    }
+    context.stroke();
+
+    // The sun's reflection, over the mesh so its lines stay clean: a soft
+    // haze on the water under the sun, and on it a stack of thin lines from
+    // the horizon down, as wide as the sun at the top and narrowing below,
+    // each its own length and a little off centre so the edge is ragged.
+    // They run from the sun's hot lower edge into the accent and fade out.
+    // Still: the sea moves enough under it.
+    var glowDepth = floorHeight * 0.45;
+    context.save();
+    context.translate(sunX, horizon);
+    context.scale(1, glowDepth / (radius * 1.2));
+    var haze = context.createRadialGradient(0, 0, 0, 0, 0, radius * 1.2);
+    haze.addColorStop(0, css(mix(palette.hot, palette.accent, 0.4), 0.3));
+    haze.addColorStop(1, css(palette.accent, 0));
+    context.fillStyle = haze;
+    context.beginPath();
+    context.arc(0, 0, radius * 1.2, 0, Math.PI);
+    context.fill();
+    context.restore();
+
+    var reflections = 22;
+    var gap = Math.max(3, floorHeight * 0.016);
+    var lineY = horizon + 2;
+    for (var line = 0; line < reflections; line += 1) {
+      var down = line / reflections;
+      var half = radius * (1.05 - 0.6 * down) * (0.72 + 0.36 * hash01(51, line));
+      var drift = (hash01(52, line) - 0.5) * radius * 0.14;
+      context.fillStyle = css(
+        mix(palette.hot, palette.accent, Math.min(1, down * 1.4)),
+        0.8 * Math.pow(1 - down, 0.9),
+      );
+      context.fillRect(sunX + drift - half, lineY, half * 2, down < 0.5 ? 1.5 : 1);
+      lineY += gap * (1 + down * 0.9);
+    }
+
+    // The horizon itself, lit.
+    context.save();
+    context.shadowColor = css(palette.accent);
+    context.shadowBlur = 16;
+    context.fillStyle = css(mix(palette.accent, palette.fg, 0.35));
+    context.fillRect(0, horizon - 1, width, 2);
+    context.restore();
+
+    // A pair of palms growing close together in front of the sun: the
+    // trunks rise from nearly the same spot and part into a V, the taller
+    // arcing left and the shorter right, both crowns against the disc.
+    if (view.palmTop && view.palmTop < horizon) {
+      var tall = height - view.palmTop;
+      var root = sunX - radius * 0.25;
+      paintPalm(context, root - tall * 0.035, height, root - tall * 0.27, view.palmTop, seconds, 0);
+      paintPalm(
+        context,
+        root + tall * 0.035,
+        height,
+        root + tall * 0.26,
+        view.palmTop + tall * 0.16,
+        seconds,
+        1,
+      );
+    }
   }
 
-  if (rainContext) {
-    startRain();
-    addEventListener("resize", startRain);
-    reducedMotion.addEventListener("change", startRain);
+  // A palm tree in silhouette, as a synthwave sunset draws one: a slim
+  // trunk that curves as it rises and a full crown of feathered fronds. Each frond is an arching midrib with thin
+  // leaflets hanging off both sides; the side fronds droop well below the
+  // crown, and all of them sway a little. Dark, with a glow of the accent
+  // round it, so it stands against the sun and the sky alike. `seed` gives
+  // each palm of a pair its own fronds.
+  function paintPalm(context, baseX, baseY, topX, topY, seconds, seed) {
+    var tall = baseY - topY;
+    var bendX = baseX - (baseX - topX) * 0.15;
+    var bendY = baseY - tall * 0.55;
+    var girth = Math.max(6, tall / 20);
+    var silhouette = css(mix(palette.bg, palette.accent, 0.05));
+
+    function trunkAt(along) {
+      var rest = 1 - along;
+      return [
+        rest * rest * baseX + 2 * rest * along * bendX + along * along * topX,
+        rest * rest * baseY + 2 * rest * along * bendY + along * along * topY,
+      ];
+    }
+
+    context.save();
+    context.strokeStyle = silhouette;
+    context.shadowColor = css(palette.accent, 0.7);
+    context.shadowBlur = 8;
+    context.lineCap = "round";
+    context.lineJoin = "round";
+
+    // The trunk, in short segments that thin towards the crown.
+    var segments = 24;
+    var last = trunkAt(0);
+    for (var segment = 1; segment <= segments; segment += 1) {
+      var point = trunkAt(segment / segments);
+      context.lineWidth = girth * (1 - (segment / segments) * 0.5);
+      context.beginPath();
+      context.moveTo(last[0], last[1]);
+      context.lineTo(point[0], point[1]);
+      context.stroke();
+      last = point;
+    }
+
+    // The fronds, in compass degrees from the crown with 0 to the right and
+    // 90 straight down: a spread over the top and heavy fronds hanging at
+    // the sides, with none standing straight up.
+    var directions = [-165, -140, -40, -16, 8, 32, 148, 172];
+    var sway = Math.sin(seconds * 0.8 + seed) * 0.035;
+    context.beginPath();
+    for (var frond = 0; frond < directions.length; frond += 1) {
+      var angle =
+        (directions[frond] * Math.PI) / 180 + sway + (hash01(91, seed, frond) - 0.5) * 0.2;
+      var outX = Math.cos(angle);
+      var outY = Math.sin(angle);
+      var reach = tall * 0.48 * (0.75 + 0.4 * hash01(92, seed, frond));
+      // The more level the frond starts, the further its tip hangs.
+      var droop = reach * (0.28 + 0.47 * Math.abs(outX));
+      var bowX = topX + outX * reach * 0.55;
+      var bowY = topY + outY * reach * 0.55 - reach * 0.14;
+      var tipX = topX + outX * reach;
+      var tipY = topY + outY * reach + droop;
+
+      var leaflets = 34;
+      var prevX = topX;
+      var prevY = topY;
+      for (var leaf = 1; leaf <= leaflets; leaf += 1) {
+        var t = leaf / leaflets;
+        var u = 1 - t;
+        var ribX = u * u * topX + 2 * u * t * bowX + t * t * tipX;
+        var ribY = u * u * topY + 2 * u * t * bowY + t * t * tipY;
+        // The midrib.
+        context.moveTo(prevX, prevY);
+        context.lineTo(ribX, ribY);
+        // The rib's direction here, and a leaflet off each side of it,
+        // swept back towards the crown and pulled down by its own weight.
+        var alongX = ribX - prevX;
+        var alongY = ribY - prevY;
+        var alongLength = Math.hypot(alongX, alongY) || 1;
+        alongX /= alongLength;
+        alongY /= alongLength;
+        var size = reach * 0.25 * Math.pow(Math.sin(Math.PI * Math.min(1, t * 1.1)), 0.6);
+        for (var side = -1; side <= 1; side += 2) {
+          var leafX = -alongY * side * 0.75 - alongX * 0.35;
+          var leafY = alongX * side * 0.75 - alongY * 0.35 + 1;
+          var leafLength = Math.hypot(leafX, leafY) || 1;
+          context.moveTo(ribX, ribY);
+          context.lineTo(ribX + (leafX / leafLength) * size, ribY + (leafY / leafLength) * size);
+        }
+        prevX = ribX;
+        prevY = ribY;
+      }
+    }
+    context.lineWidth = Math.max(1.4, tall * 0.009);
+    context.stroke();
+    context.restore();
+  }
+
+  var sceneFrame = 0;
+  var rainPainted = -Infinity;
+  var scenePainted = -Infinity;
+
+  function paintScene(time) {
+    var ratio = view.ratio;
+    // Cells move whole pitches, so the rain needs drawing only when a column
+    // slides, about every 120ms; the horizon moves smoothly and is drawn up
+    // to thirty times a second, and not at all once it is scrolled away.
+    if (time - rainPainted >= 120) {
+      rainLayerContext.setTransform(ratio, 0, 0, ratio, 0, 0);
+      paintRain(rainLayerContext, view.width, horizonMode ? view.horizon : view.height, time);
+      rainPainted = time;
+      if (!horizonMode) {
+        sceneContext.setTransform(1, 0, 0, 1, 0, 0);
+        sceneContext.clearRect(0, 0, scene.width, scene.height);
+        sceneContext.drawImage(rainLayer, 0, 0);
+      }
+    }
+    if (horizonMode && time - scenePainted >= 32 && scrollY < view.height) {
+      sceneContext.setTransform(ratio, 0, 0, ratio, 0, 0);
+      paintHorizon(sceneContext, time);
+      scenePainted = time;
+    }
+  }
+
+  function stepScene(time) {
+    paintScene(time);
+    sceneFrame = requestAnimationFrame(stepScene);
+  }
+
+  function startScene() {
+    cancelAnimationFrame(sceneFrame);
+    readPalette();
+    layout();
+    rainPainted = -Infinity;
+    scenePainted = -Infinity;
+    if (reducedMotion.matches) paintScene(0);
+    else sceneFrame = requestAnimationFrame(stepScene);
+  }
+
+  if (sceneContext) {
+    if (horizonMode) scene.classList.add("is-horizon");
+    startScene();
+    addEventListener("resize", startScene);
+    reducedMotion.addEventListener("change", startScene);
+    // The floor moves when the display face arrives and the title reflows.
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(startScene);
   }
 
   // ---------------------------------------------------------------- theme
@@ -182,8 +534,8 @@
   // The favicon is left alone. It is a document of its own and sees none of
   // the page's colours, and the one way to redraw it from here, a `data:`
   // URL, is an icon Omaweb's engine never picks up: the site's tab in the
-  // browser this is for would have no icon at all. So it is the shipped
-  // file in the default palette, in every theme.
+  // browser this is for would have no icon at all. So it is the one shipped
+  // file, black and white, in every theme.
 
   function paintPalette() {
     // The browser chrome around the page follows the palette too, read off
@@ -191,7 +543,7 @@
     if (themeColor) {
       themeColor.content = getComputedStyle(document.body).getPropertyValue("--bg").trim();
     }
-    if (rainContext) startRain();
+    if (sceneContext) startScene();
   }
 
   // Which themes exist, from the `--themes` list `themes.css` is generated
@@ -297,6 +649,14 @@
         var path = element.dataset.themed.replace("{theme}", pictured);
         if (element.tagName === "A") element.href = path;
         else element.src = path;
+      });
+      // The boot console names the theme on air, by the picker's own label.
+      var named = themeButtons.filter(function (button) {
+        return button.dataset.theme === name;
+      })[0];
+      var label = named ? named.textContent.trim() : name;
+      [].forEach.call(document.querySelectorAll("[data-theme-name]"), function (node) {
+        node.textContent = label;
       });
       paintPalette();
     }
@@ -454,6 +814,23 @@
 
   if (walk && walkSteps.length === walkShots.length && "IntersectionObserver" in window) {
     var walkAt = 0;
+    var walkRail = walk.querySelector(".t-walk__steps");
+    var walkMarker = document.createElement("span");
+    walkMarker.className = "t-walk__marker";
+    walkMarker.setAttribute("aria-hidden", "true");
+    walkRail.appendChild(walkMarker);
+
+    // The diamond sits level with the middle of the first line of the step's
+    // heading, measured from the top of the rail.
+    function placeMarker() {
+      var step = walkSteps[walkAt];
+      var heading = step.querySelector("h3") || step;
+      var line = parseFloat(getComputedStyle(heading).lineHeight) || heading.offsetHeight;
+      // The rail is the positioned ancestor, so the heading's offset is
+      // already from its top.
+      var y = heading.offsetTop + Math.min(line, heading.offsetHeight) / 2;
+      walkRail.style.setProperty("--marker-y", y + "px");
+    }
 
     function showStep(index) {
       if (index === walkAt) return;
@@ -465,7 +842,8 @@
       walkSteps.forEach(function (step, which) {
         step.classList.toggle("is-on", which === index);
       });
-      if (walkCount) walkCount.textContent = index + 1 + " / " + walkSteps.length;
+      if (walkCount) walkCount.textContent = channel(index + 1);
+      placeMarker();
     }
 
     function pickStep() {
@@ -483,7 +861,39 @@
       showStep(best);
     }
 
-    if (walkCount) walkCount.textContent = "1 / " + walkSteps.length;
+    // Numbered as the channels of a set, to go with the monitor it is on.
+    function channel(number) {
+      function pad(value) {
+        return value < 10 ? "0" + value : String(value);
+      }
+      return "CH " + pad(number) + " / " + pad(walkSteps.length);
+    }
+
+    if (walkCount) walkCount.textContent = channel(1);
+    placeMarker();
+    addEventListener("resize", placeMarker);
+
+    // Where the frame stands beside the steps, it sticks in the middle of the
+    // window below the header rather than against the header, so the shot
+    // is level with the step being read. Stacked on a phone it stays under
+    // the header, above the steps it scrolls with.
+    var walkFrame = walk.querySelector(".t-walk__frame");
+    var walkHeader = document.querySelector(".t-top");
+    var sideBySide = matchMedia("(min-width: 60rem)");
+
+    function centreFrame() {
+      if (!sideBySide.matches || !walkFrame) {
+        walk.style.removeProperty("--walk-top");
+        return;
+      }
+      var header = walkHeader ? walkHeader.getBoundingClientRect().height : 0;
+      var top = header + (innerHeight - header - walkFrame.offsetHeight) / 2;
+      walk.style.setProperty("--walk-top", Math.max(header + 16, top) + "px");
+    }
+
+    centreFrame();
+    addEventListener("resize", centreFrame);
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(placeMarker);
     var stepObserver = new IntersectionObserver(pickStep, {
       threshold: [0, 0.25, 0.5, 0.75, 1],
     });
@@ -557,4 +967,186 @@
       event.preventDefault();
     });
   }
+
+  // ---------------------------------------------------------------- boot
+  // The console prints its checklist a line at a time, as a machine just
+  // switched on would. With motion reduced it is simply there.
+  if (bootConsole && !reducedMotion.matches) {
+    var bootLines = [].slice.call(bootConsole.querySelectorAll("li"));
+    var BOOT_START = 300;
+    var BOOT_STEP = 150;
+    bootConsole.classList.add("is-booting");
+    bootLines.forEach(function (line, index) {
+      setTimeout(
+        function () {
+          line.classList.add("is-up");
+        },
+        BOOT_START + index * BOOT_STEP,
+      );
+    });
+    setTimeout(
+      function () {
+        bootConsole.classList.remove("is-booting");
+      },
+      BOOT_START + bootLines.length * BOOT_STEP + 120,
+    );
+  }
+
+  // ---------------------------------------------------------------- keys
+  // Omaweb reaches anything on a page with link hints, and the site answers
+  // to the same key: F labels every link and button in view, and typing a
+  // label follows it. T moves to the next theme. Neither fires while the
+  // reader is typing into something, holding a modifier, or looking at a
+  // screenshot in the viewer.
+  var HINT_ALPHABET = "sadfjklewcmpgh";
+  var hints = null;
+  var keysLine = document.querySelector(".t-keys");
+  if (keysLine) keysLine.hidden = false;
+
+  function hintLabels(count) {
+    var letters = HINT_ALPHABET.split("");
+    if (count <= letters.length) return letters.slice(0, count);
+    var labels = [];
+    for (var first = 0; first < letters.length; first += 1) {
+      for (var second = 0; second < letters.length; second += 1) {
+        labels.push(letters[first] + letters[second]);
+      }
+    }
+    return labels.slice(0, count);
+  }
+
+  // What the reader could click right now: in the window, and the topmost
+  // thing at its own centre, which rules out a link under the header, a
+  // shot the frame is not showing, and a menu that is folded away.
+  function hintTargets() {
+    return [].slice.call(document.querySelectorAll("a[href], button")).filter(function (element) {
+      var box = element.getBoundingClientRect();
+      if (!box.width || !box.height) return false;
+      if (box.bottom < 0 || box.top > innerHeight || box.right < 0 || box.left > innerWidth) {
+        return false;
+      }
+      var x = Math.min(Math.max(box.left + box.width / 2, 0), innerWidth - 1);
+      var y = Math.min(Math.max(box.top + box.height / 2, 0), innerHeight - 1);
+      var hit = document.elementFromPoint(x, y);
+      return Boolean(hit) && (hit === element || element.contains(hit));
+    });
+  }
+
+  function openHints() {
+    var targets = hintTargets();
+    if (!targets.length) return;
+    var labels = hintLabels(targets.length);
+    var layer = document.createElement("div");
+    layer.className = "t-hints";
+    layer.setAttribute("aria-hidden", "true");
+    var items = targets.map(function (element, index) {
+      var box = element.getBoundingClientRect();
+      var node = document.createElement("span");
+      node.className = "t-hint";
+      node.textContent = labels[index];
+      node.style.left = Math.max(12, box.left) + "px";
+      node.style.top = Math.max(10, box.top) + "px";
+      layer.appendChild(node);
+      return { label: labels[index], element: element, node: node };
+    });
+    var bar = document.createElement("div");
+    bar.className = "t-hints__bar";
+    bar.textContent = "Type a label to follow it · Esc to cancel";
+    layer.appendChild(bar);
+    document.body.appendChild(layer);
+    hints = { layer: layer, items: items, typed: "" };
+  }
+
+  function closeHints() {
+    if (!hints) return;
+    hints.layer.remove();
+    hints = null;
+  }
+
+  function filterHints() {
+    var typed = hints.typed;
+    var left = hints.items.filter(function (item) {
+      return item.label.indexOf(typed) === 0;
+    });
+    if (!left.length) {
+      closeHints();
+      return;
+    }
+    if (left.length === 1 && left[0].label === typed) {
+      var element = left[0].element;
+      closeHints();
+      element.focus();
+      element.click();
+      return;
+    }
+    hints.items.forEach(function (item) {
+      var match = item.label.indexOf(typed) === 0;
+      item.node.hidden = !match;
+      if (!match) return;
+      item.node.textContent = "";
+      var done = document.createElement("b");
+      done.textContent = typed;
+      item.node.appendChild(done);
+      item.node.appendChild(document.createTextNode(item.label.slice(typed.length)));
+    });
+  }
+
+  // The next theme in the picker's order, swept out of `from`: the button
+  // pressed, or for the key, the middle of the window, where the reader is
+  // looking.
+  function nextTheme(from) {
+    var current = document.body.dataset.theme || themeNames[0];
+    var next = themeNames[(themeNames.indexOf(current) + 1) % themeNames.length];
+    var middle = {
+      getBoundingClientRect: function () {
+        return { left: innerWidth / 2, top: innerHeight / 2, width: 0, height: 0 };
+      },
+    };
+    setTheme(next, { save: true, share: true, from: from || middle });
+  }
+
+  // The console's theme line is a control: pressing it moves to the next
+  // theme, as T does. The page writes it as text and it becomes a button
+  // here, so with the script blocked it is not a button that does nothing.
+  var consoleTheme = document.querySelector(".t-console [data-theme-name]");
+  if (consoleTheme) {
+    var themeControl = document.createElement("button");
+    themeControl.type = "button";
+    themeControl.className = "t-console__theme";
+    themeControl.setAttribute("aria-label", "Next theme");
+    consoleTheme.parentNode.replaceChild(themeControl, consoleTheme);
+    themeControl.appendChild(consoleTheme);
+    themeControl.addEventListener("click", function () {
+      nextTheme(themeControl);
+    });
+  }
+
+  addEventListener("keydown", function (event) {
+    if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) return;
+    if (hints) {
+      if (event.key === "Escape") closeHints();
+      else if (event.key === "Backspace") {
+        hints.typed = hints.typed.slice(0, -1);
+        filterHints();
+      } else if (/^[a-z]$/i.test(event.key)) {
+        hints.typed += event.key.toLowerCase();
+        filterHints();
+      } else return;
+      event.preventDefault();
+      return;
+    }
+    var target = event.target;
+    if (target.closest && target.closest("input, textarea, select, [contenteditable]")) return;
+    if (document.querySelector("dialog[open]")) return;
+    var key = event.key.toLowerCase();
+    if (key === "f") openHints();
+    else if (key === "t") nextTheme();
+    else return;
+    event.preventDefault();
+  });
+  // The labels are pinned to where things were, so anything that moves the
+  // page takes them down.
+  addEventListener("scroll", closeHints, { passive: true });
+  addEventListener("resize", closeHints);
+  addEventListener("pointerdown", closeHints);
 })();
