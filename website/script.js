@@ -383,8 +383,8 @@
   // The favicon is left alone. It is a document of its own and sees none of
   // the page's colours, and the one way to redraw it from here, a `data:`
   // URL, is an icon Omaweb's engine never picks up: the site's tab in the
-  // browser this is for would have no icon at all. So it is the shipped
-  // file in the default palette, in every theme.
+  // browser this is for would have no icon at all. So it is the one shipped
+  // file, black and white, in every theme.
 
   function paintPalette() {
     // The browser chrome around the page follows the palette too, read off

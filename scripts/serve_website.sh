@@ -10,7 +10,7 @@
 #
 # A change to a page or the shell wants the build run again: stop this and
 # start it again, or run `node build/site.mjs --local` from website/ while it
-# serves. Rebuild the per-theme palettes, screenshots and the favicon after a
+# serves. Rebuild the per-theme palettes and screenshots after a
 # chrome change or an upstream theme change: scripts/build_website_themes.py
 set -euo pipefail
 
