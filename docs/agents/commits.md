@@ -35,7 +35,7 @@ fix: finish schema query before legacy migration
 test: cover space restoration after restart
 ```
 
-CI checks every commit after `35e01d4`. Earlier commits are retained as historical exceptions. Three
+CI checks every commit after `35e01d4`. Earlier commits are retained as historical exceptions. Four
 published commits after the baseline exceed the 72-character limit and are exempt by full hash in
 `scripts/check_commit_messages.sh`.
 
