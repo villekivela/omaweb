@@ -152,6 +152,7 @@ private slots:
     void qtProfilesIsolateSiteStorage();
     void qtPrivateWindowsShareOneProfile();
     void qtSpaceProfilesKeepSiteStorageOnDisk();
+    void qtSpaceProfilesAreBuiltInTheirOwnDirectories();
     void qtRoutesOnlyDialogDestinationsToAuxiliaryWindows();
     void qtKeyboardNavigationHonorsInputContracts_data();
     void qtKeyboardNavigationHonorsInputContracts();
@@ -761,11 +762,10 @@ void QtEngineContractTest::qtPrivateWindowsShareOneProfile()
     QTRY_COMPARE(second->property("pageTitle").toString(), QStringLiteral("private"));
 }
 
-// A QML-declared WebEngineProfile is off-the-record unless it says otherwise,
-// and an off-the-record one keeps every cookie in memory however loudly the
-// storage name and cookie policy ask for disk. Nothing about a Space profile
-// looks wrong until the browser restarts and every login is gone, so the
-// contract is checked where it shows: on the profile and on the directory.
+// A profile with no storage name is off the record, and an off-the-record one
+// keeps every cookie in memory however loudly the cookie policy asks for disk. Nothing about a
+// Space profile looks wrong until the browser restarts and every login is gone, so the contract is
+// checked where it shows: on the profile and on the directory.
 void QtEngineContractTest::qtSpaceProfilesKeepSiteStorageOnDisk()
 {
     QTemporaryDir root;
@@ -817,6 +817,79 @@ void QtEngineContractTest::qtSpaceProfilesKeepSiteStorageOnDisk()
     QTRY_COMPARE(view->property("pageTitle").toString(), QStringLiteral("kept"));
     QTRY_VERIFY(
         !QDir(spacePath).entryList(QDir::Files | QDir::Dirs | QDir::NoDotAndDotDot).isEmpty());
+}
+
+// The engine builds a profile's extension storage once, from the directory the
+// profile has when it is constructed. A QML-declared profile is constructed off
+// the record at QtWebEngine's shared default and only then moved, so every
+// Space's extensions would share that one store and all but the first would
+// find it locked. Qt says so when a profile is declared, which is why the
+// warning is the test: no warning means no profile was built before its path
+// was known.
+void QtEngineContractTest::qtSpaceProfilesAreBuiltInTheirOwnDirectories()
+{
+    QTest::failOnWarning(QRegularExpression(QStringLiteral("WebEngineProfilePrototype")));
+    QTemporaryDir root;
+    const auto workPath = root.filePath(QStringLiteral("work"));
+    const auto homePath = root.filePath(QStringLiteral("home"));
+
+    QQmlEngine engine;
+    QQmlComponent profileComponent(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_PROFILE_PATH)));
+    const auto spaceProfile = [&profileComponent](const QString &path) {
+        return std::unique_ptr<QObject>(profileComponent.createWithInitialProperties({
+            {QStringLiteral("profilePath"), path},
+            {QStringLiteral("privateBrowsing"), false},
+        }));
+    };
+    const auto work = spaceProfile(workPath);
+    const auto home = spaceProfile(homePath);
+    QVERIFY2(work && home, qPrintable(profileComponent.errorString()));
+    auto *workProfile = work->property("profile").value<QObject *>();
+    auto *homeProfile = home->property("profile").value<QObject *>();
+    QVERIFY(workProfile && homeProfile);
+    QVERIFY(workProfile != homeProfile);
+    QCOMPARE(workProfile->property("persistentStoragePath").toString(), workPath);
+    QCOMPARE(homeProfile->property("persistentStoragePath").toString(), homePath);
+    QCOMPARE(workProfile->property("offTheRecord").toBool(), false);
+    QCOMPARE(homeProfile->property("offTheRecord").toBool(), false);
+    QCOMPARE(workProfile->property("cachePath").toString(), workPath + QStringLiteral("/cache"));
+    QCOMPARE(workProfile->property("httpCacheType").toInt(),
+        static_cast<int>(QQuickWebEngineProfile::DiskHttpCache));
+    QCOMPARE(workProfile->property("persistentPermissionsPolicy").toInt(),
+        static_cast<int>(QQuickWebEngineProfile::PersistentPermissionsPolicy::AskEveryTime));
+
+    // A Private window's profile keeps nothing on disk and hosts nothing.
+    const std::unique_ptr<QObject> privateHost(profileComponent.createWithInitialProperties({
+        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("private"))},
+        {QStringLiteral("privateBrowsing"), true},
+    }));
+    QVERIFY2(privateHost, qPrintable(profileComponent.errorString()));
+    auto *privateProfile = privateHost->property("profile").value<QObject *>();
+    QVERIFY(privateProfile);
+    QCOMPARE(privateProfile->property("offTheRecord").toBool(), true);
+    QCOMPARE(privateProfile->property("storageName").toString(), QString());
+    QCOMPARE(privateProfile->property("httpCacheType").toInt(),
+        static_cast<int>(QQuickWebEngineProfile::MemoryHttpCache));
+    QCOMPARE(privateProfile->property("persistentCookiesPolicy").toInt(),
+        static_cast<int>(QQuickWebEngineProfile::NoPersistentCookies));
+    QVERIFY(privateHost->property("hostedExtensions").toList().isEmpty());
+
+    // A view opened without a Space profile builds its own the same way.
+    const auto ownPath = root.filePath(QStringLiteral("own"));
+    QQmlComponent viewComponent(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    const std::unique_ptr<QObject> view(viewComponent.createWithInitialProperties({
+        {QStringLiteral("profilePath"), ownPath},
+    }));
+    QVERIFY2(view, qPrintable(viewComponent.errorString()));
+    QVariant ownProfile;
+    QVERIFY(QMetaObject::invokeMethod(
+        view.get(), "resolvedProfile", Q_RETURN_ARG(QVariant, ownProfile)));
+    auto *ownObject = ownProfile.value<QObject *>();
+    QVERIFY(ownObject);
+    QCOMPARE(ownObject->property("persistentStoragePath").toString(), ownPath);
+    QCOMPARE(ownObject->property("offTheRecord").toBool(), false);
 }
 
 void QtEngineContractTest::qtRoutesOnlyDialogDestinationsToAuxiliaryWindows()
