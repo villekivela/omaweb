@@ -31,6 +31,13 @@
     <meta name="twitter:title" content="{{title}}" />
     <meta name="twitter:description" content="{{summary}}" />
     <link rel="icon" href="{{root}}/favicon.svg" type="image/svg+xml" />
+    <link
+      rel="preload"
+      href="{{root}}/assets/fonts/Orbitron.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
     <link rel="stylesheet" href="{{root}}/styles.css" />
     <!-- Generated from each Omarchy theme's own colors.toml by
          scripts/build_website_themes.py, alongside the screenshots drawn in
@@ -39,11 +46,12 @@
   </head>
 
   <body>
-    <!-- The same rain of cells the screenshots' wallpaper is drawn from,
-         drawn live in the active palette behind the header and the hero.
-         Decorative: it is hidden from assistive technology and the page is
-         complete without it. -->
-    <canvas class="t-rain" aria-hidden="true"></canvas>
+    <!-- The scene behind the header and the hero: the rain of cells the
+         screenshots' wallpaper is drawn from, and on the landing page a
+         horizon under it, all drawn live in the active palette. Decorative:
+         it is hidden from assistive technology and the page is complete
+         without it. -->
+    <canvas class="t-scene" aria-hidden="true"></canvas>
     <!-- GitHub's own mark, defined once and referenced by every button that
          goes there. `currentColor`, so it takes the button's text colour and
          follows the theme with it. Used to link to GitHub, which is what
@@ -60,6 +68,7 @@
     <div class="t-wrap">
       <header class="t-top">
         <a href="{{root}}/">
+          <span class="t-top__led" aria-hidden="true"></span>
           <svg
             class="t-wordmark"
             viewBox="0 0 160 20"
@@ -122,6 +131,7 @@
 
       <footer class="t-foot">
         <span>Omaweb &middot; alpha &middot; MPL 2.0</span>
+        <span class="t-foot__eot" aria-hidden="true">&#9646; end of transmission</span>
         <a href="https://github.com/villekivela/omaweb">github.com/villekivela/omaweb</a>
       </footer>
     </div>
