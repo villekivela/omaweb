@@ -607,14 +607,14 @@ kbd {
   --btn-fill: var(--glass);
 }
 
-/* The landing page's hero fills the first screen: the copy and the console
-   above, and under them a band of floor where the scene's grid runs out
-   from the horizon. The band is empty markup that reserves the room; the
-   script finds its top edge and draws the horizon there. */
+/* The landing page's hero is as tall as its copy and the console, and
+   under them a band of sea where the scene runs out from the horizon, so
+   the tour below rises into the first screen. The band is empty markup
+   that reserves the room; the script finds its top edge and draws the
+   horizon there. */
 .t-hero--main {
   display: flex;
   flex-direction: column;
-  min-height: calc(100svh - var(--control-h) * 2);
   padding-bottom: 0;
 }
 /* The tube: scanlines and a vignette over the first screen only, where the
@@ -656,12 +656,8 @@ kbd {
   }
 }
 .t-hero__floor {
-  flex: 1 0 clamp(9rem, 26vh, 16rem);
-}
-@media (max-width: 63.999rem) {
-  .t-hero__floor {
-    flex-basis: clamp(10rem, 26vh, 15rem);
-  }
+  flex: none;
+  height: clamp(8rem, 22vh, 13rem);
 }
 
 /* A line of small type over the title, led by a blinking light: the

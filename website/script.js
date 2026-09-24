@@ -180,9 +180,9 @@
         ? Math.min(width * 0.15, view.horizon * 0.3, 230)
         : Math.min(width * 0.3, (view.horizon - (panel ? panel.bottom + scrollY : 0)) * 0.9, 150);
       view.sunRadius = Math.max(view.sunRadius, 60);
-      // The palm's crown sits just under the console, where there is a
-      // console beside the copy to stand under; stacked, there is no room.
-      view.palmTop = beside ? panel.bottom + scrollY + 64 : 0;
+      // The palms stand between the copy and the sun where the two columns
+      // stand side by side; stacked, there is no room for them.
+      view.palmTop = beside ? view.horizon - Math.min(200, view.horizon * 0.3) : 0;
     }
     view.width = width;
     view.height = height;
@@ -353,21 +353,23 @@
     context.fillRect(0, horizon - 1, width, 2);
     context.restore();
 
-    // A palm at the right edge, leaning in over the water. Only where the
-    // window is wide enough to keep it clear of the copy.
+    // A pair of palms framing the sun: the taller on its left, leaning away,
+    // and the shorter on its right, leaning in so its crown reaches over the
+    // edge of the disc.
     if (view.palmTop && view.palmTop < horizon) {
       var tall = height - view.palmTop;
-      var edge = width - Math.min(56, width * 0.04);
+      var left = sunX - radius * 1.3;
+      var right = sunX + radius * 1.3;
+      paintPalm(context, left, height, left - tall * 0.12, view.palmTop, seconds, 0);
       paintPalm(
         context,
-        edge - tall * 0.12,
+        right,
         height,
-        edge - tall * 0.34,
-        view.palmTop + tall * 0.24,
+        right - tall * 0.08,
+        view.palmTop + tall * 0.22,
         seconds,
         1,
       );
-      paintPalm(context, width + tall * 0.08, height, edge, view.palmTop, seconds, 0);
     }
   }
 
