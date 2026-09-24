@@ -1,5 +1,6 @@
 import QtQuick
 import Omaweb.Engine
+import qs.Commons
 
 Rectangle {
     id: root
@@ -7,6 +8,11 @@ Rectangle {
 
     property url currentUrl: "about:blank"
     property bool blurReviewPattern: false
+    // `--browse` asks for the browser in use: a web address draws a sample
+    // page, in the page palette a themed site would take, instead of saying
+    // no engine is running. The lab's own reviews keep the plain view.
+    readonly property bool samplePage: typeof labSamplePages !== "undefined" && labSamplePages
+                                       && String(root.currentUrl).startsWith("http")
     // A page that is never still, so the chrome can be timed over a page that
     // asks for a frame every frame, the way one with a video or a spinner
     // does. Off unless a probe turns it on: a page at rest costs no frames.
@@ -674,6 +680,7 @@ Rectangle {
     Column {
         anchors.centerIn: parent
         spacing: 10
+        visible: !root.samplePage
 
         Text {
             anchors.horizontalCenter: parent.horizontalCenter
@@ -695,6 +702,237 @@ Rectangle {
             text: "No browser engine is running"
             color: "#918a9b"
             font.pixelSize: 12
+        }
+    }
+
+    // A documentation page, drawn rather than loaded: a site bar, the article
+    // the tab is named for, and a contents column where the window has room.
+    // Its words are the lab's own. Colours come from the page palette, so the
+    // page is the one a site that follows the reader's theme would draw.
+    Rectangle {
+        id: samplePage
+        anchors.fill: parent
+        visible: root.samplePage
+        clip: true
+
+        readonly property var colors: root.pagePalette
+        readonly property color ground: colors ? colors.bg : root.pageBackgroundColor
+        readonly property color raised: colors ? colors.sidebar : Qt.darker(ground, 1.2)
+        readonly property color ink: colors ? colors.fg : "#d8dbe3"
+        readonly property color accent: colors ? colors.accent : "#7c6cff"
+        readonly property color hot: colors ? colors.urgent : "#f38ba8"
+        readonly property color quiet: colors ? colors.muted : "#929ca6"
+        readonly property color rule: Qt.rgba(ink.r, ink.g, ink.b, 0.12)
+        readonly property string family: Style.font.family
+        readonly property real measure: Math.min(720, width - 96)
+        readonly property bool contents: width > 1100
+        readonly property string host: {
+            const match = String(root.currentUrl).match(/^https?:\/\/([^\/]+)/);
+            return match ? match[1] : "";
+        }
+
+        color: ground
+
+        Rectangle {
+            id: siteBar
+            width: parent.width
+            height: 56
+            color: samplePage.raised
+
+            // In line with the article, and never under the window controls
+            // that float over the page's top left while the sidebar is hidden.
+            Rectangle {
+                id: siteMark
+                x: Math.max(article.x, 216)
+                anchors.verticalCenter: parent.verticalCenter
+                width: 22
+                height: 22
+                radius: 5
+                color: samplePage.accent
+            }
+            Text {
+                anchors.left: siteMark.right
+                anchors.leftMargin: 12
+                anchors.verticalCenter: parent.verticalCenter
+                text: "Qt Documentation"
+                color: samplePage.ink
+                font.family: samplePage.family
+                font.pixelSize: 15
+                font.weight: Font.DemiBold
+            }
+            Row {
+                anchors.right: parent.right
+                anchors.rightMargin: 32
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: 28
+
+                Repeater {
+                    model: ["Guides", "Reference", "Examples", "Search"]
+
+                    Text {
+                        required property string modelData
+                        text: modelData
+                        color: samplePage.quiet
+                        font.family: samplePage.family
+                        font.pixelSize: 13
+                    }
+                }
+            }
+            Rectangle {
+                anchors.bottom: parent.bottom
+                width: parent.width
+                height: 1
+                color: samplePage.rule
+            }
+        }
+
+        Column {
+            id: article
+            x: samplePage.contents ? Math.max(48, (samplePage.width - samplePage.measure - 260) / 2) :
+                                     (samplePage.width - samplePage.measure) / 2
+            y: siteBar.height + 44
+            width: samplePage.measure
+            spacing: 18
+
+            Text {
+                text: "Qt 6  ›  Qt Quick  ›  Rendering"
+                color: samplePage.quiet
+                font.family: samplePage.family
+                font.pixelSize: 12
+            }
+            Text {
+                width: parent.width
+                text: "Qt Quick Scene Graph"
+                wrapMode: Text.WordWrap
+                color: samplePage.ink
+                font.family: samplePage.family
+                font.pixelSize: 34
+                font.weight: Font.DemiBold
+            }
+            Text {
+                width: parent.width
+                text: "Every Qt Quick window draws through a scene graph: a tree of nodes that "
+                      + "says what each item looks like. Once a frame the renderer walks the tree "
+                      + "and groups what shares a material, so the GPU is asked for as few draw "
+                      + "calls as the scene allows."
+                wrapMode: Text.WordWrap
+                lineHeight: 1.35
+                color: samplePage.ink
+                opacity: 0.85
+                font.family: samplePage.family
+                font.pixelSize: 15
+            }
+            Text {
+                topPadding: 8
+                text: "A thread of its own"
+                color: samplePage.ink
+                font.family: samplePage.family
+                font.pixelSize: 21
+                font.weight: Font.DemiBold
+            }
+            Text {
+                width: parent.width
+                text: "Where the platform allows it, rendering runs on a separate thread. The "
+                      + "application thread changes items and hands over what changed, and "
+                      + "animations keep their pace while the application is busy."
+                wrapMode: Text.WordWrap
+                lineHeight: 1.35
+                color: samplePage.ink
+                opacity: 0.85
+                font.family: samplePage.family
+                font.pixelSize: 15
+            }
+            Rectangle {
+                width: parent.width
+                height: code.implicitHeight + 36
+                radius: 6
+                color: samplePage.raised
+                border.width: 1
+                border.color: samplePage.rule
+
+                Text {
+                    id: code
+                    x: 20
+                    y: 18
+                    textFormat: Text.StyledText
+                    lineHeight: 1.4
+                    color: samplePage.ink
+                    font.family: samplePage.family
+                    font.pixelSize: 14
+                    text: "<font color='" + samplePage.accent + "'>Rectangle</font> {<br>"
+                          + "&nbsp;&nbsp;&nbsp;&nbsp;width: <font color='" + samplePage.hot
+                          + "'>320</font>; height: <font color='" + samplePage.hot
+                          + "'>200</font><br>" + "&nbsp;&nbsp;&nbsp;&nbsp;color: <font color='"
+                          + samplePage.hot + "'>\"steelblue\"</font><br>"
+                          + "&nbsp;&nbsp;&nbsp;&nbsp;layer.enabled: <font color='"
+                          + samplePage.accent + "'>true</font><br>}"
+                }
+            }
+            Rectangle {
+                width: parent.width
+                height: 170
+                radius: 6
+                gradient: Gradient {
+                    orientation: Gradient.Horizontal
+                    GradientStop {
+                        position: 0
+                        color: Qt.rgba(samplePage.accent.r, samplePage.accent.g, samplePage.accent.b,
+                                       0.35)
+                    }
+                    GradientStop {
+                        position: 1
+                        color: Qt.rgba(samplePage.hot.r, samplePage.hot.g, samplePage.hot.b, 0.25)
+                    }
+                }
+
+                Text {
+                    anchors.centerIn: parent
+                    text: "item  →  node  →  batch  →  frame"
+                    color: samplePage.ink
+                    font.family: samplePage.family
+                    font.pixelSize: 16
+                }
+            }
+            Text {
+                width: parent.width
+                text: "An item that needs more than rectangles and text builds its own nodes, "
+                      + "handing the renderer geometry and a material directly."
+                wrapMode: Text.WordWrap
+                lineHeight: 1.35
+                color: samplePage.ink
+                opacity: 0.85
+                font.family: samplePage.family
+                font.pixelSize: 15
+            }
+        }
+
+        Column {
+            visible: samplePage.contents
+            x: article.x + article.width + 64
+            y: article.y + 4
+            width: 196
+            spacing: 12
+
+            Text {
+                text: "ON THIS PAGE"
+                color: samplePage.quiet
+                font.family: samplePage.family
+                font.pixelSize: 11
+                font.letterSpacing: 1.2
+            }
+            Repeater {
+                model: ["Overview", "A thread of its own", "Batching", "Custom geometry",
+                    "Profiling"]
+
+                Text {
+                    required property string modelData
+                    required property int index
+                    text: modelData
+                    color: index === 1 ? samplePage.accent : samplePage.quiet
+                    font.family: samplePage.family
+                    font.pixelSize: 13
+                }
+            }
         }
     }
 }

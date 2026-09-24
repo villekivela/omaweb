@@ -129,13 +129,16 @@ THEMES = [
 # The interface states worth a picture, and the lab arguments that reach each.
 # `--tabs` seeds every one of them: a Space at rest draws neither the Pinned
 # section nor the tab list, and the vertical strip with Pinned tabs above it is
-# what distinguishes this browser at a glance.
+# what distinguishes this browser at a glance. `--browse` ends on a page rather
+# than the blank tab, whose Start page is the shortcut sheet, so the browser is
+# shown in use; `--spaces` adds the Work Space beside Personal that the tour's
+# first step is about; `--sample-lists` shows the filter lists a first run has.
 STATES = [
-    ("space", ["--tabs"]),
+    ("space", ["--tabs", "--spaces", "--browse"]),
     ("settings", ["--tabs", "--show", "settings:tabs"]),
-    ("blocking", ["--tabs", "--show", "settings:content-blocking"]),
+    ("blocking", ["--tabs", "--sample-lists", "--show", "settings:content-blocking"]),
     ("history", ["--tabs", "--show", "history"]),
-    ("collapsed", ["--tabs", "--show", "collapsed"]),
+    ("collapsed", ["--tabs", "--browse", "--show", "collapsed"]),
 ]
 
 # Two states the lab can reach and this deliberately does not ship. Site
