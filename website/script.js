@@ -182,7 +182,9 @@
       view.sunRadius = Math.max(view.sunRadius, 60);
       // The palms stand between the copy and the sun where the two columns
       // stand side by side; stacked, there is no room for them.
-      view.palmTop = beside ? view.horizon - Math.min(200, view.horizon * 0.3) : 0;
+      view.palmTop = beside
+        ? Math.max(view.horizon - Math.min(200, view.horizon * 0.3), panel.bottom + scrollY - 40)
+        : 0;
     }
     view.width = width;
     view.height = height;
@@ -353,19 +355,19 @@
     context.fillRect(0, horizon - 1, width, 2);
     context.restore();
 
-    // A pair of palms framing the sun, both arcing away from it: the taller
-    // on its left and the shorter on its right, mirrored.
+    // A pair of palms growing close together in front of the sun: the
+    // trunks rise from nearly the same spot and part into a V, the taller
+    // arcing left and the shorter right, both crowns against the disc.
     if (view.palmTop && view.palmTop < horizon) {
       var tall = height - view.palmTop;
-      var left = sunX - radius * 1.3;
-      var right = sunX + radius * 1.3;
-      paintPalm(context, left, height, left - tall * 0.12, view.palmTop, seconds, 0);
+      var root = sunX - radius * 0.25;
+      paintPalm(context, root - tall * 0.035, height, root - tall * 0.27, view.palmTop, seconds, 0);
       paintPalm(
         context,
-        right,
+        root + tall * 0.035,
         height,
-        right + tall * 0.12,
-        view.palmTop + tall * 0.22,
+        root + tall * 0.26,
+        view.palmTop + tall * 0.16,
         seconds,
         1,
       );
@@ -382,7 +384,7 @@
     var tall = baseY - topY;
     var bendX = baseX - (baseX - topX) * 0.15;
     var bendY = baseY - tall * 0.55;
-    var girth = Math.max(4, tall / 34);
+    var girth = Math.max(6, tall / 20);
     var silhouette = css(mix(palette.bg, palette.accent, 0.05));
 
     function trunkAt(along) {
@@ -424,7 +426,7 @@
         (directions[frond] * Math.PI) / 180 + sway + (hash01(91, seed, frond) - 0.5) * 0.2;
       var outX = Math.cos(angle);
       var outY = Math.sin(angle);
-      var reach = tall * 0.34 * (0.75 + 0.4 * hash01(92, seed, frond));
+      var reach = tall * 0.48 * (0.75 + 0.4 * hash01(92, seed, frond));
       // The more level the frond starts, the further its tip hangs.
       var droop = reach * (0.28 + 0.47 * Math.abs(outX));
       var bowX = topX + outX * reach * 0.55;
@@ -462,7 +464,7 @@
         prevY = ribY;
       }
     }
-    context.lineWidth = Math.max(1.4, girth * 0.3);
+    context.lineWidth = Math.max(1.4, tall * 0.009);
     context.stroke();
     context.restore();
   }
