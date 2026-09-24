@@ -10,18 +10,20 @@ list what shipped.
 ## Planned
 
 Releases are planned as [milestones](https://github.com/villekivela/omaweb/milestones) on the issue
-tracker. The September 2026 feature review named what a daily driver still lacked. Three milestones
-carry it, one theme each, in this order:
+tracker. [v0.7.0](https://github.com/villekivela/omaweb/milestone/4) ships Omaweb's own engine build
+and Known extensions ([ADR 0049](adr/0049-ship-omawebs-own-engine-build.md)). The September 2026
+feature review named what a daily driver still lacked. Three milestones carry it after that, one
+theme each, in this order:
 
-1. [v0.7.0](https://github.com/villekivela/omaweb/milestone/1), the page and what the reader takes
+1. [v0.8.0](https://github.com/villekivela/omaweb/milestone/1), the page and what the reader takes
    from it: screenshots, the certificate in Site information, picture-in-picture, passkeys, an
    HTTPS-only mode, the open page bugs, and the decision on how payment cards are stored.
-2. [v0.8.0](https://github.com/villekivela/omaweb/milestone/2), localization: the tooling, then
+2. [v0.9.0](https://github.com/villekivela/omaweb/milestone/2), localization: the tooling, then
    every user-facing string wrapped, then the first locale finished and new strings gated. It
-   follows v0.7.0 so the wrapping passes cover its features and nothing is in flight when the gate
+   follows v0.8.0 so the wrapping passes cover its features and nothing is in flight when the gate
    switches on.
-3. [v0.9.0](https://github.com/villekivela/omaweb/milestone/3), forms and autofill: what was typed
-   remembered, then addresses filled, then payment cards, on the storage decision v0.7.0 takes.
+3. [v0.10.0](https://github.com/villekivela/omaweb/milestone/3), forms and autofill: what was typed
+   remembered, then addresses filled, then payment cards, on the storage decision v0.8.0 takes.
 
 What makes Omaweb beta is not yet decided. The milestones are the planned work, not a gate.
 
