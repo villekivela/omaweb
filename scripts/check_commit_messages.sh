@@ -26,7 +26,8 @@ is_historical_exception() {
     case "$1" in
         b2a076730c42a96dbc46052af3289878b149b4c6 | \
             48127cd012b1cf83b885b0a7d543b39b84620a02 | \
-            c97277fe7e90dd7040ef46e6d6b90426b880e26a)
+            c97277fe7e90dd7040ef46e6d6b90426b880e26a | \
+            66eab99d06d641ad6676b1f84d55963cc3120c4f)
             return 0
             ;;
     esac
