@@ -482,10 +482,11 @@ Item {
         const path = root.localPath(destination);
         if (path.length === 0)
             return;
-        const profile = root.resolvedProfile();
-        if (!profile || profile.preparedDownloadPath === undefined)
+        // Only a Space or Private profile answers downloads; one this view
+        // built for itself has no one to hand the destination to.
+        if (!root.sharedProfile)
             return;
-        profile.preparedDownloadPath = path;
+        webView.preparedDownloadPath = path;
         if (action === "save-link")
             webView.triggerWebAction(WebEngineView.DownloadLinkToDisk);
         else if (action === "save-media") {
@@ -1506,13 +1507,11 @@ Item {
     // store on disk. One per Space is correct; one per tab would have every
     // view contending for the same files. The window hands its Space profile
     // down as sharedProfile, so this one is built only for a view opened
-    // without one, and only at the moment the view asks for it.
+    // without one, and only at the moment the view asks for it. It is built
+    // from a prototype for the reason EngineProfile.qml gives.
     property Component ownProfileComponent: Component {
-        WebEngineProfile {
+        WebEngineProfilePrototype {
             storageName: "omaweb-space"
-            // See EngineProfile.qml: without this the profile is memory-only
-            // and every cookie dies with the process.
-            offTheRecord: false
             persistentStoragePath: root.profilePath
             cachePath: root.profilePath + "/cache"
             persistentCookiesPolicy: WebEngineProfile.ForcePersistentCookies
@@ -1531,7 +1530,7 @@ Item {
             return root.sharedProfile;
         const holder = root.ownProfileHolder;
         if (!holder.instance) {
-            holder.instance = root.ownProfileComponent.createObject(root);
+            holder.instance = root.ownProfileComponent.createObject(root).instance();
             if (root.engineContentBlocker)
                 root.engineContentBlocker.attachToProfile(holder.instance, root.spaceId);
         }
@@ -2198,6 +2197,9 @@ Item {
         objectName: "qtWebView"
         anchors.fill: parent
         profile: root.resolvedProfile()
+        // Where a save from the page's menu goes. The profile reads it from
+        // the download's view and clears it once the download has started.
+        property string preparedDownloadPath: ""
         // Chromium draws a PDF in a sandboxed viewer of its own, with find,
         // zoom, print and download inside it. Without this the profile
         // downloads the document instead, which is what an engine with no such

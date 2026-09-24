@@ -71,7 +71,10 @@ QtObject {
     // clears asynchronously, and a size that has not moved yet reads as an
     // action that did nothing.
     signal browsingDataCleared
-    readonly property var profile: privateProfile
+    // The engine profile, once the prototype has built it. Null only while
+    // this object is being created.
+    readonly property var profile: root.builtProfile
+    property var builtProfile: null
     signal downloadStarted(string runtimeId, url sourceUrl, url pageUrl, string path, string state,
                            double receivedBytes, double totalBytes)
     signal downloadUpdated(string runtimeId, string state, double receivedBytes, double totalBytes,
@@ -163,7 +166,7 @@ QtObject {
                                  WebEnginePermission.PermissionType.ClipboardReadWrite,
                                  WebEnginePermission.PermissionType.LocalFontsAccess];
         for (let index = 0; index < persistentTypes.length; ++index) {
-            const permission = privateProfile.queryPermission(origin, persistentTypes[index]);
+            const permission = root.profile.queryPermission(origin, persistentTypes[index]);
             if (permission.isValid)
                 permission.reset();
         }
@@ -187,7 +190,7 @@ QtObject {
         if (dataTypes.indexOf("storage") >= 0)
             untouched.push("storage");
         if (dataTypes.indexOf("cache") >= 0)
-            privateProfile.clearHttpCache();
+            root.profile.clearHttpCache();
         root.browsingDataCleared();
         return untouched;
     }
@@ -303,7 +306,7 @@ QtObject {
         readonly property var requested: ({})
 
         function load() {
-            if (root.privateBrowsing || !privateProfile.extensionManager) {
+            if (root.privateBrowsing || !root.profile || !root.profile.extensionManager) {
                 return;
             }
             for (const known of root.knownExtensions) {
@@ -311,7 +314,7 @@ QtObject {
                     continue;
                 profileExtensions.requested[known.path] = true;
                 root.extensionLoadsPending += 1;
-                privateProfile.extensionManager.loadExtension(known.path);
+                root.profile.extensionManager.loadExtension(known.path);
             }
         }
 
@@ -321,8 +324,8 @@ QtObject {
     }
 
     property Connections profileExtensionWatch: Connections {
-        target: privateProfile.extensionManager
-        enabled: !root.privateBrowsing && privateProfile.extensionManager !== null
+        target: root.profile ? root.profile.extensionManager : null
+        enabled: !root.privateBrowsing && Boolean(root.profile && root.profile.extensionManager)
 
         function onLoadFinished(extension) {
             if (!extension.isLoaded) {
@@ -330,7 +333,7 @@ QtObject {
                 root.extensionLoadsPending = Math.max(0, root.extensionLoadsPending - 1);
                 return;
             }
-            privateProfile.extensionManager.setExtensionEnabled(extension, true);
+            root.profile.extensionManager.setExtensionEnabled(extension, true);
             // Enabled first: a view released here navigates into an
             // extension that is already on.
             root.extensionLoadsPending = Math.max(0, root.extensionLoadsPending - 1);
@@ -346,15 +349,17 @@ QtObject {
         }
     }
 
-    property WebEngineProfile privateProfile: WebEngineProfile {
-        property string preparedDownloadPath: ""
-        storageName: root.privateBrowsing ? "omaweb-private" : "omaweb-space"
-        // A QML-declared profile is off-the-record by default, whatever its
-        // storage name and cookie policy say: an off-the-record one keeps
-        // everything in memory and silently downgrades the cookie policy to
-        // NoPersistentCookies, so a login lasts only as long as the process.
-        // Declared after the storage name, which the switch to disk needs.
-        offTheRecord: root.privateBrowsing
+    // The engine profile is built from a prototype rather than declared, so it
+    // is created with the storage it keeps. A declared profile starts off the
+    // record at QtWebEngine's shared default and is moved afterwards, and the
+    // engine's extension storage never follows the move: every Space's
+    // extensions would share one store, locked by whichever Space opened it
+    // first. The prototype reads its settings once, when it is completed, so
+    // `profilePath` and `privateBrowsing` have to be given at creation.
+    property WebEngineProfilePrototype profilePrototype: WebEngineProfilePrototype {
+        // An empty storage name is what makes a profile off the record: kept
+        // in memory, with the cookie policy downgraded to NoPersistentCookies.
+        storageName: root.privateBrowsing ? "" : "omaweb-space"
         persistentStoragePath: root.profilePath
         cachePath: root.profilePath + "/cache"
         persistentCookiesPolicy: root.privateBrowsing ? WebEngineProfile.NoPersistentCookies :
@@ -369,19 +374,16 @@ QtObject {
         // the only place a site's decisions live, which is also what lets
         // allow-once mean once and clipboard read mean every time.
         persistentPermissionsPolicy: WebEngineProfile.PersistentPermissionsPolicy.AskEveryTime
+    }
 
-        // A Known extension is loaded once per Engine profile, which is once
-        // per Space, so each Space keeps the extension's own storage apart and
-        // a vault is unlocked where it is used. The engine loads a package
-        // disabled and it is enabled here, which is the order the manager
-        // asks for.
-        Component.onCompleted: profileExtensions.load()
+    property Connections profileEvents: Connections {
+        target: root.profile
 
         // Chromium hands the notification over and waits: nothing is shown
         // until `show` is called, and a page that is never told otherwise has
         // simply not been answered. That is what lets the shell refuse one from
         // a Space it has put away.
-        onPresentNotification: function (notification) {
+        function onPresentNotification(notification) {
             const notificationId = String(++root.nextNotificationId);
             root.pendingNotifications[notificationId] = notification;
             notification.closed.connect(function () {
@@ -393,14 +395,20 @@ QtObject {
 
         // Chromium reports the cache removal separately because it finishes
         // separately, and it is the largest part of what was taken.
-        onClearHttpCacheCompleted: root.browsingDataCleared()
+        function onClearHttpCacheCompleted() {
+            root.browsingDataCleared();
+        }
 
-        onDownloadRequested: function (download) {
+        function onDownloadRequested(download) {
             if (!root.acceptDownloads) {
                 download.cancel();
                 return;
             }
-            const pageUrl = download.view ? download.view.url : "";
+            const view = download.view;
+            const pageUrl = view ? view.url : "";
+            // A save the reader started from the page's menu names its own
+            // destination, and the view that asked holds it until then.
+            const preparedDownloadPath = (view && view.preparedDownloadPath) || "";
             const sourceKey = String(download.url);
             const answer = root.answeredDownloads[sourceKey];
             const answered = answer !== undefined;
@@ -437,7 +445,8 @@ QtObject {
                                                "\\"));
                 download.downloadDirectory = chosenPath.substring(0, separator);
                 download.downloadFileName = chosenPath.substring(separator + 1);
-                preparedDownloadPath = "";
+                if (preparedDownloadPath.length > 0)
+                    view.preparedDownloadPath = "";
             } else if (root.downloadDirectory.length > 0) {
                 download.downloadDirectory = root.downloadDirectory;
             }
@@ -454,6 +463,15 @@ QtObject {
     }
 
     Component.onCompleted: {
+        // The prototype builds the profile when it is completed, which is
+        // before this.
+        root.builtProfile = root.profilePrototype.instance();
+        // A Known extension is loaded once per Engine profile, which is once
+        // per Space, so each Space keeps the extension's own storage apart and
+        // a vault is unlocked where it is used. The engine loads a package
+        // disabled and it is enabled when it arrives, which is the order the
+        // manager asks for.
+        profileExtensions.load();
         if (root.engineContentBlocker)
             root.engineContentBlocker.attachToProfile(root.profile, root.spaceId);
         if (root.engineCookiePolicy && root.cookieController) {
