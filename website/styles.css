@@ -1745,7 +1745,16 @@ kbd {
 
 /* ===================================================================
    DOCS
+   A list read by its titles, so the entries are set apart by space
+   rather than by rules, and the two columns by their headings rather
+   than by a divider. A row lights as a whole on hover, and the whole row
+   is the link.
    =================================================================== */
+.t-cols:has(> div > .t-docs) > div + div {
+  padding-left: 0;
+  border-left: 0;
+  border-top: 0;
+}
 .t-docs {
   margin: 0;
   padding: 0;
@@ -1760,8 +1769,7 @@ kbd {
     border-color 120ms linear;
 }
 .t-docs li + li {
-  margin-top: var(--sp-xs);
-  border-top: 1px solid var(--line-quiet);
+  margin-top: var(--sp-md);
 }
 .t-docs li::before {
   content: ">";
@@ -1782,12 +1790,15 @@ kbd {
   display: block;
   font-size: var(--fs-body-sm);
   font-weight: 700;
-  text-decoration-color: var(--line-normal);
-  text-underline-offset: 0.25em;
+  text-decoration: none;
 }
-.t-docs a:hover {
+.t-docs a::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+}
+.t-docs li:hover a {
   color: var(--accent);
-  text-decoration-color: var(--accent);
 }
 .t-docs span {
   display: block;
