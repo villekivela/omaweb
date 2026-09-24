@@ -1,6 +1,5 @@
 import QtQuick
 import Omaweb.Engine
-import qs.Commons
 
 Rectangle {
     id: root
@@ -723,7 +722,11 @@ Rectangle {
         readonly property color hot: colors ? colors.urgent : "#f38ba8"
         readonly property color quiet: colors ? colors.muted : "#929ca6"
         readonly property color rule: Qt.rgba(ink.r, ink.g, ink.b, 0.12)
-        readonly property string family: Style.font.family
+        // The theme's resolved family, read off the lab's theme rather than
+        // the kit: the engine contract tests load this view without the kit
+        // on the import path, and without a theme the page is never drawn.
+        readonly property string family: typeof theme !== "undefined" && theme && theme.palette
+                                         && theme.palette.font ? theme.palette.font.family : ""
         readonly property real measure: Math.min(720, width - 96)
         readonly property bool contents: width > 1100
         readonly property string host: {
