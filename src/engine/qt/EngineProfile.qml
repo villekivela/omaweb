@@ -75,6 +75,7 @@ QtObject {
     // this object is being created.
     readonly property var profile: root.builtProfile
     property var builtProfile: null
+    readonly property var extensionManager: root.profile ? root.profile.extensionManager : null
     signal downloadStarted(string runtimeId, url sourceUrl, url pageUrl, string path, string state,
                            double receivedBytes, double totalBytes)
     signal downloadUpdated(string runtimeId, string state, double receivedBytes, double totalBytes,
@@ -306,7 +307,7 @@ QtObject {
         readonly property var requested: ({})
 
         function load() {
-            if (root.privateBrowsing || !root.profile || !root.profile.extensionManager) {
+            if (root.privateBrowsing || !root.extensionManager) {
                 return;
             }
             for (const known of root.knownExtensions) {
@@ -314,7 +315,7 @@ QtObject {
                     continue;
                 profileExtensions.requested[known.path] = true;
                 root.extensionLoadsPending += 1;
-                root.profile.extensionManager.loadExtension(known.path);
+                root.extensionManager.loadExtension(known.path);
             }
         }
 
@@ -324,8 +325,8 @@ QtObject {
     }
 
     property Connections profileExtensionWatch: Connections {
-        target: root.profile ? root.profile.extensionManager : null
-        enabled: !root.privateBrowsing && Boolean(root.profile && root.profile.extensionManager)
+        target: root.extensionManager
+        enabled: !root.privateBrowsing && root.extensionManager !== null
 
         function onLoadFinished(extension) {
             if (!extension.isLoaded) {
@@ -333,7 +334,7 @@ QtObject {
                 root.extensionLoadsPending = Math.max(0, root.extensionLoadsPending - 1);
                 return;
             }
-            root.profile.extensionManager.setExtensionEnabled(extension, true);
+            root.extensionManager.setExtensionEnabled(extension, true);
             // Enabled first: a view released here navigates into an
             // extension that is already on.
             root.extensionLoadsPending = Math.max(0, root.extensionLoadsPending - 1);
@@ -466,6 +467,10 @@ QtObject {
         // The prototype builds the profile when it is completed, which is
         // before this.
         root.builtProfile = root.profilePrototype.instance();
+        // The prototype builds nothing for a directory another profile is
+        // already using, where a declared profile went ahead and shared it.
+        if (!root.builtProfile)
+            console.warn("Engine profile not built for", root.profilePath);
         // A Known extension is loaded once per Engine profile, which is once
         // per Space, so each Space keeps the extension's own storage apart and
         // a vault is unlocked where it is used. The engine loads a package
