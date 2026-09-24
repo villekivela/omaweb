@@ -645,7 +645,8 @@ kbd {
   display: grid;
   gap: calc(var(--panel-padding) * 2);
   align-items: center;
-  /* Room under the copy for the ridge, which stands up off the horizon. */
+  /* Room between the copy and the horizon, so the sea's glow and the lit
+     horizon line do not run into the key hints. */
   padding-block: clamp(var(--panel-padding), 4vh, calc(var(--panel-padding) * 2.5))
     calc(var(--panel-padding) * 2.4);
 }

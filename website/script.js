@@ -196,19 +196,6 @@
     rainLayer.height = Math.max(1, Math.round(rainHeight * ratio));
   }
 
-  // A low ridge along the horizon, so the sun sets behind something. Value
-  // noise from the same hash, two octaves, fixed for a given width.
-  function ridgeAt(x) {
-    function octave(scale, seed) {
-      var at = x / scale;
-      var left = Math.floor(at);
-      var t = at - left;
-      t = t * t * (3 - 2 * t);
-      return hash01(seed, left) * (1 - t) + hash01(seed, left + 1) * t;
-    }
-    return 0.65 * octave(90, 21) + 0.35 * octave(28, 22);
-  }
-
   function paintHorizon(context, time) {
     var width = view.width;
     var height = view.height;
@@ -259,24 +246,6 @@
       context.clearRect(sunX - radius, bandY, radius * 2, 1 + along * radius * 0.09);
     }
     context.restore();
-
-    // The ridge, in the ground colour with a lit edge.
-    var step = Math.max(6, width / 160);
-    var peak = Math.min(70, horizon * 0.09);
-    context.beginPath();
-    context.moveTo(0, horizon);
-    for (var x = 0; x <= width + step; x += step) {
-      // Lower where the sun is, so the ridge frames it rather than hides it.
-      var nearSun = Math.min(1, Math.abs(x - sunX) / (radius * 1.6));
-      context.lineTo(x, horizon - ridgeAt(x) * peak * (0.35 + 0.65 * nearSun));
-    }
-    context.lineTo(width, horizon);
-    context.closePath();
-    context.fillStyle = css(mix(palette.bg, palette.accent, 0.06));
-    context.fill();
-    context.strokeStyle = css(palette.accent, 0.45);
-    context.lineWidth = 1;
-    context.stroke();
 
     // The sea. The floor is a wireframe ocean: lines running out from the
     // vanishing point and lines across it that roll towards the reader,
