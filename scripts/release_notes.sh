@@ -18,8 +18,29 @@ fi
 readonly tag="$1"
 previous="${2-}"
 
+# Tags whose release workflow failed before anything was published. No reader
+# was given them, so the next release is the one that ships what they carried,
+# and its notes have to start from the release before them. A pushed tag is
+# never moved or deleted, so it is passed over here instead.
+readonly unreleased_tags=(v0.7.0)
+
+is_unreleased() {
+    local candidate="$1" unreleased
+    for unreleased in "${unreleased_tags[@]}"; do
+        [[ "$candidate" == "$unreleased" ]] && return 0
+    done
+    return 1
+}
+
 if [[ -z "$previous" ]]; then
-    previous="$(git describe --tags --abbrev=0 --match 'v[0-9]*' "${tag}^" 2>/dev/null || true)"
+    base="${tag}^"
+    while candidate="$(git describe --tags --abbrev=0 --match 'v[0-9]*' "$base" 2>/dev/null)"; do
+        if ! is_unreleased "$candidate"; then
+            previous="$candidate"
+            break
+        fi
+        base="${candidate}^"
+    done
 fi
 
 if [[ -n "$previous" ]]; then

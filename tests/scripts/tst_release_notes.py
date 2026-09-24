@@ -46,6 +46,33 @@ def notes_for(subjects: list[str]) -> str:
         ).stdout
 
 
+def notes_across_an_unreleased_tag() -> str:
+    """Notes for v0.7.1, whose history since v0.6.0 passes v0.7.0.
+
+    v0.7.0 is a tag whose release workflow failed before it published, so no
+    reader was ever given it. Notes that started there would leave out
+    everything v0.7.0 carried, because v0.7.1 is the first release to ship it.
+    """
+    with tempfile.TemporaryDirectory() as directory:
+        repo = Path(directory)
+        git(repo, "init", "--quiet")
+        git(repo, "config", "user.email", "test@example.com")
+        git(repo, "config", "user.name", "Test")
+        git(repo, "commit", "--quiet", "--allow-empty", "-m", "chore: first")
+        git(repo, "tag", "v0.6.0")
+        git(repo, "commit", "--quiet", "--allow-empty", "-m", "feat: what v0.7.0 carried")
+        git(repo, "tag", "v0.7.0")
+        git(repo, "commit", "--quiet", "--allow-empty", "-m", "fix: what let it publish")
+        git(repo, "tag", "v0.7.1")
+        return subprocess.run(
+            ("bash", str(SCRIPT), "v0.7.1"),
+            cwd=repo,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout
+
+
 class ReleaseNotesTest(unittest.TestCase):
     def test_a_scope_does_not_hide_a_subject(self) -> None:
         notes = notes_for(["fix(engine): scoped", "fix: unscoped"])
@@ -109,6 +136,12 @@ class ReleaseNotesTest(unittest.TestCase):
         self.assertIn("- the carried commit", notes)
         self.assertNotIn("Merge pull request", notes)
 
+
+    def test_an_unreleased_tag_is_not_where_the_notes_start(self) -> None:
+        notes = notes_across_an_unreleased_tag()
+        self.assertIn("Changes since v0.6.0.", notes)
+        self.assertIn("- what v0.7.0 carried", notes)
+        self.assertIn("- what let it publish", notes)
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
