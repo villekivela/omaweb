@@ -92,7 +92,11 @@ gh run watch "$(gh run list --workflow Release --limit 1 --json databaseId --jq 
 - **`release`** publishes the notes. It rewrites them with a model, and on a failure it publishes
   the generated notes rather than none.
 - **`publish-repo`** is the upgrade path. It ends green while saying nothing was published if the
-  signing key secret is missing, so read its summary rather than its colour.
+  signing key secret is missing, so read its summary rather than its colour. If it fails after
+  `release` has published, don't re-run it: a re-run uses the tag's copy of the workflow, broken
+  step and all. Fix the cause on `main`, then run
+  `gh workflow run "Publish the engine" -f tag=<the version tag>`, which takes the browser packages
+  off the release and publishes them the same way.
 
 Then check the thing a reader will do, because none of the above proves it:
 

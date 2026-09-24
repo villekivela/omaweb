@@ -686,10 +686,13 @@ gh workflow run "Publish the engine" -f tag=engine-6.11.2
 
 The workflow will not serve whatever happens to be attached. It drops any signature it finds, since
 it signs what it publishes itself, and it reads each package's `.PKGINFO` and stops unless the name
-is `omaweb-qtwebengine` and the architecture in the file's name is the one it was built for. It also
-holds the secret key's fingerprint against `security/repo-signing-key.asc` before signing, so a
-rotated secret that the pages have not followed fails the run rather than publishing a repository
-nobody can install from.
+is the one the tag calls for and the architecture in the file's name is the one it was built for. An
+`engine-*` tag calls for `omaweb-qtwebengine`, and a `v*` tag for `omaweb`. The second case is the
+recovery path for a browser release whose own `publish-repo` job failed after the release was out:
+re-running that job runs the tag's copy of the workflow, so the packages are taken off the release
+and published from here instead. It also holds the secret key's fingerprint against
+`security/repo-signing-key.asc` before signing, so a rotated secret that the pages have not followed
+fails the run rather than publishing a repository nobody can install from.
 
 Signing there rather than on a laptop is a departure from ADR 0049's wording, which says signing
 never happens on a build machine. What that rule is about is a _rented_ machine: a host someone else
