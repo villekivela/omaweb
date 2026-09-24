@@ -353,9 +353,8 @@
     context.fillRect(0, horizon - 1, width, 2);
     context.restore();
 
-    // A pair of palms framing the sun: the taller on its left, leaning away,
-    // and the shorter on its right, leaning in so its crown reaches over the
-    // edge of the disc.
+    // A pair of palms framing the sun, both arcing away from it: the taller
+    // on its left and the shorter on its right, mirrored.
     if (view.palmTop && view.palmTop < horizon) {
       var tall = height - view.palmTop;
       var left = sunX - radius * 1.3;
@@ -365,7 +364,7 @@
         context,
         right,
         height,
-        right - tall * 0.08,
+        right + tall * 0.12,
         view.palmTop + tall * 0.22,
         seconds,
         1,
