@@ -44,16 +44,15 @@ Omarchy configuration. The capture keeps real alpha -- the chrome comes out at
 its theme's opacity -- which is what makes compositing over a wallpaper give
 what a desktop shows rather than a flat approximation of it.
 
-## The page in the shots is the Start page
+## The page in the shots is drawn by the lab
 
-`omaweb-ui-lab` runs no engine, so where a webpage would be it draws the Start
-page. Every state captured here is therefore real chrome: a Space with a day's
-worth of tabs and a new tab on show, two sections of Settings, History, and the
-window with its sidebar hidden. A shot with a real page in it needs the browser
-on a live compositor and `grim`, which gives up every property above and means
-whoever runs it is capturing their own screen. If the site ever wants one hero
-shot with a page in it, take that one by hand, once: it is the exception, and
-this is why.
+`omaweb-ui-lab` runs no engine, so where a webpage would be it draws a stand-in.
+The states that show the browser in use pass `--browse`, which ends the seeded
+day on a documentation tab and has the stand-in draw a sample page in the page
+palette; the rest show Settings and History, which cover the page anyway. Every
+state is therefore real chrome over a drawn page, captured headlessly, and a
+shot of a real site would need the browser on a live compositor and `grim`,
+which gives up every property above.
 
 ## Running it
 
@@ -129,13 +128,16 @@ THEMES = [
 # The interface states worth a picture, and the lab arguments that reach each.
 # `--tabs` seeds every one of them: a Space at rest draws neither the Pinned
 # section nor the tab list, and the vertical strip with Pinned tabs above it is
-# what distinguishes this browser at a glance.
+# what distinguishes this browser at a glance. `--browse` ends on a page rather
+# than the blank tab, whose Start page is the shortcut sheet, so the browser is
+# shown in use; `--spaces` adds the Work Space beside Personal that the tour's
+# first step is about; `--sample-lists` shows the filter lists a first run has.
 STATES = [
-    ("space", ["--tabs"]),
+    ("space", ["--tabs", "--spaces", "--browse"]),
     ("settings", ["--tabs", "--show", "settings:tabs"]),
-    ("blocking", ["--tabs", "--show", "settings:content-blocking"]),
+    ("blocking", ["--tabs", "--sample-lists", "--show", "settings:content-blocking"]),
     ("history", ["--tabs", "--show", "history"]),
-    ("collapsed", ["--tabs", "--show", "collapsed"]),
+    ("collapsed", ["--tabs", "--browse", "--show", "collapsed"]),
 ]
 
 # Two states the lab can reach and this deliberately does not ship. Site

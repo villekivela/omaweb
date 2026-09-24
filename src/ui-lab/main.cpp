@@ -27,12 +27,14 @@
 #include <QAbstractItemModel>
 #include <QColor>
 #include <QCoreApplication>
+#include <QDateTime>
 #include <QDir>
 #include <QElapsedTimer>
 #include <QHash>
 #include <QFile>
 #include <QFontDatabase>
 #include <QImage>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QPainter>
@@ -130,9 +132,62 @@ QString lastTabId(QAbstractItemModel *tabs)
 // active and taken back at the end, so the viewport still draws the Start page
 // with a populated sidebar beside it: a reader opening a new tab on a working
 // day, which is the state a screenshot of this browser wants.
-void seedSampleTabs(omaweb::BrowserController &browser, const QVariantList &favicons)
+// The tab the seeded day ends on: the blank tab unless `onShow` names one of
+// the sample addresses, which a capture of the browser in use asks for.
+// The sample tab `--browse` ends the seeded day on.
+constexpr const char *browsedTab = "https://doc.qt.io/qt-6/qtquick-visualcanvas-scenegraph.html";
+
+// The two filter lists a first run subscribes to, written into the lab's
+// content-blocking settings as the browser would leave them after updating:
+// seeded, enabled, current as of now, with a list file on disk. The lab
+// builds its blocker without the defaults, since seeding them fetches, and
+// a list updated less than a day ago with its file present is one the
+// blocker does not fetch.
+void writeSampleLists(const QDir &dataRoot)
 {
-    const auto blankTabId = browser.activeTabId();
+    const auto folder = dataRoot.filePath(QStringLiteral("content-blocking"));
+    QDir().mkpath(QDir(folder).filePath(QStringLiteral("lists")));
+    const auto now = QDateTime::currentDateTimeUtc().toString(Qt::ISODate);
+    QJsonArray subscriptions;
+    const QList<std::pair<const char *, const char *>> lists = {
+        {"easylist", "EasyList"},
+        {"easyprivacy", "EasyPrivacy"},
+    };
+    for (const auto &[id, title] : lists) {
+        const auto name = QString::fromUtf8(id);
+        subscriptions.append(QJsonObject {
+            {QStringLiteral("id"), name},
+            {QStringLiteral("title"), QString::fromUtf8(title)},
+            {QStringLiteral("source"), QStringLiteral("https://easylist.to/")},
+            {QStringLiteral("license"), QStringLiteral("GPLv3 or CC BY-SA 3.0")},
+            {QStringLiteral("updateAddress"),
+                QStringLiteral("https://easylist.to/easylist/%1.txt").arg(name)},
+            {QStringLiteral("updateStatus"), QStringLiteral("current")},
+            {QStringLiteral("lastUpdated"), now},
+            {QStringLiteral("enabled"), true},
+        });
+        QFile list(QDir(folder).filePath(QStringLiteral("lists/%1.txt").arg(name)));
+        if (list.open(QIODevice::WriteOnly)) {
+            list.write("! Sample list for the UI lab\n");
+        }
+    }
+    QFile settings(QDir(folder).filePath(QStringLiteral("settings.json")));
+    if (settings.open(QIODevice::WriteOnly)) {
+        settings.write(QJsonDocument(QJsonObject {
+                                         {QStringLiteral("version"), 1},
+                                         {QStringLiteral("seeded"), true},
+                                         {QStringLiteral("userRules"), QString()},
+                                         {QStringLiteral("disabledSites"), QJsonArray()},
+                                         {QStringLiteral("subscriptions"), subscriptions},
+                                     })
+                .toJson(QJsonDocument::Indented));
+    }
+}
+
+void seedSampleTabs(
+    omaweb::BrowserController &browser, const QVariantList &favicons, const QString &onShow)
+{
+    auto shownTabId = browser.activeTabId();
     auto *unpinned = browser.unpinnedTabs();
     qsizetype icon = 0;
     for (const auto &sample : sampleTabs()) {
@@ -146,6 +201,9 @@ void seedSampleTabs(omaweb::BrowserController &browser, const QVariantList &favi
             = favicons.isEmpty() ? QUrl {} : favicons.at(icon++ % favicons.size()).toUrl();
         browser.reportTabPageState(
             tabId, url, QString::fromUtf8(sample.title), favicon, false, false);
+        if (!onShow.isEmpty() && url.toString() == onShow) {
+            shownTabId = tabId;
+        }
         // A tab that was opened was also visited. Without this History is a
         // page saying the Space has none, which is a state of the empty lab
         // rather than a state of the browser.
@@ -158,7 +216,7 @@ void seedSampleTabs(omaweb::BrowserController &browser, const QVariantList &favi
             browser.toggleActivePinned();
         }
     }
-    browser.activateTab(blankTabId);
+    browser.activateTab(shownTabId);
 }
 
 // Two more Spaces, each with a page or two of its own, so that switching
@@ -175,11 +233,10 @@ void seedSampleSpaces(omaweb::BrowserController &browser, const QVariantList &fa
         QList<SampleTab> tabs;
     };
     const QList<SampleSpace> spaces = {
-        {"home",
-            {{"https://news.ycombinator.com/", "Hacker News", false},
-                {"https://ratatui.rs/", "Ratatui", false},
-                {"https://www.reddit.com/r/unixporn/", "r/unixporn", true}}},
-        {"lab", {{"http://localhost:3000/", "localhost:3000", false}}},
+        {"Work",
+            {{"https://github.com/pulls", "Pull requests", true},
+                {"https://doc.qt.io/qt-6/qmlapplications.html", "QML Applications", false},
+                {"http://localhost:3000/", "localhost:3000", false}}},
     };
     for (const auto &space : spaces) {
         const auto spaceId = browser.createSpace(QString::fromUtf8(space.name));
@@ -248,6 +305,9 @@ int main(int argc, char *argv[])
         dataRootPath = temporaryRoot->path();
     }
     const QDir dataRoot(dataRootPath);
+    if (arguments.contains(QStringLiteral("--sample-lists"))) {
+        writeSampleLists(dataRoot);
+    }
 
     omaweb::BrowserController browser(omaweb::SpaceStorage(dataRootPath, QStringLiteral("mock")));
     omaweb::ContentBlocker contentBlocker(dataRootPath, omaweb::ContentBlocker::DefaultLists::None);
@@ -338,6 +398,11 @@ int main(int argc, char *argv[])
         QStringLiteral("iconFontSource"), QUrl(QStringLiteral(OMAWEB_ICON_FONT_URL)));
     const auto mockFavicons = drawMockFavicons(dataRoot.filePath(QStringLiteral("favicons")));
     engine.rootContext()->setContextProperty(QStringLiteral("mockFaviconUrls"), mockFavicons);
+    // `--browse` shows the browser in use: the seeded day ends on a page, and
+    // the stand-in view draws a sample one where it would otherwise say no
+    // engine is running.
+    const auto browse = arguments.contains(QStringLiteral("--browse"));
+    engine.rootContext()->setContextProperty(QStringLiteral("labSamplePages"), browse);
     engine.addImportPath(QStringLiteral(OMAWEB_UI_DIRECTORY));
     // The vendored Omarchy component kit: qs.Ui and qs.Commons.
     engine.addImportPath(QStringLiteral(OMAWEB_OMARCHY_IMPORT_PATH));
@@ -400,7 +465,7 @@ int main(int argc, char *argv[])
     // section nor the tab list, so the sidebar that distinguishes this browser
     // is the one thing a capture of it cannot show. `--tabs` seeds a day.
     if (arguments.contains(QStringLiteral("--tabs"))) {
-        seedSampleTabs(browser, mockFavicons);
+        seedSampleTabs(browser, mockFavicons, browse ? QString::fromUtf8(browsedTab) : QString());
     }
     // Private chrome is a whole palette of its own, and the lab is where it is
     // reviewed. Nothing else about the window changes.
