@@ -9,12 +9,19 @@ name: Publish the engine
 # repository, attached to a release here. That repository owns the PKGBUILD and
 # the notices; this one owns the signing key and the pacman repository, and this
 # workflow is the join. Nothing crosses between them but one file.
+#
+# It is also how a browser release reaches the repository when the Release
+# workflow's own `publish-repo` failed after the release was published. A pushed
+# tag is never moved, and re-running that job runs the tag's copy of the
+# workflow, broken step included, so the packages are taken off the release and
+# published from here instead. The tag names which package is expected:
+# `engine-*` is the engine and `v*` is the browser.
 on:
   workflow_dispatch:
     inputs:
       tag:
         description:
-          "The release here holding the unsigned engine package, for example engine-6.11.2"
+          "The release holding the packages: engine-6.11.2-2 for the engine, v0.7.1 for the browser"
         required: true
 
 permissions:
@@ -58,16 +65,26 @@ jobs:
           fi
           echo "took $found package(s) off $TAG"
 
-      - name: Refuse anything that is not the engine
+      - name: Refuse any package the tag does not name
         # This workflow publishes to the repository readers install from, and
         # its input is whatever someone attached to a release. So what it will
-        # serve is named here rather than inferred: a package of another name,
-        # or one whose name and contents disagree, stops the run.
+        # serve is named here rather than inferred: a package of another name
+        # than its tag's, or one whose name and contents disagree, stops the run.
+        env:
+          TAG: ${{ inputs.tag }}
         run: |
+          case "$TAG" in
+            engine-*) expected=omaweb-qtwebengine ;;
+            v[0-9]*) expected=omaweb ;;
+            *)
+              echo "::error::$TAG is neither an engine-* nor a v* release" >&2
+              exit 1
+              ;;
+          esac
           for package in artifacts/*.pkg.tar.*; do
             pkgname=$(bsdtar -xOf "$package" .PKGINFO | sed -n 's/^pkgname = //p' | head -n 1)
-            if [ "$pkgname" != "omaweb-qtwebengine" ]; then
-              echo "::error::$(basename "$package") is $pkgname, not omaweb-qtwebengine" >&2
+            if [ "$pkgname" != "$expected" ]; then
+              echo "::error::$(basename "$package") is $pkgname, not $expected" >&2
               exit 1
             fi
             # `publish_repo.sh` files a package by the architecture in its name,
@@ -81,7 +98,7 @@ jobs:
               echo "::error::$(basename "$package") is named $named and was built for $built" >&2
               exit 1
             fi
-            echo "$(basename "$package") is the engine, for $built"
+            echo "$(basename "$package") is $expected, for $built"
           done
 
       # The same key and the same unlocking as a browser release, because it is
@@ -139,7 +156,7 @@ jobs:
       # The repository as it stands, so `repo-add` updates what is published
       # rather than starting from nothing and dropping the browser package that
       # is already there.
-      - name: Publish the engine to the repository
+      - name: Publish the packages to the repository
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ inputs.tag }}
@@ -161,7 +178,7 @@ jobs:
             {
               echo "### Published to the pacman repository"
               echo
-              echo "The engine from \`$TAG\` is served for \`$arch\`."
+              echo "\`$(basename "$package")\` from \`$TAG\` is served for \`$arch\`."
               echo
               echo "A reader takes it with an ordinary \`pacman -Syu\`."
             } >> "$GITHUB_STEP_SUMMARY"

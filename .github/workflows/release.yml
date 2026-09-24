@@ -364,7 +364,9 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Install toolchain
-        run: pacman -Syu --noconfirm git gnupg
+        # `publish_repo.sh` asks for `repo-add` and `bsdtar`, and the fetch and
+        # the upload go through `gh`. The same list as `Publish the engine`.
+        run: pacman -Syu --noconfirm git gnupg github-cli libarchive
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       # The packages alone: the inventory belongs to the release, and a
