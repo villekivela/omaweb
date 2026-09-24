@@ -44,16 +44,15 @@ Omarchy configuration. The capture keeps real alpha -- the chrome comes out at
 its theme's opacity -- which is what makes compositing over a wallpaper give
 what a desktop shows rather than a flat approximation of it.
 
-## The page in the shots is the Start page
+## The page in the shots is drawn by the lab
 
-`omaweb-ui-lab` runs no engine, so where a webpage would be it draws the Start
-page. Every state captured here is therefore real chrome: a Space with a day's
-worth of tabs and a new tab on show, two sections of Settings, History, and the
-window with its sidebar hidden. A shot with a real page in it needs the browser
-on a live compositor and `grim`, which gives up every property above and means
-whoever runs it is capturing their own screen. If the site ever wants one hero
-shot with a page in it, take that one by hand, once: it is the exception, and
-this is why.
+`omaweb-ui-lab` runs no engine, so where a webpage would be it draws a stand-in.
+The states that show the browser in use pass `--browse`, which ends the seeded
+day on a documentation tab and has the stand-in draw a sample page in the page
+palette; the rest show Settings and History, which cover the page anyway. Every
+state is therefore real chrome over a drawn page, captured headlessly, and a
+shot of a real site would need the browser on a live compositor and `grim`,
+which gives up every property above.
 
 ## Running it
 
