@@ -1,0 +1,29 @@
+name: PR title
+
+# A pull request lands as one squash commit whose subject is its title with
+# ` (#123)` appended, so the title is the commit message that reaches `main`.
+# CI's commit-messages job checks the branch's commits, which a squash throws
+# away, and a title found too long after merging can only be exempted, not
+# fixed. This checks the title while it can still be edited.
+#
+# A workflow of its own because `edited` fires on every change to the
+# description too, and that should not rerun the builds.
+
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+
+permissions:
+  contents: read
+
+jobs:
+  title:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Check the title the squash commit will carry
+        env:
+          # Through the environment, not interpolated into the script, so a
+          # title cannot run as shell.
+          TITLE: ${{ github.event.pull_request.title }}
+        run: scripts/check_commit_messages.sh --pr-title "$TITLE"

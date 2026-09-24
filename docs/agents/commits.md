@@ -55,9 +55,10 @@ itself.
 
 GitHub fills the squash commit's subject from the pull request title and appends ` (#123)` to it, so
 a title has 64 characters rather than the subject's 72, and it has to follow the convention above.
-CI checks the commit, not the pull request, so a title that is too long or written as a sentence
-fails on the branch it lands on rather than the one it came from. Check one before opening a pull
-request:
+The `PR title` workflow checks the title on every pull request, including after an edit, because
+CI's `commit-messages` job checks the branch's commits and a squash discards them. A title that is
+too long or written as a sentence fails there while it can still be edited, rather than on `main`,
+where it can only be exempted. Check one before opening a pull request:
 
 ```sh
 scripts/check_commit_messages.sh --pr-title "fix(ui): keep the divider off the page"
