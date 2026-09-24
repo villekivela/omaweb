@@ -124,36 +124,6 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* The tube over everything: scanlines and a vignette, fixed to the window
-   so they stay put while the page moves under them, the way a screen's own
-   glass does. Faint enough that body text and the screenshots read through
-   them, and never in the way of a click. */
-body::before,
-body::after {
-  content: "";
-  position: fixed;
-  inset: 0;
-  z-index: 90;
-  pointer-events: none;
-}
-body::before {
-  background: repeating-linear-gradient(
-    to bottom,
-    transparent 0,
-    transparent 2px,
-    color-mix(in srgb, #000 22%, transparent) 3px,
-    transparent 4px
-  );
-  opacity: 0.55;
-}
-body::after {
-  background: radial-gradient(
-    ellipse at center,
-    transparent 58%,
-    color-mix(in srgb, #000 42%, transparent) 100%
-  );
-}
-
 * {
   box-sizing: border-box;
 }
@@ -302,9 +272,7 @@ kbd {
   filter: drop-shadow(0 0 16px var(--glow-strong));
 }
 /* The hero's buttons are the ones the page exists to get pressed: taller,
-   in the display face, and the main one carries a sweep of light across it
-   every few seconds, which is the only thing on the page that moves to ask
-   for attention. */
+   and in the display face. */
 .btn--big {
   min-height: calc(var(--control-h) * 1.6);
   padding-inline: calc(var(--control-px) * 2.4);
@@ -313,33 +281,6 @@ kbd {
   letter-spacing: 0.14em;
   text-transform: uppercase;
 }
-.btn--emphasis.btn--big::after {
-  content: "";
-  position: absolute;
-  z-index: -1;
-  inset: 0;
-  background: linear-gradient(
-    105deg,
-    transparent 35%,
-    color-mix(in srgb, var(--fg) 26%, transparent) 50%,
-    transparent 65%
-  );
-  background-size: 250% 100%;
-  background-repeat: no-repeat;
-  background-position: 180% 0;
-  clip-path: var(--btn-cut);
-  animation: t-shine 4.8s cubic-bezier(0.4, 0, 0.2, 1) 1.6s infinite;
-}
-@keyframes t-shine {
-  0%,
-  70% {
-    background-position: 180% 0;
-  }
-  100% {
-    background-position: -80% 0;
-  }
-}
-
 .btn__mark {
   width: 1.15em;
   height: 1.15em;
@@ -630,12 +571,11 @@ kbd {
 .t-hero h1 {
   max-width: 26ch;
   margin: var(--panel-gap) 0 0;
-  font-family: var(--retro);
+  font-family: var(--display);
   font-size: clamp(var(--fs-display), 4.4vw, calc(var(--fs-display-lg) * 1.9));
-  font-weight: 800;
+  font-weight: 700;
   line-height: 1.08;
-  letter-spacing: 0.01em;
-  text-transform: uppercase;
+  letter-spacing: -0.02em;
   text-shadow: 0 0 24px var(--glow-soft);
 }
 .t-hero h1 em {
@@ -676,6 +616,30 @@ kbd {
   flex-direction: column;
   min-height: calc(100svh - var(--control-h) * 2);
   padding-bottom: 0;
+}
+/* The tube: scanlines and a vignette over the first screen only, where the
+   scene is, and full width like the scene. The pages people read carry
+   none of it. Above the copy so the lines cross it as they would on a
+   screen, and never in the way of a click. */
+.t-hero--main::after {
+  content: "";
+  position: absolute;
+  z-index: 1;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 100vw;
+  transform: translateX(-50%);
+  background:
+    repeating-linear-gradient(
+      to bottom,
+      transparent 0,
+      transparent 2px,
+      color-mix(in srgb, #000 12%, transparent) 3px,
+      transparent 4px
+    ),
+    radial-gradient(ellipse at center, transparent 58%, color-mix(in srgb, #000 36%, transparent));
+  pointer-events: none;
 }
 .t-hero__grid {
   display: grid;
@@ -745,6 +709,8 @@ kbd {
   max-width: none;
   font-size: inherit;
   text-shadow: none;
+  font-family: var(--retro);
+  text-transform: uppercase;
 }
 .t-title__pre,
 .t-title__post {
@@ -788,46 +754,6 @@ kbd {
   -webkit-text-fill-color: transparent;
   filter: drop-shadow(0 0 18px var(--glow)) drop-shadow(0 2px 0 var(--bg));
 }
-/* The tear: a copy of the word in the second hue, shifted and sliced by a
-   clip that jumps, for a fraction of a second every few. */
-.t-title__main > span::after {
-  content: attr(data-text);
-  position: absolute;
-  inset: 0;
-  color: var(--hot);
-  -webkit-text-fill-color: var(--hot);
-  background: none;
-  opacity: 0;
-  animation: t-glitch 6.5s steps(1, end) infinite;
-}
-.t-title__main > span + span::after {
-  animation-delay: 1.3s;
-}
-@keyframes t-glitch {
-  0%,
-  91%,
-  100% {
-    opacity: 0;
-    transform: none;
-    clip-path: inset(0 0 100% 0);
-  }
-  92% {
-    opacity: 0.85;
-    transform: translate(-4px, 0);
-    clip-path: inset(18% 0 58% 0);
-  }
-  94% {
-    opacity: 0.85;
-    transform: translate(5px, 0);
-    clip-path: inset(62% 0 12% 0);
-  }
-  96% {
-    opacity: 0.7;
-    transform: translate(-2px, 0);
-    clip-path: inset(40% 0 44% 0);
-  }
-}
-
 /* The bindings a reader can try on the page itself. Shown by the script,
    and only to a reader with a keyboard and a pointer that hovers. */
 .t-keys {
@@ -1019,9 +945,13 @@ kbd {
   width: 100vw;
   transform: translateX(-50%);
 }
-/* Alternate bands carry a faint grid of the accent, the floor of the hero
-   seen from above. */
 .t-section:nth-of-type(even)::before {
+  background: color-mix(in srgb, var(--fg) 2%, var(--bg));
+}
+/* On the landing page alternate bands carry a faint grid of the accent, the
+   sea under the hero seen from above. The pages people read keep the plain
+   tint. */
+body:has(.t-hero--main) .t-section:nth-of-type(even)::before {
   background:
     linear-gradient(color-mix(in srgb, var(--accent) 5%, transparent) 1px, transparent 1px) 0 0 /
       48px 48px,
@@ -1069,12 +999,11 @@ kbd {
 }
 .t-section__intro h2 {
   margin: 0;
-  font-family: var(--retro);
+  font-family: var(--display);
   font-size: clamp(var(--fs-heading), 3vw, calc(var(--fs-display) * 1.15));
-  font-weight: 800;
+  font-weight: 700;
   line-height: 1.15;
-  letter-spacing: 0.01em;
-  text-transform: uppercase;
+  letter-spacing: -0.02em;
 }
 .t-section__intro p {
   margin: var(--sp-lg) 0 0;
@@ -1944,12 +1873,10 @@ kbd {
 }
 .t-prose h3 {
   margin: calc(var(--panel-padding) * 1.5) 0 var(--sp-xl);
-  font-family: var(--retro);
-  font-size: var(--fs-title);
+  font-family: var(--display);
+  font-size: var(--fs-heading);
   font-weight: 700;
-  letter-spacing: 0.06em;
   line-height: 1.25;
-  text-transform: uppercase;
   color: var(--fg);
 }
 .t-prose > :first-child {
@@ -2256,10 +2183,5 @@ kbd {
     animation-duration: 0.001ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;
-  }
-  /* The glitch and the shine end on their resting frame, which is off. */
-  .t-title__main > span::after,
-  .btn--emphasis.btn--big::after {
-    display: none;
   }
 }

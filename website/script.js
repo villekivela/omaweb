@@ -182,7 +182,7 @@
       view.sunRadius = Math.max(view.sunRadius, 60);
       // The palm's crown sits just under the console, where there is a
       // console beside the copy to stand under; stacked, there is no room.
-      view.palmTop = beside ? panel.bottom + scrollY + 28 : 0;
+      view.palmTop = beside ? panel.bottom + scrollY + 64 : 0;
     }
     view.width = width;
     view.height = height;
@@ -310,21 +310,6 @@
       return swellHeight * Math.pow(depth, 1.5) * Math.sin(phase);
     }
 
-    // The sun's reflection: a column of streaks on the water under it,
-    // widest at the horizon and shimmering as the swell passes.
-    var streaks = 11;
-    for (var streak = 0; streak < streaks; streak += 1) {
-      var streakDepth = ((streak + 0.5) / streaks) * 0.6;
-      var streakY = horizon + floorHeight * Math.pow(streakDepth, 1.7);
-      var shimmer = 0.55 + 0.45 * Math.sin(seconds * 2.1 + streak * 1.7);
-      var halfWidth = radius * (0.95 - streakDepth * 0.9) * shimmer;
-      context.fillStyle = css(
-        mix(palette.accent, palette.hot, Math.min(1, streakDepth * 1.6)),
-        0.55 * (1 - streakDepth),
-      );
-      context.fillRect(sunX - halfWidth, streakY, halfWidth * 2, 1 + streakDepth * 6);
-    }
-
     var lines = context.createLinearGradient(0, horizon, 0, height);
     lines.addColorStop(0, css(palette.accent, 0.05));
     lines.addColorStop(0.35, css(palette.accent, 0.4));
@@ -357,23 +342,39 @@
     }
     context.stroke();
 
-    // A surfer riding the swell across the sea. They sit at one depth on the
-    // water, so they are sized and lifted by the same projection and swell
-    // as the mesh, and tilt with the slope of the wave under them.
-    // It starts part of the way across, so a still frame, drawn when motion
-    // is reduced, still has it in view.
-    var boardDepth = 0.62;
-    var boardScale = spread * (0.04 + 1.56 * Math.pow(boardDepth, 2.4));
-    var boardLength = Math.max(64, boardScale * 1.5);
-    var lap = width + boardLength * 4;
-    var boardX = ((seconds * 38 + width * 0.3) % lap) - boardLength * 2;
-    var boardAcross = (boardX - vanishX) / boardScale;
-    var nudge = 0.05;
-    var slope =
-      (swell(boardAcross + nudge, boardDepth) - swell(boardAcross - nudge, boardDepth)) /
-      (nudge * 2 * boardScale);
-    var boardY = seaY(boardDepth) + swell(boardAcross, boardDepth);
-    paintBoard(context, boardX, boardY, boardLength, Math.atan(slope), seconds);
+    // The sun's reflection, over the mesh so its lines stay clean: a soft
+    // haze on the water under the sun, and on it a stack of thin lines from
+    // the horizon down, as wide as the sun at the top and narrowing below,
+    // each its own length and a little off centre so the edge is ragged.
+    // They run from the sun's hot lower edge into the accent and fade out.
+    // Still: the sea moves enough under it.
+    var glowDepth = floorHeight * 0.45;
+    context.save();
+    context.translate(sunX, horizon);
+    context.scale(1, glowDepth / (radius * 1.2));
+    var haze = context.createRadialGradient(0, 0, 0, 0, 0, radius * 1.2);
+    haze.addColorStop(0, css(mix(palette.hot, palette.accent, 0.4), 0.3));
+    haze.addColorStop(1, css(palette.accent, 0));
+    context.fillStyle = haze;
+    context.beginPath();
+    context.arc(0, 0, radius * 1.2, 0, Math.PI);
+    context.fill();
+    context.restore();
+
+    var reflections = 22;
+    var gap = Math.max(3, floorHeight * 0.016);
+    var lineY = horizon + 2;
+    for (var line = 0; line < reflections; line += 1) {
+      var down = line / reflections;
+      var half = radius * (1.05 - 0.6 * down) * (0.72 + 0.36 * hash01(51, line));
+      var drift = (hash01(52, line) - 0.5) * radius * 0.14;
+      context.fillStyle = css(
+        mix(palette.hot, palette.accent, Math.min(1, down * 1.4)),
+        0.8 * Math.pow(1 - down, 0.9),
+      );
+      context.fillRect(sunX + drift - half, lineY, half * 2, down < 0.5 ? 1.5 : 1);
+      lineY += gap * (1 + down * 0.9);
+    }
 
     // The horizon itself, lit.
     context.save();
@@ -387,192 +388,112 @@
     // window is wide enough to keep it clear of the copy.
     if (view.palmTop && view.palmTop < horizon) {
       var tall = height - view.palmTop;
+      var edge = width - Math.min(56, width * 0.04);
       paintPalm(
         context,
-        width + tall * 0.08,
+        edge - tall * 0.12,
         height,
-        width - Math.min(56, width * 0.04),
-        view.palmTop,
+        edge - tall * 0.34,
+        view.palmTop + tall * 0.24,
         seconds,
+        1,
       );
+      paintPalm(context, width + tall * 0.08, height, edge, view.palmTop, seconds, 0);
     }
   }
 
-  // A surfer riding the swell. The board is drawn as it would be seen
-  // from the shore at the sea's low angle: a surfboard's outline from
-  // above, pointed nose and rounded tail, squashed to a sliver the way the
-  // mesh's squares are. On it a rider in silhouette, side on in a surfing
-  // stance, drawn like the palm. Behind, a V of foam spreading across the
-  // water from the tail.
-  function paintBoard(context, centreX, centreY, length, tilt, seconds) {
-    var half = length / 2;
-    var beam = length * 0.14;
-    var squash = 0.32;
+  // A palm tree in silhouette, as a synthwave sunset draws one: a slim
+  // trunk that curves as it rises and a full crown of feathered fronds. Each frond is an arching midrib with thin
+  // leaflets hanging off both sides; the side fronds droop well below the
+  // crown, and all of them sway a little. Dark, with a glow of the accent
+  // round it, so it stands against the sun and the sky alike. `seed` gives
+  // each palm of a pair its own fronds.
+  function paintPalm(context, baseX, baseY, topX, topY, seconds, seed) {
+    var tall = baseY - topY;
+    var bendX = baseX - (baseX - topX) * 0.15;
+    var bendY = baseY - tall * 0.55;
+    var girth = Math.max(4, tall / 34);
+    var silhouette = css(mix(palette.bg, palette.accent, 0.05));
+
+    function trunkAt(along) {
+      var rest = 1 - along;
+      return [
+        rest * rest * baseX + 2 * rest * along * bendX + along * along * topX,
+        rest * rest * baseY + 2 * rest * along * bendY + along * along * topY,
+      ];
+    }
 
     context.save();
-    context.translate(centreX, centreY);
-
-    // The wake: two lines from the tail, one opening towards the shore and
-    // one away from it, and a scatter of foam along them, all fading out.
-    context.lineCap = "round";
-    for (var side = -1; side <= 1; side += 2) {
-      var spreadY = side * beam * squash * (side > 0 ? 3.2 : 1.6);
-      var wake = context.createLinearGradient(-half, 0, -half - length * 1.6, 0);
-      wake.addColorStop(0, css(mix(palette.fg, palette.accent, 0.3), 0.8));
-      wake.addColorStop(1, css(palette.accent, 0));
-      context.strokeStyle = wake;
-      context.lineWidth = Math.max(1, length * 0.012);
-      context.beginPath();
-      context.moveTo(-half * 0.8, side * beam * squash * 0.4);
-      context.quadraticCurveTo(-half - length * 0.6, spreadY * 0.5, -half - length * 1.6, spreadY);
-      context.stroke();
-    }
-    for (var fleck = 0; fleck < 14; fleck += 1) {
-      var along = hash01(41, fleck);
-      var drift = (along + seconds * 0.35) % 1;
-      var flankY = (hash01(42, fleck) * 2 - 1) * beam * squash * 2.2 * drift;
-      context.fillStyle = css(mix(palette.fg, palette.accent, 0.3), 0.7 * (1 - drift));
-      context.fillRect(-half - length * 1.4 * drift, flankY, 1.5 + (1 - drift) * 1.5, 1.2);
-    }
-
-    context.rotate(tilt);
-
-    // The board: its outline from above, squashed by the viewing angle,
-    // with the deck lit from the sun's side and the rail catching the light.
-    context.save();
-    context.scale(1, squash);
-    context.shadowColor = css(palette.accent, 0.8);
-    context.shadowBlur = 10;
-    context.beginPath();
-    context.moveTo(half, 0);
-    context.bezierCurveTo(
-      half * 0.55,
-      -beam * 0.95,
-      -half * 0.55,
-      -beam * 1.1,
-      -half,
-      -beam * 0.35,
-    );
-    context.quadraticCurveTo(-half * 1.04, 0, -half, beam * 0.35);
-    context.bezierCurveTo(-half * 0.55, beam * 1.1, half * 0.55, beam * 0.95, half, 0);
-    var deck = context.createLinearGradient(0, -beam, 0, beam);
-    deck.addColorStop(0, css(mix(palette.fg, palette.accent, 0.2)));
-    deck.addColorStop(1, css(palette.accent));
-    context.fillStyle = deck;
-    context.fill();
-    context.shadowBlur = 0;
-    context.strokeStyle = css(palette.fg, 0.6);
-    context.lineWidth = 1 / squash;
-    context.stroke();
-    context.strokeStyle = css(palette.hot);
-    context.lineWidth = Math.max(1.5, beam * 0.16);
-    context.beginPath();
-    context.moveTo(half * 0.85, 0);
-    context.lineTo(-half * 0.9, 0);
-    context.stroke();
-    context.restore();
-
-    // The rider, side on and facing the way the board goes: feet apart on
-    // the deck, knees bent, leaning into the ride, the front arm reaching
-    // forward and the back one up for balance. A slight bob keeps them
-    // riding the swell rather than standing on it.
-    var bob = Math.sin(seconds * 2.4) * length * 0.012;
-    function at(x, y) {
-      return [x * length, y * length + bob];
-    }
-    var frontFoot = at(0.15, -0.01);
-    var backFoot = at(-0.14, -0.01);
-    var frontKnee = at(0.12, -0.15);
-    var backKnee = at(-0.05, -0.14);
-    var hips = at(0.01, -0.26);
-    var shoulders = at(0.07, -0.43);
-    var frontHand = at(0.3, -0.37);
-    var frontElbow = at(0.19, -0.42);
-    var backHand = at(-0.21, -0.52);
-    var backElbow = at(-0.08, -0.47);
-    var head = at(0.1, -0.52);
-
-    function limb(points, thickness) {
-      context.lineWidth = thickness;
-      context.beginPath();
-      context.moveTo(points[0][0], points[0][1]);
-      for (var point = 1; point < points.length; point += 1) {
-        context.lineTo(points[point][0], points[point][1]);
-      }
-      context.stroke();
-    }
-
-    context.strokeStyle = css(mix(palette.bg, palette.accent, 0.08));
-    context.fillStyle = css(mix(palette.bg, palette.accent, 0.08));
+    context.strokeStyle = silhouette;
+    context.shadowColor = css(palette.accent, 0.7);
+    context.shadowBlur = 8;
     context.lineCap = "round";
     context.lineJoin = "round";
-    context.shadowColor = css(palette.accent, 0.85);
-    context.shadowBlur = 9;
-    limb([frontFoot, frontKnee, hips], length * 0.045);
-    limb([backFoot, backKnee, hips], length * 0.045);
-    limb([hips, shoulders], length * 0.065);
-    limb([shoulders, frontElbow, frontHand], length * 0.032);
-    limb([shoulders, backElbow, backHand], length * 0.032);
-    context.beginPath();
-    context.arc(head[0], head[1], length * 0.042, 0, Math.PI * 2);
-    context.fill();
 
-    context.restore();
-  }
-
-  // A palm tree in silhouette: the ground colour with a glow of the accent
-  // round it, a trunk that tapers as it curves up, and fronds that droop
-  // from its crown and sway a little.
-  function paintPalm(context, baseX, baseY, topX, topY, seconds) {
-    var tall = baseY - topY;
-    var bendX = baseX - (baseX - topX) * 0.1;
-    var bendY = baseY - tall * 0.5;
-    var girth = tall / 30;
-
-    context.save();
-    context.fillStyle = css(mix(palette.bg, palette.accent, 0.05));
-    context.strokeStyle = css(mix(palette.bg, palette.accent, 0.05));
-    context.shadowColor = css(palette.accent, 0.75);
-    context.shadowBlur = 10;
-    context.lineCap = "round";
-
-    // The trunk, drawn as short segments along its curve, each a little
-    // thinner than the one below.
-    var segments = 18;
-    var lastX = baseX;
-    var lastY = baseY;
+    // The trunk, in short segments that thin towards the crown.
+    var segments = 24;
+    var last = trunkAt(0);
     for (var segment = 1; segment <= segments; segment += 1) {
-      var along = segment / segments;
-      var rest = 1 - along;
-      var pointX = rest * rest * baseX + 2 * rest * along * bendX + along * along * topX;
-      var pointY = rest * rest * baseY + 2 * rest * along * bendY + along * along * topY;
-      context.lineWidth = girth * (1 - along * 0.6);
+      var point = trunkAt(segment / segments);
+      context.lineWidth = girth * (1 - (segment / segments) * 0.5);
       context.beginPath();
-      context.moveTo(lastX, lastY);
-      context.lineTo(pointX, pointY);
+      context.moveTo(last[0], last[1]);
+      context.lineTo(point[0], point[1]);
       context.stroke();
-      lastX = pointX;
-      lastY = pointY;
+      last = point;
     }
 
-    // The fronds: leaf shapes from the crown, fanned from one side to the
-    // other and drooping at their tips.
-    var fronds = 8;
-    for (var frond = 0; frond < fronds; frond += 1) {
+    // The fronds, in compass degrees from the crown with 0 to the right and
+    // 90 straight down: a spread over the top and heavy fronds hanging at
+    // the sides, with none standing straight up.
+    var directions = [-165, -140, -40, -16, 8, 32, 148, 172];
+    var sway = Math.sin(seconds * 0.8 + seed) * 0.035;
+    context.beginPath();
+    for (var frond = 0; frond < directions.length; frond += 1) {
       var angle =
-        Math.PI * (1.05 + (frond / (fronds - 1)) * 0.9) + Math.sin(seconds * 0.9 + frond) * 0.04;
-      var reachOut = tall * 0.34 * (0.8 + 0.35 * hash01(31, frond));
-      var tipX = topX + Math.cos(angle) * reachOut;
-      var tipY = topY + Math.sin(angle) * reachOut + reachOut * 0.45;
-      var bowX = topX + Math.cos(angle) * reachOut * 0.6;
-      var bowY = topY + Math.sin(angle) * reachOut * 0.6 - reachOut * 0.12;
-      var width = reachOut * 0.14;
-      context.beginPath();
-      context.moveTo(topX, topY);
-      context.quadraticCurveTo(bowX, bowY - width, tipX, tipY);
-      context.quadraticCurveTo(bowX, bowY + width, topX, topY);
-      context.fill();
+        (directions[frond] * Math.PI) / 180 + sway + (hash01(91, seed, frond) - 0.5) * 0.2;
+      var outX = Math.cos(angle);
+      var outY = Math.sin(angle);
+      var reach = tall * 0.34 * (0.75 + 0.4 * hash01(92, seed, frond));
+      // The more level the frond starts, the further its tip hangs.
+      var droop = reach * (0.28 + 0.47 * Math.abs(outX));
+      var bowX = topX + outX * reach * 0.55;
+      var bowY = topY + outY * reach * 0.55 - reach * 0.14;
+      var tipX = topX + outX * reach;
+      var tipY = topY + outY * reach + droop;
+
+      var leaflets = 34;
+      var prevX = topX;
+      var prevY = topY;
+      for (var leaf = 1; leaf <= leaflets; leaf += 1) {
+        var t = leaf / leaflets;
+        var u = 1 - t;
+        var ribX = u * u * topX + 2 * u * t * bowX + t * t * tipX;
+        var ribY = u * u * topY + 2 * u * t * bowY + t * t * tipY;
+        // The midrib.
+        context.moveTo(prevX, prevY);
+        context.lineTo(ribX, ribY);
+        // The rib's direction here, and a leaflet off each side of it,
+        // swept back towards the crown and pulled down by its own weight.
+        var alongX = ribX - prevX;
+        var alongY = ribY - prevY;
+        var alongLength = Math.hypot(alongX, alongY) || 1;
+        alongX /= alongLength;
+        alongY /= alongLength;
+        var size = reach * 0.25 * Math.pow(Math.sin(Math.PI * Math.min(1, t * 1.1)), 0.6);
+        for (var side = -1; side <= 1; side += 2) {
+          var leafX = -alongY * side * 0.75 - alongX * 0.35;
+          var leafY = alongX * side * 0.75 - alongY * 0.35 + 1;
+          var leafLength = Math.hypot(leafX, leafY) || 1;
+          context.moveTo(ribX, ribY);
+          context.lineTo(ribX + (leafX / leafLength) * size, ribY + (leafY / leafLength) * size);
+        }
+        prevX = ribX;
+        prevY = ribY;
+      }
     }
+    context.lineWidth = Math.max(1.4, girth * 0.3);
+    context.stroke();
     context.restore();
   }
 
