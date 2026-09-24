@@ -1090,17 +1090,34 @@
     });
   }
 
-  function nextTheme() {
+  // The next theme in the picker's order, swept out of `from`: the button
+  // pressed, or for the key, the middle of the window, where the reader is
+  // looking.
+  function nextTheme(from) {
     var current = document.body.dataset.theme || themeNames[0];
     var next = themeNames[(themeNames.indexOf(current) + 1) % themeNames.length];
-    // Swept out of the middle of the window, where the reader is looking,
-    // since the key has no button to sweep from.
     var middle = {
       getBoundingClientRect: function () {
         return { left: innerWidth / 2, top: innerHeight / 2, width: 0, height: 0 };
       },
     };
-    setTheme(next, { save: true, share: true, from: middle });
+    setTheme(next, { save: true, share: true, from: from || middle });
+  }
+
+  // The console's theme line is a control: pressing it moves to the next
+  // theme, as T does. The page writes it as text and it becomes a button
+  // here, so with the script blocked it is not a button that does nothing.
+  var consoleTheme = document.querySelector(".t-console [data-theme-name]");
+  if (consoleTheme) {
+    var themeControl = document.createElement("button");
+    themeControl.type = "button";
+    themeControl.className = "t-console__theme";
+    themeControl.setAttribute("aria-label", "Next theme");
+    consoleTheme.parentNode.replaceChild(themeControl, consoleTheme);
+    themeControl.appendChild(consoleTheme);
+    themeControl.addEventListener("click", function () {
+      nextTheme(themeControl);
+    });
   }
 
   addEventListener("keydown", function (event) {

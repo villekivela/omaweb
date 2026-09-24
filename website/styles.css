@@ -851,6 +851,27 @@ kbd {
   content: " ]";
   color: var(--muted);
 }
+/* The theme line as a control, once the script makes it one: the value
+   between arrows that say it steps, lit brighter under the pointer. */
+.t-console__theme {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.t-console__theme b::before {
+  content: "[ < ";
+}
+.t-console__theme b::after {
+  content: " > ]";
+}
+.t-console__theme:hover b,
+.t-console__theme:focus-visible b {
+  color: var(--fg);
+  text-shadow: 0 0 14px var(--glow-strong);
+}
 .t-console__lines b.is-zero {
   color: var(--hot);
   text-shadow: 0 0 10px color-mix(in srgb, var(--hot) 45%, transparent);
