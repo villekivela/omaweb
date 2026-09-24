@@ -23,9 +23,9 @@ else()
 endif()
 option(OMAWEB_BUILD_SYNC "Build the Linux Sync Feature module" ${omaweb_build_sync_default})
 # A Known extension needs the patched engine ADR 0049 ships, not the
-# distribution's QtWebEngine. The package that carries that engine turns this
-# on; every other build leaves the capability unreported, so the surfaces are
-# absent rather than dead.
+# distribution's QtWebEngine. packaging/PKGBUILD, which builds against that
+# engine, turns this on; every other build leaves the capability unreported, so
+# the surfaces are absent rather than dead.
 option(OMAWEB_KNOWN_EXTENSIONS "Report that the engine can host a Known extension" OFF)
 set(OMAWEB_GITHUB_APP_CLIENT_ID "Iv23liYr7TPLsmgsxLfl" CACHE STRING
     "Public client ID of the Omaweb GitHub App")
@@ -882,6 +882,12 @@ if(BUILD_TESTING)
         add_test(NAME omaweb-source-changed
             COMMAND ${Python3_EXECUTABLE}
                 ${CMAKE_CURRENT_SOURCE_DIR}/tests/scripts/tst_source_changed.py
+        )
+        # The engine the package depends on and the capability its build
+        # reports, which v0.7.1 shipped apart (#365).
+        add_test(NAME omaweb-release-pkgbuild
+            COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/tests/scripts/tst_release_pkgbuild.py
         )
         add_test(NAME omaweb-security-baseline
             COMMAND ${Python3_EXECUTABLE}

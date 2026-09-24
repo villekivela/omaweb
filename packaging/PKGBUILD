@@ -102,9 +102,16 @@ build() {
     # `Qt6Config.cmake` it already found, which is the system one, so the
     # component search never leaves /usr/lib/cmake. Qt offers this variable for
     # exactly this case, a module installed under a prefix of its own.
+    #
+    # Omaweb cannot tell at run time that it has the patched engine, so the
+    # build that links it says so. Without the option Settings reports that this
+    # build cannot host a Known extension (#365).
+    # `tests/scripts/tst_release_pkgbuild.py` keeps it paired with the
+    # dependency on the engine.
     cmake --preset release \
         -DCMAKE_INSTALL_PREFIX=/usr \
         -DQT_ADDITIONAL_PACKAGES_PREFIX_PATH=/usr/lib/omaweb \
+        -DOMAWEB_KNOWN_EXTENSIONS=ON \
         -DBUILD_TESTING=OFF \
         -DOMAWEB_BUILD_UI_LAB=OFF \
         -DCMAKE_CXX_COMPILER_LAUNCHER=
