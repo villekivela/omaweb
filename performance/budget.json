@@ -21,6 +21,16 @@
       "ceiling": 5.0,
       "recorded": 0.02,
       "note": "What an away Space's page goes on taking once frozen, over ten seconds, against ADR 0033. Tighter than the others on purpose: the same page grew 30.1 MiB in the six seconds it was on show, so a page still running would add about fifty here, and a reading's own noise is a megabyte or two."
+    },
+    "pageload_fresh_hosts_milliseconds": {
+      "ceiling": 20.0,
+      "recorded": 0.0,
+      "note": "TBD"
+    },
+    "pageload_known_hosts_milliseconds": {
+      "ceiling": 20.0,
+      "recorded": 0.0,
+      "note": "TBD"
     }
   }
 }

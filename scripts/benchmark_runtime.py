@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Measure Omaweb's startup and memory against the budget in `performance/budget.json`.
+"""Measure Omaweb's startup, memory and page loads against the budget in `performance/budget.json`.
 
 What the build costs is held to a number by `scripts/benchmark_build.sh`, and what one selector
 match costs by `tests/benchmarks/`. How long the browser takes to appear, and what it costs to keep
 Spaces open, were held to nothing, so this measures them and fails when a recorded ceiling is
 crossed.
 
-Four measurements, each its own subcommand so a developer can run the one they are working on:
+Five measurements, each its own subcommand so a developer can run the one they are working on:
 
 - `startup` launches the browser and times process start to the window mapping.
 - `memory` reads the resident memory of the process tree with one Space and one page.
@@ -14,11 +14,15 @@ Four measurements, each its own subcommand so a developer can run the one they a
   profile per Space that ADR 0008 buys.
 - `freezing` puts away a Space whose page allocates on a timer and reports how much it went on
   taking, which is the claim ADR 0033 makes and nothing checked.
+- `pageload` loads the same pages with Content blocking on and with the site switched off, and
+  reports what blocking added to each, which is the cost ADR 0050 measured once by hand.
 
 This writes nothing outside the throwaway directories it launches its own browser on, `--record`
 aside, which writes the measurements into the budget in this repository. It launches that browser on
 a private session bus, so unlike the theme and default-browser checks it needs no opt-in guard: it
 puts nothing back because it put nothing anywhere. It does take the keyboard focus while it runs.
+`pageload` runs its browser in a network namespace of its own, with its own resolver files bound
+over the machine's, so the DNS server it starts answers that browser and nothing else.
 
 The window mapping is read from the browser's own Wayland protocol log rather than from a
 compositor, because CI's compositor is not the reader's. `WAYLAND_DEBUG=1` costs about a thousand
@@ -41,27 +45,36 @@ Usage:
     scripts/benchmark_runtime.py
     scripts/benchmark_runtime.py startup --browser build/dev/omaweb
     scripts/benchmark_runtime.py spaces --spaces 4
+    scripts/benchmark_runtime.py pageload --require-dns
     scripts/benchmark_runtime.py --record
 """
 
 from __future__ import annotations
 
 import argparse
+import base64
+import dataclasses
 import datetime
+import http.server
 import json
 import os
 import random
 import re
 import shutil
 import signal
+import socket
+import statistics
 import subprocess
 import sys
 import tempfile
+import threading
 import time
+import urllib.parse
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 BUDGET = ROOT / "performance" / "budget.json"
+FILTER_LISTS = ROOT / "third_party" / "filter-lists"
 
 # A blank document with a title to wait on. Startup is not the place to measure a network round
 # trip, and a Space's cost is not the place to measure whatever a real site loaded today.
@@ -140,6 +153,49 @@ SHIFTED = {":": "semicolon"}
 # The toplevel's surface, learned from the request that makes it a window.
 TOPLEVEL_SURFACE = re.compile(r"-> xdg_wm_base#\d+\.get_xdg_surface\(new id xdg_surface#\d+, "
                               r"wl_surface#(\d+)\)")
+
+# The page ADR 0050 measured: forty images, which no rule refuses, so a load with blocking on
+# fetches everything the load with it off does and the difference is what blocking cost.
+PAGELOAD_IMAGES = 40
+PAGELOAD_LOADS = 10
+
+# How many hosts the forty images come from. The worst case is a page that reaches every host for
+# the first time, so every request waits on its lookups; the common case is a page whose few hosts
+# the profile has resolved in the last minute.
+PAGELOAD_CASES = {"fresh": 40, "known": 4}
+
+# The pages sit on one site and the images on another, because a tracker is a third party. The two
+# page hosts are the per-site switch's two positions: blocking is switched off for the second.
+PAGELOAD_ON_HOST = "on.pageload.test"
+PAGELOAD_OFF_HOST = "off.pageload.test"
+PAGELOAD_IMAGE_DOMAIN = "pageload-cdn.test"
+PAGELOAD_EDGE_HOST = f"edge.{PAGELOAD_IMAGE_DOMAIN}"
+
+# The rules compile after the browser is up, and a load measured before they are in force measures
+# a browser with nothing to check. One user rule refuses this host, so an image from it failing to
+# load while one from its neighbour loads is the rules arriving.
+PAGELOAD_PROBE_HOST = f"refused.{PAGELOAD_IMAGE_DOMAIN}"
+PAGELOAD_CONTROL_HOST = f"control.{PAGELOAD_IMAGE_DOMAIN}"
+
+# Between one load reporting and the next starting, so the page going away is not in the timing of
+# the page arriving.
+PAGELOAD_SETTLE_MILLISECONDS = 250
+
+# One load of forty images from loopback takes a fraction of a second; one that has not reported
+# in this long is a page that never finished.
+PAGELOAD_TIMEOUT = 30.0
+
+# A one-pixel PNG. What an image costs to decode is not what this measures.
+PIXEL = base64.b64decode(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=")
+
+# What `pageload` runs on top of Python, and what each is for.
+PAGELOAD_TOOLS = {
+    "dnsmasq": "the DNS server the test names resolve through",
+    "ip": "bringing up loopback in the private network",
+    "mount": "binding the resolver files over the machine's",
+    "unshare": "running the browser as its own user rather than as root",
+}
 
 
 class Unavailable(RuntimeError):
@@ -296,7 +352,8 @@ class Browser:
         self.started_at = 0.0
         self.mapped_at = 0.0
 
-    def start(self, url: str, keybindings: str | None = None) -> None:
+    def start(self, url: str, keybindings: str | None = None,
+              launcher: tuple[str, ...] = ()) -> None:
         environment = dict(os.environ)
         environment["OMAWEB_DATA_ROOT"] = os.path.join(self.root, "data")
         environment["OMAWEB_CONFIG_ROOT"] = os.path.join(self.root, "config")
@@ -306,7 +363,7 @@ class Browser:
         self.sink = open(self.log_path, "w", encoding="utf-8")
         self.started_at = time.time()
         self.process = subprocess.Popen(
-            ["dbus-run-session", "--", self.executable, url],
+            [*launcher, "dbus-run-session", "--", self.executable, url],
             env=environment,
             stdout=subprocess.DEVNULL,
             stderr=self.sink,
@@ -612,11 +669,492 @@ def measure_freezing(executable: str) -> dict:
     return {"frozen_growth_mebibytes": growth}
 
 
+@dataclasses.dataclass(frozen=True)
+class PageLoad:
+    """One page the browser is sent to, and whether its timing counts."""
+
+    number: int
+    case: str
+    mode: str
+    measured: bool
+    images: tuple[str, ...]
+
+    def address(self, port: int) -> str:
+        host = PAGELOAD_ON_HOST if self.mode == "on" else PAGELOAD_OFF_HOST
+        return f"http://{host}:{port}/page/{self.number}"
+
+
+def host_of(address: str) -> str:
+    return urllib.parse.urlsplit(address).hostname or ""
+
+
+def with_port(address: str, port: int) -> str:
+    parts = urllib.parse.urlsplit(address)
+    return parts._replace(netloc=f"{parts.hostname}:{port}").geturl()
+
+
+def pageload_plan(loads: int = PAGELOAD_LOADS) -> list[PageLoad]:
+    """Every page the run loads, in the order it loads them.
+
+    Each case opens with one load in each mode that is not counted: the first load of a case is the
+    one that finds the renderer cold and, in the common case, its four hosts unresolved, which is
+    the state the common case is defined not to be in. After that the modes alternate, so whatever
+    the machine drifts by over a run falls on both.
+
+    Every image address is new, so the HTTP cache has nothing to answer with. In the worst case the
+    hosts are new too, so every load pays for its lookups.
+    """
+    plan: list[PageLoad] = []
+    for case, hosts in PAGELOAD_CASES.items():
+        modes = [("on", False), ("off", False)] + [("on", True), ("off", True)] * loads
+        for mode, measured in modes:
+            number = len(plan)
+            images = []
+            for image in range(PAGELOAD_IMAGES):
+                host = (f"img{image}-load{number}" if case == "fresh" else f"img{image % hosts}")
+                images.append(f"http://{host}.{PAGELOAD_IMAGE_DOMAIN}/image/{image}.png"
+                              f"?load={number}")
+            plan.append(PageLoad(number, case, mode, measured, tuple(images)))
+    return plan
+
+
+def pageload_zone(plan: list[PageLoad]) -> str:
+    """The DNS server's configuration: every name the run asks for, and nothing else.
+
+    Each image host is an alias of a name that is itself an alias of the one holding the address,
+    which is the shape of a tracker behind a CDN of its own. A lookup therefore has a chain to
+    return, and CNAME uncloaking a chain to check, which a host-resolver rule would not give it:
+    a mapped host is an IP literal and makes no lookup at all.
+
+    Anything else under `.test` is answered as not existing rather than forwarded, and there is
+    nowhere to forward to: the run's network has loopback and nothing more.
+    """
+    lines = ["port=53", "listen-address=127.0.0.1", "bind-interfaces", "no-resolv", "no-hosts",
+             "no-poll", "local=/test/"]
+    for host in (PAGELOAD_ON_HOST, PAGELOAD_OFF_HOST, PAGELOAD_PROBE_HOST, PAGELOAD_CONTROL_HOST,
+                 PAGELOAD_EDGE_HOST):
+        lines.append(f"host-record={host},127.0.0.1")
+    aliased: set[str] = set()
+    for load in plan:
+        for image in load.images:
+            host = host_of(image)
+            if host in aliased:
+                continue
+            aliased.add(host)
+            cloak = f"{host.split('.')[0]}.cloak.{PAGELOAD_IMAGE_DOMAIN}"
+            lines.append(f"cname={host},{cloak}")
+            lines.append(f"cname={cloak},{PAGELOAD_EDGE_HOST}")
+    return "\n".join(lines) + "\n"
+
+
+@dataclasses.dataclass(frozen=True)
+class PageLoadSummary:
+    on: float
+    off: float
+
+    @property
+    def added(self) -> float:
+        return self.on - self.off
+
+
+def summarise_pageload(on: list[float], off: list[float]) -> PageLoadSummary:
+    """The two medians, whose difference is what blocking added to the page.
+
+    A difference of medians rather than a median of differences, because the loads are alternated
+    rather than paired: a pair is two loads that happened to be neighbours, not the same load twice.
+    """
+    return PageLoadSummary(statistics.median(on), statistics.median(off))
+
+
+# The page reports its own timing, because the engine's navigation entry is the one clock that
+# starts when the load does. `loadEventStart` is when every image had arrived or failed, measured
+# from the navigation starting, and the images that arrived are counted so that a load a rule cut
+# short cannot pass as a fast one. The server answers each report with the next page to go to.
+PAGELOAD_PAGE = """<!doctype html>
+<meta charset="utf-8">
+<title>Omaweb page-load budget {number}</title>
+{images}
+<script>
+  addEventListener("load", () => setTimeout(async () => {{
+    const entry = performance.getEntriesByType("navigation")[0];
+    const loaded = [...document.images].filter(image => image.naturalWidth > 0).length;
+    const report = {{ number: {number}, milliseconds: entry.loadEventStart, loaded }};
+    const sent = await fetch("/report", {{ method: "POST", body: JSON.stringify(report) }});
+    const answer = await sent.json();
+    if (answer.next) setTimeout(() => location.replace(answer.next), {settle});
+  }}));
+</script>
+"""
+
+# The page the browser opens on, which waits for the rules to be in force before the run starts.
+PAGELOAD_READY_PAGE = """<!doctype html>
+<meta charset="utf-8">
+<title>Omaweb page-load budget</title>
+<script>
+  const load = address => new Promise(resolve => {{
+    const image = new Image();
+    image.onload = () => resolve(true);
+    image.onerror = () => resolve(false);
+    image.src = address;
+  }});
+  async function attempt(number) {{
+    const [refused, control] = await Promise.all([
+      load("http://{probe}:{port}/probe.png?attempt=" + number),
+      load("http://{control}:{port}/probe.png?attempt=" + number),
+    ]);
+    if (control && refused) {{
+      setTimeout(() => attempt(number + 1), {settle});
+      return;
+    }}
+    const answer = await (await fetch("/report", {{
+      method: "POST", body: JSON.stringify({{ ready: control }}),
+    }})).json();
+    if (answer.next) location.replace(answer.next);
+  }}
+  attempt(0);
+</script>
+"""
+
+
+class PageLoadServer(http.server.ThreadingHTTPServer):
+    # The standard library's backlog is five. Forty hosts connect at once, the kernel drops the
+    # connections past the backlog, and each retries a second later, which a run first measured
+    # as a second of blocking cost.
+    request_queue_size = 128
+    daemon_threads = True
+
+    def handle_error(self, request, client_address) -> None:
+        """Stays quiet about the connections a page going away resets, which are not failures."""
+
+
+class PageLoadSite:
+    """The pages, the images and the reports, served from loopback to the browser under test.
+
+    One server answers every host, because every name in the zone resolves to loopback. Nothing it
+    serves may be cached: an image the cache answers is a request blocking was never asked about.
+    """
+
+    def __init__(self, plan: list[PageLoad]) -> None:
+        self.plan = plan
+        self.reports: dict[int, dict] = {}
+        self.ready = False
+        self.problem = ""
+        self.finished = False
+        self.progress = threading.Condition()
+        self.server = PageLoadServer(("127.0.0.1", 0), self._handler())
+        self.port = self.server.server_address[1]
+        self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
+
+    @property
+    def start_address(self) -> str:
+        return f"http://{PAGELOAD_ON_HOST}:{self.port}/ready"
+
+    def start(self) -> None:
+        self.thread.start()
+
+    def stop(self) -> None:
+        self.server.shutdown()
+        self.server.server_close()
+
+    def page(self, number: int) -> bytes:
+        load = self.plan[number]
+        images = "\n".join(
+            f'<img src="{with_port(image, self.port)}" width="16" height="16" alt="">'
+            for image in load.images)
+        return PAGELOAD_PAGE.format(number=number, images=images,
+                                    settle=PAGELOAD_SETTLE_MILLISECONDS).encode()
+
+    def ready_page(self) -> bytes:
+        return PAGELOAD_READY_PAGE.format(probe=PAGELOAD_PROBE_HOST, control=PAGELOAD_CONTROL_HOST,
+                                          port=self.port,
+                                          settle=PAGELOAD_SETTLE_MILLISECONDS).encode()
+
+    def receive(self, report: dict) -> str | None:
+        """Takes one report and answers with where the page goes next, if anywhere."""
+        with self.progress:
+            if "ready" in report:
+                if not report["ready"]:
+                    self.problem = ("an image no rule refuses did not load, so the pages cannot "
+                                    "reach the server the zone names")
+                    self.progress.notify_all()
+                    return None
+                self.ready = True
+                following = 0
+            else:
+                number = int(report["number"])
+                self.reports[number] = report
+                following = number + 1
+            if following >= len(self.plan):
+                self.finished = True
+            self.progress.notify_all()
+        return None if self.finished else self.plan[following].address(self.port)
+
+    def wait(self) -> None:
+        """Waits for every load to report, and fails on one that goes quiet."""
+        with self.progress:
+            deadline = time.time() + READY_TIMEOUT
+            while not self.ready and not self.problem:
+                if not self.progress.wait(max(deadline - time.time(), 0)):
+                    raise MeasurementFailed("Content blocking's rules never came into force")
+            heard = len(self.reports)
+            while not self.finished and not self.problem:
+                if not self.progress.wait(PAGELOAD_TIMEOUT) and len(self.reports) == heard:
+                    raise MeasurementFailed(
+                        f"load {heard + 1} of {len(self.plan)} never reported its timing")
+                heard = len(self.reports)
+            if self.problem:
+                raise MeasurementFailed(self.problem)
+
+    def _handler(self) -> type[http.server.BaseHTTPRequestHandler]:
+        site = self
+
+        class Handler(http.server.BaseHTTPRequestHandler):
+            # Keep-alive, so the common case's four hosts reuse their connections as a real
+            # page's would.
+            protocol_version = "HTTP/1.1"
+
+            def log_message(self, format: str, *arguments) -> None:  # noqa: A002
+                pass
+
+            def answer(self, body: bytes, content_type: str) -> None:
+                self.send_response(200)
+                self.send_header("Content-Type", content_type)
+                self.send_header("Content-Length", str(len(body)))
+                self.send_header("Cache-Control", "no-store")
+                self.end_headers()
+                self.wfile.write(body)
+
+            def do_GET(self) -> None:  # noqa: N802
+                path = urllib.parse.urlsplit(self.path).path
+                if path == "/ready":
+                    self.answer(site.ready_page(), "text/html; charset=utf-8")
+                elif path.startswith("/page/"):
+                    self.answer(site.page(int(path.rsplit("/", 1)[1])), "text/html; charset=utf-8")
+                elif path.endswith(".png"):
+                    self.answer(PIXEL, "image/png")
+                else:
+                    self.send_error(404)
+
+            def do_POST(self) -> None:  # noqa: N802
+                length = int(self.headers.get("Content-Length", "0"))
+                report = json.loads(self.rfile.read(length) or b"{}")
+                self.answer(json.dumps({"next": site.receive(report)}).encode(),
+                            "application/json")
+
+        return Handler
+
+
+def seed_content_blocking(data_root: str) -> None:
+    """Content blocking as a first run leaves it, from the committed lists rather than the network.
+
+    The lists are marked as fetched a moment ago, so the browser does not go looking for newer ones
+    on a network that has nothing on it. The off page's host is the one the per-site switch has
+    turned off, which is the comparison a reader makes and the one ADR 0050 made.
+    """
+    blocking = os.path.join(data_root, "content-blocking")
+    os.makedirs(os.path.join(blocking, "lists"))
+    now = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    subscriptions = []
+    for list_id, title in (("easylist", "EasyList"), ("easyprivacy", "EasyPrivacy")):
+        shutil.copyfile(FILTER_LISTS / f"{list_id}.txt",
+                        os.path.join(blocking, "lists", f"{list_id}.txt"))
+        subscriptions.append({
+            "id": list_id,
+            "title": title,
+            "source": "https://easylist.to/",
+            "license": "GPLv3 or CC BY-SA 3.0",
+            "updateAddress": f"https://easylist.to/easylist/{list_id}.txt",
+            "updateStatus": "current",
+            "lastUpdated": now,
+            "enabled": True,
+        })
+    settings = {
+        "version": 1,
+        "seeded": True,
+        "userRules": f"||{PAGELOAD_PROBE_HOST}^",
+        "disabledSites": [PAGELOAD_OFF_HOST],
+        "subscriptions": subscriptions,
+    }
+    with open(os.path.join(blocking, "settings.json"), "w", encoding="utf-8") as handle:
+        json.dump(settings, handle)
+
+
+class PrivateNetwork:
+    """A network with loopback on it and a DNS server that knows the run's names, and no other.
+
+    Entered by the process that runs the measurement, which is a child of this script's so that
+    the rest of the run keeps the machine's network. The namespace is a user namespace's, so no
+    privilege is needed, and the machine's `resolv.conf` and `nsswitch.conf` are covered rather
+    than changed: a bind mount in a private mount namespace is gone when the last process in it
+    is. `nsswitch.conf` is covered too because Arch's asks systemd-resolved first, over a socket
+    that reaches the machine's own resolver from any network.
+
+    The browser is not run as the namespace's root, which Chromium's sandbox refuses, but in a
+    user namespace nested inside it that maps the reader's own user back.
+    """
+
+    def __init__(self, root: str, zone: str) -> None:
+        self.root = root
+        self.zone = zone
+        self.user = os.getuid()
+        self.group = os.getgid()
+        self.dnsmasq: subprocess.Popen | None = None
+
+    @property
+    def launcher(self) -> tuple[str, ...]:
+        return ("unshare", "--user", f"--map-user={self.user}", f"--map-group={self.group}", "--")
+
+    def enter(self) -> None:
+        try:
+            os.unshare(os.CLONE_NEWUSER | os.CLONE_NEWNET | os.CLONE_NEWNS)
+        except (AttributeError, OSError) as error:
+            raise Unavailable(f"this machine would not make a private network: {error}") from error
+        for name, content in (("setgroups", "deny"), ("uid_map", f"0 {self.user} 1"),
+                              ("gid_map", f"0 {self.group} 1")):
+            with open(f"/proc/self/{name}", "w", encoding="utf-8") as handle:
+                handle.write(content)
+        self._run("ip", "link", "set", "lo", "up")
+        for name, content in (("resolv.conf", "nameserver 127.0.0.1\n"),
+                              ("nsswitch.conf", "hosts: files dns\n")):
+            path = os.path.join(self.root, name)
+            with open(path, "w", encoding="utf-8") as handle:
+                handle.write(content)
+            self._run("mount", "--bind", path, f"/etc/{name}")
+        configuration = os.path.join(self.root, "dnsmasq.conf")
+        with open(configuration, "w", encoding="utf-8") as handle:
+            handle.write(self.zone)
+        # Root here is the reader's own user outside, and it has no other user or group to drop
+        # to, so dnsmasq is told to stay as it is.
+        self.dnsmasq = subprocess.Popen(
+            ["dnsmasq", f"--conf-file={configuration}", "--keep-in-foreground", "--user=root",
+             "--group=", "--pid-file="],
+            stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
+        deadline = time.time() + 10
+        while time.time() < deadline:
+            if self.dnsmasq.poll() is not None:
+                raise MeasurementFailed(f"dnsmasq would not start: {self.dnsmasq.stderr.read()}")
+            try:
+                socket.getaddrinfo(PAGELOAD_EDGE_HOST, 80, socket.AF_INET)
+                return
+            except socket.gaierror:
+                time.sleep(0.05)
+        raise MeasurementFailed("dnsmasq started and never answered")
+
+    def leave(self) -> None:
+        if self.dnsmasq and self.dnsmasq.poll() is None:
+            self.dnsmasq.terminate()
+            self.dnsmasq.wait(timeout=10)
+
+    @staticmethod
+    def _run(*command: str) -> None:
+        result = subprocess.run(command, capture_output=True, text=True, check=False)
+        if result.returncode:
+            raise Unavailable(f"`{' '.join(command)}` failed in the private network: "
+                              f"{result.stderr.strip()}")
+
+
+def in_child(work) -> dict:
+    """Runs `work` in a child process and hands back what it returned or raised.
+
+    A namespace is entered by a process and not left, and the measurements after this one are the
+    machine's, so the one that needs a network of its own is run in a process that ends with it.
+    """
+    sys.stdout.flush()
+    reader, writer = os.pipe()
+    child = os.fork()
+    if child == 0:
+        os.close(reader)
+        try:
+            outcome = {"result": work()}
+        except Unavailable as error:
+            outcome = {"unavailable": str(error)}
+        except MeasurementFailed as error:
+            outcome = {"failed": str(error)}
+        except BaseException as error:  # noqa: BLE001 - the parent reports whatever it was
+            outcome = {"failed": f"{type(error).__name__}: {error}"}
+        with os.fdopen(writer, "w", encoding="utf-8") as handle:
+            json.dump(outcome, handle)
+        sys.stdout.flush()
+        os._exit(0)
+    os.close(writer)
+    with os.fdopen(reader, encoding="utf-8") as handle:
+        answer = handle.read()
+    os.waitpid(child, 0)
+    outcome = json.loads(answer or '{"failed": "the measurement ended without an answer"}')
+    if "unavailable" in outcome:
+        raise Unavailable(outcome["unavailable"])
+    if "failed" in outcome:
+        raise MeasurementFailed(outcome["failed"])
+    return outcome["result"]
+
+
+def run_pageload(executable: str) -> dict:
+    plan = pageload_plan()
+    workspace = Workspace()
+    network = PrivateNetwork(workspace.root, pageload_zone(plan))
+    site: PageLoadSite | None = None
+    browser = workspace.browser(executable)
+    try:
+        network.enter()
+        seed_content_blocking(os.path.join(workspace.root, "data"))
+        # After entering, so that its socket is on the private network's loopback.
+        site = PageLoadSite(plan)
+        site.start()
+        browser.start(site.start_address, launcher=network.launcher)
+        site.wait()
+    finally:
+        browser.stop()
+        if site:
+            site.stop()
+        network.leave()
+        workspace.discard()
+
+    results = {}
+    for case, hosts in PAGELOAD_CASES.items():
+        timings: dict[str, list[float]] = {"on": [], "off": []}
+        for load in plan:
+            if load.case != case or not load.measured:
+                continue
+            report = site.reports[load.number]
+            if report["loaded"] != PAGELOAD_IMAGES:
+                raise MeasurementFailed(
+                    f"a page with blocking {load.mode} showed {report['loaded']} of its "
+                    f"{PAGELOAD_IMAGES} images, so the two modes did not load the same page")
+            timings[load.mode].append(float(report["milliseconds"]))
+        summary = summarise_pageload(timings["on"], timings["off"])
+        log(f"  {PAGELOAD_IMAGES} images from {hosts} {case} hosts: {summary.on:.1f} ms on, "
+            f"{summary.off:.1f} ms off, {summary.added:.1f} ms added "
+            f"(medians of {PAGELOAD_LOADS} loads each)")
+        results[f"pageload_{case}_hosts_milliseconds"] = summary.added
+    return results
+
+
+def measure_pageload(executable: str, require_dns: bool) -> dict:
+    """What Content blocking as a whole adds to a page load, in the worst case and the common one.
+
+    That is the rule check, CNAME uncloaking where the engine carries it, the Refusal tally and the
+    refused-request list: everything that runs for a request with blocking on and not with the
+    site switched off. Only the default DNS path is measured. Secure DNS on sends lookups to a
+    public server, whose speed from a CI runner is not Omaweb's to hold to a number.
+    """
+    try:
+        missing = [f"{tool}, for {purpose}" for tool, purpose in PAGELOAD_TOOLS.items()
+                   if shutil.which(tool) is None]
+        if missing:
+            raise Unavailable(f"this needs {'; '.join(missing)}")
+        return in_child(lambda: run_pageload(executable))
+    except Unavailable as error:
+        if require_dns:
+            raise MeasurementFailed(f"{error}, and --require-dns says it may not skip") from error
+        raise
+
+
 MEASUREMENTS = {
     "startup": lambda arguments: measure_startup(arguments.browser, arguments.repetitions),
     "memory": lambda arguments: measure_memory(arguments.browser),
     "spaces": lambda arguments: measure_spaces(arguments.browser, arguments.spaces),
     "freezing": lambda arguments: measure_freezing(arguments.browser),
+    "pageload": lambda arguments: measure_pageload(arguments.browser, arguments.require_dns),
 }
 
 
@@ -628,7 +1166,8 @@ def report(results: dict, budget: dict) -> int:
     """
     thresholds = budget["measurements"]
     crossed = 0
-    units = {"startup_seconds": "s"}
+    units = {"startup_seconds": "s", "pageload_fresh_hosts_milliseconds": "ms",
+             "pageload_known_hosts_milliseconds": "ms"}
     log("")
     taken = budget["recorded_on"]
     log(f"ceilings recorded on: {budget['machine']}, {taken}" if taken else "ceilings: not yet")
@@ -670,6 +1209,8 @@ def main() -> int:
                         help="launches to take the median startup from")
     parser.add_argument("--spaces", type=int, default=4,
                         help="how many Spaces to open, the first one included")
+    parser.add_argument("--require-dns", action="store_true",
+                        help="fail pageload rather than skip it where its DNS server cannot run")
 
     parser.add_argument("--record", action="store_true",
                         help="write the measurements into the budget as its recorded numbers")
@@ -698,8 +1239,10 @@ def main() -> int:
         try:
             results.update(MEASUREMENTS[name](arguments))
         except Unavailable as error:
+            # One measurement this machine cannot take says nothing about the others: a desktop
+            # with no DNS server still has a startup time.
             log(f"skipped: {error}")
-            return 0
+            continue
         except MeasurementFailed as error:
             # The measurements already taken are still worth printing: a run that fell over on the
             # fourth one has three numbers in it, and the report is where the drift shows.

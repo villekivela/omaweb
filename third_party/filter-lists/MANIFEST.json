@@ -1,0 +1,15 @@
+{
+  "license": "GPL-3.0-or-later OR CC-BY-SA-3.0",
+  "files": {
+    "easylist.txt": {
+      "source": "https://easylist.to/easylist/easylist.txt",
+      "fetched": "2026-09-25",
+      "sha256": "72fdaf6af56578943bc5143a81ae0b9395061d08a599b725231d90e5ad74999b"
+    },
+    "easyprivacy.txt": {
+      "source": "https://easylist.to/easylist/easyprivacy.txt",
+      "fetched": "2026-09-25",
+      "sha256": "6101513927e7227333482d700cc5de8e4d559f1a6497e2c596b835b35c55cc8c"
+    }
+  }
+}
