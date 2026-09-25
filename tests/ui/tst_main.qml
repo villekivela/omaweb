@@ -1527,19 +1527,25 @@ TestCase {
         const third = findChild(panel, "refusedRequest2");
         const fourth = findChild(panel, "refusedRequest3");
         const overflow = findChild(panel, "refusedRequestOverflow");
+        const firstThrough = findChild(panel, "refusedRequestThrough0");
+        const cloakedThrough = findChild(panel, "refusedRequestThrough1");
         const texts = [tally ? tally.text : null, first ? first.text : null, cloaked ? cloaked.text :
                                                                                        null, third
                        ? third.text : null, fourth !== null && fourth.visible, overflow
-                       ? overflow.text : null];
+                       ? overflow.text : null, firstThrough !== null && firstThrough.visible,
+                       cloakedThrough !== null && cloakedThrough.visible ? cloakedThrough.text :
+                                                                           null];
 
         sidebar.statusOpen = false;
         panel.blocker = blocker;
         compare(texts[0], "· 5 requests blocked on this page");
         compare(texts[1], "· ads.example/banner.js");
-        compare(texts[2], "· metrics.news.example/collect.js, through collect.tracker.example");
+        compare(texts[2], "· metrics.news.example/collect.js");
         compare(texts[3], "· ads.example/second.js");
         compare(texts[4], false);
         compare(texts[5], "· and 2 more");
+        compare(texts[6], false);
+        compare(texts[7], "  through collect.tracker.example");
     }
 
     // A section label leans away from what precedes it. The panel's own name is

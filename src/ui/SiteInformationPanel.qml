@@ -256,24 +256,42 @@ Rectangle {
         // tracker's address is its payload, and it says nothing a reader
         // decides by. One refused through its host's CNAME chain names the
         // canonical name it matched, which is the only way a first-party
-        // address reads as refused for a reason.
+        // address reads as refused for a reason. The name has a line of its
+        // own: eliding both on one line at sidebar width cut out "through"
+        // and left what read as a single address.
         Repeater {
             model: root.refusals.requests.slice(0, root.listedRefusals)
 
-            Text {
+            Column {
+                id: refusal
+
                 required property int index
                 required property var modelData
 
-                objectName: "refusedRequest" + index
                 width: statusColumn.width
-                text: "· " + root.requestLabel(modelData.address) + (modelData.canonicalName
-                                                                     ? ", through "
-                                                                       + modelData.canonicalName :
-                                                                       "")
-                color: root.colors.mutedText
-                elide: Text.ElideMiddle
-                font.family: Style.font.family
-                font.pixelSize: Style.font.caption
+
+                Text {
+                    objectName: "refusedRequest" + refusal.index
+                    width: parent.width
+                    text: "· " + root.requestLabel(refusal.modelData.address)
+                    color: root.colors.mutedText
+                    elide: Text.ElideMiddle
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.caption
+                }
+
+                // Indented under the address it explains. A long name keeps
+                // its end, the registrable domain a rule names.
+                Text {
+                    objectName: "refusedRequestThrough" + refusal.index
+                    width: parent.width
+                    visible: !!refusal.modelData.canonicalName
+                    text: "  through " + (refusal.modelData.canonicalName || "")
+                    color: root.colors.mutedText
+                    elide: Text.ElideLeft
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.caption
+                }
             }
         }
 
