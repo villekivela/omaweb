@@ -23,6 +23,8 @@ a sidebar, separates browsing identities into Spaces, and follows the desktop th
   Scriptlets, and Substitute resources.
 - Site information shows connection state, certificate errors, permissions, stored data, and Content
   blocking activity.
+- Screenshot page saves what the page area shows as a PNG in the downloads location, and Copy
+  screenshot puts it on the clipboard.
 - High-risk downloads require confirmation, lose their execute permissions, and never open
   automatically.
 - Omaweb follows the desktop theme and can import terminal and Omarchy themes without restarting. A

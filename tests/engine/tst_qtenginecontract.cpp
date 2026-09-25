@@ -34,6 +34,7 @@ void setDnsAliasResolverForTesting(DnsAliasResolverForTesting resolver);
 #endif
 
 #include <QGuiApplication>
+#include <QImage>
 #include <QColor>
 #include <QDir>
 #include <QDirIterator>
@@ -242,6 +243,7 @@ private slots:
     void qtKeepsTheZoomItIsGivenAcrossNavigation();
     void qtSeparatesReloadBypassingCacheFromReloadAndStop();
     void qtRendersAPageForPrintingAndDrawsPdfsInline();
+    void qtCapturesThePageAreaAsTheEngineDrewIt();
     void qtReportsSiteFullscreenWithItsOrigin();
     void profileAdaptersHandOverNotifications_data();
     void profileAdaptersHandOverNotifications();
@@ -4648,6 +4650,81 @@ void QtEngineContractTest::qtSeparatesReloadBypassingCacheFromReloadAndStop()
     QVERIFY(QMetaObject::invokeMethod(adapter.get(), "stopLoading"));
     QTRY_VERIFY_WITH_TIMEOUT(!adapter->property("loading").toBool(), 15000);
     QCOMPARE(adapter->property("pageTitle").toString(), QStringLiteral("2"));
+}
+
+// A capture is the engine's own render of the page area at the display's
+// pixel density: a page painted in two halves comes back as those two halves,
+// the size of the view.
+void QtEngineContractTest::qtCapturesThePageAreaAsTheEngineDrewIt()
+{
+    PageServer server(R"HTML(<!doctype html><html><body style="margin: 0">
+        <div style="position: fixed; inset: 0 50% 0 0; background: rgb(200, 30, 40)"></div>
+        <div style="position: fixed; inset: 0 0 0 50%; background: rgb(20, 60, 210)"></div>
+        <script>requestAnimationFrame(() => requestAnimationFrame(() => {
+            document.title = "painted";
+        }));</script>
+    </body></html>)HTML");
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    QQmlEngine engine;
+    QQmlComponent component(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
+        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
+    }));
+    QVERIFY2(adapter, qPrintable(component.errorString()));
+    QQuickWindow window;
+    window.resize(400, 300);
+    auto *view = qobject_cast<QQuickItem *>(adapter.get());
+    view->setParentItem(window.contentItem());
+    view->setSize(QSizeF(400, 300));
+    window.show();
+    QVERIFY(adapter->setProperty("currentUrl",
+        QUrl(QStringLiteral("http://127.0.0.1:%1/page.html").arg(server.serverPort()))));
+    QTRY_COMPARE_WITH_TIMEOUT(
+        adapter->property("pageTitle").toString(), QStringLiteral("painted"), 15000);
+
+    // The page's own frames reach the window's scene a little after the page
+    // has painted them. Under the offscreen platform the scene is drawn by Qt
+    // Quick's software renderer, which the engine's frames never reach: the
+    // window shows the view's canvas and the web view itself draws nothing.
+    // The capture's answer and size are checked there too; what it shows can
+    // only be checked where the scene shows the page.
+    const auto ratio = window.effectiveDevicePixelRatio();
+    const bool pageDrawn = QTest::qWaitFor(
+        [&window, ratio] {
+            return window.grabWindow().pixelColor(qRound(100 * ratio), qRound(150 * ratio))
+                == QColor(200, 30, 40);
+        },
+        5000);
+
+    QSignalSpy captured(adapter.get(), SIGNAL(pageCaptured(QString, bool)));
+    const auto path = root.filePath(QStringLiteral("capture.png"));
+    QVERIFY(QMetaObject::invokeMethod(adapter.get(), "capturePage", Q_ARG(QVariant, path)));
+    QTRY_COMPARE_WITH_TIMEOUT(captured.size(), 1, 15000);
+    QCOMPARE(captured.first().at(0).toString(), path);
+    QVERIFY(captured.first().at(1).toBool());
+    auto image = QImage(path).convertToFormat(QImage::Format_RGB32);
+    QCOMPARE(image.size(), QSize(qRound(400 * ratio), qRound(300 * ratio)));
+
+    // With nowhere to write to there is nothing to capture into, and the
+    // answer says so rather than never coming.
+    QVERIFY(QMetaObject::invokeMethod(adapter.get(), "capturePage", Q_ARG(QVariant, QString())));
+    QTRY_COMPARE_WITH_TIMEOUT(captured.size(), 2, 5000);
+    QVERIFY(!captured.last().at(1).toBool());
+
+    if (!pageDrawn)
+        QSKIP("This platform's scene never shows the engine's frames, so what a capture shows "
+              "cannot be compared with the page here.");
+    // What the reader sees in the page area, and nothing else: the view fills
+    // the window, so the capture is the window's own render of it.
+    auto shown = window.grabWindow().convertToFormat(QImage::Format_RGB32);
+    shown.setDevicePixelRatio(1);
+    image.setDevicePixelRatio(1);
+    QCOMPARE(image, shown);
+    QCOMPARE(image.pixelColor(image.width() / 4, image.height() / 2), QColor(200, 30, 40));
+    QCOMPARE(image.pixelColor(image.width() * 3 / 4, image.height() / 2), QColor(20, 60, 210));
 }
 
 // The adapter renders the page into a PDF for the platform's print dialog to

@@ -157,6 +157,12 @@ QtObject {
         case "print":
             window.printPage();
             return true;
+        case "screenshot-page":
+            window.screenshotPage(false);
+            return true;
+        case "copy-screenshot":
+            window.screenshotPage(true);
+            return true;
         case "fullscreen":
             window.toggleBrowserFullscreen();
             return true;
@@ -410,6 +416,14 @@ QtObject {
                                                  group: "page",
                                                  title: "Print",
                                                  requires: "printing"
+                                             },
+                                             "screenshot-page": {
+                                                 group: "page",
+                                                 title: "Screenshot page"
+                                             },
+                                             "copy-screenshot": {
+                                                 group: "page",
+                                                 title: "Copy screenshot"
                                              },
                                              "fullscreen": {
                                                  group: "interface",

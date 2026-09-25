@@ -1401,6 +1401,56 @@ ApplicationWindow {
             engine.currentUrl = plainUrl;
     }
 
+    // What a capture on its way is for, keyed by the file it is written to:
+    // the downloads list, or the clipboard.
+    property var pendingCaptures: ({})
+
+    // The page area as the engine drew it, saved into the downloads location
+    // or copied. A tab with no page has nothing to capture, and says so rather
+    // than saving a picture of Omaweb's own Start page.
+    function screenshotPage(toClipboard) {
+        const command = toClipboard ? "Copy screenshot" : "Screenshot page";
+        if (!engineLoader.item || window.windowBrowser.activeTabBlank) {
+            window.showNotice("block", command + " is not available", engineLoader.item
+                              ? "The Start page is not a page to capture" :
+                                "There is no page here");
+            return;
+        }
+        const destination = toClipboard ? SystemClipboard.reserveImage() :
+                                          window.downloads.screenshotDestination(
+                                              window.windowBrowser.downloadDirectory,
+                                              window.windowBrowser.activeTitle);
+        if (destination.length === 0) {
+            window.showNotice("error", command + " failed",
+                              "The downloads location cannot be written to");
+            return;
+        }
+        const pending = window.pendingCaptures;
+        pending[destination] = {
+            "clipboard": toClipboard,
+            "page": window.windowBrowser.activeUrl
+        };
+        engineLoader.capturePage(destination);
+    }
+
+    function presentCapture(destination, succeeded) {
+        const capture = window.pendingCaptures[destination];
+        if (!capture)
+            return;
+        delete window.pendingCaptures[destination];
+        if (!succeeded) {
+            window.showNotice("error", "Screenshot failed", "The page could not be captured");
+            return;
+        }
+        if (!capture.clipboard) {
+            window.downloads.saved(destination, capture.page);
+        } else if (SystemClipboard.copyImage(destination)) {
+            window.showNotice("content_copy", "Screenshot copied", "", 3000);
+        } else {
+            window.showNotice("error", "Screenshot failed", "The clipboard did not take the image");
+        }
+    }
+
     function presentPrint(destination, succeeded) {
         if (!succeeded) {
             PagePrinter.discard(destination);
@@ -2498,6 +2548,10 @@ ApplicationWindow {
 
                     onPrintFinished: function (destination, succeeded) {
                         window.presentPrint(destination, succeeded);
+                    }
+
+                    onPageCaptured: function (destination, succeeded) {
+                        window.presentCapture(destination, succeeded);
                     }
 
                     // A site taking the screen is a state the window is in, not

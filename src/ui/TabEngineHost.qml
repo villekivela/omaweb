@@ -247,6 +247,7 @@ Item {
     readonly property bool siteFullscreenActive: root.fullscreenEngine !== null
 
     signal printFinished(string destination, bool succeeded)
+    signal pageCaptured(string destination, bool succeeded)
     signal auxiliaryWindowRequested(var engine, var request, url requestedUrl)
     signal newTabRequested(var engine, var request, url requestedUrl)
     signal backgroundTabRequested(url requestedUrl)
@@ -359,6 +360,15 @@ Item {
             root.activeEngine.printPage(destination);
         else
             root.printFinished(destination, false);
+    }
+
+    // In a split the active tab is the one captured: it is the one the reader
+    // is working in, and the command names no other.
+    function capturePage(destination) {
+        if (root.activeEngine)
+            root.activeEngine.capturePage(destination);
+        else
+            root.pageCaptured(destination, false);
     }
 
     function exitSiteFullscreen() {
@@ -1185,6 +1195,10 @@ Item {
 
                 function onPrintFinished(destination, succeeded) {
                     root.printFinished(destination, succeeded);
+                }
+
+                function onPageCaptured(destination, succeeded) {
+                    root.pageCaptured(destination, succeeded);
                 }
 
                 // The frontend's own close button, which is the reader saying

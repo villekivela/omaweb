@@ -198,6 +198,12 @@ reports the gap and remains experimental rather than imitating behavior it canno
 - Printing uses the native print dialog and includes the operating system's PDF destination. Where
   an engine provides a sandboxed PDF viewer, Omaweb opens PDFs inline with search, zoom, print, and
   download; another engine downloads the document and reports the missing capability.
+- Screenshot page saves the page area as the engine drew it, at the display's device pixel ratio and
+  with none of Omaweb's chrome, as a PNG named for the page's title and the moment into the
+  downloads location, and lists it in the downloads list as a finished download. Copy screenshot
+  puts the same image on the clipboard. In a split the active tab is captured; a Space at rest and
+  the Start page have no page to capture and say so. A Private window's screenshot lands in the same
+  downloads location, because the reader asked for a file.
 - Open file uses the native file picker for an explicitly selected HTML, text, image, or PDF file.
   Local pages receive no broad filesystem access; applications that need several local resources use
   a local server.

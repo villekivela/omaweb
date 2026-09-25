@@ -97,6 +97,8 @@ namespace {
         QStringLiteral("zoom-out"),
         QStringLiteral("zoom-reset"),
         QStringLiteral("print"),
+        QStringLiteral("screenshot-page"),
+        QStringLiteral("copy-screenshot"),
         QStringLiteral("fullscreen"),
         QStringLiteral("developer-tools"),
         QStringLiteral("inspect-element"),

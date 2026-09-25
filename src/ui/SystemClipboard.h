@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QObject>
+#include <QSize>
 #include <QString>
 
 namespace omaweb {
@@ -19,6 +20,14 @@ public:
     // clipboard is not what asking to copy nothing means.
     Q_INVOKABLE bool copyText(const QString &text);
     Q_INVOKABLE QString text() const;
+    // A file for an image to be written to before it is copied: the engine
+    // hands a capture over as a file, as it does a print.
+    Q_INVOKABLE QString reserveImage() const;
+    // Puts the image in `path` on the clipboard and removes the file, which was
+    // only ever the way the image arrived.
+    Q_INVOKABLE bool copyImage(const QString &path);
+    // The size of the image on the clipboard, empty when it holds none.
+    Q_INVOKABLE QSize imageSize() const;
 };
 
 // Makes `SystemClipboard` available to QML as `import Omaweb`. Call once per

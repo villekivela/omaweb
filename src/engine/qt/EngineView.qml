@@ -205,6 +205,7 @@ Item {
     // about it: a print that produced nothing is not a print that quietly
     // didn't happen.
     signal printFinished(string destination, bool succeeded)
+    signal pageCaptured(string destination, bool succeeded)
     // The reader dealt with this page themselves. What that earns the origin is
     // the shell's to decide and remember; the adapter only reports it.
     signal userActivated
@@ -732,6 +733,21 @@ Item {
             return;
         }
         webView.printToPdf(path);
+    }
+
+    // The engine's own render of the page area, grabbed from the scene the
+    // view is drawn in: the web view alone, so nothing Omaweb draws over the
+    // page is in it, at the pixel density the reader sees it at.
+    function capturePage(destination) {
+        const path = String(destination);
+        // Grabbed at the item's own size, which the scene renders at the
+        // window's pixel density.
+        const grabbing = path.length > 0 && webView.width > 0 && webView.height > 0
+              && webView.grabToImage(function (result) {
+                  root.pageCaptured(path, result.saveToFile(path));
+              });
+        if (!grabbing)
+            root.pageCaptured(path, false);
     }
 
     // Who a request came from, as the reader would recognise them. The engine

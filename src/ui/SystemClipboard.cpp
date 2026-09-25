@@ -1,8 +1,13 @@
 #include "SystemClipboard.h"
 
 #include <QClipboard>
+#include <QDir>
+#include <QFile>
 #include <QGuiApplication>
+#include <QImage>
 #include <QQmlEngine>
+#include <QStandardPaths>
+#include <QUuid>
 
 namespace omaweb {
 
@@ -25,6 +30,31 @@ QString SystemClipboard::text() const
 {
     auto *clipboard = QGuiApplication::clipboard();
     return clipboard ? clipboard->text() : QString {};
+}
+
+QString SystemClipboard::reserveImage() const
+{
+    const QDir temporary(QStandardPaths::writableLocation(QStandardPaths::TempLocation));
+    return temporary.filePath(QStringLiteral("omaweb-capture-%1.png")
+            .arg(QUuid::createUuid().toString(QUuid::WithoutBraces)));
+}
+
+bool SystemClipboard::copyImage(const QString &path)
+{
+    auto *clipboard = QGuiApplication::clipboard();
+    const QImage image(path);
+    QFile::remove(path);
+    if (!clipboard || image.isNull()) {
+        return false;
+    }
+    clipboard->setImage(image);
+    return true;
+}
+
+QSize SystemClipboard::imageSize() const
+{
+    auto *clipboard = QGuiApplication::clipboard();
+    return clipboard ? clipboard->image().size() : QSize {};
 }
 
 void registerSystemClipboard()

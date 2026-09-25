@@ -274,6 +274,7 @@ Rectangle {
     signal browserPromptRequested(string requestId, var prompt)
     signal fileSelectionRequested(string requestId, var selection)
     signal printFinished(string destination, bool succeeded)
+    signal pageCaptured(string destination, bool succeeded)
     signal userActivated
     property rect pressOrigin: Qt.rect(0, 0, 0, 0)
     function simulatePress(x, y, width, height) {
@@ -513,6 +514,20 @@ Rectangle {
     function printPage(destination) {
         const path = String(destination);
         root.printFinished(path, path.length > 0);
+    }
+
+    // The lab's stand-in page is what a capture takes, drawn the same way the
+    // engine's page would be: the view alone, at the display's pixel density.
+    function capturePage(destination) {
+        const path = String(destination);
+        // Grabbed at the item's own size, which the scene renders at the
+        // window's pixel density.
+        const grabbing = path.length > 0 && root.width > 0 && root.height > 0 && root.grabToImage(
+                  function (result) {
+                      root.pageCaptured(path, result.saveToFile(path));
+                  });
+        if (!grabbing)
+            root.pageCaptured(path, false);
     }
 
     function exitSiteFullscreen() {
