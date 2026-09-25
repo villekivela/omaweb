@@ -48,6 +48,7 @@ void setDnsAliasResolverForTesting(DnsAliasResolverForTesting resolver);
 #include <QQmlEngine>
 #include <QQuickItem>
 #include <QQuickWindow>
+#include <QRegularExpression>
 #include <QScopeGuard>
 #include <QSet>
 #include <QSignalSpy>
@@ -107,6 +108,8 @@ public:
     {
         return {};
     }
+    Q_INVOKABLE QString proceduralActions(const QUrl &) const { return QStringLiteral("[]"); }
+    Q_INVOKABLE QString proceduralFilterSource() const { return {}; }
 
     const QList<QPair<QString, QUrl>> &announced() const { return m_announced; }
 
@@ -137,6 +140,8 @@ static QByteArray blockerFakeSource()
             function cosmeticStyleSheet(url) { return ""; }
             function scriptletSource(url) { return ""; }
             function cosmeticSurveyWanted(url) { return surveyWanted; }
+            function proceduralActions(url) { return "[]"; }
+            function proceduralFilterSource() { return ""; }
             function genericCosmeticStyleSheet(url, classes, ids) {
                 genericRequests += 1;
                 surveys = surveys.concat([{ url: String(url), classes: Array.from(classes),
@@ -196,6 +201,13 @@ private slots:
     void qtRunsScriptletsBeforeThePageRuns();
     void qtMatchesWhatEveryProceduralOperatorNames_data();
     void qtMatchesWhatEveryProceduralOperatorNames();
+    void qtAppliesEveryProceduralOperatorAndAction_data();
+    void qtAppliesEveryProceduralOperatorAndAction();
+    void qtAppliesProceduralRulesToWhatThePageAddsLater();
+    void qtUndoesProceduralRulesWhenTheSiteIsSwitchedOff();
+    void qtAppliesTheProceduralRulesOfEachFramesOwnAddress_data();
+    void qtAppliesTheProceduralRulesOfEachFramesOwnAddress();
+    void qtKeepsTheProceduralApplierOutOfThePagesReach();
     void qtHandsThePaletteOnlyToAPageThatAsks_data();
     void qtHandsThePaletteOnlyToAPageThatAsks();
     void qtPaintsAPageOnWhiteAndTheThemeWhereNoneHasPainted();
@@ -2369,6 +2381,277 @@ void QtEngineContractTest::qtMatchesWhatEveryProceduralOperatorNames()
                        .arg(selector),
             QWebEngineScript::ApplicationWorld);
     QCOMPARE(found.toStringList(), matches);
+}
+
+namespace {
+
+// A Qt view on a real content blocker holding `rules`, in a window of its
+// own. The members are declared in the order they have to go away in
+// reverse: the view before the blocker it asks.
+struct ProceduralFilteringView {
+    QTemporaryDir root;
+    std::unique_ptr<omaweb::ContentBlocker> blocker;
+    QQmlEngine engine;
+    std::unique_ptr<QObject> adapter;
+    QQuickWindow window;
+
+    explicit ProceduralFilteringView(const QString &rules)
+    {
+        blocker = std::make_unique<omaweb::ContentBlocker>(
+            root.path(), omaweb::ContentBlocker::DefaultLists::None);
+        blocker->setUserRules(rules);
+        if (!QTest::qWaitFor([this] { return !blocker->compiling(); }, 5000))
+            qWarning() << "The rules did not compile in time";
+        QQmlComponent component(
+            &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+        adapter.reset(component.createWithInitialProperties({
+            {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
+            {QStringLiteral("contentBlocker"), QVariant::fromValue<QObject *>(blocker.get())},
+        }));
+        if (!adapter)
+            qWarning() << component.errorString();
+        else
+            qobject_cast<QQuickItem *>(adapter.get())->setParentItem(window.contentItem());
+        window.show();
+    }
+
+    ~ProceduralFilteringView()
+    {
+        adapter.reset();
+        blocker.reset();
+    }
+
+    QString title() const { return adapter->property("pageTitle").toString(); }
+};
+
+// What the page's own world sees of an element: gone, or shown or hidden,
+// with the outline a `:style()` rule gives it and the attribute and class
+// the removal rules take away.
+const QByteArray proceduralStateScript(R"JS(
+        const read = id => {
+            const element = document.getElementById(id);
+            if (!element) return "gone";
+            const style = getComputedStyle(element);
+            return [style.display === "none" ? "hidden" : "shown",
+                    style.outlineStyle === "solid" ? "styled" : "",
+                    element.hasAttribute("data-track") ? "tracked" : "",
+                    element.classList.contains("promo") ? "promo" : ""]
+                .filter(Boolean).join(" ");
+        };
+    )JS");
+
+} // namespace
+
+// Each operator and action the pinned parser reads, through Content blocking
+// and the view to the page: the element the rule names is hidden, restyled,
+// removed or stripped, and the one beside it is left as it was.
+void QtEngineContractTest::qtAppliesEveryProceduralOperatorAndAction_data()
+{
+    QTest::addColumn<QString>("rule");
+    QTest::addColumn<QByteArray>("page");
+    QTest::addColumn<QString>("expected");
+
+    QFile file(QStringLiteral(OMAWEB_PROCEDURAL_RULES_PATH));
+    QVERIFY(file.open(QIODevice::ReadOnly));
+    for (const auto &value : QJsonDocument::fromJson(file.readAll()).array()) {
+        const auto row = value.toObject();
+        const auto action = row.value(QStringLiteral("action"))
+                                .toObject()
+                                .value(QStringLiteral("action"))
+                                .toObject()
+                                .value(QStringLiteral("type"))
+                                .toString();
+        const bool matches = !row.value(QStringLiteral("matches")).toArray().isEmpty();
+        QString expected;
+        if (!matches)
+            expected = QStringLiteral("gone|shown");
+        else if (action.isEmpty())
+            expected = QStringLiteral("hidden|shown");
+        else if (action == QStringLiteral("remove"))
+            expected = QStringLiteral("gone|shown");
+        else if (action == QStringLiteral("style"))
+            expected = QStringLiteral("shown styled|shown");
+        else if (action == QStringLiteral("remove-attr"))
+            expected = QStringLiteral("shown|shown tracked");
+        else if (action == QStringLiteral("remove-class"))
+            expected = QStringLiteral("shown|shown promo");
+        QTest::newRow(qPrintable(row.value(QStringLiteral("name")).toString()))
+            << row.value(QStringLiteral("rule")).toString()
+            << row.value(QStringLiteral("page")).toString().toUtf8() << expected;
+    }
+}
+
+void QtEngineContractTest::qtAppliesEveryProceduralOperatorAndAction()
+{
+    QFETCH(QString, rule);
+    QFETCH(QByteArray, page);
+    QFETCH(QString, expected);
+
+    PageServer server(
+        "<!doctype html><html><body>" + page + "<script>" + proceduralStateScript + R"JS(
+            const report = () => {
+                document.title = read("match") + "|" + read("miss");
+                requestAnimationFrame(report);
+            };
+            report();
+        </script></body></html>)JS");
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+    ProceduralFilteringView view(rule);
+    QVERIFY(view.adapter);
+    QVERIFY(view.adapter->setProperty("currentUrl",
+        QUrl(QStringLiteral("http://127.0.0.1:%1/procedural.html").arg(server.serverPort()))));
+    QTRY_COMPARE_WITH_TIMEOUT(view.title(), expected, 15000);
+}
+
+// A matching element the page adds after load is handled within the watch's
+// interval: a feed that pages in more cards gets its sponsored ones hidden as
+// they arrive, not at the next navigation.
+void QtEngineContractTest::qtAppliesProceduralRulesToWhatThePageAddsLater()
+{
+    PageServer server(R"HTML(<!doctype html><html><body>
+        <div class="card" id="first">Sponsored</div>
+        <script>
+            addEventListener("load", () => setTimeout(() => {
+                const card = document.createElement("div");
+                card.className = "card";
+                card.textContent = "Sponsored later";
+                const added = performance.now();
+                new MutationObserver(() => {
+                    if (getComputedStyle(card).display === "none" && !document.title)
+                        document.title = "late:" + Math.ceil(performance.now() - added);
+                }).observe(card, { attributes: true });
+                document.body.append(card);
+            }, 500));
+        </script>
+    </body></html>)HTML");
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+    ProceduralFilteringView view(QStringLiteral("127.0.0.1##.card:has-text(Sponsored)"));
+    QVERIFY(view.adapter);
+    QVERIFY(view.adapter->setProperty("currentUrl",
+        QUrl(QStringLiteral("http://127.0.0.1:%1/late.html").arg(server.serverPort()))));
+    QTRY_VERIFY_WITH_TIMEOUT(view.title().startsWith(QStringLiteral("late:")), 15000);
+    const int latency = view.title().section(':', 1).toInt();
+    QVERIFY2(latency <= 100, qPrintable(view.title()));
+}
+
+// A site switched off with its page open gets back what the rules hid,
+// restyled and stripped, without a reload. What `:remove()` took out stays out
+// until the page loads again. Switching the site back on applies the rules
+// again.
+void QtEngineContractTest::qtUndoesProceduralRulesWhenTheSiteIsSwitchedOff()
+{
+    PageServer server("<!doctype html><html><body>"
+                      "<div class=\"card promo\" id=\"hide\" data-track=\"1\">Hide</div>"
+                      "<div class=\"card\" id=\"style\">Style</div>"
+                      "<div class=\"card\" id=\"remove\">Remove</div><script>"
+        + proceduralStateScript + R"JS(
+            const report = () => {
+                document.title = read("hide") + "|" + read("style") + "|" + read("remove");
+                requestAnimationFrame(report);
+            };
+            report();
+        </script></body></html>)JS");
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+    ProceduralFilteringView view(
+        QStringLiteral("127.0.0.1##.card:has-text(Hide)\n"
+                       "127.0.0.1##.card:has-text(Style):style(outline: 3px solid red !important)\n"
+                       "127.0.0.1##.card:has-text(Remove):remove()\n"
+                       "127.0.0.1##.card:remove-attr(data-track)\n"
+                       "127.0.0.1##.card:remove-class(promo)"));
+    QVERIFY(view.adapter);
+    const QUrl page(QStringLiteral("http://127.0.0.1:%1/page.html").arg(server.serverPort()));
+    QVERIFY(view.adapter->setProperty("currentUrl", page));
+    const QString applied = QStringLiteral("hidden|shown styled|gone");
+    QTRY_COMPARE_WITH_TIMEOUT(view.title(), applied, 15000);
+
+    view.blocker->setSiteEnabled(page, false);
+    QTRY_COMPARE_WITH_TIMEOUT(
+        view.title(), QStringLiteral("shown tracked promo|shown|gone"), 15000);
+    view.blocker->setSiteEnabled(page, true);
+    QTRY_COMPARE_WITH_TIMEOUT(view.title(), applied, 15000);
+}
+
+// A subframe from another site gets the rules of its own address, not the
+// page's: each loopback name is its own site, and a rule is written against
+// one of them.
+void QtEngineContractTest::qtAppliesTheProceduralRulesOfEachFramesOwnAddress_data()
+{
+    QTest::addColumn<QString>("rule");
+    QTest::addColumn<QString>("expected");
+    QTest::newRow("the-page's-site")
+        << QStringLiteral("127.0.0.1##.card:has-text(Sponsored)") << QStringLiteral("hidden|shown");
+    QTest::newRow("the-frame's-site")
+        << QStringLiteral("localhost##.card:has-text(Sponsored)") << QStringLiteral("shown|hidden");
+}
+
+void QtEngineContractTest::qtAppliesTheProceduralRulesOfEachFramesOwnAddress()
+{
+    QFETCH(QString, rule);
+    QFETCH(QString, expected);
+    PageServer server("<!doctype html><html><body>"
+                      "<div class=\"card\" id=\"match\">Sponsored</div><script>"
+        + proceduralStateScript + R"JS(
+            if (window === top) {
+                let inner = "";
+                addEventListener("message", event => { inner = String(event.data); });
+                const frame = document.createElement("iframe");
+                frame.src = "http://localhost:" + location.port + "/frame.html";
+                document.body.appendChild(frame);
+                const report = () => {
+                    document.title = read("match") + "|" + inner;
+                    requestAnimationFrame(report);
+                };
+                report();
+            } else {
+                const tell = () => {
+                    parent.postMessage(read("match"), "*");
+                    setTimeout(tell, 50);
+                };
+                tell();
+            }
+        </script></body></html>)JS");
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+    ProceduralFilteringView view(rule);
+    QVERIFY(view.adapter);
+    QVERIFY(view.adapter->setProperty("currentUrl",
+        QUrl(QStringLiteral("http://127.0.0.1:%1/page.html").arg(server.serverPort()))));
+    QTRY_COMPARE_WITH_TIMEOUT(view.title(), expected, 15000);
+}
+
+// The page shares the DOM with the applier and nothing else: it cannot read
+// the applier's state or the matcher from its own world, and the attribute a
+// hide sets is named afresh for each document, so no fixed name finds it.
+void QtEngineContractTest::qtKeepsTheProceduralApplierOutOfThePagesReach()
+{
+    PageServer server(R"HTML(<!doctype html><html><body>
+        <div class="card" id="match">Sponsored</div>
+        <script>
+            const report = () => {
+                const names = document.getElementById("match").getAttributeNames()
+                    .filter(name => name !== "id" && name !== "class");
+                document.title = typeof globalThis.__omawebProcedural + "|"
+                    + typeof globalThis.omawebProceduralFilters + "|" + names.join(",")
+                    + location.search;
+                requestAnimationFrame(report);
+            };
+            report();
+        </script>
+    </body></html>)HTML");
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+    ProceduralFilteringView view(QStringLiteral("127.0.0.1##.card:has-text(Sponsored)"));
+    QVERIFY(view.adapter);
+    QStringList markers;
+    for (int load = 1; load <= 2; ++load) {
+        QVERIFY(view.adapter->setProperty("currentUrl",
+            QUrl(QStringLiteral("http://127.0.0.1:%1/page.html?load=%2")
+                    .arg(server.serverPort())
+                    .arg(load))));
+        const QRegularExpression reached(
+            QStringLiteral("^undefined\\|undefined\\|([a-z0-9]+)\\?load=%1$").arg(load));
+        QTRY_VERIFY_WITH_TIMEOUT(reached.match(view.title()).hasMatch(), 15000);
+        markers.append(reached.match(view.title()).captured(1));
+    }
+    QVERIFY(markers.first() != markers.last());
 }
 
 // A `##+js(...)` rule is worth something only if its scriptlet has already run

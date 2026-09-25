@@ -487,6 +487,13 @@ public:
         return m_matcher->genericCosmeticStyleSheet(url, classes, ids);
     }
 
+    Q_INVOKABLE QString proceduralActions(const QUrl &url) const
+    {
+        return m_matcher->proceduralActions(url);
+    }
+
+    Q_INVOKABLE QString proceduralFilterSource() const { return {}; }
+
     Q_INVOKABLE bool shouldBlockPopup(const QUrl &, const QUrl &, const QString &) const
     {
         return false;

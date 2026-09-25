@@ -754,6 +754,22 @@ TestCase {
         verify(support.text.indexOf("$cname") >= 0);
     }
 
+    // Procedural cosmetic rules are the Qt engine's, and the engine that lacks
+    // them is named whichever engine the build runs (ADR 0052).
+    function test_contentBlockingNamesTheEngineThatLacksProceduralFiltering() {
+        const page = makePage();
+        page.section = page.sections.indexOf("content blocking");
+        const support = findChild(page, "contentBlockingSupport");
+        verify(support !== null);
+        verify(support.text.indexOf("Procedural cosmetic rules are not applied") >= 0);
+        verify(support.text.indexOf("Ladybird") >= 0);
+
+        page.proceduralCosmeticFilteringAvailable = true;
+        verify(support.text.indexOf("Procedural cosmetic rules written for a site are applied")
+               >= 0);
+        verify(support.text.indexOf("except on the Ladybird engine") >= 0);
+    }
+
     // The lists' procedural rules the pinned parser cannot carry are named apart
     // from the rest of what the lists say and this build does not act on.
     function test_contentBlockingNamesTheProceduralOperatorsItLacks() {

@@ -47,6 +47,10 @@ public:
         // to resolve the host for the interceptor, which the patched Qt engine
         // does and Ladybird does not (ADR 0050).
         CnameUncloaking = 1 << 15,
+        // Whether the engine applies the procedural cosmetic rules Content
+        // blocking hands it: the Qt engine runs the vendored matcher in each
+        // frame, and Ladybird has no adapter to run it yet (ADR 0052).
+        ProceduralCosmeticFiltering = 1 << 16,
     };
     Q_DECLARE_FLAGS(Capabilities, Capability)
     Q_FLAG(Capabilities)

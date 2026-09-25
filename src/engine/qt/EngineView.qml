@@ -95,6 +95,7 @@ Item {
                                             ? EngineCapabilities.KnownExtensions : 0) | (
                                             EngineBuild.cnameUncloaking
                                             ? EngineCapabilities.CnameUncloaking : 0)
+                                        | EngineCapabilities.ProceduralCosmeticFiltering
     // Which Space's browsing identity these pages belong to. Handed down with
     // the profile, because it is the profile that decides it: Content blocking
     // keys the Refusal tally by it, and its interception is attached per
@@ -1373,6 +1374,54 @@ Item {
         return script;
     }
 
+    // Procedural cosmetic rules (ADR 0052). Every frame asks for the rules of
+    // its own address as its document is created, so a subframe from another
+    // site gets that site's rules, and the answer loads the vendored matcher
+    // into the frame's application world only when there are any. The matcher
+    // needs a DOM to search, so a rule applies as the document parses rather
+    // than before it, and goes on applying for the life of the page.
+    property var proceduralFiltersScript: {
+        const script = WebEngine.script();
+        script.name = "Omaweb procedural filters";
+        script.injectionPoint = WebEngineScript.DocumentCreation;
+        script.worldId = WebEngineScript.ApplicationWorld;
+        script.runsOnSubFrames = true;
+        script.sourceCode = root.reporting("report('procedural_filters', { url: location.href });");
+        return script;
+    }
+    // Starts this frame's rules. `restart` replaces rules already running, for
+    // rules or a site decision that changed under the document; without it a
+    // frame that already has its rules keeps them. A frame left with none is
+    // told to stop, which undoes everything but what `:remove()` took out.
+    function applyProceduralRules(frame, restart) {
+        const blocker = root.contentBlocker;
+        const actions = blocker ? blocker.proceduralActions(frame.url) : "[]";
+        if (actions === "[]") {
+            if (restart)
+                root.runInFrameApplicationWorld(frame, "globalThis.__omawebProcedural?.stop();");
+            return;
+        }
+        root.runInFrameApplicationWorld(frame, "if (!globalThis.__omawebProcedural) {\n"
+                                        + blocker.proceduralFilterSource()
+                                        + "\n}\nglobalThis.__omawebProcedural.start(" + actions
+                                        + ", " + !restart + ");");
+    }
+    function readProceduralFilters(text) {
+        let asked;
+        try {
+            asked = JSON.parse(text);
+        } catch (error) {
+            return;
+        }
+        if (!asked || !root.contentBlocker)
+            return;
+        const reported = String(Qt.resolvedUrl(String(asked.url)));
+        root.forEachFrame(webView.mainFrame, function (frame) {
+            if (String(frame.url) === reported)
+                root.applyProceduralRules(frame, false);
+        });
+    }
+
     // The site stylesheet is verified in the survey's round trip. The page may
     // have dropped the sheet from `adoptedStyleSheets` since document creation.
     // Only the main frame has one: the site rules go in at document creation,
@@ -1401,6 +1450,10 @@ Item {
         const blocker = root.contentBlocker;
         if (survey.whole && frame.isMainFrame)
             root.documentSurveyed = true;
+        // A frame whose document was created before the view's scripts reached
+        // it never asked for its procedural rules, so the survey asks for it.
+        if (survey.whole)
+            root.applyProceduralRules(frame, false);
         if (!blocker.cosmeticSurveyWanted(frame.url)) {
             if (survey.whole)
                 root.clearGenericCosmeticRules(frame, root.siteRepairSnippet(frame));
@@ -1570,6 +1623,10 @@ Item {
         root.blockingRulesChangedSinceLoad = true;
         root.cosmeticRuleGeneration += 1;
         root.surveyGenericCosmeticRules();
+        if (!loading)
+            root.forEachFrame(webView.mainFrame, function (frame) {
+                root.applyProceduralRules(frame, true);
+            });
     }
 
     Connections {
@@ -2191,7 +2248,7 @@ Item {
                 root.externalProtocolOriginScript, root.documentPaintedScript,
                 root.userActivationScript, root.pressOriginScript, root.controlAccentScript,
                 root.pagePaletteScript, root.pageScrollbarScript, root.pageScrollReportScript,
-                root.mediaSessionScript, root.cosmeticSurveyScript];
+                root.mediaSessionScript, root.cosmeticSurveyScript, root.proceduralFiltersScript];
     }
 
     property var externalProtocolOriginScript: {
@@ -2494,6 +2551,8 @@ Item {
                 root.readPageScroll(report.body);
             } else if (report.channel === "cosmetic_survey") {
                 root.readCosmeticSurvey(report.body);
+            } else if (report.channel === "procedural_filters") {
+                root.readProceduralFilters(report.body);
             } else if (report.channel === "media_session") {
                 try {
                     root.pageMediaSession = JSON.parse(report.body);

@@ -20,12 +20,16 @@ class EngineBuild final : public QObject {
     // interceptor the host's DNS aliases, which CNAME uncloaking needs
     // (ADR 0050). Read from the engine's own headers when Omaweb is built.
     Q_PROPERTY(bool cnameUncloaking READ cnameUncloaking CONSTANT)
+    // Whether the engine this build runs applies procedural cosmetic rules
+    // (ADR 0052). Every Qt engine does; a Ladybird build will not.
+    Q_PROPERTY(bool proceduralCosmeticFiltering READ proceduralCosmeticFiltering CONSTANT)
 
 public:
     explicit EngineBuild(QObject *parent = nullptr);
 
     bool knownExtensions() const;
     bool cnameUncloaking() const;
+    bool proceduralCosmeticFiltering() const;
 };
 
 // Makes `EngineBuild` available to QML as `import Omaweb.Engine`. Call once per

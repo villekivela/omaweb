@@ -84,7 +84,7 @@ a reader needs to fetch the corresponding source for a GPL-licensed copy.
 from the places those things are already pinned rather than restated by hand. Every release carries
 one, and the Arch package installs it as `share/omaweb/sbom.json`.
 
-It covers what Omaweb ships: the Rust dependency graph the content blocker links, the two vendored
+It covers what Omaweb ships: the Rust dependency graph the content blocker links, the three vendored
 web-asset directories, and the icon font. It does not cover the web engine, and that is deliberate.
 The engine is its own package, `omaweb-qtwebengine`, which carries its own notices in
 `share/licenses/omaweb-qtwebengine`: the LGPL-3.0 text QtWebEngine's code is under, Chromium's

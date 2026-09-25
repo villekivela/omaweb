@@ -19,8 +19,8 @@ a sidebar, separates browsing identities into Spaces, and follows the desktop th
   from the active keymap.
 - Pinned tabs, Private windows, site-requested Auxiliary windows, and recently closed tabs are built
   in.
-- Content blocking supports EasyList, EasyPrivacy, cosmetic rules, Scriptlets, and Substitute
-  resources.
+- Content blocking supports EasyList, EasyPrivacy, cosmetic rules including procedural ones,
+  Scriptlets, and Substitute resources.
 - Site information shows connection state, certificate errors, permissions, stored data, and Content
   blocking activity.
 - High-risk downloads require confirmation, lose their execute permissions, and never open
