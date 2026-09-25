@@ -39,6 +39,9 @@ void setDnsAliasResolverForTesting(DnsAliasResolverForTesting resolver);
 #include <QFileInfo>
 #include <QFile>
 #include <QFontDatabase>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QMetaMethod>
 #include <QQmlComponent>
 #include <QQmlContext>
@@ -60,6 +63,9 @@ void setDnsAliasResolverForTesting(DnsAliasResolverForTesting resolver);
 #include <QtWebEngineCore/QWebEngineCertificateError>
 #include <QtWebEngineCore/QWebEnginePermission>
 #include <QtWebEngineCore/QWebEngineNewWindowRequest>
+#include <QtWebEngineCore/QWebEnginePage>
+#include <QtWebEngineCore/QWebEngineProfile>
+#include <QtWebEngineCore/QWebEngineScript>
 #include <QtWebEngineQuick/QQuickWebEngineProfile>
 
 #include <memory>
@@ -188,6 +194,8 @@ private slots:
     void qtSkipsTheLateSurveyOnAGenerichideSite();
     void qtStartsTheWatchOverOnNavigation();
     void qtRunsScriptletsBeforeThePageRuns();
+    void qtMatchesWhatEveryProceduralOperatorNames_data();
+    void qtMatchesWhatEveryProceduralOperatorNames();
     void qtHandsThePaletteOnlyToAPageThatAsks_data();
     void qtHandsThePaletteOnlyToAPageThatAsks();
     void qtPaintsAPageOnWhiteAndTheThemeWhereNoneHasPainted();
@@ -2282,6 +2290,85 @@ void QtEngineContractTest::qtStartsTheWatchOverOnNavigation()
     QCOMPARE(classes(3), (QSet<QString> {"late"}));
     QTest::qWait(250);
     QCOMPARE(surveys().size(), 4);
+}
+
+// The vendored matcher, fed the operator JSON the pinned parser emits for one
+// rule per operator, finds the element the rule names and not the one beside
+// it. The JSON is the parser's own, read back from the C interface by
+// tst_contentblocker, so a matcher bump that renames an operator fails here
+// rather than on a page. The bundle runs in the application world, and the
+// page's own world never sees its global.
+void QtEngineContractTest::qtMatchesWhatEveryProceduralOperatorNames_data()
+{
+    QTest::addColumn<QByteArray>("page");
+    QTest::addColumn<QString>("selector");
+    QTest::addColumn<QStringList>("matches");
+
+    QFile file(QStringLiteral(OMAWEB_PROCEDURAL_RULES_PATH));
+    QVERIFY(file.open(QIODevice::ReadOnly));
+    const auto rows = QJsonDocument::fromJson(file.readAll()).array();
+    QVERIFY(!rows.isEmpty());
+    for (const auto &value : rows) {
+        const auto row = value.toObject();
+        QStringList matches;
+        for (const auto &id : row.value(QStringLiteral("matches")).toArray())
+            matches.append(id.toString());
+        const QJsonDocument selector(row.value(QStringLiteral("action"))
+                .toObject()
+                .value(QStringLiteral("selector"))
+                .toArray());
+        QTest::newRow(qPrintable(row.value(QStringLiteral("name")).toString()))
+            << row.value(QStringLiteral("page")).toString().toUtf8()
+            << QString::fromUtf8(selector.toJson(QJsonDocument::Compact)) << matches;
+    }
+}
+
+void QtEngineContractTest::qtMatchesWhatEveryProceduralOperatorNames()
+{
+    QFETCH(QByteArray, page);
+    QFETCH(QString, selector);
+    QFETCH(QStringList, matches);
+
+    QFile bundle(QStringLiteral(OMAWEB_PROCEDURAL_FILTERS_PATH));
+    QVERIFY(bundle.open(QIODevice::ReadOnly));
+    const auto matcher = QString::fromUtf8(bundle.readAll());
+
+    PageServer server("<!doctype html><html><body>" + page + "</body></html>");
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+    QWebEngineProfile profile;
+    QWebEnginePage webPage(&profile);
+    QSignalSpy loaded(&webPage, &QWebEnginePage::loadFinished);
+    webPage.load(
+        QUrl(QStringLiteral("http://127.0.0.1:%1/procedural.html").arg(server.serverPort())));
+    QTRY_COMPARE_WITH_TIMEOUT(loaded.size(), 1, 15000);
+    QVERIFY(loaded.first().first().toBool());
+
+    const auto evaluate = [&webPage](const QString &script, quint32 world) {
+        std::optional<QVariant> result;
+        webPage.runJavaScript(script, world, [&result](const QVariant &value) { result = value; });
+        if (!QTest::qWaitFor([&result] { return result.has_value(); }, 5000))
+            return QVariant(QStringLiteral("no answer"));
+        return *result;
+    };
+    evaluate(matcher, QWebEngineScript::ApplicationWorld);
+    QCOMPARE(evaluate(QStringLiteral("typeof omawebProceduralFilters"),
+                 QWebEngineScript::ApplicationWorld)
+                 .toString(),
+        QStringLiteral("object"));
+    QCOMPARE(evaluate(QStringLiteral("typeof omawebProceduralFilters"), QWebEngineScript::MainWorld)
+                 .toString(),
+        QStringLiteral("undefined"));
+
+    const auto found
+        = evaluate(QStringLiteral("(() => {"
+                                  "  const filters = omawebProceduralFilters;"
+                                  "  const compiled = filters.compileProceduralSelector(%1);"
+                                  "  return filters.applyCompiledSelector(compiled)"
+                                  "      .map(element => element.id);"
+                                  "})()")
+                       .arg(selector),
+            QWebEngineScript::ApplicationWorld);
+    QCOMPARE(found.toStringList(), matches);
 }
 
 // A `##+js(...)` rule is worth something only if its scriptlet has already run

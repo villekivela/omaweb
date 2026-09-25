@@ -1,0 +1,311 @@
+[
+  {
+    "name": "has-text",
+    "rule": "127.0.0.1##.card:has-text(Sponsored)",
+    "action": {
+      "selector": [
+        {
+          "type": "css-selector",
+          "arg": ".card"
+        },
+        {
+          "type": "has-text",
+          "arg": "Sponsored"
+        }
+      ]
+    },
+    "page": "<div class=\"card\" id=\"match\">Sponsored post</div><div class=\"card\" id=\"miss\">News</div>",
+    "matches": ["match"]
+  },
+  {
+    "name": "abp-contains",
+    "rule": "127.0.0.1#?#.card:-abp-contains(Promoted)",
+    "action": {
+      "selector": [
+        {
+          "type": "css-selector",
+          "arg": ".card"
+        },
+        {
+          "type": "has-text",
+          "arg": "Promoted"
+        }
+      ]
+    },
+    "page": "<div class=\"card\" id=\"match\">Promoted post</div><div class=\"card\" id=\"miss\">News</div>",
+    "matches": ["match"]
+  },
+  {
+    "name": "has-text-regex",
+    "rule": "127.0.0.1##.card:has-text(/spon[a-z]+red/i)",
+    "action": {
+      "selector": [
+        {
+          "type": "css-selector",
+          "arg": ".card"
+        },
+        {
+          "type": "has-text",
+          "arg": "/spon[a-z]+red/i"
+        }
+      ]
+    },
+    "page": "<div class=\"card\" id=\"match\">SPONSORED</div><div class=\"card\" id=\"miss\">Sponsor</div>",
+    "matches": ["match"]
+  },
+  {
+    "name": "matches-attr",
+    "rule": "127.0.0.1##.card:matches-attr(\"data-kind\"=\"promo\")",
+    "action": {
+      "selector": [
+        {
+          "type": "css-selector",
+          "arg": ".card"
+        },
+        {
+          "type": "matches-attr",
+          "arg": "\"data-kind\"=\"promo\""
+        }
+      ]
+    },
+    "page": "<div class=\"card\" id=\"match\" data-kind=\"promo\">a</div><div class=\"card\" id=\"miss\" data-kind=\"news\">b</div>",
+    "matches": ["match"]
+  },
+  {
+    "name": "matches-css",
+    "rule": "127.0.0.1##.card:matches-css(float: left)",
+    "action": {
+      "selector": [
+        {
+          "type": "css-selector",
+          "arg": ".card"
+        },
+        {
+          "type": "matches-css",
+          "arg": "float: left"
+        }
+      ]
+    },
+    "page": "<div class=\"card\" id=\"match\" style=\"float: left\">a</div><div class=\"card\" id=\"miss\">b</div>",
+    "matches": ["match"]
+  },
+  {
+    "name": "matches-css-before",
+    "rule": "127.0.0.1##.card:matches-css-before(content: /AD/)",
+    "action": {
+      "selector": [
+        {
+          "type": "css-selector",
+          "arg": ".card"
+        },
+        {
+          "type": "matches-css-before",
+          "arg": "content: /AD/"
+        }
+      ]
+    },
+    "page": "<style>#match::before { content: \"AD\"; }</style><div class=\"card\" id=\"match\">a</div><div class=\"card\" id=\"miss\">b</div>",
+    "matches": ["match"]
+  },
+  {
+    "name": "matches-css-after",
+    "rule": "127.0.0.1##.card:matches-css-after(content: /AD/)",
+    "action": {
+      "selector": [
+        {
+          "type": "css-selector",
+          "arg": ".card"
+        },
+        {
+          "type": "matches-css-after",
+          "arg": "content: /AD/"
+        }
+      ]
+    },
+    "page": "<style>#match::after { content: \"AD\"; }</style><div class=\"card\" id=\"match\">a</div><div class=\"card\" id=\"miss\">b</div>",
+    "matches": ["match"]
+  },
+  {
+    "name": "matches-path",
+    "rule": "127.0.0.1##.card:matches-path(/procedural)",
+    "action": {
+      "selector": [
+        {
+          "type": "css-selector",
+          "arg": ".card"
+        },
+        {
+          "type": "matches-path",
+          "arg": "/procedural"
+        }
+      ]
+    },
+    "page": "<div class=\"card\" id=\"match\">a</div><div class=\"story\" id=\"miss\">b</div>",
+    "matches": ["match"]
+  },
+  {
+    "name": "matches-path-elsewhere",
+    "rule": "127.0.0.1##.card:matches-path(/elsewhere)",
+    "action": {
+      "selector": [
+        {
+          "type": "css-selector",
+          "arg": ".card"
+        },
+        {
+          "type": "matches-path",
+          "arg": "/elsewhere"
+        }
+      ]
+    },
+    "page": "<div class=\"card\" id=\"miss\">a</div>",
+    "matches": []
+  },
+  {
+    "name": "min-text-length",
+    "rule": "127.0.0.1##.card:min-text-length(40)",
+    "action": {
+      "selector": [
+        {
+          "type": "css-selector",
+          "arg": ".card"
+        },
+        {
+          "type": "min-text-length",
+          "arg": "40"
+        }
+      ]
+    },
+    "page": "<div class=\"card\" id=\"match\">This card carries a sentence well over forty characters.</div><div class=\"card\" id=\"miss\">Short</div>",
+    "matches": ["match"]
+  },
+  {
+    "name": "upward-count",
+    "rule": "127.0.0.1##.badge:upward(2)",
+    "action": {
+      "selector": [
+        {
+          "type": "css-selector",
+          "arg": ".badge"
+        },
+        {
+          "type": "upward",
+          "arg": "2"
+        }
+      ]
+    },
+    "page": "<div id=\"match\"><p><span class=\"badge\">Ad</span></p></div><div id=\"miss\"><p><span>News</span></p></div>",
+    "matches": ["match"]
+  },
+  {
+    "name": "upward-selector",
+    "rule": "127.0.0.1##.badge:upward(.card)",
+    "action": {
+      "selector": [
+        {
+          "type": "css-selector",
+          "arg": ".badge"
+        },
+        {
+          "type": "upward",
+          "arg": ".card"
+        }
+      ]
+    },
+    "page": "<div class=\"card\" id=\"match\"><p><span class=\"badge\">Ad</span></p></div><div class=\"card\" id=\"miss\"><p>News</p></div>",
+    "matches": ["match"]
+  },
+  {
+    "name": "xpath",
+    "rule": "127.0.0.1##:xpath(//div[@data-x=\"1\"])",
+    "action": {
+      "selector": [
+        {
+          "type": "xpath",
+          "arg": "//div[@data-x=\"1\"]"
+        }
+      ]
+    },
+    "page": "<div id=\"match\" data-x=\"1\">a</div><div id=\"miss\" data-x=\"2\">b</div>",
+    "matches": ["match"]
+  },
+  {
+    "name": "remove",
+    "rule": "127.0.0.1##.card:has-text(Ad):remove()",
+    "action": {
+      "selector": [
+        {
+          "type": "css-selector",
+          "arg": ".card"
+        },
+        {
+          "type": "has-text",
+          "arg": "Ad"
+        }
+      ],
+      "action": {
+        "type": "remove"
+      }
+    },
+    "page": "<div class=\"card\" id=\"match\">Ad</div><div class=\"card\" id=\"miss\">News</div>",
+    "matches": ["match"]
+  },
+  {
+    "name": "style",
+    "rule": "127.0.0.1##.card:has-text(Ad):style(outline: 3px solid red !important)",
+    "action": {
+      "selector": [
+        {
+          "type": "css-selector",
+          "arg": ".card"
+        },
+        {
+          "type": "has-text",
+          "arg": "Ad"
+        }
+      ],
+      "action": {
+        "type": "style",
+        "arg": "outline: 3px solid red !important"
+      }
+    },
+    "page": "<div class=\"card\" id=\"match\">Ad</div><div class=\"card\" id=\"miss\">News</div>",
+    "matches": ["match"]
+  },
+  {
+    "name": "remove-attr",
+    "rule": "127.0.0.1##.card:remove-attr(data-track)",
+    "action": {
+      "selector": [
+        {
+          "type": "css-selector",
+          "arg": ".card"
+        }
+      ],
+      "action": {
+        "type": "remove-attr",
+        "arg": "data-track"
+      }
+    },
+    "page": "<div class=\"card\" id=\"match\" data-track=\"1\">a</div><div class=\"story\" id=\"miss\" data-track=\"1\">b</div>",
+    "matches": ["match"]
+  },
+  {
+    "name": "remove-class",
+    "rule": "127.0.0.1##.card:remove-class(promo)",
+    "action": {
+      "selector": [
+        {
+          "type": "css-selector",
+          "arg": ".card"
+        }
+      ],
+      "action": {
+        "type": "remove-class",
+        "arg": "promo"
+      }
+    },
+    "page": "<div class=\"card promo\" id=\"match\">a</div><div class=\"story promo\" id=\"miss\">b</div>",
+    "matches": ["match"]
+  }
+]

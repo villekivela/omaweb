@@ -45,6 +45,16 @@ A `##+js(...)` filter rule names a function from this library and a `$redirect=`
 from it; no filter list ever supplies either. See `docs/adr/0025-run-only-vendored-scriptlets.md`
 and `docs/adr/0026-serve-substitutes-under-an-omaweb-scheme.md`.
 
+## Brave procedural selector matcher
+
+Omaweb vendors brave-core's procedural selector matcher
+(`components/cosmetic_filters/resources/data/procedural_filters.ts`), from
+https://github.com/brave/brave-core, under `third_party/brave-procedural-filters`, copied verbatim
+and pinned by `MANIFEST.json`. It is bundled into `procedural_filters.js`, generated from the copy
+and pinned by the same manifest. brave-core is licensed under the Mozilla Public License 2.0,
+Copyright (c) The Brave Authors. The upstream license text ships with the pinned revision as
+`LICENSE`.
+
 ## Default filter lists
 
 Omaweb subscribes to two filter lists on a first run and fetches them from https://easylist.to/.
