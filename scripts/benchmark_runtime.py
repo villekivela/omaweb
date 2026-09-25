@@ -866,6 +866,13 @@ class PageLoadSite:
         # apart as one that never arrived here and one that did and went missing on the way back.
         self.requested: set[str] = set()
         self.answered: set[str] = set()
+        # The worst case's hosts are each asked for once. Chromium holds at most 32 connections
+        # for direct requests, and a kept-alive connection to a host that never comes back is a
+        # place in those 32 that nothing will reuse: on CI's runner a pool full of them made the
+        # engine drop answers the server had sent in full. A page's own CDN connections are the
+        # ones worth keeping, and the common case's four hosts keep theirs.
+        self.single_use = {host_of(image) for load in plan if load.case == "fresh"
+                           for image in load.images}
         self.ready = False
         self.problem = ""
         self.finished = False
@@ -954,6 +961,9 @@ class PageLoadSite:
                 # The pages read their own timing, and an image from another site shows its
                 # status and size to a page only when it says so.
                 self.send_header("Timing-Allow-Origin", "*")
+                if self.headers.get("Host", "").split(":")[0] in site.single_use:
+                    self.send_header("Connection", "close")
+                    self.close_connection = True
                 self.end_headers()
                 self.wfile.write(body)
                 self.wfile.flush()
