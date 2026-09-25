@@ -165,6 +165,20 @@ QString ContentMatcher::scriptletSource(const QUrl &url) const
     return result;
 }
 
+// The lists' procedural rules for this page, as the JSON array the parser
+// emits: what to find, and what to do with it when that is not hiding it.
+QString ContentMatcher::proceduralActions(const QUrl &url) const
+{
+    const auto encodedUrl = url.toString(QUrl::FullyEncoded).toUtf8();
+    auto *actions = omaweb_blocker_procedural_actions(d->blocker, encodedUrl.constData());
+    if (!actions) {
+        return QStringLiteral("[]");
+    }
+    const auto result = QString::fromUtf8(actions);
+    omaweb_blocker_string_free(actions);
+    return result;
+}
+
 quint64 ContentMatcher::cosmeticLookupCount() const
 {
     return omaweb_blocker_cosmetic_lookup_count(d->blocker);

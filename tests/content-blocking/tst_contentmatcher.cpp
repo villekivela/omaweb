@@ -21,6 +21,8 @@ private slots:
     void scriptletArgumentsAreNotReadAsSelectorSyntax();
     void sendsOnlyTheGenericRulesAPageCouldTrigger();
     void reportsUnsupportedCategories();
+    void handsEveryProceduralOperatorToThePage();
+    void reportsTheProceduralOperatorsTheParserLacks();
     void reportsTheRedirectRulesThatCanServeNothing();
     void redirectPrioritiesAreNotPartOfTheName();
     void substitutesCarryTheirOwnMimeType();
@@ -132,6 +134,78 @@ void ContentMatcherTest::sharedConformanceFixtures()
         QCOMPARE(css.contains(fixture.value(QStringLiteral("contains")).toString()),
             fixture.value(QStringLiteral("hidden")).toBool());
     }
+    for (const auto &value : root.value(QStringLiteral("procedural")).toArray()) {
+        const auto fixture = value.toObject();
+        const auto actions = QJsonDocument::fromJson(compilation.matcher
+                ->proceduralActions(QUrl(fixture.value(QStringLiteral("url")).toString()))
+                .toUtf8());
+        QVERIFY(actions.isArray());
+        QCOMPARE(actions.array(), fixture.value(QStringLiteral("actions")).toArray());
+    }
+}
+
+// Every operator and action the pinned parser reads reaches the page as the
+// JSON the vendored matcher is tested against, for the site the rule names and
+// no other. procedural-rules.json is shared with the Qt engine's contract
+// test, so the parser's output and the matcher's input are one file.
+void ContentMatcherTest::handsEveryProceduralOperatorToThePage()
+{
+    QFile fixture(QStringLiteral(OMAWEB_PROCEDURAL_RULES));
+    QVERIFY(fixture.open(QIODevice::ReadOnly));
+    const auto rows = QJsonDocument::fromJson(fixture.readAll()).array();
+    QStringList rules;
+    QJsonArray expected;
+    for (const auto &value : rows) {
+        rules.append(value.toObject().value(QStringLiteral("rule")).toString());
+        expected.append(value.toObject().value(QStringLiteral("action")));
+    }
+    const auto compilation = ContentMatcher::compile(rules.join(QLatin1Char('\n')));
+    QVERIFY(compilation.matcher);
+    QCOMPARE(compilation.report.value(QStringLiteral("acceptedRuleCount")).toInt(), rows.size());
+    QVERIFY(compilation.report.value(QStringLiteral("unsupported")).toObject().isEmpty());
+
+    const auto actionsFor = [&compilation](const QString &url) {
+        return QJsonDocument::fromJson(compilation.matcher->proceduralActions(QUrl(url)).toUtf8())
+            .array();
+    };
+    const auto actions = actionsFor(QStringLiteral("http://127.0.0.1/procedural.html"));
+    QCOMPARE(actions.size(), expected.size());
+    for (const auto &action : expected) {
+        QVERIFY2(actions.contains(action),
+            QJsonDocument(action.toObject()).toJson(QJsonDocument::Compact).constData());
+    }
+    QVERIFY(actionsFor(QStringLiteral("http://localhost/procedural.html")).isEmpty());
+    // A procedural rule is a specific rule, so hiding it in the site's
+    // stylesheet as well would hide by a selector no browser knows.
+    QVERIFY(compilation.matcher->cosmeticStyleSheet(QUrl(QStringLiteral("http://127.0.0.1/")))
+            .isEmpty());
+}
+
+// A procedural rule the parser cannot carry is reported in a category of its
+// own: an operator it lacks, an ABP snippet, and a rule written for every site
+// or only for the sites it excludes, which the parser refuses or cannot apply.
+void ContentMatcherTest::reportsTheProceduralOperatorsTheParserLacks()
+{
+    const auto compilation = ContentMatcher::compile(
+        QStringLiteral("site.example##.card:has-text(Sponsored)\n"
+                       "##.card:has-text(Sponsored)\n"
+                       "~site.example##.card:has-text(Sponsored)\n"
+                       "#?#.card:-abp-contains(Sponsored)\n"
+                       "site.example##.card:watch-attr(class)\n"
+                       "site.example##.card:matches-prop(ad)\n"
+                       "site.example##.card:shadow(.ad)\n"
+                       "site.example##.card:others()\n"
+                       "site.example#?#.card:-abp-properties(width: 300px)\n"
+                       "site.example#$#hide-if-contains Sponsored\n"
+                       "site.example##+js(set-constant, shadow, true)"));
+    QVERIFY(compilation.matcher);
+    QCOMPARE(compilation.report.value(QStringLiteral("acceptedRuleCount")).toInt(), 2);
+    const auto unsupported = compilation.report.value(QStringLiteral("unsupported")).toObject();
+    QCOMPARE(
+        unsupported.keys(), QStringList {QStringLiteral("procedural operators this parser lacks")});
+    QCOMPARE(
+        unsupported.value(QStringLiteral("procedural operators this parser lacks")).toInt(), 9);
+    QCOMPARE(compilation.report.value(QStringLiteral("invalidRuleCount")).toInt(), 0);
 }
 
 // A `##+js(...)` rule names a function in the vendored library and the engine
@@ -260,7 +334,7 @@ void ContentMatcherTest::reportsUnsupportedCategories()
 {
     const auto compilation
         = ContentMatcher::compile(QStringLiteral("example.com##+js(abort-on-property-read, ad)\n"
-                                                 "example.com#?#div:has(.ad)\n"
+                                                 "example.com#$#abort-on-property-read ad\n"
                                                  "&popunder=$popup\n"
                                                  "||example.com^$redirect=noopjs\n"
                                                  "||example.com^$replace=/ad//\n"
@@ -272,7 +346,8 @@ void ContentMatcherTest::reportsUnsupportedCategories()
     QCOMPARE(compilation.report.value(QStringLiteral("acceptedRuleCount")).toInt(), 4);
     const auto unsupported = compilation.report.value(QStringLiteral("unsupported")).toObject();
     QVERIFY(!unsupported.contains(QStringLiteral("scriptlets")));
-    QCOMPARE(unsupported.value(QStringLiteral("procedural selectors")).toInt(), 1);
+    QCOMPARE(
+        unsupported.value(QStringLiteral("procedural operators this parser lacks")).toInt(), 1);
     QVERIFY(!unsupported.contains(QStringLiteral("popup blocking")));
     QVERIFY(!unsupported.contains(QStringLiteral("redirects or resource replacement")));
     // A response body and a response header are the two things a request

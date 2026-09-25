@@ -174,7 +174,7 @@ int main(int argc, char *argv[])
     QJsonArray unsupported {
         QStringLiteral("scriptlets requiring trust"),
         QStringLiteral("scriptlets this build does not carry"),
-        QStringLiteral("procedural selectors"),
+        QStringLiteral("procedural operators this parser lacks"),
         QStringLiteral("response rewriting"),
         QStringLiteral("HTML filtering"),
         QStringLiteral("dynamic rules"),

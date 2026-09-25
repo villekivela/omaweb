@@ -28,10 +28,8 @@ static LIBRARY: LazyLock<Library> = LazyLock::new(|| {
         serde_json::from_str(include_str!("../../ubo-scriptlets/scriptlets.json"))
             .expect("the vendored scriptlet library parses as resource descriptors");
     resources.extend(
-        serde_json::from_str::<Vec<Resource>>(include_str!(
-            "../../ubo-scriptlets/redirects.json"
-        ))
-        .expect("the vendored redirect resources parse as resource descriptors"),
+        serde_json::from_str::<Vec<Resource>>(include_str!("../../ubo-scriptlets/redirects.json"))
+            .expect("the vendored redirect resources parse as resource descriptors"),
     );
     Library::new(resources)
 });
@@ -157,6 +155,11 @@ pub struct OmawebBlocker {
     // outright, so the rules are kept apart and asked about separately, at the
     // moment a page asks for a window rather than during a page's requests.
     popups: Engine,
+    // A third holds the `$specifichide` exceptions, and the specific half of
+    // the `$elemhide` ones, spelled as `$generichide`. The pinned parser knows
+    // neither option, so a page's specific rules are turned off by asking this
+    // engine the question the parser can answer.
+    specific_hides: Engine,
 }
 
 // Each compiled matcher owns at most 32 full-URL results. The lock covers lookup and
@@ -170,9 +173,17 @@ pub struct OmawebBlocker {
 struct CosmeticResources {
     css: String,
     injected_script: String,
+    // The procedural rules for this address as one JSON array, each element
+    // the `{selector, action}` object the parser emits.
+    procedural_actions: String,
     generichide: bool,
     exceptions: HashSet<String>,
 }
+
+// An address no rule is written against, asked about for the generic rules
+// alone when a `$specifichide` exception takes a page's specific ones away.
+// `.invalid` is reserved, so no list can name it.
+const NO_SITE: &str = "https://omaweb.invalid/";
 
 impl OmawebBlocker {
     fn cosmetic_resources(&self, url: &str) -> Arc<CosmeticResources> {
@@ -187,10 +198,31 @@ impl OmawebBlocker {
             return resources;
         }
         self.cosmetic_lookups.fetch_add(1, Ordering::Relaxed);
-        let resources = self.engine.url_cosmetic_resources(url);
+        let mut resources = self.engine.url_cosmetic_resources(url);
+        if self.specific_hides.url_cosmetic_resources(url).generichide {
+            // The generic rules still apply, less the page's own exceptions;
+            // the site's own hides and procedural rules do not. Scriptlets are
+            // not cosmetic rules and stay.
+            resources.hide_selectors = if resources.generichide {
+                HashSet::new()
+            } else {
+                let generic = self.engine.url_cosmetic_resources(NO_SITE).hide_selectors;
+                &generic - &resources.exceptions
+            };
+            resources.procedural_actions.clear();
+        }
+        let procedural_actions: BTreeSet<String> =
+            resources.procedural_actions.into_iter().collect();
+        let procedural_actions = serde_json::Value::Array(
+            procedural_actions
+                .iter()
+                .filter_map(|action| serde_json::from_str(action).ok())
+                .collect(),
+        );
         let resources = Arc::new(CosmeticResources {
             css: stylesheet(resources.hide_selectors),
             injected_script: resources.injected_script,
+            procedural_actions: procedural_actions.to_string(),
             generichide: resources.generichide,
             exceptions: resources.exceptions,
         });
@@ -219,7 +251,9 @@ fn output(value: String) -> *mut c_char {
 // A cosmetic rule, hiding or scriptlet, and the exceptions that take either
 // back. The separators are what identify one; there is no other marker.
 fn is_cosmetic_rule(line: &str) -> bool {
-    line.contains("##") || line.contains("#@#")
+    ["##", "#@#", "#?#", "#@?#"]
+        .iter()
+        .any(|separator| line.contains(separator))
 }
 
 // The scriptlet a `+js(...)` rule asks for, or None for a line that asks for
@@ -234,6 +268,63 @@ fn scriptlet_name(line: &str) -> Option<&str> {
     (!name.is_empty()).then_some(name)
 }
 
+// The procedural operators the pinned parser cannot carry. Some it refuses as
+// invalid, and the rest it would pass through as plain CSS, which then hides
+// nothing because a browser does not know them either.
+const LACKED_OPERATORS: [&str; 11] = [
+    ":watch-attr(",
+    ":matches-prop(",
+    ":matches-property(",
+    ":shadow(",
+    ":others(",
+    ":-abp-properties(",
+    ":properties(",
+    ":if(",
+    ":if-not(",
+    ":nth-ancestor(",
+    ":subject(",
+];
+
+// What makes a cosmetic rule procedural: an operator only a matcher can answer,
+// or an action other than hiding.
+const PROCEDURAL_MARKERS: [&str; 13] = [
+    ":has-text(",
+    ":-abp-contains(",
+    ":matches-attr(",
+    ":matches-css(",
+    ":matches-css-before(",
+    ":matches-css-after(",
+    ":matches-path(",
+    ":min-text-length(",
+    ":upward(",
+    ":xpath(",
+    ":remove(",
+    ":style(",
+    ":remove-class(",
+];
+
+// The sites a cosmetic rule is written against: what comes before its
+// separator. Empty for a rule written for every site.
+fn cosmetic_sites(line: &str) -> Option<&str> {
+    line.find('#').map(|index| &line[..index])
+}
+
+// A procedural rule that names no site to apply to, or only sites not to. The
+// parser refuses the first and cannot apply the second, and either would cost
+// every page a search of its whole document.
+fn is_generic_procedural(line: &str) -> bool {
+    is_cosmetic_rule(line)
+        && (PROCEDURAL_MARKERS
+            .iter()
+            .any(|marker| line.contains(marker))
+            || line.contains(":remove-attr("))
+        && cosmetic_sites(line).is_some_and(|sites| {
+            sites
+                .split(',')
+                .all(|site| site.trim().is_empty() || site.trim().starts_with('~'))
+        })
+}
+
 fn unsupported_category(line: &str) -> Option<&'static str> {
     let trimmed = line.trim();
     // Asked first, and answered by the library rather than by the text: a
@@ -242,23 +333,17 @@ fn unsupported_category(line: &str) -> Option<&'static str> {
     if let Some(name) = scriptlet_name(trimmed) {
         return LIBRARY.refusal(name);
     }
-    const PROCEDURAL_MARKERS: [&str; 10] = [
-        "#?#",
-        "#$#",
-        ":has-text(",
-        ":matches-attr(",
-        ":matches-css(",
-        ":min-text-length(",
-        ":remove(",
-        ":style(",
-        ":upward(",
-        ":xpath(",
-    ];
-    if PROCEDURAL_MARKERS
-        .iter()
-        .any(|marker| trimmed.contains(marker))
+    // ABP's `#$#` snippets are code rather than operators, and the pinned
+    // parser reads none of them.
+    if trimmed.contains("#$#")
+        || trimmed.contains("#@$#")
+        || (is_cosmetic_rule(trimmed)
+            && LACKED_OPERATORS
+                .iter()
+                .any(|operator| trimmed.contains(operator)))
+        || is_generic_procedural(trimmed)
     {
-        Some("procedural selectors")
+        Some("procedural operators this parser lacks")
     } else if trimmed.contains("##^") || trimmed.contains("$html") {
         Some("HTML filtering")
     } else if trimmed.contains("$replace") {
@@ -276,9 +361,7 @@ fn unsupported_category(line: &str) -> Option<&'static str> {
         // A request interceptor never sees a response, so this is refused
         // rather than counted among what a list contributed.
         Some("content security policies")
-    } else if substituted_name(trimmed)
-        .is_some_and(|name| LIBRARY.substitute(name).is_none())
-    {
+    } else if substituted_name(trimmed).is_some_and(|name| LIBRARY.substitute(name).is_none()) {
         Some("substitutes this build does not carry")
     } else if !trimmed.starts_with('!')
         && !trimmed.starts_with('[')
@@ -379,6 +462,39 @@ fn split_popup_option(line: &str) -> Option<(String, bool)> {
     ))
 }
 
+// uBO's `$specifichide` turns a site's specific cosmetic rules off, and
+// `$elemhide` its generic and specific ones both. adblock-rust 0.12.5 knows
+// only `$generichide`, and rejects the other two as invalid, so each is spelled
+// as `$generichide` for the engine that answers it: the main engine for the
+// generic half, the specific-hide engine for the specific half.
+//
+// Returns the rule for the main engine and the rule for the specific-hide
+// engine, either absent where the option asks nothing of it, or None for a
+// line that names neither option.
+fn split_hide_option(line: &str) -> Option<(Option<String>, Option<String>)> {
+    let (pattern, list) = options(line)?;
+    let mut generic = false;
+    let mut specific = false;
+    let mut kept = Vec::new();
+    for option in list.split(',') {
+        match option {
+            "elemhide" | "ehide" => {
+                generic = true;
+                specific = true;
+            }
+            "specifichide" | "shide" => specific = true,
+            "generichide" | "ghide" => generic = true,
+            _ => kept.push(option),
+        }
+    }
+    if !specific {
+        return None;
+    }
+    kept.push("generichide");
+    let rule = format!("{pattern}${}", kept.join(","));
+    Some((generic.then(|| rule.clone()), Some(rule)))
+}
+
 fn stylesheet(selectors: impl IntoIterator<Item = String>) -> String {
     // Sorted so the same page yields the same stylesheet twice: the engine
     // returns hash sets, and a stylesheet that reorders itself between two
@@ -411,6 +527,8 @@ pub unsafe extern "C" fn omaweb_blocker_compile(
         let mut accepted = Vec::new();
         let mut popups = Vec::new();
         let mut popup_rule_count = 0;
+        let mut specific_hides = Vec::new();
+        let mut specific_hide_rule_count = 0;
         let mut unsupported = BTreeMap::<&str, usize>::new();
         let mut invalid_rule_count = 0;
         for line in rules.lines() {
@@ -423,6 +541,23 @@ pub unsafe extern "C" fn omaweb_blocker_compile(
                 continue;
             }
             let line = normalize_rewrite_option(line).unwrap_or_else(|| line.to_owned());
+            if let Some((generic, specific)) = split_hide_option(&line) {
+                let valid = |rule: &String| {
+                    FilterSet::new(false)
+                        .add_filter(rule, ParseOptions::default())
+                        .is_ok()
+                };
+                if !generic.iter().chain(specific.iter()).all(valid) {
+                    invalid_rule_count += 1;
+                    continue;
+                }
+                specific_hides.extend(specific);
+                match generic {
+                    Some(rule) => accepted.push(rule),
+                    None => specific_hide_rule_count += 1,
+                }
+                continue;
+            }
             let (rule, popups_only) =
                 split_popup_option(&line).unwrap_or_else(|| (line.clone(), false));
             let mut validator = FilterSet::new(false);
@@ -451,9 +586,10 @@ pub unsafe extern "C" fn omaweb_blocker_compile(
         let mut engine = Engine::from_rules(&accepted, ParseOptions::default());
         engine.use_resource_storage(VendoredResources);
         let popup_engine = Engine::from_rules(&popups, ParseOptions::default());
+        let specific_hide_engine = Engine::from_rules(&specific_hides, ParseOptions::default());
         if !report.is_null() {
             let value = json!({
-                "acceptedRuleCount": accepted.len() + popup_rule_count,
+                "acceptedRuleCount": accepted.len() + popup_rule_count + specific_hide_rule_count,
                 "invalidRuleCount": invalid_rule_count,
                 "unsupported": unsupported,
             });
@@ -462,6 +598,7 @@ pub unsafe extern "C" fn omaweb_blocker_compile(
         Box::into_raw(Box::new(OmawebBlocker {
             engine,
             popups: popup_engine,
+            specific_hides: specific_hide_engine,
             cosmetic_lookups: AtomicU64::new(0),
             cosmetics: Mutex::new(VecDeque::new()),
         }))
@@ -728,6 +865,27 @@ pub unsafe extern "C" fn omaweb_blocker_scriptlet_source(
             return std::ptr::null_mut();
         };
         output(blocker.cosmetic_resources(&url).injected_script.clone())
+    }))
+    .unwrap_or(std::ptr::null_mut())
+}
+
+#[unsafe(no_mangle)]
+/// # Safety
+/// `blocker` must be a live matcher and `url` must be a valid NUL-terminated UTF-8 string.
+///
+/// Returns the procedural cosmetic rules written against this page's hostname as a JSON array.
+/// Each element is the parser's `{selector, action}` object: `selector` a list of `{type, arg}`
+/// operators, and `action`, when present, what to do with a match instead of hiding it. Empty
+/// under a `#@#` exception for the rule, and under a `$specifichide` or `$elemhide` exception.
+pub unsafe extern "C" fn omaweb_blocker_procedural_actions(
+    blocker: *const OmawebBlocker,
+    url: *const c_char,
+) -> *mut c_char {
+    catch_unwind(AssertUnwindSafe(|| {
+        let (Some(blocker), Some(url)) = (unsafe { blocker.as_ref() }, input(url)) else {
+            return std::ptr::null_mut();
+        };
+        output(blocker.cosmetic_resources(&url).procedural_actions.clone())
     }))
     .unwrap_or(std::ptr::null_mut())
 }

@@ -495,7 +495,9 @@ it matches, in the main frame and in every subframe, and keeps doing so as the p
 ([ADR 0052](../adr/0052-apply-procedural-cosmetic-filters.md)). A rule change reaches an open page
 in place, except that an element a `:remove()` rule deleted returns only when the page reloads. A
 generic procedural rule, and one using an operator the pinned parser lacks, is reported in a
-category of its own.
+category of its own. A `$specifichide` exception takes a site's own cosmetic rules away, procedural
+ones included, and an `$elemhide` exception its generic ones as well; scriptlets are not cosmetic
+rules and still run.
 
 Omaweb does not claim full uBlock Origin compatibility. Response rewriting, content security
 policies, HTML filtering and dynamic rules are outside the first contract. A subscribed list keeps

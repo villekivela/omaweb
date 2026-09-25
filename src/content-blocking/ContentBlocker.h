@@ -93,6 +93,9 @@ public:
     Q_INVOKABLE QVariantList refusedRequests(const QString &spaceId, const QUrl &pageAddress) const;
     Q_INVOKABLE QString cosmeticStyleSheet(const QUrl &url) const;
     Q_INVOKABLE QString scriptletSource(const QUrl &url) const;
+    // The procedural cosmetic rules for one address as a JSON array, `[]` for a
+    // site the user turned blocking off for.
+    Q_INVOKABLE QString proceduralActions(const QUrl &url) const;
     Q_INVOKABLE bool cosmeticSurveyWanted(const QUrl &url) const;
     Q_INVOKABLE QString genericCosmeticStyleSheet(
         const QUrl &url, const QStringList &classes, const QStringList &ids) const;

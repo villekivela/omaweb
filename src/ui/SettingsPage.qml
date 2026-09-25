@@ -1229,6 +1229,7 @@ Rectangle {
                     }
 
                     Text {
+                        objectName: "contentBlockingUnsupported"
                         width: pane.width
                         visible: root.blocker !== null && root.blocker !== undefined
                                  && root.blocker.compilationReport.unsupported !== undefined

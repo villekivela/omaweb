@@ -512,6 +512,12 @@ QString ContentBlocker::scriptletSource(const QUrl &url) const
     return matcher ? matcher->scriptletSource(url) : QString();
 }
 
+QString ContentBlocker::proceduralActions(const QUrl &url) const
+{
+    const auto matcher = matcherFor(url);
+    return matcher ? matcher->proceduralActions(url) : QStringLiteral("[]");
+}
+
 bool ContentBlocker::cosmeticSurveyWanted(const QUrl &url) const
 {
     const auto matcher = matcherFor(url);
