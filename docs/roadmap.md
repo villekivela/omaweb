@@ -20,9 +20,10 @@ theme each, in this order:
    HTTPS-only mode, secure DNS, trackers refused behind a CNAME, the engine's trace-macro fix, the
    open page bugs, and the decision on how payment cards are stored.
 2. [v0.9.0](https://github.com/villekivela/omaweb/milestone/8), Agents
-   ([ADR 0051](adr/0051-hand-the-browser-to-an-agent.md)): the agent socket with the `omaweb` CLI
-   and MCP front ends, Agent Spaces and Space grants, the activity log, and the page verbs. It comes
-   before localization so its strings are wrapped with the rest.
+   ([ADR 0051](adr/0051-hand-the-browser-to-an-agent.md)): the control socket with the `omaweb` CLI
+   and MCP front ends, browser commands open to every script, Agent Spaces and Space grants, the
+   activity log, and the page verbs. It comes before localization so its strings are wrapped with
+   the rest.
 3. [v0.10.0](https://github.com/villekivela/omaweb/milestone/2), localization: the tooling, then
    every user-facing string wrapped, then the first locale finished and new strings gated. It
    follows v0.8.0 and v0.9.0 so the wrapping passes cover their features and nothing is in flight

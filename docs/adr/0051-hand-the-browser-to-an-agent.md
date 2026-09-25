@@ -21,20 +21,26 @@ credentials and no page data bound for an AI service, and replaces the rest.
 
 ## One socket, two front ends
 
-While the **Allow agents** setting is on, the browser listens on a Unix socket at
-`$XDG_RUNTIME_DIR/omaweb/agent.sock` with mode 0600. The setting is off by default, and turning it
-off closes the socket and detaches every connection. Two front ends speak to the socket:
-`omaweb mcp`, a stdio MCP server that starts the browser if it is not running, and the `omaweb` CLI,
-which is also the reader's own scripting surface. A skill shipped with the package teaches an Agent
-the CLI, because a CLI costs an Agent far fewer tokens than a large tool schema.
+The browser listens on a Unix socket at `$XDG_RUNTIME_DIR/omaweb/control.sock` with mode 0600. Two
+front ends speak to it: `omaweb mcp`, a stdio MCP server that starts the browser if it is not
+running, and the `omaweb` CLI. A skill shipped with the package teaches an Agent the CLI, because a
+CLI costs an Agent far fewer tokens than a large tool schema.
 
 The socket is the boundary, and it is the operating-system user. Nothing on one machine can tell
 Claude Code from the reader's own script, as
 [0019](0019-broker-engine-neutral-diagnostics-sessions.md) already accepted, so a connection's name
-is for the log and the markers and never an identity. The reader's scripts and every Agent follow
-the same rules.
+is for the log and the markers and never an identity. What a connection may do therefore depends on
+what a verb reaches, never on who asks.
 
-## What an Agent may reach
+Browser commands are always open: listing Spaces and their tabs, never a Private window's, opening
+an address in a Space, switching Space, selecting a tab, and the command panel's public commands.
+They are what a keybind or a shell script needs, they are what the desktop's `Open` handover already
+lets any process do with an address, and none of them reads a page or acts inside one. The page
+verbs and Agent Spaces are behind the **Allow agents** setting, off by default, and the Space grants
+below. Turning the setting off detaches every connection from the pages it was driving; the socket
+stays up for browser commands.
+
+## What the page verbs may reach
 
 An Agent may create Agent Spaces and has full use of them. `--temporary` makes one that is deleted,
 with its Engine profile and Browsing data, when its connection closes. Any other Space needs a Space

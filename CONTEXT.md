@@ -111,10 +111,11 @@ Omaweb opens it, positions it, and draws it in the browser's own theme, but does
 interface or debugging protocol across engines. _Avoid_: Diagnostics, DevTools platform
 
 **Agent**: A program the reader runs, such as a coding agent or their own script, that drives Omaweb
-through the agent socket while Allow agents is on. Omaweb holds no model and no provider
+through its control socket. Browser commands are open to every Agent; reading or driving a page
+needs Allow agents and, outside an Agent Space, a Space grant. Omaweb holds no model and no provider
 credentials; the Agent is always the reader's own. A connection names itself for the activity log
-and the markers, but the name is not an identity, and every Agent follows the same rules. _Avoid_:
-Bot, assistant, automation, Diagnostics client
+and the markers, but the name is not an identity. _Avoid_: Bot, assistant, automation, Diagnostics
+client
 
 **Agent Space**: A Space an Agent created, which Agents may use without a Space grant. It is marked
 as an Agent's, and the reader can take it over, which removes the mark and keeps the Space. A
