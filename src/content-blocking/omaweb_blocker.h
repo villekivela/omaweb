@@ -27,8 +27,8 @@ OmawebBlocker *omaweb_blocker_compile(const char *rules, char **report);
 void omaweb_blocker_destroy(OmawebBlocker *blocker);
 void omaweb_blocker_check(const OmawebBlocker *blocker, const char *url, const char *source_url,
     const char *resource_type, OmawebBlockerDecision *decision);
-// The same check under the canonical name the request host's CNAME chain ends
-// at. A canonical name on the request's own site is not checked, and a
+// The same check under one name from the request host's CNAME chain. A name on
+// the request's own site is not checked, and a
 // parameter rewrite is never reported, because the request still goes out
 // under its own address.
 void omaweb_blocker_check_uncloaked(const OmawebBlocker *blocker, const char *url,

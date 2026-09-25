@@ -62,6 +62,7 @@ private slots:
     void anUncloakedRefusalCountsInTheTally();
     void theRefusedRequestsAreListedWithTheCanonicalNameTheyMatched();
     void anAddressRefusedTwiceIsListedOnceUntilTheNextLoad();
+    void everyAliasInTheChainIsChecked();
 };
 
 namespace {
@@ -935,6 +936,24 @@ void ContentBlockerTest::anAddressRefusedTwiceIsListedOnceUntilTheNextLoad()
 
     blocker->showPage(&view, space, page, 2);
     QVERIFY(blocker->refusedRequests(space, page).isEmpty());
+}
+
+// The engine hands the chain over in no particular order: Chromium keeps a
+// host's aliases in a sorted set, so the canonical name is not reliably first.
+// Every name in the chain is checked, and the one that matched is the one
+// Site information names.
+void ContentBlockerTest::everyAliasInTheChainIsChecked()
+{
+    QTemporaryDir root;
+    const auto blocker = blockerWithRules(root, QStringLiteral("||tracker.example^"));
+    QTRY_VERIFY_WITH_TIMEOUT(!blocker->compiling(), 5000);
+
+    const auto decision
+        = blocker->checkRequest(cloakedRequest, cloakingPage, QStringLiteral("script"), space,
+            {QStringLiteral("a-hop.cdn.example"), QStringLiteral("metrics.news.example"),
+                QStringLiteral("collect.tracker.example")});
+    QVERIFY(decision.blocked);
+    QCOMPARE(decision.canonicalName, QStringLiteral("collect.tracker.example"));
 }
 
 QTEST_GUILESS_MAIN(ContentBlockerTest)

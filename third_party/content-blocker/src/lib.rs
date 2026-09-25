@@ -28,8 +28,10 @@ static LIBRARY: LazyLock<Library> = LazyLock::new(|| {
         serde_json::from_str(include_str!("../../ubo-scriptlets/scriptlets.json"))
             .expect("the vendored scriptlet library parses as resource descriptors");
     resources.extend(
-        serde_json::from_str::<Vec<Resource>>(include_str!("../../ubo-scriptlets/redirects.json"))
-            .expect("the vendored redirect resources parse as resource descriptors"),
+        serde_json::from_str::<Vec<Resource>>(include_str!(
+            "../../ubo-scriptlets/redirects.json"
+        ))
+        .expect("the vendored redirect resources parse as resource descriptors"),
     );
     Library::new(resources)
 });
@@ -274,7 +276,9 @@ fn unsupported_category(line: &str) -> Option<&'static str> {
         // A request interceptor never sees a response, so this is refused
         // rather than counted among what a list contributed.
         Some("content security policies")
-    } else if substituted_name(trimmed).is_some_and(|name| LIBRARY.substitute(name).is_none()) {
+    } else if substituted_name(trimmed)
+        .is_some_and(|name| LIBRARY.substitute(name).is_none())
+    {
         Some("substitutes this build does not carry")
     } else if !trimmed.starts_with('!')
         && !trimmed.starts_with('[')
@@ -558,8 +562,8 @@ pub unsafe extern "C" fn omaweb_blocker_check(
     unsafe { decision.write(answer) };
 }
 
-// The request's address with its host replaced by the canonical name the
-// host's CNAME chain ends at, or None when there is nothing to check: an
+// The request's address with its host replaced by a name from the host's
+// CNAME chain, or None when there is nothing to check: an
 // address with no host, a canonical name that parses as none, or one on the
 // request's own site. uBlock Origin ignores a first-party CNAME by default, so
 // a site's own CDN aliases never refuse what no list meant to.
@@ -582,7 +586,7 @@ fn uncloaked_url(url: &str, canonical_name: &str) -> Option<String> {
 /// # Safety
 /// As `omaweb_blocker_check`, and `canonical_name` must be a valid NUL-terminated UTF-8 string.
 ///
-/// Checks the request again under the canonical name its host's CNAME chain ends at, keeping the
+/// Checks the request again under a name from its host's CNAME chain, keeping the
 /// page it came from and its type. A block and a substitute apply as they would to a direct match.
 /// A parameter rewrite never does, because the request still goes out under its own address.
 pub unsafe extern "C" fn omaweb_blocker_check_uncloaked(

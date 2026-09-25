@@ -52,10 +52,6 @@ namespace {
     // rather than a handover.
     QString decoded(const char *value) { return value ? QString::fromUtf8(value) : QString(); }
 
-} // namespace
-
-namespace {
-
     RequestDecision decided(OmawebBlockerDecision &answer)
     {
         RequestDecision decision;

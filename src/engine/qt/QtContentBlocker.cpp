@@ -92,9 +92,9 @@ namespace {
                     GlobalPrivacyControl::headerName(), GlobalPrivacyControl::headerValue());
             }
 #if OMAWEB_CNAME_UNCLOAKING
-            // Empty on the first call. The engine calls again with the host's
-            // aliases, canonical name first, only when the first call asked for
-            // them and let the request through (ADR 0050).
+            // Empty on the first call. The engine calls again with the names in
+            // the host's CNAME chain only when the first call asked for them and
+            // let the request through (ADR 0050).
             const auto dnsAliases = info.dnsAliases();
 #else
             const QStringList dnsAliases;
@@ -123,7 +123,8 @@ namespace {
             // A request the lists let through by its own name may still be a
             // tracker under another, so the engine is asked to resolve the host
             // and call again. A site the reader turned blocking off for gets no
-            // lookup, the same as it gets no check.
+            // lookup, the same as it gets no check, and neither does a browser
+            // with no rules compiled.
             if (dnsAliases.isEmpty() && m_contentBlocker->uncloaks(info.firstPartyUrl())) {
                 info.requestDnsAliases();
             }
@@ -244,7 +245,7 @@ RequestDecision QtContentBlocker::checkRequest(const QUrl &requestUrl, const QUr
 
 bool QtContentBlocker::uncloaks(const QUrl &sourceUrl) const
 {
-    return m_contentBlocker->siteEnabled(sourceUrl);
+    return m_contentBlocker->uncloaks(sourceUrl);
 }
 
 QString QtContentBlocker::cosmeticStyleSheet(const QUrl &url) const

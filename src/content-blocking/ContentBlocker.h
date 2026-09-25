@@ -86,8 +86,8 @@ public:
     // that has refused nothing.
     Q_INVOKABLE int refusalTally(const QString &spaceId, const QUrl &pageAddress) const;
     // The requests behind that tally, each address once, in the order they were
-    // first refused: `address`, and `canonicalName` for one refused through the
-    // canonical name its host's CNAME chain ends at. The tally counts every
+    // first refused: `address`, and `canonicalName` for one refused through a
+    // name from its host's CNAME chain. The tally counts every
     // refusal and the list keeps the first hundred addresses, which is more
     // than Site information shows.
     Q_INVOKABLE QVariantList refusedRequests(const QString &spaceId, const QUrl &pageAddress) const;
@@ -102,9 +102,15 @@ public:
     Q_INVOKABLE bool shouldBlockPopup(
         const QUrl &requestUrl, const QUrl &openerUrl, const QString &spaceId) const;
 
-    // A request the lists let through is checked again under the canonical
-    // name its host's CNAME chain ends at, when the engine resolved one. The
-    // aliases come canonical name first, the order the engine reports them in.
+    // Whether a request from this page is worth resolving for the names behind
+    // its host: only where there are rules to check them against and Content
+    // blocking is on for the site.
+    bool uncloaks(const QUrl &sourceUrl) const;
+
+    // A request the lists let through is checked again under each name in its
+    // host's CNAME chain, when the engine resolved one. The engine reports the
+    // chain in no particular order, so every name is checked, and the first to
+    // be refused is the one recorded.
     RequestDecision checkRequest(const QUrl &requestUrl, const QUrl &sourceUrl,
         const QString &resourceType, const QString &spaceId,
         const QStringList &dnsAliases = {}) const;
@@ -149,15 +155,15 @@ private:
             return qHashMulti(seed, key.spaceId, key.address);
         }
     };
-    // What one open page load has been refused, and how many views are showing
-    // it. Two tabs on the same address in the same Space read one tally, and
-    // it stays live until the last of them lets go (ADR 0037).
-    // One refused address, and the canonical name it was refused through when
-    // its own host matched no rule.
+    // One refused address, and the name from its host's CNAME chain it was
+    // refused through when its own host matched no rule.
     struct RefusedRequest {
         QString address;
         QString canonicalName;
     };
+    // What one open page load has been refused, and how many views are showing
+    // it. Two tabs on the same address in the same Space read one tally, and
+    // it stays live until the last of them lets go (ADR 0037).
     struct RefusalTally {
         int refused = 0;
         int viewers = 0;

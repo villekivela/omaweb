@@ -17,7 +17,7 @@ interceptor can be taught to.
 A patch in the series gives the request interceptor a second call. On the first call the interceptor
 may ask for the request host's DNS aliases. If it asked, and neither blocked nor redirected the
 request, the engine resolves the host through the request's own Engine profile, with that profile's
-resolver and host cache, and calls the interceptor again with the aliases, canonical name first.
+resolver and host cache, and calls the interceptor again with the names in the host's CNAME chain.
 There is no second call when the lookup fails or returns no alias other than the host itself, and
 the first call's decision stands.
 
@@ -32,12 +32,14 @@ small: the interception path is Qt's own code, not copied Chromium code.
 
 ## What Content blocking does
 
-The request check takes the aliases as data. The request is checked again with its host replaced by
-the canonical name, keeping the page it came from, its type and the Space's site toggles, and a
-block, a Substitute resource or an exception applies as it would to a direct match. A `$removeparam`
-rewrite found only through the canonical name is dropped, because the request goes out under its own
-address. A canonical name on the same site as the request is not checked, following uBlock Origin,
-so a site's own CDN aliases cause no refusal a list did not intend.
+The request check takes the aliases as data. Chromium keeps a host's aliases in a sorted set, so the
+engine cannot say which is canonical, and Content blocking checks each of them. The request is
+checked again with its host replaced by each name in turn, keeping the page it came from, its type
+and the Space's site toggles, and a block, a Substitute resource or an exception applies as it would
+to a direct match. A `$removeparam` rewrite found only through the canonical name is dropped,
+because the request goes out under its own address. A canonical name on the same site as the request
+is not checked, following uBlock Origin, so a site's own CDN aliases cause no refusal a list did not
+intend.
 
 An uncloaked refusal counts in the Refusal tally like any other. Site information now lists the
 refused requests beside the tally, and an uncloaked one carries the canonical name it matched, so a

@@ -536,12 +536,16 @@ RequestDecision ContentBlocker::checkRequest(const QUrl &requestUrl, const QUrl 
         return {};
     }
     auto decision = matcher->check(requestUrl, sourceUrl, resourceType);
-    if (!decision.blocked && !dnsAliases.isEmpty()) {
-        const auto uncloaked
-            = matcher->checkUncloaked(requestUrl, sourceUrl, resourceType, dnsAliases.first());
+    // Every name in the chain, because the engine does not say which one is
+    // canonical: Chromium keeps a host's aliases in a sorted set.
+    for (const auto &alias : dnsAliases) {
+        if (decision.blocked) {
+            break;
+        }
+        const auto uncloaked = matcher->checkUncloaked(requestUrl, sourceUrl, resourceType, alias);
         if (uncloaked.blocked) {
             decision = uncloaked;
-            decision.canonicalName = dnsAliases.first();
+            decision.canonicalName = alias;
         }
     }
     if (decision.blocked) {
@@ -555,6 +559,11 @@ RequestDecision ContentBlocker::checkRequest(const QUrl &requestUrl, const QUrl 
 // A window the page never got to open is a request the page never got to
 // make, so it lands in the same tally as the rest and the number keeps
 // meaning one thing.
+bool ContentBlocker::uncloaks(const QUrl &sourceUrl) const
+{
+    return matcherFor(sourceUrl) != nullptr;
+}
+
 bool ContentBlocker::shouldBlockPopup(
     const QUrl &requestUrl, const QUrl &openerUrl, const QString &spaceId) const
 {

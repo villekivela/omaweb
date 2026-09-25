@@ -1216,8 +1216,9 @@ Rectangle {
                                     + "supported." :
                                     "Procedural selectors, response rewriting, content "
                                     + "security policies, HTML filtering, dynamic rules, "
-                                    + "$cname rules and CNAME uncloaking are not supported "
-                                    + "by this engine.")
+                                    + "$cname rules and CNAME uncloaking are not supported; "
+                                    + "CNAME uncloaking needs Omaweb's own build of the Qt "
+                                    + "engine.")
                         color: root.colors.mutedText
                         wrapMode: Text.WordWrap
                         font.family: Style.font.family

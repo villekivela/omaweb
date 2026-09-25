@@ -45,8 +45,8 @@ public:
     RequestDecision checkRequest(const QUrl &requestUrl, const QUrl &sourceUrl,
         QWebEngineUrlRequestInfo::ResourceType resourceType, const QString &spaceId,
         const QStringList &dnsAliases = {}) const;
-    // Whether a request from this page is worth resolving for the canonical
-    // name behind its host: only where Content blocking is on for the site.
+    // Whether a request from this page is worth resolving for the names behind
+    // its host. Content blocking answers.
     bool uncloaks(const QUrl &sourceUrl) const;
     QString cosmeticStyleSheet(const QUrl &url) const;
     bool cosmeticSurveyWanted(const QUrl &url) const;

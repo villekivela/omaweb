@@ -244,11 +244,11 @@ the document rather than the reader's sense of a new page. Two tabs on the same 
 Space read the same tally. _Avoid_: Blocked count, blocked-request total, blocked requests
 
 **CNAME uncloaking**: Content blocking checking a subresource request the lists let through again
-under the canonical name its host's DNS CNAME chain ends at, so a tracker served from a site's own
-subdomain is refused as the tracker it is. The engine resolves the host for Content blocking; a
-canonical name on the request's own site is not checked. An uncloaked refusal counts in the Refusal
-tally and is listed in Site information under the address the page asked for. _Avoid_: CNAME
-blocking, DNS filtering
+under each name in its host's DNS CNAME chain, so a tracker served from a site's own subdomain is
+refused as the tracker it is. The engine resolves the host for Content blocking; a canonical name on
+the request's own site is not checked. An uncloaked refusal counts in the Refusal tally and is
+listed in Site information under the address the page asked for. _Avoid_: CNAME blocking, DNS
+filtering
 
 **URL reputation**: An optional browser capability that checks an address or download against a
 provider's current phishing, malware, or software-reputation data. Content blocking may refuse some
