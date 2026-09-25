@@ -588,10 +588,12 @@ git tag v0.2.0
 git push origin v0.2.0
 ```
 
-The `Release` workflow refuses a tag that is not on `main`, generates notes from the Conventional
-Commit subjects since the previous tag with `scripts/release_notes.sh`, and publishes them beside
-the Arch packages and their inventory. Every `v0.*` tag is marked a prerelease. macOS bundles are
-development artifacts and are not attached ([ADR 0029](adr/0029-distribute-only-for-linux.md)). See
+The `Release` workflow refuses a tag that is not on `main` or on its series' maintenance branch
+([Maintenance branches](agents/commits.md#maintenance-branches)), generates notes from the
+Conventional Commit subjects since the previous tag with `scripts/release_notes.sh`, and publishes
+them beside the Arch packages and their inventory. Every `v0.*` tag is marked a prerelease. macOS
+bundles are development artifacts and are not attached
+([ADR 0029](adr/0029-distribute-only-for-linux.md)). See
 [ADR 0028](adr/0028-derive-the-version-from-the-release-tag.md).
 
 ### Both architectures

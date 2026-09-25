@@ -12,6 +12,24 @@ Use the same types as the commit subject. Keep the summary imperative, lowercase
 and drop the issue number only when there is no ticket. Examples: `fix/108-follow-the-editor-theme`,
 `perf/70-step-the-sidebar-seam`.
 
+## Maintenance branches
+
+Work lands on `main`, and a release is a tag on `main`. The exception is a patch that has to ship
+after the next minor's first `feat` has merged: a tag on `main` would then be that minor, half
+finished. Such a patch ships from a maintenance branch instead.
+
+1. Merge the fix to `main` first, as any other change.
+2. Create `release/v<major>.<minor>` from the series' last tag if it does not exist yet, for example
+   `git switch -c release/v0.7 v0.7.3` and push it.
+3. Cherry-pick the squash commit onto it with `git cherry-pick -x <sha>` through a pull request
+   whose base is the maintenance branch. Only fixes go there, never a `feat`.
+4. Tag the patch on the maintenance branch. The `Release` workflow accepts a tag on `main` or on the
+   `release/` branch of its own series.
+
+A maintenance branch lives until the next minor is released, then it is deleted. The pacman
+repository serves the newest release, so a patch tagged after the next minor would move readers
+backwards.
+
 ## Commit messages
 
 Use Conventional Commits for every new commit:

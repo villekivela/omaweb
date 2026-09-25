@@ -26,6 +26,10 @@ Run all five. Each has produced a broken or unusable release at some point, or w
    The workflow refuses a tag that is not on `main`, and it refuses after building, so a tag on the
    wrong branch costs the build and leaves the tag behind.
 
+   A patch after the next minor's first `feat` has merged is the exception: it is tagged on the
+   series' maintenance branch, such as `release/v0.7`, and every step below runs there instead
+   ([Maintenance branches](../../../docs/agents/commits.md#maintenance-branches)).
+
 2. **The commit messages parse.** The notes are generated from Conventional Commit subjects in the
    range, so a subject the convention does not cover reaches readers as a line that says nothing.
 
