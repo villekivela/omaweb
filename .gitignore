@@ -19,3 +19,7 @@ __pycache__/
 /packaging/omaweb/
 /packaging/*.pkg.tar.*
 /packaging/*.log
+
+# The checkouts Claude Code makes for a background agent to work in. The rest
+# of `.claude/` is the project's shared settings and skills, and stays tracked.
+/.claude/worktrees/
