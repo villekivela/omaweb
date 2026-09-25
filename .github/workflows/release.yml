@@ -249,12 +249,21 @@ jobs:
           # whole history and every tag has to be present.
           fetch-depth: 0
 
-      - name: Refuse a tag that is not on main
+      # A patch that ships after the next minor's first feature has merged is
+      # tagged on its series' maintenance branch, such as release/v0.7 for
+      # v0.7.4 (docs/agents/commits.md).
+      - name: Refuse a tag that is not on main or its maintenance branch
         run: |
-          if ! git merge-base --is-ancestor "${GITHUB_SHA}" origin/main; then
-            echo "::error::${GITHUB_REF_NAME} is not an ancestor of main" >&2
-            exit 1
+          maintenance="origin/release/${GITHUB_REF_NAME%.*}"
+          if git merge-base --is-ancestor "${GITHUB_SHA}" origin/main; then
+            exit 0
           fi
+          if git rev-parse --quiet --verify "${maintenance}" > /dev/null \
+            && git merge-base --is-ancestor "${GITHUB_SHA}" "${maintenance}"; then
+            exit 0
+          fi
+          echo "::error::${GITHUB_REF_NAME} is not on main or ${maintenance#origin/}" >&2
+          exit 1
 
       - name: Generate notes
         run: |
