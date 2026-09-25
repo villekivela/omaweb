@@ -10,11 +10,10 @@ list what shipped.
 ## Planned
 
 Releases are planned as [milestones](https://github.com/villekivela/omaweb/milestones) on the issue
-tracker. [v0.7.1](https://github.com/villekivela/omaweb/milestone/4) ships Omaweb's own engine build
-and Known extensions ([ADR 0049](adr/0049-ship-omawebs-own-engine-build.md)). The v0.7.0 tag
-published nothing, because its release workflow failed before building. The September 2026 feature
-review named what a daily driver still lacked. Four milestones carry it after that, one theme each,
-in this order:
+tracker. The v0.7 releases shipped Omaweb's own engine build and Known extensions
+([ADR 0049](adr/0049-ship-omawebs-own-engine-build.md)), and v0.8.0 is the release in progress. The
+September 2026 feature review named what a daily driver still lacked. Four milestones carry it, one
+theme each, in this order:
 
 1. [v0.8.0](https://github.com/villekivela/omaweb/milestone/1), the page and what the reader takes
    from it: screenshots, the certificate in Site information, picture-in-picture, passkeys, an
