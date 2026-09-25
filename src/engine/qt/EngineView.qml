@@ -658,8 +658,19 @@ Item {
     function focusPage() {
         webView.forceActiveFocus();
     }
+    // Whether Content blocking's rules have changed since this document
+    // started loading. A reload hands the new document the images, scripts and
+    // stylesheets the renderer still holds from the old one without a request,
+    // so the request interceptor would never be asked about them under the new
+    // rules. The first reload after a change reads the page from the network
+    // instead, and the next load of any kind clears this (#393).
+    property bool blockingRulesChangedSinceLoad: false
+
     function reloadPage() {
-        webView.reload();
+        if (root.blockingRulesChangedSinceLoad)
+            webView.triggerWebAction(WebEngineView.ReloadAndBypassCache);
+        else
+            webView.reload();
     }
     // Reading the page again and reading it again from the network are two
     // different asks, and so is stopping: a stopped load leaves the page and
@@ -1555,6 +1566,12 @@ Item {
 
     onCurrentUrlChanged: root.announcePage(root.currentUrl)
 
+    function takeChangedBlockingRules() {
+        root.blockingRulesChangedSinceLoad = true;
+        root.cosmeticRuleGeneration += 1;
+        root.surveyGenericCosmeticRules();
+    }
+
     Connections {
         target: root.contentBlocker
         ignoreUnknownSignals: true
@@ -1565,13 +1582,11 @@ Item {
         // cost a rule lookup and a script round trip hundreds of times over a
         // single page load, in every open tab at once.
         function onConfigurationChanged() {
-            root.cosmeticRuleGeneration += 1;
-            root.surveyGenericCosmeticRules();
+            root.takeChangedBlockingRules();
         }
 
         function onRulesChanged() {
-            root.cosmeticRuleGeneration += 1;
-            root.surveyGenericCosmeticRules();
+            root.takeChangedBlockingRules();
         }
 
         // Delivered to the view showing the page, so a batch for another view
@@ -2307,6 +2322,7 @@ Item {
             root.refreshRenderProcessPid();
             if (loadRequest.status === WebEngineView.LoadStartedStatus) {
                 root.pageGeneration += 1;
+                root.blockingRulesChangedSinceLoad = false;
                 root.loadSetOutFrom = loadRequest.url;
                 root.announceDocument(loadRequest.url);
                 // The page being left takes its length with it, so the bar is
