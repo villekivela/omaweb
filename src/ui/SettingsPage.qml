@@ -1641,8 +1641,8 @@ Rectangle {
                               + "network."
 
                         Column {
-                            width: pane.width
-                            spacing: Style.spacing.small
+                            width: Style.spacing.dropdownWidth
+                            spacing: Style.spacing.sm
 
                             SettingDropdown {
                                 objectName: "secureDnsResolver"
@@ -1684,7 +1684,7 @@ Rectangle {
                             SettingField {
                                 objectName: "secureDnsAddress"
                                 visible: secureDnsGroup.chosen === "custom"
-                                width: pane.width
+                                width: parent.width
                                 colors: root.colors
                                 placeholder: "https://dns.example/dns-query"
                                 accessibleName: "Secure DNS address"
@@ -1698,7 +1698,7 @@ Rectangle {
                             Text {
                                 objectName: "secureDnsAddressRefused"
                                 visible: secureDnsGroup.addressRefused
-                                width: pane.width
+                                width: parent.width
                                 text: "That is not an https: address, so names would not be "
                                       + "encrypted. Nothing was changed."
                                 color: root.colors.urgent
@@ -1709,7 +1709,7 @@ Rectangle {
 
                             Text {
                                 objectName: "secureDnsInUse"
-                                width: pane.width
+                                width: parent.width
                                 text: !root.secureDns || root.secureDns.resolver === ""
                                       ? "Names are looked up by your system's resolver." :
                                         root.engineSecureDns && !root.engineSecureDns.applied

@@ -632,6 +632,28 @@ TestCase {
         page.secureDns = null;
     }
 
+    // The resolver's controls sit to the right of the setting's words, and the
+    // row is tall enough for the status line under them. The column once took
+    // the pane's whole width, which drew the dropdown over the title.
+    function test_secureDnsControlsSitBesideTheirWords() {
+        const page = makePage();
+        page.section = page.sections.indexOf("privacy");
+        secureDnsStub.resolver = "quad9";
+        page.secureDns = secureDnsStub;
+        const row = findChild(page, "secureDns");
+        const choice = findChild(page, "secureDnsResolver");
+        const inUse = findChild(page, "secureDnsInUse");
+        verify(row !== null && choice !== null && inUse !== null);
+        tryVerify(function () {
+            return row.width > 0 && inUse.height > 0;
+        });
+        verify(choice.mapToItem(row, 0, 0).x >= row.width / 2);
+        compare(Math.round(choice.mapToItem(row, choice.width, 0).x), Math.round(row.width));
+        verify(inUse.mapToItem(row, 0, inUse.height).y <= row.height);
+        secureDnsStub.resolver = "";
+        page.secureDns = null;
+    }
+
     QtObject {
         id: webRtcPolicyStub
 
