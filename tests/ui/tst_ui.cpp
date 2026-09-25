@@ -51,6 +51,24 @@ public:
     Q_INVOKABLE bool load() { return false; }
 };
 
+// The desktop's default-browser setting as a desktop that offers no way to ask
+// for it answers. The real one runs `xdg-settings` on the host, which would
+// make the settings page under test draw whatever this machine says.
+class DefaultBrowserProbe final : public QObject {
+    Q_OBJECT
+    Q_PROPERTY(bool available READ available CONSTANT)
+    Q_PROPERTY(bool isDefault READ isDefault NOTIFY changed)
+
+public:
+    bool available() const { return false; }
+    bool isDefault() const { return false; }
+    Q_INVOKABLE bool makeDefault() { return false; }
+    Q_INVOKABLE void refresh() { }
+
+signals:
+    void changed();
+};
+
 // A favicon on disk for the tests that check what colour a site's chip takes.
 // A mark on a transparent plate is the shape a real favicon has.
 QUrl writeFavicon(const QString &path, const QColor &mark)
@@ -91,6 +109,8 @@ public slots:
         omaweb::registerMediaAnnouncer();
         omaweb::registerProcessResources();
         omaweb::registerSavedDownload();
+        qmlRegisterSingletonType<DefaultBrowserProbe>("Omaweb", 1, 0, "DefaultBrowser",
+            [](QQmlEngine *, QJSEngine *) -> QObject * { return new DefaultBrowserProbe; });
         m_runtimeSecurity = std::make_unique<omaweb::RuntimeSecurity>(
             omaweb::SandboxHost {}, omaweb::RuntimeSecurity::EngineBuild {});
         omaweb::registerRuntimeSecurity(m_runtimeSecurity.get());
