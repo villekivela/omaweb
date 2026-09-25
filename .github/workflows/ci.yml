@@ -200,7 +200,8 @@ jobs:
           rm -f /tmp/budget.status
           printf 'cd %s\n' "$GITHUB_WORKSPACE" > /tmp/measure.sh
           cat >> /tmp/measure.sh <<'SCRIPT'
-          scripts/benchmark_runtime.py --browser build/ci/omaweb --require-dns
+          export QTWEBENGINE_CHROMIUM_FLAGS="--log-net-log=/tmp/netlog.json --net-log-capture-mode=Default"
+          scripts/benchmark_runtime.py pageload --browser build/ci/omaweb --require-dns
           echo $? > /tmp/budget.status
           SCRIPT
           chmod 0755 /tmp/measure.sh
@@ -227,6 +228,33 @@ jobs:
           # a failed job rather than a budget nobody measured.
           exit "$(cat /tmp/budget.status 2>/dev/null || echo 1)"
 
+      - name: Summarise the net log (temporary)
+        if: always()
+        run: |
+          ls -la /tmp/netlog.json || true
+          python3 - <<'PY'
+          import json, collections
+          raw = open("/tmp/netlog.json").read().rstrip().rstrip(",")
+          if not raw.endswith("]}"):
+              raw += "]}"
+          log = json.loads(raw)
+          constants = log["constants"]
+          types = {v: k for k, v in constants["logEventTypes"].items()}
+          sources = {v: k for k, v in constants["logSourceType"].items()}
+          errors = {v: k for k, v in constants["netError"].items()}
+          counts = collections.Counter()
+          examples = {}
+          for event in log["events"]:
+              params = event.get("params") or {}
+              error = params.get("net_error")
+              if error is None or error == 0:
+                  continue
+              key = (types.get(event["type"]), sources.get(event["source"]["type"]), errors.get(error, error))
+              counts[key] += 1
+              examples.setdefault(key, event["source"]["id"])
+          for key, count in counts.most_common(30):
+              print(count, key, "source", examples[key])
+          PY
       - name: Publish content-blocking compatibility
         run: |
           echo '### Content-blocking compatibility' >> "$GITHUB_STEP_SUMMARY"
