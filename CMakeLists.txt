@@ -916,11 +916,11 @@ if(BUILD_TESTING)
     # move the budget's numbers with nothing in the diff to say why.
     add_test(NAME omaweb-vendored-filter-lists
         COMMAND ${CMAKE_COMMAND}
-            -DOMAWEB_VENDOR_ROOT=${CMAKE_CURRENT_SOURCE_DIR}/third_party/filter-lists
-            -DOMAWEB_VENDOR_TRACKED=*.txt
-            -DOMAWEB_VENDOR_NAME=filter-list\ snapshot
+            "-DOMAWEB_VENDOR_ROOT=${CMAKE_CURRENT_SOURCE_DIR}/third_party/filter-lists"
+            "-DOMAWEB_VENDOR_TRACKED=*.txt"
+            "-DOMAWEB_VENDOR_NAME=filter-list snapshot"
             "-DOMAWEB_VENDOR_ADVICE=Run scripts/sync_filter_lists.py --sync to replace them."
-            -P ${CMAKE_CURRENT_SOURCE_DIR}/tests/cmake/check_vendored_tree.cmake
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/cmake/check_vendored_tree.cmake"
     )
 
     # The drift report and the issue it turns into, with GitHub stubbed out.
@@ -955,8 +955,8 @@ if(BUILD_TESTING)
         # what the DNS server answers for them: the parts that could be wrong
         # and still produce a number.
         add_test(NAME omaweb-benchmark-pageload
-            COMMAND ${Python3_EXECUTABLE}
-                ${CMAKE_CURRENT_SOURCE_DIR}/tests/scripts/tst_benchmark_pageload.py
+            COMMAND "${Python3_EXECUTABLE}"
+                "${CMAKE_CURRENT_SOURCE_DIR}/tests/scripts/tst_benchmark_pageload.py"
         )
         # CI skips the build jobs when a range is prose only, so this decides
         # whether a ten-minute build runs at all. The direction of its mistakes

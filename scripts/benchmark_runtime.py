@@ -834,13 +834,15 @@ PAGELOAD_READY_PAGE = """<!doctype html>
 
 
 class PageLoadServer(http.server.ThreadingHTTPServer):
-    errors: dict[str, int]
-
     # The standard library's backlog is five. Forty hosts connect at once, the kernel drops the
     # connections past the backlog, and each retries a second later, which a run first measured
     # as a second of blocking cost.
     request_queue_size = 128
     daemon_threads = True
+
+    def __init__(self, address: tuple[str, int], handler) -> None:
+        super().__init__(address, handler)
+        self.errors: dict[str, int] = {}
 
     def handle_error(self, request, client_address) -> None:
         """Counts what went wrong answering a connection, rather than printing it.
@@ -878,7 +880,6 @@ class PageLoadSite:
         self.finished = False
         self.progress = threading.Condition()
         self.server = PageLoadServer(("127.0.0.1", 0), self._handler())
-        self.server.errors = {}
         self.port = self.server.server_address[1]
         self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
 
@@ -942,6 +943,22 @@ class PageLoadSite:
             if self.problem:
                 raise MeasurementFailed(self.problem)
 
+    def describe_missing(self, load: PageLoad) -> str:
+        """One page's missing images, and whether the server ever saw them asked for.
+
+        Not asked for is a refusal, a lookup or a connection that failed before the request left the
+        browser; asked for and still missing is an answer that did not arrive.
+        """
+        report = self.reports[load.number]
+        missing = report["missing"]
+        asked = sum(address in self.requested for address in missing)
+        answered = sum(address in self.answered for address in missing)
+        return (f"load {load.number} ({load.case} hosts, blocking {load.mode}, "
+                f"{'counted' if load.measured else 'warm-up'}) is missing {len(missing)} of "
+                f"{PAGELOAD_IMAGES} images: {asked} asked of the server, {answered} answered "
+                f"by it, {report['failed']} failed in the page; the first is {missing[0]}, timed "
+                f"by the engine as {report['timing'][0]}")
+
     def _handler(self) -> type[http.server.BaseHTTPRequestHandler]:
         site = self
 
@@ -967,10 +984,14 @@ class PageLoadSite:
                 self.end_headers()
                 self.wfile.write(body)
                 self.wfile.flush()
-                site.answered.add(f"http://{self.headers.get('Host', '')}{self.path}")
+                site.answered.add(self.address)
+
+            @property
+            def address(self) -> str:
+                return f"http://{self.headers.get('Host', '')}{self.path}"
 
             def do_GET(self) -> None:  # noqa: N802
-                site.requested.add(f"http://{self.headers.get('Host', '')}{self.path}")
+                site.requested.add(self.address)
                 path = urllib.parse.urlsplit(self.path).path
                 if path == "/ready":
                     self.answer(site.ready_page(), "text/html; charset=utf-8")
@@ -1134,23 +1155,6 @@ def in_child(work) -> dict:
     return outcome["result"]
 
 
-def describe_missing(load: PageLoad, site: PageLoadSite) -> str:
-    """One page's missing images, and whether the server ever saw them asked for.
-
-    Not asked for is a refusal, a lookup or a connection that failed before the request left the
-    browser; asked for and still missing is an answer that did not arrive.
-    """
-    report = site.reports[load.number]
-    missing = report["missing"]
-    asked = sum(address in site.requested for address in missing)
-    answered = sum(address in site.answered for address in missing)
-    return (f"load {load.number} ({load.case} hosts, blocking {load.mode}, "
-            f"{'counted' if load.measured else 'warm-up'}) is missing {len(missing)} of "
-            f"{PAGELOAD_IMAGES} images: {asked} asked of the server, {answered} answered by it, "
-            f"{report['failed']} failed in the page; the first is {missing[0]}, timed by the "
-            f"engine as {report['timing'][0]}")
-
-
 def run_pageload(executable: str, private: bool) -> dict:
     plan = pageload_plan()
     workspace = Workspace()
@@ -1174,10 +1178,11 @@ def run_pageload(executable: str, private: bool) -> dict:
             network.leave()
         workspace.discard()
 
-    short = [describe_missing(load, site) for load in plan if site.reports[load.number]["missing"]]
-    if short:
+    incomplete = [site.describe_missing(load) for load in plan
+                  if site.reports[load.number]["missing"]]
+    if incomplete:
         raise MeasurementFailed("the two modes did not load the same pages:\n    "
-                                + "\n    ".join(short)
+                                + "\n    ".join(incomplete)
                                 + f"\n    the server's own errors: {site.server.errors}")
     results = {}
     for case, hosts in PAGELOAD_CASES.items():

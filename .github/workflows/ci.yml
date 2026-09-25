@@ -255,6 +255,14 @@ jobs:
           for key, count in counts.most_common(30):
               print(count, key, "source", examples[key])
           PY
+      - name: Make the net log readable (temporary)
+        if: always()
+        run: chmod 0644 /tmp/netlog.json || true
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: pageload-netlog
+          path: /tmp/netlog.json
       - name: Publish content-blocking compatibility
         run: |
           echo '### Content-blocking compatibility' >> "$GITHUB_STEP_SUMMARY"
