@@ -12,20 +12,25 @@ list what shipped.
 Releases are planned as [milestones](https://github.com/villekivela/omaweb/milestones) on the issue
 tracker. The v0.7 releases shipped Omaweb's own engine build and Known extensions
 ([ADR 0049](adr/0049-ship-omawebs-own-engine-build.md)), and v0.8.0 is the release in progress. The
-September 2026 feature review named what a daily driver still lacked. Four milestones carry it, one
+September 2026 feature review named what a daily driver still lacked. Five milestones carry it, one
 theme each, in this order:
 
 1. [v0.8.0](https://github.com/villekivela/omaweb/milestone/1), the page and what the reader takes
    from it: screenshots, the certificate in Site information, picture-in-picture, passkeys, an
    HTTPS-only mode, secure DNS, trackers refused behind a CNAME, the engine's trace-macro fix, the
    open page bugs, and the decision on how payment cards are stored.
-2. [v0.9.0](https://github.com/villekivela/omaweb/milestone/2), localization: the tooling, then
+2. [v0.9.0](https://github.com/villekivela/omaweb/milestone/8), Agents
+   ([ADR 0051](adr/0051-hand-the-browser-to-an-agent.md)): the control socket with the `omaweb` CLI
+   and MCP front ends, browser commands open to every script, Agent Spaces and Space grants, the
+   activity log, and the page verbs. It comes before localization so its strings are wrapped with
+   the rest.
+3. [v0.10.0](https://github.com/villekivela/omaweb/milestone/2), localization: the tooling, then
    every user-facing string wrapped, then the first locale finished and new strings gated. It
-   follows v0.8.0 so the wrapping passes cover its features and nothing is in flight when the gate
-   switches on.
-3. [v0.10.0](https://github.com/villekivela/omaweb/milestone/3), forms and autofill: what was typed
+   follows v0.8.0 and v0.9.0 so the wrapping passes cover their features and nothing is in flight
+   when the gate switches on.
+4. [v0.11.0](https://github.com/villekivela/omaweb/milestone/3), forms and autofill: what was typed
    remembered, then addresses filled, then payment cards, on the storage decision v0.8.0 takes.
-4. [v0.11.0](https://github.com/villekivela/omaweb/milestone/6), the chrome: jumping between tabs
+5. [v0.12.0](https://github.com/villekivela/omaweb/milestone/6), the chrome: jumping between tabs
    with `Ctrl+O` and `Ctrl+I`, any Space's tabs in the Omnibar, the sidebar on the right, and the
    sidebar's empty space moving the window.
 

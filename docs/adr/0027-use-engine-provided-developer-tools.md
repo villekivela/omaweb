@@ -1,5 +1,8 @@
 # Use engine-provided developer tools
 
+[0051](0051-hand-the-browser-to-an-agent.md) takes the CLI, the MCP server and agent access back out
+of the exclusions below. Developer tools stand as recorded here.
+
 Omaweb exposes one Open developer tools command and lets each engine adapter supply its own
 inspector. The Qt adapter docks the Chromium DevTools frontend beside the inspected tab through
 QtWebEngine's in-process developer-tools view; an engine without an inspector reports the capability
