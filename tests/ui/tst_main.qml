@@ -33,6 +33,33 @@ TestCase {
         Omaweb.Main {}
     }
 
+    // Content blocking as the chrome reads it, having refused one request on
+    // the page on show.
+    Component {
+        id: oneRefusalBlockerComponent
+
+        QtObject {
+            property int refusalTallyGeneration: 0
+
+            function refusalTally(spaceId, pageAddress) {
+                return 1;
+            }
+            function refusedRequests(spaceId, pageAddress) {
+                return [
+                            {
+                                "address": "https://ads.example/banner.js",
+                                "canonicalName": ""
+                            }
+                        ];
+            }
+            function siteEnabled(url) {
+                return true;
+            }
+            function setSiteEnabled(url, enabled) {
+            }
+        }
+    }
+
     // Content blocking as the chrome reads it, having refused five requests on
     // the page on show, one of them through the canonical name its host's
     // CNAME chain ends at.
@@ -1570,6 +1597,22 @@ TestCase {
         engine.lastLoadNameUnresolved = false;
         secureDns.turnOff();
         compare(text, "· Quad9 could not find this site, over Secure DNS");
+    }
+
+    function test_siteInformationCountsOneRefusalInTheSingular() {
+        openPage("https://one-refusal.example/page");
+        const sidebar = findChild(window.contentItem, "sidebar");
+        const panel = findChild(window.contentItem, "siteInformationPanel");
+        const blocker = panel.blocker;
+        panel.blocker = oneRefusalBlockerComponent.createObject(testCase);
+        sidebar.statusOpen = true;
+        tryVerify(function () {
+            return panel.visible;
+        });
+        const text = findChild(panel, "siteInformationBlocked").text;
+        sidebar.statusOpen = false;
+        panel.blocker = blocker;
+        compare(text, "· 1 request blocked on this page");
     }
 
     // A section label leans away from what precedes it. The panel's own name is

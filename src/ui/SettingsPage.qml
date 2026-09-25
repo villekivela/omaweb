@@ -1017,10 +1017,9 @@ Rectangle {
                         width: pane.width
                         colors: root.colors
                         title: "Block requests on this site"
-                        note: root.refusalTally + " requests blocked on this page" + (
-                                  root.activeHost.length > 0
-                                  ? ", and the switch covers every page on " + root.activeHost :
-                                    "") + "."
+                        note: root.refusals.sentence + (root.activeHost.length > 0
+                                                        ? ", and the switch covers every page on "
+                                                          + root.activeHost : "") + "."
                         accessibleName: "Enable content blocking for this site"
                         checked: root.blocker && root.browser ? root.blocker.siteEnabled(
                                                                     root.browser.activeUrl) : false
