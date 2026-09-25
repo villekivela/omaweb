@@ -58,6 +58,12 @@ that lack it.
 ## What this costs
 
 The series now carries content-blocking work as well as extension work, which ADR 0049 did not count
-on. The added cost is one patch on Qt's interception path. A request that no rule refuses waits for
-a lookup before it starts, which the host cache answers for every host the page has already reached.
-The performance probes measure it before it ships.
+on. The added cost is one patch on Qt's interception path.
+
+A request no rule refuses waits for a proxy check and a lookup before it starts, and the host cache
+does not make that free. Measured on an M2 Max with the patched engine, a page of 40 images over
+loopback, warm, took about 45 ms without uncloaking and 60 to 70 ms with it when every image came
+from a host of its own, and about 48 ms when the 40 came from four hosts. The comparison turns the
+site off, so it also leaves out the first check, and uncloaking's own share is somewhat less. A page
+that spreads its requests across many hosts pays most, which is also the page most likely to carry
+trackers.

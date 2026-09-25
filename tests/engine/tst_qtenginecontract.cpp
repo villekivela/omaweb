@@ -17,6 +17,19 @@
 #include "ProcessResources.h"
 #include "WebRtcPolicy.h"
 
+#if OMAWEB_CNAME_UNCLOAKING
+#include <functional>
+#include <optional>
+
+// The patched engine's stand-in for DNS, exported for tests (ADR 0050). It is
+// declared here rather than reached through Qt's private headers, which a
+// development machine with another Qt beside the engine cannot compile.
+namespace QtWebEngineCore {
+using DnsAliasResolverForTesting = std::function<std::optional<QStringList>(const QString &host)>;
+void setDnsAliasResolverForTesting(DnsAliasResolverForTesting resolver);
+} // namespace QtWebEngineCore
+#endif
+
 #include <QGuiApplication>
 #include <QColor>
 #include <QDir>
@@ -30,6 +43,7 @@
 #include <QQmlEngine>
 #include <QQuickItem>
 #include <QQuickWindow>
+#include <QScopeGuard>
 #include <QSet>
 #include <QSignalSpy>
 #include <QSslConfiguration>
@@ -138,6 +152,7 @@ class QtEngineContractTest final : public QObject {
     Q_OBJECT
 
 private slots:
+    void qtRefusesATrackerBehindACname();
     void adaptersExposeSharedContract_data();
     void adaptersExposeSharedContract();
     void blockersExposeSharedContract();
@@ -1458,6 +1473,69 @@ private:
 };
 
 } // namespace
+
+// A tracker served from a subdomain of the page's own site, whose CNAME chain
+// ends at the tracker's host, is refused under that name, counted, and listed
+// with it. A request its own name already refused is never looked up, so the
+// tracker's DNS server does not learn of a request Omaweb was not going to
+// make. The engine's resolver is stood in for, because a CNAME chain needs a
+// DNS server this test does not have (ADR 0050).
+void QtEngineContractTest::qtRefusesATrackerBehindACname()
+{
+#if OMAWEB_CNAME_UNCLOAKING
+    QStringList lookedUp;
+    QtWebEngineCore::setDnsAliasResolverForTesting([&lookedUp](const QString &host) {
+        lookedUp.append(host);
+        return host == QStringLiteral("metrics.site.test")
+            ? std::optional<QStringList>(QStringList {QStringLiteral("collect.tracker.test")})
+            : std::optional<QStringList>();
+    });
+    const auto restore = qScopeGuard([] { QtWebEngineCore::setDnsAliasResolverForTesting({}); });
+    PageServer server(QByteArray(R"HTML(<!doctype html><html><body>
+        <img src="http://metrics.site.test/pixel.gif">
+        <img src="http://ads.test/banner.gif">
+    </body></html>)HTML"));
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    omaweb::ContentBlocker contentBlocker(root.path(), omaweb::ContentBlocker::DefaultLists::None);
+    contentBlocker.setUserRules(QStringLiteral("||tracker.test^\n||ads.test^"));
+    QTRY_VERIFY_WITH_TIMEOUT(!contentBlocker.compiling(), 5000);
+    omaweb::QtContentBlocker engineContentBlocker(&contentBlocker);
+
+    QQmlEngine engine;
+    QQmlComponent component(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
+        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
+        {QStringLiteral("contentBlocker"), QVariant::fromValue<QObject *>(&contentBlocker)},
+        {QStringLiteral("engineContentBlocker"),
+            QVariant::fromValue<QObject *>(&engineContentBlocker)},
+    }));
+    QVERIFY2(adapter, qPrintable(component.errorString()));
+    QQuickWindow window;
+    qobject_cast<QQuickItem *>(adapter.get())->setParentItem(window.contentItem());
+    window.show();
+
+    const QUrl pageUrl(QStringLiteral("http://127.0.0.1:%1/page.html").arg(server.serverPort()));
+    QVERIFY(adapter->setProperty("currentUrl", pageUrl));
+
+    QTRY_COMPARE_WITH_TIMEOUT(contentBlocker.refusalTally(QString(), pageUrl), 2, 15000);
+    const auto refused = contentBlocker.refusedRequests(QString(), pageUrl);
+    const auto cloaked = std::ranges::find_if(refused, [](const QVariant &entry) {
+        return entry.toMap().value(QStringLiteral("address")).toString()
+            == QStringLiteral("http://metrics.site.test/pixel.gif");
+    });
+    QVERIFY(cloaked != refused.cend());
+    QCOMPARE(cloaked->toMap().value(QStringLiteral("canonicalName")).toString(),
+        QStringLiteral("collect.tracker.test"));
+    QVERIFY(lookedUp.contains(QStringLiteral("metrics.site.test")));
+    QVERIFY(!lookedUp.contains(QStringLiteral("ads.test")));
+#else
+    QSKIP("This build's engine cannot resolve a host for the interceptor.");
+#endif
+}
 
 // The page reports what it can see the moment its own script runs, and again
 // once the view has settled. A hiding rule that arrives after the page's own

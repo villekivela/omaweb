@@ -126,7 +126,12 @@ qt_standard_project_setup(REQUIRES 6.11)
 set(OMAWEB_CNAME_UNCLOAKING OFF)
 if(OMAWEB_BUILD_BROWSER)
     include(CheckCXXSourceCompiles)
-    set(CMAKE_REQUIRED_LIBRARIES Qt6::WebEngineCore)
+    # The same Qt the adapter links, in the same order, so the probe reads the
+    # header the adapter will be compiled against. On a machine that also has a
+    # stock QtWebEngine beside the rest of Qt, the rest of Qt's search path
+    # finds that one first.
+    set(CMAKE_REQUIRED_LIBRARIES Qt6::Core Qt6::Qml Qt6::Quick Qt6::WebEngineCore
+        Qt6::WebEngineQuick)
     check_cxx_source_compiles([=[
         #include <QtWebEngineCore/qwebengineurlrequestinfo.h>
         int main()
