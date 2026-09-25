@@ -155,6 +155,7 @@ class QtEngineContractTest final : public QObject {
 
 private slots:
     void qtRefusesATrackerBehindACname();
+    void qtReadsAPageAgainUnderTheRulesThatChangedSinceItLoaded();
     void qtTakesTheReadersSecureDnsResolver();
     void qtReportsANameThatCouldNotBeLookedUp();
     void adaptersExposeSharedContract_data();
@@ -1539,6 +1540,111 @@ void QtEngineContractTest::qtRefusesATrackerBehindACname()
 #else
     QSKIP("This build's engine cannot resolve a host for the interceptor.");
 #endif
+}
+
+namespace {
+
+// A page with an image and a script, both cacheable, that counts how many
+// times each has actually been fetched. The script puts its count in the
+// title, so a load that has run it can be waited for.
+class CacheableSubresourceServer final : public QTcpServer {
+public:
+    CacheableSubresourceServer()
+    {
+        connect(this, &QTcpServer::newConnection, this, [this] {
+            auto *socket = nextPendingConnection();
+            connect(socket, &QTcpSocket::readyRead, socket, [this, socket] {
+                const auto request = socket->readAll();
+                const auto fields = request.split(' ');
+                const auto path = fields.size() > 1 ? fields.at(1) : QByteArray();
+                QByteArray headers;
+                QByteArray body;
+                if (path.startsWith("/pixel.gif")) {
+                    ++m_imageRequests;
+                    body = QByteArray::fromBase64(
+                        "R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7");
+                    headers = "Content-Type: image/gif\r\nCache-Control: max-age=600\r\n";
+                } else if (path.startsWith("/counter.js")) {
+                    ++m_scriptRequests;
+                    body = "document.title = '" + QByteArray::number(m_scriptRequests) + "';";
+                    headers = "Content-Type: application/javascript\r\n"
+                              "Cache-Control: max-age=600\r\n";
+                } else {
+                    body = "<!doctype html><title>waiting</title><img src=\"/pixel.gif\">"
+                           "<script src=\"/counter.js\"></script>";
+                    headers = "Content-Type: text/html\r\nCache-Control: no-store\r\n";
+                }
+                socket->write("HTTP/1.1 200 OK\r\n" + headers + "Content-Length: "
+                    + QByteArray::number(body.size()) + "\r\nConnection: close\r\n\r\n" + body);
+                socket->flush();
+                socket->disconnectFromHost();
+            });
+        });
+    }
+
+    int imageRequests() const { return m_imageRequests; }
+    int scriptRequests() const { return m_scriptRequests; }
+
+private:
+    int m_imageRequests = 0;
+    int m_scriptRequests = 0;
+};
+
+} // namespace
+
+// A reload hands the new document what the renderer still holds from the old
+// one without a request, so the interceptor is never asked about it. The
+// first reload after a rule change reads the page from the network instead,
+// and the one after that keeps the cache again (#393).
+void QtEngineContractTest::qtReadsAPageAgainUnderTheRulesThatChangedSinceItLoaded()
+{
+    CacheableSubresourceServer server;
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    omaweb::ContentBlocker contentBlocker(root.path(), omaweb::ContentBlocker::DefaultLists::None);
+    omaweb::QtContentBlocker engineContentBlocker(&contentBlocker);
+
+    QQmlEngine engine;
+    QQmlComponent component(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
+        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
+        {QStringLiteral("contentBlocker"), QVariant::fromValue<QObject *>(&contentBlocker)},
+        {QStringLiteral("engineContentBlocker"),
+            QVariant::fromValue<QObject *>(&engineContentBlocker)},
+    }));
+    QVERIFY2(adapter, qPrintable(component.errorString()));
+    QQuickWindow window;
+    qobject_cast<QQuickItem *>(adapter.get())->setParentItem(window.contentItem());
+    window.show();
+
+    const auto reloadAndSettle = [&] {
+        const auto generation = adapter->property("pageGeneration").toInt();
+        QVERIFY(QMetaObject::invokeMethod(adapter.get(), "reloadPage"));
+        QTRY_VERIFY_WITH_TIMEOUT(adapter->property("pageGeneration").toInt() > generation, 15000);
+        QTRY_VERIFY_WITH_TIMEOUT(!adapter->property("loading").toBool(), 15000);
+    };
+
+    const QUrl pageUrl(QStringLiteral("http://127.0.0.1:%1/page.html").arg(server.serverPort()));
+    QVERIFY(adapter->setProperty("currentUrl", pageUrl));
+    QTRY_COMPARE_WITH_TIMEOUT(
+        adapter->property("pageTitle").toString(), QStringLiteral("1"), 15000);
+    QTRY_VERIFY_WITH_TIMEOUT(!adapter->property("loading").toBool(), 15000);
+    QCOMPARE(server.imageRequests(), 1);
+
+    contentBlocker.setUserRules(QStringLiteral("/pixel.gif$image"));
+    QTRY_VERIFY_WITH_TIMEOUT(!contentBlocker.compiling(), 5000);
+
+    reloadAndSettle();
+    QTRY_COMPARE_WITH_TIMEOUT(contentBlocker.refusalTally(QString(), pageUrl), 1, 15000);
+    QCOMPARE(adapter->property("pageTitle").toString(), QStringLiteral("2"));
+    QCOMPARE(server.imageRequests(), 1);
+
+    reloadAndSettle();
+    QCOMPARE(adapter->property("pageTitle").toString(), QStringLiteral("2"));
+    QCOMPARE(server.scriptRequests(), 2);
 }
 
 // The engine takes the resolver the reader chose, named or typed, and takes

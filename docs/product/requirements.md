@@ -191,8 +191,8 @@ reports the gap and remains experimental rather than imitating behavior it canno
 - Find belongs to one tab. Hiding the find interface retains its query and current match for that
   tab; navigation clears the matches and keeps the query ready to run again.
 - Zoom belongs to one tab and supports increase, decrease, and reset. Normal reload respects cache,
-  Reload bypassing cache does not, and Stop loading ends the current load without clearing page
-  state.
+  apart from the first reload after a Content blocking rule change. Reload bypassing cache does not,
+  and Stop loading ends the current load without clearing page state.
 - Browser fullscreen and site-requested fullscreen are separate. Site-requested fullscreen begins
   with a visible origin notice and always exits with `Escape`.
 - Printing uses the native print dialog and includes the operating system's PDF destination. Where
@@ -504,6 +504,13 @@ not uncloak, and Settings says so ([ADR 0050](../adr/0050-uncloak-cname-trackers
 
 Site information lists the requests Content blocking refused on the page beside the Refusal tally,
 and names the name from the CNAME chain an uncloaked one matched.
+
+A rule change applies to every request made after it: a list update, a user rule, or a site whose
+blocking was switched on or off. The engine hands a reloaded document the images, scripts and
+stylesheets the page already holds without making a request for them, so the first reload of a tab
+after a rule change reads the page from the network rather than the cache, and the reload after that
+keeps the cache again. A page that asks again, without a reload, for a resource it already holds is
+given the copy it holds, and the change reaches that resource at the page's next load.
 
 ## Daily-driver non-goals
 
