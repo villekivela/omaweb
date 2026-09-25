@@ -1,7 +1,8 @@
 # Own portable content blocking
 
 CNAME uncloaking moved inside it in [0050](0050-uncloak-cname-trackers-in-the-engine.md), as a
-capability of the Qt engine.
+capability of the Qt engine, and procedural selectors in
+[0052](0052-apply-procedural-cosmetic-filters.md), as another.
 
 Scriptlets moved inside the contract in [0025](0025-run-only-vendored-scriptlets.md), and redirects
 and resource replacement in [0026](0026-serve-substitutes-under-an-omaweb-scheme.md); the paragraphs

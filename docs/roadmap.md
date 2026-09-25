@@ -17,8 +17,8 @@ theme each, in this order:
 
 1. [v0.8.0](https://github.com/villekivela/omaweb/milestone/1), the page and what the reader takes
    from it: screenshots, the certificate in Site information, picture-in-picture, passkeys, an
-   HTTPS-only mode, secure DNS, trackers refused behind a CNAME, the engine's trace-macro fix, the
-   open page bugs, and the decision on how payment cards are stored.
+   HTTPS-only mode, secure DNS, trackers refused behind a CNAME, procedural cosmetic filters, the
+   engine's trace-macro fix, the open page bugs, and the decision on how payment cards are stored.
 2. [v0.9.0](https://github.com/villekivela/omaweb/milestone/8), Agents
    ([ADR 0051](adr/0051-hand-the-browser-to-an-agent.md)): the control socket with the `omaweb` CLI
    and MCP front ends, browser commands open to every script, Agent Spaces and Space grants, the
