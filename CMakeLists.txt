@@ -878,6 +878,15 @@ if(BUILD_TESTING)
             -P ${CMAKE_CURRENT_SOURCE_DIR}/tests/cmake/check_vendored_tree.cmake
     )
 
+    add_test(NAME omaweb-vendored-procedural-filters
+        COMMAND ${CMAKE_COMMAND}
+            -DOMAWEB_VENDOR_ROOT=${CMAKE_CURRENT_SOURCE_DIR}/third_party/brave-procedural-filters
+            -DOMAWEB_VENDOR_TRACKED=src/*
+            -DOMAWEB_VENDOR_NAME=procedural\ filters
+            "-DOMAWEB_VENDOR_ADVICE=Run scripts/sync_procedural_filters.py --sync to restore them."
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/tests/cmake/check_vendored_tree.cmake
+    )
+
     add_test(NAME omaweb-vendored-ubo-scriptlets
         COMMAND ${CMAKE_COMMAND}
             -DOMAWEB_VENDOR_ROOT=${omaweb_ubo_scriptlets_root}
@@ -1386,6 +1395,8 @@ if(BUILD_TESTING)
             OMAWEB_QT_ENGINE_PROFILE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/src/engine/qt/EngineProfile.qml"
             OMAWEB_MOCK_ENGINE_PROFILE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/src/ui-lab/MockEngineProfile.qml"
             OMAWEB_KEYBOARD_NAVIGATION_SCRIPT_PATH="${CMAKE_CURRENT_SOURCE_DIR}/src/engine/api/keyboard-navigation.js"
+            OMAWEB_PROCEDURAL_FILTERS_PATH="${CMAKE_CURRENT_SOURCE_DIR}/third_party/brave-procedural-filters/procedural_filters.js"
+            OMAWEB_PROCEDURAL_RULES_PATH="${CMAKE_CURRENT_SOURCE_DIR}/tests/content-blocking/procedural-rules.json"
             OMAWEB_UI_DIRECTORY="${CMAKE_CURRENT_SOURCE_DIR}/src/ui"
             OMAWEB_UNTRUSTED_CERTIFICATE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/tests/engine/certificates/untrusted-local.crt"
             OMAWEB_UNTRUSTED_KEY_PATH="${CMAKE_CURRENT_SOURCE_DIR}/tests/engine/certificates/untrusted-local.key"

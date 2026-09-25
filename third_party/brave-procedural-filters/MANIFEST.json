@@ -1,0 +1,27 @@
+{
+  "repository": "https://github.com/brave/brave-core",
+  "branch": "master",
+  "ref": "a46f4e864ae33b38e02bee1d72f95364d4677290",
+  "fetched": "2026-09-25",
+  "license": "MPL-2.0",
+  "bundler": "esbuild 0.28.2",
+  "global": "omawebProceduralFilters",
+  "generated": [
+    {
+      "path": "procedural_filters.js",
+      "sha256": "86542d58529231f10179371de53fa409da5cc96ffe5b270f646ad0dc76430264"
+    }
+  ],
+  "files": {
+    "LICENSE": {
+      "upstream": "LICENSE",
+      "blob": "d0a1fa1482eea82e19510e7920cbe3a03e41f691",
+      "sha256": "3f3d9e0024b1921b067d6f7f88deb4a60cbe7a78e76c64e3f1d7fc3b779b9d04"
+    },
+    "src/procedural_filters.ts": {
+      "upstream": "components/cosmetic_filters/resources/data/procedural_filters.ts",
+      "blob": "d49eb08f663058d330e00557d52682c9e692aa03",
+      "sha256": "85a6545f0138127eb86bd5a9ac1d5c852c3c74f34b75d9414c153b199de97c6b"
+    }
+  }
+}

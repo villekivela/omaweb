@@ -4,6 +4,7 @@
     "format": "prettier --write '**/*.{md,json,yml,yaml,html,css,js,mjs}'"
   },
   "devDependencies": {
+    "esbuild": "0.28.2",
     "prettier": "3.6.2"
   }
 }
