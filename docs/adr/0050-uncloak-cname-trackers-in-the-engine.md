@@ -21,10 +21,30 @@ resolver and host cache, and calls the interceptor again with the names in the h
 There is no second call when the lookup fails or returns no alias other than the host itself, and
 the first call's decision stands.
 
+What comes back depends on who resolves the name. Qt runs Chromium's own DNS client only under
+Secure DNS ([#305](https://github.com/villekivela/omaweb/issues/305)); otherwise every lookup goes
+through the system resolver, which reports an alias only when asked for the canonical name and then
+reports that one alone. So:
+
+- With Secure DNS on, the lookup returns the whole chain. It goes through the profile's host cache,
+  so the request that follows reads the same answer and each host is resolved once.
+- With it off, the lookup asks the system for the canonical name, and the interceptor gets the
+  chain's last name only. uBlock Origin on Firefox judges by that name alone too. A tracker behind a
+  CDN of its own is missed, because its own host is a hop in the middle. Asking for the canonical
+  name is a lookup of its own, so the page's request resolves the host a second time.
+
+The canonical name is asked for only when Secure DNS is off. Chromium sends any lookup that asks for
+it to the system resolver, which would take a Secure DNS lookup off DoH.
+
 No lookup is made for a main-frame navigation, for an IP literal, or when a proxy applies to the
 request. Behind a proxy a local lookup leaks the query and can disagree with the answer the proxy
-gets, and Brave skips uncloaking there for the same reason. The lookup warms the cache the request
-itself then reads, so each host is resolved once.
+gets, and Brave skips uncloaking there for the same reason.
+
+The first version of the patch passed every test and uncloaked nothing in the browser. Its tests
+stood in for the resolver, and the system resolver, which the browser uses by default, returns no
+alias unless asked. The Omarchy VM found it against a real DNS server. The series now carries a
+check that asks real public hosts under both modes, and it runs outside the gate, which has neither
+a DNS server nor the internet.
 
 The patch is written as a general addition to Qt's interceptor API rather than as Omaweb's, and an
 application that never asks sees no change. That keeps a path upstream open and the rebase surface
