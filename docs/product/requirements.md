@@ -488,10 +488,16 @@ where an ad was and a page measuring its own bait reads it as hidden. An element
 failed for any other reason is left as the engine draws it, the collapse does not move the Refusal
 tally, and a refused script or stylesheet has no element to collapse.
 
-Omaweb does not claim full uBlock Origin compatibility. Procedural selectors, response rewriting,
-content security policies, HTML filtering and dynamic rules are outside the first contract. A
-subscribed list keeps the rules this contract does parse; Settings reports what each list
-contributed and what it skipped.
+On the Qt engine, a procedural cosmetic rule written against a site hides, restyles or removes what
+it matches, in the main frame and in every subframe, and keeps doing so as the page changes
+([ADR 0052](../adr/0052-apply-procedural-cosmetic-filters.md)). A rule change reaches an open page
+in place, except that an element a `:remove()` rule deleted returns only when the page reloads. A
+generic procedural rule, and one using an operator the pinned parser lacks, is reported in a
+category of its own.
+
+Omaweb does not claim full uBlock Origin compatibility. Response rewriting, content security
+policies, HTML filtering and dynamic rules are outside the first contract. A subscribed list keeps
+the rules this contract does parse; Settings reports what each list contributed and what it skipped.
 
 On the Qt engine Omaweb ships, a subresource request the lists let through is checked again under
 each name in its host's CNAME chain, so a tracker served from a site's own subdomain is refused as
