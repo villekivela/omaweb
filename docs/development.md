@@ -357,6 +357,16 @@ resolves the dependency where the repository is configured and assumes it where 
 which of the two it did, so the check works on an architecture whose engine has not been built yet
 without quietly claiming to have installed one.
 
+A machine that also has the distribution's `qt6-webengine` installed builds against the wrong engine
+without saying so. `Qt6WebEngineCore_DIR` resolves to `/usr/lib/cmake` unless it is set, and even
+set, `-isystem /usr/include/qt6` comes before the prefix's headers, so the engine's own forwarding
+headers find the stock ones. CMake then reports `OMAWEB_ENGINE_OFFERS_DNS_ALIASES` false and the
+browser builds without CNAME uncloaking
+([ADR 0050](adr/0050-uncloak-cname-trackers-in-the-engine.md)). A clean-chroot package build has no
+second engine and is not affected. To build against the patched engine on such a machine, set each
+`Qt6WebEngine*_DIR` to the prefix's `lib/cmake` and put the prefix's include directory before
+`/usr/include/qt6`. Homebrew on macOS has the same shape, under `/opt/homebrew/include`.
+
 `qt6-wayland` is a dependency in its own right because native Wayland is the primary display
 platform. The content-blocking library is the one thing that rides along, under `lib/omaweb`,
 because no distribution package supplies it.
