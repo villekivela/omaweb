@@ -202,6 +202,7 @@ Rectangle {
     // outline never works this out from the address: an address is what was
     // asked for, and a lock drawn from one is a claim nothing checked.
     property string connectionState: "internal"
+    property string lookupFailedBy: ""
     // What the engine can and cannot answer for. A gap is said out loud rather
     // than drawn as a reassuring blank.
     property bool certificateDecisionsAvailable: false
@@ -1340,6 +1341,7 @@ Rectangle {
         blank: root.blank
         privateWindow: root.privateWindow
         connectionState: root.connectionState
+        lookupFailedBy: root.lookupFailedBy
         certificateDecisionsAvailable: root.certificateDecisionsAvailable
         thirdPartyCookieControlAvailable: root.thirdPartyCookieControlAvailable
         siteDataOnDisk: root.siteDataOnDisk

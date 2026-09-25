@@ -114,6 +114,10 @@ Rectangle {
     // What a page's call may learn about the reader's network, and the engine
     // adapter that says whether this build can set it at all (ADR 0047).
     property var webRtcPolicy: null
+    // Where names are looked up, and whether the engine took the resolver it
+    // was given. Null where the build has no such setting to offer.
+    property var secureDns: null
+    property var engineSecureDns: null
     property var engineWebRtcPolicy: null
     readonly property bool webRtcPolicyUnreachable: !!engineWebRtcPolicy &&
                                                     !engineWebRtcPolicy.available
@@ -1609,6 +1613,125 @@ Rectangle {
                         onClicked: {
                             if (root.globalPrivacyControl)
                                 root.globalPrivacyControl.enabled = !checked;
+                        }
+                    }
+
+                    // Browser-wide, like the switches beside it: the engine
+                    // resolves names once for every profile. Secure mode only,
+                    // so a resolver that cannot be reached fails a lookup
+                    // rather than sending it to the system in the clear, and
+                    // the note says what that costs on a captive portal.
+                    SettingRow {
+                        id: secureDnsGroup
+
+                        // The dropdown's own choice, which runs ahead of the
+                        // model while a typed address has not been taken yet.
+                        property string chosen: root.secureDns ? root.secureDns.resolver : ""
+                        property bool addressRefused: false
+
+                        function resolverTitle() {
+                            const resolvers = root.secureDns ? root.secureDns.resolvers : [];
+                            for (let i = 0; i < resolvers.length; ++i) {
+                                if (resolvers[i].id === root.secureDns.resolver)
+                                    return resolvers[i].title;
+                            }
+                            return root.secureDns ? root.secureDns.serverTemplate : "";
+                        }
+
+                        objectName: "secureDns"
+                        visible: !!root.secureDns
+                        width: pane.width
+                        colors: root.colors
+                        title: "Secure DNS"
+                        note: "Looks up the sites you visit over an encrypted connection to a "
+                              + "resolver you choose, instead of your system's. That resolver "
+                              + "learns every site you visit. A network that blocks it stops "
+                              + "pages loading, so turn it off to sign in to a hotel or airport "
+                              + "network."
+
+                        Column {
+                            width: pane.width
+                            spacing: Style.spacing.small
+
+                            SettingDropdown {
+                                objectName: "secureDnsResolver"
+                                colors: root.colors
+                                accessibleName: "Secure DNS resolver"
+                                options: {
+                                    const options = [
+                                              {
+                                                  value: "",
+                                                  label: "Off"
+                                              }
+                                          ];
+                                    const resolvers = root.secureDns ? root.secureDns.resolvers :
+                                                                       [];
+                                    for (let i = 0; i < resolvers.length; ++i)
+                                        options.push({
+                                                         value: resolvers[i].id,
+                                                         label: resolvers[i].title
+                                                     });
+                                    options.push({
+                                                     value: "custom",
+                                                     label: "An address you type"
+                                                 });
+                                    return options;
+                                }
+                                value: secureDnsGroup.chosen
+                                onChanged: function (choice) {
+                                    secureDnsGroup.chosen = choice;
+                                    secureDnsGroup.addressRefused = false;
+                                    if (!root.secureDns)
+                                        return;
+                                    if (choice === "")
+                                        root.secureDns.turnOff();
+                                    else if (choice !== "custom")
+                                        root.secureDns.useResolver(choice);
+                                }
+                            }
+
+                            SettingField {
+                                objectName: "secureDnsAddress"
+                                visible: secureDnsGroup.chosen === "custom"
+                                width: pane.width
+                                colors: root.colors
+                                placeholder: "https://dns.example/dns-query"
+                                accessibleName: "Secure DNS address"
+                                text: root.secureDns ? root.secureDns.customTemplate : ""
+                                onAccepted: {
+                                    secureDnsGroup.addressRefused = !!root.secureDns &&
+                                            !root.secureDns.useCustom(text);
+                                }
+                            }
+
+                            Text {
+                                objectName: "secureDnsAddressRefused"
+                                visible: secureDnsGroup.addressRefused
+                                width: pane.width
+                                text: "That is not an https: address, so names would not be encrypted. "
+                                      + "Nothing was changed."
+                                color: root.colors.urgent
+                                wrapMode: Text.WordWrap
+                                font.family: Style.font.family
+                                font.pixelSize: Style.font.caption
+                            }
+
+                            Text {
+                                objectName: "secureDnsInUse"
+                                width: pane.width
+                                text: !root.secureDns || root.secureDns.resolver === ""
+                                      ? "Names are looked up by your system's resolver." :
+                                        root.engineSecureDns && !root.engineSecureDns.applied
+                                        ? "The engine would not take this resolver, so names are "
+                                          + "looked up by your system's resolver." :
+                                          "Names are looked up by " + secureDnsGroup.resolverTitle(
+                                              ) + ", over an encrypted connection."
+                                color: root.engineSecureDns && !root.engineSecureDns.applied
+                                       ? root.colors.urgent : root.colors.mutedText
+                                wrapMode: Text.WordWrap
+                                font.family: Style.font.family
+                                font.pixelSize: Style.font.caption
+                            }
                         }
                     }
 

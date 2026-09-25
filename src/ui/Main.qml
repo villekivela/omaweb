@@ -144,6 +144,19 @@ ApplicationWindow {
         return window.windowBrowser.certificateExceptionInEffect(window.windowBrowser.activeUrl)
                 ? "certificate-error" : reported;
     }
+    // The Secure DNS resolver that could not find the page on show, by the name
+    // Settings gives it, or empty when the system looked the name up.
+    readonly property string lookupFailedBy: {
+        if (!engineLoader.item || !engineLoader.item.lastLoadNameUnresolved || !window.dnsResolver
+                || window.dnsResolver.resolver === "")
+            return "";
+        const resolvers = window.dnsResolver.resolvers;
+        for (let i = 0; i < resolvers.length; ++i) {
+            if (resolvers[i].id === window.dnsResolver.resolver)
+                return resolvers[i].title;
+        }
+        return window.dnsResolver.serverTemplate;
+    }
     readonly property bool insecureContentBlocked: engineLoader.item === null
                                                    || engineLoader.item.insecureContentBlocked
 
@@ -163,6 +176,8 @@ ApplicationWindow {
     // property for the same reason.
     readonly property var privacyControl: globalPrivacyControl
     readonly property var webRtcAddressPolicy: webRtcPolicy
+    readonly property var dnsResolver: secureDns
+    readonly property var engineDnsResolver: engineSecureDns
     readonly property var engineWebRtcAddressPolicy: engineWebRtcPolicy
     // The reader's type and the engine adapter that draws pages in it, named
     // apart from their context properties for the same reason again.
@@ -2234,6 +2249,7 @@ ApplicationWindow {
                 blocker: contentBlocker
                 easeSpaces: window.easeChrome
                 connectionState: window.connectionState
+                lookupFailedBy: window.lookupFailedBy
                 certificateDecisionsAvailable: window.certificateDecisionsAvailable
                 thirdPartyCookieControlAvailable: window.thirdPartyCookieControlAvailable
                 siteDataOnDisk: window.siteDataOnDisk
@@ -2934,6 +2950,8 @@ ApplicationWindow {
                     releaseWatch: window.releases
                     globalPrivacyControl: window.privacyControl
                     webRtcPolicy: window.webRtcAddressPolicy
+                    secureDns: window.dnsResolver
+                    engineSecureDns: window.engineDnsResolver
                     engineWebRtcPolicy: window.engineWebRtcAddressPolicy
                     fontSettings: window.readerFonts
                     pageFonts: window.enginePageFonts

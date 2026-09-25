@@ -220,6 +220,9 @@ Item {
     // own error page in place of the document, and there is no connection to
     // the address to report anything about.
     property bool lastLoadFailed: false
+    // Whether that failure was a name that could not be looked up, which with
+    // Secure DNS on is the reader's resolver's answer rather than the system's.
+    property bool lastLoadNameUnresolved: false
     // What the connection to the page on show is, from what the engine
     // committed and what it reported about the certificate — never from an
     // address the shell parsed for itself.
@@ -2317,6 +2320,7 @@ Item {
                 root.announcePage(loadRequest.url);
                 root.javaScriptDialogsBlocked = false;
                 root.lastLoadFailed = false;
+                root.lastLoadNameUnresolved = false;
                 root.certificateErrorRaisedForLoad = false;
                 // The node Chromium is holding belonged to the page being
                 // replaced. What is at those coordinates now is not what the
@@ -2341,6 +2345,13 @@ Item {
                 root.surveyGenericCosmeticRules();
             if (loadRequest.status === WebEngineView.LoadFailedStatus) {
                 root.lastLoadFailed = true;
+                // Chromium reports a name it could not look up as a connection
+                // error: ERR_NAME_NOT_RESOLVED, or ERR_NAME_RESOLUTION_FAILED
+                // when the resolver itself failed. Qt's DNS domain is for the
+                // resolver's own internal errors.
+                root.lastLoadNameUnresolved = loadRequest.errorCode === -105
+                        || loadRequest.errorCode === -137 || loadRequest.errorDomain
+                        === WebEngineView.DnsErrorDomain;
             }
             // A document the script does not reach, a `data:` page, an error
             // page or a viewer of the engine's own, reports neither moment: it

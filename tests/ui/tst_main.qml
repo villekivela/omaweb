@@ -1548,6 +1548,26 @@ TestCase {
         compare(texts[7], "  through collect.tracker.example");
     }
 
+    // With Secure DNS on, a page whose name could not be looked up says whose
+    // resolver failed to find it, because the engine's own error page says only
+    // that the name was not found, and the reader's system resolver might have
+    // found it.
+    function test_siteInformationNamesTheResolverThatCouldNotFindTheSite() {
+        openPage("https://unresolved.example/page");
+        const sidebar = findChild(window.contentItem, "sidebar");
+        const panel = findChild(window.contentItem, "siteInformationPanel");
+        panel.lookupFailedBy = "Quad9";
+        sidebar.statusOpen = true;
+        tryVerify(function () {
+            return panel.visible;
+        });
+        const connection = findChild(window.contentItem, "siteInformationConnection");
+        const text = connection.text;
+        sidebar.statusOpen = false;
+        panel.lookupFailedBy = "";
+        compare(text, "· Quad9 could not find this site, over Secure DNS");
+    }
+
     // A section label leans away from what precedes it. The panel's own name is
     // the first thing in it, so there is nothing to lean away from and the lean
     // would read as dead space between the border and the name.

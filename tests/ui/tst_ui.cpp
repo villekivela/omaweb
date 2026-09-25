@@ -145,6 +145,10 @@ public slots:
         engine->rootContext()->setContextProperty(
             QStringLiteral("webRtcPolicy"), QVariant::fromValue<QObject *>(nullptr));
         engine->rootContext()->setContextProperty(
+            QStringLiteral("secureDns"), QVariant::fromValue<QObject *>(nullptr));
+        engine->rootContext()->setContextProperty(
+            QStringLiteral("engineSecureDns"), QVariant::fromValue<QObject *>(nullptr));
+        engine->rootContext()->setContextProperty(
             QStringLiteral("engineWebRtcPolicy"), QVariant::fromValue<QObject *>(nullptr));
         engine->rootContext()->setContextProperty(
             QStringLiteral("windowManager"), m_windowManager.get());
