@@ -773,6 +773,10 @@ def summarise_pageload(on: list[float], off: list[float]) -> PageLoadSummary:
 PAGELOAD_PAGE = """<!doctype html>
 <meta charset="utf-8">
 <title>Omaweb page-load budget {number}</title>
+<script>
+  const failed = new Set();
+  addEventListener("error", event => failed.add(event.target.src), true);
+</script>
 {images}
 <script>
   addEventListener("load", () => setTimeout(async () => {{
@@ -782,6 +786,7 @@ PAGELOAD_PAGE = """<!doctype html>
       number: {number},
       milliseconds: entry.loadEventStart,
       missing: missing.map(image => image.src),
+      failed: missing.filter(image => failed.has(image.src)).length,
       timing: missing.map(image => {{
         const entry = performance.getEntriesByName(image.src)[0];
         return entry ? {{
@@ -860,6 +865,7 @@ class PageLoadSite:
         # Every address the server was asked for, so that an image a page is missing can be told
         # apart as one that never arrived here and one that did and went missing on the way back.
         self.requested: set[str] = set()
+        self.answered: set[str] = set()
         self.ready = False
         self.problem = ""
         self.finished = False
@@ -945,8 +951,13 @@ class PageLoadSite:
                 self.send_header("Content-Type", content_type)
                 self.send_header("Content-Length", str(len(body)))
                 self.send_header("Cache-Control", "no-store")
+                # The pages read their own timing, and an image from another site shows its
+                # status and size to a page only when it says so.
+                self.send_header("Timing-Allow-Origin", "*")
                 self.end_headers()
                 self.wfile.write(body)
+                self.wfile.flush()
+                site.answered.add(f"http://{self.headers.get('Host', '')}{self.path}")
 
             def do_GET(self) -> None:  # noqa: N802
                 site.requested.add(f"http://{self.headers.get('Host', '')}{self.path}")
@@ -1122,10 +1133,12 @@ def describe_missing(load: PageLoad, site: PageLoadSite) -> str:
     report = site.reports[load.number]
     missing = report["missing"]
     asked = sum(address in site.requested for address in missing)
+    answered = sum(address in site.answered for address in missing)
     return (f"load {load.number} ({load.case} hosts, blocking {load.mode}, "
             f"{'counted' if load.measured else 'warm-up'}) is missing {len(missing)} of "
-            f"{PAGELOAD_IMAGES} images, {asked} of them asked of the server, "
-            f"among them {missing[0]} (the engine's timing: {report['timing'][0]})")
+            f"{PAGELOAD_IMAGES} images: {asked} asked of the server, {answered} answered by it, "
+            f"{report['failed']} failed in the page; the first is {missing[0]}, timed by the "
+            f"engine as {report['timing'][0]}")
 
 
 def run_pageload(executable: str, private: bool) -> dict:
