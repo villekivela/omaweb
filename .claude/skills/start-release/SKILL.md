@@ -50,12 +50,13 @@ Releases. Branching is `docs/agents/commits.md`.
 
 4. **Make every issue ready.** Each issue in the release carries `ready-for-agent` or
    `ready-for-human`. Take a `needs-triage` issue through triage with the user. A `needs-info` issue
-   leaves the release until the information arrives. Done when this prints nothing:
+   leaves the release until the information arrives, and an issue with no triage label is triaged
+   like a `needs-triage` one. A `ready-for-agent` issue can still carry questions in its body; read
+   its comments for the answers. Done when this prints nothing:
 
    ```sh
    gh issue list --milestone <version> --state open --json number,labels \
-       --jq '.[] | select([.labels[].name] | any(. == "needs-triage" or . == "needs-info"))
-             | .number'
+       --jq '.[] | select([.labels[].name] | any(startswith("ready-for-")) | not) | .number'
    ```
 
 5. **Link the blockers.** Read each issue for work it needs from another, and record it as a native
