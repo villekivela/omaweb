@@ -505,12 +505,12 @@ not uncloak, and Settings says so ([ADR 0050](../adr/0050-uncloak-cname-trackers
 Site information lists the requests Content blocking refused on the page beside the Refusal tally,
 and names the name from the CNAME chain an uncloaked one matched.
 
-A rule change applies to every request made after it: a list update, a user rule, or a site whose
-blocking was switched on or off. The engine hands a reloaded document the images, scripts and
-stylesheets the page already holds without making a request for them, so the first reload of a tab
-after a rule change reads the page from the network rather than the cache, and the reload after that
-keeps the cache again. A page that asks again, without a reload, for a resource it already holds is
-given the copy it holds, and the change reaches that resource at the page's next load.
+A rule change applies to the requests a page makes after it: a list update, a user rule, or a site
+whose blocking was switched on or off. The first reload of a tab after a rule change reads the page
+from the network rather than the cache, so an image or script the page already held is asked for
+again under the new rules, and the reload after that keeps the cache again. A page that asks again,
+without a reload, for a resource it already holds is given the copy it holds, and the change reaches
+that resource at the page's next load.
 
 ## Daily-driver non-goals
 

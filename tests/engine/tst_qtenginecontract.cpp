@@ -1544,12 +1544,15 @@ void QtEngineContractTest::qtRefusesATrackerBehindACname()
 
 namespace {
 
-// A page with an image and a script, both cacheable, that counts how many
-// times each has actually been fetched. The script puts its count in the
-// title, so a load that has run it can be waited for.
-class CacheableSubresourceServer final : public QTcpServer {
+// A page whose image and script are cacheable and report how many times each
+// has actually been fetched. Normal reload keeps the cached copies; reload
+// bypassing cache does not, which is the whole difference between the two
+// commands. The script puts its count in the title, and the page puts the
+// image in again when its fragment changes, and says in the title whether it
+// was drawn.
+class CountingServer final : public QTcpServer {
 public:
-    CacheableSubresourceServer()
+    CountingServer()
     {
         connect(this, &QTcpServer::newConnection, this, [this] {
             auto *socket = nextPendingConnection();
@@ -1559,19 +1562,31 @@ public:
                 const auto path = fields.size() > 1 ? fields.at(1) : QByteArray();
                 QByteArray headers;
                 QByteArray body;
-                if (path.startsWith("/pixel.gif")) {
-                    ++m_imageRequests;
-                    body = QByteArray::fromBase64(
-                        "R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7");
-                    headers = "Content-Type: image/gif\r\nCache-Control: max-age=600\r\n";
-                } else if (path.startsWith("/counter.js")) {
+                if (path.startsWith("/counter.js")) {
                     ++m_scriptRequests;
                     body = "document.title = '" + QByteArray::number(m_scriptRequests) + "';";
                     headers = "Content-Type: application/javascript\r\n"
                               "Cache-Control: max-age=600\r\n";
+                } else if (path.startsWith("/pixel.gif")) {
+                    ++m_imageRequests;
+                    body = QByteArray::fromBase64(
+                        "R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7");
+                    headers = "Content-Type: image/gif\r\nCache-Control: max-age=600\r\n";
+                } else if (path.startsWith("/slow")) {
+                    // Answered by nothing at all: a load to stop.
+                    return;
                 } else {
-                    body = "<!doctype html><title>waiting</title><img src=\"/pixel.gif\">"
-                           "<script src=\"/counter.js\"></script>";
+                    body = R"HTML(<!doctype html><title>waiting</title><img src="/pixel.gif">
+                        <script src="/counter.js"></script>
+                        <script>
+                            addEventListener("hashchange", () => {
+                                const image = new Image();
+                                image.onload = () => { document.title = "drawn again"; };
+                                image.onerror = () => { document.title = "refused again"; };
+                                image.src = "/pixel.gif";
+                                document.body.appendChild(image);
+                            });
+                        </script>)HTML";
                     headers = "Content-Type: text/html\r\nCache-Control: no-store\r\n";
                 }
                 socket->write("HTTP/1.1 200 OK\r\n" + headers + "Content-Length: "
@@ -1592,13 +1607,15 @@ private:
 
 } // namespace
 
-// A reload hands the new document what the renderer still holds from the old
-// one without a request, so the interceptor is never asked about it. The
-// first reload after a rule change reads the page from the network instead,
-// and the one after that keeps the cache again (#393).
+// The renderer hands a document what it still holds without a request, so the
+// interceptor is never asked about it under a rule added since: not for an
+// image the page puts in again, and not on the engine's own reload, which
+// gives the new document the old one's copies. The first reload after any
+// rule change, whether or not it touches the page, reads the page from the
+// network instead, and the one after that keeps the cache again (#393).
 void QtEngineContractTest::qtReadsAPageAgainUnderTheRulesThatChangedSinceItLoaded()
 {
-    CacheableSubresourceServer server;
+    CountingServer server;
     QVERIFY(server.listen(QHostAddress::LocalHost));
 
     QTemporaryDir root;
@@ -1616,15 +1633,21 @@ void QtEngineContractTest::qtReadsAPageAgainUnderTheRulesThatChangedSinceItLoade
             QVariant::fromValue<QObject *>(&engineContentBlocker)},
     }));
     QVERIFY2(adapter, qPrintable(component.errorString()));
+    auto *webView = adapter->findChild<QObject *>(QStringLiteral("qtWebView"));
+    QVERIFY(webView);
     QQuickWindow window;
     qobject_cast<QQuickItem *>(adapter.get())->setParentItem(window.contentItem());
     window.show();
 
-    const auto reloadAndSettle = [&] {
+    const auto settleAfter = [&](QObject *target, const char *reload) {
         const auto generation = adapter->property("pageGeneration").toInt();
-        QVERIFY(QMetaObject::invokeMethod(adapter.get(), "reloadPage"));
+        QVERIFY(QMetaObject::invokeMethod(target, reload));
         QTRY_VERIFY_WITH_TIMEOUT(adapter->property("pageGeneration").toInt() > generation, 15000);
         QTRY_VERIFY_WITH_TIMEOUT(!adapter->property("loading").toBool(), 15000);
+    };
+    const auto changeRules = [&](const QString &rules) {
+        contentBlocker.setUserRules(rules);
+        QTRY_VERIFY_WITH_TIMEOUT(!contentBlocker.compiling(), 5000);
     };
 
     const QUrl pageUrl(QStringLiteral("http://127.0.0.1:%1/page.html").arg(server.serverPort()));
@@ -1634,15 +1657,26 @@ void QtEngineContractTest::qtReadsAPageAgainUnderTheRulesThatChangedSinceItLoade
     QTRY_VERIFY_WITH_TIMEOUT(!adapter->property("loading").toBool(), 15000);
     QCOMPARE(server.imageRequests(), 1);
 
-    contentBlocker.setUserRules(QStringLiteral("/pixel.gif$image"));
-    QTRY_VERIFY_WITH_TIMEOUT(!contentBlocker.compiling(), 5000);
+    changeRules(QStringLiteral("/pixel.gif$image"));
 
-    reloadAndSettle();
+    QVERIFY(adapter->setProperty("currentUrl", QUrl(pageUrl.toString() + "#again")));
+    QTRY_COMPARE_WITH_TIMEOUT(
+        adapter->property("pageTitle").toString(), QStringLiteral("drawn again"), 15000);
+    QCOMPARE(contentBlocker.refusalTally(QString(), pageUrl), 0);
+
+    settleAfter(webView, "reload");
+    QTRY_COMPARE_WITH_TIMEOUT(
+        adapter->property("pageTitle").toString(), QStringLiteral("1"), 15000);
+    QCOMPARE(contentBlocker.refusalTally(QString(), pageUrl), 0);
+    QCOMPARE(server.imageRequests(), 1);
+
+    changeRules(QStringLiteral("/pixel.gif$image\n||elsewhere.test^"));
+    settleAfter(adapter.get(), "reloadPage");
     QTRY_COMPARE_WITH_TIMEOUT(contentBlocker.refusalTally(QString(), pageUrl), 1, 15000);
     QCOMPARE(adapter->property("pageTitle").toString(), QStringLiteral("2"));
     QCOMPARE(server.imageRequests(), 1);
 
-    reloadAndSettle();
+    settleAfter(adapter.get(), "reloadPage");
     QCOMPARE(adapter->property("pageTitle").toString(), QStringLiteral("2"));
     QCOMPARE(server.scriptRequests(), 2);
 }
@@ -4136,52 +4170,6 @@ void QtEngineContractTest::qtKeepsTheZoomItIsGivenAcrossNavigation()
     QVERIFY(QMetaObject::invokeMethod(adapter.get(), "setZoomFactor", Q_ARG(QVariant, 0)));
     QCOMPARE(adapter->property("zoomFactor").toDouble(), 1.5);
 }
-
-namespace {
-
-// A page whose one subresource is cacheable and reports how many times it has
-// actually been fetched. Normal reload keeps the cached copy; reload bypassing
-// cache does not, which is the whole difference between the two commands.
-class CountingServer final : public QTcpServer {
-public:
-    CountingServer()
-    {
-        connect(this, &QTcpServer::newConnection, this, [this] {
-            auto *socket = nextPendingConnection();
-            connect(socket, &QTcpSocket::readyRead, socket, [this, socket] {
-                const auto request = socket->readAll();
-                const auto fields = request.split(' ');
-                const auto path = fields.size() > 1 ? fields.at(1) : QByteArray();
-                QByteArray headers;
-                QByteArray body;
-                if (path.startsWith("/counter.js")) {
-                    ++m_scriptRequests;
-                    body = "document.title = '" + QByteArray::number(m_scriptRequests) + "';";
-                    headers = "Content-Type: application/javascript\r\n"
-                              "Cache-Control: max-age=600\r\n";
-                } else if (path.startsWith("/slow")) {
-                    // Answered by nothing at all: a load to stop.
-                    return;
-                } else {
-                    body = "<!doctype html><title>waiting</title>"
-                           "<script src=\"/counter.js\"></script>";
-                    headers = "Content-Type: text/html\r\nCache-Control: no-store\r\n";
-                }
-                socket->write("HTTP/1.1 200 OK\r\n" + headers + "Content-Length: "
-                    + QByteArray::number(body.size()) + "\r\nConnection: close\r\n\r\n" + body);
-                socket->flush();
-                socket->disconnectFromHost();
-            });
-        });
-    }
-
-    int scriptRequests() const { return m_scriptRequests; }
-
-private:
-    int m_scriptRequests = 0;
-};
-
-} // namespace
 
 void QtEngineContractTest::qtSeparatesReloadBypassingCacheFromReloadAndStop()
 {
