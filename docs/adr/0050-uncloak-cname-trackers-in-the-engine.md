@@ -63,9 +63,14 @@ The series now carries content-blocking work as well as extension work, which AD
 on. The added cost is one patch on Qt's interception path.
 
 A request no rule refuses waits for a proxy check and a lookup before it starts, and the host cache
-does not make that free. Measured on an M2 Max with the patched engine, a page of 40 images over
-loopback, warm, took about 45 ms without uncloaking and 60 to 70 ms with it when every image came
-from a host of its own, and about 48 ms when the 40 came from four hosts. The comparison turns the
-site off, so it also leaves out the first check, and uncloaking's own share is somewhat less. A page
-that spreads its requests across many hosts pays most, which is also the page most likely to carry
-trackers.
+does not make that free, so the engine remembers each Engine profile's answers for a minute. A
+remembered answer makes no proxy check and no lookup. Only an answer the proxy check let through is
+remembered, so a proxy set in that minute cannot be bypassed by a lookup.
+
+Measured on an M2 Max with the patched engine, over loopback, the medians of ten warm loads of a
+page of 40 images: with hosts the profile had resolved in the last minute, 58 ms with uncloaking and
+57 ms without, and 71 ms against 72 ms when the 40 came from four hosts. With 40 hosts the profile
+had never seen, 75 ms against 51 to 55 ms. The comparison turns the site off, so it also leaves out
+the first check. A page that reaches many hosts for the first time pays the lookups once, and that
+is also the page most likely to carry trackers. Nothing yet holds this to a number before a release
+([#371](https://github.com/villekivela/omaweb/issues/371)).
