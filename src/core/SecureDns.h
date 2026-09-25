@@ -17,7 +17,7 @@ namespace omaweb {
 // engine resolves names once for every profile, and a Private window follows
 // it too. It also decides what CNAME uncloaking sees, because the engine hands
 // over a host's whole CNAME chain only through its own DNS client, which it
-// runs only here (ADR 0050).
+// runs only here (#354).
 class SecureDns final : public QObject {
     Q_OBJECT
     // Empty when off, else a named resolver's id or "custom".
@@ -25,6 +25,9 @@ class SecureDns final : public QObject {
     Q_PROPERTY(QString customTemplate READ customTemplate NOTIFY changed)
     // The address lookups go to, or empty when the system resolves names.
     Q_PROPERTY(QString serverTemplate READ serverTemplate NOTIFY changed)
+    // What the resolver in use is called: a named one's name, a typed one's
+    // address, or empty when the system looks names up.
+    Q_PROPERTY(QString resolverTitle READ resolverTitle NOTIFY changed)
     Q_PROPERTY(QVariantList resolvers READ resolvers CONSTANT)
 
 public:
@@ -33,6 +36,7 @@ public:
     QString resolver() const;
     QString customTemplate() const;
     QString serverTemplate() const;
+    QString resolverTitle() const;
     // Each resolver Omaweb names, as `id`, `title` and `template`.
     QVariantList resolvers() const;
 

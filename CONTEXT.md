@@ -271,6 +271,11 @@ the request's own site is not checked. An uncloaked refusal counts in the Refusa
 listed in Site information under the address the page asked for. _Avoid_: CNAME blocking, DNS
 filtering
 
+**Secure DNS**: The reader's choice to have every name the browser looks up resolved over
+DNS-over-HTTPS by a resolver they chose, instead of by the system's resolver. Off by default,
+browser-wide, and secure only: a resolver that cannot be reached fails the lookup rather than
+sending it in the clear. _Avoid_: DoH, encrypted DNS setting, private DNS
+
 **URL reputation**: An optional browser capability that checks an address or download against a
 provider's current phishing, malware, or software-reputation data. Content blocking may refuse some
 known malicious addresses but is not URL reputation. URL reputation is not part of Omaweb's

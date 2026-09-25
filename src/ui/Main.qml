@@ -146,16 +146,14 @@ ApplicationWindow {
     }
     // The Secure DNS resolver that could not find the page on show, by the name
     // Settings gives it, or empty when the system looked the name up.
-    readonly property string lookupFailedBy: {
-        if (!engineLoader.item || !engineLoader.item.lastLoadNameUnresolved || !window.dnsResolver
-                || window.dnsResolver.resolver === "")
-            return "";
-        const resolvers = window.dnsResolver.resolvers;
-        for (let i = 0; i < resolvers.length; ++i) {
-            if (resolvers[i].id === window.dnsResolver.resolver)
-                return resolvers[i].title;
-        }
-        return window.dnsResolver.serverTemplate;
+    // Written when the failure arrives rather than bound, so that choosing
+    // another resolver afterwards does not blame it for a page it never saw.
+    property string lookupFailedBy: ""
+
+    function noteLookupFailure() {
+        const failed = !!engineLoader.item && engineLoader.item.lastLoadNameUnresolved === true && !
+              !window.dnsResolver && window.dnsResolver.resolver !== "";
+        window.lookupFailedBy = failed ? window.dnsResolver.resolverTitle : "";
     }
     readonly property bool insecureContentBlocked: engineLoader.item === null
                                                    || engineLoader.item.insecureContentBlocked
@@ -1517,6 +1515,23 @@ ApplicationWindow {
     function setTintFavicons(enabled) {
         window.tintFavicons = enabled;
         window.windowBrowser.setPreference("tint-favicons", enabled ? "true" : "false");
+    }
+
+    Connections {
+        target: engineLoader.item
+        ignoreUnknownSignals: true
+
+        function onLastLoadNameUnresolvedChanged() {
+            window.noteLookupFailure();
+        }
+    }
+
+    Connections {
+        target: engineLoader
+
+        function onItemChanged() {
+            window.noteLookupFailure();
+        }
     }
 
     Connections {

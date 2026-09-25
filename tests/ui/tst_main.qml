@@ -1553,10 +1553,13 @@ TestCase {
     // that the name was not found, and the reader's system resolver might have
     // found it.
     function test_siteInformationNamesTheResolverThatCouldNotFindTheSite() {
-        openPage("https://unresolved.example/page");
+        const engine = openPage("https://unresolved.example/page");
         const sidebar = findChild(window.contentItem, "sidebar");
         const panel = findChild(window.contentItem, "siteInformationPanel");
-        panel.lookupFailedBy = "Quad9";
+        verify(secureDns.useResolver("quad9"));
+        engine.lastLoadNameUnresolved = true;
+        // Choosing another resolver afterwards does not move the blame.
+        verify(secureDns.useResolver("cloudflare"));
         sidebar.statusOpen = true;
         tryVerify(function () {
             return panel.visible;
@@ -1564,7 +1567,8 @@ TestCase {
         const connection = findChild(window.contentItem, "siteInformationConnection");
         const text = connection.text;
         sidebar.statusOpen = false;
-        panel.lookupFailedBy = "";
+        engine.lastLoadNameUnresolved = false;
+        secureDns.turnOff();
         compare(text, "· Quad9 could not find this site, over Secure DNS");
     }
 

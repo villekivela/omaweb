@@ -18,6 +18,7 @@ private slots:
     void takesAnAddressTheReaderTypes_data();
     void takesAnAddressTheReaderTypes();
     void turningItOffIsKept();
+    void namesTheResolverInUse();
 };
 
 // A resolver the reader did not choose is not a safer default, so a first run
@@ -115,6 +116,19 @@ void SecureDnsTest::turningItOffIsKept()
     const SecureDns restarted(configRoot);
     QVERIFY(restarted.resolver().isEmpty());
     QVERIFY(restarted.serverTemplate().isEmpty());
+}
+
+// What Settings and Site information call the resolver: a named one by its
+// name, a typed one by its address, and nothing when the system looks up.
+void SecureDnsTest::namesTheResolverInUse()
+{
+    QTemporaryDir root;
+    SecureDns dns(root.filePath(QStringLiteral("config")));
+    QVERIFY(dns.resolverTitle().isEmpty());
+    QVERIFY(dns.useResolver(QStringLiteral("cloudflare")));
+    QCOMPARE(dns.resolverTitle(), QStringLiteral("Cloudflare"));
+    QVERIFY(dns.useCustom(QStringLiteral("https://dns.example/dns-query")));
+    QCOMPARE(dns.resolverTitle(), QStringLiteral("https://dns.example/dns-query"));
 }
 
 QTEST_GUILESS_MAIN(SecureDnsTest)

@@ -564,10 +564,13 @@ TestCase {
 
         property string resolver: ""
         property string customTemplate: ""
-        readonly property string serverTemplate: resolver === "custom" ? customTemplate : resolver
-                                                                         === "quad9"
-                                                                         ? "https://dns.quad9.net/dns-query" :
-                                                                           ""
+        readonly property string quad9: "https://dns.quad9.net/dns-query"
+        readonly property string serverTemplate: {
+            if (resolver === "custom")
+                return customTemplate;
+            return resolver === "quad9" ? quad9 : "";
+        }
+        readonly property string resolverTitle: resolver === "quad9" ? "Quad9" : serverTemplate
         readonly property var resolvers: [
             {
                 "id": "quad9",
@@ -621,8 +624,8 @@ TestCase {
         address.accepted();
         verify(!findChild(page, "secureDnsAddressRefused").visible);
         compare(secureDnsStub.resolver, "custom");
-        compare(inUse.text,
-                "Names are looked up by https://dns.example/dns-query, over an encrypted connection.");
+        compare(inUse.text, "Names are looked up by https://dns.example/dns-query, "
+                + "over an encrypted connection.");
 
         choice.changed("");
         compare(secureDnsStub.resolver, "");

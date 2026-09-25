@@ -1629,15 +1629,6 @@ Rectangle {
                         property string chosen: root.secureDns ? root.secureDns.resolver : ""
                         property bool addressRefused: false
 
-                        function resolverTitle() {
-                            const resolvers = root.secureDns ? root.secureDns.resolvers : [];
-                            for (let i = 0; i < resolvers.length; ++i) {
-                                if (resolvers[i].id === root.secureDns.resolver)
-                                    return resolvers[i].title;
-                            }
-                            return root.secureDns ? root.secureDns.serverTemplate : "";
-                        }
-
                         objectName: "secureDns"
                         visible: !!root.secureDns
                         width: pane.width
@@ -1708,8 +1699,8 @@ Rectangle {
                                 objectName: "secureDnsAddressRefused"
                                 visible: secureDnsGroup.addressRefused
                                 width: pane.width
-                                text: "That is not an https: address, so names would not be encrypted. "
-                                      + "Nothing was changed."
+                                text: "That is not an https: address, so names would not be "
+                                      + "encrypted. Nothing was changed."
                                 color: root.colors.urgent
                                 wrapMode: Text.WordWrap
                                 font.family: Style.font.family
@@ -1724,8 +1715,8 @@ Rectangle {
                                         root.engineSecureDns && !root.engineSecureDns.applied
                                         ? "The engine would not take this resolver, so names are "
                                           + "looked up by your system's resolver." :
-                                          "Names are looked up by " + secureDnsGroup.resolverTitle(
-                                              ) + ", over an encrypted connection."
+                                          "Names are looked up by " + root.secureDns.resolverTitle
+                                          + ", over an encrypted connection."
                                 color: root.engineSecureDns && !root.engineSecureDns.applied
                                        ? root.colors.urgent : root.colors.mutedText
                                 wrapMode: Text.WordWrap

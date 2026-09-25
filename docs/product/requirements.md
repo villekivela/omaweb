@@ -362,9 +362,10 @@ The default page commands include:
   refused before it is saved if it is anything else. It is secure mode only, so a resolver that
   cannot be reached fails the lookup rather than falling back to the system in the clear, and Site
   information names the resolver that could not find a page. A change applies at once, and the
-  choice survives a restart. Spaces and Private windows follow it alike. With it on, CNAME
-  uncloaking sees each host's whole CNAME chain
-  ([#354](https://github.com/villekivela/omaweb/issues/354)).
+  choice survives a restart. Spaces and Private windows follow it alike. Omaweb checks a typed
+  address before saving it, and the engine checks it again; should the engine still refuse one,
+  names go back to the system's resolver and Settings says so in the urgent colour rather than
+  quietly.
 - A page's WebRTC calls are offered the public interface only, on by default and browser-wide. Every
   Engine profile, a Space's and the Private windows' shared one, carries the engine's
   `WebRTCPublicInterfacesOnly` policy, so a page gathering candidates reads the address of the

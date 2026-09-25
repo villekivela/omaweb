@@ -75,6 +75,12 @@ QString SecureDns::serverTemplate() const
     return named ? QString(named->serverTemplate) : QString();
 }
 
+QString SecureDns::resolverTitle() const
+{
+    const auto *named = namedResolver(m_resolver);
+    return named ? QString(named->title) : serverTemplate();
+}
+
 QVariantList SecureDns::resolvers() const
 {
     QVariantList listed;
@@ -132,14 +138,11 @@ void SecureDns::load()
 {
     const auto resolver = PrivacyFile::read(m_configRoot, resolverKey).toString();
     const auto customTemplate = PrivacyFile::read(m_configRoot, customTemplateKey).toString();
-    if (resolver == customId && isServerTemplate(customTemplate)) {
-        m_resolver = resolver;
+    if (isServerTemplate(customTemplate)) {
         m_customTemplate = customTemplate;
-    } else if (namedResolver(resolver)) {
-        m_resolver = resolver;
     }
-    if (resolver != customId && isServerTemplate(customTemplate)) {
-        m_customTemplate = customTemplate;
+    if (namedResolver(resolver) || (resolver == customId && !m_customTemplate.isEmpty())) {
+        m_resolver = resolver;
     }
 }
 

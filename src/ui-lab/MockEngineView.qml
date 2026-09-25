@@ -144,6 +144,7 @@ Rectangle {
     // and anything that is not http or https is Omaweb's own furniture.
     property string certificateErrorOrigin: ""
     property bool lastLoadFailed: false
+    property bool lastLoadNameUnresolved: false
     readonly property string connectionState: {
         const address = String(root.currentUrl);
         const separator = address.indexOf("://");
