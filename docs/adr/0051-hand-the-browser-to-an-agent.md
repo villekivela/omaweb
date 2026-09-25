@@ -1,7 +1,3 @@
----
-status: proposed
----
-
 # Hand the browser to an Agent
 
 Supersedes the part of [0027](0027-use-engine-provided-developer-tools.md) that ruled out a CLI, an
@@ -92,6 +88,12 @@ the page on show, and input reaches it as Qt events sent to the view rather than
 so a page sees them as trusted. Both depend on a spike
 ([#376](https://github.com/villekivela/omaweb/issues/376)). If trusted input fails, version one
 sends script events and says so here.
+
+A prototype on the development listener
+([`prototype/372-agent-mcp`](https://github.com/villekivela/omaweb/tree/prototype/372-agent-mcp))
+settled that the verbs are worth building. Its tool schema was about 670 tokens and a `look` about
+110, one `do` filled and submitted a sign-up form in 1.2 seconds, and a click sent as engine input
+reached a tab on show as trusted.
 
 ## What the reader sees
 
