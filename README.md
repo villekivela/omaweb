@@ -137,8 +137,8 @@ Before changing browser behavior, read the [domain glossary](CONTEXT.md),
 
 Omaweb does not include bookmarks, password management, third-party WebExtensions, an Account
 system, installed web applications, Reader mode, translation, browser-data import, View source,
-spellchecking, DRM, or macOS distribution. These are deliberate scope decisions, not unfinished
-features.
+spellchecking, a custom user agent, print preview, DRM, or macOS distribution. These are deliberate
+scope decisions, not unfinished features.
 
 ## Privacy and security
 

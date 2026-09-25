@@ -219,8 +219,8 @@ reports the gap and remains experimental rather than imitating behavior it canno
 - Video decodes on the GPU where the host has a working VA-API driver, and in software where it has
   none. A missing driver is not a refusal to start, and the driver packages are `optdepends` rather
   than dependencies because which one a host needs depends on its GPU.
-- Omaweb supplies no spellchecker, translation, Reader mode, page-screenshot command, View source
-  command, or installed-web-application model.
+- Omaweb supplies no spellchecker, translation, Reader mode, View source command, print preview, or
+  installed-web-application model. The desktop print dialog owns preview and PDF output.
 
 ## Browser-owned pages
 
@@ -415,6 +415,8 @@ The default page commands include:
   baseline file. A Qt patch with security fixes requires an Omaweb update within seven days.
   Settings marks builds below the baseline as unsupported previews.
 - Public builds do not enable proprietary media codecs until distribution rights receive review.
+- Omaweb offers no custom user agent, globally or per site. A changed user agent makes a reader
+  easier to tell apart, and mostly works around sites that turn away browsers other than Chrome.
 
 ## Distribution
 
@@ -528,7 +530,10 @@ that resource at the page's next load.
 - Browser data import
 - Installed web applications
 - Additional ordinary browser windows or detached tabs
-- Translation, Reader mode, browser-owned screenshots, View source, or spellchecking
+- Translation, Reader mode, View source, or spellchecking
+- A custom user agent, globally or per site: it makes a reader easier to fingerprint and mostly
+  works around sites that turn away browsers other than Chrome
+- Print preview: the desktop print dialog owns preview and PDF output
 - DRM streaming and proprietary media codecs before distribution review
 - USB, Bluetooth, serial, or MIDI permissions
 - macOS distribution
