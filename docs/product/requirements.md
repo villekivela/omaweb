@@ -479,9 +479,21 @@ failed for any other reason is left as the engine draws it, the collapse does no
 tally, and a refused script or stylesheet has no element to collapse.
 
 Omaweb does not claim full uBlock Origin compatibility. Procedural selectors, response rewriting,
-content security policies, HTML filtering, dynamic rules, and CNAME uncloaking are outside the first
-contract. A subscribed list keeps the rules this contract does parse; Settings reports what each
-list contributed and what it skipped.
+content security policies, HTML filtering and dynamic rules are outside the first contract. A
+subscribed list keeps the rules this contract does parse; Settings reports what each list
+contributed and what it skipped.
+
+On the Qt engine Omaweb ships, a subresource request the lists let through is checked again under
+each name in its host's CNAME chain, so a tracker served from a site's own subdomain is refused as
+the tracker it is. With Secure DNS on the engine sees the whole chain; through the system resolver
+it sees the chain's last name only. The engine resolves the host through the Space's own resolver,
+and makes no lookup for a main-frame navigation, an IP literal, or a request behind a proxy. A name
+on the request's own site is not checked. A `$cname` rule that turns this off for a host is reported
+unsupported, because the pinned parser does not read it. An Omaweb built against another engine does
+not uncloak, and Settings says so ([ADR 0050](../adr/0050-uncloak-cname-trackers-in-the-engine.md)).
+
+Site information lists the requests Content blocking refused on the page beside the Refusal tally,
+and names the name from the CNAME chain an uncloaked one matched.
 
 ## Daily-driver non-goals
 

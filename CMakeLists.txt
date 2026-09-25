@@ -119,6 +119,34 @@ find_package(Qt6 6.11 REQUIRED COMPONENTS ${omaweb_qt_components})
 set(QT_NO_PRIVATE_MODULE_WARNING OFF)
 qt_standard_project_setup(REQUIRES 6.11)
 
+# CNAME uncloaking needs the engine patch that lets a request interceptor ask
+# for the host's DNS aliases (ADR 0050). Unlike a Known extension, the patch is
+# visible in the engine's own headers, so the build asks them rather than being
+# told: an Omaweb built against a stock QtWebEngine reports the capability absent.
+set(OMAWEB_CNAME_UNCLOAKING OFF)
+if(OMAWEB_BUILD_BROWSER)
+    include(CheckCXXSourceCompiles)
+    # The same Qt the adapter links, in the same order, so the probe reads the
+    # header the adapter will be compiled against. On a machine that also has a
+    # stock QtWebEngine beside the rest of Qt, the rest of Qt's search path
+    # finds that one first.
+    set(CMAKE_REQUIRED_LIBRARIES Qt6::Core Qt6::Qml Qt6::Quick Qt6::WebEngineCore
+        Qt6::WebEngineQuick)
+    check_cxx_source_compiles([=[
+        #include <QtWebEngineCore/qwebengineurlrequestinfo.h>
+        int main()
+        {
+            void (QWebEngineUrlRequestInfo::*ask)() = &QWebEngineUrlRequestInfo::requestDnsAliases;
+            QStringList (QWebEngineUrlRequestInfo::*read)() const = &QWebEngineUrlRequestInfo::dnsAliases;
+            return ask && read ? 0 : 1;
+        }
+    ]=] OMAWEB_ENGINE_OFFERS_DNS_ALIASES)
+    unset(CMAKE_REQUIRED_LIBRARIES)
+    if(OMAWEB_ENGINE_OFFERS_DNS_ALIASES)
+        set(OMAWEB_CNAME_UNCLOAKING ON)
+    endif()
+endif()
+
 add_library(omaweb-adblock-rust SHARED IMPORTED GLOBAL)
 set_target_properties(omaweb-adblock-rust PROPERTIES
     IMPORTED_LOCATION "${omaweb_content_blocker_library}"
@@ -381,7 +409,8 @@ add_library(omaweb-engine-api STATIC
 target_include_directories(omaweb-engine-api PUBLIC src/engine/api)
 target_link_libraries(omaweb-engine-api PUBLIC Qt6::Core Qt6::Qml)
 target_compile_definitions(omaweb-engine-api PUBLIC
-    OMAWEB_KNOWN_EXTENSIONS=$<BOOL:${OMAWEB_KNOWN_EXTENSIONS}>)
+    OMAWEB_KNOWN_EXTENSIONS=$<BOOL:${OMAWEB_KNOWN_EXTENSIONS}>
+    OMAWEB_CNAME_UNCLOAKING=$<BOOL:${OMAWEB_CNAME_UNCLOAKING}>)
 omaweb_strict_target(omaweb-engine-api)
 
 if(OMAWEB_BUILD_BROWSER)

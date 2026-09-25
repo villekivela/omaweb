@@ -5,6 +5,7 @@ use adblock::{
     resources::{
         InMemoryResourceStorage, Resource, ResourceImpl, ResourceStorage, ResourceStorageBackend,
     },
+    url_parser::parse_url,
 };
 use serde_json::json;
 use std::collections::{BTreeMap, BTreeSet, HashSet, VecDeque};
@@ -262,6 +263,14 @@ fn unsupported_category(line: &str) -> Option<&'static str> {
         Some("HTML filtering")
     } else if trimmed.contains("$replace") {
         Some("response rewriting")
+    } else if options(trimmed)
+        .is_some_and(|(_, list)| list.split(',').any(|option| option == "cname"))
+    {
+        // A `$cname` exception turns CNAME uncloaking off for the hosts it
+        // matches. The pinned parser does not know the option, so the rule
+        // cannot be honoured, and it is reported rather than counted as a
+        // mistake the list made.
+        Some("CNAME exceptions")
     } else if trimmed.contains("$csp") {
         // A `$csp` rule adds a Content-Security-Policy header to a response.
         // A request interceptor never sees a response, so this is refused
@@ -551,6 +560,72 @@ pub unsafe extern "C" fn omaweb_blocker_check(
     }))
     .unwrap_or_else(|_| OmawebBlockerDecision::unanswered());
     unsafe { decision.write(answer) };
+}
+
+// The request's address with its host replaced by a name from the host's
+// CNAME chain, or None when there is nothing to check: an
+// address with no host, a canonical name that parses as none, or one on the
+// request's own site. uBlock Origin ignores a first-party CNAME by default, so
+// a site's own CDN aliases never refuse what no list meant to.
+fn uncloaked_url(url: &str, canonical_name: &str) -> Option<String> {
+    let request = parse_url(url)?;
+    let canonical = parse_url(&format!("https://{canonical_name}/"))?;
+    if canonical.hostname() == request.hostname() || canonical.domain() == request.domain() {
+        return None;
+    }
+    let (start, end) = request.hostname_pos;
+    Some(format!(
+        "{}{}{}",
+        &request.url[..start],
+        canonical.hostname(),
+        &request.url[end..]
+    ))
+}
+
+#[unsafe(no_mangle)]
+/// # Safety
+/// As `omaweb_blocker_check`, and `canonical_name` must be a valid NUL-terminated UTF-8 string.
+///
+/// Checks the request again under a name from its host's CNAME chain, keeping the
+/// page it came from and its type. A block and a substitute apply as they would to a direct match.
+/// A parameter rewrite never does, because the request still goes out under its own address.
+pub unsafe extern "C" fn omaweb_blocker_check_uncloaked(
+    blocker: *const OmawebBlocker,
+    url: *const c_char,
+    source_url: *const c_char,
+    resource_type: *const c_char,
+    canonical_name: *const c_char,
+    decision: *mut OmawebBlockerDecision,
+) {
+    if decision.is_null() {
+        return;
+    }
+    let uncloaked = catch_unwind(AssertUnwindSafe(|| {
+        let (Some(url), Some(canonical_name)) = (input(url), input(canonical_name)) else {
+            return None;
+        };
+        uncloaked_url(&url, &canonical_name).and_then(|value| CString::new(value).ok())
+    }))
+    .ok()
+    .flatten();
+    let Some(uncloaked) = uncloaked else {
+        unsafe { decision.write(OmawebBlockerDecision::unanswered()) };
+        return;
+    };
+    unsafe {
+        omaweb_blocker_check(
+            blocker,
+            uncloaked.as_ptr(),
+            source_url,
+            resource_type,
+            decision,
+        )
+    };
+    let answer = unsafe { &mut *decision };
+    if !answer.rewritten_url.is_null() {
+        unsafe { omaweb_blocker_string_free(answer.rewritten_url) };
+        answer.rewritten_url = std::ptr::null_mut();
+    }
 }
 
 #[unsafe(no_mangle)]

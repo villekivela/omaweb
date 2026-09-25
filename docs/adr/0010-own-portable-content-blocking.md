@@ -1,5 +1,8 @@
 # Own portable content blocking
 
+CNAME uncloaking moved inside it in [0050](0050-uncloak-cname-trackers-in-the-engine.md), as a
+capability of the Qt engine.
+
 Scriptlets moved inside the contract in [0025](0025-run-only-vendored-scriptlets.md), and redirects
 and resource replacement in [0026](0026-serve-substitutes-under-an-omaweb-scheme.md); the paragraphs
 below still read as though they had not. What the blocked-request count below asks for is the

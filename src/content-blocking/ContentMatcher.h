@@ -20,6 +20,9 @@ struct RequestDecision {
     // The request address with the tracking parameters removed, or empty when
     // no rule changed it. Never set together with blocked.
     QUrl rewrittenUrl;
+    // The name from the host's CNAME chain a refusal matched when the
+    // request's own host did not, or empty for a refusal of the address itself.
+    QString canonicalName;
 };
 
 // One substitute body out of the vendored library, ready to serve.
@@ -50,6 +53,10 @@ public:
 
     RequestDecision check(
         const QUrl &requestUrl, const QUrl &sourceUrl, const QString &resourceType) const;
+    // The same request checked under one name from its host's CNAME chain.
+    // `omaweb_blocker.h` says what is and is not checked.
+    RequestDecision checkUncloaked(const QUrl &requestUrl, const QUrl &sourceUrl,
+        const QString &resourceType, const QString &canonicalName) const;
     bool shouldBlockPopup(const QUrl &requestUrl, const QUrl &openerUrl) const;
     QString cosmeticStyleSheet(const QUrl &url) const;
     QString scriptletSource(const QUrl &url) const;

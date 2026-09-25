@@ -91,8 +91,16 @@ namespace {
                 info.setHttpHeader(
                     GlobalPrivacyControl::headerName(), GlobalPrivacyControl::headerValue());
             }
-            const auto decision = m_contentBlocker->checkRequest(
-                info.requestUrl(), info.firstPartyUrl(), info.resourceType(), m_spaceId);
+#if OMAWEB_CNAME_UNCLOAKING
+            // Empty on the first call. The engine calls again with the names in
+            // the host's CNAME chain only when the first call asked for them and
+            // let the request through (ADR 0050).
+            const auto dnsAliases = info.dnsAliases();
+#else
+            const QStringList dnsAliases;
+#endif
+            const auto decision = m_contentBlocker->checkRequest(info.requestUrl(),
+                info.firstPartyUrl(), info.resourceType(), m_spaceId, dnsAliases);
             // Chromium drops a redirect on a request carrying a payload, and says
             // so only in a warning. Both answers below are redirects, so a request
             // that cannot take one falls back to what it can take.
@@ -109,7 +117,18 @@ namespace {
             // rule named stripped off its address.
             if (!decision.rewrittenUrl.isEmpty() && redirectable) {
                 info.redirect(decision.rewrittenUrl);
+                return;
             }
+#if OMAWEB_CNAME_UNCLOAKING
+            // A request the lists let through by its own name may still be a
+            // tracker under another, so the engine is asked to resolve the host
+            // and call again. A site the reader turned blocking off for gets no
+            // lookup, the same as it gets no check, and neither does a browser
+            // with no rules compiled.
+            if (dnsAliases.isEmpty() && m_contentBlocker->uncloaks(info.firstPartyUrl())) {
+                info.requestDnsAliases();
+            }
+#endif
         }
 
     private:
@@ -217,10 +236,16 @@ void QtContentBlocker::installGlobalPrivacyControlScript(QObject *profile, bool 
 }
 
 RequestDecision QtContentBlocker::checkRequest(const QUrl &requestUrl, const QUrl &sourceUrl,
-    QWebEngineUrlRequestInfo::ResourceType resourceType, const QString &spaceId) const
+    QWebEngineUrlRequestInfo::ResourceType resourceType, const QString &spaceId,
+    const QStringList &dnsAliases) const
 {
     return m_contentBlocker->checkRequest(
-        requestUrl, sourceUrl, resourceTypeName(resourceType), spaceId);
+        requestUrl, sourceUrl, resourceTypeName(resourceType), spaceId, dnsAliases);
+}
+
+bool QtContentBlocker::uncloaks(const QUrl &sourceUrl) const
+{
+    return m_contentBlocker->uncloaks(sourceUrl);
 }
 
 QString QtContentBlocker::cosmeticStyleSheet(const QUrl &url) const

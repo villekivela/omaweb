@@ -229,6 +229,7 @@ ApplicationWindow {
     // extension belongs to the profile, which is there first. The adapter
     // reports the same thing per view for the engine contract.
     readonly property bool knownExtensionsAvailable: EngineBuild.knownExtensions
+    readonly property bool cnameUncloakingAvailable: EngineBuild.cnameUncloaking
     // Why the last package did not arrive, kept until the reader asks again.
     property string extensionFailure: ""
     // The menu the extension mark opens, and where it was asked from. The
@@ -2938,6 +2939,7 @@ ApplicationWindow {
                     pageFonts: window.enginePageFonts
                     knownExtensions: window.knownExtensions
                     knownExtensionsAvailable: window.knownExtensionsAvailable
+                    cnameUncloakingAvailable: window.cnameUncloakingAvailable
                     privateWindow: window.privateWindow
                     extensionFailure: window.extensionFailure
                     SheetLift {

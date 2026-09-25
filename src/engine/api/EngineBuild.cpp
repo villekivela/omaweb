@@ -18,6 +18,15 @@ bool EngineBuild::knownExtensions() const
 #endif
 }
 
+bool EngineBuild::cnameUncloaking() const
+{
+#if OMAWEB_CNAME_UNCLOAKING
+    return true;
+#else
+    return false;
+#endif
+}
+
 void registerEngineBuild()
 {
     qmlRegisterSingletonType<EngineBuild>("Omaweb.Engine", 1, 0, "EngineBuild",

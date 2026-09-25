@@ -33,6 +33,53 @@ TestCase {
         Omaweb.Main {}
     }
 
+    // Content blocking as the chrome reads it, having refused five requests on
+    // the page on show, one of them through the canonical name its host's
+    // CNAME chain ends at.
+    Component {
+        id: refusingBlockerComponent
+
+        QtObject {
+            property int refusalTallyGeneration: 0
+
+            function refusalTally(spaceId, pageAddress) {
+                return 5;
+            }
+
+            function refusedRequests(spaceId, pageAddress) {
+                return [
+                            {
+                                "address": "https://ads.example/banner.js",
+                                "canonicalName": ""
+                            },
+                            {
+                                "address": "https://metrics.news.example/collect.js?id=1",
+                                "canonicalName": "collect.tracker.example"
+                            },
+                            {
+                                "address": "https://ads.example/second.js",
+                                "canonicalName": ""
+                            },
+                            {
+                                "address": "https://ads.example/third.js",
+                                "canonicalName": ""
+                            },
+                            {
+                                "address": "https://ads.example/fourth.js",
+                                "canonicalName": ""
+                            }
+                        ];
+            }
+
+            function siteEnabled(url) {
+                return true;
+            }
+
+            function setSiteEnabled(url, enabled) {
+            }
+        }
+    }
+
     // The harness loads Omaweb's own default keymap, which this build knows
     // every command in, so nothing is ever ignored in it. These stand the two
     // surfaces up against a keymap that did report something.
@@ -1458,6 +1505,47 @@ TestCase {
         tryVerify(function () {
             return !panel.visible;
         });
+    }
+
+    // The tally says how many; the list says which. An uncloaked refusal is
+    // listed under the address the page asked for, which is the one in the
+    // page's own network log, with the canonical name that explains it.
+    function test_siteInformationListsTheRequestsItRefused() {
+        openPage("https://news.example/story");
+        const sidebar = findChild(window.contentItem, "sidebar");
+        const panel = findChild(window.contentItem, "siteInformationPanel");
+        const blocker = panel.blocker;
+        panel.blocker = refusingBlockerComponent.createObject(testCase);
+        sidebar.statusOpen = true;
+        tryVerify(function () {
+            return panel.visible;
+        });
+
+        const tally = findChild(panel, "siteInformationBlocked");
+        const first = findChild(panel, "refusedRequest0");
+        const cloaked = findChild(panel, "refusedRequest1");
+        const third = findChild(panel, "refusedRequest2");
+        const fourth = findChild(panel, "refusedRequest3");
+        const overflow = findChild(panel, "refusedRequestOverflow");
+        const firstThrough = findChild(panel, "refusedRequestThrough0");
+        const cloakedThrough = findChild(panel, "refusedRequestThrough1");
+        const texts = [tally ? tally.text : null, first ? first.text : null, cloaked ? cloaked.text :
+                                                                                       null, third
+                       ? third.text : null, fourth !== null && fourth.visible, overflow
+                       ? overflow.text : null, firstThrough !== null && firstThrough.visible,
+                       cloakedThrough !== null && cloakedThrough.visible ? cloakedThrough.text :
+                                                                           null];
+
+        sidebar.statusOpen = false;
+        panel.blocker = blocker;
+        compare(texts[0], "· 5 requests blocked on this page");
+        compare(texts[1], "· ads.example/banner.js");
+        compare(texts[2], "· metrics.news.example/collect.js");
+        compare(texts[3], "· ads.example/second.js");
+        compare(texts[4], false);
+        compare(texts[5], "· and 2 more");
+        compare(texts[6], false);
+        compare(texts[7], "  through collect.tracker.example");
     }
 
     // A section label leans away from what precedes it. The panel's own name is

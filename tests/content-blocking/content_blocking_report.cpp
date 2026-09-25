@@ -54,6 +54,24 @@ QJsonObject runFixtures(const QJsonObject &fixtures, const omaweb::QtContentBloc
             && decision.rewrittenUrl == QUrl(fixture.value(QStringLiteral("rewritten")).toString());
         ++total;
     }
+    // A request checked again under its host's canonical name, the way the Qt
+    // interceptor's second call hands it over. Only an engine that resolves the
+    // host for the interceptor gets this far, so a build against a stock
+    // engine does not claim these (ADR 0050).
+#if OMAWEB_CNAME_UNCLOAKING
+    for (const auto &value : fixtures.value(QStringLiteral("uncloaked")).toArray()) {
+        const auto fixture = value.toObject();
+        const auto decision
+            = adapter.checkRequest(QUrl(fixture.value(QStringLiteral("url")).toString()),
+                QUrl(fixture.value(QStringLiteral("source")).toString()),
+                resourceType(fixture.value(QStringLiteral("type")).toString()), reportSpace,
+                {fixture.value(QStringLiteral("canonicalName")).toString()});
+        passed += decision.blocked == fixture.value(QStringLiteral("blocked")).toBool()
+            && decision.substitute == fixture.value(QStringLiteral("substitute")).toString()
+            && decision.rewrittenUrl.isEmpty();
+        ++total;
+    }
+#endif
     // A refused window never reaches an engine's request interception, so the
     // popup fixtures ask the engine-neutral blocker rather than the adapter.
     for (const auto &value : fixtures.value(QStringLiteral("popup")).toArray()) {
@@ -153,22 +171,25 @@ int main(int argc, char *argv[])
     }
     const omaweb::QtContentBlocker qtAdapter(&contentBlocker);
     const auto result = runFixtures(fixtures, qtAdapter, contentBlocker);
+    QJsonArray unsupported {
+        QStringLiteral("scriptlets requiring trust"),
+        QStringLiteral("scriptlets this build does not carry"),
+        QStringLiteral("procedural selectors"),
+        QStringLiteral("response rewriting"),
+        QStringLiteral("HTML filtering"),
+        QStringLiteral("dynamic rules"),
+        QStringLiteral("CNAME exceptions"),
+        QStringLiteral("content security policies"),
+        QStringLiteral("substitutes this build does not carry"),
+    };
+#if !OMAWEB_CNAME_UNCLOAKING
+    unsupported.append(QStringLiteral("CNAME uncloaking"));
+#endif
     const auto report = QJsonObject {
         {QStringLiteral("contract"), QStringLiteral("Omaweb content blocking v1")},
         {QStringLiteral("adblockRustVersion"), QStringLiteral("0.12.5")},
         {QStringLiteral("ladybirdRevision"), QStringLiteral(OMAWEB_LADYBIRD_REVISION)},
-        {QStringLiteral("unsupportedRuleCategories"),
-            QJsonArray {
-                QStringLiteral("scriptlets requiring trust"),
-                QStringLiteral("scriptlets this build does not carry"),
-                QStringLiteral("procedural selectors"),
-                QStringLiteral("response rewriting"),
-                QStringLiteral("HTML filtering"),
-                QStringLiteral("dynamic rules"),
-                QStringLiteral("CNAME uncloaking"),
-                QStringLiteral("content security policies"),
-                QStringLiteral("substitutes this build does not carry"),
-            }},
+        {QStringLiteral("unsupportedRuleCategories"), unsupported},
         {QStringLiteral("sharedPinnedParser"),
             QJsonObject {
                 {QStringLiteral("status"), QStringLiteral("pass")},

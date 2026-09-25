@@ -26,6 +26,7 @@ private slots:
     void substitutesCarryTheirOwnMimeType();
     void popupRulesKeepTheirOtherConditions();
     void negatedPopupRulesStayOrdinaryRules();
+    void reportsTheRulesThatTurnUncloakingOff();
 };
 
 void ContentMatcherTest::reusesCosmeticResourcesForAStableNavigation()
@@ -98,6 +99,17 @@ void ContentMatcherTest::sharedConformanceFixtures()
         QCOMPARE(decision.substitute, fixture.value(QStringLiteral("substitute")).toString());
         QCOMPARE(
             decision.rewrittenUrl, QUrl(fixture.value(QStringLiteral("rewritten")).toString()));
+    }
+    for (const auto &value : root.value(QStringLiteral("uncloaked")).toArray()) {
+        const auto fixture = value.toObject();
+        const auto decision = compilation.matcher->checkUncloaked(
+            QUrl(fixture.value(QStringLiteral("url")).toString()),
+            QUrl(fixture.value(QStringLiteral("source")).toString()),
+            fixture.value(QStringLiteral("type")).toString(),
+            fixture.value(QStringLiteral("canonicalName")).toString());
+        QCOMPARE(decision.blocked, fixture.value(QStringLiteral("blocked")).toBool());
+        QCOMPARE(decision.substitute, fixture.value(QStringLiteral("substitute")).toString());
+        QVERIFY(decision.rewrittenUrl.isEmpty());
     }
     for (const auto &value : root.value(QStringLiteral("popup")).toArray()) {
         const auto fixture = value.toObject();
@@ -359,6 +371,23 @@ void ContentMatcherTest::negatedPopupRulesStayOrdinaryRules()
     QVERIFY(
         !compilation.matcher->shouldBlockPopup(QUrl(QStringLiteral("https://tracker.example/p")),
             QUrl(QStringLiteral("https://site.example/"))));
+}
+
+// A `$cname` exception turns uncloaking off for the hosts it matches. The
+// pinned parser does not know the option, so the rule is reported rather than
+// accepted and ignored, and not counted as a rule the list got wrong either.
+void ContentMatcherTest::reportsTheRulesThatTurnUncloakingOff()
+{
+    const auto compilation
+        = ContentMatcher::compile(QStringLiteral("@@||cdn.example^$cname\n||tracker.example^"));
+    QVERIFY(compilation.matcher);
+    QCOMPARE(compilation.report.value(QStringLiteral("acceptedRuleCount")).toInt(), 1);
+    QCOMPARE(compilation.report.value(QStringLiteral("invalidRuleCount")).toInt(), 0);
+    QCOMPARE(compilation.report.value(QStringLiteral("unsupported"))
+                 .toObject()
+                 .value(QStringLiteral("CNAME exceptions"))
+                 .toInt(),
+        1);
 }
 
 QTEST_APPLESS_MAIN(ContentMatcherTest)

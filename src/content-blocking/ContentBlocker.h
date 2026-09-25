@@ -85,6 +85,12 @@ public:
     // Zero for an address no view is showing, which is also the answer for one
     // that has refused nothing.
     Q_INVOKABLE int refusalTally(const QString &spaceId, const QUrl &pageAddress) const;
+    // The requests behind that tally, each address once, in the order they were
+    // first refused: `address`, and `canonicalName` for one refused through a
+    // name from its host's CNAME chain. The tally counts every
+    // refusal and the list keeps the first hundred addresses, which is more
+    // than Site information shows.
+    Q_INVOKABLE QVariantList refusedRequests(const QString &spaceId, const QUrl &pageAddress) const;
     Q_INVOKABLE QString cosmeticStyleSheet(const QUrl &url) const;
     Q_INVOKABLE QString scriptletSource(const QUrl &url) const;
     Q_INVOKABLE bool cosmeticSurveyWanted(const QUrl &url) const;
@@ -96,8 +102,18 @@ public:
     Q_INVOKABLE bool shouldBlockPopup(
         const QUrl &requestUrl, const QUrl &openerUrl, const QString &spaceId) const;
 
+    // Whether a request from this page is worth resolving for the names behind
+    // its host: only where there are rules to check them against and Content
+    // blocking is on for the site.
+    bool uncloaks(const QUrl &sourceUrl) const;
+
+    // A request the lists let through is checked again under each name in its
+    // host's CNAME chain, when the engine resolved one. The engine reports the
+    // chain in no particular order, so every name is checked, and the first to
+    // be refused is the one recorded.
     RequestDecision checkRequest(const QUrl &requestUrl, const QUrl &sourceUrl,
-        const QString &resourceType, const QString &spaceId) const;
+        const QString &resourceType, const QString &spaceId,
+        const QStringList &dnsAliases = {}) const;
 
 signals:
     void configurationChanged();
@@ -139,12 +155,19 @@ private:
             return qHashMulti(seed, key.spaceId, key.address);
         }
     };
+    // One refused address, and the name from its host's CNAME chain it was
+    // refused through when its own host matched no rule.
+    struct RefusedRequest {
+        QString address;
+        QString canonicalName;
+    };
     // What one open page load has been refused, and how many views are showing
     // it. Two tabs on the same address in the same Space read one tally, and
     // it stays live until the last of them lets go (ADR 0037).
     struct RefusalTally {
         int refused = 0;
         int viewers = 0;
+        QList<RefusedRequest> requests;
     };
     // The tally one view is holding open, and the page load it last said so
     // at. The page load is what tells a reload from a redirect: both arrive
@@ -167,9 +190,10 @@ private:
     void load();
     void seedDefaultSubscriptions();
     bool appendKnownList(const KnownList &list);
-    void countRefusal(
-        const QUrl &sourceUrl, const QString &spaceId, const QUrl &elementAddress = {}) const;
-    void noteRefusal(const RefusalKey &key, const QString &elementAddress);
+    void countRefusal(const QUrl &sourceUrl, const QString &spaceId, const RefusedRequest &request,
+        const QUrl &elementAddress = {}) const;
+    void noteRefusal(
+        const RefusalKey &key, const RefusedRequest &request, const QString &elementAddress);
     void flushRefusals();
     void save() const;
     void recompile();
@@ -191,6 +215,7 @@ private:
     // and the addresses among them that an element is drawn by.
     struct PendingRefusals {
         int count = 0;
+        QList<RefusedRequest> requests;
         QStringList elementAddresses;
     };
     // Refusals waiting to be credited, and the batch that delivers them.

@@ -63,6 +63,10 @@ Rectangle {
     // need; the reader acts on one of these only when a flow is failing, and
     // the dialog is where the whole list is.
     readonly property int listedThirdParties: 3
+    // How many refused requests are listed under the tally. The tally counts
+    // them all; a reader looking for one reads the first few, and the page's
+    // own network log has the rest.
+    readonly property int listedRefusals: 3
 
     // The decisions the core stores, named here so nothing in this file
     // compares against a bare number.
@@ -125,6 +129,12 @@ Rectangle {
             unit += 1;
         }
         return (unit === 0 ? Math.round(size) : Math.round(size * 10) / 10) + " " + units[unit];
+    }
+
+    // A refused address as a reader recognises it: host and path, without the
+    // scheme, the query or the fragment.
+    function requestLabel(address) {
+        return String(address).replace(/^[a-z][a-z0-9+.-]*:\/\//i, "").replace(/[?#].*$/, "");
     }
 
     function siteDataSentence() {
@@ -236,6 +246,60 @@ Rectangle {
             objectName: "siteInformationBlocked"
             width: parent.width
             text: "· " + root.refusalTally + " requests blocked on this page"
+            color: root.colors.mutedText
+            wrapMode: Text.WordWrap
+            font.family: Style.font.family
+            font.pixelSize: Style.font.caption
+        }
+
+        // The requests behind the tally, by host and path: the query of a
+        // tracker's address is its payload, and it says nothing a reader
+        // decides by. One refused through its host's CNAME chain names the
+        // canonical name it matched, which is the only way a first-party
+        // address reads as refused for a reason. The name has a line of its
+        // own: eliding both on one line at sidebar width cut out "through"
+        // and left what read as a single address.
+        Repeater {
+            model: root.refusals.requests.slice(0, root.listedRefusals)
+
+            Column {
+                id: refusal
+
+                required property int index
+                required property var modelData
+
+                width: statusColumn.width
+
+                Text {
+                    objectName: "refusedRequest" + refusal.index
+                    width: parent.width
+                    text: "· " + root.requestLabel(refusal.modelData.address)
+                    color: root.colors.mutedText
+                    elide: Text.ElideMiddle
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.caption
+                }
+
+                // Indented under the address it explains. A long name keeps
+                // its end, the registrable domain a rule names.
+                Text {
+                    objectName: "refusedRequestThrough" + refusal.index
+                    width: parent.width
+                    visible: !!refusal.modelData.canonicalName
+                    text: "  through " + (refusal.modelData.canonicalName || "")
+                    color: root.colors.mutedText
+                    elide: Text.ElideLeft
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.caption
+                }
+            }
+        }
+
+        Text {
+            objectName: "refusedRequestOverflow"
+            width: parent.width
+            visible: root.refusals.requests.length > root.listedRefusals
+            text: "· and " + (root.refusals.requests.length - root.listedRefusals) + " more"
             color: root.colors.mutedText
             wrapMode: Text.WordWrap
             font.family: Style.font.family

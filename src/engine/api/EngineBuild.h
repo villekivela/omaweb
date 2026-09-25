@@ -16,11 +16,16 @@ namespace omaweb {
 class EngineBuild final : public QObject {
     Q_OBJECT
     Q_PROPERTY(bool knownExtensions READ knownExtensions CONSTANT)
+    // Whether the engine this build compiled against can hand a request
+    // interceptor the host's DNS aliases, which CNAME uncloaking needs
+    // (ADR 0050). Read from the engine's own headers when Omaweb is built.
+    Q_PROPERTY(bool cnameUncloaking READ cnameUncloaking CONSTANT)
 
 public:
     explicit EngineBuild(QObject *parent = nullptr);
 
     bool knownExtensions() const;
+    bool cnameUncloaking() const;
 };
 
 // Makes `EngineBuild` available to QML as `import Omaweb.Engine`. Call once per

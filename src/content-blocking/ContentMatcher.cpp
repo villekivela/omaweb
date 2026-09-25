@@ -52,6 +52,19 @@ namespace {
     // rather than a handover.
     QString decoded(const char *value) { return value ? QString::fromUtf8(value) : QString(); }
 
+    RequestDecision decided(OmawebBlockerDecision &answer)
+    {
+        RequestDecision decision;
+        decision.blocked = answer.blocked;
+        decision.substitute = decoded(answer.substitute);
+        const auto rewritten = decoded(answer.rewritten_url);
+        if (!rewritten.isEmpty()) {
+            decision.rewrittenUrl = QUrl(rewritten);
+        }
+        omaweb_blocker_decision_release(&answer);
+        return decision;
+    }
+
 } // namespace
 
 RequestDecision ContentMatcher::check(
@@ -63,15 +76,20 @@ RequestDecision ContentMatcher::check(
     OmawebBlockerDecision answer {};
     omaweb_blocker_check(
         d->blocker, request.constData(), source.constData(), type.constData(), &answer);
-    RequestDecision decision;
-    decision.blocked = answer.blocked;
-    decision.substitute = decoded(answer.substitute);
-    const auto rewritten = decoded(answer.rewritten_url);
-    if (!rewritten.isEmpty()) {
-        decision.rewrittenUrl = QUrl(rewritten);
-    }
-    omaweb_blocker_decision_release(&answer);
-    return decision;
+    return decided(answer);
+}
+
+RequestDecision ContentMatcher::checkUncloaked(const QUrl &requestUrl, const QUrl &sourceUrl,
+    const QString &resourceType, const QString &canonicalName) const
+{
+    const auto request = requestUrl.toString(QUrl::FullyEncoded).toUtf8();
+    const auto source = sourceUrl.toString(QUrl::FullyEncoded).toUtf8();
+    const auto type = resourceType.toUtf8();
+    const auto canonical = canonicalName.toUtf8();
+    OmawebBlockerDecision answer {};
+    omaweb_blocker_check_uncloaked(d->blocker, request.constData(), source.constData(),
+        type.constData(), canonical.constData(), &answer);
+    return decided(answer);
 }
 
 // The library hands a body over as a `data:` URL carrying the resource's own
