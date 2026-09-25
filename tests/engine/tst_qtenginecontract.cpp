@@ -10,11 +10,13 @@
 #include "QtContentBlocker.h"
 #include "QtHeldDownloads.h"
 #include "QtPageFonts.h"
+#include "QtSecureDns.h"
 #include "QtWebRtcPolicy.h"
 #include "ContentBlockerContract.h"
 #include "EngineViewContract.h"
 #include "PerformanceProbe.h"
 #include "ProcessResources.h"
+#include "SecureDns.h"
 #include "WebRtcPolicy.h"
 
 #if OMAWEB_CNAME_UNCLOAKING
@@ -153,6 +155,8 @@ class QtEngineContractTest final : public QObject {
 
 private slots:
     void qtRefusesATrackerBehindACname();
+    void qtTakesTheReadersSecureDnsResolver();
+    void qtReportsANameThatCouldNotBeLookedUp();
     void adaptersExposeSharedContract_data();
     void adaptersExposeSharedContract();
     void blockersExposeSharedContract();
@@ -1535,6 +1539,47 @@ void QtEngineContractTest::qtRefusesATrackerBehindACname()
 #else
     QSKIP("This build's engine cannot resolve a host for the interceptor.");
 #endif
+}
+
+// The engine takes the resolver the reader chose, named or typed, and takes
+// the system back when Secure DNS is turned off (#305).
+void QtEngineContractTest::qtTakesTheReadersSecureDnsResolver()
+{
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    omaweb::SecureDns secureDns(root.filePath(QStringLiteral("config")));
+    omaweb::QtSecureDns engineSecureDns(&secureDns);
+    QVERIFY(engineSecureDns.applied());
+
+    QVERIFY(secureDns.useResolver(QStringLiteral("quad9")));
+    QVERIFY(engineSecureDns.applied());
+    QVERIFY(secureDns.useCustom(QStringLiteral("https://dns.example/dns-query{?dns}")));
+    QVERIFY(engineSecureDns.applied());
+    secureDns.turnOff();
+    QVERIFY(engineSecureDns.applied());
+}
+
+// A page whose name could not be looked up is told apart from any other
+// failure, so Site information can say whose resolver did not find it. A
+// `.invalid` name never resolves, anywhere (RFC 6761).
+void QtEngineContractTest::qtReportsANameThatCouldNotBeLookedUp()
+{
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    QQmlEngine engine;
+    QQmlComponent component(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
+        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
+    }));
+    QVERIFY2(adapter, qPrintable(component.errorString()));
+    QQuickWindow window;
+    qobject_cast<QQuickItem *>(adapter.get())->setParentItem(window.contentItem());
+    window.show();
+
+    QVERIFY(adapter->setProperty("currentUrl", QUrl(QStringLiteral("http://omaweb.invalid/"))));
+    QTRY_VERIFY_WITH_TIMEOUT(adapter->property("lastLoadFailed").toBool(), 20000);
+    QVERIFY(adapter->property("lastLoadNameUnresolved").toBool());
 }
 
 // The page reports what it can see the moment its own script runs, and again

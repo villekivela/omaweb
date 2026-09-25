@@ -26,6 +26,11 @@ Rectangle {
     property bool blank: false
     property bool privateWindow: false
     property string connectionState: "internal"
+    // The Secure DNS resolver that could not find the page's name, or empty.
+    // The engine's own error page says only that the name was not found, and
+    // the reader's system resolver might have found it, so whose answer that
+    // was is said here.
+    property string lookupFailedBy: ""
     property bool certificateDecisionsAvailable: false
     property bool thirdPartyCookieControlAvailable: false
     property bool siteDataOnDisk: false
@@ -209,8 +214,11 @@ Rectangle {
         Text {
             objectName: "siteInformationConnection"
             width: parent.width
-            text: "· " + root.connectionSentence + (root.connectionState === "certificate-error"
-                                                    ? " · waived for this session" : "")
+            text: root.lookupFailedBy.length > 0 ? "· " + root.lookupFailedBy
+                                                   + " could not find this site, over Secure DNS" :
+                                                   "· " + root.connectionSentence + (
+                                                       root.connectionState === "certificate-error"
+                                                       ? " · waived for this session" : "")
             color: root.connectionState === "certificate-error" ? root.colors.urgent :
                                                                   root.colors.mutedText
             wrapMode: Text.WordWrap

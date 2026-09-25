@@ -203,6 +203,8 @@ add_library(omaweb-core STATIC
     src/core/FontSettings.h
     src/core/GlobalPrivacyControl.cpp
     src/core/GlobalPrivacyControl.h
+    src/core/SecureDns.cpp
+    src/core/SecureDns.h
     src/core/HardwareVideoDecode.cpp
     src/core/HardwareVideoDecode.h
     src/core/HistoryQuery.cpp
@@ -427,6 +429,8 @@ if(OMAWEB_BUILD_BROWSER)
         src/engine/qt/QtProfileSettings.h
         src/engine/qt/QtWebRtcPolicy.cpp
         src/engine/qt/QtWebRtcPolicy.h
+        src/engine/qt/QtSecureDns.cpp
+        src/engine/qt/QtSecureDns.h
     )
     target_sources(omaweb-engine-qt PUBLIC src/engine/qt/EngineView.qml)
     target_include_directories(omaweb-engine-qt PUBLIC src/engine/qt)
@@ -1055,6 +1059,11 @@ if(BUILD_TESTING)
     target_link_libraries(omaweb-global-privacy-control-tests PRIVATE omaweb-core Qt6::Test)
     omaweb_strict_target(omaweb-global-privacy-control-tests)
     add_test(NAME omaweb-global-privacy-control COMMAND omaweb-global-privacy-control-tests)
+
+    qt_add_executable(omaweb-secure-dns-tests tests/core/tst_securedns.cpp)
+    target_link_libraries(omaweb-secure-dns-tests PRIVATE omaweb-core Qt6::Test)
+    omaweb_strict_target(omaweb-secure-dns-tests)
+    add_test(NAME omaweb-secure-dns COMMAND omaweb-secure-dns-tests)
 
     qt_add_executable(omaweb-webrtc-policy-tests tests/core/tst_webrtcpolicy.cpp)
     target_link_libraries(omaweb-webrtc-policy-tests PRIVATE omaweb-core Qt6::Test)

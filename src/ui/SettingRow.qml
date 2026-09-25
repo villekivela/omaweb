@@ -24,9 +24,12 @@ Item {
 
     readonly property int verticalPadding: Style.spacing.huge
 
-    implicitHeight: verticalPadding + titleText.implicitHeight + (note.length > 0
-                                                                  ? Style.spacing.md
-                                                                    + noteText.implicitHeight : 0)
+    // A control with a status line under it can stand taller than the words
+    // beside it, and the row makes room for whichever is longer.
+    implicitHeight: verticalPadding + Math.max(titleText.implicitHeight + (note.length > 0
+                                                                           ? Style.spacing.md
+                                                                             + noteText.implicitHeight :
+                                                                             0), holder.height)
                     + verticalPadding
     height: implicitHeight
 

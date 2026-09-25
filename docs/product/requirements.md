@@ -356,6 +356,16 @@ The default page commands include:
   windows send it alike. The privacy section of Settings shows the setting and turns it off, which
   turns off both the header and the property, and the choice survives a restart. Omaweb sends no Do
   Not Track header and offers no per-site exception.
+- Secure DNS is off by default and browser-wide. Off, names are looked up by the system's resolver.
+  On, every name is looked up over DNS-over-HTTPS by the resolver the reader chose in the privacy
+  section of Settings: Quad9, Cloudflare, Mullvad, or an `https:` address the reader types, which is
+  refused before it is saved if it is anything else. It is secure mode only, so a resolver that
+  cannot be reached fails the lookup rather than falling back to the system in the clear, and Site
+  information names the resolver that could not find a page. A change applies at once, and the
+  choice survives a restart. Spaces and Private windows follow it alike. Omaweb checks a typed
+  address before saving it, and the engine checks it again; should the engine still refuse one,
+  names go back to the system's resolver and Settings says so in the urgent colour rather than
+  quietly.
 - A page's WebRTC calls are offered the public interface only, on by default and browser-wide. Every
   Engine profile, a Space's and the Private windows' shared one, carries the engine's
   `WebRTCPublicInterfacesOnly` policy, so a page gathering candidates reads the address of the

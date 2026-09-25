@@ -23,6 +23,11 @@ The day is counted from the last answer rather than the last attempt. Turning of
 releases" in Settings stops the request. Omaweb never downloads or installs a release: pacman owns
 `/usr`.
 
+With Secure DNS on, every name any Engine profile looks up is sent to the resolver chosen in the
+privacy section of Settings, as a DNS-over-HTTPS request to the address Settings shows, instead of
+to the system's resolver. That resolver learns every site visited, from every Space and Private
+window. Secure DNS is off by default, and turning it off sends names back to the system.
+
 Every request an Engine profile makes carries `Sec-GPC: 1`, the Global Privacy Control header, while
 the setting is on; it is on by default and the privacy section of Settings turns it off. The header
 adds no request of its own and goes on requests from every Space and Private window alike. The

@@ -10,6 +10,7 @@
 #include "FaviconTint.h"
 #include "FontSettings.h"
 #include "GlobalPrivacyControl.h"
+#include "SecureDns.h"
 #include "WebRtcPolicy.h"
 #include "HardwareVideoDecode.h"
 #include "InputMethod.h"
@@ -24,6 +25,7 @@
 #include "QtCookiePolicy.h"
 #include "QtHeldDownloads.h"
 #include "QtPageFonts.h"
+#include "QtSecureDns.h"
 #include "QtWebRtcPolicy.h"
 #include "Quickshell.h"
 #include "RunningBrowser.h"
@@ -294,6 +296,10 @@ int main(int argc, char *argv[])
     // One answer for the whole browser: every Space's profile and the Private
     // windows' shared one tell sites the same thing about the reader.
     omaweb::GlobalPrivacyControl globalPrivacyControl(configRoot());
+    // Before any page asks for a name: the engine resolves names once for the
+    // whole process, and the first lookup has to go where the reader chose.
+    omaweb::SecureDns secureDns(configRoot());
+    omaweb::QtSecureDns engineSecureDns(&secureDns);
     omaweb::QtContentBlocker engineContentBlocker(&contentBlocker, &globalPrivacyControl);
     // One filter for the process, attached to every Space's profile as it is
     // built. Third-party cookies are blocked by it; whether an origin has been
@@ -405,6 +411,8 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty(
         QStringLiteral("globalPrivacyControl"), &globalPrivacyControl);
     engine.rootContext()->setContextProperty(QStringLiteral("webRtcPolicy"), &webRtcPolicy);
+    engine.rootContext()->setContextProperty(QStringLiteral("secureDns"), &secureDns);
+    engine.rootContext()->setContextProperty(QStringLiteral("engineSecureDns"), &engineSecureDns);
     engine.rootContext()->setContextProperty(
         QStringLiteral("engineWebRtcPolicy"), &engineWebRtcPolicy);
     engine.rootContext()->setContextProperty(

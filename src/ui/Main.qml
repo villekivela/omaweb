@@ -144,6 +144,17 @@ ApplicationWindow {
         return window.windowBrowser.certificateExceptionInEffect(window.windowBrowser.activeUrl)
                 ? "certificate-error" : reported;
     }
+    // The Secure DNS resolver that could not find the page on show, by the name
+    // Settings gives it, or empty when the system looked the name up.
+    // Written when the failure arrives rather than bound, so that choosing
+    // another resolver afterwards does not blame it for a page it never saw.
+    property string lookupFailedBy: ""
+
+    function noteLookupFailure() {
+        const failed = !!engineLoader.item && engineLoader.item.lastLoadNameUnresolved === true && !
+              !window.dnsResolver && window.dnsResolver.resolver !== "";
+        window.lookupFailedBy = failed ? window.dnsResolver.resolverTitle : "";
+    }
     readonly property bool insecureContentBlocked: engineLoader.item === null
                                                    || engineLoader.item.insecureContentBlocked
 
@@ -163,6 +174,8 @@ ApplicationWindow {
     // property for the same reason.
     readonly property var privacyControl: globalPrivacyControl
     readonly property var webRtcAddressPolicy: webRtcPolicy
+    readonly property var dnsResolver: secureDns
+    readonly property var engineDnsResolver: engineSecureDns
     readonly property var engineWebRtcAddressPolicy: engineWebRtcPolicy
     // The reader's type and the engine adapter that draws pages in it, named
     // apart from their context properties for the same reason again.
@@ -1505,6 +1518,23 @@ ApplicationWindow {
     }
 
     Connections {
+        target: engineLoader.item
+        ignoreUnknownSignals: true
+
+        function onLastLoadNameUnresolvedChanged() {
+            window.noteLookupFailure();
+        }
+    }
+
+    Connections {
+        target: engineLoader
+
+        function onItemChanged() {
+            window.noteLookupFailure();
+        }
+    }
+
+    Connections {
         target: window.windowBrowser
 
         function onPreferenceChanged(name) {
@@ -2234,6 +2264,7 @@ ApplicationWindow {
                 blocker: contentBlocker
                 easeSpaces: window.easeChrome
                 connectionState: window.connectionState
+                lookupFailedBy: window.lookupFailedBy
                 certificateDecisionsAvailable: window.certificateDecisionsAvailable
                 thirdPartyCookieControlAvailable: window.thirdPartyCookieControlAvailable
                 siteDataOnDisk: window.siteDataOnDisk
@@ -2934,6 +2965,8 @@ ApplicationWindow {
                     releaseWatch: window.releases
                     globalPrivacyControl: window.privacyControl
                     webRtcPolicy: window.webRtcAddressPolicy
+                    secureDns: window.dnsResolver
+                    engineSecureDns: window.engineDnsResolver
                     engineWebRtcPolicy: window.engineWebRtcAddressPolicy
                     fontSettings: window.readerFonts
                     pageFonts: window.enginePageFonts

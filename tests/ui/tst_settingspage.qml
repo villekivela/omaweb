@@ -560,6 +560,101 @@ TestCase {
     }
 
     QtObject {
+        id: secureDnsStub
+
+        property string resolver: ""
+        property string customTemplate: ""
+        readonly property string quad9: "https://dns.quad9.net/dns-query"
+        readonly property string serverTemplate: {
+            if (resolver === "custom")
+                return customTemplate;
+            return resolver === "quad9" ? quad9 : "";
+        }
+        readonly property string resolverTitle: resolver === "quad9" ? "Quad9" : serverTemplate
+        readonly property var resolvers: [
+            {
+                "id": "quad9",
+                "title": "Quad9",
+                "template": "https://dns.quad9.net/dns-query"
+            }
+        ]
+
+        function useResolver(id) {
+            resolver = id;
+            return true;
+        }
+        function useCustom(address) {
+            if (address.indexOf("https://") !== 0)
+                return false;
+            customTemplate = address;
+            resolver = "custom";
+            return true;
+        }
+        function turnOff() {
+            resolver = "";
+        }
+    }
+
+    // Secure DNS under privacy: off by default, a named resolver or an address
+    // the reader types, and a line that says whose resolver looks names up.
+    function test_secureDnsSaysWhoseResolverLooksNamesUp() {
+        const page = makePage();
+        page.section = page.sections.indexOf("privacy");
+        secureDnsStub.resolver = "";
+        page.secureDns = secureDnsStub;
+        const choice = findChild(page, "secureDnsResolver");
+        const inUse = findChild(page, "secureDnsInUse");
+        const address = findChild(page, "secureDnsAddress");
+        verify(choice !== null && inUse !== null && address !== null);
+        compare(choice.value, "");
+        compare(inUse.text, "Names are looked up by your system's resolver.");
+        verify(!address.visible);
+
+        choice.changed("quad9");
+        compare(secureDnsStub.resolver, "quad9");
+        compare(inUse.text, "Names are looked up by Quad9, over an encrypted connection.");
+
+        choice.changed("custom");
+        verify(address.visible);
+        address.text = "http://dns.example/dns-query";
+        address.accepted();
+        verify(findChild(page, "secureDnsAddressRefused").visible);
+        compare(secureDnsStub.resolver, "quad9");
+        address.text = "https://dns.example/dns-query";
+        address.accepted();
+        verify(!findChild(page, "secureDnsAddressRefused").visible);
+        compare(secureDnsStub.resolver, "custom");
+        compare(inUse.text, "Names are looked up by https://dns.example/dns-query, "
+                + "over an encrypted connection.");
+
+        choice.changed("");
+        compare(secureDnsStub.resolver, "");
+        page.secureDns = null;
+    }
+
+    // The resolver's controls sit to the right of the setting's words, and the
+    // row is tall enough for the status line under them. The column once took
+    // the pane's whole width, which drew the dropdown over the title.
+    function test_secureDnsControlsSitBesideTheirWords() {
+        const page = makePage();
+        page.section = page.sections.indexOf("privacy");
+        secureDnsStub.resolver = "quad9";
+        page.secureDns = secureDnsStub;
+        const row = findChild(page, "secureDns");
+        const choice = findChild(page, "secureDnsResolver");
+        const inUse = findChild(page, "secureDnsInUse");
+        verify(row !== null && choice !== null && inUse !== null);
+        tryVerify(function () {
+            return row.width > 0 && inUse.height > 0;
+        });
+        verify(choice.mapToItem(row, 0, 0).x >= row.width / 2);
+        compare(Math.round(choice.mapToItem(row, choice.width, 0).x), Math.round(row.width));
+        verify(inUse.mapToItem(row, 0, inUse.height).y <= row.height);
+        secureDnsStub.resolver = "";
+        page.secureDns = null;
+    }
+
+    QtObject {
         id: webRtcPolicyStub
 
         property bool publicInterfacesOnly: true

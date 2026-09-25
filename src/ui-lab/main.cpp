@@ -1,6 +1,7 @@
 #include "BrowserController.h"
 #include "ContentBlocker.h"
 #include "GlobalPrivacyControl.h"
+#include "SecureDns.h"
 #include "WebRtcPolicy.h"
 #include "ReleaseWatch.h"
 #include "EngineCapabilities.h"
@@ -386,6 +387,10 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty(
         QStringLiteral("globalPrivacyControl"), &globalPrivacyControl);
     static omaweb::WebRtcPolicy webRtcPolicy(dataRootPath);
+    static omaweb::SecureDns secureDns(dataRootPath);
+    engine.rootContext()->setContextProperty(QStringLiteral("secureDns"), &secureDns);
+    engine.rootContext()->setContextProperty(
+        QStringLiteral("engineSecureDns"), QVariant::fromValue<QObject *>(nullptr));
     engine.rootContext()->setContextProperty(QStringLiteral("webRtcPolicy"), &webRtcPolicy);
     // The lab runs no engine, so there is nothing to report unreachable.
     engine.rootContext()->setContextProperty(

@@ -6,6 +6,7 @@
 #include "ExternalProtocolHandler.h"
 #include "InputMethod.h"
 #include "KeyboardNavigation.h"
+#include "SecureDns.h"
 #include "FontSettings.h"
 #include "KitTheme.h"
 #include "MediaAnnouncer.h"
@@ -113,6 +114,10 @@ public slots:
         m_fontSettings = std::make_unique<omaweb::FontSettings>(
             m_dataRoot->filePath(QStringLiteral("config")), QFontDatabase::families());
         m_windowManager = std::make_unique<omaweb::WindowManager>();
+        // A real choice under the throwaway config root, so a test can name a
+        // resolver and read what the chrome says about it.
+        m_secureDns
+            = std::make_unique<omaweb::SecureDns>(m_dataRoot->filePath(QStringLiteral("config")));
         engine->rootContext()->setContextProperty(QStringLiteral("browser"), m_browser.get());
         engine->rootContext()->setContextProperty(
             QStringLiteral("contentBlocker"), m_contentBlocker.get());
@@ -144,6 +149,9 @@ public slots:
             QStringLiteral("globalPrivacyControl"), QVariant::fromValue<QObject *>(nullptr));
         engine->rootContext()->setContextProperty(
             QStringLiteral("webRtcPolicy"), QVariant::fromValue<QObject *>(nullptr));
+        engine->rootContext()->setContextProperty(QStringLiteral("secureDns"), m_secureDns.get());
+        engine->rootContext()->setContextProperty(
+            QStringLiteral("engineSecureDns"), QVariant::fromValue<QObject *>(nullptr));
         engine->rootContext()->setContextProperty(
             QStringLiteral("engineWebRtcPolicy"), QVariant::fromValue<QObject *>(nullptr));
         engine->rootContext()->setContextProperty(
@@ -186,6 +194,7 @@ public slots:
         m_windowManager.reset();
         m_browser.reset();
         m_contentBlocker.reset();
+        m_secureDns.reset();
         m_keyboardNavigation.reset();
         m_dataRoot.reset();
     }
@@ -195,6 +204,7 @@ private:
     std::unique_ptr<QTemporaryDir> m_dataRoot;
     std::unique_ptr<omaweb::BrowserController> m_browser;
     std::unique_ptr<omaweb::ContentBlocker> m_contentBlocker;
+    std::unique_ptr<omaweb::SecureDns> m_secureDns;
     std::unique_ptr<omaweb::KeyboardNavigation> m_keyboardNavigation;
     std::unique_ptr<omaweb::ThemeController> m_theme;
     std::unique_ptr<omaweb::FontSettings> m_fontSettings;
