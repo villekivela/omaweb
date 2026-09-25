@@ -328,36 +328,20 @@ jobs:
             ${prerelease} \
             artifacts/*
 
-      # The website reads the releases at build time, so a tag only reaches the
-      # page on the next deploy. Nothing else deploys on a tag: Vercel builds on
-      # pushes to branches, and this ref is a tag. Without this, a release is
-      # published and the site keeps showing the one before it until someone
-      # happens to push a commit.
+      # The live site is built from the `website` branch, which only moves to
+      # a release, so the site describes what a reader can install. Moving the
+      # branch is what asks Vercel for the build; a branch already at this
+      # commit is rebuilt through the deploy hook, because the release pages
+      # are generated from the releases API and this release is new to them.
       #
-      # `VERCEL_DEPLOY_HOOK_URL` is a Deploy Hook created once in the Vercel
-      # project's Git settings. It is a URL that stands in for a credential, so
-      # it is a secret. Until one exists the step says so and the release still
-      # publishes: the site is behind, which is the same place it is today.
-      - name: Deploy the website
+      # The release is already published by the step above, so a site left
+      # behind is a stale page rather than a failed release: the step warns
+      # and the job stays green.
+      - name: Publish the website at this release
+        continue-on-error: true
         env:
           HOOK: ${{ secrets.VERCEL_DEPLOY_HOOK_URL }}
-        run: |
-          if [ -z "$HOOK" ]; then
-            echo "No VERCEL_DEPLOY_HOOK_URL secret: the website keeps the previous release" \
-              >> "$GITHUB_STEP_SUMMARY"
-            exit 0
-          fi
-          # The release is already published by the step above, so a deploy
-          # that does not answer is a stale page rather than a failed release.
-          # It warns and the job stays green, which is why the curl exit code
-          # is captured instead of ending the step.
-          status=$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
-            --max-time 30 --request POST "$HOOK") || status="no answer"
-          echo "Vercel deploy hook answered ${status}" >> "$GITHUB_STEP_SUMMARY"
-          case "$status" in
-            2*) ;;
-            *) echo "::warning::the website deploy hook answered ${status}, so the site is behind" ;;
-          esac
+        run: sh scripts/publish_website.sh "${GITHUB_REF_NAME}" | tee -a "$GITHUB_STEP_SUMMARY"
 
   # The upgrade path. The release above is what a reader downloads once; this is
   # what reaches the machines of everyone who already has Omaweb, through their

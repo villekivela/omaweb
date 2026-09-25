@@ -1,0 +1,44 @@
+name: Publish the website
+
+# The release workflow publishes the site at every release. This publishes it
+# at a commit named by hand: a site-only fix that should not wait for the next
+# release, or an older release to roll a bad site back to. Whatever the named
+# commit's `website/` says goes live, so name a release tag, or a commit that
+# carries no feature a reader cannot install yet.
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "the tag or commit to publish the website at"
+        required: true
+      dry_run:
+        description: "say what would be published and change nothing"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The ref is any tag or commit, so the whole history has to be here to
+          # resolve it.
+          fetch-depth: 0
+
+      - name: Publish the website
+        env:
+          HOOK: ${{ secrets.VERCEL_DEPLOY_HOOK_URL }}
+          REF: ${{ inputs.ref }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          if [ "$DRY_RUN" = true ]; then
+            sh scripts/publish_website.sh --dry-run "$REF" | tee -a "$GITHUB_STEP_SUMMARY"
+          else
+            sh scripts/publish_website.sh "$REF" | tee -a "$GITHUB_STEP_SUMMARY"
+          fi
