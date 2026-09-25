@@ -1088,25 +1088,27 @@ def in_child(work) -> dict:
     return outcome["result"]
 
 
-def run_pageload(executable: str) -> dict:
+def run_pageload(executable: str, private: bool) -> dict:
     plan = pageload_plan()
     workspace = Workspace()
-    network = PrivateNetwork(workspace.root, pageload_zone(plan))
+    network = PrivateNetwork(workspace.root, pageload_zone(plan)) if private else None
     site: PageLoadSite | None = None
     browser = workspace.browser(executable)
     try:
-        network.enter()
+        if network:
+            network.enter()
         seed_content_blocking(os.path.join(workspace.root, "data"))
         # After entering, so that its socket is on the private network's loopback.
         site = PageLoadSite(plan)
         site.start()
-        browser.start(site.start_address, launcher=network.launcher)
+        browser.start(site.start_address, launcher=network.launcher if network else ())
         site.wait()
     finally:
         browser.stop()
         if site:
             site.stop()
-        network.leave()
+        if network:
+            network.leave()
         workspace.discard()
 
     results = {}
@@ -1129,6 +1131,20 @@ def run_pageload(executable: str) -> dict:
     return results
 
 
+def machine_serves_zone() -> bool:
+    """Whether the machine's resolver already answers with the zone `--print-dns-zone` writes.
+
+    That is how CI runs it. Its container will not make a user namespace, so a private network is
+    out of reach, and the job, which is root there, serves the zone from `dnsmasq` and points the
+    container's `resolv.conf` at it before the budget runs.
+    """
+    try:
+        answers = socket.getaddrinfo(PAGELOAD_EDGE_HOST, 80, socket.AF_INET)
+    except socket.gaierror:
+        return False
+    return any(answer[4][0] == "127.0.0.1" for answer in answers)
+
+
 def measure_pageload(executable: str, require_dns: bool) -> dict:
     """What Content blocking as a whole adds to a page load, in the worst case and the common one.
 
@@ -1137,12 +1153,15 @@ def measure_pageload(executable: str, require_dns: bool) -> dict:
     site switched off. Only the default DNS path is measured. Secure DNS on sends lookups to a
     public server, whose speed from a CI runner is not Omaweb's to hold to a number.
     """
+    if machine_serves_zone():
+        log("  the machine's own resolver answers the run's names, so it measures there")
+        return run_pageload(executable, private=False)
     try:
         missing = [f"{tool}, for {purpose}" for tool, purpose in PAGELOAD_TOOLS.items()
                    if shutil.which(tool) is None]
         if missing:
             raise Unavailable(f"this needs {'; '.join(missing)}")
-        return in_child(lambda: run_pageload(executable))
+        return in_child(lambda: run_pageload(executable, private=True))
     except Unavailable as error:
         if require_dns:
             raise MeasurementFailed(f"{error}, and --require-dns says it may not skip") from error
@@ -1211,6 +1230,8 @@ def main() -> int:
                         help="how many Spaces to open, the first one included")
     parser.add_argument("--require-dns", action="store_true",
                         help="fail pageload rather than skip it where its DNS server cannot run")
+    parser.add_argument("--print-dns-zone", action="store_true",
+                        help="print the dnsmasq configuration pageload resolves through, and exit")
 
     parser.add_argument("--record", action="store_true",
                         help="write the measurements into the budget as its recorded numbers")
@@ -1224,6 +1245,9 @@ def main() -> int:
     if arguments.spaces < 2:
         parser.error("a per-Space cost needs at least two Spaces")
 
+    if arguments.print_dns_zone:
+        sys.stdout.write(pageload_zone(pageload_plan()))
+        return 0
     if not os.access(arguments.browser, os.X_OK):
         log(f"skipped: {arguments.browser} is not built")
         return 0

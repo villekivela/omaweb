@@ -278,7 +278,12 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--baseline", required=True)
     parser.add_argument("--implementation", required=True)
-    parser.add_argument("--lists", required=True, type=pathlib.Path)
+    parser.add_argument(
+        "--lists",
+        type=pathlib.Path,
+        default=pathlib.Path(__file__).resolve().parent.parent / "third_party" / "filter-lists",
+        help="a directory holding easylist.txt and easyprivacy.txt (default: the snapshots)",
+    )
     parser.add_argument("--out", required=True, type=pathlib.Path)
     parser.add_argument("--navigations", type=int, default=20)
     parser.add_argument("--warmup", type=int, default=3)
