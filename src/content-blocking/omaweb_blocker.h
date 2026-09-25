@@ -40,6 +40,9 @@ bool omaweb_blocker_matches_popup(
     const OmawebBlocker *blocker, const char *url, const char *opener_url);
 char *omaweb_blocker_cosmetic_css(const OmawebBlocker *blocker, const char *url);
 char *omaweb_blocker_scriptlet_source(const OmawebBlocker *blocker, const char *url);
+// The procedural cosmetic rules for one address, as a JSON array of the parser's
+// `{selector, action}` objects.
+char *omaweb_blocker_procedural_actions(const OmawebBlocker *blocker, const char *url);
 bool omaweb_blocker_cosmetic_survey_wanted(const OmawebBlocker *blocker, const char *url);
 char *omaweb_blocker_generic_cosmetic_css(
     const OmawebBlocker *blocker, const char *url, const char *classes, const char *ids);

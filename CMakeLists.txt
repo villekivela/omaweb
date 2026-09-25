@@ -1099,6 +1099,7 @@ if(BUILD_TESTING)
     )
     target_compile_definitions(omaweb-content-blocker-tests PRIVATE
         OMAWEB_CONTENT_BLOCKER_FIXTURES="${CMAKE_CURRENT_SOURCE_DIR}/tests/content-blocking/fixtures.json"
+        OMAWEB_PROCEDURAL_RULES="${CMAKE_CURRENT_SOURCE_DIR}/tests/content-blocking/procedural-rules.json"
     )
     omaweb_strict_target(omaweb-content-blocker-tests)
     add_test(NAME omaweb-content-blocker COMMAND omaweb-content-blocker-tests)
@@ -1109,6 +1110,9 @@ if(BUILD_TESTING)
     target_link_libraries(omaweb-content-blocker-service-tests PRIVATE
         omaweb-core
         Qt6::Test
+    )
+    target_compile_definitions(omaweb-content-blocker-service-tests PRIVATE
+        OMAWEB_PROCEDURAL_RULES="${CMAKE_CURRENT_SOURCE_DIR}/tests/content-blocking/procedural-rules.json"
     )
     omaweb_strict_target(omaweb-content-blocker-service-tests)
     add_test(NAME omaweb-content-blocker-service COMMAND omaweb-content-blocker-service-tests)

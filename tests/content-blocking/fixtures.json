@@ -12,6 +12,7 @@
     "##.generic-ad",
     "site.example#@#.generic-ad",
     "###banner-ad",
+    "##div[data-ad-slot]",
     "entity.*##.entity-ad",
     "@@||nogeneric.example^$generichide",
     "site.example##+js(set-constant, omawebScriptletRan, true)",
@@ -30,7 +31,16 @@
     "||tracker.example^",
     "@@||tracker.example/consent.js",
     "||edge.news.example^",
-    "||cdn-tracker.example^$script,redirect=noopjs"
+    "||cdn-tracker.example^$script,redirect=noopjs",
+    "site.example##.card:has-text(Sponsored)",
+    "site.example##.card:remove-class(promo)",
+    "site.example#@#.card:remove-class(promo)",
+    "nospecific.example##.card:has-text(Sponsored)",
+    "nospecific.example##.local-ad",
+    "@@||nospecific.example^$specifichide",
+    "noelement.example##.card:has-text(Sponsored)",
+    "noelement.example##.local-ad",
+    "@@||noelement.example^$elemhide"
   ],
   "network": [
     {
@@ -226,6 +236,30 @@
       "url": "https://other.example/",
       "contains": ".generic-ad",
       "hidden": false
+    },
+    {
+      "name": "specifichide takes a site's own rules away",
+      "url": "https://nospecific.example/",
+      "contains": ".local-ad",
+      "hidden": false
+    },
+    {
+      "name": "specifichide keeps the generic rules no survey reaches",
+      "url": "https://nospecific.example/",
+      "contains": "div[data-ad-slot]",
+      "hidden": true
+    },
+    {
+      "name": "elemhide takes a site's own rules away",
+      "url": "https://noelement.example/",
+      "contains": ".local-ad",
+      "hidden": false
+    },
+    {
+      "name": "elemhide takes the generic rules away too",
+      "url": "https://noelement.example/",
+      "contains": "div[data-ad-slot]",
+      "hidden": false
     }
   ],
   "scriptlet": [
@@ -312,6 +346,11 @@
       "name": "$generichide exception",
       "url": "https://nogeneric.example/",
       "wanted": false
+    },
+    {
+      "name": "elemhide turns the survey off",
+      "url": "https://noelement.example/",
+      "wanted": false
     }
   ],
   "uncloaked": [
@@ -347,6 +386,41 @@
       "canonicalName": "cdn-tracker.example",
       "blocked": true,
       "substitute": "noop.js"
+    }
+  ],
+  "procedural": [
+    {
+      "name": "site procedural rule",
+      "url": "https://site.example/",
+      "actions": [
+        {
+          "selector": [
+            {
+              "type": "css-selector",
+              "arg": ".card"
+            },
+            {
+              "type": "has-text",
+              "arg": "Sponsored"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "another site",
+      "url": "https://other.example/",
+      "actions": []
+    },
+    {
+      "name": "specifichide",
+      "url": "https://nospecific.example/",
+      "actions": []
+    },
+    {
+      "name": "elemhide",
+      "url": "https://noelement.example/",
+      "actions": []
     }
   ]
 }

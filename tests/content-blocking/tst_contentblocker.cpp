@@ -32,6 +32,7 @@ private slots:
     void userRulesCompileOffTheCallerPath();
     void disablingASiteBypassesMatchingAndCosmetics();
     void disablingASiteRunsNoScriptlet();
+    void proceduralRulesFollowRuleReplacementAndSiteToggles();
     void subscriptionsExposeRequiredProvenanceAndUpdateStatus();
     void invalidSubscriptionUpdateKeepsTheActiveRules();
     void aListKeepsTheRulesThisContractParses();
@@ -191,6 +192,44 @@ void ContentBlockerTest::disablingASiteBypassesMatchingAndCosmetics()
                 QUrl(QStringLiteral("https://example.com/")), QStringLiteral("script"), space)
             .blocked);
     QVERIFY(blocker.cosmeticStyleSheet(QUrl(QStringLiteral("https://example.com/"))).isEmpty());
+}
+
+// The procedural rules reach the page through the same per-site switch as the
+// stylesheet, and every one the parser emits for the page's address arrives.
+void ContentBlockerTest::proceduralRulesFollowRuleReplacementAndSiteToggles()
+{
+    QFile fixture(QStringLiteral(OMAWEB_PROCEDURAL_RULES));
+    QVERIFY(fixture.open(QIODevice::ReadOnly));
+    const auto rows = QJsonDocument::fromJson(fixture.readAll()).array();
+    QStringList rules;
+    QJsonArray expected;
+    for (const auto &value : rows) {
+        rules.append(value.toObject().value(QStringLiteral("rule")).toString());
+        expected.append(value.toObject().value(QStringLiteral("action")));
+    }
+
+    QTemporaryDir root;
+    ContentBlocker blocker(root.path(), ContentBlocker::DefaultLists::None);
+    const QUrl page(QStringLiteral("http://127.0.0.1/procedural.html"));
+    const auto actions = [&blocker](const QUrl &url) {
+        return QJsonDocument::fromJson(blocker.proceduralActions(url).toUtf8()).array();
+    };
+    QCOMPARE(actions(page), QJsonArray());
+    blocker.setUserRules(rules.join(QLatin1Char('\n')));
+    QTRY_VERIFY_WITH_TIMEOUT(!blocker.compiling(), 5000);
+    QCOMPARE(actions(page).size(), expected.size());
+    for (const auto &action : expected)
+        QVERIFY(actions(page).contains(action));
+    QCOMPARE(actions(QUrl(QStringLiteral("http://localhost/procedural.html"))), QJsonArray());
+
+    blocker.setSiteEnabled(page, false);
+    QCOMPARE(blocker.proceduralActions(page), QStringLiteral("[]"));
+    blocker.setSiteEnabled(page, true);
+    QCOMPARE(actions(page).size(), expected.size());
+
+    blocker.setUserRules(rules.first());
+    QTRY_VERIFY_WITH_TIMEOUT(!blocker.compiling(), 5000);
+    QCOMPARE(actions(page), QJsonArray {expected.first()});
 }
 
 // A scriptlet is the one thing blocking does that runs code in the page, so

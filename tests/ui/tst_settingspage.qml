@@ -749,6 +749,24 @@ TestCase {
         verify(support.text.indexOf("$cname") >= 0);
     }
 
+    // The lists' procedural rules the pinned parser cannot carry are named apart
+    // from the rest of what the lists say and this build does not act on.
+    function test_contentBlockingNamesTheProceduralOperatorsItLacks() {
+        blockerStub.compilationReport = {
+            "unsupported": {
+                "procedural operators this parser lacks": 3
+            }
+        };
+        const page = makePage();
+        page.blocker = blockerStub;
+        page.section = page.sections.indexOf("content blocking");
+        const unsupported = findChild(page, "contentBlockingUnsupported");
+        verify(unsupported !== null);
+        verify(unsupported.visible);
+        verify(unsupported.text.indexOf("procedural operators this parser lacks") >= 0);
+        blockerStub.compilationReport = {};
+    }
+
     // A build running the engine the system supplies cannot host an extension,
     // and says so where the list would be rather than drawing switches that
     // would reach nothing.
