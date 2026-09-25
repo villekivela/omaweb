@@ -1,8 +1,8 @@
 import QtQuick
 import qs.Commons
 
-// The two axes a theme can move a derived layout along, and the shell
-// singleton put back the way it was found.
+// The two axes a theme can move a derived layout along, a stated place to
+// start them from, and the shell singleton put back the way it was found.
 //
 // A test that asserts a layout is derived rather than written down has to drive
 // both axes — the type the theme sets and the rhythm it sets — and drive them
@@ -14,15 +14,33 @@ QtObject {
 
     property var savedFontOverrides: ({})
     property real savedSpacingScale: 1
+    property bool savedSpacingScaleWithFont: true
+    property var savedSpacingOverrides: ({})
 
     function remember() {
         root.savedFontOverrides = Style.fontOverrides;
         root.savedSpacingScale = Style.spacingScale;
+        root.savedSpacingScaleWithFont = Style.spacingScaleWithFont;
+        root.savedSpacingOverrides = Style.spacingOverrides;
     }
 
     function restore() {
         Style.fontOverrides = root.savedFontOverrides;
         Style.spacingScale = root.savedSpacingScale;
+        Style.spacingScaleWithFont = root.savedSpacingScaleWithFont;
+        Style.spacingOverrides = root.savedSpacingOverrides;
+    }
+
+    // The kit's own tokens at its own scale. The shell reads the desktop's
+    // Omarchy theme, and a theme may set a spacing scale or pin a token, which
+    // a spacing token then keeps whatever the scale does. A layout measured
+    // against that desktop answers for the desktop rather than for the page,
+    // so a test starts here and moves one axis from a place it names.
+    function useStatedTheme() {
+        Style.fontOverrides = ({});
+        Style.spacingScale = 1;
+        Style.spacingScaleWithFont = true;
+        Style.spacingOverrides = ({});
     }
 
     // The type the theme sets. shell.toml pins these tokens directly, and

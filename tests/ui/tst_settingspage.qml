@@ -272,6 +272,11 @@ TestCase {
         theme.remember();
     }
 
+    // Every test starts from a theme it states rather than the desktop's.
+    function init() {
+        theme.useStatedTheme();
+    }
+
     // A failing verify() throws, so nothing after it in the test body runs. The
     // page and the singleton it moved are put back here instead, where one
     // test's failure cannot leave the next one reading a shell it did not set.
