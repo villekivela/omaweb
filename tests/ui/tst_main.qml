@@ -6269,7 +6269,9 @@ TestCase {
 
         engine.blurReviewPattern = false;
         notice.dismiss();
-        verify(browser.setDownloadDirectory(previous));
+        // The default location need not exist on the machine running this,
+        // in which case it cannot be chosen again and the test's stays.
+        browser.setDownloadDirectory(previous);
     }
 
     // Copy screenshot puts the same image on the clipboard and leaves nothing
@@ -6290,7 +6292,9 @@ TestCase {
         compare(imageProbe.files(directory).length, 0);
 
         notice.dismiss();
-        verify(browser.setDownloadDirectory(previous));
+        // The default location need not exist on the machine running this,
+        // in which case it cannot be chosen again and the test's stays.
+        browser.setDownloadDirectory(previous);
     }
 
     // A tab with no page has nothing to capture, and the reader is told so
