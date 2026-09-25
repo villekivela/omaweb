@@ -897,7 +897,8 @@ class PageLoadSite:
     def page(self, number: int) -> bytes:
         load = self.plan[number]
         images = "\n".join(
-            f'<img src="{with_port(image, self.port)}" width="16" height="16" alt="">'
+            f'<img src="{with_port(image, self.port)}" crossorigin="anonymous" width="16" '
+            'height="16" alt="">'
             for image in load.images)
         return PAGELOAD_PAGE.format(number=number, images=images,
                                     settle=PAGELOAD_SETTLE_MILLISECONDS).encode()
@@ -978,6 +979,7 @@ class PageLoadSite:
                 # The pages read their own timing, and an image from another site shows its
                 # status and size to a page only when it says so.
                 self.send_header("Timing-Allow-Origin", "*")
+                self.send_header("Access-Control-Allow-Origin", "*")
                 if self.headers.get("Host", "").split(":")[0] in site.single_use:
                     self.send_header("Connection", "close")
                     self.close_connection = True
