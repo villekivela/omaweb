@@ -3,6 +3,7 @@
 #include "QtCookiePolicy.h"
 #include "EngineBuild.h"
 #include "EngineCapabilities.h"
+#include "PageImages.h"
 #include "EngineCapabilityExpectations.h"
 #include "ExternalProtocolHandler.h"
 #include "FontSettings.h"
@@ -244,6 +245,7 @@ private slots:
     void qtSeparatesReloadBypassingCacheFromReloadAndStop();
     void qtRendersAPageForPrintingAndDrawsPdfsInline();
     void qtCapturesThePageAreaAsTheEngineDrewIt();
+    void qtCapturesTheWholePageAndLeavesTheReaderWhereTheyWere();
     void qtReportsSiteFullscreenWithItsOrigin();
     void profileAdaptersHandOverNotifications_data();
     void profileAdaptersHandOverNotifications();
@@ -4699,7 +4701,7 @@ void QtEngineContractTest::qtCapturesThePageAreaAsTheEngineDrewIt()
         },
         5000);
 
-    QSignalSpy captured(adapter.get(), SIGNAL(pageCaptured(QString, bool)));
+    QSignalSpy captured(adapter.get(), SIGNAL(pageCaptured(QString, bool, QString)));
     const auto path = root.filePath(QStringLiteral("capture.png"));
     QVERIFY(QMetaObject::invokeMethod(adapter.get(), "capturePage", Q_ARG(QVariant, path)));
     QTRY_COMPARE_WITH_TIMEOUT(captured.size(), 1, 15000);
@@ -4725,6 +4727,75 @@ void QtEngineContractTest::qtCapturesThePageAreaAsTheEngineDrewIt()
     QCOMPARE(image, shown);
     QCOMPARE(image.pixelColor(image.width() / 4, image.height() / 2), QColor(200, 30, 40));
     QCOMPARE(image.pixelColor(image.width() * 3 / 4, image.height() / 2), QColor(20, 60, 210));
+}
+
+// The whole page from top to bottom, a screenful at a time: a page four
+// screenfuls tall comes back that tall, with what was below the fold in it,
+// and the header fixed to the viewport once at the top rather than in every
+// screenful. The reader's scroll position, their selection and the header
+// are as they were afterwards.
+void QtEngineContractTest::qtCapturesTheWholePageAndLeavesTheReaderWhereTheyWere()
+{
+    PageServer server(R"HTML(<!doctype html><html><body style="margin: 0">
+        <header id="header" style="position: fixed; top: 0; left: 0; right: 0; height: 40px;
+                                   background: rgb(30, 160, 60)"></header>
+        <div style="height: 600px; background: rgb(200, 30, 40)"><p id="words" style="margin: 0">Chosen words</p></div>
+        <div style="height: 600px; background: rgb(20, 60, 210)"></div>
+        <script>
+            const range = document.createRange();
+            range.selectNodeContents(document.getElementById("words"));
+            getSelection().addRange(range);
+            scrollTo(0, 123);
+            const report = () => {
+                document.title = scrollY + "|" + getSelection().toString() + "|"
+                    + getComputedStyle(document.getElementById("header")).visibility;
+                requestAnimationFrame(report);
+            };
+            report();
+        </script>
+    </body></html>)HTML");
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    QQmlEngine engine;
+    QQmlComponent component(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
+        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
+    }));
+    QVERIFY2(adapter, qPrintable(component.errorString()));
+    QQuickWindow window;
+    window.resize(400, 300);
+    auto *view = qobject_cast<QQuickItem *>(adapter.get());
+    view->setParentItem(window.contentItem());
+    view->setSize(QSizeF(400, 300));
+    window.show();
+    QVERIFY(adapter->setProperty("currentUrl",
+        QUrl(QStringLiteral("http://127.0.0.1:%1/page.html").arg(server.serverPort()))));
+    const QString atRest = QStringLiteral("123|Chosen words|visible");
+    QTRY_COMPARE_WITH_TIMEOUT(adapter->property("pageTitle").toString(), atRest, 15000);
+    const auto ratio = window.effectiveDevicePixelRatio();
+    const bool pageDrawn = QTest::qWaitFor(
+        [&window] { return window.grabWindow().pixelColor(10, 10) == QColor(30, 160, 60); }, 5000);
+
+    QSignalSpy captured(adapter.get(), SIGNAL(pageCaptured(QString, bool, QString)));
+    const auto path = root.filePath(QStringLiteral("page.png"));
+    QVERIFY(QMetaObject::invokeMethod(adapter.get(), "capturePageFully", Q_ARG(QVariant, path)));
+    QTRY_COMPARE_WITH_TIMEOUT(captured.size(), 1, 15000);
+    QCOMPARE(captured.first().at(0).toString(), path);
+    QVERIFY(captured.first().at(1).toBool());
+    QTRY_COMPARE_WITH_TIMEOUT(adapter->property("pageTitle").toString(), atRest, 5000);
+
+    const QImage image(path);
+    QCOMPARE(image.size(), QSize(qRound(400 * ratio), qRound(1200 * ratio)));
+    if (!pageDrawn)
+        QSKIP("This platform's scene never shows the engine's frames, so what a capture shows "
+              "cannot be compared with the page here.");
+    const auto at = [&image, ratio](int y) { return image.pixelColor(10, qRound(y * ratio)); };
+    QCOMPARE(at(10), QColor(30, 160, 60));
+    QCOMPARE(at(300), QColor(200, 30, 40));
+    QCOMPARE(at(610), QColor(20, 60, 210));
+    QCOMPARE(at(1190), QColor(20, 60, 210));
 }
 
 // The adapter renders the page into a PDF for the platform's print dialog to
@@ -5789,6 +5860,7 @@ int main(int argc, char *argv[])
     QGuiApplication application(argc, argv);
     omaweb::registerEngineCapabilities();
     omaweb::registerEngineBuild();
+    omaweb::registerPageImages();
     omaweb::registerBrowserController();
     omaweb::registerExternalProtocolHandler();
     QtEngineContractTest test;

@@ -99,6 +99,8 @@ namespace {
         QStringLiteral("print"),
         QStringLiteral("screenshot-page"),
         QStringLiteral("copy-screenshot"),
+        QStringLiteral("screenshot-full-page"),
+        QStringLiteral("copy-full-page-screenshot"),
         QStringLiteral("fullscreen"),
         QStringLiteral("developer-tools"),
         QStringLiteral("inspect-element"),
