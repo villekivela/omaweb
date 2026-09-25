@@ -42,6 +42,11 @@ public:
         // an extension into a browser that hangs on its first message
         // (ADR 0049).
         KnownExtensions = 1 << 14,
+        // Whether Content blocking can check a request again under the
+        // canonical name its host's CNAME chain ends at. It needs the engine
+        // to resolve the host for the interceptor, which the patched Qt engine
+        // does and Ladybird does not (ADR 0050).
+        CnameUncloaking = 1 << 15,
     };
     Q_DECLARE_FLAGS(Capabilities, Capability)
     Q_FLAG(Capabilities)

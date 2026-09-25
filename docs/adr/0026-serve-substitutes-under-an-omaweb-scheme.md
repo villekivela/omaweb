@@ -1,5 +1,8 @@
 # Serve substitutes under an Omaweb scheme
 
+[0050](0050-uncloak-cname-trackers-in-the-engine.md) takes CNAME uncloaking back out of the
+exclusions below, on the engine Omaweb builds.
+
 Supersedes the part of [0010](0010-own-portable-content-blocking.md) that placed redirects and
 resource replacement outside the first content-blocking contract, and the part of
 [0025](0025-run-only-vendored-scriptlets.md) that vendored uBlock Origin's scriptlets alone.

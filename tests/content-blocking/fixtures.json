@@ -26,7 +26,11 @@
     "||beacon.example/pixel.gif$image,redirect-rule=1x1.gif",
     "||beacon.example/pixel.gif$image,domain=blocked.example",
     "||player.example/preroll.mp4$media,rewrite=abp-resource:blank-mp4",
-    "||campaign.example^$removeparam=utm_source"
+    "||campaign.example^$removeparam=utm_source",
+    "||tracker.example^",
+    "@@||tracker.example/consent.js",
+    "||edge.news.example^",
+    "||cdn-tracker.example^$script,redirect=noopjs"
   ],
   "network": [
     {
@@ -308,6 +312,41 @@
       "name": "$generichide exception",
       "url": "https://nogeneric.example/",
       "wanted": false
+    }
+  ],
+  "uncloaked": [
+    {
+      "name": "a canonical name a rule names is refused",
+      "url": "https://metrics.news.example/collect.js",
+      "source": "https://news.example/",
+      "type": "script",
+      "canonicalName": "collect.tracker.example",
+      "blocked": true
+    },
+    {
+      "name": "an exception on the canonical name lets the request through",
+      "url": "https://metrics.news.example/consent.js",
+      "source": "https://news.example/",
+      "type": "script",
+      "canonicalName": "tracker.example",
+      "blocked": false
+    },
+    {
+      "name": "a canonical name on the request's own site is not checked",
+      "url": "https://static.news.example/app.js",
+      "source": "https://news.example/",
+      "type": "script",
+      "canonicalName": "edge.news.example",
+      "blocked": false
+    },
+    {
+      "name": "an uncloaked redirect serves its substitute",
+      "url": "https://stats.news.example/analytics.js",
+      "source": "https://news.example/",
+      "type": "script",
+      "canonicalName": "cdn-tracker.example",
+      "blocked": true,
+      "substitute": "noop.js"
     }
   ]
 }

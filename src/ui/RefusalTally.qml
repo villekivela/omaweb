@@ -23,4 +23,10 @@ QtObject {
                                  && root.blocker.refusalTallyGeneration >= 0
                                  ? root.blocker.refusalTally(root.browser.sessionSpaceId,
                                                              root.pageAddress) : 0
+    // Which requests those were, each address once: `address`, and
+    // `canonicalName` for one refused through its host's CNAME chain.
+    readonly property var requests: root.blocker && root.browser
+                                    && root.blocker.refusalTallyGeneration >= 0
+                                    ? root.blocker.refusedRequests(root.browser.sessionSpaceId,
+                                                                   root.pageAddress) : []
 }

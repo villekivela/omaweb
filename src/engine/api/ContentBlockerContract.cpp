@@ -46,6 +46,8 @@ QStringList validateChromeBlockerContract(const QObject &blocker)
         // property, because it is keyed; the generation above is what makes a
         // binding on it answer again when a tally moves.
         {"refusalTally", false, 2},
+        // Which requests that tally counts, for Site information to list.
+        {"refusedRequests", false, 2},
         // The per-site switch the tally is stated beside. Keyed per host, not
         // per page address: they are different keys and conflating them would
         // make one of them wrong (ADR 0037).

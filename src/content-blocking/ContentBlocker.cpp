@@ -40,6 +40,9 @@ namespace {
     // times over a single load, so the refusals are batched and delivered
     // together.
     constexpr int refusalFlushIntervalMilliseconds = 250;
+    // How many refused addresses a tally lists. It counts every refusal; the
+    // list only has to hold more than Site information shows.
+    constexpr qsizetype refusedRequestLimit = 100;
 
     // Whether a request of this type is one an element is drawn by: an image,
     // a frame, a plugin's object, a video or an audio track. A refused script
@@ -133,10 +136,12 @@ ContentBlocker::RefusalKey ContentBlocker::refusalKey(
         spaceId, pageAddress.adjusted(QUrl::RemoveFragment).toString(QUrl::FullyEncoded)};
 }
 
-void ContentBlocker::noteRefusal(const RefusalKey &key, const QString &elementAddress)
+void ContentBlocker::noteRefusal(
+    const RefusalKey &key, const RefusedRequest &request, const QString &elementAddress)
 {
     auto &pending = m_pendingRefusals[key];
     pending.count += 1;
+    pending.requests.append(request);
     if (!elementAddress.isEmpty()) {
         pending.elementAddresses.append(elementAddress);
     }
@@ -160,6 +165,15 @@ void ContentBlocker::flushRefusals()
             continue;
         }
         tally->refused += it->count;
+        for (const auto &request : it->requests) {
+            const auto listed
+                = std::ranges::any_of(tally->requests, [&request](const RefusedRequest &known) {
+                      return known.address == request.address;
+                  });
+            if (!listed && tally->requests.size() < refusedRequestLimit) {
+                tally->requests.append(request);
+            }
+        }
         moved = true;
         if (it->elementAddresses.isEmpty()) {
             continue;
@@ -206,6 +220,7 @@ void ContentBlocker::showPage(
     tally.viewers += 1;
     if (newLoad) {
         tally.refused = 0;
+        tally.requests.clear();
     }
     m_viewedPages.insert(view, ViewedPage {key, pageGeneration});
     ++m_refusalTallyGeneration;
@@ -239,6 +254,18 @@ void ContentBlocker::releasePage(QObject *view)
 int ContentBlocker::refusalTally(const QString &spaceId, const QUrl &pageAddress) const
 {
     return m_refusalTallies.value(refusalKey(spaceId, pageAddress)).refused;
+}
+
+QVariantList ContentBlocker::refusedRequests(const QString &spaceId, const QUrl &pageAddress) const
+{
+    QVariantList listed;
+    for (const auto &request : m_refusalTallies.value(refusalKey(spaceId, pageAddress)).requests) {
+        listed.append(QVariantMap {
+            {QStringLiteral("address"), request.address},
+            {QStringLiteral("canonicalName"), request.canonicalName},
+        });
+    }
+    return listed;
 }
 
 // A subscription refreshed within the last day is left alone. Re-downloading
@@ -502,15 +529,25 @@ QString ContentBlocker::genericCosmeticStyleSheet(
 // asked, so both land in that page's tally. A request the lists only stripped
 // parameters off was never refused and does not.
 RequestDecision ContentBlocker::checkRequest(const QUrl &requestUrl, const QUrl &sourceUrl,
-    const QString &resourceType, const QString &spaceId) const
+    const QString &resourceType, const QString &spaceId, const QStringList &dnsAliases) const
 {
     const auto matcher = matcherFor(sourceUrl);
     if (!matcher) {
         return {};
     }
-    const auto decision = matcher->check(requestUrl, sourceUrl, resourceType);
+    auto decision = matcher->check(requestUrl, sourceUrl, resourceType);
+    if (!decision.blocked && !dnsAliases.isEmpty()) {
+        const auto uncloaked
+            = matcher->checkUncloaked(requestUrl, sourceUrl, resourceType, dnsAliases.first());
+        if (uncloaked.blocked) {
+            decision = uncloaked;
+            decision.canonicalName = dnsAliases.first();
+        }
+    }
     if (decision.blocked) {
-        countRefusal(sourceUrl, spaceId, drawnByAnElement(resourceType) ? requestUrl : QUrl());
+        countRefusal(sourceUrl, spaceId,
+            {requestUrl.toString(QUrl::FullyEncoded), decision.canonicalName},
+            drawnByAnElement(resourceType) ? requestUrl : QUrl());
     }
     return decision;
 }
@@ -525,7 +562,7 @@ bool ContentBlocker::shouldBlockPopup(
     if (!matcher || !matcher->shouldBlockPopup(requestUrl, openerUrl)) {
         return false;
     }
-    countRefusal(openerUrl, spaceId);
+    countRefusal(openerUrl, spaceId, {requestUrl.toString(QUrl::FullyEncoded), {}});
     return true;
 }
 
@@ -533,17 +570,17 @@ bool ContentBlocker::shouldBlockPopup(
 // tallies belong to this object's thread. The element's address, where the
 // request had one, travels in the form the page names it in, so the view has
 // nothing to translate.
-void ContentBlocker::countRefusal(
-    const QUrl &sourceUrl, const QString &spaceId, const QUrl &elementAddress) const
+void ContentBlocker::countRefusal(const QUrl &sourceUrl, const QString &spaceId,
+    const RefusedRequest &request, const QUrl &elementAddress) const
 {
     QPointer<ContentBlocker> guard(const_cast<ContentBlocker *>(this));
     const auto key = refusalKey(spaceId, sourceUrl);
     const auto address = elementAddress.toString(QUrl::FullyEncoded);
     QMetaObject::invokeMethod(
         const_cast<ContentBlocker *>(this),
-        [guard, key, address] {
+        [guard, key, request, address] {
             if (guard) {
-                guard->noteRefusal(key, address);
+                guard->noteRefusal(key, request, address);
             }
         },
         Qt::QueuedConnection);

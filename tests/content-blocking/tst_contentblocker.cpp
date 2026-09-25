@@ -53,6 +53,15 @@ private slots:
     void subscribingTheCookieListTakesItOffTheOffer();
     void aCookieListTheReaderRemovedStaysRemoved();
     void theCookieListHidesAConsentBannerWhileItIsOn();
+    void aTrackerBehindACnameIsRefusedThroughItsCanonicalName();
+    void aCanonicalNameOnTheRequestsOwnSiteIsNotChecked();
+    void anUncloakedRedirectServesItsSubstitute();
+    void aParameterRuleFoundThroughTheCanonicalNameRewritesNothing();
+    void anExceptionOnTheCanonicalNameLetsTheRequestThrough();
+    void aSiteWithBlockingOffIsNotUncloaked();
+    void anUncloakedRefusalCountsInTheTally();
+    void theRefusedRequestsAreListedWithTheCanonicalNameTheyMatched();
+    void anAddressRefusedTwiceIsListedOnceUntilTheNextLoad();
 };
 
 namespace {
@@ -752,6 +761,180 @@ void ContentBlockerTest::theCookieListHidesAConsentBannerWhileItIsOn()
             .checkRequest(QUrl(QStringLiteral("https://cdn.example/js/x-cookie-consent.js")), page,
                 QStringLiteral("script"), space)
             .blocked);
+}
+
+void ContentBlockerTest::aTrackerBehindACnameIsRefusedThroughItsCanonicalName()
+{
+    QTemporaryDir root;
+    ContentBlocker blocker(root.path(), ContentBlocker::DefaultLists::None);
+    blocker.setUserRules(QStringLiteral("||tracker.example^"));
+    QTRY_VERIFY_WITH_TIMEOUT(!blocker.compiling(), 5000);
+    const QUrl request(QStringLiteral("https://metrics.news.example/collect.js"));
+    const QUrl page(QStringLiteral("https://news.example/story"));
+
+    QVERIFY(!blocker.checkRequest(request, page, QStringLiteral("script"), space).blocked);
+    QVERIFY(blocker
+            .checkRequest(request, page, QStringLiteral("script"), space,
+                {QStringLiteral("collect.tracker.example"), QStringLiteral("metrics.news.example")})
+            .blocked);
+}
+
+// A site's own CDN aliases are not what a list meant to refuse. uBlock Origin
+// ignores a first-party CNAME by default, and so does Omaweb.
+void ContentBlockerTest::aCanonicalNameOnTheRequestsOwnSiteIsNotChecked()
+{
+    QTemporaryDir root;
+    ContentBlocker blocker(root.path(), ContentBlocker::DefaultLists::None);
+    blocker.setUserRules(QStringLiteral("||edge.news.example^"));
+    QTRY_VERIFY_WITH_TIMEOUT(!blocker.compiling(), 5000);
+
+    QVERIFY(!blocker
+            .checkRequest(QUrl(QStringLiteral("https://static.news.example/app.js")),
+                QUrl(QStringLiteral("https://news.example/story")), QStringLiteral("script"), space,
+                {QStringLiteral("edge.news.example")})
+            .blocked);
+}
+
+namespace {
+
+// A tracker served from the site's own subdomain, whose CNAME chain ends at
+// the tracker's host. Every uncloaking test asks about the same request.
+const QUrl cloakedRequest(
+    QStringLiteral("https://metrics.news.example/collect.js?utm_source=feed"));
+const QUrl cloakingPage(QStringLiteral("https://news.example/story"));
+const QStringList trackerAliases {
+    QStringLiteral("collect.tracker.example"), QStringLiteral("metrics.news.example")};
+
+std::unique_ptr<ContentBlocker> blockerWithRules(const QTemporaryDir &root, const QString &rules)
+{
+    auto blocker
+        = std::make_unique<ContentBlocker>(root.path(), ContentBlocker::DefaultLists::None);
+    blocker->setUserRules(rules);
+    return blocker;
+}
+
+} // namespace
+
+void ContentBlockerTest::anUncloakedRedirectServesItsSubstitute()
+{
+    QTemporaryDir root;
+    const auto blocker
+        = blockerWithRules(root, QStringLiteral("||tracker.example^$script,redirect=noopjs"));
+    QTRY_VERIFY_WITH_TIMEOUT(!blocker->compiling(), 5000);
+
+    const auto decision = blocker->checkRequest(
+        cloakedRequest, cloakingPage, QStringLiteral("script"), space, trackerAliases);
+    QVERIFY(decision.blocked);
+    QCOMPARE(decision.substitute, QStringLiteral("noop.js"));
+}
+
+// The request goes out under its own address, so a rule written for the
+// tracker's host has no parameters of that address to strip.
+void ContentBlockerTest::aParameterRuleFoundThroughTheCanonicalNameRewritesNothing()
+{
+    QTemporaryDir root;
+    const auto blocker
+        = blockerWithRules(root, QStringLiteral("||tracker.example^$removeparam=utm_source"));
+    QTRY_VERIFY_WITH_TIMEOUT(!blocker->compiling(), 5000);
+
+    const auto decision = blocker->checkRequest(
+        cloakedRequest, cloakingPage, QStringLiteral("script"), space, trackerAliases);
+    QVERIFY(!decision.blocked);
+    QVERIFY(decision.rewrittenUrl.isEmpty());
+}
+
+void ContentBlockerTest::anExceptionOnTheCanonicalNameLetsTheRequestThrough()
+{
+    QTemporaryDir root;
+    const auto blocker = blockerWithRules(
+        root, QStringLiteral("||tracker.example^\n@@||collect.tracker.example/collect.js"));
+    QTRY_VERIFY_WITH_TIMEOUT(!blocker->compiling(), 5000);
+
+    QVERIFY(!blocker
+            ->checkRequest(
+                cloakedRequest, cloakingPage, QStringLiteral("script"), space, trackerAliases)
+            .blocked);
+}
+
+void ContentBlockerTest::aSiteWithBlockingOffIsNotUncloaked()
+{
+    QTemporaryDir root;
+    const auto blocker = blockerWithRules(root, QStringLiteral("||tracker.example^"));
+    QTRY_VERIFY_WITH_TIMEOUT(!blocker->compiling(), 5000);
+    blocker->setSiteEnabled(cloakingPage, false);
+
+    QVERIFY(!blocker
+            ->checkRequest(
+                cloakedRequest, cloakingPage, QStringLiteral("script"), space, trackerAliases)
+            .blocked);
+}
+
+void ContentBlockerTest::anUncloakedRefusalCountsInTheTally()
+{
+    QTemporaryDir root;
+    const auto blocker = blockerWithRules(root, QStringLiteral("||tracker.example^"));
+    QTRY_VERIFY_WITH_TIMEOUT(!blocker->compiling(), 5000);
+    QObject view;
+    blocker->showPage(&view, space, cloakingPage, 1);
+
+    QVERIFY(blocker
+            ->checkRequest(
+                cloakedRequest, cloakingPage, QStringLiteral("script"), space, trackerAliases)
+            .blocked);
+    QTRY_COMPARE(blocker->refusalTally(space, cloakingPage), 1);
+}
+
+// Site information lists what the tally counts. An uncloaked refusal is listed
+// under the address the page asked for, which is the one in the page's own
+// network log, with the canonical name that explains the refusal beside it.
+void ContentBlockerTest::theRefusedRequestsAreListedWithTheCanonicalNameTheyMatched()
+{
+    QTemporaryDir root;
+    const auto blocker
+        = blockerWithRules(root, QStringLiteral("||tracker.example^\n||ads.example^"));
+    QTRY_VERIFY_WITH_TIMEOUT(!blocker->compiling(), 5000);
+    QObject view;
+    blocker->showPage(&view, space, cloakingPage, 1);
+    const QUrl direct(QStringLiteral("https://ads.example/banner.js"));
+
+    QVERIFY(blocker->checkRequest(direct, cloakingPage, QStringLiteral("script"), space).blocked);
+    QVERIFY(blocker
+            ->checkRequest(
+                cloakedRequest, cloakingPage, QStringLiteral("script"), space, trackerAliases)
+            .blocked);
+    QTRY_COMPARE(blocker->refusalTally(space, cloakingPage), 2);
+
+    const auto refused = blocker->refusedRequests(space, cloakingPage);
+    QCOMPARE(refused.size(), 2);
+    const auto first = refused.at(0).toMap();
+    QCOMPARE(first.value(QStringLiteral("address")).toString(), direct.toString());
+    QVERIFY(first.value(QStringLiteral("canonicalName")).toString().isEmpty());
+    const auto second = refused.at(1).toMap();
+    QCOMPARE(second.value(QStringLiteral("address")).toString(), cloakedRequest.toString());
+    QCOMPARE(second.value(QStringLiteral("canonicalName")).toString(),
+        QStringLiteral("collect.tracker.example"));
+}
+
+void ContentBlockerTest::anAddressRefusedTwiceIsListedOnceUntilTheNextLoad()
+{
+    QTemporaryDir root;
+    const auto blocker = refusingBlocker(root);
+    QTRY_VERIFY_WITH_TIMEOUT(!blocker->compiling(), 5000);
+    // A second tab on the same page keeps the tally alive through the first
+    // tab's reload, which is when the list has to start again on its own.
+    QObject view;
+    QObject otherView;
+    const QUrl page(QStringLiteral("https://site.example/"));
+    blocker->showPage(&view, space, page, 1);
+    blocker->showPage(&otherView, space, page, 1);
+
+    refuse(*blocker, page, space);
+    refuse(*blocker, page, space);
+    QTRY_COMPARE(blocker->refusalTally(space, page), 2);
+    QCOMPARE(blocker->refusedRequests(space, page).size(), 1);
+
+    blocker->showPage(&view, space, page, 2);
+    QVERIFY(blocker->refusedRequests(space, page).isEmpty());
 }
 
 QTEST_GUILESS_MAIN(ContentBlockerTest)

@@ -22,6 +22,11 @@ inline int expectedQtCapabilities()
 #if OMAWEB_KNOWN_EXTENSIONS
     capabilities |= EngineCapabilities::KnownExtensions;
 #endif
+    // CNAME uncloaking is the Qt engine's once it carries the DNS alias
+    // patch, and the build reads that from the engine it compiled against.
+#if OMAWEB_CNAME_UNCLOAKING
+    capabilities |= EngineCapabilities::CnameUncloaking;
+#endif
     return capabilities;
 }
 

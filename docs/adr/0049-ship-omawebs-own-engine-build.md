@@ -1,5 +1,8 @@
 # Ship Omaweb's own engine build
 
+[0050](0050-uncloak-cname-trackers-in-the-engine.md) widens what the series is for: it now carries a
+content-blocking patch as well as extension work.
+
 Supersedes the part of [0013](0013-preserve-engine-sandboxes-in-every-build.md) that deferred a
 bundled engine until Omaweb could maintain engine security updates, and the part of
 [0001](0001-isolate-web-engines-by-build.md) that withheld extensions until both engines support the

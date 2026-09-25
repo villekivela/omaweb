@@ -86,6 +86,9 @@ Rectangle {
     // says so rather than offering switches that would load an extension into
     // a browser that hangs on its first message.
     property bool knownExtensionsAvailable: false
+    // Whether this build's engine resolves a request's host for Content
+    // blocking, so a tracker behind a CNAME can be refused (ADR 0050).
+    property bool cnameUncloakingAvailable: false
     // Whether this window is a Private one. The capability above is the
     // build's and is the same in every window, so without this the section
     // offers a reader a switch that cannot do anything here.
@@ -1199,14 +1202,22 @@ Rectangle {
                     }
 
                     Text {
+                        objectName: "contentBlockingSupport"
                         width: pane.width
                         text: "Network rules, plain CSS cosmetic rules, parameter "
                               + "stripping, and the scriptlets and substitute resources "
                               + "in the bundled uBlock Origin library are supported; the "
-                              + "scriptlets uBlock Origin gates behind trust are refused. "
-                              + "Procedural selectors, response rewriting, content "
-                              + "security policies, HTML filtering, dynamic rules and "
-                              + "CNAME uncloaking are not supported."
+                              + "scriptlets uBlock Origin gates behind trust are refused. " + (
+                                  root.cnameUncloakingAvailable
+                                  ? "Trackers behind a CNAME are refused, but a $cname rule "
+                                    + "that turns that off is not honoured. Procedural "
+                                    + "selectors, response rewriting, content security "
+                                    + "policies, HTML filtering and dynamic rules are not "
+                                    + "supported." :
+                                    "Procedural selectors, response rewriting, content "
+                                    + "security policies, HTML filtering, dynamic rules, "
+                                    + "$cname rules and CNAME uncloaking are not supported "
+                                    + "by this engine.")
                         color: root.colors.mutedText
                         wrapMode: Text.WordWrap
                         font.family: Style.font.family

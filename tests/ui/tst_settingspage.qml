@@ -639,6 +639,21 @@ TestCase {
         signalName: "knownExtensionToggled"
     }
 
+    // What the lists may say and this build does not act on is named, and CNAME
+    // uncloaking is named among it only on an engine that cannot resolve a
+    // host for the interceptor (ADR 0050).
+    function test_contentBlockingNamesCnameUncloakingOnlyWhereTheEngineLacksIt() {
+        const page = makePage();
+        page.section = page.sections.indexOf("content blocking");
+        const support = findChild(page, "contentBlockingSupport");
+        verify(support !== null);
+        verify(support.text.indexOf("CNAME uncloaking") >= 0);
+
+        page.cnameUncloakingAvailable = true;
+        verify(support.text.indexOf("CNAME uncloaking") < 0);
+        verify(support.text.indexOf("$cname") >= 0);
+    }
+
     // A build running the engine the system supplies cannot host an extension,
     // and says so where the list would be rather than drawing switches that
     // would reach nothing.
