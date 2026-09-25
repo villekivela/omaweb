@@ -1,3 +1,7 @@
+---
+status: proposed
+---
+
 # Hand the browser to an Agent
 
 Supersedes the part of [0027](0027-use-engine-provided-developer-tools.md) that ruled out a CLI, an
