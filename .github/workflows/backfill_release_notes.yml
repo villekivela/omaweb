@@ -105,8 +105,9 @@ jobs:
           fi
 
       # The release pages are generated from the releases API at deploy time,
-      # so a rewritten body only reaches the site on the next deploy. Same hook
-      # and the same graceful absence as the release workflow.
+      # so a rewritten body only reaches the site on the next deploy. The hook
+      # rebuilds the `website` branch where it stands, with the same graceful
+      # absence as the release workflow.
       #
       # The condition names `!cancelled()` rather than leaving the default,
       # because a step with no status function of its own still waits on the

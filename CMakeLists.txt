@@ -909,6 +909,12 @@ if(BUILD_TESTING)
             COMMAND ${Python3_EXECUTABLE}
                 ${CMAKE_CURRENT_SOURCE_DIR}/tests/scripts/tst_rewrite_release_notes.py
         )
+        # Moves the branch the live site is built from, and asks for the build
+        # only where the push did not.
+        add_test(NAME omaweb-publish-website
+            COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/tests/scripts/tst_publish_website.py
+        )
         # CI skips the build jobs when a range is prose only, so this decides
         # whether a ten-minute build runs at all. The direction of its mistakes
         # is the property: an unrecognised path has to build.

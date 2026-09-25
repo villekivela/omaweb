@@ -792,17 +792,26 @@ reaches it, and a link the browser would not follow is nothing but its own label
 `cmake --preset dev` prints the version it derived. A tree with no tags falls back to
 `OMAWEB_FALLBACK_VERSION` in `cmake/OmawebVersion.cmake`.
 
-Publishing a release also changes the website, whose releases section and per-release pages are
-generated from the GitHub releases API at deploy time. Vercel builds on a push to a branch and this
-ref is a tag, so the `Deploy the website` step asks Vercel for a build itself. It needs a
-`VERCEL_DEPLOY_HOOK_URL` secret holding a Deploy Hook from the Vercel project's Git settings. With
-no secret the step says so in the job summary and the release still publishes; the site then shows
-the previous release until the next push to `main`.
+Publishing a release also publishes the website, whose releases section and per-release pages are
+generated from the GitHub releases API at deploy time. The release workflow moves the `website`
+branch to the tag with `scripts/publish_website.sh`, and the push is what asks Vercel for the build.
+A branch already at the tag gets no push, so the script asks through a Deploy Hook instead, which
+needs a `VERCEL_DEPLOY_HOOK_URL` secret holding a hook created for the `website` branch in the
+Vercel project's Git settings. With no secret the step says so in the job summary and the release
+still publishes.
 
 ## Website
 
 `website/` is the deployed site. Vercel builds it with the `buildCommand` in `website/vercel.json`,
 which runs `website/build/site.mjs` from `website/` and serves the `dist/` it writes.
+
+The live site is built from the `website` branch, the project's production branch in Vercel, and not
+from `main`. A change to `website/` merged to `main` goes live with the next release, so a page
+describing a feature can merge with the feature and still not reach readers before they can install
+it. A push to `main` or a pull request gets a preview deployment. To publish between releases, for a
+site-only fix or to roll a bad site back to an earlier release, run the `Publish the website`
+workflow with the tag or commit to publish; everything that commit's `website/` says goes live. Only
+the workflows move the branch.
 
 ```sh
 npm ci --prefix website             # the Markdown parser the renderer imports
