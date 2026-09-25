@@ -96,6 +96,11 @@ public:
     // The procedural cosmetic rules for one address as a JSON array, `[]` for a
     // site the user turned blocking off for.
     Q_INVOKABLE QString proceduralActions(const QUrl &url) const;
+    // The script that applies them in a page: the vendored matcher and the
+    // dispatch that acts on what it finds, which defines
+    // `globalThis.__omawebProcedural` in the world it runs in. The same for
+    // every page, so a view loads it only into a frame that has rules.
+    Q_INVOKABLE QString proceduralFilterSource() const;
     Q_INVOKABLE bool cosmeticSurveyWanted(const QUrl &url) const;
     Q_INVOKABLE QString genericCosmeticStyleSheet(
         const QUrl &url, const QStringList &classes, const QStringList &ids) const;

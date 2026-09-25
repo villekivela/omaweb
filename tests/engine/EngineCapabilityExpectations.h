@@ -16,7 +16,8 @@ inline int expectedMockCapabilities()
 
 inline int expectedQtCapabilities()
 {
-    int capabilities = expectedMockCapabilities() | EngineCapabilities::PersistentProfiles;
+    int capabilities = expectedMockCapabilities() | EngineCapabilities::PersistentProfiles
+        | EngineCapabilities::ProceduralCosmeticFiltering;
     // Only a build against the patched engine can host a Known extension, and
     // the adapter reports it from the same build option this reads.
 #if OMAWEB_KNOWN_EXTENSIONS

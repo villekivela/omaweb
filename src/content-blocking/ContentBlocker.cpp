@@ -518,6 +518,23 @@ QString ContentBlocker::proceduralActions(const QUrl &url) const
     return matcher ? matcher->proceduralActions(url) : QStringLiteral("[]");
 }
 
+QString ContentBlocker::proceduralFilterSource() const
+{
+    static const QString source = [] {
+        QString joined;
+        for (const auto *path : {":/omaweb/content-blocking/third_party/brave-procedural-filters/"
+                                 "procedural_filters.js",
+                 ":/omaweb/content-blocking/src/content-blocking/procedural-actions.js"}) {
+            QFile file(QString::fromLatin1(path));
+            if (!file.open(QIODevice::ReadOnly))
+                return QString();
+            joined += QString::fromUtf8(file.readAll()) + QLatin1Char('\n');
+        }
+        return joined;
+    }();
+    return source;
+}
+
 bool ContentBlocker::cosmeticSurveyWanted(const QUrl &url) const
 {
     const auto matcher = matcherFor(url);

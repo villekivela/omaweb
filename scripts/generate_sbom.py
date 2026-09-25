@@ -172,6 +172,13 @@ def build(version: str) -> dict:
     )
     components.append(
         vendored_component(
+            REPOSITORY_ROOT / "third_party/brave-procedural-filters/MANIFEST.json",
+            "brave-procedural-filters",
+            "Brave's procedural cosmetic selector matcher",
+        )
+    )
+    components.append(
+        vendored_component(
             REPOSITORY_ROOT / "third_party/omarchy-shell/MANIFEST.json",
             "omarchy-shell",
             "Omarchy shell QML component kit",

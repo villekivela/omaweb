@@ -266,6 +266,17 @@ pkg_check_modules(LIBCRYPTO REQUIRED IMPORTED_TARGET libcrypto)
 target_link_libraries(omaweb-core PUBLIC Qt6::Core Qt6::Network Qt6::Qml Qt6::Sql
     PRIVATE Qt6::Concurrent Qt6::CorePrivate PkgConfig::LIBCRYPTO omaweb-content-blocking)
 omaweb_strict_target(omaweb-core)
+# The page-side half of procedural cosmetic filtering (ADR 0052): Brave's
+# vendored matcher and the dispatch that acts on what it finds. Built into the
+# library, as the scriptlets are into the content blocker, so no build reads
+# them off disk at runtime.
+qt_add_resources(omaweb-core "omaweb_procedural_filters"
+    PREFIX "/omaweb/content-blocking"
+    BASE "${CMAKE_CURRENT_SOURCE_DIR}"
+    FILES
+        third_party/brave-procedural-filters/procedural_filters.js
+        src/content-blocking/procedural-actions.js
+)
 
 if(OMAWEB_BUILD_SYNC)
     if(NOT UNIX OR APPLE)

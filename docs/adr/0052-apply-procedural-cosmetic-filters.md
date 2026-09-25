@@ -17,6 +17,8 @@ Exactly what the pinned `adblock-rust` 0.12.5 parses, and nothing it does not. T
 `:xpath`. The actions are `:remove()`, `:style()`, `:remove-attr()` and `:remove-class()`, and a
 rule with none hides what it matches.
 
+The parser splits a rule into operators only with its `css-validation` feature, which the content
+blocker turns on; without it every procedural rule reads as a plain CSS selector no browser knows.
 Only rules written against a site are applied. The parser refuses a generic procedural rule, one
 with no domain, because running it would cost every page a document-wide search.
 
@@ -46,9 +48,11 @@ against the same parser, and would drift from it.
 ## Where it runs
 
 In `ApplicationWorld`, like the generic cosmetic survey and the collapse of refused elements, so the
-page can neither reach the matcher nor tamper with it. The script is injected at `DocumentCreation`
-in every frame, and each frame asks for the rules of its own address, so a subframe from another
-site gets that site's rules.
+page can neither reach the matcher nor tamper with it. A script injected at `DocumentCreation` in
+every frame asks for the rules of the frame's own address, so a subframe from another site gets that
+site's rules, and the answer loads the matcher into the frame only when there are any. A frame the
+engine hands the view's scripts too late to ask, which the survey's own fallback already covers,
+asks through its survey instead.
 
 ## How it hides
 
@@ -63,7 +67,8 @@ For the life of the page. A procedural rule's match can appear long after load, 
 or a text node changes, so a MutationObserver watches the document. Mutations are batched and the
 rules re-run at most every 100 ms, and only the rules the mutation's kind can affect: a text change
 re-runs `:has-text` and `:min-text-length`, an attribute change `:matches-attr`, the `:matches-css`
-family and the attribute actions, and a tree change the rest.
+family and the attribute actions, and a tree change all of them, because it can bring any element
+in.
 
 ## An open page when the rules change
 
@@ -83,7 +88,12 @@ Settings names the engines that lack it, as it does for CNAME uncloaking
 
 ## What this costs
 
-A page with no procedural rule for its address pays one call for its frame's rules and loads no
-matcher. A page with rules pays the matcher's parse and the watch. The measurement lands with the
-change that applies the rules in the page
-([#402](https://github.com/villekivela/omaweb/issues/402)).
+A frame with no procedural rule for its address pays one report and one rule lookup, which the
+stylesheet's per-address cache answers, and loads no matcher. A frame with rules is sent the matcher
+and the dispatch, about 22 KB of script, and pays their parse, a search of the document per rule,
+and the watch.
+
+The page-load measurement this was to be held to,
+[#371](https://github.com/villekivela/omaweb/issues/371), had not merged when this landed, so there
+is no number here. Its budget covers Content blocking as a whole, procedural rules included, and
+#371 records the number for a list that carries them.
