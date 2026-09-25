@@ -17,8 +17,8 @@ theme each, in this order:
 
 1. [v0.8.0](https://github.com/villekivela/omaweb/milestone/1), the page and what the reader takes
    from it: screenshots, the certificate in Site information, picture-in-picture, passkeys, an
-   HTTPS-only mode, trackers refused behind a CNAME, the engine's trace-macro fix, the open page
-   bugs, and the decision on how payment cards are stored.
+   HTTPS-only mode, secure DNS, trackers refused behind a CNAME, the engine's trace-macro fix, the
+   open page bugs, and the decision on how payment cards are stored.
 2. [v0.9.0](https://github.com/villekivela/omaweb/milestone/2), localization: the tooling, then
    every user-facing string wrapped, then the first locale finished and new strings gated. It
    follows v0.8.0 so the wrapping passes cover its features and nothing is in flight when the gate
@@ -77,6 +77,5 @@ URL reputation is out of the daily-driver contract
 ([#59](https://github.com/villekivela/omaweb/issues/59),
 [ADR 0032](adr/0032-ship-without-url-reputation.md)). Omaweb ships no phishing, malware, or
 download-reputation provider, documents the missing protection, and never presents Content blocking
-as equivalent. Custom user agents, print preview, and encrypted DNS are declined in
-`docs/product/requirements.md` with the reasoning
-([#323](https://github.com/villekivela/omaweb/issues/323)).
+as equivalent. Custom user agents and print preview are declined in `docs/product/requirements.md`
+with the reasoning ([#323](https://github.com/villekivela/omaweb/issues/323)).
