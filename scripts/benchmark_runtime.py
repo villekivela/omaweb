@@ -777,8 +777,12 @@ PAGELOAD_PAGE = """<!doctype html>
 <script>
   addEventListener("load", () => setTimeout(async () => {{
     const entry = performance.getEntriesByType("navigation")[0];
-    const loaded = [...document.images].filter(image => image.naturalWidth > 0).length;
-    const report = {{ number: {number}, milliseconds: entry.loadEventStart, loaded }};
+    const missing = [...document.images].filter(image => image.naturalWidth === 0);
+    const report = {{
+      number: {number},
+      milliseconds: entry.loadEventStart,
+      missing: missing.map(image => image.src),
+    }};
     const sent = await fetch("/report", {{ method: "POST", body: JSON.stringify(report) }});
     const answer = await sent.json();
     if (answer.next) setTimeout(() => location.replace(answer.next), {settle});
@@ -837,6 +841,9 @@ class PageLoadSite:
     def __init__(self, plan: list[PageLoad]) -> None:
         self.plan = plan
         self.reports: dict[int, dict] = {}
+        # Every address the server was asked for, so that an image a page is missing can be told
+        # apart as one that never arrived here and one that did and went missing on the way back.
+        self.requested: set[str] = set()
         self.ready = False
         self.problem = ""
         self.finished = False
@@ -925,6 +932,7 @@ class PageLoadSite:
                 self.wfile.write(body)
 
             def do_GET(self) -> None:  # noqa: N802
+                site.requested.add(f"http://{self.headers.get('Host', '')}{self.path}")
                 path = urllib.parse.urlsplit(self.path).path
                 if path == "/ready":
                     self.answer(site.ready_page(), "text/html; charset=utf-8")
@@ -1088,6 +1096,20 @@ def in_child(work) -> dict:
     return outcome["result"]
 
 
+def describe_missing(load: PageLoad, site: PageLoadSite) -> str:
+    """One page's missing images, and whether the server ever saw them asked for.
+
+    Not asked for is a refusal, a lookup or a connection that failed before the request left the
+    browser; asked for and still missing is an answer that did not arrive.
+    """
+    missing = site.reports[load.number]["missing"]
+    asked = sum(address in site.requested for address in missing)
+    return (f"load {load.number} ({load.case} hosts, blocking {load.mode}, "
+            f"{'counted' if load.measured else 'warm-up'}) is missing {len(missing)} of "
+            f"{PAGELOAD_IMAGES} images, {asked} of them asked of the server, "
+            f"among them {missing[0]}")
+
+
 def run_pageload(executable: str, private: bool) -> dict:
     plan = pageload_plan()
     workspace = Workspace()
@@ -1111,18 +1133,16 @@ def run_pageload(executable: str, private: bool) -> dict:
             network.leave()
         workspace.discard()
 
+    short = [describe_missing(load, site) for load in plan if site.reports[load.number]["missing"]]
+    if short:
+        raise MeasurementFailed("the two modes did not load the same pages:\n    "
+                                + "\n    ".join(short))
     results = {}
     for case, hosts in PAGELOAD_CASES.items():
         timings: dict[str, list[float]] = {"on": [], "off": []}
         for load in plan:
-            if load.case != case or not load.measured:
-                continue
-            report = site.reports[load.number]
-            if report["loaded"] != PAGELOAD_IMAGES:
-                raise MeasurementFailed(
-                    f"a page with blocking {load.mode} showed {report['loaded']} of its "
-                    f"{PAGELOAD_IMAGES} images, so the two modes did not load the same page")
-            timings[load.mode].append(float(report["milliseconds"]))
+            if load.case == case and load.measured:
+                timings[load.mode].append(float(site.reports[load.number]["milliseconds"]))
         summary = summarise_pageload(timings["on"], timings["off"])
         log(f"  {PAGELOAD_IMAGES} images from {hosts} {case} hosts: {summary.on:.1f} ms on, "
             f"{summary.off:.1f} ms off, {summary.added:.1f} ms added "
