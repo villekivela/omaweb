@@ -1,5 +1,8 @@
 # Stop an away Space's pages instead of taking them
 
+[0051](0051-hand-the-browser-to-an-agent.md) adds a third exempt page: an Agent tab, for as long as
+an Agent is attached to it.
+
 Omaweb freezes the pages of a Space that is not on show rather than discarding their renderers. A
 frozen page keeps its document, its process and everything it holds, and runs no timers, animations
 or script, so selecting the Space again finds each page where it was left rather than loading it

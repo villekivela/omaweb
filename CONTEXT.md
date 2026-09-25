@@ -37,9 +37,9 @@ and its resource use. _Avoid_: Background Space, never suspend
 
 **Frozen tab**: A tab whose page has stopped running because the reader is not looking at it. It
 keeps its document and everything the page holds, and continues where it stopped when the tab is
-selected, rather than loading again. A tab an inspector is attached to and a tab making sound are
-not frozen, and neither is a Pinned tab marked Keep active. _Avoid_: Suspended tab, sleeping tab,
-discarded tab
+selected, rather than loading again. A tab an inspector is attached to, a tab making sound and an
+Agent tab are not frozen, and neither is a Pinned tab marked Keep active. _Avoid_: Suspended tab,
+sleeping tab, discarded tab
 
 **Sounding tab**: The tab that is making sound, and the one Omaweb announces to the desktop so the
 media keys, the bar's media widget, and anything else that asks reach it. There is one for the whole
@@ -108,8 +108,28 @@ destination in the Omnibar. _Avoid_: Command bar, omnibox, command palette
 
 **Developer tools**: The inspector supplied by the current web engine and attached to one tab.
 Omaweb opens it, positions it, and draws it in the browser's own theme, but does not normalize its
-interface or debugging protocol across engines. _Avoid_: Diagnostics, Agent access, DevTools
-platform
+interface or debugging protocol across engines. _Avoid_: Diagnostics, DevTools platform
+
+**Agent**: A program the reader runs, such as a coding agent or their own script, that drives Omaweb
+through the agent socket while Allow agents is on. Omaweb holds no model and no provider
+credentials; the Agent is always the reader's own. A connection names itself for the activity log
+and the markers, but the name is not an identity, and every Agent follows the same rules. _Avoid_:
+Bot, assistant, automation, Diagnostics client
+
+**Agent Space**: A Space an Agent created, which Agents may use without a Space grant. It is marked
+as an Agent's, and the reader can take it over, which removes the mark and keeps the Space. A
+temporary Agent Space is deleted with its Engine profile when the connection that created it closes.
+_Avoid_: Bot Space, sandbox, throwaway profile
+
+**Space grant**: The reader's standing permission for Agents to use a Space they did not create,
+given once from a prompt and kept until revoked in Settings. It belongs to the Space rather than to
+any Agent, stays on this machine and is outside the Sync projection. A Private window can never be
+granted. _Avoid_: Agent permission, Site permission, pairing
+
+**Agent tab**: A tab an Agent is attached to. It is marked as such in the sidebar, and the Space
+holding it is marked too. It is not frozen and stays rendered behind the page on show, so an Agent
+can work in a Space the reader is not looking at, and an Agent tab never takes the reader's focus.
+_Avoid_: Automated tab, bot tab, controlled tab
 
 **Web extension**: A third-party browser package that can modify pages or add browser behavior
 through a supported WebExtensions contract. _Avoid_: Feature module, plugin
