@@ -88,37 +88,10 @@ jobs:
 
       # The engine is Omaweb's own package (ADR 0049) and Omaweb's repository is
       # the only place it is published, so a release has to install from there
-      # to build against the engine it will run on. The public half of the
-      # signing key is in the checkout rather than fetched, because a keyserver
-      # that does not answer would fail a release for a reason that has nothing
-      # to do with the release.
+      # to build against the engine it will run on. CI's `arch-linux` job adds
+      # the repository with the same script.
       - name: Trust the repository that serves the engine
-        env:
-          # What the README and the website tell a reader to check. Held against
-          # the key file so that a replaced file is a failure rather than a
-          # silently different key.
-          PUBLISHED: FDA535B2185755EA718BEA585DBF15FE484EFA64
-        run: |
-          fingerprint=$(gpg --show-keys --with-colons security/repo-signing-key.asc \
-            | awk -F: '/^fpr:/ { print $10; exit }')
-          if [ "$fingerprint" != "$PUBLISHED" ]; then
-            echo "::error::security/repo-signing-key.asc is $fingerprint, not $PUBLISHED" >&2
-            exit 1
-          fi
-          # The image's keyring has Arch's keys but no local master key, and
-          # --lsign-key signs with that key. scripts/check_repo_publish.sh
-          # initialises its client keyring the same way.
-          pacman-key --init
-          pacman-key --add security/repo-signing-key.asc
-          pacman-key --lsign-key "$fingerprint"
-          # `$arch` stays literal: pacman expands it to the architecture the
-          # client asks for, which is how one Server line serves both.
-          {
-            echo
-            echo "[omaweb]"
-            echo "SigLevel = Required DatabaseRequired"
-            echo 'Server = https://github.com/villekivela/omaweb/releases/download/repo-$arch'
-          } >> /etc/pacman.conf
+        run: scripts/trust_omaweb_repository.sh
 
       - name: Install toolchain
         env:
