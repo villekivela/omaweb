@@ -81,6 +81,14 @@ done
 mkdir -p "$output"
 generated="$output/PKGBUILD"
 
+# GNU and BSD sed disagree on how `-i` takes its suffix, so an edit goes through
+# a temporary file instead and runs the same on Linux and macOS.
+edit() {
+    local file="${@: -1}"
+    sed "$@" > "$file.edit"
+    mv "$file.edit" "$file"
+}
+
 # Each edit is applied on its own and then checked, rather than run as one
 # script whose failures cancel out.
 replace() {
@@ -91,7 +99,7 @@ replace() {
         exit 1
     fi
     # `|` as the delimiter, because a replacement can carry a URL.
-    sed -i -E "s|$pattern|$replacement|" "$file"
+    edit -E "s|$pattern|$replacement|" "$file"
 }
 
 remove() {
@@ -101,7 +109,7 @@ remove() {
         echo "make_release_pkgbuild: expected a line matching $pattern" >&2
         exit 1
     fi
-    sed -i -E "\|$pattern|d" "$file"
+    edit -E "\|$pattern|d" "$file"
 }
 
 {
@@ -136,7 +144,7 @@ if ! grep -q '^pkgver() {$' "$generated"; then
     echo "make_release_pkgbuild: packaging/PKGBUILD has no pkgver() to remove" >&2
     exit 1
 fi
-sed -i '/^pkgver() {$/,/^}$/d' "$generated"
+edit '/^pkgver() {$/,/^}$/d' "$generated"
 # The blank line that separated it from the next function is now one of a pair.
 # `packaging/PKGBUILD` has no double blank line of its own, so squeezing them is
 # the removal finishing rather than a reformatting of the file.
