@@ -402,6 +402,14 @@ The default page commands include:
   facts the adapter can prove. The site-information panel shows origin, connection state,
   Space-specific permissions, blocked-request count, stored-data size, and confirmed actions to
   clear site data or reset permissions.
+- Site information on a page reached over TLS offers View certificate, which shows the chain from
+  the site's own certificate to the trust anchor, one selectable entry per certificate, with
+  subject, issuer, validity period, SHA-256 fingerprint, and subject alternative names, each
+  copyable. The certificate interstitial offers the same view for the certificate it refused, so a
+  reader can judge a Local-development site's certificate before letting it through. A Private
+  window shows it like any other window. The chain a page arrived over comes from the engine patch
+  that reports it ([ADR 0054](../adr/0054-read-a-pages-certificate-from-the-engine.md)); an engine
+  without it shows only the chain a failure was raised for, and Site information says so.
 - Certificate failures block by default. A Local-development site's main frame may receive a
   one-time exception only when the engine marks the failure overridable. Subresource, fatal,
   public-site, and remembered exceptions are refused, and the address trigger keeps the exception

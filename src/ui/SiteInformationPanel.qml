@@ -35,6 +35,13 @@ Rectangle {
     // was is said here.
     property string lookupFailedBy: ""
     property bool certificateDecisionsAvailable: false
+    // The chain the page arrived over, or the one its load was refused for,
+    // and whether the engine reports the first kind at all.
+    property var certificateChain: []
+    property bool pageCertificatesAvailable: false
+    // Only a connection that went over TLS has a certificate to show.
+    readonly property bool overTls: root.connectionState === "secure" || root.connectionState
+                                    === "certificate-error"
     property bool thirdPartyCookieControlAvailable: false
     property bool siteDataOnDisk: false
     property bool insecureContentBlocked: true
@@ -247,6 +254,21 @@ Rectangle {
             font.pixelSize: Style.font.caption
         }
 
+        // Where there is a TLS connection and no chain to show for it, the
+        // reader is told why rather than left without the button.
+        Text {
+            objectName: "siteInformationNoCertificate"
+            width: parent.width
+            visible: root.overTls && root.certificateChain.length === 0
+            text: root.pageCertificatesAvailable
+                  ? "· the engine has not reported this page's certificate" :
+                    "· this engine cannot show the certificate a page arrived over"
+            color: root.colors.mutedText
+            wrapMode: Text.WordWrap
+            font.family: Style.font.family
+            font.pixelSize: Style.font.caption
+        }
+
         Text {
             width: parent.width
             visible: !root.insecureContentBlocked
@@ -453,6 +475,14 @@ Rectangle {
         Flow {
             width: parent.width
             spacing: 6
+
+            ActionButton {
+                objectName: "viewCertificate"
+                colors: root.colors
+                label: "view certificate"
+                visible: root.overTls && root.certificateChain.length > 0
+                onClicked: root.actionRequested("certificate")
+            }
 
             ActionButton {
                 objectName: "clearSiteStorage"

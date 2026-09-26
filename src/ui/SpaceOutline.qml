@@ -203,6 +203,8 @@ Rectangle {
     // asked for, and a lock drawn from one is a claim nothing checked.
     property string connectionState: "internal"
     property string lookupFailedBy: ""
+    property var certificateChain: []
+    property bool pageCertificatesAvailable: false
     property bool upgradedByHttpsOnly: false
     // What the engine can and cannot answer for. A gap is said out loud rather
     // than drawn as a reassuring blank.
@@ -1345,6 +1347,8 @@ Rectangle {
         lookupFailedBy: root.lookupFailedBy
         upgradedByHttpsOnly: root.upgradedByHttpsOnly
         certificateDecisionsAvailable: root.certificateDecisionsAvailable
+        certificateChain: root.certificateChain
+        pageCertificatesAvailable: root.pageCertificatesAvailable
         thirdPartyCookieControlAvailable: root.thirdPartyCookieControlAvailable
         siteDataOnDisk: root.siteDataOnDisk
         insecureContentBlocked: root.insecureContentBlocked

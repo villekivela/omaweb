@@ -23,6 +23,7 @@
 #include "OmarchyTheme.h"
 #include "PagePrinter.h"
 #include "ProcessResources.h"
+#include "QtCertificates.h"
 #include "QtContentBlocker.h"
 #include "QtCookiePolicy.h"
 #include "QtHeldDownloads.h"
@@ -389,6 +390,7 @@ int main(int argc, char *argv[])
     omaweb::registerFontSettings();
     omaweb::registerEngineCapabilities();
     omaweb::registerEngineBuild();
+    omaweb::registerQtCertificates();
     omaweb::registerPageImages();
     omaweb::registerDefaultBrowser();
     omaweb::registerSystemClipboard();

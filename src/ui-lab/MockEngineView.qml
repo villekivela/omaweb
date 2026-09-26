@@ -101,6 +101,10 @@ Rectangle {
     // that cannot refuse a third-party cookie.
     property bool certificateDecisionsAvailable: true
     property bool thirdPartyCookieControlAvailable: true
+    // Whether the lab reports the chain a page arrived over, as the patched Qt
+    // engine does. Off stands for an engine that reports only the chain a
+    // certificate failure was raised for.
+    property bool pageCertificatesAvailable: true
     // Off by default and honest about it: the lab keeps nothing on disk, so
     // Site information has no size to show. A test that needs the shell stood
     // up against an engine that does keep a profile turns it on.
@@ -127,7 +131,9 @@ Rectangle {
                                                                                                                                  ? EngineCapabilities.CertificateDecisions :
                                                                                                                                    0) | (root.thirdPartyCookieControlAvailable
                                                                                                                                          ? EngineCapabilities.ThirdPartyCookieControl :
-                                                                                                                                           0)
+                                                                                                                                           0) | (root.pageCertificatesAvailable
+                                                                                                                                                 ? EngineCapabilities.PageCertificates :
+                                                                                                                                                   0)
 
     // The lab renders nothing, so find counts the plain occurrences of the
     // query in a body of text a test names. That is enough for the interface:
@@ -145,6 +151,69 @@ Rectangle {
     // securely unless a certificate failure has been reported for its origin,
     // and anything that is not http or https is Omaweb's own furniture.
     property string certificateErrorOrigin: ""
+    // The lab makes no connection, so the chain an https page arrives over is
+    // named: the host's own certificate, an intermediate and a root, in the
+    // shape `describeCertificateChain` gives every adapter.
+    property var certificateChain: []
+    function labCertificateChain(url) {
+        const address = String(url);
+        if (!address.startsWith("https://") || !root.pageCertificatesAvailable)
+            return [];
+        const host = root.originLabel(url).split(":")[0];
+        return [
+                    {
+                        "name": host,
+                        "subject": "CN=" + host,
+                        "issuer": "O=Omaweb Lab, CN=Omaweb Lab Intermediate",
+                        "notBefore": "2026-01-01 00:00:00 UTC",
+                        "notAfter": "2026-12-31 23:59:59 UTC",
+                        "sha256": "11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF:00:"
+                                  + "11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF:00",
+                        "subjectAlternativeNames": ["DNS:" + host, "DNS:www." + host],
+                        "selfSigned": false
+                    },
+                    {
+                        "name": "Omaweb Lab Intermediate",
+                        "subject": "O=Omaweb Lab, CN=Omaweb Lab Intermediate",
+                        "issuer": "O=Omaweb Lab, CN=Omaweb Lab Root",
+                        "notBefore": "2025-01-01 00:00:00 UTC",
+                        "notAfter": "2030-01-01 00:00:00 UTC",
+                        "sha256": "22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF:00:11:"
+                                  + "22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF:00:11",
+                        "subjectAlternativeNames": [],
+                        "selfSigned": false
+                    },
+                    {
+                        "name": "Omaweb Lab Root",
+                        "subject": "O=Omaweb Lab, CN=Omaweb Lab Root",
+                        "issuer": "O=Omaweb Lab, CN=Omaweb Lab Root",
+                        "notBefore": "2020-01-01 00:00:00 UTC",
+                        "notAfter": "2040-01-01 00:00:00 UTC",
+                        "sha256": "33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF:00:11:22:"
+                                  + "33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF:00:11:22",
+                        "subjectAlternativeNames": [],
+                        "selfSigned": true
+                    }
+                ];
+    }
+    // What a Local-development server usually presents: one certificate that
+    // vouches for itself.
+    function selfSignedCertificateChain(url) {
+        const host = root.originLabel(url).split(":")[0];
+        return [
+                    {
+                        "name": host,
+                        "subject": "CN=" + host + ", O=Omaweb Lab",
+                        "issuer": "CN=" + host + ", O=Omaweb Lab",
+                        "notBefore": "2026-09-03 09:30:47 UTC",
+                        "notAfter": "2300-06-19 09:30:47 UTC",
+                        "sha256": "44:55:66:77:88:99:AA:BB:CC:DD:EE:FF:00:11:22:33:"
+                                  + "44:55:66:77:88:99:AA:BB:CC:DD:EE:FF:00:11:22:33",
+                        "subjectAlternativeNames": ["DNS:" + host, "IP:127.0.0.1"],
+                        "selfSigned": true
+                    }
+                ];
+    }
     property bool lastLoadFailed: false
     property bool lastLoadNameUnresolved: false
     // The lab loads nothing, so an upgrade that failed is named by hand with
@@ -217,8 +286,12 @@ Rectangle {
         const url = String(named.url !== undefined ? named.url : root.currentUrl);
         const requestId = String(++root.nextCertificateErrorId);
         const mainFrame = named.mainFrame !== false;
-        if (mainFrame)
+        const chain = named.certificateChain !== undefined ? named.certificateChain :
+                                                             root.selfSignedCertificateChain(url);
+        if (mainFrame) {
             root.certificateErrorOrigin = root.originLabel(url);
+            root.certificateChain = chain;
+        }
         root.pendingCertificateErrors[requestId] = {
             "url": url,
             "mainFrame": mainFrame
@@ -231,7 +304,8 @@ Rectangle {
                                                                 "The certificate could not be verified"),
                                         "overridable": named.overridable !== false,
                                         "mainFrame": mainFrame,
-                                        "fatal": named.fatal === true
+                                        "fatal": named.fatal === true,
+                                        "certificateChain": chain
                                     });
         return requestId;
     }
@@ -410,7 +484,10 @@ Rectangle {
             root.contentBlocker.showPage(root, root.spaceId, pageAddress, root.pageGeneration);
     }
 
-    Component.onCompleted: root.announcePage(root.currentUrl)
+    Component.onCompleted: {
+        root.announcePage(root.currentUrl);
+        root.certificateChain = root.labCertificateChain(root.currentUrl);
+    }
 
     onCurrentUrlChanged: {
         root.pageGeneration += 1;
@@ -423,6 +500,10 @@ Rectangle {
                 !== root.originLabel(root.currentUrl)) {
             root.certificateErrorOrigin = "";
         }
+        // A page on the origin whose certificate failed arrives over the same
+        // certificate.
+        if (root.certificateErrorOrigin.length === 0)
+            root.certificateChain = root.labCertificateChain(root.currentUrl);
         pageLocalState = "";
         root.httpsUpgradeFailure = ({});
         // The matches were in the page that has just been replaced. The query

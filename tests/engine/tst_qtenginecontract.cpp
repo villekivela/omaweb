@@ -9,6 +9,7 @@
 #include "FontSettings.h"
 #include "GlobalPrivacyControl.h"
 #include "HttpsOnly.h"
+#include "QtCertificates.h"
 #include "QtContentBlocker.h"
 #include "QtHeldDownloads.h"
 #include "QtPageFonts.h"
@@ -5254,6 +5255,15 @@ void QtEngineContractTest::qtDefersACertificateFailureWithTheEnginesOwnFacts()
     QVERIFY(failure.value(QStringLiteral("mainFrame")).toBool());
     QVERIFY(!failure.value(QStringLiteral("fatal")).toBool());
     QVERIFY(!failure.value(QStringLiteral("description")).toString().isEmpty());
+    // The certificate it was refused for travels with it, so the reader can
+    // judge a Local-development site's self-signed certificate before letting
+    // it through. The page on show reports the same chain.
+    const auto refused = failure.value(QStringLiteral("certificateChain")).toList();
+    QCOMPARE(refused.size(), 1);
+    QCOMPARE(refused.first().toMap().value(QStringLiteral("name")).toString(),
+        QStringLiteral("localhost"));
+    QVERIFY(refused.first().toMap().value(QStringLiteral("selfSigned")).toBool());
+    QCOMPARE(adapter->property("certificateChain").toList(), refused);
     // The load is held, not finished: the page has not been reached while the
     // question is open, and the address trigger already says the connection is
     // in error.
@@ -5313,6 +5323,14 @@ void QtEngineContractTest::qtDefersACertificateFailureWithTheEnginesOwnFacts()
     QTRY_VERIFY_WITH_TIMEOUT(!adapter->property("loading").toBool(), 20000);
     QCOMPARE(adapter->property("pageTitle").toString(), QStringLiteral("reached"));
     QCOMPARE(raised.count(), raisedBefore);
+
+    // With no failure to carry it, only the engine that reports the chain a
+    // page arrived over still has one to show.
+#if OMAWEB_PAGE_CERTIFICATES
+    QCOMPARE(adapter->property("certificateChain").toList(), refused);
+#else
+    QVERIFY(adapter->property("certificateChain").toList().isEmpty());
+#endif
 }
 
 // Third-party state is refused by the engine's own filter, which governs a
@@ -5860,6 +5878,7 @@ int main(int argc, char *argv[])
     QGuiApplication application(argc, argv);
     omaweb::registerEngineCapabilities();
     omaweb::registerEngineBuild();
+    omaweb::registerQtCertificates();
     omaweb::registerPageImages();
     omaweb::registerBrowserController();
     omaweb::registerExternalProtocolHandler();
