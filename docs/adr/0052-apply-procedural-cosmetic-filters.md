@@ -93,7 +93,12 @@ stylesheet's per-address cache answers, and loads no matcher. A frame with rules
 and the dispatch, about 22 KB of script, and pays their parse, a search of the document per rule,
 and the watch.
 
-The page-load measurement this was to be held to,
-[#371](https://github.com/villekivela/omaweb/issues/371), had not merged when this landed, so there
-is no number here. Its budget covers Content blocking as a whole, procedural rules included, and
-#371 records the number for a list that carries them.
+The page-load budget holds it to a number
+([`performance/budget.json`](../../performance/budget.json),
+`pageload_procedural_hosts_milliseconds`). Its procedural case is the common case's page of 40
+images from 4 hosts with the fixture's markup and one rule per operator and action on it. Measured
+on CI's runner on 2026-09-26, blocking cost it 2.8 ms over the site switched off, where the page
+without the rules cost 8.3 ms in the same run: what the rules cost is below what the runner can tell
+apart. A first attempt gave every row of the fixture the same element names on one page, and one
+row's `::after` style reached blocks two other rows hide, so the page came out 70 ms faster with the
+rules on; the budget measures each row under names of its own.

@@ -1102,13 +1102,19 @@ than a number a slow machine can move.
 
 #### The page-load measurement
 
-`pageload` loads two pages, each with 40 one-pixel images that no rule refuses, so a load with
+`pageload` loads three pages, each with 40 one-pixel images that no rule refuses, so a load with
 blocking on fetches everything a load with it off does and the difference is what blocking cost.
 
 - The worst case takes its 40 images from 40 hosts, and every load has hostnames of its own, so
   every load pays its lookups.
 - The common case takes them from 4 hosts, the same on every load, after one load in each mode that
   is not counted, so the engine's remembered answers apply.
+- The procedural case is the common one with the markup and rules of
+  `tests/content-blocking/procedural-rules.json` on the page: one procedural cosmetic rule per
+  operator and action the pinned parser reads, written for both page hosts. Blocking on, the view
+  loads the matcher and runs the rules and their watch; switched off, the same markup loads without
+  them. Its difference less the common case's is what procedural rules cost
+  ([ADR 0052](adr/0052-apply-procedural-cosmetic-filters.md)).
 
 Each page is loaded ten times in each mode, the modes alternating so that drift on the machine falls
 on both. "Off" is the per-site switch: the page is served from a second host, and blocking is
