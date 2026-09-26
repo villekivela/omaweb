@@ -95,7 +95,9 @@ Item {
                                             ? EngineCapabilities.KnownExtensions : 0) | (
                                             EngineBuild.cnameUncloaking
                                             ? EngineCapabilities.CnameUncloaking : 0)
-                                        | EngineCapabilities.ProceduralCosmeticFiltering
+                                        | EngineCapabilities.ProceduralCosmeticFiltering | (
+                                            QtCertificates.arrivedChainReported
+                                            ? EngineCapabilities.PageCertificates : 0)
     // Which Space's browsing identity these pages belong to. Handed down with
     // the profile, because it is the profile that decides it: Content blocking
     // keys the Refusal tally by it, and its interception is attached per
@@ -218,6 +220,10 @@ Item {
     // is what tells a page reached over a waived certificate from one whose
     // certificate has since been fixed.
     property bool certificateErrorRaisedForLoad: false
+    // The chain the page on show arrived over, or the one its load was refused
+    // for. A failure carries its chain on stock Qt; a finished load carries one
+    // only on the engine that reports it, and there it replaces the failure's.
+    property var certificateChain: []
     // Whether the last committed load ended in a failure. Chromium draws its
     // own error page in place of the document, and there is no connection to
     // the address to report anything about.
@@ -2487,9 +2493,11 @@ Item {
         // state, and the shell has to be able to say it refused one.
         onCertificateError: function (error) {
             error.defer();
+            const chain = QtCertificates.refusedChain(error);
             if (error.isMainFrame) {
                 root.certificateErrorRaisedForLoad = true;
                 root.certificateErrorOrigin = root.originLabel(error.url);
+                root.certificateChain = chain;
             }
             const requestId = String(++root.nextCertificateErrorId);
             root.pendingCertificateErrors[requestId] = error;
@@ -2499,7 +2507,8 @@ Item {
                                             "description": error.description,
                                             "overridable": error.overridable,
                                             "mainFrame": error.isMainFrame,
-                                            "fatal": root.fatalCertificateError(error.type)
+                                            "fatal": root.fatalCertificateError(error.type),
+                                            "certificateChain": chain
                                         });
         }
 
@@ -2562,6 +2571,7 @@ Item {
                 root.lastLoadFailed = false;
                 root.lastLoadNameUnresolved = false;
                 root.certificateErrorRaisedForLoad = false;
+                root.certificateChain = [];
                 root.httpsUpgradeFailure = ({});
                 // The node Chromium is holding belonged to the page being
                 // replaced. What is at those coordinates now is not what the
@@ -2625,6 +2635,15 @@ Item {
             if (loadRequest.status === WebEngineView.LoadSucceededStatus &&
                     !root.certificateErrorRaisedForLoad) {
                 root.certificateErrorOrigin = "";
+            }
+            // The chain the load ended on. A load stopped part way keeps what
+            // it had; one the engine reports no chain for keeps the chain a
+            // failure named.
+            if (loadRequest.status === WebEngineView.LoadSucceededStatus || loadRequest.status
+                    === WebEngineView.LoadFailedStatus) {
+                const arrived = QtCertificates.arrivedChain(loadRequest);
+                if (arrived.length > 0)
+                    root.certificateChain = arrived;
             }
             if (!loading)
                 root.applyKeyboardNavigationConfiguration();

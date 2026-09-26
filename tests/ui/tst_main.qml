@@ -1535,6 +1535,155 @@ TestCase {
         });
     }
 
+    // An https page's certificate is one press away from Site information:
+    // the chain from the site's own certificate to the trust anchor, each
+    // entry selectable, each field copied whole.
+    function test_siteInformationShowsTheChainAPageArrivedOver() {
+        window.requestActivate();
+        tryVerify(function () {
+            return window.active;
+        });
+        openPage("https://chain.example/page");
+        const sidebar = findChild(window.contentItem, "sidebar");
+        const panel = findChild(window.contentItem, "siteInformationPanel");
+        sidebar.statusOpen = true;
+        tryVerify(function () {
+            return panel.visible;
+        });
+        verify(!findChild(panel, "siteInformationNoCertificate").visible);
+        const view = findChild(panel, "viewCertificate");
+        verify(view.visible);
+        settleActions(view);
+        mouseClick(view, view.width / 2, view.height / 2);
+
+        const dialog = findChild(window.contentItem, "certificatePanel");
+        tryVerify(function () {
+            return dialog.visible;
+        });
+        tryVerify(function () {
+            return !panel.visible;
+        });
+        compare(findChild(dialog, "certificateOrigin").text,
+                "chain.example · verified by the engine");
+        compare(findChild(dialog, "certificateRole").text, "the site's own");
+        compare(findChild(dialog, "certificateValue_subject").text, "CN=chain.example");
+        compare(findChild(dialog, "certificateValue_subjectAlternativeNames").text,
+                "DNS:chain.example, DNS:www.chain.example");
+        compare(findChild(dialog, "certificateValue_notAfter").text, "2026-12-31 23:59:59 UTC");
+
+        // Each certificate in the chain is picked by pointer or by arrow.
+        const anchor = findChild(dialog, "certificateChainEntry2");
+        verify(findChild(dialog, "certificateChainEntry1") !== null);
+        settleActions(anchor);
+        mouseClick(anchor, anchor.width / 2, anchor.height / 2);
+        compare(findChild(dialog, "certificateRole").text, "trust anchor");
+        compare(findChild(dialog, "certificateValue_subject").text,
+                "O=Omaweb Lab, CN=Omaweb Lab Root");
+        compare(findChild(dialog, "certificateValue_subjectAlternativeNames").text, "none");
+        keyClick(Qt.Key_Left);
+        compare(findChild(dialog, "certificateRole").text, "intermediate");
+
+        // The copy button puts the whole value on the clipboard and says so.
+        SystemClipboard.copyText("something the reader already had");
+        const copy = findChild(dialog, "copyCertificateField_sha256");
+        settleActions(copy);
+        mouseClick(copy, copy.width / 2, copy.height / 2);
+        compare(SystemClipboard.text(), "22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF:00:11:"
+                + "22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF:00:11");
+        compare(copy.label, "copied");
+
+        // So does Return, on the field the arrows are on: the button the
+        // pointer pressed has not taken the keyboard.
+        keyClick(Qt.Key_Up);
+        keyClick(Qt.Key_Return);
+        compare(SystemClipboard.text(), "2030-01-01 00:00:00 UTC");
+
+        keyClick(Qt.Key_Escape);
+        tryVerify(function () {
+            return !dialog.visible;
+        });
+    }
+
+    // A Local-development site's certificate usually signed itself, and the
+    // interstitial shows it before the reader decides whether to let it
+    // through. Looking at it answers nothing: the question stays.
+    function test_theCertificateQuestionShowsTheCertificateItRefused() {
+        window.requestActivate();
+        tryVerify(function () {
+            return window.active;
+        });
+        const engine = openPage("https://localhost:6443/app");
+        const bar = findChild(window.contentItem, "certificateQuestionBar");
+        const requestId = engine.simulateCertificateError({});
+        tryVerify(function () {
+            return bar.open;
+        });
+        const view = findChild(bar, "questionAction1");
+        compare(view.label, "View certificate");
+
+        settleActions(view);
+        mouseClick(view, view.width / 2, view.height / 2);
+
+        const dialog = findChild(window.contentItem, "certificatePanel");
+        tryVerify(function () {
+            return dialog.visible;
+        });
+        compare(findChild(dialog, "certificateOrigin").text,
+                "localhost:6443 · could not be verified");
+        compare(findChild(dialog, "certificateRole").text, "self-signed");
+        verify(findChild(dialog, "certificateChainEntry1") === null);
+        compare(findChild(dialog, "certificateValue_issuer").text, "CN=localhost, O=Omaweb Lab");
+        SystemClipboard.copyText("something the reader already had");
+        keyClick(Qt.Key_Return);
+        compare(SystemClipboard.text(), "CN=localhost, O=Omaweb Lab");
+
+        keyClick(Qt.Key_Escape);
+        tryVerify(function () {
+            return !dialog.visible;
+        });
+        verify(bar.open);
+        verify(engine.certificateDecisions[requestId] === undefined);
+        const block = findChild(bar, "questionAction2");
+        settleActions(block);
+        mouseClick(block, block.width / 2, block.height / 2);
+        tryVerify(function () {
+            return !bar.open;
+        });
+        compare(engine.certificateDecisions[requestId], false);
+    }
+
+    // Plain HTTP has no certificate, so there is nothing to offer and nothing
+    // to explain. An engine that cannot report the chain a page arrived over
+    // says so instead of leaving the button out without a word.
+    function test_siteInformationOffersACertificateOnlyWhereThereIsOne() {
+        const sidebar = findChild(window.contentItem, "sidebar");
+        const panel = findChild(window.contentItem, "siteInformationPanel");
+        openPage("http://plain.example/page");
+        sidebar.statusOpen = true;
+        tryVerify(function () {
+            return panel.visible;
+        });
+        const view = findChild(panel, "viewCertificate");
+        const missing = findChild(panel, "siteInformationNoCertificate");
+        const overHttp = [view.visible, missing.visible];
+        sidebar.statusOpen = false;
+
+        const engine = openPage("https://stock-engine.example/page");
+        engine.pageCertificatesAvailable = false;
+        engine.certificateChain = [];
+        sidebar.statusOpen = true;
+        tryVerify(function () {
+            return panel.visible;
+        });
+        const stock = [view.visible, missing.visible, missing.text];
+        sidebar.statusOpen = false;
+        engine.pageCertificatesAvailable = true;
+
+        compare(overHttp, [false, false]);
+        compare(stock, [false, true,
+                        "· this engine cannot show the certificate a page arrived over"]);
+    }
+
     // The tally says how many; the list says which. An uncloaked refusal is
     // listed under the address the page asked for, which is the one in the
     // page's own network log, with the canonical name that explains it.

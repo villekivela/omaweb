@@ -105,6 +105,14 @@ ApplicationWindow {
                                                               engineLoader.item.capabilities
                                                               & EngineCapabilities.CertificateDecisions)
                                                           !== 0
+    // The certificate chain of the page on show, and whether the engine can
+    // report the one a page arrived over rather than only one it refused.
+    readonly property var certificateChain: engineLoader.item && engineLoader.item.certificateChain
+                                            ? engineLoader.item.certificateChain : []
+    readonly property bool pageCertificatesAvailable: engineLoader.item !== null && (
+                                                          engineLoader.item.capabilities
+                                                          & EngineCapabilities.PageCertificates)
+                                                      !== 0
     readonly property bool thirdPartyCookieControlAvailable: engineLoader.item !== null && (
                                                                  engineLoader.item.capabilities
                                                                  & EngineCapabilities.ThirdPartyCookieControl)
@@ -336,6 +344,17 @@ ApplicationWindow {
     property string pendingCertificateFailureId: ""
     property var pendingCertificateResponder: null
     property bool certificateQuestionOpen: false
+
+    // The certificate view, and what it was opened on. The chain is the one
+    // on show when it opened: a page that moves on underneath it does not
+    // change what the reader is reading.
+    property bool certificateViewOpen: false
+    property var certificateViewChain: []
+    property string certificateViewOrigin: ""
+    property bool certificateViewVerified: true
+    // Whether the certificate question opened it, so closing it hands the
+    // keyboard back to the question rather than the page.
+    property bool certificateViewFromQuestion: false
     property var pendingBrowserPrompt: ({})
     property var pendingBrowserPromptResponder: null
     property string pendingBrowserPromptId: ""
@@ -1730,6 +1749,28 @@ ApplicationWindow {
         window.certificateQuestionOpen = true;
     }
 
+    function showCertificate(chain, address, verified, fromQuestion) {
+        if (!chain || chain.length === 0)
+            return;
+        const text = String(address);
+        const separator = text.indexOf("://");
+        window.certificateViewChain = chain;
+        window.certificateViewOrigin = (separator === -1 ? text : text.substring(separator
+                                                                                 + 3)).split(
+                    "/")[0];
+        window.certificateViewVerified = verified;
+        window.certificateViewFromQuestion = fromQuestion === true;
+        window.certificateViewOpen = true;
+    }
+
+    function closeCertificate() {
+        window.certificateViewOpen = false;
+        if (window.certificateViewFromQuestion && window.certificateQuestionOpen)
+            certificateQuestionBar.forceActiveFocus();
+        else
+            window.focusPage();
+    }
+
     function respondToCertificateError(accepted) {
         if (window.pendingCertificateResponder) {
             window.pendingCertificateResponder.respondToCertificateError(
@@ -2249,7 +2290,8 @@ ApplicationWindow {
         sequence: "Esc"
         enabled: engineLoader.siteFullscreenActive && !window.omnibarOpen && !window.settingsOpen
                  && !window.historyOpen && !window.pageMenuOpen && !window.permissionOpen &&
-                 !window.certificateQuestionOpen && window.dialogMode.length === 0
+                 !window.certificateQuestionOpen && window.dialogMode.length === 0 &&
+                 !window.certificateViewOpen
         context: Qt.WindowShortcut
         onActivated: window.exitSiteFullscreen()
     }
@@ -2262,7 +2304,7 @@ ApplicationWindow {
         enabled: window.glanceOpen && !engineLoader.siteFullscreenActive && !window.omnibarOpen &&
                  !window.settingsOpen && !window.historyOpen && !window.pageMenuOpen &&
                  !window.permissionOpen && !window.certificateQuestionOpen
-                 && window.dialogMode.length === 0
+                 && window.dialogMode.length === 0 && !window.certificateViewOpen
         context: Qt.WindowShortcut
         onActivated: window.closeGlance()
     }
@@ -2352,6 +2394,8 @@ ApplicationWindow {
                 upgradedByHttpsOnly: !!engineLoader.item
                                      && engineLoader.item.arrivedThroughHttpsUpgrade === true
                 certificateDecisionsAvailable: window.certificateDecisionsAvailable
+                certificateChain: window.certificateChain
+                pageCertificatesAvailable: window.pageCertificatesAvailable
                 thirdPartyCookieControlAvailable: window.thirdPartyCookieControlAvailable
                 siteDataOnDisk: window.siteDataOnDisk
                 insecureContentBlocked: window.insecureContentBlocked
@@ -2387,6 +2431,12 @@ ApplicationWindow {
                 // the panel away, so there is one surface holding the question.
                 onSiteActionRequested: function (action) {
                     sidebar.statusOpen = false;
+                    if (action === "certificate") {
+                        window.showCertificate(window.certificateChain,
+                                               window.windowBrowser.activeUrl,
+                                               window.connectionState === "secure");
+                        return;
+                    }
                     if (action === "third-party")
                         window.refreshThirdPartyRows();
                     window.dialogMode = action;
@@ -2974,6 +3024,7 @@ ApplicationWindow {
                 // the question is always about a Local-development site's own
                 // main frame and always about this load alone.
                 PageQuestionBar {
+                    id: certificateQuestionBar
                     objectName: "certificateQuestionBar"
                     anchors.left: parent.left
                     anchors.right: parent.right
@@ -2987,9 +3038,16 @@ ApplicationWindow {
                              + " could not prove its certificate"
                     detail: String(window.pendingCertificateFailure.description || "")
                             + " · local development site · this load only, never remembered"
+                    // Looking at the certificate answers nothing: the bar stays
+                    // for the answer.
                     actions: [
                         {
                             "label": "Continue once"
+                        },
+                        {
+                            "label": "View certificate",
+                            "enabled": (window.pendingCertificateFailure.certificateChain
+                                        || []).length > 0
                         },
                         {
                             "label": "Block"
@@ -2997,6 +3055,12 @@ ApplicationWindow {
                     ]
 
                     onActionTriggered: function (index) {
+                        if (index === 1) {
+                            window.showCertificate(window.pendingCertificateFailure.certificateChain,
+                                                   window.pendingCertificateFailure.url, false,
+                                                   true);
+                            return;
+                        }
                         window.respondToCertificateError(index === 0);
                     }
                 }
@@ -3728,6 +3792,19 @@ ApplicationWindow {
         onTriggered: function (index) {
             window.runPageMenu(index);
         }
+    }
+
+    CertificateDialog {
+        id: certificateDialog
+        anchors.fill: parent
+        z: 61
+        colors: window.colors
+        open: window.certificateViewOpen
+        chain: window.certificateViewChain
+        origin: window.certificateViewOrigin
+        verified: window.certificateViewVerified
+
+        onDismissed: window.closeCertificate()
     }
 
     CommandDialog {

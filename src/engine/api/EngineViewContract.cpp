@@ -99,6 +99,12 @@ QStringList validateEngineViewContract(const QObject &adapter)
         // path that turns this off, so an adapter reporting false is one the
         // shell must say so about rather than quietly draw a lock over.
         {"insecureContentBlocked", QMetaType::Bool},
+        // The certificate chain the page on show arrived over, or the one its
+        // load was refused for, as `describeCertificateChain` describes one:
+        // the server's certificate first, the trust anchor last. Empty for a
+        // page that made no TLS connection, and for one whose chain the adapter
+        // cannot report, which the PageCertificates capability says.
+        {"certificateChain", QMetaType::QVariant},
         // Where the page was last pressed, in the view's own coordinates: the
         // link or control under the press, or the point itself where there was
         // no element to name. Empty until the page has been pressed. The shell

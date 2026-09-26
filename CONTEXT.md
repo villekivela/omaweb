@@ -171,10 +171,11 @@ only the most recent request. A Private window keeps no history, so it has none 
 answered with nothing. _Avoid_: Autocomplete, suggestions, omnibox search
 
 **Site information**: What Omaweb states about the site on show, for the Space it is on show in: its
-origin, the connection the engine reports, the requests Content blocking refused, the site data the
-Space holds, the origin's Site permissions, and the confirmed ways to clear that data or reset those
-decisions. Reached from the address trigger, which reports the connection from the engine's own
-facts and never from the address itself. _Avoid_: Site status, page info, security panel
+origin, the connection the engine reports and the certificate it arrived over, the requests Content
+blocking refused, the site data the Space holds, the origin's Site permissions, and the confirmed
+ways to clear that data or reset those decisions. Reached from the address trigger, which reports
+the connection from the engine's own facts and never from the address itself. _Avoid_: Site status,
+page info, security panel
 
 **Certificate exception**: A reader's decision to let one blocked certificate failure through.
 Omaweb offers it only for an engine-overridable, non-fatal failure in a Local-development site's own

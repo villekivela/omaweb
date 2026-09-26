@@ -51,6 +51,12 @@ public:
         // blocking hands it: the Qt engine runs the vendored matcher in each
         // frame, and Ladybird has no adapter to run it yet (ADR 0052).
         ProceduralCosmeticFiltering = 1 << 16,
+        // Whether the adapter reports the certificate chain a page arrived
+        // over, which Site information's certificate view shows. The chain a
+        // certificate failure was raised for is reported wherever
+        // CertificateDecisions is; the one a page loaded over needs the patched
+        // Qt engine.
+        PageCertificates = 1 << 17,
     };
     Q_DECLARE_FLAGS(Capabilities, Capability)
     Q_FLAG(Capabilities)
