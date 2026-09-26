@@ -58,7 +58,9 @@ Copyright (c) The Brave Authors. The upstream license text ships with the pinned
 ## Default filter lists
 
 Omaweb subscribes to two filter lists on a first run and fetches them from https://easylist.to/.
-Neither list ships in the repository or in a build.
+Neither list ships in a build. The repository carries a snapshot of each in
+`third_party/filter-lists`, pinned by `MANIFEST.json`, for the page-load budget and the cosmetic
+benchmark to measure against; the browser does not read them.
 
 - EasyList: https://easylist.to/easylist/easylist.txt
 - EasyPrivacy: https://easylist.to/easylist/easyprivacy.txt

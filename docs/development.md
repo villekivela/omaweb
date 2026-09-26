@@ -1042,9 +1042,10 @@ budget that speaks only when it breaks hides the drift that is about to break it
 scripts/benchmark_runtime.py
 scripts/benchmark_runtime.py startup --browser build/dev/omaweb
 scripts/benchmark_runtime.py spaces --spaces 4
+scripts/benchmark_runtime.py pageload
 ```
 
-Four measurements, one subcommand each, so a developer can run the one they are working on:
+Five measurements, one subcommand each, so a developer can run the one they are working on:
 
 - `startup` is the median of three launches, from the process starting to the first buffer the
   browser attached to its toplevel's surface.
@@ -1059,18 +1060,23 @@ Four measurements, one subcommand each, so a developer can run the one they are 
   is not in question; a page still running in a Space nobody is reading is. The growth while that
   Space was on show is printed beside it as the control, and a page that did not grow there fails
   the run rather than passing it, because a flat line means nothing without one.
+- `pageload` is what Content blocking as a whole adds to a page load: the rule check, CNAME
+  uncloaking where the engine carries it, the Refusal tally and the refused-request list. It is
+  described below.
 
 It writes nothing outside the throwaway directories it launches its own browser on, `--record`
 aside, so unlike the theme repaint and the default browser it needs no opt-in guard. It does take
-the keyboard focus while it runs. Off a Wayland display, without a built browser, or with no way to
-synthesise a key, it says it skipped and succeeds. A browser that fails to map a window, Spaces that
-never open and an allocator page that never allocates are not skips: each of those fails the run,
-because each is either a broken browser or a number that would mean nothing.
+the keyboard focus while it runs. Off a Wayland display or without a built browser, it says it
+skipped and succeeds. A measurement that needs something the machine lacks, a way to synthesise a
+key or `pageload`'s DNS server, says it skipped that one and takes the rest. A browser that fails to
+map a window, Spaces that never open and an allocator page that never allocates are not skips: each
+of those fails the run, because each is either a broken browser or a number that would mean nothing.
 
-CI runs it inside the `arch-linux` job, against the build that job has already made, under a sway on
-the headless backend. What it measures there is what needs no hardware. Time to first paint and
-scrolling are not in it: the container has no GPU, so a paint timing taken there would be a software
-rasteriser's rather than a reader's.
+CI runs it inside the `arch-linux` job, against the build that job has already made, under cage on
+the headless backend, with `--require-dns` so that `pageload` fails there rather than skips. What it
+measures there is what needs no hardware. Time to first paint and scrolling are not in it: the
+container has no GPU, so a paint timing taken there would be a software rasteriser's rather than a
+reader's.
 
 The window mapping is read from the browser's own Wayland protocol log rather than from a
 compositor, because the compositor CI runs is not the one a reader runs and the protocol is the same
@@ -1093,6 +1099,60 @@ on noise is a budget that gets turned off. `performance/budget.json` records wha
 measured at and the machine class it was measured on; `--record` writes the measurements back
 without touching the ceilings, because what counts as too slow is a decision to be reviewed rather
 than a number a slow machine can move.
+
+#### The page-load measurement
+
+`pageload` loads two pages, each with 40 one-pixel images that no rule refuses, so a load with
+blocking on fetches everything a load with it off does and the difference is what blocking cost.
+
+- The worst case takes its 40 images from 40 hosts, and every load has hostnames of its own, so
+  every load pays its lookups.
+- The common case takes them from 4 hosts, the same on every load, after one load in each mode that
+  is not counted, so the engine's remembered answers apply.
+
+Each page is loaded ten times in each mode, the modes alternating so that drift on the machine falls
+on both. "Off" is the per-site switch: the page is served from a second host, and blocking is
+switched off for that one, which is the comparison a reader makes and the one
+[ADR 0050](adr/0050-uncloak-cname-trackers-in-the-engine.md) made. The page times itself, from its
+navigation starting to its `load` event. A load that shows fewer than 40 images is not counted,
+because the two modes would no longer have loaded the same page. On CI's runner the engine now and
+then cancels an image as its answer arrives, with blocking on and off alike, so a spare of the same
+case and mode, whose hosts are already in the zone, is loaded in its place and the run lists it.
+Running out of spares fails the run. What the budget holds is the median with blocking on minus the
+median with it off; the two medians are printed beside it.
+
+The rules are EasyList and EasyPrivacy from `third_party/filter-lists`, snapshots pinned by digest
+so a run next month measures the same rules. `ctest` checks them against their manifest
+(`omaweb-vendored-filter-lists`), and `scripts/sync_filter_lists.py --sync` fetches them again. A
+refresh changes what the budget measures, so it is a change of its own with the numbers re-recorded.
+
+The hosts resolve through a real DNS server, because a host-resolver rule maps a host to an IP
+literal and an IP literal makes no lookup, which would hide what uncloaking costs. Each image host
+is a CNAME chain of two aliases to one address, served by `dnsmasq` from a zone the script writes.
+The run happens in a network namespace of its own, entered without privilege through a user
+namespace, where loopback is the only interface and the machine's `resolv.conf` and `nsswitch.conf`
+are covered by the run's own. The browser runs in a further user namespace that maps the developer's
+own user back, because Chromium's sandbox refuses to run as root, and the namespace's root is who
+the rest runs as. Nothing outside the namespace sees the server or the changed files, and they go
+when it does. The run needs `dnsmasq`, `ip`, `mount` and `unshare`; without them it skips, and with
+`--require-dns` it fails instead.
+
+CI's container will not make a user namespace, so there the job, which is root, serves the zone
+itself: `--print-dns-zone` writes it, the job starts `dnsmasq` on it and points the container's
+`resolv.conf` at loopback for the measurement. When the machine's own resolver already answers the
+run's names, `pageload` measures on the machine's network rather than making one.
+
+Only the default DNS path is budgeted, with Secure DNS off. That path makes two lookups for a host
+it has not seen (ADR 0050, "What the engine does") and is the one more likely to regress. With
+Secure DNS on the lookups go to a public server, whose speed from GitHub's network is not Omaweb's
+to hold to a number, so measure that path by hand when it changes.
+
+CI builds against Arch's `qt6-webengine`, where CNAME uncloaking is compiled out, so the CI budget
+holds everything in Content blocking's cost except uncloaking's lookups. Moving CI to Omaweb's
+engine and re-recording these ceilings is [#394](https://github.com/villekivela/omaweb/issues/394).
+
+Each ceiling is four times the difference recorded on CI's runner, and never under 20 ms. The
+differences are a few milliseconds, and a shared runner's noise is bigger than that multiplied.
 
 ### The floating strip's cost
 

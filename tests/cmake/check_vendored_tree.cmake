@@ -10,10 +10,17 @@
 #
 # A manifest may also carry a `generated` list: files built from the copies and
 # committed beside them, each pinned by its own digest.
+#
+# A tree copied from a repository names its commit as `ref`. A snapshot of files
+# served at an address has no commit, and each entry names the day it was
+# fetched instead.
 
 file(READ "${OMAWEB_VENDOR_ROOT}/MANIFEST.json" manifest)
 string(JSON manifest_files GET "${manifest}" files)
-string(JSON manifest_ref GET "${manifest}" ref)
+string(JSON manifest_ref ERROR_VARIABLE no_ref GET "${manifest}" ref)
+if(no_ref)
+    set(manifest_ref "no commit")
+endif()
 string(JSON file_count LENGTH "${manifest_files}")
 
 set(problems "")

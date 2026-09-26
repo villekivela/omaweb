@@ -362,9 +362,10 @@ baseline, the thresholds and the machine they came from are in
 Those probes measure the browser's parts, on the offscreen platform and mostly without an engine.
 What the assembled browser costs on a Wayland session is held separately, to
 `performance/budget.json` by `scripts/benchmark_runtime.py`: process start to the window mapping,
-the proportional set size of the whole process tree at rest, what each Space adds to it, and whether
-a frozen Space's pages are still running. CI runs it against the build it has already made and fails
-when a ceiling is crossed.
+the proportional set size of the whole process tree at rest, what each Space adds to it, whether a
+frozen Space's pages are still running, and what Content blocking adds to a page load whose hosts
+resolve through a real DNS server. CI runs it against the build it has already made and fails when a
+ceiling is crossed.
 
 Time to first paint and scrolling are in neither. CI has no GPU and no compositor of the kind a
 reader runs, so a paint timing taken there is a software rasteriser's rather than a reader's. Those

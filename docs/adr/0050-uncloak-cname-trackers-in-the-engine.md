@@ -92,5 +92,8 @@ page of 40 images: with hosts the profile had resolved in the last minute, 58 ms
 57 ms without, and 71 ms against 72 ms when the 40 came from four hosts. With 40 hosts the profile
 had never seen, 75 ms against 51 to 55 ms. The comparison turns the site off, so it also leaves out
 the first check. A page that reaches many hosts for the first time pays the lookups once, and that
-is also the page most likely to carry trackers. Nothing yet holds this to a number before a release
-([#371](https://github.com/villekivela/omaweb/issues/371)).
+is also the page most likely to carry trackers. `scripts/benchmark_runtime.py pageload` now holds
+Content blocking's cost to a ceiling in CI, with the hosts resolving through a real DNS server
+([#371](https://github.com/villekivela/omaweb/issues/371)). CI builds against Arch's engine, which
+has no uncloaking, so the lookups join that budget when CI moves to Omaweb's engine
+([#394](https://github.com/villekivela/omaweb/issues/394)).

@@ -129,7 +129,9 @@ jobs:
         # `cage`, `wtype` and `qt6-wayland` belong to the runtime budget below:
         # a compositor for the browser to map a window on, a key synthesiser
         # for a compositor that has no dispatcher of its own, and the Wayland
-        # platform plugin the browser needs to talk to either.
+        # platform plugin the browser needs to talk to either. `dnsmasq` is the
+        # page-load budget's DNS server, which the test names and their CNAME
+        # chains resolve through.
         #
         # Cage rather than sway. Arch ships sway with `cap_sys_nice` file
         # capabilities, and execing a file with capabilities the container
@@ -146,7 +148,7 @@ jobs:
         # binary is compiled for has to match the one it runs on.
         run:
           pacman -Syu --noconfirm git cmake ninja clang ccache rust qt6-base qt6-declarative
-          qt6-webengine qt6-wayland libsecret libsodium cage wtype
+          qt6-webengine qt6-wayland libsecret libsodium cage wtype dnsmasq
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Take the build off root
         # A container runs as root, and Chromium refuses to start as root
@@ -170,10 +172,11 @@ jobs:
       #
       # Only what is stable without hardware: process start to the window
       # mapping, the proportional set size of the process tree at rest and
-      # with Spaces open, and whether a frozen Space's pages are still
-      # running. There is no GPU and no desktop here, so a paint timing
-      # measured in this container would be a software rasteriser's rather
-      # than a reader's, and those stay on the machines that have both.
+      # with Spaces open, whether a frozen Space's pages are still running,
+      # and what Content blocking adds to a page load. There is no GPU and no
+      # desktop here, so a paint timing measured in this container would be a
+      # software rasteriser's rather than a reader's, and those stay on the
+      # machines that have both.
       #
       # Cage runs the script rather than the other way round: started as a
       # sibling it would have to be asked which socket it opened, and started
@@ -181,15 +184,32 @@ jobs:
       # the script's own output. The status is carried out through a file
       # because what the job has to exit with is the script's answer, not the
       # compositor's.
-      - name: Measure startup and memory against the budget
+      #
+      # `--require-dns` fails the page-load measurement where a developer's
+      # machine would skip it, so the budget cannot quietly stop measuring
+      # here.
+      #
+      # The page loads resolve their hosts through dnsmasq. On a developer's
+      # machine the script makes a private network for it, but this container
+      # will not make a user namespace, so the job serves the script's zone
+      # itself as root and points the container's resolver at it for the
+      # measurement. The zone answers only the test names, so the resolver is
+      # put back before anything else in the job needs the network.
+      - name: Measure startup, memory and page loads against the budget
         run: |
           rm -f /tmp/budget.status
           printf 'cd %s\n' "$GITHUB_WORKSPACE" > /tmp/measure.sh
           cat >> /tmp/measure.sh <<'SCRIPT'
-          scripts/benchmark_runtime.py --browser build/ci/omaweb
+          scripts/benchmark_runtime.py --browser build/ci/omaweb --require-dns
           echo $? > /tmp/budget.status
           SCRIPT
           chmod 0755 /tmp/measure.sh
+          scripts/benchmark_runtime.py --print-dns-zone > /tmp/pageload-zone.conf
+          dnsmasq --conf-file=/tmp/pageload-zone.conf --pid-file=/tmp/dnsmasq.pid
+          cp /etc/resolv.conf /tmp/resolv.conf.saved
+          # A write rather than a move: Docker bind-mounts the file.
+          trap 'cat /tmp/resolv.conf.saved > /etc/resolv.conf; kill "$(cat /tmp/dnsmasq.pid)"' EXIT
+          echo 'nameserver 127.0.0.1' > /etc/resolv.conf
           su builder -c '
             set -eu
             export XDG_RUNTIME_DIR=/tmp/runtime-builder
