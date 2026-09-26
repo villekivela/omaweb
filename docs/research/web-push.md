@@ -11,9 +11,11 @@ numbers stay valid.
 
 ## What `PushManager.subscribe` does today
 
-In a Space it rejects at once, with no permission prompt and no network request. This answer comes
-from reading the engine source below; nobody has yet run a page against the packaged engine to watch
-it happen.
+In a Space it rejects at once, with no permission prompt and no network request. A test page run
+against Omaweb 0.7.2-1 on `omaweb-qtwebengine` 6.11.2-3 (aarch64 Arch, fresh profile) got
+`AbortError: Registration failed - push service not available`, with no prompt, as the source below
+predicts. In a Private window the same page first raised Omaweb's notifications prompt, waited on
+it, and after Allow once got `AbortError: Registration failed - permission denied`.
 
 QtWebEngine hands Chromium a push service only when the profile has push switched on, and it is off
 by default. `ProfileQt::GetPushMessagingService` returns null otherwise.
@@ -29,9 +31,20 @@ not available".
 [push_messaging_utils.cc](https://code.qt.io/cgit/qt/qtwebengine-chromium.git/tree/chromium/third_party/blink/renderer/modules/push_messaging/push_messaging_utils.cc?id=5170777d28bee1ce92cc693a0dbf2ad01492e5cf#n24)
 
 A Private window is off the record, and there Chromium hides the missing service instead of
-reporting it: it asks for the notification permission and, whatever the answer, rejects with a
-permission error, so a site cannot tell a Private window apart by its push error.
+reporting it. It asks for the notification permission, then rejects with
+`INCOGNITO_PERMISSION_DENIED` whatever the answer.
 [push_messaging_manager.cc](https://code.qt.io/cgit/qt/qtwebengine-chromium.git/tree/chromium/content/browser/push_messaging/push_messaging_manager.cc?id=5170777d28bee1ce92cc693a0dbf2ad01492e5cf#n307)
+Chromium assumes the embedder denies notifications off the record and only checks that in a debug
+build. Omaweb shows its own prompt instead, so the reader sees a question whose answer changes
+nothing.
+[push_messaging_manager.cc](https://code.qt.io/cgit/qt/qtwebengine-chromium.git/tree/chromium/content/browser/push_messaging/push_messaging_manager.cc?id=5170777d28bee1ce92cc693a0dbf2ad01492e5cf#n378)
+Blink gives that status the "permission denied" message but the `AbortError` name that a missing
+service gets, not the `NotAllowedError` of a real denial.
+[push_messaging_utils.cc](https://code.qt.io/cgit/qt/qtwebengine-chromium.git/tree/chromium/third_party/blink/renderer/modules/push_messaging/push_messaging_utils.cc?id=5170777d28bee1ce92cc693a0dbf2ad01492e5cf#n48)
+
+The disguise assumes an ordinary profile has a push service, and none of Omaweb's does. So a site
+can tell a Private window from a Space: a Space answers "push service not available" with no prompt,
+and a Private window raises a prompt and answers "permission denied".
 
 A site that feature-tests for `PushManager` finds it, because Blink exposes the interface whether or
 not a service exists. It learns that push is unavailable only when `subscribe` fails.
