@@ -167,8 +167,25 @@ PAGELOAD_SPARES = 6
 
 # How many hosts the forty images come from. The worst case is a page that reaches every host for
 # the first time, so every request waits on its lookups; the common case is a page whose few hosts
-# the profile has resolved in the last minute.
-PAGELOAD_CASES = {"fresh": 40, "known": 4}
+# the profile has resolved in the last minute. The procedural case is the common one with a page
+# that procedural cosmetic rules are written against (ADR 0052), so the difference between the two
+# is what the rules cost.
+PAGELOAD_CASES = {"fresh": 40, "known": 4, "procedural": 4}
+
+# One rule per operator and action the pinned parser reads, with the markup each is written against:
+# the fixture the matcher and the engine are tested with. The rules are rewritten for both page
+# hosts, so the page with the site switched off carries the same markup and the same rules, and only
+# blocking being on runs them.
+PROCEDURAL_RULES = ROOT / "tests" / "content-blocking" / "procedural-rules.json"
+
+
+def procedural_fixture() -> tuple[list[str], str]:
+    """The procedural rules for the page hosts, and the markup they are written against."""
+    rows = json.loads(PROCEDURAL_RULES.read_text(encoding="utf-8"))
+    sites = f"{PAGELOAD_ON_HOST},{PAGELOAD_OFF_HOST}"
+    rules = [sites + row["rule"][row["rule"].index("#"):] for row in rows]
+    markup = "\n".join(f"<section>{row['page']}</section>" for row in rows)
+    return rules, markup
 
 # Every name is under `.test`, which HTTPS-only mode treats as a local development host and leaves
 # on plain HTTP. A name anywhere else would be upgraded to HTTPS and fail against the plain server.
@@ -795,6 +812,7 @@ PAGELOAD_PAGE = """<!doctype html>
   const failed = new Set();
   addEventListener("error", event => failed.add(event.target.src), true);
 </script>
+{markup}
 {images}
 <script>
   addEventListener("load", () => setTimeout(async () => {{
@@ -912,7 +930,8 @@ class PageLoadSite:
             f'<img src="{with_port(image, self.port)}" crossorigin="anonymous" width="16" '
             'height="16" alt="">'
             for image in load.images)
-        return PAGELOAD_PAGE.format(number=number, images=images,
+        markup = procedural_fixture()[1] if load.case == "procedural" else ""
+        return PAGELOAD_PAGE.format(number=number, images=images, markup=markup,
                                     settle=PAGELOAD_SETTLE_MILLISECONDS).encode()
 
     def ready_page(self) -> bytes:
@@ -1068,7 +1087,7 @@ def seed_content_blocking(data_root: str) -> None:
     settings = {
         "version": 1,
         "seeded": True,
-        "userRules": f"||{PAGELOAD_PROBE_HOST}^",
+        "userRules": "\n".join([f"||{PAGELOAD_PROBE_HOST}^", *procedural_fixture()[0]]),
         "disabledSites": [PAGELOAD_OFF_HOST],
         "subscriptions": subscriptions,
     }
@@ -1280,7 +1299,8 @@ def report(results: dict, budget: dict) -> int:
     thresholds = budget["measurements"]
     crossed = 0
     units = {"startup_seconds": "s", "pageload_fresh_hosts_milliseconds": "ms",
-             "pageload_known_hosts_milliseconds": "ms"}
+             "pageload_known_hosts_milliseconds": "ms",
+             "pageload_procedural_hosts_milliseconds": "ms"}
     log("")
     taken = budget["recorded_on"]
     log(f"ceilings recorded on: {budget['machine']}, {taken}" if taken else "ceilings: not yet")

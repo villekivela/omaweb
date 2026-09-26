@@ -94,6 +94,14 @@ class PlanTest(unittest.TestCase):
         for load in loads:
             self.assertEqual({runtime.host_of(image) for image in load.images}, first)
 
+    # The procedural case is the common one with rules to apply: the same four hosts, so the two
+    # differ by what the rules cost and nothing else.
+    def test_the_procedural_case_reaches_the_common_cases_four_hosts(self):
+        known = {runtime.host_of(image)
+                 for image in next(l for l in self.plan if l.case == "known").images}
+        for load in (load for load in self.plan if load.case == "procedural"):
+            self.assertEqual({runtime.host_of(image) for image in load.images}, known)
+
     def test_every_case_and_mode_has_spares_to_repeat_a_load_with(self):
         for case in runtime.PAGELOAD_CASES:
             for mode in ("on", "off"):
@@ -169,6 +177,23 @@ class SeedTest(unittest.TestCase):
                       encoding="utf-8") as handle:
                 settings = json.load(handle)
             self.assertEqual(settings["disabledSites"], [runtime.PAGELOAD_OFF_HOST])
+
+    # The readiness probe still refuses its host, and the procedural rules are the fixture's, one
+    # per operator and action, written for both page hosts so the off page carries them too and
+    # only the per-site switch tells the two apart.
+    def test_the_user_rules_add_the_procedural_fixture_to_the_probe(self):
+        with tempfile.TemporaryDirectory() as root:
+            runtime.seed_content_blocking(root)
+            with open(os.path.join(root, "content-blocking", "settings.json"),
+                      encoding="utf-8") as handle:
+                rules = json.load(handle)["userRules"].splitlines()
+        fixture = json.loads(runtime.PROCEDURAL_RULES.read_text(encoding="utf-8"))
+        self.assertEqual(rules[0], f"||{runtime.PAGELOAD_PROBE_HOST}^")
+        self.assertEqual(len(rules), 1 + len(fixture))
+        sites = f"{runtime.PAGELOAD_ON_HOST},{runtime.PAGELOAD_OFF_HOST}"
+        for rule, row in zip(rules[1:], fixture):
+            self.assertTrue(rule.startswith(sites + "#"), rule)
+            self.assertTrue(row["rule"].endswith(rule[len(sites):]), rule)
 
 
 class ZoneTest(unittest.TestCase):
