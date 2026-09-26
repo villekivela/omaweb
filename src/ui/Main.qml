@@ -3448,6 +3448,11 @@ ApplicationWindow {
             height: parent.height
             visible: sidebar.statusOpen
             z: 50
+            // A MouseArea wears the arrow unless told otherwise, and the
+            // topmost item with a cursor is the one the window shows. The page
+            // under this still gets hover, so it says which shape the pointer
+            // takes; the click stays here and only closes the status.
+            cursorShape: undefined
             onClicked: sidebar.statusOpen = false
         }
 
