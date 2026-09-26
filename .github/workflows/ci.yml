@@ -139,17 +139,20 @@ jobs:
         # is the smaller thing to ask for: one program under one compositor,
         # which is exactly the shape of this step.
         #
-        # `qt6-webengine` rather than the engine Omaweb ships (ADR 0049).
-        # Nothing here tests an extension: the engine's own suite lives with the
-        # patch series, and a Known extension is fetched at runtime rather than
-        # built. What this job needs is an engine to render in, and the
-        # distribution's is the one that installs in seconds. The release
-        # workflow builds against Omaweb's, which is where the version the
-        # binary is compiled for has to match the one it runs on.
+        # No `qt6-webengine`: the engine is installed from Omaweb's repository
+        # below, and a stock one beside it would be the one the build found.
         run:
           pacman -Syu --noconfirm git cmake ninja clang ccache rust qt6-base qt6-declarative
-          qt6-webengine qt6-wayland libsecret libsodium cage wtype dnsmasq
+          qt6-wayland libsecret libsodium cage wtype dnsmasq
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # The engine Omaweb ships (ADR 0049) rather than the distribution's, so
+      # that what the patch series adds is built and tested here: CNAME
+      # uncloaking's DNS aliases (ADR 0050), and the build that reports it can
+      # host a Known extension. The release workflow installs it the same way.
+      - name: Install Omaweb's engine
+        run: |
+          scripts/trust_omaweb_repository.sh
+          pacman -Syu --noconfirm omaweb-qtwebengine
       - name: Take the build off root
         # A container runs as root, and Chromium refuses to start as root
         # unless its sandbox is turned off. Omaweb does not build or test with
@@ -161,7 +164,22 @@ jobs:
       - name: Bootstrap content blocker
         run: su builder -c 'scripts/bootstrap_content_blocker.sh'
       - name: Configure
-        run: su builder -c 'cmake --preset ci'
+        # The engine's own prefix, as `packaging/PKGBUILD` names it, because
+        # `find_package` looks for each Qt component beside the Qt6Config.cmake
+        # it already found and would never leave /usr/lib/cmake.
+        run:
+          su builder -c 'cmake --preset ci -DQT_ADDITIONAL_PACKAGES_PREFIX_PATH=/usr/lib/omaweb
+          -DOMAWEB_KNOWN_EXTENSIONS=ON'
+      - name: Check the build found the patched engine
+        # A stock engine's headers compile the browser just as well, without
+        # CNAME uncloaking and without saying so (docs/development.md). The
+        # probe's answer is the one place that difference shows, so the job
+        # reads it rather than trusting the prefix path to have won.
+        run: |
+          if ! grep -qx 'OMAWEB_ENGINE_OFFERS_DNS_ALIASES:INTERNAL=1' build/ci/CMakeCache.txt; then
+            echo "::error::the build did not find the DNS alias API, so it is not on Omaweb's engine" >&2
+            exit 1
+          fi
       - name: Build
         run: su builder -c 'cmake --build --preset ci'
       - name: Test
@@ -234,7 +252,9 @@ jobs:
           cat build/ci/content-blocking-compatibility.json >> "$GITHUB_STEP_SUMMARY"
           echo '```' >> "$GITHUB_STEP_SUMMARY"
       - name: Configure release resources
-        run: su builder -c 'cmake --preset release'
+        run:
+          su builder -c 'cmake --preset release -DQT_ADDITIONAL_PACKAGES_PREFIX_PATH=/usr/lib/omaweb
+          -DOMAWEB_KNOWN_EXTENSIONS=ON'
       - name: Build release
         run: su builder -c 'cmake --build --preset release'
       - name: Verify compiled QML
@@ -256,6 +276,10 @@ jobs:
   # Build and test only. The release resources and the compatibility summary
   # belong to one job rather than both, because a second copy of them reports
   # nothing the first does not.
+  #
+  # And on the distribution's `qt6-webengine` rather than Omaweb's engine, which
+  # `arch-linux` has. A build against a stock engine compiles CNAME uncloaking
+  # out, and this is the job that keeps that configuration building.
   arch-linux-gcc:
     needs: changes
     if: needs.changes.outputs.source == 'true'
