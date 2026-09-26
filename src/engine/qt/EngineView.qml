@@ -224,6 +224,16 @@ Item {
     // Whether that failure was a name that could not be looked up, which with
     // Secure DNS on is the reader's resolver's answer rather than the system's.
     property bool lastLoadNameUnresolved: false
+    // HTTPS-only mode's account of the load. A load it upgraded that failed,
+    // or one it refused, is named here for the shell to draw its own page
+    // over the engine's error: the plain address asked for, its host, why,
+    // and the engine's words for the failure. Empty otherwise.
+    property var httpsUpgradeFailure: ({})
+    // Whether the page on show arrived over HTTPS because the mode sent it
+    // there, which Site information says.
+    property bool arrivedThroughHttpsUpgrade: false
+    readonly property var httpsOnlyPolicy: root.engineContentBlocker
+                                           ? root.engineContentBlocker.httpsOnly : null
     // What the connection to the page on show is, from what the engine
     // committed and what it reported about the certificate — never from an
     // address the shell parsed for itself.
@@ -2395,6 +2405,7 @@ Item {
                 root.lastLoadFailed = false;
                 root.lastLoadNameUnresolved = false;
                 root.certificateErrorRaisedForLoad = false;
+                root.httpsUpgradeFailure = ({});
                 // The node Chromium is holding belonged to the page being
                 // replaced. What is at those coordinates now is not what the
                 // reader pointed at, so the next keyboard request picks again.
@@ -2416,6 +2427,22 @@ Item {
                 root.applyCosmeticRules();
             else if (!root.documentSurveyed)
                 root.surveyGenericCosmeticRules();
+            if (loadRequest.status === WebEngineView.LoadSucceededStatus && root.httpsOnlyPolicy) {
+                root.httpsOnlyPolicy.arrived(root.spaceId, loadRequest.url);
+                root.arrivedThroughHttpsUpgrade = root.httpsOnlyPolicy.upgradedTo(root.spaceId,
+                                                                                  loadRequest.url);
+            }
+            // A certificate the upgraded address could not prove is the
+            // certificate interstitial's, as it is for any https page.
+            if (loadRequest.status === WebEngineView.LoadFailedStatus && root.httpsOnlyPolicy
+                    && loadRequest.errorDomain !== WebEngineView.CertificateErrorDomain) {
+                const failure = root.httpsOnlyPolicy.failure(root.spaceId, loadRequest.url);
+                if (failure.plainUrl !== undefined) {
+                    failure.error = loadRequest.errorString;
+                    root.httpsUpgradeFailure = failure;
+                }
+                root.arrivedThroughHttpsUpgrade = false;
+            }
             if (loadRequest.status === WebEngineView.LoadFailedStatus) {
                 root.lastLoadFailed = true;
                 // Chromium reports a name it could not look up as a connection

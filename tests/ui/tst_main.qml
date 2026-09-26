@@ -6194,6 +6194,46 @@ TestCase {
         notice.dismiss();
     }
 
+    // An upgrade HTTPS-only mode could not complete is Omaweb's own page over
+    // the engine's error, naming the host and why. Going back is the first
+    // answer; loading the plain address once takes the reader there, and
+    // "always" also keeps the choice for the site in this Space.
+    function test_aFailedHttpsUpgradeIsAskedAboutOnOmawebsOwnPage() {
+        const page = findChild(window.contentItem, "httpsOnlyPage");
+        verify(page !== null);
+        const engine = openPage("https://plain.example/page");
+        verify(!page.visible);
+
+        engine.simulateHttpsUpgradeFailure("http://plain.example/page", "unreachable",
+                                           "The connection was refused");
+        tryVerify(function () {
+            return page.visible;
+        });
+        compare(findChild(page, "httpsOnlyHeadline").text,
+                "plain.example could not be reached over HTTPS");
+        verify(findChild(page, "httpsOnlyDetail").text.startsWith("The connection was refused. "));
+        verify(findChild(page, "httpsOnlyLoadAlways").visible);
+
+        engine.simulateHttpsUpgradeFailure("http://plain.example/page", "downgrade", "");
+        compare(findChild(page, "httpsOnlyHeadline").text,
+                "plain.example sent this page back to plain HTTP");
+
+        page.loadOnce();
+        tryCompare(browser, "activeUrl", "http://plain.example/page");
+        tryVerify(function () {
+            return !page.visible;
+        });
+        verify(!browser.plainHttpRemembered(browser.activeSpaceId, "http://plain.example"));
+
+        const again = openPage("https://always.example/");
+        again.simulateHttpsUpgradeFailure("http://always.example/", "form", "");
+        compare(findChild(page, "httpsOnlyHeadline").text,
+                "always.example asked for a form to be sent over plain HTTP");
+        page.loadAlways();
+        tryCompare(browser, "activeUrl", "http://always.example/");
+        verify(browser.plainHttpRemembered(browser.activeSpaceId, "http://always.example"));
+    }
+
     // A render that produced nothing is a failure the reader hears about,
     // rather than a print that quietly never happened.
     function test_printReportsARenderThatProducedNothing() {

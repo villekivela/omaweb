@@ -10,6 +10,7 @@
 #include "FaviconTint.h"
 #include "FontSettings.h"
 #include "GlobalPrivacyControl.h"
+#include "HttpsOnly.h"
 #include "SecureDns.h"
 #include "WebRtcPolicy.h"
 #include "HardwareVideoDecode.h"
@@ -301,6 +302,14 @@ int main(int argc, char *argv[])
     omaweb::SecureDns secureDns(configRoot());
     omaweb::QtSecureDns engineSecureDns(&secureDns);
     omaweb::QtContentBlocker engineContentBlocker(&contentBlocker, &globalPrivacyControl);
+    // A page's own address goes over HTTPS unless the reader let its site
+    // through, which the ordinary windows' store remembers per Space. A
+    // Private window's Space is the empty name, which remembers nothing.
+    omaweb::HttpsOnly httpsOnly(configRoot());
+    httpsOnly.setRemembered([&browser](const QString &spaceId, const QString &origin) {
+        return browser.plainHttpRemembered(spaceId, origin);
+    });
+    engineContentBlocker.setHttpsOnly(&httpsOnly);
     // One filter for the process, attached to every Space's profile as it is
     // built. Third-party cookies are blocked by it; whether an origin has been
     // given an allowance is the core's answer, read per Space.
@@ -410,6 +419,7 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty(QStringLiteral("releaseWatch"), &releaseWatch);
     engine.rootContext()->setContextProperty(
         QStringLiteral("globalPrivacyControl"), &globalPrivacyControl);
+    engine.rootContext()->setContextProperty(QStringLiteral("httpsOnly"), &httpsOnly);
     engine.rootContext()->setContextProperty(QStringLiteral("webRtcPolicy"), &webRtcPolicy);
     engine.rootContext()->setContextProperty(QStringLiteral("secureDns"), &secureDns);
     engine.rootContext()->setContextProperty(QStringLiteral("engineSecureDns"), &engineSecureDns);

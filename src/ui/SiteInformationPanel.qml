@@ -26,6 +26,9 @@ Rectangle {
     property bool blank: false
     property bool privateWindow: false
     property string connectionState: "internal"
+    // Whether the page arrived over HTTPS because HTTPS-only mode sent its
+    // plain address there.
+    property bool upgradedByHttpsOnly: false
     // The Secure DNS resolver that could not find the page's name, or empty.
     // The engine's own error page says only that the name was not found, and
     // the reader's system resolver might have found it, so whose answer that
@@ -218,7 +221,11 @@ Rectangle {
                                                    + " could not find this site, over Secure DNS" :
                                                    "· " + root.connectionSentence + (
                                                        root.connectionState === "certificate-error"
-                                                       ? " · waived for this session" : "")
+                                                       ? " · waived for this session" : "") + (
+                                                       root.upgradedByHttpsOnly
+                                                       && root.connectionState === "secure"
+                                                       ? " · upgraded from HTTP by HTTPS-only mode" :
+                                                         "")
             color: root.connectionState === "certificate-error" ? root.colors.urgent :
                                                                   root.colors.mutedText
             wrapMode: Text.WordWrap

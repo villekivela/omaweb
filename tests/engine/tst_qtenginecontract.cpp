@@ -7,6 +7,7 @@
 #include "ExternalProtocolHandler.h"
 #include "FontSettings.h"
 #include "GlobalPrivacyControl.h"
+#include "HttpsOnly.h"
 #include "QtContentBlocker.h"
 #include "QtHeldDownloads.h"
 #include "QtPageFonts.h"
@@ -217,6 +218,7 @@ private slots:
     void qtServesTheSubstitutesTheListsName();
     void qtCollapsesTheElementWhoseRequestItRefused();
     void qtStripsTheParametersTheListsName();
+    void qtSendsAPagesPlainAddressOverHttps();
     void qtAttachesBlockingToTheProfileQmlCreates();
     void qtTellsEverySiteNotToSellTheReadersData_data();
     void qtTellsEverySiteNotToSellTheReadersData();
@@ -3162,6 +3164,63 @@ void QtEngineContractTest::qtCollapsesTheElementWhoseRequestItRefused()
     QVERIFY(!frameServer.requested().contains(QStringLiteral("/banner.gif")));
 }
 
+// HTTPS-only mode sends a page's plain address over HTTPS before it leaves.
+// `upgrade.example` is mapped to this machine and is not a local-development
+// name, so its load goes to the page server as TLS, which a plain HTTP server
+// cannot answer: the view names the failure by the plain address the reader
+// asked for. Let through once, the same address loads over HTTP; a local
+// address is never upgraded at all.
+void QtEngineContractTest::qtSendsAPagesPlainAddressOverHttps()
+{
+    PageServer server(R"HTML(<!doctype html><title>plain</title>)HTML");
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    omaweb::ContentBlocker contentBlocker(root.path(), omaweb::ContentBlocker::DefaultLists::None);
+    omaweb::QtContentBlocker engineContentBlocker(&contentBlocker);
+    omaweb::HttpsOnly httpsOnly(root.filePath(QStringLiteral("config")));
+    engineContentBlocker.setHttpsOnly(&httpsOnly);
+
+    QQmlEngine engine;
+    QQmlComponent component(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
+        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
+        {QStringLiteral("contentBlocker"), QVariant::fromValue<QObject *>(&contentBlocker)},
+        {QStringLiteral("engineContentBlocker"),
+            QVariant::fromValue<QObject *>(&engineContentBlocker)},
+        {QStringLiteral("spaceId"), QStringLiteral("space-1")},
+    }));
+    QVERIFY2(adapter, qPrintable(component.errorString()));
+    QQuickWindow window;
+    qobject_cast<QQuickItem *>(adapter.get())->setParentItem(window.contentItem());
+    window.show();
+
+    const QUrl plain(
+        QStringLiteral("http://upgrade.example:%1/page.html").arg(server.serverPort()));
+    QVERIFY(adapter->setProperty("currentUrl", plain));
+    QTRY_VERIFY_WITH_TIMEOUT(
+        adapter->property("httpsUpgradeFailure").toMap().contains(QStringLiteral("plainUrl")),
+        15000);
+    const auto failure = adapter->property("httpsUpgradeFailure").toMap();
+    QCOMPARE(failure.value(QStringLiteral("plainUrl")).toUrl(), plain);
+    QCOMPARE(failure.value(QStringLiteral("reason")).toString(), QStringLiteral("unreachable"));
+    QVERIFY(!server.requested().contains(QStringLiteral("/page.html")));
+
+    httpsOnly.allowOnce(QStringLiteral("space-1"), plain);
+    QVERIFY(adapter->setProperty("currentUrl", plain));
+    QTRY_COMPARE_WITH_TIMEOUT(
+        adapter->property("pageTitle").toString(), QStringLiteral("plain"), 15000);
+    QVERIFY(server.requested().contains(QStringLiteral("/page.html")));
+    QVERIFY(adapter->property("httpsUpgradeFailure").toMap().isEmpty());
+    QVERIFY(!adapter->property("arrivedThroughHttpsUpgrade").toBool());
+
+    QVERIFY(adapter->setProperty("currentUrl",
+        QUrl(QStringLiteral("http://127.0.0.1:%1/local.html").arg(server.serverPort()))));
+    QTRY_VERIFY_WITH_TIMEOUT(server.requested().contains(QStringLiteral("/local.html")), 15000);
+    QVERIFY(adapter->property("httpsUpgradeFailure").toMap().isEmpty());
+}
+
 // A $removeparam rule refuses nothing. The request goes out, with the tracking
 // parameters the rule names stripped off the address the site receives, so the
 // assertion is about what arrived at the server rather than what the page saw.
@@ -5643,7 +5702,11 @@ int main(int argc, char *argv[])
     // prove nothing about what freezing does to one. Chromium's fake device is
     // a synthetic camera that draws a test pattern, so the page's capture is a
     // real capture as far as the engine's own bookkeeping is concerned.
-    qputenv("QTWEBENGINE_CHROMIUM_FLAGS", "--use-fake-device-for-media-stream");
+    // `upgrade.example` stands for a site that is not a local-development
+    // one, for HTTPS-only mode to upgrade, and is this machine.
+    qputenv("QTWEBENGINE_CHROMIUM_FLAGS",
+        "--use-fake-device-for-media-stream "
+        "--host-resolver-rules=\"MAP upgrade.example 127.0.0.1\"");
     omaweb::QtContentBlocker::registerSubstituteScheme();
     QtWebEngineQuick::initialize();
     QGuiApplication application(argc, argv);

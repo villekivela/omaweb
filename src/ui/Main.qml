@@ -1377,6 +1377,30 @@ ApplicationWindow {
         engineLoader.printPage(destination);
     }
 
+    // HTTPS-only mode's policy, where this window has one: the lab and the
+    // tests run without it.
+    readonly property var httpsOnlyPolicy: typeof httpsOnly !== "undefined" ? httpsOnly : null
+
+    // The reader let a site through HTTPS-only mode: for this load, or for
+    // good in this Space, which a Private window never keeps.
+    function loadPlainHttp(failure, always) {
+        const engine = engineLoader.item;
+        const plainUrl = String(failure.plainUrl || "");
+        if (!engine || plainUrl.length === 0)
+            return;
+        if (always)
+            window.windowBrowser.rememberPlainHttp(plainUrl);
+        if (window.httpsOnlyPolicy)
+            window.httpsOnlyPolicy.allowOnce(engine.spaceId, plainUrl);
+        // The view is on the upgraded address its load failed at, so the
+        // plain one is a navigation of its own; a site that sent the load
+        // back left the view on the plain address, which a reload asks again.
+        if (String(engine.currentUrl) === plainUrl)
+            engine.reloadPage();
+        else
+            engine.currentUrl = plainUrl;
+    }
+
     function presentPrint(destination, succeeded) {
         if (!succeeded) {
             PagePrinter.discard(destination);
@@ -2267,6 +2291,8 @@ ApplicationWindow {
                 easeSpaces: window.easeChrome
                 connectionState: window.connectionState
                 lookupFailedBy: window.lookupFailedBy
+                upgradedByHttpsOnly: !!engineLoader.item
+                                     && engineLoader.item.arrivedThroughHttpsUpgrade === true
                 certificateDecisionsAvailable: window.certificateDecisionsAvailable
                 thirdPartyCookieControlAvailable: window.thirdPartyCookieControlAvailable
                 siteDataOnDisk: window.siteDataOnDisk
@@ -2757,6 +2783,35 @@ ApplicationWindow {
                     }
                 }
 
+                // HTTPS-only mode's own page, over the engine's error for a
+                // load the mode upgraded and could not complete, in the pane
+                // that failed.
+                HttpsOnlyPage {
+                    id: httpsOnlyPage
+
+                    readonly property bool inPane: window.windowBrowser.splitOnShow
+
+                    x: inPane ? engineLoader.x + engineLoader.activePaneX : 0
+                    y: 0
+                    width: inPane ? engineLoader.activePaneWidth : parent.width
+                    height: parent.height
+                    z: 29
+                    colors: window.colors
+                    iconFontFamily: materialSymbols.name
+                    privateWindow: window.privateWindow
+                    failure: engineLoader.item && engineLoader.item.httpsUpgradeFailure
+                             ? engineLoader.item.httpsUpgradeFailure : ({})
+
+                    onGoBack: {
+                        if (engineLoader.item && engineLoader.item.canGoBack)
+                            engineLoader.goBack();
+                        else
+                            window.windowBrowser.openInput("about:blank", false);
+                    }
+                    onLoadOnce: window.loadPlainHttp(failure, false)
+                    onLoadAlways: window.loadPlainHttp(failure, true)
+                }
+
                 FindBar {
                     id: findBar
                     objectName: "findBar"
@@ -2966,6 +3021,7 @@ ApplicationWindow {
                     z: 45
                     releaseWatch: window.releases
                     globalPrivacyControl: window.privacyControl
+                    httpsOnly: window.httpsOnlyPolicy
                     webRtcPolicy: window.webRtcAddressPolicy
                     secureDns: window.dnsResolver
                     engineSecureDns: window.engineDnsResolver

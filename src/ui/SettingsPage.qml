@@ -113,6 +113,8 @@ Rectangle {
     // is current and offer the reader the switch that stops it asking.
     property var releaseWatch: null
     property var globalPrivacyControl: null
+    // HTTPS-only mode's switch, browser-wide like the one above.
+    property var httpsOnly: null
     // What a page's call may learn about the reader's network, and the engine
     // adapter that says whether this build can set it at all (ADR 0047).
     property var webRtcPolicy: null
@@ -1617,6 +1619,27 @@ Rectangle {
                         onClicked: {
                             if (root.globalPrivacyControl)
                                 root.globalPrivacyControl.enabled = !checked;
+                        }
+                    }
+
+                    // Browser-wide, like Global Privacy Control, and on by
+                    // default: refusing plaintext is the one transport
+                    // protection Omaweb offers on its own.
+                    SettingToggle {
+                        objectName: "httpsOnly"
+                        visible: !!root.httpsOnly
+                        width: pane.width
+                        colors: root.colors
+                        title: "HTTPS-only mode"
+                        note: "Sends every page's own address over HTTPS, whoever wrote the link. "
+                              + "Where a site cannot be reached that way, Omaweb asks before "
+                              + "loading it over plain HTTP. Local development addresses are left "
+                              + "alone."
+                        accessibleName: "HTTPS-only mode"
+                        checked: !!root.httpsOnly && root.httpsOnly.enabled
+                        onClicked: {
+                            if (root.httpsOnly)
+                                root.httpsOnly.enabled = !checked;
                         }
                     }
 

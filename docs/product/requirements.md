@@ -356,6 +356,18 @@ The default page commands include:
   windows send it alike. The privacy section of Settings shows the setting and turns it off, which
   turns off both the header and the property, and the choice survives a restart. Omaweb sends no Do
   Not Track header and offers no per-site exception.
+- HTTPS-only mode is on by default and browser-wide. Every top-level `http:` navigation, typed,
+  followed from a link, redirected to or opened from another application, is sent as `https:` before
+  it leaves the browser; subresources stay with the engine's mixed-content policy, and
+  Local-development addresses are left alone. Where the upgraded address cannot be loaded, where the
+  site sends the load back to plain HTTP, or where a form would be sent to a plain address, Omaweb
+  draws its own page over the engine's error naming the host and why, and offers going back, loading
+  the plain address once, or using plain HTTP for that site in the Space for good. A Private window
+  offers only the first two and remembers nothing. The remembered choice is kept with the site's
+  permissions, so resetting them takes it back. A certificate the upgraded address cannot prove is
+  the certificate interstitial's, as for any `https:` page. Site information says when a page
+  arrived through an upgrade. The privacy section of Settings turns the mode off, and the choice
+  survives a restart.
 - Secure DNS is off by default and browser-wide. Off, names are looked up by the system's resolver.
   On, every name is looked up over DNS-over-HTTPS by the resolver the reader chose in the privacy
   section of Settings: Quad9, Cloudflare, Mullvad, or an `https:` address the reader types, which is
