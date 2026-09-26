@@ -7,10 +7,10 @@ Nothing else would report a disagreement: each page is correct on its own, and a
 fingerprint that is right in one place and stale in the other fails at the
 reader's machine with a signature error, which is the worst place to find out.
 
-The release workflow is the third place, because it installs the engine from
-that same repository to build against it (ADR 0049). A workflow trusting a key
-the pages do not publish would build a release against an engine nobody could
-verify.
+`scripts/trust_omaweb_repository.sh` is the third place, because the release
+workflow and CI install the engine from that same repository through it to build
+against it (ADR 0049). A script trusting a key the pages do not publish would
+build a release against an engine nobody could verify.
 
 And the key file is the fourth, which is the one that is not a copy: the other
 three state a fingerprint, `security/repo-signing-key.asc` is the key that has
@@ -34,14 +34,14 @@ import re
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-PAGES = ("README.md", "website/pages/index.html", ".github/workflows/release.yml")
+PAGES = ("README.md", "website/pages/index.html", "scripts/trust_omaweb_repository.sh")
 KEY = "security/repo-signing-key.asc"
 
 # A full OpenPGP fingerprint, which is the only form worth publishing: a short
 # key id can be collided with, and a reader comparing one is checking nothing.
 FINGERPRINT = re.compile(r"\b([0-9A-F]{40})\b")
 # Stops at the first `<` or `'`, because one page is HTML and the address is
-# followed there by the tags that close the line, and the workflow writes it
+# followed there by the tags that close the line, and the script writes it
 # inside a quoted shell string so that `$arch` reaches pacman unexpanded.
 SERVER = re.compile(r"Server = ([^\s<']+)")
 
