@@ -2677,6 +2677,18 @@ Item {
             // another application.
             if (scheme === "http" || scheme === "https" || scheme === "file" || scheme === "about"
                     || scheme === "data" || scheme === "omaweb" || scheme === "chrome-extension") {
+                // What the last load said about its certificate belongs to that
+                // load, and a new navigation is a new load even where Qt says
+                // nothing of it: Qt raises no start for a navigation that
+                // begins while another load is still running, a reload among
+                // them, and the reset at the start alone carried a refused
+                // chain over to a page that never raised a failure. A redirect
+                // continues the navigation it came from.
+                if (request.isMainFrame && request.navigationType
+                        !== WebEngineNavigationRequest.RedirectNavigation) {
+                    root.certificateErrorRaisedForLoad = false;
+                    root.certificateChain = [];
+                }
                 // Site rules and scriptlets are named by host, which only a
                 // web address has.
                 if (request.isMainFrame && (scheme === "http" || scheme === "https"))
