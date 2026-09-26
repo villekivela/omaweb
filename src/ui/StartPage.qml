@@ -279,6 +279,9 @@ Rectangle {
     readonly property var layoutColumns: root.packColumns(root.sections, root.columnCount)
 
     visible: open
+    // The sheet can be drawn after it closes, for the length of its drop, and
+    // by then the page is back beneath it. A click in that time is the page's.
+    enabled: open
     // The fill is the backdrop's: over a page it goes on top of that page
     // blurred, and standing in for one it is all there is.
     color: "transparent"
@@ -373,6 +376,9 @@ Rectangle {
                     width: root.closeSize
                     height: root.closeSize
                     visible: root.overPage
+                    // It fades with the sheet as it drops, rather than dimming
+                    // first for being disabled with it.
+                    opacity: 1
                     icon: "close"
                     accessibleName: "Close shortcuts"
                     fontFamily: root.iconFontFamily

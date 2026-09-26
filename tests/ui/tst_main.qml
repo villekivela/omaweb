@@ -2174,6 +2174,27 @@ TestCase {
         compare(page.presses, 1);
     }
 
+    // The Start page is still drawn while it drops away from a page that
+    // replaced it, and a click in that time is the reader's first on the page.
+    function test_firstClickReachesThePageThatReplacedTheStartPage() {
+        const startPage = findChild(window.contentItem, "startPage");
+        // A blank tab stands the Start page in, and the address typed there
+        // replaces it with a page.
+        browser.openInput("about:blank", true);
+        tryCompare(startPage, "open", true);
+        tryCompare(startPage, "visible", true);
+
+        const engine = openPage("https://first-click.example");
+        const page = createTemporaryObject(pageCursorComponent, engine);
+        verify(page !== null);
+        verify(!startPage.open);
+        verify(startPage.visible, "the drop was over before the click");
+
+        mouseClick(page, page.width / 2, page.height / 2);
+        verify(startPage.visible, "the drop was over before the click");
+        compare(page.presses, 1);
+    }
+
     // A pin is a square holding one chip, with nothing in front of anything to
     // put a speaker before, so it wears the speaker in its top right corner.
     function test_soundingPinWearsItsSpeakerInTheCorner() {
