@@ -4,8 +4,10 @@
 #include "DownloadPolicy.h"
 #include "SessionStore.h"
 
+#include <QDateTime>
 #include <QDir>
 #include <QFileInfo>
+#include <QRegularExpression>
 #include <QQmlEngine>
 #include <QUuid>
 
@@ -277,6 +279,71 @@ void Downloads::updated(const QString &runtimeId, const QString &state, qint64 r
     if (wasRunning || isRunning(state)) {
         emit activityChanged();
     }
+}
+
+QString Downloads::screenshotDestination(const QString &directory, const QString &title) const
+{
+    const QDir target(directory);
+    if (directory.isEmpty() || !target.exists()) {
+        return {};
+    }
+    // A title is the page's to choose, so what a file name cannot carry on any
+    // desktop is taken out, and so is a leading dot that would hide the file.
+    static const QRegularExpression unsafe(QStringLiteral("[/\\\\:*?\"<>|\\x00-\\x1f]+"));
+    static const QRegularExpression hiding(QStringLiteral("^[.\\s]+"));
+    auto name = title.simplified().replace(unsafe, QStringLiteral(" ")).remove(hiding).simplified();
+    name = name.left(100).trimmed();
+    if (name.isEmpty()) {
+        name = QStringLiteral("Page");
+    }
+    const auto stem = name + QLatin1Char(' ')
+        + QDateTime::currentDateTime().toString(QStringLiteral("yyyy-MM-dd HH.mm.ss"));
+    auto path = target.filePath(stem + QStringLiteral(".png"));
+    for (int copy = 2; QFileInfo::exists(path); ++copy) {
+        path = target.filePath(stem + QStringLiteral(" (%1).png").arg(copy));
+    }
+    return path;
+}
+
+void Downloads::saved(const QString &path, const QUrl &pageUrl)
+{
+    const QFileInfo file(path);
+    if (!file.isFile()) {
+        return;
+    }
+    if (running() == 0) {
+        m_finished = 0;
+    }
+    m_finished += 1;
+    const auto size = file.size();
+    // Omaweb's own file, under a name no engine hands out, so a cancel or a
+    // retry finds no engine profile to ask. A finished row offers neither.
+    Row row;
+    row.rowId = QString::number(++m_nextRowId);
+    row.runtimeId = QStringLiteral("omaweb:") + row.rowId;
+    row.url = pageUrl;
+    row.pageUrl = pageUrl;
+    row.path = path;
+    row.state = QStringLiteral("completed");
+    row.receivedBytes = size;
+    row.totalBytes = size;
+    if (m_store) {
+        const auto recordId = QUuid::createUuid().toString(QUuid::WithoutBraces);
+        if (m_store->recordDownload(recordId, pageUrl, path, row.state, size, size)) {
+            row.recordId = recordId;
+        }
+    }
+    // A Private window keeps no Download record, and a settled row without one
+    // is not kept either; the file is where the reader asked for it all the
+    // same, and the notice below says so.
+    if (!row.recordId.isEmpty()) {
+        beginInsertRows({}, 0, 0);
+        m_rows.prepend(row);
+        endInsertRows();
+        emit countChanged();
+    }
+    emit activityChanged();
+    emit downloadCompleted(path, pageUrl, pageUrl, fileNameOf(path));
 }
 
 void Downloads::hold(const QString &downloadNamespace, const QString &token, int disposition,

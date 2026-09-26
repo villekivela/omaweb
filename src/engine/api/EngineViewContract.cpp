@@ -119,6 +119,9 @@ QStringList validateEngineViewContract(const QObject &adapter)
         // The adapter renders the page; presenting it belongs to the platform's
         // own print dialog, so the destination is named by the shell.
         {"printPage", false, 1},
+        // The page area as the engine drew it, written as a PNG to the file the
+        // shell names, at the display's device pixel ratio.
+        {"capturePage", false, 1},
         {"exitSiteFullscreen", false, 0},
         {"focusPage", false, 0},
         {"checkForEditedFormState", false, 1},
@@ -144,6 +147,7 @@ QStringList validateEngineViewContract(const QObject &adapter)
         {"performPageContextAction", false, 2},
         {"developerToolsClosed", true, 0},
         {"printFinished", true, 2, QMetaType::QString},
+        {"pageCaptured", true, 2, QMetaType::QString},
         {"pageContextRequested", true, 1},
         // A page's own tooltip, reported rather than drawn. The shell owes the
         // reader one tooltip in one style, so an adapter that lets its engine

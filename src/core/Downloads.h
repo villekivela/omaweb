@@ -101,6 +101,14 @@ public:
     // Answers the question on screen and presents the next one, if any.
     Q_INVOKABLE void answer(bool keep, const QString &path, int permissionDecision);
 
+    // Where a screenshot of the page titled `title` goes: the downloads
+    // location, named for the title and the moment, with a number added when
+    // that name is taken. Empty when the location cannot be written to.
+    Q_INVOKABLE QString screenshotDestination(const QString &directory, const QString &title) const;
+    // A file Omaweb wrote into the downloads location itself, listed as a
+    // finished download of the page it was made from.
+    Q_INVOKABLE void saved(const QString &path, const QUrl &pageUrl);
+
     Q_INVOKABLE void cancel(int row);
     Q_INVOKABLE void retry(int row);
     // A no-op where the row has no Download record to forget.

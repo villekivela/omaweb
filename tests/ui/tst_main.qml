@@ -6234,6 +6234,86 @@ TestCase {
         verify(browser.plainHttpRemembered(browser.activeSpaceId, "http://always.example"));
     }
 
+    // Screenshot page writes the page area, and nothing of Omaweb's own, into
+    // the downloads location at the display's pixel density, and lists it as
+    // a finished download. The stand-in page is drawn in stripes 96 points
+    // wide, so a probe on each side of the first edge tells the page apart
+    // from anything else that could have been captured.
+    function test_screenshotPageSavesThePageAreaAsAFinishedDownload() {
+        const directory = imageProbe.directory("screenshots");
+        const previous = browser.downloadDirectory;
+        verify(browser.setDownloadDirectory(directory));
+        const engine = openPage("https://capture.example/article");
+        engine.blurReviewPattern = true;
+        const notice = findChild(window.contentItem, "pageNotice");
+        const listed = window.downloads.count;
+
+        verify(window.commands.available("screenshot-page"));
+        window.commands.run("screenshot-page", -1);
+        tryVerify(function () {
+            return imageProbe.files(directory).length === 1;
+        });
+        const name = imageProbe.files(directory)[0];
+        // Named for the page's title, which the stand-in takes from its address.
+        verify(name.startsWith("https capture.example article 2") && name.endsWith(".png"), name);
+        const path = directory + "/" + name;
+        tryCompare(notice, "message", "Saved " + name);
+        compare(window.downloads.count, listed + 1);
+
+        const ratio = engine.Screen.devicePixelRatio > 0 ? engine.Screen.devicePixelRatio : 1;
+        const size = imageProbe.size(path);
+        compare(size.width, Math.round(engine.width * ratio));
+        compare(size.height, Math.round(engine.height * ratio));
+        verify(Qt.colorEqual(imageProbe.pixel(path, Math.round(48 * ratio), 4), "#f4f0ff"));
+        verify(Qt.colorEqual(imageProbe.pixel(path, Math.round(144 * ratio), 4), "#241832"));
+
+        engine.blurReviewPattern = false;
+        notice.dismiss();
+        // The default location need not exist on the machine running this,
+        // in which case it cannot be chosen again and the test's stays.
+        browser.setDownloadDirectory(previous);
+    }
+
+    // Copy screenshot puts the same image on the clipboard and leaves nothing
+    // behind in the downloads location.
+    function test_copyScreenshotPutsThePageAreaOnTheClipboard() {
+        const directory = imageProbe.directory("copied");
+        const previous = browser.downloadDirectory;
+        verify(browser.setDownloadDirectory(directory));
+        const engine = openPage("https://capture.example/copied");
+        const notice = findChild(window.contentItem, "pageNotice");
+        SystemClipboard.copyText("something the reader already had");
+
+        window.commands.run("copy-screenshot", -1);
+        tryCompare(notice, "message", "Screenshot copied");
+        const ratio = engine.Screen.devicePixelRatio > 0 ? engine.Screen.devicePixelRatio : 1;
+        compare(SystemClipboard.imageSize().width, Math.round(engine.width * ratio));
+        compare(SystemClipboard.imageSize().height, Math.round(engine.height * ratio));
+        compare(imageProbe.files(directory).length, 0);
+
+        notice.dismiss();
+        // The default location need not exist on the machine running this,
+        // in which case it cannot be chosen again and the test's stays.
+        browser.setDownloadDirectory(previous);
+    }
+
+    // A tab with no page has nothing to capture, and the reader is told so
+    // rather than handed a picture of Omaweb's own Start page.
+    function test_aScreenshotOfNoPageSaysWhy() {
+        const notice = findChild(window.contentItem, "pageNotice");
+        browser.openInput("about:blank", true);
+        const blankTabId = browser.activeTabId;
+        tryVerify(function () {
+            return window.pagelessViewport;
+        });
+        window.commands.run("screenshot-page", -1);
+        tryCompare(notice, "message", "Screenshot page is not available");
+        window.commands.run("copy-screenshot", -1);
+        tryCompare(notice, "message", "Copy screenshot is not available");
+        browser.closeTab(blankTabId);
+        notice.dismiss();
+    }
+
     // A render that produced nothing is a failure the reader hears about,
     // rather than a print that quietly never happened.
     function test_printReportsARenderThatProducedNothing() {

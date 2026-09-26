@@ -27,6 +27,7 @@
 #include <QImage>
 #include <QPainter>
 #include <QQmlContext>
+#include <QDir>
 #include <QFile>
 #include <QFontDatabase>
 #include <QQuickStyle>
@@ -67,6 +68,37 @@ public:
 
 signals:
     void changed();
+};
+
+// What a test needs to read an image the browser wrote: its size, one pixel,
+// and the files in a directory of the harness's own.
+class ImageProbe final : public QObject {
+    Q_OBJECT
+
+public:
+    explicit ImageProbe(QString root)
+        : m_root(std::move(root))
+    {
+    }
+
+    Q_INVOKABLE QString directory(const QString &name) const
+    {
+        const QDir root(m_root);
+        root.mkpath(name);
+        return root.filePath(name);
+    }
+    Q_INVOKABLE QStringList files(const QString &directory) const
+    {
+        return QDir(directory).entryList(QDir::Files, QDir::Name);
+    }
+    Q_INVOKABLE QSize size(const QString &path) const { return QImage(path).size(); }
+    Q_INVOKABLE QColor pixel(const QString &path, int x, int y) const
+    {
+        return QImage(path).pixelColor(x, y);
+    }
+
+private:
+    QString m_root;
 };
 
 // A favicon on disk for the tests that check what colour a site's chip takes.
@@ -124,6 +156,7 @@ public slots:
             omaweb::SpaceStorage(m_dataRoot->path(), QStringLiteral("mock")),
             m_dataRoot->filePath(QStringLiteral("config")));
         m_contentBlocker = std::make_unique<omaweb::ContentBlocker>(m_dataRoot->path());
+        m_imageProbe = std::make_unique<ImageProbe>(m_dataRoot->filePath(QStringLiteral("images")));
         const auto keybindingsPath = m_dataRoot->filePath(QStringLiteral("keybindings.json"));
         QFile::copy(QStringLiteral(OMAWEB_DEFAULT_KEYBINDINGS_PATH), keybindingsPath);
         QFile::setPermissions(keybindingsPath, QFileDevice::ReadOwner | QFileDevice::WriteOwner);
@@ -152,6 +185,7 @@ public slots:
         engine->rootContext()->setContextProperty(
             QStringLiteral("engineHeldDownloads"), QVariant::fromValue<QObject *>(nullptr));
         engine->rootContext()->setContextProperty(QStringLiteral("theme"), m_theme.get());
+        engine->rootContext()->setContextProperty(QStringLiteral("imageProbe"), m_imageProbe.get());
         engine->rootContext()->setContextProperty(
             QStringLiteral("fontSettings"), m_fontSettings.get());
         // These tests run no engine, so there is nothing to draw a page's
@@ -216,6 +250,7 @@ public slots:
         m_contentBlocker.reset();
         m_secureDns.reset();
         m_keyboardNavigation.reset();
+        m_imageProbe.reset();
         m_dataRoot.reset();
     }
 
@@ -224,6 +259,7 @@ private:
     std::unique_ptr<QTemporaryDir> m_dataRoot;
     std::unique_ptr<omaweb::BrowserController> m_browser;
     std::unique_ptr<omaweb::ContentBlocker> m_contentBlocker;
+    std::unique_ptr<ImageProbe> m_imageProbe;
     std::unique_ptr<omaweb::SecureDns> m_secureDns;
     std::unique_ptr<omaweb::KeyboardNavigation> m_keyboardNavigation;
     std::unique_ptr<omaweb::ThemeController> m_theme;

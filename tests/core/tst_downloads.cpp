@@ -7,6 +7,8 @@
 
 #include <QDir>
 #include <QFile>
+#include <QFileInfo>
+#include <QRegularExpression>
 #include <QHash>
 #include <QSet>
 #include <QSharedPointer>
@@ -71,6 +73,8 @@ class DownloadsTest final : public QObject {
 
 private slots:
     void holdsRunningAndRecordedDownloadsInOneList();
+    void namesAScreenshotForThePageAndTheMoment();
+    void listsAScreenshotAsAFinishedDownload();
     void tellsTwoPrivateDownloadsApartWithoutARecord();
     void publishesTheDownloadActivityWithoutBeingRefreshed();
     void asksOneHeldQuestionAtATimeAcrossEngineProfiles();
@@ -112,6 +116,86 @@ void DownloadsTest::holdsRunningAndRecordedDownloadsInOneList()
     QCOMPARE(downloads.rowCount(), 2);
     QCOMPARE(roleOf(downloads, 0, Downloads::RunningRole).toBool(), false);
     QCOMPARE(store.downloadHistory().size(), 2);
+}
+
+// A screenshot is named for the page's title and the moment it was taken, in
+// the downloads location, with what no desktop's file name can carry taken out
+// and a number where the name is already taken.
+void DownloadsTest::namesAScreenshotForThePageAndTheMoment()
+{
+    QTemporaryDir root;
+    StubHost host;
+    Downloads downloads(nullptr, &host);
+
+    const auto path
+        = downloads.screenshotDestination(root.path(), QStringLiteral("Report: Q3/Q4 <draft>"));
+    QCOMPARE(QFileInfo(path).absolutePath(), QDir(root.path()).absolutePath());
+    const QRegularExpression named(
+        QStringLiteral(R"(^Report Q3 Q4 draft \d{4}-\d{2}-\d{2} \d{2}\.\d{2}\.\d{2}\.png$)"));
+    QVERIFY2(named.match(QFileInfo(path).fileName()).hasMatch(), qPrintable(path));
+
+    QFile taken(path);
+    QVERIFY(taken.open(QIODevice::WriteOnly));
+    taken.close();
+    const auto second
+        = downloads.screenshotDestination(root.path(), QStringLiteral("Report: Q3/Q4 <draft>"));
+    // The second can land a second later than the first and need no number,
+    // but it can never be the first.
+    QVERIFY(second != path);
+
+    QVERIFY(QFileInfo(downloads.screenshotDestination(root.path(), QStringLiteral("../.hidden")))
+            .fileName()
+            .startsWith(QStringLiteral("hidden ")));
+    QVERIFY(QFileInfo(downloads.screenshotDestination(root.path(), QString()))
+            .fileName()
+            .startsWith(QStringLiteral("Page ")));
+    QVERIFY(
+        downloads.screenshotDestination(root.filePath(QStringLiteral("gone")), QStringLiteral("x"))
+            .isEmpty());
+}
+
+// A screenshot Omaweb wrote itself joins the list as a finished download of
+// the page it was taken from, with the notice every finished download gets. A
+// Private window keeps no record of it, so the list keeps no row either.
+void DownloadsTest::listsAScreenshotAsAFinishedDownload()
+{
+    QTemporaryDir root;
+    StubHost host;
+    SqliteSessionStore store(root.path());
+    QVERIFY(store.open());
+    Downloads downloads(&store, &host);
+    QSignalSpy completed(&downloads, &Downloads::downloadCompleted);
+
+    const auto path = root.filePath(QStringLiteral("Page 2026-09-25 10.00.00.png"));
+    QFile file(path);
+    QVERIFY(file.open(QIODevice::WriteOnly));
+    file.write("PNG");
+    file.close();
+    const QUrl page(QStringLiteral("https://site.example/article"));
+    downloads.saved(path, page);
+
+    QCOMPARE(downloads.rowCount(), 1);
+    QCOMPARE(roleOf(downloads, 0, Downloads::StateRole).toString(), QStringLiteral("completed"));
+    QCOMPARE(roleOf(downloads, 0, Downloads::RunningRole).toBool(), false);
+    QCOMPARE(roleOf(downloads, 0, Downloads::PathRole).toString(), path);
+    QCOMPARE(roleOf(downloads, 0, Downloads::TotalBytesRole).toLongLong(), 3);
+    QVERIFY(!roleOf(downloads, 0, Downloads::RecordIdRole).toString().isEmpty());
+    QCOMPARE(downloads.finished(), 1);
+    QCOMPARE(completed.size(), 1);
+    QCOMPARE(completed.first().at(0).toString(), path);
+    QCOMPARE(completed.first().at(3).toString(), QStringLiteral("Page 2026-09-25 10.00.00.png"));
+    QCOMPARE(store.downloadHistory().size(), 1);
+
+    downloads.saved(root.filePath(QStringLiteral("missing.png")), page);
+    QCOMPARE(downloads.rowCount(), 1);
+
+    PrivateSessionStore privateStore(QSharedPointer<QHash<QString, int>>::create());
+    QVERIFY(privateStore.open());
+    Downloads privateDownloads(&privateStore, &host);
+    QSignalSpy privateCompleted(&privateDownloads, &Downloads::downloadCompleted);
+    privateDownloads.saved(path, page);
+    QCOMPARE(privateDownloads.rowCount(), 0);
+    QCOMPARE(privateCompleted.size(), 1);
 }
 
 void DownloadsTest::tellsTwoPrivateDownloadsApartWithoutARecord()
