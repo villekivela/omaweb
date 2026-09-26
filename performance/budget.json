@@ -23,14 +23,14 @@
       "note": "What an away Space's page goes on taking once frozen, over ten seconds, against ADR 0033. Tighter than the others on purpose: the same page grew 30.1 MiB in the six seconds it was on show, so a page still running would add about fifty here, and a reading's own noise is a megabyte or two."
     },
     "pageload_fresh_hosts_milliseconds": {
-      "ceiling": 20.0,
-      "recorded": 0.0,
-      "note": "TBD"
+      "ceiling": 24.4,
+      "recorded": 6.1,
+      "note": "What Content blocking adds to a page of 40 images from 40 hosts it has never seen, the median with blocking on minus the median with the site switched off, ten loads each: 136.6 ms against 130.5 ms. Measured on 2026-09-26 against Arch's qt6-webengine, where CNAME uncloaking is compiled out, so this holds the rule check, the Refusal tally and the refused-request list but not uncloaking's lookups; #394 re-records it on Omaweb's engine. Secure DNS off. The hosts resolve through dnsmasq on the container's resolver, with CNAME chains, not host-resolver rules. Procedural cosmetic filtering is measured separately under #402. The ceiling is four times the difference. Three loads the engine cut short were repeated and not counted."
     },
     "pageload_known_hosts_milliseconds": {
       "ceiling": 20.0,
-      "recorded": 0.0,
-      "note": "TBD"
+      "recorded": 2.6,
+      "note": "The same for 40 images from 4 hosts resolved on the warm-up loads: 147.6 ms against 145.0 ms. Measured on 2026-09-26 against Arch's qt6-webengine, where CNAME uncloaking is compiled out, so this holds the rule check, the Refusal tally and the refused-request list but not uncloaking's lookups; #394 re-records it on Omaweb's engine. Secure DNS off. The hosts resolve through dnsmasq on the container's resolver, with CNAME chains, not host-resolver rules. Procedural cosmetic filtering is measured separately under #402. Four times the difference is 10.4 ms, under the 20 ms floor, because a shared runner's noise is bigger than a difference this small."
     }
   }
 }
