@@ -180,11 +180,22 @@ PROCEDURAL_RULES = ROOT / "tests" / "content-blocking" / "procedural-rules.json"
 
 
 def procedural_fixture() -> tuple[list[str], str]:
-    """The procedural rules for the page hosts, and the markup they are written against."""
+    """The procedural rules for the page hosts, and the markup they are written against.
+
+    Every row of the fixture names its elements `match` and `miss`, and some carry a style for
+    `#match`. On one page those would all reach each other: the `::after` content one row gives its
+    `#match` landed on the blocks two other rows hide, and the page with blocking off came out 70 ms
+    slower than with it on, which measured the fixture rather than the rules. So each row's names
+    are its own. No rule names an element by its id, so the rules are unchanged.
+    """
     rows = json.loads(PROCEDURAL_RULES.read_text(encoding="utf-8"))
     sites = f"{PAGELOAD_ON_HOST},{PAGELOAD_OFF_HOST}"
     rules = [sites + row["rule"][row["rule"].index("#"):] for row in rows]
-    markup = "\n".join(f"<section>{row['page']}</section>" for row in rows)
+    markup = "\n".join(
+        "<section>" + re.sub(r'(id="|#)(match|miss)\b',
+                             lambda found, row=index: f"{found[1]}{found[2]}-{row}",
+                             row["page"]) + "</section>"
+        for index, row in enumerate(rows))
     return rules, markup
 
 # Every name is under `.test`, which HTTPS-only mode treats as a local development host and leaves

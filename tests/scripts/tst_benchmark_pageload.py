@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import statistics
 import sys
 import tempfile
@@ -181,6 +182,15 @@ class SeedTest(unittest.TestCase):
     # The readiness probe still refuses its host, and the procedural rules are the fixture's, one
     # per operator and action, written for both page hosts so the off page carries them too and
     # only the per-site switch tells the two apart.
+    # One row's style for its own `#match` must not reach another row's: on one page, that made the
+    # page with blocking off slower than with it on, measuring the fixture instead of the rules.
+    def test_each_procedural_row_keeps_its_element_names_to_itself(self):
+        _, markup = runtime.procedural_fixture()
+        ids = re.findall(r'id="([^"]+)"', markup)
+        self.assertEqual(len(ids), len(set(ids)), ids)
+        self.assertNotIn("#match ", markup)
+        self.assertNotIn("#match:", markup)
+
     def test_the_user_rules_add_the_procedural_fixture_to_the_probe(self):
         with tempfile.TemporaryDirectory() as root:
             runtime.seed_content_blocking(root)
