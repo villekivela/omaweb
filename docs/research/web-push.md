@@ -11,7 +11,9 @@ numbers stay valid.
 
 ## What `PushManager.subscribe` does today
 
-In a Space it rejects at once, with no permission prompt and no network request.
+In a Space it rejects at once, with no permission prompt and no network request. This answer comes
+from reading the engine source below; nobody has yet run a page against the packaged engine to watch
+it happen.
 
 QtWebEngine hands Chromium a push service only when the profile has push switched on, and it is off
 by default. `ProfileQt::GetPushMessagingService` returns null otherwise.
