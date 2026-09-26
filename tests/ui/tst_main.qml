@@ -4267,6 +4267,44 @@ TestCase {
         });
     }
 
+    // A Space remembers an answer and a Private window only holds it until it
+    // closes, and the prompt says which the reader is giving.
+    function test_aPermissionPromptSaysHowLongItsAnswerLasts() {
+        const engine = openPage("https://asks-space.example/");
+        const spaceBar = findChild(window.contentItem, "sitePermissionBar");
+        verify(engine.simulateSitePermission("https://asks-space.example", "notifications").length
+               > 0);
+        tryCompare(window, "permissionOpen", true);
+        compare(spaceBar.detail, "notifications · remembered for this Space only");
+        verify(spaceBar.actions[1].enabled);
+        window.respondToPermission(BrowserController.Block);
+
+        windowManager.openPrivateWindow();
+        tryCompare(windowManager, "privateWindowCount", 1);
+        const privateBrowser = window.privateWindows[0];
+        const privateEngine = findChild(privateBrowser.contentItem, "engineLoader");
+        privateBrowser.windowBrowser.openInput("https://asks-private.example", false);
+        tryVerify(function () {
+            return privateEngine.item !== null;
+        });
+        verify(privateEngine.item.simulateSitePermission("https://asks-private.example",
+                                                         "notifications").length > 0);
+        tryCompare(privateBrowser, "permissionOpen", true);
+        const privateBar = findChild(privateBrowser.contentItem, "sitePermissionBar");
+        compare(privateBar.detail, "notifications · kept until this Private window closes");
+        verify(!privateBar.actions[1].enabled);
+        privateBrowser.respondToPermission(BrowserController.Block);
+
+        privateBrowser.windowBrowser.closeActiveTab();
+        tryCompare(windowManager, "privateWindowCount", 0);
+        // The Private window took the keyboard, and the tests after this one
+        // press keys in the main window.
+        window.requestActivate();
+        tryVerify(function () {
+            return window.active;
+        });
+    }
+
     // With the Glance refused, a page's new-tab request is a tab, as it was
     // before there was a Glance to open it in.
     function test_newWindowRequestsRouteToTabsOrAuxiliaryWindows() {

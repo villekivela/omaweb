@@ -125,6 +125,12 @@ ApplicationWindow {
     readonly property int permissionRefused: 0
     readonly property int permissionAskedEachTime: 1
     readonly property int permissionRememberable: 2
+    // How long a remembered answer lasts, said where the reader gives one. A
+    // Private window keeps its answers in memory and loses them when it closes,
+    // so it cannot promise what a Space does.
+    readonly property string permissionMemory: window.privateWindow
+                                               ? "kept until this Private window closes" :
+                                                 "remembered for this Space only"
     // Bumped whenever the core's record of granted certificate exceptions
     // changes, and read by the state below so that the state follows it. A
     // binding cannot see into an invokable on its own.
@@ -2981,7 +2987,7 @@ ApplicationWindow {
                              + " asked for a protected browser capability"
                     detail: window.pendingPermissionType + (permissionBar.policy
                                                             === window.permissionRememberable
-                                                            ? " · remembered for this Space only" :
+                                                            ? " · " + window.permissionMemory :
                                                               " · asked every time, never remembered")
                     actions: permissionBar.policy === window.permissionRememberable ? [
                                                                                           {
@@ -3084,9 +3090,9 @@ ApplicationWindow {
                                                              String(held.origin || "")
                                                              + " wants to download " + String(
                                                                  held.fileName || "")
-                    detail: downloadQuestionBar.automatic ? String(held.fileName || "")
-                                                            + " · remembered for this Space only" :
-                                                            String(held.risk || "")
+                    detail: downloadQuestionBar.automatic ? String(held.fileName || "") + " · "
+                                                            + window.permissionMemory : String(
+                                                                held.risk || "")
                                                             + " · Omaweb never runs a download"
                     actions: downloadQuestionBar.automatic ? [
                                                                  {

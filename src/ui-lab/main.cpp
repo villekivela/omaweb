@@ -507,6 +507,10 @@ int main(int argc, char *argv[])
             {QStringLiteral("site"), {{"sidebar", "statusOpen", true}}},
             {QStringLiteral("history"), {{"", "historyOpen", true}}},
             {QStringLiteral("shortcuts"), {{"", "shortcutsOpen", true}}},
+            // The last seeded tab's page asks for notifications, so the
+            // question bar stands over it. `--private` shows the Private
+            // window's wording.
+            {QStringLiteral("permission"), {}},
             // The last two seeded tabs side by side, the last one active.
             {QStringLiteral("split"), {{"", "sidebarPeeked", false}}},
             // Steps to the next Space shortly before a capture, so the frame
@@ -530,6 +534,31 @@ int main(int argc, char *argv[])
             if (!tabId.isEmpty()) {
                 browser.activateTab(tabId);
             }
+        }
+        if (requested == QLatin1String("permission")) {
+            const auto tabId = lastTabId(browser.unpinnedTabs());
+            if (tabId.isEmpty()) {
+                qCritical("--show permission needs a page; pass --tabs");
+                return 1;
+            }
+            browser.activateTab(tabId);
+            // The page's engine is built once the tab is on show, so the
+            // question waits for it.
+            QTimer::singleShot(300, root, [root] {
+                auto *host = root->findChild<QObject *>(QStringLiteral("engineLoader"));
+                auto *view = host ? host->property("item").value<QObject *>() : nullptr;
+                if (view == nullptr) {
+                    qCritical("No page to ask from for --show permission");
+                    return;
+                }
+                const auto origin
+                    = view->property("currentUrl")
+                          .toUrl()
+                          .adjusted(QUrl::RemovePath | QUrl::RemoveQuery | QUrl::RemoveFragment);
+                QMetaObject::invokeMethod(view, "simulateSitePermission",
+                    Q_ARG(QVariant, origin.toString()),
+                    Q_ARG(QVariant, QStringLiteral("notifications")));
+            });
         }
         if (requested == QLatin1String("split")) {
             auto *unpinned = browser.unpinnedTabs();
@@ -590,7 +619,7 @@ int main(int argc, char *argv[])
                     QMetaObject::invokeMethod(root, "openOmnibar", Q_ARG(QVariant, false));
                 }
             });
-        } else if (state.isEmpty()) {
+        } else if (state.isEmpty() && requested != QLatin1String("permission")) {
             qCritical("Unknown --show state %s", qPrintable(requested));
             return 1;
         }
