@@ -247,6 +247,7 @@ private slots:
     void qtCapturesThePageAreaAsTheEngineDrewIt();
     void qtCapturesTheWholePageAndLeavesTheReaderWhereTheyWere();
     void qtReportsSiteFullscreenWithItsOrigin();
+    void qtRefusesPictureInPictureWhereThePageCanSeeIt();
     void profileAdaptersHandOverNotifications_data();
     void profileAdaptersHandOverNotifications();
     void adaptersTakeTheShellsAutoplayDecision_data();
@@ -4947,6 +4948,48 @@ void QtEngineContractTest::qtReportsSiteFullscreenWithItsOrigin()
     QCOMPARE(adapter->property("siteFullscreenOrigin").toString(), QString {});
     QTRY_COMPARE_WITH_TIMEOUT(
         adapter->property("pageTitle").toString(), QStringLiteral("windowed"), 15000);
+}
+
+// QtWebEngine turns picture-in-picture off in every page and has nothing to
+// attach a floating window to (docs/research/picture-in-picture.md). What a
+// reader is owed is a page that knows: it is told the feature is off and its
+// request is rejected, rather than left waiting on a promise. An engine update
+// that changes either answer has to be decided on, not inherited.
+void QtEngineContractTest::qtRefusesPictureInPictureWhereThePageCanSeeIt()
+{
+    PageServer server(R"HTML(<!doctype html><html><body>
+        <video></video>
+        <script>
+            const enabled = document.pictureInPictureEnabled;
+            document.querySelector("video").requestPictureInPicture().then(
+                () => { document.title = "opened"; },
+                (error) => { document.title = enabled + " " + error.name; });
+        </script>
+    </body></html>)HTML");
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    QQmlEngine engine;
+    QQmlComponent component(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
+        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
+    }));
+    QVERIFY2(adapter, qPrintable(component.errorString()));
+
+    auto *view = qobject_cast<QQuickItem *>(adapter.get());
+    QVERIFY(view);
+    QQuickWindow window;
+    window.resize(640, 480);
+    view->setParentItem(window.contentItem());
+    view->setSize(QSizeF(640, 480));
+    window.show();
+
+    QVERIFY(adapter->setProperty("currentUrl",
+        QUrl(QStringLiteral("http://127.0.0.1:%1/page.html").arg(server.serverPort()))));
+    QTRY_COMPARE_WITH_TIMEOUT(adapter->property("pageTitle").toString(),
+        QStringLiteral("false NotSupportedError"), 15000);
 }
 
 void QtEngineContractTest::profileAdaptersHandOverNotifications_data()
