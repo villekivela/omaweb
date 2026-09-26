@@ -144,9 +144,9 @@ scope decisions, not unfinished features.
 
 ## Privacy and security
 
-Omaweb has no telemetry, advertising identifier, browser account, hosted Omaweb service, push
-service, or automatic crash upload. The [network request ledger](docs/network-requests.md) lists
-every automatic request the browser makes.
+Omaweb has no telemetry, advertising identifier, browser account, hosted Omaweb service,
+[push service](docs/research/web-push.md), or automatic crash upload. The
+[network request ledger](docs/network-requests.md) lists every automatic request the browser makes.
 
 Sync is optional, off until you connect it, and unavailable in a Private window. It copies Spaces,
 tabs, keybindings, filter subscription addresses, and four approved Settings keys between your own
