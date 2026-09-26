@@ -34,6 +34,7 @@
 #include <QQuickStyle>
 #include <QQmlEngine>
 #include <QTemporaryDir>
+#include <QWindow>
 #include <QtQuickTest/quicktest.h>
 
 #include <memory>
@@ -100,6 +101,15 @@ public:
 
 private:
     QString m_root;
+};
+
+// The shape a window asks the compositor for. QML reads an item's cursorShape
+// but not which item's cursor won, and that is the window's.
+class CursorProbe final : public QObject {
+    Q_OBJECT
+
+public:
+    Q_INVOKABLE int shape(QWindow *window) const { return window->cursor().shape(); }
 };
 
 // A favicon on disk for the tests that check what colour a site's chip takes.
@@ -188,6 +198,7 @@ public slots:
             QStringLiteral("engineHeldDownloads"), QVariant::fromValue<QObject *>(nullptr));
         engine->rootContext()->setContextProperty(QStringLiteral("theme"), m_theme.get());
         engine->rootContext()->setContextProperty(QStringLiteral("imageProbe"), m_imageProbe.get());
+        engine->rootContext()->setContextProperty(QStringLiteral("cursorProbe"), &m_cursorProbe);
         engine->rootContext()->setContextProperty(
             QStringLiteral("fontSettings"), m_fontSettings.get());
         // These tests run no engine, so there is nothing to draw a page's
@@ -258,6 +269,7 @@ public slots:
 
 private:
     SyncLauncherProbe m_syncLauncher;
+    CursorProbe m_cursorProbe;
     std::unique_ptr<QTemporaryDir> m_dataRoot;
     std::unique_ptr<omaweb::BrowserController> m_browser;
     std::unique_ptr<omaweb::ContentBlocker> m_contentBlocker;

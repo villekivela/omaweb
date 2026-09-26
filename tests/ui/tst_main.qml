@@ -2131,6 +2131,49 @@ TestCase {
         });
     }
 
+    // A page that sets its own cursor, as the engine's view does over a link.
+    Component {
+        id: pageCursorComponent
+
+        MouseArea {
+            property int presses: 0
+
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onPressed: presses += 1
+        }
+    }
+
+    // The page still gets hover under the site status, so the pointer wears
+    // what the page asks for there. The click closes the status and no more.
+    function test_siteStatusLeavesThePageItsCursor() {
+        const engine = openPage("https://status-cursor.example");
+        settleMotion();
+        const sidebar = findChild(window.contentItem, "sidebar");
+        const page = createTemporaryObject(pageCursorComponent, engine);
+        verify(page !== null);
+        const x = page.width / 2;
+        const y = page.height / 2;
+
+        mouseMove(page, x, y);
+        tryVerify(function () {
+            return cursorProbe.shape(window) === Qt.PointingHandCursor;
+        });
+
+        sidebar.statusOpen = true;
+        mouseMove(page, x + 2, y);
+        tryVerify(function () {
+            return cursorProbe.shape(window) === Qt.PointingHandCursor;
+        });
+
+        mouseClick(page, x + 2, y);
+        tryCompare(sidebar, "statusOpen", false);
+        compare(page.presses, 0);
+        mouseClick(page, x + 2, y);
+        compare(page.presses, 1);
+    }
+
     // A pin is a square holding one chip, with nothing in front of anything to
     // put a speaker before, so it wears the speaker in its top right corner.
     function test_soundingPinWearsItsSpeakerInTheCorner() {
