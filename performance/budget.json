@@ -34,8 +34,8 @@
     },
     "pageload_procedural_hosts_milliseconds": {
       "ceiling": 20.0,
-      "recorded": null,
-      "note": "Not yet recorded."
+      "recorded": 2.8,
+      "note": "The common case with a page that procedural cosmetic rules are written against (ADR 0052): the markup and rules of tests/content-blocking/procedural-rules.json, one rule per operator and action, for both page hosts: 104.7 ms against 101.8 ms. The common case in the same run added 8.3 ms, so what the rules add over it is below what the runner can tell apart. Measured on 2026-09-26 against Arch's qt6-webengine, Secure DNS off, the hosts through dnsmasq with CNAME chains. Four times the difference is 11.2 ms, under the 20 ms floor."
     }
   }
 }
