@@ -19,10 +19,14 @@ namespace omaweb {
 
 class ContentBlocker;
 class GlobalPrivacyControl;
+class HttpsOnly;
 struct RequestDecision;
 
 class QtContentBlocker final : public QObject {
     Q_OBJECT
+    // The HTTPS-only policy the interceptor applies, for a view to ask what
+    // became of a load it upgraded.
+    Q_PROPERTY(QObject *httpsOnly READ httpsOnlyObject CONSTANT)
 
 public:
     // The scheme a substitute is served under. Chromium refuses to redirect a
@@ -55,6 +59,12 @@ public:
     // Whether every request gets the `Sec-GPC: 1` header. Read on whichever
     // thread Chromium runs the interceptor on, hence the atomic.
     bool sendsGlobalPrivacyControl() const;
+    // HTTPS-only mode rides the same interceptor: it is the one place a
+    // page's own address can be changed before the request leaves. Given no
+    // policy, the adapter upgrades nothing.
+    void setHttpsOnly(HttpsOnly *httpsOnly);
+    HttpsOnly *httpsOnly() const;
+    QObject *httpsOnlyObject() const;
 
 signals:
     // A profile attached for the first time. The interceptor is the one
@@ -69,6 +79,7 @@ private:
 
     ContentBlocker *m_contentBlocker;
     const GlobalPrivacyControl *m_globalPrivacyControl;
+    HttpsOnly *m_httpsOnly = nullptr;
     std::atomic<bool> m_sendGlobalPrivacyControl {false};
     // The script that defines `navigator.globalPrivacyControl`, one instance
     // so that the collection it was inserted into can be asked to remove it.

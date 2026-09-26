@@ -54,6 +54,10 @@ QStringList validateEngineViewContract(const QObject &adapter)
         // for the document's own scroller and draws that bar itself, so the
         // adapter reports where the page stands in its own length and takes
         // the two colours the bars inside the page keep the engine drawing.
+        // HTTPS-only mode's account of the load: a failure it owns, for the
+        // shell's own page, and whether the page arrived through an upgrade.
+        {"httpsUpgradeFailure", QMetaType::QVariant},
+        {"arrivedThroughHttpsUpgrade", QMetaType::Bool},
         {"pageScrollOffset", QMetaType::Double},
         {"pageScrollLength", QMetaType::Double},
         {"pageViewportLength", QMetaType::Double},

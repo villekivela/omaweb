@@ -2454,6 +2454,25 @@ bool BrowserController::externalProtocolAllowed(const QUrl &url, const QString &
     return m_store->permissionDecision(m_activeSpaceId, origin, permission) == AllowPersistently;
 }
 
+bool BrowserController::rememberPlainHttp(const QUrl &url)
+{
+    const auto origin = normalizedOrigin(url);
+    if (m_privateBrowsing || origin.isEmpty() || url.scheme() != QStringLiteral("http")) {
+        return false;
+    }
+    return m_store->savePermissionDecision(
+        m_activeSpaceId, origin, QStringLiteral("plain-http"), AllowPersistently);
+}
+
+bool BrowserController::plainHttpRemembered(const QString &spaceId, const QString &origin) const
+{
+    if (m_privateBrowsing || !m_ready || spaceId.isEmpty() || origin.isEmpty()) {
+        return false;
+    }
+    return m_store->permissionDecision(spaceId, origin, QStringLiteral("plain-http"))
+        == AllowPersistently;
+}
+
 bool BrowserController::rememberExternalProtocolDecision(const QUrl &url, const QString &scheme)
 {
     const auto origin = normalizedOrigin(url);

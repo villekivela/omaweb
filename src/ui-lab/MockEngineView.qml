@@ -145,6 +145,19 @@ Rectangle {
     property string certificateErrorOrigin: ""
     property bool lastLoadFailed: false
     property bool lastLoadNameUnresolved: false
+    // The lab loads nothing, so an upgrade that failed is named by hand with
+    // `simulateHttpsUpgradeFailure`, and a navigation clears it as a load
+    // would.
+    property var httpsUpgradeFailure: ({})
+    property bool arrivedThroughHttpsUpgrade: false
+    function simulateHttpsUpgradeFailure(plainUrl, reason, error) {
+        root.httpsUpgradeFailure = {
+            "plainUrl": plainUrl,
+            "host": String(plainUrl).replace(/^[a-z]+:\/\//, "").split(/[/:?#]/)[0],
+            "reason": reason,
+            "error": error
+        };
+    }
     readonly property string connectionState: {
         const address = String(root.currentUrl);
         const separator = address.indexOf("://");
@@ -408,6 +421,7 @@ Rectangle {
             root.certificateErrorOrigin = "";
         }
         pageLocalState = "";
+        root.httpsUpgradeFailure = ({});
         // The matches were in the page that has just been replaced. The query
         // is the reader's and stays.
         root.forgetFindMatches();

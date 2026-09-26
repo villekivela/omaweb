@@ -3,6 +3,7 @@
 #include "ContentBlocker.h"
 #include "ContentMatcher.h"
 #include "GlobalPrivacyControl.h"
+#include "HttpsOnly.h"
 
 #include <QBuffer>
 #include <QQuickWebEngineProfile>
@@ -90,6 +91,30 @@ namespace {
             if (m_contentBlocker->sendsGlobalPrivacyControl()) {
                 info.setHttpHeader(
                     GlobalPrivacyControl::headerName(), GlobalPrivacyControl::headerValue());
+            }
+            // The page's own address only; its subresources are the engine's
+            // mixed-content policy's. A redirect the upgrade makes comes
+            // through here again as the request that goes.
+            auto *httpsOnly = m_contentBlocker->httpsOnly();
+            if (httpsOnly
+                && info.resourceType() == QWebEngineUrlRequestInfo::ResourceTypeMainFrame) {
+                const auto url = info.requestUrl();
+                if (httpsOnly->refusesDowngrade(url, m_spaceId)) {
+                    info.block(true);
+                    return;
+                }
+                const auto upgraded = httpsOnly->upgrade(url, m_spaceId);
+                if (upgraded.isValid()) {
+                    // Chromium drops a redirect on a request carrying a body,
+                    // which would send the form in the clear after all.
+                    if (info.requestMethod() == "GET") {
+                        info.redirect(upgraded);
+                    } else {
+                        httpsOnly->refuse(url, m_spaceId);
+                        info.block(true);
+                    }
+                    return;
+                }
             }
 #if OMAWEB_CNAME_UNCLOAKING
             // Empty on the first call. The engine calls again with the names in
@@ -196,6 +221,12 @@ QtContentBlocker::QtContentBlocker(ContentBlocker *contentBlocker,
         applyGlobalPrivacyControl();
     }
 }
+
+void QtContentBlocker::setHttpsOnly(HttpsOnly *httpsOnly) { m_httpsOnly = httpsOnly; }
+
+HttpsOnly *QtContentBlocker::httpsOnly() const { return m_httpsOnly; }
+
+QObject *QtContentBlocker::httpsOnlyObject() const { return m_httpsOnly; }
 
 bool QtContentBlocker::sendsGlobalPrivacyControl() const
 {

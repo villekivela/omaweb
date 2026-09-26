@@ -364,6 +364,16 @@ public:
     Q_INVOKABLE bool mayOfferCertificateException(
         const QUrl &url, bool overridable, bool mainFrame, bool fatal) const;
     Q_INVOKABLE bool localDevelopmentSite(const QUrl &url) const;
+    // The hosts a Local-development site is recognised by: an IP literal,
+    // `localhost` and the `.localhost` and `.test` names. The Omnibar sends a
+    // typed one over plain HTTP, and HTTPS-only mode leaves one alone.
+    static bool localDevelopmentHost(const QString &host);
+    // The reader chose plain HTTP for this site in HTTPS-only mode, for good,
+    // in the active Space. A Private window writes nothing down. Kept with
+    // the site's permissions, so resetting them takes it back.
+    Q_INVOKABLE bool rememberPlainHttp(const QUrl &url);
+    // Whether the reader chose plain HTTP for `origin` in `spaceId`.
+    Q_INVOKABLE bool plainHttpRemembered(const QString &spaceId, const QString &origin) const;
     // The reader let one through. Engines remember an accepted certificate for
     // as long as their profile lives and offer no way to take it back, so the
     // grant is recorded here — in memory, for this Space, for this session — to
@@ -522,7 +532,6 @@ private:
         QSharedPointer<SessionSiteState> sessionSiteState, QString configRoot, QObject *parent);
 
     QString sessionPermissionKey(const QString &origin, const QString &permission) const;
-    static bool localDevelopmentHost(const QString &host);
 
     // The window's session. Which adapter it is answers "does a Private
     // window write this down", so no call site asks.

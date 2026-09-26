@@ -565,6 +565,35 @@ TestCase {
     }
 
     QtObject {
+        id: httpsOnlyStub
+
+        property bool enabled: true
+    }
+
+    // HTTPS-only mode is one switch for the whole browser under privacy,
+    // bound to the browser's answer like the switch beside it.
+    function test_httpsOnlyModeIsOneSwitchUnderPrivacy() {
+        const page = makePage();
+        page.section = page.sections.indexOf("privacy");
+        const toggle = findChild(page, "httpsOnly");
+        verify(toggle !== null);
+        verify(!toggle.visible);
+
+        httpsOnlyStub.enabled = true;
+        page.httpsOnly = httpsOnlyStub;
+        verify(toggle.visible);
+        verify(toggle.checked);
+        settleAction(toggle);
+        mouseClick(toggle, toggle.width / 2, toggle.height / 2);
+        tryVerify(function () {
+            return !httpsOnlyStub.enabled;
+        });
+        verify(!toggle.checked);
+        httpsOnlyStub.enabled = true;
+        verify(toggle.checked);
+    }
+
+    QtObject {
         id: secureDnsStub
 
         property string resolver: ""

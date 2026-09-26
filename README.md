@@ -154,6 +154,9 @@ cookies, browsing history, downloads, site permissions, and every Private window
 The [Sync privacy page](https://omaweb.app/sync) states the full boundary and the forge permissions
 it asks for.
 
+HTTPS-only mode is on by default: a page's own address goes over HTTPS whoever wrote the link, and
+Omaweb asks before loading a site that cannot be reached that way over plain HTTP.
+
 Each page runs in a sandboxed renderer. Omaweb refuses to start if its command line disables the
 sandbox or the Linux host cannot meet the sandbox requirements. An ordinary session opens no
 listening socket.

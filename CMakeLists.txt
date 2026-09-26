@@ -202,6 +202,8 @@ add_library(omaweb-core STATIC
     src/core/FontSettings.cpp
     src/core/FontSettings.h
     src/core/GlobalPrivacyControl.cpp
+    src/core/HttpsOnly.cpp
+    src/core/HttpsOnly.h
     src/core/GlobalPrivacyControl.h
     src/core/SecureDns.cpp
     src/core/SecureDns.h
@@ -590,6 +592,7 @@ set(omaweb_ui_files
     src/ui/ReleaseMark.qml
     src/ui/SpaceOutline.qml
     src/ui/SpaceProfiles.qml
+    src/ui/HttpsOnlyPage.qml
     src/ui/StartPage.qml
     src/ui/TabEngineHost.qml
     src/ui/TabRow.qml
@@ -1085,6 +1088,11 @@ if(BUILD_TESTING)
     target_link_libraries(omaweb-global-privacy-control-tests PRIVATE omaweb-core Qt6::Test)
     omaweb_strict_target(omaweb-global-privacy-control-tests)
     add_test(NAME omaweb-global-privacy-control COMMAND omaweb-global-privacy-control-tests)
+
+    qt_add_executable(omaweb-https-only-tests tests/core/tst_httpsonly.cpp)
+    target_link_libraries(omaweb-https-only-tests PRIVATE omaweb-core Qt6::Test)
+    omaweb_strict_target(omaweb-https-only-tests)
+    add_test(NAME omaweb-https-only COMMAND omaweb-https-only-tests)
 
     qt_add_executable(omaweb-secure-dns-tests tests/core/tst_securedns.cpp)
     target_link_libraries(omaweb-secure-dns-tests PRIVATE omaweb-core Qt6::Test)

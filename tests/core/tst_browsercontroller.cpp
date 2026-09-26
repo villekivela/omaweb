@@ -133,6 +133,7 @@ private slots:
     void endsThirdPartyCookieAllowancesWithTheirSpaceAndPrivateSession();
     void measuresTheSiteDataHeldForOneSpace();
     void scopesExternalProtocolDecisionsToOriginSchemeSpaceAndPrivateSession();
+    void remembersPlainHttpPerOriginAndSpaceButNotInPrivate();
     void configuresOneDownloadDirectoryForEveryWindow();
     void persistsInterfacePreferencesOutsidePrivateBrowsing();
     void attachesOneInspectorToOneTab();
@@ -1622,6 +1623,30 @@ void BrowserControllerTest::scopesPermissionDecisionsToOriginSpaceAndLifetime()
     QCOMPARE(restored.permissionDecision(
                  QUrl(QStringLiteral("https://once.example")), QStringLiteral("notifications")),
         BrowserController::Ask);
+}
+
+// HTTPS-only mode's "always for this site" is kept with the site's
+// permissions in the Space it was given in, and a Private window keeps none.
+void BrowserControllerTest::remembersPlainHttpPerOriginAndSpaceButNotInPrivate()
+{
+    QTemporaryDir root;
+    BrowserController controller(SpaceStorage(root.path(), QStringLiteral("test")));
+    const auto personalSpaceId = controller.activeSpaceId();
+    const auto workSpaceId = controller.createSpace(QStringLiteral("Work"));
+
+    QVERIFY(!controller.rememberPlainHttp(QUrl(QStringLiteral("https://plain.example/"))));
+    QVERIFY(controller.rememberPlainHttp(QUrl(QStringLiteral("http://Plain.example/page"))));
+    QVERIFY(
+        controller.plainHttpRemembered(personalSpaceId, QStringLiteral("http://plain.example")));
+    QVERIFY(!controller.plainHttpRemembered(workSpaceId, QStringLiteral("http://plain.example")));
+    QVERIFY(
+        !controller.plainHttpRemembered(personalSpaceId, QStringLiteral("http://other.example")));
+
+    PrivateSessionFixture privateSession;
+    auto privateController = privateSession.createController();
+    QVERIFY(!privateController->rememberPlainHttp(QUrl(QStringLiteral("http://plain.example/"))));
+    QVERIFY(
+        !privateController->plainHttpRemembered(QString(), QStringLiteral("http://plain.example")));
 }
 
 void BrowserControllerTest::scopesExternalProtocolDecisionsToOriginSchemeSpaceAndPrivateSession()
