@@ -7,6 +7,8 @@ Rectangle {
 
     property url currentUrl: "about:blank"
     property bool blurReviewPattern: false
+    // Draws the stand-in document below instead of the lab's own card.
+    property bool documentReview: false
     // `--browse` asks for the browser in use: a web address draws a sample
     // page, in the page palette a themed site would take, instead of saying
     // no engine is running. The lab's own reviews keep the plain view.
@@ -274,7 +276,7 @@ Rectangle {
     signal browserPromptRequested(string requestId, var prompt)
     signal fileSelectionRequested(string requestId, var selection)
     signal printFinished(string destination, bool succeeded)
-    signal pageCaptured(string destination, bool succeeded)
+    signal pageCaptured(string destination, bool succeeded, string reason)
     signal userActivated
     property rect pressOrigin: Qt.rect(0, 0, 0, 0)
     function simulatePress(x, y, width, height) {
@@ -520,14 +522,65 @@ Rectangle {
     // engine's page would be: the view alone, at the display's pixel density.
     function capturePage(destination) {
         const path = String(destination);
-        // Grabbed at the item's own size, which the scene renders at the
-        // window's pixel density.
         const grabbing = path.length > 0 && root.width > 0 && root.height > 0 && root.grabToImage(
                   function (result) {
-                      root.pageCaptured(path, result.saveToFile(path));
+                      root.pageCaptured(path, result.saveToFile(path), "");
                   });
         if (!grabbing)
-            root.pageCaptured(path, false);
+            root.pageCaptured(path, false, "");
+    }
+
+    // The whole stand-in document, taken the way the engine takes a page: a
+    // screenful at a time, scrolled, grabbed and joined, and scrolled back.
+    // With no document set the page is one screenful long.
+    function capturePageFully(destination) {
+        const path = String(destination);
+        const viewport = root.height;
+        const length = Math.max(root.pageScrollLength, viewport);
+        if (path.length === 0 || !(viewport > 0)) {
+            root.pageCaptured(path, false, "");
+            return;
+        }
+        const ratio = root.Screen.devicePixelRatio > 0 ? root.Screen.devicePixelRatio : 1;
+        const tall = Math.round(length * ratio);
+        if (tall > PageImages.heightLimit) {
+            root.pageCaptured(path, false, "The page is " + tall
+                              + " pixels tall, and a screenshot holds " + PageImages.heightLimit);
+            return;
+        }
+        const tops = [];
+        for (let top = 0; top < length; top += viewport) {
+            const clamped = Math.max(0, Math.min(top, length - viewport));
+            if (tops.indexOf(clamped) < 0)
+                tops.push(clamped);
+        }
+        const kept = root.pageScrollOffset;
+        const strips = [];
+        const step = function (index) {
+            if (index >= tops.length) {
+                root.pageScrollOffset = kept;
+                root.pageCaptured(path, PageImages.join(strips, tops, length, viewport, path), "");
+                return;
+            }
+            root.pageScrollOffset = tops[index];
+            const strip = PageImages.reserveStrip();
+            const grabbing = root.grabToImage(function (result) {
+                strips.push(strip);
+                if (result.saveToFile(strip)) {
+                    step(index + 1);
+                } else {
+                    PageImages.join(strips, [], 0, 0, "");
+                    root.pageScrollOffset = kept;
+                    root.pageCaptured(path, false, "");
+                }
+            });
+            if (!grabbing) {
+                PageImages.join(strips, [], 0, 0, "");
+                root.pageScrollOffset = kept;
+                root.pageCaptured(path, false, "");
+            }
+        };
+        step(0);
     }
 
     function exitSiteFullscreen() {
@@ -689,6 +742,31 @@ Rectangle {
         }
     }
 
+    // A stand-in document as long as `pageScrollLength`, in bands a hundred
+    // points tall that alternate colour, scrolled by `pageScrollOffset`, so a
+    // review can tell one part of a long page from another.
+    Item {
+        anchors.fill: parent
+        clip: true
+        visible: root.documentReview
+
+        Column {
+            y: -root.pageScrollOffset
+            width: parent.width
+
+            Repeater {
+                model: Math.ceil(root.pageScrollLength / 100)
+
+                Rectangle {
+                    required property int index
+                    width: parent.width
+                    height: 100
+                    color: index % 2 === 0 ? "#d9f2e6" : "#3a1d4f"
+                }
+            }
+        }
+    }
+
     Rectangle {
         anchors.centerIn: parent
         width: 160
@@ -709,7 +787,7 @@ Rectangle {
     Column {
         anchors.centerIn: parent
         spacing: 10
-        visible: !root.samplePage
+        visible: !root.samplePage && !root.documentReview
 
         Text {
             anchors.horizontalCenter: parent.horizontalCenter

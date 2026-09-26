@@ -247,7 +247,7 @@ Item {
     readonly property bool siteFullscreenActive: root.fullscreenEngine !== null
 
     signal printFinished(string destination, bool succeeded)
-    signal pageCaptured(string destination, bool succeeded)
+    signal pageCaptured(string destination, bool succeeded, string reason)
     signal auxiliaryWindowRequested(var engine, var request, url requestedUrl)
     signal newTabRequested(var engine, var request, url requestedUrl)
     signal backgroundTabRequested(url requestedUrl)
@@ -368,7 +368,14 @@ Item {
         if (root.activeEngine)
             root.activeEngine.capturePage(destination);
         else
-            root.pageCaptured(destination, false);
+            root.pageCaptured(destination, false, "");
+    }
+
+    function capturePageFully(destination) {
+        if (root.activeEngine)
+            root.activeEngine.capturePageFully(destination);
+        else
+            root.pageCaptured(destination, false, "");
     }
 
     function exitSiteFullscreen() {
@@ -1197,8 +1204,8 @@ Item {
                     root.printFinished(destination, succeeded);
                 }
 
-                function onPageCaptured(destination, succeeded) {
-                    root.pageCaptured(destination, succeeded);
+                function onPageCaptured(destination, succeeded, reason) {
+                    root.pageCaptured(destination, succeeded, reason);
                 }
 
                 // The frontend's own close button, which is the reader saying

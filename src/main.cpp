@@ -3,6 +3,7 @@
 #include "ReleaseWatch.h"
 #include "EngineBuild.h"
 #include "EngineCapabilities.h"
+#include "PageImages.h"
 #include "EnginePaths.h"
 #include "DefaultBrowser.h"
 #include "DevelopmentLaunch.h"
@@ -388,6 +389,7 @@ int main(int argc, char *argv[])
     omaweb::registerFontSettings();
     omaweb::registerEngineCapabilities();
     omaweb::registerEngineBuild();
+    omaweb::registerPageImages();
     omaweb::registerDefaultBrowser();
     omaweb::registerSystemClipboard();
     omaweb::registerExternalProtocolHandler();

@@ -5,6 +5,7 @@
 #include "WebRtcPolicy.h"
 #include "ReleaseWatch.h"
 #include "EngineCapabilities.h"
+#include "PageImages.h"
 #include "FaviconTint.h"
 #include "FontSettings.h"
 #include "DefaultBrowser.h"
@@ -338,6 +339,7 @@ int main(int argc, char *argv[])
     omaweb::registerFaviconTint();
     omaweb::registerFontSettings();
     omaweb::registerEngineCapabilities();
+    omaweb::registerPageImages();
     omaweb::registerDefaultBrowser();
     omaweb::registerSystemClipboard();
     omaweb::registerExternalProtocolHandler();

@@ -205,7 +205,7 @@ Item {
     // about it: a print that produced nothing is not a print that quietly
     // didn't happen.
     signal printFinished(string destination, bool succeeded)
-    signal pageCaptured(string destination, bool succeeded)
+    signal pageCaptured(string destination, bool succeeded, string reason)
     // The reader dealt with this page themselves. What that earns the origin is
     // the shell's to decide and remember; the adapter only reports it.
     signal userActivated
@@ -744,10 +744,151 @@ Item {
         // window's pixel density.
         const grabbing = path.length > 0 && webView.width > 0 && webView.height > 0
               && webView.grabToImage(function (result) {
-                  root.pageCaptured(path, result.saveToFile(path));
+                  root.pageCaptured(path, result.saveToFile(path), "");
               });
         if (!grabbing)
-            root.pageCaptured(path, false);
+            root.pageCaptured(path, false, "");
+    }
+
+    // The whole page, a screenful at a time. A view draws only what fits in
+    // it, so the page is scrolled to each part in turn, the part grabbed, and
+    // the parts joined. What the page fixes to the viewport would be in every
+    // part, so after the first it is hidden; it is shown again, and the page
+    // scrolled back to where the reader left it, once the last part is in.
+    // The page's own scripts see the scroll, as they would the reader's. The
+    // bookkeeping lives in the application world, where the page cannot reach
+    // it. A page taller than a screenshot holds is refused before anything
+    // moves, rather than cut short.
+    property var fullCapture: null
+    readonly property string fullCaptureMeasureSnippet: `(() => {
+        globalThis.__omawebFullCapture = { x: scrollX, y: scrollY, hidden: [] };
+        const root = document.scrollingElement || document.documentElement;
+        return { height: root.scrollHeight, viewport: innerHeight };
+    })()`
+    function fullCaptureStepSnippet(top, hideFixed) {
+        return `(() => {
+            const state = globalThis.__omawebFullCapture;
+            if (${hideFixed} && state.hidden.length === 0) {
+                for (const element of document.querySelectorAll("body *")) {
+                    const position = getComputedStyle(element).position;
+                    if (position !== "fixed" && position !== "sticky") continue;
+                    state.hidden.push([element, element.style.getPropertyValue("visibility"),
+                                       element.style.getPropertyPriority("visibility")]);
+                    element.style.setProperty("visibility", "hidden", "important");
+                }
+            }
+            scrollTo(state.x, ${top});
+            return scrollY;
+        })()`;
+    }
+    readonly property string fullCaptureRestoreSnippet: `(() => {
+        const state = globalThis.__omawebFullCapture;
+        if (!state) return;
+        for (const [element, value, priority] of state.hidden)
+            element.style.setProperty("visibility", value, priority);
+        scrollTo(state.x, state.y);
+        delete globalThis.__omawebFullCapture;
+    })()`
+
+    // The page's frame for a scroll reaches the window's scene a little after
+    // the page has scrolled, so each part waits this long before it is grabbed.
+    Timer {
+        id: fullCaptureSettle
+
+        property var then: null
+
+        interval: 150
+        onTriggered: {
+            const then = fullCaptureSettle.then;
+            fullCaptureSettle.then = null;
+            if (then)
+                then();
+        }
+    }
+
+    function capturePageFully(destination) {
+        const path = String(destination);
+        if (path.length === 0 || root.fullCapture || !(webView.width > 0 && webView.height > 0)) {
+            root.pageCaptured(path, false, "");
+            return;
+        }
+        root.fullCapture = {
+            "path": path,
+            "strips": [],
+            "scrolled": [],
+            "tops": []
+        };
+        webView.runJavaScript(root.fullCaptureMeasureSnippet, WebEngineScript.ApplicationWorld,
+                              function (page) {
+                                  if (!page || !(page.viewport > 0)) {
+                                      root.finishFullCapture(false, "");
+                                      return;
+                                  }
+                                  const capture = root.fullCapture;
+                                  capture.height = page.height;
+                                  capture.viewport = page.viewport;
+                                  // Device pixels to a CSS pixel, zoom and density both.
+                                  const ratio = webView.zoomFactor * (
+                                            webView.Screen.devicePixelRatio > 0
+                                            ? webView.Screen.devicePixelRatio : 1);
+                                  const tall = Math.round(page.height * ratio);
+                                  if (tall > PageImages.heightLimit) {
+                                      root.finishFullCapture(false, "The page is " + tall
+                                                             + " pixels tall, and a screenshot holds "
+                                                             + PageImages.heightLimit);
+                                      return;
+                                  }
+                                  capture.tops = [];
+                                  for (let top = 0; top < page.height; top += page.viewport) {
+                                      const clamped = Math.max(0, Math.min(top, page.height
+                                                                           - page.viewport));
+                                      if (capture.tops.indexOf(clamped) < 0)
+                                          capture.tops.push(clamped);
+                                  }
+                                  root.captureFullStrip(0);
+                              });
+    }
+    function captureFullStrip(index) {
+        const capture = root.fullCapture;
+        if (!capture)
+            return;
+        if (index >= capture.tops.length) {
+            root.joinFullCapture();
+            return;
+        }
+        webView.runJavaScript(root.fullCaptureStepSnippet(capture.tops[index], index > 0),
+                              WebEngineScript.ApplicationWorld, function (scrolled) {
+                                  fullCaptureSettle.then = function () {
+                                      const strip = PageImages.reserveStrip();
+                                      const grabbing = webView.grabToImage(function (result) {
+                                          capture.strips.push(strip);
+                                          capture.scrolled.push(Number(scrolled));
+                                          if (result.saveToFile(strip))
+                                              root.captureFullStrip(index + 1);
+                                          else
+                                              root.finishFullCapture(false, "");
+                                      });
+                                      if (!grabbing)
+                                          root.finishFullCapture(false, "");
+                                  };
+                                  fullCaptureSettle.restart();
+                              });
+    }
+    function joinFullCapture() {
+        const capture = root.fullCapture;
+        root.finishFullCapture(PageImages.join(capture.strips, capture.scrolled, capture.height,
+                                               capture.viewport, capture.path), "");
+    }
+    function finishFullCapture(succeeded, reason) {
+        const path = root.fullCapture ? root.fullCapture.path : "";
+        // A capture that stopped part way leaves its strips behind; joining
+        // nothing removes them.
+        if (!succeeded && root.fullCapture && root.fullCapture.strips.length > 0)
+            PageImages.join(root.fullCapture.strips, [], 0, 0, "");
+        root.fullCapture = null;
+        webView.runJavaScript(root.fullCaptureRestoreSnippet, WebEngineScript.ApplicationWorld,
+                              function () {});
+        root.pageCaptured(path, succeeded, reason);
     }
 
     // Who a request came from, as the reader would recognise them. The engine

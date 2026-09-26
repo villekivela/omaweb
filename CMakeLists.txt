@@ -418,11 +418,13 @@ add_library(omaweb-engine-api STATIC
     src/engine/api/EngineViewContract.h
     src/engine/api/EngineBuild.cpp
     src/engine/api/EngineBuild.h
+    src/engine/api/PageImages.cpp
+    src/engine/api/PageImages.h
     src/engine/api/QmlContract.cpp
     src/engine/api/QmlContract.h
 )
 target_include_directories(omaweb-engine-api PUBLIC src/engine/api)
-target_link_libraries(omaweb-engine-api PUBLIC Qt6::Core Qt6::Qml)
+target_link_libraries(omaweb-engine-api PUBLIC Qt6::Core Qt6::Gui Qt6::Qml)
 target_compile_definitions(omaweb-engine-api PUBLIC
     OMAWEB_KNOWN_EXTENSIONS=$<BOOL:${OMAWEB_KNOWN_EXTENSIONS}>
     OMAWEB_CNAME_UNCLOAKING=$<BOOL:${OMAWEB_CNAME_UNCLOAKING}>)
@@ -1108,6 +1110,11 @@ if(BUILD_TESTING)
     target_link_libraries(omaweb-font-settings-tests PRIVATE omaweb-core Qt6::Test)
     omaweb_strict_target(omaweb-font-settings-tests)
     add_test(NAME omaweb-font-settings COMMAND omaweb-font-settings-tests)
+
+    qt_add_executable(omaweb-page-images-tests tests/engine/tst_pageimages.cpp)
+    target_link_libraries(omaweb-page-images-tests PRIVATE omaweb-engine-api Qt6::Gui Qt6::Test)
+    omaweb_strict_target(omaweb-page-images-tests)
+    add_test(NAME omaweb-page-images COMMAND omaweb-page-images-tests)
 
     qt_add_executable(omaweb-content-blocker-tests
         tests/content-blocking/tst_contentmatcher.cpp

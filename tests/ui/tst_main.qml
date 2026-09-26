@@ -1,6 +1,7 @@
 import QtQuick
 import QtTest
 import Omaweb
+import Omaweb.Engine
 import "../../src/ui" as Omaweb
 
 TestCase {
@@ -6297,6 +6298,70 @@ TestCase {
         browser.setDownloadDirectory(previous);
     }
 
+    // Screenshot full page takes the whole document, top to bottom, including
+    // what was below the fold, and leaves the reader where they were. The
+    // stand-in document is drawn in bands a hundred points tall that alternate
+    // colour, so a probe well below the first screenful tells which band it
+    // landed in.
+    function test_screenshotFullPageTakesWhatWasBelowTheFold() {
+        const directory = imageProbe.directory("full-page");
+        const previous = browser.downloadDirectory;
+        verify(browser.setDownloadDirectory(directory));
+        const engine = openPage("https://capture.example/long");
+        const notice = findChild(window.contentItem, "pageNotice");
+        engine.documentReview = true;
+        engine.pageScrollLength = Math.ceil(engine.height * 2.5 / 100) * 100;
+        engine.pageScrollOffset = 37;
+
+        window.commands.run("screenshot-full-page", -1);
+        tryVerify(function () {
+            return imageProbe.files(directory).length === 1;
+        });
+        const path = directory + "/" + imageProbe.files(directory)[0];
+        tryCompare(notice, "message", "Saved " + imageProbe.files(directory)[0]);
+        compare(engine.pageScrollOffset, 37);
+
+        const ratio = engine.Screen.devicePixelRatio > 0 ? engine.Screen.devicePixelRatio : 1;
+        const size = imageProbe.size(path);
+        compare(size.width, Math.round(engine.width * ratio));
+        compare(size.height, Math.round(engine.pageScrollLength * ratio));
+        // The last band starts below everything the first screenful showed.
+        const lastBand = engine.pageScrollLength / 100 - 1;
+        verify(lastBand * 100 > engine.height);
+        const below = Math.round((lastBand * 100 + 50) * ratio);
+        verify(Qt.colorEqual(imageProbe.pixel(path, 4, below), lastBand % 2 === 0 ? "#d9f2e6" :
+                                                                                    "#3a1d4f"));
+        verify(Qt.colorEqual(imageProbe.pixel(path, 4, below - Math.round(100 * ratio)), lastBand
+                             % 2 === 0 ? "#3a1d4f" : "#d9f2e6"));
+        verify(Qt.colorEqual(imageProbe.pixel(path, 4, Math.round(50 * ratio)), "#d9f2e6"));
+
+        engine.documentReview = false;
+        engine.pageScrollLength = 0;
+        engine.pageScrollOffset = 0;
+        notice.dismiss();
+        browser.setDownloadDirectory(previous);
+    }
+
+    // A page taller than a screenshot can hold is reported, naming the limit,
+    // and nothing is left behind in the downloads location.
+    function test_aPageTooTallForAScreenshotIsReported() {
+        const directory = imageProbe.directory("too-tall");
+        const previous = browser.downloadDirectory;
+        verify(browser.setDownloadDirectory(directory));
+        const engine = openPage("https://capture.example/endless");
+        const notice = findChild(window.contentItem, "pageNotice");
+        engine.pageScrollLength = 40000;
+
+        window.commands.run("screenshot-full-page", -1);
+        tryCompare(notice, "message", "Screenshot failed");
+        verify(notice.detail.indexOf(String(PageImages.heightLimit)) >= 0, notice.detail);
+        compare(imageProbe.files(directory).length, 0);
+
+        engine.pageScrollLength = 0;
+        notice.dismiss();
+        browser.setDownloadDirectory(previous);
+    }
+
     // A tab with no page has nothing to capture, and the reader is told so
     // rather than handed a picture of Omaweb's own Start page.
     function test_aScreenshotOfNoPageSaysWhy() {
@@ -6310,6 +6375,8 @@ TestCase {
         tryCompare(notice, "message", "Screenshot page is not available");
         window.commands.run("copy-screenshot", -1);
         tryCompare(notice, "message", "Copy screenshot is not available");
+        window.commands.run("screenshot-full-page", -1);
+        tryCompare(notice, "message", "Screenshot full page is not available");
         browser.closeTab(blankTabId);
         notice.dismiss();
     }

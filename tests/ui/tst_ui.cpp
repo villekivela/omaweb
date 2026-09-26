@@ -2,6 +2,7 @@
 #include "ContentBlocker.h"
 #include "EngineBuild.h"
 #include "EngineCapabilities.h"
+#include "PageImages.h"
 #include "FaviconTint.h"
 #include "ExternalProtocolHandler.h"
 #include "InputMethod.h"
@@ -133,6 +134,7 @@ public slots:
         omaweb::registerFontSettings();
         omaweb::registerEngineCapabilities();
         omaweb::registerEngineBuild();
+        omaweb::registerPageImages();
         omaweb::registerSystemClipboard();
         omaweb::registerExternalProtocolHandler();
         omaweb::registerPagePrinter();

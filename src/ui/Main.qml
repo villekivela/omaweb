@@ -1405,11 +1405,15 @@ ApplicationWindow {
     // the downloads list, or the clipboard.
     property var pendingCaptures: ({})
 
-    // The page area as the engine drew it, saved into the downloads location
-    // or copied. A tab with no page has nothing to capture, and says so rather
-    // than saving a picture of Omaweb's own Start page.
-    function screenshotPage(toClipboard) {
-        const command = toClipboard ? "Copy screenshot" : "Screenshot page";
+    // The page area as the engine drew it, or with `fully` the whole page
+    // from top to bottom, saved into the downloads location or copied. A tab
+    // with no page has nothing to capture, and says so rather than saving a
+    // picture of Omaweb's own Start page.
+    function screenshotPage(toClipboard, fully) {
+        const command = fully ? (toClipboard ? "Copy full-page screenshot" :
+                                               "Screenshot full page") : (toClipboard
+                                                                          ? "Copy screenshot" :
+                                                                            "Screenshot page");
         if (!engineLoader.item || window.windowBrowser.activeTabBlank) {
             window.showNotice("block", command + " is not available", engineLoader.item
                               ? "The Start page is not a page to capture" :
@@ -1430,16 +1434,20 @@ ApplicationWindow {
             "clipboard": toClipboard,
             "page": window.windowBrowser.activeUrl
         };
-        engineLoader.capturePage(destination);
+        if (fully)
+            engineLoader.capturePageFully(destination);
+        else
+            engineLoader.capturePage(destination);
     }
 
-    function presentCapture(destination, succeeded) {
+    function presentCapture(destination, succeeded, reason) {
         const capture = window.pendingCaptures[destination];
         if (!capture)
             return;
         delete window.pendingCaptures[destination];
         if (!succeeded) {
-            window.showNotice("error", "Screenshot failed", "The page could not be captured");
+            window.showNotice("error", "Screenshot failed", String(reason || "").length > 0
+                              ? reason : "The page could not be captured");
             return;
         }
         if (!capture.clipboard) {
@@ -2550,8 +2558,8 @@ ApplicationWindow {
                         window.presentPrint(destination, succeeded);
                     }
 
-                    onPageCaptured: function (destination, succeeded) {
-                        window.presentCapture(destination, succeeded);
+                    onPageCaptured: function (destination, succeeded, reason) {
+                        window.presentCapture(destination, succeeded, reason);
                     }
 
                     // A site taking the screen is a state the window is in, not
