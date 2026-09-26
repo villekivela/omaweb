@@ -78,8 +78,10 @@ and a dialog over it: `--show settings:<section>` opens one of `tabs`, `keyboard
 `--show settings:privacy:clear` stands the clear-browsing-data dialog on Privacy. Naming the section
 is how a layout change is reviewed at a font size the page was not written at: point
 `OMAWEB_THEME_FILE` at a theme whose `font.size` is larger and capture each section in turn.
-`--show site` opens Site information, which is a click on the address trigger. Pass `--tabs` to seed
-the Space with a day's worth of tabs, some of them pinned: the lab otherwise comes up on a Space at
+`--show site` opens Site information, which is a click on the address trigger.
+`--tabs --show permission` has the last seeded tab's page ask for notifications, so the question bar
+stands over it; add `--private` to read the Private window's wording. Pass `--tabs` to seed the
+Space with a day's worth of tabs, some of them pinned: the lab otherwise comes up on a Space at
 rest, which draws neither the Pinned section nor the tab list, so the sidebar is the one part of the
 chrome a capture cannot reach. The blank tab stays the one on show, so the viewport still draws the
 Start page, unless `--browse` is passed too: then a documentation tab is on show and the lab's
