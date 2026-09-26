@@ -226,6 +226,10 @@ reports the gap and remains experimental rather than imitating behavior it canno
   page keeps the player and yields it to a tab that is still playing; a page that stops playing
   withdraws it. A Private window announces playback and the controls, and nothing that says what is
   playing.
+- Picture-in-picture is unavailable on the Qt engine. A video's controls offer no picture-in-picture
+  button, `document.pictureInPictureEnabled` is false, and a page's `requestPictureInPicture()` is
+  rejected with a `NotSupportedError` the page can catch. The floating window waits for an engine
+  that surfaces the request.
 - Video decodes on the GPU where the host has a working VA-API driver, and in software where it has
   none. A missing driver is not a refusal to start, and the driver packages are `optdepends` rather
   than dependencies because which one a host needs depends on its GPU.
@@ -559,6 +563,8 @@ that resource at the page's next load.
   works around sites that turn away browsers other than Chrome
 - Print preview: the desktop print dialog owns preview and PDF output
 - DRM streaming and proprietary media codecs before distribution review
+- Picture-in-picture on the Qt engine: QtWebEngine turns it off in every page and offers no way to
+  draw a video outside its page ([research](../research/picture-in-picture.md))
 - USB, Bluetooth, serial, or MIDI permissions
 - macOS distribution
 - AppImage or Flatpak packaging
