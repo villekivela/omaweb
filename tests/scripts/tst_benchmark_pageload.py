@@ -9,8 +9,11 @@ The launch itself needs a Wayland session and a DNS server and runs in CI's budg
 
 from __future__ import annotations
 
+import json
+import os
 import statistics
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -21,7 +24,11 @@ import benchmark_runtime as runtime  # noqa: E402
 
 
 def measured(plan, case):
-    return [load for load in plan if load.case == case and load.measured]
+    return [load for load in plan if load.case == case and load.measured and not load.spare]
+
+
+def sequence(plan, case):
+    return [load for load in plan if load.case == case and not load.spare]
 
 
 def chain(zone: str, host: str) -> list[str]:
@@ -65,7 +72,7 @@ class PlanTest(unittest.TestCase):
 
     def test_each_case_warms_up_both_modes_before_it_measures(self):
         for case in runtime.PAGELOAD_CASES:
-            loads = [load for load in self.plan if load.case == case]
+            loads = sequence(self.plan, case)
             warm = [load for load in loads if not load.measured]
             self.assertEqual({load.mode for load in warm}, {"on", "off"})
             first_measured = next(i for i, load in enumerate(loads) if load.measured)
@@ -87,6 +94,14 @@ class PlanTest(unittest.TestCase):
         for load in loads:
             self.assertEqual({runtime.host_of(image) for image in load.images}, first)
 
+    def test_every_case_and_mode_has_spares_to_repeat_a_load_with(self):
+        for case in runtime.PAGELOAD_CASES:
+            for mode in ("on", "off"):
+                spares = [load for load in self.plan
+                          if load.spare and load.case == case and load.mode == mode]
+                self.assertEqual(len(spares), runtime.PAGELOAD_SPARES)
+                self.assertTrue(all(load.measured for load in spares))
+
     def test_no_two_loads_ask_for_the_same_image(self):
         addresses = [image for load in self.plan for image in load.images]
         self.assertEqual(len(addresses), len(set(addresses)))
@@ -101,6 +116,59 @@ class PlanTest(unittest.TestCase):
         for load in self.plan:
             host = runtime.host_of(load.address(8000))
             self.assertEqual(host == runtime.PAGELOAD_OFF_HOST, load.mode == "off")
+
+
+class RepeatTest(unittest.TestCase):
+    """A load the engine cut short is not counted, and a spare of the same kind takes its place."""
+
+    def setUp(self):
+        self.plan = runtime.pageload_plan(loads=2)
+        self.site = runtime.PageLoadSite(self.plan)
+        self.addCleanup(self.site.server.server_close)
+
+    def number_of(self, address):
+        return int(address.rsplit("/", 1)[1])
+
+    def report(self, number, missing=()):
+        return self.site.receive({"number": number, "milliseconds": 50.0,
+                                  "missing": list(missing), "failed": len(missing)})
+
+    def test_a_complete_load_moves_on_to_the_next(self):
+        self.assertEqual(self.number_of(self.site.receive({"ready": True})), 0)
+        self.assertEqual(self.number_of(self.report(0)), 1)
+
+    def test_a_short_load_is_repeated_with_a_spare_of_its_case_and_mode(self):
+        self.site.receive({"ready": True})
+        self.report(0)
+        self.report(1)
+        spare = self.plan[self.number_of(self.report(2, ["http://lost/image.png"]))]
+        self.assertTrue(spare.spare)
+        self.assertEqual((spare.case, spare.mode), (self.plan[2].case, self.plan[2].mode))
+        self.assertEqual(self.number_of(self.report(spare.number)), 3)
+        self.assertEqual(self.site.repeated, [2])
+        self.assertEqual([load.number for load in self.site.counted("fresh", "on")],
+                         [spare.number, 4])
+
+    def test_running_out_of_spares_fails_the_run(self):
+        self.site.receive({"ready": True})
+        self.report(0)
+        self.report(1)
+        answer = self.report(2, ["http://lost/image.png"])
+        for _ in range(runtime.PAGELOAD_SPARES):
+            answer = self.report(self.number_of(answer), ["http://lost/image.png"])
+        self.assertIsNone(answer)
+        self.assertIn("spare", self.site.problem)
+
+
+class SeedTest(unittest.TestCase):
+
+    def test_blocking_is_switched_off_for_the_off_host_only(self):
+        with tempfile.TemporaryDirectory() as root:
+            runtime.seed_content_blocking(root)
+            with open(os.path.join(root, "content-blocking", "settings.json"),
+                      encoding="utf-8") as handle:
+                settings = json.load(handle)
+            self.assertEqual(settings["disabledSites"], [runtime.PAGELOAD_OFF_HOST])
 
 
 class ZoneTest(unittest.TestCase):
@@ -119,6 +187,12 @@ class ZoneTest(unittest.TestCase):
         for host in (runtime.PAGELOAD_ON_HOST, runtime.PAGELOAD_OFF_HOST,
                      runtime.PAGELOAD_PROBE_HOST):
             chain(self.zone, host)
+
+    def test_every_name_is_one_https_only_mode_leaves_on_plain_http(self):
+        for line in self.zone.splitlines():
+            key, _, value = line.partition("=")
+            if key in ("cname", "host-record"):
+                self.assertTrue(value.split(",")[0].endswith(".test"), line)
 
     def test_the_server_answers_nothing_it_was_not_given(self):
         self.assertIn("no-resolv", self.zone.splitlines())

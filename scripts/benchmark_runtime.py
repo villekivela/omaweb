@@ -159,11 +159,20 @@ TOPLEVEL_SURFACE = re.compile(r"-> xdg_wm_base#\d+\.get_xdg_surface\(new id xdg_
 PAGELOAD_IMAGES = 40
 PAGELOAD_LOADS = 10
 
+# Loads kept in reserve for each case and mode. On CI's runner the engine cancels an image now and
+# then as its answer arrives, with blocking on and off alike, and a page missing an image is not
+# the page the other mode loaded. Such a load is not counted and a spare takes its place; the spares
+# are in the plan from the start because the DNS zone is written before the browser runs.
+PAGELOAD_SPARES = 6
+
 # How many hosts the forty images come from. The worst case is a page that reaches every host for
 # the first time, so every request waits on its lookups; the common case is a page whose few hosts
 # the profile has resolved in the last minute.
 PAGELOAD_CASES = {"fresh": 40, "known": 4}
 
+# Every name is under `.test`, which HTTPS-only mode treats as a local development host and leaves
+# on plain HTTP. A name anywhere else would be upgraded to HTTPS and fail against the plain server.
+#
 # The pages sit on one site and the images on another, because a tracker is a third party. The two
 # page hosts are the per-site switch's two positions: blocking is switched off for the second.
 PAGELOAD_ON_HOST = "on.pageload.test"
@@ -678,6 +687,7 @@ class PageLoad:
     mode: str
     measured: bool
     images: tuple[str, ...]
+    spare: bool = False
 
     def address(self, port: int) -> str:
         host = PAGELOAD_ON_HOST if self.mode == "on" else PAGELOAD_OFF_HOST
@@ -705,16 +715,24 @@ def pageload_plan(loads: int = PAGELOAD_LOADS) -> list[PageLoad]:
     hosts are new too, so every load pays for its lookups.
     """
     plan: list[PageLoad] = []
+
+    def add(case: str, hosts: int, mode: str, measured: bool, spare: bool) -> None:
+        number = len(plan)
+        images = []
+        for image in range(PAGELOAD_IMAGES):
+            host = f"img{image}-load{number}" if case == "fresh" else f"img{image % hosts}"
+            images.append(f"http://{host}.{PAGELOAD_IMAGE_DOMAIN}/image/{image}.png"
+                          f"?load={number}")
+        plan.append(PageLoad(number, case, mode, measured, tuple(images), spare))
+
     for case, hosts in PAGELOAD_CASES.items():
-        modes = [("on", False), ("off", False)] + [("on", True), ("off", True)] * loads
-        for mode, measured in modes:
-            number = len(plan)
-            images = []
-            for image in range(PAGELOAD_IMAGES):
-                host = (f"img{image}-load{number}" if case == "fresh" else f"img{image % hosts}")
-                images.append(f"http://{host}.{PAGELOAD_IMAGE_DOMAIN}/image/{image}.png"
-                              f"?load={number}")
-            plan.append(PageLoad(number, case, mode, measured, tuple(images)))
+        for mode, measured in [("on", False), ("off", False)] + [("on", True),
+                                                                 ("off", True)] * loads:
+            add(case, hosts, mode, measured, spare=False)
+    for case, hosts in PAGELOAD_CASES.items():
+        for mode in ("on", "off"):
+            for _ in range(PAGELOAD_SPARES):
+                add(case, hosts, mode, measured=True, spare=True)
     return plan
 
 
@@ -787,14 +805,6 @@ PAGELOAD_PAGE = """<!doctype html>
       milliseconds: entry.loadEventStart,
       missing: missing.map(image => image.src),
       failed: missing.filter(image => failed.has(image.src)).length,
-      timing: missing.map(image => {{
-        const entry = performance.getEntriesByName(image.src)[0];
-        return entry ? {{
-          status: entry.responseStatus,
-          bytes: entry.transferSize,
-          milliseconds: Math.round(entry.duration),
-        }} : null;
-      }}),
     }};
     const sent = await fetch("/report", {{ method: "POST", body: JSON.stringify(report) }});
     const answer = await sent.json();
@@ -868,16 +878,14 @@ class PageLoadSite:
         # apart as one that never arrived here and one that did and went missing on the way back.
         self.requested: set[str] = set()
         self.answered: set[str] = set()
-        # The worst case's hosts are each asked for once. Chromium holds at most 32 connections
-        # for direct requests, and a kept-alive connection to a host that never comes back is a
-        # place in those 32 that nothing will reuse: on CI's runner a pool full of them made the
-        # engine drop answers the server had sent in full. A page's own CDN connections are the
-        # ones worth keeping, and the common case's four hosts keep theirs.
-        self.single_use = {host_of(image) for load in plan if load.case == "fresh"
-                           for image in load.images}
         self.ready = False
         self.problem = ""
         self.finished = False
+        # The order the loads run in, which a repeat inserts a spare into, and where the run is.
+        self.sequence = [load.number for load in plan if not load.spare]
+        self.position = -1
+        self.spares = [load for load in plan if load.spare]
+        self.repeated: list[int] = []
         self.progress = threading.Condition()
         self.server = PageLoadServer(("127.0.0.1", 0), self._handler())
         self.port = self.server.server_address[1]
@@ -896,6 +904,10 @@ class PageLoadSite:
 
     def page(self, number: int) -> bytes:
         load = self.plan[number]
+        # CORS mode rather than no-cors. On CI's runner the engine cancelled no-cors image
+        # requests as their answers arrived, some forty a run in both modes, and CORS-mode
+        # requests about three: the net log shows the response started and then the request
+        # cancelled, with no network error. What is left is repeated with a spare.
         images = "\n".join(
             f'<img src="{with_port(image, self.port)}" crossorigin="anonymous" width="16" '
             'height="16" alt="">'
@@ -922,11 +934,34 @@ class PageLoadSite:
             else:
                 number = int(report["number"])
                 self.reports[number] = report
-                following = number + 1
-            if following >= len(self.plan):
+                load = self.plan[number]
+                if report["missing"] and load.measured:
+                    self.repeated.append(number)
+                    spare = next((candidate for candidate in self.spares
+                                  if (candidate.case, candidate.mode) == (load.case, load.mode)),
+                                 None)
+                    if spare is None:
+                        self.problem = (f"the engine cut short more {load.case}-host loads with "
+                                        f"blocking {load.mode} than there are spares for:\n    "
+                                        + "\n    ".join(self.describe_missing(self.plan[short])
+                                                         for short in self.repeated))
+                        self.progress.notify_all()
+                        return None
+                    self.spares.remove(spare)
+                    self.sequence.insert(self.position + 1, spare.number)
+            self.position += 1
+            if self.position >= len(self.sequence):
                 self.finished = True
             self.progress.notify_all()
-        return None if self.finished else self.plan[following].address(self.port)
+        if self.finished:
+            return None
+        return self.plan[self.sequence[self.position]].address(self.port)
+
+    def counted(self, case: str, mode: str) -> list[PageLoad]:
+        """The loads of one case and mode whose timings count, in the order they ran."""
+        return [self.plan[number] for number in self.sequence
+                if number not in self.repeated and self.plan[number].measured
+                and (self.plan[number].case, self.plan[number].mode) == (case, mode)]
 
     def wait(self) -> None:
         """Waits for every load to report, and fails on one that goes quiet."""
@@ -939,7 +974,7 @@ class PageLoadSite:
             while not self.finished and not self.problem:
                 if not self.progress.wait(PAGELOAD_TIMEOUT) and len(self.reports) == heard:
                     raise MeasurementFailed(
-                        f"load {heard + 1} of {len(self.plan)} never reported its timing")
+                        f"load {heard + 1} of {len(self.sequence)} never reported its timing")
                 heard = len(self.reports)
             if self.problem:
                 raise MeasurementFailed(self.problem)
@@ -957,8 +992,7 @@ class PageLoadSite:
         return (f"load {load.number} ({load.case} hosts, blocking {load.mode}, "
                 f"{'counted' if load.measured else 'warm-up'}) is missing {len(missing)} of "
                 f"{PAGELOAD_IMAGES} images: {asked} asked of the server, {answered} answered "
-                f"by it, {report['failed']} failed in the page; the first is {missing[0]}, timed "
-                f"by the engine as {report['timing'][0]}")
+                f"by it, {report['failed']} failed in the page; the first is {missing[0]}")
 
     def _handler(self) -> type[http.server.BaseHTTPRequestHandler]:
         site = self
@@ -976,13 +1010,7 @@ class PageLoadSite:
                 self.send_header("Content-Type", content_type)
                 self.send_header("Content-Length", str(len(body)))
                 self.send_header("Cache-Control", "no-store")
-                # The pages read their own timing, and an image from another site shows its
-                # status and size to a page only when it says so.
-                self.send_header("Timing-Allow-Origin", "*")
                 self.send_header("Access-Control-Allow-Origin", "*")
-                if self.headers.get("Host", "").split(":")[0] in site.single_use:
-                    self.send_header("Connection", "close")
-                    self.close_connection = True
                 self.end_headers()
                 self.wfile.write(body)
                 self.wfile.flush()
@@ -1180,18 +1208,15 @@ def run_pageload(executable: str, private: bool) -> dict:
             network.leave()
         workspace.discard()
 
-    incomplete = [site.describe_missing(load) for load in plan
-                  if site.reports[load.number]["missing"]]
-    if incomplete:
-        raise MeasurementFailed("the two modes did not load the same pages:\n    "
-                                + "\n    ".join(incomplete)
-                                + f"\n    the server's own errors: {site.server.errors}")
+    if site.repeated:
+        log(f"  repeated {len(site.repeated)} of {len(site.sequence) - len(site.repeated)} loads "
+            "the engine cut short, which were not counted:")
+        for number in site.repeated:
+            log(f"    {site.describe_missing(plan[number])}")
     results = {}
     for case, hosts in PAGELOAD_CASES.items():
-        timings: dict[str, list[float]] = {"on": [], "off": []}
-        for load in plan:
-            if load.case == case and load.measured:
-                timings[load.mode].append(float(site.reports[load.number]["milliseconds"]))
+        timings = {mode: [float(site.reports[load.number]["milliseconds"])
+                          for load in site.counted(case, mode)] for mode in ("on", "off")}
         summary = summarise_pageload(timings["on"], timings["off"])
         log(f"  {PAGELOAD_IMAGES} images from {hosts} {case} hosts: {summary.on:.1f} ms on, "
             f"{summary.off:.1f} ms off, {summary.added:.1f} ms added "
