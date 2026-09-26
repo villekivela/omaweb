@@ -124,9 +124,10 @@ the Rust wrapper, its manifest, or its lockfile.
 `.github/workflows/ci.yml` runs seven jobs, on a pull request and on a push to `main`. `style` runs
 the formatters, `qmllint`, the website's own policy check and the release-page tests;
 `commit-messages` checks every non-merge subject in the range; and four Arch containers build and
-publish the tree: `arch-linux` under clang, which goes on to build the `release` preset and load the
-compiled QML, `arch-linux-gcc` under GCC, `arch-package` through `scripts/check_package.sh`, and
-`pacman-repo` through `scripts/check_repo_publish.sh`.
+publish the tree: `arch-linux` under clang against Omaweb's engine, which goes on to build the
+`release` preset and load the compiled QML, `arch-linux-gcc` under GCC against Arch's
+`qt6-webengine`, `arch-package` through `scripts/check_package.sh`, and `pacman-repo` through
+`scripts/check_repo_publish.sh`.
 
 Those four cost between two and ten minutes each, and a change confined to `docs/`, `website/` or
 Markdown cannot break a compile, so a `changes` job decides whether they run at all. It prints the
@@ -722,23 +723,26 @@ the `PACMAN_SIGNING_KEY` secret, with `PACMAN_SIGNING_KEY_PASSPHRASE` beside it 
 one. Until that secret exists the `publish-repo` job says so in the job summary and ends green: the
 release publishes, and readers install it by hand.
 
-A release installs from that repository as well as publishing to it: the `package` job adds the
-`[omaweb]` block to the container's `pacman.conf` and installs `omaweb-qtwebengine`, because the
-release has to be compiled against the engine it will run on. The public half of the signing key is
-`security/repo-signing-key.asc` in this repository rather than fetched from a keyserver, so a
-keyserver that does not answer cannot fail a release for a reason that has nothing to do with the
-release. The job holds the key file's fingerprint against the published one before trusting it.
+A release installs from that repository as well as publishing to it: the `package` job runs
+`scripts/trust_omaweb_repository.sh`, which adds the `[omaweb]` block to the container's
+`pacman.conf`, and installs `omaweb-qtwebengine`, because the release has to be compiled against the
+engine it will run on. CI's `arch-linux` job does the same to test against that engine. The public
+half of the signing key is `security/repo-signing-key.asc` in this repository rather than fetched
+from a keyserver, so a keyserver that does not answer cannot fail a build for a reason that has
+nothing to do with the build. The script holds the key file's fingerprint against the published one
+before trusting it.
 
 The README and the website both carry the `[omaweb]` block and the signing key's fingerprint,
 because a reader installs from whichever of the two they opened.
 `scripts/check_repository_instructions.py` checks that everything naming the repository names the
 same one, and CI runs it: each place is correct on its own, so nothing else would report a
 fingerprint that had gone stale in one of them, and the reader would find out as a signature error
-on their own machine. The release workflow is the third place, since it installs the engine from
-that repository, and `security/repo-signing-key.asc` is the fourth and the only one that is not a
-copy. The others state a fingerprint; the key file has one. The check computes it from the key
-packet rather than asking gpg, so it runs the same way wherever it runs, and
-`tests/scripts/tst_repository_instructions.py` covers that computation against the published value.
+on their own machine. `scripts/trust_omaweb_repository.sh` is the third place, since the release
+workflow and CI install the engine from that repository through it, and
+`security/repo-signing-key.asc` is the fourth and the only one that is not a copy. The others state
+a fingerprint; the key file has one. The check computes it from the key packet rather than asking
+gpg, so it runs the same way wherever it runs, and `tests/scripts/tst_repository_instructions.py`
+covers that computation against the published value.
 
 The pages landed with the tag that first served the repository rather than before it: instructions
 for a repository that answers nothing are worse than none. The fingerprint is published in the
@@ -1153,9 +1157,10 @@ it has not seen (ADR 0050, "What the engine does") and is the one more likely to
 Secure DNS on the lookups go to a public server, whose speed from GitHub's network is not Omaweb's
 to hold to a number, so measure that path by hand when it changes.
 
-CI builds against Arch's `qt6-webengine`, where CNAME uncloaking is compiled out, so the CI budget
-holds everything in Content blocking's cost except uncloaking's lookups. Moving CI to Omaweb's
-engine and re-recording these ceilings is [#394](https://github.com/villekivela/omaweb/issues/394).
+CI builds against Omaweb's engine, but these ceilings were recorded on Arch's `qt6-webengine`, where
+CNAME uncloaking is compiled out, so they hold everything in Content blocking's cost except
+uncloaking's lookups. Re-recording them on Omaweb's engine is
+[#394](https://github.com/villekivela/omaweb/issues/394).
 
 Each ceiling is four times the difference recorded on CI's runner, and never under 20 ms. The
 differences are a few milliseconds, and a shared runner's noise is bigger than that multiplied.

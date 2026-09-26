@@ -21,7 +21,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 import check_repository_instructions as instructions  # noqa: E402
 
-# What README.md, the website and the release workflow all publish. Written out
+# What README.md, the website and the repository script all publish. Written out
 # rather than read from any of them: a test that took the value from the same
 # place the check does would pass whatever either said.
 PUBLISHED = "FDA535B2185755EA718BEA585DBF15FE484EFA64"
