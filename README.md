@@ -153,8 +153,8 @@ tabs, keybindings, filter subscription addresses, and four approved Settings key
 machines through a private git repository you own. Spaces and tabs are encrypted before upload;
 keybindings, subscription addresses, and those settings are readable in that repository. Passwords,
 cookies, browsing history, downloads, site permissions, and every Private window never enter Sync.
-The [Sync privacy page](https://omaweb.app/sync) states the full boundary and the forge permissions
-it asks for.
+[What is synced, and what is not](docs/sync-privacy.md) states the full boundary and the forge
+permissions it asks for.
 
 HTTPS-only mode is on by default: a page's own address goes over HTTPS whoever wrote the link, and
 Omaweb asks before loading a site that cannot be reached that way over plain HTTP.

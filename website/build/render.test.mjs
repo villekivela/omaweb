@@ -3,8 +3,6 @@
 // CI runs it in the job that already installs Node for the formatters.
 
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
 import test from "node:test";
 
 import { markdownToHtml, releasePath, renderRelease, renderReleaseNav } from "./render.mjs";
@@ -268,13 +266,6 @@ test("release: no placeholder is left unfilled, and the opening comment is not p
   const { body } = renderRelease(RELEASE, [RELEASE], TEMPLATE, "..");
   assert.equal(body.includes("{{"), false);
   assert.equal(body.includes("<!--"), false);
-});
-
-test("release: the shipped fragment fills the same way", () => {
-  const shipped = readFileSync(fileURLToPath(new URL("./release.html", import.meta.url)), "utf8");
-  const { body } = renderRelease(RELEASE, [RELEASE], shipped, "../..");
-  assert.equal(body.includes("{{"), false);
-  assert.match(body, /<h1>v0\.3\.0<\/h1>/);
 });
 
 test("release: a release with no body still renders, pointing at GitHub", () => {

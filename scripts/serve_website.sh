@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
 # Build website/ into website/dist/ and serve that on http://localhost:8000
-# for local review. Every page is written through the shell, so the sources
-# are not the site and the build is the only way to see them as one; it runs
-# without the network, with the committed releases page in place of the
-# generated ones.
+# for local review. The release pages are generated, so the build is the only
+# way to see the site whole; it runs without the network, with the releases
+# page that points at GitHub in place of the generated ones.
 #
 #   scripts/serve_website.sh            # the site
 #   scripts/serve_website.sh 8080       # on another port
 #
-# A change to a page or the shell wants the build run again: stop this and
-# start it again, or run `node build/site.mjs --local` from website/ while it
-# serves. Rebuild the per-theme palettes and screenshots after a
-# chrome change or an upstream theme change: scripts/build_website_themes.py
+# A change wants the build run again: stop this and start it again, or run
+# `node build/site.mjs --local` from website/ while it serves, or
+# `node build/site.mjs` for the real release pages. Regenerate the interface
+# captures after a chrome change or an upstream theme change:
+# scripts/build_website_themes.py
 set -euo pipefail
 
 port="${1:-8000}"
@@ -22,7 +22,7 @@ root="$website/dist"
 printf 'website  http://localhost:%s/\n' "$port"
 
 # `python3 -m http.server` types a file from the system mime table, and an Arch
-# install has no entry for WebP: the screenshots then arrive as
+# install has no entry for WebP or WOFF2: the images and fonts then arrive as
 # application/octet-stream and the browser declines to draw them, which looks
 # exactly like a broken page. The types are named here so a local review shows
 # what hosting would.
@@ -32,7 +32,9 @@ import http.server
 import sys
 
 handler = http.server.SimpleHTTPRequestHandler
-handler.extensions_map.update({".webp": "image/webp", ".svg": "image/svg+xml"})
+handler.extensions_map.update(
+    {".webp": "image/webp", ".svg": "image/svg+xml", ".woff2": "font/woff2"}
+)
 # Threaded, because the one-request-at-a-time server stalls the whole site on
 # a connection a browser is holding open: the page stops loading half way
 # through its own images and nothing says why.

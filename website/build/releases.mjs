@@ -1,27 +1,20 @@
-// Writes the release pages for the preview: `releases/index.html`, the newest release, and one
-// page per release at `releases/<tag>/index.html`. Run it from anywhere:
+// The release pages: `releases/index.html`, the newest browser release, and one page per release
+// at `releases/<tag>/index.html`, written by `site.mjs` into the deployed site. Pure apart from
+// the fetch and the writing, so the markup is testable without a network (`releases.test.mjs`).
 //
-//   node website-next/build/releases.mjs
-//
-// The releases are read from GitHub here, when the pages are built, rather than in the reader's
-// browser, so the pages stay static, load nothing from another origin, and spend no API rate
-// limit per reader. A release body is Markdown written elsewhere and published unattended, so it
-// goes through the live site's own renderer, website/build/render.mjs, which decides what a body
-// may become, rather than a second copy of those rules.
+// The releases are read from GitHub when the site is built, rather than in the reader's browser,
+// so the pages stay static, load nothing from another origin, and spend no API rate limit per
+// reader. A release body is Markdown written elsewhere and published unattended, so it goes
+// through `render.mjs`, which decides what a body may become.
 //
 // Each page is the landing page with its <main> swapped out: the head, the header, the footer and
 // the scripts are read from index.html, so the chrome has one copy. The pages sit one or two
 // directories down, so the chrome's relative addresses are rewritten to reach back to the root.
 
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
-import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { mkdir, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 
-import { releasePath, renderRelease } from "../../website/build/render.mjs";
-
-const HERE = dirname(fileURLToPath(import.meta.url));
-const SITE = resolve(HERE, "..");
-const OUTPUT = join(SITE, "releases");
+import { releasePath, renderRelease } from "./render.mjs";
 
 // Every published release, of every kind: the browser's versions, the engine builds and the
 // pacman repository. The list is read page by page, since it only grows.
@@ -46,11 +39,11 @@ const KINDS = [
 ];
 const OTHER = { kind: "other", label: "Other", short: (name) => name };
 
-function kindOf(release) {
+export function kindOf(release) {
   return KINDS.find((kind) => kind.test.test(release.tag_name)) || OTHER;
 }
 
-async function fetchReleases() {
+export async function fetchReleases() {
   const headers = { accept: "application/vnd.github+json", "user-agent": "omaweb-website-build" };
   if (process.env.GITHUB_TOKEN) headers.authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
   const releases = [];
@@ -73,7 +66,7 @@ function escapeHtml(text) {
 
 // The landing page, split around its <main>, with every relative address made to reach back to
 // the root from `root`, and the nav's Releases entry marked as the part of the site this is.
-function chrome(landing, root, meta) {
+export function chrome(landing, root, meta) {
   const start = landing.indexOf("<main>");
   const end = landing.indexOf("</main>") + "</main>".length;
   if (start < 0 || end < start) throw new Error("index.html has no <main> to replace");
@@ -110,7 +103,7 @@ function dateOf(published) {
 
 // The version list: one line per release, its kind as a chip, a short name that is cut off
 // rather than wrapped, and its date. The full name is the row's title for the cut-off case.
-function versions(releases, currentTag, root) {
+export function versions(releases, currentTag, root) {
   const rows = releases.map((release) => {
     const kind = kindOf(release);
     const name = release.name || release.tag_name;
@@ -129,7 +122,7 @@ function versions(releases, currentTag, root) {
 
 // The filter over the list: every kind that has a release, and all of them, with `current` the one
 // it opens on.
-function kinds(releases, current) {
+export function kinds(releases, current) {
   const present = [...KINDS, OTHER].filter((kind) =>
     releases.some((release) => kindOf(release) === kind),
   );
@@ -141,19 +134,13 @@ function kinds(releases, current) {
     .join("");
 }
 
-async function writePage(directory, html) {
-  await mkdir(directory, { recursive: true });
-  await writeFile(join(directory, "index.html"), html);
-}
-
-async function main() {
-  const landing = await readFile(join(SITE, "index.html"), "utf8");
-  const template = await readFile(join(HERE, "release.html"), "utf8");
-  const releases = await fetchReleases();
+/**
+ * Every page `releases/` holds, as [directory under it, html]: the newest browser release at its
+ * root, then each release at its tag.
+ */
+export function releasePages(releases, landing, template) {
   const browser = releases.filter((release) => kindOf(release).kind === "browser");
   if (!browser.length) throw new Error("GitHub listed no browser release");
-
-  await rm(OUTPUT, { recursive: true, force: true });
   const count = `${releases.length} releases`;
   const page = (release, root) => {
     const rendered = renderRelease(release, releases, template, root);
@@ -165,14 +152,36 @@ async function main() {
       .replace("{{versions}}", versions(releases, release.tag_name, root));
     return chrome(landing, root, rendered.meta)(body);
   };
-
   // `releases/` is the newest browser release rather than a page of its own: a reader arriving
   // without a version in mind wants the latest notes, and the list beside them reaches the rest.
-  await writePage(OUTPUT, page(browser[0], ".."));
-  for (const release of releases) {
-    await writePage(join(OUTPUT, releasePath(release.tag_name)), page(release, "../.."));
-  }
-  console.log(`releases: wrote ${releases.length} release pages`);
+  return [
+    ["", page(browser[0], "..")],
+    ...releases.map((release) => [releasePath(release.tag_name), page(release, "../..")]),
+  ];
 }
 
-await main();
+/**
+ * The page `releases/` holds when the build could not read the releases, or was asked not to:
+ * where they are, rather than no page at all.
+ */
+export function fallbackPage(landing) {
+  const body = `      <section class="log log--empty wrap">
+        <article class="log__release">
+          <p class="kicker">Release notes</p>
+          <h1 class="display display--md">The releases are on GitHub.</h1>
+          <p>This page lists every release and its notes when the site is built, and this build could not read them.</p>
+          <p class="log__out">
+            <a class="btn" href="https://github.com/villekivela/omaweb/releases">Every release on GitHub</a>
+          </p>
+        </article>
+      </section>`;
+  const meta = { title: "Releases · Omaweb", description: "Every published Omaweb release." };
+  return chrome(landing, "..", meta)(body);
+}
+
+export async function writePages(output, pages) {
+  for (const [directory, html] of pages) {
+    await mkdir(join(output, directory), { recursive: true });
+    await writeFile(join(output, directory, "index.html"), html);
+  }
+}

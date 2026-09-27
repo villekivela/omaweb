@@ -27,6 +27,6 @@ into the same GitHub identity and enters the saved recovery key. Losing every co
 the encrypted Space and tab records unrecoverable. Disconnecting does not remove the GitHub
 repository.
 
-The reader-facing account of this is the [Sync privacy page](https://omaweb.app/sync), published
-from `website/sync/index.html`. It is the GitHub App's homepage link, so a change to the permissions
-or to the record boundary belongs there as well as here.
+The reader-facing account of this is [What is synced, and what is not](sync-privacy.md), which
+<https://omaweb.app/sync> redirects to. It is the GitHub App's homepage link, so a change to the
+permissions or to the record boundary belongs there as well as here.
