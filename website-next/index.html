@@ -1,0 +1,486 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Omaweb · Web navigation system</title>
+    <meta
+      name="description"
+      content="Omaweb is a keyboard-first web browser for Linux, with separate Spaces, built-in content blocking and no telemetry. Free and open source."
+    />
+    <meta name="theme-color" content="#141210" />
+    <link rel="icon" href="assets/icons/omaweb.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="assets/shots/themes.css" />
+  </head>
+
+  <body>
+    <header class="top">
+      <div class="top__inner">
+        <a class="brand" href="#">
+          <svg class="wordmark brand__wordmark" viewBox="0 0 160 20" role="img" aria-label="Omaweb">
+            <g transform="translate(-20.528031,-97.174413)">
+              <path
+                class="wordmark__mark"
+                transform="translate(1.3101755,0.8976725)"
+                d="m 28.63857,97.088945 -9.187009,9.187005 9.187009,9.18763 h 3.69342 l 13.915739,-13.91637 4.72873,4.72874 -9.187009,9.18763 h 6.305601 l 9.18701,-9.18763 -9.187622,-9.187005 H 44.40102 l -13.91574,13.915735 -4.728742,-4.72873 9.18701,-9.187005 z"
+              />
+              <path
+                d="m 75.336749,116.72525 q -3.463561,0 -5.510211,-1.88922 -2.046649,-1.91545 -2.046649,-5.45773 v -4.40817 q 0,-3.54228 2.046649,-5.43149 2.04665,-1.915455 5.510211,-1.915455 3.463561,0 5.510211,1.915455 2.04665,1.88921 2.04665,5.43149 v 4.40817 q 0,3.54228 -2.04665,5.45773 -2.04665,1.88922 -5.510211,1.88922 z m 0,-3.09621 q 1.941694,0 3.017497,-1.12829 1.075803,-1.12828 1.075803,-3.01749 v -4.61808 q 0,-1.88922 -1.075803,-3.0175 -1.075803,-1.12828 -3.017497,-1.12828 -1.915454,0 -3.017496,1.12828 -1.075803,1.12828 -1.075803,3.0175 v 4.61808 q 0,1.88921 1.075803,3.01749 1.102042,1.12829 3.017496,1.12829 z M 86.20194,116.3579 V 97.990533 h 6.428579 l 3.174932,16.005847 h 0.472303 l 3.174931,-16.005847 h 6.428575 V 116.3579 h -3.3586 v -15.82217 h -0.4723 l -3.148696,15.82217 h -5.720123 l -3.148692,-15.82217 h -0.472304 v 15.82217 z m 22.14799,0 4.82799,-18.367367 h 6.035 l 4.82799,18.367367 h -3.56852 l -0.99708,-4.04082 h -6.55978 l -0.99708,4.04082 z m 5.37901,-7.24199 h 4.93295 l -2.23032,-8.94753 h -0.4723 z m 13.77775,7.24199 -2.414,-18.367367 h 3.43732 l 1.78426,15.953377 h 0.4723 l 2.30904,-15.953377 h 5.98252 l 2.30904,15.953377 h 0.4723 l 1.78426,-15.953377 h 3.43732 l -2.41399,18.367367 h -5.98252 l -2.36152,-16.32072 h -0.4723 l -2.36152,16.32072 z m 22.35792,0 V 97.990533 h 11.80759 v 3.148687 h -8.34403 v 4.38193 h 7.60934 v 3.1487 h -7.60934 v 4.53936 h 8.50147 v 3.14869 z m 14.27628,0 v -3.04373 h 2.414 v -12.2799 h -2.414 v -3.043737 h 9.44608 q 1.6793,0 2.91254,0.57726 1.25947,0.551021 1.94169,1.600587 0.70845,1.02332 0.70845,2.46647 v 0.26239 q 0,1.25948 -0.4723,2.07289 -0.4723,0.78718 -1.12828,1.23324 -0.62974,0.41983 -1.207,0.6035 v 0.4723 q 0.57726,0.15744 1.25948,0.6035 0.68221,0.41983 1.15452,1.23324 0.49854,0.81341 0.49854,2.12537 v 0.26239 q 0,1.52187 -0.70845,2.62391 -0.70846,1.0758 -1.96794,1.65306 -1.23323,0.57726 -2.8863,0.57726 z m 5.87756,-3.14869 h 3.25365 q 1.12828,0 1.81049,-0.55102 0.70846,-0.55102 0.70846,-1.57435 v -0.26239 q 0,-1.02332 -0.68222,-1.57434 -0.68221,-0.55102 -1.83673,-0.55102 h -3.25365 z m 0,-7.66182 h 3.20117 q 1.0758,0 1.75802,-0.55102 0.70845,-0.55102 0.70845,-1.52187 v -0.26239 q 0,-0.99708 -0.68221,-1.52186 -0.68222,-0.55103 -1.78426,-0.55103 h -3.20117 z"
+              />
+            </g>
+          </svg>
+        </a>
+        <button class="menu" type="button" aria-expanded="false" aria-controls="nav" hidden>
+          Menu
+        </button>
+        <nav class="nav" id="nav" aria-label="Main">
+          <a href="#features">Features</a>
+          <a href="#keyboard">Keyboard</a>
+          <a href="https://github.com/villekivela/omaweb#readme">Docs</a>
+          <a class="nav__github" href="https://github.com/villekivela/omaweb">
+            <svg class="icon icon--fill" aria-hidden="true"><use href="#i-github" /></svg>GitHub
+          </a>
+        </nav>
+      </div>
+    </header>
+
+    <main>
+      <!-- The cockpit is one wide panorama. Its box is sized by the hero's height and centred,
+           so the signs and the address bar stay in view at every width while the edges crop. The
+           words on the signs are elements laid over the empty frames painted in the art. -->
+      <section class="hero">
+        <div class="hero__art">
+          <div class="scene">
+            <img src="assets/art/road.webp" width="2087" height="441" alt="" />
+            <a class="sign sign--left" href="https://github.com/villekivela/omaweb">
+              GitHub <span aria-hidden="true">←</span>
+            </a>
+            <a class="sign sign--mid" href="#work"> Work <span aria-hidden="true">↑</span> </a>
+            <a class="sign sign--right" href="https://github.com/villekivela/omaweb#readme">
+              Docs <span aria-hidden="true">→</span>
+            </a>
+            <!-- The night radio: a switch on the console between the keyboards, for the generated
+                 drive theme in audio.js. Off until a reader turns it on; nothing plays by itself. -->
+            <button
+              class="radio"
+              type="button"
+              aria-pressed="false"
+              aria-label="Night radio"
+              data-radio
+              hidden
+            >
+              <span class="radio__led" aria-hidden="true"></span>
+              <span class="radio__label" aria-hidden="true">Radio</span>
+              <kbd aria-hidden="true">M</kbd>
+            </button>
+            <p class="dash" aria-hidden="true">
+              <span class="dash__prompt">$</span>
+              <span class="dash__url" data-type="omaweb.app">omaweb.app</span
+              ><span class="caret"></span>
+              <span class="dash__go">→</span>
+            </p>
+          </div>
+        </div>
+
+        <div class="hero__copy wrap">
+          <p class="kicker">Web navigation system</p>
+          <h1 class="display">A browser<br />for driving<br />the web.</h1>
+          <p class="lede">
+            Keyboard first. Private. Open.<br />For people who know where they&rsquo;re going.
+          </p>
+          <a class="btn" href="https://github.com/villekivela/omaweb#install">
+            <svg class="icon" aria-hidden="true"><use href="#i-download" /></svg>
+            Install Omaweb
+          </a>
+          <p class="platforms">
+            <svg class="icon icon--lg" aria-label="Linux" role="img"><use href="#i-linux" /></svg>
+            <span>Made for Linux.<br />Free and open source.</span>
+          </p>
+        </div>
+      </section>
+
+      <section class="features" id="features" aria-label="Features">
+        <ul class="features__list wrap" role="list">
+          <li>
+            <svg class="icon icon--lg" aria-hidden="true"><use href="#i-bolt" /></svg>
+            <h2>Keyboard first</h2>
+            <p>Link hints, Vim-style keys and a command panel. The mouse is optional.</p>
+          </li>
+          <li>
+            <svg class="icon icon--lg" aria-hidden="true"><use href="#i-windows" /></svg>
+            <h2>Spaces</h2>
+            <p>Work and personal in one window, each with its own logins, history and tabs.</p>
+          </li>
+          <li id="work">
+            <svg class="icon icon--lg" aria-hidden="true"><use href="#i-code" /></svg>
+            <h2>Built for professionals</h2>
+            <p>Split view for two pages at once, docked DevTools, and a Space for every client.</p>
+          </li>
+          <li>
+            <svg class="icon icon--lg" aria-hidden="true"><use href="#i-shield" /></svg>
+            <h2>Private by default</h2>
+            <p>Content blocking built in. No account to make and no telemetry to turn off.</p>
+          </li>
+        </ul>
+      </section>
+
+      <section class="walk wrap" id="navigation">
+        <!-- The real window: captures of Omaweb's own interface, taken headlessly by
+             scripts/build_website_themes.py --window-only, one set per Omarchy theme. The page
+             inside the window is the lab's drawn stand-in, since the lab runs no engine.
+
+             The window stays put while the steps beside it scroll by, and each step shows its
+             own shot, so the picture comes to the text. The swatches pick the theme, which only
+             this frame takes. Without the script the first shot stays on show, the steps read in
+             order and the window is a link to the full-size capture. -->
+        <div class="walk__stage">
+          <figure class="shot" data-theme="matte-black" data-shot>
+            <a class="shot__open" href="assets/shots/matte-black/space.webp">
+              <img
+                src="assets/shots/matte-black/space.webp"
+                width="2720"
+                height="1720"
+                alt="Omaweb with its sidebar of Spaces and tabs beside a photo essay page"
+                decoding="async"
+              />
+            </a>
+          </figure>
+          <div class="themes" role="group" aria-label="Theme" hidden>
+            <span class="themes__label">Theme <kbd>T</kbd></span>
+            <span class="themes__name" aria-live="polite">Matte Black</span>
+            <span class="themes__row">
+              <button
+                type="button"
+                class="swatch"
+                data-theme="matte-black"
+                data-theme-choice="matte-black"
+                data-name="Matte Black"
+                aria-label="Matte Black"
+                title="Matte Black"
+                aria-pressed="true"
+              ></button>
+              <button
+                type="button"
+                class="swatch"
+                data-theme="ristretto"
+                data-theme-choice="ristretto"
+                data-name="Ristretto"
+                aria-label="Ristretto"
+                title="Ristretto"
+                aria-pressed="false"
+              ></button>
+              <button
+                type="button"
+                class="swatch"
+                data-theme="retro-82"
+                data-theme-choice="retro-82"
+                data-name="Retro 82"
+                aria-label="Retro 82"
+                title="Retro 82"
+                aria-pressed="false"
+              ></button>
+              <button
+                type="button"
+                class="swatch"
+                data-theme="gruvbox"
+                data-theme-choice="gruvbox"
+                data-name="Gruvbox"
+                aria-label="Gruvbox"
+                title="Gruvbox"
+                aria-pressed="false"
+              ></button>
+              <button
+                type="button"
+                class="swatch"
+                data-theme="everforest"
+                data-theme-choice="everforest"
+                data-name="Everforest"
+                aria-label="Everforest"
+                title="Everforest"
+                aria-pressed="false"
+              ></button>
+              <button
+                type="button"
+                class="swatch"
+                data-theme="catppuccin"
+                data-theme-choice="catppuccin"
+                data-name="Catppuccin"
+                aria-label="Catppuccin"
+                title="Catppuccin"
+                aria-pressed="false"
+              ></button>
+              <button
+                type="button"
+                class="swatch"
+                data-theme="tokyo-night"
+                data-theme-choice="tokyo-night"
+                data-name="Tokyo Night"
+                aria-label="Tokyo Night"
+                title="Tokyo Night"
+                aria-pressed="false"
+              ></button>
+              <button
+                type="button"
+                class="swatch"
+                data-theme="nord"
+                data-theme-choice="nord"
+                data-name="Nord"
+                aria-label="Nord"
+                title="Nord"
+                aria-pressed="false"
+              ></button>
+              <button
+                type="button"
+                class="swatch"
+                data-theme="hackerman"
+                data-theme-choice="hackerman"
+                data-name="Hackerman"
+                aria-label="Hackerman"
+                title="Hackerman"
+                aria-pressed="false"
+              ></button>
+            </span>
+          </div>
+        </div>
+
+        <div class="walk__steps">
+          <article
+            class="step is-on"
+            data-step="space"
+            data-alt="Omaweb with its sidebar of Spaces and tabs beside a photo essay page"
+          >
+            <p class="kicker">Navigation</p>
+            <h2 class="display display--md">Go anywhere,<br />faster.</h2>
+            <p>
+              Press <kbd>o</kbd> to go somewhere new, <kbd>f</kbd> to follow a link, and
+              <kbd>J</kbd> and <kbd>K</kbd> to move between tabs. Pinned tabs sit at the top of the
+              sidebar, today&rsquo;s tabs run underneath, and each Space keeps its own.
+            </p>
+            <p class="step__hint" hidden>
+              The window answers the same keys: try <kbd>Ctrl</kbd>+<kbd>B</kbd>,
+              <kbd>Ctrl</kbd>+<kbd>Y</kbd> or <kbd>T</kbd>.
+            </p>
+          </article>
+          <article
+            class="step"
+            data-step="collapsed"
+            data-alt="Omaweb with the sidebar hidden and the page filling the window"
+          >
+            <p class="kicker">No sidebar <kbd>Ctrl</kbd>+<kbd>B</kbd></p>
+            <h3>The page gets the whole window.</h3>
+            <p>
+              Hide the sidebar and nothing is left but the page. Your tabs are still a key away:
+              <kbd>J</kbd> and <kbd>K</kbd> keep moving between them, and <kbd>Ctrl</kbd>+<kbd
+                >B</kbd
+              >
+              brings the sidebar back.
+            </p>
+          </article>
+          <article
+            class="step"
+            data-step="history"
+            data-alt="The History view, listing this Space's visits"
+          >
+            <p class="kicker">History <kbd>Ctrl</kbd>+<kbd>Y</kbd></p>
+            <h3>Every Space remembers on its own.</h3>
+            <p>
+              History opens over the page and searches only the Space you are in. Delete one visit,
+              a whole site, a stretch of time or the lot, and the other Spaces never notice.
+            </p>
+          </article>
+          <article
+            class="step"
+            data-step="settings"
+            data-alt="Settings, open beside the tabs on its Tabs section"
+          >
+            <p class="kicker">Settings <kbd>Ctrl</kbd>+<kbd>,</kbd></p>
+            <h3>Settings, next to your tabs.</h3>
+            <p>
+              Settings opens in the same window, beside the tabs it changes. Every key binding lives
+              in one <code>keybindings.json</code>, so any command can move to the key you want it
+              on.
+            </p>
+          </article>
+          <article
+            class="step"
+            data-step="blocking"
+            data-alt="The Content Blocking settings, with filter lists and user rules"
+          >
+            <p class="kicker">Content blocking</p>
+            <h3>Blocking, built in.</h3>
+            <p>
+              EasyList and EasyPrivacy are on from the first run, with cosmetic rules and a count of
+              what was blocked. Add lists, write your own rules, or turn blocking off for one site.
+            </p>
+            <a class="more" href="#features">Explore features <span aria-hidden="true">→</span></a>
+          </article>
+        </div>
+      </section>
+
+      <!-- The full-size capture, over the page. A dialog, so Escape, the backdrop and focus come
+           with it; without the script the window is a plain link to the image instead. -->
+      <dialog class="viewer" aria-label="Screenshot">
+        <img class="viewer__image" alt="" />
+        <button class="viewer__close" type="button" aria-label="Close">×</button>
+      </dialog>
+
+      <!-- The cream poster. The drawing is one image with its left half bare paper; the logo, the
+           headline and the tagline are type laid over it. -->
+      <section class="poster" aria-label="104 keys. Zero reason to point.">
+        <div class="poster__frame">
+          <img src="assets/art/poster.webp" width="1337" height="307" alt="" />
+          <!-- The full wordmark, copied from website/assets/icons/omaweb.svg, set inline rather than
+               by reference so the stylesheet can colour the mark apart from the letters. -->
+          <div class="poster__logo">
+            <svg
+              class="wordmark poster__wordmark"
+              viewBox="0 0 160 20"
+              role="img"
+              aria-label="Omaweb"
+            >
+              <g transform="translate(-20.528031,-97.174413)">
+                <path
+                  class="wordmark__mark"
+                  transform="translate(1.3101755,0.8976725)"
+                  d="m 28.63857,97.088945 -9.187009,9.187005 9.187009,9.18763 h 3.69342 l 13.915739,-13.91637 4.72873,4.72874 -9.187009,9.18763 h 6.305601 l 9.18701,-9.18763 -9.187622,-9.187005 H 44.40102 l -13.91574,13.915735 -4.728742,-4.72873 9.18701,-9.187005 z"
+                />
+                <path
+                  d="m 75.336749,116.72525 q -3.463561,0 -5.510211,-1.88922 -2.046649,-1.91545 -2.046649,-5.45773 v -4.40817 q 0,-3.54228 2.046649,-5.43149 2.04665,-1.915455 5.510211,-1.915455 3.463561,0 5.510211,1.915455 2.04665,1.88921 2.04665,5.43149 v 4.40817 q 0,3.54228 -2.04665,5.45773 -2.04665,1.88922 -5.510211,1.88922 z m 0,-3.09621 q 1.941694,0 3.017497,-1.12829 1.075803,-1.12828 1.075803,-3.01749 v -4.61808 q 0,-1.88922 -1.075803,-3.0175 -1.075803,-1.12828 -3.017497,-1.12828 -1.915454,0 -3.017496,1.12828 -1.075803,1.12828 -1.075803,3.0175 v 4.61808 q 0,1.88921 1.075803,3.01749 1.102042,1.12829 3.017496,1.12829 z M 86.20194,116.3579 V 97.990533 h 6.428579 l 3.174932,16.005847 h 0.472303 l 3.174931,-16.005847 h 6.428575 V 116.3579 h -3.3586 v -15.82217 h -0.4723 l -3.148696,15.82217 h -5.720123 l -3.148692,-15.82217 h -0.472304 v 15.82217 z m 22.14799,0 4.82799,-18.367367 h 6.035 l 4.82799,18.367367 h -3.56852 l -0.99708,-4.04082 h -6.55978 l -0.99708,4.04082 z m 5.37901,-7.24199 h 4.93295 l -2.23032,-8.94753 h -0.4723 z m 13.77775,7.24199 -2.414,-18.367367 h 3.43732 l 1.78426,15.953377 h 0.4723 l 2.30904,-15.953377 h 5.98252 l 2.30904,15.953377 h 0.4723 l 1.78426,-15.953377 h 3.43732 l -2.41399,18.367367 h -5.98252 l -2.36152,-16.32072 h -0.4723 l -2.36152,16.32072 z m 22.35792,0 V 97.990533 h 11.80759 v 3.148687 h -8.34403 v 4.38193 h 7.60934 v 3.1487 h -7.60934 v 4.53936 h 8.50147 v 3.14869 z m 14.27628,0 v -3.04373 h 2.414 v -12.2799 h -2.414 v -3.043737 h 9.44608 q 1.6793,0 2.91254,0.57726 1.25947,0.551021 1.94169,1.600587 0.70845,1.02332 0.70845,2.46647 v 0.26239 q 0,1.25948 -0.4723,2.07289 -0.4723,0.78718 -1.12828,1.23324 -0.62974,0.41983 -1.207,0.6035 v 0.4723 q 0.57726,0.15744 1.25948,0.6035 0.68221,0.41983 1.15452,1.23324 0.49854,0.81341 0.49854,2.12537 v 0.26239 q 0,1.52187 -0.70845,2.62391 -0.70846,1.0758 -1.96794,1.65306 -1.23323,0.57726 -2.8863,0.57726 z m 5.87756,-3.14869 h 3.25365 q 1.12828,0 1.81049,-0.55102 0.70846,-0.55102 0.70846,-1.57435 v -0.26239 q 0,-1.02332 -0.68222,-1.57434 -0.68221,-0.55102 -1.83673,-0.55102 h -3.25365 z m 0,-7.66182 h 3.20117 q 1.0758,0 1.75802,-0.55102 0.70845,-0.55102 0.70845,-1.52187 v -0.26239 q 0,-0.99708 -0.68221,-1.52186 -0.68222,-0.55103 -1.78426,-0.55103 h -3.20117 z"
+                />
+              </g>
+            </svg>
+            <span class="poster__slogan">Web navigation system</span>
+          </div>
+          <p class="poster__headline" aria-hidden="true">
+            <span>104 keys.</span><span>Zero reason</span><span>to point.</span>
+          </p>
+        </div>
+        <div class="ticker">
+          <ul role="list">
+            <li>Link hints</li>
+            <li>Spaces</li>
+            <li>Split view</li>
+            <li>Command panel</li>
+            <li>History</li>
+            <li>Content blocking</li>
+            <li>And beyond</li>
+          </ul>
+          <span>Omaweb alpha</span>
+        </div>
+      </section>
+
+      <section class="keyboard" id="keyboard">
+        <div class="keyboard__copy">
+          <p class="kicker">Keyboard</p>
+          <h2 class="display display--sm">Learn once.<br />Move faster<br />forever.</h2>
+          <p>
+            A small set of memorable keys, borrowed from Vim, gives you instant control. Spend less
+            time clicking and more time actually using the web.
+          </p>
+          <a
+            class="more"
+            href="https://github.com/villekivela/omaweb/blob/main/assets/keybindings/Default.json"
+            >See every binding <span aria-hidden="true">→</span></a
+          >
+        </div>
+
+        <div class="keyboard__photo">
+          <img src="assets/art/keycaps.webp" width="745" height="307" alt="" loading="lazy" />
+        </div>
+
+        <div class="keyboard__panel">
+          <div class="control">
+            <p class="kicker">Navigation control</p>
+            <dl class="keys">
+              <div>
+                <dt><kbd>J</kbd></dt>
+                <dd>Down</dd>
+              </div>
+              <div>
+                <dt><kbd>K</kbd></dt>
+                <dd>Up</dd>
+              </div>
+              <div>
+                <dt><kbd>F</kbd></dt>
+                <dd>Links</dd>
+              </div>
+              <div>
+                <dt><kbd>/</kbd></dt>
+                <dd>Find</dd>
+              </div>
+              <div>
+                <dt><kbd>?</kbd></dt>
+                <dd>Help</dd>
+              </div>
+            </dl>
+          </div>
+          <div class="everywhere">
+            <p class="kicker">Yours to rebind</p>
+            <p>
+              Every binding lives in one <code>keybindings.json</code>. A site that needs a key can
+              have it back.
+            </p>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="foot">
+      <div class="wrap foot__inner">
+        <span class="brand">
+          <svg class="wordmark brand__wordmark" viewBox="0 0 160 20" role="img" aria-label="Omaweb">
+            <g transform="translate(-20.528031,-97.174413)">
+              <path
+                class="wordmark__mark"
+                transform="translate(1.3101755,0.8976725)"
+                d="m 28.63857,97.088945 -9.187009,9.187005 9.187009,9.18763 h 3.69342 l 13.915739,-13.91637 4.72873,4.72874 -9.187009,9.18763 h 6.305601 l 9.18701,-9.18763 -9.187622,-9.187005 H 44.40102 l -13.91574,13.915735 -4.728742,-4.72873 9.18701,-9.187005 z"
+              />
+              <path
+                d="m 75.336749,116.72525 q -3.463561,0 -5.510211,-1.88922 -2.046649,-1.91545 -2.046649,-5.45773 v -4.40817 q 0,-3.54228 2.046649,-5.43149 2.04665,-1.915455 5.510211,-1.915455 3.463561,0 5.510211,1.915455 2.04665,1.88921 2.04665,5.43149 v 4.40817 q 0,3.54228 -2.04665,5.45773 -2.04665,1.88922 -5.510211,1.88922 z m 0,-3.09621 q 1.941694,0 3.017497,-1.12829 1.075803,-1.12828 1.075803,-3.01749 v -4.61808 q 0,-1.88922 -1.075803,-3.0175 -1.075803,-1.12828 -3.017497,-1.12828 -1.915454,0 -3.017496,1.12828 -1.075803,1.12828 -1.075803,3.0175 v 4.61808 q 0,1.88921 1.075803,3.01749 1.102042,1.12829 3.017496,1.12829 z M 86.20194,116.3579 V 97.990533 h 6.428579 l 3.174932,16.005847 h 0.472303 l 3.174931,-16.005847 h 6.428575 V 116.3579 h -3.3586 v -15.82217 h -0.4723 l -3.148696,15.82217 h -5.720123 l -3.148692,-15.82217 h -0.472304 v 15.82217 z m 22.14799,0 4.82799,-18.367367 h 6.035 l 4.82799,18.367367 h -3.56852 l -0.99708,-4.04082 h -6.55978 l -0.99708,4.04082 z m 5.37901,-7.24199 h 4.93295 l -2.23032,-8.94753 h -0.4723 z m 13.77775,7.24199 -2.414,-18.367367 h 3.43732 l 1.78426,15.953377 h 0.4723 l 2.30904,-15.953377 h 5.98252 l 2.30904,15.953377 h 0.4723 l 1.78426,-15.953377 h 3.43732 l -2.41399,18.367367 h -5.98252 l -2.36152,-16.32072 h -0.4723 l -2.36152,16.32072 z m 22.35792,0 V 97.990533 h 11.80759 v 3.148687 h -8.34403 v 4.38193 h 7.60934 v 3.1487 h -7.60934 v 4.53936 h 8.50147 v 3.14869 z m 14.27628,0 v -3.04373 h 2.414 v -12.2799 h -2.414 v -3.043737 h 9.44608 q 1.6793,0 2.91254,0.57726 1.25947,0.551021 1.94169,1.600587 0.70845,1.02332 0.70845,2.46647 v 0.26239 q 0,1.25948 -0.4723,2.07289 -0.4723,0.78718 -1.12828,1.23324 -0.62974,0.41983 -1.207,0.6035 v 0.4723 q 0.57726,0.15744 1.25948,0.6035 0.68221,0.41983 1.15452,1.23324 0.49854,0.81341 0.49854,2.12537 v 0.26239 q 0,1.52187 -0.70845,2.62391 -0.70846,1.0758 -1.96794,1.65306 -1.23323,0.57726 -2.8863,0.57726 z m 5.87756,-3.14869 h 3.25365 q 1.12828,0 1.81049,-0.55102 0.70846,-0.55102 0.70846,-1.57435 v -0.26239 q 0,-1.02332 -0.68222,-1.57434 -0.68221,-0.55102 -1.83673,-0.55102 h -3.25365 z m 0,-7.66182 h 3.20117 q 1.0758,0 1.75802,-0.55102 0.70845,-0.55102 0.70845,-1.52187 v -0.26239 q 0,-0.99708 -0.68221,-1.52186 -0.68222,-0.55103 -1.78426,-0.55103 h -3.20117 z"
+              />
+            </g>
+          </svg>
+        </span>
+        <span>Web navigation system. Free and open source under MPL 2.0.</span>
+        <a href="https://github.com/villekivela/omaweb">github.com/villekivela/omaweb</a>
+      </div>
+    </footer>
+
+    <!-- Icons, drawn once and used by reference. Strokes in currentColor, so each takes the
+         colour of the text beside it. -->
+    <svg class="sprite" aria-hidden="true">
+      <defs>
+        <symbol id="i-download" viewBox="0 0 24 24">
+          <path d="M12 4v11m-5-5 5 5 5-5M5 20h14" />
+        </symbol>
+        <symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13 2 4 14h7l-1 8 9-12h-7z" /></symbol>
+        <symbol id="i-windows" viewBox="0 0 24 24">
+          <rect x="3" y="7" width="13" height="13" rx="1" />
+          <path d="M8 7V4h13v13h-5" />
+        </symbol>
+        <symbol id="i-code" viewBox="0 0 24 24">
+          <path d="m8 7-5 5 5 5m8-10 5 5-5 5M14 4l-4 16" />
+        </symbol>
+        <symbol id="i-shield" viewBox="0 0 24 24">
+          <path d="M12 3 4 6v6c0 4.5 3.4 8 8 9 4.6-1 8-4.5 8-9V6z" />
+          <path d="m9 12 2 2 4-4" />
+        </symbol>
+        <symbol id="i-linux" viewBox="0 0 24 24">
+          <path
+            d="M12 2c-2.2 0-3.4 1.8-3.4 4.4 0 1.7-.4 2.7-1.6 4.4C5.6 12.8 4.5 15 4.8 17c-1 .4-1.5 1.1-1 1.8.6.8 2.2.9 3.4 1.9 1 .8 2.3 1 3.1.2.5-.4 2.9-.4 3.4 0 .8.8 2.1.6 3.1-.2 1.2-1 2.8-1.1 3.4-1.9.5-.7 0-1.4-1-1.8.3-2-.8-4.2-2.2-6.2-1.2-1.7-1.6-2.7-1.6-4.4C15.4 3.8 14.2 2 12 2zM10.5 6.5h.01M13.5 6.5h.01M10.6 8.6c.8.6 2 .6 2.8 0"
+          />
+        </symbol>
+        <!-- GitHub's own mark, used only to link to GitHub, which its brand guidance allows. -->
+        <symbol id="i-github" viewBox="0 0 16 16">
+          <path
+            d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A7.995 7.995 0 0016 8c0-4.42-3.58-8-8-8z"
+          />
+        </symbol>
+      </defs>
+    </svg>
+
+    <script src="audio.js"></script>
+    <script src="script.js"></script>
+  </body>
+</html>
