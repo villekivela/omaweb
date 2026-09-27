@@ -175,32 +175,66 @@ a {
     inset 0 1px 0 rgb(255 255 255 / 70%),
     0 var(--depth) 0 #9d8f70,
     0 calc(var(--depth) + 1px) 0 #5e5442,
-    0 calc(var(--depth) + 6px) 14px rgb(0 0 0 / 55%);
+    0 calc(var(--depth) + 6px) 14px rgb(0 0 0 / 55%),
+    0 0 0 rgb(255 110 50 / 0%);
   transform: translateY(0);
   transition:
-    transform 0.08s ease-out,
-    box-shadow 0.08s ease-out,
-    filter 0.15s;
+    transform 0.07s ease-out,
+    box-shadow 0.2s ease-out,
+    filter 0.2s;
 }
 
+/* The keycap's finish: a fine sandblasted grain, the paper-grain tile drawn small and multiplied
+   into the face, and a soft sheen where the light from above catches it. Both sit over the label,
+   as the texture of a printed cap would, and neither is in the way of a click. */
+.btn::before,
+.btn::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+.btn::before {
+  background: url("assets/art/paper-grain.webp") 0 0 / 48px;
+  mix-blend-mode: multiply;
+  opacity: 0.18;
+}
+
+.btn::after {
+  background: radial-gradient(120% 90% at 30% 0%, rgb(255 255 255 / 40%), transparent 60%);
+  mix-blend-mode: soft-light;
+}
+
+/* Pointed at, the key stays where it is and lights from underneath, as a backlit keycap does,
+   rather than lifting off its base. */
 .btn:hover {
-  filter: brightness(1.04);
-  transform: translateY(-1px);
+  filter: brightness(1.03);
   box-shadow:
     inset 0 1px 0 rgb(255 255 255 / 70%),
-    0 calc(var(--depth) + 1px) 0 #9d8f70,
-    0 calc(var(--depth) + 2px) 0 #5e5442,
-    0 calc(var(--depth) + 8px) 16px rgb(0 0 0 / 55%);
+    0 var(--depth) 0 #9d8f70,
+    0 calc(var(--depth) + 1px) 0 #5e5442,
+    0 calc(var(--depth) + 6px) 14px rgb(0 0 0 / 55%),
+    0 calc(var(--depth) + 2px) 22px rgb(255 110 50 / 45%);
 }
 
+/* Pressed, the face travels most of the way down its edge and stops on a sliver of it, as a key
+   bottoms out, and the light under it tightens. The transition is quicker going down than coming
+   back, so the press feels firm and the release springy. */
 .btn:active {
-  transform: translateY(calc(var(--depth) - 1px));
+  transform: translateY(calc(var(--depth) - 2px));
+  filter: brightness(0.97);
   box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 45%),
-    inset 0 2px 4px rgb(0 0 0 / 15%),
-    0 1px 0 #9d8f70,
-    0 2px 0 #5e5442,
-    0 3px 6px rgb(0 0 0 / 50%);
+    inset 0 1px 0 rgb(255 255 255 / 50%),
+    0 2px 0 #9d8f70,
+    0 3px 0 #5e5442,
+    0 5px 8px rgb(0 0 0 / 55%),
+    0 4px 16px rgb(255 110 50 / 35%);
+  transition:
+    transform 0.03s ease-in,
+    box-shadow 0.03s ease-in,
+    filter 0.03s;
 }
 
 .more {
