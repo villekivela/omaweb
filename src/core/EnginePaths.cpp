@@ -10,7 +10,8 @@ EnginePaths EnginePaths::beside(const QString &engineLibraryDirectory)
         return {};
     }
     // The layout `cmake --install` writes: the libraries in `lib`, the helper
-    // in `lib/qt6`, and everything the engine reads under `share/qt6`.
+    // and QML modules in `lib/qt6`, and everything the engine reads under
+    // `share/qt6`.
     const QDir libraries(engineLibraryDirectory);
     const QDir prefix(libraries.filePath(QStringLiteral("..")));
     const QString share = prefix.filePath(QStringLiteral("share/qt6"));
@@ -18,6 +19,7 @@ EnginePaths EnginePaths::beside(const QString &engineLibraryDirectory)
         QDir::cleanPath(share + QStringLiteral("/resources")),
         QDir::cleanPath(share + QStringLiteral("/translations/qtwebengine_locales")),
         QDir::cleanPath(libraries.filePath(QStringLiteral("qt6/QtWebEngineProcess"))),
+        QDir::cleanPath(libraries.filePath(QStringLiteral("qt6/qml"))),
     };
 }
 
