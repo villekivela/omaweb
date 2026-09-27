@@ -197,6 +197,8 @@ private slots:
     void qtScriptsEveryDocumentForItsOwnAddress();
     void qtRejectsObsoleteCosmeticSurveys_data();
     void qtRejectsObsoleteCosmeticSurveys();
+    void qtSurveysAgainForAChangeWhileThePageLoads_data();
+    void qtSurveysAgainForAChangeWhileThePageLoads();
     void qtHidesElementsAddedAfterLoad_data();
     void qtHidesElementsAddedAfterLoad();
     void qtSurveysOnlyWhatThePageAddsAnew();
@@ -209,6 +211,7 @@ private slots:
     void qtAppliesEveryProceduralOperatorAndAction();
     void qtAppliesProceduralRulesToWhatThePageAddsLater();
     void qtUndoesProceduralRulesWhenTheSiteIsSwitchedOff();
+    void qtUndoesProceduralRulesSwitchedOffWhileThePageLoads();
     void qtAppliesTheProceduralRulesOfEachFramesOwnAddress_data();
     void qtAppliesTheProceduralRulesOfEachFramesOwnAddress();
     void qtKeepsTheProceduralApplierOutOfThePagesReach();
@@ -1505,6 +1508,19 @@ private:
     QStringList m_requests;
 };
 
+// Takes connections and answers none of them, so a page that asks it for a
+// subresource is still loading, whatever its DOM has done, until release().
+class HeldServer final : public QTcpServer {
+public:
+    void release()
+    {
+        close();
+        while (auto *socket = nextPendingConnection()) {
+            socket->abort();
+        }
+    }
+};
+
 } // namespace
 
 // A tracker served from a subdomain of the page's own site, whose CNAME chain
@@ -1983,12 +1999,63 @@ void QtEngineContractTest::qtRejectsObsoleteCosmeticSurveys()
     const QUrl page(QStringLiteral("http://127.0.0.1:%1/page.html").arg(server.serverPort()));
     QVERIFY(adapter->setProperty("currentUrl", page));
     QTRY_COMPARE_WITH_TIMEOUT(blocker->property("genericRequests").toInt(), 1, 15000);
+    // The page can survey itself before its load is over, and a change during
+    // the load is the next test's.
+    QTRY_VERIFY_WITH_TIMEOUT(!adapter->property("loading").toBool(), 15000);
     QVERIFY(QMetaObject::invokeMethod(adapter.get(), "surveyGenericCosmeticRules"));
     if (change == QStringLiteral("reload")) {
         QVERIFY(QMetaObject::invokeMethod(adapter.get(), "reloadPage"));
     } else {
         QVERIFY(QMetaObject::invokeMethod(blocker.get(), change.toUtf8().constData()));
     }
+    QTRY_COMPARE_WITH_TIMEOUT(blocker->property("genericRequests").toInt(), 2, 15000);
+    QTest::qWait(250);
+    QCOMPARE(blocker->property("genericRequests").toInt(), 2);
+}
+
+// A document surveys itself as soon as its DOM is parsed, which can be before
+// its load is over, and a change to the rules in between answers to a survey
+// already made. The page's image is held, so the load stays open after the
+// survey until the test lets it end.
+void QtEngineContractTest::qtSurveysAgainForAChangeWhileThePageLoads_data()
+{
+    QTest::addColumn<QString>("change");
+    QTest::newRow("rule-replacement") << QStringLiteral("rulesChanged");
+    QTest::newRow("site-toggle") << QStringLiteral("configurationChanged");
+}
+
+void QtEngineContractTest::qtSurveysAgainForAChangeWhileThePageLoads()
+{
+    QFETCH(QString, change);
+    HeldServer held;
+    QVERIFY(held.listen(QHostAddress::LocalHost));
+    PageServer server("<html><body class='ad'><img src='http://127.0.0.1:"
+        + QByteArray::number(held.serverPort()) + "/held.gif'></body></html>");
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+    QTemporaryDir root;
+    QQmlEngine engine;
+    QQmlComponent blockerComponent(&engine);
+    blockerComponent.setData(blockerFakeSource(), QUrl());
+    const std::unique_ptr<QObject> blocker(blockerComponent.create());
+    QVERIFY2(blocker, qPrintable(blockerComponent.errorString()));
+    QQmlComponent component(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
+        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
+        {QStringLiteral("contentBlocker"), QVariant::fromValue(blocker.get())},
+    }));
+    QVERIFY2(adapter, qPrintable(component.errorString()));
+    QQuickWindow window;
+    qobject_cast<QQuickItem *>(adapter.get())->setParentItem(window.contentItem());
+    window.show();
+    QVERIFY(adapter->setProperty("currentUrl",
+        QUrl(QStringLiteral("http://127.0.0.1:%1/page.html").arg(server.serverPort()))));
+    QTRY_COMPARE_WITH_TIMEOUT(blocker->property("genericRequests").toInt(), 1, 15000);
+    QTRY_VERIFY_WITH_TIMEOUT(held.hasPendingConnections(), 15000);
+    QVERIFY(adapter->property("loading").toBool());
+    QVERIFY(QMetaObject::invokeMethod(blocker.get(), change.toUtf8().constData()));
+    held.release();
+    QTRY_VERIFY_WITH_TIMEOUT(!adapter->property("loading").toBool(), 15000);
     QTRY_COMPARE_WITH_TIMEOUT(blocker->property("genericRequests").toInt(), 2, 15000);
     QTest::qWait(250);
     QCOMPARE(blocker->property("genericRequests").toInt(), 2);
@@ -2577,6 +2644,38 @@ void QtEngineContractTest::qtUndoesProceduralRulesWhenTheSiteIsSwitchedOff()
         view.title(), QStringLiteral("shown tracked promo|shown|gone"), 15000);
     view.blocker->setSiteEnabled(page, true);
     QTRY_COMPARE_WITH_TIMEOUT(view.title(), applied, 15000);
+}
+
+// The procedural rules start before the page's load is over, and a site
+// switched off in between is undone when the load ends. The page's image is
+// held, so the load stays open until the test lets it end.
+void QtEngineContractTest::qtUndoesProceduralRulesSwitchedOffWhileThePageLoads()
+{
+    HeldServer held;
+    QVERIFY(held.listen(QHostAddress::LocalHost));
+    PageServer server("<!doctype html><html><body>"
+                      "<div class=\"card\" id=\"hide\">Hide</div><img src=\"http://127.0.0.1:"
+        + QByteArray::number(held.serverPort()) + "/held.gif\"><script>" + proceduralStateScript
+        + R"JS(
+            const report = () => {
+                document.title = read("hide");
+                requestAnimationFrame(report);
+            };
+            report();
+        </script></body></html>)JS");
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+    ProceduralFilteringView view(QStringLiteral("127.0.0.1##.card:has-text(Hide)"));
+    QVERIFY(view.adapter);
+    const QUrl page(QStringLiteral("http://127.0.0.1:%1/page.html").arg(server.serverPort()));
+    QVERIFY(view.adapter->setProperty("currentUrl", page));
+    QTRY_COMPARE_WITH_TIMEOUT(view.title(), QStringLiteral("hidden"), 15000);
+    QTRY_VERIFY_WITH_TIMEOUT(held.hasPendingConnections(), 15000);
+    QVERIFY(view.adapter->property("loading").toBool());
+
+    view.blocker->setSiteEnabled(page, false);
+    held.release();
+    QTRY_VERIFY_WITH_TIMEOUT(!view.adapter->property("loading").toBool(), 15000);
+    QTRY_COMPARE_WITH_TIMEOUT(view.title(), QStringLiteral("shown"), 15000);
 }
 
 // A subframe from another site gets the rules of its own address, not the

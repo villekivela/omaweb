@@ -1795,6 +1795,11 @@ Item {
     function takeChangedBlockingRules() {
         root.blockingRulesChangedSinceLoad = true;
         root.cosmeticRuleGeneration += 1;
+        root.reapplyBlockingRules();
+    }
+    // Every frame surveyed again and its procedural rules restarted. During a
+    // load neither happens, and the load's end does both.
+    function reapplyBlockingRules() {
         root.surveyGenericCosmeticRules();
         if (!loading)
             root.forEachFrame(webView.mainFrame, function (frame) {
@@ -2588,10 +2593,14 @@ Item {
             }
             // A document that loaded surveyed itself when its DOM was parsed
             // and verified the site stylesheet with the answer, unless the
-            // survey script never reached it. One that did not load gets the
-            // site stylesheet verified here.
+            // survey script never reached it. The DOM is often parsed before
+            // the load is over, so a rule change in between came after the
+            // survey and is put in here. One that did not load gets the site
+            // stylesheet verified here.
             if (loadRequest.status !== WebEngineView.LoadSucceededStatus)
                 root.applyCosmeticRules();
+            else if (root.blockingRulesChangedSinceLoad)
+                root.reapplyBlockingRules();
             else if (!root.documentSurveyed)
                 root.surveyGenericCosmeticRules();
             if (loadRequest.status === WebEngineView.LoadSucceededStatus && root.httpsOnlyPolicy) {
