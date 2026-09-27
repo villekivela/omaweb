@@ -529,10 +529,18 @@ a {
   }
 }
 
+/* The copy column spans the page and sits over the art, so it lets clicks through to the signs and
+   the dashboard, and only its own words and button, each as wide as its content, catch them. */
 .hero__copy {
   position: relative;
   z-index: 1;
   padding-block: 64px;
+  pointer-events: none;
+}
+
+.hero__copy > * {
+  width: fit-content;
+  pointer-events: auto;
 }
 
 .hero__copy .kicker {
