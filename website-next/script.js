@@ -191,7 +191,8 @@ if (shot && steps.length && themePicker) {
   document.querySelector(".step__hint")?.removeAttribute("hidden");
 }
 
-// The night radio, on the switch in the hero or the M key. The screen on the dash glows with it.
+// The night radio, on the hidden switch on the dashboard or the M key: each press tunes to the
+// next station, then off. The screen on the dash glows with it.
 const radioSwitch = document.querySelector("[data-radio]");
 if (radioSwitch && window.OmawebRadio && window.AudioContext) {
   const radio = window.OmawebRadio();
@@ -204,11 +205,13 @@ if (radioSwitch && window.OmawebRadio && window.AudioContext) {
     dash?.style.setProperty("--level", radio.level().toFixed(3));
     requestAnimationFrame(glow);
   };
+  // Each press tunes to the next station, and the last one's press turns the radio off.
   const toggle = () => {
-    if (radio.playing) radio.stop();
-    else radio.start();
+    const wasPlaying = radio.playing;
+    const name = radio.tune();
     radioSwitch.setAttribute("aria-pressed", String(radio.playing));
-    if (radio.playing && !still) glow();
+    radioSwitch.setAttribute("aria-label", name ? `Night radio: ${name}` : "Night radio");
+    if (radio.playing && !wasPlaying && !still) glow();
   };
   radioSwitch.addEventListener("click", toggle);
   document.addEventListener("keydown", (event) => {
