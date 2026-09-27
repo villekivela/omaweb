@@ -23,9 +23,9 @@ Two things make an unedited copy work inside Omaweb:
   qml directory does not claim the kit's imports instead. The kit's layer-shell
   and Hyprland surfaces are out of scope, and so are the components that need
   them (`Panel`, `PopupCard`, `KeyboardPanel`, `MultiSelect`, `BarIconButton`,
-  `SpeedTestOverlay`). `BackgroundVideo` is out for its own reason: it imports
-  QtMultimedia, which Omaweb does not link, and `BackgroundMedia` loads it for
-  any video path.
+  `SpeedTestOverlay`). Upstream removed `BackgroundVideo`, the kit's only
+  QtMultimedia import, so `BackgroundMedia` draws stills and no kit component
+  needs a Qt module Omaweb does not link.
 - **`src/ui/*.qml`** adapts components to Omaweb's call sites — keeping Omaweb's
   property names and its accessibility annotations, with a kit component
   underneath.

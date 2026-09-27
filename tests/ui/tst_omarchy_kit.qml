@@ -208,6 +208,20 @@ TestCase {
         verify(Math.abs(reloadedAlpha - sentinel) > 0.0001);
     }
 
+    // A shell.toml role may name another role. A theme whose roles name each
+    // other used to recurse until the JavaScript stack ran out; the kit now
+    // gives up on the cycle and draws the fallback.
+    function test_theKitResolvesRoleAliasesAndGivesUpOnACycle() {
+        Color.loadShell("[alias]\nchain = \"alias.step\"\nstep = \"accent\"\n"
+                        + "ping = \"alias.pong\"\npong = \"alias.ping\"\n");
+        const chained = Color.flatColor("alias.chain", "#123456");
+        const cycled = Color.flatColor("alias.ping", "#123456");
+
+        Color.loadShell("");
+        compare(String(chained), String(Color.accent));
+        compare(String(cycled), "#123456");
+    }
+
     function test_actionButtonUsesTheKitAndOmawebPalette() {
         const button = createTemporaryObject(actionButtonComponent, testCase);
         verify(button !== null);
