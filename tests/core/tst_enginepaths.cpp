@@ -18,6 +18,7 @@ private slots:
         QCOMPARE(paths.locales,
             QStringLiteral("/usr/lib/omaweb/share/qt6/translations/qtwebengine_locales"));
         QCOMPARE(paths.renderer, QStringLiteral("/usr/lib/omaweb/lib/qt6/QtWebEngineProcess"));
+        QCOMPARE(paths.qml, QStringLiteral("/usr/lib/omaweb/lib/qt6/qml"));
     }
 
     // A platform that cannot say where its engine is says nothing rather than
@@ -28,6 +29,7 @@ private slots:
         QVERIFY(paths.resources.isEmpty());
         QVERIFY(paths.locales.isEmpty());
         QVERIFY(paths.renderer.isEmpty());
+        QVERIFY(paths.qml.isEmpty());
     }
 };
 

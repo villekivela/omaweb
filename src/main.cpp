@@ -214,6 +214,9 @@ int main(int argc, char *argv[])
         qputenv("QTWEBENGINE_CHROMIUM_FLAGS", engineCommandLine.toLocal8Bit());
     }
 
+    // Where a private engine keeps its QtWebEngine QML module, for the shell's
+    // QML engine once there is one. Empty for an engine that is part of Qt.
+    QString engineQmlDirectory;
 #if defined(Q_OS_LINUX)
     // Say where this engine's own files are, before the engine asks QtCore and
     // is told where the distribution's Qt keeps files this engine did not put
@@ -252,6 +255,9 @@ int main(int argc, char *argv[])
             say("QTWEBENGINE_RESOURCES_PATH", paths.resources, true);
             say("QTWEBENGINE_LOCALES_PATH", paths.locales, true);
             say("QTWEBENGINEPROCESS_PATH", paths.renderer, false);
+            if (QFileInfo(paths.qml).isDir()) {
+                engineQmlDirectory = paths.qml;
+            }
         }
     }
 #endif
@@ -438,6 +444,11 @@ int main(int argc, char *argv[])
     engine.addImportPath(QStringLiteral(OMAWEB_UI_DIRECTORY));
     // The vendored Omarchy component kit: qs.Ui and qs.Commons.
     engine.addImportPath(QStringLiteral(OMAWEB_OMARCHY_IMPORT_PATH));
+    // Ahead of Qt's own directory, so `import QtWebEngine` is the module built
+    // with the engine library this process loaded, not the distribution's.
+    if (!engineQmlDirectory.isEmpty()) {
+        engine.addImportPath(engineQmlDirectory);
+    }
     // The kit's own colour and type come from an Omarchy theme on disk. Omaweb's
     // palette is the source of truth, so it is pushed into the kit's singletons
     // once the engine can resolve them.

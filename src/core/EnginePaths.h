@@ -22,6 +22,10 @@ struct EnginePaths {
     QString resources;
     QString locales;
     QString renderer;
+    // The engine's own QtWebEngine QML module. Qt searches only its own QML
+    // directory, where the module is the distribution's engine's when one is
+    // installed and absent when not, and the shell's web view cannot load.
+    QString qml;
 
     // Empty when `engineLibraryDirectory` is empty, which is what a platform
     // that cannot say where its engine is reports.
