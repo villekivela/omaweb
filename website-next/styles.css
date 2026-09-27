@@ -558,73 +558,97 @@ a {
   color: var(--ink);
 }
 
-/* The radio switch, set into the console between the keyboards and sized in the scene's own
-   units like the signs, so it stays in place on the art at every width. Its lamp lights while
-   the radio plays. */
+/* The radio is an easter egg: an unmarked latching button on the console between the keyboards,
+   in a well with the art's thin orange rim, tilted back with the console. It has no words, only a
+   pilot lamp. Pressed, it stays down and its lamp and cap light, like the lit keys either side;
+   pressed again, it springs back. Sized in the scene's own units, so it stays put on the art. */
 .radio:not([hidden]) {
   position: absolute;
   left: 50%;
-  top: 80.5%;
-  height: 6.4%;
-  display: flex;
-  align-items: center;
-  gap: 0.7em;
-  padding: 0 0.9em;
-  border: 1px solid rgb(255 140 90 / 35%);
-  border-radius: 0.35em;
-  background: linear-gradient(to bottom, #1d1512, #0c0908);
+  top: 79.5%;
+  width: 7.6cqh;
+  height: 5.6cqh;
+  padding: 0.5cqh;
+  border: 0.22cqh solid rgb(232 106 48 / 70%);
+  border-radius: 1cqh;
+  background: linear-gradient(to bottom, #040303, #100a08);
   box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 8%),
-    0 0.2em 0.6em rgb(0 0 0 / 70%);
-  color: #bba89a;
-  font: 600 2.6cqh var(--mono);
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  transform: translateX(-50%);
+    inset 0 0.5cqh 1cqh rgb(0 0 0 / 90%),
+    0 0 1cqh rgb(232 106 48 / 10%);
+  transform: translateX(-50%) perspective(40cqh) rotateX(28deg);
+  transform-origin: 50% 100%;
   cursor: pointer;
-  transition:
-    color 0.2s,
-    border-color 0.2s,
-    box-shadow 0.2s;
 }
 
-.radio:hover,
-.radio[aria-pressed="true"] {
-  color: #fff1dc;
-}
-
-.radio[aria-pressed="true"] {
-  border-color: rgb(255 120 60 / 70%);
+.radio__cap {
+  position: relative;
+  display: grid;
+  place-items: center;
+  height: 100%;
+  border-radius: 0.7cqh;
+  /* A lighter top face over darker walls, with a speckle like the art's halftone. */
+  background:
+    url("assets/art/paper-grain.webp") 0 0 / 40px,
+    linear-gradient(to bottom, #4a4340, #2e2826 56%, #171211 58%, #0e0a09);
+  background-blend-mode: multiply, normal;
   box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 8%),
-    0 0.2em 0.6em rgb(0 0 0 / 70%),
-    0 0 1.2em rgb(255 90 44 / 30%);
-  text-shadow: 0 0 0.5em rgb(255 120 60 / 60%);
+    inset 0 0.2cqh 0 rgb(255 240 225 / 18%),
+    0 0.6cqh 0 #060404;
+  transform: translateY(-0.2cqh);
+  transition:
+    transform 0.06s ease-out,
+    box-shadow 0.06s ease-out,
+    background 0.4s;
 }
 
 .radio__led {
-  width: 0.55em;
-  height: 0.55em;
+  width: 1cqh;
+  height: 1cqh;
+  margin-top: -0.8cqh;
   border-radius: 50%;
-  background: #3a2620;
-  box-shadow: inset 0 0 0.15em #000;
+  background: #2a1a14;
+  box-shadow: inset 0 0 0.2cqh #000;
   transition:
-    background 0.3s,
-    box-shadow 0.3s;
+    background 0.4s,
+    box-shadow 0.4s;
+}
+
+.radio:hover .radio__cap {
+  box-shadow:
+    inset 0 0.2cqh 0 rgb(255 240 225 / 26%),
+    0 0.6cqh 0 #060404,
+    0 0 1.2cqh rgb(232 106 48 / 30%);
+}
+
+.radio:active .radio__cap {
+  transform: translateY(0.45cqh);
+  box-shadow:
+    inset 0 0.2cqh 0 rgb(255 240 225 / 12%),
+    0 0.1cqh 0 #060404;
+}
+
+/* Latched on: down on its travel, cap and lamp alight. */
+.radio[aria-pressed="true"] .radio__cap {
+  transform: translateY(0.3cqh);
+  background:
+    url("assets/art/paper-grain.webp") 0 0 / 40px,
+    linear-gradient(to bottom, #ff8a4a, #e8581f 56%, #8a2c0c 58%, #4a1606);
+  background-blend-mode: multiply, normal;
+  box-shadow:
+    inset 0 0.2cqh 0 rgb(255 220 190 / 55%),
+    0 0.25cqh 0 #2a0c04,
+    0 0 2.2cqh rgb(255 100 40 / 55%);
 }
 
 .radio[aria-pressed="true"] .radio__led {
-  background: var(--accent);
+  background: #fff1dc;
   box-shadow:
-    0 0 0.5em var(--accent),
-    0 0 1em rgb(255 90 44 / 60%);
+    0 0 0.6cqh #fff1dc,
+    0 0 1.4cqh rgb(255 200 150 / 80%);
 }
 
-.radio kbd {
-  padding: 0 0.35em;
-  border-color: rgb(255 255 255 / 18%);
-  font-size: 0.85em;
-  letter-spacing: 0;
+.radio:focus-visible {
+  outline-offset: 0.4cqh;
 }
 
 /* Feature strip */
@@ -1531,8 +1555,7 @@ code {
    steps name stay: they are what the browser binds, and the reader will have a keyboard there. */
 @media (hover: none) and (pointer: coarse) {
   .step__hint,
-  .themes__label kbd,
-  .radio kbd {
+  .themes__label kbd {
     display: none !important;
   }
 }
