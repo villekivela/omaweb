@@ -218,3 +218,29 @@ if (radioSwitch && window.OmawebRadio && window.AudioContext) {
   });
   radioSwitch.hidden = false;
 }
+
+// Copies a screen's commands without the prompts, which are drawn and not typed.
+for (const button of document.querySelectorAll("[data-copy]")) {
+  if (!navigator.clipboard) break;
+  const code = button.closest(".hud").querySelector("code");
+  button.addEventListener("click", async () => {
+    const lines = [...code.childNodes]
+      .filter(
+        (node) => !node.classList?.contains("hud__prompt") && !node.classList?.contains("caret"),
+      )
+      .map((node) => node.textContent)
+      .join("");
+    try {
+      await navigator.clipboard.writeText(lines.trim());
+      button.textContent = "Copied";
+      button.classList.add("is-done");
+    } catch {
+      button.textContent = "Select to copy";
+    }
+    setTimeout(() => {
+      button.textContent = "Copy";
+      button.classList.remove("is-done");
+    }, 1800);
+  });
+  button.hidden = false;
+}
