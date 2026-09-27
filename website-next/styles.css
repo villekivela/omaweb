@@ -1313,8 +1313,12 @@ code {
   font-size: 13px;
 }
 
-.radio__led.is-lit {
+/* A lit lamp, sized to sit on the line of text beside it. */
+.install__lamp {
   flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
   background: var(--accent);
   box-shadow:
     0 0 0.5em var(--accent),
