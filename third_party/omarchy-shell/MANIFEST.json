@@ -1,8 +1,8 @@
 {
   "repository": "https://github.com/omacom/omarchy",
   "branch": "quattro",
-  "ref": "b679363bed05415771a1b1dc92c6899a908236f7",
-  "fetched": "2026-09-14",
+  "ref": "c5b4db77d68e7fbce5cf11120712ea322557e967",
+  "fetched": "2026-09-27",
   "license": "MIT",
   "files": {
     "LICENSE": {
@@ -22,8 +22,8 @@
     },
     "qs/Commons/Color.qml": {
       "upstream": "shell/Commons/Color.qml",
-      "blob": "54163a4008141c568e4d76a6baab9ef153165fc0",
-      "sha256": "cc9b62e2eaf8c307aa02206d9320c3d0ca349cf8feed452a6eddf387adaa5320"
+      "blob": "4fd2452b3b93dfeb2fc32d571d38e96d98ffbbc2",
+      "sha256": "b7b0f7df6e820851a50ddc641e1a87e33b8a6adbc14149fddf2d1e4f879dd163"
     },
     "qs/Commons/Style.qml": {
       "upstream": "shell/Commons/Style.qml",
@@ -32,8 +32,8 @@
     },
     "qs/Commons/Util.qml": {
       "upstream": "shell/Commons/Util.qml",
-      "blob": "14af44fed9ec8e852221d69ad8bde197a1c247e6",
-      "sha256": "5d3645caa4da6e640c021421d35a54bb0b05b01d9d904b284eba42b4b6017953"
+      "blob": "cacc98d25517f6fa6e9ad00ea111aeb457f12abd",
+      "sha256": "20800c11650b37f2c588d4cbfcbf1704cf3b64a92c862e62d2b7fa980e29b944"
     },
     "qs/Commons/qmldir": {
       "upstream": "shell/Commons/qmldir",
@@ -42,13 +42,8 @@
     },
     "qs/Ui/BackgroundMedia.qml": {
       "upstream": "shell/Ui/BackgroundMedia.qml",
-      "blob": "b281ae223ac505e4cd5cc7bf455c64fea25dc1e5",
-      "sha256": "b8e62a0fe29bf5d326da52550d871e01f0cd7ff0e5c2c195a50fcb7d1f503fc9"
-    },
-    "qs/Ui/BackgroundVideo.qml": {
-      "upstream": "shell/Ui/BackgroundVideo.qml",
-      "blob": "519e8bd99f02318fec657baaa55023640747e5a9",
-      "sha256": "c206343f404b8814c9457ab7b5f13c71641f5cb103d6186e513460c5a0d9c42d"
+      "blob": "aabde8d1f8189d8e55f39d4bddc8fdb7b7c06426",
+      "sha256": "f807fc72481e0c15270ecf22e2e5a9af55e6111bf2fbe01caa99847c2c348a1c"
     },
     "qs/Ui/BarIconButton.qml": {
       "upstream": "shell/Ui/BarIconButton.qml",
@@ -217,8 +212,8 @@
     },
     "qs/Ui/qmldir": {
       "upstream": "shell/Ui/qmldir",
-      "blob": "092caf6c609102721006bc42ad84945e892b42fe",
-      "sha256": "9d4ff34131478f656a0368f43c8d1ea4d3ab0768296445fa0c96cad73e517a1e"
+      "blob": "464e25b74a1ab354b6af139074cf3b43c0a71d9b",
+      "sha256": "b1f578a93d7a46350e7f53ac78af55d62ac053698c4ca1a67bb1b20ab78e10c1"
     }
   }
 }
