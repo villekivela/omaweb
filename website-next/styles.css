@@ -1321,6 +1321,272 @@ code {
     0 0 1em rgb(255 90 44 / 60%);
 }
 
+/* Release log */
+
+.log {
+  display: grid;
+  grid-template-columns: minmax(0, 380px) minmax(0, 1fr);
+  gap: clamp(32px, 5vw, 64px);
+  align-items: start;
+  padding-block: 40px 88px;
+}
+
+/* The list stays beside the notes while they scroll, and scrolls on its own however long it
+   grows, so a hundred releases cost the page no length. */
+.log__versions {
+  position: sticky;
+  top: 24px;
+}
+
+.log__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin: 0 0 14px;
+  color: rgb(255 180 140 / 55%);
+  font-size: 13px;
+}
+
+.log__head .kicker {
+  margin: 0;
+}
+
+/* The filter as a row of tabs: words, and a line under the one chosen. */
+.log__kinds:not([hidden]) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  margin-bottom: 12px;
+}
+
+.log__kinds button {
+  padding: 2px 0 4px;
+  border: 0;
+  border-bottom: 1px solid transparent;
+  background: none;
+  color: var(--dim);
+  font: 600 13px var(--mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.log__kinds button:hover {
+  color: var(--ink);
+}
+
+.log__kinds [aria-pressed="true"] {
+  border-bottom-color: var(--accent);
+  color: #fff1dc;
+}
+
+.log__screen {
+  max-height: min(64vh, 620px);
+  overflow-y: auto;
+  scrollbar-color: rgb(255 140 90 / 35%) transparent;
+  scrollbar-width: thin;
+}
+
+.log__list {
+  margin: 0;
+  padding: 8px 0;
+  list-style: none;
+}
+
+.log__list li[hidden] {
+  display: none;
+}
+
+/* One line a release, whatever its name: chip, name, date, and the name cut off before it wraps. */
+/* A lamp column, then chip, name and date. The release on show lights its lamp and its text,
+   the way the dashboard lights up, rather than sitting in a box of its own. */
+.log__list a {
+  display: grid;
+  grid-template-columns: 6px 98px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  color: #a89a8f;
+  font-size: 15px;
+  text-decoration: none;
+  transition: color 0.15s;
+}
+
+.log__list a::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+.log__list a:hover {
+  color: #fff1dc;
+}
+
+.log__list a[aria-current="page"] {
+  color: #fff1dc;
+  text-shadow:
+    0 0 0.15em rgb(255 214 170 / 70%),
+    0 0 0.6em rgb(255 120 60 / 45%);
+}
+
+.log__list a[aria-current="page"]::before {
+  background: var(--accent);
+  box-shadow:
+    0 0 0.4em var(--accent),
+    0 0 0.9em rgb(255 90 44 / 60%);
+}
+
+.log__kind {
+  color: rgb(201 165 140 / 70%);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+[data-kind="browser"] .log__kind {
+  color: var(--accent);
+}
+
+.log__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+}
+
+.log__list time {
+  color: rgb(255 180 140 / 55%);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.log__all {
+  display: inline-block;
+  margin: 14px 0 0;
+  color: var(--dim);
+  font-size: 14px;
+}
+
+.log__all:hover {
+  color: var(--accent);
+}
+
+/* A version keeps its own case: "v0.7.3", not the display face's capitals. */
+.log__release h1 {
+  overflow-wrap: anywhere;
+  text-transform: none;
+}
+
+/* Filtered to one kind, the chip on every row says the same thing, so it goes. */
+.log__list.is-one-kind .log__kind {
+  display: none;
+}
+
+.log__list.is-one-kind a {
+  grid-template-columns: 6px minmax(0, 1fr) auto;
+}
+
+.log__marks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  margin: 14px 0 28px;
+  color: var(--dim);
+  font-size: 13px;
+}
+
+.t-release__state {
+  padding: 1px 7px;
+  border: 1px solid rgb(255 140 90 / 40%);
+  border-radius: 2px;
+  color: #c9a58c;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* The notes, as the renderer writes them: h3 for every heading, fenced blocks as commands. */
+.log__notes {
+  max-width: 72ch;
+}
+
+.log__notes h3 {
+  margin: 34px 0 10px;
+  font: 500 20px/1.2 var(--display);
+  letter-spacing: var(--display-track);
+  text-transform: uppercase;
+}
+
+.log__notes h3:first-child {
+  margin-top: 0;
+}
+
+.log__notes p,
+.log__notes li {
+  color: #d8cbc0;
+}
+
+.log__notes ul,
+.log__notes ol {
+  padding-left: 1.2em;
+}
+
+.log__notes li + li {
+  margin-top: 8px;
+}
+
+.log__notes li::marker {
+  color: var(--accent);
+}
+
+.log__notes a {
+  color: #fff1dc;
+  overflow-wrap: anywhere;
+}
+
+.log__notes a:hover {
+  color: var(--accent);
+}
+
+.log__notes code {
+  padding: 0 0.3em;
+  border-radius: 2px;
+  background: rgb(255 255 255 / 6%);
+}
+
+.log__notes pre {
+  overflow-x: auto;
+  padding: 16px 18px;
+  border: 1px solid rgb(236 227 207 / 18%);
+  border-radius: 5px;
+  background: #070504;
+  color: #fff1dc;
+  text-shadow: 0 0 0.3em rgb(255 150 90 / 45%);
+}
+
+.log__notes pre code {
+  padding: 0;
+  background: none;
+}
+
+.log__notes table {
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.log__notes th,
+.log__notes td {
+  padding: 6px 12px;
+  border: 1px solid var(--line);
+  text-align: left;
+}
+
+.log__out {
+  margin-top: 36px;
+}
+
 /* Footer */
 
 .foot {
@@ -1497,6 +1763,21 @@ code {
 
   .install {
     padding-block: 56px;
+  }
+
+  .log {
+    grid-template-columns: minmax(0, 1fr);
+    padding-block: 24px 56px;
+  }
+
+  /* Stacked, the notes come first: a reader who opened a release came for them. */
+  .log__versions {
+    position: static;
+    order: 2;
+  }
+
+  .log__screen {
+    max-height: 42vh;
   }
 
   .install__intro {

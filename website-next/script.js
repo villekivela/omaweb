@@ -247,3 +247,29 @@ for (const button of document.querySelectorAll("[data-copy]")) {
   });
   button.hidden = false;
 }
+
+// The release log: the filter by kind, and the list opened at the release being read. Without the
+// script every release is listed and the filter stays hidden.
+const log = document.querySelector(".log__versions");
+if (log) {
+  const rows = [...log.querySelectorAll("[data-kind]")];
+  const choices = [...log.querySelectorAll("[data-kind-choice]")];
+  const filter = (kind) => {
+    for (const row of rows) row.hidden = kind !== "all" && row.dataset.kind !== kind;
+    log.querySelector(".log__list")?.classList.toggle("is-one-kind", kind !== "all");
+    for (const choice of choices) {
+      choice.setAttribute("aria-pressed", String(choice.dataset.kindChoice === kind));
+    }
+  };
+  for (const choice of choices) {
+    choice.addEventListener("click", () => filter(choice.dataset.kindChoice));
+  }
+  const pressed = choices.find((choice) => choice.getAttribute("aria-pressed") === "true");
+  filter(pressed ? pressed.dataset.kindChoice : "all");
+  log.querySelector(".log__kinds").hidden = false;
+  const current = log.querySelector('[aria-current="page"]');
+  const screen = log.querySelector(".log__screen");
+  if (current && screen) {
+    screen.scrollTop = current.offsetTop - screen.clientHeight / 2 + current.offsetHeight / 2;
+  }
+}
