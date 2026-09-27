@@ -3,6 +3,23 @@
   "installCommand": "npm ci",
   "buildCommand": "node build/site.mjs",
   "outputDirectory": "dist",
+  "redirects": [
+    {
+      "source": "/sync/:path*",
+      "destination": "https://github.com/villekivela/omaweb/blob/main/docs/sync-privacy.md",
+      "permanent": false
+    },
+    {
+      "source": "/features/:path*",
+      "destination": "https://github.com/villekivela/omaweb#highlights",
+      "permanent": false
+    },
+    {
+      "source": "/docs/:path*",
+      "destination": "https://github.com/villekivela/omaweb#readme",
+      "permanent": false
+    }
+  ],
   "headers": [
     {
       "source": "/(.*)",
@@ -11,8 +28,14 @@
           "key": "Content-Security-Policy",
           "value": "default-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'"
         },
-        { "key": "X-Content-Type-Options", "value": "nosniff" },
-        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        },
         {
           "key": "Permissions-Policy",
           "value": "accelerometer=(), camera=(), geolocation=(), gyroscope=(), microphone=(), payment=(), usb=()"

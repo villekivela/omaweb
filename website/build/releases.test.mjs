@@ -1,0 +1,96 @@
+// The release pages as releases.mjs writes them, against the shipped landing page and template, so
+// a change to either that breaks the pages fails here rather than on the deployed site.
+
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import test from "node:test";
+
+import { chrome, fallbackPage, kindOf, releasePages, versions } from "./releases.mjs";
+
+const read = (path) => readFileSync(new URL(path, import.meta.url), "utf8");
+const LANDING = read("../index.html");
+const TEMPLATE = read("./release.html");
+
+const release = (tag, name, published, body = "") => ({
+  tag_name: tag,
+  name,
+  body,
+  published_at: published,
+  prerelease: tag.startsWith("v0."),
+  html_url: `https://github.com/villekivela/omaweb/releases/tag/${tag}`,
+});
+
+const RELEASES = [
+  release(
+    "v0.7.3",
+    "v0.7.3",
+    "2026-09-25T03:27:41Z",
+    "## Fixes\n\n- Extensions work in every Space.",
+  ),
+  release("engine-6.11.2-2", "Engine 6.11.2-2", "2026-09-24T05:42:57Z"),
+  release("repo-aarch64", "Package repository (aarch64)", "2026-09-22T06:36:35Z"),
+  release("v0.7.2", "v0.7.2", "2026-09-24T16:58:17Z"),
+];
+
+test("kinds: a tag says what a release is", () => {
+  assert.equal(kindOf(RELEASES[0]).kind, "browser");
+  assert.equal(kindOf(RELEASES[1]).kind, "engine");
+  assert.equal(kindOf(RELEASES[2]).kind, "repository");
+  assert.equal(kindOf(release("nightly", "Nightly", "2026-09-01T00:00:00Z")).kind, "other");
+});
+
+test("versions: a row names its kind once, so the name is what is left of it", () => {
+  const list = versions(RELEASES, "v0.7.3", "..");
+  assert.match(list, /<span class="log__kind">Engine<\/span><span class="log__name">6\.11\.2-2</);
+  assert.match(list, /<span class="log__kind">Repository<\/span><span class="log__name">aarch64</);
+  assert.match(list, /href="\.\.\/releases\/v0\.7\.3\/" aria-current="page"/);
+  // The full name stays reachable where the short one is cut off.
+  assert.match(list, /title="Package repository \(aarch64\)"/);
+});
+
+test("pages: releases/ is the newest browser release, and every release has its own", () => {
+  const pages = releasePages(RELEASES, LANDING, TEMPLATE);
+  assert.deepEqual(
+    pages.map(([directory]) => directory),
+    ["", "v0.7.3", "engine-6.11.2-2", "repo-aarch64", "v0.7.2"],
+  );
+  assert.match(pages[0][1], /<title>v0\.7\.3 · Omaweb<\/title>/);
+});
+
+test("pages: no placeholder is left, and the notes went through the renderer", () => {
+  for (const [, html] of releasePages(RELEASES, LANDING, TEMPLATE)) {
+    assert.equal(html.includes("{{"), false);
+  }
+  const [, newest] = releasePages(RELEASES, LANDING, TEMPLATE)[0];
+  assert.match(newest, /<h3>Fixes<\/h3>/);
+});
+
+test("pages: the list opens on the browser, or on all when the release is not one", () => {
+  const pages = Object.fromEntries(releasePages(RELEASES, LANDING, TEMPLATE));
+  assert.match(pages["v0.7.3"], /data-kind-choice="browser" aria-pressed="true"/);
+  assert.match(pages["engine-6.11.2-2"], /data-kind-choice="all" aria-pressed="true"/);
+});
+
+test("chrome: the landing page's addresses reach back to the root from a release page", () => {
+  const html = chrome(LANDING, "../..", { title: "t", description: "d" })("<p>body</p>");
+  assert.match(html, /href="\.\.\/\.\.\/styles\.css"/);
+  assert.match(html, /src="\.\.\/\.\.\/script\.js"/);
+  assert.match(html, /<a href="\.\.\/\.\.\/#features">/);
+  assert.match(html, /<a href="\.\.\/\.\.\/releases\/" aria-current="true">/);
+  // A symbol reference names this page's own sprite, so it stays as it is.
+  assert.match(html, /<use href="#i-github" \/>/);
+  // An address that leaves the site is left alone.
+  assert.match(html, /href="https:\/\/github\.com\/villekivela\/omaweb"/);
+  assert.match(html, /<main>\n<p>body<\/main>|<main>\n<p>body<\/p>\n {4}<\/main>/);
+});
+
+test("fallback: a build that could not read the releases still says where they are", () => {
+  const html = fallbackPage(LANDING);
+  assert.match(html, /The releases are on GitHub\./);
+  assert.match(html, /href="https:\/\/github\.com\/villekivela\/omaweb\/releases"/);
+  assert.match(html, /href="\.\.\/styles\.css"/);
+});
+
+test("pages: a list with no browser release is an error, not an empty page", () => {
+  assert.throws(() => releasePages(RELEASES.slice(1, 3), LANDING, TEMPLATE), /no browser release/);
+});

@@ -1,0 +1,552 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Omaweb · Web navigation system</title>
+    <meta
+      name="description"
+      content="Omaweb is a keyboard-first web browser for Linux, with separate Spaces, built-in content blocking and no telemetry. Free and open source."
+    />
+    <meta name="theme-color" content="#141210" />
+    <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="assets/shots/themes.css" />
+  </head>
+
+  <body>
+    <header class="top">
+      <div class="top__inner">
+        <a class="brand" href="#">
+          <svg class="wordmark brand__wordmark" viewBox="0 0 160 20" role="img" aria-label="Omaweb">
+            <g transform="translate(-20.528031,-97.174413)">
+              <path
+                class="wordmark__mark"
+                transform="translate(1.3101755,0.8976725)"
+                d="m 28.63857,97.088945 -9.187009,9.187005 9.187009,9.18763 h 3.69342 l 13.915739,-13.91637 4.72873,4.72874 -9.187009,9.18763 h 6.305601 l 9.18701,-9.18763 -9.187622,-9.187005 H 44.40102 l -13.91574,13.915735 -4.728742,-4.72873 9.18701,-9.187005 z"
+              />
+              <path
+                d="m 75.336749,116.72525 q -3.463561,0 -5.510211,-1.88922 -2.046649,-1.91545 -2.046649,-5.45773 v -4.40817 q 0,-3.54228 2.046649,-5.43149 2.04665,-1.915455 5.510211,-1.915455 3.463561,0 5.510211,1.915455 2.04665,1.88921 2.04665,5.43149 v 4.40817 q 0,3.54228 -2.04665,5.45773 -2.04665,1.88922 -5.510211,1.88922 z m 0,-3.09621 q 1.941694,0 3.017497,-1.12829 1.075803,-1.12828 1.075803,-3.01749 v -4.61808 q 0,-1.88922 -1.075803,-3.0175 -1.075803,-1.12828 -3.017497,-1.12828 -1.915454,0 -3.017496,1.12828 -1.075803,1.12828 -1.075803,3.0175 v 4.61808 q 0,1.88921 1.075803,3.01749 1.102042,1.12829 3.017496,1.12829 z M 86.20194,116.3579 V 97.990533 h 6.428579 l 3.174932,16.005847 h 0.472303 l 3.174931,-16.005847 h 6.428575 V 116.3579 h -3.3586 v -15.82217 h -0.4723 l -3.148696,15.82217 h -5.720123 l -3.148692,-15.82217 h -0.472304 v 15.82217 z m 22.14799,0 4.82799,-18.367367 h 6.035 l 4.82799,18.367367 h -3.56852 l -0.99708,-4.04082 h -6.55978 l -0.99708,4.04082 z m 5.37901,-7.24199 h 4.93295 l -2.23032,-8.94753 h -0.4723 z m 13.77775,7.24199 -2.414,-18.367367 h 3.43732 l 1.78426,15.953377 h 0.4723 l 2.30904,-15.953377 h 5.98252 l 2.30904,15.953377 h 0.4723 l 1.78426,-15.953377 h 3.43732 l -2.41399,18.367367 h -5.98252 l -2.36152,-16.32072 h -0.4723 l -2.36152,16.32072 z m 22.35792,0 V 97.990533 h 11.80759 v 3.148687 h -8.34403 v 4.38193 h 7.60934 v 3.1487 h -7.60934 v 4.53936 h 8.50147 v 3.14869 z m 14.27628,0 v -3.04373 h 2.414 v -12.2799 h -2.414 v -3.043737 h 9.44608 q 1.6793,0 2.91254,0.57726 1.25947,0.551021 1.94169,1.600587 0.70845,1.02332 0.70845,2.46647 v 0.26239 q 0,1.25948 -0.4723,2.07289 -0.4723,0.78718 -1.12828,1.23324 -0.62974,0.41983 -1.207,0.6035 v 0.4723 q 0.57726,0.15744 1.25948,0.6035 0.68221,0.41983 1.15452,1.23324 0.49854,0.81341 0.49854,2.12537 v 0.26239 q 0,1.52187 -0.70845,2.62391 -0.70846,1.0758 -1.96794,1.65306 -1.23323,0.57726 -2.8863,0.57726 z m 5.87756,-3.14869 h 3.25365 q 1.12828,0 1.81049,-0.55102 0.70846,-0.55102 0.70846,-1.57435 v -0.26239 q 0,-1.02332 -0.68222,-1.57434 -0.68221,-0.55102 -1.83673,-0.55102 h -3.25365 z m 0,-7.66182 h 3.20117 q 1.0758,0 1.75802,-0.55102 0.70845,-0.55102 0.70845,-1.52187 v -0.26239 q 0,-0.99708 -0.68221,-1.52186 -0.68222,-0.55103 -1.78426,-0.55103 h -3.20117 z"
+              />
+            </g>
+          </svg>
+        </a>
+        <button class="menu" type="button" aria-expanded="false" aria-controls="nav" hidden>
+          Menu
+        </button>
+        <nav class="nav" id="nav" aria-label="Main">
+          <a href="#features">Features</a>
+          <a href="#keyboard">Keyboard</a>
+          <a href="https://github.com/villekivela/omaweb#readme">Docs</a>
+          <a href="releases/">Releases</a>
+          <a class="nav__github" href="https://github.com/villekivela/omaweb">
+            <svg class="icon icon--fill" aria-hidden="true"><use href="#i-github" /></svg>GitHub
+          </a>
+        </nav>
+      </div>
+    </header>
+
+    <main>
+      <!-- The cockpit is one wide panorama. Its box is sized by the hero's height and centred,
+           so the signs and the address bar stay in view at every width while the edges crop. The
+           words on the signs are elements laid over the empty frames painted in the art. -->
+      <section class="hero">
+        <div class="hero__art">
+          <div class="scene">
+            <img src="assets/art/road.webp" width="2087" height="441" alt="" />
+            <a class="sign sign--left" href="https://github.com/villekivela/omaweb">
+              GitHub <span aria-hidden="true">←</span>
+            </a>
+            <a class="sign sign--mid" href="#work"> Work <span aria-hidden="true">↑</span> </a>
+            <a class="sign sign--right" href="https://github.com/villekivela/omaweb#readme">
+              Docs <span aria-hidden="true">→</span>
+            </a>
+            <!-- The night radio, as an easter egg: an unmarked latching button on the console between
+                 the keyboards, for the drive theme in audio.js, and M from anywhere. Off until a
+                 reader finds it; nothing plays by itself. -->
+            <button
+              class="radio"
+              type="button"
+              aria-pressed="false"
+              aria-label="Night radio"
+              data-radio
+              hidden
+            >
+              <span class="radio__cap" aria-hidden="true"><span class="radio__led"></span></span>
+            </button>
+            <p class="dash" aria-hidden="true">
+              <span class="dash__prompt">$</span>
+              <span class="dash__url" data-type="omaweb.app">omaweb.app</span
+              ><span class="caret"></span>
+              <span class="dash__go">→</span>
+            </p>
+          </div>
+        </div>
+
+        <div class="hero__copy wrap">
+          <p class="kicker">Web navigation system</p>
+          <h1 class="display">A browser<br />for driving<br />the web.</h1>
+          <p class="lede">
+            Keyboard first. Private. Open.<br />For people who know where they&rsquo;re going.
+          </p>
+          <a class="btn" href="#install">
+            <svg class="icon" aria-hidden="true"><use href="#i-download" /></svg>
+            Install Omaweb
+          </a>
+          <p class="platforms">
+            <svg class="icon icon--lg icon--fill" aria-label="Linux" role="img">
+              <use href="#i-linux" />
+            </svg>
+            <span>Made for Linux.<br />Free and open source.</span>
+          </p>
+        </div>
+      </section>
+
+      <section class="features" id="features" aria-label="Features">
+        <ul class="features__list wrap" role="list">
+          <li>
+            <svg class="icon icon--lg" aria-hidden="true"><use href="#i-bolt" /></svg>
+            <h2>Keyboard first</h2>
+            <p>Link hints, Vim-style keys and a command panel. The mouse is optional.</p>
+          </li>
+          <li>
+            <svg class="icon icon--lg" aria-hidden="true"><use href="#i-windows" /></svg>
+            <h2>Spaces</h2>
+            <p>Work and personal in one window, each with its own logins, history and tabs.</p>
+          </li>
+          <li id="work">
+            <svg class="icon icon--lg" aria-hidden="true"><use href="#i-code" /></svg>
+            <h2>For pros</h2>
+            <p>Split view for two pages at once, docked DevTools, and a Space for every client.</p>
+          </li>
+          <li>
+            <svg class="icon icon--lg" aria-hidden="true"><use href="#i-shield" /></svg>
+            <h2>Private by default</h2>
+            <p>Content blocking built in. No account to make and no telemetry to turn off.</p>
+          </li>
+        </ul>
+      </section>
+
+      <section class="walk wrap" id="navigation">
+        <!-- The real window: captures of Omaweb's own interface, taken headlessly by
+             scripts/build_website_themes.py, one set per Omarchy theme. The page
+             inside the window is the lab's drawn stand-in, since the lab runs no engine.
+
+             The window stays put while the steps beside it scroll by, and each step shows its
+             own shot, so the picture comes to the text. The swatches pick the theme, which only
+             this frame takes. Without the script the first shot stays on show, the steps read in
+             order and the window is a link to the full-size capture. -->
+        <div class="walk__stage">
+          <figure class="shot" data-theme="matte-black" data-shot>
+            <a class="shot__open" href="assets/shots/matte-black/space.webp">
+              <img
+                src="assets/shots/matte-black/space.webp"
+                width="2720"
+                height="1720"
+                alt="Omaweb with its sidebar of Spaces and tabs beside a photo essay page"
+                decoding="async"
+              />
+            </a>
+          </figure>
+          <div class="themes" role="group" aria-label="Theme" hidden>
+            <span class="themes__label">Theme <kbd>T</kbd></span>
+            <span class="themes__name" aria-live="polite">Matte Black</span>
+            <span class="themes__row">
+              <button
+                type="button"
+                class="swatch"
+                data-theme="matte-black"
+                data-theme-choice="matte-black"
+                data-name="Matte Black"
+                aria-label="Matte Black"
+                title="Matte Black"
+                aria-pressed="true"
+              ></button>
+              <button
+                type="button"
+                class="swatch"
+                data-theme="ristretto"
+                data-theme-choice="ristretto"
+                data-name="Ristretto"
+                aria-label="Ristretto"
+                title="Ristretto"
+                aria-pressed="false"
+              ></button>
+              <button
+                type="button"
+                class="swatch"
+                data-theme="retro-82"
+                data-theme-choice="retro-82"
+                data-name="Retro 82"
+                aria-label="Retro 82"
+                title="Retro 82"
+                aria-pressed="false"
+              ></button>
+              <button
+                type="button"
+                class="swatch"
+                data-theme="gruvbox"
+                data-theme-choice="gruvbox"
+                data-name="Gruvbox"
+                aria-label="Gruvbox"
+                title="Gruvbox"
+                aria-pressed="false"
+              ></button>
+              <button
+                type="button"
+                class="swatch"
+                data-theme="everforest"
+                data-theme-choice="everforest"
+                data-name="Everforest"
+                aria-label="Everforest"
+                title="Everforest"
+                aria-pressed="false"
+              ></button>
+              <button
+                type="button"
+                class="swatch"
+                data-theme="catppuccin"
+                data-theme-choice="catppuccin"
+                data-name="Catppuccin"
+                aria-label="Catppuccin"
+                title="Catppuccin"
+                aria-pressed="false"
+              ></button>
+              <button
+                type="button"
+                class="swatch"
+                data-theme="tokyo-night"
+                data-theme-choice="tokyo-night"
+                data-name="Tokyo Night"
+                aria-label="Tokyo Night"
+                title="Tokyo Night"
+                aria-pressed="false"
+              ></button>
+              <button
+                type="button"
+                class="swatch"
+                data-theme="nord"
+                data-theme-choice="nord"
+                data-name="Nord"
+                aria-label="Nord"
+                title="Nord"
+                aria-pressed="false"
+              ></button>
+              <button
+                type="button"
+                class="swatch"
+                data-theme="hackerman"
+                data-theme-choice="hackerman"
+                data-name="Hackerman"
+                aria-label="Hackerman"
+                title="Hackerman"
+                aria-pressed="false"
+              ></button>
+            </span>
+          </div>
+        </div>
+
+        <div class="walk__steps">
+          <article
+            class="step is-on"
+            data-step="space"
+            data-alt="Omaweb with its sidebar of Spaces and tabs beside a photo essay page"
+          >
+            <p class="kicker">Navigation</p>
+            <h2 class="display display--md">Go anywhere,<br />faster.</h2>
+            <p>
+              Press <kbd>o</kbd> to go somewhere new, <kbd>f</kbd> to follow a link, and
+              <kbd>J</kbd> and <kbd>K</kbd> to move between tabs. Pinned tabs sit at the top of the
+              sidebar, today&rsquo;s tabs run underneath, and each Space keeps its own.
+            </p>
+            <p class="step__hint" hidden>
+              The window answers the same keys: try <kbd>Ctrl</kbd>+<kbd>B</kbd>,
+              <kbd>Ctrl</kbd>+<kbd>Y</kbd> or <kbd>T</kbd>.
+            </p>
+          </article>
+          <article
+            class="step"
+            data-step="collapsed"
+            data-alt="Omaweb with the sidebar hidden and the page filling the window"
+          >
+            <p class="kicker">No sidebar <kbd>Ctrl</kbd>+<kbd>B</kbd></p>
+            <h3>The page gets the whole window.</h3>
+            <p>
+              Hide the sidebar and nothing is left but the page. Your tabs are still a key away:
+              <kbd>J</kbd> and <kbd>K</kbd> keep moving between them, and <kbd>Ctrl</kbd>+<kbd
+                >B</kbd
+              >
+              brings the sidebar back.
+            </p>
+          </article>
+          <article
+            class="step"
+            data-step="history"
+            data-alt="The History view, listing this Space's visits"
+          >
+            <p class="kicker">History <kbd>Ctrl</kbd>+<kbd>Y</kbd></p>
+            <h3>Every Space remembers on its own.</h3>
+            <p>
+              History opens over the page and searches only the Space you are in. Delete one visit,
+              a whole site, a stretch of time or the lot, and the other Spaces never notice.
+            </p>
+          </article>
+          <article
+            class="step"
+            data-step="settings"
+            data-alt="Settings, open beside the tabs on its Tabs section"
+          >
+            <p class="kicker">Settings <kbd>Ctrl</kbd>+<kbd>,</kbd></p>
+            <h3>Settings, next to your tabs.</h3>
+            <p>
+              Settings opens in the same window, beside the tabs it changes. Every key binding lives
+              in one <code>keybindings.json</code>, so any command can move to the key you want it
+              on.
+            </p>
+          </article>
+          <article
+            class="step"
+            data-step="blocking"
+            data-alt="The Content Blocking settings, with filter lists and user rules"
+          >
+            <p class="kicker">Content blocking</p>
+            <h3>Blocking, built in.</h3>
+            <p>
+              EasyList and EasyPrivacy are on from the first run, with cosmetic rules and a count of
+              what was blocked. Add lists, write your own rules, or turn blocking off for one site.
+            </p>
+            <a class="more" href="#features">Explore features <span aria-hidden="true">→</span></a>
+          </article>
+        </div>
+      </section>
+
+      <!-- The full-size capture, over the page. A dialog, so Escape, the backdrop and focus come
+           with it; without the script the window is a plain link to the image instead. -->
+      <dialog class="viewer" aria-label="Screenshot">
+        <img class="viewer__image" alt="" />
+        <button class="viewer__close" type="button" aria-label="Close">×</button>
+      </dialog>
+
+      <!-- The cream poster. The drawing is one image with its left half bare paper; the logo, the
+           headline and the tagline are type laid over it. -->
+      <section class="poster" aria-label="104 keys. Zero reason to point.">
+        <div class="poster__frame">
+          <img src="assets/art/poster.webp" width="1337" height="307" alt="" />
+          <!-- The full wordmark, copied from website/assets/icons/omaweb.svg, set inline rather than
+               by reference so the stylesheet can colour the mark apart from the letters. -->
+          <div class="poster__logo">
+            <svg
+              class="wordmark poster__wordmark"
+              viewBox="0 0 160 20"
+              role="img"
+              aria-label="Omaweb"
+            >
+              <g transform="translate(-20.528031,-97.174413)">
+                <path
+                  class="wordmark__mark"
+                  transform="translate(1.3101755,0.8976725)"
+                  d="m 28.63857,97.088945 -9.187009,9.187005 9.187009,9.18763 h 3.69342 l 13.915739,-13.91637 4.72873,4.72874 -9.187009,9.18763 h 6.305601 l 9.18701,-9.18763 -9.187622,-9.187005 H 44.40102 l -13.91574,13.915735 -4.728742,-4.72873 9.18701,-9.187005 z"
+                />
+                <path
+                  d="m 75.336749,116.72525 q -3.463561,0 -5.510211,-1.88922 -2.046649,-1.91545 -2.046649,-5.45773 v -4.40817 q 0,-3.54228 2.046649,-5.43149 2.04665,-1.915455 5.510211,-1.915455 3.463561,0 5.510211,1.915455 2.04665,1.88921 2.04665,5.43149 v 4.40817 q 0,3.54228 -2.04665,5.45773 -2.04665,1.88922 -5.510211,1.88922 z m 0,-3.09621 q 1.941694,0 3.017497,-1.12829 1.075803,-1.12828 1.075803,-3.01749 v -4.61808 q 0,-1.88922 -1.075803,-3.0175 -1.075803,-1.12828 -3.017497,-1.12828 -1.915454,0 -3.017496,1.12828 -1.075803,1.12828 -1.075803,3.0175 v 4.61808 q 0,1.88921 1.075803,3.01749 1.102042,1.12829 3.017496,1.12829 z M 86.20194,116.3579 V 97.990533 h 6.428579 l 3.174932,16.005847 h 0.472303 l 3.174931,-16.005847 h 6.428575 V 116.3579 h -3.3586 v -15.82217 h -0.4723 l -3.148696,15.82217 h -5.720123 l -3.148692,-15.82217 h -0.472304 v 15.82217 z m 22.14799,0 4.82799,-18.367367 h 6.035 l 4.82799,18.367367 h -3.56852 l -0.99708,-4.04082 h -6.55978 l -0.99708,4.04082 z m 5.37901,-7.24199 h 4.93295 l -2.23032,-8.94753 h -0.4723 z m 13.77775,7.24199 -2.414,-18.367367 h 3.43732 l 1.78426,15.953377 h 0.4723 l 2.30904,-15.953377 h 5.98252 l 2.30904,15.953377 h 0.4723 l 1.78426,-15.953377 h 3.43732 l -2.41399,18.367367 h -5.98252 l -2.36152,-16.32072 h -0.4723 l -2.36152,16.32072 z m 22.35792,0 V 97.990533 h 11.80759 v 3.148687 h -8.34403 v 4.38193 h 7.60934 v 3.1487 h -7.60934 v 4.53936 h 8.50147 v 3.14869 z m 14.27628,0 v -3.04373 h 2.414 v -12.2799 h -2.414 v -3.043737 h 9.44608 q 1.6793,0 2.91254,0.57726 1.25947,0.551021 1.94169,1.600587 0.70845,1.02332 0.70845,2.46647 v 0.26239 q 0,1.25948 -0.4723,2.07289 -0.4723,0.78718 -1.12828,1.23324 -0.62974,0.41983 -1.207,0.6035 v 0.4723 q 0.57726,0.15744 1.25948,0.6035 0.68221,0.41983 1.15452,1.23324 0.49854,0.81341 0.49854,2.12537 v 0.26239 q 0,1.52187 -0.70845,2.62391 -0.70846,1.0758 -1.96794,1.65306 -1.23323,0.57726 -2.8863,0.57726 z m 5.87756,-3.14869 h 3.25365 q 1.12828,0 1.81049,-0.55102 0.70846,-0.55102 0.70846,-1.57435 v -0.26239 q 0,-1.02332 -0.68222,-1.57434 -0.68221,-0.55102 -1.83673,-0.55102 h -3.25365 z m 0,-7.66182 h 3.20117 q 1.0758,0 1.75802,-0.55102 0.70845,-0.55102 0.70845,-1.52187 v -0.26239 q 0,-0.99708 -0.68221,-1.52186 -0.68222,-0.55103 -1.78426,-0.55103 h -3.20117 z"
+                />
+              </g>
+            </svg>
+            <span class="poster__slogan">Web navigation system</span>
+          </div>
+          <p class="poster__headline" aria-hidden="true">
+            <span>104 keys.</span><span>Zero reason</span><span>to point.</span>
+          </p>
+        </div>
+        <div class="ticker">
+          <ul role="list">
+            <li>Link hints</li>
+            <li>Spaces</li>
+            <li>Split view</li>
+            <li>Command panel</li>
+            <li>History</li>
+            <li>Content blocking</li>
+            <li>And beyond</li>
+          </ul>
+          <span>Omaweb alpha</span>
+        </div>
+      </section>
+
+      <section class="keyboard" id="keyboard">
+        <div class="keyboard__copy">
+          <p class="kicker">Keyboard</p>
+          <h2 class="display display--sm">Learn once.<br />Move faster<br />forever.</h2>
+          <p>
+            A small set of memorable keys, borrowed from Vim, gives you instant control. Spend less
+            time clicking and more time actually using the web.
+          </p>
+          <a
+            class="more"
+            href="https://github.com/villekivela/omaweb/blob/main/assets/keybindings/Default.json"
+            >See every binding <span aria-hidden="true">→</span></a
+          >
+        </div>
+
+        <div class="keyboard__photo">
+          <img src="assets/art/keycaps.webp" width="745" height="307" alt="" loading="lazy" />
+        </div>
+
+        <div class="keyboard__panel">
+          <div class="control">
+            <p class="kicker">Navigation control</p>
+            <dl class="keys">
+              <div>
+                <dt><kbd>J</kbd></dt>
+                <dd>Down</dd>
+              </div>
+              <div>
+                <dt><kbd>K</kbd></dt>
+                <dd>Up</dd>
+              </div>
+              <div>
+                <dt><kbd>F</kbd></dt>
+                <dd>Links</dd>
+              </div>
+              <div>
+                <dt><kbd>/</kbd></dt>
+                <dd>Find</dd>
+              </div>
+              <div>
+                <dt><kbd>?</kbd></dt>
+                <dd>Help</dd>
+              </div>
+            </dl>
+          </div>
+          <div class="everywhere">
+            <p class="kicker">Yours to rebind</p>
+            <p>
+              Every binding lives in one <code>keybindings.json</code>. A site that needs a key can
+              have it back.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Installing, set as the dashboard's own screens: the same glass, glow and scanlines as the
+           address screen in the hero. The commands are the README's, and the fingerprint is the
+           one the key in security/ carries; change them there first. -->
+      <section class="install wrap" id="install">
+        <div class="install__intro">
+          <p class="kicker">Install</p>
+          <h2 class="display display--md">Get on<br />the road.</h2>
+          <p>
+            Omaweb ships from its own pacman repository, so it installs and upgrades with the rest
+            of your system. Two steps, once.
+          </p>
+          <p class="install__more">
+            A single package or a build from source instead? The
+            <a href="https://github.com/villekivela/omaweb#install">README</a> has both.
+          </p>
+        </div>
+
+        <div class="install__screens">
+          <figure class="hud">
+            <figcaption class="hud__bar">
+              <span>01 &middot; Add the repository</span>
+              <span class="hud__meta"
+                >/etc/pacman.conf<button class="hud__copy" type="button" data-copy hidden>
+                  Copy
+                </button></span
+              >
+            </figcaption>
+            <div class="hud__screen">
+              <pre><code>[omaweb]
+SigLevel = Required DatabaseRequired
+Server = https://github.com/villekivela/omaweb/releases/download/repo-$arch</code></pre>
+            </div>
+          </figure>
+
+          <figure class="hud">
+            <figcaption class="hud__bar">
+              <span>02 &middot; Trust the key, then install</span>
+              <span class="hud__meta"
+                >terminal<button class="hud__copy" type="button" data-copy hidden>
+                  Copy
+                </button></span
+              >
+            </figcaption>
+            <div class="hud__screen">
+              <pre><code><span class="hud__prompt" aria-hidden="true">$ </span>curl -fsSLO https://raw.githubusercontent.com/villekivela/omaweb/main/security/repo-signing-key.asc
+<span class="hud__prompt" aria-hidden="true">$ </span>sudo pacman-key --add repo-signing-key.asc
+<span class="hud__prompt" aria-hidden="true">$ </span>sudo pacman-key --lsign-key <mark>FDA535B2185755EA718BEA585DBF15FE484EFA64</mark>
+<span class="hud__prompt" aria-hidden="true">$ </span>sudo pacman -Syu omaweb<span class="caret" aria-hidden="true"></span></code></pre>
+            </div>
+            <p class="hud__note">
+              The fingerprint is the one thing to check. It comes from here, not from a keyserver,
+              and pacman installs nothing that key did not sign.
+            </p>
+          </figure>
+
+          <p class="install__after">
+            <span class="install__lamp" aria-hidden="true"></span>
+            <span>From then on, <code>sudo pacman -Syu</code> keeps it current.</span>
+          </p>
+        </div>
+      </section>
+    </main>
+
+    <footer class="foot">
+      <div class="wrap foot__inner">
+        <span class="brand">
+          <svg class="wordmark brand__wordmark" viewBox="0 0 160 20" role="img" aria-label="Omaweb">
+            <g transform="translate(-20.528031,-97.174413)">
+              <path
+                class="wordmark__mark"
+                transform="translate(1.3101755,0.8976725)"
+                d="m 28.63857,97.088945 -9.187009,9.187005 9.187009,9.18763 h 3.69342 l 13.915739,-13.91637 4.72873,4.72874 -9.187009,9.18763 h 6.305601 l 9.18701,-9.18763 -9.187622,-9.187005 H 44.40102 l -13.91574,13.915735 -4.728742,-4.72873 9.18701,-9.187005 z"
+              />
+              <path
+                d="m 75.336749,116.72525 q -3.463561,0 -5.510211,-1.88922 -2.046649,-1.91545 -2.046649,-5.45773 v -4.40817 q 0,-3.54228 2.046649,-5.43149 2.04665,-1.915455 5.510211,-1.915455 3.463561,0 5.510211,1.915455 2.04665,1.88921 2.04665,5.43149 v 4.40817 q 0,3.54228 -2.04665,5.45773 -2.04665,1.88922 -5.510211,1.88922 z m 0,-3.09621 q 1.941694,0 3.017497,-1.12829 1.075803,-1.12828 1.075803,-3.01749 v -4.61808 q 0,-1.88922 -1.075803,-3.0175 -1.075803,-1.12828 -3.017497,-1.12828 -1.915454,0 -3.017496,1.12828 -1.075803,1.12828 -1.075803,3.0175 v 4.61808 q 0,1.88921 1.075803,3.01749 1.102042,1.12829 3.017496,1.12829 z M 86.20194,116.3579 V 97.990533 h 6.428579 l 3.174932,16.005847 h 0.472303 l 3.174931,-16.005847 h 6.428575 V 116.3579 h -3.3586 v -15.82217 h -0.4723 l -3.148696,15.82217 h -5.720123 l -3.148692,-15.82217 h -0.472304 v 15.82217 z m 22.14799,0 4.82799,-18.367367 h 6.035 l 4.82799,18.367367 h -3.56852 l -0.99708,-4.04082 h -6.55978 l -0.99708,4.04082 z m 5.37901,-7.24199 h 4.93295 l -2.23032,-8.94753 h -0.4723 z m 13.77775,7.24199 -2.414,-18.367367 h 3.43732 l 1.78426,15.953377 h 0.4723 l 2.30904,-15.953377 h 5.98252 l 2.30904,15.953377 h 0.4723 l 1.78426,-15.953377 h 3.43732 l -2.41399,18.367367 h -5.98252 l -2.36152,-16.32072 h -0.4723 l -2.36152,16.32072 z m 22.35792,0 V 97.990533 h 11.80759 v 3.148687 h -8.34403 v 4.38193 h 7.60934 v 3.1487 h -7.60934 v 4.53936 h 8.50147 v 3.14869 z m 14.27628,0 v -3.04373 h 2.414 v -12.2799 h -2.414 v -3.043737 h 9.44608 q 1.6793,0 2.91254,0.57726 1.25947,0.551021 1.94169,1.600587 0.70845,1.02332 0.70845,2.46647 v 0.26239 q 0,1.25948 -0.4723,2.07289 -0.4723,0.78718 -1.12828,1.23324 -0.62974,0.41983 -1.207,0.6035 v 0.4723 q 0.57726,0.15744 1.25948,0.6035 0.68221,0.41983 1.15452,1.23324 0.49854,0.81341 0.49854,2.12537 v 0.26239 q 0,1.52187 -0.70845,2.62391 -0.70846,1.0758 -1.96794,1.65306 -1.23323,0.57726 -2.8863,0.57726 z m 5.87756,-3.14869 h 3.25365 q 1.12828,0 1.81049,-0.55102 0.70846,-0.55102 0.70846,-1.57435 v -0.26239 q 0,-1.02332 -0.68222,-1.57434 -0.68221,-0.55102 -1.83673,-0.55102 h -3.25365 z m 0,-7.66182 h 3.20117 q 1.0758,0 1.75802,-0.55102 0.70845,-0.55102 0.70845,-1.52187 v -0.26239 q 0,-0.99708 -0.68221,-1.52186 -0.68222,-0.55103 -1.78426,-0.55103 h -3.20117 z"
+              />
+            </g>
+          </svg>
+        </span>
+        <span>Web navigation system. Free and open source under MPL 2.0.</span>
+        <a href="https://github.com/villekivela/omaweb">github.com/villekivela/omaweb</a>
+      </div>
+    </footer>
+
+    <!-- Icons, drawn once and used by reference. Strokes in currentColor, so each takes the
+         colour of the text beside it. -->
+    <svg class="sprite" aria-hidden="true">
+      <defs>
+        <symbol id="i-download" viewBox="0 0 24 24">
+          <path d="M12 4v11m-5-5 5 5 5-5M5 20h14" />
+        </symbol>
+        <symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13 2 4 14h7l-1 8 9-12h-7z" /></symbol>
+        <symbol id="i-windows" viewBox="0 0 24 24">
+          <rect x="3" y="7" width="13" height="13" rx="1" />
+          <path d="M8 7V4h13v13h-5" />
+        </symbol>
+        <symbol id="i-code" viewBox="0 0 24 24">
+          <path d="m8 7-5 5 5 5m8-10 5 5-5 5M14 4l-4 16" />
+        </symbol>
+        <symbol id="i-shield" viewBox="0 0 24 24">
+          <path d="M12 3 4 6v6c0 4.5 3.4 8 8 9 4.6-1 8-4.5 8-9V6z" />
+          <path d="m9 12 2 2 4-4" />
+        </symbol>
+        <!-- Tux, as Simple Icons draws the Linux mark (simple-icons 16.32.0, CC0). A fill, unlike the
+             stroked icons, so it takes the text colour through icon--fill. -->
+        <symbol id="i-linux" viewBox="0 0 24 24">
+          <path
+            d="M12.504 0c-.155 0-.315.008-.48.021-4.226.333-3.105 4.807-3.17 6.298-.076 1.092-.3 1.953-1.05 3.02-.885 1.051-2.127 2.75-2.716 4.521-.278.832-.41 1.684-.287 2.489a.424.424 0 00-.11.135c-.26.268-.45.6-.663.839-.199.199-.485.267-.797.4-.313.136-.658.269-.864.68-.09.189-.136.394-.132.602 0 .199.027.4.055.536.058.399.116.728.04.97-.249.68-.28 1.145-.106 1.484.174.334.535.47.94.601.81.2 1.91.135 2.774.6.926.466 1.866.67 2.616.47.526-.116.97-.464 1.208-.946.587-.003 1.23-.269 2.26-.334.699-.058 1.574.267 2.577.2.025.134.063.198.114.333l.003.003c.391.778 1.113 1.132 1.884 1.071.771-.06 1.592-.536 2.257-1.306.631-.765 1.683-1.084 2.378-1.503.348-.199.629-.469.649-.853.023-.4-.2-.811-.714-1.376v-.097l-.003-.003c-.17-.2-.25-.535-.338-.926-.085-.401-.182-.786-.492-1.046h-.003c-.059-.054-.123-.067-.188-.135a.357.357 0 00-.19-.064c.431-1.278.264-2.55-.173-3.694-.533-1.41-1.465-2.638-2.175-3.483-.796-1.005-1.576-1.957-1.56-3.368.026-2.152.236-6.133-3.544-6.139zm.529 3.405h.013c.213 0 .396.062.584.198.19.135.33.332.438.533.105.259.158.459.166.724 0-.02.006-.04.006-.06v.105a.086.086 0 01-.004-.021l-.004-.024a1.807 1.807 0 01-.15.706.953.953 0 01-.213.335.71.71 0 00-.088-.042c-.104-.045-.198-.064-.284-.133a1.312 1.312 0 00-.22-.066c.05-.06.146-.133.183-.198.053-.128.082-.264.088-.402v-.02a1.21 1.21 0 00-.061-.4c-.045-.134-.101-.2-.183-.333-.084-.066-.167-.132-.267-.132h-.016c-.093 0-.176.03-.262.132a.8.8 0 00-.205.334 1.18 1.18 0 00-.09.4v.019c.002.089.008.179.02.267-.193-.067-.438-.135-.607-.202a1.635 1.635 0 01-.018-.2v-.02a1.772 1.772 0 01.15-.768c.082-.22.232-.406.43-.533a.985.985 0 01.594-.2zm-2.962.059h.036c.142 0 .27.048.399.135.146.129.264.288.344.465.09.199.14.4.153.667v.004c.007.134.006.2-.002.266v.08c-.03.007-.056.018-.083.024-.152.055-.274.135-.393.2.012-.09.013-.18.003-.267v-.015c-.012-.133-.04-.2-.082-.333a.613.613 0 00-.166-.267.248.248 0 00-.183-.064h-.021c-.071.006-.13.04-.186.132a.552.552 0 00-.12.27.944.944 0 00-.023.33v.015c.012.135.037.2.08.334.046.134.098.2.166.268.01.009.02.018.034.024-.07.057-.117.07-.176.136a.304.304 0 01-.131.068 2.62 2.62 0 01-.275-.402 1.772 1.772 0 01-.155-.667 1.759 1.759 0 01.08-.668 1.43 1.43 0 01.283-.535c.128-.133.26-.2.418-.2zm1.37 1.706c.332 0 .733.065 1.216.399.293.2.523.269 1.052.468h.003c.255.136.405.266.478.399v-.131a.571.571 0 01.016.47c-.123.31-.516.643-1.063.842v.002c-.268.135-.501.333-.775.465-.276.135-.588.292-1.012.267a1.139 1.139 0 01-.448-.067 3.566 3.566 0 01-.322-.198c-.195-.135-.363-.332-.612-.465v-.005h-.005c-.4-.246-.616-.512-.686-.71-.07-.268-.005-.47.193-.6.224-.135.38-.271.483-.336.104-.074.143-.102.176-.131h.002v-.003c.169-.202.436-.47.839-.601.139-.036.294-.065.466-.065zm2.8 2.142c.358 1.417 1.196 3.475 1.735 4.473.286.534.855 1.659 1.102 3.024.156-.005.33.018.513.064.646-1.671-.546-3.467-1.089-3.966-.22-.2-.232-.335-.123-.335.59.534 1.365 1.572 1.646 2.757.13.535.16 1.104.021 1.67.067.028.135.06.205.067 1.032.534 1.413.938 1.23 1.537v-.043c-.06-.003-.12 0-.18 0h-.016c.151-.467-.182-.825-1.065-1.224-.915-.4-1.646-.336-1.77.465-.008.043-.013.066-.018.135-.068.023-.139.053-.209.064-.43.268-.662.669-.793 1.187-.13.533-.17 1.156-.205 1.869v.003c-.02.334-.17.838-.319 1.35-1.5 1.072-3.58 1.538-5.348.334a2.645 2.645 0 00-.402-.533 1.45 1.45 0 00-.275-.333c.182 0 .338-.03.465-.067a.615.615 0 00.314-.334c.108-.267 0-.697-.345-1.163-.345-.467-.931-.995-1.788-1.521-.63-.4-.986-.87-1.15-1.396-.165-.534-.143-1.085-.015-1.645.245-1.07.873-2.11 1.274-2.763.107-.065.037.135-.408.974-.396.751-1.14 2.497-.122 3.854a8.123 8.123 0 01.647-2.876c.564-1.278 1.743-3.504 1.836-5.268.048.036.217.135.289.202.218.133.38.333.59.465.21.201.477.335.876.335.039.003.075.006.11.006.412 0 .73-.134.997-.268.29-.134.52-.334.74-.4h.005c.467-.135.835-.402 1.044-.7zm2.185 8.958c.037.6.343 1.245.882 1.377.588.134 1.434-.333 1.791-.765l.211-.01c.315-.007.577.01.847.268l.003.003c.208.199.305.53.391.876.085.4.154.78.409 1.066.486.527.645.906.636 1.14l.003-.007v.018l-.003-.012c-.015.262-.185.396-.498.595-.63.401-1.746.712-2.457 1.57-.618.737-1.37 1.14-2.036 1.191-.664.053-1.237-.2-1.574-.898l-.005-.003c-.21-.4-.12-1.025.056-1.69.176-.668.428-1.344.463-1.897.037-.714.076-1.335.195-1.814.12-.465.308-.797.641-.984l.045-.022zm-10.814.049h.01c.053 0 .105.005.157.014.376.055.706.333 1.023.752l.91 1.664.003.003c.243.533.754 1.064 1.189 1.637.434.598.77 1.131.729 1.57v.006c-.057.744-.48 1.148-1.125 1.294-.645.135-1.52.002-2.395-.464-.968-.536-2.118-.469-2.857-.602-.369-.066-.61-.2-.723-.4-.11-.2-.113-.602.123-1.23v-.004l.002-.003c.117-.334.03-.752-.027-1.118-.055-.401-.083-.71.043-.94.16-.334.396-.4.69-.533.294-.135.64-.202.915-.47h.002v-.002c.256-.268.445-.601.668-.838.19-.201.38-.336.663-.336zm7.159-9.074c-.435.201-.945.535-1.488.535-.542 0-.97-.267-1.28-.466-.154-.134-.28-.268-.373-.335-.164-.134-.144-.333-.074-.333.109.016.129.134.199.2.096.066.215.2.36.333.292.2.68.467 1.167.467.485 0 1.053-.267 1.398-.466.195-.135.445-.334.648-.467.156-.136.149-.267.279-.267.128.016.034.134-.147.332a8.097 8.097 0 01-.69.468zm-1.082-1.583V5.64c-.006-.02.013-.042.029-.05.074-.043.18-.027.26.004.063 0 .16.067.15.135-.006.049-.085.066-.135.066-.055 0-.092-.043-.141-.068-.052-.018-.146-.008-.163-.065zm-.551 0c-.02.058-.113.049-.166.066-.047.025-.086.068-.14.068-.05 0-.13-.02-.136-.068-.01-.066.088-.133.15-.133.08-.031.184-.047.259-.005.019.009.036.03.03.05v.02h.003z"
+          />
+        </symbol>
+        <!-- GitHub's own mark, used only to link to GitHub, which its brand guidance allows. -->
+        <symbol id="i-github" viewBox="0 0 16 16">
+          <path
+            d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A7.995 7.995 0 0016 8c0-4.42-3.58-8-8-8z"
+          />
+        </symbol>
+      </defs>
+    </svg>
+
+    <script src="audio.js"></script>
+    <script src="script.js"></script>
+  </body>
+</html>

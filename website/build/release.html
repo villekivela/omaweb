@@ -1,28 +1,24 @@
 <!--
-  The page one release gets, filled in by build/render.mjs and written into
-  the shell both at dist/releases/index.html (the newest) and at
-  dist/releases/<tag>/index.html. Under build/ rather than pages/ because its
-  placeholders are not markup and it is one page per release rather than
-  a page of its own.
-
-  Master and detail are both markup here, not a pane the script swaps. Every
-  version is its own address, so a release can be linked to and read with the
-  script blocked, and the list is the navigation rather than a control.
+  One release's page, filled in by build/releases.mjs. The tag, its date and state, the notes and
+  the link out are website/build/render.mjs's placeholders, the renderer the live site uses, which
+  decides what a release body may become; the version list, its count and its filter are
+  releases.mjs's own, since the list here names every kind of release.
 -->
-<div class="t-detail">
-  <nav class="t-detail__master" aria-label="Releases">
-    <p class="t-detail__masthead">Versions</p>
-    {{nav}}
-    <a class="t-detail__all" href="https://github.com/villekivela/omaweb/releases"
-      >All releases on GitHub</a
+<section class="log wrap">
+  <nav class="log__versions" aria-label="Releases">
+    <p class="log__head"><span class="kicker">Release log</span><span>{{count}}</span></p>
+    <div class="log__kinds" role="group" aria-label="Show" hidden>{{kinds}}</div>
+    <div class="hud__screen log__screen">{{versions}}</div>
+    <a class="log__all" href="https://github.com/villekivela/omaweb/releases"
+      >Every release on GitHub <span aria-hidden="true">→</span></a
     >
   </nav>
 
-  <main class="t-detail__pane">
-    <p class="t-section__index">Release notes</p>
-    <h1>{{tag}}</h1>
-    <p class="t-release__marks">{{marks}}</p>
-    <div class="t-prose">{{notes}}</div>
-    <p class="t-detail__foot">{{github}}</p>
-  </main>
-</div>
+  <article class="log__release">
+    <p class="kicker">Release notes</p>
+    <h1 class="display display--md">{{tag}}</h1>
+    <p class="log__marks">{{marks}}</p>
+    <div class="log__notes">{{notes}}</div>
+    <p class="log__out">{{github}}</p>
+  </article>
+</section>
