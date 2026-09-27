@@ -16,9 +16,9 @@ September 2026 feature review named what a daily driver still lacked. Five miles
 theme each, in this order:
 
 1. [v0.8.0](https://github.com/villekivela/omaweb/milestone/1), the page and what the reader takes
-   from it: screenshots, the certificate in Site information, picture-in-picture, passkeys, an
-   HTTPS-only mode, secure DNS, trackers refused behind a CNAME, procedural cosmetic filters, the
-   engine's trace-macro fix, the open page bugs, and the decision on how payment cards are stored.
+   from it: screenshots, the certificate in Site information, picture-in-picture, an HTTPS-only
+   mode, secure DNS, trackers refused behind a CNAME, procedural cosmetic filters, the engine's
+   trace-macro fix, the open page bugs, and the decision on how payment cards are stored.
 2. [v0.9.0](https://github.com/villekivela/omaweb/milestone/8), Agents
    ([ADR 0051](adr/0051-hand-the-browser-to-an-agent.md)): the control socket with the `omaweb` CLI
    and MCP front ends, browser commands open to every script, Agent Spaces and Space grants, the
@@ -30,6 +30,7 @@ theme each, in this order:
    when the gate switches on.
 4. [v0.11.0](https://github.com/villekivela/omaweb/milestone/3), forms and autofill: what was typed
    remembered, then addresses filled, then payment cards, on the storage decision v0.8.0 takes.
+   Signing in with a security key or passkey moved here from v0.8.0.
 5. [v0.12.0](https://github.com/villekivela/omaweb/milestone/6), the chrome: jumping between tabs
    with `Ctrl+O` and `Ctrl+I`, any Space's tabs in the Omnibar, the sidebar on the right, and the
    sidebar's empty space moving the window.
