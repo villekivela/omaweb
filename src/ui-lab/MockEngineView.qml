@@ -922,11 +922,15 @@ Rectangle {
             const match = String(root.currentUrl).match(/^https?:\/\/([^\/]+)/);
             return match ? match[1] : "";
         }
+        // The photo essay `--browse` ends on, in place of the documentation
+        // page every other address draws.
+        readonly property bool pictures: host === "afterdark.example"
 
         color: ground
 
         Rectangle {
             id: siteBar
+            visible: !samplePage.pictures
             width: parent.width
             height: 56
             color: samplePage.raised
@@ -980,6 +984,7 @@ Rectangle {
 
         Column {
             id: article
+            visible: !samplePage.pictures
             x: samplePage.contents ? Math.max(48, (samplePage.width - samplePage.measure - 260) / 2) :
                                      (samplePage.width - samplePage.measure) / 2
             y: siteBar.height + 44
@@ -1099,7 +1104,7 @@ Rectangle {
         }
 
         Column {
-            visible: samplePage.contents
+            visible: samplePage.contents && !samplePage.pictures
             x: article.x + article.width + 64
             y: article.y + 4
             width: 196
@@ -1125,6 +1130,253 @@ Rectangle {
                     font.pixelSize: 13
                 }
             }
+        }
+
+        Item {
+            visible: samplePage.pictures
+            anchors.fill: parent
+
+            Rectangle {
+                id: essayBar
+                width: parent.width
+                height: 56
+                color: samplePage.ground
+
+                Text {
+                    x: Math.max(essay.x, 216)
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "AFTER DARK"
+                    color: samplePage.ink
+                    font.family: samplePage.family
+                    font.pixelSize: 15
+                    font.weight: Font.Bold
+                    font.letterSpacing: 3
+                }
+                Row {
+                    anchors.right: parent.right
+                    anchors.rightMargin: 32
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: 28
+
+                    Repeater {
+                        model: ["Photo", "Essays", "Gear", "About"]
+
+                        Text {
+                            required property string modelData
+                            text: modelData
+                            color: samplePage.quiet
+                            font.family: samplePage.family
+                            font.pixelSize: 13
+                        }
+                    }
+                }
+            }
+
+            Scene {
+                id: hero
+                y: essayBar.height
+                width: parent.width
+                height: Math.round(parent.height * 0.46)
+                ground: samplePage.ground
+                accent: samplePage.accent
+                hot: samplePage.hot
+                ink: samplePage.ink
+            }
+
+            Column {
+                id: essay
+                x: (parent.width - width) / 2
+                y: hero.y + hero.height + 36
+                width: Math.min(820, parent.width - 96)
+                spacing: 14
+
+                Text {
+                    text: "PHOTO ESSAY  ·  6 MIN READ"
+                    color: samplePage.accent
+                    font.family: samplePage.family
+                    font.pixelSize: 12
+                    font.letterSpacing: 1.4
+                }
+                Text {
+                    width: parent.width
+                    text: "Night drive"
+                    color: samplePage.ink
+                    font.family: samplePage.family
+                    font.pixelSize: 40
+                    font.weight: Font.Bold
+                }
+                Text {
+                    width: parent.width
+                    text: "Four hundred kilometres of empty road between two cities, driven "
+                          + "after midnight with the radio off and the sky doing all the talking."
+                    wrapMode: Text.WordWrap
+                    lineHeight: 1.35
+                    color: samplePage.ink
+                    opacity: 0.85
+                    font.family: samplePage.family
+                    font.pixelSize: 16
+                }
+                Row {
+                    topPadding: 10
+                    spacing: 16
+
+                    Repeater {
+                        model: [["Last light", 0.28, 0.22, 3], ["Moonrise", 0.72, 0.18, 5], ["The long straight",
+                                                                                             0.5, 0.34,
+                                                                                             8]]
+
+                        Column {
+                            required property var modelData
+                            spacing: 8
+
+                            Rectangle {
+                                width: (essay.width - 32) / 3
+                                height: width * 0.62
+                                radius: 6
+                                color: samplePage.raised
+                                clip: true
+
+                                Scene {
+                                    anchors.fill: parent
+                                    sunX: modelData[1]
+                                    sunSize: modelData[2]
+                                    seed: modelData[3]
+                                    ground: samplePage.ground
+                                    accent: samplePage.accent
+                                    hot: samplePage.hot
+                                    ink: samplePage.ink
+                                }
+                            }
+                            Text {
+                                text: modelData[0]
+                                color: samplePage.quiet
+                                font.family: samplePage.family
+                                font.pixelSize: 13
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // A photo essay, drawn rather than loaded: a hero picture across the
+    // page and a strip of smaller ones under the article. The pictures are
+    // one night-road scene painted from the page palette, so every theme
+    // gets its own version of it rather than a photo in someone else's
+    // colours.
+    component Scene: Canvas {
+        id: scene
+
+        property real sunX: 0.5
+        property real sunSize: 0.3
+        property real horizon: 0.64
+        property int seed: 1
+        // Handed in by the page: an inline component has its own scope, so it
+        // cannot reach the page's palette by id.
+        property color ground
+        property color accent
+        property color hot
+        property color ink
+
+        function mix(a, b, amount) {
+            return Qt.rgba(a.r + (b.r - a.r) * amount, a.g + (b.g - a.g) * amount, a.b + (b.b
+                                                                                          - a.b) * amount,
+                           1);
+        }
+        function fade(color, alpha) {
+            return Qt.rgba(color.r, color.g, color.b, alpha);
+        }
+        function noise(index) {
+            const value = Math.sin(index * 12.9898 + scene.seed * 78.233) * 43758.5453;
+            return value - Math.floor(value);
+        }
+
+        onWidthChanged: requestPaint()
+        onHeightChanged: requestPaint()
+        onGroundChanged: requestPaint()
+        onAccentChanged: requestPaint()
+
+        onPaint: {
+            const context = getContext("2d");
+            const w = width;
+            const h = height;
+            const line = h * horizon;
+            const night = Qt.darker(ground, 1.6);
+            context.reset();
+
+            const sky = context.createLinearGradient(0, 0, 0, line);
+            sky.addColorStop(0, night);
+            sky.addColorStop(0.55, mix(night, accent, 0.28));
+            sky.addColorStop(1, mix(accent, hot, 0.55));
+            context.fillStyle = sky;
+            context.fillRect(0, 0, w, line);
+
+            context.fillStyle = fade(ink, 0.7);
+            for (let star = 0; star < 90; ++star) {
+                const size = noise(star * 3) > 0.9 ? 2 : 1;
+                context.fillRect(noise(star) * w, noise(star + 500) * line * 0.7, size, size);
+            }
+
+            // The sun, and the bands cut out of its lower half.
+            const radius = h * sunSize;
+            const centre = sunX * w;
+            const sunTop = line - radius * 1.25;
+            const sun = context.createLinearGradient(0, sunTop, 0, line);
+            sun.addColorStop(0, mix(hot, ink, 0.25));
+            sun.addColorStop(1, hot);
+            context.fillStyle = sun;
+            context.beginPath();
+            context.arc(centre, line - radius * 0.25, radius, 0, Math.PI * 2);
+            context.fill();
+            context.save();
+            context.clip();
+            context.fillStyle = mix(night, accent, 0.4);
+            for (let band = 0; band < 6; ++band) {
+                const top = line - radius * 0.2 - band * radius * 0.16;
+                context.fillRect(centre - radius, top, radius * 2, 2 + (5 - band) * 1.4);
+            }
+            context.restore();
+
+            // Two ranges of mountains, the far one lit by the sky.
+            const ranges = [[0.14, mix(night, accent, 0.5), 11], [0.08, night, 7]];
+            for (let range = 0; range < ranges.length; ++range) {
+                const height = h * ranges[range][0];
+                context.fillStyle = ranges[range][1];
+                context.beginPath();
+                context.moveTo(0, line);
+                const steps = ranges[range][2];
+                for (let step = 0; step <= steps; ++step) {
+                    const x = step / steps * w;
+                    const peak = noise(step * 7 + range * 31);
+                    const away = Math.abs(x - centre) / w;
+                    context.lineTo(x, line - height * (0.35 + peak) * Math.min(1, away * 3));
+                }
+                context.lineTo(w, line);
+                context.closePath();
+                context.fill();
+            }
+
+            // The road plane and its grid, running to the sun.
+            context.fillStyle = night;
+            context.fillRect(0, line, w, h - line);
+            context.strokeStyle = fade(accent, 0.65);
+            context.lineWidth = 1.5;
+            for (let row = 1; row < 12; ++row) {
+                const y = line + Math.pow(row / 11, 2.2) * (h - line);
+                context.beginPath();
+                context.moveTo(0, y);
+                context.lineTo(w, y);
+                context.stroke();
+            }
+            for (let column = -12; column <= 12; ++column) {
+                context.beginPath();
+                context.moveTo(centre + column * w * 0.006, line);
+                context.lineTo(centre + column * w * 0.16, h);
+                context.stroke();
+            }
+            context.fillStyle = fade(hot, 0.9);
+            context.fillRect(centre - 2, line + (h - line) * 0.2, 4, (h - line) * 0.8);
         }
     }
 }

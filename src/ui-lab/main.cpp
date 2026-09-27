@@ -106,6 +106,7 @@ const QList<SampleTab> &sampleTabs()
             false},
         {"https://doc.qt.io/qt-6/qtquick-visualcanvas-scenegraph.html", "Qt Quick Scene Graph",
             false},
+        {"https://afterdark.example/night-drive", "Night drive: a photo essay", false},
         {"https://wayland.app/protocols/xdg-shell", "xdg-shell protocol", false},
         {"https://archlinux.org/packages/extra/x86_64/qt6-webengine/", "Arch Linux - qt6-webengine",
             false},
@@ -136,8 +137,10 @@ QString lastTabId(QAbstractItemModel *tabs)
 // day, which is the state a screenshot of this browser wants.
 // The tab the seeded day ends on: the blank tab unless `onShow` names one of
 // the sample addresses, which a capture of the browser in use asks for.
-// The sample tab `--browse` ends the seeded day on.
-constexpr const char *browsedTab = "https://doc.qt.io/qt-6/qtquick-visualcanvas-scenegraph.html";
+// The sample tab `--browse` ends the seeded day on: a picture-led page, so a
+// shot of the browser in use shows a page with something to look at. Its host
+// is under `.example`, reserved for this, so the page is nobody's real site.
+constexpr const char *browsedTab = "https://afterdark.example/night-drive";
 
 // The two filter lists a first run subscribes to, written into the lab's
 // content-blocking settings as the browser would leave them after updating:
