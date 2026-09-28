@@ -537,6 +537,48 @@ Rectangle {
 
     // Key events climb from the focused row to here, so one handler covers the
     // whole outline: Escape is the way back to the page.
+    // PROTOTYPE (ui-language): in the Tiled variant the sidebar answers hjkl
+    // while it holds the keyboard. j and k move the cursor through the rows,
+    // pins first; l, towards the page, opens the row and hands the keyboard
+    // over; h brings the cursor back to the tab on show.
+    function protoRows() {
+        return root.sectionRows(pinnedSection).concat(root.sectionRows(ordinarySection)).filter(
+                    function (row) {
+                        return row && row.visible;
+                    });
+    }
+    function protoStep(delta) {
+        const rows = root.protoRows();
+        if (rows.length === 0)
+            return;
+        let at = rows.findIndex(function (row) {
+            return row.activeFocus;
+        });
+        if (at < 0)
+            at = Math.max(0, rows.indexOf(root.activeTabItem));
+        rows[Math.max(0, Math.min(rows.length - 1, at + delta))].forceActiveFocus();
+    }
+    Keys.onPressed: function (event) {
+        if (!root.protoTiled || event.modifiers & (Qt.ControlModifier | Qt.AltModifier))
+            return;
+        const focused = root.protoRows().find(function (row) {
+            return row.activeFocus;
+        });
+        if (event.key === Qt.Key_J) {
+            root.protoStep(1);
+        } else if (event.key === Qt.Key_K) {
+            root.protoStep(-1);
+        } else if (event.key === Qt.Key_L && focused) {
+            root.tabActivated(focused.tabId);
+            root.pageFocusRequested();
+        } else if (event.key === Qt.Key_H) {
+            root.focusOutline();
+        } else {
+            return;
+        }
+        event.accepted = true;
+    }
+
     Keys.onEscapePressed: function (event) {
         if (root.statusOpen) {
             root.statusOpen = false;
@@ -1138,7 +1180,7 @@ Rectangle {
         // switch reads in the footer as it reads in the list. The letters
         // themselves stay where they are.
         Rectangle {
-            visible: !root.privateWindow && root.easeSpaces
+            visible: !root.privateWindow && root.easeSpaces && !root.protoKeys
             x: root.settledSpaceRow * 35
             anchors.verticalCenter: parent.verticalCenter
             width: 30
@@ -1190,11 +1232,27 @@ Rectangle {
                                                root.protoSpaceColor = protoColor
 
                     objectName: "space-" + spaceId
-                    width: 30
+                    // PROTOTYPE (ui-language): in the Keys variant the Space
+                    // on show spells its name out; the rest stay letters.
+                    readonly property bool protoNamed: root.protoKeys && active
+                    TextMetrics {
+                        id: spaceNameMetrics
+                        font.family: Style.font.family
+                        font.pixelSize: Style.font.body
+                        text: spaceButton.spaceName
+                    }
+                    width: protoNamed ? Math.ceil(spaceNameMetrics.advanceWidth) + 20 : 30
+                    Behavior on width {
+                        enabled: root.easeSpaces
+                        NumberAnimation {
+                            duration: 240
+                            easing.type: Easing.OutCubic
+                        }
+                    }
                     height: 28
                     // PROTOTYPE (ui-language): the Tiled variant numbers
                     // Spaces the way the bar numbers workspaces.
-                    label: root.protoTiled ? String(index + 1) : (spaceName.length > 0
+                    label: protoNamed ? spaceName : root.protoTiled ? String(index + 1) : (spaceName.length > 0
                                                                   ? spaceName.charAt(0).toUpperCase(
                                                                         ) : "·")
                     accessibleName: active ? "Current Space: " + spaceName : "Switch to "
@@ -1212,8 +1270,8 @@ Rectangle {
                     // so it is drawn the way the kit draws a selection and the
                     // way a current tab row is: the kit's own selected fill,
                     // bordered.
-                    selected: active && !root.easeSpaces && !root.protoTiled
-                    bordered: active && !root.easeSpaces && !root.protoTiled
+                    selected: active && (!root.easeSpaces || root.protoKeys) && !root.protoTiled
+                    bordered: active && (!root.easeSpaces || root.protoKeys) && !root.protoTiled
                     background: "transparent"
                     onClicked: root.spaceActivated(spaceId)
 

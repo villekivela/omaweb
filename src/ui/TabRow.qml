@@ -51,7 +51,17 @@ Item {
     readonly property bool protoKeys: uiVariant === "C"
     readonly property var protoState: Fakes.stateFor(tabTitle, pinned, active)
     readonly property string protoWord: Fakes.wordFor(protoState, tabAudible)
-    readonly property bool protoAgentLine: protoKeys && protoState.agent && !pinned
+    // The Keys variant no longer writes the Agent's act under the title.
+    readonly property bool protoAgentLine: false
+    // Whether the Agent is in the middle of a command. The lab has no Agent,
+    // so it acts in invented bursts: two and a half seconds on, four off.
+    property bool protoAgentActing: false
+    Timer {
+        running: root.protoKeys && root.protoState.agent
+        repeat: true
+        interval: root.protoAgentActing ? 2500 : 4000
+        onTriggered: root.protoAgentActing = !root.protoAgentActing
+    }
     property bool useFavicons: true
     property bool tintFavicons: false
 
@@ -192,18 +202,6 @@ Item {
         height: parent.height
         color: root.active ? root.colors.accent : root.colors.mutedText
     }
-    // PROTOTYPE (ui-language): a page an Agent is driving carries its colour
-    // down its leading edge in the Keys variant.
-    Rectangle {
-        visible: root.protoKeys && root.protoState.agent
-        width: 3
-        height: parent.height - 8
-        anchors.verticalCenter: parent.verticalCenter
-        radius: 1
-        color: Fakes.agentColor
-        z: 11
-    }
-
     Omarchy.Button {
         id: tabButton
         visible: !root.protoLedger
@@ -234,10 +232,9 @@ Item {
     Rectangle {
         objectName: "protoFocusLit"
         anchors.fill: parent
-        visible: root.protoFocusLit && (root.active || root.tabBeside)
+        visible: root.protoFocusLit && root.activeFocus
         radius: Style.cornerRadius
-        color: root.active ? Qt.rgba(root.colors.accent.r, root.colors.accent.g,
-                                     root.colors.accent.b, 0.16) : "transparent"
+        color: Qt.rgba(root.colors.accent.r, root.colors.accent.g, root.colors.accent.b, 0.16)
         border.width: 1
         border.color: root.colors.accent
     }
@@ -337,6 +334,40 @@ Item {
         elide: Text.ElideRight
         font.family: Style.font.family
         font.pixelSize: Style.font.caption
+    }
+
+    // PROTOTYPE (ui-language): an Agent's tab says so at the end of its row.
+    // It holds still while the Agent is attached and idle, and pulses only
+    // while a command is in flight, so idle chrome still draws no frames.
+    Text {
+        id: agentMark
+        objectName: "protoAgentMark"
+        visible: root.protoKeys && root.protoState.agent && !root.pinned
+                 && !hoverArea.containsMouse
+        anchors.right: parent.right
+        anchors.rightMargin: 8
+        anchors.verticalCenter: parent.verticalCenter
+        text: "smart_toy"
+        color: Fakes.agentColor
+        font.family: root.iconFontFamily
+        font.pixelSize: Style.font.iconLarge
+        opacity: 1
+        SequentialAnimation on opacity {
+            running: agentMark.visible && root.protoAgentActing
+            loops: Animation.Infinite
+            onRunningChanged: if (!running)
+                                  agentMark.opacity = 1
+            NumberAnimation {
+                to: 0.3
+                duration: 450
+                easing.type: Easing.InOutSine
+            }
+            NumberAnimation {
+                to: 1
+                duration: 450
+                easing.type: Easing.InOutSine
+            }
+        }
     }
 
     ProtoKeyBadge {
