@@ -50,7 +50,23 @@ ApplicationWindow {
         return at >= 0 && at + 1 < args.length ? args[at + 1] : "0";
     }
     readonly property bool protoTiled: uiVariant === "A"
-    readonly property real protoGap: protoTiled ? 8 : 0
+    readonly property real protoGap: 0
+    // Which region holds the keyboard, read off the focused item's ancestry:
+    // "sidebar", "devtools", "page", or "" for anything else (a dialog, the
+    // command panel). The Tiled variant frames that one region and no other.
+    readonly property string protoFocusRegion: {
+        let item = window.activeFocusItem;
+        while (item) {
+            if (item === sidebar)
+                return "sidebar";
+            if (item === developerToolsDock)
+                return "devtools";
+            if (item === engineLoader)
+                return "page";
+            item = item.parent;
+        }
+        return "";
+    }
     readonly property color protoSpaceColor: sidebar.protoSpaceColor
     // Held Ctrl, for the Keys variant. The bar's own toggle stands in where
     // the page takes the key first.
@@ -2337,10 +2353,10 @@ ApplicationWindow {
     Rectangle {
         id: shell
         anchors.fill: parent
-        color: window.protoTiled ? "transparent" : window.colors.window
+        color: window.colors.window
         // A window filling the screen has no edge to draw: the frame belongs to
         // a window sitting on a desktop, not to one that is the desktop.
-        border.width: window.visibility === Window.FullScreen || window.protoTiled ? 0 : 1
+        border.width: window.visibility === Window.FullScreen ? 0 : 1
         border.color: window.colors.border
         clip: true
         Keys.onPressed: function (event) {
@@ -2420,6 +2436,7 @@ ApplicationWindow {
                 uiVariant: window.uiVariant
                 keyMap: keymap
                 protoShowKeys: window.protoShowKeys
+                protoSidebarFocused: window.protoFocusRegion === "sidebar"
                 browser: window.windowBrowser
                 privateWindow: window.privateWindow
                 collapsed: window.sidebarCollapsed
@@ -2526,14 +2543,14 @@ ApplicationWindow {
             // PROTOTYPE (ui-language): the sidebar as a tile of its own.
             Rectangle {
                 objectName: "protoSidebarFrame"
-                visible: window.protoTiled && sidebar.visible && !sidebar.floating
+                visible: false
                 x: sidebar.x
                 width: sidebar.width
                 height: sidebar.height
                 z: sidebar.z + 1
                 color: "transparent"
                 border.width: 2
-                border.color: window.colors.border
+                border.color: window.protoSpaceColor
             }
 
             // What shows where the page is not while it arrives: the page's
@@ -2622,7 +2639,6 @@ ApplicationWindow {
                     pageBackgroundColor: window.colors.windowOpaque
                     pageControlAccent: window.colors.accent
                     colors: window.colors
-                    dividerWidth: window.protoTiled ? window.protoGap : 1
                     ease: window.easeChrome
                     spaceId: window.windowBrowser.activeSpaceId
 
@@ -2808,6 +2824,7 @@ ApplicationWindow {
                     }
 
                     Rectangle {
+                        visible: protoAgentPage.agent
                         x: engineLoader.splitOnShow ? engineLoader.activePaneX : 0
                         width: engineLoader.splitOnShow ? engineLoader.activePaneWidth :
                                                           parent.width
@@ -2818,15 +2835,16 @@ ApplicationWindow {
                                                              window.protoSpaceColor
                     }
 
-                    Rectangle {
-                        visible: engineLoader.splitOnShow && window.protoTiled
-                        x: engineLoader.besidePaneX
-                        width: engineLoader.besidePaneWidth
-                        height: parent.height
-                        color: "transparent"
-                        border.width: 2
-                        border.color: window.colors.border
-                    }
+                }
+
+                Rectangle {
+                    objectName: "protoDevtoolsFrame"
+                    anchors.fill: developerToolsDock
+                    visible: false
+                    z: 20
+                    color: "transparent"
+                    border.width: 2
+                    border.color: window.protoSpaceColor
                 }
 
                 DeveloperToolsDock {

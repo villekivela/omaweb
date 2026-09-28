@@ -43,7 +43,11 @@ Item {
     property string uiVariant: "0"
     property string protoKey: ""
     property bool protoShowKeys: false
-    readonly property bool protoLedger: uiVariant === "B"
+    // Pins keep today's grid in every variant.
+    readonly property bool protoLedger: uiVariant === "B" && !pinned
+    // The Tiled variant lights the current row in the accent while the
+    // sidebar holds the keyboard, and leaves it quiet while the page does.
+    property bool protoFocusLit: false
     readonly property bool protoKeys: uiVariant === "C"
     readonly property var protoState: Fakes.stateFor(tabTitle, pinned, active)
     readonly property string protoWord: Fakes.wordFor(protoState, tabAudible)
@@ -225,6 +229,17 @@ Item {
         accent: root.siteColored && root.active ? root.siteColor : root.colors.accent
         horizontalPadding: 0
         verticalPadding: 0
+    }
+
+    Rectangle {
+        objectName: "protoFocusLit"
+        anchors.fill: parent
+        visible: root.protoFocusLit && (root.active || root.tabBeside)
+        radius: Style.cornerRadius
+        color: root.active ? Qt.rgba(root.colors.accent.r, root.colors.accent.g,
+                                     root.colors.accent.b, 0.16) : "transparent"
+        border.width: 1
+        border.color: root.colors.accent
     }
 
     SiteTile {

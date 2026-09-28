@@ -16,6 +16,7 @@ Rectangle {
     property string uiVariant: "0"
     property var keyMap: null
     property bool protoShowKeys: false
+    property bool protoSidebarFocused: false
     readonly property bool protoTiled: uiVariant === "A"
     readonly property bool protoLedger: uiVariant === "B"
     readonly property bool protoKeys: uiVariant === "C"
@@ -602,7 +603,6 @@ Rectangle {
     // The seam down the sidebar is a divider rather than a frame, so it is
     // drawn as the bar draws one.
     Rectangle {
-        visible: !root.protoTiled
         anchors.right: parent.right
         width: 1
         height: parent.height
@@ -955,10 +955,9 @@ Rectangle {
             transform: Translate {
                 x: root.arrivalOffset * listLayer.width
             }
-            readonly property int capacity: root.protoLedger ? 1 : Math.max(3, Math.min(5, Math.floor(width
-                                                                                                      / 56)))
+            readonly property int capacity: Math.max(3, Math.min(5, Math.floor(width / 56)))
             readonly property int columns: Math.min(root.pinnedCount, capacity)
-            spacing: root.protoLedger ? 0 : 4
+            spacing: 4
 
             Repeater {
                 model: root.browser ? root.browser.pinnedTabs : null
@@ -978,6 +977,7 @@ Rectangle {
                     uiVariant: root.uiVariant
                     protoKey: root.protoTabKey(index)
                     protoShowKeys: root.protoShowKeys
+                    protoFocusLit: root.protoTiled && root.protoSidebarFocused
                     useFavicons: root.useFavicons
                     tintFavicons: root.tintFavicons
                     onActivated: function (id) {
@@ -1058,6 +1058,7 @@ Rectangle {
                         uiVariant: root.uiVariant
                         protoKey: root.protoTabKey(root.pinnedCount + index)
                         protoShowKeys: root.protoShowKeys
+                        protoFocusLit: root.protoTiled && root.protoSidebarFocused
                         useFavicons: root.useFavicons
                         tintFavicons: root.tintFavicons
                         onActivated: function (id) {
