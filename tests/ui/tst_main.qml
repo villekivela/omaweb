@@ -5342,7 +5342,8 @@ TestCase {
         input.cursorPosition = 0;
         keyClick(Qt.Key_Backspace);
         compare(panel.commandScope, false);
-        compare(prompt.text, ">");
+        compare(prompt.text, "mark");
+        verify(findChild(window.contentItem, "omnibarMark").visible);
         compare(input.text, "reopen");
         compare(panel.selected, -1);
         verify(omnibarRowsOf(panel, "command").some(function (row) {
@@ -5367,6 +5368,21 @@ TestCase {
         compare(input.text, "");
         compare(prompt.text, ":");
         window.closeOmnibar();
+    }
+
+    // The go mark at the end of the field is Return, for the pointer.
+    function test_theGoMarkCommitsAsReturnDoes() {
+        const startTabId = browser.activeTabId;
+        const input = findChild(window.contentItem, "omnibarInput");
+        const go = findChild(window.contentItem, "omnibarGo");
+        window.openOmnibar(true);
+        compare(go.Accessible.name, "Go");
+        input.text = "https://go-mark.example/";
+        mouseClick(go);
+        compare(window.omnibarOpen, false);
+        compare(browser.activeUrl.toString(), "https://go-mark.example/");
+        browser.closeTab(browser.activeTabId);
+        browser.activateTab(startTabId);
     }
 
     // The Omnibar drops into its own place from just above it, whichever key

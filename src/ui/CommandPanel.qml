@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Effects
+import QtQuick.Shapes
 import qs.Commons
 
 Item {
@@ -421,23 +422,64 @@ Item {
             anchors.margins: panel.border.width
             height: 62
 
-            Text {
+            // The field is drawn as the website's dash: the Omaweb mark as its
+            // prompt, the typed text and a block caret glowing in the accent,
+            // and a go mark at the end. The mark gives way to `:` in command
+            // scope.
+            Item {
                 id: prompt
                 objectName: "omnibarPrompt"
+                readonly property string text: root.commandScope ? ":" : "mark"
                 anchors.left: parent.left
-                anchors.leftMargin: 14
+                anchors.leftMargin: 16
                 anchors.verticalCenter: parent.verticalCenter
-                text: root.commandScope ? ":" : (root.newTabIntent ? "+" : ">")
-                color: root.colors.accent
-                font.family: Style.font.family
-                font.pixelSize: 18
+                width: 22
+                height: 22
+
+                Shape {
+                    id: mark
+                    objectName: "omnibarMark"
+                    // The mark from assets/icons/omaweb.svg, moved to the
+                    // origin: 40.4 by 18.4 in its own units.
+                    anchors.centerIn: parent
+                    width: 40.4
+                    height: 18.4
+                    scale: parent.width / width
+                    visible: !root.commandScope
+                    preferredRendererType: Shape.CurveRenderer
+                    layer.enabled: true
+                    layer.effect: MultiEffect {
+                        shadowEnabled: true
+                        shadowColor: root.colors.accent
+                        shadowBlur: 0.5
+                        shadowHorizontalOffset: 0
+                        shadowVerticalOffset: 0
+                    }
+
+                    ShapePath {
+                        fillColor: root.colors.accent
+                        strokeWidth: -1
+                        PathSvg {
+                            path: "m 9.187009,0 -9.187009,9.187005 9.187009,9.18763 h 3.69342 l 13.915739,-13.91637 4.72873,4.72874 -9.187009,9.18763 h 6.305601 l 9.18701,-9.18763 -9.187622,-9.187005 H 24.949459 l -13.91574,13.915735 -4.728742,-4.72873 9.18701,-9.187005 z"
+                        }
+                    }
+                }
+
+                Text {
+                    anchors.centerIn: parent
+                    visible: root.commandScope
+                    text: ":"
+                    color: root.colors.accent
+                    font.family: Style.font.family
+                    font.pixelSize: 20
+                }
             }
 
             Rectangle {
                 id: chip
                 objectName: "omnibarEngineChip"
                 anchors.left: prompt.right
-                anchors.leftMargin: 8
+                anchors.leftMargin: 12
                 anchors.verticalCenter: parent.verticalCenter
                 visible: root.engine !== null
                 width: visible ? chipLabel.implicitWidth + 16 : 0
@@ -465,6 +507,18 @@ Item {
                 anchors.left: chip.right
                 anchors.right: modeLabel.left
                 anchors.leftMargin: chip.visible ? 8 : 0
+                // The website's phosphor, in the palette's accent: a tight
+                // halo on the text and the caret, drawn only while the field
+                // changes.
+                layer.enabled: true
+                layer.effect: MultiEffect {
+                    shadowEnabled: true
+                    shadowColor: root.colors.accent
+                    shadowBlur: 0.4
+                    shadowOpacity: 0.7
+                    shadowHorizontalOffset: 0
+                    shadowVerticalOffset: 0
+                }
                 anchors.rightMargin: 10
                 anchors.verticalCenter: parent.verticalCenter
                 height: 40
@@ -484,6 +538,32 @@ Item {
                 font.family: Style.font.family
                 font.pixelSize: 17
                 selectByMouse: true
+                // The dash's block caret, blinking while the field has focus.
+                cursorDelegate: Rectangle {
+                    objectName: "omnibarCaret"
+                    width: Math.round(input.font.pixelSize * 0.55)
+                    height: Math.round(input.font.pixelSize * 1.1)
+                    color: root.colors.accent
+                    visible: input.cursorVisible
+
+                    SequentialAnimation on opacity {
+                        running: root.open && input.activeFocus
+                        loops: Animation.Infinite
+                        alwaysRunToEnd: false
+                        PropertyAction {
+                            value: 0.9
+                        }
+                        PauseAnimation {
+                            duration: 550
+                        }
+                        PropertyAction {
+                            value: 0
+                        }
+                        PauseAnimation {
+                            duration: 550
+                        }
+                    }
+                }
                 Accessible.name: root.engine === null ? placeholderText : "Search "
                                                         + root.engine.engineName
                 Accessible.description: root.destination
@@ -522,9 +602,35 @@ Item {
                 }
             }
 
+            // Commits as Return does, for the pointer. In command scope it
+            // runs the selected command.
+            Text {
+                id: goMark
+                objectName: "omnibarGo"
+                anchors.right: parent.right
+                anchors.rightMargin: 16
+                anchors.verticalCenter: parent.verticalCenter
+                text: "→"
+                color: root.colors.accent
+                opacity: goMouse.containsMouse ? 1 : 0.85
+                font.family: Style.font.family
+                font.pixelSize: 20
+                Accessible.role: Accessible.Button
+                Accessible.name: root.commandScope ? "Run" : "Go"
+
+                MouseArea {
+                    id: goMouse
+                    anchors.fill: parent
+                    anchors.margins: -8
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: root.accept()
+                }
+            }
+
             SectionLabel {
                 id: modeLabel
-                anchors.right: parent.right
+                anchors.right: goMark.left
                 anchors.rightMargin: 14
                 anchors.verticalCenter: parent.verticalCenter
                 colors: root.colors
