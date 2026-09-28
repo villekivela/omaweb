@@ -438,6 +438,11 @@ int main(int argc, char *argv[])
     if (!validatingQml) {
         controlSocket.listen(omaweb::ControlSocket::defaultPath());
     }
+    // A temporary Agent Space outlives neither its connection nor the browser.
+    // Deleted while the shell is still here to let go of its pages; one a
+    // crash leaves behind goes when the next browser starts.
+    QObject::connect(&application, &QCoreApplication::aboutToQuit, &browser,
+        [&browser] { browser.deleteTemporarySpaces(); });
 
     // Every later launch arrives here instead, as the address it was asked to
     // open rather than as a browser of its own.

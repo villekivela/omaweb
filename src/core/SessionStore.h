@@ -5,6 +5,7 @@
 
 #include <QHash>
 #include <QString>
+#include <QStringList>
 #include <QUrl>
 #include <QVariantList>
 #include <QVector>
@@ -65,7 +66,10 @@ public:
     // can carry it to another machine. Deleting a Space takes its label with
     // it.
     virtual QHash<QString, QString> agentSpaces() const = 0;
-    virtual bool saveAgentSpace(const QString &spaceId, const QString &creator) = 0;
+    // The Agent Spaces made to last only as long as their connection. Any
+    // still here when a browser starts outlived one that crashed.
+    virtual QStringList temporaryAgentSpaceIds() const = 0;
+    virtual bool saveAgentSpace(const QString &spaceId, const QString &creator, bool temporary) = 0;
     virtual bool forgetAgentSpace(const QString &spaceId) = 0;
 
     virtual QVector<TabState> loadTabs(const QString &spaceId) const = 0;

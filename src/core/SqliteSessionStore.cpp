@@ -231,13 +231,28 @@ QHash<QString, QString> SqliteSessionStore::agentSpaces() const
     return spaces;
 }
 
-bool SqliteSessionStore::saveAgentSpace(const QString &spaceId, const QString &creator)
+QStringList SqliteSessionStore::temporaryAgentSpaceIds() const
+{
+    QStringList ids;
+    QSqlQuery query(m_database);
+    query.exec(QStringLiteral("SELECT space_id FROM agent_spaces WHERE temporary != 0"));
+    while (query.next()) {
+        ids.append(query.value(0).toString());
+    }
+    return ids;
+}
+
+bool SqliteSessionStore::saveAgentSpace(
+    const QString &spaceId, const QString &creator, bool temporary)
 {
     QSqlQuery query(m_database);
-    query.prepare(QStringLiteral("INSERT INTO agent_spaces(space_id, creator) VALUES(?, ?) "
-                                 "ON CONFLICT(space_id) DO UPDATE SET creator = excluded.creator"));
+    query.prepare(
+        QStringLiteral("INSERT INTO agent_spaces(space_id, creator, temporary) VALUES(?, ?, ?) "
+                       "ON CONFLICT(space_id) DO UPDATE SET creator = excluded.creator, "
+                       "temporary = excluded.temporary"));
     query.addBindValue(spaceId);
     query.addBindValue(creator);
+    query.addBindValue(temporary);
     return query.exec();
 }
 
@@ -756,7 +771,8 @@ bool SqliteSessionStore::executeSchema(QString *errorMessage)
         );
         CREATE TABLE IF NOT EXISTS agent_spaces (
             space_id TEXT PRIMARY KEY REFERENCES spaces(id) ON DELETE CASCADE,
-            creator TEXT NOT NULL DEFAULT ''
+            creator TEXT NOT NULL DEFAULT '',
+            temporary INTEGER NOT NULL DEFAULT 0
         );
         CREATE TABLE IF NOT EXISTS pending_space_deletions (
             space_id TEXT PRIMARY KEY
@@ -795,6 +811,11 @@ bool SqliteSessionStore::executeSchema(QString *errorMessage)
             return false;
         }
     }
+    // The label table came before temporary Agent Spaces did. A column that
+    // is already there makes this fail, which is the answer wanted.
+    QSqlQuery addTemporary(m_database);
+    addTemporary.exec(
+        QStringLiteral("ALTER TABLE agent_spaces ADD COLUMN temporary INTEGER NOT NULL DEFAULT 0"));
     return true;
 }
 

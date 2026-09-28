@@ -69,6 +69,10 @@ void AgentCommandTest::readsEachVerbIntoARequest_data()
         << QStringList {QStringLiteral("space"), QStringLiteral("new"), QStringLiteral("Checks")}
         << base(QStringLiteral("space new"), {{QStringLiteral("space"), QStringLiteral("Checks")}})
         << false;
+    QTest::newRow("space new temporary")
+        << QStringList {QStringLiteral("space"), QStringLiteral("new"),
+               QStringLiteral("--temporary")}
+        << base(QStringLiteral("space new"), {{QStringLiteral("temporary"), true}}) << false;
     QTest::newRow("space new without one")
         << QStringList {QStringLiteral("space"), QStringLiteral("new")}
         << base(QStringLiteral("space new")) << false;

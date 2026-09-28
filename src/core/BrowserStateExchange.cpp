@@ -56,6 +56,11 @@ BrowserStateImage BrowserStateExchangeAdapter::capture(const BrowserStateSelecti
     BrowserStateImage image;
     auto *store = m_browser->sessionStore();
     image.spaces = store->loadSpaces();
+    // A temporary Agent Space leaves nothing behind, and a copy on another
+    // machine would outlive the connection it was made for.
+    const auto temporary = store->temporaryAgentSpaceIds();
+    image.spaces.removeIf(
+        [&temporary](const SpaceState &space) { return temporary.contains(space.id); });
     for (auto &space : image.spaces) {
         space.active = false;
         auto tabs = store->loadTabs(space.id);

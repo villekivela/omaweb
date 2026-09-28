@@ -6,8 +6,11 @@
 #include <QLocalSocket>
 #include <QSet>
 
+#include <cerrno>
+#include <csignal>
 #include <cstdio>
 
+#include <poll.h>
 #include <unistd.h>
 
 #if defined(Q_OS_MACOS)
@@ -70,7 +73,7 @@ namespace {
         }
         if (verb == u"space new") {
             return {.valued = {},
-                .flags = {},
+                .flags = {QStringLiteral("temporary")},
                 .minimumPositionals = 0,
                 .maximumPositionals = 1,
                 .positionalField = space};
@@ -91,6 +94,56 @@ namespace {
             }
         }
         return cleaned.left(maximumNameLength);
+    }
+
+    // Written to by a signal handler, so it is set up before any handler is.
+    int stopPipe[2] = {-1, -1};
+
+    void requestStop(int)
+    {
+        const char byte = 0;
+        if (::write(stopPipe[1], &byte, 1) < 0) {
+            // Nothing a signal handler could do about it.
+        }
+    }
+
+    // A temporary Space lasts as long as the connection that made it, so this
+    // process keeps that connection open until it is told to stop or the
+    // browser closes it.
+    void holdConnection(QLocalSocket &socket)
+    {
+        std::fflush(stdout);
+        if (::pipe(stopPipe) != 0) {
+            return;
+        }
+        struct sigaction action {};
+        action.sa_handler = requestStop;
+        sigemptyset(&action.sa_mask);
+        for (const auto signal : {SIGINT, SIGTERM, SIGHUP}) {
+            ::sigaction(signal, &action, nullptr);
+        }
+        pollfd watched[] {
+            {.fd = stopPipe[0], .events = POLLIN, .revents = 0},
+            {.fd = static_cast<int>(socket.socketDescriptor()), .events = POLLIN, .revents = 0},
+        };
+        while (true) {
+            if (::poll(watched, 2, -1) < 0) {
+                if (errno == EINTR) {
+                    continue;
+                }
+                break;
+            }
+            if (watched[0].revents != 0) {
+                break;
+            }
+            if (watched[1].revents != 0) {
+                char discarded[256];
+                if (::read(watched[1].fd, discarded, sizeof(discarded)) <= 0) {
+                    break;
+                }
+            }
+        }
+        socket.disconnectFromServer();
     }
 
     void print(FILE *stream, const QString &text)
@@ -292,6 +345,9 @@ int runAgentCommand(const QStringList &arguments, const QString &socketPath)
     } else {
         print(stderr,
             QStringLiteral("omaweb: %1\n").arg(answer.value(QStringLiteral("error")).toString()));
+    }
+    if (ok && command.request.value(QStringLiteral("temporary")).toBool()) {
+        holdConnection(socket);
     }
     return ok ? 0 : 1;
 }

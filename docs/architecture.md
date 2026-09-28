@@ -285,6 +285,14 @@ copies Space records, so it never sees the label, and deleting a Space deletes i
 `AgentControl` is handed the ordinary window's controller only, and refuses every verb if given a
 Private window's.
 
+`space new --temporary` makes an Agent Space that lasts as long as the socket connection that asked
+for it. The label says so in the store, and the Space is deleted with its whole directory, the
+Engine profile, history and site data, when that connection closes, when the reader quits, or when
+the next browser starts after one that crashed. The deletion at start runs before any Space is
+restored. Taking it over makes it an ordinary Space, and Sync never captures a temporary Space, so
+no copy outlives it on another machine. The CLI is one process per verb, so for a temporary Space it
+prints the id and holds its connection open until it is interrupted, terminated or hung up on.
+
 The socket answers one line at a time. A line longer than 64 KiB is answered as too long and the
 connection is closed, rather than cut and read on from the middle. A client that leaves 4 MiB of
 answers unread is dropped. At start, a socket another browser answers on is left alone, a stale one

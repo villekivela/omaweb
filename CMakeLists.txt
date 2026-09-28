@@ -1044,6 +1044,16 @@ if(BUILD_TESTING)
     omaweb_declarative_fixture_target(omaweb-agent-control-tests)
     add_test(NAME omaweb-agent-control COMMAND omaweb-agent-control-tests)
 
+    qt_add_executable(omaweb-temporary-agent-spaces-tests
+        "tests/core/SessionFixture.cpp"
+        "tests/core/SessionFixture.h"
+        "tests/core/tst_temporaryagentspaces.cpp"
+    )
+    target_link_libraries(omaweb-temporary-agent-spaces-tests PRIVATE omaweb-core Qt6::Test)
+    omaweb_strict_target(omaweb-temporary-agent-spaces-tests)
+    omaweb_declarative_fixture_target(omaweb-temporary-agent-spaces-tests)
+    add_test(NAME omaweb-temporary-agent-spaces COMMAND omaweb-temporary-agent-spaces-tests)
+
     qt_add_executable(omaweb-agent-command-tests tests/core/tst_agentcommand.cpp)
     target_link_libraries(omaweb-agent-command-tests PRIVATE omaweb-core Qt6::Test)
     omaweb_strict_target(omaweb-agent-command-tests)

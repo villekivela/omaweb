@@ -106,9 +106,17 @@ QHash<QString, QString> ThreadedSessionStore::agentSpaces() const
     return ask([this] { return m_store->agentSpaces(); });
 }
 
-bool ThreadedSessionStore::saveAgentSpace(const QString &spaceId, const QString &creator)
+QStringList ThreadedSessionStore::temporaryAgentSpaceIds() const
 {
-    return ask([this, &spaceId, &creator] { return m_store->saveAgentSpace(spaceId, creator); });
+    return ask([this] { return m_store->temporaryAgentSpaceIds(); });
+}
+
+bool ThreadedSessionStore::saveAgentSpace(
+    const QString &spaceId, const QString &creator, bool temporary)
+{
+    return ask([this, &spaceId, &creator, temporary] {
+        return m_store->saveAgentSpace(spaceId, creator, temporary);
+    });
 }
 
 bool ThreadedSessionStore::forgetAgentSpace(const QString &spaceId)

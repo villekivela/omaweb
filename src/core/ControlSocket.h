@@ -36,11 +36,13 @@ public:
 
 private:
     void accept();
-    void read(QLocalSocket *socket);
+    // `connection` numbers the socket for as long as this browser runs.
+    void read(QLocalSocket *socket, quint64 connection);
     void tooLong(QLocalSocket *socket);
 
     AgentControl *m_control;
     QLocalServer *m_server;
+    quint64 m_connections = 0;
 };
 
 } // namespace omaweb

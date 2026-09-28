@@ -32,7 +32,9 @@ bool PrivateSessionStore::deleteSpace(const QString &, const QString &) { return
 
 QHash<QString, QString> PrivateSessionStore::agentSpaces() const { return {}; }
 
-bool PrivateSessionStore::saveAgentSpace(const QString &, const QString &) { return false; }
+QStringList PrivateSessionStore::temporaryAgentSpaceIds() const { return {}; }
+
+bool PrivateSessionStore::saveAgentSpace(const QString &, const QString &, bool) { return false; }
 
 bool PrivateSessionStore::forgetAgentSpace(const QString &) { return false; }
 

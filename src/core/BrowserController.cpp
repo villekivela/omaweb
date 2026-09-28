@@ -448,7 +448,8 @@ QString BrowserController::agentSpaceCreator(const QString &spaceId) const
     return m_agentSpaces.value(spaceId);
 }
 
-QString BrowserController::createAgentSpace(const QString &name, const QString &creator)
+QString BrowserController::createAgentSpace(
+    const QString &name, const QString &creator, bool temporary)
 {
     const auto spaceId = createSpace(name);
     if (spaceId.isEmpty()) {
@@ -456,11 +457,14 @@ QString BrowserController::createAgentSpace(const QString &name, const QString &
     }
     // A Space an Agent asked for and cannot be told apart from the reader's own
     // is worse than none, so one the store would not label is taken back.
-    if (!m_store->saveAgentSpace(spaceId, creator)) {
+    if (!m_store->saveAgentSpace(spaceId, creator, temporary)) {
         deleteSpace(spaceId, name.trimmed());
         return {};
     }
     m_agentSpaces.insert(spaceId, creator);
+    if (temporary) {
+        m_temporarySpaceIds.insert(spaceId);
+    }
     emit agentSpacesChanged();
     return spaceId;
 }
@@ -471,8 +475,36 @@ bool BrowserController::takeOverSpace(const QString &spaceId)
         return false;
     }
     m_agentSpaces.remove(spaceId);
+    m_temporarySpaceIds.remove(spaceId);
     emit agentSpacesChanged();
     return true;
+}
+
+bool BrowserController::temporarySpace(const QString &spaceId) const
+{
+    return m_temporarySpaceIds.contains(spaceId);
+}
+
+bool BrowserController::deleteTemporarySpace(const QString &spaceId)
+{
+    const auto index = m_spaces.rowOf(spaceId);
+    if (!m_temporarySpaceIds.contains(spaceId) || index < 0) {
+        return false;
+    }
+    // A window always has a Space. One the reader left with only this to
+    // show gets a Space of its own to come back to.
+    if (m_spaces.items().size() == 1 && createSpace(QStringLiteral("Personal")).isEmpty()) {
+        return false;
+    }
+    return deleteSpace(spaceId, m_spaces.items().at(index).name);
+}
+
+void BrowserController::deleteTemporarySpaces()
+{
+    for (const auto &spaceId :
+        QStringList(m_temporarySpaceIds.cbegin(), m_temporarySpaceIds.cend())) {
+        deleteTemporarySpace(spaceId);
+    }
 }
 
 bool BrowserController::deleteAgentSpace(const QString &spaceId)
@@ -1043,6 +1075,7 @@ bool BrowserController::deleteSpace(const QString &spaceId, const QString &confi
         return false;
     }
     m_spaces.reset(m_store->loadSpaces());
+    m_temporarySpaceIds.remove(spaceId);
     if (m_agentSpaces.remove(spaceId) > 0) {
         emit agentSpacesChanged();
     }
@@ -2922,6 +2955,8 @@ void BrowserController::reloadSyncedState()
     m_spaces.reset(std::move(spaces));
     // Sync may have deleted an Agent Space, and the store took its label too.
     m_agentSpaces = m_store->agentSpaces();
+    const auto temporaryIds = m_store->temporaryAgentSpaceIds();
+    m_temporarySpaceIds = QSet<QString>(temporaryIds.cbegin(), temporaryIds.cend());
     emit agentSpacesChanged();
     auto tabs = m_store->loadTabs(m_activeSpaceId);
     auto active = std::ranges::find(tabs, previousTab, &TabState::id);
@@ -2961,6 +2996,21 @@ void BrowserController::initialize()
         loadSearchEngines();
         m_ready = true;
         return;
+    }
+    // A temporary Space still here outlived a browser that crashed, and it
+    // goes before anything restores it or shows it.
+    for (const auto &spaceId : m_store->temporaryAgentSpaceIds()) {
+        const auto spaces = m_store->loadSpaces();
+        const auto space = std::ranges::find(spaces, spaceId, &SpaceState::id);
+        const auto replacement = std::ranges::find_if(
+            spaces, [&spaceId](const SpaceState &other) { return other.id != spaceId; });
+        const auto replacementId
+            = space != spaces.end() && space->active && replacement != spaces.end()
+            ? replacement->id
+            : QString {};
+        if (!m_store->deleteSpace(spaceId, replacementId)) {
+            qWarning("A temporary Agent Space left by an earlier run could not be deleted");
+        }
     }
     m_startedWithEmptyState = m_store->loadSpaces().isEmpty();
     ensureDefaultSpace();

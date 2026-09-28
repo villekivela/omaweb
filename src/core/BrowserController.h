@@ -433,8 +433,18 @@ public:
     Q_INVOKABLE bool agentSpace(const QString &spaceId) const;
     // The connection name that created an Agent Space, or nothing.
     QString agentSpaceCreator(const QString &spaceId) const;
-    QString createAgentSpace(const QString &name, const QString &creator);
+    // A temporary one lasts only as long as the connection that created it:
+    // deleteTemporarySpace takes it, with its Engine profile and Browsing
+    // data, and one left behind by a crash is deleted when the next browser
+    // starts, before anything restores it.
+    QString createAgentSpace(const QString &name, const QString &creator, bool temporary = false);
+    Q_INVOKABLE bool temporarySpace(const QString &spaceId) const;
+    // Taking a temporary Space over also makes it permanent.
     Q_INVOKABLE bool takeOverSpace(const QString &spaceId);
+    // Refuses a Space that is not temporary, or no longer is.
+    bool deleteTemporarySpace(const QString &spaceId);
+    // Every temporary Space, as the browser exits.
+    void deleteTemporarySpaces();
     // Refuses a Space the reader made or took over, whatever asks.
     bool deleteAgentSpace(const QString &spaceId);
     // One Space's tabs: the Space on show from its live model, any other from
@@ -634,6 +644,7 @@ private:
     QSharedPointer<SessionSiteState> m_sessionSiteState;
     // Agent Space id to the connection name that created it.
     QHash<QString, QString> m_agentSpaces;
+    QSet<QString> m_temporarySpaceIds;
 };
 
 // Makes `BrowserController`'s enums available to QML as `import Omaweb`. The
