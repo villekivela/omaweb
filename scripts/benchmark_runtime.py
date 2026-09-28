@@ -562,11 +562,15 @@ class Browser:
         by the kernel rather than by us.
         """
         if self.process:
+            # The launcher leads a session of its own, so its process id is the group's, and that
+            # holds after the launcher has gone. The launcher going says nothing about the rest of
+            # the group: whatever outlives SIGTERM is killed rather than left running into the next
+            # measurement, where a page-load run after one that went quiet found its rules never
+            # came into force.
+            group = self.process.pid
             for stage in (signal.SIGTERM, signal.SIGKILL):
-                if self.process.poll() is not None:
-                    break
                 try:
-                    os.killpg(os.getpgid(self.process.pid), stage)
+                    os.killpg(group, stage)
                 except (ProcessLookupError, PermissionError):
                     break
                 try:
