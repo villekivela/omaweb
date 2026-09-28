@@ -72,9 +72,12 @@ Window {
     property bool lightNight: true
     // 0 clean, 1 screenprint, 2 vector display
     property int finish: 1
-    readonly property var finishNames: ["clean", "screenprint", "vector"]
+    readonly property var finishNames: ["clean", "screenprint", "vector", "pixel"]
     readonly property bool screenprint: finish === 1
     readonly property bool vector: finish === 2
+    readonly property bool pixel: finish === 3
+    // Logical pixels per display pixel in the pixel finish.
+    property int pitch: 4
     readonly property color uiBg: c("background", "#1a1b26")
     readonly property color uiFg: c("foreground", "#c0caf5")
     readonly property color uiDeep: c("darker_background", mix(uiBg, "black", light ? 0.08 : 0.45))
@@ -130,6 +133,7 @@ Window {
         if (args.private === "1") privateWindow = true;
         if (args.hud === "0") hud = false;
         if (args.finish !== undefined) finish = +args.finish;
+        if (args.pitch !== undefined) pitch = +args.pitch;
         if (args.mode === "driving") { mode = "over-page"; delayIndex = 2; commit(); }
         if (args.mode === "over-page") mode = "over-page";
     }
@@ -184,7 +188,8 @@ Window {
     Shortcut { sequence: "F1"; onActivated: win.variant = 0 }
     Shortcut { sequence: "F2"; onActivated: win.variant = 1 }
     Shortcut { sequence: "F3"; onActivated: win.variant = 2 }
-    Shortcut { sequence: "F10"; onActivated: win.finish = (win.finish + 1) % 3 }
+    Shortcut { sequence: "F10"; onActivated: win.finish = (win.finish + 1) % win.finishNames.length }
+    Shortcut { sequence: "F11"; onActivated: win.pitch = win.pitch === 6 ? 3 : win.pitch + 1 }
     Shortcut { sequence: "F5"; onActivated: win.themeIndex = (win.themeIndex + Themes.all.length - 1) % Themes.all.length }
     Shortcut { sequence: "F6"; onActivated: win.themeIndex = (win.themeIndex + 1) % Themes.all.length }
     Shortcut { sequence: "Ctrl+P"; onActivated: win.privateWindow = !win.privateWindow }
@@ -353,11 +358,88 @@ Window {
                 visible: !win.roadOn
             }
 
-            Road {
-                id: road
+            // The scene, plus a Bayer dither that only the pixel finish uses.
+            Item {
+                id: scene
                 anchors.fill: parent
                 visible: win.roadOn
-                horizon: [0.5, 0.36, 0.6][win.variant]
+                Road {
+                    id: road
+                    anchors.fill: parent
+                    horizon: [0.5, 0.36, 0.6][win.variant]
+                }
+                Canvas {
+                    anchors.fill: parent
+                    visible: win.pixel
+                    renderStrategy: Canvas.Immediate
+                    readonly property string key: width + "x" + height + win.pitch
+                    onKeyChanged: requestPaint()
+                    onPaint: {
+                        const ctx = getContext("2d");
+                        ctx.reset();
+                        const bayer = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
+                        const p = win.pitch;
+                        for (let y = 0, j = 0; y < height; y += p, ++j)
+                            for (let x = 0, i = 0; x < width; x += p, ++i) {
+                                const b = bayer[(j % 4) * 4 + (i % 4)] / 16;
+                                ctx.fillStyle = "rgba(0,0,0," + (b * 0.5) + ")";
+                                ctx.fillRect(x, y, p, p);
+                            }
+                    }
+                }
+            }
+            // Pixel finish: the scene in the accent alone, sampled at one texel
+            // per display pixel and drawn back up without smoothing.
+            Rectangle {
+                anchors.fill: parent
+                visible: win.roadOn && win.pixel
+                color: win.mix(win.glow, "black", 0.9)
+            }
+            // Captures the scene and hides it: a hidden item would leave its
+            // cached layers undrawn.
+            ShaderEffectSource {
+                id: sceneTex
+                anchors.fill: parent
+                visible: false
+                sourceItem: win.pixel ? scene : null
+                hideSource: win.pixel
+                live: true
+            }
+            MultiEffect {
+                id: mono
+                anchors.fill: parent
+                visible: false
+                source: sceneTex
+                colorization: 1
+                colorizationColor: win.glow
+                contrast: 0.6
+                brightness: 0.28
+            }
+            ShaderEffectSource {
+                anchors.fill: parent
+                visible: win.roadOn && win.pixel
+                sourceItem: win.pixel ? mono : null
+                live: true
+                smooth: false
+                textureSize: Qt.size(Math.ceil(width / win.pitch), Math.ceil(height / win.pitch))
+            }
+            // The display's pixel grid: a dark gap between every pixel.
+            Canvas {
+                anchors.fill: parent
+                visible: win.roadOn && win.pixel
+                renderStrategy: Canvas.Immediate
+                readonly property string key: width + "x" + height + win.pitch
+                onKeyChanged: requestPaint()
+                onPaint: {
+                    const ctx = getContext("2d");
+                    ctx.reset();
+                    ctx.fillStyle = "rgba(0,0,0,0.45)";
+                    const p = win.pitch;
+                    for (let x = 0; x < width; x += p)
+                        ctx.fillRect(x, 0, 1, height);
+                    for (let y = 0; y < height; y += p)
+                        ctx.fillRect(0, y, width, 1);
+                }
             }
 
             // Gantry for composition C: a sign bridge standing on the road's
@@ -662,7 +744,7 @@ Window {
                   + "theme " + win.t.name + " (F5 F6)   private " + win.privateWindow + " (^P)   road " + win.roadOn + " (^R)\n"
                   + "mode " + win.mode + "   moving " + win.moving + "   speed " + win.speed.toFixed(1) + "\n"
                   + "road frames " + win.roadFrames + "   window frames " + win.frames + "\n"
-                  + "first paint " + win.delays[win.delayIndex] + " ms (^D)   next fails " + win.nextFails + " (^E)   unfocus " + win.simulatedUnfocus + " (^U)\n"
+                  + "pixel pitch " + win.pitch + " (F11)   first paint " + win.delays[win.delayIndex] + " ms (^D)   next fails " + win.nextFails + " (^E)   unfocus " + win.simulatedUnfocus + " (^U)\n"
                   + "^N light theme night " + win.lightNight + "   ^T start over page   Esc back   Return commit   ^B Space at rest   ^/ sheet   ^H hide"
         }
     }
