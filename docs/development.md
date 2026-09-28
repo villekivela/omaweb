@@ -1115,7 +1115,10 @@ The ceilings are ceilings with headroom rather than best-recorded times, because
 on noise is a budget that gets turned off. `performance/budget.json` records what each was last
 measured at and the machine class it was measured on; `--record` writes the measurements back
 without touching the ceilings, because what counts as too slow is a decision to be reviewed rather
-than a number a slow machine can move.
+than a number a slow machine can move. The budget keeps only that last recording, so `--record` also
+appends the run to [the performance history](#the-performance-history), where a number drifting
+towards its ceiling shows. Give the line a machine name with `--machine`; without it, the machine is
+described from its hardware.
 
 #### The page-load measurement
 
@@ -1177,6 +1180,97 @@ Content blocking's cost. They were recorded there on 2026-09-28
 
 Each ceiling is four times the difference recorded on CI's runner, and never under 20 ms. The
 differences are a few milliseconds, and a shared runner's noise is bigger than that multiplied.
+
+### Against Chromium
+
+`scripts/benchmark_chromium.py` runs Speedometer 3.1, JetStream 2.2 and MotionMark 1.3.2 in Omaweb
+and in two Chromiums, and prints Omaweb's score as a share of each:
+
+```sh
+scripts/benchmark_chromium.py
+scripts/benchmark_chromium.py --suite speedometer --runs 5
+scripts/benchmark_chromium.py --omaweb build/dev/omaweb --record
+scripts/benchmark_chromium.py --profile
+```
+
+The two Chromiums separate the engine's version lag from what Omaweb costs:
+
+- The latest stable Chromium, `chromium` on the path by default, which is what Arch readers have.
+  Its gap is the one readers see.
+- The Chromium the engine is based on. Its gap is what Omaweb and Qt WebEngine add. The harness
+  reads the engine's Chromium version from `omaweb --version`, which reports
+  `qWebEngineChromiumVersion()`, and fetches the newest build of that major that the Playwright
+  project publishes. Playwright publishes a Chromium build for aarch64 and for x86_64 with every
+  release. When an engine update moves the base, the next run follows without a code change. The
+  report says so when the engine's version is not the `chromium` in `security/baseline.json`.
+  `--matched-chromium` takes a Chromium binary instead of the download.
+
+The suites are pinned to a commit and a SHA-256 digest each and served from loopback. They and the
+Chromium builds are cached under `~/.cache/omaweb-benchmarks`, one directory per suite commit and
+per Chromium version, so after the first run no network is needed.
+
+Each launch gets a fresh profile. Omaweb runs on scratch data and configuration roots, so it reads
+no `sync.json` and none of the reader's settings, and its content-blocking lists are seeded from
+`third_party/filter-lists` so a first run does not fetch and compile them during a suite. Chromium
+gets a scratch `--user-data-dir`, and a scratch `XDG_CONFIG_HOME` so that Arch's launcher reads no
+`chromium-flags.conf`, where a reader may have added extensions. The harness drives Omaweb over
+`--remote-debugging=<port>` and Chromium over `--remote-debugging-port`. Omaweb's GL flags come from
+`QTWEBENGINE_CHROMIUM_FLAGS`, as they do at every launch. `--chromium-flags` passes flags to both
+Chromiums.
+
+Each suite runs `--runs` times, 3 by default, in each browser. The browsers alternate, and the first
+browser changes from round to round. The report names each browser's version and flags, the engine
+library Omaweb loaded (ours under `/usr/lib/omaweb`, or Arch's `qt6-webengine`) and each run's
+score. It gives the Omaweb/Chromium ratio per suite and baseline: the mean of Omaweb's runs over the
+mean of Chromium's. The latest Chromium's spread across runs is printed as the check that the host
+was idle. A virtual machine's score moves with its host's load, which the guest cannot see: in #356,
+memory pressure on the Mac host moved Speedometer between 2.5 and 22.6, and Chromium on an idle host
+scored 24.5 in every run.
+
+MotionMark measures the compositing path. A MotionMark run in which a browser composited without a
+GPU is marked in the report and in the history as not a result. The harness decides this from
+`--disable-gpu` or `--disable-gpu-compositing` in the flags, and otherwise from Chromium's own
+`gpu_compositing` status over DevTools. It does not create a WebGL context to ask: on the Omarchy
+VM, with GPU compositing off, doing so left Omaweb not responding.
+
+The harness only reports. It never fails because Omaweb is behind, because host noise here is larger
+than the gap being measured. It exits non-zero only when a browser does not finish a suite.
+
+`--profile` adds one run of the first suite per browser, not counted in the ratios. The harness
+waits 15 seconds for the run to get going, then records the busiest renderer for 30 seconds with
+`perf record -F 999` and prints the split by library and the top 20 symbols. #356 took the same
+profile by hand. The data and the full reports stay under `~/.cache/omaweb-benchmarks/profiles/`.
+
+### The performance history
+
+`performance/history.jsonl` holds one JSON line per recorded run, from
+`benchmark_runtime.py --record` (`"kind": "budget"`) and `benchmark_chromium.py --record`
+(`"kind": "comparison"`). The first `--record` creates it. A line can be read on its own. It
+carries:
+
+- `date`: when the run finished, in UTC
+- `commit` and `omaweb`: the Omaweb commit and version. The commit is `HEAD` for a build in the
+  checkout, or the release tag for an installed package.
+- `machine`: set with `--machine` or described from the hardware. Runs from different machines share
+  the file and are told apart by this field.
+- `engine`: the engine library, its package and version, and its Qt WebEngine and Chromium versions
+- for a budget run, `measurements`: each value beside the ceiling it was held to at the time
+- for a comparison, `browsers` with each browser's version, flags and GPU status, `suites` with the
+  pinned commits, `scores` with every run's score, and `no_gpu` naming the suites that ran without
+  GPU compositing
+
+```sh
+scripts/benchmark_chromium.py plot
+scripts/benchmark_chromium.py plot --output /tmp/history.html
+```
+
+`plot` writes one self-contained HTML page, `build/performance-history.html` by default, with no
+script and nothing fetched. It draws the Omaweb/Chromium ratio per suite over time, with a solid
+series for the latest Chromium and a dashed one for the matched Chromium, and each budget
+measurement over time with its ceiling. Each machine has its own series. Hovering a point shows its
+raw scores and the Chromium version it was measured against. Engine updates are marked on the time
+axis. The version-lag gap should jump there, and the matched baseline changes Chromium version at
+the same marks.
 
 ### The floating strip's cost
 

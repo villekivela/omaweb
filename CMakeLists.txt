@@ -983,6 +983,13 @@ if(BUILD_TESTING)
             COMMAND "${Python3_EXECUTABLE}"
                 "${CMAKE_CURRENT_SOURCE_DIR}/tests/scripts/tst_benchmark_pageload.py"
         )
+        # The Chromium comparison's run order, ratios, matched build, history
+        # lines and plot: what it reports is decided by code that runs no
+        # browser.
+        add_test(NAME omaweb-benchmark-chromium
+            COMMAND "${Python3_EXECUTABLE}"
+                "${CMAKE_CURRENT_SOURCE_DIR}/tests/scripts/tst_benchmark_chromium.py"
+        )
         # CI skips the build jobs when a range is prose only, so this decides
         # whether a ten-minute build runs at all. The direction of its mistakes
         # is the property: an unrecognised path has to build.

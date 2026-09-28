@@ -18,9 +18,10 @@ Five measurements, each its own subcommand so a developer can run the one they a
   reports what blocking added to each, which is the cost ADR 0050 measured once by hand.
 
 This writes nothing outside the throwaway directories it launches its own browser on, `--record`
-aside, which writes the measurements into the budget in this repository. It launches that browser on
-a private session bus, so unlike the theme and default-browser checks it needs no opt-in guard: it
-puts nothing back because it put nothing anywhere. It does take the keyboard focus while it runs.
+aside, which writes the measurements into the budget in this repository and appends them to
+`performance/history.jsonl`. It launches that browser on a private session bus, so unlike the
+theme and default-browser checks it needs no opt-in guard: it puts nothing back because it put
+nothing anywhere. It does take the keyboard focus while it runs.
 `pageload` runs its browser in a network namespace of its own, with its own resolver files bound
 over the machine's, so the DNS server it starts answers that browser and nothing else.
 
@@ -71,6 +72,8 @@ import threading
 import time
 import urllib.parse
 from pathlib import Path
+
+import performance_history as history
 
 ROOT = Path(__file__).resolve().parent.parent
 BUDGET = ROOT / "performance" / "budget.json"
@@ -1168,13 +1171,19 @@ class PageLoadSite:
         return Handler
 
 
-def seed_content_blocking(data_root: str) -> None:
+def seed_content_blocking(data_root: str, user_rules: list[str] | None = None,
+                          disabled_sites: list[str] | None = None) -> None:
     """Content blocking as a first run leaves it, from the committed lists rather than the network.
 
     The lists are marked as fetched a moment ago, so the browser does not go looking for newer ones
-    on a network that has nothing on it. The off page's host is the one the per-site switch has
-    turned off, which is the comparison a reader makes and the one ADR 0050 made.
+    on a network that has nothing on it. By default the rules are the page-load run's and the off
+    page's host is the one the per-site switch has turned off, which is the comparison a reader
+    makes and the one ADR 0050 made.
     """
+    if user_rules is None:
+        user_rules = [f"||{PAGELOAD_PROBE_HOST}^", *procedural_fixture()[0]]
+    if disabled_sites is None:
+        disabled_sites = [PAGELOAD_OFF_HOST]
     blocking = os.path.join(data_root, "content-blocking")
     os.makedirs(os.path.join(blocking, "lists"))
     now = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -1195,8 +1204,8 @@ def seed_content_blocking(data_root: str) -> None:
     settings = {
         "version": 1,
         "seeded": True,
-        "userRules": "\n".join([f"||{PAGELOAD_PROBE_HOST}^", *procedural_fixture()[0]]),
-        "disabledSites": [PAGELOAD_OFF_HOST],
+        "userRules": "\n".join(user_rules),
+        "disabledSites": disabled_sites,
         "subscriptions": subscriptions,
     }
     with open(os.path.join(blocking, "settings.json"), "w", encoding="utf-8") as handle:
@@ -1434,20 +1443,28 @@ def report(results: dict, budget: dict) -> int:
     return crossed
 
 
-def record(results: dict, budget: dict) -> None:
-    """Writes the measurements back as what the budget was recorded at.
+def record(results: dict, budget: dict, executable: str, machine: str) -> None:
+    """Writes the measurements back as what the budget was recorded at, and adds them to the
+    history.
 
     The ceilings themselves are not touched. What counts as too slow is a decision, reviewed like
     any other, and a script that moved it every time a machine ran slower would be a budget that
     ratchets itself out of existence.
+
+    The budget keeps only this recording, so the history is where a number drifting towards its
+    ceiling shows. The line is written first, from the ceilings the run was held to.
     """
+    version = history.read_version(executable).get("omaweb", "")
+    history.append(history.budget_record(
+        results, budget, date=history.now(), commit=history.omaweb_commit(executable, version),
+        machine=machine, engine=history.describe_engine(executable), omaweb=version))
     for name, value in results.items():
         budget["measurements"][name]["recorded"] = round(value, 2)
     budget["recorded_on"] = datetime.date.today().isoformat()
     with open(BUDGET, "w", encoding="utf-8") as handle:
         json.dump(budget, handle, indent=2)
         handle.write("\n")
-    log(f"recorded into {BUDGET.relative_to(ROOT)}")
+    log(f"recorded into {BUDGET.relative_to(ROOT)} and {history.HISTORY.relative_to(ROOT)}")
 
 
 def main() -> int:
@@ -1466,7 +1483,11 @@ def main() -> int:
                         help="print the dnsmasq configuration pageload resolves through, and exit")
 
     parser.add_argument("--record", action="store_true",
-                        help="write the measurements into the budget as its recorded numbers")
+                        help="write the measurements into the budget as its recorded numbers and "
+                        "append them to performance/history.jsonl")
+    parser.add_argument("--machine", default="",
+                        help="what the history calls this machine, described from the hardware "
+                        "by default")
     arguments = parser.parse_args()
 
     unknown = [name for name in arguments.measurement if name not in MEASUREMENTS]
@@ -1508,7 +1529,8 @@ def main() -> int:
 
     crossed = report(results, budget)
     if arguments.record and not failure:
-        record(results, budget)
+        record(results, budget, arguments.browser,
+               arguments.machine or history.describe_machine())
     return 1 if crossed or failure else 0
 
 
