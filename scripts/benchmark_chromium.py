@@ -203,6 +203,13 @@ BROWSER_NAMES = {
 
 NO_GPU_FLAGS = ("--disable-gpu", "--disable-gpu-compositing")
 
+# The switches that choose how a browser draws. Omaweb's are handed to both Chromiums by default,
+# so all three composite the same way: on a guest where Omaweb has to go around ANGLE, a Chromium
+# left on its own falls back to software, and the comparison would measure the compositors. Any
+# other switch in `QTWEBENGINE_CHROMIUM_FLAGS` is Omaweb's business and stays with it.
+GL_FLAGS = ("--use-gl", "--use-angle", "--use-vulkan", "--disable-gpu", "--enable-gpu",
+            "--ignore-gpu-blocklist", "--disable-software-rasterizer", "--enable-zero-copy")
+
 
 class Unavailable(RuntimeError):
     """This machine cannot run the comparison as asked, which is not a failed run."""
@@ -541,6 +548,19 @@ class BrowserSpec:
     @property
     def is_omaweb(self) -> bool:
         return self.role == history.OMAWEB
+
+
+def gl_flags(flags: str) -> str:
+    """The switches of a command line that choose how the browser draws."""
+    return " ".join(flag for flag in flags.split()
+                    if any(flag == name or flag.startswith(name + "=") or
+                           flag.startswith(name + "-") for name in GL_FLAGS))
+
+
+def chromium_flags(omaweb_flags: str, override: str | None) -> str:
+    """What both Chromiums are launched with: Omaweb's GL flags, unless `--chromium-flags` said
+    otherwise, an empty value included."""
+    return gl_flags(omaweb_flags) if override is None else override
 
 
 def command_line(spec: BrowserSpec, root: str, port: int, url: str) -> tuple[list[str], dict]:
@@ -957,11 +977,12 @@ def compare(arguments) -> int:
         matched, source = arguments.matched_chromium, "given with --matched-chromium"
     else:
         matched, source = matched_chromium(major(engine_chromium), cache)
+    omaweb_flags = os.environ.get("QTWEBENGINE_CHROMIUM_FLAGS", "")
+    flags = chromium_flags(omaweb_flags, arguments.chromium_flags)
     specs = {
-        history.OMAWEB: BrowserSpec(history.OMAWEB, omaweb,
-                                    os.environ.get("QTWEBENGINE_CHROMIUM_FLAGS", "")),
-        history.LATEST: BrowserSpec(history.LATEST, latest, arguments.chromium_flags, latest),
-        history.MATCHED: BrowserSpec(history.MATCHED, matched, arguments.chromium_flags, source),
+        history.OMAWEB: BrowserSpec(history.OMAWEB, omaweb, omaweb_flags),
+        history.LATEST: BrowserSpec(history.LATEST, latest, flags, latest),
+        history.MATCHED: BrowserSpec(history.MATCHED, matched, flags, source),
     }
     server = SuiteServer(cache / "suites")
 
@@ -1057,9 +1078,9 @@ def main() -> int:
                         help="the latest stable Chromium, Arch's by default")
     parser.add_argument("--matched-chromium", default="",
                         help="a Chromium of the engine's major, instead of fetching one")
-    parser.add_argument("--chromium-flags", default="",
-                        help="flags for both Chromiums; Omaweb's come from "
-                        "QTWEBENGINE_CHROMIUM_FLAGS")
+    parser.add_argument("--chromium-flags", default=None,
+                        help="flags for both Chromiums instead of Omaweb's GL flags from "
+                        "QTWEBENGINE_CHROMIUM_FLAGS; an empty value passes none")
     parser.add_argument("--suite", action="append", choices=list(SUITES),
                         help="a suite to run, all of them by default; may be repeated")
     parser.add_argument("--runs", type=int, default=3, help="runs of each suite in each browser")

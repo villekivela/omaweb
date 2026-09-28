@@ -1254,9 +1254,16 @@ no `sync.json` and none of the reader's settings, and its content-blocking lists
 `third_party/filter-lists` so a first run does not fetch and compile them during a suite. Chromium
 gets a scratch `--user-data-dir`, and a scratch `XDG_CONFIG_HOME` so that Arch's launcher reads no
 `chromium-flags.conf`, where a reader may have added extensions. The harness drives Omaweb over
-`--remote-debugging=<port>` and Chromium over `--remote-debugging-port`. Omaweb's GL flags come from
-`QTWEBENGINE_CHROMIUM_FLAGS`, as they do at every launch. `--chromium-flags` passes flags to both
-Chromiums.
+`--remote-debugging=<port>` and Chromium over `--remote-debugging-port`.
+
+Omaweb's GL flags come from `QTWEBENGINE_CHROMIUM_FLAGS`, as they do at every launch, and by default
+the harness passes the same GL flags to both Chromiums, so all three browsers composite the same
+way. On the Omarchy VM, left to itself, Arch's Chromium composited in software and Playwright's on
+the GPU, and the comparison would have measured the compositors. Only the switches that choose how a
+browser draws are passed on: `--use-gl`, `--use-angle`, `--use-vulkan`, `--disable-gpu*`,
+`--enable-gpu*`, `--ignore-gpu-blocklist`, `--disable-software-rasterizer` and `--enable-zero-copy`.
+`--chromium-flags` replaces them for both Chromiums, and `--chromium-flags ""` launches them with
+none. The report names each browser's flags and GPU compositing state either way.
 
 Each suite runs `--runs` times, 3 by default, in each browser. The browsers alternate, and the first
 browser changes from round to round. The report names each browser's version and flags, the engine

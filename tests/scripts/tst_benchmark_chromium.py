@@ -213,6 +213,29 @@ class LaunchTest(unittest.TestCase):
         self.assertEqual(command[-1], "http://x/")
 
 
+class FlagsTest(unittest.TestCase):
+    """All three browsers draw the same way unless the reader says otherwise."""
+
+    OMAWEB = "--use-gl=egl --disable-gpu-compositing --enable-features=VaapiVideoDecoder"
+
+    def test_both_chromiums_get_omawebs_gl_flags_by_default(self):
+        self.assertEqual(compare.chromium_flags(self.OMAWEB, None),
+                         "--use-gl=egl --disable-gpu-compositing")
+
+    def test_a_switch_that_is_not_about_drawing_stays_with_omaweb(self):
+        self.assertNotIn("--enable-features", compare.chromium_flags(self.OMAWEB, None))
+
+    def test_the_flags_can_be_overridden(self):
+        self.assertEqual(compare.chromium_flags(self.OMAWEB, "--use-angle=vulkan"),
+                         "--use-angle=vulkan")
+
+    def test_an_empty_override_passes_none(self):
+        self.assertEqual(compare.chromium_flags(self.OMAWEB, ""), "")
+
+    def test_omaweb_without_gl_flags_gives_the_chromiums_none(self):
+        self.assertEqual(compare.chromium_flags("", None), "")
+
+
 class HistoryTest(unittest.TestCase):
 
     def setUp(self):
