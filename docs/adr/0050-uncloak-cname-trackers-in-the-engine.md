@@ -94,6 +94,6 @@ had never seen, 75 ms against 51 to 55 ms. The comparison turns the site off, so
 the first check. A page that reaches many hosts for the first time pays the lookups once, and that
 is also the page most likely to carry trackers. `scripts/benchmark_runtime.py pageload` now holds
 Content blocking's cost to a ceiling in CI, with the hosts resolving through a real DNS server
-([#371](https://github.com/villekivela/omaweb/issues/371)). CI builds against Arch's engine, which
-has no uncloaking, so the lookups join that budget when CI moves to Omaweb's engine
-([#394](https://github.com/villekivela/omaweb/issues/394)).
+([#371](https://github.com/villekivela/omaweb/issues/371)). Since CI moved to Omaweb's engine
+([#394](https://github.com/villekivela/omaweb/issues/394)), the budget holds the lookups too: on
+CI's runner the worst case added 18.2 ms, against 6.1 ms on Arch's engine without uncloaking.
