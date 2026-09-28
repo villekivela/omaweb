@@ -6,12 +6,13 @@ import qs.Commons
 Rectangle {
     id: root
     required property var window
-    readonly property var variants: ["0", "A", "B", "C"]
+    readonly property var variants: ["0", "A", "B", "C", "D"]
     readonly property var names: ({
                                       "0": "Today",
                                       "A": "Tiled",
                                       "B": "Ledger",
-                                      "C": "Keys"
+                                      "C": "Keys",
+                                      "D": "Combined"
                                   })
     function step(delta) {
         const at = root.variants.indexOf(root.window.uiVariant);
@@ -74,7 +75,7 @@ Rectangle {
             }
         }
         Text {
-            visible: root.window.uiVariant === "C"
+            visible: root.window.uiVariant === "C" || root.window.uiVariant === "D"
             text: root.window.protoKeysPinned ? "[keys on]" : "[keys]"
             color: "#111111"
             font.family: Style.font.family

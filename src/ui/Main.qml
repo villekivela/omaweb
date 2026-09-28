@@ -46,7 +46,8 @@ ApplicationWindow {
     // it is the reader's to ask for.
     property bool easeChrome: true
     // PROTOTYPE (ui-language): which interface language is drawn. "0" is
-    // today's chrome, "A" Tiled, "B" Ledger, "C" Keys. `--variant A` picks one
+    // today's chrome, "A" Tiled, "B" Ledger, "C" Keys, "D" Combined (A's focus
+    // cursor and hjkl with C's keys, Agent mark and Space toast). `--variant A` picks one
     // at start, and the bar at the foot of the window cycles them.
     property string uiVariant: {
         const args = Qt.application.arguments;
@@ -2884,7 +2885,8 @@ ApplicationWindow {
                         id: protoAgentPage
                         readonly property var state: Fakes.stateFor(window.windowBrowser.activeTitle,
                                                                     false, false)
-                        readonly property bool agent: window.uiVariant === "C" && state.agent
+                        readonly property bool agent: (window.uiVariant === "C" || window.uiVariant === "D")
+                                                     && state.agent
                     }
 
                     Rectangle {

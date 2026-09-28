@@ -19,7 +19,9 @@ Rectangle {
     property bool protoSidebarFocused: false
     readonly property bool protoTiled: uiVariant === "A"
     readonly property bool protoLedger: uiVariant === "B"
-    readonly property bool protoKeys: uiVariant === "C"
+    readonly property bool protoKeys: uiVariant === "C" || uiVariant === "D"
+    // The focus cursor and hjkl, from Tiled, which the combined view keeps.
+    readonly property bool protoFocus: uiVariant === "A" || uiVariant === "D"
     property color protoSpaceColor: colors.accent
     function protoKeyFor(command) {
         if (!root.keyMap)
@@ -559,7 +561,7 @@ Rectangle {
         rows[Math.max(0, Math.min(rows.length - 1, at + delta))].forceActiveFocus();
     }
     Keys.onPressed: function (event) {
-        if (!root.protoTiled || event.modifiers & (Qt.ControlModifier | Qt.AltModifier))
+        if (!root.protoFocus || event.modifiers & (Qt.ControlModifier | Qt.AltModifier))
             return;
         const focused = root.protoRows().find(function (row) {
             return row.activeFocus;
@@ -1034,7 +1036,7 @@ Rectangle {
                     uiVariant: root.uiVariant
                     protoKey: root.protoTabKey(index)
                     protoShowKeys: root.protoShowKeys
-                    protoFocusLit: root.protoTiled && root.protoSidebarFocused
+                    protoFocusLit: root.protoFocus && root.protoSidebarFocused
                     useFavicons: root.useFavicons
                     tintFavicons: root.tintFavicons
                     onActivated: function (id) {
@@ -1115,7 +1117,7 @@ Rectangle {
                         uiVariant: root.uiVariant
                         protoKey: root.protoTabKey(root.pinnedCount + index)
                         protoShowKeys: root.protoShowKeys
-                        protoFocusLit: root.protoTiled && root.protoSidebarFocused
+                        protoFocusLit: root.protoFocus && root.protoSidebarFocused
                         useFavicons: root.useFavicons
                         tintFavicons: root.tintFavicons
                         onActivated: function (id) {
@@ -1262,7 +1264,7 @@ Rectangle {
         // switch reads in the footer as it reads in the list. The letters
         // themselves stay where they are.
         Rectangle {
-            visible: !root.privateWindow && root.easeSpaces && !root.protoKeys
+            visible: !root.privateWindow && root.easeSpaces
             x: root.settledSpaceRow * 35
             anchors.verticalCenter: parent.verticalCenter
             width: 30
@@ -1352,8 +1354,8 @@ Rectangle {
                     // so it is drawn the way the kit draws a selection and the
                     // way a current tab row is: the kit's own selected fill,
                     // bordered.
-                    selected: active && (!root.easeSpaces || root.protoKeys) && !root.protoTiled
-                    bordered: active && (!root.easeSpaces || root.protoKeys) && !root.protoTiled
+                    selected: active && !root.easeSpaces && !root.protoTiled
+                    bordered: active && !root.easeSpaces && !root.protoTiled
                     background: "transparent"
                     onClicked: root.spaceActivated(spaceId)
 

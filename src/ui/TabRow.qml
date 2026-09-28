@@ -48,7 +48,7 @@ Item {
     // The Tiled variant lights the current row in the accent while the
     // sidebar holds the keyboard, and leaves it quiet while the page does.
     property bool protoFocusLit: false
-    readonly property bool protoKeys: uiVariant === "C"
+    readonly property bool protoKeys: uiVariant === "C" || uiVariant === "D"
     readonly property var protoState: Fakes.stateFor(tabTitle, pinned, active)
     readonly property string protoWord: Fakes.wordFor(protoState, tabAudible)
     // The Keys variant no longer writes the Agent's act under the title.
