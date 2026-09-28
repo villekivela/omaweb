@@ -708,48 +708,94 @@ a {
 
 /* Navigation walkthrough */
 
-/* The window stays pinned while the steps beside it scroll past; each step is tall enough that
-   one is in the middle of the screen at a time, and that one picks the shot. */
-.walk {
+/* A reel of the window's views: one card each, scrolling sideways and snapping card to card, with
+   the next card showing at the right edge. The intro and the bar keep the page's width while the
+   reel runs to the screen's edge, so its first card lines up with the intro above it. */
+.reel {
+  --edge: max(16px, (100% - 1600px) / 2);
+  padding-block: 88px;
+}
+
+.reel__intro,
+.reel__bar {
+  width: min(100% - 32px, 1600px);
+  margin-inline: auto;
+}
+
+.reel__intro {
   display: grid;
-  grid-template-columns: 1.7fr 1fr;
-  gap: clamp(32px, 5vw, 64px);
-  padding-block: 48px;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: clamp(32px, 6vw, 96px);
+  align-items: end;
+  margin-bottom: 40px;
 }
 
-.walk__stage {
-  position: sticky;
-  top: max(24px, calc(50vh - 30vw));
-  align-self: start;
-  display: grid;
-  gap: 14px;
-  min-width: 0;
+.reel__intro .kicker {
+  grid-column: 1 / -1;
 }
 
-.walk__steps {
-  display: grid;
+.reel__intro h2 {
+  grid-row: 2 / span 2;
 }
 
-.step {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  min-height: 72vh;
-  opacity: 0.35;
-  transition: opacity 0.35s;
-}
-
-.step.is-on {
-  opacity: 1;
-}
-
-.step:first-child {
-  min-height: 60vh;
-}
-
-.step h3 {
+.reel__intro p:not(.kicker) {
+  grid-column: 2;
+  max-width: 52ch;
   margin: 0;
-  font: 500 clamp(24px, 2.4vw, 32px) / 1.15 var(--display);
+}
+
+.reel__hint {
+  margin-top: 12px;
+  color: var(--dim);
+  font-size: 13px;
+}
+
+/* A card is as wide as a screen allows while it and the bar still fit on one: the capture is 1.58
+   times as wide as it is tall, and the frame, the words and the bar take about 300px under it. */
+.reel__track {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: min(1080px, 80vw, (100vh - 300px) * 1.58);
+  gap: 36px;
+  padding: 4px var(--edge) 12px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scroll-padding-inline: var(--edge);
+  scrollbar-width: thin;
+  scrollbar-color: var(--line) transparent;
+}
+
+.reel__track:focus-visible {
+  outline: 1px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.reel__card {
+  display: grid;
+  align-content: start;
+  gap: 24px;
+  min-width: 0;
+  scroll-snap-align: start;
+}
+
+.reel__words {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
+  align-items: start;
+  column-gap: 36px;
+}
+
+.reel__words .kicker {
+  grid-column: 1 / -1;
+}
+
+.reel__words .kicker kbd {
+  margin-inline: 2px;
+}
+
+.reel__words h3 {
+  margin: 0;
+  font: 500 clamp(22px, 2vw, 28px) / 1.15 var(--display);
   letter-spacing: var(--display-track);
   text-transform: uppercase;
   text-shadow:
@@ -757,23 +803,70 @@ a {
     0 0 1em rgb(255 110 50 / 16%);
 }
 
-.step p:not(.kicker) {
-  max-width: 36ch;
-  margin: 18px 0 0;
-}
-
-.step .kicker kbd {
-  margin-inline: 2px;
-}
-
-.step .more {
-  align-self: flex-start;
-  margin-top: 26px;
-}
-
-.step__hint {
+.reel__words p:not(.kicker) {
+  margin: 0;
   color: var(--dim);
   font-size: 13px;
+}
+
+.reel__words .more {
+  grid-column: 2;
+  justify-self: start;
+  margin-top: 18px;
+}
+
+.reel__index {
+  margin-right: 8px;
+  color: var(--accent);
+}
+
+/* Under the reel: the theme on the left, and paging on the right, like a player's controls. */
+.reel__bar:not([hidden]) {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  margin-top: 24px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+
+.reel__nav {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 14px;
+  color: var(--dim);
+  font-size: 12px;
+}
+
+.reel__count {
+  min-width: 5ch;
+  text-align: center;
+}
+
+.reel__step {
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
+  transition:
+    border-color 0.15s,
+    opacity 0.15s;
+}
+
+.reel__step:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+.reel__step:disabled {
+  opacity: 0.35;
+  cursor: default;
 }
 
 /* The window, standing on its theme's own ground with the border its Hyprland draws around the
@@ -1036,9 +1129,12 @@ a {
 
 /* Keyboard */
 
+/* As wide as the poster above it and centred the same way, with the rule under it still running
+   edge to edge. */
 .keyboard {
   display: grid;
   grid-template-columns: 30% 1fr 27%;
+  padding-inline: max(0px, (100% - 1600px) / 2);
   border-bottom: 1px solid var(--line);
 }
 
@@ -1056,7 +1152,7 @@ a {
   height: 100%;
   min-height: 280px;
   object-fit: cover;
-  object-position: 20% center;
+  object-position: center;
 }
 
 .keyboard__panel {
@@ -1140,13 +1236,32 @@ code {
 
 /* Install */
 
+/* The road ahead, softened and dimmed behind the screens. It fades out at the top and the bottom,
+   so the page's grain shows through at its edges and the section has no line where it starts. The
+   blur is in the file rather than a filter, so the page does not redraw it. */
+.install {
+  position: relative;
+  isolation: isolate;
+  padding-block: 88px;
+}
+
+.install::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: url("assets/art/install-road.webp") center 62% / cover no-repeat;
+  opacity: 0.4;
+  mask-image: linear-gradient(to bottom, transparent, #000 30%, #000 65%, transparent);
+  pointer-events: none;
+}
+
 /* The screens take the whole width, so the commands have room to sit on one line; the intro
    runs above them, its heading beside its copy. */
-.install {
+.install__body {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: 40px;
-  padding-block: 88px;
 }
 
 .install__intro {
@@ -1163,6 +1278,15 @@ code {
 .install__intro h2 {
   grid-column: 1;
   grid-row: 2 / span 2;
+}
+
+/* Beside its copy, the heading's two lines are as tall as the copy: three 24px lines of intro and
+   two 20.8px lines of the README note. */
+@media (min-width: 821px) {
+  .install__intro h2 {
+    font-size: 54px;
+    line-height: calc((3 * 24px + 2 * 20.8px) / 2);
+  }
 }
 
 .install__intro p:not(.kicker) {
@@ -1201,7 +1325,6 @@ code {
   background: linear-gradient(to bottom, #1b1411, #0b0807);
   box-shadow:
     inset 0 1px 0 rgb(255 255 255 / 6%),
-    0 0 0 1px #000,
     0 24px 50px -24px #000,
     0 0 40px -16px rgb(255 90 44 / 35%);
 }
@@ -1232,7 +1355,6 @@ code {
 .hud__screen {
   position: relative;
   overflow: hidden;
-  border: 1px solid rgb(236 227 207 / 22%);
   border-radius: 5px;
   background: radial-gradient(ellipse at center, rgb(255 110 50 / 7%), transparent 70%), #070504;
   box-shadow: inset 0 0 24px rgb(0 0 0 / 90%);
@@ -1687,22 +1809,36 @@ code {
     padding-block: 8px 48px;
   }
 
-  /* One column: the window pins to the top of the screen and the steps scroll up under it. */
-  .walk {
-    grid-template-columns: 1fr;
-    gap: 0;
+  /* The intro and each card's words stack, a card nearly fills the screen, and the bar puts the
+     theme above the paging. */
+  .reel__intro {
+    display: block;
   }
 
-  .walk__stage {
-    top: 0;
-    z-index: 2;
-    padding-block: 12px;
-    background: var(--bg);
+  .reel__intro p:not(.kicker) {
+    margin-top: 18px;
   }
 
-  .step,
-  .step:first-child {
-    min-height: 55vh;
+  .reel__track {
+    grid-auto-columns: 86vw;
+    gap: 20px;
+  }
+
+  .reel__words {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .reel__words p:not(.kicker) {
+    margin-top: 12px;
+  }
+
+  .reel__words .more {
+    grid-column: 1;
+  }
+
+  .reel__bar:not([hidden]) {
+    flex-direction: column;
+    align-items: stretch;
   }
 
   /* The name on a line of its own, and the swatches spread across the width under it. */
@@ -1845,9 +1981,9 @@ code {
 }
 
 /* A screen with no keyboard to press them with drops the hints to press keys. The shortcuts the
-   steps name stay: they are what the browser binds, and the reader will have a keyboard there. */
+   cards name stay: they are what the browser binds, and the reader will have a keyboard there. */
 @media (hover: none) and (pointer: coarse) {
-  .step__hint,
+  .reel__hint,
   .themes__label kbd {
     display: none !important;
   }

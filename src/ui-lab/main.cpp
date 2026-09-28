@@ -611,7 +611,14 @@ int main(int argc, char *argv[])
             || requested.endsWith(QLatin1String("-settled"))) {
             const auto delay = requested.endsWith(QLatin1String("-step")) ? 620 : 300;
             const auto what = requested.section(QLatin1Char('-'), 0, 0);
-            QTimer::singleShot(delay, root, [root, what] {
+            // `--omnibar-query` types into the Omnibar once it is open, so a
+            // capture shows the matches a query finds rather than the address
+            // it opens on.
+            const auto queryIndex = arguments.indexOf(QStringLiteral("--omnibar-query"));
+            const auto query = queryIndex >= 0 && queryIndex + 1 < arguments.size()
+                ? arguments.at(queryIndex + 1)
+                : QString();
+            QTimer::singleShot(delay, root, [root, what, query] {
                 if (what == QLatin1String("space")) {
                     QMetaObject::invokeMethod(root, "stepSpace", Q_ARG(QVariant, 1));
                 } else if (what == QLatin1String("tab")) {
@@ -620,6 +627,17 @@ int main(int argc, char *argv[])
                     QMetaObject::invokeMethod(root, "requestSettings");
                 } else {
                     QMetaObject::invokeMethod(root, "openOmnibar", Q_ARG(QVariant, false));
+                    if (query.isEmpty()) {
+                        return;
+                    }
+                    // The panel fills its input with the address as it opens,
+                    // so the query goes in once it has.
+                    QTimer::singleShot(80, root, [root, query] {
+                        auto *input = root->findChild<QObject *>(QStringLiteral("omnibarInput"));
+                        if (input != nullptr) {
+                            input->setProperty("text", query);
+                        }
+                    });
                 }
             });
         } else if (state.isEmpty() && requested != QLatin1String("permission")) {

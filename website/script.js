@@ -52,40 +52,58 @@ if (screen && !still) {
   pause(700).then(drive);
 }
 
-// The walkthrough: one window, one shot at a time. Whichever step is in the middle of the screen
-// picks the shot, and the swatches pick the theme, which only the window takes. While the section
-// is on screen it answers the browser's own keys by scrolling to the step they belong to, so the
-// page shows what the keyboard does rather than describing it.
-const shot = document.querySelector("[data-shot]");
-const steps = [...document.querySelectorAll("[data-step]")];
-const themePicker = document.querySelector(".themes");
-if (shot && steps.length && themePicker) {
-  const image = shot.querySelector("img");
-  const open = shot.querySelector(".shot__open");
-  const swatches = [...themePicker.querySelectorAll("[data-theme-choice]")];
-  const themeName = themePicker.querySelector(".themes__name");
+// The walkthrough: a reel of the window's views, one card each. The bar under it pages the reel
+// and picks the theme, which every card's frame takes at once. While the section is on screen it
+// answers the browser's own keys by bringing their card into view, so the page shows what the
+// keyboard does rather than describing it.
+const reel = document.querySelector(".reel");
+if (reel) {
+  const track = reel.querySelector(".reel__track");
+  const cards = [...track.querySelectorAll(".reel__card")];
+  const bar = reel.querySelector(".reel__bar");
+  const picker = bar.querySelector(".themes");
+  const swatches = [...picker.querySelectorAll("[data-theme-choice]")];
+  const themeName = picker.querySelector(".themes__name");
+  const count = bar.querySelector(".reel__count");
+  const [back, forward] = bar.querySelectorAll(".reel__step");
   const viewer = document.querySelector(".viewer");
-  let state = steps[0].dataset.step;
-  let theme = shot.dataset.theme;
+  let theme = cards[0].querySelector(".shot").dataset.theme;
   let onScreen = false;
 
-  const source = (forState, forTheme) => `assets/shots/${forTheme}/${forState}.webp`;
-  const prefetch = (forState, forTheme) => {
-    new Image().src = source(forState, forTheme);
+  const source = (card, forTheme) => `assets/shots/${forTheme}/${card.dataset.step}.webp`;
+  const prefetch = (card, forTheme) => {
+    new Image().src = source(card, forTheme);
   };
 
-  const show = (nextState, nextTheme) => {
-    if (nextState === state && nextTheme === theme) return;
-    state = nextState;
+  // The card at the reel's left edge, or the last one once the reel can scroll no further.
+  const at = () => {
+    if (track.scrollLeft >= track.scrollWidth - track.clientWidth - 2) return cards.length - 1;
+    const pitch = cards[1].offsetLeft - cards[0].offsetLeft;
+    return Math.round(track.scrollLeft / pitch);
+  };
+
+  const mark = () => {
+    const index = at();
+    count.textContent = `${index + 1} / ${cards.length}`;
+    back.disabled = index === 0;
+    forward.disabled = index === cards.length - 1;
+  };
+
+  const goTo = (index) => {
+    const card = cards[Math.max(0, Math.min(cards.length - 1, index))];
+    track.scrollTo({
+      left: card.offsetLeft - cards[0].offsetLeft,
+      behavior: still ? "auto" : "smooth",
+    });
+  };
+
+  const paint = (nextTheme) => {
     theme = nextTheme;
-    const address = source(state, theme);
-    image.src = address;
-    open.href = address;
-    shot.dataset.theme = theme;
-    for (const step of steps) {
-      const on = step.dataset.step === state;
-      step.classList.toggle("is-on", on);
-      if (on) image.alt = step.dataset.alt;
+    for (const card of cards) {
+      const address = source(card, theme);
+      card.querySelector(".shot").dataset.theme = theme;
+      card.querySelector("img").src = address;
+      card.querySelector(".shot__open").href = address;
     }
     for (const swatch of swatches) {
       const on = swatch.dataset.themeChoice === theme;
@@ -94,42 +112,15 @@ if (shot && steps.length && themePicker) {
     }
   };
 
-  // The step whose box crosses the reading line is the one on show. Side by side that is the
-  // middle of the screen; stacked, the window covers the top of the screen, so the line is the
-  // middle of what is left under it.
-  const stage = document.querySelector(".walk__stage");
-  const stacked = window.matchMedia("(max-width: 820px)");
-  let middle = null;
-  const watch = () => {
-    middle?.disconnect();
-    const covered = stacked.matches ? stage.offsetHeight : 0;
-    const line = (covered + (innerHeight - covered) / 2) / innerHeight;
-    middle = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          if (entry.isIntersecting) show(entry.target.dataset.step, theme);
-        }
-      },
-      { rootMargin: `-${(line * 100).toFixed(1)}% 0px -${((1 - line) * 100).toFixed(1)}% 0px` },
+  track.addEventListener("scroll", mark, { passive: true });
+  for (const button of [back, forward]) {
+    button.addEventListener("click", () => goTo(at() + Number(button.dataset.stepBy)));
+  }
+  for (const swatch of swatches) {
+    swatch.addEventListener("click", () => paint(swatch.dataset.themeChoice));
+    swatch.addEventListener("pointerenter", () =>
+      prefetch(cards[at()], swatch.dataset.themeChoice),
     );
-    for (const step of steps) middle.observe(step);
-  };
-  watch();
-  let resizing = 0;
-  window.addEventListener("resize", () => {
-    clearTimeout(resizing);
-    resizing = setTimeout(watch, 150);
-  });
-  for (const step of steps) {
-    // The next step's shot, fetched while this one is read.
-    const index = steps.indexOf(step);
-    if (steps[index + 1]) {
-      new IntersectionObserver(([entry], observer) => {
-        if (!entry.isIntersecting) return;
-        prefetch(steps[index + 1].dataset.step, theme);
-        observer.disconnect();
-      }).observe(step);
-    }
   }
 
   new IntersectionObserver(
@@ -137,49 +128,45 @@ if (shot && steps.length && themePicker) {
       onScreen = entries.some((entry) => entry.isIntersecting);
     },
     { threshold: 0.1 },
-  ).observe(document.querySelector(".walk"));
+  ).observe(reel);
 
-  for (const swatch of swatches) {
-    swatch.addEventListener("click", () => show(state, swatch.dataset.themeChoice));
-    swatch.addEventListener("pointerenter", () => prefetch(state, swatch.dataset.themeChoice));
-  }
-
-  const goTo = (target) => {
-    const step = steps.find((candidate) => candidate.dataset.step === target);
-    step?.scrollIntoView({
-      behavior: still ? "auto" : "smooth",
-      block: stacked.matches ? "end" : "center",
-    });
-    show(target, theme);
-  };
-
-  // The same chords Omaweb binds: Ctrl+B the sidebar, Ctrl+Y History, Ctrl+, Settings, and
-  // Escape back to the page. A second press of a chord goes back, as the browser's toggle does.
-  const chords = { b: "collapsed", y: "history", ",": "settings" };
+  // The same keys Omaweb binds: o the Omnibar, Ctrl+B the sidebar, and Escape back to the page. A
+  // second press of Ctrl+B goes back, as the browser's toggle does. Ctrl+L, the Omnibar's other
+  // key, stays the reader's own browser's.
+  const chords = { b: "collapsed" };
+  const indexOf = (step) => cards.findIndex((card) => card.dataset.step === step);
   document.addEventListener("keydown", (event) => {
     if (!onScreen || viewer?.open) return;
     if (event.target.closest("input, textarea, select, [contenteditable]")) return;
     const key = event.key.toLowerCase();
+    const current = cards[at()].dataset.step;
     if ((event.ctrlKey || event.metaKey) && !event.altKey && chords[key]) {
       event.preventDefault();
-      goTo(state === chords[key] ? "space" : chords[key]);
-    } else if (key === "escape" && state !== "space") {
-      goTo("space");
-    } else if (key === "t" && !event.ctrlKey && !event.metaKey && !event.altKey) {
+      goTo(indexOf(current === chords[key] ? "space" : chords[key]));
+    } else if (key === "escape" && current !== "space") {
+      goTo(indexOf("space"));
+    } else if (event.ctrlKey || event.metaKey || event.altKey) {
+      return;
+    } else if (key === "o") {
+      goTo(indexOf("omnibar"));
+    } else if (key === "t") {
       const index = swatches.findIndex((swatch) => swatch.dataset.themeChoice === theme);
-      show(state, swatches[(index + 1) % swatches.length].dataset.themeChoice);
+      paint(swatches[(index + 1) % swatches.length].dataset.themeChoice);
     }
   });
 
-  // The window opens full size over the page rather than leaving it.
+  // A window opens full size over the page rather than leaving it.
   if (viewer?.showModal) {
     const full = viewer.querySelector(".viewer__image");
-    open.addEventListener("click", (event) => {
-      event.preventDefault();
-      full.src = image.currentSrc || image.src;
-      full.alt = image.alt;
-      viewer.showModal();
-    });
+    for (const card of cards) {
+      card.querySelector(".shot__open").addEventListener("click", (event) => {
+        event.preventDefault();
+        const image = card.querySelector("img");
+        full.src = image.currentSrc || image.src;
+        full.alt = image.alt;
+        viewer.showModal();
+      });
+    }
     viewer.querySelector(".viewer__close").addEventListener("click", () => viewer.close());
     // A click on the backdrop lands on the dialog itself, outside the image.
     viewer.addEventListener("click", (event) => {
@@ -187,8 +174,10 @@ if (shot && steps.length && themePicker) {
     });
   }
 
-  themePicker.hidden = false;
-  document.querySelector(".step__hint")?.removeAttribute("hidden");
+  mark();
+  bar.hidden = false;
+  picker.hidden = false;
+  reel.querySelector(".reel__hint")?.removeAttribute("hidden");
 }
 
 // The night radio, on the hidden switch on the dashboard or the M key: each press tunes to the

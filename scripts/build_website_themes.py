@@ -38,8 +38,8 @@ its theme's opacity, as it stands on a desktop.
 
 `omaweb-ui-lab` runs no engine, so where a webpage would be it draws a stand-in.
 The states that show the browser in use pass `--browse`, which ends the seeded
-day on a photo essay the stand-in draws in the page palette; the rest show
-Settings and History, which cover the page anyway. Every state is therefore
+day on a photo essay the stand-in draws in the page palette; the one that does
+not shows Settings, which covers the page anyway. Every state is therefore
 real chrome over a drawn page, captured headlessly, and a shot of a real site
 would need the browser on a live compositor and `grim`, which gives up every
 property above.
@@ -118,12 +118,17 @@ THEMES = [
 # than the blank tab, whose Start page is the shortcut sheet, so the browser is
 # shown in use; `--spaces` adds the Work Space beside Personal that the tour's
 # first step is about; `--sample-lists` shows the filter lists a first run has.
+# The Omnibar is shown with a query typed, so it lists what two letters find
+# across a web search, the open tabs and the Space's history, rather than the
+# address it opens on.
 STATES = [
     ("space", ["--tabs", "--spaces", "--browse"]),
-    ("settings", ["--tabs", "--show", "settings:tabs"]),
-    ("blocking", ["--tabs", "--sample-lists", "--show", "settings:content-blocking"]),
-    ("history", ["--tabs", "--show", "history"]),
     ("collapsed", ["--tabs", "--browse", "--show", "collapsed"]),
+    (
+        "omnibar",
+        ["--tabs", "--spaces", "--browse", "--show", "omnibar-settled", "--omnibar-query", "ar"],
+    ),
+    ("blocking", ["--tabs", "--sample-lists", "--show", "settings:content-blocking"]),
 ]
 
 # Two states the lab can reach and this deliberately does not ship. Site

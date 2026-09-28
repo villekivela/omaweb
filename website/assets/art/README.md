@@ -7,7 +7,10 @@ elements, so each piece has its lettering removed and keeps only the drawing.
   bar above the keyboards are empty frames for the page to fill.
 - `poster.webp` is the cream banner with the car. Its left half is bare paper, left for the
   headline, the wordmark, and the tagline list.
-- `keycaps.webp` is the lit J, K, ;, and L keys. It keeps its legends.
+- `install-road.webp` is the road into the sunset behind the install section, 1600 pixels wide with
+  a soft blur in the file, since the page dims and fades it and never shows it sharp.
+- `keycaps.webp` is a backlit keyboard close up, with the H, J, K, and L row across the middle. It
+  keeps its legends.
 - `paper-grain.webp` is a 320 pixel tile that repeats seamlessly. It carries cream highlights and
   black shadows in its alpha, so it lays grain over any background colour without changing the
   colour itself.
