@@ -407,7 +407,9 @@ What the assembled browser costs on a Wayland session is held separately, to
 the proportional set size of the whole process tree at rest, what each Space adds to it, whether a
 frozen Space's pages are still running, and what Content blocking adds to a page load whose hosts
 resolve through a real DNS server. CI runs it against the build it has already made and fails when a
-ceiling is crossed.
+ceiling is crossed. `scripts/benchmark_chromium.py` runs Speedometer, JetStream and MotionMark in
+Omaweb and in two Chromiums, the latest stable one and the one the engine is based on, and only
+reports. Both append their recorded runs to `performance/history.jsonl`.
 
 Time to first paint and scrolling are in neither. CI has no GPU and no compositor of the kind a
 reader runs, so a paint timing taken there is a software rasteriser's rather than a reader's. Those
