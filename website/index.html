@@ -127,27 +127,160 @@
         </ul>
       </section>
 
-      <section class="walk wrap" id="navigation">
+      <section class="reel" id="navigation">
         <!-- The real window: captures of Omaweb's own interface, taken headlessly by
-             scripts/build_website_themes.py, one set per Omarchy theme. The page
-             inside the window is the lab's drawn stand-in, since the lab runs no engine.
+             scripts/build_website_themes.py, one set per Omarchy theme. The page inside the window
+             is the lab's drawn stand-in, since the lab runs no engine.
 
-             The window stays put while the steps beside it scroll by, and each step shows its
-             own shot, so the picture comes to the text. The swatches pick the theme, which only
-             this frame takes. Without the script the first shot stays on show, the steps read in
-             order and the window is a link to the full-size capture. -->
-        <div class="walk__stage">
-          <figure class="shot" data-theme="matte-black" data-shot>
-            <a class="shot__open" href="assets/shots/matte-black/space.webp">
-              <img
-                src="assets/shots/matte-black/space.webp"
-                width="2720"
-                height="1720"
-                alt="Omaweb with its sidebar of Spaces and tabs beside a photo essay page"
-                decoding="async"
-              />
-            </a>
-          </figure>
+             One card per view, in a reel that scrolls sideways and snaps card to card. The bar
+             under it pages the reel and picks the theme, which every card's frame takes. Without
+             the script the reel still scrolls, the bar stays hidden and each window is a link to
+             its full-size capture. -->
+        <div class="reel__intro">
+          <p class="kicker">Navigation</p>
+          <h2 class="display display--md">Go anywhere,<br />faster.</h2>
+          <p>
+            Press <kbd>o</kbd> to go somewhere new, <kbd>f</kbd> to follow a link, and
+            <kbd>J</kbd> and <kbd>K</kbd> to move between tabs. The rest of the window is a key away
+            too.
+          </p>
+          <p class="reel__hint" hidden>
+            The reel answers the same keys: try <kbd>Ctrl</kbd>+<kbd>B</kbd>, <kbd>Ctrl</kbd>+<kbd
+              >Y</kbd
+            >
+            or <kbd>T</kbd>.
+          </p>
+        </div>
+
+        <div class="reel__track" role="region" aria-label="Omaweb, view by view" tabindex="0">
+          <article class="reel__card" data-step="space">
+            <figure class="shot" data-theme="matte-black">
+              <a class="shot__open" href="assets/shots/matte-black/space.webp">
+                <img
+                  src="assets/shots/matte-black/space.webp"
+                  width="2720"
+                  height="1720"
+                  alt="Omaweb with its sidebar of Spaces and tabs beside a photo essay page"
+                  decoding="async"
+                />
+              </a>
+            </figure>
+            <div class="reel__words">
+              <p class="kicker"><span class="reel__index">01</span> Spaces</p>
+              <h3>A sidebar for every Space.</h3>
+              <p>
+                Pinned tabs sit at the top of the sidebar, today&rsquo;s tabs run underneath, and
+                each Space keeps its own. <kbd>J</kbd> and <kbd>K</kbd> move between them without
+                leaving the page.
+              </p>
+            </div>
+          </article>
+          <article class="reel__card" data-step="collapsed">
+            <figure class="shot" data-theme="matte-black">
+              <a class="shot__open" href="assets/shots/matte-black/collapsed.webp">
+                <img
+                  src="assets/shots/matte-black/collapsed.webp"
+                  width="2720"
+                  height="1720"
+                  alt="Omaweb with the sidebar hidden and the page filling the window"
+                  loading="lazy"
+                  decoding="async"
+                />
+              </a>
+            </figure>
+            <div class="reel__words">
+              <p class="kicker">
+                <span class="reel__index">02</span> No sidebar <kbd>Ctrl</kbd>+<kbd>B</kbd>
+              </p>
+              <h3>The page gets the whole window.</h3>
+              <p>
+                Hide the sidebar and nothing is left but the page. Your tabs are still a key away:
+                <kbd>J</kbd> and <kbd>K</kbd> keep moving between them, and <kbd>Ctrl</kbd>+<kbd
+                  >B</kbd
+                >
+                brings the sidebar back.
+              </p>
+            </div>
+          </article>
+          <article class="reel__card" data-step="history">
+            <figure class="shot" data-theme="matte-black">
+              <a class="shot__open" href="assets/shots/matte-black/history.webp">
+                <img
+                  src="assets/shots/matte-black/history.webp"
+                  width="2720"
+                  height="1720"
+                  alt="The History view, listing this Space's visits"
+                  loading="lazy"
+                  decoding="async"
+                />
+              </a>
+            </figure>
+            <div class="reel__words">
+              <p class="kicker">
+                <span class="reel__index">03</span> History <kbd>Ctrl</kbd>+<kbd>Y</kbd>
+              </p>
+              <h3>Every Space remembers on its own.</h3>
+              <p>
+                History opens over the page and searches only the Space you are in. Delete one
+                visit, a whole site, a stretch of time or the lot, and the other Spaces never
+                notice.
+              </p>
+            </div>
+          </article>
+          <article class="reel__card" data-step="settings">
+            <figure class="shot" data-theme="matte-black">
+              <a class="shot__open" href="assets/shots/matte-black/settings.webp">
+                <img
+                  src="assets/shots/matte-black/settings.webp"
+                  width="2720"
+                  height="1720"
+                  alt="Settings, open beside the tabs on its Tabs section"
+                  loading="lazy"
+                  decoding="async"
+                />
+              </a>
+            </figure>
+            <div class="reel__words">
+              <p class="kicker">
+                <span class="reel__index">04</span> Settings <kbd>Ctrl</kbd>+<kbd>,</kbd>
+              </p>
+              <h3>Settings, next to your tabs.</h3>
+              <p>
+                Settings opens in the same window, beside the tabs it changes. Every key binding
+                lives in one <code>keybindings.json</code>, so any command can move to the key you
+                want it on.
+              </p>
+            </div>
+          </article>
+          <article class="reel__card" data-step="blocking">
+            <figure class="shot" data-theme="matte-black">
+              <a class="shot__open" href="assets/shots/matte-black/blocking.webp">
+                <img
+                  src="assets/shots/matte-black/blocking.webp"
+                  width="2720"
+                  height="1720"
+                  alt="The Content Blocking settings, with filter lists and user rules"
+                  loading="lazy"
+                  decoding="async"
+                />
+              </a>
+            </figure>
+            <div class="reel__words">
+              <p class="kicker"><span class="reel__index">05</span> Content blocking</p>
+              <h3>Blocking, built in.</h3>
+              <p>
+                EasyList and EasyPrivacy are on from the first run, with cosmetic rules and a count
+                of what was blocked. Add lists, write your own rules, or turn blocking off for one
+                site.
+              </p>
+              <a class="more" href="#features"
+                >Explore features <span aria-hidden="true">→</span></a
+              >
+            </div>
+          </article>
+        </div>
+
+        <div class="reel__bar" hidden>
           <div class="themes" role="group" aria-label="Theme" hidden>
             <span class="themes__label">Theme <kbd>T</kbd></span>
             <span class="themes__name" aria-live="polite">Matte Black</span>
@@ -244,79 +377,15 @@
               ></button>
             </span>
           </div>
-        </div>
-
-        <div class="walk__steps">
-          <article
-            class="step is-on"
-            data-step="space"
-            data-alt="Omaweb with its sidebar of Spaces and tabs beside a photo essay page"
-          >
-            <p class="kicker">Navigation</p>
-            <h2 class="display display--md">Go anywhere,<br />faster.</h2>
-            <p>
-              Press <kbd>o</kbd> to go somewhere new, <kbd>f</kbd> to follow a link, and
-              <kbd>J</kbd> and <kbd>K</kbd> to move between tabs. Pinned tabs sit at the top of the
-              sidebar, today&rsquo;s tabs run underneath, and each Space keeps its own.
-            </p>
-            <p class="step__hint" hidden>
-              The window answers the same keys: try <kbd>Ctrl</kbd>+<kbd>B</kbd>,
-              <kbd>Ctrl</kbd>+<kbd>Y</kbd> or <kbd>T</kbd>.
-            </p>
-          </article>
-          <article
-            class="step"
-            data-step="collapsed"
-            data-alt="Omaweb with the sidebar hidden and the page filling the window"
-          >
-            <p class="kicker">No sidebar <kbd>Ctrl</kbd>+<kbd>B</kbd></p>
-            <h3>The page gets the whole window.</h3>
-            <p>
-              Hide the sidebar and nothing is left but the page. Your tabs are still a key away:
-              <kbd>J</kbd> and <kbd>K</kbd> keep moving between them, and <kbd>Ctrl</kbd>+<kbd
-                >B</kbd
-              >
-              brings the sidebar back.
-            </p>
-          </article>
-          <article
-            class="step"
-            data-step="history"
-            data-alt="The History view, listing this Space's visits"
-          >
-            <p class="kicker">History <kbd>Ctrl</kbd>+<kbd>Y</kbd></p>
-            <h3>Every Space remembers on its own.</h3>
-            <p>
-              History opens over the page and searches only the Space you are in. Delete one visit,
-              a whole site, a stretch of time or the lot, and the other Spaces never notice.
-            </p>
-          </article>
-          <article
-            class="step"
-            data-step="settings"
-            data-alt="Settings, open beside the tabs on its Tabs section"
-          >
-            <p class="kicker">Settings <kbd>Ctrl</kbd>+<kbd>,</kbd></p>
-            <h3>Settings, next to your tabs.</h3>
-            <p>
-              Settings opens in the same window, beside the tabs it changes. Every key binding lives
-              in one <code>keybindings.json</code>, so any command can move to the key you want it
-              on.
-            </p>
-          </article>
-          <article
-            class="step"
-            data-step="blocking"
-            data-alt="The Content Blocking settings, with filter lists and user rules"
-          >
-            <p class="kicker">Content blocking</p>
-            <h3>Blocking, built in.</h3>
-            <p>
-              EasyList and EasyPrivacy are on from the first run, with cosmetic rules and a count of
-              what was blocked. Add lists, write your own rules, or turn blocking off for one site.
-            </p>
-            <a class="more" href="#features">Explore features <span aria-hidden="true">→</span></a>
-          </article>
+          <div class="reel__nav">
+            <button class="reel__step" type="button" data-step-by="-1" aria-label="Previous view">
+              ←
+            </button>
+            <span class="reel__count" aria-live="polite">1 / 5</span>
+            <button class="reel__step" type="button" data-step-by="1" aria-label="Next view">
+              →
+            </button>
+          </div>
         </div>
       </section>
 

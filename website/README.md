@@ -13,8 +13,8 @@ node build/site.mjs                 # write dist/, the site as it deploys
 ## What is where
 
 - `index.html`, `styles.css` and `script.js` are the page. The script is optional: without it the
-  page reads in order, the walkthrough shows its first shot and the dashboard screen shows its first
-  line.
+  page reads in order, the walkthrough's reel still scrolls through every shot in one theme, and the
+  dashboard screen shows its first line.
 - `audio.js` is the night radio: two stations of drive music synthesized live with the Web Audio
   API. It makes no sound until a reader presses the hidden dashboard button or `M`, and each press
   tunes to the next station, then off.
