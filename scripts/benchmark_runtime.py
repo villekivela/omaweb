@@ -1361,6 +1361,15 @@ def run_pageload(executable: str, private: bool) -> dict:
             raise
     finally:
         browser.stop()
+        try:
+            with open(browser.log_path, encoding="utf-8", errors="replace") as handle:
+                diag = [line.rstrip() for line in handle if "omaweb-diag" in line]
+            log(f"  diag lines: {len(diag)}")
+            for line in diag:
+                if "renderer-terminated" in line:
+                    log(f"    {line}")
+        except OSError:
+            pass
         if site:
             site.stop()
         if network:

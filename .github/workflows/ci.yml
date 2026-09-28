@@ -121,7 +121,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4, 5, 6, 7, 8]
+        shard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
     env:
       CC: clang
       CXX: clang++
@@ -246,6 +246,7 @@ jobs:
             fi
             scripts/benchmark_runtime.py pageload --browser build/ci/omaweb --require-dns > /tmp/netlogs/out-$i.txt 2>&1
             status=$?
+            grep -E 'diag lines|renderer-terminated' /tmp/netlogs/out-$i.txt | sed "s/^/=== shard ${SHARD} rep $i /"
             if grep -q 'never reported' /tmp/netlogs/out-$i.txt; then quiet=$((quiet + 1)); cat /tmp/netlogs/out-$i.txt; else rm -f /tmp/netlogs/netlog-$i.json /tmp/netlogs/out-$i.txt; fi
             echo "=== shard ${SHARD} repetition $i exit $status $(grep -c 'cut short' /tmp/netlogs/out-$i.txt) $(grep 'fresh hosts:' /tmp/netlogs/out-$i.txt | tail -1)"
             left=$(ps -eo pid,ppid,pgid,sid,stat,etime,time,rss,comm | grep -E 'QtWebEngine|omaweb|dbus' | grep -v defunct || true)
