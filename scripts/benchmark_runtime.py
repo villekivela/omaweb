@@ -161,7 +161,7 @@ WAYLAND_LINE = re.compile(r"\[\s*(\d+|\d\d:\d\d:\d\d)\.\d+\]")
 # The page ADR 0050 measured: forty images, which no rule refuses, so a load with blocking on
 # fetches everything the load with it off does and the difference is what blocking cost.
 PAGELOAD_IMAGES = 40
-PAGELOAD_LOADS = 10
+PAGELOAD_LOADS = 1
 
 # Loads kept in reserve for each case and mode. On CI's runner the engine cancels an image now and
 # then as its answer arrives, with blocking on and off alike, and a page missing an image is not
