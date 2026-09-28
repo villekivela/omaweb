@@ -963,6 +963,21 @@ Rectangle {
                 }
             }
         }
+
+        // PROTOTYPE (ui-language): in the Keys variant the Space on show is
+        // named under the address, so the footer's letters say which is which
+        // without the row growing.
+        Text {
+            objectName: "protoSpaceName"
+            visible: root.protoKeys && !root.privateWindow && !!root.browser
+            width: parent.width
+            leftPadding: 8
+            text: root.browser ? root.browser.activeSpaceName : ""
+            color: root.colors.mutedText
+            elide: Text.ElideRight
+            font.family: Style.font.family
+            font.pixelSize: Style.font.caption
+        }
     }
 
     // The section stands between the address and the tab list on anchors of
@@ -1232,9 +1247,9 @@ Rectangle {
                                                root.protoSpaceColor = protoColor
 
                     objectName: "space-" + spaceId
-                    // PROTOTYPE (ui-language): in the Keys variant the Space
-                    // on show spells its name out; the rest stay letters.
-                    readonly property bool protoNamed: root.protoKeys && active
+                    // PROTOTYPE (ui-language): the name moved under the
+                    // address; the footer stays letters.
+                    readonly property bool protoNamed: false
                     TextMetrics {
                         id: spaceNameMetrics
                         font.family: Style.font.family
