@@ -969,7 +969,7 @@ Rectangle {
         // without the row growing.
         Text {
             objectName: "protoSpaceName"
-            visible: root.protoKeys && !root.privateWindow && !!root.browser
+            visible: false
             width: parent.width
             leftPadding: 8
             text: root.browser ? root.browser.activeSpaceName : ""
