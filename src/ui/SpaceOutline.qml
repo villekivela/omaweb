@@ -1216,7 +1216,8 @@ Rectangle {
     }
     Connections {
         target: root.browser
-        enabled: root.uiVariant !== "0" && !root.privateWindow
+        // Moved to the top of the page, in Main.qml.
+        enabled: false
         function onActiveSpaceChanged() {
             protoSpaceFlash.shift = root.easeSpaces ? 8 * root.switchDirection : 0;
             protoFlash.restart();

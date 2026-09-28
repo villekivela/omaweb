@@ -2788,6 +2788,81 @@ ApplicationWindow {
                              !engineLoader.siteFullscreenActive
                 }
 
+                // PROTOTYPE (ui-language): a switch names the Space it arrived
+                // in at the top of the page, where the reader is looking. It
+                // comes down from the top edge as a page notice does, stays
+                // about a second, and goes back up.
+                Rectangle {
+                    id: protoSpaceToast
+                    objectName: "protoSpaceToast"
+                    property real drop: -8
+                    visible: opacity > 0
+                    opacity: 0
+                    z: 40
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    y: 12 + drop
+                    width: toastName.implicitWidth + 32
+                    height: toastName.implicitHeight + 14
+                    radius: 2
+                    color: window.colors.overlay
+                    border.width: 1
+                    border.color: window.colors.border
+
+                    Text {
+                        id: toastName
+                        anchors.centerIn: parent
+                        text: window.windowBrowser.activeSpaceName
+                        color: window.colors.text
+                        font.pixelSize: 14
+                    }
+
+                    SequentialAnimation {
+                        id: protoToast
+                        ParallelAnimation {
+                            NumberAnimation {
+                                target: protoSpaceToast
+                                property: "opacity"
+                                to: 1
+                                duration: 160
+                            }
+                            NumberAnimation {
+                                target: protoSpaceToast
+                                property: "drop"
+                                to: 0
+                                duration: 160
+                                easing.type: Easing.OutCubic
+                            }
+                        }
+                        PauseAnimation {
+                            duration: 900
+                        }
+                        ParallelAnimation {
+                            NumberAnimation {
+                                target: protoSpaceToast
+                                property: "opacity"
+                                to: 0
+                                duration: 120
+                            }
+                            NumberAnimation {
+                                target: protoSpaceToast
+                                property: "drop"
+                                to: -8
+                                duration: 120
+                                easing.type: Easing.InCubic
+                            }
+                        }
+                    }
+
+                    Connections {
+                        target: window.windowBrowser
+                        enabled: window.uiVariant !== "0" && !window.privateWindow
+                        function onActiveSpaceChanged() {
+                            protoSpaceToast.drop = window.easeChrome ? -8 : 0;
+                            protoToast.restart();
+                        }
+                    }
+                }
+
                 // PROTOTYPE (ui-language): the Tiled variant frames each pane
                 // the way Hyprland frames a window: the focused one in the
                 // Space's colour, the tab beside in the inactive border.
