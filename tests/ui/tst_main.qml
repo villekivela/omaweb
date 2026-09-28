@@ -3446,6 +3446,135 @@ TestCase {
         browser.closeTab(backgroundTabId);
     }
 
+    // The core's Agent rules as the page area hears them: the tabs that are
+    // Agent tabs, the page verbs to hand on, and the answers that come back.
+    Component {
+        id: agentControlComponent
+
+        QtObject {
+            property var agentTabIds: []
+            property var tabs: ({})
+            property var answers: ({})
+            signal agentTabsChanged
+            signal pageRequested(int requestId, var request)
+            signal pageRequestsCancelled
+
+            function agentTab(tabId) {
+                return tabs[tabId] || ({});
+            }
+            function answerPage(requestId, answer) {
+                const next = Object.assign({}, answers);
+                next[requestId] = answer;
+                answers = next;
+            }
+        }
+    }
+
+    // An Agent tab the reader is not looking at goes on running and stays
+    // drawn, at no opacity and under the page on show, wherever its Space is,
+    // and goes back to being an ordinary hidden page once no Agent uses it.
+    function test_anAgentTabKeepsRunningBehindThePageOnShow() {
+        const engineLoader = findChild(window.contentItem, "engineLoader");
+        const shield = findChild(window.contentItem, "agentTabShield");
+        verify(engineLoader !== null);
+        verify(shield !== null);
+        const control = agentControlComponent.createObject(testCase);
+        engineLoader.agentControl = control;
+
+        const personalSpaceId = browser.activeSpaceId;
+        const agentEngine = openPage("https://agent-tab.example/");
+        const agentTabId = browser.activeTabId;
+        browser.openInput("https://reader-tab.example/", true);
+        tryVerify(function () {
+            return engineLoader.item !== null && engineLoader.item !== agentEngine;
+        });
+        tryCompare(agentEngine, "pageFrozen", true);
+        verify(!shield.visible);
+
+        const tabs = {};
+        tabs[agentTabId] = {
+            "tabId": agentTabId,
+            "spaceId": personalSpaceId,
+            "url": "https://agent-tab.example/"
+        };
+        control.tabs = tabs;
+        control.agentTabIds = [agentTabId];
+        control.agentTabsChanged();
+        compare(agentEngine.visible, true);
+        compare(agentEngine.opacity, 0);
+        verify(agentEngine.z < 0);
+        verify(agentEngine.z < shield.z);
+        tryCompare(agentEngine, "pageFrozen", false);
+        verify(shield.visible);
+        compare(engineLoader.item.opacity, 1);
+
+        control.pageRequested(7, {
+                                  "verb": "look",
+                                  "tabId": agentTabId,
+                                  "arguments": {}
+                              });
+        compare(agentEngine.agentRequests.length, 1);
+        compare(agentEngine.agentRequests[0].verb, "look");
+        tryVerify(function () {
+            return control.answers[7] !== undefined && control.answers[7].ok === true;
+        });
+
+        // Its Space goes away, and it goes on running.
+        const workSpaceId = browser.createSpace("Agent elsewhere");
+        verify(browser.switchSpace(workSpaceId));
+        compare(agentEngine.visible, true);
+        compare(agentEngine.opacity, 0);
+        tryCompare(agentEngine, "pageFrozen", false);
+
+        // Its page is built again, as it is when its address changes while its
+        // Space is away, and the new view goes on from the labels the old one
+        // gave out, so a label an Agent still holds names nothing new.
+        agentEngine.agentNextLabel = 9;
+        control.pageRequested(8, {
+                                  "verb": "look",
+                                  "tabId": agentTabId,
+                                  "arguments": {}
+                              });
+        tryVerify(function () {
+            return control.answers[8] !== undefined;
+        });
+        engineLoader.discardEngine(agentTabId);
+        tryVerify(function () {
+            return engineLoader.engines[agentTabId] !== undefined;
+        });
+        const rebuilt = engineLoader.engines[agentTabId];
+        control.pageRequested(9, {
+                                  "verb": "look",
+                                  "tabId": agentTabId,
+                                  "arguments": {}
+                              });
+        verify(rebuilt.agentNextLabel >= 9);
+        compare(rebuilt.opacity, 0);
+        compare(rebuilt.visible, true);
+
+        // Allow agents goes off with a verb still out: the pages stop.
+        control.pageRequestsCancelled();
+        verify(rebuilt.agentCancels >= 1);
+
+        // No Agent uses it any more: hidden and stopped, as any other page.
+        control.agentTabIds = [];
+        control.agentTabsChanged();
+        compare(rebuilt.visible, false);
+        tryCompare(rebuilt, "pageFrozen", true);
+        verify(!shield.visible);
+
+        engineLoader.agentControl = null;
+        verify(browser.switchSpace(personalSpaceId));
+        verify(browser.deleteSpace(workSpaceId, "Agent elsewhere"));
+        browser.activateTab(agentTabId);
+        tryVerify(function () {
+            return engineLoader.item === rebuilt;
+        });
+        compare(rebuilt.opacity, 1);
+        tryCompare(rebuilt, "pageFrozen", false);
+        control.destroy();
+    }
+
     // The two exceptions to that policy, and nothing else: a Pinned tab the
     // reader marked Keep active, and the tab an inspector is attached to. Both
     // keep their page while their Space is away, both are named in the list of

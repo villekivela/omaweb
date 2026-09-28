@@ -460,6 +460,8 @@ omaweb_strict_target(omaweb-engine-api)
 
 if(OMAWEB_BUILD_BROWSER)
     add_library(omaweb-engine-qt STATIC
+        src/engine/qt/QtAgentInput.cpp
+        src/engine/qt/QtAgentInput.h
         src/engine/qt/QtCertificates.cpp
         src/engine/qt/QtCertificates.h
         src/engine/qt/QtContentBlocker.cpp
@@ -496,6 +498,13 @@ if(OMAWEB_BUILD_BROWSER)
         Qt6::WebEngineQuickPrivate
     )
     omaweb_strict_target(omaweb-engine-qt)
+    # The page verbs' own script travels with the adapter that runs it, in
+    # whichever way the QML is shipped.
+    qt_add_resources(omaweb-engine-qt "omaweb_agent_page_script"
+        PREFIX "/omaweb/engine-qt"
+        BASE "${CMAKE_CURRENT_SOURCE_DIR}/src/engine/api"
+        FILES src/engine/api/agent-page.js
+    )
 endif()
 
 add_library(omaweb-platform STATIC

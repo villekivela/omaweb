@@ -1407,6 +1407,10 @@ ApplicationWindow {
     // HTTPS-only mode's policy, where this window has one: the lab and the
     // tests run without it.
     readonly property var httpsOnlyPolicy: typeof httpsOnly !== "undefined" ? httpsOnly : null
+    // What an Agent may do through the socket, which reaches only the ordinary
+    // window: a Private window is never an Agent's.
+    readonly property var agentControlSource: !window.privateWindow && typeof agentControl
+                                              !== "undefined" ? agentControl : null
 
     // The reader let a site through HTTPS-only mode: for this load, or for
     // good in this Space, which a Private window never keeps.
@@ -2581,6 +2585,7 @@ ApplicationWindow {
                                                                 parent.right
                     focus: true
                     browserController: window.windowBrowser
+                    agentControl: window.agentControlSource
                     engineSource: engineViewSource
                     spaceProfiles: spaceProfiles
                     profilePath: window.profilePathOverride.length > 0 ? window.profilePathOverride :

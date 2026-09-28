@@ -286,6 +286,9 @@ Rectangle {
     // blurred, and standing in for one it is all there is.
     color: "transparent"
     focus: open
+    // Where the keyboard rests when no page has it, which an Agent's click
+    // may take for a moment and give back without the reader losing anything.
+    readonly property bool pageFocusRest: true
 
     // Summoned over a page, the sheet has to hear Escape itself. Standing in
     // for a page, it gives focus restoration somewhere that does not consume

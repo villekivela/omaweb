@@ -1,4 +1,5 @@
 #include "BrowserController.h"
+#include "AgentCommand.h"
 #include "ContentBlocker.h"
 #include "QtCookiePolicy.h"
 #include "EngineBuild.h"
@@ -9,6 +10,7 @@
 #include "FontSettings.h"
 #include "GlobalPrivacyControl.h"
 #include "HttpsOnly.h"
+#include "QtAgentInput.h"
 #include "QtCertificates.h"
 #include "QtContentBlocker.h"
 #include "QtEnginePaths.h"
@@ -36,6 +38,8 @@ void setDnsAliasResolverForTesting(DnsAliasResolverForTesting resolver);
 } // namespace QtWebEngineCore
 #endif
 
+#include <QDeadlineTimer>
+#include <QElapsedTimer>
 #include <QGuiApplication>
 #include <QImage>
 #include <QColor>
@@ -44,6 +48,7 @@ void setDnsAliasResolverForTesting(DnsAliasResolverForTesting resolver);
 #include <QFileInfo>
 #include <QFile>
 #include <QFontDatabase>
+#include <QJSValue>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -247,6 +252,16 @@ private slots:
     void adaptersAnswerForEveryEverydayPageOperation();
     void qtFindsInThePageAndKeepsTheQueryAcrossNavigation();
     void qtKeepsTheZoomItIsGivenAcrossNavigation();
+    void qtAgentLooksAtAFormInFewTokens();
+    void qtAgentLabelsStayWithTheirElements();
+    void qtAgentFillsAndSubmitsAFormInOneBatch();
+    void qtAgentStopsABatchAtTheFirstFailedStep();
+    void qtAgentWaitsForThePageToSettle();
+    void qtAgentWaitsWhileTheReaderIsInTheTab();
+    void qtAgentEvaluatesInItsOwnWorld();
+    void qtAgentReadsThePageAsMarkdown();
+    void qtAgentCapturesThePage();
+    void qtAgentStopsWhatIsUnderWayWhenCalledOff();
     void qtSeparatesReloadBypassingCacheFromReloadAndStop();
     void qtRendersAPageForPrintingAndDrawsPdfsInline();
     void qtCapturesThePageAreaAsTheEngineDrewIt();
@@ -4673,6 +4688,524 @@ void QtEngineContractTest::qtFindsInThePageAndKeepsTheQueryAcrossNavigation()
 
 // Zoom is the tab's rather than the page's: it is set once and every page the
 // tab goes on to show is drawn at it.
+namespace {
+
+// The pages an Agent works on in these tests: a sign-up form, the page it
+// submits to, and a page that goes on changing after a click. Served over
+// HTTP, because a local document is not let reach another.
+class AgentSite final : public QTcpServer {
+public:
+    AgentSite()
+    {
+        page("/form.html", R"HTML(<!doctype html><title>Sign up</title>
+<h1>Join the list</h1><p>We send one letter a month.</p>
+<form action="thanks.html">
+<label>Email <input id="email" type="email" name="email"></label>
+<label>Name <input id="name" name="name"></label>
+<label>Country <select id="country" name="country"><option>Finland</option><option>Sweden</option></select></label>
+<label><input type="checkbox" id="terms" name="terms"> I agree</label>
+<button id="submit" type="submit">Sign up</button>
+</form>
+<p style="margin-top:3000px"><a href="#end">Far below</a></p>
+<script>
+window.pageSecret = 42;
+// Kept in the document, where an Agent's own world can read it.
+const events = [];
+for (const type of ["click", "keydown"])
+  addEventListener(type, e => {
+    events.push({type, trusted: e.isTrusted, id: e.target.id});
+    document.documentElement.dataset.events = JSON.stringify(events);
+  }, true);
+</script>)HTML");
+        page("/thanks.html", R"HTML(<!doctype html><title>Thanks</title>
+<h1>Thank you</h1><p id="who"></p>
+<script>document.getElementById("who").textContent =
+  new URLSearchParams(location.search).get("email") + " / " +
+  new URLSearchParams(location.search).get("country");</script>)HTML");
+        page("/settle.html", R"HTML(<!doctype html><title>Settle</title>
+<button id="go">Go</button>
+<script>
+document.getElementById("go").addEventListener("click", () => {
+  for (const delay of [100, 250, 400])
+    setTimeout(() => {
+      const late = document.createElement("p");
+      late.className = "late";
+      late.textContent = "late " + delay;
+      document.body.append(late);
+    }, delay);
+});
+</script>)HTML");
+        connect(this, &QTcpServer::newConnection, this, [this] {
+            auto *socket = nextPendingConnection();
+            connect(socket, &QTcpSocket::readyRead, socket, [this, socket] {
+                const auto path = socket->readAll().split(' ').value(1).split('?').value(0);
+                const auto body = m_pages.value(path);
+                socket->write((body.isEmpty() ? "HTTP/1.1 404 Not Found" : "HTTP/1.1 200 OK")
+                    + QByteArray("\r\nContent-Type: text/html\r\nContent-Length: ")
+                    + QByteArray::number(body.size()) + "\r\nConnection: close\r\n\r\n" + body);
+                socket->flush();
+                socket->disconnectFromHost();
+            });
+        });
+        listen(QHostAddress::LocalHost);
+    }
+
+    QUrl url(const QString &path) const
+    {
+        return QUrl(QStringLiteral("http://127.0.0.1:%1/%2").arg(serverPort()).arg(path));
+    }
+
+private:
+    void page(const QByteArray &path, const QByteArray &html) { m_pages.insert(path, html); }
+
+    QHash<QByteArray, QByteArray> m_pages;
+};
+
+// The adapter on a page, as an Agent tab's is: under the page the reader has
+// on show, which has their keyboard, and drawn at no opacity (#376).
+struct AgentPage {
+    QTemporaryDir profiles;
+    QQmlEngine engine;
+    QQuickWindow window;
+    std::unique_ptr<QObject> reader;
+    std::unique_ptr<QObject> adapter;
+    int nextRequest = 1;
+
+    bool load(const QUrl &url)
+    {
+        QQmlComponent component(
+            &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+        // Each in a profile of its own, as two Spaces are.
+        adapter.reset(component.createWithInitialProperties({{QStringLiteral("currentUrl"), url},
+            {QStringLiteral("profilePath"), profiles.filePath(QStringLiteral("agent"))}}));
+        reader.reset(component.createWithInitialProperties(
+            {{QStringLiteral("currentUrl"), QUrl(QStringLiteral("about:blank"))},
+                {QStringLiteral("profilePath"), profiles.filePath(QStringLiteral("reader"))}}));
+        if (!adapter || !reader) {
+            qWarning("%s", qPrintable(component.errorString()));
+            return false;
+        }
+        window.resize(800, 600);
+        for (auto *object : {adapter.get(), reader.get()}) {
+            auto *view = qobject_cast<QQuickItem *>(object);
+            view->setParentItem(window.contentItem());
+            view->setSize(QSizeF(800, 600));
+        }
+        qobject_cast<QQuickItem *>(adapter.get())->setOpacity(0);
+        qobject_cast<QQuickItem *>(reader.get())->setZ(1);
+        window.show();
+        if (!QTest::qWaitForWindowExposed(&window)) {
+            return false;
+        }
+        QMetaObject::invokeMethod(reader.get(), "focusPage");
+        return QTest::qWaitFor([this] { return reader->property("pageHasFocus").toBool(); });
+    }
+
+    // One verb, answered as the socket would hear it.
+    QJsonObject ask(const QString &verb, const QVariantMap &arguments = {}, int timeoutMs = 30000)
+    {
+        const auto requestId = nextRequest++;
+        QSignalSpy answered(adapter.get(), SIGNAL(agentVerbAnswered(int, QVariant)));
+        QMetaObject::invokeMethod(adapter.get(), "answerAgentVerb", Q_ARG(QVariant, requestId),
+            Q_ARG(QVariant, verb), Q_ARG(QVariant, arguments));
+        QDeadlineTimer deadline(timeoutMs);
+        while (!deadline.hasExpired()) {
+            for (const auto &arguments : std::as_const(answered)) {
+                if (arguments.at(0).toInt() != requestId) {
+                    continue;
+                }
+                auto answer = arguments.at(1);
+                if (answer.canConvert<QJSValue>()) {
+                    answer = answer.value<QJSValue>().toVariant();
+                }
+                return QJsonObject::fromVariantMap(answer.toMap());
+            }
+            QTest::qWait(10);
+        }
+        return {};
+    }
+
+    QJsonValue evaluate(const QString &expression)
+    {
+        return ask(QStringLiteral("eval"), {{QStringLiteral("expression"), expression}})
+            .value(QStringLiteral("value"));
+    }
+
+    QJsonObject look()
+    {
+        return ask(QStringLiteral("look")).value(QStringLiteral("look")).toObject();
+    }
+
+    // A batch, with steps in the CLI's own words.
+    QJsonObject batch(const QStringList &steps, const QVariantMap &options = {})
+    {
+        QStringList arguments {QStringLiteral("omaweb"), QStringLiteral("do")};
+        arguments += steps;
+        const auto command = omaweb::readAgentCommand(arguments, QStringLiteral("test"));
+        if (!command.error.isEmpty()) {
+            qWarning("%s", qPrintable(command.error));
+            return {};
+        }
+        QVariantMap all {
+            {QStringLiteral("steps"), command.request.value(QStringLiteral("steps")).toVariant()},
+            {QStringLiteral("settle"), 300},
+            {QStringLiteral("timeout"), 10000},
+        };
+        all.insert(options);
+        return ask(QStringLiteral("do"), all);
+    }
+};
+
+// The label `look` gave the target of this name.
+QString labelNamed(const QJsonObject &look, const QString &name)
+{
+    for (const auto &value : look.value(QStringLiteral("targets")).toArray()) {
+        const auto target = value.toObject();
+        if (target.value(QStringLiteral("name")).toString() == name) {
+            return target.value(QStringLiteral("label")).toString();
+        }
+    }
+    return {};
+}
+
+} // namespace
+
+// The whole of what a typical form costs an Agent to look at, printed as the
+// CLI prints it, stays under 500 tokens at four characters a token.
+void QtEngineContractTest::qtAgentLooksAtAFormInFewTokens()
+{
+    AgentSite site;
+    AgentPage page;
+    QVERIFY(page.load(site.url(QStringLiteral("form.html"))));
+    const auto answer = page.ask(QStringLiteral("look"));
+    QVERIFY2(answer.value(QStringLiteral("ok")).toBool(),
+        QJsonDocument(answer).toJson(QJsonDocument::Compact).constData());
+    const auto look = answer.value(QStringLiteral("look")).toObject();
+    QCOMPARE(look.value(QStringLiteral("title")).toString(), QStringLiteral("Sign up"));
+    QVERIFY(look.value(QStringLiteral("outline")).toString().contains(u"# Join the list"));
+    QVERIFY(!labelNamed(look, QStringLiteral("Email")).isEmpty());
+    QVERIFY(!labelNamed(look, QStringLiteral("Country")).isEmpty());
+    QVERIFY(!labelNamed(look, QStringLiteral("I agree")).isEmpty());
+    QVERIFY(!labelNamed(look, QStringLiteral("Sign up")).isEmpty());
+    // The link far down the page is counted, not listed.
+    QVERIFY(labelNamed(look, QStringLiteral("Far below")).isEmpty());
+    QCOMPARE(look.value(QStringLiteral("below")).toInt(), 1);
+
+    const auto printed = omaweb::formatAgentAnswer(QStringLiteral("look"), answer);
+    const auto json = QJsonDocument(answer).toJson(QJsonDocument::Compact);
+    qInfo("look of the form: %lld characters printed, %lld of JSON",
+        static_cast<long long>(printed.size()), static_cast<long long>(json.size()));
+    QVERIFY2(printed.size() < 2000, qPrintable(printed));
+    QVERIFY2(json.size() < 2000, json.constData());
+
+    const auto all = page.ask(QStringLiteral("look"), {{QStringLiteral("all"), true}})
+                         .value(QStringLiteral("look"))
+                         .toObject();
+    QVERIFY(!labelNamed(all, QStringLiteral("Far below")).isEmpty());
+    QCOMPARE(all.value(QStringLiteral("below")).toInt(), 0);
+}
+
+void QtEngineContractTest::qtAgentLabelsStayWithTheirElements()
+{
+    AgentSite site;
+    AgentPage page;
+    QVERIFY(page.load(site.url(QStringLiteral("form.html"))));
+    const auto first = page.look();
+    const auto email = labelNamed(first, QStringLiteral("Email"));
+    const auto terms = labelNamed(first, QStringLiteral("I agree"));
+    QVERIFY(!email.isEmpty());
+
+    // Something new above the form takes a new label and moves no old one.
+    page.evaluate(QStringLiteral("document.body.prepend(Object.assign("
+                                 "document.createElement('button'), {textContent: 'New'}))"));
+    const auto second = page.look();
+    QCOMPARE(labelNamed(second, QStringLiteral("Email")), email);
+    QCOMPARE(labelNamed(second, QStringLiteral("I agree")), terms);
+    QVERIFY(labelNamed(second, QStringLiteral("New")).toInt() > email.toInt());
+
+    // A click sent to a label is trusted by the page.
+    QVERIFY(page.batch({QStringLiteral("click ") + terms}).value(QStringLiteral("ok")).toBool());
+    QCOMPARE(page.evaluate(QStringLiteral("document.getElementById('terms').checked")),
+        QJsonValue(true));
+    QCOMPARE(page.evaluate(QStringLiteral("JSON.parse(document.documentElement.dataset.events)"
+                                          ".filter(e => e.type === 'click').map(e => e.trusted)")),
+        QJsonValue(QJsonArray {true}));
+
+    // An element that has gone answers "stale label", with a fresh look.
+    page.evaluate(QStringLiteral("document.getElementById('email').closest('label').remove()"));
+    const auto stale = page.batch({QStringLiteral("click ") + email});
+    QVERIFY(!stale.value(QStringLiteral("ok")).toBool());
+    QCOMPARE(stale.value(QStringLiteral("code")).toString(), QStringLiteral("stale-label"));
+    QVERIFY(labelNamed(stale.value(QStringLiteral("look")).toObject(), QStringLiteral("Email"))
+            .isEmpty());
+
+    // A navigation clears them: no label of the last page names anything on
+    // the next one.
+    QVERIFY(page.batch({QStringLiteral("click ") + labelNamed(second, QStringLiteral("Sign up"))})
+            .value(QStringLiteral("ok"))
+            .toBool());
+    QTRY_COMPARE(page.look().value(QStringLiteral("title")).toString(), QStringLiteral("Thanks"));
+    QCOMPARE(
+        page.batch({QStringLiteral("click ") + terms}).value(QStringLiteral("code")).toString(),
+        QStringLiteral("stale-label"));
+}
+
+// Five steps, and what they did read off the page they arrived at, in one call.
+void QtEngineContractTest::qtAgentFillsAndSubmitsAFormInOneBatch()
+{
+    AgentSite site;
+    AgentPage page;
+    QVERIFY(page.load(site.url(QStringLiteral("form.html"))));
+    const auto look = page.look();
+    const auto label
+        = [&look](const char *name) { return labelNamed(look, QString::fromUtf8(name)); };
+
+    QElapsedTimer clock;
+    clock.start();
+    const auto answer = page.batch({
+        QStringLiteral("fill ") + label("Email") + QStringLiteral(" reader@example.com"),
+        QStringLiteral("fill ") + label("Name") + QStringLiteral(" 'A Reader'"),
+        QStringLiteral("select ") + label("Country") + QStringLiteral(" Sweden"),
+        QStringLiteral("click ") + label("I agree"),
+        QStringLiteral("click ") + label("Sign up"),
+    });
+    qInfo("five steps took %lld ms", static_cast<long long>(clock.elapsed()));
+    QVERIFY2(answer.value(QStringLiteral("ok")).toBool(),
+        QJsonDocument(answer).toJson(QJsonDocument::Compact).constData());
+    QCOMPARE(answer.value(QStringLiteral("steps")).toArray().size(), 5);
+    // The reader's page kept their keyboard through all of it.
+    QVERIFY(page.reader->property("pageHasFocus").toBool());
+    QVERIFY(!page.adapter->property("pageHasFocus").toBool());
+    const auto arrived = answer.value(QStringLiteral("look")).toObject();
+    QCOMPARE(arrived.value(QStringLiteral("title")).toString(), QStringLiteral("Thanks"));
+    QVERIFY(arrived.value(QStringLiteral("outline"))
+            .toString()
+            .contains(u"reader@example.com / Sweden"));
+}
+
+void QtEngineContractTest::qtAgentStopsABatchAtTheFirstFailedStep()
+{
+    AgentSite site;
+    AgentPage page;
+    QVERIFY(page.load(site.url(QStringLiteral("form.html"))));
+    const auto look = page.look();
+    const auto answer = page.batch({
+        QStringLiteral("fill ") + labelNamed(look, QStringLiteral("Email"))
+            + QStringLiteral(" a@b.example"),
+        QStringLiteral("click 9999"),
+        QStringLiteral("fill ") + labelNamed(look, QStringLiteral("Name"))
+            + QStringLiteral(" Never"),
+    });
+    QVERIFY(!answer.value(QStringLiteral("ok")).toBool());
+    QCOMPARE(answer.value(QStringLiteral("failedStep")).toInt(), 2);
+    QCOMPARE(answer.value(QStringLiteral("steps")).toArray().size(), 2);
+    QVERIFY(answer.value(QStringLiteral("error")).toString().contains(u"click 9999"));
+    QCOMPARE(labelNamed(answer.value(QStringLiteral("look")).toObject(), QStringLiteral("Email")),
+        labelNamed(look, QStringLiteral("Email")));
+    QCOMPARE(page.evaluate(QStringLiteral("document.getElementById('email').value")),
+        QJsonValue(QStringLiteral("a@b.example")));
+    QCOMPARE(page.evaluate(QStringLiteral("document.getElementById('name').value")),
+        QJsonValue(QString()));
+
+    // Typing is trusted too.
+    QCOMPARE(
+        page.evaluate(QStringLiteral("JSON.parse(document.documentElement.dataset.events)"
+                                     ".filter(e => e.type === 'keydown').every(e => e.trusted)")),
+        QJsonValue(true));
+
+    // A press the page stood something in front of does not reach the target.
+    page.evaluate(
+        QStringLiteral("document.body.append(Object.assign(document.createElement('div'), "
+                       "{id: 'cover', style: 'position:fixed;inset:0;background:white'}))"));
+    const auto covered
+        = page.batch({QStringLiteral("click ") + labelNamed(look, QStringLiteral("Sign up"))});
+    QCOMPARE(covered.value(QStringLiteral("code")).toString(), QStringLiteral("covered"));
+}
+
+// A step waits until the page has stopped changing for the settle time, and no
+// longer than its timeout, which is answered as not settled.
+void QtEngineContractTest::qtAgentWaitsForThePageToSettle()
+{
+    AgentSite site;
+    AgentPage page;
+    QVERIFY(page.load(site.url(QStringLiteral("settle.html"))));
+    const auto go = labelNamed(page.look(), QStringLiteral("Go"));
+    const auto settled = page.batch({QStringLiteral("click ") + go});
+    QVERIFY(settled.value(QStringLiteral("ok")).toBool());
+    QCOMPARE(settled.value(QStringLiteral("steps"))
+                 .toArray()
+                 .at(0)
+                 .toObject()
+                 .value(QStringLiteral("settled")),
+        QJsonValue(true));
+    QCOMPARE(
+        page.evaluate(QStringLiteral("document.querySelectorAll('.late').length")), QJsonValue(3));
+
+    page.evaluate(QStringLiteral("document.querySelectorAll('.late').forEach(e => e.remove())"));
+    const auto hurried
+        = page.batch({QStringLiteral("click ") + go}, {{QStringLiteral("timeout"), 200}});
+    QVERIFY(hurried.value(QStringLiteral("ok")).toBool());
+    QCOMPARE(hurried.value(QStringLiteral("steps"))
+                 .toArray()
+                 .at(0)
+                 .toObject()
+                 .value(QStringLiteral("settled")),
+        QJsonValue(false));
+    QVERIFY(hurried.value(QStringLiteral("look"))
+                .toObject()
+                .value(QStringLiteral("outline"))
+                .toString()
+                .count(u"late")
+        < 3);
+
+    // A wait step is answered once what it waits for is there.
+    const auto waited = page.batch({QStringLiteral("wait text 'late 400'")});
+    QVERIFY(waited.value(QStringLiteral("ok")).toBool());
+    const auto missing = page.batch(
+        {QStringLiteral("wait text 'never there'")}, {{QStringLiteral("timeout"), 300}});
+    QCOMPARE(missing.value(QStringLiteral("code")).toString(), QStringLiteral("timeout"));
+}
+
+// The reader's keyboard in the tab is the reader working in it. `do` waits
+// for them; the verbs that only read go on answering.
+void QtEngineContractTest::qtAgentWaitsWhileTheReaderIsInTheTab()
+{
+    AgentSite site;
+    AgentPage page;
+    QVERIFY(page.load(site.url(QStringLiteral("form.html"))));
+    const auto look = page.look();
+    // The reader has the tab on show and is typing in it.
+    qobject_cast<QQuickItem *>(page.adapter.get())->setOpacity(1);
+    qobject_cast<QQuickItem *>(page.adapter.get())->setZ(2);
+    QVERIFY(QMetaObject::invokeMethod(page.adapter.get(), "focusPage"));
+    QTRY_VERIFY(page.adapter->property("pageHasFocus").toBool());
+
+    const auto refused
+        = page.batch({QStringLiteral("click ") + labelNamed(look, QStringLiteral("I agree"))});
+    QVERIFY(!refused.value(QStringLiteral("ok")).toBool());
+    QCOMPARE(refused.value(QStringLiteral("code")).toString(), QStringLiteral("reader-using"));
+    QCOMPARE(page.evaluate(QStringLiteral("document.getElementById('terms').checked")),
+        QJsonValue(false));
+    QVERIFY(page.ask(QStringLiteral("look")).value(QStringLiteral("ok")).toBool());
+    QVERIFY(page.ask(QStringLiteral("read")).value(QStringLiteral("ok")).toBool());
+
+    // A page held at no opacity is not one the reader is using, whatever has
+    // Qt's focus for a moment.
+    qobject_cast<QQuickItem *>(page.adapter.get())->setOpacity(0);
+    QVERIFY(page.batch({QStringLiteral("scroll down")}).value(QStringLiteral("ok")).toBool());
+
+    // With the reader in Omaweb's own controls, a click waits for them to
+    // leave, since the moment's move of Qt's focus would reach those controls.
+    QQuickItem control(page.window.contentItem());
+    control.forceActiveFocus();
+    QVERIFY(!page.adapter->property("pageHasFocus").toBool());
+    const auto waited
+        = page.batch({QStringLiteral("click ") + labelNamed(look, QStringLiteral("I agree"))},
+            {{QStringLiteral("timeout"), 300}});
+    QCOMPARE(
+        waited.value(QStringLiteral("code")).toString(), QStringLiteral("reader-in-interface"));
+    QCOMPARE(page.evaluate(QStringLiteral("document.getElementById('terms').checked")),
+        QJsonValue(false));
+    // Typing takes no focus, so it does not wait.
+    QVERIFY(
+        page.batch({QStringLiteral("fill ") + labelNamed(look, QStringLiteral("Name"))
+                       + QStringLiteral(" Typed")})
+            .value(QStringLiteral("ok"))
+            .toBool());
+    QCOMPARE(page.evaluate(QStringLiteral("document.getElementById('name').value")),
+        QJsonValue(QStringLiteral("Typed")));
+    QVERIFY(control.hasActiveFocus());
+}
+
+void QtEngineContractTest::qtAgentEvaluatesInItsOwnWorld()
+{
+    AgentSite site;
+    AgentPage page;
+    QVERIFY(page.load(site.url(QStringLiteral("form.html"))));
+    // The page's own globals are out of reach, its document is not.
+    QCOMPARE(page.evaluate(QStringLiteral("typeof window.pageSecret")),
+        QJsonValue(QStringLiteral("undefined")));
+    QCOMPARE(
+        page.evaluate(QStringLiteral("document.title")), QJsonValue(QStringLiteral("Sign up")));
+    QCOMPARE(page.evaluate(QStringLiteral("({n: 1, list: [true, null]})")),
+        QJsonValue(QJsonObject {
+            {QStringLiteral("n"), 1}, {QStringLiteral("list"), QJsonArray {true, QJsonValue()}}}));
+    QCOMPARE(page.evaluate(QStringLiteral("new Promise(done => setTimeout(() => done(7), 50))")),
+        QJsonValue(7));
+    const auto threw = page.ask(QStringLiteral("eval"),
+        {{QStringLiteral("expression"), QStringLiteral("(() => { throw new Error('boom'); })()")}});
+    QCOMPARE(threw.value(QStringLiteral("code")).toString(), QStringLiteral("threw"));
+    QVERIFY(threw.value(QStringLiteral("error")).toString().contains(u"boom"));
+    const auto broken
+        = page.ask(QStringLiteral("eval"), {{QStringLiteral("expression"), QStringLiteral("1 +")}});
+    QVERIFY(!broken.value(QStringLiteral("ok")).toBool());
+}
+
+void QtEngineContractTest::qtAgentReadsThePageAsMarkdown()
+{
+    AgentSite site;
+    AgentPage page;
+    QVERIFY(page.load(site.url(QStringLiteral("form.html"))));
+    const auto markdown
+        = page.ask(QStringLiteral("read")).value(QStringLiteral("markdown")).toString();
+    QVERIFY2(markdown.contains(u"# Join the list"), qPrintable(markdown));
+    QVERIFY2(markdown.contains(u"We send one letter a month."), qPrintable(markdown));
+    QVERIFY2(markdown.contains(u"[Far below]("), qPrintable(markdown));
+    QVERIFY(!markdown.contains(u"pageSecret"));
+    const auto part
+        = page.ask(QStringLiteral("read"), {{QStringLiteral("selector"), QStringLiteral("h1")}});
+    QCOMPARE(part.value(QStringLiteral("markdown")).toString(), QStringLiteral("# Join the list"));
+    QCOMPARE(
+        page.ask(QStringLiteral("read"), {{QStringLiteral("selector"), QStringLiteral("#nothing")}})
+            .value(QStringLiteral("code"))
+            .toString(),
+        QStringLiteral("not-found"));
+}
+
+void QtEngineContractTest::qtAgentCapturesThePage()
+{
+    AgentSite site;
+    AgentPage page;
+    QVERIFY(page.load(site.url(QStringLiteral("form.html"))));
+    QTRY_COMPARE(page.look().value(QStringLiteral("title")).toString(), QStringLiteral("Sign up"));
+    QTemporaryDir root;
+    const auto path = root.filePath(QStringLiteral("shot.png"));
+    const auto answer = page.ask(QStringLiteral("shot"), {{QStringLiteral("destination"), path}});
+    QVERIFY2(answer.value(QStringLiteral("ok")).toBool(),
+        QJsonDocument(answer).toJson(QJsonDocument::Compact).constData());
+    QCOMPARE(answer.value(QStringLiteral("path")).toString(), path);
+    const QImage shot(path);
+    QVERIFY(!shot.isNull());
+    QVERIFY(shot.width() >= 800);
+}
+
+// Allow agents going off calls off a batch between its steps: the page is
+// sent nothing more, and nothing it holds is answered.
+void QtEngineContractTest::qtAgentStopsWhatIsUnderWayWhenCalledOff()
+{
+    AgentSite site;
+    AgentPage page;
+    QVERIFY(page.load(site.url(QStringLiteral("form.html"))));
+    const auto terms = labelNamed(page.look(), QStringLiteral("I agree"));
+    const auto command = omaweb::readAgentCommand(
+        {QStringLiteral("omaweb"), QStringLiteral("do"), QStringLiteral("wait text 'never there'"),
+            QStringLiteral("click ") + terms},
+        QStringLiteral("test"));
+    QSignalSpy answered(page.adapter.get(), SIGNAL(agentVerbAnswered(int, QVariant)));
+    QMetaObject::invokeMethod(page.adapter.get(), "answerAgentVerb", Q_ARG(QVariant, 999),
+        Q_ARG(QVariant, QStringLiteral("do")),
+        Q_ARG(QVariant,
+            QVariantMap({{QStringLiteral("steps"),
+                             command.request.value(QStringLiteral("steps")).toVariant()},
+                {QStringLiteral("settle"), 300}, {QStringLiteral("timeout"), 1500}})));
+    QTest::qWait(300);
+    QVERIFY(QMetaObject::invokeMethod(page.adapter.get(), "cancelAgentVerbs"));
+    QTest::qWait(2500);
+    QCOMPARE(answered.count(), 0);
+    QCOMPARE(page.evaluate(QStringLiteral("document.getElementById('terms').checked")),
+        QJsonValue(false));
+}
+
 void QtEngineContractTest::qtKeepsTheZoomItIsGivenAcrossNavigation()
 {
     QQmlEngine engine;
@@ -6032,6 +6565,7 @@ int main(int argc, char *argv[])
     omaweb::registerEngineCapabilities();
     omaweb::registerEngineBuild();
     omaweb::registerQtCertificates();
+    omaweb::registerQtAgentInput();
     omaweb::registerPageImages();
     omaweb::registerBrowserController();
     omaweb::registerExternalProtocolHandler();

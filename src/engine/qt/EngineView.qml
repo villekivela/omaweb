@@ -813,16 +813,25 @@ Item {
     }
 
     function capturePageFully(destination) {
+        root.captureWholePage(destination, null);
+    }
+    // `answer` hears how it went instead of the shell, for a capture an Agent
+    // asked for, which the reader is not told about.
+    function captureWholePage(destination, answer) {
         const path = String(destination);
         if (path.length === 0 || root.fullCapture || !(webView.width > 0 && webView.height > 0)) {
-            root.pageCaptured(path, false, "");
+            if (answer)
+                answer(path, false, "");
+            else
+                root.pageCaptured(path, false, "");
             return;
         }
         root.fullCapture = {
             "path": path,
             "strips": [],
             "scrolled": [],
-            "tops": []
+            "tops": [],
+            "answer": answer
         };
         webView.runJavaScript(root.fullCaptureMeasureSnippet, WebEngineScript.ApplicationWorld,
                               function (page) {
@@ -887,6 +896,7 @@ Item {
     }
     function finishFullCapture(succeeded, reason) {
         const path = root.fullCapture ? root.fullCapture.path : "";
+        const answer = root.fullCapture ? root.fullCapture.answer : null;
         // A capture that stopped part way leaves its strips behind; joining
         // nothing removes them.
         if (!succeeded && root.fullCapture && root.fullCapture.strips.length > 0)
@@ -894,7 +904,10 @@ Item {
         root.fullCapture = null;
         webView.runJavaScript(root.fullCaptureRestoreSnippet, WebEngineScript.ApplicationWorld,
                               function () {});
-        root.pageCaptured(path, succeeded, reason);
+        if (answer)
+            answer(path, succeeded, reason);
+        else
+            root.pageCaptured(path, succeeded, reason);
     }
 
     // Who a request came from, as the reader would recognise them. The engine
@@ -2447,6 +2460,505 @@ Item {
         return script;
     }
 
+    // The page verbs (ADR 0051): `look`, `read`, `do`, `shot` and `eval`, asked
+    // by the shell for an Agent and answered through `agentVerbAnswered`. The
+    // page's half is `agent-page.js`, run in the application world, where the
+    // page cannot see it. Input is Qt events sent to the view, which the page
+    // sees as trusted, and never takes the reader's focus (#376).
+    signal agentVerbAnswered(int requestId, var answer)
+    // Whether the view takes the keyboard when it is made, which a page made
+    // for an Agent while the reader is looking at another must not.
+    property bool pageTakesFocus: true
+    // The keyboard goes back to whatever else the window has, for a page the
+    // reader is not looking at.
+    function releasePageFocus() {
+        webView.focus = false;
+    }
+    // The reader is using this page: it has their keyboard and they can see
+    // it. A view drawn at no opacity is one they cannot.
+    readonly property bool agentReaderInPage: root.pageHasFocus && root.visible && root.opacity > 0
+    // The page's size is told to the engine when the view is laid out, which
+    // Qt does not do for a view that is hidden. A page that arrived while its
+    // view was hidden is given its size once the view is shown.
+    onVisibleChanged: if (visible)
+                          QtAgentInput.refreshGeometry(webView)
+    // The next label this tab has not given out. A label is never used again
+    // in the tab, so one kept from a page that has gone names nothing. The
+    // shell keeps it for the tab and hands it to a new view of the same tab.
+    property int agentNextLabel: 1
+    // Counts the times the verbs under way were called off. A verb begun
+    // before the last one sends the page nothing more and answers nothing.
+    property int agentGeneration: 0
+    function cancelAgentVerbs() {
+        root.agentGeneration += 1;
+    }
+    // How long a page that is still arriving is waited for before a verb is
+    // answered from what there is.
+    readonly property int agentReadyMs: 10000
+    // A plain screenshot is one frame, which a window that is drawing gives in
+    // well under a second. A window that is not on screen draws none.
+    readonly property int agentShotMs: 5000
+    readonly property int agentFullShotMs: 60000
+    readonly property int agentPromiseMs: 30000
+
+    Component {
+        id: agentTimerComponent
+
+        Timer {}
+    }
+
+    function agentAfter(milliseconds, act) {
+        const timer = agentTimerComponent.createObject(root, {
+                                                           "interval": Math.max(0, milliseconds)
+                                                       });
+        timer.triggered.connect(function () {
+            timer.destroy();
+            act();
+        });
+        timer.start();
+        return timer;
+    }
+
+    // The script is installed with every call. It installs itself once per
+    // document, and a document that replaced the last one has none yet.
+    function agentRun(source, callback) {
+        webView.runJavaScript(QtAgentInput.pageScript + "\n;globalThis.__omawebAgent.begin("
+                              + root.agentNextLabel + ");\n" + source,
+                              WebEngineScript.ApplicationWorld, function (result) {
+                                  callback(result);
+                              });
+    }
+
+    function agentFailure(code, error) {
+        return {
+            "ok": false,
+            "code": code,
+            "error": error
+        };
+    }
+
+    function answerAgentVerb(requestId, verb, args) {
+        const options = args || {};
+        const generation = root.agentGeneration;
+        const live = function () {
+            return generation === root.agentGeneration;
+        };
+        const answer = function (result) {
+            if (live())
+                root.agentVerbAnswered(requestId, result);
+        };
+        root.agentWhenReady(Date.now() + root.agentReadyMs, live, function () {
+            if (verb === "look") {
+                root.agentLook(options.all === true, function (look) {
+                    answer(look ? {
+                                      "ok": true,
+                                      "look": look
+                                  } : root.agentFailure("failed", "The page did not answer."));
+                });
+            } else if (verb === "read") {
+                root.agentRead(String(options.selector || ""), answer);
+            } else if (verb === "eval") {
+                root.agentEval(String(options.expression || ""), live, answer);
+            } else if (verb === "shot") {
+                root.agentShot(String(options.destination || ""), options.full === true, answer);
+            } else if (verb === "do") {
+                root.agentDo(options, live, answer);
+            } else {
+                answer(root.agentFailure("bad-request", "This page answers no verb \"" + verb
+                                         + "\"."));
+            }
+        });
+    }
+
+    // A view is handed its address before it starts loading it, so a page is
+    // ready once its load has come to an end, whichever way it ended.
+    function agentWhenReady(deadline, live, act) {
+        if (!live())
+            return;
+        const ready = !webView.loading && webView.loadProgress === 100 && String(webView.url).length
+              > 0;
+        if (ready || Date.now() >= deadline) {
+            act();
+            return;
+        }
+        root.agentAfter(50, function () {
+            root.agentWhenReady(deadline, live, act);
+        });
+    }
+
+    function agentLook(all, done) {
+        root.agentRun("(() => { const agent = globalThis.__omawebAgent; const look = agent.look(" + (
+                          all ? "true" : "false") + "); look.next = agent.next(); return look; })()",
+                      function (look) {
+                          if (!look || typeof look !== "object") {
+                              done(null);
+                              return;
+                          }
+                          root.agentNextLabel = Math.max(root.agentNextLabel, Number(look.next)
+                                                         || 0);
+                          delete look.next;
+                          done(look);
+                      });
+    }
+
+    function agentRead(selector, answer) {
+        root.agentRun("globalThis.__omawebAgent.read(" + JSON.stringify(selector) + ")", function (
+            result) {
+            if (!result || typeof result !== "object")
+                answer(root.agentFailure("failed", "The page did not answer."));
+            else if (result.code)
+                answer(root.agentFailure(result.code, result.error));
+            else
+                answer({
+                           "ok": true,
+                           "markdown": result.markdown
+                       });
+        });
+    }
+
+    // The expression is written into the call rather than handed to the
+    // page's `eval`, which a page's own content security policy may refuse.
+    function agentEval(expression, live, answer) {
+        const source
+              = "(() => { const agent = globalThis.__omawebAgent; let value; try { value = (\n"
+              + expression + "\n); } catch (error) { return agent.threw(error); } "
+              + "return agent.evaluated(value); })()";
+        const deadline = Date.now() + root.agentPromiseMs;
+        const settled = function (result) {
+            if (!result || typeof result !== "object") {
+                answer(root.agentFailure("failed",
+                                         "The expression could not be run. Is it JavaScript?"));
+            } else if (result.waiting || result.pending !== undefined) {
+                const id = result.pending !== undefined ? result.pending : result.id;
+                // A promise nobody waits for any more is let go by the page.
+                if (!live() || Date.now() >= deadline) {
+                    root.agentRun("globalThis.__omawebAgent.forget(" + id + ")", function () {});
+                    answer(root.agentFailure("timeout", "The promise did not settle in time."));
+                    return;
+                }
+                root.agentAfter(50, function () {
+                    root.agentRun("(() => { const entry = globalThis.__omawebAgent.collect(" + id
+                                  + "); entry.id = " + id + "; return entry; })()", settled);
+                });
+            } else if (result.code) {
+                answer(root.agentFailure(result.code, result.error));
+            } else {
+                answer({
+                           "ok": true,
+                           "value": JSON.parse(result.json)
+                       });
+            }
+        };
+        root.agentRun(source, settled);
+    }
+
+    function agentShot(destination, full, answer) {
+        let finished = false;
+        let guard = null;
+        const finish = function (succeeded, code, error) {
+            if (finished)
+                return;
+            finished = true;
+            if (guard)
+                guard.stop();
+            answer(succeeded ? {
+                                   "ok": true,
+                                   "path": destination
+                               } : root.agentFailure(code, error));
+        };
+        guard = root.agentAfter(full ? root.agentFullShotMs : root.agentShotMs, function () {
+            finish(false, "not-drawing",
+                   "Omaweb's window is not on screen, so the page cannot be captured now.");
+            // Answered first: stopping the capture reports a failure of its own.
+            if (full && root.fullCapture && root.fullCapture.path === destination)
+                root.finishFullCapture(false, "");
+        });
+        if (destination.length === 0) {
+            finish(false, "bad-request", "There is no file to write the screenshot to.");
+            return;
+        }
+        if (full) {
+            root.captureWholePage(destination, function (path, succeeded, reason) {
+                finish(succeeded, "failed", reason || "The page could not be captured.");
+            });
+            return;
+        }
+        const grabbing = webView.width > 0 && webView.height > 0 && webView.grabToImage(function (
+            result) {
+            if (result.saveToFile(destination))
+                finish(true, "", "");
+            else
+                finish(false, "failed", "The screenshot could not be written to " + destination
+                       + ".");
+        });
+        if (!grabbing)
+            finish(false, "failed", "The page has no size to capture.");
+    }
+
+    function agentStepText(step) {
+        const quoted = function (text) {
+            return JSON.stringify(String(text));
+        };
+        switch (step.action) {
+        case "click":
+        case "scroll":
+            return step.action + " " + step.target;
+        case "fill":
+        case "select":
+            return step.action + " " + step.target + " " + quoted(step.text);
+        case "press":
+            return "press " + step.key;
+        case "wait":
+            return step.url !== undefined ? "wait url " + quoted(step.url) : "wait text " + quoted(
+                                                step.text);
+
+        default:
+            return String(step.action);
+        }
+    }
+
+    // A batch, one step at a time. It stops at the first step that fails and
+    // answers with what the page is like now either way, so the Agent decides
+    // its next move from one answer.
+    function agentDo(options, live, answer) {
+        const steps = options.steps || [];
+        const settleMs = Number(options.settle);
+        const timeoutMs = Number(options.timeout);
+        const results = [];
+        const readerUsing = root.agentFailure("reader-using",
+                                              "The reader is using this tab, so the Agent waits.");
+        const finish = function (failure) {
+            root.agentLook(false, function (look) {
+                const result = {
+                    "ok": failure === null,
+                    "steps": results,
+                    "look": look || ({})
+                };
+                if (failure) {
+                    result.code = failure.code;
+                    result.error = failure.error;
+                    result.failedStep = results.length;
+                }
+                answer(result);
+            });
+        };
+        // The reader's keyboard in the tab is the reader working in it, and
+        // the reader wins.
+        if (root.agentReaderInPage) {
+            finish(readerUsing);
+            return;
+        }
+        let index = 0;
+        const runNext = function () {
+            // Called off: nothing more is sent to the page.
+            if (!live())
+                return;
+            if (index >= steps.length) {
+                finish(null);
+                return;
+            }
+            const step = steps[index];
+            index += 1;
+            if (root.agentReaderInPage) {
+                results.push(Object.assign({
+                                               "step": root.agentStepText(step)
+                                           }, readerUsing));
+                finish(readerUsing);
+                return;
+            }
+            root.agentStep(step, settleMs, timeoutMs, live, function (result) {
+                result.step = root.agentStepText(step);
+                results.push(result);
+                if (!result.ok) {
+                    finish(root.agentFailure(result.code, "Step " + index + " (" + result.step
+                                             + "): " + result.error));
+                    return;
+                }
+                runNext();
+            });
+        };
+        runNext();
+    }
+
+    function agentStep(step, settleMs, timeoutMs, live, done) {
+        const deadline = Date.now() + timeoutMs;
+        const startGeneration = root.pageGeneration;
+        const startUrl = String(webView.url);
+        const fail = function (code, error) {
+            done(root.agentFailure(code, error));
+        };
+        const settle = function () {
+            root.agentSettle(startGeneration, startUrl, settleMs, deadline, live, function (quiet) {
+                done({
+                         "ok": true,
+                         "settled": quiet
+                     });
+            });
+        };
+        const inPage = function (source, then) {
+            root.agentRun(source, function (result) {
+                if (!live())
+                    return;
+                if (!result || typeof result !== "object")
+                    fail("failed", "The page did not answer.");
+                else if (result.code)
+                    fail(result.code, result.error);
+                else
+                    then(result);
+            });
+        };
+        const target = JSON.stringify(String(step.target));
+        switch (step.action) {
+        case "click":
+            root.agentWhenInterfaceFree(deadline, live, function (free) {
+                if (!free) {
+                    fail("reader-in-interface",
+                         "The reader is using Omaweb's own controls, and the click waited for them.");
+                    return;
+                }
+                inPage("globalThis.__omawebAgent.point(" + target + ")", function (place) {
+                    if (!live())
+                        return;
+                    const zoom = webView.zoomFactor;
+                    if (QtAgentInput.click(webView, Qt.point(place.x * zoom, place.y * zoom)))
+                        settle();
+                    else
+                        fail("failed", "The page has nothing to take a click.");
+                });
+            });
+            return;
+        case "fill":
+            inPage("globalThis.__omawebAgent.focusField(" + target + ")", function () {
+                if (!live())
+                    return;
+                const text = String(step.text);
+                // The field's text is selected, so typing replaces it, and a
+                // field filled with nothing is emptied with one key.
+                const typed = text.length > 0 ? QtAgentInput.typeText(webView, text) : QtAgentInput.pressKey(
+                                                    webView, "Backspace");
+                if (typed)
+                    settle();
+                else
+                    fail("failed", "The page has nothing to type into.");
+            });
+            return;
+        case "press":
+            if (QtAgentInput.pressKey(webView, String(step.key)))
+                settle();
+            else
+                fail("bad-request", "Omaweb knows no key \"" + step.key + "\".");
+            return;
+        case "select":
+            inPage("globalThis.__omawebAgent.choose(" + target + ", " + JSON.stringify(String(
+                                                                                           step.text))
+                   + ")", settle);
+            return;
+        case "scroll":
+            inPage("globalThis.__omawebAgent.scroll(" + target + ")", settle);
+            return;
+        case "back":
+            if (!webView.canGoBack) {
+                fail("no-history", "There is no page to go back to.");
+                return;
+            }
+            webView.goBack();
+            settle();
+            return;
+        case "wait":
+            root.agentWaitFor(step.url !== undefined ? "url" : "text", String(step.url !== undefined ? step.url :
+                                                                                                       step.text),
+                              deadline, live, function (found) {
+                                  if (found)
+                                      done({
+                                               "ok": true
+                                           });
+                                  else
+                                      fail("timeout", "It did not appear within " + timeoutMs
+                                           + " ms.");
+                              });
+            return;
+        default:
+            fail("bad-request", "There is no step \"" + step.action + "\".");
+        }
+    }
+
+    // A step has settled once a navigation it started has committed and the
+    // page's document has not changed for `settleMs`, or once its time is up,
+    // which is answered as not settled rather than as a failure.
+    function agentSettle(startGeneration, startUrl, settleMs, deadline, live, done) {
+        const waitQuiet = function () {
+            if (!live())
+                return;
+            if (Date.now() >= deadline) {
+                done(false);
+                return;
+            }
+            root.agentRun("globalThis.__omawebAgent.quiet()", function (quiet) {
+                const since = Number(quiet);
+                if (since >= settleMs) {
+                    done(true);
+                    return;
+                }
+                const left = isFinite(since) ? settleMs - since : settleMs;
+                root.agentAfter(Math.max(20, Math.min(100, left)), waitQuiet);
+            });
+        };
+        const waitCommit = function () {
+            if (!live())
+                return;
+            if (Date.now() >= deadline) {
+                done(false);
+                return;
+            }
+            const navigating = root.pageGeneration !== startGeneration || webView.loading;
+            const committed = String(webView.url) !== startUrl || !webView.loading;
+            if (navigating && !committed) {
+                root.agentAfter(50, waitCommit);
+                return;
+            }
+            waitQuiet();
+        };
+        // A moment for a navigation the step started to begin at all.
+        root.agentAfter(Math.min(100, Math.max(0, deadline - Date.now())), waitCommit);
+    }
+
+    function agentWaitFor(kind, value, deadline, live, done) {
+        if (!live())
+            return;
+        root.agentRun("globalThis.__omawebAgent.present(" + JSON.stringify(kind) + ", "
+                      + JSON.stringify(value) + ")", function (found) {
+                          if (found === true) {
+                              done(true);
+                              return;
+                          }
+                          if (Date.now() >= deadline) {
+                              done(false);
+                              return;
+                          }
+                          root.agentAfter(100, function () {
+                              root.agentWaitFor(kind, value, deadline, live, done);
+                          });
+                      });
+    }
+
+    // A click takes Qt's focus for a moment and gives it back, which the
+    // window's own items hear. So it waits while the reader is in them.
+    function agentWhenInterfaceFree(deadline, live, done) {
+        if (!live())
+            return;
+        if (QtAgentInput.focusPlace(webView.Window.window) !== "interface") {
+            done(true);
+            return;
+        }
+        if (Date.now() >= deadline) {
+            done(false);
+            return;
+        }
+        root.agentAfter(100, function () {
+            root.agentWhenInterfaceFree(deadline, live, done);
+        });
+    }
+
     WebEngineView {
         id: webView
         objectName: "qtWebView"
@@ -2476,7 +2988,7 @@ Item {
         // only between a document's creation and its first paint, where white
         // would flash a bright rectangle through dark chrome.
         backgroundColor: root.documentPainted ? "white" : root.pageBackgroundColor
-        focus: true
+        focus: root.pageTakesFocus
         userScripts.collection: root.userScriptList()
         // Chromium's autoplay policy is per view. Requiring a gesture blocks
         // muted autoplay along with audible autoplay, so the shell decides

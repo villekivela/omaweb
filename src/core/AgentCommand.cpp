@@ -6,6 +6,7 @@
 #include <QLocalSocket>
 #include <QSet>
 
+#include <algorithm>
 #include <cerrno>
 #include <csignal>
 #include <cstdio>
@@ -24,8 +25,13 @@ namespace {
     // read in either.
     constexpr qsizetype maximumNameLength = 64;
 
-    // Long enough for a browser busy with a page to answer.
+    // Long enough for a browser busy with a page to answer a browser command.
     constexpr int answerTimeoutMs = 10000;
+    // A page verb waits in the browser, and the browser gives up on a page
+    // after a minute, or two for a whole-page screenshot. The CLI waits a
+    // little longer than it does, so the browser's answer is the one heard.
+    constexpr int pageAnswerTimeoutMs = 65000;
+    constexpr int fullShotAnswerTimeoutMs = 125000;
 
     const auto fallbackName = QStringLiteral("agent");
 
@@ -34,6 +40,7 @@ namespace {
         QSet<QString> valued;
         QSet<QString> flags;
         qsizetype minimumPositionals = 0;
+        // -1 for as many as are given.
         qsizetype maximumPositionals = 0;
         // Where the one positional argument goes in the request.
         QString positionalField;
@@ -69,6 +76,41 @@ namespace {
                 .flags = {},
                 .minimumPositionals = 0,
                 .maximumPositionals = 0,
+                .positionalField = {}};
+        }
+        if (verb == u"look") {
+            return {.valued = {tab},
+                .flags = {QStringLiteral("all")},
+                .minimumPositionals = 0,
+                .maximumPositionals = 0,
+                .positionalField = {}};
+        }
+        if (verb == u"read") {
+            return {.valued = {tab},
+                .flags = {},
+                .minimumPositionals = 0,
+                .maximumPositionals = 1,
+                .positionalField = QStringLiteral("selector")};
+        }
+        if (verb == u"do") {
+            return {.valued = {tab, QStringLiteral("settle"), QStringLiteral("timeout")},
+                .flags = {},
+                .minimumPositionals = 1,
+                .maximumPositionals = -1,
+                .positionalField = {}};
+        }
+        if (verb == u"shot") {
+            return {.valued = {tab, QStringLiteral("output")},
+                .flags = {QStringLiteral("full")},
+                .minimumPositionals = 0,
+                .maximumPositionals = 0,
+                .positionalField = {}};
+        }
+        if (verb == u"eval") {
+            return {.valued = {tab},
+                .flags = {},
+                .minimumPositionals = 1,
+                .maximumPositionals = -1,
                 .positionalField = {}};
         }
         if (verb == u"space new") {
@@ -153,12 +195,212 @@ namespace {
         std::fputs(text.toLocal8Bit().constData(), stream);
     }
 
+    // A step's words, with a quoted run kept as one word and its quotes
+    // dropped. Steps are separated by `;` outside quotes.
+    QList<QStringList> splitSteps(const QString &text, QString &error)
+    {
+        QList<QStringList> steps;
+        QStringList words;
+        QString word;
+        bool inWord = false;
+        QChar quote;
+        const auto endWord = [&] {
+            if (inWord) {
+                words.append(word);
+            }
+            word.clear();
+            inWord = false;
+        };
+        const auto endStep = [&] {
+            endWord();
+            if (!words.isEmpty()) {
+                steps.append(words);
+            }
+            words.clear();
+        };
+        for (qsizetype index = 0; index < text.size(); ++index) {
+            const auto character = text.at(index);
+            if (!quote.isNull()) {
+                if (character == quote) {
+                    quote = QChar();
+                } else if (character == u'\\' && quote == u'"' && index + 1 < text.size()) {
+                    word.append(text.at(++index));
+                } else {
+                    word.append(character);
+                }
+                continue;
+            }
+            if (character == u'"' || character == u'\'') {
+                quote = character;
+                inWord = true;
+            } else if (character == u';') {
+                endStep();
+            } else if (character.isSpace()) {
+                endWord();
+            } else {
+                word.append(character);
+                inWord = true;
+            }
+        }
+        if (!quote.isNull()) {
+            error = QStringLiteral("A quote in the steps is never closed.");
+            return {};
+        }
+        endStep();
+        return steps;
+    }
+
+    // `click 3`, `fill 5 "text"`, `press Enter`, `select 7 Finland`,
+    // `scroll down`, `back`, `wait text Thanks` and `wait url /done`.
+    QJsonArray readSteps(const QStringList &arguments, QString &error)
+    {
+        QJsonArray steps;
+        for (const auto &argument : arguments) {
+            for (const auto &words : splitSteps(argument, error)) {
+                const auto action = words.constFirst();
+                const auto rest = [&](qsizetype from) { return words.mid(from).join(u' '); };
+                QJsonObject step {{QStringLiteral("action"), action}};
+                if (action == u"click" || action == u"scroll") {
+                    if (words.size() != 2) {
+                        error = QStringLiteral("`%1` takes one label.").arg(action);
+                        return {};
+                    }
+                    step.insert(QStringLiteral("target"), words.at(1));
+                } else if (action == u"fill" || action == u"select") {
+                    if (words.size() < 2 || (action == u"select" && words.size() < 3)) {
+                        error = QStringLiteral("`%1` takes a label and %2.")
+                                    .arg(action,
+                                        action == u"fill" ? QStringLiteral("the text to type")
+                                                          : QStringLiteral("the option"));
+                        return {};
+                    }
+                    step.insert(QStringLiteral("target"), words.at(1));
+                    step.insert(QStringLiteral("text"), rest(2));
+                } else if (action == u"press") {
+                    if (words.size() != 2) {
+                        error = QStringLiteral("`press` takes one key, such as Enter or "
+                                               "Control+a.");
+                        return {};
+                    }
+                    step.insert(QStringLiteral("key"), words.at(1));
+                } else if (action == u"back") {
+                    if (words.size() != 1) {
+                        error = QStringLiteral("`back` takes nothing.");
+                        return {};
+                    }
+                } else if (action == u"wait") {
+                    const auto kind = words.value(1);
+                    if ((kind != u"text" && kind != u"url") || words.size() < 3) {
+                        error = QStringLiteral("Use `wait text <text>` or `wait url <address>`.");
+                        return {};
+                    }
+                    step.insert(kind, rest(2));
+                } else {
+                    error = QStringLiteral("There is no step \"%1\".").arg(action);
+                    return {};
+                }
+                steps.append(step);
+            }
+            if (!error.isEmpty()) {
+                return {};
+            }
+        }
+        return steps;
+    }
+
+    QString quoted(const QString &text) { return u'"' + text + u'"'; }
+
+    // What `look` saw, as the Agent reads it: the page, its outline, then one
+    // line per target.
+    QString formatLook(const QJsonObject &look)
+    {
+        QString text = look.value(QStringLiteral("title")).toString() + u'\n'
+            + look.value(QStringLiteral("url")).toString() + u'\n';
+        const auto outline = look.value(QStringLiteral("outline")).toString();
+        if (!outline.isEmpty()) {
+            text += u'\n' + outline + u'\n';
+        }
+        const auto targets = look.value(QStringLiteral("targets")).toArray();
+        if (!targets.isEmpty()) {
+            text += u'\n';
+        }
+        for (const auto &value : targets) {
+            const auto target = value.toObject();
+            QString line = u'[' + target.value(QStringLiteral("label")).toString() + u"] "
+                + target.value(QStringLiteral("kind")).toString();
+            const auto name = target.value(QStringLiteral("name")).toString();
+            if (!name.isEmpty()) {
+                line += u' ' + quoted(name);
+            }
+            if (target.contains(QStringLiteral("value"))) {
+                line += u" = " + quoted(target.value(QStringLiteral("value")).toString());
+            }
+            if (target.value(QStringLiteral("checked")).toBool()) {
+                line += QStringLiteral(" (checked)");
+            }
+            if (target.value(QStringLiteral("disabled")).toBool()) {
+                line += QStringLiteral(" (disabled)");
+            }
+            text += line + u'\n';
+        }
+        const auto above = look.value(QStringLiteral("above")).toInt();
+        const auto below = look.value(QStringLiteral("below")).toInt();
+        if (above > 0) {
+            text += QStringLiteral("%1 more above\n").arg(above);
+        }
+        if (below > 0) {
+            text += QStringLiteral("%1 more below\n").arg(below);
+        }
+        return text;
+    }
+
+    QString formatSteps(const QJsonObject &answer)
+    {
+        QString text;
+        for (const auto &value : answer.value(QStringLiteral("steps")).toArray()) {
+            const auto step = value.toObject();
+            QString line = step.value(QStringLiteral("ok")).toBool() ? QStringLiteral("ok")
+                                                                     : QStringLiteral("failed");
+            line += u' ' + step.value(QStringLiteral("step")).toString();
+            const auto error = step.value(QStringLiteral("error")).toString();
+            if (!error.isEmpty()) {
+                line += QStringLiteral(": ") + error;
+            } else if (step.contains(QStringLiteral("settled"))
+                && !step.value(QStringLiteral("settled")).toBool()) {
+                line += QStringLiteral(" (still changing)");
+            }
+            text += line + u'\n';
+        }
+        return text;
+    }
+
+    int answerTimeoutFor(const QJsonObject &request)
+    {
+        const auto verb = request.value(QStringLiteral("verb")).toString();
+        if (verb == u"shot" && request.value(QStringLiteral("full")).toBool()) {
+            return fullShotAnswerTimeoutMs;
+        }
+        if (verb == u"do") {
+            const auto steps = request.value(QStringLiteral("steps")).toArray().size();
+            const auto perStep = request.value(QStringLiteral("timeout")).toInt(10000)
+                + request.value(QStringLiteral("settle")).toInt(300) + 2000;
+            return static_cast<int>(std::min<qint64>(
+                16 * 60 * 1000, static_cast<qint64>(steps) * perStep + pageAnswerTimeoutMs));
+        }
+        if (verb == u"look" || verb == u"read" || verb == u"shot" || verb == u"eval") {
+            return pageAnswerTimeoutMs;
+        }
+        return answerTimeoutMs;
+    }
+
 } // namespace
 
 bool isAgentCommand(const QStringList &arguments)
 {
     static const QSet<QString> verbs {QStringLiteral("spaces"), QStringLiteral("tabs"),
-        QStringLiteral("open"), QStringLiteral("close"), QStringLiteral("space")};
+        QStringLiteral("open"), QStringLiteral("close"), QStringLiteral("space"),
+        QStringLiteral("look"), QStringLiteral("read"), QStringLiteral("do"),
+        QStringLiteral("shot"), QStringLiteral("eval")};
     return arguments.size() > 1 && verbs.contains(arguments.at(1));
 }
 
@@ -221,13 +463,38 @@ AgentCommand readAgentCommand(const QStringList &arguments, const QString &defau
         }
         if (option == u"name") {
             name = value;
+        } else if (option == u"settle" || option == u"timeout") {
+            bool number = false;
+            const auto milliseconds = value.toInt(&number);
+            if (!number) {
+                command.error = QStringLiteral("--%1 is a number of milliseconds.").arg(option);
+                return command;
+            }
+            request.insert(option, milliseconds);
         } else {
             request.insert(option, value);
         }
     }
 
-    if (positionals.size() < grammar.minimumPositionals
-        || positionals.size() > grammar.maximumPositionals) {
+    if (verb == u"do") {
+        QString error;
+        const auto steps = readSteps(positionals, error);
+        if (!error.isEmpty() || steps.isEmpty()) {
+            command.error
+                = error.isEmpty() ? QStringLiteral("`do` takes at least one step.") : error;
+            return command;
+        }
+        request.insert(QStringLiteral("steps"), steps);
+        positionals.clear();
+    } else if (verb == u"eval") {
+        if (positionals.isEmpty()) {
+            command.error = QStringLiteral("`eval` takes an expression.");
+            return command;
+        }
+        request.insert(QStringLiteral("expression"), positionals.join(u' '));
+        positionals.clear();
+    } else if (positionals.size() < grammar.minimumPositionals
+        || (grammar.maximumPositionals >= 0 && positionals.size() > grammar.maximumPositionals)) {
         command.error = verb == u"open" ? QStringLiteral("`open` takes one address.")
             : verb == u"space delete"
             ? QStringLiteral("`space delete` takes the Space to delete.")
@@ -293,6 +560,31 @@ QString formatAgentAnswer(const QString &verb, const QJsonObject &answer)
     if (verb == u"close") {
         return line({answer.value(QStringLiteral("closed")).toString()});
     }
+    if (verb == u"look") {
+        return formatLook(answer.value(QStringLiteral("look")).toObject());
+    }
+    if (verb == u"read") {
+        auto markdown = answer.value(QStringLiteral("markdown")).toString();
+        return markdown.endsWith(u'\n') ? markdown : markdown + u'\n';
+    }
+    if (verb == u"do") {
+        return formatSteps(answer) + u'\n'
+            + formatLook(answer.value(QStringLiteral("look")).toObject());
+    }
+    if (verb == u"shot") {
+        return line({answer.value(QStringLiteral("path")).toString()});
+    }
+    if (verb == u"eval") {
+        const auto value = answer.value(QStringLiteral("value"));
+        if (value.isString()) {
+            return value.toString() + u'\n';
+        }
+        // A bare value is not a JSON document, so it goes out inside an array
+        // and the brackets come off.
+        const auto wrapped
+            = QString::fromUtf8(QJsonDocument(QJsonArray {value}).toJson(QJsonDocument::Compact));
+        return wrapped.mid(1, wrapped.size() - 2) + u'\n';
+    }
     return line({answer.value(QStringLiteral("deleted")).toString()});
 }
 
@@ -330,8 +622,9 @@ int runAgentCommand(const QStringList &arguments, const QString &socketPath)
     }
     socket.write(QJsonDocument(command.request).toJson(QJsonDocument::Compact) + '\n');
     socket.flush();
+    const auto timeout = answerTimeoutFor(command.request);
     while (!socket.canReadLine()) {
-        if (!socket.waitForReadyRead(answerTimeoutMs)) {
+        if (!socket.waitForReadyRead(timeout)) {
             print(stderr, QStringLiteral("omaweb: the browser did not answer.\n"));
             return 3;
         }
@@ -344,6 +637,12 @@ int runAgentCommand(const QStringList &arguments, const QString &socketPath)
             QString::fromUtf8(QJsonDocument(answer).toJson(QJsonDocument::Compact)) + u'\n');
     } else if (ok) {
         print(stdout, formatAgentAnswer(verb, answer));
+    } else if (verb == u"do" && answer.contains(QStringLiteral("look"))) {
+        // A batch that stopped still says what it did and what the page is
+        // like now, which is what the Agent decides its next step from.
+        print(stdout, formatAgentAnswer(verb, answer));
+        print(stderr,
+            QStringLiteral("omaweb: %1\n").arg(answer.value(QStringLiteral("error")).toString()));
     } else {
         print(stderr,
             QStringLiteral("omaweb: %1\n").arg(answer.value(QStringLiteral("error")).toString()));
