@@ -145,14 +145,34 @@
             too.
           </p>
           <p class="reel__hint" hidden>
-            The reel answers the same keys: try <kbd>Ctrl</kbd>+<kbd>B</kbd>, <kbd>Ctrl</kbd>+<kbd
-              >Y</kbd
-            >
-            or <kbd>T</kbd>.
+            The reel answers the same keys: try <kbd>o</kbd>, <kbd>Ctrl</kbd>+<kbd>B</kbd> or
+            <kbd>T</kbd>.
           </p>
         </div>
 
         <div class="reel__track" role="region" aria-label="Omaweb, view by view" tabindex="0">
+          <article class="reel__card" data-step="omnibar">
+            <figure class="shot" data-theme="matte-black">
+              <a class="shot__open" href="assets/shots/matte-black/omnibar.webp">
+                <img
+                  src="assets/shots/matte-black/omnibar.webp"
+                  width="2720"
+                  height="1720"
+                  alt="The Omnibar open over the page, matching a web search, open tabs and history"
+                  decoding="async"
+                />
+              </a>
+            </figure>
+            <div class="reel__words">
+              <p class="kicker"><span class="reel__index">01</span> Omnibar <kbd>o</kbd></p>
+              <h3>One box for everything.</h3>
+              <p>
+                Type a few letters and it finds the page: a web search, an open tab, a visit from
+                this Space&rsquo;s history. The same box switches Spaces and runs any browser
+                command.
+              </p>
+            </div>
+          </article>
           <article class="reel__card" data-step="space">
             <figure class="shot" data-theme="matte-black">
               <a class="shot__open" href="assets/shots/matte-black/space.webp">
@@ -161,12 +181,13 @@
                   width="2720"
                   height="1720"
                   alt="Omaweb with its sidebar of Spaces and tabs beside a photo essay page"
+                  loading="lazy"
                   decoding="async"
                 />
               </a>
             </figure>
             <div class="reel__words">
-              <p class="kicker"><span class="reel__index">01</span> Spaces</p>
+              <p class="kicker"><span class="reel__index">02</span> Spaces</p>
               <h3>A sidebar for every Space.</h3>
               <p>
                 The sidebar lists a Space&rsquo;s tabs: pinned ones at the top, the rest below. Each
@@ -190,7 +211,7 @@
             </figure>
             <div class="reel__words">
               <p class="kicker">
-                <span class="reel__index">02</span> No sidebar <kbd>Ctrl</kbd>+<kbd>B</kbd>
+                <span class="reel__index">03</span> No sidebar <kbd>Ctrl</kbd>+<kbd>B</kbd>
               </p>
               <h3>The page gets the whole window.</h3>
               <p>
@@ -199,55 +220,6 @@
                   >B</kbd
                 >
                 brings the sidebar back.
-              </p>
-            </div>
-          </article>
-          <article class="reel__card" data-step="history">
-            <figure class="shot" data-theme="matte-black">
-              <a class="shot__open" href="assets/shots/matte-black/history.webp">
-                <img
-                  src="assets/shots/matte-black/history.webp"
-                  width="2720"
-                  height="1720"
-                  alt="The History view, listing this Space's visits"
-                  loading="lazy"
-                  decoding="async"
-                />
-              </a>
-            </figure>
-            <div class="reel__words">
-              <p class="kicker">
-                <span class="reel__index">03</span> History <kbd>Ctrl</kbd>+<kbd>Y</kbd>
-              </p>
-              <h3>Each Space keeps its own history.</h3>
-              <p>
-                History opens over the page and searches only the Space you are in. Delete one
-                visit, a whole site, a stretch of time or the lot, and the other Spaces keep theirs.
-              </p>
-            </div>
-          </article>
-          <article class="reel__card" data-step="settings">
-            <figure class="shot" data-theme="matte-black">
-              <a class="shot__open" href="assets/shots/matte-black/settings.webp">
-                <img
-                  src="assets/shots/matte-black/settings.webp"
-                  width="2720"
-                  height="1720"
-                  alt="Settings, open beside the tabs on its Tabs section"
-                  loading="lazy"
-                  decoding="async"
-                />
-              </a>
-            </figure>
-            <div class="reel__words">
-              <p class="kicker">
-                <span class="reel__index">04</span> Settings <kbd>Ctrl</kbd>+<kbd>,</kbd>
-              </p>
-              <h3>Settings, next to your tabs.</h3>
-              <p>
-                Settings opens in the same window, beside the tabs it changes. Every key binding
-                lives in one <code>keybindings.json</code>, so any command can move to the key you
-                want it on.
               </p>
             </div>
           </article>
@@ -265,7 +237,7 @@
               </a>
             </figure>
             <div class="reel__words">
-              <p class="kicker"><span class="reel__index">05</span> Content blocking</p>
+              <p class="kicker"><span class="reel__index">04</span> Content blocking</p>
               <h3>Blocking, built in.</h3>
               <p>
                 EasyList and EasyPrivacy are on from the first run, with cosmetic rules and a count
@@ -380,7 +352,7 @@
             <button class="reel__step" type="button" data-step-by="-1" aria-label="Previous view">
               ←
             </button>
-            <span class="reel__count" aria-live="polite">1 / 5</span>
+            <span class="reel__count" aria-live="polite">1 / 4</span>
             <button class="reel__step" type="button" data-step-by="1" aria-label="Next view">
               →
             </button>

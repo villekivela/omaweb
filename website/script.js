@@ -130,9 +130,10 @@ if (reel) {
     { threshold: 0.1 },
   ).observe(reel);
 
-  // The same chords Omaweb binds: Ctrl+B the sidebar, Ctrl+Y History, Ctrl+, Settings, and
-  // Escape back to the page. A second press of a chord goes back, as the browser's toggle does.
-  const chords = { b: "collapsed", y: "history", ",": "settings" };
+  // The same keys Omaweb binds: o the Omnibar, Ctrl+B the sidebar, and Escape back to the page. A
+  // second press of Ctrl+B goes back, as the browser's toggle does. Ctrl+L, the Omnibar's other
+  // key, stays the reader's own browser's.
+  const chords = { b: "collapsed" };
   const indexOf = (step) => cards.findIndex((card) => card.dataset.step === step);
   document.addEventListener("keydown", (event) => {
     if (!onScreen || viewer?.open) return;
@@ -144,7 +145,11 @@ if (reel) {
       goTo(indexOf(current === chords[key] ? "space" : chords[key]));
     } else if (key === "escape" && current !== "space") {
       goTo(indexOf("space"));
-    } else if (key === "t" && !event.ctrlKey && !event.metaKey && !event.altKey) {
+    } else if (event.ctrlKey || event.metaKey || event.altKey) {
+      return;
+    } else if (key === "o") {
+      goTo(indexOf("omnibar"));
+    } else if (key === "t") {
       const index = swatches.findIndex((swatch) => swatch.dataset.themeChoice === theme);
       paint(swatches[(index + 1) % swatches.length].dataset.themeChoice);
     }
