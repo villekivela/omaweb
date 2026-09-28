@@ -1,0 +1,10 @@
+{"name":"info","value":{"platform":"wayland","os":"linux","graphicsApi":3,"delegate":"QtWebEngineCore::RenderWidgetHostViewQtDelegateItem","agentRenderer":675968,"readerRenderer":675967,"devicePixelRatio":2,"size":[621,686]}}
+{"name":"unseen.0","value":{"hasFocus":false,"hidden":false,"rafPerSecond":56.418823084386126,"ticksPerSecond":87.93771866225548,"visibilityState":"visible","grabMs":427.1613749999997,"second":8}}
+{"name":"unseen.1","value":{"hasFocus":false,"hidden":false,"rafPerSecond":58.154903515613725,"ticksPerSecond":90.86703674314644,"visibilityState":"visible","grabMs":248.0188130000006,"second":11}}
+{"name":"unseen.2","value":{"hasFocus":false,"hidden":false,"rafPerSecond":54.73907706603959,"ticksPerSecond":83.60149951904228,"visibilityState":"visible","grabMs":"timed out after 3000","second":17}}
+{"name":"unseen.3","value":{"hasFocus":false,"hidden":false,"rafPerSecond":58.46787588858739,"ticksPerSecond":90.35944455508961,"visibilityState":"visible","grabMs":"timed out after 3000","second":23}}
+{"name":"unseen.4","value":{"hasFocus":false,"hidden":false,"rafPerSecond":53.033674528884404,"ticksPerSecond":81.96113336282136,"visibilityState":"visible","grabMs":218.35642400000143,"second":29}}
+{"name":"unseen.5","value":{"hasFocus":false,"hidden":false,"rafPerSecond":58.85482476546159,"ticksPerSecond":94.10121699788492,"visibilityState":"visible","grabMs":155.89490500000102,"second":32}}
+{"name":"unseen.6","value":{"hasFocus":false,"hidden":false,"rafPerSecond":59.62184597117375,"ticksPerSecond":95.19731207552051,"visibilityState":"visible","grabMs":108.7169819999981,"second":35}}
+{"name":"unseen.7","value":{"hasFocus":false,"hidden":false,"rafPerSecond":57.88951372808468,"ticksPerSecond":90.96923585841878,"visibilityState":"visible","grabMs":40.71414999999979,"second":38}}
+{"name":"unseen.8","value":{"hasFocus":false,"hidden":false,"rafPerSecond":56.77879378079729,"ticksPerSecond":86.48862773586563,"visibilityState":"visible","grabMs":311.7294000000038,"second":41}}

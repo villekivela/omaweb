@@ -1,0 +1,12 @@
+{"name":"q1.rendering.hidden","value":{"hasFocus":false,"hidden":true,"rafPerSecond":0,"ticksPerSecond":1.8841854038490284,"visibilityState":"hidden","windowAtAgentButton":"#ffffff","windowAtCentre":"#ffffff"}}
+{"name":"q1.rendering.behind","value":{"hasFocus":false,"hidden":false,"rafPerSecond":56.642468830530426,"ticksPerSecond":88.54454897646136,"visibilityState":"visible","windowAtAgentButton":"#ffffff","windowAtCentre":"#ffffff"}}
+{"name":"q1.rendering.opacity0","value":{"hasFocus":false,"hidden":false,"rafPerSecond":55.656306672710734,"ticksPerSecond":83.79713588924987,"visibilityState":"visible","windowAtAgentButton":"#ffffff","windowAtCentre":"#ffffff"}}
+{"name":"q2.grab.behind","value":{"expected":"#ff0000","seen":"#ff0000","matches":true,"ms":249.0405950000022}}
+{"name":"q2.grab.behind","value":{"expected":"#0000ff","seen":"#0000ff","matches":true,"ms":111.69445500000074}}
+{"name":"q2.grab.behind","value":{"expected":"#ff00ff","seen":"#ff00ff","matches":true,"ms":244.56919500000004}}
+{"name":"q2.grab.opacity0","value":{"expected":"#ff0000","seen":"#ff0000","matches":true,"ms":265.03518299999996}}
+{"name":"q2.grab.opacity0","value":{"expected":"#0000ff","seen":"#0000ff","matches":true,"ms":279.38718000000154}}
+{"name":"q2.grab.opacity0","value":{"expected":"#ff00ff","seen":"#ff00ff","matches":true,"ms":417.93545000000086}}
+{"name":"q2.grab.hidden","value":{"expected":"#ff0000","seen":"#00ff00","matches":false,"ms":144.90263900000355}}
+{"name":"q2.grab.hidden","value":{"expected":"#0000ff","seen":"#ff0000","matches":false,"ms":321.5137050000012}}
+{"name":"q2.grab.hidden","value":{"expected":"#ff00ff","seen":"#ff0000","matches":false,"ms":115.4581419999995}}

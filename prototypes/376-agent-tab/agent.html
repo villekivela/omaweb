@@ -1,0 +1,137 @@
+<!doctype html>
+<meta charset="utf-8" />
+<title>agent</title>
+<style>
+  html,
+  body {
+    margin: 0;
+    height: 100%;
+  }
+  body {
+    background: #00ff00;
+    font: 16px sans-serif;
+  }
+  #box {
+    position: absolute;
+    left: 40px;
+    top: 40px;
+    width: 200px;
+    height: 60px;
+  }
+  #field {
+    position: absolute;
+    left: 40px;
+    top: 140px;
+    width: 300px;
+    font-size: 20px;
+  }
+  #spin {
+    position: absolute;
+    left: 400px;
+    top: 40px;
+    width: 100px;
+    height: 100px;
+    background: #333;
+  }
+  .spinner #spin {
+    animation: spin 1s linear infinite;
+  }
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+  #paint {
+    position: absolute;
+    left: 600px;
+    top: 40px;
+  }
+</style>
+<button id="box">Press</button>
+<input id="field" />
+<div id="spin"></div>
+<canvas id="paint" width="400" height="400"></canvas>
+<script>
+  // Everything the harness asks of the page goes through this object, read back with
+  // runJavaScript, so the page never needs a channel of its own.
+  const probe = {
+    log: [],
+    raf: 0,
+    ticks: 0,
+    counting: false,
+    painting: false,
+    visibilityChanges: [],
+    start() {
+      this.raf = 0;
+      this.ticks = 0;
+      this.counting = true;
+      this.started = performance.now();
+      this.interval = setInterval(() => this.ticks++, 10);
+      requestAnimationFrame(countFrame);
+    },
+    stop() {
+      this.counting = false;
+      clearInterval(this.interval);
+      const seconds = (performance.now() - this.started) / 1000;
+      return {
+        rafPerSecond: this.raf / seconds,
+        ticksPerSecond: this.ticks / seconds,
+        visibilityState: document.visibilityState,
+        hidden: document.hidden,
+        hasFocus: document.hasFocus(),
+      };
+    },
+    setColour(colour) {
+      document.body.style.background = colour;
+    },
+    setLoad(kind) {
+      document.body.classList.toggle("spinner", kind === "spinner");
+      this.painting = kind === "raf";
+      if (this.painting) requestAnimationFrame(paint);
+    },
+    centre(id) {
+      const r = document.getElementById(id).getBoundingClientRect();
+      return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+    },
+    take() {
+      const out = this.log;
+      this.log = [];
+      return out;
+    },
+  };
+
+  function countFrame() {
+    if (!probe.counting) return;
+    probe.raf++;
+    requestAnimationFrame(countFrame);
+  }
+
+  const context = document.getElementById("paint").getContext("2d");
+  function paint(time) {
+    if (!probe.painting) return;
+    for (let i = 0; i < 200; i++) {
+      context.fillStyle = `hsl(${(time / 5 + i * 7) % 360} 80% 50%)`;
+      context.fillRect((i * 37 + time / 3) % 400, (i * 53) % 400, 40, 40);
+    }
+    requestAnimationFrame(paint);
+  }
+
+  function record(event) {
+    probe.log.push({
+      type: event.type,
+      target: event.currentTarget.id || event.currentTarget.nodeName || "window",
+      isTrusted: event.isTrusted,
+      key: event.key,
+      hasFocus: document.hasFocus(),
+    });
+  }
+  for (const type of ["pointerdown", "mousedown", "mouseup", "click"])
+    document.getElementById("box").addEventListener(type, record);
+  for (const type of ["mousedown", "focus", "blur", "keydown", "keyup", "input"])
+    document.getElementById("field").addEventListener(type, record);
+  window.addEventListener("focus", record);
+  window.addEventListener("blur", record);
+  document.addEventListener("visibilitychange", () =>
+    probe.visibilityChanges.push(document.visibilityState),
+  );
+</script>

@@ -1,0 +1,39 @@
+<!doctype html>
+<meta charset="utf-8" />
+<title>reader</title>
+<style>
+  html,
+  body {
+    margin: 0;
+    height: 100%;
+    background: #ffffff;
+    font: 16px sans-serif;
+  }
+  #r {
+    position: absolute;
+    left: 40px;
+    top: 140px;
+    width: 300px;
+    font-size: 20px;
+  }
+</style>
+<input id="r" />
+<script>
+  // The page the reader is on. It stays static, so any frame the window draws is the Agent tab's
+  // doing, and it records whether the Agent's input disturbed the reader's focus.
+  const probe = {
+    log: [],
+    take() {
+      const out = this.log;
+      this.log = [];
+      return { log: out, value: document.getElementById("r").value, hasFocus: document.hasFocus() };
+    },
+  };
+  function record(event) {
+    probe.log.push({ type: event.type, isTrusted: event.isTrusted, key: event.key });
+  }
+  for (const type of ["focus", "blur", "keydown", "input"])
+    document.getElementById("r").addEventListener(type, record);
+  window.addEventListener("focus", record);
+  window.addEventListener("blur", record);
+</script>

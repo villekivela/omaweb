@@ -1,0 +1,13 @@
+{"name":"info","value":{"platform":"cocoa","os":"osx","graphicsApi":6,"delegate":"QtWebEngineCore::RenderWidgetHostViewQtDelegateItem","agentRenderer":76661,"readerRenderer":76660,"devicePixelRatio":2,"size":[1268,1369]}}
+{"name":"q1.rendering.hidden","value":{"hasFocus":false,"hidden":true,"rafPerSecond":0,"ticksPerSecond":0.9985687182657168,"visibilityState":"hidden","windowAtAgentButton":"#ffffff","windowAtCentre":"#ffffff"}}
+{"name":"q1.rendering.behind","value":{"hasFocus":false,"hidden":false,"rafPerSecond":60.24096385733376,"ticksPerSecond":99.84690142099518,"visibilityState":"visible","windowAtAgentButton":"#ffffff","windowAtCentre":"#ffffff"}}
+{"name":"q1.rendering.opacity0","value":{"hasFocus":false,"hidden":false,"rafPerSecond":60.28875138822783,"ticksPerSecond":99.95240361732509,"visibilityState":"visible","windowAtAgentButton":"#ffffff","windowAtCentre":"#ffffff"}}
+{"name":"q2.grab.behind","value":{"expected":"#ff0000","seen":"#ff0000","matches":true,"ms":16.504832999999053}}
+{"name":"q2.grab.behind","value":{"expected":"#0000ff","seen":"#0000ff","matches":true,"ms":11.898584000000483}}
+{"name":"q2.grab.behind","value":{"expected":"#ff00ff","seen":"#ff00ff","matches":true,"ms":14.00616600000103}}
+{"name":"q2.grab.opacity0","value":{"expected":"#ff0000","seen":"#ff0000","matches":true,"ms":22.2723339999975}}
+{"name":"q2.grab.opacity0","value":{"expected":"#0000ff","seen":"#0000ff","matches":true,"ms":29.284790999998222}}
+{"name":"q2.grab.opacity0","value":{"expected":"#ff00ff","seen":"#ff00ff","matches":true,"ms":25.43945900000108}}
+{"name":"q2.grab.hidden","value":{"expected":"#ff0000","seen":"#00ff00","matches":false,"ms":47.46816700000272}}
+{"name":"q2.grab.hidden","value":{"expected":"#0000ff","seen":"#ff0000","matches":false,"ms":46.30045899999823}}
+{"name":"q2.grab.hidden","value":{"expected":"#ff00ff","seen":"#0000ff","matches":false,"ms":24.167499999999563}}
