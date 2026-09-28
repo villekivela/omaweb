@@ -239,9 +239,10 @@ jobs:
           cat >> /tmp/measure.sh <<'SCRIPT'
           mkdir -p /tmp/netlogs
           quiet=0
+          echo "=== core_pattern: $(cat /proc/sys/kernel/core_pattern) ulimit -c: $(ulimit -c)"
           for i in $(seq 80); do
             if [ $((SHARD % 2)) -eq 0 ]; then
-              export QTWEBENGINE_CHROMIUM_FLAGS="--log-net-log=/tmp/netlogs/netlog-$i.json --net-log-capture-mode=Default"
+              export OMAWEB_DIAG_NO_CORE=1
             fi
             scripts/benchmark_runtime.py pageload --browser build/ci/omaweb --require-dns > /tmp/netlogs/out-$i.txt 2>&1
             status=$?

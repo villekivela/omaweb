@@ -2494,6 +2494,7 @@ Item {
         onLoadProgressChanged: console.warn("omaweb-diag progress", Date.now(), webView.loadProgress)
 
         onRenderProcessTerminated: function (terminationStatus, exitCode) {
+            console.warn("omaweb-diag renderer-terminated", Date.now(), terminationStatus, exitCode);
             root.rendererFailed("Renderer stopped with exit code " + exitCode);
         }
 

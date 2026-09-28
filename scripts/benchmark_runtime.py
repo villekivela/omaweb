@@ -405,8 +405,14 @@ def describe_processes(root: int) -> list[str]:
     after = process_states(root)
     lines = []
     for pid, (name, state, cpu, rss) in sorted(after.items()):
+        dumping = ""
+        try:
+            with open(f"/proc/{pid}/status") as h:
+                dumping = " ".join(l.strip() for l in h if l.startswith(("CoreDumping", "SigPnd", "ShdPnd")))
+        except OSError:
+            pass
         lines.append(f"{pid} {name} {state} {rss / 1024:.0f} MiB, "
-                     f"{cpu - before.get(pid, (name, state, cpu, rss))[2]:.2f} CPU s in the last second")
+                     f"{cpu - before.get(pid, (name, state, cpu, rss))[2]:.2f} CPU s in the last second {dumping}")
         threads = []
         for tid in sorted(os.listdir(f"/proc/{pid}/task"), key=int) if os.path.isdir(f"/proc/{pid}/task") else []:
             try:
@@ -459,8 +465,12 @@ class Browser:
             environment["OMAWEB_KEYBINDINGS_FILE"] = keybindings
         self.sink = open(self.log_path, "w", encoding="utf-8")
         self.started_at = time.time()
+        import resource
+        def no_core():
+            if os.environ.get("OMAWEB_DIAG_NO_CORE"):
+                resource.setrlimit(resource.RLIMIT_CORE, (1, 1))
         self.process = subprocess.Popen(
-            [*launcher, "dbus-run-session", "--", self.executable, url],
+            [*launcher, "dbus-run-session", "--", self.executable, url], preexec_fn=no_core,
             env=environment,
             stdout=subprocess.DEVNULL,
             stderr=self.sink,
