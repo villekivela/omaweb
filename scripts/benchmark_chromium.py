@@ -53,6 +53,7 @@ import re
 import shutil
 import signal
 import socket
+import ssl
 import struct
 import subprocess
 import sys
@@ -203,9 +204,21 @@ BROWSER_NAMES = {
 
 NO_GPU_FLAGS = ("--disable-gpu", "--disable-gpu-compositing")
 
+# The switches that choose how a browser draws. Omaweb's are handed to both Chromiums by default,
+# so all three composite the same way: on a guest where Omaweb has to go around ANGLE, a Chromium
+# left on its own falls back to software, and the comparison would measure the compositors. Any
+# other switch in `QTWEBENGINE_CHROMIUM_FLAGS` is Omaweb's business and stays with it.
+GL_FLAGS = ("--use-gl", "--use-angle", "--use-vulkan", "--disable-gpu", "--enable-gpu",
+            "--ignore-gpu-blocklist", "--disable-software-rasterizer", "--enable-zero-copy")
+
 
 class Unavailable(RuntimeError):
     """This machine cannot run the comparison as asked, which is not a failed run."""
+
+
+class IntegrityFailed(RuntimeError):
+    """A download is not the file it was the first time, which fails the run rather than skipping
+    it: a comparison against a binary nobody can name is not one worth taking."""
 
 
 class RunFailed(RuntimeError):
@@ -226,12 +239,23 @@ def cache_root() -> Path:
 
 
 def download(url: str, target: Path) -> None:
+    """Fetches over HTTPS with the certificate verified, and refuses anything else.
+
+    A redirect is followed, so where the answer came from is checked as well as where the request
+    went: a redirect to plain HTTP would otherwise hand the file to anyone on the path.
+    """
+    if urllib.parse.urlsplit(url).scheme != "https":
+        raise IntegrityFailed(f"{url} is not HTTPS, and nothing here is fetched without it")
     partial = target.with_name(target.name + ".part")
     target.parent.mkdir(parents=True, exist_ok=True)
     log(f"  fetching {url}")
     request = urllib.request.Request(url, headers={"User-Agent": "omaweb-benchmark"})
-    with urllib.request.urlopen(request, timeout=120) as response, open(partial, "wb") as handle:
-        shutil.copyfileobj(response, handle, 1 << 20)
+    with urllib.request.urlopen(request, timeout=120, context=ssl.create_default_context()) \
+            as response:
+        if urllib.parse.urlsplit(response.geturl()).scheme != "https":
+            raise IntegrityFailed(f"{url} was redirected to {response.geturl()}, which is not HTTPS")
+        with open(partial, "wb") as handle:
+            shutil.copyfileobj(response, handle, 1 << 20)
     partial.rename(target)
 
 
@@ -383,8 +407,25 @@ def extract_zip(archive: Path, target: Path) -> None:
                 path.chmod(mode)
 
 
-def matched_chromium(wanted: int, root: Path) -> tuple[str, str]:
-    """A Chromium of the wanted major for this machine, and where it came from."""
+@dataclasses.dataclass(frozen=True)
+class MatchedChromium:
+    """The matched Chromium's executable, where it came from, and the digest of what was run."""
+
+    executable: str
+    source: str
+    sha256: str
+    hashed: str
+
+
+def matched_chromium(wanted: int, root: Path) -> MatchedChromium:
+    """A Chromium of the wanted major for this machine, from an archive verified on every run.
+
+    Playwright publishes no digest to check a build against, so the one pinned is the archive's
+    own on its first fetch, recorded in `majors.json`. Every later run hashes the kept archive
+    against it, and a fetch after that is held to it too, so the history can say exactly which
+    binary a run measured and a build that changed under the same name fails the run. The build
+    is extracted afresh from the verified archive each run, so what runs is what was hashed.
+    """
     architecture = platform.machine()
     archive_name = PLAYWRIGHT_ARCHIVES.get(architecture)
     if archive_name is None:
@@ -403,22 +444,39 @@ def matched_chromium(wanted: int, root: Path) -> tuple[str, str]:
         tag, entry = found
         known[str(wanted)] = {"tag": tag, "revision": entry["revision"],
                               "version": entry["browserVersion"]}
+    build = known[str(wanted)]
+    name = f"{build['version']}-{architecture}"
+    archive = root / "chromium" / f"{name}.zip"
+    recorded = build.get("sha256", "")
+    if archive.exists() and not recorded:
+        # An archive with no digest beside it is not one this can vouch for.
+        archive.unlink()
+    if not archive.exists():
+        download(PLAYWRIGHT_BUILD.format(build["revision"], archive_name), archive)
+    found = digest(archive)
+    if recorded and found != recorded:
+        raise IntegrityFailed(
+            f"the Chromium {build['version']} archive {archive} has digest {found}, and its first "
+            f"fetch had {recorded}. Delete the archive and its entry in {index} only if the "
+            "change is known to be benign.")
+    if not recorded:
+        build["sha256"] = found
         index.parent.mkdir(parents=True, exist_ok=True)
         index.write_text(json.dumps(known, indent=2) + "\n")
-    build = known[str(wanted)]
-    directory = root / "chromium" / f"{build['version']}-{architecture}"
-    source = f"Playwright {build['tag']}, build {build['revision']}"
-    executable = next(directory.glob("*/chrome"), None) if directory.exists() else None
+    directory = root / "chromium" / name
+    shutil.rmtree(directory, ignore_errors=True)
+    extract_zip(archive, directory)
+    executable = next(directory.glob("*/chrome"), None)
     if executable is None:
-        archive = root / "chromium" / f"{build['version']}-{architecture}.zip"
-        download(PLAYWRIGHT_BUILD.format(build["revision"], archive_name), archive)
-        shutil.rmtree(directory, ignore_errors=True)
-        extract_zip(archive, directory)
-        archive.unlink()
-        executable = next(directory.glob("*/chrome"), None)
-        if executable is None:
-            raise Unavailable(f"the Chromium {build['version']} archive holds no chrome")
-    return str(executable), source
+        raise Unavailable(f"the Chromium {build['version']} archive holds no chrome")
+    return MatchedChromium(str(executable), f"Playwright {build['tag']}, build {build['revision']}",
+                           found, archive_name)
+
+
+def given_chromium(executable: str) -> MatchedChromium:
+    """A matched Chromium the reader named, identified by its executable's digest."""
+    return MatchedChromium(executable, "given with --matched-chromium",
+                           digest(Path(executable)), os.path.basename(executable))
 
 
 # DevTools, over the one WebSocket each browser offers. The standard library has no WebSocket
@@ -537,10 +595,26 @@ class BrowserSpec:
     executable: str
     flags: str = ""
     source: str = ""
+    # The digest of what was run, and of which file, where the harness fetched or was given it.
+    sha256: str = ""
+    hashed: str = ""
 
     @property
     def is_omaweb(self) -> bool:
         return self.role == history.OMAWEB
+
+
+def gl_flags(flags: str) -> str:
+    """The switches of a command line that choose how the browser draws."""
+    return " ".join(flag for flag in flags.split()
+                    if any(flag == name or flag.startswith(name + "=") or
+                           flag.startswith(name + "-") for name in GL_FLAGS))
+
+
+def chromium_flags(omaweb_flags: str, override: str | None) -> str:
+    """What both Chromiums are launched with: Omaweb's GL flags, unless `--chromium-flags` said
+    otherwise, an empty value included."""
+    return gl_flags(omaweb_flags) if override is None else override
 
 
 def command_line(spec: BrowserSpec, root: str, port: int, url: str) -> tuple[list[str], dict]:
@@ -624,12 +698,21 @@ class RunningBrowser:
             # Content blocking as a first run leaves it, but from the committed lists: a first run
             # would otherwise fetch and compile them in the middle of the benchmark.
             runtime.seed_content_blocking(os.path.join(self.root, "data"), [], [])
-        command, environment = command_line(spec, self.root, self.port, url)
-        self.log = open(os.path.join(self.root, "browser.log"), "w", encoding="utf-8")
-        self.process = subprocess.Popen(command, env=environment, stdout=self.log,
-                                        stderr=subprocess.STDOUT, start_new_session=True)
         self.page: DevTools | None = None
-        self.version = self._await_devtools()
+        self.process: subprocess.Popen | None = None
+        self.log = None
+        # Nothing outside this constructor holds the browser until it returns, so a launch that
+        # fails, times out or is interrupted ends the browser here, whole process group and
+        # `dbus-run-session` included, rather than leaving it running into the next measurement.
+        try:
+            command, environment = command_line(spec, self.root, self.port, url)
+            self.log = open(os.path.join(self.root, "browser.log"), "w", encoding="utf-8")
+            self.process = subprocess.Popen(command, env=environment, stdout=self.log,
+                                            stderr=subprocess.STDOUT, start_new_session=True)
+            self.version = self._await_devtools()
+        except BaseException:
+            self.stop()
+            raise
 
     def _await_devtools(self) -> dict:
         deadline = time.time() + DEVTOOLS_TIMEOUT
@@ -714,16 +797,21 @@ class RunningBrowser:
         if self.page:
             self.page.close()
             self.page = None
-        for stage in (signal.SIGTERM, signal.SIGKILL):
-            try:
-                os.killpg(self.process.pid, stage)
-            except (ProcessLookupError, PermissionError):
-                break
-            try:
-                self.process.wait(timeout=10)
-            except subprocess.TimeoutExpired:
-                pass
-        self.log.close()
+        if self.process:
+            # The browser leads a session of its own, so its process id is the group's.
+            for stage in (signal.SIGTERM, signal.SIGKILL):
+                try:
+                    os.killpg(self.process.pid, stage)
+                except (ProcessLookupError, PermissionError):
+                    break
+                try:
+                    self.process.wait(timeout=10)
+                except subprocess.TimeoutExpired:
+                    pass
+            self.process = None
+        if self.log:
+            self.log.close()
+            self.log = None
         shutil.rmtree(self.root, ignore_errors=True)
 
 
@@ -844,7 +932,9 @@ def report_lines(record: dict) -> list[str]:
         lines.append(f"{BROWSER_NAMES[role]}: {browser.get('version')}"
                      + (f", from {browser['source']}" if browser.get("source") else "")
                      + f"; flags: {browser.get('flags') or 'none'}"
-                     + f"; GPU compositing: {gpu.get('gpu_compositing') or 'not reported'}")
+                     + f"; GPU compositing: {gpu.get('gpu_compositing') or 'not reported'}"
+                     + (f"; {browser['sha256_of']} sha256 {browser['sha256']}"
+                        if browser.get("sha256") else ""))
     lines.append("")
     ratios = history.comparison_ratios(record)
     for suite, scores in record["scores"].items():
@@ -954,14 +1044,16 @@ def compare(arguments) -> int:
     if not engine_chromium:
         raise Unavailable(f"{omaweb} --version did not name its Chromium")
     if arguments.matched_chromium:
-        matched, source = arguments.matched_chromium, "given with --matched-chromium"
+        matched = given_chromium(arguments.matched_chromium)
     else:
-        matched, source = matched_chromium(major(engine_chromium), cache)
+        matched = matched_chromium(major(engine_chromium), cache)
+    omaweb_flags = os.environ.get("QTWEBENGINE_CHROMIUM_FLAGS", "")
+    flags = chromium_flags(omaweb_flags, arguments.chromium_flags)
     specs = {
-        history.OMAWEB: BrowserSpec(history.OMAWEB, omaweb,
-                                    os.environ.get("QTWEBENGINE_CHROMIUM_FLAGS", "")),
-        history.LATEST: BrowserSpec(history.LATEST, latest, arguments.chromium_flags, latest),
-        history.MATCHED: BrowserSpec(history.MATCHED, matched, arguments.chromium_flags, source),
+        history.OMAWEB: BrowserSpec(history.OMAWEB, omaweb, omaweb_flags),
+        history.LATEST: BrowserSpec(history.LATEST, latest, flags, latest),
+        history.MATCHED: BrowserSpec(history.MATCHED, matched.executable, flags, matched.source,
+                                     matched.sha256, matched.hashed),
     }
     server = SuiteServer(cache / "suites")
 
@@ -987,6 +1079,8 @@ def compare(arguments) -> int:
                         "chromium": browser.chromium_version,
                         "flags": spec.flags,
                         "source": spec.source,
+                        **({"sha256": spec.sha256, "sha256_of": spec.hashed}
+                           if spec.sha256 else {}),
                         "gpu": gpu,
                         "no_gpu": is_software(gpu, spec.flags),
                     }
@@ -1057,9 +1151,9 @@ def main() -> int:
                         help="the latest stable Chromium, Arch's by default")
     parser.add_argument("--matched-chromium", default="",
                         help="a Chromium of the engine's major, instead of fetching one")
-    parser.add_argument("--chromium-flags", default="",
-                        help="flags for both Chromiums; Omaweb's come from "
-                        "QTWEBENGINE_CHROMIUM_FLAGS")
+    parser.add_argument("--chromium-flags", default=None,
+                        help="flags for both Chromiums instead of Omaweb's GL flags from "
+                        "QTWEBENGINE_CHROMIUM_FLAGS; an empty value passes none")
     parser.add_argument("--suite", action="append", choices=list(SUITES),
                         help="a suite to run, all of them by default; may be repeated")
     parser.add_argument("--runs", type=int, default=3, help="runs of each suite in each browser")
@@ -1084,6 +1178,9 @@ def main() -> int:
     except Unavailable as error:
         log(f"skipped: {error}")
         return 0
+    except IntegrityFailed as error:
+        log(f"FAILED: {error}")
+        return 1
 
 
 if __name__ == "__main__":
