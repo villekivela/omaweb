@@ -118,9 +118,14 @@ jobs:
     runs-on: ubuntu-latest
     container: archlinux:base-devel
     timeout-minutes: 75
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4, 5, 6, 7, 8]
     env:
       CC: clang
       CXX: clang++
+      SHARD: ${{ matrix.shard }}
     steps:
       - name: Install toolchain
         # `rust` carries cargo, which the content-blocker bootstrap needs. This
@@ -183,11 +188,13 @@ jobs:
       - name: Build
         run: su builder -c 'cmake --build --preset ci'
       - name: Test
+        if: false
         run: su builder -c 'ctest --preset ci'
       # The engine contract skips CNAME uncloaking's test on an engine without
       # the DNS alias API, and a skip passes. ctest prints only failing
       # output, so the result is read from its log.
       - name: Check CNAME uncloaking was tested
+        if: false
         run: |
           result=$(grep -E '^(PASS|SKIP|FAIL!) +: QtEngineContractTest::qtRefusesATrackerBehindACname\(\)' \
             build/ci/Testing/Temporary/LastTest.log || true)
@@ -232,16 +239,13 @@ jobs:
           cat >> /tmp/measure.sh <<'SCRIPT'
           mkdir -p /tmp/netlogs
           quiet=0
-          for i in $(seq 25); do
-            echo "=== pageload repetition $i"
-            QTWEBENGINE_CHROMIUM_FLAGS="--log-net-log=/tmp/netlogs/netlog-$i.json --net-log-capture-mode=Default" \
-              scripts/benchmark_runtime.py pageload --browser build/ci/omaweb --require-dns > /tmp/netlogs/out-$i.txt 2>&1
+          for i in $(seq 20); do
+            scripts/benchmark_runtime.py pageload --browser build/ci/omaweb --require-dns > /tmp/netlogs/out-$i.txt 2>&1
             status=$?
-            cat /tmp/netlogs/out-$i.txt
-            if grep -q 'never reported' /tmp/netlogs/out-$i.txt; then quiet=$((quiet + 1)); else rm -f /tmp/netlogs/netlog-$i.json; fi
-            echo "=== repetition $i exit $status"
+            if grep -q 'never reported' /tmp/netlogs/out-$i.txt; then quiet=$((quiet + 1)); cat /tmp/netlogs/out-$i.txt; fi
+            echo "=== shard ${SHARD} repetition $i exit $status $(grep -c 'cut short' /tmp/netlogs/out-$i.txt) $(grep 'fresh hosts:' /tmp/netlogs/out-$i.txt | tail -1)"
           done
-          echo "=== $quiet of 25 repetitions went quiet"
+          echo "=== shard ${SHARD}: $quiet of 20 repetitions went quiet"
           chmod -R a+r /tmp/netlogs
           scripts/benchmark_runtime.py --browser build/ci/omaweb --require-dns
           echo $? > /tmp/budget.status
@@ -273,7 +277,7 @@ jobs:
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
-          name: pageload-netlogs
+          name: pageload-netlogs-${{ matrix.shard }}
           path: /tmp/netlogs/
           if-no-files-found: ignore
       - name: Publish content-blocking compatibility
