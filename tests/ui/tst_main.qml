@@ -3299,7 +3299,7 @@ TestCase {
         compare(settingsButton.accessibleName, "Browsing settings and downloads");
         compare(addressButton.accessibleName, "Search or enter address");
         compare(collapseButton.accessibleName, "Hide sidebar");
-        compare(commandPanelButton.accessibleName, "Command panel");
+        compare(commandPanelButton.accessibleName, "Search commands");
         compare(newSpaceButton.label, "New Space");
         verify(iconFontSource.toString().endsWith("/material-symbols-rounded.ttf"));
         verify(materialSymbolsFont !== null);
@@ -5141,13 +5141,16 @@ TestCase {
         input.text = "gg rust";
         compare(chip.visible, false);
         compare(destination.text, "Search DuckDuckGo for gg rust");
-        // An address is not a search, so nothing is said.
+        // An address is not a search, so the row says it opens.
         input.text = "example.com";
-        compare(destination.visible, false);
+        compare(destination.text, "Open example.com");
 
-        // A prefix offers the keywords it could become, beneath the history.
+        // A prefix offers the keywords it could become, ahead of the commands
+        // it starts as strongly.
         input.text = "b";
-        tryCompare(rows, "count", 2);
+        tryVerify(function () {
+            return rows.count > 2;
+        });
         tryVerify(function () {
             return rows.itemAtIndex(1) !== null;
         });
@@ -5170,6 +5173,226 @@ TestCase {
 
         verify(browser.switchSpace(homeSpaceId));
         verify(browser.deleteSpace(keywordSpaceId, "Keyword Space"));
+    }
+
+    function omnibarRowsOf(panel, kind) {
+        return panel.rows.filter(function (row) {
+            return row.kind === kind;
+        });
+    }
+
+    // The Omnibar is one field over every kind of row. Text that starts an
+    // open tab's title or host names that tab, so Return goes to it; text that
+    // only appears inside one is still an address or a search.
+    function test_omnibarSelectsTheOpenTabTheTextStarts() {
+        const startTabId = browser.activeTabId;
+        openPageInNewTab("https://ranking-tab.example/one");
+        const quarterlyTabId = browser.activeTabId;
+        browser.reportTabPageState(quarterlyTabId, "https://ranking-tab.example/one",
+                                   "Quarterly figures", "", false, false);
+        openPageInNewTab("https://www.notes-site.example/two");
+        const notesTabId = browser.activeTabId;
+        browser.reportTabPageState(notesTabId, "https://www.notes-site.example/two",
+                                   "Notes on the quarterly figures", "", false, false);
+        const tabCount = browser.tabs.rowCount();
+        const panel = findChild(window.contentItem, "commandPanel");
+        const input = findChild(window.contentItem, "omnibarInput");
+
+        // The tab on show is never a row, whatever the text.
+        window.openOmnibar(false);
+        input.text = "notes";
+        verify(omnibarRowsOf(panel, "tab").every(function (row) {
+            return row.argument !== notesTabId;
+        }));
+        compare(panel.selected, -1);
+
+        input.text = "quar";
+        verify(panel.selected >= 0);
+        compare(panel.rows[panel.selected].kind, "tab");
+        compare(panel.rows[panel.selected].argument, quarterlyTabId);
+        panel.accept();
+        compare(window.omnibarOpen, false);
+        compare(browser.activeTabId, quarterlyTabId);
+        compare(browser.tabs.rowCount(), tabCount);
+
+        // The host starts it as well, without the www a reader never types.
+        window.openOmnibar(false);
+        input.text = "notes-s";
+        compare(panel.rows[panel.selected].argument, notesTabId);
+
+        // Inside a title is listed, and the typed text stays the selection.
+        input.text = "figures";
+        verify(omnibarRowsOf(panel, "tab").some(function (row) {
+            return row.argument === notesTabId;
+        }));
+        compare(panel.selected, -1);
+
+        // The unedited preset is the page on show, and Return goes there
+        // again rather than to anything listed.
+        window.closeOmnibar();
+        window.openOmnibar(false);
+        compare(input.text, "https://ranking-tab.example/one");
+        compare(omnibarRowsOf(panel, "tab").length, 0);
+        compare(panel.selected, -1);
+        panel.accept();
+        compare(browser.activeTabId, quarterlyTabId);
+        compare(browser.tabs.rowCount(), tabCount);
+        compare(browser.activeUrl.toString(), "https://ranking-tab.example/one");
+
+        browser.closeTab(notesTabId);
+        browser.closeTab(quarterlyTabId);
+        browser.activateTab(startTabId);
+    }
+
+    // A new tab exists only once something is committed, and choosing a tab
+    // that is already open commits nothing.
+    function test_aNewTabOmnibarSwitchingToAnOpenTabCreatesNone() {
+        const startTabId = browser.activeTabId;
+        openPageInNewTab("https://gamma-open.example/");
+        const gammaTabId = browser.activeTabId;
+        browser.reportTabPageState(gammaTabId, "https://gamma-open.example/", "Gamma open page", "",
+                                   false, false);
+        openPageInNewTab("https://delta-open.example/");
+        const deltaTabId = browser.activeTabId;
+        const tabCount = browser.tabs.rowCount();
+        const panel = findChild(window.contentItem, "commandPanel");
+        const input = findChild(window.contentItem, "omnibarInput");
+
+        window.openOmnibar(true);
+        input.text = "gamma";
+        compare(panel.rows[panel.selected].argument, gammaTabId);
+        panel.accept();
+        compare(browser.activeTabId, gammaTabId);
+        compare(browser.tabs.rowCount(), tabCount);
+        compare(window.newTabIntent, false);
+
+        window.openOmnibar(true);
+        input.text = "https://epsilon-open.example/";
+        panel.accept();
+        compare(browser.tabs.rowCount(), tabCount + 1);
+        const epsilonTabId = browser.activeTabId;
+        verify(epsilonTabId !== gammaTabId);
+
+        browser.closeTab(epsilonTabId);
+        browser.closeTab(deltaTabId);
+        browser.closeTab(gammaTabId);
+        browser.activateTab(startTabId);
+    }
+
+    // Spaces and commands are named in the same list, each row saying what
+    // committing it does.
+    function test_omnibarListsSpacesAndCommandsBesideTheAddress() {
+        const homeSpaceId = browser.activeSpaceId;
+        const zephyrSpaceId = browser.createSpace("Zephyr reading");
+        const panel = findChild(window.contentItem, "commandPanel");
+        const input = findChild(window.contentItem, "omnibarInput");
+        const rows = findChild(window.contentItem, "omnibarRowList");
+
+        window.openOmnibar(false);
+        input.text = "zephyr";
+        const spaces = omnibarRowsOf(panel, "space");
+        compare(spaces.length, 1);
+        compare(spaces[0].argument, zephyrSpaceId);
+        compare(panel.selected, -1);
+        const spaceRow = panel.rows.indexOf(spaces[0]);
+        tryVerify(function () {
+            return rows.itemAtIndex(spaceRow) !== null;
+        });
+        compare(rows.itemAtIndex(spaceRow).Accessible.name, "Switch to Space Zephyr reading");
+        compare(rows.itemAtIndex(spaceRow).lead, "switch space");
+
+        input.text = "zoom in";
+        const commands = omnibarRowsOf(panel, "command");
+        verify(commands.length > 0);
+        compare(commands[0].command, "zoom-in");
+        compare(panel.selected, -1);
+
+        input.text = "zephyr";
+        panel.selected = panel.rows.indexOf(omnibarRowsOf(panel, "space")[0]);
+        panel.accept();
+        compare(browser.activeSpaceId, zephyrSpaceId);
+        compare(window.omnibarOpen, false);
+
+        verify(browser.switchSpace(homeSpaceId));
+        verify(browser.deleteSpace(zephyrSpaceId, "Zephyr reading"));
+    }
+
+    // `:` is the command scope: the prompt takes it, backspacing it asks the
+    // same text of everything, and text never starts with it.
+    function test_theCommandScopeIsALeadingColonInBothDirections() {
+        const panel = findChild(window.contentItem, "commandPanel");
+        const input = findChild(window.contentItem, "omnibarInput");
+        const prompt = findChild(window.contentItem, "omnibarPrompt");
+
+        window.openCommandPanel();
+        compare(panel.commandScope, true);
+        compare(prompt.text, ":");
+        compare(input.text, "");
+        tryVerify(function () {
+            return input.activeFocus;
+        });
+        input.text = "reopen";
+        verify(panel.rows.length > 0);
+        verify(panel.rows.every(function (row) {
+            return row.kind === "command";
+        }));
+        compare(panel.rows[0].command, "reopen-tab");
+        compare(panel.selected, 0);
+
+        input.cursorPosition = 0;
+        keyClick(Qt.Key_Backspace);
+        compare(panel.commandScope, false);
+        compare(prompt.text, ">");
+        compare(input.text, "reopen");
+        compare(panel.selected, -1);
+        verify(omnibarRowsOf(panel, "command").some(function (row) {
+            return row.command === "reopen-tab";
+        }));
+
+        // Backspace inside the text is only a Backspace.
+        input.text = ":reopen";
+        compare(panel.commandScope, true);
+        compare(input.text, "reopen");
+        input.cursorPosition = 3;
+        keyClick(Qt.Key_Backspace);
+        compare(panel.commandScope, true);
+        compare(input.text, "repen");
+
+        // Typing `:` into an empty field narrows it.
+        window.closeOmnibar();
+        window.openOmnibar(true);
+        compare(panel.commandScope, false);
+        input.text = ":";
+        compare(panel.commandScope, true);
+        compare(input.text, "");
+        compare(prompt.text, ":");
+        window.closeOmnibar();
+    }
+
+    function test_aPrivateOmnibarListsNoSpacesAndNoHistory() {
+        browser.recordVisit("https://private-probe.example/", "Private probe history");
+        const probeSpaceId = browser.createSpace("Private probe space");
+        windowManager.openPrivateWindow();
+        tryCompare(windowManager, "privateWindowCount", 1);
+        const privateBrowser = window.privateWindows[0];
+        const panel = findChild(privateBrowser.contentItem, "commandPanel");
+        const input = findChild(privateBrowser.contentItem, "omnibarInput");
+
+        privateBrowser.openOmnibar(false);
+        input.text = "private probe";
+        wait(50);
+        compare(omnibarRowsOf(panel, "space").length, 0);
+        compare(omnibarRowsOf(panel, "history").length, 0);
+        privateBrowser.closeOmnibar();
+
+        privateBrowser.windowBrowser.closeActiveTab();
+        tryCompare(windowManager, "privateWindowCount", 0);
+        window.requestActivate();
+        tryVerify(function () {
+            return window.active;
+        });
+        verify(browser.deleteSpace(probeSpaceId, "Private probe space"));
+        verify(browser.deleteHistoryOrigin("https://private-probe.example/"));
     }
 
     function test_historyIsAFilteredBrowserOwnedSheet() {
@@ -5714,7 +5937,7 @@ TestCase {
         compare(engineLoader.item, null);
 
         // Every command the sheet lists carries the keys the window answers to,
-        // and it names them exactly as the command panel does.
+        // and it names them exactly as the Omnibar does.
         verify(startPage.sections.length > 0);
         let listed = 0;
         let openAddressKeys = "";

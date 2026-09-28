@@ -28,16 +28,17 @@ Motion is felt rather than watched: it says which way something went, and no mor
 - **Tabs are the list.** The page follows a tab switch the way the list reads: a tab further down
   arrives from below, one further up from above, and a pin further along its row from the side. The
   arriving page alone moves, over the page's own ground, and never over the seam.
-- **The address field is where the browser is asked.** The command panel starts on the field and
-  grows to its resting place. With the sidebar hidden there is no field, and the panel arrives from
-  just above its place instead. Site information unfolds from the address it reports on.
+- **The address field is where the browser is asked.** The Omnibar starts on the field and grows to
+  its resting place, whichever key opened it. With the sidebar hidden there is no field, and the
+  Omnibar arrives from just above its place instead. Site information unfolds from the address it
+  reports on.
 - **Sheets lift.** The Start page, settings and history are one kind of thing: a sheet that lifts
   from a little below its place. The download detail rises from its mark the same way.
 - **A Glance is the link, opened.** It grows out of the link the reader pressed to its place over
-  the page and retreats into it when it closes, the way the command panel grows out of the field.
-  What is inside keeps its resting size the whole way and the panel clips it, so the page is
-  revealed rather than laid out again at every size the panel passes through. A page that named no
-  press lifts the Glance as a sheet instead. The scrim stands still and fades either way.
+  the page and retreats into it when it closes, the way the Omnibar grows out of the field. What is
+  inside keeps its resting size the whole way and the panel clips it, so the page is revealed rather
+  than laid out again at every size the panel passes through. A page that named no press lifts the
+  Glance as a sheet instead. The scrim stands still and fades either way.
 - **Notices belong to the edge.** A page notice comes down from the top edge as it fades in and goes
   back up as it fades out. The Space notice does the same over the middle of the page, and it
   belongs to the window rather than to the page, so it stands still while the page arrives from the
@@ -74,9 +75,9 @@ A Space switch costs one offscreen render of the sidebar's list region whenever 
 after a change, and nothing per frame at rest. No other movement keeps anything between uses. The
 page is never drawn through a layer: it slides, and does not fade.
 
-Closing is the arrival reversed and quicker: 120 ms, in-cubic. The command panel retreats to the
-field, a sheet drops back below its place, a panel folds back into its control, and each stays drawn
-for the length of it. A test that asserts something has closed waits for the drop to end.
+Closing is the arrival reversed and quicker: 120 ms, in-cubic. The Omnibar retreats to the field, a
+sheet drops back below its place, a panel folds back into its control, and each stays drawn for the
+length of it. A test that asserts something has closed waits for the drop to end.
 
 ## Open
 

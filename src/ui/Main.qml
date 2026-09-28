@@ -577,7 +577,7 @@ ApplicationWindow {
         return actions;
     }
 
-    // The command panel's way in: the menu belongs to the tab on show, and
+    // The Omnibar's way in: the menu belongs to the tab on show, and
     // hangs off that tab's row where there is a row on screen to hang it off.
     function openActiveTabMenu() {
         const row = sidebar.activeTabItem;
@@ -669,7 +669,7 @@ ApplicationWindow {
         window.dialogMode = targets.length > 0 ? "move" : "";
     }
 
-    // The command panel's way into a split: a chooser of the tabs a split
+    // The Omnibar's way into a split: a chooser of the tabs a split
     // could still take, headed by a blank tab, which is what confirming with
     // nothing picked gives.
     property var splitTargets: []
@@ -3641,7 +3641,7 @@ ApplicationWindow {
         target: window.windowBrowser
 
         function onHistorySuggestionsReady(suggestions) {
-            if (!window.omnibarOpen || commandPanel.commandMode)
+            if (!window.omnibarOpen || commandPanel.commandScope)
                 return;
             window.omnibarSuggestions = suggestions;
         }
@@ -4073,7 +4073,7 @@ ApplicationWindow {
 
         onDismissed: window.closeOmnibar()
         onQueryChanged: function (text) {
-            if (commandPanel.commandMode)
+            if (commandPanel.commandScope)
                 return;
             if (window.privateWindow) {
                 window.omnibarSuggestions = [];

@@ -30,7 +30,7 @@ a sidebar, separates browsing identities into Spaces, and follows the desktop th
 - Omaweb follows the desktop theme and can import terminal and Omarchy themes without restarting. A
   page that asks for it, with `<meta name="omaweb-palette">`, is handed the palette too.
 
-Every browser action is available from the command panel.
+Every browser action is available from the Omnibar.
 
 ## Install
 
@@ -87,7 +87,7 @@ but does not install the Qt plugin.
 
 | Keys                          | Action                                    |
 | ----------------------------- | ----------------------------------------- |
-| `Primary+K` or `:`            | Open the command panel                    |
+| `Primary+K` or `:`            | Search the commands in the Omnibar        |
 | `Primary+L` or `o`            | Open an address or search                 |
 | `Primary+T` or `t`            | Start a new tab                           |
 | `Primary+W` or `x`            | Close the current tab                     |

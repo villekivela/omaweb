@@ -13,7 +13,8 @@ Item {
     // engine the commit reaches.
     property var browser: null
     property bool open: false
-    property bool commandMode: false
+    // The Omnibar narrowed to commands, drawn as the `:` that leads the field.
+    property bool commandScope: false
     property bool newTabIntent: false
     property string presetText: ""
     property var suggestions: []
@@ -24,7 +25,9 @@ Item {
 
     readonly property bool blurActive: backdropSource !== null && backdropSource.visible
 
-    property var results: []
+    // What the reader steps through, ranked against the typed text. In
+    // command scope that is the commands alone.
+    property var rows: []
     property int selected: 0
 
     // The engine a typed keyword selected, drawn as a chip ahead of the terms
@@ -35,22 +38,12 @@ Item {
     // The engines whose keyword the typed text could become.
     property var keywordOffers: []
     readonly property string destination: describe(intent)
-    // What the reader steps through in address mode: the history rows, then
-    // the keywords on offer.
-    readonly property var rows: suggestions.map(function (suggestion) {
-        return {
-            "kind": "history",
-            "title": suggestion.title,
-            "url": suggestion.url
-        };
-    }).concat(keywordOffers.map(function (offer) {
-        return {
-            "kind": "keyword",
-            "engineId": offer.engineId,
-            "engineName": offer.engineName,
-            "keyword": offer.keyword
-        };
-    }))
+    // Past this many, commands stop being listed beside the other rows: the
+    // reader who wants the whole list has the command scope.
+    readonly property int commandsBesideTheRest: 5
+    // Among rows that hold the text as strongly, the order the kinds are
+    // listed in.
+    readonly property var kindOrder: ["tab", "space", "history", "keyword", "command"]
 
     signal dismissed
     signal committed(string text)
@@ -101,14 +94,15 @@ Item {
     }
 
     function beginAddress(preset, forNewTab) {
-        commandMode = false;
+        commandScope = false;
         newTabIntent = forNewTab;
         presetText = preset;
     }
 
     function beginCommand() {
-        commandMode = true;
+        commandScope = true;
         newTabIntent = false;
+        presetText = "";
     }
 
     onOpenChanged: {
@@ -129,7 +123,7 @@ Item {
             arrivalEase.restart();
         }
         engine = null;
-        input.text = commandMode ? "" : presetText;
+        input.text = commandScope ? "" : presetText;
         refresh();
         Qt.callLater(function () {
             input.forceActiveFocus();
@@ -139,23 +133,117 @@ Item {
 
     // Suggestions arrive after the keystroke that asked for them, so a row the
     // reader had stepped onto is a different destination once the answer
-    // lands, or gone. The typed text is always a destination, so the selection
-    // goes back to it rather than to whatever now sits at that index.
+    // lands, or gone. The selection goes back to where the text puts it
+    // rather than to whatever now sits at that index.
     onSuggestionsChanged: {
-        if (!commandMode)
-            selected = -1;
+        if (!commandScope)
+            rank();
     }
 
     function refresh() {
-        results = commandMode ? commands.search(input.text) : [];
-        if (commandMode || browser === null) {
+        if (commandScope || browser === null) {
             intent = {};
             keywordOffers = [];
         } else {
             intent = browser.searchIntent(typed());
             keywordOffers = engine === null ? browser.searchKeywordOffers(input.text) : [];
         }
-        selected = commandMode ? 0 : -1;
+        rank();
+    }
+
+    function rank() {
+        if (commandScope) {
+            rows = commands.search(input.text).map(asCommand);
+            selected = 0;
+            return;
+        }
+        const query = input.text.trim();
+        let candidates = suggestions.map(function (suggestion) {
+            return {
+                "kind": "history",
+                "title": suggestion.title,
+                "url": suggestion.url.toString()
+            };
+        }).concat(keywordOffers.map(function (offer) {
+            return {
+                "kind": "keyword",
+                "engineId": offer.engineId,
+                "engineName": offer.engineName,
+                "keyword": offer.keyword
+            };
+        }));
+        // An unedited preset is the page on show, and terms after a keyword
+        // are a search, so neither is asked of the tabs or the commands.
+        const widened = engine === null && query.length > 0 && input.text !== presetText;
+        if (widened) {
+            candidates = candidates.concat(commands.destinations(), commands.actions().map(
+                                               asCommand));
+        }
+        const ranked = [];
+        for (let index = 0; index < candidates.length; ++index) {
+            const strength = strengthOf(candidates[index], query);
+            if (strength > 0)
+                ranked.push({
+                                "row": candidates[index],
+                                "strength": strength,
+                                "order": index
+                            });
+        }
+        ranked.sort(function (left, right) {
+            return right.strength - left.strength || kindOrder.indexOf(left.row.kind)
+                    - kindOrder.indexOf(right.row.kind) || left.order - right.order;
+        });
+        const next = [];
+        let listedCommands = 0;
+        for (let index = 0; index < ranked.length; ++index) {
+            if (ranked[index].row.kind === "command" && ++listedCommands > commandsBesideTheRest)
+                continue;
+            next.push(ranked[index].row);
+        }
+        rows = next;
+        // The typed text is the selection, except where it starts an open
+        // tab's title or host: the reader is naming that tab, and Return goes
+        // to it rather than opening it a second time.
+        selected = widened && ranked.length > 0 && ranked[0].row.kind === "tab"
+                && ranked[0].strength === 3 ? 0 : -1;
+    }
+
+    function asCommand(action) {
+        return Object.assign({
+                                 "kind": "command"
+                             }, action);
+    }
+
+    // History and keywords were matched where they came from, so they stay
+    // listed however weakly the text reads in them here.
+    function strengthOf(row, query) {
+        if (row.kind === "keyword")
+            return 3;
+        const fields = row.kind === "tab" || row.kind === "history" ? [row.title, commands.host(row.url)] :
+                                                                      [row.title];
+        const found = query.length > 0 ? commands.tier(fields, query) : 0;
+        return row.kind === "history" ? Math.max(1, found) : found;
+    }
+
+    // A leading `:` is the command scope, never text to search, and the
+    // prompt takes it the way the chip takes a keyword.
+    function takeScope() {
+        if (commandScope || engine !== null || !input.text.startsWith(":"))
+            return false;
+        commandScope = true;
+        input.text = input.text.substring(1);
+        return true;
+    }
+
+    // Backspace before the first character gives the `:` back, and the same
+    // text is asked of everything.
+    function releaseScope() {
+        if (!commandScope || input.cursorPosition > 0 || input.selectedText.length > 0)
+            return false;
+        commandScope = false;
+        refresh();
+        root.queryChanged(input.text);
+        return true;
     }
 
     // The text the field stands for: the keyword the chip took, then the
@@ -169,7 +257,8 @@ Item {
     // rather than searches.
     function describe(search) {
         if (search.engineId === undefined)
-            return "";
+            return commandScope || input.text.trim().length === 0 ? "" : "Open " + input.text.trim(
+                                                                        );
         if (search.terms.length === 0)
             return "Open " + search.engineName;
         return "Search " + search.engineName + " for " + search.terms;
@@ -178,7 +267,7 @@ Item {
     // The space after a keyword is what enters the mode: the field gives the
     // keyword to the chip and keeps the terms.
     function takeKeyword() {
-        if (commandMode || browser === null || engine !== null || input.text.indexOf(" ") < 0)
+        if (commandScope || browser === null || engine !== null || input.text.indexOf(" ") < 0)
             return false;
         const found = browser.searchIntent(input.text);
         if (found.keyword === undefined || found.keyword.length === 0)
@@ -206,49 +295,44 @@ Item {
         return true;
     }
 
-    // In address mode the typed text is itself a destination, so it is the
-    // selection at -1: the list is what you step into, not what you start in.
+    // Outside the command scope the typed text is itself a destination, so
+    // it is the selection at -1: the list is what you step into, not what you
+    // start in.
     function step(delta) {
-        if (commandMode) {
-            if (results.length === 0)
-                return;
-            selected = (selected + delta + results.length) % results.length;
-            return;
-        }
         if (rows.length === 0)
             return;
+        if (commandScope) {
+            selected = (selected + delta + rows.length) % rows.length;
+            return;
+        }
         const next = selected + delta;
         selected = next < -1 ? rows.length - 1 : (next >= rows.length ? -1 : next);
     }
 
     function accept() {
-        if (!commandMode) {
-            if (selected >= 0 && selected < rows.length) {
-                const row = rows[selected];
-                if (row.kind === "history") {
-                    root.committed(row.url.toString());
-                    return;
-                }
+        if (selected >= 0 && selected < rows.length) {
+            const row = rows[selected];
+            if (row.kind === "history") {
+                root.committed(row.url);
+                return;
+            }
+            if (row.kind === "keyword") {
                 // The same as typing the keyword and a space.
                 chooseEngine(row);
                 input.text = "";
                 return;
             }
-            const text = typed();
-            if (text.trim().length > 0) {
-                root.committed(text);
-            }
+            if (!row.enabled)
+                return;
+            root.dismissed();
+            commands.invoke(row);
             return;
         }
-        if (results.length === 0) {
+        if (commandScope)
             return;
-        }
-        const action = results[selected];
-        if (!action.enabled) {
-            return;
-        }
-        root.dismissed();
-        commands.invoke(action);
+        const text = typed();
+        if (text.trim().length > 0)
+            root.committed(text);
     }
 
     SheetFloor {}
@@ -346,10 +430,11 @@ Item {
 
             Text {
                 id: prompt
+                objectName: "omnibarPrompt"
                 anchors.left: parent.left
                 anchors.leftMargin: 14
                 anchors.verticalCenter: parent.verticalCenter
-                text: root.commandMode ? ":" : (root.newTabIntent ? "+" : ">")
+                text: root.commandScope ? ":" : (root.newTabIntent ? "+" : ">")
                 color: root.colors.accent
                 font.family: Style.font.family
                 font.pixelSize: 18
@@ -396,12 +481,12 @@ Item {
                 padding: 0
                 verticalAlignment: TextInput.AlignVCenter
                 color: root.colors.text
-                placeholderText: root.commandMode ? "search every action" : (root.engine !== null
-                                                                             ? "search "
-                                                                               + root.engine.engineName :
-                                                                               (root.newTabIntent
-                                                                                ? "address or search — opens in a new tab" :
-                                                                                  "address or search"))
+                placeholderText: root.commandScope ? "search every action" : (root.engine !== null
+                                                                              ? "search "
+                                                                                + root.engine.engineName :
+                                                                                (root.newTabIntent
+                                                                                 ? "address or search — opens in a new tab" :
+                                                                                   "address or search"))
                 placeholderTextColor: root.colors.mutedText
                 font.family: Style.font.family
                 font.pixelSize: 17
@@ -411,9 +496,10 @@ Item {
                 Accessible.description: root.destination
 
                 onTextChanged: {
-                    // Handing the keyword to the chip sets the text again, and
-                    // that pass is the one that refreshes.
-                    if (root.takeKeyword())
+                    // Handing the `:` to the prompt or the keyword to the chip
+                    // sets the text again, and that pass is the one that
+                    // refreshes.
+                    if (root.takeScope() || root.takeKeyword())
                         return;
                     root.refresh();
                     root.queryChanged(text);
@@ -422,7 +508,8 @@ Item {
                 onAccepted: root.accept()
 
                 Keys.onPressed: function (event) {
-                    if (event.key === Qt.Key_Backspace && root.releaseKeyword())
+                    if (event.key === Qt.Key_Backspace && (root.releaseKeyword() || root.releaseScope(
+                                                               )))
                         event.accepted = true;
                 }
 
@@ -448,7 +535,7 @@ Item {
                 anchors.rightMargin: 14
                 anchors.verticalCenter: parent.verticalCenter
                 colors: root.colors
-                text: root.commandMode ? "command" : (root.newTabIntent ? "new tab" : "this tab")
+                text: root.commandScope ? "command" : (root.newTabIntent ? "new tab" : "this tab")
                 // Centred in a bar of its own rather than stacked over rows, so
                 // it is centred on its glyphs: the lean a section label carries
                 // in a scrolling pane would drop it below the address beside it.
@@ -472,104 +559,17 @@ Item {
             anchors.leftMargin: panel.border.width
             anchors.rightMargin: panel.border.width
             anchors.top: header.bottom
-            height: root.commandMode ? Math.min(commandList.contentHeight, 336) + 8 : addressHeight
             // The destination row with its lead, then the rows beneath it.
-            readonly property real addressHeight: (destination.visible ? destination.height + 4 :
-                                                                         0) + (root.rows.length > 0
-                                                                               ? Math.min(
-                                                                                     rowList.contentHeight,
-                                                                                     200) + 8 : 0)
-
-            ListView {
-                id: commandList
-                objectName: "commandList"
-                anchors.fill: parent
-                anchors.topMargin: 4
-                visible: root.commandMode
-                clip: true
-                model: root.results
-                currentIndex: root.selected
-                highlightMoveDuration: 0
-                boundsBehavior: Flickable.StopAtBounds
-
-                delegate: Item {
-                    required property int index
-                    required property var modelData
-
-                    width: commandList.width
-                    height: 30
-
-                    readonly property bool startsGroup: index === 0 || commandList.model[index
-                                                                                         - 1].group
-                                                        !== modelData.group
-
-                    Rectangle {
-                        anchors.fill: parent
-                        color: index === root.selected ? root.colors.surface : "transparent"
-                    }
-
-                    Rectangle {
-                        width: 2
-                        height: parent.height
-                        anchors.left: parent.left
-                        color: index === root.selected ? root.colors.accent : "transparent"
-                    }
-
-                    SectionLabel {
-                        id: groupLabel
-                        anchors.left: parent.left
-                        anchors.leftMargin: 14
-                        anchors.verticalCenter: parent.verticalCenter
-                        width: 92
-                        colors: root.colors
-                        text: parent.startsGroup ? modelData.group : ""
-                        elide: Text.ElideRight
-                        // Centred against the command name beside it, so the
-                        // stacked lean would drop the group below its own row.
-                        topPadding: overshoot
-                        bottomPadding: overshoot
-                    }
-
-                    Text {
-                        anchors.left: groupLabel.right
-                        anchors.leftMargin: 10
-                        anchors.right: keys.left
-                        anchors.rightMargin: 12
-                        anchors.verticalCenter: parent.verticalCenter
-                        text: root.commands.highlight(modelData.title, input.text)
-                        textFormat: Text.StyledText
-                        color: modelData.enabled ? root.colors.text : root.colors.mutedText
-                        opacity: modelData.enabled ? 1 : 0.6
-                        elide: Text.ElideRight
-                        font.family: Style.font.family
-                        font.pixelSize: Style.font.body
-                    }
-
-                    Text {
-                        id: keys
-                        anchors.right: parent.right
-                        anchors.rightMargin: 14
-                        anchors.verticalCenter: parent.verticalCenter
-                        text: modelData.keys
-                        color: root.colors.mutedText
-                        opacity: 0.85
-                        font.family: Style.font.family
-                        font.pixelSize: Style.font.caption
-                    }
-
-                    MouseArea {
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onEntered: root.selected = index
-                        onClicked: root.accept()
-                    }
-                }
-            }
+            height: (destination.visible ? destination.height + 4 : 0) + (root.rows.length > 0
+                                                                          ? Math.min(
+                                                                                rowList.contentHeight,
+                                                                                root.commandScope
+                                                                                ? 336 : 280) + 8 :
+                                                                            0)
 
             // Where the typed text goes, which is the selection at -1 read
-            // out: the engine a keyword chose, or the default one a search
-            // without a keyword falls to.
+            // out: the address it opens, the engine a keyword chose, or the
+            // default one a search without a keyword falls to.
             Item {
                 id: destination
                 objectName: "omnibarDestination"
@@ -577,7 +577,7 @@ Item {
                 anchors.right: parent.right
                 anchors.top: parent.top
                 anchors.topMargin: visible ? 4 : 0
-                visible: !root.commandMode && root.destination.length > 0
+                visible: !root.commandScope && root.destination.length > 0
                 height: visible ? 28 : 0
                 readonly property string text: root.destination
                 Accessible.role: Accessible.Button
@@ -630,7 +630,7 @@ Item {
                 anchors.top: destination.bottom
                 anchors.bottom: parent.bottom
                 anchors.topMargin: 4
-                visible: !root.commandMode && root.rows.length > 0
+                visible: root.rows.length > 0
                 clip: true
                 model: root.rows
                 currentIndex: root.selected
@@ -638,20 +638,56 @@ Item {
                 boundsBehavior: Flickable.StopAtBounds
 
                 delegate: Item {
+                    id: row
                     required property int index
                     required property var modelData
 
-                    readonly property bool history: modelData.kind === "history"
+                    // What committing the row does, ahead of what it names.
+                    // In command scope every row runs a command, so the lead
+                    // names the group instead, once at its start.
+                    readonly property string lead: root.commandScope ? (index === 0
+                                                                        || root.rows[index
+                                                                                     - 1].group
+                                                                        !== modelData.group
+                                                                        ? modelData.group : "") : ({
+                                                                                                       "tab": "switch tab",
+                                                                                                       "space": "switch space",
+                                                                                                       "history":
+                                                                                                       "open",
+                                                                                                       "keyword":
+                                                                                                       "search",
+                                                                                                       "command":
+                                                                                                       "run"
+                                                                                                   })[modelData.kind]
+                    readonly property string label: {
+                        switch (modelData.kind) {
+                        case "tab":
+                            return modelData.title + "  ·  " + root.commands.host(modelData.url);
+                        case "history":
+                            return modelData.title + "  ·  " + modelData.url;
+                        case "keyword":
+                            return modelData.engineName;
+                        }
+                        return modelData.title;
+                    }
+                    readonly property bool usable: modelData.enabled !== false
 
                     width: rowList.width
                     height: 28
                     Accessible.role: Accessible.Button
-                    Accessible.name: history ? "Open history result " + modelData.title : "Search "
-                                               + modelData.engineName
+                    Accessible.name: ({
+                                          "tab": "Switch to tab ",
+                                          "space": "Switch to Space ",
+                                          "history": "Open history result ",
+                                          "keyword": "Search ",
+                                          "command": "Run "
+                                      })[modelData.kind] + (modelData.kind === "keyword"
+                                                            ? modelData.engineName :
+                                                              modelData.title)
 
                     Rectangle {
                         anchors.fill: parent
-                        color: index === root.selected || suggestionMouse.containsMouse
+                        color: row.index === root.selected || rowMouse.containsMouse
                                ? root.colors.surface : "transparent"
                     }
 
@@ -659,31 +695,55 @@ Item {
                         width: 2
                         height: parent.height
                         anchors.left: parent.left
-                        color: index === root.selected ? root.colors.accent : "transparent"
+                        color: row.index === root.selected ? root.colors.accent : "transparent"
+                    }
+
+                    SectionLabel {
+                        id: leadLabel
+                        anchors.left: parent.left
+                        anchors.leftMargin: 14
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: 92
+                        colors: root.colors
+                        text: row.lead
+                        elide: Text.ElideRight
+                        // Centred against the name beside it, so the stacked
+                        // lean would drop the label below its own row.
+                        topPadding: overshoot
+                        bottomPadding: overshoot
                     }
 
                     Text {
-                        anchors.left: parent.left
-                        anchors.leftMargin: 14
-                        anchors.right: rowKeyword.left
+                        anchors.left: leadLabel.right
+                        anchors.leftMargin: 10
+                        anchors.right: rowKeys.left
                         anchors.rightMargin: 12
                         anchors.verticalCenter: parent.verticalCenter
-                        text: parent.history ? modelData.title + "  ·  " + modelData.url : "Search "
-                                               + modelData.engineName
-                        color: index === root.selected ? root.colors.text : root.colors.mutedText
-                        elide: Text.ElideMiddle
+                        text: modelData.kind === "command" ? root.commands.highlight(modelData.title,
+                                                                                     input.text) :
+                                                             row.label
+                        textFormat: modelData.kind === "command" ? Text.StyledText : Text.PlainText
+                        color: !row.usable ? root.colors.mutedText : (row.index === root.selected
+                                                                      || root.commandScope
+                                                                      ? root.colors.text :
+                                                                        root.colors.mutedText)
+                        opacity: row.usable ? 1 : 0.6
+                        elide: modelData.kind === "command" ? Text.ElideRight : Text.ElideMiddle
                         font.family: Style.font.family
                         font.pixelSize: Style.font.body
                     }
 
-                    // The keyword sits where a command row shows its keys, so
-                    // the panel is how the keywords are learned too.
+                    // The keys that reach the row without the Omnibar, and a
+                    // keyword where a command shows its keys, so the Omnibar
+                    // is how the keywords are learned too.
                     Text {
-                        id: rowKeyword
+                        id: rowKeys
                         anchors.right: parent.right
                         anchors.rightMargin: 14
                         anchors.verticalCenter: parent.verticalCenter
-                        text: parent.history ? "" : modelData.keyword
+                        text: modelData.kind === "keyword" ? modelData.keyword : (modelData.keys
+                                                                                  || "")
+
                         color: root.colors.mutedText
                         opacity: 0.85
                         font.family: Style.font.family
@@ -691,13 +751,13 @@ Item {
                     }
 
                     MouseArea {
-                        id: suggestionMouse
+                        id: rowMouse
                         anchors.fill: parent
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
-                        onEntered: root.selected = index
+                        onEntered: root.selected = row.index
                         onClicked: {
-                            root.selected = index;
+                            root.selected = row.index;
                             root.accept();
                         }
                     }
@@ -748,8 +808,8 @@ Item {
                 anchors.rightMargin: 14
                 anchors.verticalCenter: parent.verticalCenter
                 colors: root.colors
-                visible: root.commandMode
-                text: root.results.length + " ACTIONS"
+                visible: root.commandScope
+                text: root.rows.length + " ACTIONS"
             }
         }
     }

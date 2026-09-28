@@ -102,9 +102,14 @@ ordinary Omaweb browsing window. _Avoid_: Browser window, pop-up tab
 page without a pointer. It provides the same user-facing commands with every engine and lets sites
 receive selected conflicting keys. _Avoid_: Vim mode, Vimium extension
 
-**Omnibar**: A centered overlay for opening addresses, searching, selecting tabs or Spaces, and
-invoking browser commands. A new-tab request creates its tab only after the user commits a
-destination in the Omnibar. _Avoid_: Command bar, omnibox, command palette
+**Omnibar**: A centered overlay with one field and one ranked list for opening addresses, searching,
+switching to an open tab or a Space, and invoking browser commands. The tab on show is never listed.
+A new-tab request creates its tab only after the user commits a destination in the Omnibar. _Avoid_:
+Command bar, omnibox, command palette, command panel
+
+**Command scope**: The Omnibar narrowed to browser commands, shown as a leading `:` in the field.
+Typing `:` into the field enters it and backspacing the `:` leaves it, keeping the typed text.
+_Avoid_: Command mode, command panel
 
 **Sidebar cursor**: The sidebar row that holds the keyboard, drawn in the accent while the sidebar
 has focus. `j` and `k` move it through the pins and then the ordinary tabs without changing the

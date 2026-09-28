@@ -81,7 +81,7 @@ QtObject {
         return single;
     }
 
-    // Every binding that invokes a command, formatted for the command panel.
+    // Every binding that invokes a command, formatted for the Omnibar.
     function keysFor(command) {
         const chords = [];
         const keys = [];

@@ -3,8 +3,8 @@ import QtQuick
 QtObject {
     id: root
 
-    // The single registry of everything Omaweb can do. The command panel reads
-    // it, the keymap dispatches into it, and nothing else may define an action:
+    // The single registry of everything Omaweb can do. The Omnibar reads it,
+    // the keymap dispatches into it, and nothing else may define an action:
     // a command missing here is unreachable by keyboard and unsearchable.
     property var window
     property var browser
@@ -239,7 +239,7 @@ QtObject {
                                              },
                                              "command-panel": {
                                                  group: "interface",
-                                                 title: "Command panel"
+                                                 title: "Search commands"
                                              },
                                              "new-tab": {
                                                  group: "tabs",
@@ -570,44 +570,6 @@ QtObject {
                       });
         }
 
-        const tabs = browser.tabs;
-        for (let row = 0; row < tabs.rowCount(); ++row) {
-            const index = tabs.index(row, 0);
-            if (tabs.data(index, Qt.UserRole + 6)) {
-                continue;
-            }
-            const tabId = tabs.data(index, Qt.UserRole + 1);
-            list.push({
-                          group: "open tabs",
-                          title: tabs.data(index, Qt.UserRole + 4),
-                          keys: tabs.data(index, Qt.UserRole + 5) ? "pinned" : (row < 9
-                                                                                ? keymap.displayFor(
-                                                                                      String(row
-                                                                                             + 1)) : ""),
-                          enabled: true,
-                          command: "activate-tab",
-                          argument: tabId
-                      });
-        }
-
-        if (!window.privateWindow) {
-            const spaces = browser.spaces;
-            for (let row = 0; row < spaces.rowCount(); ++row) {
-                const index = spaces.index(row, 0);
-                if (spaces.data(index, Qt.UserRole + 4)) {
-                    continue;
-                }
-                list.push({
-                              group: "spaces",
-                              title: "Switch to " + spaces.data(index, Qt.UserRole + 2),
-                              keys: row < 9 ? keymap.displayFor("Primary+" + (row + 1)) : "",
-                              enabled: true,
-                              command: "switch-space",
-                              argument: spaces.data(index, Qt.UserRole + 1)
-                          });
-            }
-        }
-
         for (const pageCommand in pageDescriptions) {
             list.push({
                           group: "page",
@@ -619,6 +581,53 @@ QtObject {
                       });
         }
 
+        return list;
+    }
+
+    // Where the Omnibar can switch to without opening anything: every open
+    // tab but the one on show, then every Space but the active one. A Private
+    // window has no Spaces to offer.
+    function destinations() {
+        const list = [];
+        const tabs = browser.tabs;
+        for (let row = 0; row < tabs.rowCount(); ++row) {
+            const index = tabs.index(row, 0);
+            // The active tab and, in a split, the tab beside it are on show
+            // already.
+            if (tabs.data(index, Qt.UserRole + 6) || tabs.data(index, Qt.UserRole + 15)) {
+                continue;
+            }
+            list.push({
+                          kind: "tab",
+                          title: tabs.data(index, Qt.UserRole + 4),
+                          url: String(tabs.data(index, Qt.UserRole + 3)),
+                          keys: tabs.data(index, Qt.UserRole + 5) ? "pinned" : (row < 9
+                                                                                ? keymap.displayFor(
+                                                                                      String(row
+                                                                                             + 1)) : ""),
+                          enabled: true,
+                          command: "activate-tab",
+                          argument: tabs.data(index, Qt.UserRole + 1)
+                      });
+        }
+
+        if (!window.privateWindow) {
+            const spaces = browser.spaces;
+            for (let row = 0; row < spaces.rowCount(); ++row) {
+                const index = spaces.index(row, 0);
+                if (spaces.data(index, Qt.UserRole + 4)) {
+                    continue;
+                }
+                list.push({
+                              kind: "space",
+                              title: spaces.data(index, Qt.UserRole + 2),
+                              keys: row < 9 ? keymap.displayFor("Primary+" + (row + 1)) : "",
+                              enabled: true,
+                              command: "switch-space",
+                              argument: spaces.data(index, Qt.UserRole + 1)
+                          });
+            }
+        }
         return list;
     }
 
@@ -659,6 +668,34 @@ QtObject {
             cursor = found + 1;
         }
         return points;
+    }
+
+    // How strongly a row holds the typed text, for the Omnibar: 3 where one of
+    // its fields starts with it, 2 where a word inside one does, 1 where it
+    // appears anywhere, 0 where it does not. Stricter than `score`, because
+    // letters scattered across every tab, Space and command would bury the
+    // row the reader meant.
+    function tier(fields, query) {
+        const needle = query.toLowerCase();
+        let best = 0;
+        for (let field = 0; field < fields.length; ++field) {
+            const haystack = String(fields[field]).toLowerCase();
+            let at = haystack.indexOf(needle);
+            while (at >= 0) {
+                if (at === 0) {
+                    return 3;
+                }
+                best = Math.max(best, /[a-z0-9]/.test(haystack.charAt(at - 1)) ? 1 : 2);
+                at = haystack.indexOf(needle, at + 1);
+            }
+        }
+        return best;
+    }
+
+    // The host an address names, without the `www.` a reader never types.
+    function host(address) {
+        const found = /^[a-z][a-z0-9+.-]*:\/\/([^/?#:]+)/i.exec(address);
+        return found === null ? "" : found[1].replace(/^www\./i, "");
     }
 
     function highlight(text, query) {

@@ -40,13 +40,13 @@ reports the gap and remains experimental rather than imitating behavior it canno
   its other pages. Focus moves by a press in the other pane, by `Primary+;`, or by the key that
   moves the keyboard to the region on that side. A split is entered from another row's Add split
   view, which pairs it with the active tab, or from the active row's, which puts a blank tab beside
-  it and focuses it; the command panel's `add-split` offers a chooser of the unpaired ordinary tabs,
-  headed by a blank tab. Selecting any other tab shows it alone and leaves the row in place; either
-  half brings the split back, and tab cycling treats the row as one stop entered on its last-focused
-  half. Separate split view puts two adjacent ordinary rows back. Closing either tab, or moving one
-  to another Space, ends the split. Pinned tabs are never paired, a tab is in at most one split, and
-  a split's tab is separated before it can be pinned or moved. The pairing is kept with the Space's
-  tabs and restored after a restart, and is not part of the Sync projection.
+  it and focuses it; the Omnibar's Add split view command offers a chooser of the unpaired ordinary
+  tabs, headed by a blank tab. Selecting any other tab shows it alone and leaves the row in place;
+  either half brings the split back, and tab cycling treats the row as one stop entered on its
+  last-focused half. Separate split view puts two adjacent ordinary rows back. Closing either tab,
+  or moving one to another Space, ends the split. Pinned tabs are never paired, a tab is in at most
+  one split, and a split's tab is separated before it can be pinned or moved. The pairing is kept
+  with the Space's tabs and restored after a restart, and is not part of the Sync projection.
 - Each Space retains its 25 most recently closed tabs across restart. Reopening restores address,
   title, pin state, zoom, and mute in reverse closing order. A Private session keeps the same stack
   only in memory.
@@ -92,9 +92,9 @@ reports the gap and remains experimental rather than imitating behavior it canno
   after the tab it stood over, keeping its engine and so its history, scroll and form state. A
   new-tab request from inside a Glance opens a tab, which ends the Glance; a second request from the
   page beneath replaces it. Settings' interface section turns the Glance off, locally.
-- The same sheet answers the Keyboard shortcuts command on demand, from the command panel or
-  `Primary+/` and `?`. Summoned over a live page it closes with `Escape` or its close button; asking
-  for it while it already stands in for the page does nothing.
+- The same sheet answers the Keyboard shortcuts command on demand, from the Omnibar or `Primary+/`
+  and `?`. Summoned over a live page it closes with `Escape` or its close button; asking for it
+  while it already stands in for the page does nothing.
 - An Omaweb surface that takes the whole page area, the Start page summoned over a page and the
   settings page, blurs the page beneath it rather than sealing it off, so the reader can still see
   the place they left without being asked to read a webpage through it. It takes the sidebar's
@@ -154,16 +154,24 @@ reports the gap and remains experimental rather than imitating behavior it canno
 - Clicking the sidebar's current-address trigger or pressing `Primary+L` opens a centered Omnibar
   for the current tab.
 - `Primary+T` opens the Omnibar with a new-tab intent. Omaweb creates the tab only after the user
-  commits a destination.
-- The Omnibar searches addresses, the active Space's local history, open tabs, Spaces, and browser
-  commands. Remote search suggestions are off by default.
-- `Primary+K` opens the same panel in command mode: every action Omaweb can perform is
-  fuzzy-searchable there, and each result shows the keys that invoke it, so the panel is also how
-  the keymap is learned. An action that cannot be reached from the panel is a defect.
-- Target-specific page actions are the exception to the command-panel rule. An Omaweb-owned page
-  context menu opens by pointer or `Shift+F10`; the command panel exposes Open page context menu,
-  while actions such as copy link, save image, and Inspect element remain inside the menu because
-  they require its target.
+  commits a destination. Choosing an open tab from it switches to that tab and creates none.
+- The Omnibar ranks the typed text against the open tabs, Spaces, the active Space's local history,
+  search keywords, and browser commands in one list. Each row says what committing it does: switch
+  to a tab, switch Space, open an address, search, or run a command. The tab on show is never a row,
+  and a Private window lists no Spaces and no history. Remote search suggestions are off by default.
+- `Return` commits the typed address or search, even when a row matches elsewhere in its title. When
+  an open tab's title or host starts with the typed text, that tab's row is selected instead and
+  `Return` switches to it. A field still holding the preset address commits it as typed.
+- `Primary+K` and `:` open the Omnibar in command scope, shown as a leading `:` in the field: every
+  action Omaweb can perform is fuzzy-searchable there, and each result shows the keys that invoke
+  it, so the Omnibar is also how the keymap is learned. Typing `:` into the field narrows it to
+  commands, and backspacing the `:` widens it to every row for the same text, so text that starts
+  with `:` is never searched as typed. An action that cannot be reached from the Omnibar is a
+  defect.
+- Target-specific page actions are the exception to the Omnibar rule. An Omaweb-owned page context
+  menu opens by pointer or `Shift+F10`; the Omnibar exposes Open page context menu, while actions
+  such as copy link, save image, and Inspect element remain inside the menu because they require its
+  target.
 - Tabs reorder by pointer and keyboard. Pinned tabs stay within the Pinned section and ordinary tabs
   within the ordinary section. Duplicate tab opens the current address in a new ordinary tab without
   copying navigation history, form state, or a live page. The ordinary-tab context menu can close
@@ -327,7 +335,7 @@ The default browser commands include:
   new tab, `p` to pin.
 - `gs` for the next Space and `Primary+1`–`Primary+9` for a specific one.
 - `Primary+B` to hide the sidebar, `Primary+E` to focus it, `Primary+,` for settings, and
-  `Primary+K` or `:` for the command panel.
+  `Primary+K` or `:` for the Omnibar's command scope.
 - `Alt+H`, `Alt+J`, `Alt+K` and `Alt+L` to move the keyboard between the regions on screen.
 - `Primary+Shift+I` for Developer tools, `Primary+Alt+C` to inspect an element, and
   `Primary+Shift+C` to copy the address of the page on show.

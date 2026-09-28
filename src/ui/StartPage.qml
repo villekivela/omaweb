@@ -6,7 +6,7 @@ import qs.Commons
 // teaches nothing about a browser driven from the keyboard. So the keymap
 // itself stands in for the page — every browser command and the keys that run
 // it, read from the same KeyMap the window dispatches through and the same
-// command registry the command panel lists, so the sheet cannot promise a key
+// command registry the Omnibar lists, so the sheet cannot promise a key
 // the window does not answer or name a command that no longer exists.
 //
 // It takes the sidebar's fill and the sidebar's translucency rather than the
@@ -76,7 +76,7 @@ Rectangle {
                     continue;
                 // A command the engine or the window cannot carry out here has
                 // no key worth promising. The command registry decides that,
-                // so the sheet and the command panel cannot disagree.
+                // so the sheet and the Omnibar cannot disagree.
                 if (root.commands && !root.commands.available(command))
                     continue;
                 const keys = root.keymap ? root.keymap.keysFor(command) : "";
@@ -440,7 +440,7 @@ Rectangle {
                                         Accessible.name: modelData.title + ": " + modelData.keys
 
                                         // The keys are set exactly as the
-                                        // command panel sets them, so the same
+                                        // Omnibar sets them, so the same
                                         // command reads the same way in both
                                         // places.
                                         Text {
