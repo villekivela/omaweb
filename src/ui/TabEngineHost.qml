@@ -1096,7 +1096,7 @@ Item {
             property bool everActive: shown
             property var engine: null
 
-            // A blank tab has no page, and the shortcut sheet stands in for it.
+            // A blank tab has no page, and the Start page stands in for it.
             // An engine here would spend a renderer process on an empty
             // document nobody can see, so a tab gets one once it has an address
             // to load — or once it is the tab a page's new-window request has to

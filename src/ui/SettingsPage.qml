@@ -138,6 +138,7 @@ Rectangle {
     property bool floatingControls: true
     property bool easeChrome: true
     property bool glanceEnabled: true
+    property bool startPageRoad: true
     property string lastReportedSyncError: ""
     property var engines: []
     // Every tab still running for a Space that is not on show, and what each
@@ -339,6 +340,7 @@ Rectangle {
     signal floatingControlsToggled(bool enabled)
     signal easeChromeToggled(bool enabled)
     signal glanceToggled(bool enabled)
+    signal startPageRoadToggled(bool enabled)
 
     Dialogs.FileDialog {
         id: recoveryKeySaveDialog
@@ -726,6 +728,17 @@ Rectangle {
                         accessibleName: "Glance at a page's new tabs"
                         checked: root.glanceEnabled
                         onClicked: root.glanceToggled(!checked)
+                    }
+
+                    SettingToggle {
+                        objectName: "startPageRoad"
+                        width: pane.width
+                        colors: root.colors
+                        title: "Night road on the Start page"
+                        note: "Draw a road under the Start page's Omnibar, moving while the window is in use and speeding up until the page you asked for paints. When off, the Omnibar rests on the sidebar's colour."
+                        accessibleName: "Night road on the Start page"
+                        checked: root.startPageRoad
+                        onClicked: root.startPageRoadToggled(!checked)
                     }
 
                     SectionLabel {

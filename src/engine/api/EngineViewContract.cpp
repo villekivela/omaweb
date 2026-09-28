@@ -13,6 +13,10 @@ QStringList validateEngineViewContract(const QObject &adapter)
         {"pageTitle", QMetaType::QString},
         {"pageIconUrl", QMetaType::QUrl},
         {"loading", QMetaType::Bool},
+        // Whether the document on show has drawn anything of its own yet. The
+        // Start page's road runs until it has, since until then the reader
+        // would be looking at nothing.
+        {"documentPainted", QMetaType::Bool},
         {"pageAudible", QMetaType::Bool},
         // What the page declares about what it is playing, which the desktop
         // is told. The engine does not hand out a page's media session, so an

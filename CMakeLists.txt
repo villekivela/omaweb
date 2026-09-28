@@ -641,6 +641,8 @@ set(omaweb_ui_files
     src/ui/SpaceOutline.qml
     src/ui/SpaceProfiles.qml
     src/ui/HttpsOnlyPage.qml
+    src/ui/NightRoad.qml
+    src/ui/ShortcutSheet.qml
     src/ui/StartPage.qml
     src/ui/TabEngineHost.qml
     src/ui/TabRow.qml

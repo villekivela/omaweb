@@ -3,7 +3,7 @@ import QtTest
 import qs.Commons
 import "../../src/ui" as Omaweb
 
-// The Start page's geometry, which is derived rather than written down. Every
+// The Shortcut sheet's geometry, which is derived rather than written down. Every
 // number that decides how wide a column is, how many columns there are and how
 // tall a row is comes from the type the theme is set in and from the bindings
 // the keymap actually holds. So it is asserted at more than one width *and*
@@ -12,7 +12,7 @@ import "../../src/ui" as Omaweb
 // scale — are checked one at a time, so neither can stand in for the other.
 TestCase {
     id: testCase
-    name: "StartPageLayout"
+    name: "ShortcutSheetLayout"
     when: windowShown
 
     // A maximised window beside the sidebar on a 2560px display, which is where
@@ -95,7 +95,7 @@ TestCase {
     Component {
         id: sheetComponent
 
-        Omaweb.StartPage {
+        Omaweb.ShortcutSheet {
             id: sheet
 
             property var bindings: testCase.buildBindings()
@@ -333,16 +333,21 @@ TestCase {
         compare(sheet.layoutColumns.length, sheet.columnCount);
     }
 
-    // Summoned over a page the sheet carries a close affordance the resting one
-    // does not, and the heading has to leave room for it.
-    function test_theSummonedRoleLeavesRoomForItsCloseAffordance() {
+    TextMetrics {
+        id: headingMetrics
+        font.family: Style.font.family
+        font.pixelSize: Style.font.display
+        text: "Keyboard commands"
+    }
+
+    // The sheet always closes back to what it covered, so the heading leaves
+    // room for its close affordance.
+    function test_theHeadingLeavesRoomForItsCloseAffordance() {
         const sheet = makeSheet();
         sheet.width = testCase.narrowViewport;
-        const resting = sheet.headingWidth;
 
-        sheet.overPage = true;
-        verify(sheet.headingWidth > resting);
-        compare(sheet.headingWidth - resting, sheet.closeSize + sheet.keyGap);
+        compare(sheet.headingWidth, Math.ceil(headingMetrics.advanceWidth) + sheet.closeSize
+                + sheet.keyGap);
         // The same derivation still serves: one column at this width.
         compare(sheet.columnCount, 1);
     }

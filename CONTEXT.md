@@ -71,11 +71,15 @@ walks the list without changing it, so a new activation after a jump keeps the e
 and appends at the end. Each half of a split is its own entry. Each Space has one, and it survives a
 switch to another Space and back. _Avoid_: Tab history, recent tabs, tab stack, last tab
 
-**Start page**: What Omaweb draws where a webpage would be whenever the tab on show has no address
-to load, in a Space at rest or on `about:blank` itself: the browser's keyboard commands and the keys
-that run them, rather than a document loaded from anywhere. It costs no engine and takes the
-sidebar's translucency. The same sheet answers on demand over a live page, where it is opaque and
-closeable instead. _Avoid_: Home page, new tab page, about:blank, cheat sheet
+**Start page**: What Omaweb shows where a webpage would be when there is none to show: a Space at
+rest, `about:blank`, and a new-tab request that has no destination yet. It is the Omnibar at rest in
+the middle of the page area, focused, over a night road drawn from the palette as a monochrome pixel
+display. It costs no engine. A new-tab request shows it over the page on show, and `Escape` gives
+that page back. _Avoid_: Home page, new tab page, about:blank, speed dial
+
+**Shortcut sheet**: The browser's keyboard commands and the keys that run them, read from the live
+keymap. `?` or `Primary+/` summons it over a page or over the Start page, and `Escape` closes it.
+_Avoid_: Cheat sheet, keymap sheet, Start page
 
 **Private window**: A temporary browser window whose browsing identity is separate from every Space
 and whose distinct appearance identifies it as private. Private windows share temporary state with
@@ -102,10 +106,11 @@ ordinary Omaweb browsing window. _Avoid_: Browser window, pop-up tab
 page without a pointer. It provides the same user-facing commands with every engine and lets sites
 receive selected conflicting keys. _Avoid_: Vim mode, Vimium extension
 
-**Omnibar**: A centered overlay with one field and one ranked list for opening addresses, searching,
-switching to an open tab or a Space, and invoking browser commands. The tab on show is never listed.
-A new-tab request creates its tab only after the user commits a destination in the Omnibar. _Avoid_:
-Command bar, omnibox, command palette, command panel
+**Omnibar**: One field and one ranked list for opening addresses, searching, switching to an open
+tab or a Space, and invoking browser commands. Over a page it is a centered overlay; on the Start
+page it is at rest on the road's horizon. The tab on show is never listed. A new-tab request creates
+its tab only after the user commits a destination in the Omnibar. _Avoid_: Command bar, omnibox,
+command palette, command panel
 
 **Command scope**: The Omnibar narrowed to browser commands, shown as a leading `:` in the field.
 Typing `:` into the field enters it and backspacing the `:` leaves it, keeping the typed text.

@@ -24,7 +24,46 @@ Item {
     // panel, or the effect source would feed on its own output.
     property Item backdropSource: null
 
-    readonly property bool blurActive: backdropSource !== null && backdropSource.visible
+    // Not at rest: under it is the Start page's road, which moves every frame,
+    // and a blur of it would render the window again for each one.
+    readonly property bool blurActive: backdropSource !== null && backdropSource.visible &&
+                                       !shownResting
+
+    // At rest on the Start page rather than over a page: the field sits on the
+    // page area's horizon, nothing is dimmed, and the rest of the window keeps
+    // its pointer. `restArea` is the page area and `horizonY` the Start page's
+    // horizon, both in this item's coordinates.
+    property bool resting: false
+    // What the panel looks like: `resting` while it is open, and whatever it
+    // was on the way out. An Omnibar at rest that closes fades where it rests
+    // rather than jumping to the overlay's place for its retreat.
+    property bool shownResting: false
+    // The Start page closing takes `resting` and `open` away together, in no
+    // set order, so leaving rest waits a turn to see whether the panel is
+    // still open.
+    onRestingChanged: {
+        if (!open)
+            return;
+        if (resting) {
+            shownResting = true;
+            return;
+        }
+        Qt.callLater(function () {
+            if (root.open)
+                root.shownResting = root.resting;
+        });
+    }
+    property rect restArea: Qt.rect(0, 0, width, height)
+    property real horizonY: height / 2
+    // Where the keyboard rests when no page has it: the empty field at rest on
+    // the Start page. An Agent's click may take it for a moment and give it
+    // back without the reader losing anything, which is not true once
+    // something is typed.
+    readonly property bool pageFocusRest: open && shownResting && !commandScope && engine === null
+                                          && input.text.length === 0
+    // Whether Escape closes the Omnibar. A Space at rest has nothing behind
+    // its Start page to go back to, so there it does not.
+    property bool closeable: true
 
     // What the reader steps through, ranked against the typed text. In
     // command scope that is the commands alone.
@@ -49,6 +88,9 @@ Item {
     signal dismissed
     signal committed(string text)
     signal queryChanged(string text)
+    // `?` typed into an empty field at rest, which is the Start page's way to
+    // the Shortcut sheet.
+    signal shortcutsRequested
 
     // Drawn for the length of the retreat as well.
     visible: open || retreating
@@ -61,9 +103,14 @@ Item {
     property bool ease: true
     // 0 on its way in, 1 at rest.
     property real arrival: 1
-    readonly property real restWidth: Math.min(660, width - 96)
-    readonly property real restX: (width - restWidth) / 2
-    readonly property real restY: Math.max(80, height * 0.14)
+    readonly property real restWidth: Math.min(660, (shownResting ? restArea.width : width) - 96)
+    readonly property real restX: shownResting ? restArea.x + (restArea.width - restWidth) / 2 : (
+                                                     width - restWidth) / 2
+    readonly property real restY: shownResting ? restArea.y + horizonY - header.height / 2
+                                                 - panel.border.width : Math.max(80, height * 0.14)
+    // How far below the horizon the field ends, which is where the Start page
+    // can draw beneath it.
+    readonly property real fieldBelowHorizon: header.height / 2 + panel.border.width
     readonly property real restHeight: header.height + body.height + footer.height + 2
                                        * panel.border.width
     NumberAnimation {
@@ -113,17 +160,26 @@ Item {
         }
         retreatEase.stop();
         retreating = false;
+        shownResting = resting;
         if (ease) {
             arrival = 0;
             arrivalEase.restart();
         }
+        restart();
+    }
+
+    // The field as a fresh opening leaves it, for an Omnibar that is already
+    // open: the Start page's, when the reader asks for it again.
+    function restart() {
         engine = null;
         input.text = commandScope ? "" : presetText;
         refresh();
-        Qt.callLater(function () {
-            input.forceActiveFocus();
-            input.selectAll();
-        });
+        Qt.callLater(focusField);
+    }
+
+    function focusField() {
+        input.forceActiveFocus();
+        input.selectAll();
     }
 
     // Suggestions arrive after the keystroke that asked for them, so a row the
@@ -153,6 +209,13 @@ Item {
             return;
         }
         const query = input.text.trim();
+        // At rest on the Start page an empty field lists nothing: the open tabs
+        // are in the sidebar beside it, and the road is the page.
+        if (resting && query.length === 0 && engine === null) {
+            rows = [];
+            selected = -1;
+            return;
+        }
         let candidates = suggestions.map(function (suggestion) {
             return {
                 "kind": "history",
@@ -330,10 +393,13 @@ Item {
             root.committed(text);
     }
 
-    SheetFloor {}
+    SheetFloor {
+        enabled: !root.shownResting
+    }
 
     Rectangle {
         anchors.fill: parent
+        visible: !root.shownResting
         color: "#99000000"
         opacity: root.arrival
 
@@ -574,6 +640,12 @@ Item {
                     // refreshes.
                     if (root.takeScope() || root.takeKeyword())
                         return;
+                    if (root.resting && !root.commandScope && root.engine === null && text
+                            === "?") {
+                        text = "";
+                        root.shortcutsRequested();
+                        return;
+                    }
                     root.refresh();
                     root.queryChanged(text);
                 }
@@ -658,75 +730,19 @@ Item {
             anchors.leftMargin: panel.border.width
             anchors.rightMargin: panel.border.width
             anchors.top: header.bottom
-            // The destination row with its lead, then the rows beneath it.
-            height: (destination.visible ? destination.height + 4 : 0) + (root.rows.length > 0
-                                                                          ? Math.min(
-                                                                                rowList.contentHeight,
-                                                                                root.commandScope
-                                                                                ? 336 : 280) + 8 :
-                                                                            0)
-
-            // Where the typed text goes, which is the selection at -1 read
-            // out: the address it opens, the engine a keyword chose, or the
-            // default one a search without a keyword falls to.
-            Item {
-                id: destination
-                objectName: "omnibarDestination"
-                anchors.left: parent.left
-                anchors.right: parent.right
-                anchors.top: parent.top
-                anchors.topMargin: visible ? 4 : 0
-                visible: !root.commandScope && root.destination.length > 0
-                height: visible ? 28 : 0
-                readonly property string text: root.destination
-                Accessible.role: Accessible.Button
-                Accessible.name: root.destination
-
-                Rectangle {
-                    anchors.fill: parent
-                    color: root.selected === -1 || destinationMouse.containsMouse
-                           ? root.colors.surface : "transparent"
-                }
-
-                Rectangle {
-                    width: 2
-                    height: parent.height
-                    anchors.left: parent.left
-                    color: root.selected === -1 ? root.colors.accent : "transparent"
-                }
-
-                Text {
-                    anchors.left: parent.left
-                    anchors.leftMargin: 14
-                    anchors.right: parent.right
-                    anchors.rightMargin: 14
-                    anchors.verticalCenter: parent.verticalCenter
-                    text: root.destination
-                    color: root.selected === -1 ? root.colors.text : root.colors.mutedText
-                    elide: Text.ElideRight
-                    font.family: Style.font.family
-                    font.pixelSize: Style.font.body
-                }
-
-                MouseArea {
-                    id: destinationMouse
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onEntered: root.selected = -1
-                    onClicked: {
-                        root.selected = -1;
-                        root.accept();
-                    }
-                }
-            }
+            // The rows. Where the typed text goes is not a row of its own: the
+            // chip names a keyword's engine, and the field's description says
+            // the rest for a screen reader.
+            height: root.rows.length > 0 ? Math.min(rowList.contentHeight, root.commandScope ? 336 :
+                                                                                               280) + 8 :
+                                           0
 
             ListView {
                 id: rowList
                 objectName: "omnibarRowList"
                 anchors.left: parent.left
                 anchors.right: parent.right
-                anchors.top: destination.bottom
+                anchors.top: parent.top
                 anchors.bottom: parent.bottom
                 anchors.topMargin: 4
                 visible: root.rows.length > 0
@@ -870,7 +886,10 @@ Item {
             anchors.right: parent.right
             anchors.bottom: parent.bottom
             anchors.margins: panel.border.width
-            height: 26
+            // Not at rest: the Start page is the field over the road, and its
+            // own line sits where the keys would.
+            visible: !root.shownResting
+            height: visible ? 26 : 0
 
             Rectangle {
                 anchors.left: parent.left
@@ -898,6 +917,7 @@ Item {
 
                 KeyHint {
                     colors: root.colors
+                    visible: root.closeable
                     text: "ESC CLOSE"
                 }
             }

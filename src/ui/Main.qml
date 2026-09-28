@@ -181,8 +181,26 @@ ApplicationWindow {
     // already and is about to be a page.
     readonly property bool pagelessViewport: window.windowBrowser.activeTabBlank &&
                                              !engineLoader.item
+    // The Omnibar over a page. The Start page's Omnibar is the same one at
+    // rest, and is open whenever the Start page is on show.
     property bool omnibarOpen: false
     property bool newTabIntent: false
+    // A new-tab request shows the Start page over the page on show, which
+    // stays where it is until a destination is committed.
+    property bool startPageSummoned: false
+    // A destination was committed from the Start page and the tab it went to
+    // has not painted yet. The road is the loading state until it has, for up
+    // to `startPageDriveLimit` milliseconds.
+    property bool startPageDriving: false
+    property string startPageDriveTabId: ""
+    readonly property int startPageDriveLimit: 2000
+    // Whether the Start page draws its road. Local to this installation, like
+    // the Glance: Sync carries neither.
+    property bool startPageRoad: true
+    readonly property bool startPageShown: (window.pagelessViewport || window.startPageSummoned
+                                            || window.startPageDriving) && !window.settingsOpen &&
+                                           !window.historyOpen
+    readonly property bool omnibarShown: window.omnibarOpen || window.startPageShown
     // The application's release watch, named apart from the context property it
     // holds: a binding written `releaseWatch: releaseWatch` inside a component
     // that has a property of that name binds the property to itself.
@@ -484,7 +502,12 @@ ApplicationWindow {
     }
 
     function openCommandPanel() {
+        window.endStartPageDrive();
         commandPanel.beginCommand();
+        if (window.startPageShown) {
+            commandPanel.restart();
+            return;
+        }
         omnibarOpen = true;
     }
 
@@ -740,12 +763,7 @@ ApplicationWindow {
         window.historyOpen = true;
     }
 
-    // The sheet a resting Space shows is the same sheet, so asking for it while
-    // it is already standing in for the page has nothing to add and nothing to
-    // toggle off.
     function requestShortcuts() {
-        if (window.pagelessViewport)
-            return;
         window.shortcutsOpen = !window.shortcutsOpen;
     }
 
@@ -938,8 +956,8 @@ ApplicationWindow {
     }
 
     function focusPage() {
-        if (window.pagelessViewport) {
-            startPage.forceActiveFocus();
+        if (window.startPageShown) {
+            commandPanel.focusField();
             return;
         }
         engineLoader.focusPage();
@@ -1003,7 +1021,9 @@ ApplicationWindow {
             return "sidebar";
         if (item === developerToolsDock || item === developerToolsResizer)
             return "developer-tools";
-        if (item === engineLoader || item === startPage)
+        if (item === engineLoader || item === startPage || (item === commandPanel
+                                                            && commandPanel.resting))
+
             return window.pageRegionName();
         return "";
     }
@@ -1601,6 +1621,8 @@ ApplicationWindow {
                 === "true";
         window.easeChrome = window.windowBrowser.preference("ease-sidebar", "true") === "true";
         window.glanceEnabled = window.windowBrowser.preference("glance", "true") === "true";
+        window.startPageRoad = window.windowBrowser.preference("start-page-road", "true")
+                === "true";
     }
 
     function setFloatingControls(enabled) {
@@ -1615,6 +1637,11 @@ ApplicationWindow {
     function setEaseChrome(enabled) {
         window.easeChrome = enabled;
         window.windowBrowser.setPreference("ease-sidebar", enabled ? "true" : "false");
+    }
+
+    function setStartPageRoad(enabled) {
+        window.startPageRoad = enabled;
+        window.windowBrowser.setPreference("start-page-road", enabled ? "true" : "false");
     }
 
     function setGlanceEnabled(enabled) {
@@ -1653,7 +1680,8 @@ ApplicationWindow {
         target: window.windowBrowser
 
         function onPreferenceChanged(name) {
-            if (name === "floating-controls" || name === "ease-sidebar" || name === "glance")
+            if (name === "floating-controls" || name === "ease-sidebar" || name === "glance" || name
+                    === "start-page-road")
                 window.restoreChromeAppearance();
             else if (name === "use-favicons" || name === "tint-favicons")
                 window.restoreTabAppearance();
@@ -2089,6 +2117,26 @@ ApplicationWindow {
     }
 
     function openOmnibar(forNewTab) {
+        // A reader who asks for somewhere else while the road still drives to
+        // the last destination is done waiting for it: the page takes over.
+        window.endStartPageDrive();
+        // The Start page is the Omnibar at rest, so asking for the Omnibar or
+        // for a new tab while it is on show focuses the one already there,
+        // keeping what is typed. Only the command scope is left for the address.
+        if (window.startPageShown) {
+            if (commandPanel.commandScope)
+                window.restartStartPageField();
+            else
+                commandPanel.focusField();
+            return;
+        }
+        // A new tab is asked of the Start page, over the page on show.
+        if (forNewTab) {
+            window.shortcutsOpen = false;
+            window.closeGlance();
+            window.startPageSummoned = true;
+            return;
+        }
         newTabIntent = forNewTab;
         const preset = forNewTab ? "" : window.windowBrowser.activeUrl.toString();
         // Suggestions arrive from the search thread, so the panel opens on the
@@ -2254,13 +2302,122 @@ ApplicationWindow {
         }
     }
 
+    // Closing the Omnibar also gives back the page a new-tab request's Start
+    // page stood over. A Start page standing in for no page stays.
     function closeOmnibar() {
         omnibarOpen = false;
         newTabIntent = false;
+        if (!window.startPageDriving)
+            window.startPageSummoned = false;
         omnibarSuggestions = [];
         if (!window.privateWindow)
             window.windowBrowser.cancelHistorySuggestions();
         window.focusPage();
+    }
+
+    // The Start page's field, emptied and focused, heading where the Start
+    // page's destination goes.
+    function restartStartPageField() {
+        commandPanel.beginAddress("", window.startPageSummoned);
+        commandPanel.restart();
+    }
+
+    // Escape at rest. Command scope goes back to the address; a Start page
+    // summoned over a page gives the page back; a Space at rest has nothing
+    // behind its Start page, so there it does nothing.
+    function dismissStartPage() {
+        if (window.startPageDriving)
+            return;
+        if (commandPanel.commandScope) {
+            window.restartStartPageField();
+            return;
+        }
+        if (!window.startPageSummoned)
+            return;
+        window.startPageSummoned = false;
+        omnibarSuggestions = [];
+        window.focusPage();
+    }
+
+    // The Start page arrived, or came back after settings or history: its
+    // Omnibar starts from an empty field, heading where the Start page's
+    // destination goes.
+    onStartPageShownChanged: {
+        if (!window.startPageShown) {
+            if (!window.omnibarOpen)
+                window.omnibarSuggestions = [];
+            return;
+        }
+        window.omnibarSuggestions = [];
+        commandPanel.beginAddress("", window.startPageSummoned);
+        if (commandPanel.open)
+            commandPanel.restart();
+    }
+
+    // A tab switch or a Space switch leaves a summoned Start page behind: the
+    // page it stood over is no longer the page on show.
+    Connections {
+        target: window.windowBrowser
+        function onActiveTabChanged() {
+            if (!window.startPageDriving)
+                window.startPageSummoned = false;
+        }
+    }
+
+    // What the Omnibar at rest commits. A summoned Start page creates its tab
+    // now, and not before; a Start page standing in for a page loads it in
+    // place. The road runs until the tab's page first paints.
+    function commitFromStartPage(text) {
+        const newTab = window.startPageSummoned;
+        window.windowBrowser.openInput(text, newTab);
+        window.startPageSummoned = false;
+        window.windowBrowser.cancelHistorySuggestions();
+        if (!window.startPageRoad) {
+            window.focusPage();
+            return;
+        }
+        window.startPageDriveTabId = window.windowBrowser.activeTabId;
+        window.startPageDriving = true;
+        startPageDriveLimitTimer.restart();
+    }
+
+    // The committed tab has something to show: its first paint, or a failure
+    // whose own page takes over at once.
+    function startPageDriveLanded() {
+        if (window.windowBrowser.activeTabId !== window.startPageDriveTabId)
+            return true;
+        const engine = engineLoader.item;
+        if (!engine || engine !== engineLoader.engines[window.startPageDriveTabId])
+            return false;
+        return engine.documentPainted === true || engine.lastLoadFailed === true || Object.keys(
+                    engine.httpsUpgradeFailure || {}).length > 0 || String(
+                    engine.certificateErrorOrigin || "").length > 0;
+    }
+
+    function endStartPageDrive() {
+        if (!window.startPageDriving)
+            return;
+        startPageDriveLimitTimer.stop();
+        window.startPageDriving = false;
+        window.startPageDriveTabId = "";
+        window.focusPage();
+    }
+
+    Timer {
+        id: startPageDriveLimitTimer
+        interval: window.startPageDriveLimit
+        onTriggered: window.endStartPageDrive()
+    }
+
+    // The engine reports its first paint as a property, and the tab it
+    // belongs to arrives a moment after the commit, so the drive checks rather
+    // than waits on one signal.
+    Timer {
+        interval: 30
+        repeat: true
+        running: window.startPageDriving
+        onTriggered: if (window.startPageDriveLanded())
+                         window.endStartPageDrive()
     }
 
     // Every binding — chord, single key, or sequence — comes from the keyboard
@@ -2602,7 +2759,8 @@ ApplicationWindow {
                     // A tab becomes active before its engine asks for focus on
                     // the next event turn. Settings keeps that later request
                     // from taking the keyboard back after a tab click.
-                    pageFocusAllowed: !window.settingsOpen
+                    // The Start page's Omnibar keeps the keyboard over a page as well.
+                    pageFocusAllowed: !window.settingsOpen && !window.startPageShown
                     hintTheme: window.colors
                     developerToolsColors: window.colors
                     // Chromium's own pre-paint colour, so a navigation never
@@ -2895,38 +3053,58 @@ ApplicationWindow {
 
                 StartPage {
                     id: startPage
-                    // The sheet stands where the page would: in the focused
-                    // pane while a split is on show, or over the whole area.
-                    // Only a blank half takes it; the sheet summoned over a
-                    // live page is the page's.
+                    // A blank half of a split takes the Start page in its own
+                    // pane. Summoned over a page, it covers the whole area,
+                    // which is where the committed tab lands.
                     readonly property bool inPane: window.windowBrowser.splitOnShow
-                                                   && window.pagelessViewport
+                                                   && window.pagelessViewport &&
+                                                   !window.startPageSummoned
                     x: inPane ? engineLoader.x + engineLoader.activePaneX : 0
                     y: 0
                     width: inPane ? engineLoader.activePaneWidth : parent.width
                     height: parent.height
                     z: 30
+                    colors: window.colors
+                    privateWindow: window.privateWindow
+                    open: window.startPageShown
+                    ease: window.easeChrome
+                    roadWidth: window.width
+                    roadEnabled: window.startPageRoad
+                    windowActive: window.active && window.visible && window.visibility
+                                  !== Window.Minimized
+                    driving: window.startPageDriving
+                    fieldBelowHorizon: commandPanel.fieldBelowHorizon
+                    pageSource: window.pagelessViewport ? null : engineLoader
+                }
+
+                ShortcutSheet {
+                    id: shortcutSheet
+                    readonly property bool inPane: window.windowBrowser.splitOnShow
+                                                   && window.pagelessViewport &&
+                                                   !window.startPageSummoned
+                    x: inPane ? engineLoader.x + engineLoader.activePaneX : 0
+                    y: 0
+                    width: inPane ? engineLoader.activePaneWidth : parent.width
+                    height: parent.height
+                    z: 31
                     SheetLift {
-                        id: startPageLift
-                        shown: startPage.open
+                        id: shortcutSheetLift
+                        shown: shortcutSheet.open
                         ease: window.easeChrome
                     }
-                    lift: startPageLift.y
-                    opacity: startPageLift.progress
+                    lift: shortcutSheetLift.y
+                    opacity: shortcutSheetLift.progress
                     // Drawn for the length of the drop.
-                    visible: startPageLift.showing
+                    visible: shortcutSheetLift.showing
                     colors: window.colors
                     iconFontFamily: materialSymbols.name
                     commands: browserCommands
                     keymap: keymap
                     privateWindow: window.privateWindow
-                    open: (window.pagelessViewport || window.shortcutsOpen) && !window.settingsOpen
-                          && !window.historyOpen
-                    overPage: !window.pagelessViewport
-                    // The page behind the sheet, not the viewport that owns
-                    // both, so the blur never samples itself. There is nothing
-                    // to sample where there is no page.
-                    pageSource: window.pagelessViewport ? null : engineLoader
+                    open: window.shortcutsOpen && !window.settingsOpen && !window.historyOpen
+                    // What the sheet covers, never the viewport that owns
+                    // both, so the blur never samples itself.
+                    pageSource: window.startPageShown ? startPage : engineLoader
 
                     onClosed: {
                         window.shortcutsOpen = false;
@@ -3224,6 +3402,7 @@ ApplicationWindow {
                     floatingControls: window.floatingControls
                     easeChrome: window.easeChrome
                     glanceEnabled: window.glanceEnabled
+                    startPageRoad: window.startPageRoad
                     retainedTabs: window.visibleRetainedTabs
 
                     downloads: window.downloads
@@ -3272,6 +3451,9 @@ ApplicationWindow {
                     }
                     onGlanceToggled: function (enabled) {
                         window.setGlanceEnabled(enabled);
+                    }
+                    onStartPageRoadToggled: function (enabled) {
+                        window.setStartPageRoad(enabled);
                     }
                     onTintFaviconsToggled: function (enabled) {
                         window.setTintFavicons(enabled);
@@ -3640,7 +3822,7 @@ ApplicationWindow {
         target: window.windowBrowser
 
         function onHistorySuggestionsReady(suggestions) {
-            if (!window.omnibarOpen || commandPanel.commandScope)
+            if (!window.omnibarShown || commandPanel.commandScope)
                 return;
             window.omnibarSuggestions = suggestions;
         }
@@ -4067,10 +4249,26 @@ ApplicationWindow {
         // so the blur never samples itself.
         backdropSource: shell
         ease: window.easeChrome
-        open: window.omnibarOpen
+        open: window.omnibarShown
+        // Under the Shortcut sheet the Omnibar at rest steps aside, so the
+        // sheet owns the keyboard until it closes.
+        // Nor does it take the pointer as it leaves: the page it gives way to
+        // has the first click.
+        enabled: window.omnibarShown && !window.shortcutsOpen && !window.startPageDriving
+        resting: window.startPageShown && !window.omnibarOpen
+        restArea: Qt.rect(chromeRow.seam + startPage.x, startPage.y, startPage.width,
+                          startPage.height)
+        horizonY: startPage.horizonY
+        closeable: !commandPanel.resting || window.startPageSummoned || commandPanel.commandScope
         suggestions: window.omnibarSuggestions
 
-        onDismissed: window.closeOmnibar()
+        onDismissed: {
+            if (commandPanel.resting)
+                window.dismissStartPage();
+            else
+                window.closeOmnibar();
+        }
+        onShortcutsRequested: window.requestShortcuts()
         onQueryChanged: function (text) {
             if (commandPanel.commandScope)
                 return;
@@ -4084,6 +4282,10 @@ ApplicationWindow {
             window.windowBrowser.requestHistorySuggestions(text);
         }
         onCommitted: function (text) {
+            if (commandPanel.resting) {
+                window.commitFromStartPage(text);
+                return;
+            }
             window.windowBrowser.openInput(text, window.newTabIntent);
             window.closeOmnibar();
         }
