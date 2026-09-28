@@ -70,6 +70,10 @@ Window {
     // theme's night is drawn from its dark foreground, unless Ctrl+N asks for
     // the theme's own light ground.
     property bool lightNight: true
+    property bool surface: false
+    property bool carAhead: false
+    property bool hood: false
+    property bool grit: true
     readonly property color uiBg: c("background", "#1a1b26")
     readonly property color uiFg: c("foreground", "#c0caf5")
     readonly property color uiDeep: c("darker_background", mix(uiBg, "black", light ? 0.08 : 0.45))
@@ -124,6 +128,8 @@ Window {
         if (args.theme !== undefined) themeIndex = +args.theme;
         if (args.private === "1") privateWindow = true;
         if (args.hud === "0") hud = false;
+        if (args.grit === "0") grit = false;
+        if (args.extras !== undefined) { surface = args.extras.indexOf("s") >= 0; carAhead = args.extras.indexOf("c") >= 0; hood = args.extras.indexOf("h") >= 0; }
         if (args.mode === "driving") { mode = "over-page"; delayIndex = 2; commit(); }
         if (args.mode === "over-page") mode = "over-page";
     }
@@ -178,6 +184,10 @@ Window {
     Shortcut { sequence: "F1"; onActivated: win.variant = 0 }
     Shortcut { sequence: "F2"; onActivated: win.variant = 1 }
     Shortcut { sequence: "F3"; onActivated: win.variant = 2 }
+    Shortcut { sequence: "F10"; onActivated: win.grit = !win.grit }
+    Shortcut { sequence: "F7"; onActivated: win.surface = !win.surface }
+    Shortcut { sequence: "F8"; onActivated: win.carAhead = !win.carAhead }
+    Shortcut { sequence: "F9"; onActivated: win.hood = !win.hood }
     Shortcut { sequence: "F5"; onActivated: win.themeIndex = (win.themeIndex + Themes.all.length - 1) % Themes.all.length }
     Shortcut { sequence: "F6"; onActivated: win.themeIndex = (win.themeIndex + 1) % Themes.all.length }
     Shortcut { sequence: "Ctrl+P"; onActivated: win.privateWindow = !win.privateWindow }
@@ -573,9 +583,10 @@ Window {
     }
 
     // ---- clickable switcher, top centre of the page area ------------------
-    Row {
+    Flow {
         z: 10
-        x: sidebar.width + (pageArea.width - width) / 2
+        x: sidebar.width + 20
+        width: pageArea.width - 40
         y: 12
         spacing: 6
         Repeater {
@@ -593,6 +604,11 @@ Window {
         PrototypeButton { label: "theme ▶"; onClicked: win.themeIndex = (win.themeIndex + 1) % Themes.all.length }
         Item { width: 14; height: 1 }
         PrototypeButton { label: "Private"; active: win.privateWindow; onClicked: win.privateWindow = !win.privateWindow }
+        Item { width: 14; height: 1 }
+        PrototypeButton { label: "F7 surface"; active: win.surface; onClicked: win.surface = !win.surface }
+        PrototypeButton { label: "F8 car ahead"; active: win.carAhead; onClicked: win.carAhead = !win.carAhead }
+        PrototypeButton { label: "F9 hood"; active: win.hood; onClicked: win.hood = !win.hood }
+        PrototypeButton { label: "F10 grit"; active: win.grit; onClicked: win.grit = !win.grit }
     }
 
     component PrototypeButton: Rectangle {
@@ -704,6 +720,37 @@ Window {
                     radius: width / 2
                     color: r3 > 0.85 ? win.mix(win.fg, win.accent, 0.45) : win.mix(win.fg, "white", 0.3)
                     opacity: (0.2 + 0.8 * r3) * (1 - h * 0.85)
+                }
+            }
+            // Halftone dots rising off the horizon, the website art's print texture.
+            Canvas {
+                id: halftone
+                anchors.fill: parent
+                visible: win.grit && !win.privateWindow
+                renderStrategy: Canvas.Immediate
+                readonly property string key: width + "x" + height + win.accent + win.sunLow + roadRoot.horizonY
+                onKeyChanged: requestPaint()
+                onPaint: {
+                    const ctx = getContext("2d");
+                    ctx.reset();
+                    const band = roadRoot.horizonY * 0.62;
+                    const top = roadRoot.horizonY - band;
+                    const step = 7;
+                    const tint = win.mix(win.sunLow, win.accent, 0.5);
+                    ctx.fillStyle = Qt.rgba(tint.r, tint.g, tint.b, 0.55);
+                    let row = 0;
+                    for (let y = top; y < roadRoot.horizonY; y += step, ++row) {
+                        const t = (y - top) / band;
+                        for (let x = (row % 2) * step / 2; x < width; x += step) {
+                            const dx = (x - roadRoot.vpX) / (width * 0.42);
+                            const r = (0.15 + 2.1 * Math.pow(t, 2.2)) * (0.35 + 0.65 * Math.exp(-dx * dx));
+                            if (r < 0.3)
+                                continue;
+                            ctx.beginPath();
+                            ctx.arc(x, y, r, 0, Math.PI * 2);
+                            ctx.fill();
+                        }
+                    }
                 }
             }
             // The sun's glow: a wide soft bloom and a tight hot core.
@@ -922,6 +969,16 @@ Window {
                     PathLine { x: roadRoot.px(1, 1); y: roadRoot.height }
                 }
                 ShapePath {
+                    strokeColor: win.grit ? win.alpha(win.mix(win.glow, win.hot, 0.5), win.privateWindow ? 0.1 : 0.35) : "transparent"
+                    strokeWidth: 1
+                    fillColor: "transparent"
+                    startX: roadRoot.vpX + 1
+                    startY: roadRoot.horizonY
+                    PathLine { x: roadRoot.px(-1, 1) + 5; y: roadRoot.height }
+                    PathMove { x: roadRoot.vpX + 1; y: roadRoot.horizonY }
+                    PathLine { x: roadRoot.px(1, 1) + 5; y: roadRoot.height }
+                }
+                ShapePath {
                     strokeColor: win.alpha(win.mix(win.fg, win.glow, 0.4), win.privateWindow ? 0.15 : 0.55)
                     strokeWidth: 2
                     fillColor: "transparent"
@@ -1005,6 +1062,253 @@ Window {
             }
         }
 
+        // ---- F7 surface: shoulder lines, lane dividers, cat's eyes
+        Item {
+            anchors.fill: parent
+            visible: win.surface
+            Shape {
+                anchors.fill: parent
+                preferredRendererType: Shape.CurveRenderer
+                ShapePath {
+                    strokeColor: win.alpha(win.fg, win.privateWindow ? 0.1 : 0.35)
+                    strokeWidth: 3
+                    fillColor: "transparent"
+                    startX: roadRoot.vpX
+                    startY: roadRoot.horizonY
+                    PathLine { x: roadRoot.px(-0.86, 1); y: roadRoot.height }
+                    PathMove { x: roadRoot.vpX; y: roadRoot.horizonY }
+                    PathLine { x: roadRoot.px(0.86, 1); y: roadRoot.height }
+                }
+            }
+            Repeater {
+                model: win.privateWindow ? 0 : 44
+                Rectangle {
+                    required property int index
+                    readonly property real lane: index % 2 === 0 ? -0.43 : 0.43
+                    readonly property int k: Math.floor(index / 2)
+                    readonly property real dz: 1 + marks.wrap(k * 1.15 + 0.57 - win.travel, 22 * 1.15)
+                    readonly property real len: 0.3 + Math.min(0.6, (win.speed - 1) * 0.09)
+                    readonly property real y0: roadRoot.py(dz)
+                    readonly property real y1: roadRoot.py(dz + len)
+                    readonly property real x0: roadRoot.px(lane, dz)
+                    readonly property real x1: roadRoot.px(lane, dz + len)
+                    x: (x0 + x1) / 2 - width / 2
+                    y: (y0 + y1) / 2 - height / 2
+                    width: Math.max(1, 7 / dz)
+                    height: Math.hypot(x0 - x1, y0 - y1)
+                    rotation: -Math.atan2(x0 - x1, y0 - y1) * 180 / Math.PI
+                    antialiasing: true
+                    color: win.fg
+                    opacity: 0.55 * Math.min(1, 1.3 - dz / 26) * Math.min(1, (dz - 1) * 2.5)
+                }
+            }
+            // Cat's eyes on the shoulder lines, white on the left and red on the right.
+            Repeater {
+                model: win.privateWindow ? 0 : 32
+                Rectangle {
+                    required property int index
+                    readonly property real side: index % 2 === 0 ? -0.86 : 0.86
+                    readonly property int k: Math.floor(index / 2)
+                    readonly property real dz: 1 + marks.wrap(k * 2.3 - win.travel, 16 * 2.3)
+                    x: roadRoot.px(side, dz) - width / 2
+                    y: roadRoot.py(dz) - height / 2
+                    width: Math.max(1.5, 9 / dz)
+                    height: Math.max(1, 4 / dz)
+                    radius: height / 2
+                    color: index % 2 === 0 ? win.mix(win.warm, "white", 0.2) : win.hot
+                    opacity: Math.min(1, 1.2 - dz / 37) * Math.min(1, (dz - 1) * 2)
+                }
+            }
+        }
+
+        // ---- F8 a car ahead: tail lights drifting in the right lane
+        Item {
+            id: car
+            anchors.fill: parent
+            visible: win.carAhead && !win.privateWindow
+            // It keeps its distance at rest and falls behind when the road speeds up.
+            readonly property real dz: 2.6 + 0.5 * Math.sin(win.travel * 0.07) + Math.max(0, win.speed - 1) * 0.5
+            readonly property real cz: Math.max(1.4, dz)
+            readonly property real cx: roadRoot.px(0.42, cz)
+            readonly property real cy: roadRoot.py(cz)
+            readonly property real w: roadRoot.halfW * 0.34 / cz
+            readonly property real l: cx - w / 2
+            readonly property real r: cx + w / 2
+            // Silhouette: a wide body and a narrower cabin, both in one shape.
+            Shape {
+                anchors.fill: parent
+                preferredRendererType: Shape.CurveRenderer
+                ShapePath {
+                    strokeColor: win.alpha(win.glow, 0.35)
+                    strokeWidth: 1
+                    fillGradient: LinearGradient {
+                        x1: 0
+                        y1: car.cy - car.w * 0.62
+                        x2: 0
+                        y2: car.cy
+                        GradientStop { position: 0; color: win.mix(win.groundNear, win.glow, 0.12) }
+                        GradientStop { position: 0.45; color: win.mix(win.groundNear, "black", 0.3) }
+                        GradientStop { position: 1; color: win.mix(win.groundNear, "black", 0.6) }
+                    }
+                    startX: car.l + car.w * 0.02
+                    startY: car.cy
+                    PathLine { x: car.l; y: car.cy - car.w * 0.2 }
+                    PathQuad { x: car.l + car.w * 0.06; y: car.cy - car.w * 0.36; controlX: car.l; controlY: car.cy - car.w * 0.34 }
+                    PathLine { x: car.l + car.w * 0.2; y: car.cy - car.w * 0.38 }
+                    PathLine { x: car.l + car.w * 0.3; y: car.cy - car.w * 0.6 }
+                    PathLine { x: car.r - car.w * 0.3; y: car.cy - car.w * 0.6 }
+                    PathLine { x: car.r - car.w * 0.2; y: car.cy - car.w * 0.38 }
+                    PathLine { x: car.r - car.w * 0.06; y: car.cy - car.w * 0.36 }
+                    PathQuad { x: car.r; y: car.cy - car.w * 0.2; controlX: car.r; controlY: car.cy - car.w * 0.34 }
+                    PathLine { x: car.r - car.w * 0.02; y: car.cy }
+                    PathLine { x: car.l + car.w * 0.02; y: car.cy }
+                }
+                // Rear window, catching the sky.
+                ShapePath {
+                    strokeWidth: -1
+                    fillColor: win.alpha(win.skyLow, 0.8)
+                    startX: car.cx - car.w * 0.17
+                    startY: car.cy - car.w * 0.4
+                    PathLine { x: car.cx - car.w * 0.12; y: car.cy - car.w * 0.55 }
+                    PathLine { x: car.cx + car.w * 0.12; y: car.cy - car.w * 0.55 }
+                    PathLine { x: car.cx + car.w * 0.17; y: car.cy - car.w * 0.4 }
+                }
+            }
+            // Reflection on the asphalt, two soft streaks under the lights.
+            Repeater {
+                model: 2
+                Rectangle {
+                    required property int index
+                    x: car.cx + (index === 0 ? -1 : 1) * car.w * 0.36 - width / 2
+                    y: car.cy
+                    width: car.w * 0.12
+                    height: car.w * 1.1
+                    radius: width / 2
+                    gradient: Gradient {
+                        GradientStop { position: 0; color: win.alpha(win.hot, 0.4) }
+                        GradientStop { position: 1; color: win.alpha(win.hot, 0) }
+                    }
+                }
+            }
+            // Tail lights, two clusters joined by a thin bar, glowing.
+            Item {
+                anchors.fill: parent
+                layer.enabled: true
+                layer.effect: MultiEffect {
+                    shadowEnabled: true
+                    shadowColor: win.hot
+                    shadowBlur: 1
+                    shadowOpacity: 1
+                    shadowHorizontalOffset: 0
+                    shadowVerticalOffset: 0
+                    blurMax: 32
+                }
+                Repeater {
+                    model: 2
+                    Rectangle {
+                        required property int index
+                        x: car.cx + (index === 0 ? -1 : 1) * car.w * 0.36 - width / 2
+                        y: car.cy - car.w * 0.3
+                        width: car.w * 0.2
+                        height: Math.max(2, car.w * 0.07)
+                        radius: height / 2
+                        color: win.mix(win.hot, "white", 0.25)
+                    }
+                }
+                Rectangle {
+                    x: car.cx - car.w * 0.26
+                    y: car.cy - car.w * 0.285
+                    width: car.w * 0.52
+                    height: Math.max(1, car.w * 0.02)
+                    color: win.alpha(win.hot, 0.8)
+                }
+            }
+        }
+
+        // ---- F9 our own bonnet at the bottom edge, catching the road's light
+        Shape {
+            id: hood
+            anchors.fill: parent
+            visible: win.hood
+            preferredRendererType: Shape.CurveRenderer
+            readonly property real hoodTop: roadRoot.height - roadRoot.depth * 0.2
+            ShapePath {
+                strokeWidth: -1
+                fillGradient: LinearGradient {
+                    x1: 0
+                    y1: hood.hoodTop
+                    x2: 0
+                    y2: roadRoot.height
+                    GradientStop { position: 0; color: win.mix(win.groundNear, win.glow, win.privateWindow ? 0.05 : 0.14) }
+                    GradientStop { position: 0.25; color: win.mix(win.groundNear, "black", 0.4) }
+                    GradientStop { position: 1; color: win.mix(win.groundNear, "black", 0.75) }
+                }
+                startX: -20
+                startY: roadRoot.height
+                PathLine { x: -20; y: hood.hoodTop + roadRoot.depth * 0.14 }
+                PathQuad { x: roadRoot.vpX; y: hood.hoodTop; controlX: roadRoot.width * 0.18; controlY: hood.hoodTop - 2 }
+                PathQuad { x: roadRoot.width + 20; y: hood.hoodTop + roadRoot.depth * 0.14; controlX: roadRoot.width * 0.82; controlY: hood.hoodTop - 2 }
+                PathLine { x: roadRoot.width + 20; y: roadRoot.height }
+            }
+            // The crest line, lit by the horizon.
+            ShapePath {
+                fillColor: "transparent"
+                strokeColor: win.alpha(win.glow, win.privateWindow ? 0.25 : 0.7)
+                strokeWidth: 1.5
+                startX: -20
+                startY: hood.hoodTop + roadRoot.depth * 0.14
+                PathQuad { x: roadRoot.vpX; y: hood.hoodTop; controlX: roadRoot.width * 0.18; controlY: hood.hoodTop - 2 }
+                PathQuad { x: roadRoot.width + 20; y: hood.hoodTop + roadRoot.depth * 0.14; controlX: roadRoot.width * 0.82; controlY: hood.hoodTop - 2 }
+            }
+            // A soft reflection of the sun on the paint.
+            ShapePath {
+                strokeWidth: -1
+                fillGradient: RadialGradient {
+                    centerX: roadRoot.vpX
+                    centerY: hood.hoodTop + 6
+                    centerRadius: roadRoot.width * 0.22
+                    focalX: centerX
+                    focalY: centerY
+                    GradientStop { position: 0; color: win.alpha(win.privateWindow ? win.glow : win.sunTop, win.privateWindow ? 0.06 : 0.22) }
+                    GradientStop { position: 1; color: "transparent" }
+                }
+                startX: roadRoot.vpX - roadRoot.width * 0.3
+                startY: hood.hoodTop - 2
+                PathLine { x: roadRoot.vpX + roadRoot.width * 0.3; y: hood.hoodTop - 2 }
+                PathLine { x: roadRoot.vpX + roadRoot.width * 0.3; y: hood.hoodTop + 60 }
+                PathLine { x: roadRoot.vpX - roadRoot.width * 0.3; y: hood.hoodTop + 60 }
+            }
+        }
+
+        // Grain and scanlines, drawn once per size in code.
+        Canvas {
+            anchors.fill: parent
+            visible: win.grit
+            renderStrategy: Canvas.Immediate
+            opacity: win.light && !win.inverted ? 0.5 : 1
+            readonly property string key: width + "x" + height
+            onKeyChanged: requestPaint()
+            onPaint: {
+                const ctx = getContext("2d");
+                ctx.reset();
+                let seed = 1337;
+                function rnd() {
+                    seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+                    return seed / 0x7fffffff;
+                }
+                ctx.fillStyle = "rgba(0,0,0,0.16)";
+                for (let y = 0; y < height; y += 3)
+                    ctx.fillRect(0, y, width, 1);
+                const n = Math.floor(width * height / 18);
+                for (let k = 0; k < n; ++k) {
+                    const light = rnd() > 0.85;
+                    const a = 0.03 + Math.pow(rnd(), 2) * (light ? 0.05 : 0.3);
+                    ctx.fillStyle = light ? "rgba(255,255,255," + a + ")" : "rgba(0,0,0," + a + ")";
+                    ctx.fillRect(Math.floor(rnd() * width), Math.floor(rnd() * height), 1, 1);
+                }
+            }
+        }
+
         // Vignette, darker at the corners like a windscreen's edge.
         Shape {
             anchors.fill: parent
@@ -1055,6 +1359,25 @@ Window {
             }
             return pts;
         }
+        // Ink hatching down the faces: short strokes from the crest, longer
+        // where the mountain is taller.
+        readonly property var hatches: {
+            const out = [];
+            const pts = points;
+            for (let i = 1; i < pts.length - 1; ++i) {
+                const p = pts[i];
+                const h = base - p.y;
+                const r = Math.abs(Math.sin(i * 91.7 + seed * 13.1));
+                const slope = (pts[i + 1].y - pts[i - 1].y) / (pts[i + 1].x - pts[i - 1].x);
+                // Only the faces turned toward the sun in the notch.
+                const facing = p.x < width / 2 ? slope > 0.08 : slope < -0.08;
+                if (h < 8 || r < 0.45 || !facing)
+                    continue;
+                const len = h * (0.12 + 0.35 * r);
+                out.push([p, Qt.point(p.x + len / slope * 0.35, p.y + len)]);
+            }
+            return out;
+        }
         ShapePath {
             fillGradient: LinearGradient {
                 x1: 0
@@ -1071,6 +1394,12 @@ Window {
             PathPolyline { path: ridge.points }
             PathLine { x: ridge.width; y: ridge.base + 1 }
             PathLine { x: 0; y: ridge.base + 1 }
+        }
+        ShapePath {
+            fillColor: "transparent"
+            strokeColor: win.grit ? win.alpha(ridge.rim, 0.4) : "transparent"
+            strokeWidth: 1
+            PathMultiline { paths: ridge.hatches }
         }
     }
 }
