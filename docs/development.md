@@ -332,13 +332,19 @@ passes the address alone, `omaweb https://…`, as the desktop entry does. `spac
 `privacy.json` under the configuration root. A running browser follows the file, and turning it off
 there detaches every connection at once. `space new --temporary` prints the Space's id and keeps
 running, and the Space is deleted when the process stops, so start it in the background and stop it
-when the Agent is done:
+when the Agent is done. Wait for the id before using the Space, and name it with `--space`, so a
+command that arrives first, or after the holder has gone, never lands in another Space:
 
 ```sh
 omaweb space new signup --temporary --name checker > space-id &
-omaweb open http://localhost:3000/signup --name checker
-kill %1
+holder=$!
+until [ -s space-id ]; do sleep 0.1; done
+omaweb open http://localhost:3000/signup --space "$(cat space-id)" --name checker
+kill "$holder"
 ```
+
+A connection whose Space has gone is refused rather than sent to the Space on show, until it names
+another.
 
 `OMAWEB_CONTROL_SOCKET` moves the socket so a scratch browser can run beside the everyday one. A
 socket name longer than 104 bytes on macOS, or 108 on Linux, cannot be opened, and the browser says

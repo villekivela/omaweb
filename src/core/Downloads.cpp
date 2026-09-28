@@ -47,6 +47,7 @@ Downloads::Downloads(SessionStore *store, DownloadPermissions *permissions, QObj
         row.error = record.value(QStringLiteral("error")).toString();
         row.receivedBytes = record.value(QStringLiteral("receivedBytes")).toLongLong();
         row.totalBytes = record.value(QStringLiteral("totalBytes")).toLongLong();
+        row.spaceId = record.value(QStringLiteral("spaceId")).toString();
         m_rows.append(std::move(row));
     }
 }
@@ -221,6 +222,8 @@ void Downloads::started(const QString &runtimeId, const QUrl &sourceUrl, const Q
     Row row;
     row.rowId = QString::number(++m_nextRowId);
     row.runtimeId = runtimeId;
+    // A Space's profile names its downloads after the Space.
+    row.spaceId = namespaceOf(runtimeId);
     row.url = sourceUrl;
     row.pageUrl = pageUrl;
     row.path = path;
@@ -232,7 +235,8 @@ void Downloads::started(const QString &runtimeId, const QUrl &sourceUrl, const Q
         const auto recordId = QUuid::createUuid().toString(QUuid::WithoutBraces);
         // A Private window keeps no Download record, so the row carries none
         // and stands on its own identity.
-        if (m_store->recordDownload(recordId, sourceUrl, path, state, receivedBytes, totalBytes)) {
+        if (m_store->recordDownload(
+                recordId, row.spaceId, sourceUrl, path, state, receivedBytes, totalBytes)) {
             row.recordId = recordId;
         }
     }
@@ -329,7 +333,7 @@ void Downloads::saved(const QString &path, const QUrl &pageUrl)
     row.totalBytes = size;
     if (m_store) {
         const auto recordId = QUuid::createUuid().toString(QUuid::WithoutBraces);
-        if (m_store->recordDownload(recordId, pageUrl, path, row.state, size, size)) {
+        if (m_store->recordDownload(recordId, {}, pageUrl, path, row.state, size, size)) {
             row.recordId = recordId;
         }
     }
@@ -418,6 +422,26 @@ bool Downloads::forget(int row)
     emit countChanged();
     emit activityChanged();
     return true;
+}
+
+void Downloads::forgetSpace(const QString &spaceId)
+{
+    if (spaceId.isEmpty()) {
+        return;
+    }
+    if (m_store) {
+        m_store->forgetSpaceDownloads(spaceId);
+    }
+    for (auto index = m_rows.size() - 1; index >= 0; --index) {
+        if (m_rows.at(index).spaceId != spaceId) {
+            continue;
+        }
+        beginRemoveRows({}, static_cast<int>(index), static_cast<int>(index));
+        m_rows.removeAt(index);
+        endRemoveRows();
+    }
+    emit countChanged();
+    emit activityChanged();
 }
 
 QString Downloads::fileNameOf(const QString &path)

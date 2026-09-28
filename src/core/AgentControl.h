@@ -96,8 +96,10 @@ private:
     // A Space by id, or by a name no other Space shares.
     QString findSpace(const QString &idOrName) const;
     // The Space a request without `--space` is about: the current tab's, the
-    // connection's own, or the Space on show.
+    // connection's own, or the Space on show when it has never had one.
+    // Nothing when its own Space is gone.
     QString defaultSpace(const Connection &connection) const;
+    static QJsonObject noSpace(const QString &named);
     QJsonObject describeTab(const TabState &tab, const Connection &connection) const;
 
     BrowserController *m_browser;

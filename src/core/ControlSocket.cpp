@@ -1,6 +1,7 @@
 #include "ControlSocket.h"
 
 #include "AgentControl.h"
+#include "BrowserController.h"
 
 #include <QDir>
 #include <QFile>
@@ -176,6 +177,15 @@ void ControlSocket::tooLong(QLocalSocket *socket)
 {
     reply(socket, badRequest(QStringLiteral("The request is too long.")));
     socket->disconnectFromServer();
+}
+
+bool openAgentSocket(ControlSocket &socket, BrowserController &browser, const QString &path)
+{
+    if (!socket.listen(path)) {
+        return false;
+    }
+    browser.deleteTemporarySpaces();
+    return true;
 }
 
 } // namespace omaweb

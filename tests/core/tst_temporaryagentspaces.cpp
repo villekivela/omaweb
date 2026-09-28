@@ -3,6 +3,7 @@
 #include "BrowserStateExchange.h"
 #include "ControlSocket.h"
 #include "SessionFixture.h"
+#include "SqliteSessionStore.h"
 
 #include <QDeadlineTimer>
 #include <QDir>
@@ -10,6 +11,8 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QLocalSocket>
+#include <QSqlDatabase>
+#include <QSqlQuery>
 #include <QTemporaryDir>
 #include <QTest>
 
@@ -98,6 +101,11 @@ private slots:
     void keepsASpaceTheReaderTookOver();
     void deletesWhatACrashLeftBehind();
     void deletesACrashedSpaceThatWasOnShow();
+    void leavesARunningBrowsersSpacesAlone();
+    void sweepsWhatTheEngineWritesAfterward();
+    void refusesAConnectionWhoseSpaceIsGone();
+    void forgetsWhatWasDownloadedInTheSpace();
+    void addsTheColumnsAnOlderStoreLacks();
     void deletesEveryTemporarySpaceAsTheBrowserExits();
     void leavesTheReaderASpaceWhenTheLastOneGoes();
     void refusesATemporarySpaceWithoutAConnection();
@@ -191,6 +199,8 @@ void TemporaryAgentSpacesTest::keepsASpaceTheReaderTookOver()
 // Space still labelled temporary and deletes it before restoring anything.
 void TemporaryAgentSpacesTest::deletesWhatACrashLeftBehind()
 {
+    QTemporaryDir config;
+    QTemporaryDir runtime(QDir::tempPath() + QStringLiteral("/omaweb-XXXXXX"));
     SessionFixture fixture(readersSession());
     QVERIFY_SESSION_READY(fixture);
     QString temporaryId;
@@ -202,21 +212,34 @@ void TemporaryAgentSpacesTest::deletesWhatACrashLeftBehind()
         permanentId = browser->createAgentSpace(QStringLiteral("Checks"), QStringLiteral("agent"));
         QVERIFY(!temporaryId.isEmpty());
         browseIn(*browser, temporaryId);
+        browser->downloads()->started(temporaryId + QStringLiteral(":1"),
+            QUrl(QStringLiteral("https://signup.example/receipt.pdf")), {},
+            QStringLiteral("/d/receipt.pdf"), QStringLiteral("completed"), 1, 1);
     }
     QVERIFY(QDir(spaceDirectory(fixture, temporaryId)).exists());
 
     const auto restarted = fixture.createController();
     QVERIFY(restarted->ready());
+    // Known as temporary before anything decides whether to delete it.
+    QVERIFY(restarted->temporarySpace(temporaryId));
+    AgentControl control(restarted.get(), config.path());
+    ControlSocket socket(&control);
+    QVERIFY(
+        omaweb::openAgentSocket(socket, *restarted, runtime.filePath(QStringLiteral("c.sock"))));
     QCOMPARE(restarted->spaces()->rowCount(), 2);
     QVERIFY(!restarted->agentSpace(temporaryId));
     QVERIFY(restarted->agentSpace(permanentId));
     QVERIFY(restarted->spaceTabs(temporaryId).isEmpty());
     QVERIFY(!QDir(spaceDirectory(fixture, temporaryId)).exists());
     QVERIFY(restarted->sessionStore()->temporaryAgentSpaceIds().isEmpty());
+    QVERIFY(restarted->sessionStore()->downloadHistory().isEmpty());
+    QCOMPARE(restarted->downloads()->rowCount(), 0);
 }
 
 void TemporaryAgentSpacesTest::deletesACrashedSpaceThatWasOnShow()
 {
+    QTemporaryDir config;
+    QTemporaryDir runtime(QDir::tempPath() + QStringLiteral("/omaweb-XXXXXX"));
     SessionFixture fixture(readersSession());
     QVERIFY_SESSION_READY(fixture);
     QString temporaryId;
@@ -227,9 +250,127 @@ void TemporaryAgentSpacesTest::deletesACrashedSpaceThatWasOnShow()
         QVERIFY(browser->switchSpace(temporaryId));
     }
     const auto restarted = fixture.createController();
+    AgentControl control(restarted.get(), config.path());
+    ControlSocket socket(&control);
+    QVERIFY(
+        omaweb::openAgentSocket(socket, *restarted, runtime.filePath(QStringLiteral("c.sock"))));
     QCOMPARE(restarted->activeSpaceId(), QStringLiteral("personal"));
     QCOMPARE(restarted->activeTabId(), QStringLiteral("personal-tab"));
     QCOMPARE(restarted->spaces()->rowCount(), 1);
+}
+
+// A second process on the same data, which macOS starts for every launch and
+// Linux starts when the handover fails, must not take the running browser's
+// temporary Spaces for a crash's.
+void TemporaryAgentSpacesTest::leavesARunningBrowsersSpacesAlone()
+{
+    QTemporaryDir config;
+    QTemporaryDir runtime(QDir::tempPath() + QStringLiteral("/omaweb-XXXXXX"));
+    SessionFixture fixture(readersSession());
+    QVERIFY_SESSION_READY(fixture);
+    const auto path = runtime.filePath(QStringLiteral("c.sock"));
+    auto running = fixture.createController();
+    auto runningControl = std::make_unique<AgentControl>(running.get(), config.path());
+    auto runningSocket = std::make_unique<ControlSocket>(runningControl.get());
+    QVERIFY(omaweb::openAgentSocket(*runningSocket, *running, path));
+    const auto spaceId
+        = running->createAgentSpace(QStringLiteral("Signup"), QStringLiteral("agent"), true);
+    browseIn(*running, spaceId);
+
+    {
+        const auto second = fixture.createController();
+        AgentControl control(second.get(), config.path());
+        ControlSocket socket(&control);
+        QVERIFY(!omaweb::openAgentSocket(socket, *second, path));
+        QVERIFY(second->agentSpace(spaceId));
+    }
+    QVERIFY(running->agentSpace(spaceId));
+    QVERIFY(QDir(spaceDirectory(fixture, spaceId)).exists());
+    QCOMPARE(running->sessionStore()->temporaryAgentSpaceIds(), QStringList {spaceId});
+
+    // The running browser crashes; the next one gets the socket and cleans up.
+    runningSocket.reset();
+    runningControl.reset();
+    running.reset();
+    const auto next = fixture.createController();
+    AgentControl control(next.get(), config.path());
+    ControlSocket socket(&control);
+    QVERIFY(omaweb::openAgentSocket(socket, *next, path));
+    QVERIFY(!next->agentSpace(spaceId));
+    QVERIFY(!QDir(spaceDirectory(fixture, spaceId)).exists());
+}
+
+// The engine writes into a profile while it lets it go, after the directory
+// has been removed. What grows back is swept at the next start.
+void TemporaryAgentSpacesTest::sweepsWhatTheEngineWritesAfterward()
+{
+    SessionFixture fixture(readersSession());
+    QVERIFY_SESSION_READY(fixture);
+    QString spaceId;
+    {
+        const auto browser = fixture.createController();
+        spaceId = browser->createAgentSpace(QStringLiteral("Signup"), QStringLiteral("a"), true);
+        browseIn(*browser, spaceId);
+        const auto profile = browser->profilePathForSpace(spaceId);
+        QVERIFY(browser->deleteTemporarySpace(spaceId));
+        QVERIFY(!QDir(spaceDirectory(fixture, spaceId)).exists());
+        QVERIFY(QDir().mkpath(profile));
+        QFile late(QDir(profile).filePath(QStringLiteral("Cookies-journal")));
+        QVERIFY(late.open(QIODevice::WriteOnly));
+        late.write("written at shutdown");
+    }
+    QVERIFY(QDir(spaceDirectory(fixture, spaceId)).exists());
+    const auto restarted = fixture.createController();
+    QVERIFY(restarted->ready());
+    QVERIFY(!QDir(spaceDirectory(fixture, spaceId)).exists());
+}
+
+// A connection whose Space went with its holder is refused, rather than sent
+// to the Space on show, until it names another.
+void TemporaryAgentSpacesTest::refusesAConnectionWhoseSpaceIsGone()
+{
+    QTemporaryDir config;
+    QTemporaryDir runtime(QDir::tempPath() + QStringLiteral("/omaweb-XXXXXX"));
+    SessionFixture fixture(readersSession());
+    QVERIFY_SESSION_READY(fixture);
+    const auto browser = fixture.createController();
+    AgentControl control(browser.get(), config.path());
+    control.setAllowAgents(true);
+    ControlSocket socket(&control);
+    const auto path = runtime.filePath(QStringLiteral("c.sock"));
+    QVERIFY(socket.listen(path));
+
+    QString spaceId;
+    {
+        Client holder(path);
+        QVERIFY(holder.connected());
+        spaceId
+            = createdSpace(holder.ask(R"({"verb":"space new","name":"checker","temporary":true})"));
+        QVERIFY(!spaceId.isEmpty());
+        holder.close();
+    }
+    QTRY_VERIFY(!browser->agentSpace(spaceId));
+
+    const auto ask = [&control](QJsonObject fields) {
+        fields.insert(QStringLiteral("name"), QStringLiteral("checker"));
+        return control.answer(fields);
+    };
+    const auto refused = ask({{QStringLiteral("verb"), QStringLiteral("open")},
+        {QStringLiteral("url"), QStringLiteral("https://signup.example/")}});
+    QCOMPARE(refused.value(QStringLiteral("code")).toString(), QStringLiteral("not-found"));
+    QVERIFY(refused.value(QStringLiteral("error")).toString().contains(u"--space"));
+    QCOMPARE(ask({{QStringLiteral("verb"), QStringLiteral("tabs")}}).value(QStringLiteral("code")),
+        QStringLiteral("not-found"));
+    QCOMPARE(browser->tabs()->rowCount(), 1);
+
+    QVERIFY(ask({{QStringLiteral("verb"), QStringLiteral("open")},
+                    {QStringLiteral("url"), QStringLiteral("https://signup.example/")},
+                    {QStringLiteral("space"), QStringLiteral("Personal")}})
+            .value(QStringLiteral("ok"))
+            .toBool());
+    QVERIFY(ask({{QStringLiteral("verb"), QStringLiteral("tabs")}})
+            .value(QStringLiteral("ok"))
+            .toBool());
 }
 
 void TemporaryAgentSpacesTest::deletesEveryTemporarySpaceAsTheBrowserExits()
@@ -304,6 +445,79 @@ void TemporaryAgentSpacesTest::keepsTemporarySpacesOutOfSync()
     QVERIFY(captured.contains(permanent));
     QVERIFY(!captured.contains(temporary));
     QVERIFY(!image.tabsBySpace.contains(temporary));
+
+    // Looking at a temporary Space is reported as looking at one Sync keeps.
+    QVERIFY(browser->switchSpace(temporary));
+    const auto onShow = exchange.capture({});
+    QVERIFY(onShow.activeSpaceId != temporary);
+    QVERIFY(captured.contains(onShow.activeSpaceId));
+    QVERIFY(!onShow.activeTabId.isEmpty());
+    QCOMPARE(onShow.activeTabId, onShow.activeTabIds.value(onShow.activeSpaceId));
+}
+
+void TemporaryAgentSpacesTest::forgetsWhatWasDownloadedInTheSpace()
+{
+    SessionFixture fixture(readersSession());
+    QVERIFY_SESSION_READY(fixture);
+    const auto browser = fixture.createController();
+    const auto spaceId
+        = browser->createAgentSpace(QStringLiteral("Signup"), QStringLiteral("a"), true);
+    auto *downloads = browser->downloads();
+    downloads->started(spaceId + QStringLiteral(":1"),
+        QUrl(QStringLiteral("https://signup.example/receipt.pdf")), {},
+        QStringLiteral("/d/receipt.pdf"), QStringLiteral("completed"), 1, 1);
+    downloads->started(QStringLiteral("personal:1"),
+        QUrl(QStringLiteral("https://reader.example/a.pdf")), {}, QStringLiteral("/d/a.pdf"),
+        QStringLiteral("completed"), 1, 1);
+    QCOMPARE(downloads->rowCount(), 2);
+
+    QVERIFY(browser->deleteTemporarySpace(spaceId));
+    QCOMPARE(downloads->rowCount(), 1);
+    const auto history = browser->sessionStore()->downloadHistory();
+    QCOMPARE(history.size(), 1);
+    QCOMPARE(history.constFirst().toMap().value(QStringLiteral("spaceId")).toString(),
+        QStringLiteral("personal"));
+}
+
+// A store made before temporary Spaces and download Spaces had their columns.
+void TemporaryAgentSpacesTest::addsTheColumnsAnOlderStoreLacks()
+{
+    QTemporaryDir dataRoot;
+    {
+        auto database = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), QStringLiteral("old"));
+        database.setDatabaseName(QDir(dataRoot.path()).filePath(QStringLiteral("state.sqlite")));
+        QVERIFY(database.open());
+        QSqlQuery query(database);
+        QVERIFY(query.exec(QStringLiteral(
+            "CREATE TABLE spaces (id TEXT PRIMARY KEY, name TEXT NOT NULL, color TEXT NOT NULL, "
+            "active INTEGER NOT NULL DEFAULT 0, position INTEGER NOT NULL DEFAULT 0)")));
+        QVERIFY(query.exec(QStringLiteral(
+            "CREATE TABLE agent_spaces (space_id TEXT PRIMARY KEY REFERENCES spaces(id) "
+            "ON DELETE CASCADE, creator TEXT NOT NULL DEFAULT '')")));
+        QVERIFY(query.exec(QStringLiteral(
+            "CREATE TABLE downloads (id TEXT PRIMARY KEY, url TEXT NOT NULL, path TEXT NOT NULL, "
+            "state TEXT NOT NULL, received_bytes INTEGER NOT NULL DEFAULT 0, "
+            "total_bytes INTEGER NOT NULL DEFAULT -1, error TEXT NOT NULL DEFAULT '', "
+            "created_at INTEGER NOT NULL)")));
+        QVERIFY(query.exec(QStringLiteral(
+            "INSERT INTO downloads VALUES('old', 'https://a.example/', '/d/a', 'completed', 1, 1, "
+            "'', 1)")));
+        database.close();
+    }
+    QSqlDatabase::removeDatabase(QStringLiteral("old"));
+
+    omaweb::SqliteSessionStore store(dataRoot.path());
+    QString error;
+    QVERIFY2(store.open(&error), qPrintable(error));
+    QVERIFY(
+        store.saveSpace({QStringLiteral("s"), QStringLiteral("S"), QStringLiteral("#000"), true}));
+    QVERIFY(store.saveAgentSpace(QStringLiteral("s"), QStringLiteral("agent"), true));
+    QCOMPARE(store.temporaryAgentSpaceIds(), QStringList {QStringLiteral("s")});
+    QVERIFY(store.recordDownload(QStringLiteral("new"), QStringLiteral("s"),
+        QUrl(QStringLiteral("https://b.example/")), QStringLiteral("/d/b"),
+        QStringLiteral("completed"), 1, 1));
+    QVERIFY(store.forgetSpaceDownloads(QStringLiteral("s")));
+    QCOMPARE(store.downloadHistory().size(), 1);
 }
 
 QTEST_GUILESS_MAIN(TemporaryAgentSpacesTest)

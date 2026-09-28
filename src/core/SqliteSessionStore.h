@@ -58,19 +58,28 @@ public:
         const QString &permission, int decision) override;
     QVariantList permissionsForOrigin(const QString &spaceId, const QString &origin) const override;
     bool clearPermissionsForOrigin(const QString &spaceId, const QString &origin) override;
-    bool recordDownload(const QString &id, const QUrl &url, const QString &path,
-        const QString &state, qint64 receivedBytes, qint64 totalBytes) override;
+    bool recordDownload(const QString &id, const QString &spaceId, const QUrl &url,
+        const QString &path, const QString &state, qint64 receivedBytes,
+        qint64 totalBytes) override;
     bool updateDownload(const QString &id, const QString &state, qint64 receivedBytes,
         qint64 totalBytes, const QString &error) override;
     QVariantList downloadHistory() const override;
     bool forgetDownload(const QString &id) override;
+    bool forgetSpaceDownloads(const QString &spaceId) override;
 
     QString dataRoot() const;
 
 private:
     bool executeSchema(QString *errorMessage);
+    // Adds a column a table created by an earlier version lacks. A column that
+    // is already there is left alone, and only a real failure answers false.
+    bool addColumn(const QString &table, const QString &column, const QString &definition,
+        QString *errorMessage);
     bool migrateLegacyTabs(QString *errorMessage);
-    void cleanupPendingSpaceDeletions();
+    // Removes the directories of deleted Spaces. At start the rows naming them
+    // go too; straight after a deletion they stay, for the next start.
+    enum class PendingRows { Forget, Keep };
+    void cleanupPendingSpaceDeletions(PendingRows rows);
     QSqlDatabase spaceDatabase(const QString &spaceId) const;
     void closeSpaceDatabase(const QString &spaceId);
 

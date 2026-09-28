@@ -222,8 +222,7 @@ QJsonObject AgentControl::listTabs(Connection &connection, const QJsonObject &re
     const auto named = request.value(QStringLiteral("space")).toString();
     const auto spaceId = named.isEmpty() ? defaultSpace(connection) : findSpace(named);
     if (spaceId.isEmpty()) {
-        return refusal(
-            QStringLiteral("not-found"), QStringLiteral("There is no Space \"%1\".").arg(named));
+        return noSpace(named);
     }
     QJsonArray tabs;
     for (const auto &tab : m_browser->spaceTabs(spaceId)) {
@@ -285,8 +284,7 @@ QJsonObject AgentControl::open(Connection &connection, const QJsonObject &reques
 
     const auto spaceId = spaceName.isEmpty() ? defaultSpace(connection) : findSpace(spaceName);
     if (spaceId.isEmpty()) {
-        return refusal(QStringLiteral("not-found"),
-            QStringLiteral("There is no Space \"%1\".").arg(spaceName));
+        return noSpace(spaceName);
     }
     const auto tabId = m_browser->openTabInSpace(spaceId, url);
     if (tabId.isEmpty()) {
@@ -423,10 +421,20 @@ QString AgentControl::findSpace(const QString &idOrName) const
 
 QString AgentControl::defaultSpace(const Connection &connection) const
 {
-    if (!findSpace(connection.currentSpaceId).isEmpty()) {
-        return connection.currentSpaceId;
+    if (connection.currentSpaceId.isEmpty()) {
+        return m_browser->activeSpaceId();
     }
-    return m_browser->activeSpaceId();
+    // The connection's Space went, a temporary one with its connection or any
+    // Space the reader deleted. Its next page is not the reader's to receive.
+    return findSpace(connection.currentSpaceId);
+}
+
+QJsonObject AgentControl::noSpace(const QString &named)
+{
+    return refusal(QStringLiteral("not-found"),
+        named.isEmpty()
+            ? QStringLiteral("The Space this connection was using is gone. Name one with --space.")
+            : QStringLiteral("There is no Space \"%1\".").arg(named));
 }
 
 QJsonObject AgentControl::describeTab(const TabState &tab, const Connection &connection) const

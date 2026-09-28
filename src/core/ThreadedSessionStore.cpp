@@ -262,11 +262,13 @@ bool ThreadedSessionStore::clearPermissionsSince(const QString &spaceId, qint64 
     return ask([this, &spaceId, since] { return m_store->clearPermissionsSince(spaceId, since); });
 }
 
-bool ThreadedSessionStore::recordDownload(const QString &id, const QUrl &url, const QString &path,
-    const QString &state, qint64 receivedBytes, qint64 totalBytes)
+bool ThreadedSessionStore::recordDownload(const QString &id, const QString &spaceId,
+    const QUrl &url, const QString &path, const QString &state, qint64 receivedBytes,
+    qint64 totalBytes)
 {
-    return ask(
-        [&] { return m_store->recordDownload(id, url, path, state, receivedBytes, totalBytes); });
+    return ask([&] {
+        return m_store->recordDownload(id, spaceId, url, path, state, receivedBytes, totalBytes);
+    });
 }
 
 bool ThreadedSessionStore::updateDownload(const QString &id, const QString &state,
@@ -284,6 +286,11 @@ QVariantList ThreadedSessionStore::downloadHistory() const
 bool ThreadedSessionStore::forgetDownload(const QString &id)
 {
     return ask([this, &id] { return m_store->forgetDownload(id); });
+}
+
+bool ThreadedSessionStore::forgetSpaceDownloads(const QString &spaceId)
+{
+    return ask([this, &spaceId] { return m_store->forgetSpaceDownloads(spaceId); });
 }
 
 } // namespace omaweb

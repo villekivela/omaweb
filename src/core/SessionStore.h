@@ -104,12 +104,15 @@ public:
     virtual bool clearPermissionsForOrigin(const QString &spaceId, const QString &origin) = 0;
     virtual bool clearPermissionsSince(const QString &spaceId, qint64 since) = 0;
 
-    virtual bool recordDownload(const QString &id, const QUrl &url, const QString &path,
-        const QString &state, qint64 receivedBytes, qint64 totalBytes) = 0;
+    // `spaceId` is the Space the download came from, or nothing for a file
+    // Omaweb wrote itself, so a temporary Space's records can go with it.
+    virtual bool recordDownload(const QString &id, const QString &spaceId, const QUrl &url,
+        const QString &path, const QString &state, qint64 receivedBytes, qint64 totalBytes) = 0;
     virtual bool updateDownload(const QString &id, const QString &state, qint64 receivedBytes,
         qint64 totalBytes, const QString &error) = 0;
     virtual QVariantList downloadHistory() const = 0;
     virtual bool forgetDownload(const QString &id) = 0;
+    virtual bool forgetSpaceDownloads(const QString &spaceId) = 0;
 
 protected:
     SessionStore() = default;

@@ -496,7 +496,11 @@ bool BrowserController::deleteTemporarySpace(const QString &spaceId)
     if (m_spaces.items().size() == 1 && createSpace(QStringLiteral("Personal")).isEmpty()) {
         return false;
     }
-    return deleteSpace(spaceId, m_spaces.items().at(index).name);
+    if (!deleteSpace(spaceId, m_spaces.items().at(index).name)) {
+        return false;
+    }
+    m_downloads->forgetSpace(spaceId);
+    return true;
 }
 
 void BrowserController::deleteTemporarySpaces()
@@ -2997,24 +3001,13 @@ void BrowserController::initialize()
         m_ready = true;
         return;
     }
-    // A temporary Space still here outlived a browser that crashed, and it
-    // goes before anything restores it or shows it.
-    for (const auto &spaceId : m_store->temporaryAgentSpaceIds()) {
-        const auto spaces = m_store->loadSpaces();
-        const auto space = std::ranges::find(spaces, spaceId, &SpaceState::id);
-        const auto replacement = std::ranges::find_if(
-            spaces, [&spaceId](const SpaceState &other) { return other.id != spaceId; });
-        const auto replacementId
-            = space != spaces.end() && space->active && replacement != spaces.end()
-            ? replacement->id
-            : QString {};
-        if (!m_store->deleteSpace(spaceId, replacementId)) {
-            qWarning("A temporary Agent Space left by an earlier run could not be deleted");
-        }
-    }
     m_startedWithEmptyState = m_store->loadSpaces().isEmpty();
     ensureDefaultSpace();
     m_agentSpaces = m_store->agentSpaces();
+    // Loaded rather than deleted here: whether one is this run's to delete is
+    // not known until the browser knows it is the only one running.
+    const auto temporaryIds = m_store->temporaryAgentSpaceIds();
+    m_temporarySpaceIds = QSet<QString>(temporaryIds.cbegin(), temporaryIds.cend());
     ensureActiveTab();
     loadClosedTabs();
     // A Pinned tab marked Keep active is running before its Space is ever

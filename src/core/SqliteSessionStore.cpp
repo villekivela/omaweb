@@ -65,7 +65,7 @@ bool SqliteSessionStore::open(QString *errorMessage)
     if (!executeSchema(errorMessage) || !migrateLegacyTabs(errorMessage)) {
         return false;
     }
-    cleanupPendingSpaceDeletions();
+    cleanupPendingSpaceDeletions(PendingRows::Forget);
     return true;
 }
 
@@ -235,7 +235,12 @@ QStringList SqliteSessionStore::temporaryAgentSpaceIds() const
 {
     QStringList ids;
     QSqlQuery query(m_database);
-    query.exec(QStringLiteral("SELECT space_id FROM agent_spaces WHERE temporary != 0"));
+    if (!query.exec(QStringLiteral("SELECT space_id FROM agent_spaces WHERE temporary != 0"))) {
+        // Nothing reads as temporary then, so nothing is deleted by mistake,
+        // and the Space waits for a start that can read it.
+        qWarning("The temporary Agent Spaces could not be read: %s",
+            qPrintable(query.lastError().text()));
+    }
     while (query.next()) {
         ids.append(query.value(0).toString());
     }
@@ -346,7 +351,11 @@ bool SqliteSessionStore::deleteSpace(
     }
 
     closeSpaceDatabase(spaceId);
-    cleanupPendingSpaceDeletions();
+    // The Engine profile over this directory is let go of after this answers,
+    // and the engine writes as it shuts one down, so what it writes would
+    // grow the directory back. The row stays until the next start removes
+    // the directory again, when no engine is holding it.
+    cleanupPendingSpaceDeletions(PendingRows::Keep);
     return true;
 }
 
@@ -689,18 +698,19 @@ bool SqliteSessionStore::clearPermissionsForOrigin(const QString &spaceId, const
     return query.exec();
 }
 
-bool SqliteSessionStore::recordDownload(const QString &id, const QUrl &url, const QString &path,
-    const QString &state, qint64 receivedBytes, qint64 totalBytes)
+bool SqliteSessionStore::recordDownload(const QString &id, const QString &spaceId, const QUrl &url,
+    const QString &path, const QString &state, qint64 receivedBytes, qint64 totalBytes)
 {
     QSqlQuery query(m_database);
-    query.prepare(
-        QStringLiteral("INSERT INTO downloads(id, url, path, state, received_bytes, total_bytes, "
-                       "error, created_at) "
-                       "VALUES(?, ?, ?, ?, ?, ?, '', ?) "
-                       "ON CONFLICT(id) DO UPDATE SET url = excluded.url, path = excluded.path, "
-                       "state = excluded.state, received_bytes = excluded.received_bytes, "
-                       "total_bytes = excluded.total_bytes"));
+    query.prepare(QStringLiteral(
+        "INSERT INTO downloads(id, space_id, url, path, state, received_bytes, total_bytes, "
+        "error, created_at) "
+        "VALUES(?, ?, ?, ?, ?, ?, ?, '', ?) "
+        "ON CONFLICT(id) DO UPDATE SET url = excluded.url, path = excluded.path, "
+        "state = excluded.state, received_bytes = excluded.received_bytes, "
+        "total_bytes = excluded.total_bytes"));
     query.addBindValue(id);
+    query.addBindValue(spaceId.isNull() ? QStringLiteral("") : spaceId);
     query.addBindValue(url.toString());
     query.addBindValue(path);
     query.addBindValue(state);
@@ -730,8 +740,8 @@ QVariantList SqliteSessionStore::downloadHistory() const
     QVariantList downloads;
     QSqlQuery query(m_database);
     if (!query.exec(QStringLiteral(
-            "SELECT id, url, path, state, received_bytes, total_bytes, error, created_at "
-            "FROM downloads ORDER BY created_at DESC"))) {
+            "SELECT id, url, path, state, received_bytes, total_bytes, error, created_at, "
+            "space_id FROM downloads ORDER BY created_at DESC"))) {
         return downloads;
     }
     while (query.next()) {
@@ -744,6 +754,7 @@ QVariantList SqliteSessionStore::downloadHistory() const
         item.insert(QStringLiteral("totalBytes"), query.value(5).toLongLong());
         item.insert(QStringLiteral("error"), query.value(6).toString());
         item.insert(QStringLiteral("createdAt"), query.value(7).toLongLong());
+        item.insert(QStringLiteral("spaceId"), query.value(8).toString());
         downloads.append(item);
     }
     return downloads;
@@ -755,6 +766,14 @@ bool SqliteSessionStore::forgetDownload(const QString &id)
     query.prepare(QStringLiteral("DELETE FROM downloads WHERE id = ?"));
     query.addBindValue(id);
     return query.exec() && query.numRowsAffected() > 0;
+}
+
+bool SqliteSessionStore::forgetSpaceDownloads(const QString &spaceId)
+{
+    QSqlQuery query(m_database);
+    query.prepare(QStringLiteral("DELETE FROM downloads WHERE space_id = ?"));
+    query.addBindValue(spaceId);
+    return query.exec();
 }
 
 QString SqliteSessionStore::dataRoot() const { return m_dataRoot; }
@@ -793,7 +812,8 @@ bool SqliteSessionStore::executeSchema(QString *errorMessage)
             received_bytes INTEGER NOT NULL DEFAULT 0,
             total_bytes INTEGER NOT NULL DEFAULT -1,
             error TEXT NOT NULL DEFAULT '',
-            created_at INTEGER NOT NULL
+            created_at INTEGER NOT NULL,
+            space_id TEXT NOT NULL DEFAULT ''
         );
     )SQL";
 
@@ -811,11 +831,37 @@ bool SqliteSessionStore::executeSchema(QString *errorMessage)
             return false;
         }
     }
-    // The label table came before temporary Agent Spaces did. A column that
-    // is already there makes this fail, which is the answer wanted.
-    QSqlQuery addTemporary(m_database);
-    addTemporary.exec(
-        QStringLiteral("ALTER TABLE agent_spaces ADD COLUMN temporary INTEGER NOT NULL DEFAULT 0"));
+    // Columns that came after their table did. A download recorded before
+    // this knew its Space belongs to none, and is never a temporary Space's.
+    return addColumn(QStringLiteral("agent_spaces"), QStringLiteral("temporary"),
+               QStringLiteral("INTEGER NOT NULL DEFAULT 0"), errorMessage)
+        && addColumn(QStringLiteral("downloads"), QStringLiteral("space_id"),
+            QStringLiteral("TEXT NOT NULL DEFAULT ''"), errorMessage);
+}
+
+bool SqliteSessionStore::addColumn(
+    const QString &table, const QString &column, const QString &definition, QString *errorMessage)
+{
+    QSqlQuery columns(m_database);
+    if (!columns.exec(QStringLiteral("PRAGMA table_info(%1)").arg(table))) {
+        if (errorMessage) {
+            *errorMessage = columns.lastError().text();
+        }
+        return false;
+    }
+    while (columns.next()) {
+        if (columns.value(1).toString() == column) {
+            return true;
+        }
+    }
+    QSqlQuery add(m_database);
+    if (!add.exec(
+            QStringLiteral("ALTER TABLE %1 ADD COLUMN %2 %3").arg(table, column, definition))) {
+        if (errorMessage) {
+            *errorMessage = add.lastError().text();
+        }
+        return false;
+    }
     return true;
 }
 
@@ -893,7 +939,7 @@ bool SqliteSessionStore::migrateLegacyTabs(QString *errorMessage)
     return true;
 }
 
-void SqliteSessionStore::cleanupPendingSpaceDeletions()
+void SqliteSessionStore::cleanupPendingSpaceDeletions(PendingRows rows)
 {
     QSqlQuery pending(m_database);
     if (!pending.exec(QStringLiteral("SELECT space_id FROM pending_space_deletions"))) {
@@ -911,6 +957,9 @@ void SqliteSessionStore::cleanupPendingSpaceDeletions()
         }
     }
 
+    if (rows == PendingRows::Keep) {
+        return;
+    }
     for (const auto &spaceId : removedSpaceIds) {
         QSqlQuery clearPending(m_database);
         clearPending.prepare(

@@ -434,16 +434,18 @@ public:
     // The connection name that created an Agent Space, or nothing.
     QString agentSpaceCreator(const QString &spaceId) const;
     // A temporary one lasts only as long as the connection that created it:
-    // deleteTemporarySpace takes it, with its Engine profile and Browsing
-    // data, and one left behind by a crash is deleted when the next browser
-    // starts, before anything restores it.
+    // deleteTemporarySpace takes it, with its Engine profile, Browsing data
+    // and download records.
     QString createAgentSpace(const QString &name, const QString &creator, bool temporary = false);
     Q_INVOKABLE bool temporarySpace(const QString &spaceId) const;
     // Taking a temporary Space over also makes it permanent.
     Q_INVOKABLE bool takeOverSpace(const QString &spaceId);
     // Refuses a Space that is not temporary, or no longer is.
     bool deleteTemporarySpace(const QString &spaceId);
-    // Every temporary Space, as the browser exits.
+    // Every temporary Space: as the browser exits, and at start the ones a
+    // browser that crashed left behind. Only the browser answering on the
+    // Agent socket may do the second, because a second process on the same
+    // data would otherwise delete the Spaces of the browser still running.
     void deleteTemporarySpaces();
     // Refuses a Space the reader made or took over, whatever asks.
     bool deleteAgentSpace(const QString &spaceId);

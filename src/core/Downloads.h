@@ -114,6 +114,11 @@ public:
     // A no-op where the row has no Download record to forget.
     Q_INVOKABLE bool forget(int row);
 
+    // A temporary Agent Space is going, and the records of what was
+    // downloaded in it go with it. The files stay where the reader keeps
+    // downloads.
+    void forgetSpace(const QString &spaceId);
+
 signals:
     void countChanged();
     void activityChanged();
@@ -139,6 +144,9 @@ private:
         QString rowId;
         QString recordId;
         QString runtimeId;
+        // The Space the download came from, or nothing for a file Omaweb
+        // wrote itself or a record older than the column.
+        QString spaceId;
         QUrl url;
         QUrl pageUrl;
         QString path;

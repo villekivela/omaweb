@@ -79,6 +79,12 @@ BrowserStateImage BrowserStateExchangeAdapter::capture(const BrowserStateSelecti
     }
     image.activeSpaceId = m_browser->activeSpaceId();
     image.activeTabId = m_browser->activeTabId();
+    // The reader looking at a temporary Space is looking at nothing Sync
+    // copies, so the selection it reports is the first Space it does.
+    if (temporary.contains(image.activeSpaceId)) {
+        image.activeSpaceId = image.spaces.isEmpty() ? QString {} : image.spaces.constFirst().id;
+        image.activeTabId = image.activeTabIds.value(image.activeSpaceId);
+    }
     image.pristine = m_browser->startedWithEmptyState();
     for (const auto &name : selection.preferenceNames) {
         const auto missing = QString(QChar(0));

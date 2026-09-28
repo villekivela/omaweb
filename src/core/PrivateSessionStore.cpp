@@ -118,8 +118,8 @@ bool PrivateSessionStore::clearPermissionsForOrigin(const QString &, const QStri
 
 bool PrivateSessionStore::clearPermissionsSince(const QString &, qint64) { return false; }
 
-bool PrivateSessionStore::recordDownload(
-    const QString &, const QUrl &, const QString &, const QString &, qint64, qint64)
+bool PrivateSessionStore::recordDownload(const QString &, const QString &, const QUrl &,
+    const QString &, const QString &, qint64, qint64)
 {
     return false;
 }
@@ -133,5 +133,7 @@ bool PrivateSessionStore::updateDownload(
 QVariantList PrivateSessionStore::downloadHistory() const { return {}; }
 
 bool PrivateSessionStore::forgetDownload(const QString &) { return false; }
+
+bool PrivateSessionStore::forgetSpaceDownloads(const QString &) { return false; }
 
 } // namespace omaweb

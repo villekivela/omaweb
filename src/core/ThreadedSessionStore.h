@@ -67,12 +67,14 @@ public:
     QVariantList permissionsForOrigin(const QString &spaceId, const QString &origin) const override;
     bool clearPermissionsForOrigin(const QString &spaceId, const QString &origin) override;
     bool clearPermissionsSince(const QString &spaceId, qint64 since) override;
-    bool recordDownload(const QString &id, const QUrl &url, const QString &path,
-        const QString &state, qint64 receivedBytes, qint64 totalBytes) override;
+    bool recordDownload(const QString &id, const QString &spaceId, const QUrl &url,
+        const QString &path, const QString &state, qint64 receivedBytes,
+        qint64 totalBytes) override;
     bool updateDownload(const QString &id, const QString &state, qint64 receivedBytes,
         qint64 totalBytes, const QString &error) override;
     QVariantList downloadHistory() const override;
     bool forgetDownload(const QString &id) override;
+    bool forgetSpaceDownloads(const QString &spaceId) override;
 
 private:
     // Runs a call on the store thread and waits for it. Called from that

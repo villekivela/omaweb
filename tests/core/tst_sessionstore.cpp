@@ -199,7 +199,7 @@ void SessionStoreTest::adaptersRecordDownloadsOnlyIfTheyRecord()
     auto store = makeStore(kind, root.path());
     QVERIFY(store->open());
 
-    QCOMPARE(store->recordDownload(QStringLiteral("download-1"),
+    QCOMPARE(store->recordDownload(QStringLiteral("download-1"), {},
                  QUrl(QStringLiteral("https://a.example/notes.pdf")),
                  QStringLiteral("/tmp/notes.pdf"), QStringLiteral("running"), 0, 100),
         records);
@@ -361,7 +361,7 @@ void SessionStoreTest::aPrivateStoreLeavesTheRootItWasGivenEmpty()
         spaceId(), {makeTab(QStringLiteral("tab-2"), QStringLiteral("https://b.example"))});
     store.recordVisit(spaceId(), QUrl(QStringLiteral("https://a.example")), QStringLiteral("A"));
     store.savePreference(QStringLiteral("sidebar-width"), QStringLiteral("280"));
-    store.recordDownload(QStringLiteral("download-1"),
+    store.recordDownload(QStringLiteral("download-1"), {},
         QUrl(QStringLiteral("https://a.example/notes.pdf")), QStringLiteral("/tmp/notes.pdf"),
         QStringLiteral("running"), 0, 100);
     store.savePermissionDecision(

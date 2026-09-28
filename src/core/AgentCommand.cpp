@@ -109,12 +109,13 @@ namespace {
 
     // A temporary Space lasts as long as the connection that made it, so this
     // process keeps that connection open until it is told to stop or the
-    // browser closes it.
-    void holdConnection(QLocalSocket &socket)
+    // browser closes it. False when it cannot wait, and the connection closes
+    // at once, taking the Space.
+    bool holdConnection(QLocalSocket &socket)
     {
         std::fflush(stdout);
         if (::pipe(stopPipe) != 0) {
-            return;
+            return false;
         }
         struct sigaction action {};
         action.sa_handler = requestStop;
@@ -144,6 +145,7 @@ namespace {
             }
         }
         socket.disconnectFromServer();
+        return true;
     }
 
     void print(FILE *stream, const QString &text)
@@ -346,8 +348,12 @@ int runAgentCommand(const QStringList &arguments, const QString &socketPath)
         print(stderr,
             QStringLiteral("omaweb: %1\n").arg(answer.value(QStringLiteral("error")).toString()));
     }
-    if (ok && command.request.value(QStringLiteral("temporary")).toBool()) {
-        holdConnection(socket);
+    if (ok && command.request.value(QStringLiteral("temporary")).toBool()
+        && !holdConnection(socket)) {
+        print(stderr,
+            QStringLiteral("omaweb: could not stay to keep the temporary Space, so it is "
+                           "deleted now.\n"));
+        return 1;
     }
     return ok ? 0 : 1;
 }
