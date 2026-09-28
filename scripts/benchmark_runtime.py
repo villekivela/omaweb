@@ -909,7 +909,7 @@ PAGELOAD_PAGE = """<!doctype html>
     const sent = await fetch("/report", {{ method: "POST", body: JSON.stringify(report) }});
     reporting = "answered";
     const answer = await sent.json();
-    if (answer.next) location.replace(answer.next);
+    if (answer.next) setTimeout(() => location.replace(answer.next), {settle});
   }}));
 </script>
 """
