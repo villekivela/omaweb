@@ -144,15 +144,19 @@ SUITES = {
             sha256="14b746f05b388a382d315186efd6e19017f7f67b3846d20759ab30fe83c2f985",
             entry="MotionMark/index.html",
             # The start button is enabled once the frame rate has been measured, which is the
-            # moment a reader could press it.
+            # moment a reader could press it. A start before the page's images have loaded does
+            # nothing, as one did in Chromium 153, so the run counts as started only once the test
+            # is showing, and a start that has not taken after ten seconds is made again.
             start="""(() => {
+                if (document.body.classList.contains("showing-test-container")) return true;
                 const button = document.getElementById("start-button");
                 if (!button || button.disabled) return false;
-                if (!window.omawebStarted) {
-                    window.omawebStarted = true;
+                if (!document.body.classList.contains("images-loaded")) return false;
+                if (!window.omawebStarted || Date.now() - window.omawebStarted > 10000) {
+                    window.omawebStarted = Date.now();
                     benchmarkController.startBenchmark();
                 }
-                return true;
+                return false;
             })()""",
             result="""(() => {
                 if (!document.body.classList.contains("showing-results")) return null;
@@ -575,12 +579,21 @@ def process_tree(root: int) -> list[int]:
     return found
 
 
-def command_of(pid: int) -> list[str]:
+def command_of(pid: int) -> str:
+    """A process's command line as one string. The zygote rewrites its children's titles into one
+    argument with spaces in it, so a renderer's switches are not separate arguments to look for."""
     try:
         with open(f"/proc/{pid}/cmdline", "rb") as handle:
-            return [part.decode(errors="replace") for part in handle.read().split(b"\0") if part]
+            return handle.read().replace(b"\0", b" ").decode(errors="replace")
     except OSError:
-        return []
+        return ""
+
+
+def is_page_renderer(command: str) -> bool:
+    """A renderer of a page, rather than of Chromium's own interface, which the busiest-renderer
+    choice would otherwise be free to profile when the page is between tests."""
+    arguments = command.split()
+    return "--type=renderer" in arguments and "--top-chrome-webui" not in arguments
 
 
 def cpu_seconds(pid: int) -> float:
@@ -690,7 +703,7 @@ class RunningBrowser:
 
     def busiest_renderer(self) -> int:
         renderers = [pid for pid in process_tree(self.process.pid)
-                     if "--type=renderer" in command_of(pid)]
+                     if is_page_renderer(command_of(pid))]
         if not renderers:
             raise RunFailed(f"{BROWSER_NAMES[self.spec.role]} has no renderer to profile")
         before = {pid: cpu_seconds(pid) for pid in renderers}
@@ -843,7 +856,8 @@ def report_lines(record: dict) -> list[str]:
             line = (f"  {BROWSER_NAMES[role]:<17} " + ", ".join(f"{value:.2f}" for value in values)
                     + f"  mean {history.mean(values):.2f}")
             if role == history.LATEST:
-                line += f", spread {history.spread(values) * 100:.1f}% (the host check)"
+                line += (f", spread {history.spread(values) * 100:.1f}% (the host check)"
+                         if len(values) > 1 else ", one run, so no host check")
             lines.append(line)
         for baseline, value in ratios.get(suite, {}).items():
             lines.append(f"  Omaweb / {BROWSER_NAMES[baseline]}: {value:.3f}")
@@ -857,19 +871,28 @@ def report_lines(record: dict) -> list[str]:
 
 # Profiling.
 
-PERF_LINE = re.compile(r"^\s*([\d.]+)%\s+(\S+)(?:\s+\[.\]\s+(.*))?$")
+PERF_SHARE = re.compile(r"^\s*([\d.]+)%\s+(.*?)\s*$")
+PERF_SYMBOL = re.compile(r"\s+\[.\]\s+")
 
 
 def parse_perf_report(text: str) -> list[tuple[float, str, str]]:
     """`perf report --stdio` lines as share, library and symbol, the symbol blank when the report
-    was sorted by library alone."""
+    was sorted by library alone.
+
+    The library column is padded to its widest entry, and a JIT entry's name has spaces in it,
+    `[JIT] tid 1234`, so the symbol is found by the `[.]` or `[k]` that opens it rather than by
+    counting columns.
+    """
     rows = []
     for line in text.splitlines():
         if line.startswith("#"):
             continue
-        match = PERF_LINE.match(line)
-        if match:
-            rows.append((float(match.group(1)), match.group(2), (match.group(3) or "").strip()))
+        match = PERF_SHARE.match(line)
+        if not match:
+            continue
+        parts = PERF_SYMBOL.split(match.group(2), 1)
+        symbol = parts[1].strip() if len(parts) > 1 else ""
+        rows.append((float(match.group(1)), parts[0].strip(), symbol))
     return rows
 
 

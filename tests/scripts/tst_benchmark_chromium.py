@@ -355,21 +355,41 @@ class PageTest(unittest.TestCase):
 class ProfileTest(unittest.TestCase):
 
     def test_a_report_by_library(self):
-        text = ("# Samples: 30K of event 'cpu-clock'\n#\n"
-                "    77.70%  libQt6WebEngineCore.so.6.11.2\n"
-                "    11.00%  [JIT] tid 1234\n")
-        self.assertEqual(compare.parse_perf_report(text)[0],
-                         (77.7, "libQt6WebEngineCore.so.6.11.2", ""))
+        # The column is padded to its widest entry, and a JIT entry's name has spaces in it.
+        text = ("# Samples: 30K of event 'task-clock:uppp'\n#\n"
+                "    93.52%  chromium                \n"
+                "     2.38%  [JIT] tid 734491        \n"
+                "     0.68%  libharfbuzz.so.0.61450.0\n")
+        self.assertEqual(compare.parse_perf_report(text), [
+            (93.52, "chromium", ""),
+            (2.38, "[JIT] tid 734491", ""),
+            (0.68, "libharfbuzz.so.0.61450.0", ""),
+        ])
 
     def test_a_report_by_library_and_symbol(self):
         text = ("     0.99%  libQt6WebEngineCore.so.6  [.] cppgc::internal::"
                 "ConcurrentSweepTask::VisitNormalPage\n"
-                "     2.05%  [kernel.kallsyms]         [k] preempt_count_sub\n")
+                "     2.05%  [kernel.kallsyms]         [k] preempt_count_sub\n"
+                "     0.40%  [JIT] tid 99              [.] 0x0000ffff8a2c1000\n")
         self.assertEqual(compare.parse_perf_report(text), [
             (0.99, "libQt6WebEngineCore.so.6",
              "cppgc::internal::ConcurrentSweepTask::VisitNormalPage"),
             (2.05, "[kernel.kallsyms]", "preempt_count_sub"),
+            (0.40, "[JIT] tid 99", "0x0000ffff8a2c1000"),
         ])
+
+
+class RendererTest(unittest.TestCase):
+
+    # The zygote rewrites a renderer's title into one argument, which is how /proc shows it.
+    def test_a_renamed_renderer_is_found(self):
+        self.assertTrue(compare.is_page_renderer(
+            "/usr/lib/omaweb/lib/qt6/QtWebEngineProcess --type=renderer --lang=en "))
+
+    def test_chromiums_own_interface_is_not_a_page(self):
+        self.assertFalse(compare.is_page_renderer(
+            "/usr/lib/chromium/chromium --type=renderer --top-chrome-webui --lang=en"))
+        self.assertFalse(compare.is_page_renderer("/usr/lib/chromium/chromium --type=zygote"))
 
 
 class DevToolsTest(unittest.TestCase):

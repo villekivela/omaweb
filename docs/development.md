@@ -1239,7 +1239,9 @@ than the gap being measured. It exits non-zero only when a browser does not fini
 `--profile` adds one run of the first suite per browser, not counted in the ratios. The harness
 waits 15 seconds for the run to get going, then records the busiest renderer for 30 seconds with
 `perf record -F 999` and prints the split by library and the top 20 symbols. #356 took the same
-profile by hand. The data and the full reports stay under `~/.cache/omaweb-benchmarks/profiles/`.
+profile by hand. The data and the full reports stay under `~/.cache/omaweb-benchmarks/profiles/`. At
+`kernel.perf_event_paranoid` 2, Arch's default, `perf` records only user space, so the kernel's
+share is not in the split. Chromium's binary is stripped, so its symbols are addresses.
 
 ### The performance history
 
