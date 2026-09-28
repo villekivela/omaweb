@@ -37,6 +37,7 @@ public:
 private:
     void accept();
     void read(QLocalSocket *socket);
+    void tooLong(QLocalSocket *socket);
 
     AgentControl *m_control;
     QLocalServer *m_server;

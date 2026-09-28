@@ -323,11 +323,16 @@ omaweb space new [name]
 omaweb space delete <id|name>
 ```
 
-Each takes `--json` and `--name`, which defaults to the parent process's name. `space new` and
+Each takes `--json` and `--name`, which defaults to the parent process's name. These words are verbs
+now. A launch used to skip a word that was not an address, so `omaweb open https://…` started the
+browser and opened the address, and `omaweb tabs` started it with nothing. Now both are clients, and
+without a running browser they exit with 3. A launcher that starts the browser with an address
+passes the address alone, `omaweb https://…`, as the desktop entry does. `space new` and
 `space delete` need Allow agents, which has no switch in Settings yet; set `"allow-agents": true` in
-`privacy.json` under the configuration root and restart. `OMAWEB_CONTROL_SOCKET` moves the socket so
-a scratch browser can run beside the everyday one. A socket name longer than 104 bytes on macOS, or
-108 on Linux, cannot be opened, and the browser says so at start.
+`privacy.json` under the configuration root. A running browser follows the file, and turning it off
+there detaches every connection at once. `OMAWEB_CONTROL_SOCKET` moves the socket so a scratch
+browser can run beside the everyday one. A socket name longer than 104 bytes on macOS, or 108 on
+Linux, cannot be opened, and the browser says so at start.
 
 Addresses from outside the browser are read strictly and only `http`, `https` and `file` are opened.
 A desktop passes on whatever it was given, so a scheme that would run in a page is refused rather

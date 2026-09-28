@@ -4,6 +4,8 @@
 #include "PrivacyFile.h"
 
 #include <QAbstractItemModel>
+#include <QDir>
+#include <QFileInfo>
 #include <QJsonArray>
 #include <QRegularExpression>
 
@@ -13,6 +15,9 @@ namespace omaweb {
 namespace {
 
     constexpr QLatin1StringView allowAgentsKey("allow-agents");
+
+    // Where PrivacyFile keeps it. Named here too because the file is watched.
+    constexpr auto privacyFileName = "privacy.json";
 
     const auto defaultAgentSpaceName = QStringLiteral("Agent");
 
@@ -61,6 +66,18 @@ AgentControl::AgentControl(BrowserController *browser, QString configRoot, QObje
 {
     // Only an explicit `true` lets Agents in.
     m_allowAgents = PrivacyFile::read(m_configRoot, allowAgentsKey).toBool(false);
+    if (m_configRoot.isEmpty()) {
+        return;
+    }
+    // The file is watched, so the reader turning Agents off reaches a browser
+    // already running. PrivacyFile writes by replacing the file, which a
+    // watch on the file alone loses, so the directory is watched as well and
+    // the file is watched again whenever it comes back.
+    QDir().mkpath(m_configRoot);
+    m_watcher.addPath(m_configRoot);
+    connect(&m_watcher, &QFileSystemWatcher::directoryChanged, this, &AgentControl::reload);
+    connect(&m_watcher, &QFileSystemWatcher::fileChanged, this, &AgentControl::reload);
+    reload();
 }
 
 bool AgentControl::allowAgents() const { return m_allowAgents; }
@@ -70,8 +87,25 @@ void AgentControl::setAllowAgents(bool allowed)
     if (allowed == m_allowAgents) {
         return;
     }
-    m_allowAgents = allowed;
     PrivacyFile::write(m_configRoot, allowAgentsKey, allowed);
+    apply(allowed);
+}
+
+void AgentControl::reload()
+{
+    const auto path = QDir(m_configRoot).filePath(QLatin1String(privacyFileName));
+    if (QFileInfo::exists(path) && !m_watcher.files().contains(path)) {
+        m_watcher.addPath(path);
+    }
+    apply(PrivacyFile::read(m_configRoot, allowAgentsKey).toBool(false));
+}
+
+void AgentControl::apply(bool allowed)
+{
+    if (allowed == m_allowAgents) {
+        return;
+    }
+    m_allowAgents = allowed;
     if (!allowed) {
         for (auto &connection : m_connections) {
             connection.currentTabId.clear();
@@ -105,10 +139,17 @@ QJsonObject AgentControl::answer(const QJsonObject &request)
                            "can use Agent Spaces."));
     }
 
-    auto &connection = m_connections[request.value(QStringLiteral("name")).toString()];
-    // A tab the reader closed since is no longer anyone's current tab.
-    if (!connection.currentTabId.isEmpty() && !m_browser->findTab(connection.currentTabId)) {
-        connection.currentTabId.clear();
+    const auto name = request.value(QStringLiteral("name")).toString();
+    auto &connection = connectionNamed(name);
+    // A tab the reader closed since is no longer anyone's current tab, and
+    // one the reader moved takes the connection's Space with it.
+    if (!connection.currentTabId.isEmpty()) {
+        const auto tab = m_browser->findTab(connection.currentTabId, connection.currentSpaceId);
+        if (tab) {
+            connection.currentSpaceId = tab->spaceId;
+        } else {
+            connection.currentTabId.clear();
+        }
     }
     if (verb == u"spaces") {
         return listSpaces();
@@ -123,9 +164,40 @@ QJsonObject AgentControl::answer(const QJsonObject &request)
         return close(connection, request);
     }
     if (verb == u"space new") {
-        return createSpace(connection, request);
+        return createSpace(name, connection, request);
     }
-    return deleteSpace(connection, request);
+    return deleteSpace(name, connection, request);
+}
+
+AgentControl::Connection &AgentControl::connectionNamed(const QString &name)
+{
+    auto found = m_connections.find(name);
+    if (found == m_connections.end()) {
+        // A name costs nothing to invent, so the states they pick are
+        // bounded, and the one used longest ago makes room.
+        if (m_connections.size() >= maximumConnections) {
+            auto oldest = m_connections.begin();
+            for (auto it = m_connections.begin(); it != m_connections.end(); ++it) {
+                if (it->lastUsed < oldest->lastUsed) {
+                    oldest = it;
+                }
+            }
+            m_connections.erase(oldest);
+        }
+        found = m_connections.insert(name, {});
+    }
+    found->lastUsed = ++m_requests;
+    return *found;
+}
+
+// Until Space grants land, the only tabs an Agent may drive are the ones an
+// Agent opened this run and those of an Agent Space.
+bool AgentControl::mayDrive(const TabState &tab) const
+{
+    if (tab.pinned) {
+        return false;
+    }
+    return m_openedTabIds.contains(tab.id) || (m_allowAgents && m_browser->agentSpace(tab.spaceId));
 }
 
 QJsonObject AgentControl::listSpaces() const
@@ -155,7 +227,7 @@ QJsonObject AgentControl::listTabs(Connection &connection, const QJsonObject &re
     }
     QJsonArray tabs;
     for (const auto &tab : m_browser->spaceTabs(spaceId)) {
-        tabs.append(describeTab(tab.id, connection));
+        tabs.append(describeTab(tab, connection));
     }
     return success({{QStringLiteral("space"), spaceId}, {QStringLiteral("tabs"), tabs}});
 }
@@ -186,7 +258,7 @@ QJsonObject AgentControl::open(Connection &connection, const QJsonObject &reques
         || (tabName.isEmpty() && connection.currentTabId.isEmpty());
     if (!newTab) {
         const auto tabId = tabName.isEmpty() ? connection.currentTabId : tabName;
-        const auto tab = m_browser->findTab(tabId);
+        auto tab = m_browser->findTab(tabId, connection.currentSpaceId);
         if (!tab) {
             return refusal(
                 QStringLiteral("not-found"), QStringLiteral("There is no tab \"%1\".").arg(tabId));
@@ -195,13 +267,20 @@ QJsonObject AgentControl::open(Connection &connection, const QJsonObject &reques
             return refusal(QStringLiteral("refused"),
                 QStringLiteral("A Pinned tab's address is the reader's to change."));
         }
-        if (!m_browser->navigateTab(tabId, url)) {
+        if (!mayDrive(*tab)) {
+            return refusal(QStringLiteral("refused"),
+                QStringLiteral("An Agent loads an address only in a tab an Agent opened or one of "
+                               "an Agent Space. Open a new tab instead."));
+        }
+        if (!m_browser->navigateTab(tabId, url, tab->spaceId)) {
             return refusal(
                 QStringLiteral("failed"), QStringLiteral("The tab could not be loaded."));
         }
         connection.currentTabId = tabId;
         connection.currentSpaceId = tab->spaceId;
-        return success({{QStringLiteral("tab"), describeTab(tabId, connection)}});
+        tab->url = url;
+        tab->title = url.host().isEmpty() ? url.toDisplayString() : url.host();
+        return success({{QStringLiteral("tab"), describeTab(*tab, connection)}});
     }
 
     const auto spaceId = spaceName.isEmpty() ? defaultSpace(connection) : findSpace(spaceName);
@@ -216,7 +295,8 @@ QJsonObject AgentControl::open(Connection &connection, const QJsonObject &reques
     m_openedTabIds.insert(tabId);
     connection.currentTabId = tabId;
     connection.currentSpaceId = spaceId;
-    return success({{QStringLiteral("tab"), describeTab(tabId, connection)}});
+    const auto tab = m_browser->findTab(tabId, spaceId);
+    return success({{QStringLiteral("tab"), tab ? describeTab(*tab, connection) : QJsonObject {}}});
 }
 
 // An Agent closes a tab an Agent opened, or any ordinary tab of an Agent
@@ -231,18 +311,16 @@ QJsonObject AgentControl::close(Connection &connection, const QJsonObject &reque
         return refusal(QStringLiteral("no-current-tab"),
             QStringLiteral("This connection has no current tab. Name one with --tab."));
     }
-    const auto tab = m_browser->findTab(tabId);
+    const auto tab = m_browser->findTab(tabId, connection.currentSpaceId);
     if (!tab) {
         return refusal(
             QStringLiteral("not-found"), QStringLiteral("There is no tab \"%1\".").arg(tabId));
     }
-    const auto agentsTab
-        = m_openedTabIds.contains(tabId) || (m_allowAgents && m_browser->agentSpace(tab->spaceId));
-    if (tab->pinned || !agentsTab) {
+    if (!mayDrive(*tab)) {
         return refusal(QStringLiteral("refused"),
             QStringLiteral("An Agent closes only the tabs an Agent opened."));
     }
-    if (!m_browser->closeTabInSpace(tabId)) {
+    if (!m_browser->closeTabInSpace(tabId, tab->spaceId)) {
         return refusal(QStringLiteral("failed"), QStringLiteral("The tab could not be closed."));
     }
     m_openedTabIds.remove(tabId);
@@ -254,13 +332,14 @@ QJsonObject AgentControl::close(Connection &connection, const QJsonObject &reque
     return success({{QStringLiteral("closed"), tabId}});
 }
 
-QJsonObject AgentControl::createSpace(Connection &connection, const QJsonObject &request)
+QJsonObject AgentControl::createSpace(
+    const QString &creator, Connection &connection, const QJsonObject &request)
 {
     auto name = request.value(QStringLiteral("space")).toString().trimmed();
     if (name.isEmpty()) {
         name = defaultAgentSpaceName;
     }
-    const auto spaceId = m_browser->createAgentSpace(name);
+    const auto spaceId = m_browser->createAgentSpace(name, creator);
     if (spaceId.isEmpty()) {
         return refusal(QStringLiteral("failed"), QStringLiteral("The Space could not be created."));
     }
@@ -275,7 +354,10 @@ QJsonObject AgentControl::createSpace(Connection &connection, const QJsonObject 
         }}});
 }
 
-QJsonObject AgentControl::deleteSpace(Connection &connection, const QJsonObject &request)
+// The name is not an identity, so this keeps one Agent from sweeping away
+// another's work by mistake rather than keeping out anyone who means to.
+QJsonObject AgentControl::deleteSpace(
+    const QString &requester, Connection &connection, const QJsonObject &request)
 {
     const auto named = request.value(QStringLiteral("space")).toString();
     const auto spaceId = findSpace(named);
@@ -286,6 +368,10 @@ QJsonObject AgentControl::deleteSpace(Connection &connection, const QJsonObject 
     if (!m_browser->agentSpace(spaceId)) {
         return refusal(
             QStringLiteral("refused"), QStringLiteral("An Agent deletes only an Agent Space."));
+    }
+    if (m_browser->agentSpaceCreator(spaceId) != requester) {
+        return refusal(QStringLiteral("refused"),
+            QStringLiteral("An Agent deletes only an Agent Space it created."));
     }
     if (!m_browser->deleteAgentSpace(spaceId)) {
         return refusal(QStringLiteral("failed"), QStringLiteral("The Space could not be deleted."));
@@ -320,28 +406,21 @@ QString AgentControl::findSpace(const QString &idOrName) const
 
 QString AgentControl::defaultSpace(const Connection &connection) const
 {
-    if (const auto tab = m_browser->findTab(connection.currentTabId)) {
-        return tab->spaceId;
-    }
     if (!findSpace(connection.currentSpaceId).isEmpty()) {
         return connection.currentSpaceId;
     }
     return m_browser->activeSpaceId();
 }
 
-QJsonObject AgentControl::describeTab(const QString &tabId, const Connection &connection) const
+QJsonObject AgentControl::describeTab(const TabState &tab, const Connection &connection) const
 {
-    const auto tab = m_browser->findTab(tabId);
-    if (!tab) {
-        return {};
-    }
     return {
-        {QStringLiteral("id"), tab->id},
-        {QStringLiteral("space"), tab->spaceId},
-        {QStringLiteral("url"), tab->url.toString()},
-        {QStringLiteral("title"), tab->title},
-        {QStringLiteral("pinned"), tab->pinned},
-        {QStringLiteral("current"), tab->id == connection.currentTabId},
+        {QStringLiteral("id"), tab.id},
+        {QStringLiteral("space"), tab.spaceId},
+        {QStringLiteral("url"), tab.url.toString()},
+        {QStringLiteral("title"), tab.title},
+        {QStringLiteral("pinned"), tab.pinned},
+        {QStringLiteral("current"), tab.id == connection.currentTabId},
     };
 }
 

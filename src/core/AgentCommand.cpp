@@ -41,10 +41,18 @@ namespace {
         const auto space = QStringLiteral("space");
         const auto tab = QStringLiteral("tab");
         if (verb == u"spaces") {
-            return {};
+            return {.valued = {},
+                .flags = {},
+                .minimumPositionals = 0,
+                .maximumPositionals = 0,
+                .positionalField = {}};
         }
         if (verb == u"tabs") {
-            return {.valued = {space}};
+            return {.valued = {space},
+                .flags = {},
+                .minimumPositionals = 0,
+                .maximumPositionals = 0,
+                .positionalField = {}};
         }
         if (verb == u"open") {
             return {.valued = {space, tab},
@@ -54,12 +62,24 @@ namespace {
                 .positionalField = QStringLiteral("url")};
         }
         if (verb == u"close") {
-            return {.valued = {tab}};
+            return {.valued = {tab},
+                .flags = {},
+                .minimumPositionals = 0,
+                .maximumPositionals = 0,
+                .positionalField = {}};
         }
         if (verb == u"space new") {
-            return {.maximumPositionals = 1, .positionalField = space};
+            return {.valued = {},
+                .flags = {},
+                .minimumPositionals = 0,
+                .maximumPositionals = 1,
+                .positionalField = space};
         }
-        return {.minimumPositionals = 1, .maximumPositionals = 1, .positionalField = space};
+        return {.valued = {},
+            .flags = {},
+            .minimumPositionals = 1,
+            .maximumPositionals = 1,
+            .positionalField = space};
     }
 
     QString cleanName(const QString &name)

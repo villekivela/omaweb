@@ -20,6 +20,10 @@ namespace {
     // holding it would let a connection grow the browser's memory at will.
     constexpr qint64 maximumRequestBytes = 64 * 1024;
 
+    // An answer is a few kilobytes. A client that lets this much wait unread
+    // is not reading, and what it has not read is the browser's memory.
+    constexpr qint64 maximumUnreadBytes = 4 * 1024 * 1024;
+
     // Long enough for a browser busy with a page to answer, short enough that
     // a socket nobody answers on is taken over at start without a wait.
     constexpr int probeTimeoutMs = 500;
@@ -27,6 +31,9 @@ namespace {
     void reply(QLocalSocket *socket, const QJsonObject &answer)
     {
         socket->write(QJsonDocument(answer).toJson(QJsonDocument::Compact) + '\n');
+        if (socket->bytesToWrite() > maximumUnreadBytes) {
+            socket->abort();
+        }
     }
 
     QJsonObject badRequest(const QString &error)
@@ -84,7 +91,15 @@ bool ControlSocket::listen(const QString &path)
         return false;
     }
 
-    if (QFileInfo::exists(path)) {
+    // Only a socket is ever taken away. Anything else at this path is not a
+    // browser that has gone, and Qt would rename the socket over it.
+    struct stat status {};
+    if (::lstat(QFile::encodeName(path).constData(), &status) == 0) {
+        if (!S_ISSOCK(status.st_mode)) {
+            qWarning("%s is not a socket, so this Omaweb opens no Agent socket over it",
+                qPrintable(path));
+            return false;
+        }
         QLocalSocket probe;
         probe.connectToServer(path);
         if (probe.waitForConnected(probeTimeoutMs)) {
@@ -103,7 +118,9 @@ bool ControlSocket::listen(const QString &path)
     }
     // Qt grants the user read, write and execute. A socket has no use for the
     // last, and 0600 is the mode ADR 0051 states.
-    ::chmod(QFile::encodeName(path).constData(), S_IRUSR | S_IWUSR);
+    if (::chmod(QFile::encodeName(path).constData(), S_IRUSR | S_IWUSR) != 0) {
+        qWarning("The Agent socket %s keeps the mode Qt gave it, 0700", qPrintable(path));
+    }
     return true;
 }
 
@@ -117,23 +134,37 @@ void ControlSocket::accept()
 
 void ControlSocket::read(QLocalSocket *socket)
 {
-    while (socket->canReadLine()) {
-        const auto line = socket->readLine(maximumRequestBytes).trimmed();
-        if (line.isEmpty()) {
+    while (socket->state() == QLocalSocket::ConnectedState && socket->canReadLine()) {
+        // One byte past the limit, so a line that fills it is told from one
+        // that ends inside it. A line cut short is never read as a request,
+        // and neither is what follows it.
+        const auto line = socket->readLine(maximumRequestBytes + 1);
+        if (!line.endsWith('\n')) {
+            tooLong(socket);
+            return;
+        }
+        const auto request = line.trimmed();
+        if (request.isEmpty()) {
             continue;
         }
         QJsonParseError error {};
-        const auto document = QJsonDocument::fromJson(line, &error);
+        const auto document = QJsonDocument::fromJson(request, &error);
         if (error.error != QJsonParseError::NoError || !document.isObject()) {
             reply(socket, badRequest(QStringLiteral("A request is one JSON object per line.")));
             continue;
         }
         reply(socket, m_control->answer(document.object()));
     }
-    if (socket->bytesAvailable() > maximumRequestBytes) {
-        reply(socket, badRequest(QStringLiteral("The request is too long.")));
-        socket->disconnectFromServer();
+    if (socket->state() == QLocalSocket::ConnectedState
+        && socket->bytesAvailable() > maximumRequestBytes) {
+        tooLong(socket);
     }
+}
+
+void ControlSocket::tooLong(QLocalSocket *socket)
+{
+    reply(socket, badRequest(QStringLiteral("The request is too long.")));
+    socket->disconnectFromServer();
 }
 
 } // namespace omaweb

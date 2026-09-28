@@ -1,5 +1,8 @@
 #pragma once
 
+#include "TabListModel.h"
+
+#include <QFileSystemWatcher>
 #include <QHash>
 #include <QJsonObject>
 #include <QObject>
@@ -24,7 +27,9 @@ class BrowserController;
 // A request names its connection. The name picks that connection's state,
 // its current tab and the Space its next tab goes to, so the CLI, which is one
 // process per verb, keeps the tab it opened. It is used for the log and the
-// markers and is not an identity: it grants nothing.
+// markers and is not an identity. The one thing it decides is which Agent
+// Space an Agent may delete, which guards against a mistake rather than
+// against someone who means it.
 //
 // Only the ordinary window's controller is handed to this. A Private window
 // has no Spaces to list, and one handed over by mistake is refused whole.
@@ -33,6 +38,13 @@ class AgentControl final : public QObject {
     Q_PROPERTY(bool allowAgents READ allowAgents WRITE setAllowAgents NOTIFY allowAgentsChanged)
 
 public:
+    // The most connection states kept at once. A name costs nothing to invent,
+    // and the state used longest ago goes to make room.
+    static constexpr qsizetype maximumConnections = 256;
+
+    // Reads Allow agents from `privacy.json` under `configRoot` and follows
+    // the file, so the reader turning it off there detaches every connection
+    // without a restart.
     AgentControl(BrowserController *browser, QString configRoot, QObject *parent = nullptr);
 
     bool allowAgents() const;
@@ -54,29 +66,42 @@ signals:
 private:
     struct Connection {
         QString currentTabId;
+        // The current tab's Space while there is one, which is where it is
+        // looked for first.
         QString currentSpaceId;
+        quint64 lastUsed = 0;
     };
+
+    void reload();
+    void apply(bool allowed);
+    Connection &connectionNamed(const QString &name);
+    bool mayDrive(const TabState &tab) const;
 
     QJsonObject listSpaces() const;
     QJsonObject listTabs(Connection &connection, const QJsonObject &request) const;
     QJsonObject open(Connection &connection, const QJsonObject &request);
     QJsonObject close(Connection &connection, const QJsonObject &request);
-    QJsonObject createSpace(Connection &connection, const QJsonObject &request);
-    QJsonObject deleteSpace(Connection &connection, const QJsonObject &request);
+    QJsonObject createSpace(
+        const QString &creator, Connection &connection, const QJsonObject &request);
+    QJsonObject deleteSpace(
+        const QString &requester, Connection &connection, const QJsonObject &request);
     // A Space by id, or by a name no other Space shares.
     QString findSpace(const QString &idOrName) const;
     // The Space a request without `--space` is about: the current tab's, the
     // connection's own, or the Space on show.
     QString defaultSpace(const Connection &connection) const;
-    QJsonObject describeTab(const QString &tabId, const Connection &connection) const;
+    QJsonObject describeTab(const TabState &tab, const Connection &connection) const;
 
     BrowserController *m_browser;
     QString m_configRoot;
     bool m_allowAgents = false;
     QHash<QString, Connection> m_connections;
+    quint64 m_requests = 0;
     // Every tab an Agent opened in this run, so a reader's own tab is never
-    // one an Agent can close.
+    // one an Agent can load or close. It is not kept across a restart, after
+    // which only an Agent Space's tabs are the Agents' own.
     QSet<QString> m_openedTabIds;
+    QFileSystemWatcher m_watcher;
 };
 
 } // namespace omaweb

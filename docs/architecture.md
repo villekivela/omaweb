@@ -259,19 +259,36 @@ open it. It carries one JSON object per line each way. `ControlSocket` owns the 
 A request's verb decides what it may do, never its connection's name. `spaces`, `tabs`, `open` and
 `close` are browser commands and always answer. `space new` and `space delete` wait for Allow
 agents, which is off until the reader turns it on and is kept in `privacy.json` beside the reader's
-other decisions. Turning it off clears every connection's current tab. `close` takes only a tab an
-Agent opened in this run or a tab of an Agent Space, and `open` refuses a Pinned tab and any scheme
-but `http`, `https`, `file` and `about`.
+other decisions. `AgentControl` watches that file, and its directory because a write replaces the
+file, so turning the setting off in a running browser clears every connection's current tab at once.
+
+Until Space grants land, an Agent drives only its own tabs. `open` into an existing tab and `close`
+take a tab an Agent opened in this run, or an ordinary tab of an Agent Space while Allow agents is
+on. Every other tab is the reader's, the one on show included. The set of tabs an Agent opened is
+held in memory and starts empty at each launch, so after a restart only an Agent Space's tabs are
+the Agents' own. `open` also refuses a Pinned tab and any scheme but `http`, `https`, `file` and
+`about`.
 
 The name picks the connection's state, so the CLI keeps its current tab across the separate
-processes it runs as. No verb selects a tab or switches Space. A tab opened or changed in a Space
-not on show is written to that Space's store, and the frozen page the window still holds for it is
-dropped, so the Space shows the new address when it comes back.
+processes it runs as. The browser keeps at most 256 of these states and drops the one used longest
+ago. A name also records which connection created each Agent Space, and `space delete` refuses
+another name's. That guards against one Agent removing another's work by mistake, and nothing more,
+because any process can give any name.
+
+No verb selects a tab or switches Space. A tab opened or changed in a Space not on show is written
+to that Space's store, and the frozen page the window still holds for it is dropped, so the Space
+shows the new address when it comes back. A tab is looked for in the Space where the connection last
+saw it before any other Space's store is read.
 
 The Agent Space label lives in its own `agent_spaces` table rather than on the Space record. Sync
 copies Space records, so it never sees the label, and deleting a Space deletes its label with it.
 `AgentControl` is handed the ordinary window's controller only, and refuses every verb if given a
 Private window's.
+
+The socket answers one line at a time. A line longer than 64 KiB is answered as too long and the
+connection is closed, rather than cut and read on from the middle. A client that leaves 4 MiB of
+answers unread is dropped. At start, a socket another browser answers on is left alone, a stale one
+is replaced, and a path that is not a socket at all is never touched.
 
 ## Everyday page commands
 
