@@ -369,6 +369,10 @@ browser builds without CNAME uncloaking
 second engine and is not affected. To build against the patched engine on such a machine, set each
 `Qt6WebEngine*_DIR` to the prefix's `lib/cmake` and put the prefix's include directory before
 `/usr/include/qt6`. Homebrew on macOS has the same shape, under `/opt/homebrew/include`.
+`scripts/check_omaweb_engine.sh <build-directory>` reads both from CMake's cache and fails unless
+each engine package came from `/usr/lib/omaweb` and the probe found the DNS alias API. CI's
+`arch-linux` image installs no `qt6-webengine`, and the job runs the check after each configure in
+case a dependency ever brings one in.
 
 `qt6-wayland` is a dependency in its own right because native Wayland is the primary display
 platform. The content-blocking library is the one thing that rides along, under `lib/omaweb`,
@@ -1166,10 +1170,10 @@ it has not seen (ADR 0050, "What the engine does") and is the one more likely to
 Secure DNS on the lookups go to a public server, whose speed from GitHub's network is not Omaweb's
 to hold to a number, so measure that path by hand when it changes.
 
-CI builds against Omaweb's engine, but these ceilings were recorded on Arch's `qt6-webengine`, where
-CNAME uncloaking is compiled out, so they hold everything in Content blocking's cost except
-uncloaking's lookups. Re-recording them on Omaweb's engine is
-[#394](https://github.com/villekivela/omaweb/issues/394).
+CI builds against Omaweb's engine, so the ceilings hold CNAME uncloaking's lookups with the rest of
+Content blocking's cost. They were recorded there on 2026-09-28
+([#394](https://github.com/villekivela/omaweb/issues/394)). The worst case added 18.2 ms, against
+6.1 ms on Arch's `qt6-webengine`, where uncloaking is compiled out.
 
 Each ceiling is four times the difference recorded on CI's runner, and never under 20 ms. The
 differences are a few milliseconds, and a shared runner's noise is bigger than that multiplied.
