@@ -2795,11 +2795,15 @@ ApplicationWindow {
                 Rectangle {
                     id: protoSpaceToast
                     objectName: "protoSpaceToast"
+                    // Held by the row rather than the viewport, so the page's
+                    // own arrival does not carry it: it stands over the
+                    // middle of where the page settles.
+                    parent: chromeRow
                     property real drop: -8
                     visible: opacity > 0
                     opacity: 0
                     z: 40
-                    anchors.horizontalCenter: parent.horizontalCenter
+                    x: chromeRow.settledSeam + (chromeRow.width - chromeRow.settledSeam - width) / 2
                     y: 12 + drop
                     width: toastName.implicitWidth + 32
                     height: toastName.implicitHeight + 14
