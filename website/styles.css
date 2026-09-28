@@ -1056,7 +1056,7 @@ a {
   height: 100%;
   min-height: 280px;
   object-fit: cover;
-  object-position: 20% center;
+  object-position: center;
 }
 
 .keyboard__panel {
