@@ -111,6 +111,14 @@ QStringList validateEngineViewContract(const QObject &adapter)
         // reads it when a page asks for a window, so what the ask opens can
         // come from where the reader pointed.
         {"pressOrigin", QMetaType::QRectF},
+        // Whether the view takes the keyboard when it is made. The shell makes
+        // an Agent tab's page while the reader is looking at another, and an
+        // Agent tab never takes the reader's keyboard.
+        {"pageTakesFocus", QMetaType::Bool},
+        // The next label an Agent has not been given in this tab. The shell
+        // keeps it for the tab and hands it to a new view of it, so a label
+        // from a page that has gone never names an element of the next.
+        {"agentNextLabel", QMetaType::Int},
     };
     static constexpr Method requiredMethods[] = {
         {"goBack", false, 0},
@@ -130,6 +138,19 @@ QStringList validateEngineViewContract(const QObject &adapter)
         // from top to bottom, with the reader's place in it left as it was.
         {"capturePage", false, 1},
         {"capturePageFully", false, 1},
+        // One of Omaweb's page verbs for an Agent (ADR 0051): `look`, `read`,
+        // `do`, `shot` or `eval`, numbered, with its arguments. The adapter
+        // answers through `agentVerbAnswered(requestId, answer)`, as the verb
+        // is answered on the socket. The verbs are Omaweb's rather than an
+        // engine's protocol, so each engine answers them its own way.
+        {"answerAgentVerb", false, 3},
+        // The page gives up the keyboard. The shell asks it of a page the
+        // reader is not looking at, which an Agent tab never takes the
+        // reader's keyboard for.
+        {"releasePageFocus", false, 0},
+        // The verbs under way stop: no more input reaches the page and no
+        // answer comes, since the core has refused them already.
+        {"cancelAgentVerbs", false, 0},
         {"exitSiteFullscreen", false, 0},
         {"focusPage", false, 0},
         {"checkForEditedFormState", false, 1},

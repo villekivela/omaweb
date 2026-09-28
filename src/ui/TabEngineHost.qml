@@ -18,6 +18,10 @@ Item {
     required property var engineBlocker
     required property var cookiePolicy
     required property var keyboardManager
+    // The Agent socket's rules (ADR 0051), which name the Agent tabs and hand
+    // this host the page verbs to answer. Null in a Private window, which no
+    // Agent reaches.
+    property var agentControl: null
     property bool pageFocusAllowed: true
     property var hintTheme: ({})
     // The palette the engine draws its inspector in, so a docked inspector is
@@ -98,7 +102,7 @@ Item {
         Translate {
             property var engine: null
             property string tabId: ""
-            readonly property bool arriving: engine !== null && engine.visible
+            readonly property bool arriving: engine !== null && root.onShow(engine)
                                              && root.arrivals.indexOf(tabId) >= 0
             // The leaving pane's own travel, run by `departure` below.
             property real departureX: 0
@@ -122,7 +126,7 @@ Item {
     // by the panes again once it is hidden.
     function departEngine(tabId, pane, direction) {
         const engine = root.engines[tabId];
-        if (!engine || !root.ease || !engine.visible || direction === 0) {
+        if (!engine || !root.ease || !root.onShow(engine) || direction === 0) {
             root.setEngineVisible(tabId, false);
             return;
         }
@@ -424,20 +428,21 @@ Item {
     // the timers, animations and script behind the tab that replaced it, so
     // selecting the tab continues the page rather than loading it again.
     //
-    // Three hidden pages are exceptions. One is being watched through the
+    // Four hidden pages are exceptions. One is being watched through the
     // inspector, which is the whole reason it was kept running; the engine
     // refuses to freeze it in any case. One is being heard, and a page the
     // reader is listening to is not one they have finished with. The third is a
     // Pinned tab marked Keep active, which is the reader asking in as many words
     // for a page to go on running while they are looking at something else: a
     // stopped page cannot tell them that a message arrived, and this build has
-    // no push service to tell them in its place.
+    // no push service to tell them in its place. The fourth is an Agent tab,
+    // which an Agent is working in wherever its Space is (ADR 0051).
     function applyPageLifecycle(tabId) {
         const engine = root.engines[tabId];
         if (!engine)
             return;
         const runsUnwatched = tabId === root.inspectedTabId || engine.pageAudible || root.retains(
-                  tabId);
+                  tabId) || root.agentAttached(tabId);
         engine.pageFrozen = !engine.visible && !runsUnwatched;
         // A stopped page answers no key. The desktop hears that it has left
         // rather than being offered controls that reach nothing.
@@ -454,14 +459,38 @@ Item {
     // whether it runs, so the two are written together: nothing hides an engine
     // without answering for what it goes on spending behind whatever replaced
     // it.
+    //
+    // An Agent tab the reader is not looking at stays visible to the engine,
+    // at the page area's size and drawn at no opacity under the page on show
+    // (#376). A hidden view tells Chromium it was hidden, and then it draws no
+    // frames, throttles its timers and cannot be captured, which is no page
+    // for an Agent to work in. Being on show is therefore the opacity as well
+    // as the visibility.
     function setEngineVisible(tabId, visible) {
         const engine = root.engines[tabId];
         if (!engine)
             return;
-        if (visible && !engine.visible)
+        if (visible && !root.onShow(engine))
             root.noteArrival(tabId);
-        engine.visible = visible;
+        engine.visible = visible || root.agentAttached(tabId);
+        engine.opacity = visible ? 1 : 0;
+        // Under the item that keeps the reader's pointer off it.
+        if (!visible && root.agentAttached(tabId))
+            engine.z = -1;
+        root.keepKeyboardOff(engine);
         root.applyPageLifecycle(tabId);
+    }
+
+    function onShow(engine) {
+        return engine.visible && engine.opacity > 0;
+    }
+
+    // A page the reader cannot see never holds their keyboard. A view takes
+    // focus when it is made, and an Agent tab's is made while it is not on
+    // show.
+    function keepKeyboardOff(engine) {
+        if (engine.pageHasFocus && !root.onShow(engine) && engine.releasePageFocus)
+            engine.releasePageFocus();
     }
 
     // Asking to inspect the page is asking for the dock as well, so the core
@@ -571,7 +600,10 @@ Item {
     // window handed down. A retained tab of another Space names its own: its
     // pages are that Space's browsing identity and nothing else's.
     function createEngine(tabId, tabUrl, spaceId, profilePath, sharedProfile) {
-        const engine = root.buildEngine(root, tabUrl, spaceId, profilePath, sharedProfile);
+        // An Agent tab's page is made while the reader is looking at another,
+        // and never takes their keyboard. Showing it gives it the keyboard.
+        const unseen = root.agentAttached(tabId) && root.shownTabIds[tabId] !== true;
+        const engine = root.buildEngine(root, tabUrl, spaceId, profilePath, sharedProfile, !unseen);
         if (!engine)
             return null;
         root.registerEngine(tabId, engine, spaceId);
@@ -587,7 +619,7 @@ Item {
         return root.buildEngine(parent, tabUrl, undefined, undefined, undefined);
     }
 
-    function buildEngine(parent, tabUrl, spaceId, profilePath, sharedProfile) {
+    function buildEngine(parent, tabUrl, spaceId, profilePath, sharedProfile, takesFocus) {
         if (!engineComponent)
             engineComponent = Qt.createComponent(root.engineSource);
         // The extension belongs to the profile, and the profile is there
@@ -636,6 +668,7 @@ Item {
                                                         root.pageScrollbarTrack,
                                                         "developerToolsColors":
                                                         root.developerToolsColors,
+                                                        "pageTakesFocus": takesFocus !== false,
                                                         "visible": false
                                                     });
         if (held)
@@ -738,6 +771,17 @@ Item {
                                                            })];
         root.engines[tabId] = engine;
         root.engineSpaces[tabId] = spaceId !== undefined ? spaceId : root.spaceId;
+        engine.pageHasFocusChanged.connect(function () {
+            root.keepKeyboardOff(engine);
+        });
+        if (engine.agentVerbAnswered) {
+            engine.agentVerbAnswered.connect(function (requestId, answer) {
+                delete root.pendingAgentRequests[requestId];
+                root.keepAgentLabels(tabId, engine);
+                if (root.agentControl)
+                    root.agentControl.answerPage(requestId, answer);
+            });
+        }
         // A tab can be named as the inspected one before it has an engine to
         // attach to — a Space coming back, or the tab being selected for the
         // first time — so the attachment is made as soon as there is one.
@@ -792,10 +836,16 @@ Item {
             departure.stop();
             departure.tabId = "";
         }
+        root.keepAgentLabels(tabId, engine);
         delete root.engines[tabId];
         delete root.engineSpaces[tabId];
         delete root.shownTabIds[tabId];
         engine.destroy();
+        root.abandonAgentRequests(tabId);
+        // An Agent tab whose page was taken, because its address changed in a
+        // Space not on show, is built again on the address it has now.
+        if (root.agentAttached(tabId))
+            Qt.callLater(root.ensureAgentEngine, tabId);
     }
 
     function discardEnginesForSpace(spaceId) {
@@ -834,6 +884,153 @@ Item {
         function onRetainedTabsChanged() {
             if (!root.suspended)
                 Qt.callLater(root.restoreRetainedTabs);
+        }
+    }
+
+    // The Agent tabs, by id, as the core last named them.
+    property var agentTabIds: ({})
+    property int agentTabCount: 0
+    // The page verbs asked of an engine and not yet answered, by request, so
+    // a page that goes away answers for them rather than leaving the Agent to
+    // wait out the core's deadline.
+    readonly property var pendingAgentRequests: ({})
+    // The next label each tab has not given out, kept beside the engines so a
+    // new view of the same tab, built when its address changed in a Space not
+    // on show, never gives a label an Agent still holds to another element.
+    readonly property var agentLabels: ({})
+
+    function keepAgentLabels(tabId, engine) {
+        if (engine.agentNextLabel !== undefined)
+            root.agentLabels[tabId] = Math.max(root.agentLabels[tabId] || 1, engine.agentNextLabel);
+    }
+
+    // A tab the page area builds and answers for but does not show, whose
+    // engine reports to the sidebar through its row.
+    signal agentEngineWanted(string tabId)
+
+    function agentAttached(tabId) {
+        return root.agentTabIds[tabId] === true;
+    }
+
+    function syncAgentTabs() {
+        const named = root.agentControl ? root.agentControl.agentTabIds : [];
+        const previous = root.agentTabIds;
+        const next = ({});
+        for (let index = 0; index < named.length; ++index)
+            next[named[index]] = true;
+        root.agentTabIds = next;
+        root.agentTabCount = named.length;
+        for (const tabId in next) {
+            if (previous[tabId] !== true)
+                root.ensureAgentEngine(tabId);
+        }
+        // A tab that stopped being an Agent's goes back to what any page the
+        // reader cannot see is: hidden and frozen.
+        for (const tabId in previous) {
+            if (next[tabId] !== true && root.engines[tabId])
+                root.setEngineVisible(tabId, root.shownTabIds[tabId] === true);
+        }
+    }
+
+    // The Agent tab's engine, built if it has none: through its row in the
+    // Space on show, and as a retained tab's is in a Space that is away.
+    function ensureAgentEngine(tabId) {
+        if (!root.agentAttached(tabId) || !root.agentControl)
+            return null;
+        if (root.engines[tabId]) {
+            root.setEngineVisible(tabId, root.shownTabIds[tabId] === true);
+            return root.engines[tabId];
+        }
+        const tab = root.agentControl.agentTab(tabId);
+        if (!tab.tabId || root.blankAddress(tab.url))
+            return null;
+        if (!root.suspended && tab.spaceId === root.spaceId) {
+            root.agentEngineWanted(tabId);
+            return root.engines[tabId] || null;
+        }
+        const profile = root.spaceProfiles ? root.spaceProfiles.hostFor(tab.spaceId) : null;
+        if (!profile)
+            return null;
+        const engine = root.createEngine(tabId, tab.url, tab.spaceId, root.browserController.prepareProfileForSpace(
+                                             tab.spaceId), profile.profile);
+        if (!engine)
+            return null;
+        engine.audioMuted = tab.muted === true;
+        engine.setZoomFactor(tab.zoom !== undefined ? tab.zoom : 1.0);
+        root.setEngineVisible(tabId, false);
+        return engine;
+    }
+
+    function answerAgentRequest(requestId, request) {
+        const engine = root.ensureAgentEngine(request.tabId);
+        if (!engine) {
+            root.agentControl.answerPage(requestId, {
+                                             "ok": false,
+                                             "code": "no-page",
+                                             "error": "The tab has no page. Open an address in it first."
+                                         });
+            return;
+        }
+        root.pendingAgentRequests[requestId] = request.tabId;
+        engine.agentNextLabel = Math.max(engine.agentNextLabel, root.agentLabels[request.tabId]
+                                         || 1);
+
+
+        engine.answerAgentVerb(requestId, request.verb, request.arguments);
+    }
+
+    function abandonAgentRequests(tabId) {
+        for (const requestId in root.pendingAgentRequests) {
+            if (root.pendingAgentRequests[requestId] !== tabId)
+                continue;
+            delete root.pendingAgentRequests[requestId];
+            if (root.agentControl) {
+                root.agentControl.answerPage(Number(requestId), {
+                                                 "ok": false,
+                                                 "code": "gone",
+                                                 "error": "The tab's page went away before it answered."
+                                             });
+            }
+        }
+    }
+
+    Connections {
+        target: root.agentControl
+
+        function onAgentTabsChanged() {
+            root.syncAgentTabs();
+        }
+
+        function onPageRequested(requestId, request) {
+            root.answerAgentRequest(requestId, request);
+        }
+
+        // The core has refused them already, so the pages only stop.
+        function onPageRequestsCancelled() {
+            for (const requestId in root.pendingAgentRequests)
+                delete root.pendingAgentRequests[requestId];
+            for (const tabId in root.engines) {
+                if (root.engines[tabId].cancelAgentVerbs)
+                    root.engines[tabId].cancelAgentVerbs();
+            }
+        }
+    }
+
+    onAgentControlChanged: root.syncAgentTabs()
+
+    // An Agent tab nobody is looking at is drawn at no opacity under the page
+    // on show, and where no page covers it the reader's pointer would reach it.
+    // This takes the pointer first. It is under every page on show, so it is
+    // in the way of nothing the reader can see.
+    MouseArea {
+        objectName: "agentTabShield"
+        anchors.fill: parent
+        z: -0.5
+        visible: root.agentTabCount > 0
+        acceptedButtons: Qt.AllButtons
+        hoverEnabled: true
+        onWheel: function (wheel) {
+            wheel.accepted = true;
         }
     }
 
@@ -919,7 +1116,8 @@ Item {
                     return;
                 root.shownTabIds[tabSlot.tabId] = tabSlot.shown;
                 root.setEngineVisible(tabSlot.tabId, tabSlot.shown);
-                engine.z = tabSlot.active ? 1 : 0;
+                engine.z = tabSlot.active ? 1 : (tabSlot.shown || !root.agentAttached(
+                                                     tabSlot.tabId) ? 0 : -1);
                 if (tabSlot.active) {
                     root.activeEngine = engine;
                     Qt.callLater(function () {
@@ -947,7 +1145,7 @@ Item {
                 besideSeen = false;
                 if (!engine)
                     return;
-                if (!wasBeside || !root.ease || !engine.visible) {
+                if (!wasBeside || !root.ease || !root.onShow(engine)) {
                     root.setEngineVisible(tabSlot.tabId, false);
                     return;
                 }
@@ -958,8 +1156,8 @@ Item {
                 Qt.callLater(function () {
                     if (root.shownTabIds[leaving])
                         return;
-                    const separated = !root.splitOnShow && root.activeEngine
-                          && root.activeEngine.visible && root.browserController
+                    const separated = !root.splitOnShow && root.activeEngine && root.onShow(
+                              root.activeEngine) && root.browserController
                           && root.browserController.activeTabId === partnerId;
                     if (separated)
                         root.departEngine(leaving, pane, direction);
@@ -1089,6 +1287,13 @@ Item {
 
             Connections {
                 target: root
+
+                function onAgentEngineWanted(tabId) {
+                    if (tabId !== tabSlot.tabId)
+                        return;
+                    tabSlot.everActive = true;
+                    tabSlot.loadEngine();
+                }
 
                 function onSuspendedChanged() {
                     if (root.suspended) {

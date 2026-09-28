@@ -303,6 +303,72 @@ connection is closed, rather than cut and read on from the middle. A client that
 answers unread is dropped. At start, a socket another browser answers on is left alone, a stale one
 is replaced, and a path that is not a socket at all is never touched.
 
+### Page verbs
+
+`look`, `read`, `do`, `shot` and `eval` work on the connection's current tab, or the tab `--tab`
+names, and wait for Allow agents. Until Space grants land, that tab must be one of an Agent Space's,
+whoever opened it: a page verb reads and acts as its Space's identity, with that Space's cookies and
+logins, so a tab an Agent opened in one of the reader's Spaces is still the reader's page. Opening
+one there does not make it an Agent tab either. `AgentControl` checks what a verb may reach and what
+it asks for, then hands the request to the interface through `pageRequested` and answers the socket
+when `answerPage` brings the page's answer back. A page that takes longer than a minute, two for a
+whole-page screenshot, or than a batch's own steps allow, is answered as timed out. Turning Allow
+agents off refuses every request still out and tells the pages to stop: a batch sends nothing more
+to its page after the step under way, and nothing comes back. The socket reads a connection's next
+line only once the one before it has its answer, so answers come back in the order they were asked.
+
+The page area hands each request to the tab's engine adapter, which answers it through
+`agentVerbAnswered`. The verbs are Omaweb's, so the adapter contract names them and each engine
+answers them its own way. The Qt adapter runs `agent-page.js` in the application world, where the
+page's own script cannot see it, and installs it again in every document it finds without one.
+
+- `look` answers the title, the address, an outline of headings and text capped at 6,000 characters,
+  and the interactive targets on screen with labels, counting those above and below. `--all` takes
+  the whole page. A label is a number that names its element for as long as the document lives. The
+  adapter hands the page the next number it has not given out in this tab, and the page area keeps
+  that number for the tab and gives it to a view built again for it, so a label from a document that
+  has gone never names an element of a later one.
+- `read` answers the page, or the part a selector names, as Markdown.
+- `do` runs a batch of `click`, `fill`, `press`, `select`, `scroll`, `back` and `wait` steps. After
+  each, it waits until a navigation the step started has committed and the document has not changed
+  for 300 ms, for at most 10 s; `--settle` and `--timeout` change both. A step that runs out of time
+  while the page is still changing is answered as not settled rather than failed. The batch stops at
+  the first step that fails and answers with a fresh `look` either way. While the reader's keyboard
+  focus is in the tab, `do` answers that the reader is using it.
+- `shot` writes a PNG in `shots/` beside the socket, a directory only its user can enter, under a
+  name of its own or the bare file name the Agent gives. A name that is a path is refused, and so is
+  one already taken. The file is made with mode 0600 before the page is drawn into it, and the
+  directory keeps the 50 newest screenshots of the last day. It is `grabToImage` of the view, which
+  answers only while Omaweb's window is drawing, so a shot that gets no frame within 5 s says the
+  window is not on screen.
+- `eval` answers the JSON value of an expression run in the application world, waiting up to 30 s
+  for a promise.
+
+Input is Qt events sent to the item QtWebEngine draws the page in, which a page sees as trusted
+(#376). Keys go to whatever the page has focused, and `fill` focuses its field from the page, so
+typing never moves Qt's focus. A press does: the delegate calls `forceActiveFocus()`. `QtAgentInput`
+therefore sends the press and release, gives the previous item its focus back, and swallows every
+delegate's focus events in between, all in one turn of the event loop. No page hears that focus
+moved, but the window's own items do, so a click waits while the reader's focus is in Omaweb's
+interface rather than in a page. A `select`'s option is chosen by script, since its popup is out of
+the page's reach.
+
+### Agent tabs
+
+A tab an Agent opened or used a page verb on in the last five minutes is an Agent tab, and
+`AgentControl.agentTabIds` lists them. The CLI is one process per verb, so no connection stays open
+to say an Agent is still at work, and a tab left alone that long stops costing a rendered page until
+the next verb. Closing the tab or turning Allow agents off ends it at once.
+
+The page area keeps an Agent tab's engine running wherever its Space is. It builds one through the
+tab's row in the Space on show, so the sidebar hears the page change, and as a retained tab's is in
+a Space that is away. While the reader is not looking at it, the engine stays visible to QtWebEngine
+at the page area's size, drawn at opacity 0 under the page on show, and is exempt from freezing. A
+hidden view would draw no frames, throttle its timers and grab nothing. Where no page covers it, an
+item under every page on show takes the reader's pointer first. Keeping an animating Agent tab
+rendered costs about what the same page costs on show, and the window draws at its frame rate
+(#376).
+
 ## Everyday page commands
 
 Find, zoom, reload, Reload bypassing cache, Stop loading, printing and site-requested fullscreen are

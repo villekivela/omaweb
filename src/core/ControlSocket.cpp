@@ -10,7 +10,10 @@
 #include <QJsonObject>
 #include <QLocalServer>
 #include <QLocalSocket>
+#include <QPointer>
 #include <QStandardPaths>
+
+#include <memory>
 
 #include <sys/stat.h>
 
@@ -141,12 +144,14 @@ void ControlSocket::accept()
         connect(socket, &QLocalSocket::disconnected, this,
             [this, connection] { m_control->connectionClosed(connection); });
         connect(socket, &QLocalSocket::disconnected, socket, &QObject::deleteLater);
+        connect(socket, &QObject::destroyed, this, [this, socket] { m_waiting.remove(socket); });
     }
 }
 
 void ControlSocket::read(QLocalSocket *socket, quint64 connection)
 {
-    while (socket->state() == QLocalSocket::ConnectedState && socket->canReadLine()) {
+    while (!m_waiting.contains(socket) && socket->state() == QLocalSocket::ConnectedState
+        && socket->canReadLine()) {
         // One byte past the limit, so a line that fills it is told from one
         // that ends inside it. A line cut short is never read as a request,
         // and neither is what follows it.
@@ -165,7 +170,36 @@ void ControlSocket::read(QLocalSocket *socket, quint64 connection)
             reply(socket, badRequest(QStringLiteral("A request is one JSON object per line.")));
             continue;
         }
-        reply(socket, m_control->answer(document.object(), connection));
+        // Answered now for a browser command, and later for a page verb, when
+        // the connection may have gone.
+        m_waiting.insert(socket);
+        auto answered = std::make_shared<bool>(false);
+        auto dispatching = std::make_shared<bool>(true);
+        const QPointer<QLocalSocket> guarded(socket);
+        m_control->handle(
+            document.object(),
+            [this, guarded, answered, dispatching, connection](const QJsonObject &answer) {
+                if (*answered || !guarded) {
+                    return;
+                }
+                *answered = true;
+                m_waiting.remove(guarded.data());
+                reply(guarded.data(), answer);
+                // A reply that came later has lines behind it that nothing will
+                // announce again.
+                if (!*dispatching) {
+                    QMetaObject::invokeMethod(
+                        this,
+                        [this, guarded, connection] {
+                            if (guarded) {
+                                read(guarded.data(), connection);
+                            }
+                        },
+                        Qt::QueuedConnection);
+                }
+            },
+            connection);
+        *dispatching = false;
     }
     if (socket->state() == QLocalSocket::ConnectedState
         && socket->bytesAvailable() > maximumRequestBytes) {

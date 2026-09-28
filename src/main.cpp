@@ -3,6 +3,7 @@
 #include "BrowserController.h"
 #include "ContentBlocker.h"
 #include "ControlSocket.h"
+#include "QtAgentInput.h"
 #include "ReleaseWatch.h"
 #include "EngineBuild.h"
 #include "EngineCapabilities.h"
@@ -265,6 +266,8 @@ int main(int argc, char *argv[])
     // temporary Agent Space a crash left behind is gone before anything shows
     // it. A check of the QML is not a browser anything should reach.
     omaweb::AgentControl agentControl(&browser, configRoot());
+    agentControl.setShotDirectory(
+        QFileInfo(omaweb::ControlSocket::defaultPath()).dir().filePath(QStringLiteral("shots")));
     omaweb::ControlSocket controlSocket(&agentControl);
     const auto answeringAgents = !validatingQml
         && omaweb::openAgentSocket(controlSocket, browser, omaweb::ControlSocket::defaultPath());
@@ -387,9 +390,11 @@ int main(int argc, char *argv[])
     omaweb::registerSavedDownload();
     omaweb::registerRuntimeSecurity(&runtimeSecurity);
     omaweb::registerInputMethodReport(&inputMethod);
+    omaweb::registerQtAgentInput();
     QQmlApplicationEngine engine;
     omaweb::quickshell::installShim(engine);
     engine.rootContext()->setContextProperty(QStringLiteral("browser"), &browser);
+    engine.rootContext()->setContextProperty(QStringLiteral("agentControl"), &agentControl);
     engine.rootContext()->setContextProperty(QStringLiteral("contentBlocker"), &contentBlocker);
     engine.rootContext()->setContextProperty(
         QStringLiteral("keyboardNavigation"), &keyboardNavigation);

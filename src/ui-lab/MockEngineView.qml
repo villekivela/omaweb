@@ -352,6 +352,47 @@ Rectangle {
     signal printFinished(string destination, bool succeeded)
     signal pageCaptured(string destination, bool succeeded, string reason)
     signal userActivated
+    // The page verbs, answered as a page with nothing on it would answer
+    // them, on the next turn as the engine's own answer comes. The requests
+    // are kept so a test can say which reached this page.
+    signal agentVerbAnswered(int requestId, var answer)
+    property bool pageTakesFocus: true
+    property int agentNextLabel: 1
+    property int agentCancels: 0
+    function cancelAgentVerbs() {
+        root.agentCancels += 1;
+    }
+    function releasePageFocus() {
+        root.focus = false;
+    }
+    property var agentRequests: []
+    function answerAgentVerb(requestId, verb, args) {
+        root.agentRequests = root.agentRequests.concat([
+                                                           {
+                                                               "requestId": requestId,
+                                                               "verb": verb,
+                                                               "arguments": args
+                                                           }
+                                                       ]);
+        const look = {
+            "title": String(root.pageTitle),
+            "url": String(root.currentUrl),
+            "outline": "",
+            "targets": [],
+            "above": 0,
+            "below": 0
+        };
+        Qt.callLater(function () {
+            root.agentVerbAnswered(requestId, verb === "do" ? {
+                                                                  "ok": true,
+                                                                  "steps": [],
+                                                                  "look": look
+                                                              } : {
+                                       "ok": true,
+                                       "look": look
+                                   });
+        });
+    }
     property rect pressOrigin: Qt.rect(0, 0, 0, 0)
     function simulatePress(x, y, width, height) {
         root.pressOrigin = Qt.rect(x, y, width, height);

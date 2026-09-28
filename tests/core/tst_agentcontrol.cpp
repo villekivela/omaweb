@@ -87,6 +87,33 @@ SessionSpec readersSession()
     };
 }
 
+// A page verb through the path the socket takes, with its answer caught.
+QJsonObject askPage(
+    AgentControl &control, const QString &name, const QString &verb, QJsonObject fields = {})
+{
+    fields.insert(QStringLiteral("name"), name);
+    fields.insert(QStringLiteral("verb"), verb);
+    QJsonObject answered;
+    control.handle(fields, [&answered](const QJsonObject &answer) { answered = answer; });
+    return answered;
+}
+
+// A tab of an Agent Space the connection makes for it, which is the only
+// kind of tab a page verb reaches until Space grants land. Needs Allow agents.
+QString openAgentTab(AgentControl &control, const QString &name)
+{
+    const auto space = ask(control, name, QStringLiteral("space new"),
+        {{QStringLiteral("space"), name + QStringLiteral(" work")}})
+                           .value(QStringLiteral("space"))
+                           .toObject()
+                           .value(QStringLiteral("id"))
+                           .toString();
+    const auto opened = ask(control, name, QStringLiteral("open"),
+        {{QStringLiteral("url"), QStringLiteral("https://example.com/")},
+            {QStringLiteral("space"), space}});
+    return opened.value(QStringLiteral("tab")).toObject().value(QStringLiteral("id")).toString();
+}
+
 } // namespace
 
 class AgentControlTest final : public QObject {
@@ -114,6 +141,13 @@ private slots:
     void boundsTheConnectionStatesItKeeps();
     void refusesALineTooLongToBeARequest();
     void leavesAPathThatIsNotASocketAlone();
+    void gatesThePageVerbsBehindAllowAgentsAndTheAgentsTabs();
+    void handsAPageVerbToThePageAndRepliesWithItsAnswer();
+    void checksABatchBeforeThePageSeesIt();
+    void writesScreenshotsWhereOnlyTheReaderCanRead();
+    void refusesWhatIsUnderWayWhenAllowAgentsGoesOff();
+    void keepsATabAnAgentTabOnlyWhileAnAgentUsesIt();
+    void answersASocketsRequestsInTheOrderAsked();
 };
 
 void AgentControlTest::gatesOnlyAgentSpacesBehindAllowAgents()
@@ -752,6 +786,343 @@ void AgentControlTest::leavesAPathThatIsNotASocketAlone()
     QFile file(path);
     QVERIFY(file.open(QIODevice::ReadOnly));
     QCOMPARE(file.readAll(), QByteArray("the reader's"));
+}
+
+// A page verb needs Allow agents and a tab an Agent may drive, as loading an
+// address in one does.
+void AgentControlTest::gatesThePageVerbsBehindAllowAgentsAndTheAgentsTabs()
+{
+    QTemporaryDir config;
+    SessionFixture fixture(readersSession());
+    QVERIFY_SESSION_READY(fixture);
+    const auto browser = fixture.createController();
+    AgentControl control(browser.get(), config.path());
+    QSignalSpy requested(&control, &AgentControl::pageRequested);
+    connect(&control, &AgentControl::pageRequested, this, [] { });
+
+    control.setAllowAgents(true);
+    const auto agentTab = openAgentTab(control, QStringLiteral("agent"));
+    control.setAllowAgents(false);
+    for (const auto &verb : {QStringLiteral("look"), QStringLiteral("read"), QStringLiteral("do"),
+             QStringLiteral("shot"), QStringLiteral("eval")}) {
+        QCOMPARE(failure(askPage(
+                     control, QStringLiteral("agent"), verb, {{QStringLiteral("tab"), agentTab}})),
+            QStringLiteral("allow-agents"));
+    }
+    control.setAllowAgents(true);
+    // A tab the Agent opened itself in the reader's Space is still the
+    // reader's page, with their cookies and logins.
+    const auto inReadersSpace = ask(control, QStringLiteral("agent"), QStringLiteral("open"),
+        {{QStringLiteral("url"), QStringLiteral("https://reader.example/")},
+            {QStringLiteral("space"), QStringLiteral("personal")}})
+                                    .value(QStringLiteral("tab"))
+                                    .toObject()
+                                    .value(QStringLiteral("id"))
+                                    .toString();
+    QVERIFY(!inReadersSpace.isEmpty());
+    QVERIFY(!control.agentTabIds().contains(inReadersSpace));
+    QCOMPARE(failure(askPage(control, QStringLiteral("agent"), QStringLiteral("look"))),
+        QStringLiteral("refused"));
+    QCOMPARE(failure(askPage(control, QStringLiteral("fresh"), QStringLiteral("look"))),
+        QStringLiteral("no-current-tab"));
+    for (const auto &tabId : {QStringLiteral("personal-tab"), QStringLiteral("work-tab"),
+             QStringLiteral("personal-pin")}) {
+        QCOMPARE(failure(askPage(control, QStringLiteral("agent"), QStringLiteral("look"),
+                     {{QStringLiteral("tab"), tabId}})),
+            QStringLiteral("refused"));
+    }
+    QCOMPARE(requested.count(), 0);
+    // The page verb path answers a browser command too, and the one-shot path
+    // answers no page verb.
+    QVERIFY(succeeded(askPage(control, QStringLiteral("agent"), QStringLiteral("spaces"))));
+    QCOMPARE(failure(ask(control, QStringLiteral("agent"), QStringLiteral("look"))),
+        QStringLiteral("pending"));
+    QVERIFY(!agentTab.isEmpty());
+}
+
+void AgentControlTest::handsAPageVerbToThePageAndRepliesWithItsAnswer()
+{
+    QTemporaryDir config;
+    SessionFixture fixture(readersSession());
+    QVERIFY_SESSION_READY(fixture);
+    const auto browser = fixture.createController();
+    AgentControl control(browser.get(), config.path());
+    control.setAllowAgents(true);
+
+    // Nothing holds a page to answer with.
+    const auto agentTab = openAgentTab(control, QStringLiteral("agent"));
+    const auto agentSpace = browser->findTab(agentTab)->spaceId;
+    QCOMPARE(failure(askPage(control, QStringLiteral("agent"), QStringLiteral("look"))),
+        QStringLiteral("unavailable"));
+
+    QSignalSpy requested(&control, &AgentControl::pageRequested);
+    QList<QJsonObject> replies;
+    control.handle(
+        {{QStringLiteral("verb"), QStringLiteral("look")},
+            {QStringLiteral("name"), QStringLiteral("agent")}, {QStringLiteral("all"), true}},
+        [&replies](const QJsonObject &answer) { replies.append(answer); });
+    QCOMPARE(requested.count(), 1);
+    QVERIFY(replies.isEmpty());
+    const auto requestId = requested.at(0).at(0).toInt();
+    const auto request = requested.at(0).at(1).toMap();
+    QCOMPARE(request.value(QStringLiteral("verb")).toString(), QStringLiteral("look"));
+    QCOMPARE(request.value(QStringLiteral("tabId")).toString(), agentTab);
+    QCOMPARE(request.value(QStringLiteral("spaceId")).toString(), agentSpace);
+    QCOMPARE(request.value(QStringLiteral("name")).toString(), QStringLiteral("agent"));
+    QCOMPARE(request.value(QStringLiteral("arguments")).toMap().value(QStringLiteral("all")),
+        QVariant(true));
+    QVERIFY(control.agentTabIds().contains(agentTab));
+    QCOMPARE(control.agentTab(agentTab).value(QStringLiteral("spaceId")).toString(), agentSpace);
+
+    control.answerPage(requestId,
+        {{QStringLiteral("ok"), true},
+            {QStringLiteral("look"),
+                QVariantMap {{QStringLiteral("title"), QStringLiteral("Example")}}}});
+    QCOMPARE(replies.size(), 1);
+    QVERIFY(succeeded(replies.constFirst()));
+    QCOMPARE(replies.constFirst().value(QStringLiteral("tab")).toString(), agentTab);
+    QCOMPARE(replies.constFirst()
+                 .value(QStringLiteral("look"))
+                 .toObject()
+                 .value(QStringLiteral("title"))
+                 .toString(),
+        QStringLiteral("Example"));
+    // An answer comes once, and one for a request nobody made is dropped.
+    control.answerPage(requestId, {{QStringLiteral("ok"), true}});
+    control.answerPage(requestId + 99, {{QStringLiteral("ok"), true}});
+    QCOMPARE(replies.size(), 1);
+
+    // An answer that says nothing of how it went is a failure, not a success.
+    control.handle({{QStringLiteral("verb"), QStringLiteral("read")},
+                       {QStringLiteral("name"), QStringLiteral("agent")}},
+        [&replies](const QJsonObject &answer) { replies.append(answer); });
+    control.answerPage(requested.at(1).at(0).toInt(), {{QStringLiteral("markdown"), QString()}});
+    QCOMPARE(failure(replies.constLast()), QStringLiteral("failed"));
+}
+
+void AgentControlTest::checksABatchBeforeThePageSeesIt()
+{
+    QTemporaryDir config;
+    SessionFixture fixture(readersSession());
+    QVERIFY_SESSION_READY(fixture);
+    const auto browser = fixture.createController();
+    AgentControl control(browser.get(), config.path());
+    control.setAllowAgents(true);
+    QSignalSpy requested(&control, &AgentControl::pageRequested);
+    openAgentTab(control, QStringLiteral("agent"));
+
+    const auto batch = [&control](const QJsonArray &steps, QJsonObject fields = {}) {
+        fields.insert(QStringLiteral("steps"), steps);
+        return askPage(control, QStringLiteral("agent"), QStringLiteral("do"), fields);
+    };
+    const auto step = [](const QString &action, QJsonObject fields = {}) {
+        fields.insert(QStringLiteral("action"), action);
+        return fields;
+    };
+    const auto click
+        = step(QStringLiteral("click"), {{QStringLiteral("target"), QStringLiteral("3")}});
+    QCOMPARE(failure(batch({})), QStringLiteral("bad-request"));
+    QCOMPARE(failure(batch({step(QStringLiteral("dance"))})), QStringLiteral("bad-request"));
+    QCOMPARE(failure(batch({step(QStringLiteral("click"))})), QStringLiteral("bad-request"));
+    QCOMPARE(failure(batch({step(
+                 QStringLiteral("fill"), {{QStringLiteral("target"), QStringLiteral("3")}})})),
+        QStringLiteral("bad-request"));
+    QCOMPARE(failure(batch({step(QStringLiteral("wait"),
+                 {{QStringLiteral("text"), QStringLiteral("a")},
+                     {QStringLiteral("url"), QStringLiteral("b")}})})),
+        QStringLiteral("bad-request"));
+    QJsonArray many;
+    for (auto index = 0; index < 51; ++index) {
+        many.append(click);
+    }
+    QCOMPARE(failure(batch(many)), QStringLiteral("bad-request"));
+    QCOMPARE(failure(batch({click}, {{QStringLiteral("settle"), 20000}})),
+        QStringLiteral("bad-request"));
+    QCOMPARE(
+        failure(batch({click}, {{QStringLiteral("timeout"), 5}})), QStringLiteral("bad-request"));
+    QCOMPARE(requested.count(), 0);
+
+    connect(&control, &AgentControl::pageRequested, this, [] { });
+    batch({click, step(QStringLiteral("back"))});
+    QCOMPARE(requested.count(), 1);
+    const auto arguments = requested.at(0).at(1).toMap().value(QStringLiteral("arguments")).toMap();
+    QCOMPARE(arguments.value(QStringLiteral("steps")).toList().size(), 2);
+    QCOMPARE(arguments.value(QStringLiteral("settle")).toInt(), 300);
+    QCOMPARE(arguments.value(QStringLiteral("timeout")).toInt(), 10000);
+}
+
+void AgentControlTest::writesScreenshotsWhereOnlyTheReaderCanRead()
+{
+    QTemporaryDir config;
+    QTemporaryDir runtime;
+    SessionFixture fixture(readersSession());
+    QVERIFY_SESSION_READY(fixture);
+    const auto browser = fixture.createController();
+    AgentControl control(browser.get(), config.path());
+    control.setAllowAgents(true);
+    const auto shots = runtime.filePath(QStringLiteral("shots"));
+    control.setShotDirectory(shots);
+    QSignalSpy requested(&control, &AgentControl::pageRequested);
+    connect(&control, &AgentControl::pageRequested, this, [] { });
+    openAgentTab(control, QStringLiteral("agent"));
+    const auto destination = [&requested](qsizetype index) {
+        return requested.at(index)
+            .at(1)
+            .toMap()
+            .value(QStringLiteral("arguments"))
+            .toMap()
+            .value(QStringLiteral("destination"))
+            .toString();
+    };
+    const auto mode = [](const QString &path) {
+        struct stat status {};
+        return ::stat(QFile::encodeName(path).constData(), &status) == 0 ? status.st_mode & 0777
+                                                                         : 0u;
+    };
+
+    // A name is a name inside the shots directory and nothing else.
+    for (const auto &name : {QStringLiteral("../escape.png"), QStringLiteral("/tmp/escape.png"),
+             QStringLiteral("sub/page.png"), QStringLiteral(".."), QStringLiteral(".hidden.png")}) {
+        QCOMPARE(failure(askPage(control, QStringLiteral("agent"), QStringLiteral("shot"),
+                     {{QStringLiteral("output"), name}})),
+            QStringLiteral("bad-request"));
+    }
+    QCOMPARE(requested.count(), 0);
+
+    askPage(control, QStringLiteral("agent"), QStringLiteral("shot"),
+        {{QStringLiteral("output"), QStringLiteral("page.png")}});
+    QCOMPARE(requested.count(), 1);
+    QCOMPARE(destination(0), QDir(shots).filePath(QStringLiteral("page.png")));
+    QCOMPARE(mode(shots), 0700u);
+    QCOMPARE(mode(destination(0)), 0600u);
+    // An existing file is never written over.
+    QCOMPARE(failure(askPage(control, QStringLiteral("agent"), QStringLiteral("shot"),
+                 {{QStringLiteral("output"), QStringLiteral("page.png")}})),
+        QStringLiteral("bad-request"));
+
+    // Unnamed shots get names of their own, and the oldest go.
+    for (auto index = 0; index < 60; ++index) {
+        askPage(control, QStringLiteral("agent"), QStringLiteral("shot"));
+    }
+    QCOMPARE(requested.count(), 61);
+    QVERIFY(destination(1) != destination(2));
+    QVERIFY(destination(2).endsWith(u".png"));
+    QVERIFY(QDir(shots).entryList({QStringLiteral("*.png")}, QDir::Files).size() <= 50);
+    QVERIFY(QFileInfo::exists(destination(60)));
+}
+
+// Turning Allow agents off refuses what was already asked of a page, and
+// tells the pages to stop.
+void AgentControlTest::refusesWhatIsUnderWayWhenAllowAgentsGoesOff()
+{
+    QTemporaryDir config;
+    SessionFixture fixture(readersSession());
+    QVERIFY_SESSION_READY(fixture);
+    const auto browser = fixture.createController();
+    AgentControl control(browser.get(), config.path());
+    control.setAllowAgents(true);
+    QSignalSpy requested(&control, &AgentControl::pageRequested);
+    QSignalSpy cancelled(&control, &AgentControl::pageRequestsCancelled);
+    connect(&control, &AgentControl::pageRequested, this, [] { });
+    openAgentTab(control, QStringLiteral("agent"));
+
+    QList<QJsonObject> replies;
+    control.handle(
+        {{QStringLiteral("verb"), QStringLiteral("do")},
+            {QStringLiteral("name"), QStringLiteral("agent")},
+            {QStringLiteral("steps"),
+                QJsonArray {QJsonObject {{QStringLiteral("action"), QStringLiteral("back")}}}}},
+        [&replies](const QJsonObject &answer) { replies.append(answer); });
+    QCOMPARE(requested.count(), 1);
+    QVERIFY(replies.isEmpty());
+
+    control.setAllowAgents(false);
+    QCOMPARE(cancelled.count(), 1);
+    QCOMPARE(replies.size(), 1);
+    QCOMPARE(failure(replies.constFirst()), QStringLiteral("allow-agents"));
+    // What the page says afterwards goes nowhere.
+    control.answerPage(requested.at(0).at(0).toInt(),
+        {{QStringLiteral("ok"), true}, {QStringLiteral("look"), QVariantMap {}}});
+    QCOMPARE(replies.size(), 1);
+}
+
+// The CLI holds no connection open, so a tab is an Agent tab while Agents use
+// it and for a while after, and stops being one when it is closed or Allow
+// agents goes off.
+void AgentControlTest::keepsATabAnAgentTabOnlyWhileAnAgentUsesIt()
+{
+    QTemporaryDir config;
+    SessionFixture fixture(readersSession());
+    QVERIFY_SESSION_READY(fixture);
+    const auto browser = fixture.createController();
+    AgentControl control(browser.get(), config.path());
+    QSignalSpy changed(&control, &AgentControl::agentTabsChanged);
+
+    // A browser command opens a tab, and only a tab of an Agent Space with
+    // Allow agents on is an Agent's to render.
+    QVERIFY(succeeded(ask(control, QStringLiteral("script"), QStringLiteral("open"),
+        {{QStringLiteral("url"), QStringLiteral("https://example.com/")}})));
+    QVERIFY(control.agentTabIds().isEmpty());
+    control.setAllowAgents(true);
+    QVERIFY(succeeded(ask(control, QStringLiteral("script"), QStringLiteral("open"),
+        {{QStringLiteral("url"), QStringLiteral("https://example.com/")}})));
+    QVERIFY(control.agentTabIds().isEmpty());
+    const auto first = openAgentTab(control, QStringLiteral("agent"));
+    QCOMPARE(control.agentTabIds(), QStringList {first});
+    QVERIFY(succeeded(ask(control, QStringLiteral("agent"), QStringLiteral("close"))));
+    QVERIFY(control.agentTabIds().isEmpty());
+
+    const auto second = openAgentTab(control, QStringLiteral("agent"));
+    QCOMPARE(control.agentTabIds(), QStringList {second});
+    control.setAllowAgents(false);
+    QVERIFY(control.agentTabIds().isEmpty());
+
+    control.setAllowAgents(true);
+    control.setAttachmentIdleMs(100);
+    const auto third = openAgentTab(control, QStringLiteral("agent"));
+    QCOMPARE(control.agentTabIds(), QStringList {third});
+    QTRY_VERIFY_WITH_TIMEOUT(control.agentTabIds().isEmpty(), 2000);
+    QVERIFY(changed.count() >= 6);
+    QVERIFY(control.agentTab(third).isEmpty());
+}
+
+// A page verb is answered later than a browser command asked after it on the
+// same connection, and the answers still come back in the order asked.
+void AgentControlTest::answersASocketsRequestsInTheOrderAsked()
+{
+    QTemporaryDir config;
+    QTemporaryDir runtime;
+    SessionFixture fixture(readersSession());
+    QVERIFY_SESSION_READY(fixture);
+    const auto browser = fixture.createController();
+    AgentControl control(browser.get(), config.path());
+    control.setAllowAgents(true);
+    openAgentTab(control, QStringLiteral("agent"));
+    QSignalSpy requested(&control, &AgentControl::pageRequested);
+    connect(&control, &AgentControl::pageRequested, this, [] { });
+    ControlSocket socket(&control);
+    const auto path = runtime.filePath(QStringLiteral("omaweb/control.sock"));
+    QVERIFY(socket.listen(path));
+
+    QLocalSocket client;
+    client.connectToServer(path);
+    QVERIFY(client.waitForConnected(1000));
+    client.write(R"({"verb":"look","name":"agent"})"
+                 "\n"
+                 R"({"verb":"spaces","name":"agent"})"
+                 "\n");
+    client.flush();
+    QTRY_COMPARE(requested.count(), 1);
+    QTest::qWait(50);
+    QVERIFY(!client.canReadLine());
+    control.answerPage(requested.at(0).at(0).toInt(),
+        {{QStringLiteral("ok"), true}, {QStringLiteral("look"), QVariantMap {}}});
+    QTRY_VERIFY(client.canReadLine());
+    const auto first = QJsonDocument::fromJson(client.readLine()).object();
+    QVERIFY(first.contains(QStringLiteral("look")));
+    QTRY_VERIFY(client.canReadLine());
+    const auto second = QJsonDocument::fromJson(client.readLine()).object();
+    QVERIFY(second.contains(QStringLiteral("spaces")));
 }
 
 QTEST_GUILESS_MAIN(AgentControlTest)

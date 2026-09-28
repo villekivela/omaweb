@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QObject>
+#include <QSet>
 #include <QString>
 
 class QLocalServer;
@@ -17,6 +18,10 @@ class BrowserController;
 // The socket is the boundary. Anything running as the reader can open it, and
 // nothing else can, so what a request may do is AgentControl's to decide from
 // what its verb reaches.
+//
+// A page verb is answered when the page answers, so a connection's requests
+// are taken one at a time: the next line is read once the one before it has
+// its answer, and answers come back in the order they were asked.
 class ControlSocket final : public QObject {
     Q_OBJECT
 
@@ -43,6 +48,9 @@ private:
 
     AgentControl *m_control;
     QLocalServer *m_server;
+    // The connections waiting on a page's answer, which read nothing more
+    // until it comes.
+    QSet<QLocalSocket *> m_waiting;
     quint64 m_connections = 0;
 };
 
