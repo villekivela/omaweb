@@ -1,13 +1,13 @@
 // PROTOTYPE for #438 — throwaway, not production code. Run ./run.sh.
 //
 // Question: how does the Start page's night road look and move?
-// Three compositions of the same road, cycled with ← and →:
+// Three compositions of the same road, picked with F1 F2 F3 or the buttons at the top:
 //   A Horizon   the Omnibar sits on the horizon, backlit by the sun
 //   B Road      a high horizon; the Omnibar floats over the road, lane marks run under it
 //   C Gantry    the Omnibar is the overhead sign on a gantry over the road
 //
 // Keys (the HUD lists them, Ctrl+H hides it):
-//   ← →         composition          Ctrl+← →      theme
+//   F1 F2 F3    composition          F5 F6         theme
 //   Ctrl+P      Private window       Ctrl+R        road off (sidebar fill only)
 //   Ctrl+T      Start page over page Escape        back to the page
 //   Return      commit               Ctrl+D        first-paint delay 0.6 / 1.6 / 4 s
@@ -174,10 +174,12 @@ Window {
     }
 
     // ---- keys ------------------------------------------------------------
-    Shortcut { sequence: "Left"; onActivated: win.variant = (win.variant + 2) % 3 }
-    Shortcut { sequence: "Right"; onActivated: win.variant = (win.variant + 1) % 3 }
-    Shortcut { sequence: "Ctrl+Right"; onActivated: win.themeIndex = (win.themeIndex + 1) % Themes.all.length }
-    Shortcut { sequence: "Ctrl+Left"; onActivated: win.themeIndex = (win.themeIndex + Themes.all.length - 1) % Themes.all.length }
+    // The focused field takes the arrow keys, so layouts and themes sit on F keys.
+    Shortcut { sequence: "F1"; onActivated: win.variant = 0 }
+    Shortcut { sequence: "F2"; onActivated: win.variant = 1 }
+    Shortcut { sequence: "F3"; onActivated: win.variant = 2 }
+    Shortcut { sequence: "F5"; onActivated: win.themeIndex = (win.themeIndex + Themes.all.length - 1) % Themes.all.length }
+    Shortcut { sequence: "F6"; onActivated: win.themeIndex = (win.themeIndex + 1) % Themes.all.length }
     Shortcut { sequence: "Ctrl+P"; onActivated: win.privateWindow = !win.privateWindow }
     Shortcut { sequence: "Ctrl+R"; onActivated: win.roadOn = !win.roadOn }
     Shortcut { sequence: "Ctrl+U"; onActivated: win.simulatedUnfocus = !win.simulatedUnfocus }
@@ -570,6 +572,57 @@ Window {
         }
     }
 
+    // ---- clickable switcher, top centre of the page area ------------------
+    Row {
+        z: 10
+        x: sidebar.width + (pageArea.width - width) / 2
+        y: 12
+        spacing: 6
+        Repeater {
+            model: win.variantNames.length
+            PrototypeButton {
+                required property int index
+                label: "F" + (index + 1) + "  " + win.variantNames[index]
+                active: win.variant === index
+                onClicked: win.variant = index
+            }
+        }
+        Item { width: 14; height: 1 }
+        PrototypeButton { label: "◀ theme"; onClicked: win.themeIndex = (win.themeIndex + Themes.all.length - 1) % Themes.all.length }
+        PrototypeButton { label: win.t.name; active: true }
+        PrototypeButton { label: "theme ▶"; onClicked: win.themeIndex = (win.themeIndex + 1) % Themes.all.length }
+        Item { width: 14; height: 1 }
+        PrototypeButton { label: "Private"; active: win.privateWindow; onClicked: win.privateWindow = !win.privateWindow }
+    }
+
+    component PrototypeButton: Rectangle {
+        id: button
+        property string label
+        property bool active: false
+        signal clicked
+        width: buttonText.implicitWidth + 20
+        height: 26
+        radius: 13
+        color: active ? "#ffcc00" : "#e0101010"
+        border.color: "#ffcc00"
+        Text {
+            id: buttonText
+            anchors.centerIn: parent
+            text: button.label
+            color: button.active ? "#101010" : "#ffcc00"
+            font.family: "JetBrainsMono Nerd Font"
+            font.pixelSize: 11
+        }
+        MouseArea {
+            anchors.fill: parent
+            cursorShape: Qt.PointingHandCursor
+            onClicked: {
+                button.clicked();
+                field.forceActiveFocus();
+            }
+        }
+    }
+
     // ---- HUD -------------------------------------------------------------
     Rectangle {
         visible: win.hud
@@ -587,8 +640,8 @@ Window {
             color: "#ffcc00"
             font.family: "JetBrainsMono Nerd Font"
             font.pixelSize: 11
-            text: "PROTOTYPE #438   " + win.variantNames[win.variant] + "   (← →)\n"
-                  + "theme " + win.t.name + " (Ctrl+←→)   private " + win.privateWindow + " (^P)   road " + win.roadOn + " (^R)\n"
+            text: "PROTOTYPE #438   layout " + win.variantNames[win.variant] + "   (F1 F2 F3)\n"
+                  + "theme " + win.t.name + " (F5 F6)   private " + win.privateWindow + " (^P)   road " + win.roadOn + " (^R)\n"
                   + "mode " + win.mode + "   moving " + win.moving + "   speed " + win.speed.toFixed(1) + "\n"
                   + "road frames " + win.roadFrames + "   window frames " + win.frames + "\n"
                   + "first paint " + win.delays[win.delayIndex] + " ms (^D)   next fails " + win.nextFails + " (^E)   unfocus " + win.simulatedUnfocus + " (^U)\n"
