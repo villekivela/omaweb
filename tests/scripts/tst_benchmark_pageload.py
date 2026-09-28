@@ -190,6 +190,15 @@ class QuietTest(unittest.TestCase):
         described = self.site.describe_quiet(self.load)
         self.assertIn("3 of its 40 images were asked of the server and 2 answered", described)
         self.assertIn("1 ConnectionResetError", described)
+        self.assertIn("it never said how far it got", described)
+
+    def test_a_page_that_said_how_far_it_got(self):
+        self.site.answered.add(self.load.address(self.site.port))
+        self.site.stalled[0] = {"number": 0, "readyState": "complete", "loadEventStart": 120.5,
+                                "incomplete": [], "reporting": "sent"}
+        described = self.site.describe_quiet(self.load)
+        self.assertIn("document complete, load event at 120.5 ms, 0 images incomplete (none), "
+                      "report sent", described)
 
 
 class SeedTest(unittest.TestCase):
