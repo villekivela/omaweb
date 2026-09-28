@@ -153,6 +153,9 @@ reports the gap and remains experimental rather than imitating behavior it canno
   site-information panel.
 - Clicking the sidebar's current-address trigger or pressing `Primary+L` opens a centered Omnibar
   for the current tab.
+- The Omnibar field is drawn as the website's dash: the Omaweb mark as its prompt in the palette's
+  accent, the typed text and a blinking block caret with a faint accent glow, and a `→` go mark that
+  commits as `Return` does. In command scope the mark gives way to `:`.
 - `Primary+T` opens the Omnibar with a new-tab intent. Omaweb creates the tab only after the user
   commits a destination. Choosing an open tab from it switches to that tab and creates none.
 - The Omnibar ranks the typed text against the open tabs, Spaces, the active Space's local history,
