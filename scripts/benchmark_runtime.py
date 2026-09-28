@@ -154,6 +154,10 @@ SHIFTED = {":": "semicolon"}
 TOPLEVEL_SURFACE = re.compile(r"-> xdg_wm_base#\d+\.get_xdg_surface\(new id xdg_surface#\d+, "
                               r"wl_surface#(\d+)\)")
 
+# A line of `WAYLAND_DEBUG` output, which opens on a timestamp. Chromium's own lines open on a
+# bracketed process id followed by a colon.
+WAYLAND_LINE = re.compile(r"\[\s*\d+\.\d+\]")
+
 # The page ADR 0050 measured: forty images, which no rule refuses, so a load with blocking on
 # fetches everything the load with it off does and the difference is what blocking cost.
 PAGELOAD_IMAGES = 40
@@ -221,6 +225,10 @@ PAGELOAD_SETTLE_MILLISECONDS = 250
 # One load of forty images from loopback takes a fraction of a second; one that has not reported
 # in this long is a page that never finished.
 PAGELOAD_TIMEOUT = 30.0
+
+# How much of the browser's own output a quiet load prints: enough to reach back past the page
+# before it, which is a title and a few messages.
+PAGELOAD_MESSAGES = 40
 
 # A one-pixel PNG. What an image costs to decode is not what this measures.
 PIXEL = base64.b64decode(
@@ -464,6 +472,15 @@ class Browser:
                 position = handle.tell()
             time.sleep(0.1)
         raise MeasurementFailed(f"the browser never showed a page titled {fragment!r}")
+
+    def messages(self) -> list[str]:
+        """The titles the browser gave its window and what else it wrote to stderr, in order.
+
+        The rest of the log is the Wayland protocol, which says nothing about a page.
+        """
+        with open(self.log_path, encoding="utf-8", errors="replace") as handle:
+            return [line.rstrip() for line in handle
+                    if ".set_title(" in line or not WAYLAND_LINE.match(line)]
 
     @property
     def startup_seconds(self) -> float:
@@ -1004,10 +1021,23 @@ class PageLoadSite:
             while not self.finished and not self.problem:
                 if not self.progress.wait(PAGELOAD_TIMEOUT) and len(self.reports) == heard:
                     raise MeasurementFailed(
-                        f"load {heard + 1} of {len(self.sequence)} never reported its timing")
+                        f"load {heard + 1} of {len(self.sequence)} never reported its timing: "
+                        + self.describe_quiet(self.plan[self.sequence[self.position]]))
                 heard = len(self.reports)
             if self.problem:
                 raise MeasurementFailed(self.problem)
+
+    def describe_quiet(self, load: PageLoad) -> str:
+        """How far a page that never reported got, as far as the server can tell."""
+        if load.address(self.port) not in self.answered:
+            return f"load {load.number} was never served"
+        images = [with_port(image, self.port) for image in load.images]
+        asked = sum(address in self.requested for address in images)
+        answered = sum(address in self.answered for address in images)
+        errors = ", ".join(f"{count} {name}" for name, count in sorted(self.server.errors.items()))
+        return (f"load {load.number} ({load.case} hosts, blocking {load.mode}) was served, and "
+                f"{asked} of its {PAGELOAD_IMAGES} images were asked of the server and {answered} "
+                f"answered by it; the server's errors: {errors or 'none'}")
 
     def describe_missing(self, load: PageLoad) -> str:
         """One page's missing images, and whether the server ever saw them asked for.
@@ -1229,7 +1259,14 @@ def run_pageload(executable: str, private: bool) -> dict:
         site = PageLoadSite(plan)
         site.start()
         browser.start(site.start_address, launcher=network.launcher if network else ())
-        site.wait()
+        try:
+            site.wait()
+        except MeasurementFailed:
+            browser.stop()
+            log("  the browser's titles and messages, for the load that went quiet:")
+            for line in browser.messages()[-PAGELOAD_MESSAGES:]:
+                log(f"    {line}")
+            raise
     finally:
         browser.stop()
         if site:
