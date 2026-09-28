@@ -719,7 +719,9 @@ a {
 
 .walk__stage {
   position: sticky;
-  top: max(24px, calc(50vh - 30vw));
+  /* Centred on the reading line. The script sets --stage-height to the stage's own height;
+     without it, 60vw is near enough until the page stops widening. */
+  top: max(24px, calc(50vh - var(--stage-height, 60vw) / 2));
   align-self: start;
   display: grid;
   gap: 14px;
@@ -743,8 +745,11 @@ a {
   opacity: 1;
 }
 
+/* Tall enough that, with the section's top at the top of the screen, the first step's middle is
+   the screen's middle, beside the window: twice the distance from the section's 48px padding to
+   the reading line. */
 .step:first-child {
-  min-height: 60vh;
+  min-height: calc(100vh - 2 * 48px);
 }
 
 .step h3 {

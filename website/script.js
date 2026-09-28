@@ -115,6 +115,11 @@ if (shot && steps.length && themePicker) {
     for (const step of steps) middle.observe(step);
   };
   watch();
+  // The stage centres itself on the reading line, so the stylesheet needs its real height, which
+  // the shot sets once it loads and the width changes after.
+  new ResizeObserver(([entry]) => {
+    stage.style.setProperty("--stage-height", `${entry.borderBoxSize[0].blockSize}px`);
+  }).observe(stage);
   let resizing = 0;
   window.addEventListener("resize", () => {
     clearTimeout(resizing);
