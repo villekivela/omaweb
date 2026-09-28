@@ -310,6 +310,30 @@ taken hands its address to the owner over `org.freedesktop.Application` and exit
 an engine, a session store or a filter set. Omaweb is one window with its tabs down the side, so a
 handed-over address arrives as a tab.
 
+The same command runs the Agent verbs against the browser already running. They start nothing of
+their own and exit with 0 when the browser answered, 1 when it refused, 2 for a malformed command
+and 3 when no browser is running:
+
+```sh
+omaweb spaces
+omaweb tabs [--space <id|name>]
+omaweb open <address> [--space <id|name> | --tab <id>] [--new]
+omaweb close [--tab <id>]
+omaweb space new [name]
+omaweb space delete <id|name>
+```
+
+Each takes `--json` and `--name`, which defaults to the parent process's name. These words are verbs
+now. A launch used to skip a word that was not an address, so `omaweb open https://…` started the
+browser and opened the address, and `omaweb tabs` started it with nothing. Now both are clients, and
+without a running browser they exit with 3. A launcher that starts the browser with an address
+passes the address alone, `omaweb https://…`, as the desktop entry does. `space new` and
+`space delete` need Allow agents, which has no switch in Settings yet; set `"allow-agents": true` in
+`privacy.json` under the configuration root. A running browser follows the file, and turning it off
+there detaches every connection at once. `OMAWEB_CONTROL_SOCKET` moves the socket so a scratch
+browser can run beside the everyday one. A socket name longer than 104 bytes on macOS, or 108 on
+Linux, cannot be opened, and the browser says so at start.
+
 Addresses from outside the browser are read strictly and only `http`, `https` and `file` are opened.
 A desktop passes on whatever it was given, so a scheme that would run in a page is refused rather
 than resolved.

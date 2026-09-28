@@ -206,10 +206,16 @@ omaweb_strict_target(omaweb-content-blocking)
 add_library(omaweb-core STATIC
     src/content-blocking/ContentBlocker.cpp
     src/content-blocking/ContentBlocker.h
+    src/core/AgentCommand.cpp
+    src/core/AgentCommand.h
+    src/core/AgentControl.cpp
+    src/core/AgentControl.h
     src/core/BrowserStateExchange.cpp
     src/core/BrowserStateExchange.h
     src/core/BrowserController.cpp
     src/core/BrowserController.h
+    src/core/ControlSocket.cpp
+    src/core/ControlSocket.h
     src/core/DevelopmentLaunch.cpp
     src/core/DevelopmentLaunch.h
     src/core/DownloadPolicy.cpp
@@ -1027,6 +1033,21 @@ if(BUILD_TESTING)
     omaweb_strict_target(omaweb-core-tests)
     omaweb_declarative_fixture_target(omaweb-core-tests)
     add_test(NAME omaweb-core COMMAND omaweb-core-tests)
+
+    qt_add_executable(omaweb-agent-control-tests
+        "tests/core/SessionFixture.cpp"
+        "tests/core/SessionFixture.h"
+        "tests/core/tst_agentcontrol.cpp"
+    )
+    target_link_libraries(omaweb-agent-control-tests PRIVATE omaweb-core Qt6::Test)
+    omaweb_strict_target(omaweb-agent-control-tests)
+    omaweb_declarative_fixture_target(omaweb-agent-control-tests)
+    add_test(NAME omaweb-agent-control COMMAND omaweb-agent-control-tests)
+
+    qt_add_executable(omaweb-agent-command-tests tests/core/tst_agentcommand.cpp)
+    target_link_libraries(omaweb-agent-command-tests PRIVATE omaweb-core Qt6::Test)
+    omaweb_strict_target(omaweb-agent-command-tests)
+    add_test(NAME omaweb-agent-command COMMAND omaweb-agent-command-tests)
 
     qt_add_executable(omaweb-session-store-tests tests/core/tst_sessionstore.cpp)
     target_link_libraries(omaweb-session-store-tests PRIVATE omaweb-core Qt6::Test)

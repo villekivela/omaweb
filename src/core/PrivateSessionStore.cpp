@@ -30,6 +30,12 @@ bool PrivateSessionStore::spaceHasSavedContent(const QString &) const { return f
 
 bool PrivateSessionStore::deleteSpace(const QString &, const QString &) { return false; }
 
+QHash<QString, QString> PrivateSessionStore::agentSpaces() const { return {}; }
+
+bool PrivateSessionStore::saveAgentSpace(const QString &, const QString &) { return false; }
+
+bool PrivateSessionStore::forgetAgentSpace(const QString &) { return false; }
+
 QVector<TabState> PrivateSessionStore::loadTabs(const QString &) const { return {}; }
 
 QVector<TabState> PrivateSessionStore::loadClosedTabs(const QString &) const { return {}; }

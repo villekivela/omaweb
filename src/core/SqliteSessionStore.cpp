@@ -220,6 +220,35 @@ bool SqliteSessionStore::saveSpaces(const QVector<SpaceState> &spaces)
     return m_database.commit();
 }
 
+QHash<QString, QString> SqliteSessionStore::agentSpaces() const
+{
+    QHash<QString, QString> spaces;
+    QSqlQuery query(m_database);
+    query.exec(QStringLiteral("SELECT space_id, creator FROM agent_spaces"));
+    while (query.next()) {
+        spaces.insert(query.value(0).toString(), query.value(1).toString());
+    }
+    return spaces;
+}
+
+bool SqliteSessionStore::saveAgentSpace(const QString &spaceId, const QString &creator)
+{
+    QSqlQuery query(m_database);
+    query.prepare(QStringLiteral("INSERT INTO agent_spaces(space_id, creator) VALUES(?, ?) "
+                                 "ON CONFLICT(space_id) DO UPDATE SET creator = excluded.creator"));
+    query.addBindValue(spaceId);
+    query.addBindValue(creator);
+    return query.exec();
+}
+
+bool SqliteSessionStore::forgetAgentSpace(const QString &spaceId)
+{
+    QSqlQuery query(m_database);
+    query.prepare(QStringLiteral("DELETE FROM agent_spaces WHERE space_id = ?"));
+    query.addBindValue(spaceId);
+    return query.exec();
+}
+
 bool SqliteSessionStore::setActiveSpace(const QString &spaceId)
 {
     if (!m_database.transaction()) {
@@ -724,6 +753,10 @@ bool SqliteSessionStore::executeSchema(QString *errorMessage)
             color TEXT NOT NULL,
             active INTEGER NOT NULL DEFAULT 0,
             position INTEGER NOT NULL DEFAULT 0
+        );
+        CREATE TABLE IF NOT EXISTS agent_spaces (
+            space_id TEXT PRIMARY KEY REFERENCES spaces(id) ON DELETE CASCADE,
+            creator TEXT NOT NULL DEFAULT ''
         );
         CREATE TABLE IF NOT EXISTS pending_space_deletions (
             space_id TEXT PRIMARY KEY

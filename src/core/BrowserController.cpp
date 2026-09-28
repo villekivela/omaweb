@@ -438,6 +438,239 @@ bool BrowserController::rememberAutomaticDownloadDecision(const QString &origin,
     return setPermissionDecision(QUrl(origin), QStringLiteral("automatic-downloads"), decision);
 }
 
+bool BrowserController::agentSpace(const QString &spaceId) const
+{
+    return m_agentSpaces.contains(spaceId);
+}
+
+QString BrowserController::agentSpaceCreator(const QString &spaceId) const
+{
+    return m_agentSpaces.value(spaceId);
+}
+
+QString BrowserController::createAgentSpace(const QString &name, const QString &creator)
+{
+    const auto spaceId = createSpace(name);
+    if (spaceId.isEmpty()) {
+        return {};
+    }
+    // A Space an Agent asked for and cannot be told apart from the reader's own
+    // is worse than none, so one the store would not label is taken back.
+    if (!m_store->saveAgentSpace(spaceId, creator)) {
+        deleteSpace(spaceId, name.trimmed());
+        return {};
+    }
+    m_agentSpaces.insert(spaceId, creator);
+    emit agentSpacesChanged();
+    return spaceId;
+}
+
+bool BrowserController::takeOverSpace(const QString &spaceId)
+{
+    if (!m_agentSpaces.contains(spaceId) || !m_store->forgetAgentSpace(spaceId)) {
+        return false;
+    }
+    m_agentSpaces.remove(spaceId);
+    emit agentSpacesChanged();
+    return true;
+}
+
+bool BrowserController::deleteAgentSpace(const QString &spaceId)
+{
+    if (!m_agentSpaces.contains(spaceId)) {
+        return false;
+    }
+    const auto index = m_spaces.rowOf(spaceId);
+    if (index < 0) {
+        return false;
+    }
+    return deleteSpace(spaceId, m_spaces.items().at(index).name);
+}
+
+QVector<TabState> BrowserController::spaceTabs(const QString &spaceId) const
+{
+    if (m_privateBrowsing || m_spaces.rowOf(spaceId) < 0) {
+        return {};
+    }
+    if (spaceId == m_activeSpaceId) {
+        return m_tabs.items();
+    }
+    return m_store->loadTabs(spaceId);
+}
+
+std::optional<TabState> BrowserController::findTab(
+    const QString &tabId, const QString &spaceHint) const
+{
+    if (m_privateBrowsing || tabId.isEmpty()) {
+        return std::nullopt;
+    }
+    if (const auto *tab = m_tabs.find(tabId)) {
+        return *tab;
+    }
+    const auto findIn = [this, &tabId](const QString &spaceId) -> std::optional<TabState> {
+        for (const auto &tab : m_store->loadTabs(spaceId)) {
+            if (tab.id == tabId) {
+                return tab;
+            }
+        }
+        return std::nullopt;
+    };
+    const auto hinted
+        = !spaceHint.isEmpty() && spaceHint != m_activeSpaceId && m_spaces.rowOf(spaceHint) >= 0;
+    if (hinted) {
+        if (auto tab = findIn(spaceHint)) {
+            return tab;
+        }
+    }
+    for (const auto &space : m_spaces.items()) {
+        if (space.id == m_activeSpaceId || (hinted && space.id == spaceHint)) {
+            continue;
+        }
+        if (auto tab = findIn(space.id)) {
+            return tab;
+        }
+    }
+    return std::nullopt;
+}
+
+QUrl BrowserController::resolveAddress(const QString &input) const
+{
+    return resolveConfiguredInput(input);
+}
+
+QString BrowserController::openTabInSpace(const QString &spaceId, const QUrl &url)
+{
+    if (m_privateBrowsing || !url.isValid() || url.isEmpty() || m_spaces.rowOf(spaceId) < 0) {
+        return {};
+    }
+    TabState tab;
+    tab.id = QUuid::createUuid().toString(QUuid::WithoutBraces);
+    tab.spaceId = spaceId;
+    tab.url = url;
+    tab.title = url.host().isEmpty() ? url.toDisplayString() : url.host();
+    if (spaceId == m_activeSpaceId) {
+        m_tabs.append(tab);
+        refreshSoundSuppression();
+        schedulePersistTabs();
+        return tab.id;
+    }
+    auto tabs = m_store->loadTabs(spaceId);
+    tabs.append(tab);
+    return saveAwayTabs(spaceId, std::move(tabs)) ? tab.id : QString {};
+}
+
+bool BrowserController::navigateTab(const QString &tabId, const QUrl &url, const QString &spaceHint)
+{
+    if (m_privateBrowsing || !url.isValid() || url.isEmpty()) {
+        return false;
+    }
+    if (auto *tab = m_tabs.find(tabId)) {
+        if (tab->pinned) {
+            return false;
+        }
+        tab->url = url;
+        tab->title = url.host().isEmpty() ? url.toDisplayString() : url.host();
+        tab->rendererFailureReason.clear();
+        m_tabs.notifyChanged(tab->id, {TabListModel::UrlRole, TabListModel::TitleRole});
+        refreshSoundSuppression();
+        schedulePersistTabs();
+        if (tabId == m_activeTabId) {
+            emit activeTabChanged();
+        }
+        return true;
+    }
+    const auto found = findTab(tabId, spaceHint);
+    if (!found || found->pinned) {
+        return false;
+    }
+    auto tabs = m_store->loadTabs(found->spaceId);
+    for (auto &tab : tabs) {
+        if (tab.id == tabId) {
+            tab.url = url;
+            tab.title = url.host().isEmpty() ? url.toDisplayString() : url.host();
+        }
+    }
+    if (!saveAwayTabs(found->spaceId, std::move(tabs))) {
+        return false;
+    }
+    if (tabId == m_developerToolsTabId) {
+        closeDeveloperTools();
+    }
+    emit awayTabDiscarded(tabId);
+    return true;
+}
+
+bool BrowserController::closeTabInSpace(const QString &tabId, const QString &spaceHint)
+{
+    if (m_privateBrowsing) {
+        return false;
+    }
+    if (const auto *tab = m_tabs.find(tabId)) {
+        if (tab->pinned) {
+            return false;
+        }
+        closeTab(tabId);
+        return true;
+    }
+    const auto found = findTab(tabId, spaceHint);
+    if (!found || found->pinned) {
+        return false;
+    }
+    auto tabs = m_store->loadTabs(found->spaceId);
+    const auto index = std::ranges::find(tabs, tabId, &TabState::id) - tabs.begin();
+    // The same successor the Space on show would pick: the tab beside it in a
+    // split, or the row above.
+    if (found->active && tabs.size() > 1) {
+        auto &next = found->splitPartnerId.isEmpty()
+            ? tabs[index == 0 ? 1 : index - 1]
+            : *std::ranges::find(tabs, found->splitPartnerId, &TabState::id);
+        next.active = true;
+    }
+    for (auto &tab : tabs) {
+        if (tab.id == found->splitPartnerId) {
+            tab.splitPartnerId.clear();
+            tab.splitFocused = false;
+        }
+    }
+    tabs.removeAt(index);
+    if (!isBlank(found->url)) {
+        auto closedTabs = m_store->loadClosedTabs(found->spaceId);
+        auto closed = *found;
+        closed.id = QUuid::createUuid().toString(QUuid::WithoutBraces);
+        closed.active = false;
+        closed.splitPartnerId.clear();
+        closed.splitFocused = false;
+        closedTabs.prepend(closed);
+        while (closedTabs.size() > retainedClosedTabs) {
+            closedTabs.removeLast();
+        }
+        m_store->recordClosedTabs(found->spaceId, closedTabs);
+    }
+    if (!saveAwayTabs(found->spaceId, std::move(tabs))) {
+        return false;
+    }
+    if (tabId == m_developerToolsTabId) {
+        closeDeveloperTools();
+    }
+    emit awayTabDiscarded(tabId);
+    return true;
+}
+
+// A Space that is not on show keeps its tabs in the store alone. One left with
+// none rests on a blank tab, as a Space on show would.
+bool BrowserController::saveAwayTabs(const QString &spaceId, QVector<TabState> tabs)
+{
+    if (tabs.isEmpty()) {
+        tabs.append(makeBlankTab(spaceId));
+    }
+    auto active = std::ranges::find_if(tabs, &TabState::active);
+    if (active == tabs.end()) {
+        active = tabs.begin();
+        active->active = true;
+    }
+    return m_store->saveTabs(spaceId, tabs, active->id);
+}
+
 void BrowserController::activateTab(const QString &tabId)
 {
     if (tabId == m_activeTabId || !m_tabs.find(tabId)) {
@@ -810,6 +1043,9 @@ bool BrowserController::deleteSpace(const QString &spaceId, const QString &confi
         return false;
     }
     m_spaces.reset(m_store->loadSpaces());
+    if (m_agentSpaces.remove(spaceId) > 0) {
+        emit agentSpacesChanged();
+    }
     cancelHistorySuggestions();
     emit historySearchSpaceForgotten(spaceId);
     // Nothing belonging to a deleted Space should outlive it, including the
@@ -2684,6 +2920,9 @@ void BrowserController::reloadSyncedState()
         space.active = space.id == m_activeSpaceId;
     }
     m_spaces.reset(std::move(spaces));
+    // Sync may have deleted an Agent Space, and the store took its label too.
+    m_agentSpaces = m_store->agentSpaces();
+    emit agentSpacesChanged();
     auto tabs = m_store->loadTabs(m_activeSpaceId);
     auto active = std::ranges::find(tabs, previousTab, &TabState::id);
     if (active == tabs.end() && !tabs.isEmpty()) {
@@ -2725,6 +2964,7 @@ void BrowserController::initialize()
     }
     m_startedWithEmptyState = m_store->loadSpaces().isEmpty();
     ensureDefaultSpace();
+    m_agentSpaces = m_store->agentSpaces();
     ensureActiveTab();
     loadClosedTabs();
     // A Pinned tab marked Keep active is running before its Space is ever

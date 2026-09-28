@@ -3,6 +3,7 @@
 #include "SpaceListModel.h"
 #include "TabListModel.h"
 
+#include <QHash>
 #include <QString>
 #include <QUrl>
 #include <QVariantList>
@@ -57,6 +58,15 @@ public:
     virtual bool spaceHasSavedContent(const QString &spaceId) const = 0;
     virtual bool deleteSpace(const QString &spaceId, const QString &replacementActiveSpaceId = {})
         = 0;
+
+    // The Spaces an Agent created (ADR 0051), each with the name of the
+    // connection that created it. The label is kept beside the Space records
+    // rather than in them, so nothing that copies a SpaceState, Sync included,
+    // can carry it to another machine. Deleting a Space takes its label with
+    // it.
+    virtual QHash<QString, QString> agentSpaces() const = 0;
+    virtual bool saveAgentSpace(const QString &spaceId, const QString &creator) = 0;
+    virtual bool forgetAgentSpace(const QString &spaceId) = 0;
 
     virtual QVector<TabState> loadTabs(const QString &spaceId) const = 0;
     virtual QVector<TabState> loadClosedTabs(const QString &spaceId) const = 0;

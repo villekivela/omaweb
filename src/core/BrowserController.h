@@ -422,6 +422,41 @@ public:
     // few hundred bytes.
     Q_INVOKABLE void refreshKnownExtensionsIfDue();
 
+    // What the Agent socket reaches (ADR 0051). None of it takes the reader's
+    // focus: a tab opened here is never selected, and a Space is never
+    // switched to.
+    //
+    // An Agent Space is one an Agent created. The label, with the name of the
+    // connection that created it, is kept in the session store, stays on this
+    // machine and never reaches Sync. Taking the Space over removes it and
+    // keeps everything else.
+    Q_INVOKABLE bool agentSpace(const QString &spaceId) const;
+    // The connection name that created an Agent Space, or nothing.
+    QString agentSpaceCreator(const QString &spaceId) const;
+    QString createAgentSpace(const QString &name, const QString &creator);
+    Q_INVOKABLE bool takeOverSpace(const QString &spaceId);
+    // Refuses a Space the reader made or took over, whatever asks.
+    bool deleteAgentSpace(const QString &spaceId);
+    // One Space's tabs: the Space on show from its live model, any other from
+    // the store. Empty for a Space this window does not have.
+    QVector<TabState> spaceTabs(const QString &spaceId) const;
+    // A tab in any Space of this window, or nothing. A Space not on show is
+    // read from the store, on the store's thread while this one waits, so a
+    // caller that knows where the tab was names that Space first and the
+    // others are read only if it is not there.
+    std::optional<TabState> findTab(const QString &tabId, const QString &spaceHint = {}) const;
+    // What the Omnibar would open for this input, or an invalid address.
+    QUrl resolveAddress(const QString &input) const;
+    // A new ordinary tab at the end of a Space's list, not selected. Answers
+    // its id, or nothing when the Space is not this window's.
+    QString openTabInSpace(const QString &spaceId, const QUrl &url);
+    // Loads an address in an existing tab without selecting it. A Pinned tab
+    // is refused, because its address is the reader's to change. The hint is
+    // findTab's.
+    bool navigateTab(const QString &tabId, const QUrl &url, const QString &spaceHint = {});
+    // Closes an ordinary tab in any Space. A Pinned tab is refused.
+    bool closeTabInSpace(const QString &tabId, const QString &spaceHint = {});
+
 signals:
     void activeSpaceChanged();
     void activeTabChanged();
@@ -466,6 +501,11 @@ signals:
     void historySearchDelayRequested(int milliseconds);
     void certificateExceptionsChanged();
     void preferenceChanged(const QString &name);
+    void agentSpacesChanged();
+    // A tab of a Space that is not on show was closed or given a new address
+    // behind the page that Space is holding frozen. The page goes, so the tab
+    // loads from its saved address when the Space is next shown.
+    void awayTabDiscarded(const QString &tabId);
 
 private:
     // Facts held by pages that survived a Space switch. The session store does
@@ -520,6 +560,7 @@ private:
     bool loadSearchEngines();
     bool saveSearchEngines(const QVariantList &engines, const QString &defaultEngineId);
     void loadDownloadDirectory();
+    bool saveAwayTabs(const QString &spaceId, QVector<TabState> tabs);
     static QString normalizedOrigin(const QUrl &url);
     BrowserController(std::shared_ptr<ThreadedSessionStore> store, SpaceStorage storage,
         QString configRoot, QObject *parent);
@@ -591,6 +632,8 @@ private:
     WindowCapabilities m_capabilities;
     QSharedPointer<QHash<QString, int>> m_sessionPermissionDecisions;
     QSharedPointer<SessionSiteState> m_sessionSiteState;
+    // Agent Space id to the connection name that created it.
+    QHash<QString, QString> m_agentSpaces;
 };
 
 // Makes `BrowserController`'s enums available to QML as `import Omaweb`. The
