@@ -154,9 +154,9 @@ SHIFTED = {":": "semicolon"}
 TOPLEVEL_SURFACE = re.compile(r"-> xdg_wm_base#\d+\.get_xdg_surface\(new id xdg_surface#\d+, "
                               r"wl_surface#(\d+)\)")
 
-# A line of `WAYLAND_DEBUG` output, which opens on a timestamp. Chromium's own lines open on a
-# bracketed process id followed by a colon.
-WAYLAND_LINE = re.compile(r"\[\s*\d+\.\d+\]")
+# A line of `WAYLAND_DEBUG` output, which opens on a timestamp: milliseconds in older libwayland,
+# the time of day in newer. Chromium's own lines open on a bracketed process id and a colon.
+WAYLAND_LINE = re.compile(r"\[\s*(\d+|\d\d:\d\d:\d\d)\.\d+\]")
 
 # The page ADR 0050 measured: forty images, which no rule refuses, so a load with blocking on
 # fetches everything the load with it off does and the difference is what blocking cost.
@@ -368,6 +368,42 @@ def children_by_parent() -> dict[int, list[int]]:
     return tree
 
 
+def process_states(root: int) -> dict[int, tuple[str, str, float, int]]:
+    """Each process in a tree: its name, its state, the CPU seconds it has used, and its RSS in KiB."""
+    tree = children_by_parent()
+    ticks = os.sysconf("SC_CLK_TCK")
+    page_kib = os.sysconf("SC_PAGE_SIZE") // 1024
+    states = {}
+    pending = [root]
+    while pending:
+        pid = pending.pop()
+        pending += tree.get(pid, [])
+        try:
+            with open(f"/proc/{pid}/stat", encoding="utf-8") as handle:
+                stat = handle.read()
+        except OSError:
+            continue
+        name = stat[stat.index("(") + 1:stat.rindex(")")]
+        fields = stat.rsplit(")", 1)[1].split()
+        states[pid] = (name, fields[0], (int(fields[11]) + int(fields[12])) / ticks,
+                       int(fields[21]) * page_kib)
+    return states
+
+
+def describe_processes(root: int) -> list[str]:
+    """What each process in a tree is doing: its state, its RSS, and the CPU it used over a second.
+
+    A second apart, because what a process has used since it started does not say whether it is
+    using any now.
+    """
+    before = process_states(root)
+    time.sleep(1)
+    after = process_states(root)
+    return [f"{pid} {name} {state} {rss / 1024:.0f} MiB, "
+            f"{cpu - before.get(pid, (name, state, cpu, rss))[2]:.2f} CPU s in the last second"
+            for pid, (name, state, cpu, rss) in sorted(after.items())]
+
+
 def tree_mib(root: int) -> float:
     """Proportional set size of a process and everything below it, in mebibytes."""
     tree = children_by_parent()
@@ -480,7 +516,7 @@ class Browser:
         """
         with open(self.log_path, encoding="utf-8", errors="replace") as handle:
             return [line.rstrip() for line in handle
-                    if ".set_title(" in line or not WAYLAND_LINE.match(line)]
+                    if ".set_title(" in line or not WAYLAND_LINE.match(line.lstrip())]
 
     @property
     def startup_seconds(self) -> float:
@@ -1262,8 +1298,11 @@ def run_pageload(executable: str, private: bool) -> dict:
         try:
             site.wait()
         except MeasurementFailed:
+            log("  the browser's processes when the load went quiet:")
+            for line in describe_processes(browser.pid):
+                log(f"    {line}")
             browser.stop()
-            log("  the browser's titles and messages, for the load that went quiet:")
+            log("  the browser's titles and messages:")
             for line in browser.messages()[-PAGELOAD_MESSAGES:]:
                 log(f"    {line}")
             raise
