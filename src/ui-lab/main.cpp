@@ -20,6 +20,7 @@
 #include "RuntimeSecurity.h"
 #include "SavedDownload.h"
 #include "SoundingTabs.h"
+#include "PrimaryHold.h"
 #include "SystemClipboard.h"
 #include "SystemNotifier.h"
 #include "ThemeController.h"
@@ -345,6 +346,7 @@ int main(int argc, char *argv[])
     omaweb::registerPageImages();
     omaweb::registerDefaultBrowser();
     omaweb::registerSystemClipboard();
+    omaweb::registerPrimaryHold();
     omaweb::registerExternalProtocolHandler();
     omaweb::registerPagePrinter();
     omaweb::registerSystemNotifier();

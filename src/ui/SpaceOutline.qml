@@ -11,6 +11,10 @@ Rectangle {
     property var colors
     property string iconFontFamily
     property var browser
+    // The window's keymap, for the labels Primary shows, and whether it is
+    // being held for them.
+    property var keyMap: null
+    property bool keyLabelsShown: false
     // What this window's Space is hosting, as `{ key, name, id, popupUrl }`.
     property var hostedExtensions: []
     property bool privateWindow: false
@@ -519,6 +523,78 @@ Rectangle {
 
     // Key events climb from the focused row to here, so one handler covers the
     // whole outline: Escape is the way back to the page.
+    function labelFor(command, number) {
+        return root.keyMap ? root.keyMap.labelFor(command, number) : "";
+    }
+
+    // The key that selects a tab is the number of its place among all of the
+    // Space's tabs, not of its place in its section.
+    function tabLabel(tabId) {
+        if (!root.keyLabelsShown || !root.browser)
+            return "";
+        const tabs = root.browser.tabs;
+        const count = Math.min(9, tabs.rowCount());
+        for (let position = 0; position < count; ++position) {
+            if (tabs.data(tabs.index(position, 0), Qt.UserRole + 1) === tabId)
+                return root.labelFor("select-tab", position + 1);
+        }
+        return "";
+    }
+
+    // The rows as the reader sees them, pins first, which is the order the
+    // cursor walks.
+    function cursorRows() {
+        return root.sectionRows(pinnedSection).concat(root.sectionRows(ordinarySection)).filter(
+                    function (row) {
+                        return row && row.visible;
+                    });
+    }
+
+    function stepCursor(delta) {
+        const rows = root.cursorRows();
+        if (rows.length === 0)
+            return;
+        let at = rows.findIndex(function (row) {
+            return row.activeFocus;
+        });
+        if (at < 0) {
+            rows[Math.max(0, rows.indexOf(root.activeTabItem))].forceActiveFocus();
+            return;
+        }
+        rows[Math.max(0, Math.min(rows.length - 1, at + delta))].forceActiveFocus();
+    }
+
+    // While the outline holds the keyboard, h j k l move the sidebar cursor as
+    // the keys move through a list anywhere else on the desktop: j and k walk
+    // the rows without touching the page, l, towards the page, opens the row
+    // under the cursor and hands the keyboard over, and h, away from it, brings
+    // the cursor back to the tab on show. A field in the outline takes its own
+    // letters before they climb this far.
+    Keys.onPressed: function (event) {
+        if (event.modifiers & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier
+                               | Qt.ShiftModifier))
+
+            return;
+        if (event.key === Qt.Key_J) {
+            root.stepCursor(1);
+        } else if (event.key === Qt.Key_K) {
+            root.stepCursor(-1);
+        } else if (event.key === Qt.Key_L) {
+            const row = root.cursorRows().find(function (candidate) {
+                return candidate.activeFocus;
+            });
+            if (!row)
+                return;
+            root.tabActivated(row.tabId);
+            root.pageFocusRequested();
+        } else if (event.key === Qt.Key_H) {
+            root.focusOutline();
+        } else {
+            return;
+        }
+        event.accepted = true;
+    }
+
     Keys.onEscapePressed: function (event) {
         if (root.statusOpen) {
             root.statusOpen = false;
@@ -593,6 +669,15 @@ Rectangle {
 
                 ChromeButton {
                     objectName: "collapseButton"
+                    KeyLabel {
+                        objectName: "keyLabel-collapseButton"
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        anchors.top: parent.bottom
+                        anchors.topMargin: -4
+                        keys: root.keyLabelsShown ? root.labelFor("toggle-sidebar") : ""
+                        shown: root.keyLabelsShown
+                        colors: root.colors
+                    }
                     width: 28
                     height: 26
                     icon: root.collapsed ? "left_panel_open" : "left_panel_close"
@@ -605,6 +690,15 @@ Rectangle {
 
                 ChromeButton {
                     objectName: "commandPanelButton"
+                    KeyLabel {
+                        objectName: "keyLabel-commandPanelButton"
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        anchors.top: parent.bottom
+                        anchors.topMargin: -4
+                        keys: root.keyLabelsShown ? root.labelFor("command-panel") : ""
+                        shown: root.keyLabelsShown
+                        colors: root.colors
+                    }
                     width: 28
                     height: 26
                     icon: "search"
@@ -624,6 +718,15 @@ Rectangle {
 
                 ChromeButton {
                     objectName: "backButton"
+                    KeyLabel {
+                        objectName: "keyLabel-backButton"
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        anchors.top: parent.bottom
+                        anchors.topMargin: -4
+                        keys: root.keyLabelsShown ? root.labelFor("back") : ""
+                        shown: root.keyLabelsShown
+                        colors: root.colors
+                    }
                     width: 28
                     height: 26
                     icon: "arrow_back"
@@ -637,6 +740,15 @@ Rectangle {
 
                 ChromeButton {
                     objectName: "forwardButton"
+                    KeyLabel {
+                        objectName: "keyLabel-forwardButton"
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        anchors.top: parent.bottom
+                        anchors.topMargin: -4
+                        keys: root.keyLabelsShown ? root.labelFor("forward") : ""
+                        shown: root.keyLabelsShown
+                        colors: root.colors
+                    }
                     width: 28
                     height: 26
                     icon: "arrow_forward"
@@ -650,6 +762,15 @@ Rectangle {
 
                 ChromeButton {
                     objectName: "reloadButton"
+                    KeyLabel {
+                        objectName: "keyLabel-reloadButton"
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        anchors.top: parent.bottom
+                        anchors.topMargin: -4
+                        keys: root.keyLabelsShown ? root.labelFor("reload") : ""
+                        shown: root.keyLabelsShown
+                        colors: root.colors
+                    }
                     width: 28
                     height: 26
                     icon: "refresh"
@@ -695,6 +816,16 @@ Rectangle {
 
             // The lock takes the same 18px slot a tab row gives its site chip,
             // so the address and every tab title start on one line.
+            KeyLabel {
+                objectName: "keyLabel-addressButton"
+                anchors.right: parent.right
+                anchors.rightMargin: 4
+                anchors.verticalCenter: parent.verticalCenter
+                keys: root.keyLabelsShown ? root.labelFor("open-address") : ""
+                shown: root.keyLabelsShown
+                colors: root.colors
+            }
+
             Text {
                 id: securityGlyph
                 objectName: "securityIndicator"
@@ -828,6 +959,8 @@ Rectangle {
                     iconFontFamily: root.iconFontFamily
                     useFavicons: root.useFavicons
                     tintFavicons: root.tintFavicons
+                    keyLabel: root.tabLabel(tabId)
+                    keyLabelShown: root.keyLabelsShown
                     onActivated: function (id) {
                         root.tabActivated(id);
                     }
@@ -905,6 +1038,8 @@ Rectangle {
                         iconFontFamily: root.iconFontFamily
                         useFavicons: root.useFavicons
                         tintFavicons: root.tintFavicons
+                        keyLabel: root.tabLabel(tabId)
+                        keyLabelShown: root.keyLabelsShown
                         onActivated: function (id) {
                             root.tabActivated(id);
                         }
@@ -1015,9 +1150,11 @@ Rectangle {
                 model: root.browser ? root.browser.spaces : null
 
                 ChromeButton {
+                    id: spaceButton
                     required property string spaceId
                     required property string spaceName
                     required property bool active
+                    required property int index
 
                     objectName: "space-" + spaceId
                     width: 30
@@ -1042,6 +1179,19 @@ Rectangle {
                     bordered: active && !root.easeSpaces
                     background: "transparent"
                     onClicked: root.spaceActivated(spaceId)
+
+                    KeyLabel {
+                        objectName: "keyLabel-space-" + spaceButton.spaceId
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        anchors.bottom: parent.top
+                        anchors.bottomMargin: 2
+                        keys: root.keyLabelsShown && spaceButton.index < 9 ? root.labelFor(
+                                                                                 "select-space",
+                                                                                 spaceButton.index
+                                                                                 + 1) : ""
+                        shown: root.keyLabelsShown
+                        colors: root.colors
+                    }
                 }
             }
         }

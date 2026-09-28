@@ -39,7 +39,20 @@ Motion is felt rather than watched: it says which way something went, and no mor
   revealed rather than laid out again at every size the panel passes through. A page that named no
   press lifts the Glance as a sheet instead. The scrim stands still and fades either way.
 - **Notices belong to the edge.** A page notice comes down from the top edge as it fades in and goes
-  back up as it fades out.
+  back up as it fades out. The Space notice does the same over the middle of the page, and it
+  belongs to the window rather than to the page, so it stands still while the page arrives from the
+  side.
+
+## Focus and keys
+
+- **Focus is marked on the selection, not around a region.** Hyprland already borders the focused
+  window, so a frame inside it would draw a second border. The Sidebar cursor lights the one row
+  holding the keyboard, and the page, which holds it otherwise, needs no mark of its own.
+- **`h j k l` in the sidebar are not a mode.** They answer only while the sidebar holds the
+  keyboard, as `j` and `k` scroll only while the page does, and nothing is switched on that stays on
+  after the reader leaves. `l`, the key towards the page, opens a row.
+- **Holding Primary asks what it does.** Key labels appear over the controls after Primary has been
+  held on its own for 400 ms, so a chord typed at speed never shows them, and go at once.
 
 ## Motion language
 
