@@ -5369,6 +5369,28 @@ TestCase {
         window.closeOmnibar();
     }
 
+    // The Omnibar drops into its own place from just above it, whichever key
+    // opened it: it never starts on the sidebar's address field and crosses
+    // the window from there.
+    function test_theOmnibarArrivesInItsOwnPlace() {
+        const panel = findChild(window.contentItem, "commandPanel");
+        const frame = findChild(window.contentItem, "omnibarFrame");
+        verify(!window.sidebarCollapsed);
+        window.openOmnibar(false);
+        compare(frame.x, panel.restX);
+        compare(frame.width, panel.restWidth);
+        verify(frame.y <= panel.restY);
+        tryCompare(frame, "y", panel.restY);
+        window.closeOmnibar();
+        tryCompare(panel, "visible", false);
+
+        window.openCommandPanel();
+        compare(frame.x, panel.restX);
+        compare(frame.width, panel.restWidth);
+        window.closeOmnibar();
+        tryCompare(panel, "visible", false);
+    }
+
     function test_aPrivateOmnibarListsNoSpacesAndNoHistory() {
         browser.recordVisit("https://private-probe.example/", "Private probe history");
         const probeSpaceId = browser.createSpace("Private probe space");

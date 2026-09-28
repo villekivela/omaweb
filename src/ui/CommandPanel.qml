@@ -53,24 +53,18 @@ Item {
     visible: open || retreating
     property bool retreating: false
 
-    // Where the panel comes from: the address field, or the control that
-    // asked for it, in the panel's own coordinates. A panel that grows out
-    // of the field the reader pressed is the same field, expanded, rather
-    // than a second thing that appeared. An empty origin means the panel
-    // arrives from just above its resting place instead.
-    property rect origin: Qt.rect(0, 0, 0, 0)
+    // The panel drops a little into its place as it fades in, and rises
+    // back out as it goes. It no longer grows out of the address field:
+    // crossing the window from the sidebar read as a jolt, not as the field
+    // opening.
     property bool ease: true
-    // 0 at the origin, 1 at rest.
+    // 0 on its way in, 1 at rest.
     property real arrival: 1
     readonly property real restWidth: Math.min(660, width - 96)
     readonly property real restX: (width - restWidth) / 2
     readonly property real restY: Math.max(80, height * 0.14)
     readonly property real restHeight: header.height + body.height + footer.height + 2
                                        * panel.border.width
-    readonly property bool fromOrigin: origin.width > 0
-    function lerp(a, b) {
-        return a + (b - a) * arrival;
-    }
     NumberAnimation {
         id: arrivalEase
         target: root
@@ -79,7 +73,7 @@ Item {
         duration: 180
         easing.type: Easing.OutCubic
     }
-    // Back to the field it grew from, quicker than it came.
+    // Back out, quicker than it came.
     NumberAnimation {
         id: retreatEase
         target: root
@@ -350,14 +344,13 @@ Item {
 
     Rectangle {
         id: panel
-        // Between the origin and rest by `arrival`; the height is what the
-        // rows need once it is there, and the frame grows to it.
-        x: root.fromOrigin ? root.lerp(root.origin.x, root.restX) : root.restX
-        y: root.fromOrigin ? root.lerp(root.origin.y, root.restY) : root.restY - 8 * (1
-                                                                                      - root.arrival)
-        width: root.fromOrigin ? root.lerp(root.origin.width, root.restWidth) : root.restWidth
-        height: root.fromOrigin ? root.lerp(root.origin.height, root.restHeight) : root.restHeight
-        opacity: root.fromOrigin ? 1 : root.arrival
+        objectName: "omnibarFrame"
+        // The height is what the rows need, and the frame follows it.
+        x: root.restX
+        y: root.restY - 8 * (1 - root.arrival)
+        width: root.restWidth
+        height: root.restHeight
+        opacity: root.arrival
         radius: 3
         // With a backdrop the tint goes on top of the blur instead, so the
         // panel itself stays clear.
