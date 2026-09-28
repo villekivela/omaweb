@@ -31,7 +31,8 @@ public:
     bool spaceHasSavedContent(const QString &spaceId) const override;
     bool deleteSpace(const QString &spaceId, const QString &replacementActiveSpaceId = {}) override;
     QHash<QString, QString> agentSpaces() const override;
-    bool saveAgentSpace(const QString &spaceId, const QString &creator) override;
+    QStringList temporaryAgentSpaceIds() const override;
+    bool saveAgentSpace(const QString &spaceId, const QString &creator, bool temporary) override;
     bool forgetAgentSpace(const QString &spaceId) override;
 
     QVector<TabState> loadTabs(const QString &spaceId) const override;
@@ -63,12 +64,14 @@ public:
     bool clearPermissionsForOrigin(const QString &spaceId, const QString &origin) override;
     bool clearPermissionsSince(const QString &spaceId, qint64 since) override;
 
-    bool recordDownload(const QString &id, const QUrl &url, const QString &path,
-        const QString &state, qint64 receivedBytes, qint64 totalBytes) override;
+    bool recordDownload(const QString &id, const QString &spaceId, const QUrl &url,
+        const QString &path, const QString &state, qint64 receivedBytes,
+        qint64 totalBytes) override;
     bool updateDownload(const QString &id, const QString &state, qint64 receivedBytes,
         qint64 totalBytes, const QString &error) override;
     QVariantList downloadHistory() const override;
     bool forgetDownload(const QString &id) override;
+    bool forgetSpaceDownloads(const QString &spaceId) override;
 
 private:
     QSharedPointer<QHash<QString, int>> m_sessionDecisions;

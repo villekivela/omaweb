@@ -38,6 +38,10 @@ QString parentProcessName();
 // Sends the command to the browser on `socketPath`, prints its answer and
 // answers the exit status: 0 done, 1 refused, 2 a malformed command, 3 no
 // browser answering.
+//
+// `space new --temporary` prints the Space and then keeps open the connection
+// the Space lives on, until the process is interrupted, terminated or hung up
+// on, or the browser goes.
 int runAgentCommand(const QStringList &arguments, const QString &socketPath);
 
 } // namespace omaweb

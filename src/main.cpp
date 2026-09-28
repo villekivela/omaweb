@@ -260,6 +260,22 @@ int main(int argc, char *argv[])
 
     omaweb::BrowserController browser(
         omaweb::SpaceStorage(dataRoot(), QStringLiteral("qt")), configRoot());
+    // The Agent socket is always open for browser commands, and Allow agents
+    // decides what else it answers. It opens before the shell loads, so a
+    // temporary Agent Space a crash left behind is gone before anything shows
+    // it. A check of the QML is not a browser anything should reach.
+    omaweb::AgentControl agentControl(&browser, configRoot());
+    omaweb::ControlSocket controlSocket(&agentControl);
+    const auto answeringAgents = !validatingQml
+        && omaweb::openAgentSocket(controlSocket, browser, omaweb::ControlSocket::defaultPath());
+    // A temporary Agent Space outlives neither its connection nor the browser.
+    // Deleted while the shell is still here to let go of its pages. A browser
+    // that is not answering on the socket is not the one those Spaces belong
+    // to, and leaves them alone.
+    if (answeringAgents) {
+        QObject::connect(&application, &QCoreApplication::aboutToQuit, &browser,
+            [&browser] { browser.deleteTemporarySpaces(); });
+    }
     omaweb::ContentBlocker contentBlocker(dataRoot());
     omaweb::KeyboardNavigation keyboardNavigation(
         keybindingsPath(), QStringLiteral(OMAWEB_KEYBOARD_NAVIGATION_SCRIPT_PATH));
@@ -428,15 +444,6 @@ int main(int argc, char *argv[])
     if (launchUrl.isValid() && !engine.rootObjects().isEmpty()) {
         QTimer::singleShot(
             0, &browser, [&browser, launchUrl] { browser.openInput(launchUrl.toString(), true); });
-    }
-
-    // The Agent socket is always open for browser commands. Allow agents
-    // decides what else it answers, and a check of the QML is not a browser
-    // anything should reach.
-    omaweb::AgentControl agentControl(&browser, configRoot());
-    omaweb::ControlSocket controlSocket(&agentControl);
-    if (!validatingQml) {
-        controlSocket.listen(omaweb::ControlSocket::defaultPath());
     }
 
     // Every later launch arrives here instead, as the address it was asked to

@@ -9,6 +9,7 @@ class QLocalSocket;
 namespace omaweb {
 
 class AgentControl;
+class BrowserController;
 
 // The Agent socket (ADR 0051): a Unix socket only this user can open, which
 // carries one JSON request per line and answers each with one JSON line.
@@ -36,11 +37,20 @@ public:
 
 private:
     void accept();
-    void read(QLocalSocket *socket);
+    // `connection` numbers the socket for as long as this browser runs.
+    void read(QLocalSocket *socket, quint64 connection);
     void tooLong(QLocalSocket *socket);
 
     AgentControl *m_control;
     QLocalServer *m_server;
+    quint64 m_connections = 0;
 };
+
+// Opens the Agent socket at `path` and, once this browser is the one answering
+// on it, deletes the temporary Agent Spaces a browser that crashed left
+// behind. A browser that finds another answering deletes nothing, because
+// those Spaces may be the running browser's. Answers whether this browser is
+// answering.
+bool openAgentSocket(ControlSocket &socket, BrowserController &browser, const QString &path);
 
 } // namespace omaweb

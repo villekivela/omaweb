@@ -5,6 +5,7 @@
 
 #include <QHash>
 #include <QString>
+#include <QStringList>
 #include <QUrl>
 #include <QVariantList>
 #include <QVector>
@@ -65,7 +66,10 @@ public:
     // can carry it to another machine. Deleting a Space takes its label with
     // it.
     virtual QHash<QString, QString> agentSpaces() const = 0;
-    virtual bool saveAgentSpace(const QString &spaceId, const QString &creator) = 0;
+    // The Agent Spaces made to last only as long as their connection. Any
+    // still here when a browser starts outlived one that crashed.
+    virtual QStringList temporaryAgentSpaceIds() const = 0;
+    virtual bool saveAgentSpace(const QString &spaceId, const QString &creator, bool temporary) = 0;
     virtual bool forgetAgentSpace(const QString &spaceId) = 0;
 
     virtual QVector<TabState> loadTabs(const QString &spaceId) const = 0;
@@ -100,12 +104,15 @@ public:
     virtual bool clearPermissionsForOrigin(const QString &spaceId, const QString &origin) = 0;
     virtual bool clearPermissionsSince(const QString &spaceId, qint64 since) = 0;
 
-    virtual bool recordDownload(const QString &id, const QUrl &url, const QString &path,
-        const QString &state, qint64 receivedBytes, qint64 totalBytes) = 0;
+    // `spaceId` is the Space the download came from, or nothing for a file
+    // Omaweb wrote itself, so a temporary Space's records can go with it.
+    virtual bool recordDownload(const QString &id, const QString &spaceId, const QUrl &url,
+        const QString &path, const QString &state, qint64 receivedBytes, qint64 totalBytes) = 0;
     virtual bool updateDownload(const QString &id, const QString &state, qint64 receivedBytes,
         qint64 totalBytes, const QString &error) = 0;
     virtual QVariantList downloadHistory() const = 0;
     virtual bool forgetDownload(const QString &id) = 0;
+    virtual bool forgetSpaceDownloads(const QString &spaceId) = 0;
 
 protected:
     SessionStore() = default;

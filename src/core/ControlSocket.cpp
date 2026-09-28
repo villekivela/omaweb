@@ -1,6 +1,7 @@
 #include "ControlSocket.h"
 
 #include "AgentControl.h"
+#include "BrowserController.h"
 
 #include <QDir>
 #include <QFile>
@@ -55,7 +56,14 @@ ControlSocket::ControlSocket(AgentControl *control, QObject *parent)
     connect(m_server, &QLocalServer::newConnection, this, &ControlSocket::accept);
 }
 
-ControlSocket::~ControlSocket() = default;
+// A connection closing asks the control to delete what it made, and the
+// control may already be going too, so the sockets stop reporting first.
+ControlSocket::~ControlSocket()
+{
+    for (auto *socket : m_server->findChildren<QLocalSocket *>()) {
+        socket->disconnect(this);
+    }
+}
 
 QString ControlSocket::defaultPath()
 {
@@ -127,12 +135,16 @@ bool ControlSocket::listen(const QString &path)
 void ControlSocket::accept()
 {
     while (auto *socket = m_server->nextPendingConnection()) {
-        connect(socket, &QLocalSocket::readyRead, this, [this, socket] { read(socket); });
+        const auto connection = ++m_connections;
+        connect(socket, &QLocalSocket::readyRead, this,
+            [this, socket, connection] { read(socket, connection); });
+        connect(socket, &QLocalSocket::disconnected, this,
+            [this, connection] { m_control->connectionClosed(connection); });
         connect(socket, &QLocalSocket::disconnected, socket, &QObject::deleteLater);
     }
 }
 
-void ControlSocket::read(QLocalSocket *socket)
+void ControlSocket::read(QLocalSocket *socket, quint64 connection)
 {
     while (socket->state() == QLocalSocket::ConnectedState && socket->canReadLine()) {
         // One byte past the limit, so a line that fills it is told from one
@@ -153,7 +165,7 @@ void ControlSocket::read(QLocalSocket *socket)
             reply(socket, badRequest(QStringLiteral("A request is one JSON object per line.")));
             continue;
         }
-        reply(socket, m_control->answer(document.object()));
+        reply(socket, m_control->answer(document.object(), connection));
     }
     if (socket->state() == QLocalSocket::ConnectedState
         && socket->bytesAvailable() > maximumRequestBytes) {
@@ -165,6 +177,15 @@ void ControlSocket::tooLong(QLocalSocket *socket)
 {
     reply(socket, badRequest(QStringLiteral("The request is too long.")));
     socket->disconnectFromServer();
+}
+
+bool openAgentSocket(ControlSocket &socket, BrowserController &browser, const QString &path)
+{
+    if (!socket.listen(path)) {
+        return false;
+    }
+    browser.deleteTemporarySpaces();
+    return true;
 }
 
 } // namespace omaweb

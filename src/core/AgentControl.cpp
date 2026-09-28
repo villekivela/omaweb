@@ -119,7 +119,7 @@ bool AgentControl::gated(const QString &verb)
     return verb == u"space new" || verb == u"space delete";
 }
 
-QJsonObject AgentControl::answer(const QJsonObject &request)
+QJsonObject AgentControl::answer(const QJsonObject &request, quint64 socketConnection)
 {
     const auto verb = request.value(QStringLiteral("verb")).toString();
     static const QSet<QString> verbs {QStringLiteral("spaces"), QStringLiteral("tabs"),
@@ -164,7 +164,7 @@ QJsonObject AgentControl::answer(const QJsonObject &request)
         return close(connection, request);
     }
     if (verb == u"space new") {
-        return createSpace(name, connection, request);
+        return createSpace(name, connection, request, socketConnection);
     }
     return deleteSpace(name, connection, request);
 }
@@ -222,8 +222,7 @@ QJsonObject AgentControl::listTabs(Connection &connection, const QJsonObject &re
     const auto named = request.value(QStringLiteral("space")).toString();
     const auto spaceId = named.isEmpty() ? defaultSpace(connection) : findSpace(named);
     if (spaceId.isEmpty()) {
-        return refusal(
-            QStringLiteral("not-found"), QStringLiteral("There is no Space \"%1\".").arg(named));
+        return noSpace(named);
     }
     QJsonArray tabs;
     for (const auto &tab : m_browser->spaceTabs(spaceId)) {
@@ -285,8 +284,7 @@ QJsonObject AgentControl::open(Connection &connection, const QJsonObject &reques
 
     const auto spaceId = spaceName.isEmpty() ? defaultSpace(connection) : findSpace(spaceName);
     if (spaceId.isEmpty()) {
-        return refusal(QStringLiteral("not-found"),
-            QStringLiteral("There is no Space \"%1\".").arg(spaceName));
+        return noSpace(spaceName);
     }
     const auto tabId = m_browser->openTabInSpace(spaceId, url);
     if (tabId.isEmpty()) {
@@ -332,16 +330,25 @@ QJsonObject AgentControl::close(Connection &connection, const QJsonObject &reque
     return success({{QStringLiteral("closed"), tabId}});
 }
 
-QJsonObject AgentControl::createSpace(
-    const QString &creator, Connection &connection, const QJsonObject &request)
+QJsonObject AgentControl::createSpace(const QString &creator, Connection &connection,
+    const QJsonObject &request, quint64 socketConnection)
 {
     auto name = request.value(QStringLiteral("space")).toString().trimmed();
     if (name.isEmpty()) {
         name = defaultAgentSpaceName;
     }
-    const auto spaceId = m_browser->createAgentSpace(name, creator);
+    const auto temporary = request.value(QStringLiteral("temporary")).toBool();
+    if (temporary && socketConnection == 0) {
+        return refusal(QStringLiteral("bad-request"),
+            QStringLiteral("A temporary Space lasts as long as its connection, and this request "
+                           "came over none."));
+    }
+    const auto spaceId = m_browser->createAgentSpace(name, creator, temporary);
     if (spaceId.isEmpty()) {
         return refusal(QStringLiteral("failed"), QStringLiteral("The Space could not be created."));
+    }
+    if (temporary) {
+        m_temporarySpaces[socketConnection].append(spaceId);
     }
     connection.currentSpaceId = spaceId;
     connection.currentTabId.clear();
@@ -351,7 +358,15 @@ QJsonObject AgentControl::createSpace(
             {QStringLiteral("name"), name},
             {QStringLiteral("onShow"), false},
             {QStringLiteral("agent"), true},
+            {QStringLiteral("temporary"), temporary},
         }}});
+}
+
+void AgentControl::connectionClosed(quint64 connection)
+{
+    for (const auto &spaceId : m_temporarySpaces.take(connection)) {
+        m_browser->deleteTemporarySpace(spaceId);
+    }
 }
 
 // The name is not an identity, so this keeps one Agent from sweeping away
@@ -406,10 +421,20 @@ QString AgentControl::findSpace(const QString &idOrName) const
 
 QString AgentControl::defaultSpace(const Connection &connection) const
 {
-    if (!findSpace(connection.currentSpaceId).isEmpty()) {
-        return connection.currentSpaceId;
+    if (connection.currentSpaceId.isEmpty()) {
+        return m_browser->activeSpaceId();
     }
-    return m_browser->activeSpaceId();
+    // The connection's Space went, a temporary one with its connection or any
+    // Space the reader deleted. Its next page is not the reader's to receive.
+    return findSpace(connection.currentSpaceId);
+}
+
+QJsonObject AgentControl::noSpace(const QString &named)
+{
+    return refusal(QStringLiteral("not-found"),
+        named.isEmpty()
+            ? QStringLiteral("The Space this connection was using is gone. Name one with --space.")
+            : QStringLiteral("There is no Space \"%1\".").arg(named));
 }
 
 QJsonObject AgentControl::describeTab(const TabState &tab, const Connection &connection) const

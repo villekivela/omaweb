@@ -319,7 +319,7 @@ omaweb spaces
 omaweb tabs [--space <id|name>]
 omaweb open <address> [--space <id|name> | --tab <id>] [--new]
 omaweb close [--tab <id>]
-omaweb space new [name]
+omaweb space new [name] [--temporary]
 omaweb space delete <id|name>
 ```
 
@@ -330,9 +330,25 @@ without a running browser they exit with 3. A launcher that starts the browser w
 passes the address alone, `omaweb https://…`, as the desktop entry does. `space new` and
 `space delete` need Allow agents, which has no switch in Settings yet; set `"allow-agents": true` in
 `privacy.json` under the configuration root. A running browser follows the file, and turning it off
-there detaches every connection at once. `OMAWEB_CONTROL_SOCKET` moves the socket so a scratch
-browser can run beside the everyday one. A socket name longer than 104 bytes on macOS, or 108 on
-Linux, cannot be opened, and the browser says so at start.
+there detaches every connection at once. `space new --temporary` prints the Space's id and keeps
+running, and the Space is deleted when the process stops, so start it in the background and stop it
+when the Agent is done. Wait for the id before using the Space, and name it with `--space`, so a
+command that arrives first, or after the holder has gone, never lands in another Space:
+
+```sh
+omaweb space new signup --temporary --name checker > space-id &
+holder=$!
+until [ -s space-id ]; do sleep 0.1; done
+omaweb open http://localhost:3000/signup --space "$(cat space-id)" --name checker
+kill "$holder"
+```
+
+A connection whose Space has gone is refused rather than sent to the Space on show, until it names
+another.
+
+`OMAWEB_CONTROL_SOCKET` moves the socket so a scratch browser can run beside the everyday one. A
+socket name longer than 104 bytes on macOS, or 108 on Linux, cannot be opened, and the browser says
+so at start.
 
 Addresses from outside the browser are read strictly and only `http`, `https` and `file` are opened.
 A desktop passes on whatever it was given, so a scheme that would run in a page is refused rather

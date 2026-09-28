@@ -58,7 +58,15 @@ public:
     // `{"ok": true, ...}` or `{"ok": false, "code": ..., "error": ...}`. The
     // error is a sentence for the reader or the Agent; the code is for a
     // front end to act on.
-    QJsonObject answer(const QJsonObject &request);
+    //
+    // `connection` names the socket connection the request came over, which
+    // is what a temporary Agent Space lasts as long as. Nothing else reads it,
+    // and a request with none cannot make one.
+    QJsonObject answer(const QJsonObject &request, quint64 connection = 0);
+
+    // The socket connection is gone, and every temporary Agent Space it made
+    // goes with it, unless the reader has taken one over.
+    void connectionClosed(quint64 connection);
 
 signals:
     void allowAgentsChanged();
@@ -81,15 +89,17 @@ private:
     QJsonObject listTabs(Connection &connection, const QJsonObject &request) const;
     QJsonObject open(Connection &connection, const QJsonObject &request);
     QJsonObject close(Connection &connection, const QJsonObject &request);
-    QJsonObject createSpace(
-        const QString &creator, Connection &connection, const QJsonObject &request);
+    QJsonObject createSpace(const QString &creator, Connection &connection,
+        const QJsonObject &request, quint64 socketConnection);
     QJsonObject deleteSpace(
         const QString &requester, Connection &connection, const QJsonObject &request);
     // A Space by id, or by a name no other Space shares.
     QString findSpace(const QString &idOrName) const;
     // The Space a request without `--space` is about: the current tab's, the
-    // connection's own, or the Space on show.
+    // connection's own, or the Space on show when it has never had one.
+    // Nothing when its own Space is gone.
     QString defaultSpace(const Connection &connection) const;
+    static QJsonObject noSpace(const QString &named);
     QJsonObject describeTab(const TabState &tab, const Connection &connection) const;
 
     BrowserController *m_browser;
@@ -102,6 +112,8 @@ private:
     // which only an Agent Space's tabs are the Agents' own.
     QSet<QString> m_openedTabIds;
     QFileSystemWatcher m_watcher;
+    // The temporary Agent Spaces each socket connection made.
+    QHash<quint64, QStringList> m_temporarySpaces;
 };
 
 } // namespace omaweb

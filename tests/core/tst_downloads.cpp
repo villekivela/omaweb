@@ -92,7 +92,7 @@ void DownloadsTest::holdsRunningAndRecordedDownloadsInOneList()
     StubHost host;
     SqliteSessionStore store(root.path());
     QVERIFY(store.open());
-    QVERIFY(store.recordDownload(QStringLiteral("kept"),
+    QVERIFY(store.recordDownload(QStringLiteral("kept"), {},
         QUrl(QStringLiteral("https://files.example/old.zip")), QStringLiteral("/d/old.zip"),
         QStringLiteral("completed"), 10, 10));
 
@@ -357,10 +357,10 @@ void DownloadsTest::forgetsOneDownloadWithoutForgettingTheRest()
     StubHost host;
     SqliteSessionStore store(root.path());
     QVERIFY(store.open());
-    QVERIFY(store.recordDownload(QStringLiteral("second"),
+    QVERIFY(store.recordDownload(QStringLiteral("second"), {},
         QUrl(QStringLiteral("https://files.example/second.zip")),
         QStringLiteral("/Downloads/second.zip"), QStringLiteral("completed"), 20, 20));
-    QVERIFY(store.recordDownload(QStringLiteral("first"),
+    QVERIFY(store.recordDownload(QStringLiteral("first"), {},
         QUrl(QStringLiteral("https://files.example/first.zip")),
         QStringLiteral("/Downloads/first.zip"), QStringLiteral("completed"), 10, 10));
 
