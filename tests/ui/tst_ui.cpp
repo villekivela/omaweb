@@ -19,6 +19,7 @@
 #include "SoundingTabs.h"
 #include "SystemNotifier.h"
 #include "Quickshell.h"
+#include "PrimaryHold.h"
 #include "SystemClipboard.h"
 #include "ThemeController.h"
 #include "WindowManager.h"
@@ -146,6 +147,7 @@ public slots:
         omaweb::registerEngineBuild();
         omaweb::registerPageImages();
         omaweb::registerSystemClipboard();
+        omaweb::registerPrimaryHold();
         omaweb::registerExternalProtocolHandler();
         omaweb::registerPagePrinter();
         omaweb::registerSystemNotifier();

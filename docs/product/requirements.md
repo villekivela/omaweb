@@ -63,6 +63,15 @@ reports the gap and remains experimental rather than imitating behavior it canno
   letters, Spaces menu, active Download mark, and settings. Private windows replace the Space
   letters with a mask. New tabs remain available through the Omnibar and keyboard commands rather
   than a sidebar button.
+- While the sidebar holds the keyboard, `j` and `k` move the Sidebar cursor through its rows, pins
+  first, without changing the page. `l` or `Return` opens the row under it and focuses the page, and
+  `h` returns the cursor to the tab on show. A single key the reader binds to a command takes
+  precedence.
+- Holding Primary on its own for 400 ms shows Key labels over the navigation row, the address
+  trigger, the Space letters and the first nine tabs, read from the live keymap. Releasing Primary,
+  pressing another key, or the window losing the keyboard removes them.
+- The window title names the page and the Space on show, and a Space switch shows the Space notice
+  at the top of the page. A Private window's title names neither, and it shows no notice.
 - A tab with no address to load shows the Start page in place of a webpage, never an empty viewport:
   the browser commands and the keys that run them, read from the live keymap so the sheet cannot
   promise a key the window does not answer. That covers a Space at rest and an `about:blank` the

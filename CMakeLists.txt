@@ -367,6 +367,8 @@ add_library(omaweb-ui STATIC
     src/ui/FaviconTint.h
     src/ui/KitTheme.cpp
     src/ui/KitTheme.h
+    src/ui/PrimaryHold.cpp
+    src/ui/PrimaryHold.h
     src/ui/SystemClipboard.cpp
     src/ui/SystemClipboard.h
     src/ui/ThemeController.cpp
@@ -585,6 +587,7 @@ set(omaweb_ui_files
     src/ui/KeyHint.qml
     src/ui/KeyMap.qml
     src/ui/MediaAnnouncement.qml
+    src/ui/KeyLabel.qml
     src/ui/NavigationCluster.qml
     src/ui/NoticeBox.qml
     src/ui/ActionButton.qml
@@ -617,6 +620,7 @@ set(omaweb_ui_files
     src/ui/SiteNotifications.qml
     src/ui/SiteTile.qml
     src/ui/ReleaseMark.qml
+    src/ui/SpaceNotice.qml
     src/ui/SpaceOutline.qml
     src/ui/SpaceProfiles.qml
     src/ui/HttpsOnlyPage.qml

@@ -58,6 +58,29 @@ QtObject {
         return binding.replace("Primary+", "Ctrl+");
     }
 
+    // The one key a control is labelled with while Primary is held: its chord,
+    // or its single key when it has none. A numbered command names the number
+    // its binding ends in. A single key is only offered while single keys are
+    // answered, so a label never promises a key the window would ignore.
+    function labelFor(command, number) {
+        let single = "";
+        for (const binding in browserBindings) {
+            if (browserBindings[binding] !== command) {
+                continue;
+            }
+            if (number !== undefined && binding.slice(-1) !== String(number)) {
+                continue;
+            }
+            if (isChord(binding)) {
+                return displayFor(binding);
+            }
+            if (single.length === 0 && pageCommandsEnabled) {
+                single = binding;
+            }
+        }
+        return single;
+    }
+
     // Every binding that invokes a command, formatted for the command panel.
     function keysFor(command) {
         const chords = [];

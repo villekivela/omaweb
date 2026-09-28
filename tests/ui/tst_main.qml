@@ -2681,6 +2681,288 @@ TestCase {
         window.commands.run("focus-page", -1);
     }
 
+    // The sidebar's rows in the order the reader sees them: the pins, then
+    // the ordinary tabs.
+    function sidebarOrder() {
+        const order = [];
+        const models = [browser.pinnedTabs, browser.unpinnedTabs];
+        for (let section = 0; section < models.length; ++section) {
+            const model = models[section];
+            for (let row = 0; row < model.rowCount(); ++row)
+                order.push(model.data(model.index(row, 0), Qt.UserRole + 1));
+        }
+        return order;
+    }
+
+    // The tab whose row holds the keyboard, or nothing when no row does.
+    function cursorTabId() {
+        const item = window.activeFocusItem;
+        return item && item.tabId !== undefined ? item.tabId : "";
+    }
+
+    function cursorDrawnOn(tabId) {
+        const cursor = findChild(window.contentItem, "sidebarCursor-" + tabId);
+        return cursor !== null && cursor.visible;
+    }
+
+    // While the sidebar holds the keyboard, j and k walk a cursor through its
+    // rows without changing the page, l opens the row the cursor is on and
+    // hands the keyboard over, and h brings the cursor back to the tab on
+    // show. The cursor is drawn on the row that holds the keyboard and on no
+    // other, so it is never mistaken for the tab on show.
+    function test_theSidebarCursorMovesWithHjkl() {
+        const engineHost = findChild(window.contentItem, "engineLoader");
+        window.settingsOpen = false;
+        window.sidebarCollapsed = false;
+        window.requestActivate();
+        tryVerify(function () {
+            return window.active;
+        });
+        openPage("https://cursor-pin.example/");
+        const pinId = browser.activeTabId;
+        browser.toggleActivePinned();
+        openPageInNewTab("https://cursor-first.example/");
+        const firstId = browser.activeTabId;
+        openPageInNewTab("https://cursor-second.example/");
+        const secondId = browser.activeTabId;
+        settleMotion();
+        const order = sidebarOrder();
+        verify(order.indexOf(pinId) < order.indexOf(firstId));
+
+        window.commands.run("focus-sidebar", -1);
+        compare(cursorTabId(), secondId);
+        verify(cursorDrawnOn(secondId));
+
+        keyClick(Qt.Key_K);
+        compare(cursorTabId(), order[order.indexOf(secondId) - 1]);
+        compare(browser.activeTabId, secondId);
+        verify(cursorDrawnOn(cursorTabId()));
+        verify(!cursorDrawnOn(secondId));
+
+        // The cursor stops at either end rather than wrapping.
+        for (let step = 0; step <= order.length; ++step)
+            keyClick(Qt.Key_K);
+        compare(cursorTabId(), order[0]);
+        for (let step = 0; step <= order.length; ++step)
+            keyClick(Qt.Key_J);
+        compare(cursorTabId(), order[order.length - 1]);
+        compare(browser.activeTabId, secondId);
+
+        // The pins are rows like the rest.
+        for (let step = order.indexOf(pinId); step < order.length - 1; ++step)
+            keyClick(Qt.Key_K);
+        compare(cursorTabId(), pinId);
+
+        for (let step = order.indexOf(pinId); step < order.indexOf(firstId); ++step)
+            keyClick(Qt.Key_J);
+        compare(cursorTabId(), firstId);
+        keyClick(Qt.Key_L);
+        compare(browser.activeTabId, firstId);
+        tryVerify(function () {
+            return engineHost.item.activeFocus;
+        });
+        verify(!cursorDrawnOn(firstId));
+
+        window.commands.run("focus-sidebar", -1);
+        keyClick(Qt.Key_J);
+        verify(cursorTabId() !== firstId);
+        keyClick(Qt.Key_H);
+        compare(cursorTabId(), firstId);
+
+        // A press on a row focuses it, but a hand on the mouse is not steering
+        // the cursor, so the row is not lit.
+        const shownRow = findChild(window.contentItem, "tab-" + firstId);
+        mouseClick(shownRow, shownRow.width / 3, shownRow.height / 2);
+        compare(cursorTabId(), firstId);
+        verify(!cursorDrawnOn(firstId));
+
+        window.commands.run("focus-page", -1);
+        browser.closeTab(secondId);
+        browser.closeTab(firstId);
+        browser.activateTab(pinId);
+        browser.toggleActivePinned();
+        browser.closeTab(pinId);
+    }
+
+    // The binding the live keymap gives a command, a chord before a single
+    // key. A numbered command names the number its binding ends in.
+    function bindingFor(command, number) {
+        const bindings = keyboardNavigation.browserBindings;
+        let single = "";
+        for (const binding in bindings) {
+            if (bindings[binding] !== command)
+                continue;
+            if (number !== undefined && binding.slice(-1) !== String(number))
+                continue;
+            if (binding.indexOf("+") !== -1)
+                return binding;
+            if (single.length === 0)
+                single = binding;
+        }
+        return single;
+    }
+
+    // Holding Primary on its own labels the chrome with the keys that run it.
+    // A chord on Primary is labelled by the key that finishes it, and a key
+    // pressed without Primary is labelled as itself. The labels go the moment
+    // Primary is let go or another key joins it, so a chord typed at speed
+    // never shows them.
+    function test_holdingPrimaryLabelsTheControlsWithTheirKeys() {
+        const engineHost = findChild(window.contentItem, "engineLoader");
+        window.settingsOpen = false;
+        window.sidebarCollapsed = false;
+        window.requestActivate();
+        tryVerify(function () {
+            return window.active;
+        });
+        openPage("https://labels-first.example/");
+        const firstId = browser.activeTabId;
+        openPageInNewTab("https://labels-second.example/");
+        settleMotion();
+        window.commands.run("focus-page", -1);
+        tryVerify(function () {
+            return engineHost.item.activeFocus;
+        });
+
+        const controls = [["backButton", "back"], ["forwardButton", "forward"], ["reloadButton",
+                                                                                 "reload"],
+                          ["collapseButton", "toggle-sidebar"], ["commandPanelButton",
+                                                                 "command-panel"], ["addressButton",
+                                                                                    "open-address"]];
+        const label = findChild(window.contentItem, "keyLabel-backButton");
+        verify(label !== null);
+        verify(!label.visible);
+
+        keyPress(Qt.Key_Control);
+        tryVerify(function () {
+            return label.visible;
+        });
+        for (let index = 0; index < controls.length; ++index) {
+            const control = findChild(window.contentItem, "keyLabel-" + controls[index][0]);
+            const binding = bindingFor(controls[index][1]);
+            verify(control !== null, controls[index][0]);
+            verify(control.visible, controls[index][0]);
+            const chord = binding.indexOf("Primary+") === 0;
+            compare(control.chord, chord, controls[index][0]);
+            compare(control.text, chord ? binding.slice("Primary+".length) : binding,
+                    controls[index][0]);
+        }
+        const spaceLabel = findChild(window.contentItem, "keyLabel-space-" + browser.activeSpaceId);
+        verify(spaceLabel !== null);
+        compare(spaceLabel.text, bindingFor("select-space", 1).slice("Primary+".length));
+
+        // Each of the first nine tabs is labelled with the number that selects
+        // it, and a tab past them with nothing.
+        const tabs = browser.tabs;
+        let other = -1;
+        for (let position = 0; position < tabs.rowCount(); ++position) {
+            const tabId = tabs.data(tabs.index(position, 0), Qt.UserRole + 1);
+            const tabLabel = findChild(window.contentItem, "keyLabel-tab-" + tabId);
+            verify(tabLabel !== null);
+            if (position < 9) {
+                verify(tabLabel.visible);
+                compare(tabLabel.text, bindingFor("select-tab", position + 1));
+                if (other < 0 && tabId !== browser.activeTabId)
+                    other = position;
+            } else {
+                verify(!tabLabel.visible);
+            }
+        }
+        keyRelease(Qt.Key_Control);
+        verify(!label.visible);
+
+        // The label is the truth: its number selects its tab.
+        verify(other >= 0);
+        const otherId = tabs.data(tabs.index(other, 0), Qt.UserRole + 1);
+        keyClick(String(other + 1));
+        tryCompare(browser, "activeTabId", otherId);
+
+        // Another key joining Primary is a chord being typed, not a question,
+        // and so is one a window shortcut takes before any item sees it.
+        keyPress(Qt.Key_Control);
+        keyPress(Qt.Key_Shift, Qt.ControlModifier);
+        wait(800);
+        verify(!label.visible);
+        keyRelease(Qt.Key_Shift, Qt.ControlModifier);
+        keyRelease(Qt.Key_Control);
+        keyPress(Qt.Key_Control);
+        keyPress(Qt.Key_Period, Qt.ControlModifier);
+        wait(800);
+        verify(!label.visible);
+        keyRelease(Qt.Key_Period, Qt.ControlModifier);
+        keyRelease(Qt.Key_Control);
+
+        // The sidebar asks as the page does.
+        window.commands.run("focus-sidebar", -1);
+        keyPress(Qt.Key_Control);
+        tryVerify(function () {
+            return label.visible;
+        });
+        keyRelease(Qt.Key_Control);
+        verify(!label.visible);
+
+        window.commands.run("focus-page", -1);
+        browser.closeTab(browser.activeTabId);
+        if (browser.activeTabId !== firstId)
+            browser.closeTab(firstId);
+    }
+
+    // Switching Space names the Space it arrived in at the top of the page,
+    // over where the page settles, and the window's title names it too. The
+    // notice stands still while the page arrives and goes on its own.
+    function test_aSpaceSwitchNamesTheSpaceAtTheTopOfThePage() {
+        const outline = findChild(window.contentItem, "sidebar");
+        const notice = findChild(window.contentItem, "spaceNotice");
+        verify(notice !== null);
+        window.settingsOpen = false;
+        window.sidebarCollapsed = false;
+        window.easeChrome = true;
+        openPage("https://notice.example/");
+        settleMotion();
+        const homeId = browser.activeSpaceId;
+        verify(!notice.visible);
+        compare(window.title, browser.activeTitle + " — " + browser.activeSpaceName + " — Omaweb");
+
+        // Renaming the Space on show is not a switch.
+        const homeName = browser.activeSpaceName;
+        verify(browser.renameSpace(homeId, "Renamed Home"));
+        wait(300);
+        verify(!notice.visible);
+        verify(browser.renameSpace(homeId, homeName));
+
+        const otherId = browser.createSpace("Notice Space");
+        verify(browser.switchSpace(otherId));
+        tryVerify(function () {
+            return notice.visible;
+        });
+        compare(notice.text, "Notice Space");
+        const places = [];
+        while (outline.arriving) {
+            places.push(notice.mapToItem(window.contentItem, 0, 0).x);
+            wait(10);
+        }
+        for (let index = 1; index < places.length; ++index)
+            compare(places[index], places[0]);
+        compare(window.title, browser.activeTitle + " — Notice Space — Omaweb");
+        tryVerify(function () {
+            return !notice.visible;
+        }, 4000);
+
+        // Without the ease the notice is shown and taken away where it stands.
+        window.easeChrome = false;
+        verify(browser.switchSpace(homeId));
+        tryVerify(function () {
+            return notice.visible;
+        });
+        compare(notice.drop, 0);
+        tryVerify(function () {
+            return !notice.visible;
+        }, 4000);
+        window.easeChrome = true;
+
+        verify(browser.deleteSpace(otherId, "Notice Space"));
+    }
+
     // The keyboard moves between the regions on screen by direction: the
     // outline, the page — a pane at a time while a split is on show — and the
     // inspector. A move with nothing that way leaves the keyboard where it

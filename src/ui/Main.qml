@@ -19,8 +19,11 @@ ApplicationWindow {
                                       Qt.Window | Qt.FramelessWindowHint
     topPadding: 0
     visible: true
-    title: window.privateWindow ? "Private — Omaweb" : window.windowBrowser.activeTitle
-                                  + " — Omaweb"
+    // The title names the Space as well as the page, so the bar and the
+    // window switcher say which Space is on show without the sidebar giving
+    // room to it. A Private window says only that it is one.
+    title: window.privateWindow ? "Private — Omaweb" : window.windowBrowser.activeTitle + " — "
+                                  + window.windowBrowser.activeSpaceName + " — Omaweb"
 
     property var windowBrowser: browser
     readonly property var syncLauncherService: syncLauncher
@@ -2390,6 +2393,8 @@ ApplicationWindow {
                 colors: window.colors
                 iconFontFamily: materialSymbols.name
                 browser: window.windowBrowser
+                keyMap: keymap
+                keyLabelsShown: PrimaryHold.held && !window.settingsOpen
                 privateWindow: window.privateWindow
                 collapsed: window.sidebarCollapsed
                 floating: chromeRow.peekRevealed > 0 && window.sidebarCollapsed
@@ -2489,6 +2494,39 @@ ApplicationWindow {
 
                 HoverHandler {
                     id: sidebarHover
+                }
+            }
+
+            // The Space notice: a switch names the Space it arrived in at the
+            // top of the page, where the reader is looking, since the footer
+            // names it only with a letter. It comes down from the top edge as
+            // a page notice does and goes back up. It belongs to the row
+            // rather than to the page, so the page's own arrival does not
+            // carry it: it stands over the middle of where the page settles.
+            SpaceNotice {
+                id: spaceNotice
+                objectName: "spaceNotice"
+                x: chromeRow.settledSeam + (chromeRow.width - chromeRow.settledSeam - width) / 2
+                z: 40
+                colors: window.colors
+                spaceName: window.windowBrowser.activeSpaceName
+                ease: window.easeChrome
+
+                // The controller also says the active Space changed when it
+                // is renamed or when Sync reloads it, which is not a switch.
+                property string shownSpaceId: ""
+                Component.onCompleted: shownSpaceId = window.windowBrowser.activeSpaceId
+
+                Connections {
+                    target: window.windowBrowser
+                    enabled: !window.privateWindow
+                    function onActiveSpaceChanged() {
+                        const spaceId = window.windowBrowser.activeSpaceId;
+                        if (spaceId === spaceNotice.shownSpaceId)
+                            return;
+                        spaceNotice.shownSpaceId = spaceId;
+                        spaceNotice.show();
+                    }
                 }
             }
 
