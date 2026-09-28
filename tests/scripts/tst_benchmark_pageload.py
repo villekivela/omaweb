@@ -169,6 +169,38 @@ class RepeatTest(unittest.TestCase):
         self.assertIn("spare", self.site.problem)
 
 
+class QuietTest(unittest.TestCase):
+    """A load that never reports says how far it got, as far as the server saw."""
+
+    def setUp(self):
+        self.plan = runtime.pageload_plan(loads=2)
+        self.site = runtime.PageLoadSite(self.plan)
+        self.addCleanup(self.site.server.server_close)
+        self.load = self.plan[0]
+
+    def test_a_page_the_browser_never_asked_for(self):
+        self.assertEqual(self.site.describe_quiet(self.load), "load 0 was never served")
+
+    def test_a_page_served_with_some_of_its_images(self):
+        self.site.answered.add(self.load.address(self.site.port))
+        images = [runtime.with_port(image, self.site.port) for image in self.load.images]
+        self.site.requested.update(images[:3])
+        self.site.answered.update(images[:2])
+        self.site.server.errors["ConnectionResetError"] = 1
+        described = self.site.describe_quiet(self.load)
+        self.assertIn("3 of its 40 images were asked of the server and 2 answered", described)
+        self.assertIn("1 ConnectionResetError", described)
+        self.assertIn("it never said how far it got", described)
+
+    def test_a_page_that_said_how_far_it_got(self):
+        self.site.answered.add(self.load.address(self.site.port))
+        self.site.stalled[0] = {"number": 0, "readyState": "complete", "loadEventStart": 120.5,
+                                "incomplete": [], "reporting": "sent"}
+        described = self.site.describe_quiet(self.load)
+        self.assertIn("document complete, load event at 120.5 ms, 0 images incomplete (none), "
+                      "report sent", described)
+
+
 class SeedTest(unittest.TestCase):
 
     def test_blocking_is_switched_off_for_the_off_host_only(self):

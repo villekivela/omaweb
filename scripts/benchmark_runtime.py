@@ -154,6 +154,10 @@ SHIFTED = {":": "semicolon"}
 TOPLEVEL_SURFACE = re.compile(r"-> xdg_wm_base#\d+\.get_xdg_surface\(new id xdg_surface#\d+, "
                               r"wl_surface#(\d+)\)")
 
+# A line of `WAYLAND_DEBUG` output, which opens on a timestamp: milliseconds in older libwayland,
+# the time of day in newer. Chromium's own lines open on a bracketed process id and a colon.
+WAYLAND_LINE = re.compile(r"\[\s*(\d+|\d\d:\d\d:\d\d)\.\d+\]")
+
 # The page ADR 0050 measured: forty images, which no rule refuses, so a load with blocking on
 # fetches everything the load with it off does and the difference is what blocking cost.
 PAGELOAD_IMAGES = 40
@@ -221,6 +225,14 @@ PAGELOAD_SETTLE_MILLISECONDS = 250
 # One load of forty images from loopback takes a fraction of a second; one that has not reported
 # in this long is a page that never finished.
 PAGELOAD_TIMEOUT = 30.0
+
+# How often a page that has not gone on to the next one tells the server how far it got. A load
+# that reports goes on in well under a second, so only one that went quiet ever says it.
+PAGELOAD_STALL_MILLISECONDS = 5000
+
+# How much of the browser's own output a quiet load prints: enough to reach back past the page
+# before it, which is a title and a few messages.
+PAGELOAD_MESSAGES = 40
 
 # A one-pixel PNG. What an image costs to decode is not what this measures.
 PIXEL = base64.b64decode(
@@ -360,6 +372,42 @@ def children_by_parent() -> dict[int, list[int]]:
     return tree
 
 
+def process_states(root: int) -> dict[int, tuple[str, str, float, int]]:
+    """Each process in a tree: its name, its state, the CPU seconds it has used, and its RSS in KiB."""
+    tree = children_by_parent()
+    ticks = os.sysconf("SC_CLK_TCK")
+    page_kib = os.sysconf("SC_PAGE_SIZE") // 1024
+    states = {}
+    pending = [root]
+    while pending:
+        pid = pending.pop()
+        pending += tree.get(pid, [])
+        try:
+            with open(f"/proc/{pid}/stat", encoding="utf-8") as handle:
+                stat = handle.read()
+        except OSError:
+            continue
+        name = stat[stat.index("(") + 1:stat.rindex(")")]
+        fields = stat.rsplit(")", 1)[1].split()
+        states[pid] = (name, fields[0], (int(fields[11]) + int(fields[12])) / ticks,
+                       int(fields[21]) * page_kib)
+    return states
+
+
+def describe_processes(root: int) -> list[str]:
+    """What each process in a tree is doing: its state, its RSS, and the CPU it used over a second.
+
+    A second apart, because what a process has used since it started does not say whether it is
+    using any now.
+    """
+    before = process_states(root)
+    time.sleep(1)
+    after = process_states(root)
+    return [f"{pid} {name} {state} {rss / 1024:.0f} MiB, "
+            f"{cpu - before.get(pid, (name, state, cpu, rss))[2]:.2f} CPU s in the last second"
+            for pid, (name, state, cpu, rss) in sorted(after.items())]
+
+
 def tree_mib(root: int) -> float:
     """Proportional set size of a process and everything below it, in mebibytes."""
     tree = children_by_parent()
@@ -465,6 +513,15 @@ class Browser:
             time.sleep(0.1)
         raise MeasurementFailed(f"the browser never showed a page titled {fragment!r}")
 
+    def messages(self) -> list[str]:
+        """The titles the browser gave its window and what else it wrote to stderr, in order.
+
+        The rest of the log is the Wayland protocol, which says nothing about a page.
+        """
+        with open(self.log_path, encoding="utf-8", errors="replace") as handle:
+            return [line.rstrip() for line in handle
+                    if ".set_title(" in line or not WAYLAND_LINE.match(line.lstrip())]
+
     @property
     def startup_seconds(self) -> float:
         return self.mapped_at - self.started_at
@@ -509,11 +566,15 @@ class Browser:
         by the kernel rather than by us.
         """
         if self.process:
+            # The launcher leads a session of its own, so its process id is the group's, and that
+            # holds after the launcher has gone. The launcher going says nothing about the rest of
+            # the group: whatever outlives SIGTERM is killed rather than left running into the next
+            # measurement, where a page-load run after one that went quiet found its rules never
+            # came into force.
+            group = self.process.pid
             for stage in (signal.SIGTERM, signal.SIGKILL):
-                if self.process.poll() is not None:
-                    break
                 try:
-                    os.killpg(os.getpgid(self.process.pid), stage)
+                    os.killpg(group, stage)
                 except (ProcessLookupError, PermissionError):
                     break
                 try:
@@ -822,6 +883,15 @@ PAGELOAD_PAGE = """<!doctype html>
 <script>
   const failed = new Set();
   addEventListener("error", event => failed.add(event.target.src), true);
+  let reporting = "not yet";
+  // A page still here after this long has gone quiet, and says how far it got.
+  setInterval(() => fetch("/stalled", {{ method: "POST", body: JSON.stringify({{
+    number: {number},
+    readyState: document.readyState,
+    loadEventStart: performance.getEntriesByType("navigation")[0]?.loadEventStart ?? null,
+    incomplete: [...document.images].filter(image => !image.complete).map(image => image.src),
+    reporting,
+  }}) }}), {stall});
 </script>
 {markup}
 {images}
@@ -835,7 +905,9 @@ PAGELOAD_PAGE = """<!doctype html>
       missing: missing.map(image => image.src),
       failed: missing.filter(image => failed.has(image.src)).length,
     }};
+    reporting = "sent";
     const sent = await fetch("/report", {{ method: "POST", body: JSON.stringify(report) }});
+    reporting = "answered";
     const answer = await sent.json();
     if (answer.next) setTimeout(() => location.replace(answer.next), {settle});
   }}));
@@ -907,6 +979,8 @@ class PageLoadSite:
         # apart as one that never arrived here and one that did and went missing on the way back.
         self.requested: set[str] = set()
         self.answered: set[str] = set()
+        # What a page that went quiet last said of itself.
+        self.stalled: dict[int, dict] = {}
         self.ready = False
         self.problem = ""
         self.finished = False
@@ -943,7 +1017,8 @@ class PageLoadSite:
             for image in load.images)
         markup = procedural_fixture()[1] if load.case == "procedural" else ""
         return PAGELOAD_PAGE.format(number=number, images=images, markup=markup,
-                                    settle=PAGELOAD_SETTLE_MILLISECONDS).encode()
+                                    settle=PAGELOAD_SETTLE_MILLISECONDS,
+                                    stall=PAGELOAD_STALL_MILLISECONDS).encode()
 
     def ready_page(self) -> bytes:
         return PAGELOAD_READY_PAGE.format(probe=PAGELOAD_PROBE_HOST, control=PAGELOAD_CONTROL_HOST,
@@ -1004,10 +1079,28 @@ class PageLoadSite:
             while not self.finished and not self.problem:
                 if not self.progress.wait(PAGELOAD_TIMEOUT) and len(self.reports) == heard:
                     raise MeasurementFailed(
-                        f"load {heard + 1} of {len(self.sequence)} never reported its timing")
+                        f"load {heard + 1} of {len(self.sequence)} never reported its timing: "
+                        + self.describe_quiet(self.plan[self.sequence[self.position]]))
                 heard = len(self.reports)
             if self.problem:
                 raise MeasurementFailed(self.problem)
+
+    def describe_quiet(self, load: PageLoad) -> str:
+        """How far a page that never reported got, as far as the server can tell."""
+        if load.address(self.port) not in self.answered:
+            return f"load {load.number} was never served"
+        images = [with_port(image, self.port) for image in load.images]
+        asked = sum(address in self.requested for address in images)
+        answered = sum(address in self.answered for address in images)
+        errors = ", ".join(f"{count} {name}" for name, count in sorted(self.server.errors.items()))
+        stalled = self.stalled.get(load.number)
+        said = ("it never said how far it got" if stalled is None else
+                f"it last said: document {stalled['readyState']}, load event at "
+                f"{stalled['loadEventStart']} ms, {len(stalled['incomplete'])} images incomplete "
+                f"({', '.join(stalled['incomplete'][:3]) or 'none'}), report {stalled['reporting']}")
+        return (f"load {load.number} ({load.case} hosts, blocking {load.mode}) was served, and "
+                f"{asked} of its {PAGELOAD_IMAGES} images were asked of the server and {answered} "
+                f"answered by it; the server's errors: {errors or 'none'}; {said}")
 
     def describe_missing(self, load: PageLoad) -> str:
         """One page's missing images, and whether the server ever saw them asked for.
@@ -1065,6 +1158,10 @@ class PageLoadSite:
             def do_POST(self) -> None:  # noqa: N802
                 length = int(self.headers.get("Content-Length", "0"))
                 report = json.loads(self.rfile.read(length) or b"{}")
+                if self.path == "/stalled":
+                    site.stalled[int(report["number"])] = report
+                    self.answer(b"{}", "application/json")
+                    return
                 self.answer(json.dumps({"next": site.receive(report)}).encode(),
                             "application/json")
 
@@ -1229,7 +1326,17 @@ def run_pageload(executable: str, private: bool) -> dict:
         site = PageLoadSite(plan)
         site.start()
         browser.start(site.start_address, launcher=network.launcher if network else ())
-        site.wait()
+        try:
+            site.wait()
+        except MeasurementFailed:
+            log("  the browser's processes when the load went quiet:")
+            for line in describe_processes(browser.pid):
+                log(f"    {line}")
+            browser.stop()
+            log("  the browser's titles and messages:")
+            for line in browser.messages()[-PAGELOAD_MESSAGES:]:
+                log(f"    {line}")
+            raise
     finally:
         browser.stop()
         if site:
