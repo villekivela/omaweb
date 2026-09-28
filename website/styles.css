@@ -1168,6 +1168,15 @@ code {
   grid-row: 2 / span 2;
 }
 
+/* Beside its copy, the heading's two lines are as tall as the copy: three 24px lines of intro and
+   two 20.8px lines of the README note. */
+@media (min-width: 821px) {
+  .install__intro h2 {
+    font-size: 54px;
+    line-height: calc((3 * 24px + 2 * 20.8px) / 2);
+  }
+}
+
 .install__intro p:not(.kicker) {
   grid-column: 2;
   max-width: 52ch;
