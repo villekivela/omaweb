@@ -101,6 +101,17 @@ bool ThreadedSessionStore::saveSpaces(const QVector<SpaceState> &spaces)
     return ask([this, &spaces] { return m_store->saveSpaces(spaces); });
 }
 
+QStringList ThreadedSessionStore::agentSpaceIds() const
+{
+    return ask([this] { return m_store->agentSpaceIds(); });
+}
+
+bool ThreadedSessionStore::saveAgentSpace(const QString &spaceId, bool agentSpace)
+{
+    return ask(
+        [this, &spaceId, agentSpace] { return m_store->saveAgentSpace(spaceId, agentSpace); });
+}
+
 bool ThreadedSessionStore::setActiveSpace(const QString &spaceId)
 {
     return ask([this, &spaceId] { return m_store->setActiveSpace(spaceId); });

@@ -1,5 +1,8 @@
+#include "AgentCommand.h"
+#include "AgentControl.h"
 #include "BrowserController.h"
 #include "ContentBlocker.h"
+#include "ControlSocket.h"
 #include "ReleaseWatch.h"
 #include "EngineBuild.h"
 #include "EngineCapabilities.h"
@@ -152,6 +155,12 @@ int main(int argc, char *argv[])
             QString::fromLatin1(qWebEngineChromiumVersion()));
         std::fprintf(stdout, "%s\n", qPrintable(report));
         return 0;
+    }
+    // An Agent verb is a client of the browser already running, so it starts
+    // nothing of its own: no engine, no desktop claim, no session.
+    if (omaweb::isAgentCommand(arguments)) {
+        QCoreApplication client(argc, argv);
+        return omaweb::runAgentCommand(arguments, omaweb::ControlSocket::defaultPath());
     }
     if (qEnvironmentVariableIsSet("QTWEBENGINE_DISABLE_SANDBOX")) {
         qCritical("Omaweb refuses to start with QTWEBENGINE_DISABLE_SANDBOX set. There is no "
@@ -419,6 +428,15 @@ int main(int argc, char *argv[])
     if (launchUrl.isValid() && !engine.rootObjects().isEmpty()) {
         QTimer::singleShot(
             0, &browser, [&browser, launchUrl] { browser.openInput(launchUrl.toString(), true); });
+    }
+
+    // The Agent socket is always open for browser commands. Allow agents
+    // decides what else it answers, and a check of the QML is not a browser
+    // anything should reach.
+    omaweb::AgentControl agentControl(&browser, configRoot());
+    omaweb::ControlSocket controlSocket(&agentControl);
+    if (!validatingQml) {
+        controlSocket.listen(omaweb::ControlSocket::defaultPath());
     }
 
     // Every later launch arrives here instead, as the address it was asked to

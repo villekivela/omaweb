@@ -3379,6 +3379,10 @@ ApplicationWindow {
                         window.retireSpaceProfile(spaceId);
                     }
 
+                    function onAwayTabDiscarded(tabId) {
+                        engineLoader.discardEngine(tabId);
+                    }
+
                     // The engine answers straight away with what it could not
                     // take, which is what the notice about it reports.
                     function onEngineDataClearRequested(spaceIds, dataTypes, since) {

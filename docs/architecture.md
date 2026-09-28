@@ -248,6 +248,31 @@ Remote debugging exists only behind the `--remote-debugging[=port]` launch optio
 to loopback, refuses to start when a Chromium debugging switch reaches the engine through the
 command line or the environment, and takes Private windows away from that session.
 
+## Agent socket
+
+An Agent reaches the browser through one Unix socket, `$XDG_RUNTIME_DIR/omaweb/control.sock`, or the
+same name under `$TMPDIR` on macOS ([ADR 0051](adr/0051-hand-the-browser-to-an-agent.md)). The
+socket has mode 0600 in a directory only its user can enter, and anything running as that user can
+open it. It carries one JSON object per line each way. `ControlSocket` owns the transport and
+`AgentControl` decides every answer, so the rules are tested without a socket.
+
+A request's verb decides what it may do, never its connection's name. `spaces`, `tabs`, `open` and
+`close` are browser commands and always answer. `space new` and `space delete` wait for Allow
+agents, which is off until the reader turns it on and is kept in `privacy.json` beside the reader's
+other decisions. Turning it off clears every connection's current tab. `close` takes only a tab an
+Agent opened in this run or a tab of an Agent Space, and `open` refuses a Pinned tab and any scheme
+but `http`, `https`, `file` and `about`.
+
+The name picks the connection's state, so the CLI keeps its current tab across the separate
+processes it runs as. No verb selects a tab or switches Space. A tab opened or changed in a Space
+not on show is written to that Space's store, and the frozen page the window still holds for it is
+dropped, so the Space shows the new address when it comes back.
+
+The Agent Space label lives in its own `agent_spaces` table rather than on the Space record. Sync
+copies Space records, so it never sees the label, and deleting a Space deletes its label with it.
+`AgentControl` is handed the ordinary window's controller only, and refuses every verb if given a
+Private window's.
+
 ## Everyday page commands
 
 Find, zoom, reload, Reload bypassing cache, Stop loading, printing and site-requested fullscreen are

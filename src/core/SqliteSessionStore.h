@@ -29,6 +29,8 @@ public:
     bool setActiveSpace(const QString &spaceId) override;
     bool spaceHasSavedContent(const QString &spaceId) const override;
     bool deleteSpace(const QString &spaceId, const QString &replacementActiveSpaceId = {}) override;
+    QStringList agentSpaceIds() const override;
+    bool saveAgentSpace(const QString &spaceId, bool agentSpace) override;
     bool saveTab(const TabState &tab, int position) override;
     bool saveTabs(
         const QString &spaceId, const QVector<TabState> &tabs, const QString &activeTabId) override;
