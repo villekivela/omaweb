@@ -174,7 +174,8 @@ Item {
     readonly property var dividerFractions: ({})
     readonly property real paneMinimumWidth: 120
     readonly property real leftPaneWidth: Math.round(root.width * root.dividerFraction)
-    readonly property real dividerWidth: 1
+    // PROTOTYPE (ui-language): settable so the Tiled variant can open a gap.
+    property real dividerWidth: 1
     onSplitLeftTabIdChanged: root.restoreDivider()
     onSplitRightTabIdChanged: root.restoreDivider()
     function splitKey() {
@@ -1269,9 +1270,9 @@ Item {
         width: root.dividerWidth
         height: root.height
         z: 5
-        color: root.colors && root.colors.separator !== undefined ? root.colors.separator :
-                                                                    "transparent"
-
+        color: root.dividerWidth > 1 ? "transparent" : (root.colors && root.colors.separator
+                                                        !== undefined ? root.colors.separator :
+                                                                        "transparent")
     }
 
     PanelResizer {

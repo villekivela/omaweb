@@ -11,6 +11,23 @@ Rectangle {
     property var colors
     property string iconFontFamily
     property var browser
+    // PROTOTYPE (ui-language): the variant drawn, the window's keymap for the
+    // Keys variant's badges, and whether Ctrl is held.
+    property string uiVariant: "0"
+    property var keyMap: null
+    property bool protoShowKeys: false
+    readonly property bool protoTiled: uiVariant === "A"
+    readonly property bool protoLedger: uiVariant === "B"
+    readonly property bool protoKeys: uiVariant === "C"
+    property color protoSpaceColor: colors.accent
+    function protoKeyFor(command) {
+        if (!root.keyMap)
+            return "";
+        return root.keyMap.keysFor(command).split("  ·  ")[0];
+    }
+    function protoTabKey(position) {
+        return position < 9 ? String(position + 1) : "";
+    }
     // What this window's Space is hosting, as `{ key, name, id, popupUrl }`.
     property var hostedExtensions: []
     property bool privateWindow: false
@@ -552,9 +569,40 @@ Rectangle {
         }
     }
 
+    // PROTOTYPE (ui-language): in the Tiled variant a Space is a hue rather
+    // than a place along a row. Switching does not slide; the sidebar takes
+    // the next Space's colour, strongly for a moment and faintly at rest.
+    Rectangle {
+        id: protoWash
+        objectName: "protoSpaceWash"
+        anchors.fill: parent
+        visible: root.protoTiled
+        color: root.protoSpaceColor
+        opacity: 0.06
+        SequentialAnimation {
+            id: protoWashPulse
+            NumberAnimation {
+                target: protoWash
+                property: "opacity"
+                to: 0.26
+                duration: 60
+            }
+            NumberAnimation {
+                target: protoWash
+                property: "opacity"
+                to: 0.06
+                duration: 240
+                easing.type: Easing.OutCubic
+            }
+        }
+    }
+    onProtoSpaceColorChanged: if (root.protoTiled)
+                                  protoWashPulse.restart()
+
     // The seam down the sidebar is a divider rather than a frame, so it is
     // drawn as the bar draws one.
     Rectangle {
+        visible: !root.protoTiled
         anchors.right: parent.right
         width: 1
         height: parent.height
@@ -593,6 +641,14 @@ Rectangle {
 
                 ChromeButton {
                     objectName: "collapseButton"
+                    ProtoKeyBadge {
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        anchors.top: parent.bottom
+                        anchors.topMargin: -4
+                        keys: root.protoKeyFor("toggle-sidebar")
+                        colors: root.colors
+                        shown: root.protoKeys && root.protoShowKeys
+                    }
                     width: 28
                     height: 26
                     icon: root.collapsed ? "left_panel_open" : "left_panel_close"
@@ -605,6 +661,14 @@ Rectangle {
 
                 ChromeButton {
                     objectName: "commandPanelButton"
+                    ProtoKeyBadge {
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        anchors.top: parent.bottom
+                        anchors.topMargin: -4
+                        keys: root.protoKeyFor("command-panel")
+                        colors: root.colors
+                        shown: root.protoKeys && root.protoShowKeys
+                    }
                     width: 28
                     height: 26
                     icon: "search"
@@ -624,6 +688,14 @@ Rectangle {
 
                 ChromeButton {
                     objectName: "backButton"
+                    ProtoKeyBadge {
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        anchors.top: parent.bottom
+                        anchors.topMargin: -4
+                        keys: root.protoKeyFor("back")
+                        colors: root.colors
+                        shown: root.protoKeys && root.protoShowKeys
+                    }
                     width: 28
                     height: 26
                     icon: "arrow_back"
@@ -637,6 +709,14 @@ Rectangle {
 
                 ChromeButton {
                     objectName: "forwardButton"
+                    ProtoKeyBadge {
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        anchors.top: parent.bottom
+                        anchors.topMargin: -4
+                        keys: root.protoKeyFor("forward")
+                        colors: root.colors
+                        shown: root.protoKeys && root.protoShowKeys
+                    }
                     width: 28
                     height: 26
                     icon: "arrow_forward"
@@ -650,6 +730,14 @@ Rectangle {
 
                 ChromeButton {
                     objectName: "reloadButton"
+                    ProtoKeyBadge {
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        anchors.top: parent.bottom
+                        anchors.topMargin: -4
+                        keys: root.protoKeyFor("reload")
+                        colors: root.colors
+                        shown: root.protoKeys && root.protoShowKeys
+                    }
                     width: 28
                     height: 26
                     icon: "refresh"
@@ -673,7 +761,7 @@ Rectangle {
             readonly property bool focused: root.statusOpen || addressButton.activeFocus
             width: parent.width
             height: 34
-            radius: 2
+            radius: root.protoLedger ? 0 : 2
             color: Style.controlFill(addressButton.focused, addressMouse.containsMouse,
                                      root.colors.text, root.colors.accent)
             borderSpec: Border.controlSpec(addressButton.focused ? "focus" : (
@@ -695,9 +783,68 @@ Rectangle {
 
             // The lock takes the same 18px slot a tab row gives its site chip,
             // so the address and every tab title start on one line.
+            ProtoKeyBadge {
+                anchors.right: parent.right
+                anchors.rightMargin: 4
+                anchors.verticalCenter: parent.verticalCenter
+                keys: root.protoKeyFor("open-address")
+                colors: root.colors
+                shown: root.protoKeys && root.protoShowKeys
+            }
+
+            // PROTOTYPE (ui-language): the Ledger address states what is
+            // known about the page as short plain words, and nothing it
+            // cannot vouch for. The lock and the shield give way to them.
+            Row {
+                objectName: "protoFacts"
+                visible: root.protoLedger
+                anchors.left: parent.left
+                anchors.leftMargin: 8
+                anchors.right: parent.right
+                anchors.rightMargin: 8
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: 0
+                clip: true
+                readonly property string host: String(root.activeUrl).replace(/^[a-z]+:\/\//,
+                                                                              "").replace(/\/.*$/,
+                                                                                          "")
+                readonly property var facts: {
+                    if (root.blank)
+                        return [];
+                    const out = [];
+                    out.push(root.certificateError ? "cert error" : (root.secure ? "tls" :
+                                                                                   "plain http"));
+                    if (root.refusalTally > 0)
+                        out.push(root.refusalTally + " refused");
+                    return out;
+                }
+
+                Text {
+                    text: root.blank ? "search or enter address" : parent.host
+                    color: root.blank ? root.colors.mutedText : root.colors.text
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.body
+                }
+
+                Repeater {
+                    model: parent.facts
+
+                    Text {
+                        required property string modelData
+                        text: "  ·  " + modelData
+                        color: modelData === "cert error" || modelData === "plain http"
+                               ? root.colors.urgent : root.colors.mutedText
+                        font.family: Style.font.family
+                        font.pixelSize: Style.font.caption
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+                }
+            }
+
             Text {
                 id: securityGlyph
                 objectName: "securityIndicator"
+                visible: !root.protoLedger
                 anchors.left: parent.left
                 anchors.leftMargin: 8
                 anchors.verticalCenter: parent.verticalCenter
@@ -720,6 +867,7 @@ Rectangle {
             }
 
             Text {
+                visible: !root.protoLedger
                 anchors.left: securityGlyph.right
                 anchors.leftMargin: 9
                 anchors.right: blockedCount.left
@@ -740,7 +888,7 @@ Rectangle {
                 anchors.rightMargin: 9
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: 3
-                visible: root.refusalTally > 0
+                visible: root.refusalTally > 0 && !root.protoLedger
 
                 Text {
                     anchors.verticalCenter: parent.verticalCenter
@@ -807,9 +955,10 @@ Rectangle {
             transform: Translate {
                 x: root.arrivalOffset * listLayer.width
             }
-            readonly property int capacity: Math.max(3, Math.min(5, Math.floor(width / 56)))
+            readonly property int capacity: root.protoLedger ? 1 : Math.max(3, Math.min(5, Math.floor(width
+                                                                                                      / 56)))
             readonly property int columns: Math.min(root.pinnedCount, capacity)
-            spacing: 4
+            spacing: root.protoLedger ? 0 : 4
 
             Repeater {
                 model: root.browser ? root.browser.pinnedTabs : null
@@ -826,6 +975,9 @@ Rectangle {
                            / tabsInRow
                     colors: root.colors
                     iconFontFamily: root.iconFontFamily
+                    uiVariant: root.uiVariant
+                    protoKey: root.protoTabKey(index)
+                    protoShowKeys: root.protoShowKeys
                     useFavicons: root.useFavicons
                     tintFavicons: root.tintFavicons
                     onActivated: function (id) {
@@ -903,6 +1055,9 @@ Rectangle {
                         width: inSplit ? (parent.width - ordinarySection.spacing) / 2 : parent.width
                         colors: root.colors
                         iconFontFamily: root.iconFontFamily
+                        uiVariant: root.uiVariant
+                        protoKey: root.protoTabKey(root.pinnedCount + index)
+                        protoShowKeys: root.protoShowKeys
                         useFavicons: root.useFavicons
                         tintFavicons: root.tintFavicons
                         onActivated: function (id) {
@@ -1015,14 +1170,32 @@ Rectangle {
                 model: root.browser ? root.browser.spaces : null
 
                 ChromeButton {
+                    id: spaceButton
                     required property string spaceId
                     required property string spaceName
                     required property bool active
+                    required property int index
+                    required property var spaceColor
+                    // PROTOTYPE (ui-language): the colour the Tiled variant
+                    // tints the chrome with. A Space with none takes a hue
+                    // off its place in the row.
+                    readonly property color protoColor: spaceColor && String(spaceColor).length > 0
+                                                        ? spaceColor : ["#9b87ff", "#e5c07b",
+                                                                        "#98c379", "#61afef"][index
+                                                                                              % 4]
+                    onActiveChanged: if (active)
+                                         root.protoSpaceColor = protoColor
+                    Component.onCompleted: if (active)
+                                               root.protoSpaceColor = protoColor
 
                     objectName: "space-" + spaceId
                     width: 30
                     height: 28
-                    label: spaceName.length > 0 ? spaceName.charAt(0).toUpperCase() : "·"
+                    // PROTOTYPE (ui-language): the Tiled variant numbers
+                    // Spaces the way the bar numbers workspaces.
+                    label: root.protoTiled ? String(index + 1) : (spaceName.length > 0
+                                                                  ? spaceName.charAt(0).toUpperCase(
+                                                                        ) : "·")
                     accessibleName: active ? "Current Space: " + spaceName : "Switch to "
                                              + spaceName
                     // The letter is the theme's, not the Space's own colour:
@@ -1038,10 +1211,28 @@ Rectangle {
                     // so it is drawn the way the kit draws a selection and the
                     // way a current tab row is: the kit's own selected fill,
                     // bordered.
-                    selected: active && !root.easeSpaces
-                    bordered: active && !root.easeSpaces
+                    selected: active && !root.easeSpaces && !root.protoTiled
+                    bordered: active && !root.easeSpaces && !root.protoTiled
                     background: "transparent"
                     onClicked: root.spaceActivated(spaceId)
+
+                    Rectangle {
+                        visible: root.protoTiled && spaceButton.active
+                        anchors.bottom: parent.bottom
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        width: parent.width - 10
+                        height: 2
+                        color: spaceButton.protoColor
+                    }
+
+                    ProtoKeyBadge {
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        anchors.bottom: parent.top
+                        anchors.bottomMargin: 2
+                        keys: spaceButton.index < 9 ? "Ctrl+" + (spaceButton.index + 1) : ""
+                        colors: root.colors
+                        shown: root.protoKeys && root.protoShowKeys
+                    }
                 }
             }
         }

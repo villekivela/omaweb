@@ -5,6 +5,7 @@ import QtQuick.Window
 import QtQuick.Dialogs as Dialogs
 import Omaweb
 import Omaweb.Engine
+import "PrototypeFakes.js" as Fakes
 
 ApplicationWindow {
     id: window
@@ -40,6 +41,24 @@ ApplicationWindow {
     // is what most readers want and what the seam is written for, so refusing
     // it is the reader's to ask for.
     property bool easeChrome: true
+    // PROTOTYPE (ui-language): which interface language is drawn. "0" is
+    // today's chrome, "A" Tiled, "B" Ledger, "C" Keys. `--variant A` picks one
+    // at start, and the bar at the foot of the window cycles them.
+    property string uiVariant: {
+        const args = Qt.application.arguments;
+        const at = args.indexOf("--variant");
+        return at >= 0 && at + 1 < args.length ? args[at + 1] : "0";
+    }
+    readonly property bool protoTiled: uiVariant === "A"
+    readonly property real protoGap: protoTiled ? 8 : 0
+    readonly property color protoSpaceColor: sidebar.protoSpaceColor
+    // Held Ctrl, for the Keys variant. The bar's own toggle stands in where
+    // the page takes the key first.
+    property bool protoCtrlHeld: false
+    property bool protoKeysPinned: Qt.application.arguments.indexOf("--keys") >= 0
+    readonly property bool protoShowKeys: protoCtrlHeld || protoKeysPinned
+    onActiveChanged: if (!active)
+                         protoCtrlHeld = false
     property bool useFavicons: true
     // A favicon is how a reader finds a tab without reading it, so it is shown
     // as the site drew it. Recolouring every mark to one hue takes away the one
@@ -2318,16 +2337,25 @@ ApplicationWindow {
     Rectangle {
         id: shell
         anchors.fill: parent
-        color: window.colors.window
+        color: window.protoTiled ? "transparent" : window.colors.window
         // A window filling the screen has no edge to draw: the frame belongs to
         // a window sitting on a desktop, not to one that is the desktop.
-        border.width: window.visibility === Window.FullScreen ? 0 : 1
+        border.width: window.visibility === Window.FullScreen || window.protoTiled ? 0 : 1
         border.color: window.colors.border
         clip: true
+        Keys.onPressed: function (event) {
+            if (event.key === Qt.Key_Control)
+                window.protoCtrlHeld = true;
+        }
+        Keys.onReleased: function (event) {
+            if (event.key === Qt.Key_Control)
+                window.protoCtrlHeld = false;
+        }
 
         Item {
             id: chromeRow
             anchors.fill: parent
+            anchors.margins: window.protoGap
 
             // How much of the sidebar is on show. Only hiding and showing move
             // it, so they are what eases: a resize changes the width the reader
@@ -2389,12 +2417,15 @@ ApplicationWindow {
                 z: chromeRow.peekRevealed > 0 || sidebar.arriving ? 10 : 0
                 colors: window.colors
                 iconFontFamily: materialSymbols.name
+                uiVariant: window.uiVariant
+                keyMap: keymap
+                protoShowKeys: window.protoShowKeys
                 browser: window.windowBrowser
                 privateWindow: window.privateWindow
                 collapsed: window.sidebarCollapsed
                 floating: chromeRow.peekRevealed > 0 && window.sidebarCollapsed
                 blocker: contentBlocker
-                easeSpaces: window.easeChrome
+                easeSpaces: window.easeChrome && !window.protoTiled
                 connectionState: window.connectionState
                 lookupFailedBy: window.lookupFailedBy
                 upgradedByHttpsOnly: !!engineLoader.item
@@ -2492,6 +2523,19 @@ ApplicationWindow {
                 }
             }
 
+            // PROTOTYPE (ui-language): the sidebar as a tile of its own.
+            Rectangle {
+                objectName: "protoSidebarFrame"
+                visible: window.protoTiled && sidebar.visible && !sidebar.floating
+                x: sidebar.x
+                width: sidebar.width
+                height: sidebar.height
+                z: sidebar.z + 1
+                color: "transparent"
+                border.width: 2
+                border.color: window.colors.border
+            }
+
             // What shows where the page is not while it arrives: the page's
             // own opaque ground, standing still, rather than the desktop.
             Rectangle {
@@ -2504,8 +2548,9 @@ ApplicationWindow {
 
             Item {
                 objectName: "engineViewport"
-                x: chromeRow.seam
-                width: chromeRow.width - chromeRow.pageInset
+                x: chromeRow.seam + (chromeRow.seam > 0 ? window.protoGap : 0)
+                width: chromeRow.width - chromeRow.pageInset - (chromeRow.seam > 0 ? window.protoGap :
+                                                                                     0)
                 height: parent.height
                 // The page arrives with the Space, from the side the sidebar's
                 // list arrives from, by a fraction of the list's travel: it is
@@ -2577,6 +2622,7 @@ ApplicationWindow {
                     pageBackgroundColor: window.colors.windowOpaque
                     pageControlAccent: window.colors.accent
                     colors: window.colors
+                    dividerWidth: window.protoTiled ? window.protoGap : 1
                     ease: window.easeChrome
                     spaceId: window.windowBrowser.activeSpaceId
 
@@ -2720,6 +2766,67 @@ ApplicationWindow {
                     allowed: engineLoader.splitOnShow && !window.settingsOpen &&
                              !window.historyOpen && !window.shortcutsOpen &&
                              !engineLoader.siteFullscreenActive
+                }
+
+                // PROTOTYPE (ui-language): the Tiled variant frames each pane
+                // the way Hyprland frames a window: the focused one in the
+                // Space's colour, the tab beside in the inactive border.
+                Item {
+                    objectName: "protoTileFrames"
+                    anchors.fill: engineLoader
+                    visible: (window.protoTiled || protoAgentPage.agent) &&
+                             !engineLoader.siteFullscreenActive
+                    z: 20
+
+                    // In the Keys variant a page an Agent is driving is framed
+                    // in the Agent's colour and says who and what, since the
+                    // reader is watching someone else's hands.
+                    QtObject {
+                        id: protoAgentPage
+                        readonly property var state: Fakes.stateFor(window.windowBrowser.activeTitle,
+                                                                    false, false)
+                        readonly property bool agent: window.uiVariant === "C" && state.agent
+                    }
+
+                    Rectangle {
+                        visible: protoAgentPage.agent
+                        anchors.right: parent.right
+                        anchors.top: parent.top
+                        anchors.rightMargin: 2
+                        width: agentLabel.implicitWidth + 16
+                        height: agentLabel.implicitHeight + 8
+                        color: Fakes.agentColor
+                        Text {
+                            id: agentLabel
+                            anchors.centerIn: parent
+                            text: protoAgentPage.state.agentName + " is driving · "
+                                  + protoAgentPage.state.agentDoing
+                            color: window.colors.windowOpaque
+                            font.pixelSize: 12
+                            font.bold: true
+                        }
+                    }
+
+                    Rectangle {
+                        x: engineLoader.splitOnShow ? engineLoader.activePaneX : 0
+                        width: engineLoader.splitOnShow ? engineLoader.activePaneWidth :
+                                                          parent.width
+                        height: parent.height
+                        color: "transparent"
+                        border.width: 2
+                        border.color: protoAgentPage.agent ? Fakes.agentColor :
+                                                             window.protoSpaceColor
+                    }
+
+                    Rectangle {
+                        visible: engineLoader.splitOnShow && window.protoTiled
+                        x: engineLoader.besidePaneX
+                        width: engineLoader.besidePaneWidth
+                        height: parent.height
+                        color: "transparent"
+                        border.width: 2
+                        border.color: window.colors.border
+                    }
                 }
 
                 DeveloperToolsDock {
@@ -4017,6 +4124,10 @@ ApplicationWindow {
         textureScale: 0.5
         readonly property color overlayTint: window.colors.sheet
         tint: Qt.rgba(overlayTint.r, overlayTint.g, overlayTint.b, Math.min(overlayTint.a, 0.8))
+    }
+
+    PrototypeSwitcher {
+        window: window
     }
 
     CommandPanel {

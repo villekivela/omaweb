@@ -1,6 +1,7 @@
 import QtQuick
 import qs.Commons
 import qs.Ui as Omarchy
+import "PrototypeFakes.js" as Fakes
 
 Item {
     id: root
@@ -37,6 +38,16 @@ Item {
     readonly property bool inSplit: splitPartnerId.length > 0
     property var colors
     property string iconFontFamily
+    // PROTOTYPE (ui-language): the variant drawn, the key this row answers to,
+    // and whether Ctrl is held. The state is invented; see PrototypeFakes.js.
+    property string uiVariant: "0"
+    property string protoKey: ""
+    property bool protoShowKeys: false
+    readonly property bool protoLedger: uiVariant === "B"
+    readonly property bool protoKeys: uiVariant === "C"
+    readonly property var protoState: Fakes.stateFor(tabTitle, pinned, active)
+    readonly property string protoWord: Fakes.wordFor(protoState, tabAudible)
+    readonly property bool protoAgentLine: protoKeys && protoState.agent && !pinned
     property bool useFavicons: true
     property bool tintFavicons: false
 
@@ -123,7 +134,7 @@ Item {
         }
     }
 
-    height: pinned ? 44 : 36
+    height: protoLedger ? 28 : (protoAgentLine ? 50 : (pinned ? 44 : 36))
     activeFocusOnTab: true
     Accessible.role: Accessible.PageTab
     Accessible.name: (pinned ? "Pinned: " + tabTitle : tabTitle) + (tabBeside ? " (beside)" : "") + (
@@ -162,8 +173,36 @@ Item {
         radius: Style.cornerRadius
     }
 
+    // PROTOTYPE (ui-language): the Ledger row is a line, not a control. The
+    // row on show is marked by a bar at its start, the way a cursor marks a
+    // line, and nothing else about it is filled.
+    Rectangle {
+        anchors.fill: parent
+        visible: root.protoLedger && (root.active || root.tabBeside || hoverArea.containsMouse)
+        color: Qt.rgba(root.colors.text.r, root.colors.text.g, root.colors.text.b, root.active ? 0.07 :
+                                                                                                 0.035)
+    }
+    Rectangle {
+        visible: root.protoLedger && (root.active || root.tabBeside)
+        width: 2
+        height: parent.height
+        color: root.active ? root.colors.accent : root.colors.mutedText
+    }
+    // PROTOTYPE (ui-language): a page an Agent is driving carries its colour
+    // down its leading edge in the Keys variant.
+    Rectangle {
+        visible: root.protoKeys && root.protoState.agent
+        width: 3
+        height: parent.height - 8
+        anchors.verticalCenter: parent.verticalCenter
+        radius: 1
+        color: Fakes.agentColor
+        z: 11
+    }
+
     Omarchy.Button {
         id: tabButton
+        visible: !root.protoLedger
         anchors.fill: parent
         // A site-coloured pin has a wash and a border of its own, so it never
         // takes the kit's selected fill. Every other current row does — an
@@ -197,10 +236,13 @@ Item {
         // that widened for it would shove its own title sideways every time a
         // page started and stopped playing. The chip is what the row can spare
         // — the title beside it already names the site.
-        visible: !root.showsAudio || root.pinned
+        visible: !root.showsAudio || root.pinned || root.protoLedger
         anchors.left: parent.left
-        anchors.leftMargin: root.pinned ? (parent.width - width) / 2 : root.chipInset
+        anchors.leftMargin: root.pinned && !root.protoLedger ? (parent.width - width) / 2 :
+                                                               root.chipInset
         anchors.verticalCenter: parent.verticalCenter
+        anchors.verticalCenterOffset: root.protoAgentLine ? -8 : 0
+        opacity: root.protoLedger && root.protoState.frozen ? 0.45 : 1
         colors: root.colors
         siteUrl: root.tabUrl
         iconUrl: root.tabIconUrl
@@ -216,7 +258,7 @@ Item {
     // any colour at all, and a dot the artwork swallows says nothing.
     Rectangle {
         objectName: "keepActive-" + root.tabId
-        visible: root.showsKeepActive
+        visible: root.showsKeepActive && !root.protoLedger
         anchors.right: parent.right
         anchors.bottom: parent.bottom
         anchors.rightMargin: 4
@@ -233,17 +275,61 @@ Item {
     // The title names the page; its address is already in the address button
     // whenever the tab is the active one, and reading it twice crowds the row.
     Text {
-        visible: !root.pinned
+        id: titleText
+        visible: !root.pinned || root.protoLedger
         anchors.left: tile.right
         anchors.leftMargin: 9
         anchors.right: parent.right
-        anchors.rightMargin: closeButton.width + 10
+        anchors.rightMargin: root.protoLedger ? stateWord.implicitWidth + 16 : closeButton.width
+                                                + 10
         anchors.verticalCenter: parent.verticalCenter
+        anchors.verticalCenterOffset: root.protoAgentLine ? -8 : 0
         text: root.tabTitle.length > 0 ? root.tabTitle : tile.host
         color: root.active || root.tabBeside ? root.colors.text : root.colors.mutedText
+        opacity: root.protoLedger && root.protoState.frozen ? 0.55 : 1
         elide: Text.ElideRight
         font.family: Style.font.family
         font.pixelSize: Style.font.body
+    }
+
+    // PROTOTYPE (ui-language): what the page is doing, in one word at the end
+    // of its line. Hover gives the place to the close button.
+    Text {
+        id: stateWord
+        visible: root.protoLedger && root.protoWord.length > 0 && !hoverArea.containsMouse
+        anchors.right: parent.right
+        anchors.rightMargin: 8
+        anchors.verticalCenter: parent.verticalCenter
+        text: root.protoWord
+        color: root.protoState.agent ? Fakes.agentColor : (root.protoWord === "playing"
+                                                           ? root.colors.accent :
+                                                             root.colors.mutedText)
+        opacity: root.protoWord === "frozen" ? 0.6 : 1
+        font.family: Style.font.family
+        font.pixelSize: Style.font.caption
+    }
+
+    // PROTOTYPE (ui-language): the Agent's name and its last act, under the
+    // title, in the Keys variant.
+    Text {
+        visible: root.protoAgentLine
+        anchors.left: titleText.left
+        anchors.right: titleText.right
+        anchors.top: titleText.bottom
+        anchors.topMargin: 2
+        text: root.protoState.agentName + " · " + root.protoState.agentDoing
+        color: Fakes.agentColor
+        elide: Text.ElideRight
+        font.family: Style.font.family
+        font.pixelSize: Style.font.caption
+    }
+
+    ProtoKeyBadge {
+        anchors.horizontalCenter: tile.horizontalCenter
+        anchors.verticalCenter: tile.verticalCenter
+        keys: root.protoKey
+        colors: root.colors
+        shown: root.protoKeys && root.protoShowKeys
     }
 
     MouseArea {
@@ -357,7 +443,7 @@ Item {
             anchors.topMargin: 2
             width: root.chipSize
             height: root.chipSize
-            visible: root.showsAudio
+            visible: root.showsAudio && !root.protoLedger
             radius: Style.cornerRadius
             color: hot ? Style.hoverFillFor(audioButton.foreground, root.colors.accent) :
                          "transparent"
@@ -392,7 +478,7 @@ Item {
             width: 28
             height: 28
             visible: !root.pinned
-            radius: Style.cornerRadius
+            radius: root.protoLedger ? 0 : Style.cornerRadius
             color: hot ? Style.hoverFillFor(root.colors.mutedText, root.colors.accent) :
                          "transparent"
 
