@@ -11,6 +11,7 @@
 #include "HttpsOnly.h"
 #include "QtCertificates.h"
 #include "QtContentBlocker.h"
+#include "QtEnginePaths.h"
 #include "QtHeldDownloads.h"
 #include "QtPageFonts.h"
 #include "QtSecureDns.h"
@@ -6015,6 +6016,16 @@ int main(int argc, char *argv[])
     qputenv("QTWEBENGINE_CHROMIUM_FLAGS",
         "--use-fake-device-for-media-stream "
         "--host-resolver-rules=\"MAP upgrade.example 127.0.0.1\"");
+    // Every test builds a QML engine of its own, and each reads the import
+    // path from the environment, so a private engine's QML module is named
+    // there once rather than in each.
+    const QString engineQmlDirectory = omaweb::announceQtEnginePaths();
+    if (!engineQmlDirectory.isEmpty()) {
+        const QByteArray inherited = qgetenv("QML_IMPORT_PATH");
+        qputenv("QML_IMPORT_PATH",
+            QFile::encodeName(engineQmlDirectory)
+                + (inherited.isEmpty() ? QByteArray {} : ':' + inherited));
+    }
     omaweb::QtContentBlocker::registerSubstituteScheme();
     QtWebEngineQuick::initialize();
     QGuiApplication application(argc, argv);
