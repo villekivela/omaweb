@@ -498,63 +498,66 @@
 
       <!-- Installing, set as the dashboard's own screens: the same glass, glow and scanlines as the
            address screen in the hero. The commands are the README's, and the fingerprint is the
-           one the key in security/ carries; change them there first. -->
-      <section class="install wrap" id="install">
-        <div class="install__intro">
-          <p class="kicker">Install</p>
-          <h2 class="display display--md">Get on<br />the road.</h2>
-          <p>
-            Omaweb ships from its own pacman repository, so it installs and upgrades with the rest
-            of your system. Two steps, once.
-          </p>
-          <p class="install__more">
-            A single package or a build from source instead? The
-            <a href="https://github.com/villekivela/omaweb#install">README</a> has both.
-          </p>
-        </div>
+           one the key in security/ carries; change them there first. The road behind them runs
+           the page's full width, so the section is full width and its content keeps the column. -->
+      <section class="install" id="install">
+        <div class="install__body wrap">
+          <div class="install__intro">
+            <p class="kicker">Install</p>
+            <h2 class="display display--md">Get on<br />the road.</h2>
+            <p>
+              Omaweb ships from its own pacman repository, so it installs and upgrades with the rest
+              of your system. Two steps, once.
+            </p>
+            <p class="install__more">
+              A single package or a build from source instead? The
+              <a href="https://github.com/villekivela/omaweb#install">README</a> has both.
+            </p>
+          </div>
 
-        <div class="install__screens">
-          <figure class="hud">
-            <figcaption class="hud__bar">
-              <span>01 &middot; Add the repository</span>
-              <span class="hud__meta"
-                >/etc/pacman.conf<button class="hud__copy" type="button" data-copy hidden>
-                  Copy
-                </button></span
-              >
-            </figcaption>
-            <div class="hud__screen">
-              <pre><code>[omaweb]
+          <div class="install__screens">
+            <figure class="hud">
+              <figcaption class="hud__bar">
+                <span>01 &middot; Add the repository</span>
+                <span class="hud__meta"
+                  >/etc/pacman.conf<button class="hud__copy" type="button" data-copy hidden>
+                    Copy
+                  </button></span
+                >
+              </figcaption>
+              <div class="hud__screen">
+                <pre><code>[omaweb]
 SigLevel = Required DatabaseRequired
 Server = https://github.com/villekivela/omaweb/releases/download/repo-$arch</code></pre>
-            </div>
-          </figure>
+              </div>
+            </figure>
 
-          <figure class="hud">
-            <figcaption class="hud__bar">
-              <span>02 &middot; Trust the key, then install</span>
-              <span class="hud__meta"
-                >terminal<button class="hud__copy" type="button" data-copy hidden>
-                  Copy
-                </button></span
-              >
-            </figcaption>
-            <div class="hud__screen">
-              <pre><code><span class="hud__prompt" aria-hidden="true">$ </span>curl -fsSLO https://raw.githubusercontent.com/villekivela/omaweb/main/security/repo-signing-key.asc
+            <figure class="hud">
+              <figcaption class="hud__bar">
+                <span>02 &middot; Trust the key, then install</span>
+                <span class="hud__meta"
+                  >terminal<button class="hud__copy" type="button" data-copy hidden>
+                    Copy
+                  </button></span
+                >
+              </figcaption>
+              <div class="hud__screen">
+                <pre><code><span class="hud__prompt" aria-hidden="true">$ </span>curl -fsSLO https://raw.githubusercontent.com/villekivela/omaweb/main/security/repo-signing-key.asc
 <span class="hud__prompt" aria-hidden="true">$ </span>sudo pacman-key --add repo-signing-key.asc
 <span class="hud__prompt" aria-hidden="true">$ </span>sudo pacman-key --lsign-key <mark>FDA535B2185755EA718BEA585DBF15FE484EFA64</mark>
 <span class="hud__prompt" aria-hidden="true">$ </span>sudo pacman -Syu omaweb<span class="caret" aria-hidden="true"></span></code></pre>
-            </div>
-            <p class="hud__note">
-              The fingerprint is the one thing to check. It comes from here, not from a keyserver,
-              and pacman installs nothing that key did not sign.
-            </p>
-          </figure>
+              </div>
+              <p class="hud__note">
+                The fingerprint is the one thing to check. It comes from here, not from a keyserver,
+                and pacman installs nothing that key did not sign.
+              </p>
+            </figure>
 
-          <p class="install__after">
-            <span class="install__lamp" aria-hidden="true"></span>
-            <span>From then on, <code>sudo pacman -Syu</code> keeps it current.</span>
-          </p>
+            <p class="install__after">
+              <span class="install__lamp" aria-hidden="true"></span>
+              <span>From then on, <code>sudo pacman -Syu</code> keeps it current.</span>
+            </p>
+          </div>
         </div>
       </section>
     </main>

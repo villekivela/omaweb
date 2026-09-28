@@ -1236,13 +1236,32 @@ code {
 
 /* Install */
 
+/* The road ahead, softened and dimmed behind the screens. It fades out at the top and the bottom,
+   so the page's grain shows through at its edges and the section has no line where it starts. The
+   blur is in the file rather than a filter, so the page does not redraw it. */
+.install {
+  position: relative;
+  isolation: isolate;
+  padding-block: 88px;
+}
+
+.install::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: url("assets/art/install-road.webp") center 62% / cover no-repeat;
+  opacity: 0.4;
+  mask-image: linear-gradient(to bottom, transparent, #000 30%, #000 65%, transparent);
+  pointer-events: none;
+}
+
 /* The screens take the whole width, so the commands have room to sit on one line; the intro
    runs above them, its heading beside its copy. */
-.install {
+.install__body {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: 40px;
-  padding-block: 88px;
 }
 
 .install__intro {
