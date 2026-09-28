@@ -90,10 +90,10 @@ Window {
     readonly property color deep: inverted ? mix(uiFg, "black", 0.72) : uiDeep
     readonly property color sidebarFill: mix(uiBg, uiDeep, 0.5)
     // The sky is the theme's darkest ground, lifted toward the accent at the horizon.
-    readonly property color skyTop: privateWindow ? mix(deep, "black", 0.5) : deep
-    readonly property color skyLow: privateWindow ? mix(bg, "black", 0.35) : mix(bg, accent, light && !inverted ? 0.18 : 0.28)
+    readonly property color skyTop: privateWindow ? mix(deep, "black", 0.2) : deep
+    readonly property color skyLow: privateWindow ? mix(bg, fg, 0.14) : mix(bg, accent, light && !inverted ? 0.18 : 0.28)
     readonly property color groundNear: mix(deep, "black", light && !inverted ? 0.05 : 0.35)
-    readonly property color glow: privateWindow ? mix(fg, bg, 0.7) : accent
+    readonly property color glow: privateWindow ? mix(fg, bg, 0.3) : accent
     readonly property color sunTop: mix(warm, "white", 0.15)
     readonly property color sunLow: mix(accent, hot, 0.35)
 
@@ -412,8 +412,8 @@ Window {
                 source: sceneTex
                 colorization: 1
                 colorizationColor: win.glow
-                contrast: 0.6
-                brightness: 0.28
+                contrast: win.privateWindow ? 0.75 : 0.6
+                brightness: win.privateWindow ? 0.5 : 0.28
             }
             ShaderEffectSource {
                 anchors.fill: parent
@@ -1013,7 +1013,7 @@ Window {
                 amplitude: 0.3
                 notch: 0.16
                 fillColor: win.mix(win.skyLow, win.skyTop, 0.3)
-                rim: win.alpha(win.glow, win.privateWindow ? 0.18 : 0.35)
+                rim: win.alpha(win.glow, win.privateWindow ? 0.4 : 0.35)
             }
             Ridge {
                 anchors.fill: parent
@@ -1022,7 +1022,7 @@ Window {
                 amplitude: 0.2
                 notch: 0.22
                 fillColor: win.mix(win.skyLow, win.skyTop, 0.65)
-                rim: win.alpha(win.glow, win.privateWindow ? 0.25 : 0.55)
+                rim: win.alpha(win.glow, win.privateWindow ? 0.55 : 0.55)
             }
             Ridge {
                 anchors.fill: parent
@@ -1031,7 +1031,7 @@ Window {
                 amplitude: 0.11
                 notch: 0.3
                 fillColor: win.mix(win.skyTop, win.groundNear, 0.7)
-                rim: win.alpha(win.glow, win.privateWindow ? 0.35 : 0.85)
+                rim: win.alpha(win.glow, win.privateWindow ? 0.75 : 0.85)
             }
         }
 
@@ -1172,12 +1172,12 @@ Window {
                     shadowEnabled: true
                     shadowColor: win.glow
                     shadowBlur: 0.8
-                    shadowOpacity: win.privateWindow ? 0.25 : 1
+                    shadowOpacity: win.privateWindow ? 0.6 : 1
                     shadowHorizontalOffset: 0
                     shadowVerticalOffset: 0
                 }
                 ShapePath {
-                    strokeColor: win.alpha(win.glow, win.privateWindow ? 0.3 : 1)
+                    strokeColor: win.alpha(win.glow, win.privateWindow ? 0.8 : 1)
                     strokeWidth: 2.5
                     fillColor: "transparent"
                     startX: roadRoot.vpX
@@ -1197,7 +1197,7 @@ Window {
                     PathLine { x: roadRoot.px(1, 1) + 5; y: roadRoot.height }
                 }
                 ShapePath {
-                    strokeColor: win.alpha(win.mix(win.fg, win.glow, 0.4), win.privateWindow ? 0.15 : 0.55)
+                    strokeColor: win.alpha(win.mix(win.fg, win.glow, 0.4), win.privateWindow ? 0.4 : 0.55)
                     strokeWidth: 2
                     fillColor: "transparent"
                     startX: roadRoot.vpX
@@ -1215,7 +1215,7 @@ Window {
                 gradient: Gradient {
                     orientation: Gradient.Horizontal
                     GradientStop { position: 0; color: win.alpha(win.glow, 0) }
-                    GradientStop { position: 0.5; color: win.alpha(win.privateWindow ? win.glow : win.sunTop, win.privateWindow ? 0.5 : 1) }
+                    GradientStop { position: 0.5; color: win.alpha(win.privateWindow ? win.glow : win.sunTop, win.privateWindow ? 0.9 : 1) }
                     GradientStop { position: 1; color: win.alpha(win.glow, 0) }
                 }
             }
