@@ -1420,7 +1420,7 @@ Item {
             script.worldId = WebEngineScript.MainWorld;
             script.runsOnSubFrames = false;
             script.sourceCode = "// ==UserScript==\n// @include " + pattern
-                    + "\n// ==/UserScript==\n" + source + "\n// " + Date.now();
+                    + "\n// ==/UserScript==\n" + source;
         }
         root.replaceScript(scripts, name, script);
         const blocking = scripts.collection.filter(installed => installed.name.startsWith(

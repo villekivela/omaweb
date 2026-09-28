@@ -240,8 +240,10 @@ jobs:
           mkdir -p /tmp/netlogs
           quiet=0
           echo "=== core_pattern: $(cat /proc/sys/kernel/core_pattern) ulimit -c: $(ulimit -c)"
-          export OMAWEB_DIAG_NO_CORE=1 QT_FORCE_STDERR_LOGGING=1
-          for i in $(seq 25); do
+          for i in $(seq 80); do
+            if [ $((SHARD % 2)) -eq 0 ]; then
+              export OMAWEB_DIAG_NO_CORE=1
+            fi
             scripts/benchmark_runtime.py pageload --browser build/ci/omaweb --require-dns > /tmp/netlogs/out-$i.txt 2>&1
             status=$?
             if grep -q 'never reported' /tmp/netlogs/out-$i.txt; then quiet=$((quiet + 1)); cat /tmp/netlogs/out-$i.txt; else rm -f /tmp/netlogs/netlog-$i.json /tmp/netlogs/out-$i.txt; fi
@@ -249,7 +251,7 @@ jobs:
             left=$(ps -eo pid,ppid,pgid,sid,stat,etime,time,rss,comm | grep -E 'QtWebEngine|omaweb|dbus' | grep -v defunct || true)
             if [ -n "$left" ]; then echo "=== shard ${SHARD} left after repetition $i:"; echo "$left"; fi
           done
-          echo "=== shard ${SHARD}: $quiet of 25 repetitions went quiet"
+          echo "=== shard ${SHARD}: $quiet of 80 repetitions went quiet"
           chmod -R a+r /tmp/netlogs
           scripts/benchmark_runtime.py --browser build/ci/omaweb --require-dns
           echo $? > /tmp/budget.status
