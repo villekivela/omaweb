@@ -20,8 +20,12 @@ ApplicationWindow {
                                       Qt.Window | Qt.FramelessWindowHint
     topPadding: 0
     visible: true
-    title: window.privateWindow ? "Private — Omaweb" : window.windowBrowser.activeTitle
-                                  + " — Omaweb"
+    // PROTOTYPE (ui-language): outside today's chrome the title names the
+    // Space too, so the bar and the window switcher say which one is on show.
+    title: window.privateWindow ? "Private — Omaweb" : window.windowBrowser.activeTitle + (
+                                      window.uiVariant !== "0" ? " — "
+                                                                 + window.windowBrowser.activeSpaceName :
+                                                                 "") + " — Omaweb"
 
     property var windowBrowser: browser
     readonly property var syncLauncherService: syncLauncher

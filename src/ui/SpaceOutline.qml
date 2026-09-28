@@ -1157,6 +1157,72 @@ Rectangle {
         }
     }
 
+    // PROTOTYPE (ui-language): outside today's chrome a switch names the
+    // Space it arrived in, over the top of the list, for about a second. It
+    // comes in from the side the Space came from and fades where it stands.
+    Rectangle {
+        id: protoSpaceFlash
+        objectName: "protoSpaceFlash"
+        property real shift: 0
+        visible: opacity > 0
+        opacity: 0
+        z: 30
+        anchors.horizontalCenter: listLayer.horizontalCenter
+        anchors.horizontalCenterOffset: shift
+        y: listLayer.y + 6
+        width: flashName.implicitWidth + 28
+        height: flashName.implicitHeight + 12
+        radius: Style.cornerRadius
+        color: root.colors.overlay
+        border.width: 1
+        border.color: root.colors.border
+
+        Text {
+            id: flashName
+            anchors.centerIn: parent
+            text: root.browser ? root.browser.activeSpaceName : ""
+            color: root.colors.text
+            font.family: Style.font.family
+            font.pixelSize: Style.font.body
+        }
+
+        SequentialAnimation {
+            id: protoFlash
+            ParallelAnimation {
+                NumberAnimation {
+                    target: protoSpaceFlash
+                    property: "opacity"
+                    to: 1
+                    duration: 120
+                }
+                NumberAnimation {
+                    target: protoSpaceFlash
+                    property: "shift"
+                    to: 0
+                    duration: 240
+                    easing.type: Easing.OutCubic
+                }
+            }
+            PauseAnimation {
+                duration: 900
+            }
+            NumberAnimation {
+                target: protoSpaceFlash
+                property: "opacity"
+                to: 0
+                duration: 240
+            }
+        }
+    }
+    Connections {
+        target: root.browser
+        enabled: root.uiVariant !== "0" && !root.privateWindow
+        function onActiveSpaceChanged() {
+            protoSpaceFlash.shift = root.easeSpaces ? 8 * root.switchDirection : 0;
+            protoFlash.restart();
+        }
+    }
+
     ShaderEffectSource {
         id: departure
         x: listLayer.x
