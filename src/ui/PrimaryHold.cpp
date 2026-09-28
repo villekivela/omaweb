@@ -36,8 +36,25 @@ bool PrimaryHold::held() const { return m_held; }
 
 bool PrimaryHold::eventFilter(QObject *watched, QEvent *event)
 {
-    // Every item on the way to the focused one is handed the same event, so
-    // only the window's copy is read.
+    switch (event->type()) {
+    // A key a window shortcut takes is offered to the shortcut first, and to
+    // the focused item rather than the window, so it may never arrive as a
+    // press. Primary with the wheel or a click is a gesture of its own.
+    case QEvent::ShortcutOverride:
+        if (static_cast<QKeyEvent *>(event)->key() != Qt::Key_Control) {
+            release();
+        }
+        return false;
+    case QEvent::Shortcut:
+    case QEvent::Wheel:
+    case QEvent::MouseButtonPress:
+        release();
+        return false;
+    default:
+        break;
+    }
+    // Every item on the way to the focused one is handed the same key, so only
+    // the window's copy is read.
     if (qobject_cast<QWindow *>(watched) == nullptr) {
         return false;
     }

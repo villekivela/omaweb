@@ -2769,6 +2769,13 @@ TestCase {
         keyClick(Qt.Key_H);
         compare(cursorTabId(), firstId);
 
+        // A press on a row focuses it, but a hand on the mouse is not steering
+        // the cursor, so the row is not lit.
+        const shownRow = findChild(window.contentItem, "tab-" + firstId);
+        mouseClick(shownRow, shownRow.width / 3, shownRow.height / 2);
+        compare(cursorTabId(), firstId);
+        verify(!cursorDrawnOn(firstId));
+
         window.commands.run("focus-page", -1);
         browser.closeTab(secondId);
         browser.closeTab(firstId);
@@ -2870,12 +2877,19 @@ TestCase {
         keyClick(String(other + 1));
         tryCompare(browser, "activeTabId", otherId);
 
-        // Another key joining Primary is a chord being typed, not a question.
+        // Another key joining Primary is a chord being typed, not a question,
+        // and so is one a window shortcut takes before any item sees it.
         keyPress(Qt.Key_Control);
         keyPress(Qt.Key_Shift, Qt.ControlModifier);
         wait(800);
         verify(!label.visible);
         keyRelease(Qt.Key_Shift, Qt.ControlModifier);
+        keyRelease(Qt.Key_Control);
+        keyPress(Qt.Key_Control);
+        keyPress(Qt.Key_Period, Qt.ControlModifier);
+        wait(800);
+        verify(!label.visible);
+        keyRelease(Qt.Key_Period, Qt.ControlModifier);
         keyRelease(Qt.Key_Control);
 
         // The sidebar asks as the page does.
@@ -2908,6 +2922,13 @@ TestCase {
         const homeId = browser.activeSpaceId;
         verify(!notice.visible);
         compare(window.title, browser.activeTitle + " — " + browser.activeSpaceName + " — Omaweb");
+
+        // Renaming the Space on show is not a switch.
+        const homeName = browser.activeSpaceName;
+        verify(browser.renameSpace(homeId, "Renamed Home"));
+        wait(300);
+        verify(!notice.visible);
+        verify(browser.renameSpace(homeId, homeName));
 
         const otherId = browser.createSpace("Notice Space");
         verify(browser.switchSpace(otherId));

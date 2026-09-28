@@ -2512,10 +2512,19 @@ ApplicationWindow {
                 spaceName: window.windowBrowser.activeSpaceName
                 ease: window.easeChrome
 
+                // The controller also says the active Space changed when it
+                // is renamed or when Sync reloads it, which is not a switch.
+                property string shownSpaceId: ""
+                Component.onCompleted: shownSpaceId = window.windowBrowser.activeSpaceId
+
                 Connections {
                     target: window.windowBrowser
                     enabled: !window.privateWindow
                     function onActiveSpaceChanged() {
+                        const spaceId = window.windowBrowser.activeSpaceId;
+                        if (spaceId === spaceNotice.shownSpaceId)
+                            return;
+                        spaceNotice.shownSpaceId = spaceId;
                         spaceNotice.show();
                     }
                 }

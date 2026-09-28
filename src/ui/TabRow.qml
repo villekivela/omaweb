@@ -43,6 +43,17 @@ Item {
     // Primary is being held for the labels.
     property string keyLabel: ""
     property bool keyLabelShown: false
+    // Whether the row was last reached by a press rather than by the keyboard.
+    // A hand on the mouse is not steering the Sidebar cursor.
+    property bool pointed: false
+    onActiveFocusChanged: if (!activeFocus)
+                              pointed = false
+
+    // Moves the keyboard to this row as the Sidebar cursor.
+    function steer() {
+        root.pointed = false;
+        root.forceActiveFocus();
+    }
 
     // A pinned tab is a square with no title, so its colour is what tells the
     // sites apart, and the mark is drawn in it on every pin. The colour leaves
@@ -195,11 +206,12 @@ Item {
     // The sidebar cursor: the row holding the keyboard, lit in the accent so it
     // is never taken for the tab on show, which keeps the kit's own selection.
     // A row holds the keyboard only while the sidebar does, so nothing is lit
-    // while the reader is on the page.
+    // while the reader is on the page. A press on a row focuses it too, and a
+    // row reached that way is not lit.
     Rectangle {
         objectName: "sidebarCursor-" + root.tabId
         anchors.fill: parent
-        visible: root.activeFocus
+        visible: root.activeFocus && !root.pointed
         radius: Style.cornerRadius
         color: Qt.rgba(root.colors.accent.r, root.colors.accent.g, root.colors.accent.b, 0.16)
         border.width: 1
@@ -341,6 +353,7 @@ Item {
 
         onClicked: function (mouse) {
             if (mouse.button === Qt.RightButton) {
+                root.pointed = true;
                 root.forceActiveFocus();
                 root.openMenu(mouse.x, mouse.y);
                 return;
@@ -348,6 +361,7 @@ Item {
             // A row that has just been carried into place was not clicked.
             if (root.lifted)
                 return;
+            root.pointed = true;
             root.forceActiveFocus();
             const overClose = !root.pinned && mouse.x >= root.width - closeButton.width
                   - closeButton.anchors.rightMargin;

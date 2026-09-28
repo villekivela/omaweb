@@ -515,14 +515,12 @@ Rectangle {
 
     function focusOutline() {
         if (activeTabItem !== null && activeTabItem.visible) {
-            activeTabItem.forceActiveFocus();
+            activeTabItem.steer();
         } else {
             addressButton.forceActiveFocus();
         }
     }
 
-    // Key events climb from the focused row to here, so one handler covers the
-    // whole outline: Escape is the way back to the page.
     function labelFor(command, number) {
         return root.keyMap ? root.keyMap.labelFor(command, number) : "";
     }
@@ -558,10 +556,10 @@ Rectangle {
             return row.activeFocus;
         });
         if (at < 0) {
-            rows[Math.max(0, rows.indexOf(root.activeTabItem))].forceActiveFocus();
+            rows[Math.max(0, rows.indexOf(root.activeTabItem))].steer();
             return;
         }
-        rows[Math.max(0, Math.min(rows.length - 1, at + delta))].forceActiveFocus();
+        rows[Math.max(0, Math.min(rows.length - 1, at + delta))].steer();
     }
 
     // While the outline holds the keyboard, h j k l move the sidebar cursor as
@@ -595,6 +593,8 @@ Rectangle {
         event.accepted = true;
     }
 
+    // Key events climb from the focused row to here, so one handler covers the
+    // whole outline: Escape is the way back to the page.
     Keys.onEscapePressed: function (event) {
         if (root.statusOpen) {
             root.statusOpen = false;
@@ -814,8 +814,6 @@ Rectangle {
                 }
             }
 
-            // The lock takes the same 18px slot a tab row gives its site chip,
-            // so the address and every tab title start on one line.
             KeyLabel {
                 objectName: "keyLabel-addressButton"
                 anchors.right: parent.right
@@ -826,6 +824,8 @@ Rectangle {
                 colors: root.colors
             }
 
+            // The lock takes the same 18px slot a tab row gives its site chip,
+            // so the address and every tab title start on one line.
             Text {
                 id: securityGlyph
                 objectName: "securityIndicator"
