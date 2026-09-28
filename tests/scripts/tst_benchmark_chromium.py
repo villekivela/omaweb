@@ -499,5 +499,192 @@ class SuiteTest(unittest.TestCase):
             self.assertTrue(os.access(Path(root) / "out" / "chrome-linux" / "chrome", os.X_OK))
 
 
+
+class FakeProcess:
+    """A browser that started and never answered DevTools."""
+
+    pid = 424242
+
+    def __init__(self, *arguments, **keywords):
+        self.waited = 0
+        FakeProcess.launched.append(self)
+
+    def poll(self):
+        return None
+
+    def wait(self, timeout=None):
+        self.waited += 1
+        return 0
+
+
+class LaunchCleanupTest(unittest.TestCase):
+    """A launch that fails ends the browser it started, rather than leaving it running."""
+
+    def setUp(self):
+        FakeProcess.launched = []
+        self.signals = []
+        patches = {
+            (compare.subprocess, "Popen"): FakeProcess,
+            (compare.os, "killpg"): lambda pid, stage: self.signals.append((pid, stage)),
+            (compare, "DEVTOOLS_TIMEOUT"): 0.2,
+        }
+        for (owner, name), value in patches.items():
+            original = getattr(owner, name)
+            setattr(owner, name, value)
+            self.addCleanup(setattr, owner, name, original)
+        self.spec = compare.BrowserSpec(history.LATEST, "/usr/bin/chromium")
+
+    def launch(self, answer):
+        original = compare.devtools_json
+        compare.devtools_json = answer
+        self.addCleanup(setattr, compare, "devtools_json", original)
+        with self.assertRaises(BaseException) as raised:
+            compare.RunningBrowser(self.spec, "http://127.0.0.1:1/")
+        return raised.exception
+
+    def assert_ended(self):
+        self.assertEqual(len(FakeProcess.launched), 1)
+        self.assertEqual([pid for pid, _ in self.signals][:1], [FakeProcess.pid])
+        self.assertIn(compare.signal.SIGTERM, [stage for _, stage in self.signals])
+        self.assertGreater(FakeProcess.launched[0].waited, 0)
+
+    def test_devtools_that_never_answers_ends_the_process_group(self):
+        def refuse(port, path):
+            raise ConnectionRefusedError()
+
+        self.assertIsInstance(self.launch(refuse), compare.RunFailed)
+        self.assert_ended()
+
+    def test_an_interrupted_launch_ends_the_process_group(self):
+        def interrupt(port, path):
+            raise KeyboardInterrupt()
+
+        self.assertIsInstance(self.launch(interrupt), KeyboardInterrupt)
+        self.assert_ended()
+
+    def test_the_throwaway_profile_goes_with_it(self):
+        made = []
+        original = compare.tempfile.mkdtemp
+
+        def mkdtemp(**keywords):
+            made.append(original(**keywords))
+            return made[-1]
+
+        compare.tempfile.mkdtemp = mkdtemp
+        self.addCleanup(setattr, compare.tempfile, "mkdtemp", original)
+        self.launch(lambda port, path: (_ for _ in ()).throw(OSError()))
+        self.assertFalse(os.path.exists(made[0]))
+
+
+class MatchedChromiumTest(unittest.TestCase):
+    """The matched Chromium's archive is pinned on its first fetch and held to it after."""
+
+    def setUp(self):
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        self.root = Path(directory.name)
+        self.content = "#!/bin/sh\n"
+        self.fetched = []
+        patches = {
+            (compare, "download"): self.download,
+            (compare, "playwright_releases"): lambda: ["v1.55.1"],
+            (compare, "playwright_chromium"): lambda tag: {"browserVersion": "140.0.7339.186",
+                                                         "revision": "1193"},
+            (compare.platform, "machine"): lambda: "aarch64",
+        }
+        for (owner, name), value in patches.items():
+            original = getattr(owner, name)
+            setattr(owner, name, value)
+            self.addCleanup(setattr, owner, name, original)
+
+    def download(self, url, target):
+        import zipfile
+        self.fetched.append(url)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        with zipfile.ZipFile(target, "w") as bundle:
+            info = zipfile.ZipInfo("chrome-linux/chrome")
+            info.external_attr = 0o755 << 16
+            bundle.writestr(info, self.content)
+
+    @property
+    def index(self):
+        return json.loads((self.root / "chromium" / "majors.json").read_text())["140"]
+
+    def test_the_first_fetch_records_the_archives_digest(self):
+        found = compare.matched_chromium(140, self.root)
+        self.assertEqual(found.sha256, self.index["sha256"])
+        self.assertEqual(found.sha256, compare.digest(
+            self.root / "chromium" / "140.0.7339.186-aarch64.zip"))
+        self.assertEqual(found.hashed, "chromium-linux-arm64.zip")
+        self.assertTrue(os.access(found.executable, os.X_OK))
+        self.assertTrue(self.fetched[0].startswith("https://"))
+
+    def test_a_reused_archive_is_hashed_again_and_not_fetched(self):
+        first = compare.matched_chromium(140, self.root)
+        second = compare.matched_chromium(140, self.root)
+        self.assertEqual(len(self.fetched), 1)
+        self.assertEqual(first.sha256, second.sha256)
+
+    def test_a_cached_archive_that_changed_fails_the_run(self):
+        compare.matched_chromium(140, self.root)
+        archive = self.root / "chromium" / "140.0.7339.186-aarch64.zip"
+        with open(archive, "ab") as handle:
+            handle.write(b"tampered")
+        with self.assertRaises(compare.IntegrityFailed):
+            compare.matched_chromium(140, self.root)
+
+    def test_a_fetch_that_differs_from_the_first_fails_and_keeps_the_first_digest(self):
+        recorded = compare.matched_chromium(140, self.root).sha256
+        (self.root / "chromium" / "140.0.7339.186-aarch64.zip").unlink()
+        self.content = "#!/bin/sh\necho another build\n"
+        with self.assertRaises(compare.IntegrityFailed):
+            compare.matched_chromium(140, self.root)
+        self.assertEqual(self.index["sha256"], recorded)
+
+    def test_a_tampered_extraction_is_replaced_from_the_verified_archive(self):
+        found = compare.matched_chromium(140, self.root)
+        Path(found.executable).write_text("#!/bin/sh\necho swapped\n")
+        again = compare.matched_chromium(140, self.root)
+        self.assertEqual(Path(again.executable).read_text(), self.content)
+
+    def test_the_digest_is_in_the_report_and_the_history_line(self):
+        record = comparison("2026-09-28T10:00:00Z")
+        record["browsers"][history.MATCHED].update(sha256="ab" * 32,
+                                                   sha256_of="chromium-linux-arm64.zip")
+        self.assertTrue(any(f"chromium-linux-arm64.zip sha256 {'ab' * 32}" in line
+                            for line in compare.report_lines(record)))
+        self.assertEqual(json.loads(json.dumps(record))["browsers"][history.MATCHED]["sha256"],
+                         "ab" * 32)
+
+
+class DownloadTest(unittest.TestCase):
+
+    def test_nothing_is_fetched_without_https(self):
+        with tempfile.TemporaryDirectory() as root:
+            with self.assertRaises(compare.IntegrityFailed):
+                compare.download("http://cdn.playwright.dev/builds/chromium/1/x.zip",
+                                 Path(root) / "x.zip")
+
+
+class EscapeTest(unittest.TestCase):
+    """What the history holds reaches the page as text, never as markup."""
+
+    def test_markup_in_the_history_is_escaped(self):
+        hostile = 'lab <b>&"box"'
+        engine = dict(ENGINE, package='<script>x</script>', version='1&2"')
+        page = history.render([
+            comparison("2026-09-28T10:00:00Z", machine=hostile),
+            comparison("2026-10-01T10:00:00Z", machine=hostile, engine=engine,
+                       matched='140"<1>'),
+            budget("2026-10-02T10:00:00Z", machine=hostile, engine=engine),
+        ], source='<history>&"')
+        self.assertNotIn("<b>", page)
+        self.assertNotIn("<script", page)
+        self.assertNotIn('<history>', page)
+        self.assertIn("lab &lt;b&gt;&amp;&quot;box&quot;", page)
+        self.assertIn("&lt;script&gt;x&lt;/script&gt; 1&amp;2&quot;", page)
+        self.assertIn("140&quot;&lt;1&gt;", page)
+        self.assertIn("&lt;history&gt;&amp;&quot;", page)
+
 if __name__ == "__main__":
     unittest.main()

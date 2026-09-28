@@ -1247,7 +1247,16 @@ The two Chromiums separate the engine's version lag from what Omaweb costs:
 
 The suites are pinned to a commit and a SHA-256 digest each and served from loopback. They and the
 Chromium builds are cached under `~/.cache/omaweb-benchmarks`, one directory per suite commit and
-per Chromium version, so after the first run no network is needed.
+per Chromium version, so after the first run no network is needed. Everything is fetched over HTTPS
+with the certificate verified, and a redirect to plain HTTP is refused.
+
+Playwright publishes no digest for its builds, so the matched Chromium's is pinned on its first
+fetch: the archive's SHA-256 goes into `~/.cache/omaweb-benchmarks/chromium/majors.json`, and the
+archive is kept. Every later run hashes the kept archive against that digest, and a fetch after
+that, for example once the archive has been deleted, is held to it too. A mismatch fails the run.
+The browser is extracted afresh from the verified archive every run, so what runs is what was
+hashed. The digest is printed in the report and stored in the history line, so a run says which
+binary it measured. With `--matched-chromium`, the digest is that executable's.
 
 Each launch gets a fresh profile. Omaweb runs on scratch data and configuration roots, so it reads
 no `sync.json` and none of the reader's settings, and its content-blocking lists are seeded from
@@ -1304,9 +1313,9 @@ carries:
   the file and are told apart by this field.
 - `engine`: the engine library, its package and version, and its Qt WebEngine and Chromium versions
 - for a budget run, `measurements`: each value beside the ceiling it was held to at the time
-- for a comparison, `browsers` with each browser's version, flags and GPU status, `suites` with the
-  pinned commits, `scores` with every run's score, and `no_gpu` naming the suites that ran without
-  GPU compositing
+- for a comparison, `browsers` with each browser's version, flags and GPU status and the matched
+  Chromium's `sha256` and the file it is of (`sha256_of`), `suites` with the pinned commits,
+  `scores` with every run's score, and `no_gpu` naming the suites that ran without GPU compositing
 
 ```sh
 scripts/benchmark_chromium.py plot
