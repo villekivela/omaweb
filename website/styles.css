@@ -1036,9 +1036,12 @@ a {
 
 /* Keyboard */
 
+/* As wide as the poster above it and centred the same way, with the rule under it still running
+   edge to edge. */
 .keyboard {
   display: grid;
   grid-template-columns: 30% 1fr 27%;
+  padding-inline: max(0px, (100% - 1600px) / 2);
   border-bottom: 1px solid var(--line);
 }
 
