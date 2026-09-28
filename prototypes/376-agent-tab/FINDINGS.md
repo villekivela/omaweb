@@ -149,8 +149,9 @@ of the extra frames on Wayland.
 
 - A connected Agent tab stays visible to the engine, sized like the page area and stacked under the
   page on show at opacity 0, and is exempt from freezing, as ADR 0051 says.
-- Input is trusted Qt events. Keys and wheel go straight to the delegate. Clicks use the quiet click
-  and wait while the reader's focus is in the interface.
+- Input is trusted Qt events. Keys go straight to the delegate. Clicks use the quiet click and wait
+  while the reader's focus is in the interface. The delegate forwards wheel events without touching
+  focus, going by the source, but the probe did not send any.
 - `shot` uses `grabToImage` with a timeout for when Omaweb's window is not drawing.
 - The marker can tell the reader that an animating Agent tab costs about what that page costs on
   show and makes the window draw at its frame rate.
