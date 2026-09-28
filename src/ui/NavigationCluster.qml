@@ -166,7 +166,7 @@ Rectangle {
             width: 28
             height: 26
             icon: "search"
-            accessibleName: "Command panel"
+            accessibleName: "Search commands"
             fontFamily: root.iconFontFamily
             foreground: root.colors.mutedText
             accent: root.colors.accent

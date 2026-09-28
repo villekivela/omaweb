@@ -485,7 +485,6 @@ ApplicationWindow {
 
     function openCommandPanel() {
         commandPanel.beginCommand();
-        commandPanel.origin = window.omnibarOrigin();
         omnibarOpen = true;
     }
 
@@ -577,7 +576,7 @@ ApplicationWindow {
         return actions;
     }
 
-    // The command panel's way in: the menu belongs to the tab on show, and
+    // The Omnibar's way in: the menu belongs to the tab on show, and
     // hangs off that tab's row where there is a row on screen to hang it off.
     function openActiveTabMenu() {
         const row = sidebar.activeTabItem;
@@ -669,7 +668,7 @@ ApplicationWindow {
         window.dialogMode = targets.length > 0 ? "move" : "";
     }
 
-    // The command panel's way into a split: a chooser of the tabs a split
+    // The Omnibar's way into a split: a chooser of the tabs a split
     // could still take, headed by a blank tab, which is what confirming with
     // nothing picked gives.
     property var splitTargets: []
@@ -2095,16 +2094,7 @@ ApplicationWindow {
         if (!window.privateWindow)
             window.windowBrowser.requestHistorySuggestions(preset);
         commandPanel.beginAddress(preset, forNewTab);
-        commandPanel.origin = window.omnibarOrigin();
         omnibarOpen = true;
-    }
-
-    // Where the panel grows from: the address field when the sidebar shows
-    // it, nothing otherwise, so the panel arrives from above its own place.
-    function omnibarOrigin() {
-        if (sidebarCollapsed && chromeRow.peekRevealed === 0)
-            return Qt.rect(0, 0, 0, 0);
-        return sidebar.addressOrigin(commandPanel);
     }
 
     // The profile the Space on show runs in. Which is the same table every
@@ -3645,7 +3635,7 @@ ApplicationWindow {
         target: window.windowBrowser
 
         function onHistorySuggestionsReady(suggestions) {
-            if (!window.omnibarOpen || commandPanel.commandMode)
+            if (!window.omnibarOpen || commandPanel.commandScope)
                 return;
             window.omnibarSuggestions = suggestions;
         }
@@ -4077,7 +4067,7 @@ ApplicationWindow {
 
         onDismissed: window.closeOmnibar()
         onQueryChanged: function (text) {
-            if (commandPanel.commandMode)
+            if (commandPanel.commandScope)
                 return;
             if (window.privateWindow) {
                 window.omnibarSuggestions = [];

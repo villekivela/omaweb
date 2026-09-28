@@ -234,12 +234,6 @@ Rectangle {
     readonly property var refusedThirdParties: sitePanel.refusedThirdParties
 
     signal addressRequested
-    // The address field's place in `item`'s coordinates, for a panel that
-    // grows out of it.
-    function addressOrigin(item) {
-        const corner = addressButton.mapToItem(item, 0, 0);
-        return Qt.rect(corner.x, corner.y, addressButton.width, addressButton.height);
-    }
     signal downloadsRequested
     // Where the popup should come from, in window coordinates. A panel that
     // grows out of the mark is the mark, opened, rather than a second thing
@@ -702,7 +696,7 @@ Rectangle {
                     width: 28
                     height: 26
                     icon: "search"
-                    accessibleName: "Command panel"
+                    accessibleName: "Search commands"
                     fontFamily: root.iconFontFamily
                     foreground: root.colors.mutedText
                     accent: root.colors.accent
