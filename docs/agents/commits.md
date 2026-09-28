@@ -12,6 +12,16 @@ Use the same types as the commit subject. Keep the summary imperative, lowercase
 and drop the issue number only when there is no ticket. Examples: `fix/108-follow-the-editor-theme`,
 `perf/70-step-the-sidebar-seam`.
 
+## Stabilizing a release
+
+Once the last `feat` planned for a milestone has merged, `main` takes only `fix`, `test`, `docs`,
+`ci`, `build`, `perf`, `chore`, and `revert` changes until that milestone is tagged. A `refactor`
+waits too, because it changes code the release has already been tested on. A `feat` for the next
+milestone waits on its branch, ready to merge, until the tag exists.
+
+This keeps one branch. What is tested on `main` is what the tag ships, and a regression found in
+this window is fixed where the release is cut, not carried to a second branch.
+
 ## Maintenance branches
 
 Work lands on `main`, and a release is a tag on `main`. The exception is a patch that has to ship
