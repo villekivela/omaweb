@@ -226,6 +226,10 @@ PAGELOAD_SETTLE_MILLISECONDS = 250
 # in this long is a page that never finished.
 PAGELOAD_TIMEOUT = 30.0
 
+# How often a page that has not gone on to the next one tells the server how far it got. A load
+# that reports goes on in well under a second, so only one that went quiet ever says it.
+PAGELOAD_STALL_MILLISECONDS = 5000
+
 # How much of the browser's own output a quiet load prints: enough to reach back past the page
 # before it, which is a title and a few messages.
 PAGELOAD_MESSAGES = 40
@@ -879,6 +883,15 @@ PAGELOAD_PAGE = """<!doctype html>
 <script>
   const failed = new Set();
   addEventListener("error", event => failed.add(event.target.src), true);
+  let reporting = "not yet";
+  // A page still here after this long has gone quiet, and says how far it got.
+  setInterval(() => fetch("/stalled", {{ method: "POST", body: JSON.stringify({{
+    number: {number},
+    readyState: document.readyState,
+    loadEventStart: performance.getEntriesByType("navigation")[0]?.loadEventStart ?? null,
+    incomplete: [...document.images].filter(image => !image.complete).map(image => image.src),
+    reporting,
+  }}) }}), {stall});
 </script>
 {markup}
 {images}
@@ -892,7 +905,9 @@ PAGELOAD_PAGE = """<!doctype html>
       missing: missing.map(image => image.src),
       failed: missing.filter(image => failed.has(image.src)).length,
     }};
+    reporting = "sent";
     const sent = await fetch("/report", {{ method: "POST", body: JSON.stringify(report) }});
+    reporting = "answered";
     const answer = await sent.json();
     if (answer.next) setTimeout(() => location.replace(answer.next), {settle});
   }}));
@@ -964,6 +979,8 @@ class PageLoadSite:
         # apart as one that never arrived here and one that did and went missing on the way back.
         self.requested: set[str] = set()
         self.answered: set[str] = set()
+        # What a page that went quiet last said of itself.
+        self.stalled: dict[int, dict] = {}
         self.ready = False
         self.problem = ""
         self.finished = False
@@ -1000,7 +1017,8 @@ class PageLoadSite:
             for image in load.images)
         markup = procedural_fixture()[1] if load.case == "procedural" else ""
         return PAGELOAD_PAGE.format(number=number, images=images, markup=markup,
-                                    settle=PAGELOAD_SETTLE_MILLISECONDS).encode()
+                                    settle=PAGELOAD_SETTLE_MILLISECONDS,
+                                    stall=PAGELOAD_STALL_MILLISECONDS).encode()
 
     def ready_page(self) -> bytes:
         return PAGELOAD_READY_PAGE.format(probe=PAGELOAD_PROBE_HOST, control=PAGELOAD_CONTROL_HOST,
@@ -1075,9 +1093,14 @@ class PageLoadSite:
         asked = sum(address in self.requested for address in images)
         answered = sum(address in self.answered for address in images)
         errors = ", ".join(f"{count} {name}" for name, count in sorted(self.server.errors.items()))
+        stalled = self.stalled.get(load.number)
+        said = ("it never said how far it got" if stalled is None else
+                f"it last said: document {stalled['readyState']}, load event at "
+                f"{stalled['loadEventStart']} ms, {len(stalled['incomplete'])} images incomplete "
+                f"({', '.join(stalled['incomplete'][:3]) or 'none'}), report {stalled['reporting']}")
         return (f"load {load.number} ({load.case} hosts, blocking {load.mode}) was served, and "
                 f"{asked} of its {PAGELOAD_IMAGES} images were asked of the server and {answered} "
-                f"answered by it; the server's errors: {errors or 'none'}")
+                f"answered by it; the server's errors: {errors or 'none'}; {said}")
 
     def describe_missing(self, load: PageLoad) -> str:
         """One page's missing images, and whether the server ever saw them asked for.
@@ -1135,6 +1158,10 @@ class PageLoadSite:
             def do_POST(self) -> None:  # noqa: N802
                 length = int(self.headers.get("Content-Length", "0"))
                 report = json.loads(self.rfile.read(length) or b"{}")
+                if self.path == "/stalled":
+                    site.stalled[int(report["number"])] = report
+                    self.answer(b"{}", "application/json")
+                    return
                 self.answer(json.dumps({"next": site.receive(report)}).encode(),
                             "application/json")
 
