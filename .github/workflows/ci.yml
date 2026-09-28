@@ -171,15 +171,12 @@ jobs:
           su builder -c 'cmake --preset ci -DQT_ADDITIONAL_PACKAGES_PREFIX_PATH=/usr/lib/omaweb
           -DOMAWEB_KNOWN_EXTENSIONS=ON'
       - name: Check the build found the patched engine
-        # A stock engine's headers compile the browser just as well, without
-        # CNAME uncloaking and without saying so (docs/development.md). The
-        # probe's answer is the one place that difference shows, so the job
-        # reads it rather than trusting the prefix path to have won.
-        run: |
-          if ! grep -qx 'OMAWEB_ENGINE_OFFERS_DNS_ALIASES:INTERNAL=1' build/ci/CMakeCache.txt; then
-            echo "::error::the build did not find the DNS alias API, so it is not on Omaweb's engine" >&2
-            exit 1
-          fi
+        # A stock engine compiles the browser just as well, without CNAME
+        # uncloaking and without saying so (docs/development.md). This image
+        # installs none, but a package that came to depend on one would bring
+        # it back, and CMake would find it ahead of the prefix. The job reads
+        # what CMake found rather than trusting the prefix path to have won.
+        run: scripts/check_omaweb_engine.sh build/ci
       - name: Build
         run: su builder -c 'cmake --build --preset ci'
       - name: Test
@@ -255,6 +252,8 @@ jobs:
         run:
           su builder -c 'cmake --preset release -DQT_ADDITIONAL_PACKAGES_PREFIX_PATH=/usr/lib/omaweb
           -DOMAWEB_KNOWN_EXTENSIONS=ON'
+      - name: Check the release build found the patched engine
+        run: scripts/check_omaweb_engine.sh build/release
       - name: Build release
         run: su builder -c 'cmake --build --preset release'
       - name: Verify compiled QML
