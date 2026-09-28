@@ -232,7 +232,7 @@ PAGELOAD_STALL_MILLISECONDS = 5000
 
 # How much of the browser's own output a quiet load prints: enough to reach back past the page
 # before it, which is a title and a few messages.
-PAGELOAD_MESSAGES = 40
+PAGELOAD_MESSAGES = 200
 
 # A one-pixel PNG. What an image costs to decode is not what this measures.
 PIXEL = base64.b64decode(
@@ -403,9 +403,21 @@ def describe_processes(root: int) -> list[str]:
     before = process_states(root)
     time.sleep(1)
     after = process_states(root)
-    return [f"{pid} {name} {state} {rss / 1024:.0f} MiB, "
-            f"{cpu - before.get(pid, (name, state, cpu, rss))[2]:.2f} CPU s in the last second"
-            for pid, (name, state, cpu, rss) in sorted(after.items())]
+    lines = []
+    for pid, (name, state, cpu, rss) in sorted(after.items()):
+        lines.append(f"{pid} {name} {state} {rss / 1024:.0f} MiB, "
+                     f"{cpu - before.get(pid, (name, state, cpu, rss))[2]:.2f} CPU s in the last second")
+        threads = []
+        for tid in sorted(os.listdir(f"/proc/{pid}/task"), key=int) if os.path.isdir(f"/proc/{pid}/task") else []:
+            try:
+                with open(f"/proc/{pid}/task/{tid}/comm") as h: tname = h.read().strip()
+                with open(f"/proc/{pid}/task/{tid}/wchan") as h: wchan = h.read().strip()
+                with open(f"/proc/{pid}/task/{tid}/stat") as h: tstate = h.read().rsplit(")", 1)[1].split()[0]
+            except OSError:
+                continue
+            threads.append(f"{tid}:{tname}:{tstate}:{wchan}")
+        lines.append("      threads " + " ".join(threads))
+    return lines
 
 
 def tree_mib(root: int) -> float:

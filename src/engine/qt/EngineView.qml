@@ -62,6 +62,8 @@ Item {
         const frozen = WebEngineView.LifecycleState.Frozen;
         const active = WebEngineView.LifecycleState.Active;
         const wanted = root.pageFrozen && webView.recommendedState !== active ? frozen : active;
+        console.warn("omaweb-diag lifecycle", Date.now(), "frozen", root.pageFrozen, "recommended",
+                     webView.recommendedState, "current", webView.lifecycleState, "wanted", wanted);
         if (webView.lifecycleState !== wanted)
             webView.lifecycleState = wanted;
     }
@@ -2486,6 +2488,10 @@ Item {
         settings.playbackRequiresUserGesture: !root.autoplayAllowed
 
         onRecommendedStateChanged: root.applyPageLifecycle()
+        onLifecycleStateChanged: console.warn("omaweb-diag lifecycle-now", Date.now(),
+                                              webView.lifecycleState)
+        onVisibleChanged: console.warn("omaweb-diag visible", Date.now(), webView.visible)
+        onLoadProgressChanged: console.warn("omaweb-diag progress", Date.now(), webView.loadProgress)
 
         onRenderProcessTerminated: function (terminationStatus, exitCode) {
             root.rendererFailed("Renderer stopped with exit code " + exitCode);
@@ -2557,6 +2563,7 @@ Item {
 
         onRenderProcessPidChanged: root.refreshRenderProcessPid()
         onLoadingChanged: function (loadRequest) {
+            console.warn("omaweb-diag loading", Date.now(), loadRequest.status, loadRequest.url);
             root.refreshRenderProcessPid();
             if (loadRequest.status === WebEngineView.LoadStartedStatus) {
                 root.pageGeneration += 1;
@@ -2670,6 +2677,7 @@ Item {
         }
 
         onNavigationRequested: function (request) {
+            console.warn("omaweb-diag navigation", Date.now(), request.url, request.navigationType);
             // A redirect is asked about here, before its destination is even
             // fetched, which is the last moment before the arriving document
             // runs its own scripts; the address property moves only once the

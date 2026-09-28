@@ -439,6 +439,8 @@ Item {
         const runsUnwatched = tabId === root.inspectedTabId || engine.pageAudible || root.retains(
                   tabId);
         engine.pageFrozen = !engine.visible && !runsUnwatched;
+        console.warn("omaweb-diag host", Date.now(), tabId, "visible", engine.visible, "frozen",
+                     engine.pageFrozen);
         // A stopped page answers no key. The desktop hears that it has left
         // rather than being offered controls that reach nothing.
         if (engine.pageFrozen)
