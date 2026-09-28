@@ -244,6 +244,8 @@ jobs:
             status=$?
             if grep -q 'never reported' /tmp/netlogs/out-$i.txt; then quiet=$((quiet + 1)); cat /tmp/netlogs/out-$i.txt; fi
             echo "=== shard ${SHARD} repetition $i exit $status $(grep -c 'cut short' /tmp/netlogs/out-$i.txt) $(grep 'fresh hosts:' /tmp/netlogs/out-$i.txt | tail -1)"
+            left=$(ps -eo pid,ppid,pgid,sid,stat,etime,time,rss,comm | grep -E 'QtWebEngine|omaweb|dbus' || true)
+            if [ -n "$left" ]; then echo "=== shard ${SHARD} left after repetition $i:"; echo "$left"; fi
           done
           echo "=== shard ${SHARD}: $quiet of 20 repetitions went quiet"
           chmod -R a+r /tmp/netlogs
