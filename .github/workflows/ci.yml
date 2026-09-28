@@ -141,9 +141,12 @@ jobs:
         #
         # No `qt6-webengine`: the engine is installed from Omaweb's repository
         # below, and a stock one beside it would be the one the build found.
+        # Its dependencies were also what brought a font into this image, and
+        # the theme and layout tests measure text, so `gnu-free-fonts` is the
+        # same font asked for by name.
         run:
           pacman -Syu --noconfirm git cmake ninja clang ccache rust qt6-base qt6-declarative
-          qt6-wayland libsecret libsodium cage wtype dnsmasq
+          qt6-wayland libsecret libsodium cage wtype dnsmasq gnu-free-fonts
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       # The engine Omaweb ships (ADR 0049) rather than the distribution's, so
       # that what the patch series adds is built and tested here: CNAME
