@@ -9,7 +9,12 @@
 
 #include <QDir>
 #include <QDirIterator>
+#include <QSqlDatabase>
+#include <QSqlQuery>
+#include <QThread>
+#include <QDateTime>
 #include <QElapsedTimer>
+#include <QMutex>
 #include <QFile>
 #include <QTemporaryDir>
 #include <QTest>
@@ -57,6 +62,14 @@ bool dataRootIsEmpty(const QString &root)
     return !entries.hasNext();
 }
 
+// What an adapter that answers in place has stored for a page.
+QByteArray foundFavicon(const SessionStore &store, const QString &space, const QString &pageUrl)
+{
+    QByteArray found;
+    store.findFavicon(space, QUrl(pageUrl), [&found](const QByteArray &image) { found = image; });
+    return found;
+}
+
 } // namespace
 
 // One suite, two adapters. What differs between them is one fact — whether the
@@ -87,6 +100,12 @@ private slots:
     void aPrivateStoreLeavesTheRootItWasGivenEmpty();
     void aPrivateStoreSharesItsDecisionsWithTheSession();
     void aThreadedStoreReadsBackTheWritesItWasGivenBefore();
+    void aRecordingStoreFindsAFaviconByAddressThenOrigin();
+    void aSpaceFindsNoFaviconAnotherSpaceStored();
+    void aPrivateStoreKeepsFaviconsInMemoryOnly();
+    void deletingHistoryDeletesItsFaviconsButNotOneATabShows();
+    void aSpaceDatabaseFromBeforeFaviconsOpensWithItsHistory();
+    void aThreadedStoreFindsAFaviconOffTheCallersThread();
     void aThreadedStoreLandsAPendingWriteWhenItCloses();
     void aThreadedStoreTakesTheSessionsRunningWritesInsideTheirBudget();
 
@@ -538,6 +557,216 @@ void SessionStoreTest::aThreadedStoreTakesTheSessionsRunningWritesInsideTheirBud
     QVERIFY2(after.closedTabsMicroseconds <= thresholdMicroseconds,
         qPrintable(omaweb::probe::report(QStringLiteral("closed-tab-write"),
             after.closedTabsMicroseconds, QStringLiteral("us"), thresholdMicroseconds)));
+}
+
+// A page's own icon first. A page of a site the Space has loaded, but not this
+// page, gets the site's newest icon rather than none.
+void SessionStoreTest::aRecordingStoreFindsAFaviconByAddressThenOrigin()
+{
+    QTemporaryDir root;
+    SqliteSessionStore store(root.path());
+    QVERIFY(store.open());
+    QVERIFY(store.saveSpace(makeSpace()));
+
+    QVERIFY(store.recordFavicon(
+        spaceId(), QUrl(QStringLiteral("https://a.example/one")), QByteArrayLiteral("one")));
+    QVERIFY(store.recordFavicon(
+        spaceId(), QUrl(QStringLiteral("https://a.example/two")), QByteArrayLiteral("two")));
+    QCOMPARE(foundFavicon(store, spaceId(), QStringLiteral("https://a.example/one")),
+        QByteArrayLiteral("one"));
+    QCOMPARE(foundFavicon(store, spaceId(), QStringLiteral("https://a.example/unseen")),
+        QByteArrayLiteral("two"));
+    QCOMPARE(foundFavicon(store, spaceId(), QStringLiteral("https://b.example/one")), QByteArray());
+
+    // A newer icon for the same address replaces the older, and is now the
+    // site's newest too.
+    QVERIFY(store.recordFavicon(
+        spaceId(), QUrl(QStringLiteral("https://a.example/one")), QByteArrayLiteral("newer")));
+    QCOMPARE(foundFavicon(store, spaceId(), QStringLiteral("https://a.example/one")),
+        QByteArrayLiteral("newer"));
+    QCOMPARE(foundFavicon(store, spaceId(), QStringLiteral("https://a.example/unseen")),
+        QByteArrayLiteral("newer"));
+
+    // Only a web page has a site to file an icon under.
+    QVERIFY(!store.recordFavicon(
+        spaceId(), QUrl(QStringLiteral("about:blank")), QByteArrayLiteral("blank")));
+    QVERIFY(!store.recordFavicon(spaceId(), QUrl(QStringLiteral("https://a.example/three")), {}));
+
+    // An icon is kept as long as History names its page. One whose page has
+    // none goes when the Space is next opened.
+    QVERIFY(store.recordVisit(
+        spaceId(), QUrl(QStringLiteral("https://a.example/two")), QStringLiteral("Two")));
+    SqliteSessionStore reopened(root.path());
+    QVERIFY(reopened.open());
+    QCOMPARE(foundFavicon(reopened, spaceId(), QStringLiteral("https://a.example/two")),
+        QByteArrayLiteral("two"));
+    QCOMPARE(foundFavicon(reopened, spaceId(), QStringLiteral("https://a.example/one")),
+        QByteArrayLiteral("two"));
+}
+
+void SessionStoreTest::aSpaceFindsNoFaviconAnotherSpaceStored()
+{
+    QTemporaryDir root;
+    SqliteSessionStore store(root.path());
+    QVERIFY(store.open());
+    QVERIFY(store.saveSpace(makeSpace()));
+    auto other = makeSpace();
+    other.id = QStringLiteral("space-2");
+    other.active = false;
+    QVERIFY(store.saveSpace(other));
+
+    QVERIFY(store.recordFavicon(
+        spaceId(), QUrl(QStringLiteral("https://a.example/")), QByteArrayLiteral("icon")));
+    QCOMPARE(foundFavicon(store, spaceId(), QStringLiteral("https://a.example/")),
+        QByteArrayLiteral("icon"));
+    QCOMPARE(foundFavicon(store, other.id, QStringLiteral("https://a.example/")), QByteArray());
+}
+
+// A Private window keeps what its pages showed for as long as it is open, in
+// memory. It never reads a Space's store because it has none to read.
+void SessionStoreTest::aPrivateStoreKeepsFaviconsInMemoryOnly()
+{
+    QTemporaryDir root;
+    SqliteSessionStore spaces(root.path());
+    QVERIFY(spaces.open());
+    QVERIFY(spaces.saveSpace(makeSpace()));
+    QVERIFY(spaces.recordFavicon(
+        spaceId(), QUrl(QStringLiteral("https://space.example/")), QByteArrayLiteral("space")));
+
+    QTemporaryDir privateRoot;
+    PrivateSessionStore store(QSharedPointer<QHash<QString, int>>::create());
+    QVERIFY(store.open());
+    QVERIFY(store.recordFavicon(
+        {}, QUrl(QStringLiteral("https://a.example/one")), QByteArrayLiteral("private")));
+    QCOMPARE(foundFavicon(store, {}, QStringLiteral("https://a.example/one")),
+        QByteArrayLiteral("private"));
+    QCOMPARE(foundFavicon(store, {}, QStringLiteral("https://a.example/two")),
+        QByteArrayLiteral("private"));
+    QCOMPARE(foundFavicon(store, {}, QStringLiteral("https://space.example/")), QByteArray());
+    QCOMPARE(
+        foundFavicon(store, spaceId(), QStringLiteral("https://space.example/")), QByteArray());
+    QVERIFY(dataRootIsEmpty(privateRoot.path()));
+
+    // A second window's store is a store of its own.
+    PrivateSessionStore next(QSharedPointer<QHash<QString, int>>::create());
+    QCOMPARE(foundFavicon(next, {}, QStringLiteral("https://a.example/one")), QByteArray());
+}
+
+// Stored favicons are browsing data and go with the History that names their
+// pages, whichever way it is deleted. The icon a sidebar tab shows stays with
+// the tab.
+void SessionStoreTest::deletingHistoryDeletesItsFaviconsButNotOneATabShows()
+{
+    QTemporaryDir root;
+    SqliteSessionStore store(root.path());
+    QVERIFY(store.open());
+    QVERIFY(store.saveSpace(makeSpace()));
+    const auto remember = [&store](const QString &url) {
+        QVERIFY(store.recordVisit(spaceId(), QUrl(url), url));
+        QVERIFY(store.recordFavicon(spaceId(), QUrl(url), url.toUtf8()));
+    };
+    remember(QStringLiteral("https://a.example/gone"));
+    remember(QStringLiteral("https://a.example/shown"));
+    remember(QStringLiteral("https://b.example/kept"));
+    QVERIFY(store.saveTabs(spaceId(),
+        {makeTab(QStringLiteral("tab-1"), QStringLiteral("https://a.example/shown"))},
+        QStringLiteral("tab-1")));
+
+    QVERIFY(store.deleteHistoryOrigin(spaceId(), QStringLiteral("https://a.example")));
+    // The deleted page's icon is gone, so it falls back to the one its site
+    // still has, the tab's.
+    QCOMPARE(foundFavicon(store, spaceId(), QStringLiteral("https://a.example/gone")),
+        QByteArrayLiteral("https://a.example/shown"));
+    QCOMPARE(foundFavicon(store, spaceId(), QStringLiteral("https://a.example/shown")),
+        QByteArrayLiteral("https://a.example/shown"));
+    QCOMPARE(foundFavicon(store, spaceId(), QStringLiteral("https://b.example/kept")),
+        QByteArrayLiteral("https://b.example/kept"));
+
+    const auto visit = store.history(spaceId(), QStringLiteral("b.example"), 1)
+                           .first()
+                           .toMap()
+                           .value(QStringLiteral("id"))
+                           .toLongLong();
+    QVERIFY(store.deleteHistoryVisit(spaceId(), visit));
+    QCOMPARE(
+        foundFavicon(store, spaceId(), QStringLiteral("https://b.example/kept")), QByteArray());
+
+    remember(QStringLiteral("https://c.example/recent"));
+    QVERIFY(store.deleteHistorySince(spaceId(), QDateTime::currentMSecsSinceEpoch() - 60'000));
+    QCOMPARE(
+        foundFavicon(store, spaceId(), QStringLiteral("https://c.example/recent")), QByteArray());
+    QCOMPARE(foundFavicon(store, spaceId(), QStringLiteral("https://a.example/shown")),
+        QByteArrayLiteral("https://a.example/shown"));
+
+    QVERIFY(
+        store.saveTabs(spaceId(), {makeTab(QStringLiteral("tab-1"), QStringLiteral("about:blank"))},
+            QStringLiteral("tab-1")));
+    QVERIFY(store.deleteHistorySince(spaceId(), 0));
+    QCOMPARE(
+        foundFavicon(store, spaceId(), QStringLiteral("https://a.example/shown")), QByteArray());
+}
+
+// A Space database written before favicons were kept has no table for them.
+// Opening it adds one and leaves its History as it was.
+void SessionStoreTest::aSpaceDatabaseFromBeforeFaviconsOpensWithItsHistory()
+{
+    QTemporaryDir root;
+    QVERIFY(QDir().mkpath(root.filePath(QStringLiteral("spaces/space-1"))));
+    {
+        auto database = QSqlDatabase::addDatabase(
+            QStringLiteral("QSQLITE"), QStringLiteral("before-favicons"));
+        database.setDatabaseName(root.filePath(QStringLiteral("spaces/space-1/browser.sqlite")));
+        QVERIFY(database.open());
+        QSqlQuery query(database);
+        QVERIFY(query.exec(QStringLiteral("CREATE TABLE history (id INTEGER PRIMARY KEY, "
+                                          "url TEXT NOT NULL, title TEXT NOT NULL, "
+                                          "visited_at INTEGER NOT NULL)")));
+        QVERIFY(query.exec(QStringLiteral("INSERT INTO history(url, title, visited_at) "
+                                          "VALUES('https://a.example/', 'A', 1)")));
+        database.close();
+    }
+    QSqlDatabase::removeDatabase(QStringLiteral("before-favicons"));
+
+    SqliteSessionStore store(root.path());
+    QVERIFY(store.open());
+    QVERIFY(store.saveSpace(makeSpace()));
+    const auto history = store.history(spaceId(), {}, 10);
+    QCOMPARE(history.size(), 1);
+    QCOMPARE(history.first().toMap().value(QStringLiteral("url")).toUrl(),
+        QUrl(QStringLiteral("https://a.example/")));
+    QVERIFY(store.recordFavicon(
+        spaceId(), QUrl(QStringLiteral("https://a.example/")), QByteArrayLiteral("icon")));
+    QCOMPARE(foundFavicon(store, spaceId(), QStringLiteral("https://a.example/")),
+        QByteArrayLiteral("icon"));
+}
+
+// The interface asks and moves on. The answer arrives on the store's thread,
+// after the favicon write queued before it has landed.
+void SessionStoreTest::aThreadedStoreFindsAFaviconOffTheCallersThread()
+{
+    QTemporaryDir root;
+    ThreadedSessionStore store(std::make_unique<SqliteSessionStore>(root.path()));
+    QVERIFY(store.open());
+    QVERIFY(store.saveSpace(makeSpace()));
+    QVERIFY(store.recordFavicon(
+        spaceId(), QUrl(QStringLiteral("https://a.example/")), QByteArrayLiteral("icon")));
+
+    QMutex mutex;
+    QByteArray found;
+    QThread *answeredOn = nullptr;
+    store.findFavicon(
+        spaceId(), QUrl(QStringLiteral("https://a.example/")), [&](const QByteArray &image) {
+            const QMutexLocker locker(&mutex);
+            found = image;
+            answeredOn = QThread::currentThread();
+        });
+    QTRY_VERIFY([&] {
+        const QMutexLocker locker(&mutex);
+        return answeredOn != nullptr;
+    }());
+    const QMutexLocker locker(&mutex);
+    QCOMPARE(found, QByteArrayLiteral("icon"));
+    QCOMPARE(answeredOn, store.thread());
 }
 
 QTEST_MAIN(SessionStoreTest)

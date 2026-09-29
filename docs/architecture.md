@@ -82,10 +82,12 @@ pass however many quiet passes come in between. The exchange refreshes only brow
 keybindings, or filter subscriptions whose persisted projection changed.
 
 A Private window is given a store that records none of this. Which store a window holds is where "a
-Private window writes nothing down" is decided, rather than a test beside each write, and the one
-thing that store keeps, the Site permissions its session has agreed to, lives in memory and goes
-when the last Private window closes
-([ADR 0035](adr/0035-keep-the-private-browsing-rule-in-the-session-store.md)).
+Private window writes nothing down" is decided, rather than a test beside each write. That store
+keeps two things in memory: the Site permissions its session has agreed to, which go when the last
+Private window closes ([ADR 0035](adr/0035-keep-the-private-browsing-rule-in-the-session-store.md)),
+and the favicons the window's pages showed. Each Private window is given a store of its own over the
+session's permissions, so its favicons go when it closes
+([ADR 0055](adr/0055-keep-favicons-in-the-space-that-loaded-them.md)).
 
 What a Private window may do is the set of capabilities the window holds, built once from its kind
 rather than tested wherever an action could be refused: no Spaces, no Pinned tabs, no History
@@ -99,13 +101,34 @@ the recency index and deletes below it, naming that visit by id as well as by ti
 redirect chain lands several visits in one millisecond.
 
 The SQLite store runs on a thread of its own, with its connections opened and closed there. The
-three writes a session makes as it runs, the visit record, the coalesced tab write and the
-closed-tab write, are queued to it and answered as taken, so the interface never waits on the disk
-for them; the store names them `record`. Every other call, the `save` writes, the deletes and the
-reads, runs on the store thread while the interface waits for its answer, which is what a Space
+writes a session makes as it runs, the visit record, the favicon record, the coalesced tab write and
+the closed-tab write, are queued to it and answered as taken, so the interface never waits on the
+disk for them; the store names them `record`. Every other call, the `save` writes, the deletes and
+the reads, runs on the store thread while the interface waits for its answer, which is what a Space
 switch, move or delete needs before it goes on. The thread takes calls in the order they were made,
 so a call sees every queued write made before it, and closing the store at quit lands whatever is
 still queued. A Private window's store keeps nothing and has no thread.
+
+## Stored favicons
+
+A Space's database keeps the favicon each page showed, keyed by address with the page's origin
+beside it, and the newest icon for an address replaces the older one. The icon is read through the
+same path the favicon tint samples one, from the image provider the web engine already filled, and
+is stored as a PNG of at most 64 pixels. An icon whose page has no History left and that no tab
+shows is dropped when History is trimmed, so the icons stay bounded by the History that names them.
+Deleting History deletes the icons of the pages it names, except one a tab in the Space's sidebar
+still shows; the pending tab write lands first so the sidebar the store reads is the one on screen.
+
+The interface draws a stored icon from an `image://omaweb-favicon/<window>/<Space>/<page>` address,
+answered by an asynchronous image provider. The window part names the controller whose store
+answers, so an address never reaches another window's store, and a Private window's never reaches a
+Space's. The provider's question is carried to the window's thread and asked of its store, which for
+a Space posts it to the store thread and answers from there, so neither the interface thread nor the
+image loader waits on the disk. A tab whose page has not reported an icon carries that address in
+its icon role, and an Omnibar history or keyword row falls back to it behind an open tab's icon. The
+tile draws the host code while the image is still loading, and keeps it when nothing is stored,
+which the provider answers as one transparent pixel rather than an error the image would log for
+every tab that asked. Nothing in this path makes a network request.
 
 ## History search
 

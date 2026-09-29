@@ -65,4 +65,21 @@ bool trim(const QSqlDatabase &database)
     return cleanup.exec();
 }
 
+QString origin(const QUrl &url)
+{
+    if (url.host().isEmpty()) {
+        return {};
+    }
+    QUrl origin;
+    origin.setScheme(url.scheme().toLower());
+    origin.setHost(url.host().toLower());
+    const auto port = url.port(-1);
+    const auto defaultPort
+        = url.scheme().compare(QStringLiteral("https"), Qt::CaseInsensitive) == 0 ? 443 : 80;
+    if (port != -1 && port != defaultPort) {
+        origin.setPort(port);
+    }
+    return origin.toString(QUrl::FullyEncoded);
+}
+
 } // namespace omaweb::history

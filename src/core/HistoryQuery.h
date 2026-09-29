@@ -4,6 +4,7 @@
 #include <QVariantList>
 
 class QSqlDatabase;
+class QUrl;
 
 namespace omaweb::history {
 
@@ -21,5 +22,10 @@ QVariantList suggestions(const QSqlDatabase &database, const QString &text, int 
 
 // Drops every visit outside the retained window, newest kept.
 bool trim(const QSqlDatabase &database);
+
+// The origin a page is filed under when History is deleted by site, and a
+// favicon kept: scheme and host in lowercase, with the port only where it is
+// not the scheme's own. Empty for an address with no host.
+QString origin(const QUrl &url);
 
 } // namespace omaweb::history

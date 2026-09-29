@@ -40,6 +40,7 @@
 #include "RuntimeSecurity.h"
 #include "SavedDownload.h"
 #include "SoundingTabs.h"
+#include "StoredFaviconProvider.h"
 #include "PrimaryHold.h"
 #include "SystemClipboard.h"
 #include "SystemNotifier.h"
@@ -400,6 +401,7 @@ int main(int argc, char *argv[])
     omaweb::registerQtAgentInput();
     QQmlApplicationEngine engine;
     omaweb::quickshell::installShim(engine);
+    omaweb::installStoredFavicons(engine);
     engine.rootContext()->setContextProperty(QStringLiteral("browser"), &browser);
     engine.rootContext()->setContextProperty(QStringLiteral("agentControl"), &agentControl);
     engine.rootContext()->setContextProperty(QStringLiteral("contentBlocker"), &contentBlocker);

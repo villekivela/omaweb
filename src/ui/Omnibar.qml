@@ -849,11 +849,15 @@ Item {
                             siteUrl: row.site
                             // A tab has its own icon. A history or keyword
                             // row borrows the icon of an open tab on its
-                            // site, and until one is open the tile draws
-                            // the host code.
+                            // site, and otherwise the one the Space stored
+                            // for the page or its site. A site the Space
+                            // never loaded draws the host code.
                             iconUrl: modelData.kind === "tab" ? modelData.icon :
                                                                 root.siteIcons[root.commands.host(
-                                                                                   row.site)] || ""
+                                                                                   row.site)] || (
+                                                                    root.browser
+                                                                    ? root.browser.storedFavicon(
+                                                                          row.site) : "")
                             useArtwork: root.useFavicons
                             tintArtwork: root.tintFavicons
                         }

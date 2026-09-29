@@ -651,7 +651,10 @@ QtObject {
             const index = tabs.index(row, 0);
             const icon = String(tabs.data(index, Qt.UserRole + 8) || "");
             const site = host(String(tabs.data(index, Qt.UserRole + 3)));
-            if (icon.length > 0 && site.length > 0 && icons[site] === undefined)
+            // A tab whose page has not reported an icon carries its stored
+            // one, which is the row's own fallback rather than a live icon.
+            const stored = icon.startsWith("image://omaweb-favicon/");
+            if (icon.length > 0 && !stored && site.length > 0 && icons[site] === undefined)
                 icons[site] = icon;
         }
         return icons;
