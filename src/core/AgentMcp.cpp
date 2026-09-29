@@ -148,7 +148,8 @@ namespace {
                         "that fails; answers with a look. Steps: click <label>, fill <label> "
                         "<text>, "
                         "press <key>, select <label> <option>, scroll <label|up|down|top|bottom>, "
-                        "back, wait text <text>, wait url <address>."),
+                        "back, wait text <text>, wait url <address>, dialog accept [text], "
+                        "dialog dismiss, upload <label> <path>... (Agent Spaces only)."),
                     .properties = {property(QStringLiteral("steps"), QStringLiteral("steps")), tab,
                         property(QStringLiteral("settle"), integer),
                         property(QStringLiteral("timeout"), integer)},

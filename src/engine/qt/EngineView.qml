@@ -2474,6 +2474,32 @@ Item {
     // Whether the view takes the keyboard when it is made, which a page made
     // for an Agent while the reader is looking at another must not.
     property bool pageTakesFocus: true
+    // An Agent is attached to this page (ADR 0051). Its JS dialogs are the
+    // Agent's to answer and never reach the reader, a file chooser takes only
+    // the files an `upload` step names, and its downloads land in
+    // `agentDownloadDirectory`, the connection's own.
+    property bool agentOwned: false
+    property string agentDownloadDirectory: ""
+    // The dialog the page is stopped on, as `look` reports it, or null. The
+    // page runs no script until it is answered, the Agent's included.
+    property var agentDialog: null
+    property var agentDialogRequest: null
+    // The files the `upload` step under way offers the next file chooser.
+    property var agentUpload: null
+    // Downloads the page started for the Agent that no answer has reported.
+    property var agentDownloads: []
+    // The Agent's scripts sent to the page and not yet answered, which a
+    // dialog answers at once, since the page will not until it has gone.
+    property var agentWaiting: ({})
+    property int agentNextRun: 0
+    onAgentOwnedChanged: {
+        if (root.agentOwned)
+            return;
+        // Nobody is left to answer, so the page goes on as if dismissed.
+        root.answerAgentDialog(false, "");
+        root.agentUpload = null;
+        root.agentDownloads = [];
+    }
     // The keyboard goes back to whatever else the window has, for a page the
     // reader is not looking at.
     function releasePageFocus() {
@@ -2496,6 +2522,136 @@ Item {
     property int agentGeneration: 0
     function cancelAgentVerbs() {
         root.agentGeneration += 1;
+        root.agentUpload = null;
+    }
+
+    function agentDialogShown() {
+        return root.agentFailure("dialog", "The page is showing a dialog. Answer it with "
+                                 + "`dialog accept` or `dialog dismiss`.");
+    }
+
+    function holdAgentDialog(request, kind) {
+        // The page is stopped on the first until it is answered.
+        if (root.agentDialogRequest) {
+            request.dialogReject();
+            return;
+        }
+        const dialog = {
+            "kind": kind,
+            "message": String(request.message)
+        };
+        if (kind === "prompt")
+            dialog.defaultText = String(request.defaultText);
+        root.agentDialogRequest = request;
+        root.agentDialog = dialog;
+        const waiting = root.agentWaiting;
+        root.agentWaiting = ({});
+        for (const run in waiting)
+            waiting[run](root.agentDialogShown());
+    }
+
+    function answerAgentDialog(accept, text) {
+        const request = root.agentDialogRequest;
+        root.agentDialogRequest = null;
+        root.agentDialog = null;
+        if (!request)
+            return false;
+        if (accept)
+            request.dialogAccept(String(text));
+        else
+            request.dialogReject();
+        return true;
+    }
+
+    // A file chooser in an Agent tab. The reader working in the tab chooses
+    // their own files in their own dialog; otherwise only the files an
+    // `upload` step names are given, once, and every other chooser is refused.
+    function answerAgentFileSelection(request) {
+        const upload = root.agentUpload;
+        if (!upload) {
+            if (root.agentReaderInPage)
+                return false;
+            request.dialogReject();
+            return true;
+        }
+        root.agentUpload = null;
+        if (request.mode === FileDialogRequest.FileModeUploadFolder || request.mode
+                === FileDialogRequest.FileModeSave)
+            upload.refusal
+                    = "The page asked for a folder or a place to save, and `upload` gives files.";
+        else if (request.mode === FileDialogRequest.FileModeOpen && upload.files.length > 1)
+            upload.refusal = "The page takes one file, and the step named " + upload.files.length
+                    + ".";
+        if (upload.refusal) {
+            request.dialogReject();
+            return true;
+        }
+        request.dialogAccept(upload.files);
+        upload.taken = true;
+        return true;
+    }
+
+    // Called by the Space's profile for a download this page started while
+    // an Agent held it: `{ download, path }` once it has started, or
+    // `{ held, fileName, risk }` while it waits for the reader.
+    function noteAgentDownload(entry) {
+        root.agentDownloads = root.agentDownloads.concat([entry]);
+    }
+
+    function agentDownloadState(download) {
+        switch (download.state) {
+        case WebEngineDownloadRequest.DownloadRequested:
+            return "requested";
+        case WebEngineDownloadRequest.DownloadInProgress:
+            return "in-progress";
+        case WebEngineDownloadRequest.DownloadCompleted:
+            return "completed";
+        case WebEngineDownloadRequest.DownloadCancelled:
+            return "cancelled";
+        case WebEngineDownloadRequest.DownloadInterrupted:
+            return "interrupted";
+        default:
+            return "unknown";
+        }
+    }
+
+    function agentDownloadRunning(entry) {
+        if (entry.held || !entry.download)
+            return false;
+        const state = root.agentDownloadState(entry.download);
+        return state === "requested" || state === "in-progress";
+    }
+
+    // Each download is reported once, in the next answer after it started.
+    function reportAgentDownloads(look) {
+        const reported = [];
+        for (let index = 0; index < root.agentDownloads.length; ++index) {
+            const entry = root.agentDownloads[index];
+            if (entry.held)
+                reported.push({
+                                  "fileName": String(entry.fileName),
+                                  "held": true,
+                                  "risk": String(entry.risk)
+                              });
+            else
+                reported.push({
+                                  "path": String(entry.path),
+                                  "state": entry.download ? root.agentDownloadState(entry.download) :
+                                                            "unknown"
+                              });
+        }
+        root.agentDownloads = [];
+        if (reported.length > 0)
+            look.downloads = reported;
+        return look;
+    }
+
+    function agentDialogLook() {
+        return root.reportAgentDownloads({
+                                             "title": String(webView.title),
+                                             "url": String(webView.url),
+                                             "dialog": root.agentDialog
+                                         });
     }
     // How long a page that is still arriving is waited for before a verb is
     // answered from what there is.
@@ -2526,11 +2682,23 @@ Item {
 
     // The script is installed with every call. It installs itself once per
     // document, and a document that replaced the last one has none yet.
+    // A page stopped on a dialog runs nothing until it is answered, so a
+    // script is answered at once instead, with the dialog as the reason.
     function agentRun(source, callback) {
+        if (root.agentDialog) {
+            callback(root.agentDialogShown());
+            return;
+        }
+        const run = ++root.agentNextRun;
+        root.agentWaiting[run] = callback;
         webView.runJavaScript(QtAgentInput.pageScript + "\n;globalThis.__omawebAgent.begin("
                               + root.agentNextLabel + ");\n" + source,
                               WebEngineScript.ApplicationWorld, function (result) {
-                                  callback(result);
+                                  const waiting = root.agentWaiting[run];
+                                  if (!waiting)
+                                      return;
+                                  delete root.agentWaiting[run];
+                                  waiting(result);
                               });
     }
 
@@ -2580,8 +2748,8 @@ Item {
     function agentWhenReady(deadline, live, act) {
         if (!live())
             return;
-        const ready = !webView.loading && webView.loadProgress === 100 && String(webView.url).length
-              > 0;
+        const ready = root.agentDialog !== null || (!webView.loading && webView.loadProgress === 100
+                                                    && String(webView.url).length > 0);
         if (ready || Date.now() >= deadline) {
             act();
             return;
@@ -2592,9 +2760,17 @@ Item {
     }
 
     function agentLook(all, done) {
+        if (root.agentDialog) {
+            done(root.agentDialogLook());
+            return;
+        }
         root.agentRun("(() => { const agent = globalThis.__omawebAgent; const look = agent.look(" + (
                           all ? "true" : "false") + "); look.next = agent.next(); return look; })()",
                       function (look) {
+                          if (look && look.code === "dialog") {
+                              done(root.agentDialogLook());
+                              return;
+                          }
                           if (!look || typeof look !== "object") {
                               done(null);
                               return;
@@ -2602,7 +2778,7 @@ Item {
                           root.agentNextLabel = Math.max(root.agentNextLabel, Number(look.next)
                                                          || 0);
                           delete look.next;
-                          done(look);
+                          done(root.reportAgentDownloads(look));
                       });
     }
 
@@ -2713,6 +2889,11 @@ Item {
             return step.action + " " + step.target + " " + quoted(step.text);
         case "press":
             return "press " + step.key;
+        case "dialog":
+            return "dialog " + step.answer + (step.text !== undefined ? " " + quoted(step.text) :
+                                                                        "");
+        case "upload":
+            return "upload " + step.target + " " + (step.files || []).map(quoted).join(" ");
         case "wait":
             return step.url !== undefined ? "wait url " + quoted(step.url) : "wait text " + quoted(
                                                 step.text);
@@ -2733,20 +2914,11 @@ Item {
         const readerUsing = root.agentFailure("reader-using",
                                               "The reader is using this tab, so the Agent waits.");
         const finish = function (failure) {
-            root.agentLook(false, function (look) {
-                const result = {
-                    "ok": failure === null,
-                    "steps": results,
-                    "look": look || ({})
-                };
-                if (failure) {
-                    result.code = failure.code;
-                    result.error = failure.error;
-                    result.failedStep = results.length;
-                }
-                answer(result);
+            root.agentWhenDownloadsDone(Date.now() + timeoutMs, live, function () {
+                root.agentFinishBatch(failure, results, answer);
             });
         };
+
         // The reader's keyboard in the tab is the reader working in it, and
         // the reader wins.
         if (root.agentReaderInPage) {
@@ -2785,6 +2957,60 @@ Item {
         runNext();
     }
 
+    function agentFinishBatch(failure, results, answer) {
+        root.agentLook(false, function (look) {
+            const result = {
+                "ok": failure === null,
+                "steps": results,
+                "look": look || ({})
+            };
+            if (failure) {
+                result.code = failure.code;
+                result.error = failure.error;
+                result.failedStep = results.length;
+            }
+            answer(result);
+        });
+    }
+
+    // A batch that started a download answers once the file is there, or
+    // once a step's time is up, so the path it reports is one to open.
+    function agentWhenDownloadsDone(deadline, live, done) {
+        if (!live())
+            return;
+        if (!root.agentDownloads.some(root.agentDownloadRunning) || Date.now() >= deadline) {
+            done();
+            return;
+        }
+        root.agentAfter(100, function () {
+            root.agentWhenDownloadsDone(deadline, live, done);
+        });
+    }
+
+    function agentWhenDialog(deadline, live, done) {
+        if (!live())
+            return;
+        if (root.agentDialog || Date.now() >= deadline) {
+            done(root.agentDialog !== null);
+            return;
+        }
+        root.agentAfter(50, function () {
+            root.agentWhenDialog(deadline, live, done);
+        });
+    }
+
+    function agentWhenUploadAnswered(upload, deadline, live, done) {
+        if (!live())
+            return;
+        if (upload.taken || upload.refusal || Date.now() >= deadline) {
+            done();
+            return;
+        }
+        root.agentAfter(50, function () {
+            root.agentWhenUploadAnswered(upload, deadline, live, done);
+        });
+    }
+
     function agentStep(step, settleMs, timeoutMs, live, done) {
         const deadline = Date.now() + timeoutMs;
         const startGeneration = root.pageGeneration;
@@ -2812,8 +3038,61 @@ Item {
                     then(result);
             });
         };
+        if (root.agentDialog && step.action !== "dialog") {
+            const shown = root.agentDialogShown();
+            fail(shown.code, shown.error);
+            return;
+        }
         const target = JSON.stringify(String(step.target));
         switch (step.action) {
+        case "dialog":
+            // A dialog may come a moment after the step that caused it.
+            root.agentWhenDialog(deadline, live, function (shown) {
+                if (!shown) {
+                    fail("no-dialog", "The page showed no dialog to answer.");
+                    return;
+                }
+                const text = step.text !== undefined ? step.text : (root.agentDialog.defaultText
+                                                                    || "");
+                root.answerAgentDialog(step.answer === "accept", text);
+                settle();
+            });
+            return;
+        case "upload":
+            root.agentWhenInterfaceFree(deadline, live, function (free) {
+                if (!free) {
+                    fail("reader-in-interface",
+                         "The reader is using Omaweb's own controls, and the click waited for them.");
+                    return;
+                }
+                inPage("globalThis.__omawebAgent.point(" + target + ")", function (place) {
+                    if (!live())
+                        return;
+                    const upload = {
+                        "files": step.files || [],
+                        "taken": false,
+                        "refusal": ""
+                    };
+                    root.agentUpload = upload;
+                    const zoom = webView.zoomFactor;
+                    if (!QtAgentInput.click(webView, Qt.point(place.x * zoom, place.y * zoom))) {
+                        root.agentUpload = null;
+                        fail("failed", "The page has nothing to take a click.");
+                        return;
+                    }
+                    root.agentWhenUploadAnswered(upload, deadline, live, function () {
+                        if (root.agentUpload === upload)
+                            root.agentUpload = null;
+                        if (upload.taken)
+                            settle();
+                        else if (upload.refusal)
+                            fail("refused", upload.refusal);
+                        else
+                            fail("no-chooser", "The click opened no file chooser.");
+                    });
+                });
+            });
+            return;
         case "click":
             root.agentWhenInterfaceFree(deadline, live, function (free) {
                 if (!free) {
@@ -2877,6 +3156,8 @@ Item {
                                       done({
                                                "ok": true
                                            });
+                                  else if (root.agentDialog)
+                                      fail("dialog", root.agentDialogShown().error);
                                   else
                                       fail("timeout", "It did not appear within " + timeoutMs
                                            + " ms.");
@@ -2899,6 +3180,12 @@ Item {
                 return;
             }
             root.agentRun("globalThis.__omawebAgent.quiet()", function (quiet) {
+                // A page stopped on a dialog changes no more until it is
+                // answered, which is the next step's to do.
+                if (quiet && quiet.code === "dialog") {
+                    done(true);
+                    return;
+                }
                 const since = Number(quiet);
                 if (since >= settleMs) {
                     done(true);
@@ -2913,6 +3200,10 @@ Item {
                 return;
             if (Date.now() >= deadline) {
                 done(false);
+                return;
+            }
+            if (root.agentDialog) {
+                waitQuiet();
                 return;
             }
             const navigating = root.pageGeneration !== startGeneration || webView.loading;
@@ -2930,6 +3221,10 @@ Item {
     function agentWaitFor(kind, value, deadline, live, done) {
         if (!live())
             return;
+        if (root.agentDialog) {
+            done(false);
+            return;
+        }
         root.agentRun("globalThis.__omawebAgent.present(" + JSON.stringify(kind) + ", "
                       + JSON.stringify(value) + ")", function (found) {
                           if (found === true) {
@@ -2972,6 +3267,13 @@ Item {
         // Where a save from the page's menu goes. The profile reads it from
         // the download's view and clears it once the download has started.
         property string preparedDownloadPath: ""
+        // Where the Space's profile puts a download this page starts for an
+        // Agent, and whom it tells.
+        readonly property string agentDownloadDirectory: root.agentOwned
+                                                         ? root.agentDownloadDirectory : ""
+        function noteAgentDownload(entry) {
+            root.noteAgentDownload(entry);
+        }
         // Chromium draws a PDF in a sandboxed viewer of its own, with find,
         // zoom, print and download inside it. Without this the profile
         // downloads the document instead, which is what an engine with no such
@@ -3005,6 +3307,9 @@ Item {
         onRecommendedStateChanged: root.applyPageLifecycle()
 
         onRenderProcessTerminated: function (terminationStatus, exitCode) {
+            // The dialog went with the page that showed it.
+            root.agentDialogRequest = null;
+            root.agentDialog = null;
             root.rendererFailed("Renderer stopped with exit code " + exitCode);
         }
 
@@ -3342,6 +3647,10 @@ Item {
                 suffix = "prompt";
             else if (request.type === JavaScriptDialogRequest.DialogTypeBeforeUnload)
                 suffix = "before-unload";
+            if (root.agentOwned) {
+                root.holdAgentDialog(request, suffix);
+                return;
+            }
             const requestId = String(++root.nextBrowserPromptId);
             const kind = "javascript-" + suffix;
             root.pendingBrowserPrompts[requestId] = {
@@ -3373,6 +3682,8 @@ Item {
 
         onFileDialogRequested: function (request) {
             request.accepted = true;
+            if (root.agentOwned && root.answerAgentFileSelection(request))
+                return;
             const requestId = String(++root.nextBrowserPromptId);
             let mode = "open";
             if (request.mode === FileDialogRequest.FileModeOpenMultiple)

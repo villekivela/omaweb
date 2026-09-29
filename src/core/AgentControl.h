@@ -55,6 +55,10 @@ class AgentControl final : public QObject {
     // lately. The interface keeps each rendered and running while it is
     // listed, wherever its Space is.
     Q_PROPERTY(QStringList agentTabIds READ agentTabIds NOTIFY agentTabsChanged)
+    // The Auxiliary windows an Agent tab opened, which the connection drives
+    // as it drives the tab, by these ids. The interface marks each as it
+    // marks its tab.
+    Q_PROPERTY(QStringList agentPopupIds READ agentPopupIds NOTIFY agentPopupsChanged)
 
 public:
     // The most connection states kept at once. A name costs nothing to invent,
@@ -129,6 +133,18 @@ public:
     // `spaceId`, `url`, `zoom` and `muted`. Empty for a tab that is not one.
     Q_INVOKABLE QVariantMap agentTab(const QString &tabId) const;
 
+    QStringList agentPopupIds() const;
+    // An Auxiliary window the page of `openerTabId` opened. While the opener
+    // is an Agent tab, the window becomes one of the Agent's, under the id
+    // this answers; otherwise it answers nothing and stays the reader's.
+    Q_INVOKABLE QString attachPopup(const QString &openerTabId);
+    // What the interface needs to mark and drive one: `popupId`,
+    // `openerTabId`, `spaceId`, `connection` and `downloadDirectory`. Empty
+    // for a window that is not an Agent's.
+    Q_INVOKABLE QVariantMap agentPopup(const QString &popupId) const;
+    // The window has closed.
+    Q_INVOKABLE void popupClosed(const QString &popupId);
+
     // Where `shot` writes every screenshot: a directory only this user can
     // enter, beside the socket.
     void setShotDirectory(const QString &directory);
@@ -138,8 +154,13 @@ public:
 signals:
     void allowAgentsChanged();
     void agentTabsChanged();
+    void agentPopupsChanged();
+    // An Agent closed the Auxiliary window of this id.
+    void popupCloseRequested(const QString &popupId);
     // A page verb for the page of `request.tabId`, with `verb`, `spaceId`, the
-    // tab's `url`, the connection's `name` and the verb's own `arguments`.
+    // tab's `url`, the connection's `name`, the connection's
+    // `downloadDirectory` and the verb's own `arguments`. `popup` is true for
+    // an Auxiliary window, whose id is `tabId`.
     // Whoever holds the page answers it with `answerPage(requestId, ...)`.
     void pageRequested(int requestId, const QVariantMap &request);
     // Every page request still out has been refused, and the pages working
@@ -166,14 +187,26 @@ private:
         QString tabId;
     };
 
+    struct Popup {
+        QString openerTabId;
+        QString connection;
+    };
+
     void reload();
     void apply(bool allowed);
     QJsonObject gate(const QString &verb) const;
     void resolveCurrentTab(Connection &connection) const;
     QJsonObject answerBrowserCommand(const QString &verb, const QString &name,
         Connection &connection, const QJsonObject &request, quint64 socketConnection);
+    // The tab, or the Auxiliary window, `--tab` or the current tab names.
+    QString targetId(const Connection &connection, const QJsonObject &request) const;
+    // `tab` is the page's tab, which for an Auxiliary window is its opener's,
+    // and `target` the id the page answers for.
     QJsonObject pageTab(const Connection &connection, const QJsonObject &request,
-        std::optional<TabState> &tab) const;
+        std::optional<TabState> &tab, QString &target) const;
+    // A batch with an upload in it, refused outside an Agent Space whatever
+    // else the Agent may do there.
+    QJsonObject refuseUpload(const Connection &connection, const QJsonObject &request) const;
     QJsonObject readConsole(Connection &connection, const QJsonObject &request);
     QJsonObject askWindow(const QString &verb, const QJsonObject &request);
     QJsonObject switchToSpace(const QJsonObject &request);
@@ -183,18 +216,21 @@ private:
     // The verb's own arguments as the page is to get them, or a refusal.
     QJsonObject pageArguments(
         const QString &verb, const QJsonObject &request, QVariantMap &out) const;
-    void attach(const QString &tabId);
+    void attach(const QString &tabId, const QString &name = {});
     void detach(const QString &tabId);
     void detachIdle();
     Connection &connectionNamed(const QString &name);
     bool mayDrive(const TabState &tab) const;
     bool mayRead(const TabState &tab) const;
+    // Where the connection's downloads land: a directory of its own under the
+    // reader's downloads location. Empty when there is no location.
+    QString downloadDirectoryFor(const QString &name) const;
     QString reserveShot(const QString &name, QJsonObject &refused) const;
     void pruneShots() const;
 
     QJsonObject listSpaces() const;
     QJsonObject listTabs(Connection &connection, const QJsonObject &request) const;
-    QJsonObject open(Connection &connection, const QJsonObject &request);
+    QJsonObject open(const QString &name, Connection &connection, const QJsonObject &request);
     QJsonObject close(Connection &connection, const QJsonObject &request);
     QJsonObject createSpace(const QString &creator, Connection &connection,
         const QJsonObject &request, quint64 socketConnection);
@@ -233,6 +269,14 @@ private:
     QTimer m_idleCheck;
     AgentConsole m_console;
     int m_attachmentIdleMs = defaultAttachmentIdleMs;
+    // The connection that last used each Agent tab, whose downloads its page's
+    // go with.
+    QHash<QString, QString> m_tabConnections;
+    QHash<QString, Popup> m_popups;
+    int m_nextPopup = 1;
+    // The Auxiliary windows each Agent tab opened that no answer has named
+    // yet, so the `do` that opened one says so.
+    QHash<QString, QStringList> m_newPopups;
     // The temporary Agent Spaces each socket connection made.
     QHash<quint64, QStringList> m_temporarySpaces;
 };

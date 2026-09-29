@@ -1,6 +1,7 @@
 #include "AgentCommand.h"
 
 #include <QFile>
+#include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QLocalSocket>
@@ -279,7 +280,8 @@ namespace {
     }
 
     // `click 3`, `fill 5 "text"`, `press Enter`, `select 7 Finland`,
-    // `scroll down`, `back`, `wait text Thanks` and `wait url /done`.
+    // `scroll down`, `back`, `wait text Thanks`, `wait url /done`,
+    // `dialog accept`, `dialog dismiss` and `upload 4 report.pdf`.
     QJsonArray readSteps(const QStringList &arguments, QString &error)
     {
         QJsonArray steps;
@@ -316,6 +318,31 @@ namespace {
                         error = QStringLiteral("`back` takes nothing.");
                         return {};
                     }
+                } else if (action == u"dialog") {
+                    const auto answer = words.value(1);
+                    if ((answer != u"accept" && answer != u"dismiss")
+                        || (answer == u"dismiss" && words.size() > 2)) {
+                        error = QStringLiteral(
+                            "Use `dialog accept`, `dialog accept <text>` or `dialog dismiss`.");
+                        return {};
+                    }
+                    step.insert(QStringLiteral("answer"), answer);
+                    if (words.size() > 2) {
+                        step.insert(QStringLiteral("text"), rest(2));
+                    }
+                } else if (action == u"upload") {
+                    if (words.size() < 3) {
+                        error = QStringLiteral("`upload` takes a label and the files to give it.");
+                        return {};
+                    }
+                    step.insert(QStringLiteral("target"), words.at(1));
+                    // A path is the Agent's, so one relative to where it runs
+                    // is made whole here, before the browser sees it.
+                    QJsonArray files;
+                    for (const auto &file : words.mid(2)) {
+                        files.append(QFileInfo(file).absoluteFilePath());
+                    }
+                    step.insert(QStringLiteral("files"), files);
                 } else if (action == u"wait") {
                     const auto kind = words.value(1);
                     if ((kind != u"text" && kind != u"url") || words.size() < 3) {
@@ -370,6 +397,29 @@ namespace {
                 line += QStringLiteral(" (disabled)");
             }
             text += line + u'\n';
+        }
+        if (const auto dialog = look.value(QStringLiteral("dialog")).toObject();
+            !dialog.isEmpty()) {
+            QString line = QStringLiteral("Dialog (%1) ")
+                               .arg(dialog.value(QStringLiteral("kind")).toString())
+                + quoted(dialog.value(QStringLiteral("message")).toString());
+            if (dialog.contains(QStringLiteral("defaultText"))) {
+                line += u" = " + quoted(dialog.value(QStringLiteral("defaultText")).toString());
+            }
+            text += u'\n' + line
+                + QStringLiteral("\nThe page waits for `dialog accept` or `dialog dismiss`.\n");
+        }
+        for (const auto &value : look.value(QStringLiteral("downloads")).toArray()) {
+            const auto download = value.toObject();
+            if (download.value(QStringLiteral("held")).toBool()) {
+                text += QStringLiteral("Download held for the reader: %1 (%2)\n")
+                            .arg(download.value(QStringLiteral("fileName")).toString(),
+                                download.value(QStringLiteral("risk")).toString());
+            } else {
+                text += QStringLiteral("Download %1: %2\n")
+                            .arg(download.value(QStringLiteral("state")).toString(),
+                                download.value(QStringLiteral("path")).toString());
+            }
         }
         const auto above = look.value(QStringLiteral("above")).toInt();
         const auto below = look.value(QStringLiteral("below")).toInt();
@@ -640,6 +690,10 @@ QString formatAgentAnswer(const QString &verb, const QJsonObject &answer)
             if (tab.value(QStringLiteral("pinned")).toBool()) {
                 flags.append(QStringLiteral("pinned"));
             }
+            if (tab.value(QStringLiteral("popup")).toBool()) {
+                flags.append(
+                    QStringLiteral("window of ") + tab.value(QStringLiteral("opener")).toString());
+            }
             text += line({tab.value(QStringLiteral("id")).toString(),
                 tab.value(QStringLiteral("url")).toString(),
                 tab.value(QStringLiteral("title")).toString(), flags.join(u',')});
@@ -687,7 +741,11 @@ QString formatAgentAnswer(const QString &verb, const QJsonObject &answer)
         return markdown.endsWith(u'\n') ? markdown : markdown + u'\n';
     }
     if (verb == u"do") {
-        return formatSteps(answer) + u'\n'
+        QString opened;
+        for (const auto &value : answer.value(QStringLiteral("opened")).toArray()) {
+            opened += QStringLiteral("Opened window %1\n").arg(value.toString());
+        }
+        return formatSteps(answer) + opened + u'\n'
             + formatLook(answer.value(QStringLiteral("look")).toObject());
     }
     if (verb == u"shot") {

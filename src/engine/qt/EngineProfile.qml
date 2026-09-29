@@ -415,6 +415,13 @@ QtObject {
             const answered = answer !== undefined;
             if (answered)
                 delete root.answeredDownloads[sourceKey];
+            // A page an Agent holds downloads for the Agent (ADR 0051), unless
+            // the reader saved something from its menu.
+            const agentDirectory = (view && view.agentDownloadDirectory) || "";
+            if (agentDirectory.length > 0 && preparedDownloadPath.length === 0) {
+                root.acceptAgentDownload(download, view, pageUrl, agentDirectory, answered);
+                return;
+            }
             let chosenPath = answered && answer.length > 0 ? answer : preparedDownloadPath;
             if (chosenPath.length === 0) {
                 const fileName = download.downloadFileName.length > 0 ? download.downloadFileName :
@@ -453,14 +460,57 @@ QtObject {
             }
             if (download.downloadFileName.length === 0)
                 download.downloadFileName = download.suggestedFileName;
-            root.activeDownloadCount += 1;
-            root.downloadObserver.createObject(root, {
-                                                   "download": download,
-                                                   "downloadNamespace": root.downloadNamespace,
-                                                   "pageUrl": String(pageUrl)
-                                               });
-            download.accept();
+            root.startDownload(download, pageUrl);
         }
+    }
+
+    function startDownload(download, pageUrl) {
+        root.activeDownloadCount += 1;
+        root.downloadObserver.createObject(root, {
+                                               "download": download,
+                                               "downloadNamespace": root.downloadNamespace,
+                                               "pageUrl": String(pageUrl)
+                                           });
+        download.accept();
+    }
+
+    // Into the connection's own directory under a name nothing there has, and
+    // reported to the page so the Agent hears where. A High-risk file waits for
+    // the reader as any other page's does, and the Agent hears that too.
+    function acceptAgentDownload(download, view, pageUrl, directory, answered) {
+        const fileName = download.downloadFileName.length > 0 ? download.downloadFileName :
+                                                                download.suggestedFileName;
+        const rule = root.downloads ? root.downloads.agentDisposition(pageUrl, fileName,
+                                                                      download.mimeType, directory,
+                                                                      answered) : null;
+        const disposition = rule ? rule.disposition : BrowserController.RefuseDownload;
+        if (disposition === BrowserController.AcceptDownload) {
+            const path = String(rule.path);
+            const separator = path.lastIndexOf("/");
+            download.downloadDirectory = path.substring(0, separator);
+            download.downloadFileName = path.substring(separator + 1);
+            root.startDownload(download, pageUrl);
+            view.noteAgentDownload({
+                                       "download": download,
+                                       "path": path
+                                   });
+            return;
+        }
+        if (disposition === BrowserController.ConfirmDownload) {
+            const token = root.downloadHolds ? root.downloadHolds.hold(download) : "";
+            if (token.length > 0) {
+                root.downloadHeld(token, disposition, rule.origin, download.url, fileName,
+                                  rule.risk);
+                view.noteAgentDownload({
+                                           "held": true,
+                                           "fileName": fileName,
+                                           "risk": rule.risk
+                                       });
+                return;
+            }
+        }
+        download.cancel();
+        root.downloadRefused(download.url, fileName, rule ? rule.origin : "");
     }
 
     Component.onCompleted: {

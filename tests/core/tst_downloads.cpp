@@ -84,6 +84,7 @@ private slots:
     void asksBeforeWritingDownAProgram();
     void takesAPermissionForAutomaticAndMultipleDownloads();
     void sendsAConflictingNameToTheSaveDialog();
+    void landsAnAgentsDownloadInItsOwnDirectory();
 };
 
 void DownloadsTest::holdsRunningAndRecordedDownloadsInOneList()
@@ -569,5 +570,69 @@ void DownloadsTest::sendsAConflictingNameToTheSaveDialog()
 }
 
 QTEST_MAIN(DownloadsTest)
+
+// An Agent tab's download (ADR 0051) goes to the connection's own directory
+// under a name nothing there has, asks the reader nothing about where, and is
+// still held for the reader when it is High-risk.
+void DownloadsTest::landsAnAgentsDownloadInItsOwnDirectory()
+{
+    QTemporaryDir root;
+    QTemporaryDir downloadsRoot;
+    BrowserController controller(SpaceStorage(root.path(), QStringLiteral("test")));
+    auto *downloads = controller.downloads();
+    const QUrl origin(QStringLiteral("https://files.example/page"));
+    const auto directory = QDir(downloadsRoot.path()).filePath(QStringLiteral("Agents/claude"));
+    const auto decide = [&](const QString &fileName, bool answered = false) {
+        return downloads->agentDisposition(
+            origin, fileName, QStringLiteral("application/pdf"), directory, answered);
+    };
+
+    // The origin was never clicked by the reader, and the Agent is not asked.
+    const auto first = decide(QStringLiteral("notes.pdf"));
+    QCOMPARE(first.value(QStringLiteral("disposition")).toInt(), BrowserController::AcceptDownload);
+    QCOMPARE(first.value(QStringLiteral("path")).toString(),
+        QDir(directory).filePath(QStringLiteral("notes.pdf")));
+    QVERIFY(QFileInfo(directory).isDir());
+    QCOMPARE(QFileInfo(directory).permissions()
+            & (QFileDevice::ReadGroup | QFileDevice::ReadOther | QFileDevice::WriteOther),
+        QFileDevice::Permissions {});
+
+    // A name already there is not replaced and not asked about.
+    QFile existing(first.value(QStringLiteral("path")).toString());
+    QVERIFY(existing.open(QIODevice::WriteOnly));
+    existing.close();
+    QCOMPARE(decide(QStringLiteral("notes.pdf")).value(QStringLiteral("path")).toString(),
+        QDir(directory).filePath(QStringLiteral("notes (2).pdf")));
+
+    // The page names the file, and never a place outside the directory.
+    const auto escaping = decide(QStringLiteral("../../.bashrc")).value(QStringLiteral("path"));
+    QCOMPARE(
+        QFileInfo(escaping.toString()).absolutePath(), QFileInfo(directory).absoluteFilePath());
+    QVERIFY(!QFileInfo(escaping.toString()).fileName().startsWith(u'.'));
+
+    // High-risk waits for the reader, until the reader has answered.
+    const auto script = decide(QStringLiteral("install.sh"));
+    QCOMPARE(
+        script.value(QStringLiteral("disposition")).toInt(), BrowserController::ConfirmDownload);
+    QCOMPARE(script.value(QStringLiteral("risk")).toString(), QStringLiteral("script"));
+    QVERIFY(!script.contains(QStringLiteral("path")));
+    QCOMPARE(
+        decide(QStringLiteral("install.sh"), true).value(QStringLiteral("disposition")).toInt(),
+        BrowserController::AcceptDownload);
+
+    // An origin the reader blocked from downloading stays blocked.
+    QVERIFY(controller.setPermissionDecision(
+        origin, QStringLiteral("automatic-downloads"), BrowserController::Block));
+    QCOMPARE(decide(QStringLiteral("other.pdf")).value(QStringLiteral("disposition")).toInt(),
+        BrowserController::RefuseDownload);
+
+    // With nowhere to put it, it is refused rather than sent to the reader's.
+    QCOMPARE(downloads
+                 ->agentDisposition(QUrl(QStringLiteral("https://else.example/")),
+                     QStringLiteral("a.pdf"), QStringLiteral("application/pdf"), QString())
+                 .value(QStringLiteral("disposition"))
+                 .toInt(),
+        BrowserController::RefuseDownload);
+}
 
 #include "tst_downloads.moc"

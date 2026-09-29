@@ -262,6 +262,9 @@ private slots:
     void qtAgentReadsThePageAsMarkdown();
     void qtAgentCapturesThePage();
     void qtAgentStopsWhatIsUnderWayWhenCalledOff();
+    void qtAgentAnswersThePagesDialogs();
+    void qtAgentUploadsOnlyTheFilesItNames();
+    void qtAgentDownloadsIntoItsOwnDirectory();
     void qtReportsOnlyThePagesOwnConsole();
     void qtSeparatesReloadBypassingCacheFromReloadAndStop();
     void qtRendersAPageForPrintingAndDrawsPdfsInline();
@@ -4747,6 +4750,30 @@ addEventListener("hashchange", () => {
   console.error("boom");
 });
 </script>)HTML");
+        page("/dialogs.html", R"HTML(<!doctype html><title>Dialogs</title>
+<button id="ask">Ask</button> <button id="name">Name</button> <button id="later">Later</button>
+<p id="said">none</p>
+<script>
+const said = document.getElementById("said");
+document.getElementById("ask").onclick = () => { said.textContent = confirm("Delete it?") ? "yes" : "no"; };
+document.getElementById("name").onclick = () => { said.textContent = "name " + prompt("Your name?", "Reader"); };
+document.getElementById("later").onclick = () => setTimeout(() => { alert("Done"); said.textContent = "alerted"; }, 400);
+</script>)HTML");
+        page("/upload.html", R"HTML(<!doctype html><title>Upload</title>
+<label>Report <input type="file" id="report"></label>
+<label>Photos <input type="file" id="photos" multiple></label>
+<p id="got">nothing</p>
+<script>
+for (const id of ["report", "photos"])
+  document.getElementById(id).addEventListener("change", e => {
+    document.getElementById("got").textContent =
+      id + ": " + [...e.target.files].map(f => f.name + " " + f.size).join(", ");
+  });
+</script>)HTML");
+        page("/downloads.html", R"HTML(<!doctype html><title>Downloads</title>
+<a href="notes.txt" download>Notes</a> <a href="install.sh" download>Installer</a>)HTML");
+        page("/notes.txt", "Some notes.");
+        page("/install.sh", "echo hi");
         connect(this, &QTcpServer::newConnection, this, [this] {
             auto *socket = nextPendingConnection();
             connect(socket, &QTcpSocket::readyRead, socket, [this, socket] {
@@ -4781,6 +4808,8 @@ struct AgentPage {
     QQuickWindow window;
     std::unique_ptr<QObject> reader;
     std::unique_ptr<QObject> adapter;
+    // Given to the Agent's page as it is made, such as a Space's profile.
+    QVariantMap adapterProperties;
     int nextRequest = 1;
 
     bool load(const QUrl &url)
@@ -4788,8 +4817,10 @@ struct AgentPage {
         QQmlComponent component(
             &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
         // Each in a profile of its own, as two Spaces are.
-        adapter.reset(component.createWithInitialProperties({{QStringLiteral("currentUrl"), url},
-            {QStringLiteral("profilePath"), profiles.filePath(QStringLiteral("agent"))}}));
+        QVariantMap properties {{QStringLiteral("currentUrl"), url},
+            {QStringLiteral("profilePath"), profiles.filePath(QStringLiteral("agent"))}};
+        properties.insert(adapterProperties);
+        adapter.reset(component.createWithInitialProperties(properties));
         reader.reset(component.createWithInitialProperties(
             {{QStringLiteral("currentUrl"), QUrl(QStringLiteral("about:blank"))},
                 {QStringLiteral("profilePath"), profiles.filePath(QStringLiteral("reader"))}}));
@@ -6750,4 +6781,233 @@ void QtEngineContractTest::qtHoldsARiskyDownloadUntilTheShellHasAnswered()
     QCOMPARE(heldSpy.count(), 3);
     QTRY_VERIFY(QFileInfo::exists(chosen));
     QVERIFY(QFileInfo::exists(landed));
+}
+
+// A JS dialog in an Agent tab is the Agent's: never put in front of the
+// reader, reported by `look` while the page waits on it, and answered by a
+// `dialog` step. Once no Agent holds the tab, a dialog is the reader's again.
+void QtEngineContractTest::qtAgentAnswersThePagesDialogs()
+{
+    AgentSite site;
+    AgentPage page;
+    page.adapterProperties.insert(QStringLiteral("agentOwned"), true);
+    QVERIFY(page.load(site.url(QStringLiteral("dialogs.html"))));
+    QSignalSpy prompts(page.adapter.get(), SIGNAL(browserPromptRequested(QString, QVariant)));
+    QTRY_COMPARE(page.look().value(QStringLiteral("title")).toString(), QStringLiteral("Dialogs"));
+    const auto look = page.look();
+    const auto ask = labelNamed(look, QStringLiteral("Ask"));
+    const auto name = labelNamed(look, QStringLiteral("Name"));
+    const auto later = labelNamed(look, QStringLiteral("Later"));
+    QVERIFY(!ask.isEmpty() && !name.isEmpty() && !later.isEmpty());
+    const auto said = [&page] {
+        return page.evaluate(QStringLiteral("document.getElementById('said').textContent"));
+    };
+
+    // The click that opens it settles, and its look is the dialog.
+    const auto asked = page.batch({QStringLiteral("click ") + ask});
+    QVERIFY2(asked.value(QStringLiteral("ok")).toBool(),
+        QJsonDocument(asked).toJson(QJsonDocument::Compact).constData());
+    const auto dialog
+        = asked.value(QStringLiteral("look")).toObject().value(QStringLiteral("dialog")).toObject();
+    QCOMPARE(dialog.value(QStringLiteral("kind")).toString(), QStringLiteral("confirm"));
+    QCOMPARE(dialog.value(QStringLiteral("message")).toString(), QStringLiteral("Delete it?"));
+    QCOMPARE(page.look().value(QStringLiteral("dialog")).toObject(), dialog);
+    // The page runs nothing until it is answered, and says so.
+    QCOMPARE(page.ask(QStringLiteral("eval"), {{QStringLiteral("expression"), QStringLiteral("1")}})
+                 .value(QStringLiteral("code"))
+                 .toString(),
+        QStringLiteral("dialog"));
+    const auto blocked = page.batch({QStringLiteral("click ") + name});
+    QCOMPARE(blocked.value(QStringLiteral("code")).toString(), QStringLiteral("dialog"));
+    QCOMPARE(blocked.value(QStringLiteral("failedStep")).toInt(), 1);
+
+    QVERIFY(page.batch({QStringLiteral("dialog accept")}).value(QStringLiteral("ok")).toBool());
+    QCOMPARE(said(), QJsonValue(QStringLiteral("yes")));
+    QVERIFY(!page.look().contains(QStringLiteral("dialog")));
+
+    // A prompt takes the text given, or keeps its own; a dismissal refuses.
+    QVERIFY(page.batch({QStringLiteral("click ") + name, QStringLiteral("dialog accept 'Ada L'")})
+            .value(QStringLiteral("ok"))
+            .toBool());
+    QCOMPARE(said(), QJsonValue(QStringLiteral("name Ada L")));
+    const auto named = page.batch({QStringLiteral("click ") + name});
+    QCOMPARE(named.value(QStringLiteral("look"))
+                 .toObject()
+                 .value(QStringLiteral("dialog"))
+                 .toObject()
+                 .value(QStringLiteral("defaultText"))
+                 .toString(),
+        QStringLiteral("Reader"));
+    QVERIFY(page.batch({QStringLiteral("dialog accept")}).value(QStringLiteral("ok")).toBool());
+    QCOMPARE(said(), QJsonValue(QStringLiteral("name Reader")));
+    QVERIFY(page.batch({QStringLiteral("click ") + ask, QStringLiteral("dialog dismiss")})
+            .value(QStringLiteral("ok"))
+            .toBool());
+    QCOMPARE(said(), QJsonValue(QStringLiteral("no")));
+
+    // A dialog a moment after the click is waited for; none at all is said.
+    QVERIFY(page.batch({QStringLiteral("click ") + later, QStringLiteral("dialog accept")})
+            .value(QStringLiteral("ok"))
+            .toBool());
+    QTRY_COMPARE(said(), QJsonValue(QStringLiteral("alerted")));
+    QCOMPARE(page.batch({QStringLiteral("dialog accept")}, {{QStringLiteral("timeout"), 300}})
+                 .value(QStringLiteral("code"))
+                 .toString(),
+        QStringLiteral("no-dialog"));
+    QCOMPARE(prompts.count(), 0);
+
+    // The Agent lets go with a dialog up: nobody is left to answer, so the
+    // page goes on as if it was dismissed.
+    page.batch({QStringLiteral("click ") + ask});
+    QVERIFY(page.adapter->setProperty("agentOwned", false));
+    QTRY_COMPARE(said(), QJsonValue(QStringLiteral("no")));
+    QCOMPARE(prompts.count(), 0);
+    // And the next one is the reader's.
+    page.batch({QStringLiteral("click ") + ask}, {{QStringLiteral("timeout"), 300}});
+    QTRY_COMPARE(prompts.count(), 1);
+    QMetaObject::invokeMethod(page.adapter.get(), "respondToBrowserPrompt",
+        Q_ARG(QVariant, prompts.at(0).at(0)), Q_ARG(QVariant, true),
+        Q_ARG(QVariant, QVariantMap {}));
+    QTRY_COMPARE(said(), QJsonValue(QStringLiteral("yes")));
+}
+
+// A file chooser in an Agent tab takes the files an `upload` step names and
+// nothing else: the reader's dialog is never opened for it, and a chooser the
+// Agent did not ask for is refused.
+void QtEngineContractTest::qtAgentUploadsOnlyTheFilesItNames()
+{
+    AgentSite site;
+    AgentPage page;
+    page.adapterProperties.insert(QStringLiteral("agentOwned"), true);
+    QVERIFY(page.load(site.url(QStringLiteral("upload.html"))));
+    QSignalSpy choosers(page.adapter.get(), SIGNAL(fileSelectionRequested(QString, QVariant)));
+    QTRY_COMPARE(page.look().value(QStringLiteral("title")).toString(), QStringLiteral("Upload"));
+    const auto look = page.look();
+    const auto report = labelNamed(look, QStringLiteral("Report"));
+    const auto photos = labelNamed(look, QStringLiteral("Photos"));
+    QVERIFY2(!report.isEmpty() && !photos.isEmpty(),
+        QJsonDocument(look).toJson(QJsonDocument::Compact).constData());
+
+    QTemporaryDir files;
+    const auto write = [&files](const QString &name, const QByteArray &content) {
+        const auto path = QDir(files.path()).filePath(name);
+        QFile file(path);
+        if (file.open(QIODevice::WriteOnly)) {
+            file.write(content);
+        }
+        return path;
+    };
+    const auto first = write(QStringLiteral("a.txt"), "hello");
+    const auto second = write(QStringLiteral("b.txt"), "hi");
+    const auto got = [&page] {
+        return page.evaluate(QStringLiteral("document.getElementById('got').textContent"))
+            .toString();
+    };
+
+    const auto uploaded = page.batch({QStringLiteral("upload ") + report + u' ' + first});
+    QVERIFY2(uploaded.value(QStringLiteral("ok")).toBool(),
+        QJsonDocument(uploaded).toJson(QJsonDocument::Compact).constData());
+    QTRY_COMPARE(got(), QStringLiteral("report: a.txt 5"));
+
+    // Two files for a field that takes one are refused, not cut down.
+    const auto two
+        = page.batch({QStringLiteral("upload ") + report + u' ' + first + u' ' + second});
+    QCOMPARE(two.value(QStringLiteral("code")).toString(), QStringLiteral("refused"));
+    QVERIFY(page.batch({QStringLiteral("upload ") + photos + u' ' + first + u' ' + second})
+            .value(QStringLiteral("ok"))
+            .toBool());
+    QTRY_COMPARE(got(), QStringLiteral("photos: a.txt 5, b.txt 2"));
+
+    // A click on the field is not an upload: the chooser it opens is refused.
+    QVERIFY(page.batch({QStringLiteral("click ") + report}).value(QStringLiteral("ok")).toBool());
+    QTest::qWait(300);
+    QCOMPARE(got(), QStringLiteral("photos: a.txt 5, b.txt 2"));
+    QCOMPARE(choosers.count(), 0);
+}
+
+// A download from an Agent tab lands in the connection's own directory and
+// the Agent hears the path; a High-risk file waits for the reader, and lands
+// there once they confirm it.
+void QtEngineContractTest::qtAgentDownloadsIntoItsOwnDirectory()
+{
+    AgentSite site;
+    AgentPage page;
+    QTemporaryDir root;
+    const auto readers = root.filePath(QStringLiteral("downloads"));
+    const auto agents = root.filePath(QStringLiteral("downloads/Agents/claude"));
+    QVERIFY(QDir().mkpath(readers));
+    BrowserController controller(
+        SpaceStorage(root.filePath(QStringLiteral("data")), QStringLiteral("qt")));
+    omaweb::QtHeldDownloads heldDownloads;
+    QQmlComponent profileComponent(
+        &page.engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_PROFILE_PATH)));
+    const std::unique_ptr<QObject> profile(profileComponent.createWithInitialProperties({
+        {QStringLiteral("profilePath"), page.profiles.filePath(QStringLiteral("agent"))},
+        {QStringLiteral("privateBrowsing"), false},
+        {QStringLiteral("acceptDownloads"), true},
+        {QStringLiteral("downloadDirectory"), readers},
+        {QStringLiteral("downloadNamespace"), QStringLiteral("space-1")},
+        {QStringLiteral("downloads"), QVariant::fromValue<QObject *>(controller.downloads())},
+        {QStringLiteral("downloadHolds"), QVariant::fromValue<QObject *>(&heldDownloads)},
+    }));
+    QVERIFY2(profile, qPrintable(profileComponent.errorString()));
+    QSignalSpy held(
+        profile.get(), SIGNAL(downloadHeld(QString, int, QString, QUrl, QString, QString)));
+    page.adapterProperties.insert(QStringLiteral("sharedProfile"), profile->property("profile"));
+    page.adapterProperties.insert(QStringLiteral("agentOwned"), true);
+    page.adapterProperties.insert(QStringLiteral("agentDownloadDirectory"), agents);
+    QVERIFY(page.load(site.url(QStringLiteral("downloads.html"))));
+    QTRY_COMPARE(
+        page.look().value(QStringLiteral("title")).toString(), QStringLiteral("Downloads"));
+    const auto look = page.look();
+
+    // What the batch and the looks after it report, since a download can be
+    // asked for a moment after the click has settled.
+    QJsonArray reported;
+    const auto collect = [&reported](const QJsonObject &seen) {
+        for (const auto &download : seen.value(QStringLiteral("downloads")).toArray()) {
+            reported.append(download);
+        }
+    };
+    const auto hear = [&](qsizetype count) {
+        return QTest::qWaitFor([&] {
+            if (reported.size() < count) {
+                collect(page.look());
+            }
+            return reported.size() >= count;
+        });
+    };
+    const auto click = [&](const QString &name) {
+        const auto answer = page.batch({QStringLiteral("click ") + labelNamed(look, name)});
+        collect(answer.value(QStringLiteral("look")).toObject());
+    };
+
+    click(QStringLiteral("Notes"));
+    QVERIFY(hear(1));
+    const auto notes = QDir(agents).filePath(QStringLiteral("notes.txt"));
+    QCOMPARE(reported.at(0).toObject().value(QStringLiteral("path")).toString(), notes);
+    QTRY_VERIFY(QFileInfo(notes).size() > 0);
+    click(QStringLiteral("Notes"));
+    QVERIFY(hear(2));
+    QCOMPARE(reported.at(1).toObject().value(QStringLiteral("path")).toString(),
+        QDir(agents).filePath(QStringLiteral("notes (2).txt")));
+    // Nothing reached the reader's own downloads.
+    QCOMPARE(QDir(readers).entryList(QDir::Files), QStringList {});
+
+    click(QStringLiteral("Installer"));
+    QVERIFY(hear(3));
+    const auto waiting = reported.at(2).toObject();
+    QCOMPARE(waiting.value(QStringLiteral("held")).toBool(), true);
+    QCOMPARE(waiting.value(QStringLiteral("risk")).toString(), QStringLiteral("script"));
+    QCOMPARE(held.count(), 1);
+    QCOMPARE(held.at(0).at(1).toInt(), BrowserController::ConfirmDownload);
+    QVERIFY(!QFileInfo::exists(QDir(agents).filePath(QStringLiteral("install.sh"))));
+
+    // The reader confirms it, and it goes where the Agent's downloads go.
+    QVERIFY(QMetaObject::invokeMethod(profile.get(), "releaseHeldDownload",
+        Q_ARG(QVariant, held.at(0).at(0).toString()), Q_ARG(QVariant, QString())));
+    QTRY_VERIFY(QFileInfo::exists(QDir(agents).filePath(QStringLiteral("install.sh"))));
+    QVERIFY(hear(4));
+    QCOMPARE(reported.at(3).toObject().value(QStringLiteral("path")).toString(),
+        QDir(agents).filePath(QStringLiteral("install.sh")));
 }

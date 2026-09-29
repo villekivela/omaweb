@@ -19,6 +19,26 @@ ApplicationWindow {
     // so it is exactly where a certificate failure must not be waved through.
     // It asks the same question of the same rule as an ordinary tab.
     signal certificateErrorRaised(var responder, string requestId, var failure)
+    // The core's Agent rules and the id this window has there, when an Agent
+    // tab's page opened it (ADR 0051). The Agent drives it by that id as it
+    // drives the tab, and it is the Agent's for as long as the core lists it.
+    property var agentControl: null
+    property string agentPopupId: ""
+    readonly property bool agentWindow: auxiliary.agentPopupId.length > 0 && auxiliary.agentControl
+                                        !== null && auxiliary.agentControl.agentPopupIds.indexOf(
+                                            auxiliary.agentPopupId) >= 0
+    onAgentWindowChanged: auxiliary.markAgentEngine()
+
+    function markAgentEngine() {
+        const engine = engineLoader.item;
+        if (!engine || engine.agentOwned === undefined)
+            return;
+        engine.agentOwned = auxiliary.agentWindow;
+        engine.agentDownloadDirectory = auxiliary.agentWindow ? String(
+                                                                    auxiliary.agentControl.agentPopup(
+                                                                        auxiliary.agentPopupId).downloadDirectory
+                                                                    || "") : "";
+    }
 
     width: 720
     height: 640
@@ -29,9 +49,13 @@ ApplicationWindow {
     title: engineLoader.item && engineLoader.item.pageTitle.length > 0 ? engineLoader.item.pageTitle :
                                                                          "Omaweb"
 
-    onClosing: Qt.callLater(function () {
-        auxiliary.destroy();
-    })
+    onClosing: {
+        if (auxiliary.agentControl && auxiliary.agentPopupId.length > 0)
+            auxiliary.agentControl.popupClosed(auxiliary.agentPopupId);
+        Qt.callLater(function () {
+            auxiliary.destroy();
+        });
+    }
 
     Loader {
         id: engineLoader
@@ -56,13 +80,17 @@ ApplicationWindow {
                                              "keyboardNavigationScriptSource":
                                              keyboardNavigation.pageScript,
                                              "currentUrl": auxiliary.request ? "about:blank" :
-                                                                               auxiliary.requestedUrl
+                                                                               auxiliary.requestedUrl,
+                                             // An Agent's window never takes the reader's keyboard.
+                                             "pageTakesFocus": auxiliary.agentPopupId.length === 0
                                          })
 
         onLoaded: {
+            auxiliary.markAgentEngine();
             if (auxiliary.request)
                 item.acceptNewWindowRequest(auxiliary.request);
-            item.focusPage();
+            if (auxiliary.agentPopupId.length === 0)
+                item.focusPage();
         }
     }
 
@@ -79,6 +107,48 @@ ApplicationWindow {
 
         function onCertificateErrorRaised(requestId, failure) {
             auxiliary.certificateErrorRaised(engineLoader.item, requestId, failure);
+        }
+
+        function onAgentVerbAnswered(requestId, answer) {
+            if (auxiliary.agentControl)
+                auxiliary.agentControl.answerPage(requestId, answer);
+        }
+
+        function onPageConsoleMessage(level, message, lineNumber, sourceId, document) {
+            if (auxiliary.agentWindow)
+                auxiliary.agentControl.recordConsoleMessage(auxiliary.agentPopupId, String(document),
+                                                            level, message, sourceId, lineNumber);
+        }
+    }
+
+    Connections {
+        target: auxiliary.agentControl
+        ignoreUnknownSignals: true
+
+        function onPageRequested(requestId, request) {
+            if (request.tabId !== auxiliary.agentPopupId)
+                return;
+            const engine = engineLoader.item;
+            if (!engine) {
+                auxiliary.agentControl.answerPage(requestId, {
+                                                      "ok": false,
+                                                      "code": "no-page",
+                                                      "error": "The window has no page yet."
+                                                  });
+                return;
+            }
+            engine.agentDownloadDirectory = String(request.downloadDirectory || "");
+            engine.answerAgentVerb(requestId, request.verb, request.arguments);
+        }
+
+        function onPageRequestsCancelled() {
+            if (engineLoader.item)
+                engineLoader.item.cancelAgentVerbs();
+        }
+
+        function onPopupCloseRequested(popupId) {
+            if (popupId === auxiliary.agentPopupId)
+                auxiliary.close();
         }
     }
 }

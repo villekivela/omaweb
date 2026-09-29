@@ -32,7 +32,9 @@ AgentCommand readAgentCommand(const QStringList &arguments, const QString &defau
 
 // The steps of a `do`, each argument one step or several separated by `;`:
 // `click 3`, `fill 5 "text"`, `press Enter`, `select 7 Finland`,
-// `scroll down`, `back`, `wait text Thanks` and `wait url /done`. Empty, with
+// `scroll down`, `back`, `wait text Thanks`, `wait url /done`, `dialog accept`,
+// `dialog dismiss` and `upload 4 report.pdf`, whose paths are made whole
+// against the working directory. Empty, with
 // `error` saying why, when one is malformed.
 QJsonArray readAgentSteps(const QStringList &arguments, QString &error);
 

@@ -155,7 +155,9 @@ granted. _Avoid_: Agent permission, Site permission, pairing
 **Agent tab**: A tab an Agent is attached to. It is marked as such in the sidebar, and the Space
 holding it is marked too. It is not frozen and stays rendered behind the page on show, so an Agent
 can work in a Space the reader is not looking at, and an Agent tab never takes the reader's focus.
-_Avoid_: Automated tab, bot tab, controlled tab
+Its JS dialogs go to the Agent, its downloads to a directory of the connection's own, its file
+chooser takes only files the Agent names in an Agent Space, and an Auxiliary window it opens is the
+Agent's too. _Avoid_: Automated tab, bot tab, controlled tab
 
 **Web extension**: A third-party browser package that can modify pages or add browser behavior
 through a supported WebExtensions contract. _Avoid_: Feature module, plugin

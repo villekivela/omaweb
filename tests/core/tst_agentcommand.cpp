@@ -1,5 +1,6 @@
 #include "AgentCommand.h"
 
+#include <QDir>
 #include <QJsonArray>
 #include <QJsonObject>
 #include <QTest>
@@ -22,6 +23,8 @@ private slots:
     void printsOneLinePerRowForAScript();
     void readsTheStepsOfABatch();
     void printsWhatAPageVerbSaw();
+    void readsTheStepsThatAnswerAPage();
+    void printsWhatAPageAsksOfTheAgent();
 };
 
 void AgentCommandTest::tellsAVerbFromAnAddressToOpen()
@@ -376,6 +379,81 @@ void AgentCommandTest::printsWhatAPageVerbSaw()
     QCOMPARE(formatAgentAnswer(QStringLiteral("eval"),
                  {{QStringLiteral("ok"), true}, {QStringLiteral("value"), 42}}),
         QStringLiteral("42\n"));
+}
+
+// A dialog is answered and a file chooser given files by steps of their own.
+// An upload's paths are the Agent's, so one relative to where it runs is made
+// whole before it leaves.
+void AgentCommandTest::readsTheStepsThatAnswerAPage()
+{
+    const auto command = readAgentCommand(
+        {QStringLiteral("omaweb"), QStringLiteral("do"), QStringLiteral("dialog accept"),
+            QStringLiteral("dialog accept 'New York'; dialog dismiss"),
+            QStringLiteral("upload 4 report.pdf /tmp/photo.jpg")},
+        QStringLiteral("claude"));
+    QVERIFY2(command.error.isEmpty(), qPrintable(command.error));
+    const QJsonArray expected {
+        QJsonObject {{QStringLiteral("action"), QStringLiteral("dialog")},
+            {QStringLiteral("answer"), QStringLiteral("accept")}},
+        QJsonObject {{QStringLiteral("action"), QStringLiteral("dialog")},
+            {QStringLiteral("answer"), QStringLiteral("accept")},
+            {QStringLiteral("text"), QStringLiteral("New York")}},
+        QJsonObject {{QStringLiteral("action"), QStringLiteral("dialog")},
+            {QStringLiteral("answer"), QStringLiteral("dismiss")}},
+        QJsonObject {{QStringLiteral("action"), QStringLiteral("upload")},
+            {QStringLiteral("target"), QStringLiteral("4")},
+            {QStringLiteral("files"),
+                QJsonArray {QDir::current().absoluteFilePath(QStringLiteral("report.pdf")),
+                    QStringLiteral("/tmp/photo.jpg")}}},
+    };
+    QCOMPARE(command.request.value(QStringLiteral("steps")).toArray(), expected);
+
+    for (const auto &malformed : {QStringLiteral("dialog"), QStringLiteral("dialog maybe"),
+             QStringLiteral("dialog dismiss now"), QStringLiteral("upload 4")}) {
+        const auto refused = readAgentCommand(
+            {QStringLiteral("omaweb"), QStringLiteral("do"), malformed}, QStringLiteral("claude"));
+        QVERIFY2(!refused.error.isEmpty(), qPrintable(malformed));
+    }
+}
+
+void AgentCommandTest::printsWhatAPageAsksOfTheAgent()
+{
+    const QJsonObject stopped {
+        {QStringLiteral("title"), QStringLiteral("Shop")},
+        {QStringLiteral("url"), QStringLiteral("https://shop.example/")},
+        {QStringLiteral("dialog"),
+            QJsonObject {{QStringLiteral("kind"), QStringLiteral("prompt")},
+                {QStringLiteral("message"), QStringLiteral("Your city?")},
+                {QStringLiteral("defaultText"), QStringLiteral("Oulu")}}},
+        {QStringLiteral("downloads"),
+            QJsonArray {QJsonObject {{QStringLiteral("path"), QStringLiteral("/d/Agents/c/a.pdf")},
+                            {QStringLiteral("state"), QStringLiteral("completed")}},
+                QJsonObject {{QStringLiteral("held"), true},
+                    {QStringLiteral("fileName"), QStringLiteral("setup.sh")},
+                    {QStringLiteral("risk"), QStringLiteral("script")}}}},
+    };
+    const QJsonObject batch {
+        {QStringLiteral("ok"), true},
+        {QStringLiteral("steps"),
+            QJsonArray {QJsonObject {{QStringLiteral("step"), QStringLiteral("click 2")},
+                {QStringLiteral("ok"), true}, {QStringLiteral("settled"), true}}}},
+        {QStringLiteral("opened"), QJsonArray {QStringLiteral("popup-1")}},
+        {QStringLiteral("look"), stopped},
+    };
+    QCOMPARE(formatAgentAnswer(QStringLiteral("do"), batch),
+        QStringLiteral("ok click 2\nOpened window popup-1\n\nShop\nhttps://shop.example/\n\n"
+                       "Dialog (prompt) \"Your city?\" = \"Oulu\"\n"
+                       "The page waits for `dialog accept` or `dialog dismiss`.\n"
+                       "Download completed: /d/Agents/c/a.pdf\n"
+                       "Download held for the reader: setup.sh (script)\n"));
+
+    const QJsonObject tabs {{QStringLiteral("ok"), true},
+        {QStringLiteral("tabs"),
+            QJsonArray {QJsonObject {{QStringLiteral("id"), QStringLiteral("popup-1")},
+                {QStringLiteral("popup"), true},
+                {QStringLiteral("opener"), QStringLiteral("t2")}}}}};
+    QCOMPARE(formatAgentAnswer(QStringLiteral("tabs"), tabs),
+        QStringLiteral("popup-1\t\t\twindow of t2\n"));
 }
 
 QTEST_GUILESS_MAIN(AgentCommandTest)

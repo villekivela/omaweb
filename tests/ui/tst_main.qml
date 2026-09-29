@@ -3514,12 +3514,37 @@ TestCase {
             property var agentTabIds: []
             property var tabs: ({})
             property var answers: ({})
+            property var agentPopupIds: []
+            property var closedPopups: []
             signal agentTabsChanged
             signal pageRequested(int requestId, var request)
             signal pageRequestsCancelled
+            signal popupCloseRequested(string popupId)
 
             function agentTab(tabId) {
                 return tabs[tabId] || ({});
+            }
+            function attachPopup(openerTabId) {
+                if (agentTabIds.indexOf(openerTabId) < 0)
+                    return "";
+                const popupId = "popup-" + (agentPopupIds.length + closedPopups.length + 1);
+                agentPopupIds = agentPopupIds.concat([popupId]);
+                return popupId;
+            }
+            function agentPopup(popupId) {
+                return agentPopupIds.indexOf(popupId) >= 0 ? {
+                                                                 "popupId": popupId,
+                                                                 "downloadDirectory":
+                                                                 "/downloads/Agents/test"
+                                                             } : ({});
+            }
+            function popupClosed(popupId) {
+                agentPopupIds = agentPopupIds.filter(function (id) {
+                    return id !== popupId;
+                });
+                closedPopups = closedPopups.concat([popupId]);
+            }
+            function recordConsoleMessage() {
             }
             function answerPage(requestId, answer) {
                 const next = Object.assign({}, answers);
@@ -3527,6 +3552,107 @@ TestCase {
                 answers = next;
             }
         }
+    }
+
+    // A window an Agent tab's page opens is the Agent's: it answers the page
+    // verbs for the id the core gave it, keeps the reader's keyboard off its
+    // page, and closes when the Agent closes it. A page asking for a tab opens
+    // such a window too, since a tab would take the reader's view. A window
+    // the reader's own page opens stays the reader's.
+    function test_anAgentTabsWindowIsTheAgents() {
+        const engineLoader = findChild(window.contentItem, "engineLoader");
+        const control = agentControlComponent.createObject(testCase);
+        engineLoader.agentControl = control;
+        const readerEngine = openPage("https://reader-opener.example/");
+        const agentEngine = openPageInNewTab("https://agent-opener.example/");
+        const agentTabId = browser.activeTabId;
+        verify(agentEngine !== readerEngine);
+        const tabs = {};
+        tabs[agentTabId] = {
+            "tabId": agentTabId,
+            "spaceId": browser.activeSpaceId,
+            "url": "https://agent-opener.example/",
+            "downloadDirectory": "/downloads/Agents/test"
+        };
+        control.tabs = tabs;
+        control.agentTabIds = [agentTabId];
+        control.agentTabsChanged();
+        compare(agentEngine.agentOwned, true);
+        compare(agentEngine.agentDownloadDirectory, "/downloads/Agents/test");
+        compare(readerEngine.agentOwned, false);
+
+        // One window at a time, each gone before the next is opened.
+        const openedWindow = function (popupId) {
+            let found = null;
+            tryVerify(function () {
+                found = findChild(window, "auxiliaryWindow");
+                return found !== null && found.visible;
+            });
+            compare(found.agentPopupId, popupId);
+            const loader = findChild(found.contentItem, "auxiliaryEngineLoader");
+            tryVerify(function () {
+                return loader.item !== null;
+            });
+            return found;
+        };
+        const engineOf = function (auxiliary) {
+            return findChild(auxiliary.contentItem, "auxiliaryEngineLoader").item;
+        };
+        const gone = function () {
+            tryVerify(function () {
+                return findChild(window, "auxiliaryWindow") === null;
+            });
+        };
+
+        agentEngine.simulateNewWindowRequest("https://sign-in.example/", true);
+        const popup = openedWindow("popup-1");
+        verify(popup.agentWindow);
+        compare(engineOf(popup).agentOwned, true);
+        compare(engineOf(popup).agentDownloadDirectory, "/downloads/Agents/test");
+        compare(engineOf(popup).pageTakesFocus, false);
+
+        control.pageRequested(21, {
+                                  "verb": "look",
+                                  "tabId": "popup-1",
+                                  "popup": true,
+                                  "downloadDirectory": "/downloads/Agents/test",
+                                  "arguments": {}
+                              });
+        compare(engineOf(popup).agentRequests.length, 1);
+        compare(agentEngine.agentRequests.length, 0);
+        tryVerify(function () {
+            return control.answers[21] !== undefined && control.answers[21].ok === true;
+        });
+
+        control.popupCloseRequested("popup-1");
+        gone();
+        verify(control.closedPopups.indexOf("popup-1") >= 0);
+
+        // A tab asked for by the Agent's page is a window of the Agent's.
+        const tabCount = browser.tabs.rowCount();
+        agentEngine.simulateNewWindowRequest("https://checkout.example/", false);
+        const second = openedWindow("popup-2");
+        compare(browser.tabs.rowCount(), tabCount);
+        compare(browser.activeTabId, agentTabId);
+        verify(second.agentWindow);
+        engineOf(second).simulateWindowCloseRequest();
+        gone();
+        verify(control.closedPopups.indexOf("popup-2") >= 0);
+
+        // Once no Agent holds the tab, what its page opens is the reader's.
+        control.agentTabIds = [];
+        control.agentTabsChanged();
+        compare(agentEngine.agentOwned, false);
+        agentEngine.simulateNewWindowRequest("https://reader-window.example/", true);
+        const readers = openedWindow("");
+        verify(!readers.agentWindow);
+        compare(engineOf(readers).agentOwned, false);
+        compare(engineOf(readers).pageTakesFocus, true);
+        engineOf(readers).simulateWindowCloseRequest();
+        gone();
+
+        engineLoader.agentControl = null;
+        control.destroy();
     }
 
     // An Agent tab the reader is not looking at goes on running and stays
