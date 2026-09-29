@@ -383,6 +383,17 @@ item under every page on show takes the reader's pointer first. Keeping an anima
 rendered costs about what the same page costs on show, and the window draws at its frame rate
 (#376).
 
+### MCP server
+
+`omaweb mcp` is a second front end on the same socket. `AgentMcp` maps each tool call to the request
+the CLI would send, through the CLI's own step parser, and answers with the CLI's own text, so a
+tool and its command answer alike. The protocol is answered in `answerAgentMcp`, which takes the
+socket round trip as a function and is tested without one. The server holds one connection while it
+runs, which is what lets a temporary Space last as long as the Agent's session. A request the
+browser has not answered in time leaves its answer owed, and the server skips it when it arrives
+ahead of the next. When nothing answers on the socket, it starts the browser as a detached process
+with none of its own streams, because its standard output is the MCP channel.
+
 ## Everyday page commands
 
 Find, zoom, reload, Reload bypassing cache, Stop loading, printing and site-requested fullscreen are

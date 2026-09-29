@@ -375,6 +375,25 @@ another.
 socket name longer than 104 bytes on macOS, or 108 on Linux, cannot be opened, and the browser says
 so at start.
 
+`omaweb mcp [--name <name>]` serves the same verbs to an Agent as a stdio MCP server, one tool each,
+with `space new` and `space delete` as `space_new` and `space_delete`. It holds one connection to
+the socket for as long as it runs, so the current tab carries from call to call and a temporary
+Space lasts until the Agent stops the server. When no browser answers, the first tool call starts
+one and waits up to 30 seconds for its socket. Register it with Claude Code:
+
+```sh
+claude mcp add omaweb -- omaweb mcp
+```
+
+The tool list costs about 1,100 tokens of schema and the server's instructions 130 more, which every
+conversation the server is registered in pays. An Agent that runs shell commands can use the CLI
+instead, taught by the skill the package installs under `/usr/share/omaweb/skills/omaweb`. Link it
+into the Agent's skills directory:
+
+```sh
+ln -s /usr/share/omaweb/skills/omaweb ~/.claude/skills/omaweb
+```
+
 Addresses from outside the browser are read strictly and only `http`, `https` and `file` are opened.
 A desktop passes on whatever it was given, so a scheme that would run in a page is refused rather
 than resolved.
