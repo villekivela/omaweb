@@ -162,8 +162,10 @@ reports the gap and remains experimental rather than imitating behavior it canno
   keeps the letters typed into it.
 - Security state and the blocked-request count ride inline in the address trigger, and open the
   site-information panel.
-- Clicking the sidebar's current-address trigger or pressing `Primary+L` opens a centered Omnibar
-  for the current tab.
+- Clicking the sidebar's current-address trigger or pressing `Primary+L` opens the Omnibar for the
+  current tab. The Omnibar has one place whatever it opens over: centred in the page area with its
+  field on the Start page's horizon, where a new tab shows it. Its rows grow down from the field and
+  never move it; a short page area lists fewer rows at a time instead.
 - The Omnibar field is drawn as the website's dash: the Omaweb mark as its prompt in the palette's
   accent, the typed text and a blinking block caret with a faint accent glow, and a `→` go mark that
   commits as `Return` does. In command scope the mark gives way to `:`.

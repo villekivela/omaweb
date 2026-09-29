@@ -108,11 +108,17 @@ Item {
     property bool ease: true
     // 0 on its way in, 1 at rest.
     property real arrival: 1
-    readonly property real restWidth: Math.min(660, (shownResting ? restArea.width : width) - 96)
-    readonly property real restX: shownResting ? restArea.x + (restArea.width - restWidth) / 2 : (
-                                                     width - restWidth) / 2
-    readonly property real restY: shownResting ? restArea.y + horizonY - header.height / 2
-                                                 - panel.border.width : Math.max(80, height * 0.14)
+    // One place whatever it was opened over: the field on the Start page's
+    // horizon in the middle of the page area, so opening it over a page puts
+    // it where a new tab shows it. The rows grow down from the field and never
+    // move it.
+    readonly property real restWidth: Math.min(660, restArea.width - 96)
+    readonly property real restX: restArea.x + (restArea.width - restWidth) / 2
+    readonly property real restY: restArea.y + horizonY - header.height / 2 - panel.border.width
+    // What the page area leaves under the field for the rows and the key
+    // hints, keeping a margin off its bottom edge.
+    readonly property real roomBelowField: restArea.y + restArea.height - restY - header.height
+                                           - footer.height - 2 * panel.border.width - 8 - 24
     // How far below the horizon the field ends, which is where the Start page
     // can draw beneath it.
     readonly property real fieldBelowHorizon: header.height / 2 + panel.border.width
@@ -739,9 +745,11 @@ Item {
             // The rows. Where the typed text goes is not a row of its own: the
             // chip names a keyword's engine, and the field's description says
             // the rest for a screen reader.
-            height: root.rows.length > 0 ? Math.min(rowList.contentHeight, root.commandScope ? 336 :
-                                                                                               280) + 8 :
-                                           0
+            // The field stays on the horizon, so a short page area takes rows
+            // off the list rather than moving the field up to fit them.
+            height: root.rows.length > 0 ? Math.max(28, Math.min(rowList.contentHeight,
+                                                                 root.commandScope ? 336 : 280,
+                                                                 root.roomBelowField)) + 8 : 0
 
             ListView {
                 id: rowList

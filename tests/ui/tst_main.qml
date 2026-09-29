@@ -5679,6 +5679,12 @@ TestCase {
         compare(frame.width, panel.restWidth);
         verify(frame.y <= panel.restY);
         tryCompare(frame, "y", panel.restY);
+        // Over a page it stands where the Start page rests it: centred in the
+        // page area, the field on the horizon.
+        const startPage = findChild(window.contentItem, "startPage");
+        const top = frame.mapToItem(startPage, frame.width / 2, 0);
+        fuzzyCompare(top.x, startPage.width / 2, 1);
+        fuzzyCompare(top.y + panel.fieldBelowHorizon, startPage.horizonY, 1);
         window.closeOmnibar();
         tryCompare(panel, "visible", false);
 
