@@ -5525,6 +5525,22 @@ TestCase {
         compare(findChild(row, "omnibarRowHost").text, "edge-history.example");
         compare(findChild(row, "omnibarRowTile").siteUrl.toString(),
                 "https://www.edge-history.example/deep/page");
+        // No tab of this site is open, so the tile has no artwork to draw.
+        compare(findChild(row, "omnibarRowTile").iconUrl.toString(), "");
+
+        // A history result on a site with an open tab takes that tab's icon.
+        browser.recordVisit("https://edge-tab.example/older", "Edge tab older page");
+        input.text = "older";
+        let older = [];
+        tryVerify(function () {
+            older = omnibarRowsOf(panel, "history").filter(function (entry) {
+                return entry.url === "https://edge-tab.example/older";
+            });
+            return older.length === 1;
+        });
+        row = omnibarRowItem(rows, panel.rows.indexOf(older[0]));
+        compare(findChild(row, "omnibarRowTile").iconUrl.toString(),
+                "image://favicon/https://edge-tab.example/favicon.ico");
 
         input.text = "edge space";
         row = omnibarRowItem(rows, panel.rows.indexOf(omnibarRowsOf(panel, "space")[0]));
@@ -5575,6 +5591,7 @@ TestCase {
         window.closeOmnibar();
         verify(browser.deleteSpace(edgeSpaceId, "Edge Space"));
         verify(browser.deleteHistoryOrigin("https://www.edge-history.example/deep/page"));
+        verify(browser.deleteHistoryOrigin("https://edge-tab.example/older"));
         browser.closeTab(edgeTabId);
         compare(browser.activeSpaceId, homeSpaceId);
     }

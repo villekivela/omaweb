@@ -641,6 +641,22 @@ QtObject {
         return list;
     }
 
+    // The icon each open tab shows, by host, for rows that name a site
+    // without being its tab. It reads only the window's own tabs, so a row
+    // never shows artwork another Space or window has.
+    function siteIcons() {
+        const icons = {};
+        const tabs = browser.tabs;
+        for (let row = 0; row < tabs.rowCount(); ++row) {
+            const index = tabs.index(row, 0);
+            const icon = String(tabs.data(index, Qt.UserRole + 8) || "");
+            const site = host(String(tabs.data(index, Qt.UserRole + 3)));
+            if (icon.length > 0 && site.length > 0 && icons[site] === undefined)
+                icons[site] = icon;
+        }
+        return icons;
+    }
+
     function invoke(action) {
         if (action.command === "activate-tab") {
             browser.activateTab(action.argument);

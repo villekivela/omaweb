@@ -180,8 +180,10 @@ reports the gap and remains experimental rather than imitating behavior it canno
 - Each Omnibar row leads with a picture of what it names. A tab row draws the site's tile as the
   sidebar does, following the Use favicons and tint settings, so with favicons off it is the host
   code in the site's tint. A history row draws the same tile for its page and a keyword row for its
-  engine's site, as the host code and tint. A Space row shows the Space's colour, and a command row
-  its group's symbol. Omaweb never fetches an icon from the network to fill a row.
+  engine's site. They take the favicon of an open tab on the same site in the same window, and the
+  host code and tint while none is open; they never show another Space's or window's artwork. A
+  Space row shows the Space's colour, and a command row its group's symbol. Omaweb never fetches an
+  icon from the network to fill a row.
 - A tab or history row reads as the title, then the host in the muted colour; a history row gives
   its full address to a screen reader as the row's description. At its right edge a row says what
   committing it does, ending in `→`: `switch tab`, `switch space`, `open`, or a keyword followed by

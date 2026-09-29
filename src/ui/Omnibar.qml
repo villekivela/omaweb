@@ -74,6 +74,8 @@ Item {
     // command scope that is the commands alone.
     property var rows: []
     property int selected: 0
+    // The open tabs' icons by host, read when the rows are ranked.
+    property var siteIcons: ({})
 
     // The engine a typed keyword selected, drawn as a chip ahead of the terms
     // the field then holds. Null while the field holds plain text.
@@ -226,6 +228,7 @@ Item {
             selected = -1;
             return;
         }
+        siteIcons = commands.siteIcons();
         let candidates = suggestions.map(function (suggestion) {
             return {
                 "kind": "history",
@@ -844,7 +847,13 @@ Item {
                             visible: row.site.length > 0
                             colors: root.colors
                             siteUrl: row.site
-                            iconUrl: modelData.kind === "tab" ? modelData.icon : ""
+                            // A tab has its own icon. A history or keyword
+                            // row borrows the icon of an open tab on its
+                            // site, and until one is open the tile draws
+                            // the host code.
+                            iconUrl: modelData.kind === "tab" ? modelData.icon :
+                                                                root.siteIcons[root.commands.host(
+                                                                                   row.site)] || ""
                             useArtwork: root.useFavicons
                             tintArtwork: root.tintFavicons
                         }
