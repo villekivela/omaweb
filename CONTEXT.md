@@ -92,6 +92,11 @@ own surfaces towards it, so a theme identifies private browsing by naming a hue 
 naming a palette, and a Private window keeps the darkness the theme drew its chrome in. A theme that
 names a ground itself keeps it. _Avoid_: Private colour, incognito accent
 
+**Agent accent**: The one colour a theme names for an Agent's hands: the mark on an Agent tab's row
+and on the Space holding it, and the frame and label around its page on show. It is the Omarchy
+terminal's cyan, kept apart from the accent and legible on the window and the sidebar. _Avoid_:
+Agent colour, bot colour
+
 **Glance**: A page opened by a link that asked for a new tab, shown over the tab it came from
 instead of as a tab. It runs on the Space's engine profile and records its visits, but it is not
 listed, saved, or synced, and the chrome goes on answering for the tab beneath. It ends with

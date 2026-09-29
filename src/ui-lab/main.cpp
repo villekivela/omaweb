@@ -1,3 +1,4 @@
+#include "AgentControl.h"
 #include "BrowserController.h"
 #include "ContentBlocker.h"
 #include "GlobalPrivacyControl.h"
@@ -430,7 +431,58 @@ int main(int argc, char *argv[])
     if (arguments.contains(QStringLiteral("--spaces"))) {
         seedSampleSpaces(browser, mockFavicons);
     }
+    // `--agents` has an Agent at work, so its marks can be reviewed: an Agent
+    // Space it made with a tab it is driving, on show, and a second Agent Space
+    // no Agent is using. `--agents-away` leaves the reader's first Space on
+    // show instead, with the Agent's Space marked in the footer. The Agent is
+    // the real Agent rules answered by the stand-in page.
+    const auto agentsAway = arguments.contains(QStringLiteral("--agents-away"));
+    const auto agents = agentsAway || arguments.contains(QStringLiteral("--agents"));
+    std::optional<omaweb::AgentControl> agentControl;
+    QString agentTabId;
+    QString agentSpaceId;
+    if (agents) {
+        agentControl.emplace(&browser, dataRoot.filePath(QStringLiteral("config")));
+        agentControl->setAllowAgents(true);
+        const auto agentName = QStringLiteral("claude-code");
+        const auto made = agentControl->answer({
+            {QStringLiteral("verb"), QStringLiteral("space new")},
+            {QStringLiteral("name"), agentName},
+            {QStringLiteral("space"), QStringLiteral("Review")},
+        });
+        agentSpaceId
+            = made.value(QStringLiteral("space")).toObject().value(QStringLiteral("id")).toString();
+        const auto opened = agentControl->answer({
+            {QStringLiteral("verb"), QStringLiteral("open")},
+            {QStringLiteral("name"), agentName},
+            {QStringLiteral("url"), QStringLiteral("https://forge.example/omaweb/pull/384")},
+        });
+        agentTabId
+            = opened.value(QStringLiteral("tab")).toObject().value(QStringLiteral("id")).toString();
+        browser.createAgentSpace(QStringLiteral("Scratch"), agentName);
+        engine.rootContext()->setContextProperty(
+            QStringLiteral("agentControl"), &agentControl.value());
+    }
     engine.load(QUrl(QStringLiteral(OMAWEB_MAIN_QML_URL)));
+    // A click, once the page is up, so the frame's label has an act to name.
+    // The stand-in page reports the name a step carries as the element's.
+    if (agentControl && !agentTabId.isEmpty()) {
+        QTimer::singleShot(200, &application, [&agentControl, agentTabId] {
+            agentControl->handle(
+                {
+                    {QStringLiteral("verb"), QStringLiteral("do")},
+                    {QStringLiteral("name"), QStringLiteral("claude-code")},
+                    {QStringLiteral("tab"), agentTabId},
+                    {QStringLiteral("steps"),
+                        QJsonArray {QJsonObject {
+                            {QStringLiteral("action"), QStringLiteral("click")},
+                            {QStringLiteral("target"), QStringLiteral("12")},
+                            {QStringLiteral("name"), QStringLiteral("Files changed")},
+                        }}},
+                },
+                [](const QJsonObject &) { });
+        });
+    }
 
     // The two startup numbers the tests keep, in milliseconds since `main`:
     // the first frame the window drew, and the first frame with the visible
@@ -478,6 +530,10 @@ int main(int argc, char *argv[])
     // is the one thing a capture of it cannot show. `--tabs` seeds a day.
     if (arguments.contains(QStringLiteral("--tabs"))) {
         seedSampleTabs(browser, mockFavicons, browse ? QString::fromUtf8(browsedTab) : QString());
+    }
+    // After the sample day, which is seeded into the Space on show.
+    if (agents && !agentsAway && browser.switchSpace(agentSpaceId)) {
+        browser.activateTab(agentTabId);
     }
     // Private chrome is a whole palette of its own, and the lab is where it is
     // reviewed. Nothing else about the window changes.
@@ -703,7 +759,13 @@ int main(int argc, char *argv[])
     const auto captureIndex = arguments.indexOf(QStringLiteral("--capture"));
     if (captureIndex >= 0 && captureIndex + 1 < arguments.size()) {
         const auto capturePath = arguments.at(captureIndex + 1);
-        QTimer::singleShot(700, &application, [&engine, capturePath] {
+        // `--capture-delay` waits longer, for a state that takes a moment to
+        // arrive.
+        const auto delayIndex = arguments.indexOf(QStringLiteral("--capture-delay"));
+        const auto delay = delayIndex >= 0 && delayIndex + 1 < arguments.size()
+            ? arguments.at(delayIndex + 1).toInt()
+            : 700;
+        QTimer::singleShot(delay, &application, [&engine, capturePath] {
             if (engine.rootObjects().isEmpty()) {
                 QCoreApplication::exit(1);
                 return;

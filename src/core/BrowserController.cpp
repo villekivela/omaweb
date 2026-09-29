@@ -443,6 +443,13 @@ bool BrowserController::agentSpace(const QString &spaceId) const
     return m_agentSpaces.contains(spaceId);
 }
 
+QStringList BrowserController::agentSpaceIds() const
+{
+    auto ids = m_agentSpaces.keys();
+    ids.sort();
+    return ids;
+}
+
 QString BrowserController::agentSpaceCreator(const QString &spaceId) const
 {
     return m_agentSpaces.value(spaceId);

@@ -72,6 +72,16 @@ reports the gap and remains experimental rather than imitating behavior it canno
   pressing another key, or the window losing the keyboard removes them.
 - The window title names the page and the Space on show, and a Space switch shows the Space notice
   at the top of the page. A Private window's title names neither, and it shows no notice.
+- An Agent tab's row ends with an Agent mark in the Agent accent, in the place the close button
+  takes on hover. Hovering the row names the connection and says the tab stays rendered while
+  attached. While an Agent tab is on show, its page is framed in the Agent accent, with a label at
+  the top-right corner naming the connection and its last act. A Space holding an Agent tab shows
+  the mark in place of its letter, and an Agent Space with no Agent attached shows it muted. Each
+  mark pulses only while one of the Agent's commands is in flight, so idle chrome draws no frames.
+- Opening an Agent Space shows a notice at the top of the page that an Agent made it, with Take over
+  and Dismiss, and the Take over Space command does the same. Taking it over removes the mark and
+  keeps a temporary Agent Space after its connection closes. A Private window is never an Agent's
+  and shows none of these marks.
 - A tab with no address to load shows the Start page in place of a webpage, never an empty viewport.
   That covers a Space at rest and an `about:blank` the reader navigated to, and no engine is spent
   behind it. The Start page is the Omnibar at rest in the middle of the page area, focused, over a
@@ -219,6 +229,8 @@ reports the gap and remains experimental rather than imitating behavior it canno
   colour's theme-supplied hue. Where a palette's own surfaces put a threshold out of reach, the
   colour that reads best on the worst of them is used and the rest of the theme is kept: the browser
   always follows the desktop's colours.
+- The Agent accent keeps its theme-supplied hue and clears 4.5:1 against the window and the sidebar,
+  since the page frame's label is written on it. It is kept apart from the accent.
 - Private windows must remain visually distinct. Reduced-motion, increased-contrast, and
   reduced-transparency system settings override themes.
 - A page that asks follows the theme. A document carrying `<meta name="omaweb-palette">` in its head

@@ -113,6 +113,24 @@ public:
     Q_INVOKABLE int shape(QWindow *window) const { return window->cursor().shape(); }
 };
 
+// An Agent Space, which only the Agent socket makes in the browser.
+class AgentSpaceProbe final : public QObject {
+    Q_OBJECT
+
+public:
+    explicit AgentSpaceProbe(omaweb::BrowserController *browser)
+        : m_browser(browser)
+    {
+    }
+    Q_INVOKABLE QString create(const QString &name, const QString &creator, bool temporary)
+    {
+        return m_browser->createAgentSpace(name, creator, temporary);
+    }
+
+private:
+    omaweb::BrowserController *m_browser;
+};
+
 // A favicon on disk for the tests that check what colour a site's chip takes.
 // A mark on a transparent plate is the shape a real favicon has.
 QUrl writeFavicon(const QString &path, const QColor &mark)
@@ -186,6 +204,9 @@ public slots:
         m_secureDns
             = std::make_unique<omaweb::SecureDns>(m_dataRoot->filePath(QStringLiteral("config")));
         engine->rootContext()->setContextProperty(QStringLiteral("browser"), m_browser.get());
+        m_agentSpaceProbe = std::make_unique<AgentSpaceProbe>(m_browser.get());
+        engine->rootContext()->setContextProperty(
+            QStringLiteral("agentSpaceProbe"), m_agentSpaceProbe.get());
         engine->rootContext()->setContextProperty(
             QStringLiteral("contentBlocker"), m_contentBlocker.get());
         engine->rootContext()->setContextProperty(
@@ -261,6 +282,7 @@ public slots:
         m_fontSettings.reset();
         m_theme.reset();
         m_windowManager.reset();
+        m_agentSpaceProbe.reset();
         m_browser.reset();
         m_contentBlocker.reset();
         m_secureDns.reset();
@@ -274,6 +296,7 @@ private:
     CursorProbe m_cursorProbe;
     std::unique_ptr<QTemporaryDir> m_dataRoot;
     std::unique_ptr<omaweb::BrowserController> m_browser;
+    std::unique_ptr<AgentSpaceProbe> m_agentSpaceProbe;
     std::unique_ptr<omaweb::ContentBlocker> m_contentBlocker;
     std::unique_ptr<ImageProbe> m_imageProbe;
     std::unique_ptr<omaweb::SecureDns> m_secureDns;

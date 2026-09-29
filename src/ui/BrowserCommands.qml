@@ -103,6 +103,8 @@ QtObject {
         case "new-space":
             window.requestNewSpace();
             return true;
+        case "take-over-space":
+            return window.takeOverSpace();
         case "toggle-sidebar":
             window.sidebarCollapsed = !window.sidebarCollapsed;
             return true;
@@ -343,6 +345,11 @@ QtObject {
                                                  group: "spaces",
                                                  title: "New Space"
                                              },
+                                             "take-over-space": {
+                                                 group: "spaces",
+                                                 title: "Take over Space",
+                                                 requires: "agent-space"
+                                             },
                                              "toggle-sidebar": {
                                                  group: "interface",
                                                  title: "Hide or show the sidebar"
@@ -558,6 +565,8 @@ QtObject {
             return !browser.activeTabPinned && !browser.splitOnShow;
         case "split":
             return browser.splitOnShow;
+        case "agent-space":
+            return window.agentSpaceOnShow;
         }
         return true;
     }
@@ -569,7 +578,8 @@ QtObject {
             const description = descriptions[command];
             if (window.privateWindow && (command === "pin-tab" || command === "move-tab" || command
                                          === "keep-tab-active" || command === "select-space"
-                                         || command === "next-space" || command === "new-space")) {
+                                         || command === "next-space" || command === "new-space"
+                                         || command === "take-over-space")) {
                 continue;
             }
             list.push({

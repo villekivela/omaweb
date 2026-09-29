@@ -104,6 +104,9 @@ class BrowserController final : public QObject, public DownloadPermissions {
     Q_PROPERTY(omaweb::Downloads *downloads READ downloads CONSTANT)
     Q_PROPERTY(QString downloadDirectory READ downloadDirectory NOTIFY downloadDirectoryChanged)
     Q_PROPERTY(bool acceptDownloads READ acceptDownloads CONSTANT)
+    // Every Agent Space of this window, which the footer and the Space's
+    // notice mark as an Agent's until the reader takes it over.
+    Q_PROPERTY(QStringList agentSpaceIds READ agentSpaceIds NOTIFY agentSpacesChanged)
 
 public:
     enum PermissionDecision {
@@ -431,8 +434,9 @@ public:
     // machine and never reaches Sync. Taking the Space over removes it and
     // keeps everything else.
     Q_INVOKABLE bool agentSpace(const QString &spaceId) const;
+    QStringList agentSpaceIds() const;
     // The connection name that created an Agent Space, or nothing.
-    QString agentSpaceCreator(const QString &spaceId) const;
+    Q_INVOKABLE QString agentSpaceCreator(const QString &spaceId) const;
     // A temporary one lasts only as long as the connection that created it:
     // deleteTemporarySpace takes it, with its Engine profile, Browsing data
     // and download records.

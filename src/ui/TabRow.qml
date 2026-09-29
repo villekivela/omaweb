@@ -39,6 +39,14 @@ Item {
     property string iconFontFamily
     property bool useFavicons: true
     property bool tintFavicons: false
+    // Whether an Agent is attached to this tab, the connection's name, and
+    // whether one of its commands is in flight. A Pinned tab is never one.
+    property bool agentAttached: false
+    property string agentName: ""
+    property bool agentBusy: false
+    readonly property bool showsAgent: agentAttached && !pinned
+    readonly property string agentNote: (agentName.length > 0 ? agentName : "An Agent")
+                                        + " is driving this tab. It stays rendered while attached."
     // The key that selects this tab, as the keymap displays it, and whether
     // Primary is being held for the labels.
     property string keyLabel: ""
@@ -147,7 +155,10 @@ Item {
                                                                              ? " (playing audio)" :
                                                                                ""))) + (showsKeepActive
                                                                                         ? " (kept active)" :
-                                                                                          "")
+                                                                                          "") + (showsAgent
+                                                                                                 ? " (Agent tab)" :
+                                                                                                   "")
+    Accessible.description: showsAgent ? agentNote : ""
     Accessible.onPressAction: root.activated(root.tabId)
 
     Keys.onPressed: function (event) {
@@ -274,6 +285,39 @@ Item {
         elide: Text.ElideRight
         font.family: Style.font.family
         font.pixelSize: Style.font.body
+    }
+
+    // An Agent's tab says so at the end of its row, in the place the close
+    // button takes on hover. It pulses only while one of the Agent's
+    // commands is in flight and holds still while the connection is idle, so
+    // an idle sidebar draws no frames for it.
+    Item {
+        id: agentSpot
+        objectName: "agentSpot-" + root.tabId
+        anchors.right: parent.right
+        anchors.rightMargin: 4
+        anchors.verticalCenter: parent.verticalCenter
+        width: 28
+        height: 28
+        visible: root.showsAgent
+
+        AgentMark {
+            objectName: "agentMark-" + root.tabId
+            anchors.centerIn: parent
+            visible: !hoverArea.containsMouse
+            busy: root.agentBusy
+            color: root.colors.agentAccent
+            font.family: root.iconFontFamily
+        }
+
+        // The mark and the close button share one place, so the note is the
+        // row's: the whole row answers the pointer for it.
+        Omarchy.PanelToolTip {
+            objectName: "agentNote-" + root.tabId
+            visible: root.showsAgent && hoverArea.containsMouse && !root.lifted
+            text: root.agentNote
+            fontFamily: Style.font.family
+        }
     }
 
     // Over the chip rather than at the end of the row, where the speaker and

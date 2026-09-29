@@ -3595,6 +3595,166 @@ TestCase {
         control.destroy();
     }
 
+    // The core's report of what each Agent tab's Agent is doing, with the
+    // Agent rules the page area hears.
+    Component {
+        id: agentActivityComponent
+
+        QtObject {
+            property var agentTabIds: []
+            property var tabs: ({})
+            property var agentActivity: ({})
+            signal agentTabsChanged
+            signal pageRequested(int requestId, var request)
+            signal pageRequestsCancelled
+
+            function agentTab(tabId) {
+                return tabs[tabId] || ({});
+            }
+            function answerPage(requestId, answer) {
+            }
+        }
+    }
+
+    // An Agent tab is marked on its row, framed on its page with who is
+    // driving and what it did last, and its Space wears the mark in place of
+    // its letter. Each pulses only while a command is in flight. An Agent
+    // Space is marked while no Agent uses it, and says so when opened, until
+    // the reader takes it over.
+    function test_anAgentsWorkIsMarkedOnItsRowItsPageAndItsSpace() {
+        const engineLoader = findChild(window.contentItem, "engineLoader");
+        const sidebar = findChild(window.contentItem, "sidebar");
+        const frame = findChild(window.contentItem, "agentFrame");
+        const bar = findChild(window.contentItem, "agentSpaceBar");
+        verify(frame !== null);
+        verify(bar !== null);
+        const readersSpaceId = browser.activeSpaceId;
+        verify(!bar.open);
+        verify(!window.commands.available("take-over-space"));
+
+        const agentSpaceId = agentSpaceProbe.create("Agent work", "claude-code", true);
+        const idleSpaceId = agentSpaceProbe.create("Agent idle", "claude-code", false);
+        verify(agentSpaceId.length > 0);
+        verify(browser.agentSpaceIds.indexOf(agentSpaceId) >= 0);
+
+        // The Agent Space no Agent is using is marked, muted and still.
+        const idleMark = findChild(sidebar, "spaceAgentMark-" + idleSpaceId);
+        verify(idleMark !== null);
+        verify(idleMark.visible);
+        compare(String(idleMark.color), String(window.colors.mutedText));
+        compare(findChild(sidebar, "space-" + idleSpaceId).label, "");
+        compare(findChild(sidebar, "space-" + readersSpaceId).label.length, 1);
+
+        // Opening it says an Agent made it.
+        verify(browser.switchSpace(agentSpaceId));
+        tryCompare(sidebar, "arriving", false);
+        verify(bar.open);
+        compare(bar.message, "claude-code made this Space");
+        verify(bar.detail.indexOf("connection closes") >= 0);
+        verify(window.commands.available("take-over-space"));
+        openPage("https://agent-mark.example/");
+        const tabId = browser.activeTabId;
+
+        const control = agentActivityComponent.createObject(testCase);
+        const tabs = {};
+        tabs[tabId] = {
+            "tabId": tabId,
+            "spaceId": agentSpaceId,
+            "url": "https://agent-mark.example/"
+        };
+        control.tabs = tabs;
+        control.agentTabIds = [tabId];
+        const report = function (busy, act) {
+            const activity = {};
+            activity[tabId] = {
+                "spaceId": agentSpaceId,
+                "name": "claude-code",
+                "act": act,
+                "busy": busy
+            };
+            control.agentActivity = activity;
+        };
+        report(false, "clicked \"Files changed\"");
+        engineLoader.agentControl = control;
+        control.agentTabsChanged();
+
+        const rowMark = findChild(sidebar, "agentMark-" + tabId);
+        verify(rowMark !== null);
+        verify(rowMark.visible);
+        compare(String(rowMark.color), String(window.colors.agentAccent));
+        compare(rowMark.opacity, 1);
+        const spaceMark = findChild(sidebar, "spaceAgentMark-" + agentSpaceId);
+        verify(spaceMark.visible);
+        compare(String(spaceMark.color), String(window.colors.agentAccent));
+
+        verify(frame.visible);
+        compare(frame.width, engineLoader.activePaneWidth);
+        compare(findChild(frame, "agentFrameCaption").text,
+                "claude-code is driving · clicked \"Files changed\"");
+        // The label stands below the notice while the notice is up.
+        compare(findChild(frame, "agentFrameLabel").y, bar.height);
+
+        // A command in flight, and only then, draws frames.
+        report(true, "clicked \"Files changed\"");
+        tryVerify(function () {
+            return rowMark.opacity < 0.9 && spaceMark.opacity < 0.9;
+        });
+        report(false, "looked at the page");
+        compare(rowMark.opacity, 1);
+        compare(spaceMark.opacity, 1);
+        compare(findChild(frame, "agentFrameCaption").text,
+                "claude-code is driving · looked at the page");
+
+        // Hovering the row gives the mark's place to the close button and
+        // says what keeping the tab costs.
+        const row = findChild(sidebar, "tab-" + tabId);
+        mouseMove(row, row.width / 2, row.height / 2);
+        tryCompare(rowMark, "visible", false);
+        const note = findChild(findChild(row, "agentSpot-" + tabId), "agentNote-" + tabId);
+        compare(note.text, "claude-code is driving this tab. It stays rendered while attached.");
+        tryCompare(note, "visible", true);
+        compare(row.Accessible.description, note.text);
+        mouseMove(window.contentItem, window.width - 10, window.height - 10);
+        tryCompare(rowMark, "visible", true);
+
+        // Dismissed, the notice stays away until the Space is opened again.
+        bar.actionTriggered(1);
+        verify(!bar.open);
+        compare(findChild(frame, "agentFrameLabel").y, 0);
+        verify(browser.switchSpace(readersSpaceId));
+        tryCompare(sidebar, "arriving", false);
+        verify(!frame.visible);
+        verify(spaceMark.visible);
+        verify(browser.switchSpace(agentSpaceId));
+        tryCompare(sidebar, "arriving", false);
+        verify(bar.open);
+
+        // Taken over, it is the reader's: the notice and the command go, and
+        // a temporary Space stays. The Agent still attached keeps its mark.
+        verify(window.commands.run("take-over-space", -1));
+        verify(browser.agentSpaceIds.indexOf(agentSpaceId) < 0);
+        verify(!browser.temporarySpace(agentSpaceId));
+        verify(!bar.open);
+        verify(!window.commands.available("take-over-space"));
+        verify(spaceMark.visible);
+
+        // The connection closes: the letter comes back.
+        control.agentActivity = ({});
+        control.agentTabIds = [];
+        control.agentTabsChanged();
+        verify(!spaceMark.visible);
+        verify(!rowMark.visible);
+        verify(!frame.visible);
+        compare(findChild(sidebar, "space-" + agentSpaceId).label, "A");
+
+        engineLoader.agentControl = null;
+        verify(browser.switchSpace(readersSpaceId));
+        tryCompare(sidebar, "arriving", false);
+        verify(browser.deleteSpace(agentSpaceId, "Agent work"));
+        verify(browser.deleteSpace(idleSpaceId, "Agent idle"));
+        control.destroy();
+    }
+
     // The two exceptions to that policy, and nothing else: a Pinned tab the
     // reader marked Keep active, and the tab an inspector is attached to. Both
     // keep their page while their Space is away, both are named in the list of
