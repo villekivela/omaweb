@@ -5446,7 +5446,8 @@ TestCase {
             return rows.itemAtIndex(spaceRow) !== null;
         });
         compare(rows.itemAtIndex(spaceRow).Accessible.name, "Switch to Space Zephyr reading");
-        compare(rows.itemAtIndex(spaceRow).lead, "switch space");
+        compare(rows.itemAtIndex(spaceRow).action, "switch space →");
+        compare(findChild(rows.itemAtIndex(spaceRow), "omnibarRowSpaceColor").visible, true);
 
         input.text = "zoom in";
         const commands = omnibarRowsOf(panel, "command");
@@ -5467,6 +5468,133 @@ TestCase {
 
         verify(browser.switchSpace(homeSpaceId));
         verify(browser.deleteSpace(zephyrSpaceId, "Zephyr reading"));
+    }
+
+    function omnibarRowItem(rows, index) {
+        tryVerify(function () {
+            return rows.itemAtIndex(index) !== null;
+        });
+        return rows.itemAtIndex(index);
+    }
+
+    // A row leads with a picture of what it names and ends with what
+    // committing it does, bright only on the row Return would commit.
+    function test_omnibarRowsLeadWithAPictureAndEndWithTheirAction() {
+        const homeSpaceId = browser.activeSpaceId;
+        const startTabId = browser.activeTabId;
+        openPageInNewTab("https://edge-tab.example/one");
+        const edgeTabId = browser.activeTabId;
+        browser.reportTabPageState(edgeTabId, "https://edge-tab.example/one", "Edge tab page",
+                                   "image://favicon/https://edge-tab.example/favicon.ico", false,
+                                   false);
+        browser.activateTab(startTabId);
+        browser.recordVisit("https://www.edge-history.example/deep/page", "Edge history page");
+        const edgeSpaceId = browser.createSpace("Edge Space");
+        const panel = findChild(window.contentItem, "omnibar");
+        const input = findChild(window.contentItem, "omnibarInput");
+        const rows = findChild(window.contentItem, "omnibarRowList");
+
+        window.openOmnibar(false);
+        input.text = "edge-tab";
+        let row = omnibarRowItem(rows, panel.rows.indexOf(omnibarRowsOf(panel, "tab")[0]));
+        compare(row.action, "switch tab →");
+        compare(row.keys, "");
+        compare(row.Accessible.name, "Switch to tab Edge tab page");
+        compare(findChild(row, "omnibarRowTitle").text, "Edge tab page");
+        compare(findChild(row, "omnibarRowHost").text, "edge-tab.example");
+        let tile = findChild(row, "omnibarRowTile");
+        compare(tile.visible, true);
+        compare(tile.iconUrl.toString(), "image://favicon/https://edge-tab.example/favicon.ico");
+        compare(tile.useArtwork, true);
+
+        // The tile follows the sidebar's favicon setting.
+        window.setUseFavicons(false);
+        compare(tile.useArtwork, false);
+        compare(tile.code, "ED");
+        window.setUseFavicons(true);
+
+        input.text = "edge-history";
+        tryVerify(function () {
+            return omnibarRowsOf(panel, "history").length === 1;
+        });
+        row = omnibarRowItem(rows, panel.rows.indexOf(omnibarRowsOf(panel, "history")[0]));
+        compare(row.action, "open →");
+        compare(row.keys, "");
+        compare(row.Accessible.name, "Open history result Edge history page");
+        compare(row.Accessible.description, "https://www.edge-history.example/deep/page");
+        compare(findChild(row, "omnibarRowHost").text, "edge-history.example");
+        compare(findChild(row, "omnibarRowTile").siteUrl.toString(),
+                "https://www.edge-history.example/deep/page");
+
+        input.text = "edge space";
+        row = omnibarRowItem(rows, panel.rows.indexOf(omnibarRowsOf(panel, "space")[0]));
+        compare(row.action, "switch space →");
+        compare(row.keys, "");
+        compare(findChild(row, "omnibarRowTile").visible, false);
+        compare(findChild(row, "omnibarRowSpaceColor").visible, true);
+
+        // A keyword's tile is its engine's own site.
+        input.text = "br";
+        tryVerify(function () {
+            return omnibarRowsOf(panel, "keyword").length === 1;
+        });
+        row = omnibarRowItem(rows, panel.rows.indexOf(omnibarRowsOf(panel, "keyword")[0]));
+        compare(row.action, "search →");
+        compare(row.keys, "br");
+        compare(findChild(row, "omnibarRowTile").siteUrl.toString(), "https://search.brave.com/");
+        compare(findChild(row, "omnibarRowTile").code, "BR");
+
+        // A command keeps its keys at the edge and says nothing more there.
+        input.text = "zoom in";
+        const zoomIndex = panel.rows.indexOf(omnibarRowsOf(panel, "command")[0]);
+        row = omnibarRowItem(rows, zoomIndex);
+        compare(row.action, "");
+        compare(row.keys, panel.rows[zoomIndex].keys);
+        verify(row.keys.length > 0);
+        compare(findChild(row, "omnibarRowSymbol").text, window.commands.groupSymbols.page);
+        compare(findChild(row, "omnibarRowTile").visible, false);
+
+        // Only the selected row's action is bright.
+        input.text = "edge";
+        tryVerify(function () {
+            return omnibarRowsOf(panel, "history").length === 1;
+        });
+        const tabIndex = panel.rows.indexOf(omnibarRowsOf(panel, "tab")[0]);
+        const historyIndex = panel.rows.indexOf(omnibarRowsOf(panel, "history")[0]);
+        panel.selected = tabIndex;
+        compare(findChild(omnibarRowItem(rows, tabIndex), "omnibarRowAction").color,
+                window.colors.text);
+        compare(findChild(omnibarRowItem(rows, historyIndex), "omnibarRowAction").color,
+                window.colors.mutedText);
+        panel.selected = historyIndex;
+        compare(findChild(omnibarRowItem(rows, tabIndex), "omnibarRowAction").color,
+                window.colors.mutedText);
+        compare(findChild(omnibarRowItem(rows, historyIndex), "omnibarRowAction").color,
+                window.colors.text);
+
+        window.closeOmnibar();
+        verify(browser.deleteSpace(edgeSpaceId, "Edge Space"));
+        verify(browser.deleteHistoryOrigin("https://www.edge-history.example/deep/page"));
+        browser.closeTab(edgeTabId);
+        compare(browser.activeSpaceId, homeSpaceId);
+    }
+
+    // In command scope every row carries its group's symbol, and the group's
+    // name is written once, where its rows start.
+    function test_commandScopeRowsCarryTheirGroupSymbol() {
+        const panel = findChild(window.contentItem, "omnibar");
+        const rows = findChild(window.contentItem, "omnibarRowList");
+        window.openCommandScope();
+        verify(panel.rows.length > 1);
+        for (let index = 0; index < Math.min(panel.rows.length, 8); ++index) {
+            const row = omnibarRowItem(rows, index);
+            compare(findChild(row, "omnibarRowSymbol").text,
+                    window.commands.groupSymbols[panel.rows[index].group]);
+            compare(row.groupLabel, index === 0 || panel.rows[index - 1].group
+                    !== panel.rows[index].group ? panel.rows[index].group : "");
+            compare(row.action, "");
+        }
+        window.closeOmnibar();
     }
 
     // `:` is the command scope: the prompt takes it, backspacing it asks the

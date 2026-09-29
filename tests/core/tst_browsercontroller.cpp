@@ -1411,6 +1411,9 @@ void BrowserControllerTest::offersTheKeywordsATypedPrefixCouldBecome()
         QStringLiteral("Brave Search"));
     QCOMPARE(
         offers.first().toMap().value(QStringLiteral("keyword")).toString(), QStringLiteral("br"));
+    // The engine's own site, which the Omnibar draws the row's picture for.
+    QCOMPARE(offers.first().toMap().value(QStringLiteral("siteUrl")).toString(),
+        QStringLiteral("https://search.brave.com/"));
 
     QCOMPARE(controller.searchKeywordOffers(QStringLiteral("B")).size(), 1);
     QCOMPARE(controller.searchKeywordOffers(QStringLiteral("br")).size(), 1);

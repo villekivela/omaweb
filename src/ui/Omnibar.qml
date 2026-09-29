@@ -10,6 +10,11 @@ Item {
 
     property var colors
     property var commands
+    // The sidebar's own favicon settings and icon font, so a site and a
+    // command look the same here as where the reader first met them.
+    property string iconFontFamily
+    property bool useFavicons: true
+    property bool tintFavicons: false
     // Answers what the typed text would search, so the panel names the same
     // engine the commit reaches.
     property var browser: null
@@ -227,7 +232,8 @@ Item {
                 "kind": "keyword",
                 "engineId": offer.engineId,
                 "engineName": offer.engineName,
-                "keyword": offer.keyword
+                "keyword": offer.keyword,
+                "siteUrl": offer.siteUrl
             };
         }));
         // An unedited preset is the page on show, and terms after a keyword
@@ -757,34 +763,41 @@ Item {
                     required property int index
                     required property var modelData
 
-                    // What committing the row does, ahead of what it names.
-                    // In command scope every row runs a command, so the lead
-                    // names the group instead, once at its start.
-                    readonly property string lead: root.commandScope ? (index === 0
-                                                                        || root.rows[index
-                                                                                     - 1].group
-                                                                        !== modelData.group
-                                                                        ? modelData.group : "") : ({
-                                                                                                       "tab": "switch tab",
-                                                                                                       "space": "switch space",
-                                                                                                       "history":
-                                                                                                       "open",
-                                                                                                       "keyword":
-                                                                                                       "search",
-                                                                                                       "command":
-                                                                                                       "run"
-                                                                                                   })[modelData.kind]
-                    readonly property string label: {
-                        switch (modelData.kind) {
-                        case "tab":
-                            return modelData.title + "  ·  " + root.commands.host(modelData.url);
-                        case "history":
-                            return modelData.title + "  ·  " + modelData.url;
-                        case "keyword":
-                            return modelData.engineName;
-                        }
-                        return modelData.title;
-                    }
+                    readonly property bool isSelected: index === root.selected
+                    // In command scope the group's name is written where its
+                    // rows start, beside the symbol every row of it carries.
+                    readonly property string groupLabel: root.commandScope && (index === 0
+                                                                               || root.rows[index
+                                                                                            - 1].group
+                                                                               !== modelData.group)
+                                                         ? modelData.group : ""
+                    readonly property string title: modelData.kind === "keyword"
+                                                    ? modelData.engineName : modelData.title
+                    readonly property string host: modelData.kind === "tab" || modelData.kind
+                                                   === "history" ? root.commands.host(
+                                                                       modelData.url) : ""
+                    // The site a tile draws: the page for a tab or a history
+                    // row, the engine's own site for a keyword.
+                    readonly property string site: modelData.kind === "keyword" ? modelData.siteUrl :
+                                                                                  (modelData.url
+                                                                                   || "")
+                    // What committing the row does, at its right edge. A
+                    // command runs, which its keys already say.
+                    readonly property string action: ({
+                                                          "tab": "switch tab →",
+                                                          "space": "switch space →",
+                                                          "history": "open →",
+                                                          "keyword": "search →",
+                                                          "command": ""
+                                                      })[modelData.kind]
+                    // The keys that reach a command without the Omnibar, and a
+                    // keyword in the same place, so the Omnibar is how the
+                    // keywords are learned too.
+                    readonly property string keys: modelData.kind === "keyword" ? modelData.keyword :
+                                                                                  (modelData.kind
+                                                                                   === "command"
+                                                                                   ? modelData.keys
+                                                                                     || "" : "")
                     readonly property bool usable: modelData.enabled !== false
 
                     width: rowList.width
@@ -796,31 +809,77 @@ Item {
                                           "history": "Open history result ",
                                           "keyword": "Search ",
                                           "command": "Run "
-                                      })[modelData.kind] + (modelData.kind === "keyword"
-                                                            ? modelData.engineName :
-                                                              modelData.title)
+                                      })[modelData.kind] + row.title
+                    // The row shows a history result's host; the whole address
+                    // is still there to be heard.
+                    Accessible.description: modelData.kind === "history" ? modelData.url : ""
 
                     Rectangle {
                         anchors.fill: parent
-                        color: row.index === root.selected || rowMouse.containsMouse
-                               ? root.colors.surface : "transparent"
+                        color: row.isSelected || rowMouse.containsMouse ? root.colors.surface :
+                                                                          "transparent"
                     }
 
                     Rectangle {
                         width: 2
                         height: parent.height
                         anchors.left: parent.left
-                        color: row.index === root.selected ? root.colors.accent : "transparent"
+                        color: row.isSelected ? root.colors.accent : "transparent"
                     }
 
-                    SectionLabel {
-                        id: leadLabel
+                    // The picture the row leads with: a site's tile, a Space's
+                    // colour, or its command group's symbol.
+                    Item {
+                        id: picture
                         anchors.left: parent.left
                         anchors.leftMargin: 14
                         anchors.verticalCenter: parent.verticalCenter
-                        width: 92
+                        width: 20
+                        height: 20
+
+                        SiteTile {
+                            objectName: "omnibarRowTile"
+                            anchors.fill: parent
+                            visible: row.site.length > 0
+                            colors: root.colors
+                            siteUrl: row.site
+                            iconUrl: modelData.kind === "tab" ? modelData.icon : ""
+                            useArtwork: root.useFavicons
+                            tintArtwork: root.tintFavicons
+                        }
+
+                        Rectangle {
+                            objectName: "omnibarRowSpaceColor"
+                            anchors.centerIn: parent
+                            visible: modelData.kind === "space"
+                            width: 14
+                            height: 14
+                            radius: 3
+                            color: modelData.color ? modelData.color : root.colors.accent
+                        }
+
+                        Text {
+                            objectName: "omnibarRowSymbol"
+                            anchors.centerIn: parent
+                            visible: modelData.kind === "command"
+                            text: visible ? root.commands.groupSymbols[modelData.group] || "" : ""
+                            color: row.isSelected ? root.colors.text : root.colors.mutedText
+                            opacity: row.usable ? 1 : 0.6
+                            font.family: root.iconFontFamily
+                            font.pixelSize: Style.font.iconLarge
+                        }
+                    }
+
+                    SectionLabel {
+                        id: groupName
+                        anchors.left: picture.right
+                        anchors.leftMargin: visible ? 10 : 0
+                        anchors.verticalCenter: parent.verticalCenter
+                        visible: root.commandScope
+                        width: visible ? 92 : 0
                         colors: root.colors
-                        text: row.lead
+                        foreground: root.colors.mutedText
+                        text: row.groupLabel
                         elide: Text.ElideRight
                         // Centred against the name beside it, so the stacked
                         // lean would drop the label below its own row.
@@ -828,41 +887,81 @@ Item {
                         bottomPadding: overshoot
                     }
 
-                    Text {
-                        anchors.left: leadLabel.right
+                    Item {
+                        anchors.left: groupName.right
                         anchors.leftMargin: 10
-                        anchors.right: rowKeys.left
+                        anchors.right: rowEdge.left
                         anchors.rightMargin: 12
-                        anchors.verticalCenter: parent.verticalCenter
-                        text: modelData.kind === "command" ? root.commands.highlight(modelData.title,
-                                                                                     input.text) :
-                                                             row.label
-                        textFormat: modelData.kind === "command" ? Text.StyledText : Text.PlainText
-                        color: !row.usable ? root.colors.mutedText : (row.index === root.selected
-                                                                      || root.commandScope
-                                                                      ? root.colors.text :
-                                                                        root.colors.mutedText)
-                        opacity: row.usable ? 1 : 0.6
-                        elide: modelData.kind === "command" ? Text.ElideRight : Text.ElideMiddle
-                        font.family: Style.font.family
-                        font.pixelSize: Style.font.body
+                        anchors.top: parent.top
+                        anchors.bottom: parent.bottom
+
+                        // The title gives way before the host does, since the
+                        // host is what names the site.
+                        Text {
+                            id: rowTitle
+                            objectName: "omnibarRowTitle"
+                            anchors.left: parent.left
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: Math.min(implicitWidth, parent.width - (rowHost.visible
+                                                                           ? Math.min(
+                                                                                 rowHost.implicitWidth,
+                                                                                 parent.width / 2)
+                                                                             + 10 : 0))
+                            text: modelData.kind === "command" ? root.commands.highlight(row.title,
+                                                                                         input.text) :
+                                                                 row.title
+                            textFormat: modelData.kind === "command" ? Text.StyledText :
+                                                                       Text.PlainText
+                            color: row.usable ? root.colors.text : root.colors.mutedText
+                            opacity: row.usable ? 1 : 0.6
+                            elide: Text.ElideRight
+                            font.family: Style.font.family
+                            font.pixelSize: Style.font.body
+                        }
+
+                        Text {
+                            id: rowHost
+                            objectName: "omnibarRowHost"
+                            anchors.left: rowTitle.right
+                            anchors.leftMargin: 10
+                            anchors.right: parent.right
+                            anchors.verticalCenter: parent.verticalCenter
+                            visible: row.host.length > 0
+                            text: row.host
+                            color: root.colors.mutedText
+                            elide: Text.ElideMiddle
+                            font.family: Style.font.family
+                            font.pixelSize: Style.font.body
+                        }
                     }
 
-                    // The keys that reach the row without the Omnibar, and a
-                    // keyword where a command shows its keys, so the Omnibar
-                    // is how the keywords are learned too.
-                    Text {
-                        id: rowKeys
+                    Row {
+                        id: rowEdge
                         anchors.right: parent.right
                         anchors.rightMargin: 14
                         anchors.verticalCenter: parent.verticalCenter
-                        text: modelData.kind === "keyword" ? modelData.keyword : (modelData.keys
-                                                                                  || "")
+                        spacing: 10
 
-                        color: root.colors.mutedText
-                        opacity: 0.85
-                        font.family: Style.font.family
-                        font.pixelSize: Style.font.caption
+                        Text {
+                            objectName: "omnibarRowKeys"
+                            visible: row.keys.length > 0
+                            text: row.keys
+                            color: root.colors.mutedText
+                            opacity: 0.85
+                            font.family: Style.font.family
+                            font.pixelSize: Style.font.caption
+                        }
+
+                        // Bright only on the row Return would commit.
+                        Text {
+                            objectName: "omnibarRowAction"
+                            visible: row.action.length > 0
+                            text: row.action
+                            color: row.isSelected ? root.colors.text : root.colors.mutedText
+                            opacity: row.isSelected ? 1 : 0.85
+                            font.family: Style.font.family
+                            font.pixelSize: Style.font.caption
+                        }
                     }
 
                     MouseArea {

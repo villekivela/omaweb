@@ -173,18 +173,27 @@ reports the gap and remains experimental rather than imitating behavior it canno
   In a split the Start page covers both panes, where the committed tab lands, and `Escape` brings
   the split back. While the Start page is on show, `Primary+L` and `o` focus its Omnibar.
 - The Omnibar ranks the typed text against the open tabs, Spaces, the active Space's local history,
-  search keywords, and browser commands in one list. Each row says what committing it does: switch
-  to a tab, switch Space, open an address, search, or run a command. The tab on show is never a row,
-  and a Private window lists no Spaces and no history. Remote search suggestions are off by default.
+  search keywords, and browser commands in one list. The tab on show is never a row, and a Private
+  window lists no Spaces and no history. Remote search suggestions are off by default.
+- Each Omnibar row leads with a picture of what it names. A tab row draws the site's tile as the
+  sidebar does, following the Use favicons and tint settings, so with favicons off it is the host
+  code in the site's tint. A history row draws the same tile for its page and a keyword row for its
+  engine's site, as the host code and tint. A Space row shows the Space's colour, and a command row
+  its group's symbol. Omaweb never fetches an icon from the network to fill a row.
+- A tab or history row reads as the title, then the host in the muted colour; a history row gives
+  its full address to a screen reader as the row's description. At its right edge a row says what
+  committing it does, ending in `→`: `switch tab`, `switch space`, `open`, or a keyword followed by
+  `search`. The action is bright on the selected row and muted on the others. A command row shows
+  its keys there instead. Every row's accessible name still says what it does.
 - `Return` commits the typed address or search, even when a row matches elsewhere in its title. When
   an open tab's title or host starts with the typed text, that tab's row is selected instead and
   `Return` switches to it. A field still holding the preset address commits it as typed.
 - `Primary+K` and `:` open the Omnibar in command scope, shown as a leading `:` in the field: every
   action Omaweb can perform is fuzzy-searchable there, and each result shows the keys that invoke
-  it, so the Omnibar is also how the keymap is learned. Typing `:` into the field narrows it to
-  commands, and backspacing the `:` widens it to every row for the same text, so text that starts
-  with `:` is never searched as typed. An action that cannot be reached from the Omnibar is a
-  defect.
+  it, so the Omnibar is also how the keymap is learned. Each command group's name is written where
+  its rows start, beside the group's symbol. Typing `:` into the field narrows it to commands, and
+  backspacing the `:` widens it to every row for the same text, so text that starts with `:` is
+  never searched as typed. An action that cannot be reached from the Omnibar is a defect.
 - Target-specific page actions are the exception to the Omnibar rule. An Omaweb-owned page context
   menu opens by pointer or `Shift+F10`; the Omnibar exposes Open page context menu, while actions
   such as copy link, save image, and Inspect element remain inside the menu because they require its

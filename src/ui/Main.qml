@@ -4248,6 +4248,9 @@ ApplicationWindow {
         colors: window.colors
         commands: browserCommands
         browser: window.windowBrowser
+        iconFontFamily: materialSymbols.name
+        useFavicons: window.useFavicons
+        tintFavicons: window.tintFavicons
         // The window content behind the overlay, not the overlay's own parent,
         // so the blur never samples itself.
         backdropSource: shell

@@ -3286,9 +3286,14 @@ QVariantList BrowserController::searchKeywordOffers(const QString &text) const
             || !keyword.startsWith(prefix)) {
             continue;
         }
+        const QUrl query(engine.value(QStringLiteral("queryUrl")).toString());
         offers.append(QVariantMap {{QStringLiteral("engineId"), engine.value(QStringLiteral("id"))},
             {QStringLiteral("engineName"), engine.value(QStringLiteral("name"))},
-            {QStringLiteral("keyword"), keyword}});
+            {QStringLiteral("keyword"), keyword},
+            {QStringLiteral("siteUrl"),
+                query.adjusted(QUrl::RemovePath | QUrl::RemoveQuery | QUrl::RemoveFragment)
+                        .toString()
+                    + QLatin1Char('/')}});
     }
     return offers;
 }
