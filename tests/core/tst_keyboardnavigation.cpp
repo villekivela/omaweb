@@ -17,6 +17,7 @@ private slots:
     void resolvesSitePassthroughForHostsAndSubdomains();
     void rejectsUnsupportedVersionsAndCommands();
     void dropsBindingsThisBuildDoesNotKnowAndKeepsTheRest();
+    void readsTheCommandPanelIdAsTheCommandScope();
     void persistsTheEnabledSetting();
     void adoptsNewDefaultsOnceWithoutResurrectingRemovedBindings();
     void replacesRetiredDefaultWithoutChangingCustomBindings();
@@ -148,6 +149,27 @@ void KeyboardNavigationTest::dropsBindingsThisBuildDoesNotKnowAndKeepsTheRest()
     // What was dropped is named rather than passed over in silence.
     QVERIFY(navigation.errorMessage().contains(QStringLiteral("debug-current-tab")));
     QVERIFY(navigation.errorMessage().contains(QStringLiteral("teleport")));
+}
+
+// The command scope was once the command panel, and a reader's file still names it
+// that way. The binding they chose keeps working rather than being dropped.
+void KeyboardNavigationTest::readsTheCommandPanelIdAsTheCommandScope()
+{
+    QTemporaryDir root;
+    const auto path = writeConfiguration(root.path(), R"JSON({
+        "version": 1,
+        "enabled": true,
+        "bindings": { "j": "scroll-down" },
+        "browser": { "Primary+K": "command-panel", ":": "command-scope" }
+    })JSON");
+    KeyboardNavigation navigation(path);
+
+    QVERIFY(navigation.valid());
+    QVERIFY(navigation.errorMessage().isEmpty());
+    QCOMPARE(navigation.browserBindings().value(QStringLiteral("Primary+K")).toString(),
+        QStringLiteral("command-scope"));
+    QCOMPARE(navigation.browserBindings().value(QStringLiteral(":")).toString(),
+        QStringLiteral("command-scope"));
 }
 
 void KeyboardNavigationTest::persistsTheEnabledSetting()

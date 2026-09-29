@@ -6,7 +6,7 @@ import qs.Commons
 
 Item {
     id: root
-    objectName: "commandPanel"
+    objectName: "omnibar"
 
     property var colors
     property var commands

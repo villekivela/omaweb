@@ -59,7 +59,7 @@ reports the gap and remains experimental rather than imitating behavior it canno
   current-address trigger, pinned tabs, ordinary tabs, and footer. Pinned tabs use icon-only buttons
   in full-width rows with capacity for three to five tabs. Incomplete rows divide their width among
   their tabs. Ordinary tabs use single-line rows. The navigation row puts the sidebar and
-  command-panel buttons first, followed by back, forward, and reload. The footer contains the Space
+  command-scope buttons first, followed by back, forward, and reload. The footer contains the Space
   letters, Spaces menu, active Download mark, and settings. Private windows replace the Space
   letters with a mask. New tabs remain available through the Omnibar and keyboard commands rather
   than a sidebar button.
@@ -120,7 +120,7 @@ reports the gap and remains experimental rather than imitating behavior it canno
   has none to give. Pinned-tab icons are larger than ordinary-tab icons.
 - Browser chrome does not occupy a toolbar above the webpage. The webpage uses the full height
   beside the sidebar. While the sidebar is hidden, the navigation controls, the sidebar toggle and
-  the command-panel trigger float over the bottom-left of the page instead of taking a band from it.
+  the command-scope trigger float over the bottom-left of the page instead of taking a band from it.
 - `Primary+B` hides the sidebar entirely. In that chromeless state the page keeps the whole window,
   the floating controls appear, and a stripe in the Space colour along the window's leading edge
   keeps the browsing identity visible. Hiding or showing the sidebar eases the seam and the page

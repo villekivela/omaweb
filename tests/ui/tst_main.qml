@@ -437,7 +437,7 @@ TestCase {
         });
     }
 
-    function test_pageContextMenuOpensFromKeyboardAndCommandPanel() {
+    function test_pageContextMenuOpensFromKeyboardAndCommandScope() {
         const engine = openPage("https://keyboard-context.example/");
         const menu = findChild(window.contentItem, "pageMenu");
         window.requestActivate();
@@ -2846,8 +2846,8 @@ TestCase {
 
         const controls = [["backButton", "back"], ["forwardButton", "forward"], ["reloadButton",
                                                                                  "reload"],
-                          ["collapseButton", "toggle-sidebar"], ["commandPanelButton",
-                                                                 "command-panel"], ["addressButton",
+                          ["collapseButton", "toggle-sidebar"], ["commandScopeButton",
+                                                                 "command-scope"], ["addressButton",
                                                                                     "open-address"]];
         const label = findChild(window.contentItem, "keyLabel-backButton");
         verify(label !== null);
@@ -3311,7 +3311,7 @@ TestCase {
         const addressButton = findChild(window.contentItem, "addressButton");
         const collapseButton = findChild(window.contentItem, "collapseButton");
         const reloadButton = findChild(window.contentItem, "reloadButton");
-        const commandPanelButton = findChild(window.contentItem, "commandPanelButton");
+        const commandScopeButton = findChild(window.contentItem, "commandScopeButton");
         const newSpaceButton = findChild(window.contentItem, "newSpaceButton");
         const settingsButton = findChild(window.contentItem, "settingsButton");
         const materialSymbolsFont = findChild(window, "materialSymbolsFont");
@@ -3319,7 +3319,7 @@ TestCase {
         compare(settingsButton.accessibleName, "Browsing settings and downloads");
         compare(addressButton.accessibleName, "Search or enter address");
         compare(collapseButton.accessibleName, "Hide sidebar");
-        compare(commandPanelButton.accessibleName, "Search commands");
+        compare(commandScopeButton.accessibleName, "Search commands");
         compare(newSpaceButton.label, "New Space");
         verify(iconFontSource.toString().endsWith("/material-symbols-rounded.ttf"));
         verify(materialSymbolsFont !== null);
@@ -5173,7 +5173,7 @@ TestCase {
 
         // The typed text is the selection until the user steps into the list,
         // so the first Down lands on the first suggestion and Up leaves again.
-        const panel = findChild(window.contentItem, "commandPanel");
+        const panel = findChild(window.contentItem, "omnibar");
         verify(panel !== null);
         compare(panel.selected, -1);
         panel.step(1);
@@ -5218,7 +5218,7 @@ TestCase {
 
         // A row the reader stepped onto is a different destination once the
         // next answer lands, so the selection goes back to the typed text.
-        const panel = findChild(window.contentItem, "commandPanel");
+        const panel = findChild(window.contentItem, "omnibar");
         verify(panel !== null);
         panel.step(1);
         compare(panel.selected, 0);
@@ -5245,7 +5245,7 @@ TestCase {
         const keywordSpaceId = browser.createSpace("Keyword Space");
         verify(browser.switchSpace(keywordSpaceId));
         window.openOmnibar(true);
-        const panel = findChild(window.contentItem, "commandPanel");
+        const panel = findChild(window.contentItem, "omnibar");
         const input = findChild(window.contentItem, "omnibarInput");
         const chip = findChild(window.contentItem, "omnibarEngineChip");
         const rows = findChild(window.contentItem, "omnibarRowList");
@@ -5342,7 +5342,7 @@ TestCase {
         browser.reportTabPageState(notesTabId, "https://www.notes-site.example/two",
                                    "Notes on the quarterly figures", "", false, false);
         const tabCount = browser.tabs.rowCount();
-        const panel = findChild(window.contentItem, "commandPanel");
+        const panel = findChild(window.contentItem, "omnibar");
         const input = findChild(window.contentItem, "omnibarInput");
 
         // The tab on show is never a row, whatever the text.
@@ -5402,7 +5402,7 @@ TestCase {
         openPageInNewTab("https://delta-open.example/");
         const deltaTabId = browser.activeTabId;
         const tabCount = browser.tabs.rowCount();
-        const panel = findChild(window.contentItem, "commandPanel");
+        const panel = findChild(window.contentItem, "omnibar");
         const input = findChild(window.contentItem, "omnibarInput");
 
         window.openOmnibar(true);
@@ -5431,7 +5431,7 @@ TestCase {
     function test_omnibarListsSpacesAndCommandsBesideTheAddress() {
         const homeSpaceId = browser.activeSpaceId;
         const zephyrSpaceId = browser.createSpace("Zephyr reading");
-        const panel = findChild(window.contentItem, "commandPanel");
+        const panel = findChild(window.contentItem, "omnibar");
         const input = findChild(window.contentItem, "omnibarInput");
         const rows = findChild(window.contentItem, "omnibarRowList");
 
@@ -5472,11 +5472,11 @@ TestCase {
     // `:` is the command scope: the prompt takes it, backspacing it asks the
     // same text of everything, and text never starts with it.
     function test_theCommandScopeIsALeadingColonInBothDirections() {
-        const panel = findChild(window.contentItem, "commandPanel");
+        const panel = findChild(window.contentItem, "omnibar");
         const input = findChild(window.contentItem, "omnibarInput");
         const prompt = findChild(window.contentItem, "omnibarPrompt");
 
-        window.openCommandPanel();
+        window.openCommandScope();
         compare(panel.commandScope, true);
         compare(prompt.text, ":");
         compare(input.text, "");
@@ -5543,7 +5543,7 @@ TestCase {
     function test_theOmnibarArrivesInItsOwnPlace() {
         // Over a page: on the Start page the Omnibar is already at rest.
         openPage("https://arrival.example/");
-        const panel = findChild(window.contentItem, "commandPanel");
+        const panel = findChild(window.contentItem, "omnibar");
         const frame = findChild(window.contentItem, "omnibarFrame");
         verify(!window.sidebarCollapsed);
         window.openOmnibar(false);
@@ -5554,7 +5554,7 @@ TestCase {
         window.closeOmnibar();
         tryCompare(panel, "visible", false);
 
-        window.openCommandPanel();
+        window.openCommandScope();
         compare(frame.x, panel.restX);
         compare(frame.width, panel.restWidth);
         window.closeOmnibar();
@@ -5567,7 +5567,7 @@ TestCase {
         windowManager.openPrivateWindow();
         tryCompare(windowManager, "privateWindowCount", 1);
         const privateBrowser = window.privateWindows[0];
-        const panel = findChild(privateBrowser.contentItem, "commandPanel");
+        const panel = findChild(privateBrowser.contentItem, "omnibar");
         const input = findChild(privateBrowser.contentItem, "omnibarInput");
 
         privateBrowser.openOmnibar(false);
@@ -6136,7 +6136,7 @@ TestCase {
         const engineLoader = findChild(window.contentItem, "engineLoader");
         const startPage = findChild(window.contentItem, "startPage");
         const road = findChild(window.contentItem, "nightRoad");
-        const panel = findChild(window.contentItem, "commandPanel");
+        const panel = findChild(window.contentItem, "omnibar");
         const frame = findChild(window.contentItem, "omnibarFrame");
         const input = findChild(window.contentItem, "omnibarInput");
         const homeSpaceId = browser.activeSpaceId;
@@ -6222,7 +6222,7 @@ TestCase {
     function test_aNewTabShowsTheStartPageAndCreatesItsTabOnCommit() {
         const engineLoader = findChild(window.contentItem, "engineLoader");
         const startPage = findChild(window.contentItem, "startPage");
-        const panel = findChild(window.contentItem, "commandPanel");
+        const panel = findChild(window.contentItem, "omnibar");
         const input = findChild(window.contentItem, "omnibarInput");
         const engine = openPage("https://before-new-tab.example");
         settleMotion();
@@ -6277,7 +6277,7 @@ TestCase {
     // tab of its own.
     function test_choosingAnOpenTabFromTheStartPageSwitchesToIt() {
         const startPage = findChild(window.contentItem, "startPage");
-        const panel = findChild(window.contentItem, "commandPanel");
+        const panel = findChild(window.contentItem, "omnibar");
         const input = findChild(window.contentItem, "omnibarInput");
         const firstTabId = browser.activeTabId;
         openPageInNewTab("https://kestrel-open.example/");
@@ -6393,7 +6393,7 @@ TestCase {
     // After a commit the road drives until the page first paints, for two
     // seconds at most, and a failure ends it at once.
     function test_theRoadDrivesUntilFirstPaintAndStopsOnAnError() {
-        const panel = findChild(window.contentItem, "commandPanel");
+        const panel = findChild(window.contentItem, "omnibar");
         const engineLoader = findChild(window.contentItem, "engineLoader");
         const startPage = findChild(window.contentItem, "startPage");
         const road = findChild(window.contentItem, "nightRoad");
@@ -6523,7 +6523,7 @@ TestCase {
         compare(findChild(sheet, "shortcutsBackdrop").source, startPage);
         verify(startPage.open);
         // The sheet covers the Omnibar, which waits under it.
-        const panel = findChild(window.contentItem, "commandPanel");
+        const panel = findChild(window.contentItem, "omnibar");
         compare(panel.opacity, 0);
         verify(panel.open);
 

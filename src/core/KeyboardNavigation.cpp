@@ -56,7 +56,7 @@ namespace {
         QStringLiteral("stop-loading"),
         QStringLiteral("open-address"),
         QStringLiteral("open-file"),
-        QStringLiteral("command-panel"),
+        QStringLiteral("command-scope"),
         QStringLiteral("new-tab"),
         QStringLiteral("close-tab"),
         QStringLiteral("reopen-tab"),
@@ -110,6 +110,13 @@ namespace {
         QStringLiteral("settings"),
         QStringLiteral("private-window"),
         QStringLiteral("minimize-window"),
+    };
+
+    // Commands renamed since a reader's file could have been written. A file names
+    // commands by id, so the old id is read as the new one rather than dropped with
+    // the binding the reader chose for it.
+    const QHash<QString, QString> renamedBrowserCommands = {
+        {QStringLiteral("command-panel"), QStringLiteral("command-scope")},
     };
 
 } // namespace
@@ -229,9 +236,10 @@ bool KeyboardNavigation::load()
         = [&ignored](const QJsonObject &section, const QSet<QString> &supported) {
               QVariantMap parsed;
               for (auto it = section.begin(); it != section.end(); ++it) {
-                  const auto command = it.value().toString();
+                  const auto written = it.value().toString();
+                  const auto command = renamedBrowserCommands.value(written, written);
                   if (it.key().isEmpty() || !supported.contains(command)) {
-                      ignored.append(QStringLiteral("%1 (%2)").arg(it.key(), command));
+                      ignored.append(QStringLiteral("%1 (%2)").arg(it.key(), written));
                       continue;
                   }
                   parsed.insert(it.key(), command);

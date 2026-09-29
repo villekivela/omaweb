@@ -14,7 +14,7 @@
   "browser": {
     "Primary+L": "open-address",
     "Primary+O": "open-file",
-    "Primary+K": "command-panel",
+    "Primary+K": "command-scope",
     "Primary+T": "new-tab",
     "Primary+W": "close-tab",
     "Primary+Shift+T": "reopen-tab",
@@ -63,7 +63,7 @@
     "Primary+7": "select-space",
     "Primary+8": "select-space",
     "Primary+9": "select-space",
-    ":": "command-panel",
+    ":": "command-scope",
     "o": "open-address",
     "t": "new-tab",
     "x": "close-tab",

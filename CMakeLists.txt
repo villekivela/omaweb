@@ -596,7 +596,7 @@ set(omaweb_ui_files
     src/ui/ChromeButton.qml
     src/ui/ChromeMenu.qml
     src/ui/ChromeScrollBar.qml
-    src/ui/CommandPanel.qml
+    src/ui/Omnibar.qml
     src/ui/DeveloperToolsDock.qml
     src/ui/DownloadMark.qml
     src/ui/ExtensionMark.qml

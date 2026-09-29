@@ -21,7 +21,7 @@ Rectangle {
     signal forwardRequested
     signal reloadRequested
     signal sidebarToggled
-    signal commandPanelRequested
+    signal commandScopeRequested
 
     width: row.implicitWidth + 16
     height: 34
@@ -162,7 +162,7 @@ Rectangle {
         }
 
         ChromeButton {
-            objectName: "commandPanelButton"
+            objectName: "commandScopeButton"
             width: 28
             height: 26
             icon: "search"
@@ -170,7 +170,7 @@ Rectangle {
             fontFamily: root.iconFontFamily
             foreground: root.colors.mutedText
             accent: root.colors.accent
-            onClicked: root.commandPanelRequested()
+            onClicked: root.commandScopeRequested()
         }
     }
 }
