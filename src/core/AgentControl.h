@@ -30,9 +30,8 @@ class BrowserController;
 // an Agent opened) are always open, because they are what a keybind or a
 // script needs and none of them reads a page. Switching Space, selecting a tab
 // and running a public command of the command scope are browser commands too.
-// Agent Spaces and the page verbs
-// (`look`, `read`, `do`, `shot` and `eval`) wait for Allow agents, which is off
-// until the reader turns it on.
+// Agent Spaces and the page verbs (`look`, `read`, `do`, `shot` and `eval`)
+// wait for Allow agents, which is off until the reader turns it on.
 //
 // A page verb is answered by the page, which only the interface can reach. The
 // core checks what the verb may reach, then hands the request on through
