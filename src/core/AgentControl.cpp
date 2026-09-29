@@ -1,5 +1,6 @@
 #include "AgentControl.h"
 
+#include "AgentActivityLog.h"
 #include "BrowserController.h"
 #include "PrivacyFile.h"
 
@@ -49,6 +50,10 @@ namespace {
     // Screenshots are the Agent's to read soon after, not an archive.
     constexpr qsizetype maximumShots = 50;
     constexpr qint64 maximumShotAgeSeconds = 24 * 60 * 60;
+
+    // A target is an address or a name, and a log line has no use for more.
+    constexpr qsizetype maximumAddressLength = 2048;
+    constexpr qsizetype maximumTargetLength = 200;
 
     const QSet<QString> &stepActions()
     {
@@ -389,26 +394,170 @@ void AgentControl::resolveCurrentTab(Connection &connection) const
 void AgentControl::handle(const QJsonObject &request, const Reply &reply, quint64 socketConnection)
 {
     const auto verb = request.value(QStringLiteral("verb")).toString();
+    const auto name = request.value(QStringLiteral("name")).toString();
     if (const auto refused = gate(verb); !refused.isEmpty()) {
+        // What is not a verb, and anything asked of a Private window, did
+        // nothing to write down.
+        const auto code = refused.value(QStringLiteral("code")).toString();
+        if (code != u"bad-request" && code != u"private") {
+            logActivity(verb, name, request, refused, std::nullopt, {}, {});
+        }
         reply(refused);
         return;
     }
-    const auto name = request.value(QStringLiteral("name")).toString();
     auto &connection = connectionNamed(name);
     const auto previousTabId = connection.currentTabId;
     resolveCurrentTab(connection);
     if (!previousTabId.isEmpty() && connection.currentTabId.isEmpty()) {
         detach(previousTabId);
     }
+    // Taken before the verb runs, because a Space it deletes or a tab it
+    // closes is gone by the time it has answered.
+    const auto before = requestedTab(verb, request, connection);
+    const auto named = request.value(QStringLiteral("space")).toString();
+    const auto spaceIdBefore = named.isEmpty()
+        ? (verb == u"tabs" ? defaultSpace(connection) : QString {})
+        : findSpace(named);
+    const auto spaceNameBefore = spaceName(spaceIdBefore);
+    const Reply logged = [this, verb, name, request, before, spaceIdBefore, spaceNameBefore, reply](
+                             const QJsonObject &answer) {
+        logActivity(verb, name, request, answer, before, spaceIdBefore, spaceNameBefore);
+        reply(answer);
+    };
     if (pageVerb(verb)) {
-        askPage(verb, name, connection, request, reply);
+        askPage(verb, name, connection, request, logged);
         return;
     }
     if (verb == u"console") {
-        reply(readConsole(connection, request));
+        logged(readConsole(connection, request));
         return;
     }
-    reply(answerBrowserCommand(verb, name, connection, request, socketConnection));
+    logged(answerBrowserCommand(verb, name, connection, request, socketConnection));
+}
+
+void AgentControl::setActivityLog(AgentActivityLog *log) { m_activity = log; }
+
+QString AgentControl::activityTarget(const QString &verb, const QJsonObject &request)
+{
+    const auto text = [&request](const QString &key) {
+        return request.value(key).toString().left(maximumTargetLength);
+    };
+    if (verb == u"open") {
+        return request.value(QStringLiteral("url")).toString().left(maximumAddressLength);
+    }
+    if (verb == u"focus") {
+        return text(QStringLiteral("target"));
+    }
+    if (verb == u"tabs" || verb == u"space" || verb == u"space new" || verb == u"space delete") {
+        return text(QStringLiteral("space"));
+    }
+    if (verb == u"run") {
+        const auto argument = request.value(QStringLiteral("argument"));
+        return argument.isDouble()
+            ? QStringLiteral("%1 %2").arg(text(QStringLiteral("command"))).arg(argument.toInt())
+            : text(QStringLiteral("command"));
+    }
+    if (verb == u"shot" && request.value(QStringLiteral("full")).toBool()) {
+        return QStringLiteral("full page");
+    }
+    if (verb != u"do") {
+        return {};
+    }
+    // A step is its action and the label it acted on. What it filled, the
+    // option it chose, the key it pressed and the text or address it waited
+    // for are left out: any of them can be what the reader typed.
+    QStringList steps;
+    for (const auto &value : request.value(QStringLiteral("steps")).toArray()) {
+        const auto step = value.toObject();
+        const auto action = step.value(QStringLiteral("action")).toString();
+        if (!stepActions().contains(action)) {
+            continue;
+        }
+        const auto label = step.value(QStringLiteral("target")).toString();
+        steps.append(label.isEmpty() || action == u"press" || action == u"wait"
+                ? action
+                : QStringLiteral("%1 %2").arg(action, label.left(maximumTargetLength)));
+    }
+    return steps.join(QStringLiteral(", ")).left(maximumAddressLength);
+}
+
+std::optional<TabState> AgentControl::requestedTab(
+    const QString &verb, const QJsonObject &request, const Connection &connection) const
+{
+    QString tabId;
+    if (verb == u"focus") {
+        tabId = request.value(QStringLiteral("target")).toString();
+    } else if (pageVerb(verb) || verb == u"console" || verb == u"close"
+        || (verb == u"open" && request.value(QStringLiteral("space")).toString().isEmpty()
+            && !request.value(QStringLiteral("new")).toBool())) {
+        tabId = request.value(QStringLiteral("tab")).toString();
+        if (tabId.isEmpty()) {
+            tabId = connection.currentTabId;
+        }
+    }
+    if (tabId.isEmpty()) {
+        return std::nullopt;
+    }
+    return m_browser->findTab(
+        tabId, tabId == connection.currentTabId ? connection.currentSpaceId : QString {});
+}
+
+void AgentControl::logActivity(const QString &verb, const QString &name, const QJsonObject &request,
+    const QJsonObject &answer, const std::optional<TabState> &before, const QString &spaceIdBefore,
+    const QString &spaceNameBefore)
+{
+    if (!m_activity) {
+        return;
+    }
+    const auto ok = answer.value(QStringLiteral("ok")).toBool();
+    AgentActivityLog::Entry entry {
+        .agent = name,
+        .verb = verb,
+        .target = activityTarget(verb, request),
+        .outcome = ok ? QStringLiteral("ok") : answer.value(QStringLiteral("code")).toString(),
+    };
+    const auto idOf = [](const QJsonValue &value) {
+        return value.isObject() ? value.toObject().value(QStringLiteral("id")).toString()
+                                : value.toString();
+    };
+    // The tab the verb acted on, at the address it had then. A tab the answer
+    // names instead is one the verb opened.
+    const auto answeredTab = ok ? idOf(answer.value(QStringLiteral("tab"))) : QString {};
+    auto tab = before;
+    if (!answeredTab.isEmpty() && (!tab || tab->id != answeredTab)) {
+        tab = m_browser->findTab(answeredTab);
+    }
+    if (tab) {
+        entry.tabId = tab->id;
+        entry.address = tab->url.toString().left(maximumAddressLength);
+        entry.spaceId = tab->spaceId;
+    }
+    if (entry.spaceId.isEmpty() && ok) {
+        entry.spaceId = idOf(answer.value(QStringLiteral("space")));
+    }
+    if (entry.spaceId.isEmpty()) {
+        entry.spaceId = spaceIdBefore;
+    }
+    entry.space = spaceName(entry.spaceId);
+    if (entry.space.isEmpty() && entry.spaceId == spaceIdBefore) {
+        entry.space = spaceNameBefore;
+    }
+    m_activity->record(std::move(entry));
+}
+
+QString AgentControl::spaceName(const QString &spaceId) const
+{
+    if (spaceId.isEmpty()) {
+        return {};
+    }
+    const auto *model = m_browser->spaces();
+    for (int row = 0; row < model->rowCount(); ++row) {
+        const auto index = model->index(row, 0);
+        if (index.data(SpaceListModel::IdRole).toString() == spaceId) {
+            return index.data(SpaceListModel::NameRole).toString();
+        }
+    }
+    return {};
 }
 
 QJsonObject AgentControl::answer(const QJsonObject &request, quint64 socketConnection)
@@ -598,6 +747,12 @@ QJsonObject AgentControl::pageTab(
     if (!tab) {
         return refusal(
             QStringLiteral("not-found"), QStringLiteral("There is no tab \"%1\".").arg(tabId));
+    }
+    // The reader's account of what Agents did is not an Agent's to read, even
+    // in an Agent Space. No engine holds it, so nothing would answer anyway.
+    if (tab->url == BrowserController::agentActivityAddress()) {
+        return refusal(QStringLiteral("refused"),
+            QStringLiteral("The Agent activity page is the reader's. An Agent cannot read it."));
     }
     if (!mayRead(*tab)) {
         return refusal(QStringLiteral("refused"),

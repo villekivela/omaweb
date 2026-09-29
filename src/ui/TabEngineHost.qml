@@ -298,6 +298,12 @@ Item {
         return value.length === 0 || value === "about:blank";
     }
 
+    // An address no engine loads: a blank one, or a page the interface draws
+    // itself, such as the Agent activity page.
+    function pagelessAddress(url) {
+        return root.blankAddress(url) || String(url) === "omaweb:agent-activity";
+    }
+
     function adoptNewWindowRequest(tabId, request) {
         root.adoptingTabId = tabId;
         const engine = root.engines[tabId];
@@ -630,7 +636,7 @@ Item {
         const host = root.spaceProfiles ? root.spaceProfiles.hostFor(spaceId !== undefined ? spaceId :
                                                                                              root.sessionSpaceId) :
                                           null;
-        const held = host && host.extensionLoadsPending > 0 && !root.blankAddress(tabUrl);
+        const held = host && host.extensionLoadsPending > 0 && !root.pagelessAddress(tabUrl);
         const engine = engineComponent.createObject(parent, {
                                                         "profilePath": profilePath !== undefined
                                                                        ? profilePath :
@@ -958,7 +964,7 @@ Item {
             return root.engines[tabId];
         }
         const tab = root.agentControl.agentTab(tabId);
-        if (!tab.tabId || root.blankAddress(tab.url))
+        if (!tab.tabId || root.pagelessAddress(tab.url))
             return null;
         if (!root.suspended && tab.spaceId === root.spaceId) {
             root.agentEngineWanted(tabId);
@@ -1116,10 +1122,11 @@ Item {
             function needsEngine() {
                 if (tabSlot.tabId.length === 0)
                     return false;
-                return !root.blankAddress(tabSlot.tabUrl) || root.adoptingTabId === tabSlot.tabId;
+                return !root.pagelessAddress(tabSlot.tabUrl) || root.adoptingTabId
+                        === tabSlot.tabId;
             }
 
-            readonly property bool wantsEngine: tabId.length > 0 && (!root.blankAddress(tabUrl)
+            readonly property bool wantsEngine: tabId.length > 0 && (!root.pagelessAddress(tabUrl)
                                                                      || root.adoptingTabId
                                                                      === tabId)
 

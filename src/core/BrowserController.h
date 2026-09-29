@@ -234,6 +234,12 @@ public:
     Q_INVOKABLE bool confirmTabMoveToSpace(const QString &tabId, const QString &destinationSpaceId);
     Q_INVOKABLE void openInput(const QString &input, bool inNewTab);
     Q_INVOKABLE void openInputInBackground(const QUrl &url);
+    // The address of the Agent activity page, which the interface draws itself
+    // and no engine loads.
+    static QUrl agentActivityAddress();
+    // Opens the Agent activity page in a new tab of the Space on show and
+    // selects it. A Private window has no Agents and opens nothing.
+    Q_INVOKABLE bool openAgentActivity();
     Q_INVOKABLE bool retryActiveUrlInsecurely();
     Q_INVOKABLE void closeTab(const QString &tabId);
     Q_INVOKABLE void closeActiveTab();

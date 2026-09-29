@@ -1276,6 +1276,34 @@ bool BrowserController::retryActiveUrlInsecurely()
     return true;
 }
 
+QUrl BrowserController::agentActivityAddress()
+{
+    return QUrl(QStringLiteral("omaweb:agent-activity"));
+}
+
+bool BrowserController::openAgentActivity()
+{
+    if (m_privateBrowsing) {
+        return false;
+    }
+    if (auto *current = m_tabs.find(m_activeTabId)) {
+        current->active = false;
+        m_tabs.notifyChanged(current->id, {TabListModel::ActiveRole});
+    }
+    TabState tab;
+    tab.id = QUuid::createUuid().toString(QUuid::WithoutBraces);
+    tab.spaceId = m_activeSpaceId;
+    tab.url = agentActivityAddress();
+    tab.title = QStringLiteral("Agent activity");
+    tab.active = true;
+    m_tabs.append(tab);
+    m_activeTabId = tab.id;
+    refreshSoundSuppression();
+    schedulePersistTabs();
+    emit activeTabChanged();
+    return true;
+}
+
 void BrowserController::openInputInBackground(const QUrl &url)
 {
     if (!url.isValid() || url.isEmpty()) {

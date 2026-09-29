@@ -19,6 +19,7 @@
 
 namespace omaweb {
 
+class AgentActivityLog;
 class BrowserController;
 
 // What an Agent may do through the control socket, and the one setting that
@@ -129,6 +130,15 @@ public:
     // `spaceId`, `url`, `zoom` and `muted`. Empty for a tab that is not one.
     Q_INVOKABLE QVariantMap agentTab(const QString &tabId) const;
 
+    // Where every verb is written down once it is answered. Without one,
+    // nothing is.
+    void setActivityLog(AgentActivityLog *log);
+    // What a verb acted on, as the activity log keeps it: an address, a hint
+    // label, a name the Agent gave or a command. Never a page's text, a value
+    // a step filled, the option it chose, a key it pressed, the text it waited
+    // for or the source it evaluated.
+    static QString activityTarget(const QString &verb, const QJsonObject &request);
+
     // Where `shot` writes every screenshot: a directory only this user can
     // enter, beside the socket.
     void setShotDirectory(const QString &directory);
@@ -208,6 +218,14 @@ private:
     QString defaultSpace(const Connection &connection) const;
     static QJsonObject noSpace(const QString &named);
     QJsonObject describeTab(const TabState &tab, const Connection &connection) const;
+    // The tab a request is about before it runs, so a tab it closes is still
+    // named in the log.
+    std::optional<TabState> requestedTab(
+        const QString &verb, const QJsonObject &request, const Connection &connection) const;
+    void logActivity(const QString &verb, const QString &name, const QJsonObject &request,
+        const QJsonObject &answer, const std::optional<TabState> &before,
+        const QString &spaceIdBefore, const QString &spaceNameBefore);
+    QString spaceName(const QString &spaceId) const;
 
     BrowserController *m_browser;
     QString m_configRoot;
@@ -220,6 +238,7 @@ private:
     QSet<QString> m_openedTabIds;
     QFileSystemWatcher m_watcher;
     QString m_shotDirectory;
+    AgentActivityLog *m_activity = nullptr;
     int m_nextPageRequest = 1;
     int m_nextCommandRequest = 1;
     // The window's answer to the command request under way, while
