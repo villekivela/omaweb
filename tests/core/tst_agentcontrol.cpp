@@ -1439,7 +1439,9 @@ void AgentControlTest::givesEachConnectionItsOwnDownloadDirectory()
     QCOMPARE(requested.at(0).at(1).toMap().value(QStringLiteral("downloadDirectory")).toString(),
         QDir(agents).filePath(QStringLiteral("claude")));
 
-    // Another connection using the same tab takes its downloads with it.
+    // Another connection using the same tab takes its downloads with it,
+    // which the page hears.
+    QSignalSpy handedOver(&control, &AgentControl::agentTabsChanged);
     const auto sly = QStringLiteral("../../.ssh/x");
     askPage(control, sly, QStringLiteral("look"), {{QStringLiteral("tab"), tab}});
     const auto directory
@@ -1448,6 +1450,7 @@ void AgentControlTest::givesEachConnectionItsOwnDownloadDirectory()
     QVERIFY(!QFileInfo(directory).fileName().startsWith(u'.'));
     QCOMPARE(
         control.agentTab(tab).value(QStringLiteral("downloadDirectory")).toString(), directory);
+    QCOMPARE(handedOver.count(), 1);
     // Nothing is made until something is downloaded.
     QVERIFY(!QFileInfo::exists(agents));
 }
@@ -1464,12 +1467,12 @@ void AgentControlTest::drivesTheWindowsAnAgentTabOpens()
     AgentControl control(browser.get(), config.path());
     control.setAllowAgents(true);
     QSignalSpy requested(&control, &AgentControl::pageRequested);
-    QSignalSpy popups(&control, &AgentControl::agentPopupsChanged);
-    QSignalSpy closing(&control, &AgentControl::popupCloseRequested);
+    QSignalSpy windows(&control, &AgentControl::agentWindowsChanged);
+    QSignalSpy closing(&control, &AgentControl::windowCloseRequested);
     connect(&control, &AgentControl::pageRequested, this, [] { });
 
     // A window the reader's own page opens stays the reader's.
-    QVERIFY(control.attachPopup(QStringLiteral("personal-tab")).isEmpty());
+    QVERIFY(control.attachWindow(QStringLiteral("personal-tab")).isEmpty());
     const auto tab = openAgentTab(control, QStringLiteral("agent"));
     const auto spaceId = browser->findTab(tab)->spaceId;
 
@@ -1482,16 +1485,16 @@ void AgentControlTest::drivesTheWindowsAnAgentTabOpens()
                 QJsonArray {QJsonObject {{QStringLiteral("action"), QStringLiteral("click")},
                     {QStringLiteral("target"), QStringLiteral("2")}}}}},
         [&replies](const QJsonObject &answer) { replies.append(answer); });
-    const auto popup = control.attachPopup(tab);
-    QVERIFY(!popup.isEmpty());
-    QCOMPARE(popups.count(), 1);
-    QCOMPARE(control.agentPopupIds(), QStringList {popup});
-    QCOMPARE(control.agentPopup(popup).value(QStringLiteral("openerTabId")).toString(), tab);
-    QCOMPARE(control.agentPopup(popup).value(QStringLiteral("spaceId")).toString(), spaceId);
-    QCOMPARE(control.agentPopup(popup).value(QStringLiteral("connection")).toString(),
+    const auto window = control.attachWindow(tab);
+    QVERIFY(!window.isEmpty());
+    QCOMPARE(windows.count(), 1);
+    QCOMPARE(control.agentWindowIds(), QStringList {window});
+    QCOMPARE(control.agentWindow(window).value(QStringLiteral("openerTabId")).toString(), tab);
+    QCOMPARE(control.agentWindow(window).value(QStringLiteral("spaceId")).toString(), spaceId);
+    QCOMPARE(control.agentWindow(window).value(QStringLiteral("connection")).toString(),
         QStringLiteral("agent"));
     control.answerPage(requested.at(0).at(0).toInt(), {{QStringLiteral("ok"), true}});
-    QCOMPARE(replies.constFirst().value(QStringLiteral("opened")).toArray(), QJsonArray {popup});
+    QCOMPARE(replies.constFirst().value(QStringLiteral("opened")).toArray(), QJsonArray {window});
     // Said once.
     control.handle({{QStringLiteral("verb"), QStringLiteral("look")},
                        {QStringLiteral("name"), QStringLiteral("agent")}},
@@ -1502,38 +1505,53 @@ void AgentControlTest::drivesTheWindowsAnAgentTabOpens()
     const auto listed = ask(control, QStringLiteral("agent"), QStringLiteral("tabs"))
                             .value(QStringLiteral("tabs"))
                             .toArray();
-    QVERIFY(ids(listed).contains(popup));
+    QVERIFY(ids(listed).contains(window));
 
     // A page verb reaches the window, answered by it and not by the tab.
-    askPage(
-        control, QStringLiteral("agent"), QStringLiteral("look"), {{QStringLiteral("tab"), popup}});
+    askPage(control, QStringLiteral("agent"), QStringLiteral("look"),
+        {{QStringLiteral("tab"), window}});
     const auto request = requested.at(2).at(1).toMap();
-    QCOMPARE(request.value(QStringLiteral("tabId")).toString(), popup);
-    QCOMPARE(request.value(QStringLiteral("popup")).toBool(), true);
+    QCOMPARE(request.value(QStringLiteral("tabId")).toString(), window);
+    QCOMPARE(request.value(QStringLiteral("window")).toBool(), true);
     QCOMPARE(request.value(QStringLiteral("spaceId")).toString(), spaceId);
     // Its lines are kept, as an Agent tab's are.
-    control.recordConsoleMessage(popup, QStringLiteral("1"), 2, QStringLiteral("boom"), {}, 1);
+    control.recordConsoleMessage(window, QStringLiteral("1"), 2, QStringLiteral("boom"), {}, 1);
     const auto console = ask(control, QStringLiteral("agent"), QStringLiteral("console"),
-        {{QStringLiteral("tab"), popup}});
+        {{QStringLiteral("tab"), window}});
     QCOMPARE(console.value(QStringLiteral("messages")).toArray().size(), 1);
 
     // `close` closes it, and it is gone.
     QVERIFY(succeeded(ask(control, QStringLiteral("agent"), QStringLiteral("close"),
-        {{QStringLiteral("tab"), popup}})));
+        {{QStringLiteral("tab"), window}})));
     QCOMPARE(closing.count(), 1);
-    QCOMPARE(closing.at(0).at(0).toString(), popup);
-    QVERIFY(control.agentPopupIds().isEmpty());
+    QCOMPARE(closing.at(0).at(0).toString(), window);
+    QVERIFY(control.agentWindowIds().isEmpty());
     QCOMPARE(failure(askPage(control, QStringLiteral("agent"), QStringLiteral("look"),
-                 {{QStringLiteral("tab"), popup}})),
+                 {{QStringLiteral("tab"), window}})),
         QStringLiteral("not-found"));
 
+    // Once no Agent holds the opener, its windows are the reader's again:
+    // when the Agent closes the opener, and when it has left it alone.
+    const auto orphaned = control.attachWindow(tab);
+    QVERIFY(!orphaned.isEmpty());
+    const auto other = openAgentTab(control, QStringLiteral("other"));
+    QVERIFY(!control.attachWindow(other).isEmpty());
+    QVERIFY(succeeded(ask(control, QStringLiteral("agent"), QStringLiteral("close"),
+        {{QStringLiteral("tab"), tab}})));
+    QVERIFY(!control.agentWindowIds().contains(orphaned));
+    QCOMPARE(control.agentWindowIds().size(), 1);
+    control.setAttachmentIdleMs(50);
+    QTRY_VERIFY(control.agentWindowIds().isEmpty());
+    control.setAttachmentIdleMs(AgentControl::defaultAttachmentIdleMs);
+
     // Allow agents off: the window is the reader's again.
-    const auto second = control.attachPopup(tab);
+    const auto opener = openAgentTab(control, QStringLiteral("agent"));
+    const auto second = control.attachWindow(opener);
     QVERIFY(!second.isEmpty());
     control.setAllowAgents(false);
-    QVERIFY(control.agentPopupIds().isEmpty());
-    QVERIFY(control.agentPopup(second).isEmpty());
-    control.popupClosed(second);
+    QVERIFY(control.agentWindowIds().isEmpty());
+    QVERIFY(control.agentWindow(second).isEmpty());
+    control.windowClosed(second);
 }
 
 #include "tst_agentcontrol.moc"

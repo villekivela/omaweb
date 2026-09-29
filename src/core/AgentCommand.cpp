@@ -690,7 +690,7 @@ QString formatAgentAnswer(const QString &verb, const QJsonObject &answer)
             if (tab.value(QStringLiteral("pinned")).toBool()) {
                 flags.append(QStringLiteral("pinned"));
             }
-            if (tab.value(QStringLiteral("popup")).toBool()) {
+            if (tab.value(QStringLiteral("window")).toBool()) {
                 flags.append(
                     QStringLiteral("window of ") + tab.value(QStringLiteral("opener")).toString());
             }
@@ -743,7 +743,7 @@ QString formatAgentAnswer(const QString &verb, const QJsonObject &answer)
     if (verb == u"do") {
         QString opened;
         for (const auto &value : answer.value(QStringLiteral("opened")).toArray()) {
-            opened += QStringLiteral("Opened window %1\n").arg(value.toString());
+            opened += QStringLiteral("Opened %1\n").arg(value.toString());
         }
         return formatSteps(answer) + opened + u'\n'
             + formatLook(answer.value(QStringLiteral("look")).toObject());

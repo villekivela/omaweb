@@ -70,7 +70,7 @@ namespace {
         return cleaned.isEmpty() ? QStringLiteral("agent") : cleaned;
     }
 
-    bool popupId(const QString &id) { return id.startsWith(u"popup-"); }
+    bool isWindowId(const QString &id) { return id.startsWith(u"window-"); }
 
     const QSet<QString> &stepActions()
     {
@@ -175,10 +175,10 @@ void AgentControl::apply(bool allowed)
         }
         m_console.forgetAll();
         m_tabConnections.clear();
-        m_newPopups.clear();
-        if (!m_popups.isEmpty()) {
-            m_popups.clear();
-            emit agentPopupsChanged();
+        m_newWindows.clear();
+        if (!m_windows.isEmpty()) {
+            m_windows.clear();
+            emit agentWindowsChanged();
         }
         if (!m_attached.isEmpty()) {
             m_attached.clear();
@@ -312,35 +312,36 @@ QVariantMap AgentControl::agentTab(const QString &tabId) const
     };
 }
 
-QStringList AgentControl::agentPopupIds() const
+QStringList AgentControl::agentWindowIds() const
 {
-    auto ids = m_popups.keys();
+    auto ids = m_windows.keys();
     ids.sort();
     return ids;
 }
 
-QString AgentControl::attachPopup(const QString &openerTabId)
+QString AgentControl::attachWindow(const QString &openerTabId)
 {
     if (!m_allowAgents || !m_attached.contains(openerTabId)) {
         return {};
     }
-    const auto id = QStringLiteral("popup-%1").arg(m_nextPopup++);
-    m_popups.insert(
-        id, Popup {.openerTabId = openerTabId, .connection = m_tabConnections.value(openerTabId)});
-    m_newPopups[openerTabId].append(id);
-    emit agentPopupsChanged();
+    const auto id = QStringLiteral("window-%1").arg(m_nextWindow++);
+    m_windows.insert(id,
+        AgentWindow {
+            .openerTabId = openerTabId, .connection = m_tabConnections.value(openerTabId)});
+    m_newWindows[openerTabId].append(id);
+    emit agentWindowsChanged();
     return id;
 }
 
-QVariantMap AgentControl::agentPopup(const QString &popupId) const
+QVariantMap AgentControl::agentWindow(const QString &windowId) const
 {
-    const auto found = m_popups.constFind(popupId);
-    if (found == m_popups.cend()) {
+    const auto found = m_windows.constFind(windowId);
+    if (found == m_windows.cend()) {
         return {};
     }
     const auto opener = m_browser->findTab(found->openerTabId);
     return {
-        {QStringLiteral("popupId"), popupId},
+        {QStringLiteral("windowId"), windowId},
         {QStringLiteral("openerTabId"), found->openerTabId},
         {QStringLiteral("spaceId"), opener ? opener->spaceId : QString {}},
         {QStringLiteral("connection"), found->connection},
@@ -348,20 +349,57 @@ QVariantMap AgentControl::agentPopup(const QString &popupId) const
     };
 }
 
-void AgentControl::popupClosed(const QString &popupId)
+void AgentControl::windowClosed(const QString &windowId)
 {
-    const auto popup = m_popups.take(popupId);
-    if (popup.openerTabId.isEmpty()) {
-        return;
+    if (forgetWindow(windowId)) {
+        emit agentWindowsChanged();
     }
-    m_console.forget(popupId);
-    m_newPopups[popup.openerTabId].removeAll(popupId);
+}
+
+bool AgentControl::forgetWindow(const QString &windowId)
+{
+    const auto window = m_windows.take(windowId);
+    if (window.openerTabId.isEmpty()) {
+        return false;
+    }
+    m_console.forget(windowId);
+    m_newWindows[window.openerTabId].removeAll(windowId);
     for (auto &connection : m_connections) {
-        if (connection.currentTabId == popupId) {
+        if (connection.currentTabId == windowId) {
             connection.currentTabId.clear();
         }
     }
-    emit agentPopupsChanged();
+    return true;
+}
+
+// A window is the Agent's only while its opener is an Agent tab. Once no
+// Agent holds the opener, nobody is left to answer what the window asks, so
+// it goes back to the reader with it.
+void AgentControl::releaseWindowsOf(const QString &openerTabId)
+{
+    QStringList released;
+    for (auto it = m_windows.cbegin(); it != m_windows.cend(); ++it) {
+        if (it->openerTabId == openerTabId) {
+            released.append(it.key());
+        }
+    }
+    for (const auto &windowId : std::as_const(released)) {
+        forgetWindow(windowId);
+    }
+    if (!released.isEmpty()) {
+        emit agentWindowsChanged();
+    }
+}
+
+QString AgentControl::openerOf(const QString &target) const
+{
+    return isWindowId(target) ? m_windows.value(target).openerTabId : target;
+}
+
+QJsonObject AgentControl::noWindow(const QString &windowId)
+{
+    return refusal(QStringLiteral("not-found"),
+        QStringLiteral("There is no window \"%1\". It has closed.").arg(windowId));
 }
 
 QString AgentControl::downloadDirectoryFor(const QString &name) const
@@ -385,13 +423,16 @@ void AgentControl::attach(const QString &tabId, const QString &name)
 {
     const auto known = m_attached.contains(tabId);
     m_attached.insert(tabId, m_clock.elapsed());
+    // Another connection using the tab takes its downloads with it, which the
+    // page hears as a change to the Agent tabs.
+    const auto handedOver = !name.isEmpty() && m_tabConnections.value(tabId) != name;
     if (!name.isEmpty()) {
         m_tabConnections.insert(tabId, name);
     }
     if (!m_idleCheck.isActive()) {
         m_idleCheck.start();
     }
-    if (!known) {
+    if (!known || handedOver) {
         emit agentTabsChanged();
     }
 }
@@ -400,7 +441,8 @@ void AgentControl::detach(const QString &tabId)
 {
     m_console.forget(tabId);
     m_tabConnections.remove(tabId);
-    m_newPopups.remove(tabId);
+    m_newWindows.remove(tabId);
+    releaseWindowsOf(tabId);
     if (m_attached.remove(tabId) > 0) {
         if (m_attached.isEmpty()) {
             m_idleCheck.stop();
@@ -417,7 +459,8 @@ void AgentControl::detachIdle()
     const auto now = m_clock.elapsed();
     QSet<QString> working;
     for (const auto &pending : std::as_const(m_pendingPages)) {
-        working.insert(pending.tabId);
+        // A verb in one of a tab's windows is work in the tab.
+        working.insert(openerOf(pending.tabId));
     }
     QStringList leaving;
     for (auto it = m_attached.cbegin(); it != m_attached.cend(); ++it) {
@@ -431,8 +474,9 @@ void AgentControl::detachIdle()
     for (const auto &tabId : std::as_const(leaving)) {
         m_attached.remove(tabId);
         m_tabConnections.remove(tabId);
-        m_newPopups.remove(tabId);
+        m_newWindows.remove(tabId);
         m_console.forget(tabId);
+        releaseWindowsOf(tabId);
     }
     if (m_attached.isEmpty()) {
         m_idleCheck.stop();
@@ -476,8 +520,8 @@ void AgentControl::resolveCurrentTab(Connection &connection) const
     if (connection.currentTabId.isEmpty()) {
         return;
     }
-    if (popupId(connection.currentTabId)) {
-        if (!m_popups.contains(connection.currentTabId)) {
+    if (isWindowId(connection.currentTabId)) {
+        if (!m_windows.contains(connection.currentTabId)) {
             connection.currentTabId.clear();
         }
         return;
@@ -701,14 +745,9 @@ QJsonObject AgentControl::pageTab(const Connection &connection, const QJsonObjec
             QStringLiteral(
                 "This connection has no current tab. Open one, or name one with --tab."));
     }
-    auto tabId = target;
-    if (popupId(target)) {
-        const auto popup = m_popups.constFind(target);
-        if (popup == m_popups.cend()) {
-            return refusal(QStringLiteral("not-found"),
-                QStringLiteral("There is no window \"%1\". It has closed.").arg(target));
-        }
-        tabId = popup->openerTabId;
+    const auto tabId = openerOf(target);
+    if (tabId.isEmpty()) {
+        return noWindow(target);
     }
     tab = m_browser->findTab(
         tabId, tabId == connection.currentTabId ? connection.currentSpaceId : QString {});
@@ -774,7 +813,7 @@ void AgentControl::recordConsoleMessage(const QString &tabId, const QString &doc
 {
     // Only an Agent tab is listened to. A page the reader has to themselves
     // says nothing that is kept.
-    if (!m_allowAgents || (!m_attached.contains(tabId) && !m_popups.contains(tabId))) {
+    if (!m_allowAgents || (!m_attached.contains(tabId) && !m_windows.contains(tabId))) {
         return;
     }
     m_console.record(tabId, document, level, message, source, line);
@@ -793,11 +832,7 @@ QJsonObject AgentControl::refuseUpload(
     if (!uploads) {
         return {};
     }
-    auto tabId = targetId(connection, request);
-    if (popupId(tabId)) {
-        tabId = m_popups.value(tabId).openerTabId;
-    }
-    const auto tab = m_browser->findTab(tabId);
+    const auto tab = m_browser->findTab(openerOf(targetId(connection, request)));
     if (!tab || m_browser->agentSpace(tab->spaceId)) {
         return {};
     }
@@ -867,7 +902,7 @@ void AgentControl::askPage(const QString &verb, const QString &name, Connection 
         QVariantMap {
             {QStringLiteral("verb"), verb},
             {QStringLiteral("tabId"), target},
-            {QStringLiteral("popup"), target != tabId},
+            {QStringLiteral("window"), target != tabId},
             {QStringLiteral("spaceId"), tab->spaceId},
             {QStringLiteral("url"), tab->url},
             {QStringLiteral("name"), name},
@@ -896,7 +931,7 @@ void AgentControl::answerPage(int requestId, const QVariantMap &answer)
     }
     // The windows the page opened since it last answered, which the Agent
     // reaches by these ids.
-    if (const auto opened = m_newPopups.take(pending.tabId); !opened.isEmpty()) {
+    if (const auto opened = m_newWindows.take(pending.tabId); !opened.isEmpty()) {
         result.insert(QStringLiteral("opened"), QJsonArray::fromStringList(opened));
     }
     pending.reply(result);
@@ -1179,7 +1214,7 @@ QJsonObject AgentControl::listTabs(Connection &connection, const QJsonObject &re
     for (const auto &tab : m_browser->spaceTabs(spaceId)) {
         tabs.append(describeTab(tab, connection));
     }
-    for (auto it = m_popups.cbegin(); it != m_popups.cend(); ++it) {
+    for (auto it = m_windows.cbegin(); it != m_windows.cend(); ++it) {
         const auto opener = m_browser->findTab(it->openerTabId);
         if (!opener || opener->spaceId != spaceId) {
             continue;
@@ -1187,7 +1222,7 @@ QJsonObject AgentControl::listTabs(Connection &connection, const QJsonObject &re
         tabs.append(QJsonObject {
             {QStringLiteral("id"), it.key()},
             {QStringLiteral("space"), spaceId},
-            {QStringLiteral("popup"), true},
+            {QStringLiteral("window"), true},
             {QStringLiteral("opener"), it->openerTabId},
             {QStringLiteral("current"), it.key() == connection.currentTabId},
         });
@@ -1221,7 +1256,7 @@ QJsonObject AgentControl::open(
     // An Auxiliary window is the page's to navigate, not the Agent's.
     const auto newTab = !spaceName.isEmpty() || request.value(QStringLiteral("new")).toBool()
         || (tabName.isEmpty()
-            && (connection.currentTabId.isEmpty() || popupId(connection.currentTabId)));
+            && (connection.currentTabId.isEmpty() || isWindowId(connection.currentTabId)));
     if (!newTab) {
         const auto tabId = tabName.isEmpty() ? connection.currentTabId : tabName;
         auto tab = m_browser->findTab(tabId, connection.currentSpaceId);
@@ -1284,13 +1319,12 @@ QJsonObject AgentControl::close(Connection &connection, const QJsonObject &reque
         return refusal(QStringLiteral("no-current-tab"),
             QStringLiteral("This connection has no current tab. Name one with --tab."));
     }
-    if (popupId(tabId)) {
-        if (!m_popups.contains(tabId)) {
-            return refusal(QStringLiteral("not-found"),
-                QStringLiteral("There is no window \"%1\". It has closed.").arg(tabId));
+    if (isWindowId(tabId)) {
+        if (!m_windows.contains(tabId)) {
+            return noWindow(tabId);
         }
-        emit popupCloseRequested(tabId);
-        popupClosed(tabId);
+        emit windowCloseRequested(tabId);
+        windowClosed(tabId);
         return success({{QStringLiteral("closed"), tabId}});
     }
     const auto tab = m_browser->findTab(tabId, connection.currentSpaceId);

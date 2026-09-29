@@ -773,14 +773,14 @@ ApplicationWindow {
     function openAuxiliaryWindow(engine, request, requestedUrl) {
         const openerTabId = engineLoader.agentTabIdOf(engine);
         const control = engineLoader.agentControl;
-        const popupId = control && openerTabId.length > 0 ? control.attachPopup(openerTabId) : "";
+        const windowId = control && openerTabId.length > 0 ? control.attachWindow(openerTabId) : "";
         return auxiliaryWindowComponent.createObject(window, {
                                                          "openerEngine": engine,
                                                          "request": request,
                                                          "requestedUrl": requestedUrl,
-                                                         "agentControl": popupId.length > 0
+                                                         "agentControl": windowId.length > 0
                                                                          ? control : null,
-                                                         "agentPopupId": popupId
+                                                         "agentWindowId": windowId
                                                      });
     }
 

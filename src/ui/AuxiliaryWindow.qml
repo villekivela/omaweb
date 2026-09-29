@@ -23,20 +23,21 @@ ApplicationWindow {
     // tab's page opened it (ADR 0051). The Agent drives it by that id as it
     // drives the tab, and it is the Agent's for as long as the core lists it.
     property var agentControl: null
-    property string agentPopupId: ""
-    readonly property bool agentWindow: auxiliary.agentPopupId.length > 0 && auxiliary.agentControl
-                                        !== null && auxiliary.agentControl.agentPopupIds.indexOf(
-                                            auxiliary.agentPopupId) >= 0
-    onAgentWindowChanged: auxiliary.markAgentEngine()
+    property string agentWindowId: ""
+    readonly property bool agentDriven: auxiliary.agentWindowId.length > 0
+                                        && auxiliary.agentControl !== null
+                                        && auxiliary.agentControl.agentWindowIds.indexOf(
+                                            auxiliary.agentWindowId) >= 0
+    onAgentDrivenChanged: auxiliary.markAgentEngine()
 
     function markAgentEngine() {
         const engine = engineLoader.item;
         if (!engine || engine.agentOwned === undefined)
             return;
-        engine.agentOwned = auxiliary.agentWindow;
-        engine.agentDownloadDirectory = auxiliary.agentWindow ? String(
-                                                                    auxiliary.agentControl.agentPopup(
-                                                                        auxiliary.agentPopupId).downloadDirectory
+        engine.agentOwned = auxiliary.agentDriven;
+        engine.agentDownloadDirectory = auxiliary.agentDriven ? String(
+                                                                    auxiliary.agentControl.agentWindow(
+                                                                        auxiliary.agentWindowId).downloadDirectory
                                                                     || "") : "";
     }
 
@@ -50,8 +51,8 @@ ApplicationWindow {
                                                                          "Omaweb"
 
     onClosing: {
-        if (auxiliary.agentControl && auxiliary.agentPopupId.length > 0)
-            auxiliary.agentControl.popupClosed(auxiliary.agentPopupId);
+        if (auxiliary.agentControl && auxiliary.agentWindowId.length > 0)
+            auxiliary.agentControl.windowClosed(auxiliary.agentWindowId);
         Qt.callLater(function () {
             auxiliary.destroy();
         });
@@ -82,14 +83,14 @@ ApplicationWindow {
                                              "currentUrl": auxiliary.request ? "about:blank" :
                                                                                auxiliary.requestedUrl,
                                              // An Agent's window never takes the reader's keyboard.
-                                             "pageTakesFocus": auxiliary.agentPopupId.length === 0
+                                             "pageTakesFocus": auxiliary.agentWindowId.length === 0
                                          })
 
         onLoaded: {
             auxiliary.markAgentEngine();
             if (auxiliary.request)
                 item.acceptNewWindowRequest(auxiliary.request);
-            if (auxiliary.agentPopupId.length === 0)
+            if (auxiliary.agentWindowId.length === 0)
                 item.focusPage();
         }
     }
@@ -115,9 +116,10 @@ ApplicationWindow {
         }
 
         function onPageConsoleMessage(level, message, lineNumber, sourceId, document) {
-            if (auxiliary.agentWindow)
-                auxiliary.agentControl.recordConsoleMessage(auxiliary.agentPopupId, String(document),
-                                                            level, message, sourceId, lineNumber);
+            if (auxiliary.agentDriven)
+                auxiliary.agentControl.recordConsoleMessage(auxiliary.agentWindowId, String(
+                                                                document), level, message, sourceId,
+                                                            lineNumber);
         }
     }
 
@@ -126,7 +128,7 @@ ApplicationWindow {
         ignoreUnknownSignals: true
 
         function onPageRequested(requestId, request) {
-            if (request.tabId !== auxiliary.agentPopupId)
+            if (request.tabId !== auxiliary.agentWindowId)
                 return;
             const engine = engineLoader.item;
             if (!engine) {
@@ -146,8 +148,8 @@ ApplicationWindow {
                 engineLoader.item.cancelAgentVerbs();
         }
 
-        function onPopupCloseRequested(popupId) {
-            if (popupId === auxiliary.agentPopupId)
+        function onWindowCloseRequested(windowId) {
+            if (windowId === auxiliary.agentWindowId)
                 auxiliary.close();
         }
     }

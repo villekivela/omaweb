@@ -437,11 +437,11 @@ void AgentCommandTest::printsWhatAPageAsksOfTheAgent()
         {QStringLiteral("steps"),
             QJsonArray {QJsonObject {{QStringLiteral("step"), QStringLiteral("click 2")},
                 {QStringLiteral("ok"), true}, {QStringLiteral("settled"), true}}}},
-        {QStringLiteral("opened"), QJsonArray {QStringLiteral("popup-1")}},
+        {QStringLiteral("opened"), QJsonArray {QStringLiteral("window-1")}},
         {QStringLiteral("look"), stopped},
     };
     QCOMPARE(formatAgentAnswer(QStringLiteral("do"), batch),
-        QStringLiteral("ok click 2\nOpened window popup-1\n\nShop\nhttps://shop.example/\n\n"
+        QStringLiteral("ok click 2\nOpened window-1\n\nShop\nhttps://shop.example/\n\n"
                        "Dialog (prompt) \"Your city?\" = \"Oulu\"\n"
                        "The page waits for `dialog accept` or `dialog dismiss`.\n"
                        "Download completed: /d/Agents/c/a.pdf\n"
@@ -449,11 +449,11 @@ void AgentCommandTest::printsWhatAPageAsksOfTheAgent()
 
     const QJsonObject tabs {{QStringLiteral("ok"), true},
         {QStringLiteral("tabs"),
-            QJsonArray {QJsonObject {{QStringLiteral("id"), QStringLiteral("popup-1")},
-                {QStringLiteral("popup"), true},
+            QJsonArray {QJsonObject {{QStringLiteral("id"), QStringLiteral("window-1")},
+                {QStringLiteral("window"), true},
                 {QStringLiteral("opener"), QStringLiteral("t2")}}}}};
     QCOMPARE(formatAgentAnswer(QStringLiteral("tabs"), tabs),
-        QStringLiteral("popup-1\t\t\twindow of t2\n"));
+        QStringLiteral("window-1\t\t\twindow of t2\n"));
 }
 
 QTEST_GUILESS_MAIN(AgentCommandTest)

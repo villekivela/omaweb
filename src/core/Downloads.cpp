@@ -18,6 +18,9 @@ namespace omaweb {
 
 namespace {
 
+    // Within what a Linux file system takes, with room for a copy's number.
+    constexpr qsizetype maximumAgentFileNameLength = 200;
+
     bool isRunning(const QString &state)
     {
         return state == QStringLiteral("in-progress") || state == QStringLiteral("requested");
@@ -238,7 +241,7 @@ QVariantMap Downloads::agentDisposition(const QUrl &origin, const QString &fileN
     static const QRegularExpression unsafe(QStringLiteral("[/\\\\:*?\"<>|\\x00-\\x1f]+"));
     static const QRegularExpression hiding(QStringLiteral("^[.\\s]+"));
     auto name = QString(fileName).replace(unsafe, QStringLiteral(" ")).remove(hiding).simplified();
-    name = name.left(200).trimmed();
+    name = name.left(maximumAgentFileNameLength).trimmed();
     if (name.isEmpty()) {
         name = QStringLiteral("download");
     }

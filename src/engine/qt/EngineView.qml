@@ -2550,6 +2550,11 @@ Item {
             waiting[run](root.agentDialogShown());
     }
 
+    function forgetAgentDialog() {
+        root.agentDialogRequest = null;
+        root.agentDialog = null;
+    }
+
     function answerAgentDialog(accept, text) {
         const request = root.agentDialogRequest;
         root.agentDialogRequest = null;
@@ -2973,42 +2978,26 @@ Item {
         });
     }
 
+    // Calls `done` once `ready` says so or the deadline has passed, looking
+    // again every `interval` ms, and never once the verb has been called off.
+    function agentPollUntil(ready, interval, deadline, live, done) {
+        if (!live())
+            return;
+        if (ready() || Date.now() >= deadline) {
+            done();
+            return;
+        }
+        root.agentAfter(interval, function () {
+            root.agentPollUntil(ready, interval, deadline, live, done);
+        });
+    }
+
     // A batch that started a download answers once the file is there, or
     // once a step's time is up, so the path it reports is one to open.
     function agentWhenDownloadsDone(deadline, live, done) {
-        if (!live())
-            return;
-        if (!root.agentDownloads.some(root.agentDownloadRunning) || Date.now() >= deadline) {
-            done();
-            return;
-        }
-        root.agentAfter(100, function () {
-            root.agentWhenDownloadsDone(deadline, live, done);
-        });
-    }
-
-    function agentWhenDialog(deadline, live, done) {
-        if (!live())
-            return;
-        if (root.agentDialog || Date.now() >= deadline) {
-            done(root.agentDialog !== null);
-            return;
-        }
-        root.agentAfter(50, function () {
-            root.agentWhenDialog(deadline, live, done);
-        });
-    }
-
-    function agentWhenUploadAnswered(upload, deadline, live, done) {
-        if (!live())
-            return;
-        if (upload.taken || upload.refusal || Date.now() >= deadline) {
-            done();
-            return;
-        }
-        root.agentAfter(50, function () {
-            root.agentWhenUploadAnswered(upload, deadline, live, done);
-        });
+        root.agentPollUntil(function () {
+            return !root.agentDownloads.some(root.agentDownloadRunning);
+        }, 100, deadline, live, done);
     }
 
     function agentStep(step, settleMs, timeoutMs, live, done) {
@@ -3047,8 +3036,10 @@ Item {
         switch (step.action) {
         case "dialog":
             // A dialog may come a moment after the step that caused it.
-            root.agentWhenDialog(deadline, live, function (shown) {
-                if (!shown) {
+            root.agentPollUntil(function () {
+                return root.agentDialog !== null;
+            }, 50, deadline, live, function () {
+                if (root.agentDialog === null) {
                     fail("no-dialog", "The page showed no dialog to answer.");
                     return;
                 }
@@ -3080,7 +3071,9 @@ Item {
                         fail("failed", "The page has nothing to take a click.");
                         return;
                     }
-                    root.agentWhenUploadAnswered(upload, deadline, live, function () {
+                    root.agentPollUntil(function () {
+                        return upload.taken || upload.refusal.length > 0;
+                    }, 50, deadline, live, function () {
                         if (root.agentUpload === upload)
                             root.agentUpload = null;
                         if (upload.taken)
@@ -3308,8 +3301,7 @@ Item {
 
         onRenderProcessTerminated: function (terminationStatus, exitCode) {
             // The dialog went with the page that showed it.
-            root.agentDialogRequest = null;
-            root.agentDialog = null;
+            root.forgetAgentDialog();
             root.rendererFailed("Renderer stopped with exit code " + exitCode);
         }
 
@@ -3395,6 +3387,10 @@ Item {
                 // refusal the outgoing document earned belongs to it.
                 root.announcePage(loadRequest.url);
                 root.javaScriptDialogsBlocked = false;
+                // The document being left is still stopped on its dialog,
+                // which holds the navigation back until it is answered, so
+                // it is dismissed as the reader's own would be.
+                root.answerAgentDialog(false, "");
                 root.lastLoadFailed = false;
                 root.lastLoadNameUnresolved = false;
                 root.certificateErrorRaisedForLoad = false;

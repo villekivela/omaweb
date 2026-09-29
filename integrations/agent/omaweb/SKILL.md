@@ -64,10 +64,10 @@ omaweb console [--level error|warning|all] [--since <cursor>]
   spaces.
 - A page's alert, confirm or prompt shows in `look` as `Dialog (confirm) "..."`, and the page is
   stopped until a `dialog` step answers it.
-- A download lands in a directory of your own, and `look` prints its path. A risky file type waits
-  for the reader to confirm it.
+- A download lands in a directory of your own, and `look` prints its path. A High-risk download
+  waits for the reader to confirm it.
 - `upload` works only in an Agent Space, and gives the page only the files you name.
-- A window the page opens prints as `Opened window popup-1`. Pass `--tab popup-1` to use it.
+- A window the page opens prints as `Opened window-1`. Pass `--tab window-1` to use it.
 - `look --all` includes targets outside the viewport.
 - `read` prints the page, or what a CSS selector matches, as Markdown. Use it for text; use `look`
   for what can be acted on.

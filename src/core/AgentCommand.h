@@ -34,8 +34,8 @@ AgentCommand readAgentCommand(const QStringList &arguments, const QString &defau
 // `click 3`, `fill 5 "text"`, `press Enter`, `select 7 Finland`,
 // `scroll down`, `back`, `wait text Thanks`, `wait url /done`, `dialog accept`,
 // `dialog dismiss` and `upload 4 report.pdf`, whose paths are made whole
-// against the working directory. Empty, with
-// `error` saying why, when one is malformed.
+// against the working directory. Empty, with `error` saying why, when one is
+// malformed.
 QJsonArray readAgentSteps(const QStringList &arguments, QString &error);
 
 // The name a request carries: `name` without what cannot be printed, cut to

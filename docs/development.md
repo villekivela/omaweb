@@ -356,11 +356,11 @@ after its steps.
 
 An Agent tab's page is the Agent's to answer. A JS dialog it opens never reaches the reader: `look`
 prints it, and the page waits for a `dialog` step. A download lands in `Agents/<name>/` under the
-downloads location, and `look` and `do` print its path; a High-risk file still waits for the reader
-to confirm it. `upload` clicks the label and gives the file chooser it opens the files named, and
-only those, and only in an Agent Space: anywhere else an upload is how a page could take the
+downloads location, and `look` and `do` print its path; a High-risk download still waits for the
+reader to confirm it. `upload` clicks the label and gives the file chooser it opens the files named,
+and only those, and only in an Agent Space: anywhere else an upload is how a page could take the
 reader's files. A file chooser the Agent did not ask for is refused. An Auxiliary window the page
-opens is the Agent's too: `do` prints `Opened window popup-1`, `tabs` lists it, and `--tab popup-1`
+opens is the Agent's too: `do` prints `Opened window-1`, `tabs` lists it, and `--tab window-1`
 points the page commands at it. `shot` prints the path it wrote, in `shots/` beside the socket;
 `--output` names the file there and takes no directory. `console` prints what the page has written
 to its console since its document loaded, one line each as level, source and line, and text, then

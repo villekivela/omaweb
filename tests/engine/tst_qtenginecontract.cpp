@@ -6856,14 +6856,26 @@ void QtEngineContractTest::qtAgentAnswersThePagesDialogs()
         QStringLiteral("no-dialog"));
     QCOMPARE(prompts.count(), 0);
 
+    // A navigation dismisses the dialog of the document it leaves, which
+    // would otherwise hold it back, and the page it arrives at answers the
+    // Agent again.
+    page.batch({QStringLiteral("click ") + ask});
+    QVERIFY(page.look().contains(QStringLiteral("dialog")));
+    QVERIFY(
+        page.adapter->setProperty("currentUrl", site.url(QStringLiteral("dialogs.html?again"))));
+    QTRY_VERIFY(!page.look().contains(QStringLiteral("dialog")));
+    QTRY_COMPARE(said(), QJsonValue(QStringLiteral("none")));
+    // A label names its element for as long as the document lives.
+    const auto askAgain = labelNamed(page.look(), QStringLiteral("Ask"));
+
     // The Agent lets go with a dialog up: nobody is left to answer, so the
     // page goes on as if it was dismissed.
-    page.batch({QStringLiteral("click ") + ask});
+    page.batch({QStringLiteral("click ") + askAgain});
     QVERIFY(page.adapter->setProperty("agentOwned", false));
     QTRY_COMPARE(said(), QJsonValue(QStringLiteral("no")));
     QCOMPARE(prompts.count(), 0);
     // And the next one is the reader's.
-    page.batch({QStringLiteral("click ") + ask}, {{QStringLiteral("timeout"), 300}});
+    page.batch({QStringLiteral("click ") + askAgain}, {{QStringLiteral("timeout"), 300}});
     QTRY_COMPARE(prompts.count(), 1);
     QMetaObject::invokeMethod(page.adapter.get(), "respondToBrowserPrompt",
         Q_ARG(QVariant, prompts.at(0).at(0)), Q_ARG(QVariant, true),

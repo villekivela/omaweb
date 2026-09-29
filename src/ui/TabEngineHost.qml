@@ -960,6 +960,8 @@ Item {
         for (const tabId in next) {
             if (previous[tabId] !== true)
                 root.ensureAgentEngine(tabId);
+            else if (root.engines[tabId])
+                root.markAgentEngine(tabId, root.engines[tabId]);
         }
         // A tab that stopped being an Agent's goes back to what any page the
         // reader cannot see is: hidden and frozen.
@@ -1003,7 +1005,7 @@ Item {
 
     function answerAgentRequest(requestId, request) {
         // An Auxiliary window answers for itself.
-        if (request.popup === true)
+        if (request.window === true)
             return;
         const engine = root.ensureAgentEngine(request.tabId);
         if (!engine) {

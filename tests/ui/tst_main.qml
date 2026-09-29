@@ -3514,42 +3514,48 @@ TestCase {
             property var agentTabIds: []
             property var tabs: ({})
             property var answers: ({})
-            property var agentPopupIds: []
-            property var closedPopups: []
+            property var agentWindowIds: []
+            property var closedWindows: []
             signal agentTabsChanged
             signal pageRequested(int requestId, var request)
             signal pageRequestsCancelled
-            signal popupCloseRequested(string popupId)
+            signal windowCloseRequested(string windowId)
 
             function agentTab(tabId) {
                 return tabs[tabId] || ({});
             }
-            function attachPopup(openerTabId) {
+            function attachWindow(openerTabId) {
                 if (agentTabIds.indexOf(openerTabId) < 0)
                     return "";
-                const popupId = "popup-" + (agentPopupIds.length + closedPopups.length + 1);
-                agentPopupIds = agentPopupIds.concat([popupId]);
-                return popupId;
+                const windowId = "window-" + (agentWindowIds.length + closedWindows.length + 1);
+                agentWindowIds = agentWindowIds.concat([windowId]);
+                return windowId;
             }
-            function agentPopup(popupId) {
-                return agentPopupIds.indexOf(popupId) >= 0 ? {
-                                                                 "popupId": popupId,
-                                                                 "downloadDirectory":
-                                                                 "/downloads/Agents/test"
-                                                             } : ({});
+            function agentWindow(windowId) {
+                return agentWindowIds.indexOf(windowId) >= 0 ? {
+                                                                   "windowId": windowId,
+                                                                   "downloadDirectory":
+                                                                   "/downloads/Agents/test"
+                                                               } : ({});
             }
-            function popupClosed(popupId) {
-                agentPopupIds = agentPopupIds.filter(function (id) {
-                    return id !== popupId;
+            function windowClosed(windowId) {
+                agentWindowIds = agentWindowIds.filter(function (id) {
+                    return id !== windowId;
                 });
-                closedPopups = closedPopups.concat([popupId]);
+                closedWindows = closedWindows.concat([windowId]);
             }
             function recordConsoleMessage() {
             }
+            // How many times each request was answered: the core hears the
+            // first answer only, so a second is a page answering for another.
+            property var answerCounts: ({})
             function answerPage(requestId, answer) {
                 const next = Object.assign({}, answers);
                 next[requestId] = answer;
                 answers = next;
+                const counts = Object.assign({}, answerCounts);
+                counts[requestId] = (counts[requestId] || 0) + 1;
+                answerCounts = counts;
             }
         }
     }
@@ -3580,15 +3586,22 @@ TestCase {
         compare(agentEngine.agentOwned, true);
         compare(agentEngine.agentDownloadDirectory, "/downloads/Agents/test");
         compare(readerEngine.agentOwned, false);
+        // Another connection takes the tab over, and its downloads go to that
+        // connection's directory from then on.
+        tabs[agentTabId].downloadDirectory = "/downloads/Agents/other";
+        control.agentTabsChanged();
+        compare(agentEngine.agentDownloadDirectory, "/downloads/Agents/other");
+        tabs[agentTabId].downloadDirectory = "/downloads/Agents/test";
+        control.agentTabsChanged();
 
         // One window at a time, each gone before the next is opened.
-        const openedWindow = function (popupId) {
+        const openedWindow = function (windowId) {
             let found = null;
             tryVerify(function () {
                 found = findChild(window, "auxiliaryWindow");
                 return found !== null && found.visible;
             });
-            compare(found.agentPopupId, popupId);
+            compare(found.agentWindowId, windowId);
             const loader = findChild(found.contentItem, "auxiliaryEngineLoader");
             tryVerify(function () {
                 return loader.item !== null;
@@ -3605,39 +3618,42 @@ TestCase {
         };
 
         agentEngine.simulateNewWindowRequest("https://sign-in.example/", true);
-        const popup = openedWindow("popup-1");
-        verify(popup.agentWindow);
-        compare(engineOf(popup).agentOwned, true);
-        compare(engineOf(popup).agentDownloadDirectory, "/downloads/Agents/test");
-        compare(engineOf(popup).pageTakesFocus, false);
+        const opened = openedWindow("window-1");
+        verify(opened.agentDriven);
+        compare(engineOf(opened).agentOwned, true);
+        compare(engineOf(opened).agentDownloadDirectory, "/downloads/Agents/test");
+        compare(engineOf(opened).pageTakesFocus, false);
 
         control.pageRequested(21, {
                                   "verb": "look",
-                                  "tabId": "popup-1",
-                                  "popup": true,
+                                  "tabId": "window-1",
+                                  "window": true,
                                   "downloadDirectory": "/downloads/Agents/test",
                                   "arguments": {}
                               });
-        compare(engineOf(popup).agentRequests.length, 1);
+        compare(engineOf(opened).agentRequests.length, 1);
         compare(agentEngine.agentRequests.length, 0);
         tryVerify(function () {
             return control.answers[21] !== undefined && control.answers[21].ok === true;
         });
+        // Answered by the window alone, not by the tab that opened it too.
+        wait(50);
+        compare(control.answerCounts[21], 1);
 
-        control.popupCloseRequested("popup-1");
+        control.windowCloseRequested("window-1");
         gone();
-        verify(control.closedPopups.indexOf("popup-1") >= 0);
+        verify(control.closedWindows.indexOf("window-1") >= 0);
 
         // A tab asked for by the Agent's page is a window of the Agent's.
         const tabCount = browser.tabs.rowCount();
         agentEngine.simulateNewWindowRequest("https://checkout.example/", false);
-        const second = openedWindow("popup-2");
+        const second = openedWindow("window-2");
         compare(browser.tabs.rowCount(), tabCount);
         compare(browser.activeTabId, agentTabId);
-        verify(second.agentWindow);
+        verify(second.agentDriven);
         engineOf(second).simulateWindowCloseRequest();
         gone();
-        verify(control.closedPopups.indexOf("popup-2") >= 0);
+        verify(control.closedWindows.indexOf("window-2") >= 0);
 
         // Once no Agent holds the tab, what its page opens is the reader's.
         control.agentTabIds = [];
@@ -3645,7 +3661,7 @@ TestCase {
         compare(agentEngine.agentOwned, false);
         agentEngine.simulateNewWindowRequest("https://reader-window.example/", true);
         const readers = openedWindow("");
-        verify(!readers.agentWindow);
+        verify(!readers.agentDriven);
         compare(engineOf(readers).agentOwned, false);
         compare(engineOf(readers).pageTakesFocus, true);
         engineOf(readers).simulateWindowCloseRequest();
