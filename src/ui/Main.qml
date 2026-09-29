@@ -3076,8 +3076,8 @@ ApplicationWindow {
                     z: 29
                     colors: window.colors
                     activity: window.agentActivitySource
-                    open: !window.privateWindow && String(window.windowBrowser.activeUrl)
-                          === "omaweb:agent-activity"
+                    open: !window.privateWindow && String(window.windowBrowser.activeUrl) === String(
+                              window.windowBrowser.agentActivityAddress)
                 }
 
                 StartPage {

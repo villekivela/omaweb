@@ -70,8 +70,8 @@ signals:
 private:
     void load();
     // Drops what is past the retention or over the bound, and writes the file
-    // again when anything went.
-    void prune(bool rewrite);
+    // again when anything went or `rewriteAnyway` asks.
+    void prune(bool rewriteAnyway);
     void rewrite() const;
     void append(const Entry &entry) const;
 

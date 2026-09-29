@@ -59,8 +59,10 @@ class AgentActivityLogTest final : public QObject {
 
 private slots:
     void logsTheLabelAFillStepTypedIntoAndNeverTheValue();
+    void keepsWhatAnAgentTypedOutOfEveryLine();
     void forgetsWhatIsOlderThanAWeekAtTheNextStart();
     void keepsTheActivityPageFromAgents();
+    void keepsTheActivityPageOutOfSplits();
 };
 
 void AgentActivityLogTest::logsTheLabelAFillStepTypedIntoAndNeverTheValue()
@@ -120,6 +122,67 @@ void AgentActivityLogTest::logsTheLabelAFillStepTypedIntoAndNeverTheValue()
     QVERIFY(written.contains("fill 7"));
     QVERIFY(!written.contains(secret.toUtf8()));
     QVERIFY(!written.contains("horse"));
+}
+
+// A value can reach a line other than through `fill`: as the option a step
+// chose, a key, the text it waited for, a selector, an expression, a target
+// that is not a label, or the query of an address a form was sent to.
+void AgentActivityLogTest::keepsWhatAnAgentTypedOutOfEveryLine()
+{
+    QTemporaryDir config;
+    QTemporaryDir data;
+    SessionFixture fixture(readersSession());
+    QVERIFY_SESSION_READY(fixture);
+    const auto browser = fixture.createController();
+    AgentActivityLog log(data.path());
+    AgentControl control(browser.get(), config.path());
+    control.setActivityLog(&log);
+    control.setAllowAgents(true);
+    connect(&control, &AgentControl::pageRequested, this,
+        [&control](int requestId, const QVariantMap &) {
+            control.answerPage(requestId, {{QStringLiteral("ok"), true}});
+        });
+
+    const auto space = ask(control, QStringLiteral("space new"))
+                           .value(QStringLiteral("space"))
+                           .toObject()
+                           .value(QStringLiteral("id"))
+                           .toString();
+    ask(control, QStringLiteral("open"),
+        {{QStringLiteral("url"),
+             QStringLiteral("https://shop.example/search?q=secret-query#secret-fragment")},
+            {QStringLiteral("space"), space}});
+    const auto step = [](const QString &action, QJsonObject fields) {
+        fields.insert(QStringLiteral("action"), action);
+        return fields;
+    };
+    ask(control, QStringLiteral("do"),
+        {{QStringLiteral("steps"),
+            QJsonArray {step(QStringLiteral("select"),
+                            {{QStringLiteral("target"), QStringLiteral("4")},
+                                {QStringLiteral("text"), QStringLiteral("secret-option")}}),
+                step(QStringLiteral("press"),
+                    {{QStringLiteral("key"), QStringLiteral("secret-key")}}),
+                step(QStringLiteral("wait"),
+                    {{QStringLiteral("text"), QStringLiteral("secret-wait")}}),
+                step(QStringLiteral("click"),
+                    {{QStringLiteral("target"), QStringLiteral("secret-target")}})}}});
+    ask(control, QStringLiteral("read"),
+        {{QStringLiteral("selector"), QStringLiteral("#secret-selector")}});
+    ask(control, QStringLiteral("eval"),
+        {{QStringLiteral("expression"), QStringLiteral("secretExpression()")}});
+    ask(control, QStringLiteral("open"),
+        {{QStringLiteral("url"), QStringLiteral("javascript:secretScript()")},
+            {QStringLiteral("space"), space}});
+
+    const auto written = contents(log.path());
+    QVERIFY(!written.isEmpty());
+    QVERIFY2(!written.contains("secret"), written.constData());
+    const auto &entries = log.entries();
+    QCOMPARE(entries.at(1).target, QStringLiteral("https://shop.example/search"));
+    QCOMPARE(entries.at(2).target, QStringLiteral("select 4, press, wait, click"));
+    QCOMPARE(entries.at(2).address, QStringLiteral("https://shop.example/search"));
+    QCOMPARE(entries.constLast().outcome, QStringLiteral("refused"));
 }
 
 void AgentActivityLogTest::forgetsWhatIsOlderThanAWeekAtTheNextStart()
@@ -187,6 +250,23 @@ void AgentActivityLogTest::keepsTheActivityPageFromAgents()
         QCOMPARE(answer.value(QStringLiteral("code")).toString(), QStringLiteral("refused"));
     }
     QCOMPARE(requested.count(), 0);
+}
+
+// The page is drawn over the whole page area, so it takes no pane of a split.
+void AgentActivityLogTest::keepsTheActivityPageOutOfSplits()
+{
+    SessionFixture fixture(readersSession());
+    QVERIFY_SESSION_READY(fixture);
+    const auto browser = fixture.createController();
+    QVERIFY(browser->openAgentActivity());
+    const auto page = browser->activeTabId();
+    QVERIFY(!browser->addSplit());
+    QVERIFY(!browser->addSplit(QStringLiteral("personal-tab")));
+
+    browser->activateTab(QStringLiteral("personal-tab"));
+    QVERIFY(!browser->splittableTabIds().contains(page));
+    QVERIFY(!browser->addSplit(page));
+    QVERIFY(!browser->splitOnShow());
 }
 
 QTEST_GUILESS_MAIN(AgentActivityLogTest)

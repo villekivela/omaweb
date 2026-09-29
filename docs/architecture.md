@@ -421,11 +421,13 @@ rendered costs about what the same page costs on show, and the window draws at i
 `AgentControl` writes every verb it answers to `AgentActivityLog`, refused ones included, once the
 answer is known: the time, the connection's name, the Space by id and by the name it had then, the
 tab and its address, the verb, its target and `ok` or the refusal's code. The target is what the
-verb named: the address `open` was given, a Space, a command, a tab. For `do` it is each step's
-action and hint label, such as `fill 7, click 9`, and never the text a step filled, the option it
-chose, the key it pressed or what it waited for, since any of those can be what the reader typed.
-`read` keeps no selector and `eval` no source. A request that names no verb, or reaches a Private
-window, is not written down.
+verb named: the address `open` resolved to, a Space or a command. For `do` it is each step's action
+and hint label, such as `fill 7, click 9`, and never the text a step filled, the option it chose,
+the key it pressed or what it waited for, since any of those can be what the reader typed. A step
+whose target is not a label keeps its action alone. `read` keeps no selector and `eval` no source.
+Every address loses its query, fragment and credentials, where a form's values and a site's tokens
+go, and an address `open` refused is not kept at all. A request that names no verb, or reaches a
+Private window, is not written down.
 
 The log is `agent-activity.jsonl` in the application data directory, mode 0600, one JSON object per
 line. Opening it at start drops lines older than 7 days and writes the file again; while the browser
@@ -434,8 +436,8 @@ dropping the oldest.
 
 **Show agent activity** in the command scope opens `omaweb:agent-activity` in a new tab of the Space
 on show. No engine loads that address. The page area draws `AgentActivityPage` over the tab instead,
-newest first and filtered by Agent and by Space. The page verbs refuse the tab even in an Agent
-Space, and a Private window has no such command.
+newest first and filtered by Agent and by Space. It takes no pane of a split, the page verbs refuse
+the tab even in an Agent Space, and a Private window has no such command.
 
 ### MCP server
 

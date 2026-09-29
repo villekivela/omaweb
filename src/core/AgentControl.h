@@ -133,12 +133,6 @@ public:
     // Where every verb is written down once it is answered. Without one,
     // nothing is.
     void setActivityLog(AgentActivityLog *log);
-    // What a verb acted on, as the activity log keeps it: an address, a hint
-    // label, a name the Agent gave or a command. Never a page's text, a value
-    // a step filled, the option it chose, a key it pressed, the text it waited
-    // for or the source it evaluated.
-    static QString activityTarget(const QString &verb, const QJsonObject &request);
-
     // Where `shot` writes every screenshot: a directory only this user can
     // enter, beside the socket.
     void setShotDirectory(const QString &directory);
@@ -218,13 +212,22 @@ private:
     QString defaultSpace(const Connection &connection) const;
     static QJsonObject noSpace(const QString &named);
     QJsonObject describeTab(const TabState &tab, const Connection &connection) const;
-    // The tab a request is about before it runs, so a tab it closes is still
-    // named in the log.
-    std::optional<TabState> requestedTab(
+    // What a request is about before it runs: its tab, and the Space it
+    // names by the name it has then.
+    struct ActivityScope {
+        std::optional<TabState> tab;
+        QString spaceId;
+        QString spaceName;
+    };
+    ActivityScope activityScope(
         const QString &verb, const QJsonObject &request, const Connection &connection) const;
+    // What a verb acted on, as the activity log keeps it: an address, a hint
+    // label, a Space or a command. Never a page's text, a value a step filled,
+    // the option it chose, a key it pressed, the text it waited for, a
+    // selector or the source it evaluated.
+    QString activityTarget(const QString &verb, const QJsonObject &request) const;
     void logActivity(const QString &verb, const QString &name, const QJsonObject &request,
-        const QJsonObject &answer, const std::optional<TabState> &before,
-        const QString &spaceIdBefore, const QString &spaceNameBefore);
+        const QJsonObject &answer, const ActivityScope &scope);
     QString spaceName(const QString &spaceId) const;
 
     BrowserController *m_browser;

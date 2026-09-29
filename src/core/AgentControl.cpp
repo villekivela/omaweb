@@ -99,6 +99,15 @@ namespace {
         return url.isValid() && schemes.contains(url.scheme());
     }
 
+    // An address as the activity log keeps it: without its query, fragment or
+    // credentials, which is where a form's values and a site's tokens go.
+    QString activityAddress(const QUrl &url)
+    {
+        return url.adjusted(QUrl::RemoveUserInfo | QUrl::RemoveQuery | QUrl::RemoveFragment)
+            .toString()
+            .left(maximumAddressLength);
+    }
+
 } // namespace
 
 AgentControl::AgentControl(BrowserController *browser, QString configRoot, QObject *parent)
@@ -400,7 +409,7 @@ void AgentControl::handle(const QJsonObject &request, const Reply &reply, quint6
         // nothing to write down.
         const auto code = refused.value(QStringLiteral("code")).toString();
         if (code != u"bad-request" && code != u"private") {
-            logActivity(verb, name, request, refused, std::nullopt, {}, {});
+            logActivity(verb, name, request, refused, {});
         }
         reply(refused);
         return;
@@ -411,17 +420,9 @@ void AgentControl::handle(const QJsonObject &request, const Reply &reply, quint6
     if (!previousTabId.isEmpty() && connection.currentTabId.isEmpty()) {
         detach(previousTabId);
     }
-    // Taken before the verb runs, because a Space it deletes or a tab it
-    // closes is gone by the time it has answered.
-    const auto before = requestedTab(verb, request, connection);
-    const auto named = request.value(QStringLiteral("space")).toString();
-    const auto spaceIdBefore = named.isEmpty()
-        ? (verb == u"tabs" ? defaultSpace(connection) : QString {})
-        : findSpace(named);
-    const auto spaceNameBefore = spaceName(spaceIdBefore);
-    const Reply logged = [this, verb, name, request, before, spaceIdBefore, spaceNameBefore, reply](
-                             const QJsonObject &answer) {
-        logActivity(verb, name, request, answer, before, spaceIdBefore, spaceNameBefore);
+    const auto scope = activityScope(verb, request, connection);
+    const Reply logged = [this, verb, name, request, scope, reply](const QJsonObject &answer) {
+        logActivity(verb, name, request, answer, scope);
         reply(answer);
     };
     if (pageVerb(verb)) {
@@ -437,16 +438,17 @@ void AgentControl::handle(const QJsonObject &request, const Reply &reply, quint6
 
 void AgentControl::setActivityLog(AgentActivityLog *log) { m_activity = log; }
 
-QString AgentControl::activityTarget(const QString &verb, const QJsonObject &request)
+QString AgentControl::activityTarget(const QString &verb, const QJsonObject &request) const
 {
     const auto text = [&request](const QString &key) {
         return request.value(key).toString().left(maximumTargetLength);
     };
     if (verb == u"open") {
-        return request.value(QStringLiteral("url")).toString().left(maximumAddressLength);
-    }
-    if (verb == u"focus") {
-        return text(QStringLiteral("target"));
+        // What the input became, not the input: words become a search, and
+        // an address that is refused may be script.
+        const auto input = request.value(QStringLiteral("url")).toString();
+        const auto url = m_browser->resolveAddress(input);
+        return openable(input, url) ? activityAddress(url) : QString {};
     }
     if (verb == u"tabs" || verb == u"space" || verb == u"space new" || verb == u"space delete") {
         return text(QStringLiteral("space"));
@@ -463,9 +465,11 @@ QString AgentControl::activityTarget(const QString &verb, const QJsonObject &req
     if (verb != u"do") {
         return {};
     }
-    // A step is its action and the label it acted on. What it filled, the
-    // option it chose, the key it pressed and the text or address it waited
-    // for are left out: any of them can be what the reader typed.
+    // A step is its action and the hint label it acted on. What it filled,
+    // the option it chose, the key it pressed and the text or address it
+    // waited for are left out, as is a target that is not a label: any of
+    // them can be what the reader typed.
+    static const QRegularExpression hintLabel(QStringLiteral("^[0-9]{1,9}$"));
     QStringList steps;
     for (const auto &value : request.value(QStringLiteral("steps")).toArray()) {
         const auto step = value.toObject();
@@ -474,16 +478,19 @@ QString AgentControl::activityTarget(const QString &verb, const QJsonObject &req
             continue;
         }
         const auto label = step.value(QStringLiteral("target")).toString();
-        steps.append(label.isEmpty() || action == u"press" || action == u"wait"
+        steps.append(action == u"press" || action == u"wait" || !hintLabel.match(label).hasMatch()
                 ? action
-                : QStringLiteral("%1 %2").arg(action, label.left(maximumTargetLength)));
+                : QStringLiteral("%1 %2").arg(action, label));
     }
-    return steps.join(QStringLiteral(", ")).left(maximumAddressLength);
+    return steps.join(QStringLiteral(", "));
 }
 
-std::optional<TabState> AgentControl::requestedTab(
+// Taken before the verb runs, because a Space it deletes or a tab it closes
+// is gone by the time it has answered.
+AgentControl::ActivityScope AgentControl::activityScope(
     const QString &verb, const QJsonObject &request, const Connection &connection) const
 {
+    ActivityScope scope;
     QString tabId;
     if (verb == u"focus") {
         tabId = request.value(QStringLiteral("target")).toString();
@@ -495,16 +502,19 @@ std::optional<TabState> AgentControl::requestedTab(
             tabId = connection.currentTabId;
         }
     }
-    if (tabId.isEmpty()) {
-        return std::nullopt;
+    if (!tabId.isEmpty()) {
+        scope.tab = m_browser->findTab(
+            tabId, tabId == connection.currentTabId ? connection.currentSpaceId : QString {});
     }
-    return m_browser->findTab(
-        tabId, tabId == connection.currentTabId ? connection.currentSpaceId : QString {});
+    const auto named = request.value(QStringLiteral("space")).toString();
+    scope.spaceId = named.isEmpty() ? (verb == u"tabs" ? defaultSpace(connection) : QString {})
+                                    : findSpace(named);
+    scope.spaceName = spaceName(scope.spaceId);
+    return scope;
 }
 
 void AgentControl::logActivity(const QString &verb, const QString &name, const QJsonObject &request,
-    const QJsonObject &answer, const std::optional<TabState> &before, const QString &spaceIdBefore,
-    const QString &spaceNameBefore)
+    const QJsonObject &answer, const ActivityScope &scope)
 {
     if (!m_activity) {
         return;
@@ -523,24 +533,24 @@ void AgentControl::logActivity(const QString &verb, const QString &name, const Q
     // The tab the verb acted on, at the address it had then. A tab the answer
     // names instead is one the verb opened.
     const auto answeredTab = ok ? idOf(answer.value(QStringLiteral("tab"))) : QString {};
-    auto tab = before;
+    auto tab = scope.tab;
     if (!answeredTab.isEmpty() && (!tab || tab->id != answeredTab)) {
         tab = m_browser->findTab(answeredTab);
     }
     if (tab) {
         entry.tabId = tab->id;
-        entry.address = tab->url.toString().left(maximumAddressLength);
+        entry.address = activityAddress(tab->url);
         entry.spaceId = tab->spaceId;
     }
     if (entry.spaceId.isEmpty() && ok) {
         entry.spaceId = idOf(answer.value(QStringLiteral("space")));
     }
     if (entry.spaceId.isEmpty()) {
-        entry.spaceId = spaceIdBefore;
+        entry.spaceId = scope.spaceId;
     }
     entry.space = spaceName(entry.spaceId);
-    if (entry.space.isEmpty() && entry.spaceId == spaceIdBefore) {
-        entry.space = spaceNameBefore;
+    if (entry.space.isEmpty() && entry.spaceId == scope.spaceId) {
+        entry.space = scope.spaceName;
     }
     m_activity->record(std::move(entry));
 }

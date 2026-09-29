@@ -301,7 +301,8 @@ Item {
     // An address no engine loads: a blank one, or a page the interface draws
     // itself, such as the Agent activity page.
     function pagelessAddress(url) {
-        return root.blankAddress(url) || String(url) === "omaweb:agent-activity";
+        return root.blankAddress(url) || String(url) === String(
+                    root.browserController.agentActivityAddress);
     }
 
     function adoptNewWindowRequest(tabId, request) {
