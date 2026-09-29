@@ -4,8 +4,10 @@
 
 #include "DownloadPolicy.h"
 #include "ExtensionPackage.h"
+#include "HistoryQuery.h"
 #include "HistorySearch.h"
 #include "SqliteSessionStore.h"
+#include "StoredFavicons.h"
 #include "ThreadedSessionStore.h"
 
 #include <QRegularExpression>
@@ -140,6 +142,19 @@ BrowserController::BrowserController(std::shared_ptr<SessionStore> store, QThrea
     , m_sessionPermissionDecisions(std::move(sessionPermissionDecisions))
     , m_sessionSiteState(std::move(sessionSiteState))
 {
+    // The interface loads a stored favicon on a thread of its own and may ask
+    // after this window has gone. The question is carried to this window's
+    // thread, which is where its store is called, and a question still on
+    // its way when the window goes is dropped with it.
+    m_faviconSource = storedfavicons::addSource(
+        [this](const QString &spaceId, const QUrl &pageUrl, storedfavicons::Answer answer) {
+            QMetaObject::invokeMethod(
+                this,
+                [this, spaceId, pageUrl, answer = std::move(answer)] {
+                    m_store->findFavicon(spaceId, pageUrl, answer);
+                },
+                Qt::QueuedConnection);
+        });
     m_pinnedTabs.setSourceModel(&m_tabs);
     m_pinnedTabs.setFilterRole(TabListModel::PinnedRole);
     m_pinnedTabs.setFilterRegularExpression(QRegularExpression(QStringLiteral("^true$")));
@@ -192,9 +207,8 @@ BrowserController::BrowserController(std::shared_ptr<SessionStore> store, QThrea
 // that thread ends.
 BrowserController::~BrowserController()
 {
-    if (m_persistTabsTimer.isActive()) {
-        recordTabs();
-    }
+    storedfavicons::removeSource(m_faviconSource);
+    landPendingTabs();
 }
 
 QAbstractItemModel *BrowserController::spaces() { return &m_spaces; }
@@ -1928,6 +1942,7 @@ void BrowserController::reportTabPageState(const QString &tabId, const QUrl &url
 
     const auto loadFinished = tab->loading && !loading && !isBlank(url);
     const auto reportsAddress = !url.isEmpty();
+    const auto addressChanged = reportsAddress && tab->url != url;
     const auto normalizedTitle
         = title.isEmpty() ? (url.host().isEmpty() ? QStringLiteral("New tab") : url.host()) : title;
     const auto addressOrTitleChanged
@@ -1941,14 +1956,18 @@ void BrowserController::reportTabPageState(const QString &tabId, const QUrl &url
         changedRoles.append({TabListModel::UrlRole, TabListModel::TitleRole});
     }
     // Artwork from the previous site would mislabel the tab until the new page
-    // reports its own, so the first report from another host drops it. A later
-    // report on that host may apply its replacement.
-    if (changedHost) {
-        tab->iconUrl.clear();
+    // reports its own, so the first report from another host sets it aside. A
+    // later report on that host may apply its replacement. Until the page
+    // has an icon, the tab shows the one its Space stored for the address.
+    const auto pageIcon = changedHost ? QUrl {} : iconUrl;
+    const auto shownIcon = iconToShow(*tab, pageIcon);
+    const auto iconChanged = tab->iconUrl != shownIcon;
+    if (iconChanged) {
+        tab->iconUrl = shownIcon;
         changedRoles.append(TabListModel::IconUrlRole);
-    } else if (tab->iconUrl != iconUrl) {
-        tab->iconUrl = iconUrl;
-        changedRoles.append(TabListModel::IconUrlRole);
+    }
+    if (!pageIcon.isEmpty() && (iconChanged || addressChanged)) {
+        keepFavicon(tab->spaceId, tab->url, pageIcon);
     }
     if (tab->loading != loading) {
         tab->loading = loading;
@@ -1978,16 +1997,59 @@ void BrowserController::reportTabPageState(const QString &tabId, const QUrl &url
     }
 }
 
-// Site artwork belongs to the loaded page, not to the saved session: a tab
-// restored after restart shows its lettered tile until the page hands one back.
+// Site artwork belongs to the loaded page. What the Space stored of it stands
+// in until the page hands one back, and a page's icon is stored for the next
+// time.
 void BrowserController::setTabIcon(const QString &tabId, const QUrl &iconUrl)
 {
     auto *tab = m_tabs.find(tabId);
-    if (!tab || tab->iconUrl == iconUrl) {
+    if (!tab) {
         return;
     }
-    tab->iconUrl = iconUrl;
+    const auto shownIcon = iconToShow(*tab, iconUrl);
+    if (tab->iconUrl == shownIcon) {
+        return;
+    }
+    tab->iconUrl = shownIcon;
     m_tabs.notifyChanged(tab->id, {TabListModel::IconUrlRole});
+    if (!iconUrl.isEmpty()) {
+        keepFavicon(tab->spaceId, tab->url, iconUrl);
+    }
+}
+
+QUrl BrowserController::storedFavicon(const QUrl &pageUrl) const
+{
+    return storedFaviconIn(m_activeSpaceId, pageUrl);
+}
+
+QUrl BrowserController::storedFaviconIn(const QString &spaceId, const QUrl &pageUrl) const
+{
+    return storedfavicons::address(m_faviconSource, spaceId, pageUrl);
+}
+
+QUrl BrowserController::iconToShow(const TabState &tab, const QUrl &pageIcon) const
+{
+    return pageIcon.isEmpty() ? storedFaviconIn(tab.spaceId, tab.url) : pageIcon;
+}
+
+// The icon is read from where the engine already put it and kept in the page's
+// Space, or in this window alone for a Private one. A Space deleted while the
+// read was under way is not given a database back.
+void BrowserController::keepFavicon(
+    const QString &spaceId, const QUrl &pageUrl, const QUrl &iconUrl)
+{
+    if (history::origin(pageUrl).isEmpty()) {
+        return;
+    }
+    storedfavicons::read(iconUrl, this, [this, spaceId, pageUrl](const QByteArray &image) {
+        const auto &spaces = m_spaces.items();
+        const auto spaceStands = m_privateBrowsing
+            || std::any_of(spaces.cbegin(), spaces.cend(),
+                [&spaceId](const SpaceState &space) { return space.id == spaceId; });
+        if (!image.isEmpty() && spaceStands) {
+            m_store->recordFavicon(spaceId, pageUrl, image);
+        }
+    });
 }
 
 void BrowserController::setTabLoading(const QString &tabId, bool loading)
@@ -2231,8 +2293,18 @@ QVariantList BrowserController::history(const QString &query, int limit) const
     return m_store->history(m_activeSpaceId, query.trimmed(), limit);
 }
 
+// A deletion keeps the stored favicon a sidebar tab shows, and reads the
+// sidebar from the store, so a tab write still waiting lands first.
+void BrowserController::landPendingTabs()
+{
+    if (m_persistTabsTimer.isActive()) {
+        recordTabs();
+    }
+}
+
 bool BrowserController::deleteHistoryVisit(qint64 id)
 {
+    landPendingTabs();
     if (id <= 0 || !m_store->deleteHistoryVisit(m_activeSpaceId, id)) {
         return false;
     }
@@ -2243,6 +2315,7 @@ bool BrowserController::deleteHistoryVisit(qint64 id)
 bool BrowserController::deleteHistoryOrigin(const QUrl &url)
 {
     const auto origin = normalizedOrigin(url);
+    landPendingTabs();
     if (origin.isEmpty() || !m_store->deleteHistoryOrigin(m_activeSpaceId, origin)) {
         return false;
     }
@@ -2252,6 +2325,7 @@ bool BrowserController::deleteHistoryOrigin(const QUrl &url)
 
 bool BrowserController::deleteHistorySince(qint64 since)
 {
+    landPendingTabs();
     if (!m_store->deleteHistorySince(m_activeSpaceId, since)) {
         return false;
     }
@@ -2425,6 +2499,7 @@ bool BrowserController::clearBrowsingData(
         }
     }
     bool cleared = true;
+    landPendingTabs();
     for (const auto &spaceId : spaceIds) {
         if (dataTypes.contains(QStringLiteral("history"))) {
             cleared = m_store->deleteHistorySince(spaceId, since) && cleared;
@@ -3050,13 +3125,16 @@ void BrowserController::ensureActiveTab()
         tabs.append(tab);
         m_store->saveTab(tab, 0);
     }
+    // A tab whose page is still running keeps what that page showed. Any
+    // other tab shows the favicon the Space stored for its address, before
+    // and without its page loading.
     for (auto &tab : tabs) {
         const auto livePage = m_livePageStates.constFind(tab.id);
-        if (livePage == m_livePageStates.cend()) {
-            continue;
+        if (livePage != m_livePageStates.cend()) {
+            tab.iconUrl = livePage->iconUrl;
+            tab.audible = livePage->audible;
         }
-        tab.iconUrl = livePage->iconUrl;
-        tab.audible = livePage->audible;
+        tab.iconUrl = iconToShow(tab, tab.iconUrl);
     }
 
     auto active = tabs.cbegin();

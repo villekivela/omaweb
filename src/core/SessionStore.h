@@ -10,6 +10,8 @@
 #include <QVariantList>
 #include <QVector>
 
+#include <functional>
+
 namespace omaweb {
 
 // How a session's own Site permissions are keyed, in memory, for as long as
@@ -28,11 +30,12 @@ inline QString sessionPermissionKey(
 // drops. A write that was not written down answers false.
 //
 // The writes named `record` are the ones a session makes as it runs: the
-// visit, the coalesced tab write and the closed-tab stack. An adapter may take
-// them and land them later, answering whether it took the write, provided
-// every later call sees them landed; `ThreadedSessionStore` does. The writes
-// named `save`, and the deletes, answer once they are written, which a Space
-// switch, move or delete has to know before the interface moves on.
+// visit, the favicon, the coalesced tab write and the closed-tab stack. An
+// adapter may take them and land them later, answering whether it took the
+// write, provided every later call sees them landed; `ThreadedSessionStore`
+// does. The writes named `save`, and the deletes, answer once they are
+// written, which a Space switch, move or delete has to know before the
+// interface moves on.
 //
 // Where the data root itself lives is not asked here. An adapter that keeps
 // nothing has no directory to name, so the paths a Space's engine profile and
@@ -91,9 +94,25 @@ public:
 
     virtual bool recordVisit(const QString &spaceId, const QUrl &url, const QString &title) = 0;
     virtual QVariantList history(const QString &spaceId, const QString &query, int limit) const = 0;
+    // Deleting History also deletes the stored favicons of the pages it names,
+    // except one a tab in that Space's sidebar still shows.
     virtual bool deleteHistoryVisit(const QString &spaceId, qint64 id) = 0;
     virtual bool deleteHistoryOrigin(const QString &spaceId, const QString &origin) = 0;
     virtual bool deleteHistorySince(const QString &spaceId, qint64 since) = 0;
+
+    // The favicon a page in a Space showed, as encoded image bytes, kept by
+    // the page's address with its origin beside it. A newer icon for the same
+    // address replaces the older one. Only a web page, an address with an
+    // origin, has one to keep.
+    virtual bool recordFavicon(const QString &spaceId, const QUrl &pageUrl, const QByteArray &image)
+        = 0;
+    // Answers the favicon stored for the address, or else the newest one
+    // stored for its origin, or empty bytes. The answer comes on the thread
+    // the adapter reads on: in place for an adapter the caller's thread owns,
+    // later and on the store's own thread for `ThreadedSessionStore`, so a
+    // caller that must not wait on the disk is never made to.
+    virtual void findFavicon(const QString &spaceId, const QUrl &pageUrl,
+        std::function<void(const QByteArray &image)> answer) const = 0;
 
     virtual int permissionDecision(
         const QString &spaceId, const QString &origin, const QString &permission) const = 0;

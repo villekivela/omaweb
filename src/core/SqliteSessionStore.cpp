@@ -12,6 +12,26 @@
 
 namespace omaweb {
 
+namespace {
+
+    // Deleting History takes the favicons of the pages it names, but not one
+    // a tab in the Space's sidebar still shows. The sidebar is the Space's
+    // tab rows, which the session writes before it deletes anything.
+    constexpr auto notShownByATab = "page_url NOT IN (SELECT url FROM tabs)";
+
+    // A favicon is kept for a page the Space has History or a tab for. One
+    // whose History has aged out, and that no tab shows, goes with it, so the
+    // icons stay bounded by the History that is.
+    void forgetUnnamedFavicons(const QSqlDatabase &database)
+    {
+        QSqlQuery query(database);
+        query.exec(QStringLiteral("DELETE FROM favicons WHERE page_url NOT IN "
+                                  "(SELECT url FROM history) AND %1")
+                .arg(QLatin1String(notShownByATab)));
+    }
+
+} // namespace
+
 SqliteSessionStore::SqliteSessionStore(QString dataRoot)
     : m_dataRoot(std::move(dataRoot))
     , m_connectionName(
@@ -542,6 +562,7 @@ bool SqliteSessionStore::recordVisit(const QString &spaceId, const QUrl &url, co
     if (++visits >= history::cleanupBatch) {
         visits = 0;
         history::trim(database);
+        forgetUnnamedFavicons(database);
     }
     return true;
 }
@@ -575,10 +596,24 @@ QVariantList SqliteSessionStore::history(
 
 bool SqliteSessionStore::deleteHistoryVisit(const QString &spaceId, qint64 id)
 {
-    QSqlQuery query(spaceDatabase(spaceId));
+    auto database = spaceDatabase(spaceId);
+    if (!database.transaction()) {
+        return false;
+    }
+    QSqlQuery forgetFavicon(database);
+    forgetFavicon.prepare(QStringLiteral(
+        "DELETE FROM favicons WHERE page_url IN (SELECT url FROM history WHERE id = ?) "
+        "AND %1")
+            .arg(QLatin1String(notShownByATab)));
+    forgetFavicon.addBindValue(id);
+    QSqlQuery query(database);
     query.prepare(QStringLiteral("DELETE FROM history WHERE id = ?"));
     query.addBindValue(id);
-    return query.exec() && query.numRowsAffected() == 1;
+    if (!forgetFavicon.exec() || !query.exec() || query.numRowsAffected() != 1) {
+        database.rollback();
+        return false;
+    }
+    return database.commit();
 }
 
 bool SqliteSessionStore::deleteHistoryOrigin(const QString &spaceId, const QString &origin)
@@ -590,21 +625,19 @@ bool SqliteSessionStore::deleteHistoryOrigin(const QString &spaceId, const QStri
     }
     QList<qint64> ids;
     while (select.next()) {
-        QUrl rowUrl(select.value(1).toString());
-        QUrl rowOrigin;
-        rowOrigin.setScheme(rowUrl.scheme().toLower());
-        rowOrigin.setHost(rowUrl.host().toLower());
-        const auto port = rowUrl.port(-1);
-        const auto defaultPort
-            = rowUrl.scheme().compare(QStringLiteral("https"), Qt::CaseInsensitive) == 0 ? 443 : 80;
-        if (port != -1 && port != defaultPort) {
-            rowOrigin.setPort(port);
-        }
-        if (rowOrigin.toString(QUrl::FullyEncoded) == origin) {
+        if (history::origin(QUrl(select.value(1).toString())) == origin) {
             ids.append(select.value(0).toLongLong());
         }
     }
     if (!database.transaction()) {
+        return false;
+    }
+    QSqlQuery forgetFavicons(database);
+    forgetFavicons.prepare(QStringLiteral("DELETE FROM favicons WHERE origin = ? AND %1")
+            .arg(QLatin1String(notShownByATab)));
+    forgetFavicons.addBindValue(origin);
+    if (!forgetFavicons.exec()) {
+        database.rollback();
         return false;
     }
     for (const auto id : ids) {
@@ -621,13 +654,72 @@ bool SqliteSessionStore::deleteHistoryOrigin(const QString &spaceId, const QStri
 
 bool SqliteSessionStore::deleteHistorySince(const QString &spaceId, qint64 since)
 {
-    QSqlQuery query(spaceDatabase(spaceId));
+    auto database = spaceDatabase(spaceId);
+    if (!database.transaction()) {
+        return false;
+    }
+    // The icons of the pages visited in the range, and any icon recorded in
+    // it: a page can show an icon without its load finishing into History.
+    QSqlQuery forgetFavicons(database);
+    forgetFavicons.prepare(
+        QStringLiteral("DELETE FROM favicons WHERE (updated_at >= ? OR page_url IN "
+                       "(SELECT url FROM history WHERE visited_at >= ?)) AND %1")
+            .arg(QLatin1String(notShownByATab)));
+    forgetFavicons.addBindValue(since);
+    forgetFavicons.addBindValue(since);
+    QSqlQuery query(database);
     query.prepare(since > 0 ? QStringLiteral("DELETE FROM history WHERE visited_at >= ?")
                             : QStringLiteral("DELETE FROM history"));
     if (since > 0) {
         query.addBindValue(since);
     }
+    if (!forgetFavicons.exec() || !query.exec()) {
+        database.rollback();
+        return false;
+    }
+    return database.commit();
+}
+
+bool SqliteSessionStore::recordFavicon(
+    const QString &spaceId, const QUrl &pageUrl, const QByteArray &image)
+{
+    const auto origin = history::origin(pageUrl);
+    if (origin.isEmpty() || image.isEmpty()) {
+        return false;
+    }
+    // Replaced rather than updated, so the row is new as well as its time:
+    // two icons recorded in one millisecond are told apart by row id.
+    QSqlQuery query(spaceDatabase(spaceId));
+    query.prepare(QStringLiteral("INSERT OR REPLACE INTO favicons(page_url, origin, image, "
+                                 "updated_at) VALUES(?, ?, ?, ?)"));
+    query.addBindValue(pageUrl.toString());
+    query.addBindValue(origin);
+    query.addBindValue(image);
+    query.addBindValue(QDateTime::currentMSecsSinceEpoch());
     return query.exec();
+}
+
+void SqliteSessionStore::findFavicon(const QString &spaceId, const QUrl &pageUrl,
+    std::function<void(const QByteArray &image)> answer) const
+{
+    const auto origin = history::origin(pageUrl);
+    if (origin.isEmpty()) {
+        answer({});
+        return;
+    }
+    const auto database = spaceDatabase(spaceId);
+    QSqlQuery page(database);
+    page.prepare(QStringLiteral("SELECT image FROM favicons WHERE page_url = ?"));
+    page.addBindValue(pageUrl.toString());
+    if (page.exec() && page.next()) {
+        answer(page.value(0).toByteArray());
+        return;
+    }
+    QSqlQuery site(database);
+    site.prepare(QStringLiteral("SELECT image FROM favicons WHERE origin = ? ORDER BY updated_at "
+                                "DESC, rowid DESC LIMIT 1"));
+    site.addBindValue(origin);
+    answer(site.exec() && site.next() ? site.value(0).toByteArray() : QByteArray {});
 }
 
 bool SqliteSessionStore::clearPermissionsSince(const QString &spaceId, qint64 since)
@@ -1044,6 +1136,17 @@ QSqlDatabase SqliteSessionStore::spaceDatabase(const QString &spaceId) const
     // day the browser is used. Only the recent past is ever suggested, and a
     // running session keeps the same bound as visits arrive.
     history::trim(database);
+    // The icon each page showed, by address, with its origin for a page of the
+    // same site that has none of its own. Created where it is missing, so a
+    // Space that predates it keeps everything else as it was.
+    schema.exec(QStringLiteral("CREATE TABLE IF NOT EXISTS favicons ("
+                               "page_url TEXT PRIMARY KEY, "
+                               "origin TEXT NOT NULL, "
+                               "image BLOB NOT NULL, "
+                               "updated_at INTEGER NOT NULL)"));
+    schema.exec(QStringLiteral(
+        "CREATE INDEX IF NOT EXISTS favicons_origin ON favicons(origin, updated_at DESC)"));
+    forgetUnnamedFavicons(database);
     schema.exec(QStringLiteral("CREATE TABLE IF NOT EXISTS site_permissions ("
                                "origin TEXT NOT NULL, "
                                "permission TEXT NOT NULL, "

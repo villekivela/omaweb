@@ -35,8 +35,11 @@ BrowserController *WindowManager::createPrivateWindow()
         return nullptr;
     }
 
-    auto *controller = new BrowserController(
-        m_privateStore, true, m_privatePermissionDecisions, m_privateSiteState, m_configRoot, this);
+    // A store per window, over the session's decisions: what a window keeps
+    // of its own, the favicons its pages showed, goes when the window does.
+    auto *controller
+        = new BrowserController(std::make_shared<PrivateSessionStore>(m_privatePermissionDecisions),
+            true, m_privatePermissionDecisions, m_privateSiteState, m_configRoot, this);
     if (!controller->ready()) {
         controller->deleteLater();
         return nullptr;
@@ -70,7 +73,6 @@ void WindowManager::releasePrivateWindow(QObject *controller)
                 return;
             }
             m_privateRoot.reset();
-            m_privateStore.reset();
             m_privatePermissionDecisions.reset();
             m_privateSiteState.reset();
             emit privateSessionChanged();
@@ -107,7 +109,6 @@ bool WindowManager::ensurePrivateSession()
 
     m_privateRoot = std::move(root);
     m_privatePermissionDecisions = QSharedPointer<QHash<QString, int>>::create();
-    m_privateStore = std::make_shared<PrivateSessionStore>(m_privatePermissionDecisions);
     m_privateSiteState = QSharedPointer<SessionSiteState>::create();
     emit privateSessionChanged();
     return true;

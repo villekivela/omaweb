@@ -98,6 +98,80 @@ std::optional<qreal> faviconHue(const QImage &icon)
     return mean < 0.0 ? mean + 1.0 : mean;
 }
 
+QQuickImageResponse *readIcon(QQmlEngine *engine, const QUrl &source, QObject *context,
+    std::function<void(const QImage &icon)> done)
+{
+    if (source.isEmpty()) {
+        done({});
+        return nullptr;
+    }
+
+    if (source.scheme() != QLatin1String("image")) {
+        // A local file or a resource. Anything else is left unread on purpose.
+        const auto path = QQmlFile::urlToLocalFileOrQrc(source);
+        if (path.isEmpty()) {
+            done({});
+            return nullptr;
+        }
+        QImageReader reader(path);
+        reader.setAutoTransform(true);
+        done(reader.read());
+        return nullptr;
+    }
+
+    // An image provider the QML engine already has, a web engine's icon store
+    // most of the time. Reading it costs no request the engine has not
+    // already made.
+    auto *provider = engine ? engine->imageProvider(source.host()) : nullptr;
+    if (!provider) {
+        done({});
+        return nullptr;
+    }
+    const auto identifier = source.toString(QUrl::RemoveScheme | QUrl::RemoveAuthority).mid(1);
+    switch (provider->imageType()) {
+    case QQmlImageProviderBase::Image: {
+        QSize size;
+        done(static_cast<QQuickImageProvider *>(provider)->requestImage(
+            identifier, &size, requestedIconSize));
+        return nullptr;
+    }
+    case QQmlImageProviderBase::Pixmap: {
+        QSize size;
+        done(static_cast<QQuickImageProvider *>(provider)
+                ->requestPixmap(identifier, &size, requestedIconSize)
+                .toImage());
+        return nullptr;
+    }
+    case QQmlImageProviderBase::ImageResponse: {
+        auto *response = static_cast<QQuickAsyncImageProvider *>(provider)->requestImageResponse(
+            identifier, requestedIconSize);
+        if (!response) {
+            done({});
+            return nullptr;
+        }
+        // The response is the caller's to delete once it has answered, whether
+        // or not anyone is still listening by then.
+        QObject::connect(response, &QQuickImageResponse::finished, response, &QObject::deleteLater);
+        QObject::connect(
+            response, &QQuickImageResponse::finished, context, [response, done = std::move(done)] {
+                QImage image;
+                if (response->errorString().isEmpty()) {
+                    // So is the factory, once it has been asked for its image.
+                    const std::unique_ptr<QQuickTextureFactory> factory(response->textureFactory());
+                    if (factory) {
+                        image = factory->image();
+                    }
+                }
+                done(image);
+            });
+        return response;
+    }
+    default:
+        done({});
+        return nullptr;
+    }
+}
+
 FaviconTint::FaviconTint(QObject *parent)
     : QObject(parent)
 {
@@ -157,92 +231,24 @@ void FaviconTint::abandonPendingRequest()
     if (!m_response) {
         return;
     }
-    auto *response = m_response.data();
-    m_response = nullptr;
-    disconnect(response, nullptr, this, nullptr);
-    // The response still owns itself until it finishes, and deleting it early
+    // The response deletes itself once it finishes, and deleting it early
     // races the provider's worker thread.
-    connect(response, &QQuickImageResponse::finished, response, &QObject::deleteLater);
+    disconnect(m_response.data(), nullptr, this, nullptr);
+    m_response = nullptr;
 }
 
 void FaviconTint::resolve()
 {
     abandonPendingRequest();
-    if (m_source.isEmpty()) {
-        applyHue(std::nullopt);
-        return;
-    }
-
-    if (m_source.scheme() != QLatin1String("image")) {
-        // A local file or a resource. Anything else — an http icon Omaweb would
-        // have to go and fetch — is left uncoloured on purpose.
-        const auto path = QQmlFile::urlToLocalFileOrQrc(m_source);
-        if (path.isEmpty()) {
-            applyHue(std::nullopt);
-            return;
-        }
-        QImageReader reader(path);
-        reader.setAutoTransform(true);
-        applyHue(faviconHue(reader.read()));
-        return;
-    }
-
-    // An image provider the QML engine already has — a web engine's icon
-    // store, most of the time. Reading it costs no request the engine has not
-    // already made.
-    auto *engine = qmlEngine(this);
-    auto *provider = engine ? engine->imageProvider(m_source.host()) : nullptr;
-    if (!provider) {
-        applyHue(std::nullopt);
-        return;
-    }
-    const auto identifier = m_source.toString(QUrl::RemoveScheme | QUrl::RemoveAuthority).mid(1);
-    switch (provider->imageType()) {
-    case QQmlImageProviderBase::Image: {
-        QSize size;
-        applyHue(faviconHue(static_cast<QQuickImageProvider *>(provider)->requestImage(
-            identifier, &size, requestedIconSize)));
-        return;
-    }
-    case QQmlImageProviderBase::Pixmap: {
-        QSize size;
-        applyHue(faviconHue(static_cast<QQuickImageProvider *>(provider)
-                ->requestPixmap(identifier, &size, requestedIconSize)
-                .toImage()));
-        return;
-    }
-    case QQmlImageProviderBase::ImageResponse: {
-        auto *response = static_cast<QQuickAsyncImageProvider *>(provider)->requestImageResponse(
-            identifier, requestedIconSize);
-        if (!response) {
-            applyHue(std::nullopt);
-            return;
-        }
+    auto *response = readIcon(qmlEngine(this), m_source, this, [this](const QImage &icon) {
+        m_response = nullptr;
+        applyHue(faviconHue(icon));
+    });
+    if (response) {
         m_response = response;
         // Until it answers, the chip has no colour of its own. Holding the
         // previous site's would paint this one in a colour it never chose.
         applyHue(std::nullopt);
-        connect(response, &QQuickImageResponse::finished, this, [this, response] {
-            if (m_response == response) {
-                m_response = nullptr;
-                QImage image;
-                if (response->errorString().isEmpty()) {
-                    // The factory is the caller's to delete once it has been
-                    // asked for its image.
-                    const std::unique_ptr<QQuickTextureFactory> factory(response->textureFactory());
-                    if (factory) {
-                        image = factory->image();
-                    }
-                }
-                applyHue(faviconHue(image));
-            }
-            response->deleteLater();
-        });
-        return;
-    }
-    default:
-        applyHue(std::nullopt);
-        return;
     }
 }
 

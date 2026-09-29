@@ -5,9 +5,11 @@
 #include <QPointer>
 #include <QUrl>
 
+#include <functional>
 #include <optional>
 
 class QImage;
+class QQmlEngine;
 class QQuickImageResponse;
 
 namespace omaweb {
@@ -20,15 +22,26 @@ namespace omaweb {
 // opaque they are, so the mark decides even when it is small.
 std::optional<qreal> faviconHue(const QImage &icon);
 
+// Reads an icon from wherever the QML engine can already reach it: a local
+// file, a resource, or an image provider such as the one a web engine
+// registers for its icon store. Nothing is fetched over the network: an http
+// icon Omaweb would have to go and fetch reads as nothing.
+//
+// `done` is called once, with a null image when there is nothing to read. It
+// is called before this returns, except for an asynchronous provider. Then
+// it is called on `context`'s thread once the provider answers, and never if
+// `context` goes first, and the response being waited on is returned so the
+// caller can abandon it by disconnecting it from `context`.
+QQuickImageResponse *readIcon(QQmlEngine *engine, const QUrl &source, QObject *context,
+    std::function<void(const QImage &icon)> done);
+
 // A site's own colour, for the chip that stands in for its favicon. The hue
 // comes from the icon, the saturation and lightness from the theme, so a chip
 // stays in the sidebar's palette exactly as a hashed one does.
 //
-// The icon is read from wherever the QML engine can already reach it: a local
-// file, a resource, or an image provider such as the one a web engine
-// registers for its icon store. Nothing is fetched over the network, and
-// nothing is remembered between sources: a colour read from a private
-// window's icon goes when the tile that asked for it does.
+// The icon is read through `readIcon`, and nothing is remembered between
+// sources: a colour read from a private window's icon goes when the tile that
+// asked for it does.
 class FaviconTint : public QObject {
     Q_OBJECT
     Q_PROPERTY(QUrl source READ source WRITE setSource NOTIFY sourceChanged)

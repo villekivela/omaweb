@@ -41,10 +41,13 @@ The browser sends network requests only after an explicit user or page action:
 - Accepting a download fetches the requested file.
 - Adding a Content-blocking subscription fetches its declared update address immediately.
 
-With favicon artwork turned off, a tab's two-letter tile takes its colour from the site's favicon.
-The icon is read from the icon store the engine already filled while loading the page, so no tile
-ever costs a request; a site whose icon was never loaded, or whose icon carries no colour, keeps a
-neutral tile.
+Favicons come only from pages the Space has loaded. When a tab's page reports its favicon, Omaweb
+reads the icon from the icon store the engine already filled while loading the page and keeps a copy
+in the Space's own database. A restored tab and an Omnibar row draw that copy, and a two-letter tile
+with favicon artwork turned off takes its colour from it, so no tile or row ever costs a request. A
+site the Space has never loaded keeps its host code, and one whose icon carries no colour keeps a
+neutral tile. Omaweb never asks a third-party favicon service or a site's `/favicon.ico` for an
+icon.
 
 Remote search suggestions are off. Typing in the Omnibar queries only the active Space's local
 history and does not send the typed text over the network.

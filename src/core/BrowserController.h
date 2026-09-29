@@ -279,6 +279,12 @@ public:
         const QUrl &iconUrl, bool loading, bool audible);
     void setTabLoading(const QString &tabId, bool loading);
     void setTabIcon(const QString &tabId, const QUrl &iconUrl);
+    // Where the interface draws the favicon the Space on show stored for a
+    // page, or its site, from. The address answers without the page loading
+    // and without a network request; while the answer is pending, or when
+    // nothing is stored, the interface draws the host code. Empty for an
+    // address that is not a web page.
+    Q_INVOKABLE QUrl storedFavicon(const QUrl &pageUrl) const;
     void setTabAudible(const QString &tabId, bool audible);
     Q_INVOKABLE void setTabMuted(const QString &tabId, bool muted);
     Q_INVOKABLE void toggleTabMuted(const QString &tabId);
@@ -535,6 +541,12 @@ private:
     void ensureActiveTab();
     bool persistTabs();
     void recordTabs();
+    void landPendingTabs();
+    QUrl storedFaviconIn(const QString &spaceId, const QUrl &pageUrl) const;
+    // The icon a tab shows: its page's own, or while it has none, the one its
+    // Space stored for the address.
+    QUrl iconToShow(const TabState &tab, const QUrl &pageIcon) const;
+    void keepFavicon(const QString &spaceId, const QUrl &pageUrl, const QUrl &iconUrl);
     void schedulePersistTabs();
     void setActiveTab(const QString &tabId);
     qsizetype pinnedTabCount() const;
@@ -629,6 +641,8 @@ private:
     QVector<TabState> m_closedTabs;
     QVector<RetainedTab> m_retainedTabs;
     QHash<QString, LivePageState> m_livePageStates;
+    // The name this window's store answers stored favicons under.
+    QString m_faviconSource;
     QSet<QString> m_interactedOrigins;
     QString m_downloadDirectory;
     Downloads *m_downloads = nullptr;
