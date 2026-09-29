@@ -43,6 +43,10 @@ omaweb spaces
 omaweb tabs [--space <id|name>]
 omaweb open <address> [--space <id|name> | --tab <id>] [--new]
 omaweb close [--tab <id>]
+omaweb space <id|name>
+omaweb focus <tab id|part of an address>
+omaweb commands
+omaweb run <command> [position]
 omaweb space new [name]
 omaweb space delete <id|name>
 omaweb look [--all]
@@ -64,4 +68,7 @@ omaweb console [--level error|warning|all] [--since <cursor>]
 - `console` prints level, source and text, one message a line, then `cursor <n>`. Pass that number
   as `--since` to get only newer messages.
 - `eval` runs JavaScript in an isolated world: it sees the DOM, not the page's own variables.
+- `space`, `focus` and `run` change what the reader sees: another Space, another tab, or a browser
+  command such as `toggle-sidebar`. Use them only when the reader asks for that. `commands` lists
+  what `run` can run now.
 - `--tab <id>` points any page command at another tab. `--json` prints the browser's answer as JSON.

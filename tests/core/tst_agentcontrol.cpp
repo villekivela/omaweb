@@ -13,6 +13,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QLocalSocket>
+#include <QRegularExpression>
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QTest>
@@ -148,12 +149,16 @@ private slots:
     void refusesWhatIsUnderWayWhenAllowAgentsGoesOff();
     void keepsATabAnAgentTabOnlyWhileAnAgentUsesIt();
     void answersASocketsRequestsInTheOrderAsked();
+    void switchesSpaceAndSelectsATabWithAllowAgentsOff();
+    void runsOnlyThePublicCommandsInTheWindow();
+    void decidesEveryCommandOfTheRegistry();
 };
 
 void AgentControlTest::gatesOnlyAgentSpacesBehindAllowAgents()
 {
     for (const auto &verb : {QStringLiteral("spaces"), QStringLiteral("tabs"),
-             QStringLiteral("open"), QStringLiteral("close")}) {
+             QStringLiteral("open"), QStringLiteral("close"), QStringLiteral("space"),
+             QStringLiteral("focus"), QStringLiteral("commands"), QStringLiteral("run")}) {
         QVERIFY2(!AgentControl::gated(verb), qPrintable(verb));
     }
     QVERIFY(AgentControl::gated(QStringLiteral("space new")));
@@ -545,10 +550,15 @@ void AgentControlTest::neverListsOrReachesAPrivateWindow()
 
     // Handed a Private window, the control answers nothing about it at all.
     AgentControl privateControl(privateWindow.get(), config.path());
-    for (const auto &verb : {QStringLiteral("spaces"), QStringLiteral("tabs"),
-             QStringLiteral("open"), QStringLiteral("close"), QStringLiteral("space new")}) {
+    for (const auto &verb :
+        {QStringLiteral("spaces"), QStringLiteral("tabs"), QStringLiteral("open"),
+            QStringLiteral("close"), QStringLiteral("space new"), QStringLiteral("space"),
+            QStringLiteral("focus"), QStringLiteral("commands"), QStringLiteral("run")}) {
         const auto answer = ask(privateControl, QStringLiteral("agent"), verb,
-            {{QStringLiteral("url"), QStringLiteral("https://example.com/")}});
+            {{QStringLiteral("url"), QStringLiteral("https://example.com/")},
+                {QStringLiteral("space"), QStringLiteral("Private")},
+                {QStringLiteral("target"), privateTabId},
+                {QStringLiteral("command"), QStringLiteral("close-tab")}});
         QCOMPARE(failure(answer), QStringLiteral("private"));
     }
     QCOMPARE(privateWindow->tabs()->rowCount(), 1);
@@ -1123,6 +1133,149 @@ void AgentControlTest::answersASocketsRequestsInTheOrderAsked()
     QTRY_VERIFY(client.canReadLine());
     const auto second = QJsonDocument::fromJson(client.readLine()).object();
     QVERIFY(second.contains(QStringLiteral("spaces")));
+}
+
+// What a keybind needs: another Space on show, or a tab chosen by its address,
+// with nothing turned on.
+void AgentControlTest::switchesSpaceAndSelectsATabWithAllowAgentsOff()
+{
+    QTemporaryDir config;
+    SessionFixture fixture(readersSession());
+    QVERIFY_SESSION_READY(fixture);
+    const auto browser = fixture.createController();
+    AgentControl control(browser.get(), config.path());
+    QVERIFY(!control.allowAgents());
+    const auto script = QStringLiteral("keybind");
+
+    QVERIFY(succeeded(ask(control, script, QStringLiteral("space"),
+        {{QStringLiteral("space"), QStringLiteral("Work")}})));
+    QCOMPARE(browser->activeSpaceId(), QStringLiteral("work"));
+    QCOMPARE(failure(ask(control, script, QStringLiteral("space"),
+                 {{QStringLiteral("space"), QStringLiteral("Nowhere")}})),
+        QStringLiteral("not-found"));
+
+    // A part of an address, in whichever Space holds the tab.
+    const auto focused = ask(control, script, QStringLiteral("focus"),
+        {{QStringLiteral("target"), QStringLiteral("PERSONAL.example")}});
+    QVERIFY(succeeded(focused));
+    QCOMPARE(focused.value(QStringLiteral("tab")).toString(), QStringLiteral("personal-tab"));
+    QCOMPARE(browser->activeSpaceId(), QStringLiteral("personal"));
+    QCOMPARE(browser->activeTabId(), QStringLiteral("personal-tab"));
+
+    // A tab's id comes before any address that holds it, and a Pinned tab is
+    // the reader's to look at like any other.
+    QVERIFY(succeeded(ask(control, script, QStringLiteral("focus"),
+        {{QStringLiteral("target"), QStringLiteral("personal-pin")}})));
+    QCOMPARE(browser->activeTabId(), QStringLiteral("personal-pin"));
+    QVERIFY(succeeded(ask(control, script, QStringLiteral("focus"),
+        {{QStringLiteral("target"), QStringLiteral("work-tab")}})));
+    QCOMPARE(browser->activeSpaceId(), QStringLiteral("work"));
+    QCOMPARE(browser->activeTabId(), QStringLiteral("work-tab"));
+
+    QCOMPARE(failure(ask(control, script, QStringLiteral("focus"),
+                 {{QStringLiteral("target"), QStringLiteral("nowhere.example")}})),
+        QStringLiteral("not-found"));
+}
+
+// The core decides what is public, and the window, which holds the
+// registry, runs it and says whether it ran.
+void AgentControlTest::runsOnlyThePublicCommandsInTheWindow()
+{
+    QTemporaryDir config;
+    SessionFixture fixture(readersSession());
+    QVERIFY_SESSION_READY(fixture);
+    const auto browser = fixture.createController();
+    AgentControl control(browser.get(), config.path());
+    const auto script = QStringLiteral("keybind");
+    const auto run = [&](const QString &command, const QJsonValue &argument = {}) {
+        QJsonObject fields {{QStringLiteral("command"), command}};
+        if (!argument.isNull()) {
+            fields.insert(QStringLiteral("argument"), argument);
+        }
+        return ask(control, script, QStringLiteral("run"), fields);
+    };
+
+    QCOMPARE(failure(run(QStringLiteral("toggle-sidebar"))), QStringLiteral("unavailable"));
+
+    QList<QVariantMap> asked;
+    QVariantMap windowAnswer {{QStringLiteral("ok"), true}};
+    connect(&control, &AgentControl::commandRequested, &control,
+        [&](int requestId, const QVariantMap &request) {
+            asked.append(request);
+            control.answerCommand(requestId, windowAnswer);
+        });
+
+    QVERIFY(succeeded(run(QStringLiteral("toggle-sidebar"))));
+    QCOMPARE(asked.size(), 1);
+    QCOMPARE(asked.constLast().value(QStringLiteral("command")).toString(),
+        QStringLiteral("toggle-sidebar"));
+    QCOMPARE(asked.constLast().value(QStringLiteral("argument")).toInt(), -1);
+    QCOMPARE(asked.constLast().value(QStringLiteral("commands")).toStringList(),
+        AgentControl::publicCommands());
+
+    // Counted from 1 as the keys are, and from 0 in the window.
+    QVERIFY(succeeded(run(QStringLiteral("select-tab"), 2)));
+    QCOMPARE(asked.constLast().value(QStringLiteral("argument")).toInt(), 1);
+    QCOMPARE(failure(run(QStringLiteral("select-tab"))), QStringLiteral("bad-request"));
+    QCOMPARE(failure(run(QStringLiteral("select-space"), 0)), QStringLiteral("bad-request"));
+    QCOMPARE(failure(run(QStringLiteral("reload"), 1)), QStringLiteral("bad-request"));
+    QCOMPARE(asked.size(), 2);
+
+    // Refused by name, and never put to the window.
+    for (const auto &command : {QStringLiteral("private-window"), QStringLiteral("screenshot-page"),
+             QStringLiteral("copy-full-page-screenshot"), QStringLiteral("rm-rf")}) {
+        const auto refused = run(command);
+        QCOMPARE(failure(refused), QStringLiteral("refused"));
+        QVERIFY2(refused.value(QStringLiteral("error")).toString().contains(command),
+            qPrintable(command));
+    }
+    QCOMPARE(asked.size(), 2);
+
+    windowAnswer
+        = {{QStringLiteral("ok"), false}, {QStringLiteral("code"), QStringLiteral("unavailable")},
+            {QStringLiteral("error"), QStringLiteral("\"find-next\" is not available now.")}};
+    QCOMPARE(failure(run(QStringLiteral("find-next"))), QStringLiteral("unavailable"));
+
+    windowAnswer = {{QStringLiteral("ok"), true},
+        {QStringLiteral("commands"),
+            QVariantList {QVariantMap {{QStringLiteral("command"), QStringLiteral("reload")},
+                {QStringLiteral("title"), QStringLiteral("Reload")}}}}};
+    const auto listed = ask(control, script, QStringLiteral("commands"));
+    QVERIFY(succeeded(listed));
+    QCOMPARE(
+        asked.constLast().value(QStringLiteral("verb")).toString(), QStringLiteral("commands"));
+    QCOMPARE(listed.value(QStringLiteral("commands")).toArray().size(), 1);
+
+    // A window that says nothing has not run it.
+    windowAnswer = {};
+    QCOMPARE(failure(run(QStringLiteral("reload"))), QStringLiteral("failed"));
+}
+
+// A command added to the registry is decided here, public or kept in, rather
+// than let out or left out without anyone choosing.
+void AgentControlTest::decidesEveryCommandOfTheRegistry()
+{
+    QFile source(QStringLiteral(OMAWEB_BROWSER_COMMANDS_QML));
+    QVERIFY(source.open(QIODevice::ReadOnly));
+    const auto text = QString::fromUtf8(source.readAll());
+    const auto start = text.indexOf(QStringLiteral("readonly property var descriptions"));
+    const auto end = text.indexOf(QStringLiteral("readonly property var groupSymbols"));
+    QVERIFY(start >= 0 && end > start);
+    static const QRegularExpression key(
+        QStringLiteral("^\\s*\"([a-z-]+)\": \\{"), QRegularExpression::MultilineOption);
+    QStringList registry;
+    for (const auto &match : key.globalMatch(text.mid(start, end - start))) {
+        registry.append(match.captured(1));
+    }
+    QVERIFY(registry.size() > 50);
+
+    const QStringList keptIn {QStringLiteral("screenshot-page"), QStringLiteral("copy-screenshot"),
+        QStringLiteral("screenshot-full-page"), QStringLiteral("copy-full-page-screenshot"),
+        QStringLiteral("private-window")};
+    QStringList decided = AgentControl::publicCommands() + keptIn;
+    decided.sort();
+    registry.sort();
+    QCOMPARE(decided, registry);
 }
 
 QTEST_GUILESS_MAIN(AgentControlTest)

@@ -76,9 +76,11 @@ void AgentMcpTest::servesEachVerbAsOneTool()
     }
     QCOMPARE(names,
         (QStringList {QStringLiteral("spaces"), QStringLiteral("tabs"), QStringLiteral("open"),
-            QStringLiteral("close"), QStringLiteral("space_new"), QStringLiteral("space_delete"),
-            QStringLiteral("look"), QStringLiteral("read"), QStringLiteral("do"),
-            QStringLiteral("shot"), QStringLiteral("eval"), QStringLiteral("console")}));
+            QStringLiteral("close"), QStringLiteral("space"), QStringLiteral("focus"),
+            QStringLiteral("commands"), QStringLiteral("run"), QStringLiteral("space_new"),
+            QStringLiteral("space_delete"), QStringLiteral("look"), QStringLiteral("read"),
+            QStringLiteral("do"), QStringLiteral("shot"), QStringLiteral("eval"),
+            QStringLiteral("console")}));
 }
 
 // Every conversation the server is registered in pays for the list, and #383
@@ -112,6 +114,23 @@ void AgentMcpTest::readsEachToolIntoARequest_data()
                {{QStringLiteral("url"), QStringLiteral("http://localhost:3000/")},
                    {QStringLiteral("space"), QStringLiteral("Checks")},
                    {QStringLiteral("new"), true}});
+    QTest::newRow("switch space") << QStringLiteral("space")
+                                  << QJsonObject {{QStringLiteral("space"), QStringLiteral("Work")}}
+                                  << base(QStringLiteral("space"),
+                                         {{QStringLiteral("space"), QStringLiteral("Work")}});
+    QTest::newRow("focus names its tab as the target")
+        << QStringLiteral("focus")
+        << QJsonObject {{QStringLiteral("tab"), QStringLiteral("github")}}
+        << base(QStringLiteral("focus"), {{QStringLiteral("target"), QStringLiteral("github")}});
+    QTest::newRow("commands") << QStringLiteral("commands") << QJsonObject {}
+                              << base(QStringLiteral("commands"));
+    QTest::newRow("run a command at a position")
+        << QStringLiteral("run")
+        << QJsonObject {{QStringLiteral("command"), QStringLiteral("select-space")},
+               {QStringLiteral("position"), 2}}
+        << base(QStringLiteral("run"),
+               {{QStringLiteral("command"), QStringLiteral("select-space")},
+                   {QStringLiteral("argument"), 2}});
     QTest::newRow("a flag left false is left out")
         << QStringLiteral("look") << QJsonObject {{QStringLiteral("all"), false}}
         << base(QStringLiteral("look"));
@@ -179,6 +198,8 @@ void AgentMcpTest::refusesAMalformedCall_data()
         << QStringLiteral("spaces takes no argument tab.");
     QTest::newRow("a required argument missing")
         << QStringLiteral("open") << QJsonObject {} << QStringLiteral("open needs url.");
+    QTest::newRow("run without a command")
+        << QStringLiteral("run") << QJsonObject {} << QStringLiteral("run needs command.");
     QTest::newRow("a string that is not one")
         << QStringLiteral("open") << QJsonObject {{QStringLiteral("url"), 3}}
         << QStringLiteral("url is a string.");
@@ -299,6 +320,12 @@ void AgentMcpTest::answersWhatTheBrowserAnswered()
     answer = {{QStringLiteral("ok"), true}, {QStringLiteral("tabs"), QJsonArray {}}};
     reply = answerAgentMcp(call(QStringLiteral("tabs"), {}), name, send);
     QCOMPARE(textOf(*reply), QStringLiteral("none"));
+
+    answer = {{QStringLiteral("ok"), true}};
+    reply = answerAgentMcp(
+        call(QStringLiteral("run"), {{QStringLiteral("command"), QStringLiteral("reload")}}), name,
+        send);
+    QCOMPARE(textOf(*reply), QStringLiteral("ran"));
 
     answer
         = {{QStringLiteral("ok"), false}, {QStringLiteral("code"), QStringLiteral("allow-agents")},

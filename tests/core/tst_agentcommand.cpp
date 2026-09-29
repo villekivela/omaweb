@@ -29,6 +29,10 @@ void AgentCommandTest::tellsAVerbFromAnAddressToOpen()
     const auto program = QStringLiteral("omaweb");
     QVERIFY(isAgentCommand({program, QStringLiteral("tabs")}));
     QVERIFY(isAgentCommand({program, QStringLiteral("space"), QStringLiteral("new")}));
+    QVERIFY(isAgentCommand({program, QStringLiteral("space"), QStringLiteral("work")}));
+    QVERIFY(isAgentCommand({program, QStringLiteral("run"), QStringLiteral("toggle-sidebar")}));
+    QVERIFY(isAgentCommand({program, QStringLiteral("focus"), QStringLiteral("github")}));
+    QVERIFY(isAgentCommand({program, QStringLiteral("commands")}));
     QVERIFY(!isAgentCommand({program}));
     QVERIFY(!isAgentCommand({program, QStringLiteral("https://example.com/")}));
     QVERIFY(!isAgentCommand({program, QStringLiteral("--version")}));
@@ -91,6 +95,27 @@ void AgentCommandTest::readsEachVerbIntoARequest_data()
                                   << base(QStringLiteral("space delete"),
                                          {{QStringLiteral("space"), QStringLiteral("s1")}})
                                   << false;
+    QTest::newRow("switch space") << QStringList {QStringLiteral("space"), QStringLiteral("work")}
+                                  << base(QStringLiteral("space"),
+                                         {{QStringLiteral("space"), QStringLiteral("work")}})
+                                  << false;
+    QTest::newRow("focus a tab by its address")
+        << QStringList {QStringLiteral("focus"), QStringLiteral("github.com")}
+        << base(QStringLiteral("focus"), {{QStringLiteral("target"), QStringLiteral("github.com")}})
+        << false;
+    QTest::newRow("commands") << QStringList {QStringLiteral("commands"), QStringLiteral("--json")}
+                              << base(QStringLiteral("commands")) << true;
+    QTest::newRow("run a command")
+        << QStringList {QStringLiteral("run"), QStringLiteral("toggle-sidebar")}
+        << base(QStringLiteral("run"),
+               {{QStringLiteral("command"), QStringLiteral("toggle-sidebar")}})
+        << false;
+    QTest::newRow("run a command with a position")
+        << QStringList {QStringLiteral("run"), QStringLiteral("select-tab"), QStringLiteral("3")}
+        << base(QStringLiteral("run"),
+               {{QStringLiteral("command"), QStringLiteral("select-tab")},
+                   {QStringLiteral("argument"), 3}})
+        << false;
     QTest::newRow("look at the whole page")
         << QStringList {QStringLiteral("look"), QStringLiteral("--all")}
         << base(QStringLiteral("look"), {{QStringLiteral("all"), true}}) << false;
@@ -132,8 +157,17 @@ void AgentCommandTest::refusesAMalformedCommand_data()
         << QStringList {QStringLiteral("tabs"), QStringLiteral("--space")};
     QTest::newRow("an unknown option")
         << QStringList {QStringLiteral("spaces"), QStringLiteral("--all")};
-    QTest::newRow("a space verb that is not one")
-        << QStringList {QStringLiteral("space"), QStringLiteral("rename")};
+    QTest::newRow("space without a space") << QStringList {QStringLiteral("space")};
+    QTest::newRow("space with two")
+        << QStringList {QStringLiteral("space"), QStringLiteral("Work"), QStringLiteral("Home")};
+    QTest::newRow("focus without a tab") << QStringList {QStringLiteral("focus")};
+    QTest::newRow("commands takes no argument")
+        << QStringList {QStringLiteral("commands"), QStringLiteral("tabs")};
+    QTest::newRow("run without a command") << QStringList {QStringLiteral("run")};
+    QTest::newRow("a position that is not a number") << QStringList {
+        QStringLiteral("run"), QStringLiteral("select-tab"), QStringLiteral("first")};
+    QTest::newRow("run with two arguments") << QStringList {QStringLiteral("run"),
+        QStringLiteral("select-tab"), QStringLiteral("1"), QStringLiteral("2")};
     QTest::newRow("space delete without a space")
         << QStringList {QStringLiteral("space"), QStringLiteral("delete")};
     QTest::newRow("a level that is not one") << QStringList {
@@ -205,6 +239,20 @@ void AgentCommandTest::printsOneLinePerRowForAScript()
     };
     QCOMPARE(formatAgentAnswer(QStringLiteral("tabs"), tabs),
         QStringLiteral("t1\thttps://example.com/\tExample\tcurrent\n"));
+
+    const QJsonObject commands {
+        {QStringLiteral("ok"), true},
+        {QStringLiteral("commands"),
+            QJsonArray {QJsonObject {{QStringLiteral("command"), QStringLiteral("toggle-sidebar")},
+                {QStringLiteral("title"), QStringLiteral("Hide or show the sidebar")},
+                {QStringLiteral("group"), QStringLiteral("interface")}}}},
+    };
+    QCOMPARE(formatAgentAnswer(QStringLiteral("commands"), commands),
+        QStringLiteral("toggle-sidebar\tHide or show the sidebar\n"));
+    QCOMPARE(formatAgentAnswer(QStringLiteral("run"), {{QStringLiteral("ok"), true}}), QString());
+    QCOMPARE(formatAgentAnswer(QStringLiteral("focus"),
+                 {{QStringLiteral("ok"), true}, {QStringLiteral("tab"), QStringLiteral("t1")}}),
+        QStringLiteral("t1\n"));
 
     const QJsonObject opened {{QStringLiteral("ok"), true},
         {QStringLiteral("tab"), QJsonObject {{QStringLiteral("id"), QStringLiteral("t2")}}}};
