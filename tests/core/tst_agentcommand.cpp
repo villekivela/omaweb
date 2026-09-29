@@ -78,6 +78,14 @@ void AgentCommandTest::readsEachVerbIntoARequest_data()
     QTest::newRow("space new without one")
         << QStringList {QStringLiteral("space"), QStringLiteral("new")}
         << base(QStringLiteral("space new")) << false;
+    QTest::newRow("console") << QStringList {QStringLiteral("console")}
+                             << base(QStringLiteral("console")) << false;
+    QTest::newRow("console errors since a cursor")
+        << QStringList {QStringLiteral("console"), QStringLiteral("--level"),
+               QStringLiteral("error"), QStringLiteral("--since=12"), QStringLiteral("--json")}
+        << base(QStringLiteral("console"),
+               {{QStringLiteral("level"), QStringLiteral("error")}, {QStringLiteral("since"), 12}})
+        << true;
     QTest::newRow("space delete") << QStringList {QStringLiteral("space"), QStringLiteral("delete"),
         QStringLiteral("s1")}
                                   << base(QStringLiteral("space delete"),
@@ -128,6 +136,12 @@ void AgentCommandTest::refusesAMalformedCommand_data()
         << QStringList {QStringLiteral("space"), QStringLiteral("rename")};
     QTest::newRow("space delete without a space")
         << QStringList {QStringLiteral("space"), QStringLiteral("delete")};
+    QTest::newRow("a level that is not one") << QStringList {
+        QStringLiteral("console"), QStringLiteral("--level"), QStringLiteral("loud")};
+    QTest::newRow("a cursor that is not one") << QStringList {
+        QStringLiteral("console"), QStringLiteral("--since"), QStringLiteral("soon")};
+    QTest::newRow("console takes no argument")
+        << QStringList {QStringLiteral("console"), QStringLiteral("errors")};
     QTest::newRow("two addresses") << QStringList {
         QStringLiteral("open"), QStringLiteral("a.example"), QStringLiteral("b.example")};
     QTest::newRow("do without a step") << QStringList {QStringLiteral("do")};
@@ -195,6 +209,27 @@ void AgentCommandTest::printsOneLinePerRowForAScript()
     const QJsonObject opened {{QStringLiteral("ok"), true},
         {QStringLiteral("tab"), QJsonObject {{QStringLiteral("id"), QStringLiteral("t2")}}}};
     QCOMPARE(formatAgentAnswer(QStringLiteral("open"), opened), QStringLiteral("t2\n"));
+
+    const QJsonObject console {
+        {QStringLiteral("ok"), true},
+        {QStringLiteral("messages"),
+            QJsonArray {
+                QJsonObject {{QStringLiteral("level"), QStringLiteral("error")},
+                    {QStringLiteral("message"), QStringLiteral("boom\nat app.js")},
+                    {QStringLiteral("source"), QStringLiteral("http://localhost/app.js")},
+                    {QStringLiteral("line"), 42}},
+                QJsonObject {{QStringLiteral("level"), QStringLiteral("info")},
+                    {QStringLiteral("message"), QStringLiteral("hi")},
+                    {QStringLiteral("source"), QString {}}, {QStringLiteral("line"), 0}},
+            }},
+        {QStringLiteral("cursor"), 17},
+        {QStringLiteral("truncated"), true},
+    };
+    QCOMPARE(formatAgentAnswer(QStringLiteral("console"), console),
+        QStringLiteral("truncated\tolder messages were dropped before this call\n"
+                       "error\thttp://localhost/app.js:42\tboom\\nat app.js\n"
+                       "info\t\thi\n"
+                       "cursor\t17\n"));
 }
 
 // Each argument is a step, or several separated by `;`, and a quoted run is

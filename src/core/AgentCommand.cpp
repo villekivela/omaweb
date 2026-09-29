@@ -113,6 +113,13 @@ namespace {
                 .maximumPositionals = -1,
                 .positionalField = {}};
         }
+        if (verb == u"console") {
+            return {.valued = {tab, QStringLiteral("level"), QStringLiteral("since")},
+                .flags = {},
+                .minimumPositionals = 0,
+                .maximumPositionals = 0,
+                .positionalField = {}};
+        }
         if (verb == u"space new") {
             return {.valued = {},
                 .flags = {QStringLiteral("temporary")},
@@ -400,7 +407,7 @@ bool isAgentCommand(const QStringList &arguments)
     static const QSet<QString> verbs {QStringLiteral("spaces"), QStringLiteral("tabs"),
         QStringLiteral("open"), QStringLiteral("close"), QStringLiteral("space"),
         QStringLiteral("look"), QStringLiteral("read"), QStringLiteral("do"),
-        QStringLiteral("shot"), QStringLiteral("eval")};
+        QStringLiteral("shot"), QStringLiteral("eval"), QStringLiteral("console")};
     return arguments.size() > 1 && verbs.contains(arguments.at(1));
 }
 
@@ -471,6 +478,18 @@ AgentCommand readAgentCommand(const QStringList &arguments, const QString &defau
                 return command;
             }
             request.insert(option, milliseconds);
+        } else if (option == u"since") {
+            bool number = false;
+            const auto cursor = value.toULongLong(&number);
+            if (!number) {
+                command.error = QStringLiteral("--since is the cursor a `console` answered.");
+                return command;
+            }
+            request.insert(option, static_cast<double>(cursor));
+        } else if (option == u"level" && value != u"error" && value != u"warning"
+            && value != u"all") {
+            command.error = QStringLiteral("--level is error, warning or all.");
+            return command;
         } else {
             request.insert(option, value);
         }
@@ -509,6 +528,34 @@ AgentCommand readAgentCommand(const QStringList &arguments, const QString &defau
     command.request = request;
     return command;
 }
+
+namespace {
+
+    // One message a line: its level, where it was logged, and what it said,
+    // with its own line breaks written out so each stays one line. The last
+    // line is the cursor to pass as `--since` next time.
+    QString formatConsole(const QJsonObject &answer)
+    {
+        QString text;
+        if (answer.value(QStringLiteral("truncated")).toBool()) {
+            text += QStringLiteral("truncated\tolder messages were dropped before this call\n");
+        }
+        for (const auto &value : answer.value(QStringLiteral("messages")).toArray()) {
+            const auto message = value.toObject();
+            auto said = message.value(QStringLiteral("message")).toString();
+            said.replace(u'\\', QStringLiteral("\\\\")).replace(u'\n', QStringLiteral("\\n"));
+            const auto line = message.value(QStringLiteral("line")).toInt();
+            const auto source = message.value(QStringLiteral("source")).toString();
+            text += message.value(QStringLiteral("level")).toString() + u'\t'
+                + (line > 0 ? source + u':' + QString::number(line) : source) + u'\t' + said
+                + u'\n';
+        }
+        text += QStringLiteral("cursor\t%1\n")
+                    .arg(static_cast<quint64>(answer.value(QStringLiteral("cursor")).toDouble()));
+        return text;
+    }
+
+} // namespace
 
 QString formatAgentAnswer(const QString &verb, const QJsonObject &answer)
 {
@@ -573,6 +620,9 @@ QString formatAgentAnswer(const QString &verb, const QJsonObject &answer)
     }
     if (verb == u"shot") {
         return line({answer.value(QStringLiteral("path")).toString()});
+    }
+    if (verb == u"console") {
+        return formatConsole(answer);
     }
     if (verb == u"eval") {
         const auto value = answer.value(QStringLiteral("value"));

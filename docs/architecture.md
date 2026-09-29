@@ -344,6 +344,20 @@ page's own script cannot see it, and installs it again in every document it find
 - `eval` answers the JSON value of an expression run in the application world, waiting up to 30 s
   for a promise.
 
+`console` follows the same rules, Allow agents and an Agent Space's tab, but no page answers it. The
+adapter reports each line a page writes to its console through `pageConsoleMessage`, with its level,
+source, line and the document that wrote it, after it has read its own markers and the reports
+Omaweb's scripts send it, which never leave the adapter. The page area passes a line on to
+`AgentControl` only for an Agent tab, and `AgentConsole` keeps a tab's lines for the document on
+show: a new document starts the tab's buffer again. The page area names each document by its engine
+as well as by the engine's own count, since a tab whose page is built again, as one in a Space not
+on show is when it is given an address, counts its documents from the start. A tab keeps its newest
+500 lines, each cut to 2,000 characters, in memory only, and loses them when it stops being an Agent
+tab or Allow agents goes off. Every kept line is numbered, and an answer's cursor is the newest
+number the tab holds at any level, so `--since` with it answers only what was logged after, and says
+so when the buffer had to drop lines newer than that. A tab becomes an Agent tab when an Agent opens
+its address or reads its console, so what a page says before then is not kept.
+
 Input is Qt events sent to the item QtWebEngine draws the page in, which a page sees as trusted
 (#376). Keys go to whatever the page has focused, and `fill` focuses its field from the page, so
 typing never moves Qt's focus. A press does: the delegate calls `forceActiveFocus()`. `QtAgentInput`

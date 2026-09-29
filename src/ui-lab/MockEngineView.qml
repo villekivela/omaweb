@@ -356,6 +356,8 @@ Rectangle {
     // them, on the next turn as the engine's own answer comes. The requests
     // are kept so a test can say which reached this page.
     signal agentVerbAnswered(int requestId, var answer)
+    signal pageConsoleMessage(int level, string message, int lineNumber, string sourceId,
+                              int document)
     property bool pageTakesFocus: true
     property int agentNextLabel: 1
     property int agentCancels: 0

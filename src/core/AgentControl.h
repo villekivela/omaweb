@@ -1,5 +1,6 @@
 #pragma once
 
+#include "AgentConsole.h"
 #include "TabListModel.h"
 
 #include <QElapsedTimer>
@@ -14,6 +15,7 @@
 #include <QVariantMap>
 
 #include <functional>
+#include <optional>
 
 namespace omaweb {
 
@@ -100,6 +102,14 @@ public:
     // The page's answer to the request `pageRequested` numbered.
     Q_INVOKABLE void answerPage(int requestId, const QVariantMap &answer);
 
+    // A line an Agent tab's page wrote to its console, at the engine's level
+    // (0 info, 1 warning, 2 error), for `console`. `document` changes when the
+    // tab loads another document, or its page is built again. A tab that is not an Agent tab is not
+    // listened to, and a tab's lines are forgotten when it stops being one.
+    // The page area passes only the page's own lines, never Omaweb's reports.
+    Q_INVOKABLE void recordConsoleMessage(const QString &tabId, const QString &document, int level,
+        const QString &message, const QString &source, int line);
+
     QStringList agentTabIds() const;
     // What the interface needs to build an Agent tab's page: `tabId`,
     // `spaceId`, `url`, `zoom` and `muted`. Empty for a tab that is not one.
@@ -143,6 +153,9 @@ private:
     void resolveCurrentTab(Connection &connection) const;
     QJsonObject answerBrowserCommand(const QString &verb, const QString &name,
         Connection &connection, const QJsonObject &request, quint64 socketConnection);
+    QJsonObject pageTab(const Connection &connection, const QJsonObject &request,
+        std::optional<TabState> &tab) const;
+    QJsonObject readConsole(Connection &connection, const QJsonObject &request);
     void askPage(const QString &verb, const QString &name, Connection &connection,
         const QJsonObject &request, const Reply &reply);
     // The verb's own arguments as the page is to get them, or a refusal.
@@ -191,6 +204,7 @@ private:
     QHash<QString, qint64> m_attached;
     QElapsedTimer m_clock;
     QTimer m_idleCheck;
+    AgentConsole m_console;
     int m_attachmentIdleMs = defaultAttachmentIdleMs;
     // The temporary Agent Spaces each socket connection made.
     QHash<quint64, QStringList> m_temporarySpaces;
