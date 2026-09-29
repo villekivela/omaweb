@@ -229,6 +229,8 @@ public slots:
             .agent = QStringLiteral("script"),
             .spaceId = QStringLiteral("errands-space"),
             .space = QStringLiteral("Errands"),
+            .tabId = {},
+            .address = {},
             .verb = QStringLiteral("open"),
             .target = QStringLiteral("https://errands.example/"),
             .outcome = QStringLiteral("refused")});

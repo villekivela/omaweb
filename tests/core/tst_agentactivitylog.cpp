@@ -46,6 +46,16 @@ QJsonObject ask(AgentControl &control, const QString &verb, QJsonObject fields =
     return answered;
 }
 
+AgentActivityLog::Entry looked(qint64 time, const QString &agent)
+{
+    AgentActivityLog::Entry entry;
+    entry.time = time;
+    entry.agent = agent;
+    entry.verb = QStringLiteral("look");
+    entry.outcome = QStringLiteral("ok");
+    return entry;
+}
+
 QByteArray contents(const QString &path)
 {
     QFile file(path);
@@ -192,14 +202,8 @@ void AgentActivityLogTest::forgetsWhatIsOlderThanAWeekAtTheNextStart()
     const auto day = 24LL * 60 * 60 * 1000;
     {
         AgentActivityLog log(data.path());
-        log.record({.time = now - 8 * day,
-            .agent = QStringLiteral("old"),
-            .verb = QStringLiteral("look"),
-            .outcome = QStringLiteral("ok")});
-        log.record({.time = now - 6 * day,
-            .agent = QStringLiteral("recent"),
-            .verb = QStringLiteral("look"),
-            .outcome = QStringLiteral("ok")});
+        log.record(looked(now - 8 * day, QStringLiteral("old")));
+        log.record(looked(now - 6 * day, QStringLiteral("recent")));
     }
     QFile file(QDir(data.path()).filePath(QStringLiteral("agent-activity.jsonl")));
     QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Append));

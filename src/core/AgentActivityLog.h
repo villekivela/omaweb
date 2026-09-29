@@ -32,18 +32,18 @@ public:
     struct Entry {
         // Milliseconds since the epoch.
         qint64 time = 0;
-        QString agent;
-        QString spaceId;
+        QString agent {};
+        QString spaceId {};
         // The Space's name when the verb ran, so a line still reads after the
         // Space is renamed or deleted.
-        QString space;
-        QString tabId;
+        QString space {};
+        QString tabId {};
         // The tab's address when the verb ran.
-        QString address;
-        QString verb;
-        QString target;
+        QString address {};
+        QString verb {};
+        QString target {};
         // `ok`, or the code the verb was refused with.
-        QString outcome;
+        QString outcome {};
     };
 
     // Opens the log in `directory` and removes what is past the retention.

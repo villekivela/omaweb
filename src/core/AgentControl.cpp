@@ -520,12 +520,11 @@ void AgentControl::logActivity(const QString &verb, const QString &name, const Q
         return;
     }
     const auto ok = answer.value(QStringLiteral("ok")).toBool();
-    AgentActivityLog::Entry entry {
-        .agent = name,
-        .verb = verb,
-        .target = activityTarget(verb, request),
-        .outcome = ok ? QStringLiteral("ok") : answer.value(QStringLiteral("code")).toString(),
-    };
+    AgentActivityLog::Entry entry;
+    entry.agent = name;
+    entry.verb = verb;
+    entry.target = activityTarget(verb, request);
+    entry.outcome = ok ? QStringLiteral("ok") : answer.value(QStringLiteral("code")).toString();
     const auto idOf = [](const QJsonValue &value) {
         return value.isObject() ? value.toObject().value(QStringLiteral("id")).toString()
                                 : value.toString();
