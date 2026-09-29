@@ -115,15 +115,14 @@ Item {
     readonly property real restWidth: Math.min(660, restArea.width - 96)
     readonly property real restX: restArea.x + (restArea.width - restWidth) / 2
     readonly property real restY: restArea.y + horizonY - header.height / 2 - panel.border.width
-    // What the page area leaves under the field for the rows and the key
-    // hints, keeping a margin off its bottom edge.
-    readonly property real roomBelowField: restArea.y + restArea.height - restY - header.height
-                                           - footer.height - 2 * panel.border.width - 8 - 24
+    // What the page area leaves under the field for the rows, keeping a
+    // margin off its bottom edge.
+    readonly property real roomBelowField: restArea.y + restArea.height - restY - header.height - 2
+                                           * panel.border.width - 8 - 24
     // How far below the horizon the field ends, which is where the Start page
     // can draw beneath it.
     readonly property real fieldBelowHorizon: header.height / 2 + panel.border.width
-    readonly property real restHeight: header.height + body.height + footer.height + 2
-                                       * panel.border.width
+    readonly property real restHeight: header.height + body.height + 2 * panel.border.width
     NumberAnimation {
         id: arrivalEase
         target: root
@@ -961,58 +960,6 @@ Item {
                         }
                     }
                 }
-            }
-        }
-
-        Item {
-            id: footer
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.bottom: parent.bottom
-            anchors.margins: panel.border.width
-            // Not at rest: the Start page is the field over the road, and its
-            // own line sits where the keys would.
-            visible: !root.shownResting
-            height: visible ? 26 : 0
-
-            Rectangle {
-                anchors.left: parent.left
-                anchors.right: parent.right
-                anchors.top: parent.top
-                height: 1
-                color: root.colors.separator
-            }
-
-            Row {
-                anchors.left: parent.left
-                anchors.leftMargin: 14
-                anchors.verticalCenter: parent.verticalCenter
-                spacing: 14
-
-                KeyHint {
-                    colors: root.colors
-                    text: "↑↓ SELECT"
-                }
-
-                KeyHint {
-                    colors: root.colors
-                    text: "⏎ RUN"
-                }
-
-                KeyHint {
-                    colors: root.colors
-                    visible: root.closeable
-                    text: "ESC CLOSE"
-                }
-            }
-
-            KeyHint {
-                anchors.right: parent.right
-                anchors.rightMargin: 14
-                anchors.verticalCenter: parent.verticalCenter
-                colors: root.colors
-                visible: root.commandScope
-                text: root.rows.length + " ACTIONS"
             }
         }
     }
