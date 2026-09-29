@@ -104,19 +104,61 @@ Item {
         driving: root.driving || (root.drove && !root.open)
     }
 
-    // The Shortcut sheet is summoned, not shown, so the page names the key.
-    KeyHint {
+    // The Shortcut sheet is summoned, not shown, so the page names the key:
+    // a keycap in the accent and the word beside it, on a plate of the road's
+    // dark so it reads over the lit horizon as well as the ground.
+    Rectangle {
+        id: hint
         objectName: "startPageHint"
+
+        readonly property color keyColour: root.roadEnabled ? road.glow : root.colors.accent
+        readonly property color wordColour: root.roadEnabled ? road.light : root.colors.text
+
         anchors.horizontalCenter: parent.horizontalCenter
         y: root.horizonY + root.fieldBelowHorizon + Style.spacing.xl
         visible: !root.driving
-        colors: root.colors
-        // Read against the road, which is night in every theme.
-        color: root.roadEnabled ? road.light : root.colors.mutedText
-        opacity: 0.6
-        text: "?  SHORTCUTS"
-        Accessible.ignored: false
+        width: hintRow.implicitWidth + Style.spacing.lg * 2
+        height: hintRow.implicitHeight + Style.spacing.sm * 2
+        radius: 3
+        color: Qt.rgba(0, 0, 0, root.roadEnabled ? 0.45 : 0)
         Accessible.role: Accessible.StaticText
         Accessible.name: "Question mark shows the keyboard shortcuts"
+
+        Row {
+            id: hintRow
+            anchors.centerIn: parent
+            spacing: Style.spacing.md
+
+            Rectangle {
+                width: Math.max(height, keyText.implicitWidth + Style.spacing.md)
+                height: keyText.implicitHeight + Style.spacing.xs * 2
+                anchors.verticalCenter: parent.verticalCenter
+                radius: 3
+                color: "transparent"
+                border.width: 1
+                border.color: hint.keyColour
+
+                Text {
+                    id: keyText
+                    anchors.centerIn: parent
+                    text: "?"
+                    color: hint.keyColour
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.body
+                    font.bold: true
+                    Accessible.ignored: true
+                }
+            }
+
+            Text {
+                anchors.verticalCenter: parent.verticalCenter
+                text: "shortcuts"
+                color: hint.wordColour
+                opacity: 0.85
+                font.family: Style.font.family
+                font.pixelSize: Style.font.body
+                Accessible.ignored: true
+            }
+        }
     }
 }

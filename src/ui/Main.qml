@@ -4260,6 +4260,10 @@ ApplicationWindow {
         // Nor does it take the pointer as it leaves: the page it gives way to
         // has the first click.
         enabled: window.omnibarShown && !window.shortcutsOpen && !window.startPageDriving
+        // The Omnibar is drawn over the whole window and the Shortcut sheet
+        // over the page area, so at rest the Omnibar would stand on the sheet.
+        // It stays open underneath, keeping what is typed.
+        opacity: window.shortcutsOpen && commandPanel.shownResting ? 0 : 1
         resting: window.startPageShown && !window.omnibarOpen
         restArea: Qt.rect(chromeRow.seam + startPage.x, startPage.y, startPage.width,
                           startPage.height)

@@ -6511,7 +6511,9 @@ TestCase {
         const input = findChild(window.contentItem, "omnibarInput");
         const homeSpaceId = browser.activeSpaceId;
         const restingSpaceId = enterRestingSpace("Resting sheet");
-        verify(findChild(window.contentItem, "startPageHint").visible);
+        tryVerify(function () {
+            return findChild(window.contentItem, "startPageHint").visible;
+        });
 
         keyClick("?");
         tryVerify(function () {
@@ -6520,6 +6522,10 @@ TestCase {
         compare(input.text, "");
         compare(findChild(sheet, "shortcutsBackdrop").source, startPage);
         verify(startPage.open);
+        // The sheet covers the Omnibar, which waits under it.
+        const panel = findChild(window.contentItem, "commandPanel");
+        compare(panel.opacity, 0);
+        verify(panel.open);
 
         keyClick(Qt.Key_Escape);
         tryVerify(function () {
@@ -6529,6 +6535,7 @@ TestCase {
             return input.activeFocus;
         });
         verify(startPage.open);
+        compare(panel.opacity, 1);
 
         leaveSpace(homeSpaceId, restingSpaceId, "Resting sheet");
     }
