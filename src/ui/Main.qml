@@ -2369,15 +2369,20 @@ ApplicationWindow {
     // place. The road runs until the tab's page first paints.
     function commitFromStartPage(text) {
         const newTab = window.startPageSummoned;
-        window.windowBrowser.openInput(text, newTab);
-        window.startPageSummoned = false;
         window.windowBrowser.cancelHistorySuggestions();
         if (!window.startPageRoad) {
+            window.windowBrowser.openInput(text, newTab);
+            window.startPageSummoned = false;
             window.focusPage();
             return;
         }
-        window.startPageDriveTabId = window.windowBrowser.activeTabId;
+        // The drive starts before the address is handed over: loading it ends
+        // the blank tab and the summons, and with neither the Start page
+        // would close for the moment before the drive holds it open.
         window.startPageDriving = true;
+        window.windowBrowser.openInput(text, newTab);
+        window.startPageSummoned = false;
+        window.startPageDriveTabId = window.windowBrowser.activeTabId;
         startPageDriveLimitTimer.restart();
     }
 

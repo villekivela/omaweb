@@ -6393,6 +6393,7 @@ TestCase {
     // After a commit the road drives until the page first paints, for two
     // seconds at most, and a failure ends it at once.
     function test_theRoadDrivesUntilFirstPaintAndStopsOnAnError() {
+        const panel = findChild(window.contentItem, "commandPanel");
         const engineLoader = findChild(window.contentItem, "engineLoader");
         const startPage = findChild(window.contentItem, "startPage");
         const road = findChild(window.contentItem, "nightRoad");
@@ -6401,7 +6402,16 @@ TestCase {
         const restingSpaceId = enterRestingSpace("Resting drive");
 
         input.text = "https://slow-paint.example/one";
+        // The Omnibar stays open from Return to the drive: it never closes
+        // and opens again in between.
+        const openings = [];
+        const noteOpening = function () {
+            openings.push(panel.open);
+        };
+        panel.openChanged.connect(noteOpening);
         keyClick(Qt.Key_Return);
+        panel.openChanged.disconnect(noteOpening);
+        compare(openings.length, 0);
         verify(window.startPageDriving);
         verify(road.driving);
         tryVerify(function () {
