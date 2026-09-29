@@ -490,6 +490,18 @@ QtObject {
                                              }
                                          })
 
+    // The Material Symbol each group's rows lead with in the Omnibar: one per
+    // group rather than one per command, so the picture says where a command
+    // belongs and the title says what it does.
+    readonly property var groupSymbols: ({
+                                             "navigation": "explore",
+                                             "tabs": "tab",
+                                             "page": "article",
+                                             "spaces": "workspaces",
+                                             "interface": "web_asset",
+                                             "developer": "code"
+                                         })
+
     readonly property var pageDescriptions: ({
                                                  "scroll-down": "Scroll down",
                                                  "scroll-up": "Scroll up",
@@ -586,7 +598,8 @@ QtObject {
 
     // Where the Omnibar can switch to without opening anything: every open
     // tab but the one on show, then every Space but the active one. A Private
-    // window has no Spaces to offer.
+    // window has no Spaces to offer. Neither row carries its number keys: the
+    // sidebar and the Shortcut sheet teach those.
     function destinations() {
         const list = [];
         const tabs = browser.tabs;
@@ -601,10 +614,7 @@ QtObject {
                           kind: "tab",
                           title: tabs.data(index, Qt.UserRole + 4),
                           url: String(tabs.data(index, Qt.UserRole + 3)),
-                          keys: tabs.data(index, Qt.UserRole + 5) ? "pinned" : (row < 9
-                                                                                ? keymap.displayFor(
-                                                                                      String(row
-                                                                                             + 1)) : ""),
+                          icon: String(tabs.data(index, Qt.UserRole + 8)),
                           enabled: true,
                           command: "activate-tab",
                           argument: tabs.data(index, Qt.UserRole + 1)
@@ -621,7 +631,7 @@ QtObject {
                 list.push({
                               kind: "space",
                               title: spaces.data(index, Qt.UserRole + 2),
-                              keys: row < 9 ? keymap.displayFor("Primary+" + (row + 1)) : "",
+                              color: spaces.data(index, Qt.UserRole + 3),
                               enabled: true,
                               command: "switch-space",
                               argument: spaces.data(index, Qt.UserRole + 1)
@@ -629,6 +639,22 @@ QtObject {
             }
         }
         return list;
+    }
+
+    // The icon each open tab shows, by host, for rows that name a site
+    // without being its tab. It reads only the window's own tabs, so a row
+    // never shows artwork another Space or window has.
+    function siteIcons() {
+        const icons = {};
+        const tabs = browser.tabs;
+        for (let row = 0; row < tabs.rowCount(); ++row) {
+            const index = tabs.index(row, 0);
+            const icon = String(tabs.data(index, Qt.UserRole + 8) || "");
+            const site = host(String(tabs.data(index, Qt.UserRole + 3)));
+            if (icon.length > 0 && site.length > 0 && icons[site] === undefined)
+                icons[site] = icon;
+        }
+        return icons;
     }
 
     function invoke(action) {
