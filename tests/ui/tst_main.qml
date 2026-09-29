@@ -1296,6 +1296,45 @@ TestCase {
         verifyApplicationWindowFlags(window);
     }
 
+    // `omaweb commands` and `omaweb run` reach the registry through this. The
+    // core has already refused what is not public, and the window refuses it
+    // again, answers from `available`, and says whether the command ran.
+    function test_answersTheAgentSocketsCommands() {
+        const offered = ["toggle-sidebar", "find-next", "not-a-command"];
+        const listed = window.commands.answerAgent({
+                                                       verb: "commands",
+                                                       commands: offered
+                                                   });
+        verify(listed.ok);
+        const names = listed.commands.map(function (row) {
+            return row.command;
+        });
+        verify(names.indexOf("toggle-sidebar") >= 0);
+        verify(names.indexOf("not-a-command") < 0);
+        compare(names.indexOf("find-next") >= 0, window.commands.available("find-next"));
+        compare(listed.commands[0].title, "Hide or show the sidebar");
+
+        const collapsed = window.sidebarCollapsed;
+        verify(window.commands.answerAgent({
+                                               verb: "run",
+                                               commands: offered,
+                                               command: "toggle-sidebar",
+                                               argument: -1
+                                           }).ok);
+        compare(window.sidebarCollapsed, !collapsed);
+        window.commands.run("toggle-sidebar", -1);
+        compare(window.sidebarCollapsed, collapsed);
+
+        const kept = window.commands.answerAgent({
+                                                     verb: "run",
+                                                     commands: offered,
+                                                     command: "private-window",
+                                                     argument: -1
+                                                 });
+        verify(!kept.ok);
+        compare(kept.code, "refused");
+    }
+
     function test_sidebarHasNoNewTabButton() {
         const newTabButton = findChild(window.contentItem, "newTabButton");
         verify(newTabButton === null);
@@ -4850,10 +4889,11 @@ TestCase {
         verify(browser.switchSpace(workSpaceId));
         compare(browser.activeTabId, tabId);
 
-        // The page did not come with the tab, so neither did its artwork.
+        // The page did not come with the tab, so neither did its artwork: the
+        // tab asks its new Space's store, which never saw this site.
         verify(engineLoader.engines[tabId] === undefined);
         tryVerify(function () {
-            return tabIcon() === "";
+            return tabIcon() === String(browser.storedFavicon("https://moved.example/page"));
         });
 
         // The tab is served by a new engine, and that engine still reports to
@@ -5637,6 +5677,38 @@ TestCase {
         return rows.itemAtIndex(index);
     }
 
+    // A site the Space loaded keeps its favicon after its tab closes, and a
+    // history row for it draws that icon with no tab of the site open.
+    function test_omnibarHistoryRowDrawsTheSpacesStoredFavicon() {
+        const startTabId = browser.activeTabId;
+        openPageInNewTab("https://stored-icon.example/page");
+        const storedTabId = browser.activeTabId;
+        browser.reportTabPageState(storedTabId, "https://stored-icon.example/page",
+                                   "Stored icon page", "image://omawebtesticon/#d04040", false,
+                                   false);
+        browser.recordVisit("https://stored-icon.example/page", "Stored icon page");
+        const address = browser.storedFavicon("https://stored-icon.example/page");
+        browser.closeTab(storedTabId);
+        browser.activateTab(startTabId);
+
+        const panel = findChild(window.contentItem, "omnibar");
+        const input = findChild(window.contentItem, "omnibarInput");
+        const rows = findChild(window.contentItem, "omnibarRowList");
+        window.openOmnibar(false);
+        input.text = "stored-icon";
+        tryVerify(function () {
+            return omnibarRowsOf(panel, "history").length === 1;
+        });
+        compare(omnibarRowsOf(panel, "tab").length, 0);
+        const row = omnibarRowItem(rows, panel.rows.indexOf(omnibarRowsOf(panel, "history")[0]));
+        const tile = findChild(row, "omnibarRowTile");
+        compare(tile.iconUrl, address);
+        tryVerify(function () {
+            return tile.showsArtwork;
+        });
+        window.closeOmnibar();
+    }
+
     // A row leads with a picture of what it names and ends with what
     // committing it does, bright only on the row Return would commit.
     function test_omnibarRowsLeadWithAPictureAndEndWithTheirAction() {
@@ -5685,8 +5757,13 @@ TestCase {
         compare(findChild(row, "omnibarRowHost").text, "edge-history.example");
         compare(findChild(row, "omnibarRowTile").siteUrl.toString(),
                 "https://www.edge-history.example/deep/page");
-        // No tab of this site is open, so the tile has no artwork to draw.
-        compare(findChild(row, "omnibarRowTile").iconUrl.toString(), "");
+        // No tab of this site is open and the Space stored no icon for it, so
+        // the tile asks the store and draws the host code.
+        tile = findChild(row, "omnibarRowTile");
+        compare(tile.iconUrl, browser.storedFavicon("https://www.edge-history.example/deep/page"));
+        wait(50);
+        compare(tile.showsArtwork, false);
+        compare(tile.code, "ED");
 
         // A history result on a site with an open tab takes that tab's icon.
         browser.recordVisit("https://edge-tab.example/older", "Edge tab older page");

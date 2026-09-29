@@ -6,6 +6,7 @@
 #include "SpaceListModel.h"
 #include "SpaceStorage.h"
 #include "SqliteSessionStore.h"
+#include "StoredFavicons.h"
 #include "TabListModel.h"
 #include "WindowManager.h"
 
@@ -71,6 +72,48 @@ QStringList entriesUnder(const QString &path)
     return entries;
 }
 
+// What the interface would draw from a stored-favicon address, once the
+// window's store has answered.
+QByteArray drawnFavicon(const QUrl &address)
+{
+    auto answered = std::make_shared<bool>(false);
+    auto found = std::make_shared<QByteArray>();
+    omaweb::storedfavicons::find(
+        address.toString(QUrl::RemoveScheme | QUrl::RemoveAuthority).mid(1),
+        [answered, found](const QByteArray &image) {
+            *found = image;
+            *answered = true;
+        });
+    if (!QTest::qWaitFor([answered] { return *answered; })) {
+        return QByteArrayLiteral("no answer");
+    }
+    return *found;
+}
+
+QUrl tabIcon(BrowserController &controller, const QString &tabId)
+{
+    auto *tabs = controller.tabs();
+    for (int row = 0; row < tabs->rowCount(); ++row) {
+        const auto index = tabs->index(row, 0);
+        if (tabs->data(index, TabListModel::IdRole).toString() == tabId) {
+            return tabs->data(index, TabListModel::IconUrlRole).toUrl();
+        }
+    }
+    return {};
+}
+
+// Stands in for the interface's reader: the bytes an icon reads as are its
+// address, answered later on the window's thread as the real reader does.
+void readIconsAsTheirAddress()
+{
+    omaweb::storedfavicons::setReader(
+        [](const QUrl &iconUrl, QObject *context, omaweb::storedfavicons::Answer answer) {
+            QMetaObject::invokeMethod(
+                context, [iconUrl, answer] { answer(iconUrl.toString().toUtf8()); },
+                Qt::QueuedConnection);
+        });
+}
+
 } // namespace
 
 class BrowserControllerTest final : public QObject {
@@ -105,6 +148,11 @@ private slots:
     void dropsReportedPageStateWhenMovingATabBetweenSpaces();
     void exposesOnlyCombinedPageStateReportsToQml();
     void dropsThePreviousHostsIconFromPageReports();
+    void restoresATabsStoredFaviconBeforeItsPageLoads();
+    void keepsTheFaviconAPageReportsForTheNextStart();
+    void aPrivateWindowKeepsFaviconsToItself();
+    void deletingASitesHistoryKeepsTheFaviconATabShows();
+    void cleanup();
     void keepsRendererFailureOnAffectedTab();
     void keepsMutingDecisionWhileSoundComesAndGoes();
     void stepsZoomAlongOneLadderPerTab();
@@ -820,7 +868,10 @@ void BrowserControllerTest::dropsReportedPageStateWhenMovingATabBetweenSpaces()
         if (tabs->data(index, TabListModel::IdRole).toString() != tabId) {
             continue;
         }
-        QVERIFY(tabs->data(index, TabListModel::IconUrlRole).toUrl().isEmpty());
+        // The page's own icon stayed behind; the tab shows what its new
+        // Space stored for the address.
+        QCOMPARE(tabs->data(index, TabListModel::IconUrlRole).toUrl(),
+            controller.storedFavicon(QUrl(QStringLiteral("https://example.com"))));
         QVERIFY(!tabs->data(index, TabListModel::AudibleRole).toBool());
         return;
     }
@@ -854,10 +905,145 @@ void BrowserControllerTest::dropsThePreviousHostsIconFromPageReports()
     const auto index = controller.tabs()->index(0, 0);
     QCOMPARE(controller.tabs()->data(index, TabListModel::IconUrlRole).toUrl(), firstIcon);
 
-    controller.reportTabPageState(tabId, QUrl(QStringLiteral("https://second.example/page")),
-        QStringLiteral("Second"), firstIcon, false, false);
+    const QUrl secondAddress(QStringLiteral("https://second.example/page"));
+    controller.reportTabPageState(
+        tabId, secondAddress, QStringLiteral("Second"), firstIcon, false, false);
 
-    QVERIFY(controller.tabs()->data(index, TabListModel::IconUrlRole).toUrl().isEmpty());
+    QCOMPARE(controller.tabs()->data(index, TabListModel::IconUrlRole).toUrl(),
+        controller.storedFavicon(secondAddress));
+}
+
+void BrowserControllerTest::cleanup() { omaweb::storedfavicons::setReader({}); }
+
+// A restored tab shows the icon its Space stored for its address, or for its
+// site, before any engine has loaded the page. A site the Space never loaded
+// has nothing to show, and the interface draws its host code.
+void BrowserControllerTest::restoresATabsStoredFaviconBeforeItsPageLoads()
+{
+    SessionFixture fixture(SessionSpec {
+        .spaces = {SpaceSpec {
+            .id = QStringLiteral("personal"),
+            .name = QStringLiteral("Personal"),
+            .tabs = {TabSpec {
+                         .id = QStringLiteral("page"),
+                         .url = QUrl(QStringLiteral("https://a.example/page")),
+                     },
+                TabSpec {
+                    .id = QStringLiteral("site"),
+                    .url = QUrl(QStringLiteral("https://a.example/elsewhere")),
+                },
+                TabSpec {
+                    .id = QStringLiteral("unseen"),
+                    .url = QUrl(QStringLiteral("https://b.example/")),
+                }},
+            .activeTabId = QStringLiteral("page"),
+        }},
+    });
+    QVERIFY_SESSION_READY(fixture);
+    {
+        omaweb::SqliteSessionStore store(fixture.dataRoot());
+        QVERIFY(store.open());
+        QVERIFY(store.recordFavicon(QStringLiteral("personal"),
+            QUrl(QStringLiteral("https://a.example/page")), QByteArrayLiteral("a icon")));
+    }
+
+    const auto controller = fixture.createController();
+    const auto page = tabIcon(*controller, QStringLiteral("page"));
+    QCOMPARE(page.scheme(), QStringLiteral("image"));
+    QCOMPARE(page.host(), QString::fromLatin1(omaweb::storedfavicons::providerId));
+    QCOMPARE(drawnFavicon(page), QByteArrayLiteral("a icon"));
+    QCOMPARE(
+        drawnFavicon(tabIcon(*controller, QStringLiteral("site"))), QByteArrayLiteral("a icon"));
+    QCOMPARE(drawnFavicon(tabIcon(*controller, QStringLiteral("unseen"))), QByteArray());
+}
+
+// The icon a page reports is read and kept in its Space, and the next start
+// shows it on the tab before the page loads again.
+void BrowserControllerTest::keepsTheFaviconAPageReportsForTheNextStart()
+{
+    readIconsAsTheirAddress();
+    QTemporaryDir root;
+    const QUrl address(QStringLiteral("https://kept.example/page"));
+    const QUrl icon(QStringLiteral("image://favicon/https://kept.example/favicon.ico"));
+    {
+        BrowserController controller(SpaceStorage(root.path(), QStringLiteral("test")));
+        controller.openInput(address.toString(), false);
+        const auto tabId = controller.activeTabId();
+        controller.reportTabPageState(tabId, address, QStringLiteral("Kept"), icon, false, false);
+        QCOMPARE(tabIcon(controller, tabId), icon);
+        QTRY_COMPARE(drawnFavicon(controller.storedFavicon(address)), icon.toString().toUtf8());
+    }
+
+    BrowserController restarted(SpaceStorage(root.path(), QStringLiteral("test")));
+    QCOMPARE(drawnFavicon(tabIcon(restarted, restarted.activeTabId())), icon.toString().toUtf8());
+}
+
+// A Private window keeps what its pages showed for itself: it is never handed
+// a Space's icons, and what it keeps never reaches a Space or another window.
+void BrowserControllerTest::aPrivateWindowKeepsFaviconsToItself()
+{
+    readIconsAsTheirAddress();
+    QTemporaryDir root;
+    const QUrl address(QStringLiteral("https://both.example/page"));
+    BrowserController spaces(SpaceStorage(root.path(), QStringLiteral("test")));
+    spaces.openInput(address.toString(), false);
+    spaces.reportTabPageState(spaces.activeTabId(), address, QStringLiteral("Both"),
+        QUrl(QStringLiteral("image://favicon/space")), false, false);
+    QTRY_COMPARE(
+        drawnFavicon(spaces.storedFavicon(address)), QByteArrayLiteral("image://favicon/space"));
+    const auto spaceFiles = entriesUnder(root.path());
+
+    WindowManager windows;
+    auto *first = windows.createPrivateWindow();
+    auto *second = windows.createPrivateWindow();
+    QVERIFY(first && second);
+    QCOMPARE(drawnFavicon(first->storedFavicon(address)), QByteArray());
+
+    first->openInput(address.toString(), false);
+    first->reportTabPageState(first->activeTabId(), address, QStringLiteral("Both"),
+        QUrl(QStringLiteral("image://favicon/private")), false, false);
+    QTRY_COMPARE(
+        drawnFavicon(first->storedFavicon(address)), QByteArrayLiteral("image://favicon/private"));
+    QCOMPARE(drawnFavicon(second->storedFavicon(address)), QByteArray());
+    QCOMPARE(
+        drawnFavicon(spaces.storedFavicon(address)), QByteArrayLiteral("image://favicon/space"));
+    QCOMPARE(entriesUnder(root.path()), spaceFiles);
+
+    const auto closed = first->storedFavicon(address);
+    windows.releasePrivateWindow(first);
+    QCOMPARE(drawnFavicon(closed), QByteArray());
+}
+
+// Deleting a site's History takes the icons of its pages with it. The one a
+// tab in the sidebar shows stays, even when the tab was changed a moment
+// before and its write had yet to land.
+void BrowserControllerTest::deletingASitesHistoryKeepsTheFaviconATabShows()
+{
+    readIconsAsTheirAddress();
+    QTemporaryDir root;
+    BrowserController controller(SpaceStorage(root.path(), QStringLiteral("test")));
+    const QUrl shown(QStringLiteral("https://site.example/shown"));
+    const QUrl gone(QStringLiteral("https://site.example/gone"));
+    const auto load = [&controller](const QUrl &address) {
+        controller.openInput(address.toString(), true);
+        const auto tabId = controller.activeTabId();
+        controller.reportTabPageState(tabId, address, address.path(), {}, true, false);
+        controller.reportTabPageState(tabId, address, address.path(),
+            QUrl(QStringLiteral("image://favicon") + address.path()), false, false);
+        return tabId;
+    };
+    load(shown);
+    const auto goneTab = load(gone);
+    QTRY_COMPARE(
+        drawnFavicon(controller.storedFavicon(gone)), QByteArrayLiteral("image://favicon/gone"));
+    controller.closeTab(goneTab);
+
+    QVERIFY(controller.deleteHistoryOrigin(gone));
+    // The page's own icon is gone, so the site's remaining one stands in.
+    QCOMPARE(
+        drawnFavicon(controller.storedFavicon(gone)), QByteArrayLiteral("image://favicon/shown"));
+    QCOMPARE(
+        drawnFavicon(controller.storedFavicon(shown)), QByteArrayLiteral("image://favicon/shown"));
 }
 
 // Sound is the page's to report and muting is the reader's to decide, so the

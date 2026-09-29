@@ -128,6 +128,12 @@ reports the gap and remains experimental rather than imitating behavior it canno
   choose whether favicon artwork is recoloured to the host-derived tint. With favicons off, the host
   code is drawn in the colour of the site's own favicon, and in a neutral colour where the favicon
   has none to give. Pinned-tab icons are larger than ordinary-tab icons.
+- A tab's favicon is the icon its loaded page reports. Each Space stores the icon each page showed
+  in its own database, by address and site, and a tab whose page has not loaded, after a restart, in
+  a new window or before its page reports an icon, shows the stored icon for its address, or else
+  the newest one for its site. The lookup runs off the interface thread, and the host code shows
+  while it is pending. A site the Space has never loaded keeps its host code. A Private window keeps
+  its pages' icons in memory for that window alone and never reads a Space's.
 - Browser chrome does not occupy a toolbar above the webpage. The webpage uses the full height
   beside the sidebar. While the sidebar is hidden, the navigation controls, the sidebar toggle and
   the command-scope trigger float over the bottom-left of the page instead of taking a band from it.
@@ -190,10 +196,11 @@ reports the gap and remains experimental rather than imitating behavior it canno
 - Each Omnibar row leads with a picture of what it names. A tab row draws the site's tile as the
   sidebar does, following the Use favicons and tint settings, so with favicons off it is the host
   code in the site's tint. A history row draws the same tile for its page and a keyword row for its
-  engine's site. They take the favicon of an open tab on the same site in the same window, and the
-  host code and tint while none is open; they never show another Space's or window's artwork. A
-  Space row shows the Space's colour, and a command row its group's symbol. Omaweb never fetches an
-  icon from the network to fill a row.
+  engine's site. They take the favicon of an open tab on the same site in the same window, and
+  otherwise the one the Space stored for the page or its site, as a restored tab does, with the host
+  code and tint for a site the Space never loaded. They never show another Space's or window's
+  artwork. A Space row shows the Space's colour, and a command row its group's symbol. Omaweb never
+  fetches an icon from the network to fill a row.
 - A tab or history row reads as the title, then the host in the muted colour; a history row gives
   its full address to a screen reader as the row's description. At its right edge a row says what
   committing it does, ending in `→`: `switch tab`, `switch space`, `open`, or a keyword followed by
@@ -300,8 +307,9 @@ reports the gap and remains experimental rather than imitating behavior it canno
 
 - History is a browser-owned full-page sheet using no web engine. Over a live page it blurs that
   page; in a Space at rest it uses the native window backdrop. It searches only the active Space and
-  deletes one visit, one origin, a time range, or the entire Space history. Private windows record
-  none.
+  deletes one visit, one origin, a time range, or the entire Space history. Deleting history also
+  deletes the stored favicons of the pages it names, except one a tab in that Space's sidebar still
+  shows. Private windows record none.
 - Settings clears selected cookies, storage, cache, permissions, and history for one Space and time
   range by default. Clearing every Space is a separate explicit choice. Deleting a Space removes all
   of its browser-managed data after confirmation.

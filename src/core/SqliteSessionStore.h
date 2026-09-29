@@ -51,6 +51,10 @@ public:
     bool deleteHistoryVisit(const QString &spaceId, qint64 id) override;
     bool deleteHistoryOrigin(const QString &spaceId, const QString &origin) override;
     bool deleteHistorySince(const QString &spaceId, qint64 since) override;
+    bool recordFavicon(
+        const QString &spaceId, const QUrl &pageUrl, const QByteArray &image) override;
+    void findFavicon(const QString &spaceId, const QUrl &pageUrl,
+        std::function<void(const QByteArray &image)> answer) const override;
     bool clearPermissionsSince(const QString &spaceId, qint64 since) override;
     int permissionDecision(
         const QString &spaceId, const QString &origin, const QString &permission) const override;

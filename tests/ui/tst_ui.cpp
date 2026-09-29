@@ -4,6 +4,7 @@
 #include "EngineCapabilities.h"
 #include "PageImages.h"
 #include "FaviconTint.h"
+#include "StoredFaviconProvider.h"
 #include "ExternalProtocolHandler.h"
 #include "InputMethod.h"
 #include "KeyboardNavigation.h"
@@ -32,6 +33,7 @@
 #include <QDir>
 #include <QFile>
 #include <QFontDatabase>
+#include <QQuickImageProvider>
 #include <QQuickStyle>
 #include <QQmlEngine>
 #include <QTemporaryDir>
@@ -71,6 +73,26 @@ public:
 
 signals:
     void changed();
+};
+
+// A page's icon as a web engine's icon store hands it over: an image provider
+// the QML engine already has. The id names the icon's colour.
+class ColourIcons final : public QQuickImageProvider {
+public:
+    ColourIcons()
+        : QQuickImageProvider(QQuickImageProvider::Image)
+    {
+    }
+
+    QImage requestImage(const QString &id, QSize *size, const QSize &) override
+    {
+        QImage icon(16, 16, QImage::Format_ARGB32);
+        icon.fill(QColor(id));
+        if (size) {
+            *size = icon.size();
+        }
+        return icon;
+    }
 };
 
 // What a test needs to read an image the browser wrote: its size, one pixel,
@@ -157,6 +179,8 @@ public slots:
         // test host has to carry the version the browser does.
         QCoreApplication::setApplicationVersion(QStringLiteral(OMAWEB_VERSION));
         omaweb::quickshell::installShim(*engine);
+        omaweb::installStoredFavicons(*engine);
+        engine->addImageProvider(QStringLiteral("omawebtesticon"), new ColourIcons);
         omaweb::registerBrowserController();
         omaweb::registerDownloads();
         omaweb::registerFaviconTint();

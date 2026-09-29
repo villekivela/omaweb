@@ -269,6 +269,79 @@ bool AgentControl::pageVerb(const QString &verb)
         || verb == u"eval";
 }
 
+// In the order `BrowserCommands.qml` describes them, which is the order
+// `commands` lists them in. A command added there is not public until it is
+// added here, so one that reads a page is never let out by default.
+const QStringList &AgentControl::publicCommands()
+{
+    static const QStringList commands {
+        QStringLiteral("back"),
+        QStringLiteral("forward"),
+        QStringLiteral("reload"),
+        QStringLiteral("reload-bypassing-cache"),
+        QStringLiteral("stop-loading"),
+        QStringLiteral("open-address"),
+        QStringLiteral("command-scope"),
+        QStringLiteral("new-tab"),
+        QStringLiteral("close-tab"),
+        QStringLiteral("reopen-tab"),
+        QStringLiteral("next-tab"),
+        QStringLiteral("previous-tab"),
+        QStringLiteral("select-tab"),
+        QStringLiteral("pin-tab"),
+        QStringLiteral("keep-tab-active"),
+        QStringLiteral("extension-popup"),
+        QStringLiteral("glance-to-tab"),
+        QStringLiteral("duplicate-tab"),
+        QStringLiteral("move-tab-up"),
+        QStringLiteral("move-tab-down"),
+        QStringLiteral("close-other-tabs"),
+        QStringLiteral("close-tabs-below"),
+        QStringLiteral("tab-menu"),
+        QStringLiteral("move-tab"),
+        QStringLiteral("add-split"),
+        QStringLiteral("separate-split"),
+        QStringLiteral("focus-split-partner"),
+        QStringLiteral("next-space"),
+        QStringLiteral("select-space"),
+        QStringLiteral("new-space"),
+        QStringLiteral("toggle-sidebar"),
+        QStringLiteral("widen-sidebar"),
+        QStringLiteral("narrow-sidebar"),
+        QStringLiteral("reset-sidebar"),
+        QStringLiteral("focus-sidebar"),
+        QStringLiteral("focus-page"),
+        QStringLiteral("move-focus-left"),
+        QStringLiteral("move-focus-down"),
+        QStringLiteral("move-focus-up"),
+        QStringLiteral("move-focus-right"),
+        QStringLiteral("copy-address"),
+        QStringLiteral("find"),
+        QStringLiteral("find-next"),
+        QStringLiteral("find-previous"),
+        QStringLiteral("zoom-in"),
+        QStringLiteral("zoom-out"),
+        QStringLiteral("zoom-reset"),
+        QStringLiteral("print"),
+        QStringLiteral("fullscreen"),
+        QStringLiteral("developer-tools"),
+        QStringLiteral("inspect-element"),
+        QStringLiteral("open-page-context-menu"),
+        QStringLiteral("open-file"),
+        QStringLiteral("shortcuts"),
+        QStringLiteral("history"),
+        QStringLiteral("settings"),
+        QStringLiteral("downloads"),
+        QStringLiteral("minimize-window"),
+    };
+    return commands;
+}
+
+bool AgentControl::commandTakesPosition(const QString &command)
+{
+    return command == u"select-tab" || command == u"select-space";
+}
+
 QStringList AgentControl::agentTabIds() const
 {
     auto ids = m_attached.keys();
@@ -391,7 +464,8 @@ QJsonObject AgentControl::gate(const QString &verb) const
         QStringLiteral("open"), QStringLiteral("close"), QStringLiteral("space new"),
         QStringLiteral("space delete"), QStringLiteral("look"), QStringLiteral("read"),
         QStringLiteral("do"), QStringLiteral("shot"), QStringLiteral("eval"),
-        QStringLiteral("console")};
+        QStringLiteral("console"), QStringLiteral("commands"), QStringLiteral("run"),
+        QStringLiteral("space"), QStringLiteral("focus")};
     if (!verbs.contains(verb)) {
         return refusal(
             QStringLiteral("bad-request"), QStringLiteral("Omaweb has no verb \"%1\".").arg(verb));
@@ -481,7 +555,142 @@ QJsonObject AgentControl::answerBrowserCommand(const QString &verb, const QStrin
     if (verb == u"space new") {
         return createSpace(name, connection, request, socketConnection);
     }
-    return deleteSpace(name, connection, request);
+    if (verb == u"space delete") {
+        return deleteSpace(name, connection, request);
+    }
+    if (verb == u"space") {
+        return switchToSpace(request);
+    }
+    if (verb == u"focus") {
+        return focusTab(request);
+    }
+    return askWindow(verb, request);
+}
+
+// The command registry lives in the window, so `commands` and `run` are
+// answered there. What is public is decided here first, so a command outside
+// the list never reaches the window whatever the window would make of it.
+QJsonObject AgentControl::askWindow(const QString &verb, const QJsonObject &request)
+{
+    QVariantMap asked {
+        {QStringLiteral("verb"), verb},
+        {QStringLiteral("commands"), publicCommands()},
+    };
+    if (verb == u"run") {
+        const auto command = request.value(QStringLiteral("command")).toString();
+        if (command.isEmpty()) {
+            return refusal(QStringLiteral("bad-request"), QStringLiteral("Name a command to run."));
+        }
+        if (!publicCommands().contains(command)) {
+            return refusal(QStringLiteral("refused"),
+                QStringLiteral("\"%1\" is not a command Omaweb runs from outside its window. "
+                               "`omaweb commands` lists those it does.")
+                    .arg(command));
+        }
+        const auto given = request.value(QStringLiteral("argument"));
+        auto position = -1;
+        if (commandTakesPosition(command)) {
+            const auto number = given.toDouble(0);
+            if (!given.isDouble() || number < 1 || number != static_cast<double>(given.toInt())) {
+                return refusal(QStringLiteral("bad-request"),
+                    QStringLiteral("%1 takes a position, 1 for the first.").arg(command));
+            }
+            position = given.toInt() - 1;
+        } else if (!given.isUndefined() && !given.isNull()) {
+            return refusal(QStringLiteral("bad-request"),
+                QStringLiteral("%1 takes no argument.").arg(command));
+        }
+        asked.insert(QStringLiteral("command"), command);
+        asked.insert(QStringLiteral("argument"), position);
+    }
+    if (!isSignalConnected(QMetaMethod::fromSignal(&AgentControl::commandRequested))) {
+        return refusal(QStringLiteral("unavailable"),
+            QStringLiteral("This browser has no window to run the command in."));
+    }
+    m_commandRequest = m_nextCommandRequest++;
+    m_commandAnswer.reset();
+    emit commandRequested(m_commandRequest, asked);
+    m_commandRequest = 0;
+    const auto answered = std::exchange(m_commandAnswer, std::nullopt);
+    if (!answered || !answered->value(QStringLiteral("ok")).isBool()) {
+        return refusal(QStringLiteral("failed"), QStringLiteral("The window gave no answer."));
+    }
+    return *answered;
+}
+
+void AgentControl::answerCommand(int requestId, const QVariantMap &answer)
+{
+    if (requestId != m_commandRequest || m_commandAnswer) {
+        return;
+    }
+    m_commandAnswer = QJsonObject::fromVariantMap(answer);
+}
+
+// Switching Space is what a keybind for a Space does, so it is open like the
+// sidebar is. An Agent Space is one of the reader's Spaces to look at too.
+QJsonObject AgentControl::switchToSpace(const QJsonObject &request)
+{
+    const auto named = request.value(QStringLiteral("space")).toString();
+    if (named.isEmpty()) {
+        return refusal(QStringLiteral("bad-request"), QStringLiteral("Name a Space to switch to."));
+    }
+    const auto spaceId = findSpace(named);
+    if (spaceId.isEmpty()) {
+        return noSpace(named);
+    }
+    if (!m_browser->switchSpace(spaceId)) {
+        return refusal(
+            QStringLiteral("failed"), QStringLiteral("Omaweb could not switch to the Space."));
+    }
+    return success({{QStringLiteral("space"), spaceId}});
+}
+
+// A tab by its id, or else the first whose address holds the text, looked for
+// in the Space on show before the others in the sidebar's order. Selecting it
+// switches to its Space, as choosing it in the Omnibar does.
+QJsonObject AgentControl::focusTab(const QJsonObject &request)
+{
+    const auto target = request.value(QStringLiteral("target")).toString();
+    if (target.isEmpty()) {
+        return refusal(QStringLiteral("bad-request"),
+            QStringLiteral("Name a tab, or a part of its address, to select."));
+    }
+    auto tab = m_browser->findTab(target);
+    if (!tab) {
+        QStringList spaceIds {m_browser->activeSpaceId()};
+        const auto *model = m_browser->spaces();
+        for (int row = 0; row < model->rowCount(); ++row) {
+            const auto id = model->index(row, 0).data(SpaceListModel::IdRole).toString();
+            if (!spaceIds.contains(id)) {
+                spaceIds.append(id);
+            }
+        }
+        for (const auto &spaceId : std::as_const(spaceIds)) {
+            for (const auto &each : m_browser->spaceTabs(spaceId)) {
+                if (each.url.toString().contains(target, Qt::CaseInsensitive)) {
+                    tab = each;
+                    break;
+                }
+            }
+            if (tab) {
+                break;
+            }
+        }
+    }
+    if (!tab) {
+        return refusal(QStringLiteral("not-found"),
+            QStringLiteral("No tab is \"%1\" or has it in its address.").arg(target));
+    }
+    if (tab->spaceId != m_browser->activeSpaceId() && !m_browser->switchSpace(tab->spaceId)) {
+        return refusal(QStringLiteral("failed"),
+            QStringLiteral("Omaweb could not switch to the tab's Space."));
+    }
+    m_browser->activateTab(tab->id);
+    if (m_browser->activeTabId() != tab->id) {
+        return refusal(
+            QStringLiteral("failed"), QStringLiteral("Omaweb could not select the tab."));
+    }
+    return success({{QStringLiteral("tab"), tab->id}, {QStringLiteral("space"), tab->spaceId}});
 }
 
 // The tab a page verb or `console` is about: the one `--tab` names or the

@@ -266,6 +266,8 @@ add_library(omaweb-core STATIC
     src/core/SessionStore.h
     src/core/SqliteSessionStore.cpp
     src/core/SqliteSessionStore.h
+    src/core/StoredFavicons.cpp
+    src/core/StoredFavicons.h
     src/core/ThreadedSessionStore.cpp
     src/core/ThreadedSessionStore.h
     src/core/SoundingTabs.cpp
@@ -379,6 +381,8 @@ add_library(omaweb-ui STATIC
     src/ui/KitTheme.h
     src/ui/PrimaryHold.cpp
     src/ui/PrimaryHold.h
+    src/ui/StoredFaviconProvider.cpp
+    src/ui/StoredFaviconProvider.h
     src/ui/SystemClipboard.cpp
     src/ui/SystemClipboard.h
     src/ui/ThemeController.cpp
@@ -1067,6 +1071,10 @@ if(BUILD_TESTING)
         "tests/core/tst_agentcontrol.cpp"
     )
     target_link_libraries(omaweb-agent-control-tests PRIVATE omaweb-core Qt6::Test)
+    # The public commands are checked against the registry they come from.
+    target_compile_definitions(omaweb-agent-control-tests PRIVATE
+        OMAWEB_BROWSER_COMMANDS_QML="${CMAKE_CURRENT_SOURCE_DIR}/src/ui/BrowserCommands.qml"
+    )
     omaweb_strict_target(omaweb-agent-control-tests)
     omaweb_declarative_fixture_target(omaweb-agent-control-tests)
     add_test(NAME omaweb-agent-control COMMAND omaweb-agent-control-tests)
@@ -1410,6 +1418,15 @@ if(BUILD_TESTING)
     omaweb_strict_target(omaweb-favicon-tint-tests)
     add_test(NAME omaweb-favicon-tint COMMAND omaweb-favicon-tint-tests)
     set_tests_properties(omaweb-favicon-tint PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+    )
+
+    qt_add_executable(omaweb-stored-favicons-tests tests/ui/tst_storedfavicons.cpp)
+    target_link_libraries(omaweb-stored-favicons-tests PRIVATE omaweb-ui Qt6::Gui Qt6::Network
+        Qt6::Test)
+    omaweb_strict_target(omaweb-stored-favicons-tests)
+    add_test(NAME omaweb-stored-favicons COMMAND omaweb-stored-favicons-tests)
+    set_tests_properties(omaweb-stored-favicons PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
     )
 

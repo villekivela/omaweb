@@ -228,6 +228,32 @@ bool ThreadedSessionStore::deleteHistorySince(const QString &spaceId, qint64 sin
     return ask([this, &spaceId, since] { return m_store->deleteHistorySince(spaceId, since); });
 }
 
+bool ThreadedSessionStore::recordFavicon(
+    const QString &spaceId, const QUrl &pageUrl, const QByteArray &image)
+{
+    return queue("favicon record", [this, spaceId, pageUrl, image] {
+        return m_store->recordFavicon(spaceId, pageUrl, image);
+    });
+}
+
+// Posted rather than asked, so the caller never waits on the disk. The host
+// still holds the store when the call runs, because closing the store is
+// itself a call queued behind it.
+void ThreadedSessionStore::findFavicon(const QString &spaceId, const QUrl &pageUrl,
+    std::function<void(const QByteArray &image)> answer) const
+{
+    QMetaObject::invokeMethod(
+        m_host,
+        [host = static_cast<StoreHost *>(m_host), spaceId, pageUrl, answer = std::move(answer)] {
+            if (auto *store = host->store()) {
+                store->findFavicon(spaceId, pageUrl, answer);
+            } else {
+                answer({});
+            }
+        },
+        Qt::QueuedConnection);
+}
+
 int ThreadedSessionStore::permissionDecision(
     const QString &spaceId, const QString &origin, const QString &permission) const
 {

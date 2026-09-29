@@ -1,5 +1,6 @@
 #include "AgentControl.h"
 #include "BrowserController.h"
+#include "StoredFaviconProvider.h"
 #include "ContentBlocker.h"
 #include "GlobalPrivacyControl.h"
 #include "SecureDns.h"
@@ -363,6 +364,7 @@ int main(int argc, char *argv[])
     omaweb::registerInputMethodReport(&inputMethod);
     QQmlApplicationEngine engine;
     omaweb::quickshell::installShim(engine);
+    omaweb::installStoredFavicons(engine);
     engine.rootContext()->setContextProperty(QStringLiteral("browser"), &browser);
     engine.rootContext()->setContextProperty(QStringLiteral("contentBlocker"), &contentBlocker);
     engine.rootContext()->setContextProperty(

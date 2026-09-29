@@ -571,6 +571,57 @@ QtObject {
         return true;
     }
 
+    // What `omaweb commands` and `omaweb run` ask of the ordinary window over
+    // the Agent socket. The core has refused every command outside
+    // `request.commands`, the public ones, and this answers the rest from
+    // `available`, as the command scope does.
+    function answerAgent(request) {
+        const allowed = request.commands || [];
+        if (request.verb === "commands") {
+            const list = [];
+            for (let index = 0; index < allowed.length; ++index) {
+                const command = allowed[index];
+                const description = descriptions[command];
+                if (description && root.available(command)) {
+                    list.push({
+                                  command: command,
+                                  title: description.title,
+                                  group: description.group
+                              });
+                }
+            }
+            return {
+                ok: true,
+                commands: list
+            };
+        }
+        const command = String(request.command);
+        if (allowed.indexOf(command) < 0 || !descriptions[command]) {
+            return {
+                ok: false,
+                code: "refused",
+                error: "Omaweb has no command \"" + command + "\" to run from outside its window."
+            };
+        }
+        if (!root.available(command)) {
+            return {
+                ok: false,
+                code: "unavailable",
+                error: "\"" + command + "\" is not available now."
+            };
+        }
+        if (!root.run(command, request.argument)) {
+            return {
+                ok: false,
+                code: "failed",
+                error: "\"" + command + "\" did not run."
+            };
+        }
+        return {
+            ok: true
+        };
+    }
+
     function actions() {
         const list = [];
 
@@ -661,7 +712,10 @@ QtObject {
             const index = tabs.index(row, 0);
             const icon = String(tabs.data(index, Qt.UserRole + 8) || "");
             const site = host(String(tabs.data(index, Qt.UserRole + 3)));
-            if (icon.length > 0 && site.length > 0 && icons[site] === undefined)
+            // A tab whose page has not reported an icon carries its stored
+            // one, which is the row's own fallback rather than a live icon.
+            const stored = icon.startsWith("image://omaweb-favicon/");
+            if (icon.length > 0 && !stored && site.length > 0 && icons[site] === undefined)
                 icons[site] = icon;
         }
         return icons;

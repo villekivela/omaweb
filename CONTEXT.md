@@ -190,10 +190,11 @@ protected browser capability. A Private window retains its Site permissions only
 private session exists. _Avoid_: System permission, engine permission
 
 **Browsing data**: What a Space accumulates as it is used and can be cleared without unmaking the
-Space: its cookies, site storage, cache, Site permissions and history. Browsing data is cleared by
-category and time range, and clearing it leaves the Space itself, its Pinned tabs, its name and
-colour, and everything the reader configured about the browser. Deleting a Space is the separate act
-that removes the Space as well. _Avoid_: History, cache, site data, user data
+Space: its cookies, site storage, cache, Site permissions, and history with the favicons its pages
+showed. Browsing data is cleared by category and time range, and clearing it leaves the Space
+itself, its Pinned tabs, its name and colour, and everything the reader configured about the
+browser. Deleting a Space is the separate act that removes the Space as well. _Avoid_: History,
+cache, site data, user data
 
 **History search**: The Omnibar's search of the addresses and titles a Space has visited, answered
 off the interface's thread while the reader types. It reads one Space, the one on show, and answers

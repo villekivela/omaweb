@@ -7,15 +7,15 @@
 
 namespace omaweb {
 
-// Keeps a Private window's session nowhere. Every write is accepted and
-// dropped, and answers false so a caller reporting to the reader says what
-// happened; every read answers empty.
+// Keeps a Private window's session nowhere on disk. Every write but the two
+// below is accepted and dropped, and answers false so a caller reporting to
+// the reader says what happened; every other read answers empty.
 //
-// One thing survives, because a private session is shared: the Site
-// permissions its windows have agreed to, which live in the hash the session
-// hands round its windows and go when the last of them closes. The hash is
-// the session's, not this object's, so a decision made in one Private window
-// is the same decision in the next.
+// Two things survive, in memory, and their writes answer true. The Site permissions the session's
+// windows have agreed to live in the hash the session hands round its windows and go when the last
+// of them closes. The hash is the session's, not this object's, so a decision made in one Private
+// window is the same decision in the next. The favicons the window's pages showed are this
+// object's, and each window is given a store of its own, so they go when the window closes.
 class PrivateSessionStore final : public SessionStore {
 public:
     explicit PrivateSessionStore(QSharedPointer<QHash<QString, int>> sessionDecisions);
@@ -55,6 +55,10 @@ public:
     bool deleteHistoryVisit(const QString &spaceId, qint64 id) override;
     bool deleteHistoryOrigin(const QString &spaceId, const QString &origin) override;
     bool deleteHistorySince(const QString &spaceId, qint64 since) override;
+    bool recordFavicon(
+        const QString &spaceId, const QUrl &pageUrl, const QByteArray &image) override;
+    void findFavicon(const QString &spaceId, const QUrl &pageUrl,
+        std::function<void(const QByteArray &image)> answer) const override;
 
     int permissionDecision(
         const QString &spaceId, const QString &origin, const QString &permission) const override;
@@ -74,7 +78,18 @@ public:
     bool forgetSpaceDownloads(const QString &spaceId) override;
 
 private:
+    struct Favicon {
+        QString origin;
+        QByteArray image;
+        // Which icon of a site is newest, for a page of it that has none.
+        quint64 recorded = 0;
+    };
+
     QSharedPointer<QHash<QString, int>> m_sessionDecisions;
+    // By Space, then page address. Each Private window has a store of its
+    // own, so these go when the window does.
+    QHash<QString, QHash<QString, Favicon>> m_favicons;
+    quint64 m_faviconCount = 0;
 };
 
 } // namespace omaweb

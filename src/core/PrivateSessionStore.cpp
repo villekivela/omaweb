@@ -1,5 +1,7 @@
 #include "PrivateSessionStore.h"
 
+#include "HistoryQuery.h"
+
 namespace omaweb {
 
 PrivateSessionStore::PrivateSessionStore(QSharedPointer<QHash<QString, int>> sessionDecisions)
@@ -87,6 +89,36 @@ bool PrivateSessionStore::deleteHistoryVisit(const QString &, qint64) { return f
 bool PrivateSessionStore::deleteHistoryOrigin(const QString &, const QString &) { return false; }
 
 bool PrivateSessionStore::deleteHistorySince(const QString &, qint64) { return false; }
+
+bool PrivateSessionStore::recordFavicon(
+    const QString &spaceId, const QUrl &pageUrl, const QByteArray &image)
+{
+    const auto origin = history::origin(pageUrl);
+    if (origin.isEmpty() || image.isEmpty()) {
+        return false;
+    }
+    m_favicons[spaceId].insert(pageUrl.toString(), {origin, image, ++m_faviconCount});
+    return true;
+}
+
+void PrivateSessionStore::findFavicon(const QString &spaceId, const QUrl &pageUrl,
+    std::function<void(const QByteArray &image)> answer) const
+{
+    const auto favicons = m_favicons.value(spaceId);
+    if (const auto page = favicons.constFind(pageUrl.toString()); page != favicons.cend()) {
+        answer(page->image);
+        return;
+    }
+    const auto origin = history::origin(pageUrl);
+    const Favicon *newest = nullptr;
+    for (const auto &favicon : favicons) {
+        if (!origin.isEmpty() && favicon.origin == origin
+            && (!newest || favicon.recorded > newest->recorded)) {
+            newest = &favicon;
+        }
+    }
+    answer(newest ? newest->image : QByteArray {});
+}
 
 // Read without being spent. Whether an answer is used once or held for the
 // session is the shell's decision about the answer, not this store's about

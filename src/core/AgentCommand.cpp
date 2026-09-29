@@ -120,6 +120,27 @@ namespace {
                 .maximumPositionals = 0,
                 .positionalField = {}};
         }
+        if (verb == u"commands") {
+            return {.valued = {},
+                .flags = {},
+                .minimumPositionals = 0,
+                .maximumPositionals = 0,
+                .positionalField = {}};
+        }
+        if (verb == u"run") {
+            return {.valued = {},
+                .flags = {},
+                .minimumPositionals = 1,
+                .maximumPositionals = 2,
+                .positionalField = QStringLiteral("command")};
+        }
+        if (verb == u"focus") {
+            return {.valued = {},
+                .flags = {},
+                .minimumPositionals = 1,
+                .maximumPositionals = 1,
+                .positionalField = QStringLiteral("target")};
+        }
         if (verb == u"space new") {
             return {.valued = {},
                 .flags = {QStringLiteral("temporary")},
@@ -420,7 +441,8 @@ bool isAgentCommand(const QStringList &arguments)
     static const QSet<QString> verbs {QStringLiteral("spaces"), QStringLiteral("tabs"),
         QStringLiteral("open"), QStringLiteral("close"), QStringLiteral("space"),
         QStringLiteral("look"), QStringLiteral("read"), QStringLiteral("do"),
-        QStringLiteral("shot"), QStringLiteral("eval"), QStringLiteral("console")};
+        QStringLiteral("shot"), QStringLiteral("eval"), QStringLiteral("console"),
+        QStringLiteral("commands"), QStringLiteral("run"), QStringLiteral("focus")};
     return arguments.size() > 1 && verbs.contains(arguments.at(1));
 }
 
@@ -433,14 +455,14 @@ AgentCommand readAgentCommand(const QStringList &arguments, const QString &defau
     }
     auto verb = arguments.at(1);
     qsizetype next = 2;
+    // `space <name>` switches to a Space, so a Space called "new" or "delete"
+    // is switched to by its id.
     if (verb == u"space") {
         const auto action = arguments.value(2);
-        if (action != u"new" && action != u"delete") {
-            command.error = QStringLiteral("Use `space new [name]` or `space delete <space>`.");
-            return command;
+        if (action == u"new" || action == u"delete") {
+            verb += u' ' + action;
+            next = 3;
         }
-        verb += u' ' + action;
-        next = 3;
     }
 
     const auto grammar = grammarFor(verb);
@@ -525,11 +547,31 @@ AgentCommand readAgentCommand(const QStringList &arguments, const QString &defau
         }
         request.insert(QStringLiteral("expression"), positionals.join(u' '));
         positionals.clear();
+    } else if (verb == u"run") {
+        if (positionals.isEmpty() || positionals.size() > 2) {
+            command.error = QStringLiteral(
+                "`run` takes a command, and a position for select-tab and select-space.");
+            return command;
+        }
+        if (positionals.size() == 2) {
+            bool number = false;
+            const auto position = positionals.at(1).toInt(&number);
+            if (!number) {
+                command.error = QStringLiteral("A position is a number, 1 for the first.");
+                return command;
+            }
+            request.insert(QStringLiteral("argument"), position);
+        }
+        request.insert(QStringLiteral("command"), positionals.constFirst());
+        positionals.clear();
     } else if (positionals.size() < grammar.minimumPositionals
         || (grammar.maximumPositionals >= 0 && positionals.size() > grammar.maximumPositionals)) {
         command.error = verb == u"open" ? QStringLiteral("`open` takes one address.")
-            : verb == u"space delete"
-            ? QStringLiteral("`space delete` takes the Space to delete.")
+            : verb == u"space delete" ? QStringLiteral("`space delete` takes the Space to delete.")
+            : verb == u"space"
+            ? QStringLiteral("Use `space <space>`, `space new [name]` or `space delete <space>`.")
+            : verb == u"focus"
+            ? QStringLiteral("`focus` takes a tab's id or a part of its address.")
             : QStringLiteral("`%1` takes no argument %2.").arg(verb, positionals.value(0));
         return command;
     }
@@ -618,6 +660,24 @@ QString formatAgentAnswer(const QString &verb, const QJsonObject &answer)
     }
     if (verb == u"close") {
         return line({answer.value(QStringLiteral("closed")).toString()});
+    }
+    if (verb == u"commands") {
+        for (const auto &value : answer.value(QStringLiteral("commands")).toArray()) {
+            const auto command = value.toObject();
+            text += line({command.value(QStringLiteral("command")).toString(),
+                command.value(QStringLiteral("title")).toString()});
+        }
+        return text;
+    }
+    // Whether it ran is the exit status, which is all a keybind reads.
+    if (verb == u"run") {
+        return text;
+    }
+    if (verb == u"space") {
+        return line({answer.value(QStringLiteral("space")).toString()});
+    }
+    if (verb == u"focus") {
+        return line({answer.value(QStringLiteral("tab")).toString()});
     }
     if (verb == u"look") {
         return formatLook(answer.value(QStringLiteral("look")).toObject());

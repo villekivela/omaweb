@@ -28,7 +28,9 @@ class BrowserController;
 // a request may do depends on what its verb reaches and never on who asks.
 // Browser commands (listing Spaces and tabs, opening an address, closing a tab
 // an Agent opened) are always open, because they are what a keybind or a
-// script needs and none of them reads a page. Agent Spaces and the page verbs
+// script needs and none of them reads a page. Switching Space, selecting a tab
+// and running a public command of the command scope are browser commands too.
+// Agent Spaces and the page verbs
 // (`look`, `read`, `do`, `shot` and `eval`) wait for Allow agents, which is off
 // until the reader turns it on.
 //
@@ -86,6 +88,15 @@ public:
     // Whether a verb is answered by a page rather than by the core.
     static bool pageVerb(const QString &verb);
 
+    // The commands of `BrowserCommands.qml` that `commands` lists and `run`
+    // runs: every one but `private-window`, because a Private window is never
+    // an Agent's, and the four screenshots, which read the page and so are
+    // `shot`, behind Allow agents. A command outside it is refused by name.
+    static const QStringList &publicCommands();
+    // Whether a public command takes a position: `select-tab` and
+    // `select-space`, counted from 1 as their keys are.
+    static bool commandTakesPosition(const QString &command);
+
     // One request, `{"verb": ..., "name": ..., ...}`, and its answer:
     // `{"ok": true, ...}` or `{"ok": false, "code": ..., "error": ...}`. The
     // error is a sentence for the reader or the Agent; the code is for a
@@ -106,6 +117,9 @@ public:
 
     // The page's answer to the request `pageRequested` numbered.
     Q_INVOKABLE void answerPage(int requestId, const QVariantMap &answer);
+    // The window's answer to the request `commandRequested` numbered, given
+    // before that signal returns.
+    Q_INVOKABLE void answerCommand(int requestId, const QVariantMap &answer);
 
     // A line an Agent tab's page wrote to its console, at the engine's level
     // (0 info, 1 warning, 2 error), for `console`. `document` changes when the
@@ -138,6 +152,11 @@ signals:
     // Every page request still out has been refused, and the pages working
     // on them stop without sending more input or answering.
     void pageRequestsCancelled();
+    // `commands` or `run` for the ordinary window, which holds the command
+    // registry: `verb`, the `commands` it may list or run, and for `run` the
+    // `command` and its `argument`, a position counted from 0, or -1. The
+    // window answers with `answerCommand` before the signal returns.
+    void commandRequested(int requestId, const QVariantMap &request);
 
 private:
     struct Connection {
@@ -174,6 +193,9 @@ private:
     QJsonObject pageTab(const Connection &connection, const QJsonObject &request,
         std::optional<TabState> &tab) const;
     QJsonObject readConsole(Connection &connection, const QJsonObject &request);
+    QJsonObject askWindow(const QString &verb, const QJsonObject &request);
+    QJsonObject switchToSpace(const QJsonObject &request);
+    QJsonObject focusTab(const QJsonObject &request);
     void askPage(const QString &verb, const QString &name, Connection &connection,
         const QJsonObject &request, const Reply &reply);
     // The verb's own arguments as the page is to get them, or a refusal.
@@ -219,6 +241,11 @@ private:
     QFileSystemWatcher m_watcher;
     QString m_shotDirectory;
     int m_nextPageRequest = 1;
+    int m_nextCommandRequest = 1;
+    // The window's answer to the command request under way, while
+    // `commandRequested` is being emitted.
+    int m_commandRequest = 0;
+    std::optional<QJsonObject> m_commandAnswer;
     QHash<int, PendingPage> m_pendingPages;
     // Each Agent tab, and what its Agent last did there.
     QHash<QString, Attachment> m_attached;

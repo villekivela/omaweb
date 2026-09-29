@@ -91,6 +91,29 @@ namespace {
                     .description = QStringLiteral("Close a tab this connection opened."),
                     .properties = {tab},
                     .required = {}},
+                {.name = QStringLiteral("space"),
+                    .verb = QStringLiteral("space"),
+                    .description = QStringLiteral("Switch the window to a Space."),
+                    .properties = {space},
+                    .required = {QStringLiteral("space")}},
+                {.name = QStringLiteral("focus"),
+                    .verb = QStringLiteral("focus"),
+                    .description = QStringLiteral("Select a tab by id or part of its address, in "
+                                                  "whichever Space holds it."),
+                    .properties = {property(tab.name, string, QStringLiteral("target"))},
+                    .required = {tab.name}},
+                {.name = QStringLiteral("commands"),
+                    .verb = QStringLiteral("commands"),
+                    .description = QStringLiteral("List the browser commands run can run now."),
+                    .properties = {},
+                    .required = {}},
+                {.name = QStringLiteral("run"),
+                    .verb = QStringLiteral("run"),
+                    .description = QStringLiteral("Run a browser command in the window. position "
+                                                  "is for select-tab and select-space, from 1."),
+                    .properties = {property(QStringLiteral("command"), string),
+                        property(QStringLiteral("position"), integer, QStringLiteral("argument"))},
+                    .required = {QStringLiteral("command")}},
                 {.name = QStringLiteral("space_new"),
                     .verb = QStringLiteral("space new"),
                     .description = QStringLiteral("Make an Agent Space. A temporary one is deleted "
@@ -246,7 +269,11 @@ namespace {
         const auto error = answer.value(QStringLiteral("error")).toString();
         if (answer.value(QStringLiteral("ok")).toBool()) {
             const auto text = trimmedEnd(formatAgentAnswer(verb, answer));
-            return toolResult(text.isEmpty() ? QStringLiteral("none") : text, false);
+            if (text.isEmpty()) {
+                return toolResult(
+                    verb == u"run" ? QStringLiteral("ran") : QStringLiteral("none"), false);
+            }
+            return toolResult(text, false);
         }
         if (verb == u"do" && answer.contains(QStringLiteral("look"))) {
             return toolResult(trimmedEnd(formatAgentAnswer(verb, answer)) + u"\n\n" + error, true);

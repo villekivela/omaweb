@@ -55,7 +55,10 @@ Rectangle {
     readonly property color chipTint: useArtwork ? hostTint : (faviconTint.valid ? faviconTint.color :
                                                                                    colors.mutedText)
 
+    // A stored-favicon address for a page with nothing stored loads as one
+    // transparent pixel, which is no artwork.
     readonly property bool showsArtwork: useArtwork && artwork.status === Image.Ready
+                                         && artwork.implicitWidth > 1
 
     // The colour a whole surface may take for this site: the favicon's own
     // hue where the icon offers one, the hashed host hue where it does not,
@@ -91,6 +94,9 @@ Rectangle {
         width: parent.width
         height: width
         source: root.useArtwork ? root.iconUrl : ""
+        // A stored favicon changes under the same address as the Space records
+        // or deletes one, so it is asked for afresh rather than cached.
+        cache: !String(root.iconUrl).startsWith("image://omaweb-favicon/")
         sourceSize.width: 32
         sourceSize.height: 32
         fillMode: Image.PreserveAspectFit

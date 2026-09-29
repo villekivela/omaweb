@@ -82,10 +82,12 @@ pass however many quiet passes come in between. The exchange refreshes only brow
 keybindings, or filter subscriptions whose persisted projection changed.
 
 A Private window is given a store that records none of this. Which store a window holds is where "a
-Private window writes nothing down" is decided, rather than a test beside each write, and the one
-thing that store keeps, the Site permissions its session has agreed to, lives in memory and goes
-when the last Private window closes
-([ADR 0035](adr/0035-keep-the-private-browsing-rule-in-the-session-store.md)).
+Private window writes nothing down" is decided, rather than a test beside each write. That store
+keeps two things in memory: the Site permissions its session has agreed to, which go when the last
+Private window closes ([ADR 0035](adr/0035-keep-the-private-browsing-rule-in-the-session-store.md)),
+and the favicons the window's pages showed. Each Private window is given a store of its own over the
+session's permissions, so its favicons go when it closes
+([ADR 0055](adr/0055-keep-favicons-in-the-space-that-loaded-them.md)).
 
 What a Private window may do is the set of capabilities the window holds, built once from its kind
 rather than tested wherever an action could be refused: no Spaces, no Pinned tabs, no History
@@ -99,13 +101,34 @@ the recency index and deletes below it, naming that visit by id as well as by ti
 redirect chain lands several visits in one millisecond.
 
 The SQLite store runs on a thread of its own, with its connections opened and closed there. The
-three writes a session makes as it runs, the visit record, the coalesced tab write and the
-closed-tab write, are queued to it and answered as taken, so the interface never waits on the disk
-for them; the store names them `record`. Every other call, the `save` writes, the deletes and the
-reads, runs on the store thread while the interface waits for its answer, which is what a Space
+writes a session makes as it runs, the visit record, the favicon record, the coalesced tab write and
+the closed-tab write, are queued to it and answered as taken, so the interface never waits on the
+disk for them; the store names them `record`. Every other call, the `save` writes, the deletes and
+the reads, runs on the store thread while the interface waits for its answer, which is what a Space
 switch, move or delete needs before it goes on. The thread takes calls in the order they were made,
 so a call sees every queued write made before it, and closing the store at quit lands whatever is
 still queued. A Private window's store keeps nothing and has no thread.
+
+## Stored favicons
+
+A Space's database keeps the favicon each page showed, keyed by address with the page's origin
+beside it, and the newest icon for an address replaces the older one. The icon is read through the
+same path the favicon tint samples one, from the image provider the web engine already filled, and
+is stored as a PNG of at most 64 pixels. An icon whose page has no History left and that no tab
+shows is dropped when History is trimmed, so the icons stay bounded by the History that names them.
+Deleting History deletes the icons of the pages it names, except one a tab in the Space's sidebar
+still shows; the pending tab write lands first so the sidebar the store reads is the one on screen.
+
+The interface draws a stored icon from an `image://omaweb-favicon/<window>/<Space>/<page>` address,
+answered by an asynchronous image provider. The window part names the controller whose store
+answers, so an address never reaches another window's store, and a Private window's never reaches a
+Space's. The provider's question is carried to the window's thread and asked of its store, which for
+a Space posts it to the store thread and answers from there, so neither the interface thread nor the
+image loader waits on the disk. A tab whose page has not reported an icon carries that address in
+its icon role, and an Omnibar history or keyword row falls back to it behind an open tab's icon. The
+tile draws the host code while the image is still loading, and keeps it when nothing is stored,
+which the provider answers as one transparent pixel rather than an error the image would log for
+every tab that asked. Nothing in this path makes a network request.
 
 ## History search
 
@@ -256,11 +279,12 @@ socket has mode 0600 in a directory only its user can enter, and anything runnin
 open it. It carries one JSON object per line each way. `ControlSocket` owns the transport and
 `AgentControl` decides every answer, so the rules are tested without a socket.
 
-A request's verb decides what it may do, never its connection's name. `spaces`, `tabs`, `open` and
-`close` are browser commands and always answer. `space new` and `space delete` wait for Allow
-agents, which is off until the reader turns it on and is kept in `privacy.json` beside the reader's
-other decisions. `AgentControl` watches that file, and its directory because a write replaces the
-file, so turning the setting off in a running browser clears every connection's current tab at once.
+A request's verb decides what it may do, never its connection's name. `spaces`, `tabs`, `open`,
+`close`, `space`, `focus`, `commands` and `run` are browser commands and always answer. `space new`
+and `space delete` wait for Allow agents, which is off until the reader turns it on and is kept in
+`privacy.json` beside the reader's other decisions. `AgentControl` watches that file, and its
+directory because a write replaces the file, so turning the setting off in a running browser clears
+every connection's current tab at once.
 
 Until Space grants land, an Agent drives only its own tabs. `open` into an existing tab and `close`
 take a tab an Agent opened in this run, or an ordinary tab of an Agent Space while Allow agents is
@@ -275,10 +299,19 @@ ago. A name also records which connection created each Agent Space, and `space d
 another name's. That guards against one Agent removing another's work by mistake, and nothing more,
 because any process can give any name.
 
-No verb selects a tab or switches Space. A tab opened or changed in a Space not on show is written
-to that Space's store, and the frozen page the window still holds for it is dropped, so the Space
-shows the new address when it comes back. A tab is looked for in the Space where the connection last
-saw it before any other Space's store is read.
+Only `space` and `focus` put another Space or tab on show, and only when asked to by name, as a
+keybind does. `open` and the page verbs never do. A tab opened or changed in a Space not on show is
+written to that Space's store, and the frozen page the window still holds for it is dropped, so the
+Space shows the new address when it comes back. A tab is looked for in the Space where the
+connection last saw it before any other Space's store is read.
+
+`commands` and `run` reach the command registry, which lives in `BrowserCommands.qml`.
+`AgentControl.publicCommands` is the list a script may run: every command but `private-window` and
+the four screenshots, which read the page and so are `shot`, behind Allow agents. The core refuses a
+command outside it by name before the window hears of it. The rest goes out as `commandRequested`,
+which only the ordinary window listens to, and the window answers from `available` before the signal
+returns. A command added to the registry is not public until it is added to the list, and a test
+fails until one or the other is decided.
 
 The Agent Space label lives in its own `agent_spaces` table rather than on the Space record. Sync
 copies Space records, so it never sees the label, and deleting a Space deletes its label with it.
