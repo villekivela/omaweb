@@ -263,7 +263,7 @@ Rectangle {
     signal forwardRequested
     signal reloadRequested
     signal sidebarToggled
-    signal commandPanelRequested
+    signal commandScopeRequested
     signal windowMoveRequested
     signal pageFocusRequested
 
@@ -683,13 +683,13 @@ Rectangle {
                 }
 
                 ChromeButton {
-                    objectName: "commandPanelButton"
+                    objectName: "commandScopeButton"
                     KeyLabel {
-                        objectName: "keyLabel-commandPanelButton"
+                        objectName: "keyLabel-commandScopeButton"
                         anchors.horizontalCenter: parent.horizontalCenter
                         anchors.top: parent.bottom
                         anchors.topMargin: -4
-                        keys: root.keyLabelsShown ? root.labelFor("command-panel") : ""
+                        keys: root.keyLabelsShown ? root.labelFor("command-scope") : ""
                         shown: root.keyLabelsShown
                         colors: root.colors
                     }
@@ -700,7 +700,7 @@ Rectangle {
                     fontFamily: root.iconFontFamily
                     foreground: root.colors.mutedText
                     accent: root.colors.accent
-                    onClicked: root.commandPanelRequested()
+                    onClicked: root.commandScopeRequested()
                 }
             }
 

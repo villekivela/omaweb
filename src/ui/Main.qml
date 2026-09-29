@@ -501,11 +501,11 @@ ApplicationWindow {
         onRejected: window.forgetPendingSave()
     }
 
-    function openCommandPanel() {
+    function openCommandScope() {
         window.endStartPageDrive();
-        commandPanel.beginCommand();
+        omnibar.beginCommand();
         if (window.startPageShown) {
-            commandPanel.restart();
+            omnibar.restart();
             return;
         }
         omnibarOpen = true;
@@ -957,7 +957,7 @@ ApplicationWindow {
 
     function focusPage() {
         if (window.startPageShown) {
-            commandPanel.focusField();
+            omnibar.focusField();
             return;
         }
         engineLoader.focusPage();
@@ -1021,9 +1021,7 @@ ApplicationWindow {
             return "sidebar";
         if (item === developerToolsDock || item === developerToolsResizer)
             return "developer-tools";
-        if (item === engineLoader || item === startPage || (item === commandPanel
-                                                            && commandPanel.resting))
-
+        if (item === engineLoader || item === startPage || (item === omnibar && omnibar.resting))
             return window.pageRegionName();
         return "";
     }
@@ -2124,10 +2122,10 @@ ApplicationWindow {
         // for a new tab while it is on show focuses the one already there,
         // keeping what is typed. Only the command scope is left for the address.
         if (window.startPageShown) {
-            if (commandPanel.commandScope)
+            if (omnibar.commandScope)
                 window.restartStartPageField();
             else
-                commandPanel.focusField();
+                omnibar.focusField();
             return;
         }
         // A new tab is asked of the Start page, over the page on show.
@@ -2145,7 +2143,7 @@ ApplicationWindow {
         omnibarSuggestions = [];
         if (!window.privateWindow)
             window.windowBrowser.requestHistorySuggestions(preset);
-        commandPanel.beginAddress(preset, forNewTab);
+        omnibar.beginAddress(preset, forNewTab);
         omnibarOpen = true;
     }
 
@@ -2318,8 +2316,8 @@ ApplicationWindow {
     // The Start page's field, emptied and focused, heading where the Start
     // page's destination goes.
     function restartStartPageField() {
-        commandPanel.beginAddress("", window.startPageSummoned);
-        commandPanel.restart();
+        omnibar.beginAddress("", window.startPageSummoned);
+        omnibar.restart();
     }
 
     // Escape at rest. Command scope goes back to the address; a Start page
@@ -2328,7 +2326,7 @@ ApplicationWindow {
     function dismissStartPage() {
         if (window.startPageDriving)
             return;
-        if (commandPanel.commandScope) {
+        if (omnibar.commandScope) {
             window.restartStartPageField();
             return;
         }
@@ -2349,9 +2347,9 @@ ApplicationWindow {
             return;
         }
         window.omnibarSuggestions = [];
-        commandPanel.beginAddress("", window.startPageSummoned);
-        if (commandPanel.open)
-            commandPanel.restart();
+        omnibar.beginAddress("", window.startPageSummoned);
+        if (omnibar.open)
+            omnibar.restart();
     }
 
     // A tab switch or a Space switch leaves a summoned Start page behind: the
@@ -2644,7 +2642,7 @@ ApplicationWindow {
                 onForwardRequested: engineLoader.goForward()
                 onReloadRequested: engineLoader.reloadPage()
                 onSidebarToggled: window.sidebarCollapsed = !window.sidebarCollapsed
-                onCommandPanelRequested: window.openCommandPanel()
+                onCommandScopeRequested: window.openCommandScope()
                 onWindowMoveRequested: window.startSystemMove()
                 onPageFocusRequested: window.focusPage()
 
@@ -3078,7 +3076,7 @@ ApplicationWindow {
                     windowActive: window.active && window.visible && window.visibility
                                   !== Window.Minimized
                     driving: window.startPageDriving
-                    fieldBelowHorizon: commandPanel.fieldBelowHorizon
+                    fieldBelowHorizon: omnibar.fieldBelowHorizon
                     pageSource: window.pagelessViewport ? null : engineLoader
                 }
 
@@ -3525,7 +3523,7 @@ ApplicationWindow {
                     onForwardRequested: engineLoader.goForward()
                     onReloadRequested: engineLoader.reloadPage()
                     onSidebarToggled: window.sidebarCollapsed = !window.sidebarCollapsed
-                    onCommandPanelRequested: window.openCommandPanel()
+                    onCommandScopeRequested: window.openCommandScope()
                 }
 
                 Connections {
@@ -3827,7 +3825,7 @@ ApplicationWindow {
         target: window.windowBrowser
 
         function onHistorySuggestionsReady(suggestions) {
-            if (!window.omnibarShown || commandPanel.commandScope)
+            if (!window.omnibarShown || omnibar.commandScope)
                 return;
             window.omnibarSuggestions = suggestions;
         }
@@ -4243,8 +4241,8 @@ ApplicationWindow {
         tint: Qt.rgba(overlayTint.r, overlayTint.g, overlayTint.b, Math.min(overlayTint.a, 0.8))
     }
 
-    CommandPanel {
-        id: commandPanel
+    Omnibar {
+        id: omnibar
         anchors.fill: parent
         z: 50
         colors: window.colors
@@ -4263,23 +4261,23 @@ ApplicationWindow {
         // The Omnibar is drawn over the whole window and the Shortcut sheet
         // over the page area, so at rest the Omnibar would stand on the sheet.
         // It stays open underneath, keeping what is typed.
-        opacity: window.shortcutsOpen && commandPanel.shownResting ? 0 : 1
+        opacity: window.shortcutsOpen && omnibar.shownResting ? 0 : 1
         resting: window.startPageShown && !window.omnibarOpen
         restArea: Qt.rect(chromeRow.seam + startPage.x, startPage.y, startPage.width,
                           startPage.height)
         horizonY: startPage.horizonY
-        closeable: !commandPanel.resting || window.startPageSummoned || commandPanel.commandScope
+        closeable: !omnibar.resting || window.startPageSummoned || omnibar.commandScope
         suggestions: window.omnibarSuggestions
 
         onDismissed: {
-            if (commandPanel.resting)
+            if (omnibar.resting)
                 window.dismissStartPage();
             else
                 window.closeOmnibar();
         }
         onShortcutsRequested: window.requestShortcuts()
         onQueryChanged: function (text) {
-            if (commandPanel.commandScope)
+            if (omnibar.commandScope)
                 return;
             if (window.privateWindow) {
                 window.omnibarSuggestions = [];
@@ -4291,7 +4289,7 @@ ApplicationWindow {
             window.windowBrowser.requestHistorySuggestions(text);
         }
         onCommitted: function (text) {
-            if (commandPanel.resting) {
+            if (omnibar.resting) {
                 window.commitFromStartPage(text);
                 return;
             }

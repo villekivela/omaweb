@@ -217,7 +217,7 @@ public:
     Q_INVOKABLE bool focusSplitPartner();
     Q_INVOKABLE bool tabInSplit(const QString &tabId) const;
     // The ordinary tabs of the Space on show that a split could still take:
-    // unpaired, and not the active tab. What the command panel's chooser lists.
+    // unpaired, and not the active tab. What the command scope's chooser lists.
     Q_INVOKABLE QStringList splittableTabIds() const;
     Q_INVOKABLE QString createSpace(const QString &name);
     Q_INVOKABLE bool switchSpace(const QString &spaceId);

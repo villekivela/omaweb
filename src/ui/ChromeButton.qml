@@ -3,7 +3,7 @@ import qs.Commons
 import qs.Ui as Omarchy
 
 // The small chrome control — the arrows in the navigation strip, the Space
-// letters in the sidebar, the settings and command-panel buttons — drawn by
+// letters in the sidebar, the settings and command-scope buttons — drawn by
 // the Omarchy kit's `Button` (third_party/omarchy-shell). This file is the
 // adapter: call sites keep Omaweb's vocabulary — a `label` for a word, an
 // `icon` for a glyph — and Omaweb keeps the accessibility annotations the kit

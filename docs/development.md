@@ -94,7 +94,7 @@ headlessly with `QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software` for review
 without a desktop session. The chrome's movements are reviewed the same way: `--show space-step`,
 `tab-step`, `omnibar-step` and `settings-step` run the switch or the opening shortly before the
 capture, so the frame lands part way through it, and the `-settled` spelling of each runs it early
-enough to land at rest. The leaving list's picture and the command panel's growth need the hardware
+enough to land at rest. The leaving list's picture and the Omnibar's growth need the hardware
 renderer, so those two captures go without `QT_QUICK_BACKEND=software`. Development presets load
 QML, themes, and the icon font directly from the source tree. Editing those files requires an
 application restart but no compile or relink.

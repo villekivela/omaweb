@@ -31,8 +31,8 @@ QtObject {
         case "open-address":
             window.openOmnibar(false);
             return true;
-        case "command-panel":
-            window.openCommandPanel();
+        case "command-scope":
+            window.openCommandScope();
             return true;
         case "new-tab":
             window.openOmnibar(true);
@@ -237,7 +237,7 @@ QtObject {
                                                  group: "navigation",
                                                  title: "Open address"
                                              },
-                                             "command-panel": {
+                                             "command-scope": {
                                                  group: "interface",
                                                  title: "Search commands"
                                              },
