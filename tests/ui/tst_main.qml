@@ -6424,6 +6424,14 @@ TestCase {
         tryVerify(function () {
             return !window.startPageDriving && !startPage.open;
         });
+        // The road goes on driving, lit, while it fades into the page.
+        verify(startPage.visible);
+        verify(road.driving);
+        verify(road.lightUp > 0);
+        tryVerify(function () {
+            return !startPage.visible;
+        });
+        verify(!road.driving);
 
         // A failed load has its own page to show, straight away.
         window.commands.run("new-tab", -1);

@@ -33,6 +33,12 @@ Item {
     property Item pageSource: null
     // Whether the page fades as it gives way to a page.
     property bool ease: true
+    // Set by a drive and kept while the Start page fades out after it, so the
+    // road goes on driving and glowing into the page rather than stopping
+    // where the page arrived.
+    property bool drove: false
+    onDrivingChanged: if (driving)
+                          drove = true
     // The widest the page area can be, which is the width the road is drawn
     // at. The page area narrows and widens with the sidebar, and a road drawn
     // at the window's width only moves when it does, where one drawn at the
@@ -49,12 +55,18 @@ Item {
     opacity: open ? 1 : 0
     visible: opacity > 0
 
+    // Once it has gone, the next time it comes back it starts at rest.
+    onVisibleChanged: if (!visible)
+                          drove = false
+
     Behavior on opacity {
         enabled: root.ease
 
+        // Leaving after a drive is slower: the page is already there under
+        // it, so the longer fade costs no waiting.
         NumberAnimation {
-            duration: 180
-            easing.type: Easing.OutCubic
+            duration: root.drove && !root.open ? 420 : 180
+            easing.type: root.drove && !root.open ? Easing.InOutQuad : Easing.OutCubic
         }
     }
 
@@ -88,8 +100,8 @@ Item {
         visible: root.roadEnabled
         colors: root.colors
         privateWindow: root.privateWindow
-        running: root.open && root.roadEnabled && root.windowActive
-        driving: root.driving
+        running: root.visible && root.roadEnabled && root.windowActive
+        driving: root.driving || (root.drove && !root.open)
     }
 
     // The Shortcut sheet is summoned, not shown, so the page names the key.

@@ -101,6 +101,23 @@ Item {
     property real travel: 0
     property real speed: 1
     readonly property real targetSpeed: root.driving ? 9 : 1
+    // How far the sun has lit up for a commit, from 0 to 1. It rises on its
+    // own curve rather than with the speed: a page that paints quickly leaves
+    // the road no time to speed up, and the light is what says the reader was
+    // heard. It stays lit until the road stops.
+    property real lightUp: 0
+
+    NumberAnimation {
+        id: lightingUp
+        target: root
+        property: "lightUp"
+        to: 1
+        duration: 700
+        easing.type: Easing.OutCubic
+    }
+
+    onDrivingChanged: if (driving)
+                          lightingUp.restart()
 
     FrameAnimation {
         running: root.running
@@ -113,8 +130,13 @@ Item {
 
     // Speed is a state of the drive, not of the clock, so a road that stopped
     // mid-drive starts again at rest.
-    onRunningChanged: if (!running)
-                          root.speed = 1
+    onRunningChanged: {
+        if (running)
+            return;
+        lightingUp.stop();
+        root.speed = 1;
+        root.lightUp = 0;
+    }
 
     // ---- the scene, drawn in the palette
 
@@ -318,12 +340,12 @@ Item {
             }
         }
 
-        // The horizon brightens with speed. One gradient whose opacity
+        // The sun lighting up for a commit. One gradient whose opacity
         // changes, so it is not cached.
         Shape {
             anchors.fill: parent
             visible: !root.privateWindow && opacity > 0
-            opacity: Math.min(1, (root.speed - 1) / 8)
+            opacity: root.lightUp
 
             ShapePath {
                 strokeWidth: -1
@@ -700,7 +722,9 @@ Item {
         colorization: 1
         colorizationColor: root.glow
         contrast: root.privateWindow ? 0.75 : 0.6
-        brightness: root.privateWindow ? 0.5 : 0.28
+        // The whole display brightens with the sun, which is what makes it read
+        // as light rather than as a brighter patch.
+        brightness: (root.privateWindow ? 0.5 : 0.28) + root.lightUp * 0.18
     }
 
     ShaderEffectSource {

@@ -97,6 +97,24 @@ TestCase {
         compare(road.travel, stopped);
     }
 
+    // A commit lights the sun up on its own curve, whatever the speed, and it
+    // stays lit until the road stops.
+    function test_aDriveLightsTheSunUp() {
+        const road = makeRoad({
+                                  running: true
+                              });
+        compare(road.lightUp, 0);
+        road.driving = true;
+        tryVerify(function () {
+            return road.lightUp > 0.9;
+        }, 2000);
+        road.driving = false;
+        wait(100);
+        verify(road.lightUp > 0.9);
+        road.running = false;
+        compare(road.lightUp, 0);
+    }
+
     function test_drivingSpeedsTheRoadUpAndStoppingSettlesIt() {
         const road = makeRoad({
                                   running: true
