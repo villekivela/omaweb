@@ -26,6 +26,7 @@ Item {
     }
 
     Rectangle {
+        objectName: "agentFrameBorder"
         anchors.fill: parent
         color: "transparent"
         border.width: 2

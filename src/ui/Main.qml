@@ -1433,12 +1433,13 @@ ApplicationWindow {
     // act and whether a command is in flight, for the marks on the row, the
     // page and the Space. It is read from the page area's control, which
     // holds this window's Agent rules.
-    readonly property var agentActivity: engineLoader.agentControl
+    // A Private window is never an Agent's, so it has nothing to mark.
+    readonly property var agentActivity: !window.privateWindow && engineLoader.agentControl
                                          && engineLoader.agentControl.agentActivity
                                          ? engineLoader.agentControl.agentActivity : ({})
-    // The Spaces an Agent made that the reader has not taken over.
-    readonly property var agentSpaceIds: window.privateWindow ? [] :
-                                                                window.windowBrowser.agentSpaceIds
+    // The Spaces an Agent made that the reader has not taken over. A Private
+    // window has no Spaces, and its controller lists none.
+    readonly property var agentSpaceIds: window.windowBrowser.agentSpaceIds
     readonly property bool agentSpaceOnShow: window.agentSpaceIds.indexOf(
                                                  window.windowBrowser.activeSpaceId) >= 0
     // The Agent Space whose notice the reader dismissed, for as long as it
