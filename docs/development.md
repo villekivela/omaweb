@@ -326,15 +326,19 @@ omaweb read [selector]
 omaweb do <step>... [--settle <ms>] [--timeout <ms>]
 omaweb shot [--full] [--output <file>]
 omaweb eval <expression>
+omaweb console [--level error|warning|all] [--since <cursor>]
 ```
 
-The last five read and drive the connection's current tab, or the one `--tab` names, and need Allow
+The last six read and drive the connection's current tab, or the one `--tab` names, and need Allow
 agents. That tab has to be in an Agent Space, so make one and open the address there. A step of `do`
 is one argument, or several separated by `;`: `click <label>`, `fill <label> <text>`, `press <key>`,
 `select <label> <option>`, `scroll <label|up|down|top|bottom>`, `back`, `wait text <text>` and
 `wait url <address>`. Quote a text with spaces to keep its spacing. Labels come from `look`, and
 `do` prints a fresh `look` after its steps. `shot` prints the path it wrote, in `shots/` beside the
-socket; `--output` names the file there and takes no directory.
+socket; `--output` names the file there and takes no directory. `console` prints what the page has
+written to its console since its document loaded, one line each as level, source and line, and text,
+then `cursor` and a number to pass as `--since` for only what comes after. `--level warning` keeps
+warnings and errors, and `--level error` errors alone.
 
 ```sh
 omaweb space new Checks
@@ -344,17 +348,17 @@ omaweb do 'fill 1 reader@example.com' 'fill 2 "A Reader"' 'click 5'
 ```
 
 Each takes `--json` and `--name`, which defaults to the parent process's name. These words, `look`,
-`read`, `do`, `shot` and `eval` among them, are verbs now. A launch used to skip a word that was not
-an address, so `omaweb open https://…` started the browser and opened the address, and `omaweb tabs`
-started it with nothing. Now both are clients, and without a running browser they exit with 3. A
-launcher that starts the browser with an address passes the address alone, `omaweb https://…`, as
-the desktop entry does. `space new` and `space delete` need Allow agents, which has no switch in
-Settings yet; set `"allow-agents": true` in `privacy.json` under the configuration root. A running
-browser follows the file, and turning it off there detaches every connection at once.
-`space new --temporary` prints the Space's id and keeps running, and the Space is deleted when the
-process stops, so start it in the background and stop it when the Agent is done. Wait for the id
-before using the Space, and name it with `--space`, so a command that arrives first, or after the
-holder has gone, never lands in another Space:
+`read`, `do`, `shot`, `eval` and `console` among them, are verbs now. A launch used to skip a word
+that was not an address, so `omaweb open https://…` started the browser and opened the address, and
+`omaweb tabs` started it with nothing. Now both are clients, and without a running browser they exit
+with 3. A launcher that starts the browser with an address passes the address alone,
+`omaweb https://…`, as the desktop entry does. `space new` and `space delete` need Allow agents,
+which has no switch in Settings yet; set `"allow-agents": true` in `privacy.json` under the
+configuration root. A running browser follows the file, and turning it off there detaches every
+connection at once. `space new --temporary` prints the Space's id and keeps running, and the Space
+is deleted when the process stops, so start it in the background and stop it when the Agent is done.
+Wait for the id before using the Space, and name it with `--space`, so a command that arrives first,
+or after the holder has gone, never lands in another Space:
 
 ```sh
 omaweb space new signup --temporary --name checker > space-id &

@@ -150,6 +150,7 @@ void AgentControl::apply(bool allowed)
         for (auto &connection : m_connections) {
             connection.currentTabId.clear();
         }
+        m_console.forgetAll();
         if (!m_attached.isEmpty()) {
             m_attached.clear();
             m_idleCheck.stop();
@@ -174,7 +175,7 @@ void AgentControl::apply(bool allowed)
 
 bool AgentControl::gated(const QString &verb)
 {
-    return verb == u"space new" || verb == u"space delete" || pageVerb(verb);
+    return verb == u"space new" || verb == u"space delete" || pageVerb(verb) || verb == u"console";
 }
 
 bool AgentControl::pageVerb(const QString &verb)
@@ -230,6 +231,7 @@ void AgentControl::attach(const QString &tabId)
 
 void AgentControl::detach(const QString &tabId)
 {
+    m_console.forget(tabId);
     if (m_attached.remove(tabId) > 0) {
         if (m_attached.isEmpty()) {
             m_idleCheck.stop();
@@ -259,6 +261,7 @@ void AgentControl::detachIdle()
     }
     for (const auto &tabId : std::as_const(leaving)) {
         m_attached.remove(tabId);
+        m_console.forget(tabId);
     }
     if (m_attached.isEmpty()) {
         m_idleCheck.stop();
@@ -273,7 +276,8 @@ QJsonObject AgentControl::gate(const QString &verb) const
     static const QSet<QString> verbs {QStringLiteral("spaces"), QStringLiteral("tabs"),
         QStringLiteral("open"), QStringLiteral("close"), QStringLiteral("space new"),
         QStringLiteral("space delete"), QStringLiteral("look"), QStringLiteral("read"),
-        QStringLiteral("do"), QStringLiteral("shot"), QStringLiteral("eval")};
+        QStringLiteral("do"), QStringLiteral("shot"), QStringLiteral("eval"),
+        QStringLiteral("console")};
     if (!verbs.contains(verb)) {
         return refusal(
             QStringLiteral("bad-request"), QStringLiteral("Omaweb has no verb \"%1\".").arg(verb));
@@ -284,7 +288,7 @@ QJsonObject AgentControl::gate(const QString &verb) const
     }
     if (gated(verb) && !m_allowAgents) {
         return refusal(QStringLiteral("allow-agents"),
-            pageVerb(verb)
+            pageVerb(verb) || verb == u"console"
                 ? QStringLiteral("Allow agents is off. The reader must turn it on before an Agent "
                                  "can read or drive a page.")
                 : QStringLiteral("Allow agents is off. The reader must turn it on before an Agent "
@@ -326,6 +330,10 @@ void AgentControl::handle(const QJsonObject &request, const Reply &reply, quint6
         askPage(verb, name, connection, request, reply);
         return;
     }
+    if (verb == u"console") {
+        reply(readConsole(connection, request));
+        return;
+    }
     reply(answerBrowserCommand(verb, name, connection, request, socketConnection));
 }
 
@@ -362,32 +370,98 @@ QJsonObject AgentControl::answerBrowserCommand(const QString &verb, const QStrin
     return deleteSpace(name, connection, request);
 }
 
-void AgentControl::askPage(const QString &verb, const QString &name, Connection &connection,
-    const QJsonObject &request, const Reply &reply)
+// The tab a page verb or `console` is about: the one `--tab` names or the
+// connection's current one, and only a page an Agent may read.
+QJsonObject AgentControl::pageTab(
+    const Connection &connection, const QJsonObject &request, std::optional<TabState> &tab) const
 {
     auto tabId = request.value(QStringLiteral("tab")).toString();
     if (tabId.isEmpty()) {
         tabId = connection.currentTabId;
     }
     if (tabId.isEmpty()) {
-        reply(refusal(QStringLiteral("no-current-tab"),
+        return refusal(QStringLiteral("no-current-tab"),
             QStringLiteral(
-                "This connection has no current tab. Open one, or name one with --tab.")));
-        return;
+                "This connection has no current tab. Open one, or name one with --tab."));
     }
-    const auto tab = m_browser->findTab(
+    tab = m_browser->findTab(
         tabId, tabId == connection.currentTabId ? connection.currentSpaceId : QString {});
     if (!tab) {
-        reply(refusal(
-            QStringLiteral("not-found"), QStringLiteral("There is no tab \"%1\".").arg(tabId)));
-        return;
+        return refusal(
+            QStringLiteral("not-found"), QStringLiteral("There is no tab \"%1\".").arg(tabId));
     }
     if (!mayRead(*tab)) {
-        reply(refusal(QStringLiteral("refused"),
+        return refusal(QStringLiteral("refused"),
             QStringLiteral("An Agent reads and drives only the pages of an Agent Space. Make one "
-                           "with `space new` and open the address there.")));
+                           "with `space new` and open the address there."));
+    }
+    return {};
+}
+
+// Answered from what the tab's page has already logged, so it needs no page
+// to ask. Reading a tab's console makes it the connection's, and an Agent tab
+// from here on, so what its page says next is kept.
+QJsonObject AgentControl::readConsole(Connection &connection, const QJsonObject &request)
+{
+    auto threshold = AgentConsole::Info;
+    if (!AgentConsole::parseThreshold(
+            request.value(QStringLiteral("level")).toString(), &threshold)) {
+        return refusal(
+            QStringLiteral("bad-request"), QStringLiteral("--level is error, warning or all."));
+    }
+    const auto sinceValue = request.value(QStringLiteral("since"));
+    if (!sinceValue.isUndefined() && (!sinceValue.isDouble() || sinceValue.toDouble() < 0)) {
+        return refusal(QStringLiteral("bad-request"),
+            QStringLiteral("--since is the cursor a `console` answered."));
+    }
+    std::optional<TabState> tab;
+    if (const auto refused = pageTab(connection, request, tab); !refused.isEmpty()) {
+        return refused;
+    }
+    connection.currentTabId = tab->id;
+    connection.currentSpaceId = tab->spaceId;
+    attach(tab->id);
+
+    const auto reading
+        = m_console.read(tab->id, threshold, static_cast<quint64>(sinceValue.toDouble(0)));
+    QJsonArray messages;
+    for (const auto &message : reading.messages) {
+        messages.append(QJsonObject {
+            {QStringLiteral("cursor"), static_cast<double>(message.cursor)},
+            {QStringLiteral("level"), AgentConsole::levelName(message.level)},
+            {QStringLiteral("message"), message.text},
+            {QStringLiteral("source"), message.source},
+            {QStringLiteral("line"), message.line},
+        });
+    }
+    return success({
+        {QStringLiteral("tab"), tab->id},
+        {QStringLiteral("messages"), messages},
+        {QStringLiteral("cursor"), static_cast<double>(reading.cursor)},
+        {QStringLiteral("truncated"), reading.truncated},
+    });
+}
+
+void AgentControl::recordConsoleMessage(const QString &tabId, const QString &document, int level,
+    const QString &message, const QString &source, int line)
+{
+    // Only an Agent tab is listened to. A page the reader has to themselves
+    // says nothing that is kept.
+    if (!m_allowAgents || !m_attached.contains(tabId)) {
         return;
     }
+    m_console.record(tabId, document, level, message, source, line);
+}
+
+void AgentControl::askPage(const QString &verb, const QString &name, Connection &connection,
+    const QJsonObject &request, const Reply &reply)
+{
+    std::optional<TabState> tab;
+    if (const auto refused = pageTab(connection, request, tab); !refused.isEmpty()) {
+        reply(refused);
+        return;
+    }
+    const auto tabId = tab->id;
     QVariantMap arguments;
     if (const auto refused = pageArguments(verb, request, arguments); !refused.isEmpty()) {
         reply(refused);

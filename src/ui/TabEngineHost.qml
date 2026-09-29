@@ -774,6 +774,19 @@ Item {
         engine.pageHasFocusChanged.connect(function () {
             root.keepKeyboardOff(engine);
         });
+        // Asked of every engine, and kept only for an Agent tab: the core
+        // decides that, since it knows which tabs an Agent holds. An engine
+        // numbers its documents from the start, so a tab's page built again
+        // is told apart from the one before by a number for the engine too.
+        if (engine.pageConsoleMessage) {
+            const engineSerial = ++root.consoleEngineSerial;
+            engine.pageConsoleMessage.connect(function (level, message, lineNumber, sourceId,
+                                                        document) {
+                if (root.agentControl && root.agentAttached(tabId))
+                    root.agentControl.recordConsoleMessage(tabId, engineSerial + ":" + document,
+                                                           level, message, sourceId, lineNumber);
+            });
+        }
         if (engine.agentVerbAnswered) {
             engine.agentVerbAnswered.connect(function (requestId, answer) {
                 delete root.pendingAgentRequests[requestId];
@@ -889,6 +902,9 @@ Item {
 
     // The Agent tabs, by id, as the core last named them.
     property var agentTabIds: ({})
+    // Numbers every engine the page area builds, for telling a tab's documents
+    // apart across a page built again.
+    property int consoleEngineSerial: 0
     property int agentTabCount: 0
     // The page verbs asked of an engine and not yet answered, by request, so
     // a page that goes away answers for them rather than leaving the Agent to

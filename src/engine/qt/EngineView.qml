@@ -2466,6 +2466,11 @@ Item {
     // page cannot see it. Input is Qt events sent to the view, which the page
     // sees as trusted, and never takes the reader's focus (#376).
     signal agentVerbAnswered(int requestId, var answer)
+    // A line the page wrote to its console, at the engine's level, for the
+    // document `document` numbers. Omaweb's own markers and sealed reports are
+    // read above and never reach this.
+    signal pageConsoleMessage(int level, string message, int lineNumber, string sourceId,
+                              int document)
     // Whether the view takes the keyboard when it is made, which a page made
     // for an Agent while the reader is looking at another must not.
     property bool pageTakesFocus: true
@@ -3257,6 +3262,9 @@ Item {
                     root.keyboardNavigationHintModeActive = true;
                 else if (message === "__omaweb_keyboard_hint_mode__:0")
                     root.keyboardNavigationHintModeActive = false;
+                else
+                    root.pageConsoleMessage(level, message, lineNumber, String(sourceId),
+                                            root.pageGeneration);
                 return;
             }
             if (report.channel === "site_data_cleared") {

@@ -262,6 +262,7 @@ private slots:
     void qtAgentReadsThePageAsMarkdown();
     void qtAgentCapturesThePage();
     void qtAgentStopsWhatIsUnderWayWhenCalledOff();
+    void qtReportsOnlyThePagesOwnConsole();
     void qtSeparatesReloadBypassingCacheFromReloadAndStop();
     void qtRendersAPageForPrintingAndDrawsPdfsInline();
     void qtCapturesThePageAreaAsTheEngineDrewIt();
@@ -4735,6 +4736,17 @@ document.getElementById("go").addEventListener("click", () => {
     }, delay);
 });
 </script>)HTML");
+        page("/console.html", R"HTML(<!doctype html><title>Console</title>
+<script>
+if (location.search === "?next") console.error("second document");
+addEventListener("hashchange", () => {
+  console.log("hello");
+  console.warn("careful");
+  // What Omaweb's own keyboard script says, written by the page instead.
+  console.debug("__omaweb_keyboard_hint_mode__:1");
+  console.error("boom");
+});
+</script>)HTML");
         connect(this, &QTcpServer::newConnection, this, [this] {
             auto *socket = nextPendingConnection();
             connect(socket, &QTcpSocket::readyRead, socket, [this, socket] {
@@ -5204,6 +5216,46 @@ void QtEngineContractTest::qtAgentStopsWhatIsUnderWayWhenCalledOff()
     QCOMPARE(answered.count(), 0);
     QCOMPARE(page.evaluate(QStringLiteral("document.getElementById('terms').checked")),
         QJsonValue(false));
+}
+
+// What an Agent reads with `console`: the page's own lines, in order, with
+// level, line and source, and a new document numbered anew. Omaweb's markers
+// and the reports its scripts send the adapter never come through.
+void QtEngineContractTest::qtReportsOnlyThePagesOwnConsole()
+{
+    AgentSite site;
+    AgentPage page;
+    QVERIFY(page.load(site.url(QStringLiteral("console.html"))));
+    QTRY_COMPARE(page.look().value(QStringLiteral("title")).toString(), QStringLiteral("Console"));
+    QSignalSpy logged(
+        page.adapter.get(), SIGNAL(pageConsoleMessage(int, QString, int, QString, int)));
+    const auto said = [&logged] {
+        QStringList texts;
+        for (const auto &arguments : std::as_const(logged)) {
+            texts.append(arguments.at(1).toString());
+        }
+        return texts;
+    };
+
+    page.evaluate(QStringLiteral("location.hash = 'go'"));
+    QTRY_VERIFY(said().contains(QStringLiteral("boom")));
+    QCOMPARE(said(),
+        QStringList({QStringLiteral("hello"), QStringLiteral("careful"), QStringLiteral("boom")}));
+    QCOMPARE(logged.at(0).at(0).toInt(), 0);
+    QCOMPARE(logged.at(1).at(0).toInt(), 1);
+    QCOMPARE(logged.at(2).at(0).toInt(), 2);
+    QVERIFY(logged.at(2).at(2).toInt() > 0);
+    QVERIFY(logged.at(2).at(3).toString().contains(QStringLiteral("console.html")));
+    const auto firstDocument = logged.at(0).at(4).toInt();
+
+    const auto next = site.url(QStringLiteral("console.html?next"));
+    QVERIFY(QMetaObject::invokeMethod(
+        page.adapter.get(), [&page, next] { page.adapter->setProperty("currentUrl", next); }));
+    QTRY_VERIFY(said().contains(QStringLiteral("second document")));
+    QVERIFY(logged.constLast().at(4).toInt() != firstDocument);
+    for (const auto &text : said()) {
+        QVERIFY2(!text.startsWith(QStringLiteral("__omaweb_")), qPrintable(text));
+    }
 }
 
 void QtEngineContractTest::qtKeepsTheZoomItIsGivenAcrossNavigation()

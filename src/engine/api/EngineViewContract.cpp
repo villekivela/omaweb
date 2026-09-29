@@ -191,6 +191,11 @@ QStringList validateEngineViewContract(const QObject &adapter)
         {"auxiliaryWindowRequested", true, 2},
         {"windowCloseRequested", true, 0},
         {"backgroundTabRequested", true, 1, QMetaType::QUrl},
+        // A line the page wrote to its console: level (0 info, 1 warning,
+        // 2 error), text, line, source and the document that wrote it. Only the
+        // page's own lines, never what Omaweb's scripts report to the adapter,
+        // because an Agent reads this as what the page said (ADR 0051).
+        {"pageConsoleMessage", true, 5, QMetaType::Int},
         {"userActivated", true, 0},
     };
 
