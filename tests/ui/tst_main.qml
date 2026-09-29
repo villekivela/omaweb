@@ -5579,8 +5579,8 @@ TestCase {
         compare(browser.activeSpaceId, homeSpaceId);
     }
 
-    // In command scope every row carries its group's symbol, and the group's
-    // name is written once, where its rows start.
+    // In command scope every row carries its group's symbol and no group
+    // name, so its rows read like the widened Omnibar's.
     function test_commandScopeRowsCarryTheirGroupSymbol() {
         const panel = findChild(window.contentItem, "omnibar");
         const rows = findChild(window.contentItem, "omnibarRowList");
@@ -5590,8 +5590,9 @@ TestCase {
             const row = omnibarRowItem(rows, index);
             compare(findChild(row, "omnibarRowSymbol").text,
                     window.commands.groupSymbols[panel.rows[index].group]);
-            compare(row.groupLabel, index === 0 || panel.rows[index - 1].group
-                    !== panel.rows[index].group ? panel.rows[index].group : "");
+            const picture = findChild(row, "omnibarRowPicture");
+            compare(findChild(row, "omnibarRowTitle").mapToItem(row, 0, 0).x, picture.x
+                    + picture.width + 10);
             compare(row.action, "");
         }
         window.closeOmnibar();

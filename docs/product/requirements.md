@@ -192,10 +192,11 @@ reports the gap and remains experimental rather than imitating behavior it canno
   `Return` switches to it. A field still holding the preset address commits it as typed.
 - `Primary+K` and `:` open the Omnibar in command scope, shown as a leading `:` in the field: every
   action Omaweb can perform is fuzzy-searchable there, and each result shows the keys that invoke
-  it, so the Omnibar is also how the keymap is learned. Each command group's name is written where
-  its rows start, beside the group's symbol. Typing `:` into the field narrows it to commands, and
-  backspacing the `:` widens it to every row for the same text, so text that starts with `:` is
-  never searched as typed. An action that cannot be reached from the Omnibar is a defect.
+  it, so the Omnibar is also how the keymap is learned. Its rows look like the rest of the
+  Omnibar's: the group's symbol, then the title, with no group name. Typing `:` into the field
+  narrows it to commands, and backspacing the `:` widens it to every row for the same text, so text
+  that starts with `:` is never searched as typed. An action that cannot be reached from the Omnibar
+  is a defect.
 - Target-specific page actions are the exception to the Omnibar rule. An Omaweb-owned page context
   menu opens by pointer or `Shift+F10`; the Omnibar exposes Open page context menu, while actions
   such as copy link, save image, and Inspect element remain inside the menu because they require its

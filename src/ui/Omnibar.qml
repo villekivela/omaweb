@@ -772,13 +772,6 @@ Item {
                     required property var modelData
 
                     readonly property bool isSelected: index === root.selected
-                    // In command scope the group's name is written where its
-                    // rows start, beside the symbol every row of it carries.
-                    readonly property string groupLabel: root.commandScope && (index === 0
-                                                                               || root.rows[index
-                                                                                            - 1].group
-                                                                               !== modelData.group)
-                                                         ? modelData.group : ""
                     readonly property string title: modelData.kind === "keyword"
                                                     ? modelData.engineName : modelData.title
                     readonly property string host: modelData.kind === "tab" || modelData.kind
@@ -839,6 +832,7 @@ Item {
                     // colour, or its command group's symbol.
                     Item {
                         id: picture
+                        objectName: "omnibarRowPicture"
                         anchors.left: parent.left
                         anchors.leftMargin: 14
                         anchors.verticalCenter: parent.verticalCenter
@@ -878,25 +872,8 @@ Item {
                         }
                     }
 
-                    SectionLabel {
-                        id: groupName
-                        anchors.left: picture.right
-                        anchors.leftMargin: visible ? 10 : 0
-                        anchors.verticalCenter: parent.verticalCenter
-                        visible: root.commandScope
-                        width: visible ? 92 : 0
-                        colors: root.colors
-                        foreground: root.colors.mutedText
-                        text: row.groupLabel
-                        elide: Text.ElideRight
-                        // Centred against the name beside it, so the stacked
-                        // lean would drop the label below its own row.
-                        topPadding: overshoot
-                        bottomPadding: overshoot
-                    }
-
                     Item {
-                        anchors.left: groupName.right
+                        anchors.left: picture.right
                         anchors.leftMargin: 10
                         anchors.right: rowEdge.left
                         anchors.rightMargin: 12
