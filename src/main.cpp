@@ -1,5 +1,6 @@
 #include "AgentCommand.h"
 #include "AgentControl.h"
+#include "AgentMcp.h"
 #include "BrowserController.h"
 #include "ContentBlocker.h"
 #include "ControlSocket.h"
@@ -158,7 +159,13 @@ int main(int argc, char *argv[])
         return 0;
     }
     // An Agent verb is a client of the browser already running, so it starts
-    // nothing of its own: no engine, no desktop claim, no session.
+    // nothing of its own: no engine, no desktop claim, no session. The MCP
+    // server is one too, and starts a browser as a separate process.
+    if (omaweb::isAgentMcpCommand(arguments)) {
+        QCoreApplication client(argc, argv);
+        QCoreApplication::setApplicationVersion(QStringLiteral(OMAWEB_VERSION));
+        return omaweb::runAgentMcp(arguments, omaweb::ControlSocket::defaultPath());
+    }
     if (omaweb::isAgentCommand(arguments)) {
         QCoreApplication client(argc, argv);
         return omaweb::runAgentCommand(arguments, omaweb::ControlSocket::defaultPath());

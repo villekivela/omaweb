@@ -212,6 +212,8 @@ add_library(omaweb-core STATIC
     src/core/AgentConsole.h
     src/core/AgentControl.cpp
     src/core/AgentControl.h
+    src/core/AgentMcp.cpp
+    src/core/AgentMcp.h
     src/core/BrowserStateExchange.cpp
     src/core/BrowserStateExchange.h
     src/core/BrowserController.cpp
@@ -852,6 +854,10 @@ if(OMAWEB_BUILD_BROWSER)
             DESTINATION "${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps")
         install(FILES LICENSE THIRD_PARTY_NOTICES.md
             DESTINATION "${CMAKE_INSTALL_DATADIR}/licenses/omaweb")
+        # An Agent skill is a directory named for the skill, which the reader
+        # links into their agent's skills directory.
+        install(DIRECTORY integrations/agent/omaweb
+            DESTINATION "${CMAKE_INSTALL_DATADIR}/omaweb/skills")
     endif()
 endif()
 
@@ -1086,6 +1092,11 @@ if(BUILD_TESTING)
     target_link_libraries(omaweb-agent-command-tests PRIVATE omaweb-core Qt6::Test)
     omaweb_strict_target(omaweb-agent-command-tests)
     add_test(NAME omaweb-agent-command COMMAND omaweb-agent-command-tests)
+
+    qt_add_executable(omaweb-agent-mcp-tests tests/core/tst_agentmcp.cpp)
+    target_link_libraries(omaweb-agent-mcp-tests PRIVATE omaweb-core Qt6::Test)
+    omaweb_strict_target(omaweb-agent-mcp-tests)
+    add_test(NAME omaweb-agent-mcp COMMAND omaweb-agent-mcp-tests)
 
     qt_add_executable(omaweb-session-store-tests tests/core/tst_sessionstore.cpp)
     target_link_libraries(omaweb-session-store-tests PRIVATE omaweb-core Qt6::Test)

@@ -402,6 +402,19 @@ namespace {
 
 } // namespace
 
+QJsonArray readAgentSteps(const QStringList &arguments, QString &error)
+{
+    return readSteps(arguments, error);
+}
+
+QString agentConnectionName(const QString &name)
+{
+    const auto cleaned = cleanName(name);
+    return cleaned.isEmpty() ? fallbackName : cleaned;
+}
+
+int agentAnswerTimeoutMs(const QJsonObject &request) { return answerTimeoutFor(request); }
+
 bool isAgentCommand(const QStringList &arguments)
 {
     static const QSet<QString> verbs {QStringLiteral("spaces"), QStringLiteral("tabs"),
@@ -523,8 +536,7 @@ AgentCommand readAgentCommand(const QStringList &arguments, const QString &defau
     if (!positionals.isEmpty()) {
         request.insert(grammar.positionalField, positionals.constFirst());
     }
-    name = cleanName(name);
-    request.insert(QStringLiteral("name"), name.isEmpty() ? fallbackName : name);
+    request.insert(QStringLiteral("name"), agentConnectionName(name));
     command.request = request;
     return command;
 }

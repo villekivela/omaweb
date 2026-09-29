@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QJsonArray>
 #include <QJsonObject>
 #include <QString>
 #include <QStringList>
@@ -27,6 +28,20 @@ struct AgentCommand {
 // `defaultName` names the connection when `--name` does not. The CLI passes
 // its parent process's name, so an Agent's commands share one connection.
 AgentCommand readAgentCommand(const QStringList &arguments, const QString &defaultName);
+
+// The steps of a `do`, each argument one step or several separated by `;`:
+// `click 3`, `fill 5 "text"`, `press Enter`, `select 7 Finland`,
+// `scroll down`, `back`, `wait text Thanks` and `wait url /done`. Empty, with
+// `error` saying why, when one is malformed.
+QJsonArray readAgentSteps(const QStringList &arguments, QString &error);
+
+// The name a request carries: `name` without what cannot be printed, cut to
+// fit the log, or a fallback when nothing is left.
+QString agentConnectionName(const QString &name);
+
+// How long a client waits for the answer to `request`, a little longer than
+// the browser waits for the page, so the browser's answer is the one heard.
+int agentAnswerTimeoutMs(const QJsonObject &request);
 
 // What the CLI prints for an answer that succeeded: one line per row, fields
 // separated by tabs, so a shell script can cut it.
