@@ -80,17 +80,14 @@ public:
     virtual bool recordClosedTabs(const QString &spaceId, const QVector<TabState> &tabs) = 0;
     virtual bool saveTab(const TabState &tab, int position) = 0;
     virtual bool saveTabs(
-        const QString &spaceId, const QVector<TabState> &tabs, const QString &activeTabId)
-        = 0;
+        const QString &spaceId, const QVector<TabState> &tabs, const QString &activeTabId) = 0;
     // The same write as `saveTabs`, for the coalesced path that has nothing to
     // do with the answer.
     virtual bool recordTabs(
-        const QString &spaceId, const QVector<TabState> &tabs, const QString &activeTabId)
-        = 0;
+        const QString &spaceId, const QVector<TabState> &tabs, const QString &activeTabId) = 0;
     virtual bool saveSpaceMove(const QString &sourceSpaceId, const QVector<TabState> &sourceTabs,
         const QString &sourceActiveTabId, const QString &destinationSpaceId,
-        const QVector<TabState> &destinationTabs, const QString &destinationActiveTabId)
-        = 0;
+        const QVector<TabState> &destinationTabs, const QString &destinationActiveTabId) = 0;
 
     virtual QString preference(const QString &name, const QString &fallback = {}) const = 0;
     virtual bool savePreference(const QString &name, const QString &value) = 0;
@@ -115,15 +112,12 @@ public:
     // later and on the store's own thread for `ThreadedSessionStore`, so a
     // caller that must not wait on the disk is never made to.
     virtual void findFavicon(const QString &spaceId, const QUrl &pageUrl,
-        std::function<void(const QByteArray &image)> answer) const
-        = 0;
+        std::function<void(const QByteArray &image)> answer) const = 0;
 
     virtual int permissionDecision(
-        const QString &spaceId, const QString &origin, const QString &permission) const
-        = 0;
+        const QString &spaceId, const QString &origin, const QString &permission) const = 0;
     virtual bool savePermissionDecision(
-        const QString &spaceId, const QString &origin, const QString &permission, int decision)
-        = 0;
+        const QString &spaceId, const QString &origin, const QString &permission, int decision) = 0;
     virtual QVariantList permissionsForOrigin(const QString &spaceId, const QString &origin) const
         = 0;
     virtual bool clearPermissionsForOrigin(const QString &spaceId, const QString &origin) = 0;
@@ -132,11 +126,9 @@ public:
     // `spaceId` is the Space the download came from, or nothing for a file
     // Omaweb wrote itself, so a temporary Space's records can go with it.
     virtual bool recordDownload(const QString &id, const QString &spaceId, const QUrl &url,
-        const QString &path, const QString &state, qint64 receivedBytes, qint64 totalBytes)
-        = 0;
+        const QString &path, const QString &state, qint64 receivedBytes, qint64 totalBytes) = 0;
     virtual bool updateDownload(const QString &id, const QString &state, qint64 receivedBytes,
-        qint64 totalBytes, const QString &error)
-        = 0;
+        qint64 totalBytes, const QString &error) = 0;
     virtual QVariantList downloadHistory() const = 0;
     virtual bool forgetDownload(const QString &id) = 0;
     virtual bool forgetSpaceDownloads(const QString &spaceId) = 0;

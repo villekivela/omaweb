@@ -172,10 +172,15 @@ namespace {
         return {};
     }
 
+    // What a tab an Agent loads is called until its page names itself.
+    QString hostOrAddress(const QUrl &url)
+    {
+        return url.host().isEmpty() ? url.toDisplayString() : url.host();
+    }
+
     QString describeOpened(const QUrl &url)
     {
-        return QStringLiteral("opened %1")
-            .arg(url.host().isEmpty() ? url.toDisplayString() : url.host());
+        return QStringLiteral("opened %1").arg(hostOrAddress(url));
     }
 
 } // namespace
@@ -1165,7 +1170,7 @@ QJsonObject AgentControl::open(Connection &connection, const QJsonObject &reques
                 describeOpened(url));
         }
         tab->url = url;
-        tab->title = url.host().isEmpty() ? url.toDisplayString() : url.host();
+        tab->title = hostOrAddress(url);
         return success({{QStringLiteral("tab"), describeTab(*tab, connection)}});
     }
 

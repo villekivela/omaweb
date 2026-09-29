@@ -42,7 +42,7 @@ PRIVATE_SLOTS = (13, 5)
 # separates the shipped default's two accents.
 PRIVATE_HUE_SHIFT = 32.0
 PRIVATE_ACCENT_GAIN = 1.2
-# An Agent's colour is the terminal's cyan, as Omarchy's template names it.
+# The Agent accent is the terminal's cyan, as Omarchy's template names it.
 # Omaweb keeps it apart from the accent and legible on the window itself.
 AGENT_SLOT = 6
 

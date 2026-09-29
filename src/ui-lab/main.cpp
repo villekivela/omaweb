@@ -441,12 +441,12 @@ int main(int argc, char *argv[])
     const auto agentsAway = arguments.contains(QStringLiteral("--agents-away"));
     const auto agents = agentsAway || arguments.contains(QStringLiteral("--agents"));
     std::optional<omaweb::AgentControl> agentControl;
+    const auto agentName = QStringLiteral("claude-code");
     QString agentTabId;
     QString agentSpaceId;
     if (agents) {
         agentControl.emplace(&browser, dataRoot.filePath(QStringLiteral("config")));
         agentControl->setAllowAgents(true);
-        const auto agentName = QStringLiteral("claude-code");
         const auto made = agentControl->answer({
             {QStringLiteral("verb"), QStringLiteral("space new")},
             {QStringLiteral("name"), agentName},
@@ -469,11 +469,11 @@ int main(int argc, char *argv[])
     // A click, once the page is up, so the frame's label has an act to name.
     // The stand-in page reports the name a step carries as the element's.
     if (agentControl && !agentTabId.isEmpty()) {
-        QTimer::singleShot(200, &application, [&agentControl, agentTabId] {
+        QTimer::singleShot(200, &application, [&agentControl, agentName, agentTabId] {
             agentControl->handle(
                 {
                     {QStringLiteral("verb"), QStringLiteral("do")},
-                    {QStringLiteral("name"), QStringLiteral("claude-code")},
+                    {QStringLiteral("name"), agentName},
                     {QStringLiteral("tab"), agentTabId},
                     {QStringLiteral("steps"),
                         QJsonArray {QJsonObject {

@@ -39,13 +39,14 @@ Item {
     property string iconFontFamily
     property bool useFavicons: true
     property bool tintFavicons: false
-    // Whether an Agent is attached to this tab, the connection's name, and
-    // whether one of its commands is in flight. A Pinned tab is never one.
-    property bool agentAttached: false
-    property string agentName: ""
-    property bool agentBusy: false
-    readonly property bool showsAgent: agentAttached && !pinned
-    readonly property string agentNote: (agentName.length > 0 ? agentName : "An Agent")
+    // The Agent attached to this tab, as the core reports it: the
+    // connection's `name` and `busy` while one of its commands is in flight.
+    // Null for a tab no Agent drives. A Pinned tab is never an Agent's.
+    property var agent: null
+    readonly property bool showsAgent: agent !== null && !pinned
+    readonly property string agentNote: (agent && String(agent.name || "").length > 0 ? String(
+                                                                                            agent.name) :
+                                                                                        "An Agent")
                                         + " is driving this tab. It stays rendered while attached."
     // The key that selects this tab, as the keymap displays it, and whether
     // Primary is being held for the labels.
@@ -288,9 +289,7 @@ Item {
     }
 
     // An Agent's tab says so at the end of its row, in the place the close
-    // button takes on hover. It pulses only while one of the Agent's
-    // commands is in flight and holds still while the connection is idle, so
-    // an idle sidebar draws no frames for it.
+    // button takes on hover.
     Item {
         id: agentSpot
         objectName: "agentSpot-" + root.tabId
@@ -305,7 +304,7 @@ Item {
             objectName: "agentMark-" + root.tabId
             anchors.centerIn: parent
             visible: !hoverArea.containsMouse
-            busy: root.agentBusy
+            busy: root.agent !== null && root.agent.busy === true
             color: root.colors.agentAccent
             font.family: root.iconFontFamily
         }

@@ -1443,7 +1443,7 @@ ApplicationWindow {
                                                  window.windowBrowser.activeSpaceId) >= 0
     // The Agent Space whose notice the reader dismissed, for as long as it
     // stays on show: opening it again asks again.
-    property string agentSpaceNoticeDismissed: ""
+    property string dismissedAgentSpaceId: ""
 
     // Taking an Agent Space over removes its mark and, for a temporary one,
     // keeps it after the connection that made it closes.
@@ -2952,10 +2952,8 @@ ApplicationWindow {
                              !engineLoader.siteFullscreenActive
                 }
 
-                // The page of an Agent tab, while it is on show, is framed in
-                // the Agent's colour and says who is driving it and what it
-                // did last, since the reader is watching someone else's hands.
-                // In a split only the pane showing the Agent tab is framed.
+                // Each pane of the page area that shows an Agent tab is framed,
+                // the tab beside a split's active one included.
                 AgentPageFrame {
                     id: agentFrame
                     objectName: "agentFrame"
@@ -2970,6 +2968,24 @@ ApplicationWindow {
                     labelTop: agentSpaceBar.height
                     visible: agent !== null && !window.startPageShown && !window.settingsOpen &&
                              !window.historyOpen && !window.shortcutsOpen && !window.glanceOpen &&
+                             !engineLoader.siteFullscreenActive
+                }
+
+                AgentPageFrame {
+                    id: besideAgentFrame
+                    objectName: "besideAgentFrame"
+                    x: engineLoader.x + engineLoader.besidePaneX
+                    y: engineLoader.y
+                    width: engineLoader.besidePaneWidth
+                    height: engineLoader.height
+                    z: 20
+                    colors: window.colors
+                    agent: window.agentActivity[engineLoader.tabBesideId] || null
+                    // Below the Agent Space's notice while it stands.
+                    labelTop: agentSpaceBar.height
+                    visible: engineLoader.splitOnShow && agent !== null && !window.startPageShown
+                             && !window.settingsOpen && !window.historyOpen &&
+                             !window.shortcutsOpen && !window.glanceOpen &&
                              !engineLoader.siteFullscreenActive
                 }
 
@@ -3251,7 +3267,7 @@ ApplicationWindow {
                     focus: false
                     colors: window.colors
                     iconFontFamily: materialSymbols.name
-                    open: window.agentSpaceOnShow && window.agentSpaceNoticeDismissed
+                    open: window.agentSpaceOnShow && window.dismissedAgentSpaceId
                           !== window.windowBrowser.activeSpaceId
                     glyph: "smart_toy"
                     readonly property string creator: agentSpaceBar.open
@@ -3278,15 +3294,14 @@ ApplicationWindow {
                         if (index === 0)
                             window.takeOverSpace();
                         else
-                            window.agentSpaceNoticeDismissed = window.windowBrowser.activeSpaceId;
+                            window.dismissedAgentSpaceId = window.windowBrowser.activeSpaceId;
                     }
 
                     Connections {
                         target: window.windowBrowser
                         function onActiveSpaceChanged() {
-                            if (window.agentSpaceNoticeDismissed
-                                    !== window.windowBrowser.activeSpaceId)
-                                window.agentSpaceNoticeDismissed = "";
+                            if (window.dismissedAgentSpaceId !== window.windowBrowser.activeSpaceId)
+                                window.dismissedAgentSpaceId = "";
                         }
                     }
                 }

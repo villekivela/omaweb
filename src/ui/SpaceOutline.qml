@@ -983,9 +983,7 @@ Rectangle {
                     tintFavicons: root.tintFavicons
                     keyLabel: root.tabLabel(tabId)
                     keyLabelShown: root.keyLabelsShown
-                    agentAttached: root.agentOf(tabId) !== null
-                    agentName: agentAttached ? String(root.agentOf(tabId).name || "") : ""
-                    agentBusy: agentAttached && root.agentOf(tabId).busy === true
+                    agent: root.agentOf(tabId)
                     onActivated: function (id) {
                         root.tabActivated(id);
                     }
@@ -1065,9 +1063,7 @@ Rectangle {
                         tintFavicons: root.tintFavicons
                         keyLabel: root.tabLabel(tabId)
                         keyLabelShown: root.keyLabelsShown
-                        agentAttached: root.agentOf(tabId) !== null
-                        agentName: agentAttached ? String(root.agentOf(tabId).name || "") : ""
-                        agentBusy: agentAttached && root.agentOf(tabId).busy === true
+                        agent: root.agentOf(tabId)
                         onActivated: function (id) {
                             root.tabActivated(id);
                         }
@@ -1187,7 +1183,7 @@ Rectangle {
                     // A Space an Agent is working in, or one an Agent made,
                     // wears the Agent's mark in place of its letter, so it
                     // can be read while the Space is away. The mark is in the
-                    // Agent's colour while an Agent is attached to one of the
+                    // Agent accent while an Agent is attached to one of the
                     // Space's tabs, and muted in an Agent Space no Agent is
                     // using. The letter comes back when the connection closes,
                     // or when the reader takes the Space over.

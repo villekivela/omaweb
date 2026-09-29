@@ -19,10 +19,10 @@ Item {
     function describe(agent) {
         if (!agent)
             return "";
-        const name = String(agent.name || "");
         const act = String(agent.act || "");
-        const driver = name.length > 0 ? name : "An Agent";
-        return act.length > 0 ? driver + " is driving · " + act : driver + " is driving";
+        const name = String(agent.name || "");
+        const driving = (name.length > 0 ? name : "An Agent") + " is driving";
+        return act.length > 0 ? driving + " · " + act : driving;
     }
 
     Rectangle {

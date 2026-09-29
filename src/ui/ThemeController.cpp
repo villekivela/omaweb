@@ -682,7 +682,7 @@ QVariantMap ThemeController::normalizedPalette(QVariantMap palette) const
         palette.insert(QStringLiteral("privateMutedText"), privateResolved.name(QColor::HexRgb));
     }
 
-    // The Agent colour is read as well as seen: the page frame's label is
+    // The Agent accent is read as well as seen: the page frame's label is
     // the window colour written on it, and the mark on a row or a Space is
     // drawn on the sidebar. So it keeps its hue and changes lightness only
     // until it clears 4.5:1 against both, which a cyan named for a dark
