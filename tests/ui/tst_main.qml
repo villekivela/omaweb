@@ -3707,6 +3707,9 @@ TestCase {
         findChild(window.contentItem, "engineLoader").agentControl = null;
         verify(browser.switchSpace(drive.readersSpaceId));
         tryCompare(findChild(window.contentItem, "sidebar"), "arriving", false);
+        // The switch back names the Space for a moment, and the next test
+        // starts from a page with nothing over it.
+        tryCompare(findChild(window.contentItem, "spaceNotice"), "visible", false, 5000);
         for (let row = 0; row < browser.spaces.rowCount(); ++row) {
             const model = browser.spaces;
             if (model.data(model.index(row, 0), Qt.UserRole + 1) === drive.spaceId) {
@@ -3789,6 +3792,7 @@ TestCase {
         compare(findChild(frame, "agentFrameCaption").text,
                 "claude-code is driving · clicked \"Files changed\"");
         const label = findChild(frame, "agentFrameLabel");
+        compare(String(label.color), String(window.colors.agentAccent));
         compare(label.x + label.width, frame.width);
         compare(label.y, bar.height);
         drive.report(false, "looked at the page");
