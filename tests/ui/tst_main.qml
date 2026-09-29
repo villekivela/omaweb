@@ -201,6 +201,16 @@ TestCase {
         window.destroy();
     }
 
+    // Every test shares one window, and a test that fails part-way can leave
+    // a new tab's Start page summoned over the next test's page.
+    function init() {
+        window.endStartPageDrive();
+        window.startPageSummoned = false;
+        window.shortcutsOpen = false;
+        if (!window.startPageRoad)
+            window.setStartPageRoad(true);
+    }
+
     // A Download record outlives the test that made it, and every test here
     // shares one window, so a test about the list starts from an empty one.
     function clearDownloads() {
@@ -773,8 +783,8 @@ TestCase {
         compare(browser.developerToolsTabId, "");
         compare(engine.inspectedElementCount, 0);
         verify(!dock.visible);
-        const startPage = findChild(window.contentItem, "startPage");
-        compare(startPage.sections.filter(function (section) {
+        const shortcutSheet = findChild(window.contentItem, "shortcutSheet");
+        compare(shortcutSheet.sections.filter(function (section) {
             return section.group === "developer";
         }).length, 0);
 
@@ -811,9 +821,9 @@ TestCase {
 
         // The sheet of keys promises nothing it cannot carry out either, so the
         // registry is the only place that decides.
-        const startPage = findChild(window.contentItem, "startPage");
-        verify(startPage !== null);
-        const developerSections = startPage.sections.filter(function (section) {
+        const shortcutSheet = findChild(window.contentItem, "shortcutSheet");
+        verify(shortcutSheet !== null);
+        const developerSections = shortcutSheet.sections.filter(function (section) {
             return section.group === "developer";
         });
         compare(developerSections.length, 0);
@@ -891,7 +901,7 @@ TestCase {
 
         // Somewhere a sheet's own scroll view stands, and somewhere it does
         // not: the margin beside the Settings rail, the inset above a
-        // heading, the Start page's gutter.
+        // heading, the Shortcut sheet's gutter.
         const spots = [Qt.point(engine.width / 2, engine.height / 2), Qt.point(12, engine.height
                                                                                / 2), Qt.point(
                            engine.width / 2, 20)];
@@ -932,7 +942,7 @@ TestCase {
                       }
                   },
                   {
-                      "name": "the Start page over a page",
+                      "name": "the Shortcut sheet",
                       "open": function () {
                           window.shortcutsOpen = true;
                       },
@@ -942,6 +952,15 @@ TestCase {
                   },
                   {
                       "name": "the Omnibar",
+                      "open": function () {
+                          window.openOmnibar(false);
+                      },
+                      "close": function () {
+                          window.closeOmnibar();
+                      }
+                  },
+                  {
+                      "name": "the Start page over a page",
                       "open": function () {
                           window.openOmnibar(true);
                       },
@@ -1285,7 +1304,8 @@ TestCase {
     function test_newTabRequestWaitsForCommittedDestination() {
         const previousTabId = browser.activeTabId;
         window.openOmnibar(true);
-        tryCompare(window, "omnibarOpen", true);
+        tryCompare(window, "omnibarShown", true);
+        verify(findChild(window.contentItem, "startPage").open);
         compare(browser.activeTabId, previousTabId);
 
         const omnibarInput = findChild(window.contentItem, "omnibarInput");
@@ -5228,33 +5248,31 @@ TestCase {
         const panel = findChild(window.contentItem, "commandPanel");
         const input = findChild(window.contentItem, "omnibarInput");
         const chip = findChild(window.contentItem, "omnibarEngineChip");
-        const destination = findChild(window.contentItem, "omnibarDestination");
         const rows = findChild(window.contentItem, "omnibarRowList");
         verify(panel !== null);
         verify(input !== null);
         verify(chip !== null);
-        verify(destination !== null);
         verify(rows !== null);
         compare(chip.visible, false);
-        compare(destination.visible, false);
+        compare(panel.destination, "");
 
         // The space after the keyword is what enters the mode.
         input.text = "g";
         compare(chip.visible, false);
-        compare(destination.text, "Open Google");
+        compare(panel.destination, "Open Google");
         input.text = "g ";
         compare(chip.visible, true);
         compare(chip.Accessible.name, "Google");
         compare(input.text, "");
-        compare(destination.text, "Open Google");
+        compare(panel.destination, "Open Google");
         input.text = "rust lifetimes";
-        compare(destination.text, "Search Google for rust lifetimes");
+        compare(panel.destination, "Search Google for rust lifetimes");
         compare(input.Accessible.name, "Search Google");
         compare(input.Accessible.description, "Search Google for rust lifetimes");
         compare(panel.selected, -1);
         panel.accept();
         compare(browser.activeUrl.toString(), "https://www.google.com/search?q=rust lifetimes");
-        compare(window.omnibarOpen, false);
+        tryCompare(window, "omnibarShown", false);
 
         // Backspace on empty terms is the key that undoes entering the mode.
         window.openOmnibar(true);
@@ -5269,10 +5287,10 @@ TestCase {
         // A mistyped keyword is visibly a default-engine search.
         input.text = "gg rust";
         compare(chip.visible, false);
-        compare(destination.text, "Search DuckDuckGo for gg rust");
+        compare(panel.destination, "Search DuckDuckGo for gg rust");
         // An address is not a search, so the row says it opens.
         input.text = "example.com";
-        compare(destination.text, "Open example.com");
+        compare(panel.destination, "Open example.com");
 
         // A prefix offers the keywords it could become, ahead of the commands
         // it starts as strongly.
@@ -5292,13 +5310,13 @@ TestCase {
         compare(chip.visible, true);
         compare(chip.Accessible.name, "Brave Search");
         compare(input.text, "");
-        compare(window.omnibarOpen, true);
+        compare(window.omnibarShown, true);
         compare(rows.count, 0);
 
         // Return with no terms is the engine's front page.
         panel.accept();
         compare(browser.activeUrl.toString(), "https://search.brave.com/");
-        compare(window.omnibarOpen, false);
+        tryCompare(window, "omnibarShown", false);
 
         verify(browser.switchSpace(homeSpaceId));
         verify(browser.deleteSpace(keywordSpaceId, "Keyword Space"));
@@ -5340,7 +5358,7 @@ TestCase {
         compare(panel.rows[panel.selected].kind, "tab");
         compare(panel.rows[panel.selected].argument, quarterlyTabId);
         panel.accept();
-        compare(window.omnibarOpen, false);
+        tryCompare(window, "omnibarShown", false);
         compare(browser.activeTabId, quarterlyTabId);
         compare(browser.tabs.rowCount(), tabCount);
 
@@ -5440,7 +5458,12 @@ TestCase {
         panel.selected = panel.rows.indexOf(omnibarRowsOf(panel, "space")[0]);
         panel.accept();
         compare(browser.activeSpaceId, zephyrSpaceId);
+        // The Space it switched to is at rest, so what shows is its Start page
+        // and the overlay has gone.
         compare(window.omnibarOpen, false);
+        tryVerify(function () {
+            return window.startPageShown;
+        });
 
         verify(browser.switchSpace(homeSpaceId));
         verify(browser.deleteSpace(zephyrSpaceId, "Zephyr reading"));
@@ -5508,7 +5531,7 @@ TestCase {
         compare(go.Accessible.name, "Go");
         input.text = "https://go-mark.example/";
         mouseClick(go);
-        compare(window.omnibarOpen, false);
+        tryCompare(window, "omnibarShown", false);
         compare(browser.activeUrl.toString(), "https://go-mark.example/");
         browser.closeTab(browser.activeTabId);
         browser.activateTab(startTabId);
@@ -5518,6 +5541,8 @@ TestCase {
     // opened it: it never starts on the sidebar's address field and crosses
     // the window from there.
     function test_theOmnibarArrivesInItsOwnPlace() {
+        // Over a page: on the Start page the Omnibar is already at rest.
+        openPage("https://arrival.example/");
         const panel = findChild(window.contentItem, "commandPanel");
         const frame = findChild(window.contentItem, "omnibarFrame");
         verify(!window.sidebarCollapsed);
@@ -6062,24 +6087,60 @@ TestCase {
         compare(keyboardNavigationEnabled.checked, true);
     }
 
+    function activateWindow() {
+        window.requestActivate();
+        tryVerify(function () {
+            return window.active;
+        });
+    }
+
+    // A Space at rest, switched to and waiting for its Start page's field.
+    function enterRestingSpace(name) {
+        const spaceId = browser.createSpace(name);
+        verify(browser.switchSpace(spaceId));
+        tryVerify(function () {
+            return browser.atRest && window.pagelessViewport;
+        });
+        activateWindow();
+        const input = findChild(window.contentItem, "omnibarInput");
+        tryVerify(function () {
+            return input.activeFocus;
+        });
+        return spaceId;
+    }
+
+    // Back to the Space the test started in, and the notice that switch shows
+    // gone again, so the next test starts where this one did.
+    function leaveSpace(homeSpaceId, spaceId, name) {
+        verify(browser.switchSpace(homeSpaceId));
+        verify(browser.deleteSpace(spaceId, name));
+        const notice = findChild(window.contentItem, "spaceNotice");
+        tryVerify(function () {
+            return !notice.visible;
+        }, 4000);
+    }
+
+    Component {
+        id: otherWindowComponent
+
+        Window {
+            width: 120
+            height: 80
+        }
+    }
+
     // A Space with nothing open in it has no page to show and no ordinary tab
-    // to list. What stands in for the page is the keymap itself, drawn from the
-    // same command registry and the same bindings the window dispatches
-    // through, and no renderer is spent on the blank tab behind it.
-    function test_restingSpaceShowsTheShortcutSheetInsteadOfAPage() {
+    // to list. The Start page stands in: the Omnibar at rest over the road,
+    // focused, and no renderer spent on the blank tab behind it.
+    function test_aSpaceAtRestShowsTheOmnibarAtRestOverTheRoad() {
         const engineLoader = findChild(window.contentItem, "engineLoader");
         const startPage = findChild(window.contentItem, "startPage");
-        const engineBacking = findChild(window.contentItem, "engineBacking");
-        verify(engineLoader !== null);
-        verify(startPage !== null);
-        verify(engineBacking !== null);
-
+        const road = findChild(window.contentItem, "nightRoad");
+        const panel = findChild(window.contentItem, "commandPanel");
+        const frame = findChild(window.contentItem, "omnibarFrame");
+        const input = findChild(window.contentItem, "omnibarInput");
         const homeSpaceId = browser.activeSpaceId;
-        const restingSpaceId = browser.createSpace("Resting");
-        verify(browser.switchSpace(restingSpaceId));
-        tryVerify(function () {
-            return browser.atRest;
-        });
+        const restingSpaceId = enterRestingSpace("Resting");
 
         // No row stands for a page nobody opened.
         const restingTabId = browser.activeTabId;
@@ -6089,95 +6150,447 @@ TestCase {
         tryVerify(function () {
             return startPage.visible;
         });
-
-        // The resting page area is translucent like the sidebar rather than
-        // sealed with the opaque backing a webpage needs, and with no page
-        // there is nothing to blur behind it.
-        verify(!engineBacking.visible);
-        const restingBackdrop = findChild(window.contentItem, "shortcutsBackdrop");
-        verify(restingBackdrop !== null);
-        compare(String(restingBackdrop.tint), String(window.colors.sidebar));
-        verify(!restingBackdrop.sampling);
-
-        // A blank tab is not worth a renderer process.
+        verify(road.visible);
+        verify(panel.resting);
+        verify(!window.omnibarOpen);
+        // Nothing is listed until something is typed.
+        browser.recordVisit("https://resting-history.example/", "Resting history");
+        input.text = "resting";
+        tryVerify(function () {
+            return panel.rows.length > 0;
+        });
+        input.text = "";
+        compare(panel.rows.length, 0);
         compare(engineLoader.engines[restingTabId], undefined);
         compare(engineLoader.item, null);
 
-        // Every command the sheet lists carries the keys the window answers to,
-        // and it names them exactly as the Omnibar does.
-        verify(startPage.sections.length > 0);
-        let listed = 0;
-        let openAddressKeys = "";
-        for (let group = 0; group < startPage.sections.length; ++group) {
-            const entries = startPage.sections[group].entries;
-            for (let index = 0; index < entries.length; ++index) {
-                verify(entries[index].keys.length > 0);
-                if (entries[index].title === "Open address")
-                    openAddressKeys = entries[index].keys;
-                ++listed;
-            }
-        }
-        verify(listed > 8);
-        compare(openAddressKeys, window.commands.keymap.keysFor("open-address"));
-        verify(openAddressKeys.length > 0);
+        // The field rests on the horizon, in the middle of the page area, once
+        // the Space has arrived.
+        tryCompare(panel, "arrival", 1);
+        tryCompare(findChild(window.contentItem, "sidebar"), "arriving", false);
+        const top = frame.mapToItem(startPage, frame.width / 2, 0);
+        fuzzyCompare(top.x, startPage.width / 2, 1);
+        verify(top.y < startPage.horizonY);
+        verify(top.y + panel.fieldBelowHorizon * 2 > startPage.horizonY);
 
-        // Committing an address ends the rest: the page arrives, and its row
-        // arrives with it.
-        openPage("https://resting.example");
+        // Escape has no page to give back, and leaves what is typed alone.
+        input.text = "half typed";
+        keyClick(Qt.Key_Escape);
+        verify(startPage.open);
+        compare(input.text, "half typed");
+        verify(input.activeFocus);
+
+        // Asking for the address focuses the field and keeps the text.
+        window.sidebarCollapsed = false;
+        findChild(window.contentItem, "sidebar").focusOutline();
+        verify(!input.activeFocus);
+        window.commands.run("open-address", -1);
         tryVerify(function () {
-            return !startPage.visible;
+            return input.activeFocus;
         });
-        verify(engineBacking.visible);
+        compare(input.text, "half typed");
+
+        // Return loads the address into the tab that was resting, and its row
+        // arrives with it.
+        input.text = "https://resting.example";
+        const restingY = frame.y;
+        keyClick(Qt.Key_Return);
+        tryVerify(function () {
+            return !startPage.open;
+        });
+        // The Omnibar leaves from where it rested, as it rested: no jump to
+        // the overlay's place and no key hints on the way out.
+        while (panel.visible) {
+            verify(panel.shownResting);
+            verify(frame.y <= restingY && frame.y >= restingY - 8);
+            wait(10);
+        }
+        compare(browser.activeTabId, restingTabId);
+        tryVerify(function () {
+            return engineLoader.item !== null && engineLoader.item.currentUrl.toString()
+                    === "https://resting.example";
+        });
         tryVerify(function () {
             return findChild(window.contentItem, "tab-" + restingTabId) !== null;
         });
 
-        verify(browser.switchSpace(homeSpaceId));
-        verify(browser.deleteSpace(restingSpaceId, "Resting"));
+        leaveSpace(homeSpaceId, restingSpaceId, "Resting");
     }
 
-    function test_restingSpaceRegainsSingleKeyCommandsAfterTheOmnibarCloses() {
-        const homeSpaceId = browser.activeSpaceId;
-        const restingSpaceId = browser.createSpace("Resting focus");
-        verify(browser.switchSpace(restingSpaceId));
-        tryVerify(function () {
-            return window.pagelessViewport;
-        });
-        window.requestActivate();
-        tryVerify(function () {
-            return window.active;
-        });
-
-        keyClick(Qt.Key_T);
-        tryCompare(window, "omnibarOpen", true);
+    // A new tab is the Start page over the page on show, and the tab exists
+    // only once a destination is committed. Escape gives the page back.
+    function test_aNewTabShowsTheStartPageAndCreatesItsTabOnCommit() {
+        const engineLoader = findChild(window.contentItem, "engineLoader");
+        const startPage = findChild(window.contentItem, "startPage");
+        const panel = findChild(window.contentItem, "commandPanel");
         const input = findChild(window.contentItem, "omnibarInput");
-        verify(input !== null);
+        const engine = openPage("https://before-new-tab.example");
+        settleMotion();
+        activateWindow();
+        const pageTabId = browser.activeTabId;
+        const tabCount = browser.tabs.rowCount();
+
+        window.commands.run("new-tab", -1);
+        tryVerify(function () {
+            return startPage.open && input.activeFocus;
+        });
+        verify(panel.resting);
+        verify(panel.newTabIntent);
+        compare(browser.tabs.rowCount(), tabCount);
+        compare(browser.activeTabId, pageTabId);
+
+        // Asking for the address focuses the Omnibar already there.
+        window.commands.run("open-address", -1);
+        verify(!window.omnibarOpen);
+        verify(panel.resting);
         tryVerify(function () {
             return input.activeFocus;
         });
 
         keyClick(Qt.Key_Escape);
-        tryCompare(window, "omnibarOpen", false);
-        keyClick(Qt.Key_T);
-        tryCompare(window, "omnibarOpen", true);
+        tryVerify(function () {
+            return !startPage.open;
+        });
+        compare(browser.activeTabId, pageTabId);
+        compare(engineLoader.item, engine);
+        compare(browser.tabs.rowCount(), tabCount);
+
+        window.commands.run("new-tab", -1);
+        tryVerify(function () {
+            return input.activeFocus;
+        });
+        input.text = "https://after-new-tab.example";
+        keyClick(Qt.Key_Return);
+        tryVerify(function () {
+            return browser.tabs.rowCount() === tabCount + 1;
+        });
+        verify(browser.activeTabId !== pageTabId);
+        tryVerify(function () {
+            return !startPage.open;
+        });
+
+        browser.closeActiveTab();
+        browser.activateTab(pageTabId);
+    }
+
+    // Choosing an open tab from the Start page switches to it and opens no
+    // tab of its own.
+    function test_choosingAnOpenTabFromTheStartPageSwitchesToIt() {
+        const startPage = findChild(window.contentItem, "startPage");
+        const panel = findChild(window.contentItem, "commandPanel");
+        const input = findChild(window.contentItem, "omnibarInput");
+        const firstTabId = browser.activeTabId;
+        openPageInNewTab("https://kestrel-open.example/");
+        const kestrelTabId = browser.activeTabId;
+        browser.reportTabPageState(kestrelTabId, "https://kestrel-open.example/", "Kestrel page", "",
+                                   false, false);
+        openPageInNewTab("https://wren-open.example/");
+        const wrenTabId = browser.activeTabId;
+        const tabCount = browser.tabs.rowCount();
+        activateWindow();
+
+        window.commands.run("new-tab", -1);
+        tryVerify(function () {
+            return startPage.open && input.activeFocus;
+        });
+        input.text = "kestrel";
+        compare(panel.rows[panel.selected].argument, kestrelTabId);
+        keyClick(Qt.Key_Return);
+        tryVerify(function () {
+            return !startPage.open;
+        });
+        compare(browser.activeTabId, kestrelTabId);
+        compare(browser.tabs.rowCount(), tabCount);
+        verify(!window.startPageDriving);
+
+        browser.closeTab(wrenTabId);
+        browser.closeTab(kestrelTabId);
+        browser.activateTab(firstTabId);
+    }
+
+    // Over a split the Start page covers both panes, which is where the tab it
+    // opens will land, and Escape brings the split back as it was.
+    function test_aNewTabOverASplitCoversBothPanes() {
+        const startPage = findChild(window.contentItem, "startPage");
+        const input = findChild(window.contentItem, "omnibarInput");
+        const firstTabId = browser.activeTabId;
+        openPageInNewTab("https://split-left.example");
+        const leftTabId = browser.activeTabId;
+        openPageInNewTab("https://split-right.example");
+        const rightTabId = browser.activeTabId;
+        verify(browser.addSplit(leftTabId));
+        tryCompare(browser, "splitOnShow", true);
+        activateWindow();
+
+        window.commands.run("new-tab", -1);
+        tryVerify(function () {
+            return startPage.open;
+        });
+        tryVerify(function () {
+            return input.activeFocus;
+        }, 5000, "focus is on " + window.activeFocusItem);
+        compare(startPage.x, 0);
+        compare(startPage.width, startPage.parent.width);
 
         keyClick(Qt.Key_Escape);
-        verify(browser.switchSpace(homeSpaceId));
-        verify(browser.deleteSpace(restingSpaceId, "Resting focus"));
+        tryVerify(function () {
+            return !startPage.open;
+        });
+        verify(browser.splitOnShow);
+
+        browser.closeTab(rightTabId);
+        browser.closeTab(leftTabId);
+        browser.activateTab(firstTabId);
+    }
+
+    // The road moves only while the reader could see it: a window that has
+    // lost the keyboard or gone from the screen schedules no frame for it.
+    function test_theStartPageDrawsNoFramesHiddenOrUnfocused() {
+        const startPage = findChild(window.contentItem, "startPage");
+        const homeSpaceId = browser.activeSpaceId;
+        const restingSpaceId = enterRestingSpace("Resting frames");
+        tryVerify(function () {
+            return startPage.roadRunning;
+        });
+        let frames = startPage.roadFrames;
+        tryVerify(function () {
+            return startPage.roadFrames > frames + 2;
+        });
+
+        const other = createTemporaryObject(otherWindowComponent, testCase);
+        other.show();
+        other.requestActivate();
+        tryVerify(function () {
+            return !window.active;
+        });
+        verify(!startPage.roadRunning);
+        frames = startPage.roadFrames;
+        wait(250);
+        compare(startPage.roadFrames, frames);
+        other.close();
+
+        activateWindow();
+        tryVerify(function () {
+            return startPage.roadRunning;
+        });
+
+        window.hide();
+        tryVerify(function () {
+            return !startPage.roadRunning;
+        });
+        frames = startPage.roadFrames;
+        wait(250);
+        compare(startPage.roadFrames, frames);
+        window.show();
+        activateWindow();
+        tryVerify(function () {
+            return startPage.roadRunning;
+        });
+
+        leaveSpace(homeSpaceId, restingSpaceId, "Resting frames");
+    }
+
+    // After a commit the road drives until the page first paints, for two
+    // seconds at most, and a failure ends it at once.
+    function test_theRoadDrivesUntilFirstPaintAndStopsOnAnError() {
+        const panel = findChild(window.contentItem, "commandPanel");
+        const engineLoader = findChild(window.contentItem, "engineLoader");
+        const startPage = findChild(window.contentItem, "startPage");
+        const road = findChild(window.contentItem, "nightRoad");
+        const input = findChild(window.contentItem, "omnibarInput");
+        const homeSpaceId = browser.activeSpaceId;
+        const restingSpaceId = enterRestingSpace("Resting drive");
+
+        input.text = "https://slow-paint.example/one";
+        // The Omnibar stays open from Return to the drive: it never closes
+        // and opens again in between.
+        const openings = [];
+        const noteOpening = function () {
+            openings.push(panel.open);
+        };
+        panel.openChanged.connect(noteOpening);
+        keyClick(Qt.Key_Return);
+        panel.openChanged.disconnect(noteOpening);
+        compare(openings.length, 0);
+        verify(window.startPageDriving);
+        verify(road.driving);
+        tryVerify(function () {
+            return engineLoader.item !== null;
+        });
+        wait(300);
+        verify(window.startPageDriving);
+        verify(startPage.open);
+        engineLoader.item.simulateFirstPaint();
+        tryVerify(function () {
+            return !window.startPageDriving && !startPage.open;
+        });
+        // The road goes on driving, lit, while it fades into the page.
+        verify(startPage.visible);
+        verify(road.driving);
+        verify(road.lightUp > 0);
+        tryVerify(function () {
+            return !startPage.visible;
+        });
+        verify(!road.driving);
+
+        // A failed load has its own page to show, straight away.
+        window.commands.run("new-tab", -1);
+        tryVerify(function () {
+            return input.activeFocus;
+        });
+        input.text = "https://slow-paint.example/two";
+        keyClick(Qt.Key_Return);
+        verify(window.startPageDriving);
+        tryVerify(function () {
+            return engineLoader.item !== null && engineLoader.item.currentUrl.toString()
+                    === "https://slow-paint.example/two";
+        });
+        engineLoader.item.lastLoadFailed = true;
+        tryVerify(function () {
+            return !window.startPageDriving;
+        }, 400);
+        browser.closeActiveTab();
+
+        // A page that has not painted in two seconds is left to the page's own
+        // loading indicator.
+        window.commands.run("new-tab", -1);
+        tryVerify(function () {
+            return input.activeFocus;
+        });
+        const committed = Date.now();
+        input.text = "https://slow-paint.example/three";
+        keyClick(Qt.Key_Return);
+        verify(window.startPageDriving);
+        tryVerify(function () {
+            return !window.startPageDriving;
+        }, 4000);
+        verify(Date.now() - committed >= window.startPageDriveLimit - 100);
+        verify(!startPage.open);
+        browser.closeActiveTab();
+
+        leaveSpace(homeSpaceId, restingSpaceId, "Resting drive");
+    }
+
+    // Asking for a new tab while the road still drives to the last one is
+    // being done with waiting: that page takes over and a new Start page
+    // stands over it.
+    function test_aNewTabWhileTheRoadDrivesLetsThePageTakeOver() {
+        const engineLoader = findChild(window.contentItem, "engineLoader");
+        const startPage = findChild(window.contentItem, "startPage");
+        const input = findChild(window.contentItem, "omnibarInput");
+        const homeSpaceId = browser.activeSpaceId;
+        const restingSpaceId = enterRestingSpace("Resting impatient");
+
+        input.text = "https://slow-paint.example/impatient";
+        keyClick(Qt.Key_Return);
+        verify(window.startPageDriving);
+        const drivenTabId = browser.activeTabId;
+
+        window.commands.run("new-tab", -1);
+        verify(!window.startPageDriving);
+        verify(window.startPageSummoned);
+        tryVerify(function () {
+            return startPage.open && input.activeFocus;
+        });
+        compare(browser.activeTabId, drivenTabId);
+
+        keyClick(Qt.Key_Escape);
+        tryVerify(function () {
+            return !startPage.open;
+        });
+        compare(engineLoader.item.currentUrl.toString(), "https://slow-paint.example/impatient");
+
+        leaveSpace(homeSpaceId, restingSpaceId, "Resting impatient");
+    }
+
+    // The Shortcut sheet is summoned, not shown: `?` in the Start page's empty
+    // field brings it up over the road, and Escape goes back to the field.
+    function test_questionMarkSummonsTheShortcutSheetFromTheStartPage() {
+        const startPage = findChild(window.contentItem, "startPage");
+        const sheet = findChild(window.contentItem, "shortcutSheet");
+        const input = findChild(window.contentItem, "omnibarInput");
+        const homeSpaceId = browser.activeSpaceId;
+        const restingSpaceId = enterRestingSpace("Resting sheet");
+        tryVerify(function () {
+            return findChild(window.contentItem, "startPageHint").visible;
+        });
+
+        keyClick("?");
+        tryVerify(function () {
+            return window.shortcutsOpen && sheet.visible;
+        });
+        compare(input.text, "");
+        compare(findChild(sheet, "shortcutsBackdrop").source, startPage);
+        verify(startPage.open);
+        // The sheet covers the Omnibar, which waits under it.
+        const panel = findChild(window.contentItem, "commandPanel");
+        compare(panel.opacity, 0);
+        verify(panel.open);
+
+        keyClick(Qt.Key_Escape);
+        tryVerify(function () {
+            return !window.shortcutsOpen;
+        });
+        tryVerify(function () {
+            return input.activeFocus;
+        });
+        verify(startPage.open);
+        compare(panel.opacity, 1);
+
+        leaveSpace(homeSpaceId, restingSpaceId, "Resting sheet");
+    }
+
+    // The road is the reader's to turn off, on this installation alone.
+    function test_settingsTurnsTheRoadOffLocally() {
+        const startPage = findChild(window.contentItem, "startPage");
+        const road = findChild(window.contentItem, "nightRoad");
+        const backdrop = findChild(window.contentItem, "startPageBackdrop");
+        const settings = findChild(window.contentItem, "settingsSurface");
+        const homeSpaceId = browser.activeSpaceId;
+        const restingSpaceId = enterRestingSpace("Resting road");
+        tryVerify(function () {
+            return road.visible;
+        });
+        verify(!backdrop.visible);
+
+        window.settingsOpen = true;
+        settings.section = settings.sections.indexOf("interface");
+        const toggle = findChild(settings, "startPageRoad");
+        verify(toggle !== null);
+        verify(toggle.checked);
+        toggle.clicked();
+        compare(browser.preference("start-page-road", "true"), "false");
+        window.settingsOpen = false;
+
+        tryVerify(function () {
+            return startPage.open;
+        });
+        verify(!road.visible);
+        tryVerify(function () {
+            return backdrop.visible;
+        });
+        verify(!startPage.roadRunning);
+
+        window.setStartPageRoad(true);
+        compare(browser.preference("start-page-road", "false"), "true");
+        verify(road.visible);
+        leaveSpace(homeSpaceId, restingSpaceId, "Resting road");
     }
 
     // A blank address is not the same thing as a resting Space, and it must not
-    // be an empty viewport either: there is no page, so the sheet stands in.
-    // The tab itself stays listed, because the reader put it there and has to
-    // be able to close it.
-    function test_blankAddressShowsTheSheetRatherThanAnEmptyViewport() {
+    // be an empty viewport either: there is no page, so the Start page stands
+    // in. The tab itself stays listed, because the reader put it there and has
+    // to be able to close it.
+    function test_blankAddressShowsTheStartPageRatherThanAnEmptyViewport() {
         const startPage = findChild(window.contentItem, "startPage");
         const engineLoader = findChild(window.contentItem, "engineLoader");
         verify(startPage !== null);
         openPage("https://not-blank.example");
         browser.openInputInBackground("https://beside.example");
         verify(browser.tabs.rowCount() > 1);
-        verify(!startPage.visible);
+        tryVerify(function () {
+            return !startPage.visible;
+        });
 
         const tabId = browser.activeTabId;
         browser.openInput("about:blank", false);
@@ -6186,10 +6599,10 @@ TestCase {
         });
 
         // The Space is not at rest, so the tab keeps its row and its close
-        // button, and the sheet stands in without pretending otherwise.
+        // button, and the Start page stands in without pretending otherwise.
         verify(!browser.atRest);
         verify(findChild(window.contentItem, "tab-" + tabId) !== null);
-        verify(!startPage.overPage);
+        verify(!window.startPageSummoned);
         tryVerify(function () {
             return engineLoader.engines[tabId] === undefined;
         });
@@ -6200,11 +6613,11 @@ TestCase {
         });
     }
 
-    // Leaving a blank tab for a page and coming back has to bring the sheet
-    // back with it. The host names one active engine, and a tab that has none
-    // has to clear that name rather than leave the last tab's page standing in
-    // as the answer to "is a page up?".
-    function test_returningToABlankTabBringsTheSheetBack() {
+    // Leaving a blank tab for a page and coming back has to bring the Start
+    // page back with it. The host names one active engine, and a tab that has
+    // none has to clear that name rather than leave the last tab's page
+    // standing in as the answer to "is a page up?".
+    function test_returningToABlankTabBringsTheStartPageBack() {
         const startPage = findChild(window.contentItem, "startPage");
         const engineLoader = findChild(window.contentItem, "engineLoader");
         verify(startPage !== null);
@@ -6237,25 +6650,22 @@ TestCase {
     }
 
     // The sheet is a command like any other, so it answers on demand over a
-    // live page. There it cannot be translucent — a webpage read through a list
-    // of shortcuts is neither — and the reader came from somewhere, so it
-    // closes.
+    // live page, blurs that page, and closes back to it.
     function test_shortcutSheetAnswersOnDemandOverAPage() {
-        const startPage = findChild(window.contentItem, "startPage");
-        verify(startPage !== null);
+        const sheet = findChild(window.contentItem, "shortcutSheet");
+        verify(sheet !== null);
         openPage("https://busy.example");
-        verify(!startPage.visible);
+        verify(!sheet.visible);
 
         window.commands.run("shortcuts", -1);
         tryVerify(function () {
-            return startPage.visible;
+            return sheet.visible;
         });
-        verify(startPage.overPage);
 
-        // Over a page the sheet keeps the sidebar's translucency and blurs that
-        // page behind itself, so what the reader left is still legible as a
-        // place without being readable as a page.
-        const sheetBackdrop = findChild(window.contentItem, "shortcutsBackdrop");
+        // Over a page the sheet keeps the sidebar's colour and blurs that page
+        // behind itself, so what the reader left is still legible as a place
+        // without being readable as a page.
+        const sheetBackdrop = findChild(sheet, "shortcutsBackdrop");
         verify(sheetBackdrop !== null);
         // A sheet over a page lets more through than the sidebar does: at the
         // sidebar's own value a dark page shows as nothing.
@@ -6266,6 +6676,20 @@ TestCase {
         });
         compare(sheetBackdrop.source, findChild(window.contentItem, "engineLoader"));
 
+        // Every command the sheet lists carries the keys the window answers to,
+        // and it names them exactly as the Omnibar does.
+        verify(sheet.sections.length > 0);
+        let openAddressKeys = "";
+        for (let group = 0; group < sheet.sections.length; ++group) {
+            const entries = sheet.sections[group].entries;
+            for (let index = 0; index < entries.length; ++index) {
+                verify(entries[index].keys.length > 0);
+                if (entries[index].title === "Open address")
+                    openAddressKeys = entries[index].keys;
+            }
+        }
+        compare(openAddressKeys, window.commands.keymap.keysFor("open-address"));
+
         const closeButton = findChild(window.contentItem, "closeShortcutsButton");
         verify(closeButton !== null);
         verify(closeButton.visible);
@@ -6273,30 +6697,27 @@ TestCase {
         // The same command takes it away again.
         window.commands.run("shortcuts", -1);
         tryVerify(function () {
-            return !startPage.visible;
+            return !sheet.visible;
         });
 
         // So does Escape, and so does the close button.
         window.commands.run("shortcuts", -1);
         tryVerify(function () {
-            return startPage.visible;
+            return sheet.visible;
         });
-        window.requestActivate();
-        tryVerify(function () {
-            return window.active;
-        });
+        activateWindow();
         keyClick(Qt.Key_Escape);
         tryVerify(function () {
-            return !startPage.visible;
+            return !sheet.visible;
         });
 
         window.commands.run("shortcuts", -1);
         tryVerify(function () {
-            return startPage.visible;
+            return sheet.visible;
         });
         closeButton.clicked();
         tryVerify(function () {
-            return !startPage.visible;
+            return !sheet.visible;
         });
 
         // Being in the registry is what makes it searchable and bindable.

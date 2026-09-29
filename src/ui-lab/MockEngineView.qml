@@ -35,6 +35,16 @@ Rectangle {
         return mockFaviconUrls[hash % mockFaviconUrls.length];
     }
     property bool loading: false
+    // Whether the page on show has drawn anything of its own yet. The lab
+    // paints as soon as an address arrives, except on `slow-paint.example`,
+    // which stands in for a page slow to draw until `simulateFirstPaint`.
+    property bool documentPainted: root.paintsAtOnce(root.currentUrl)
+    function paintsAtOnce(address) {
+        return String(address).indexOf("://slow-paint.example") < 0;
+    }
+    function simulateFirstPaint() {
+        root.documentPainted = true;
+    }
     // The lab plays nothing, so both sides of the tab's speaker are set by
     // hand: `simulateAudible` stands in for a page that started making sound.
     property bool pageAudible: false
@@ -534,6 +544,7 @@ Rectangle {
 
     onCurrentUrlChanged: {
         root.pageGeneration += 1;
+        root.documentPainted = root.paintsAtOnce(root.currentUrl);
         root.announcePage(root.currentUrl);
         root.javaScriptDialogsBlocked = false;
         root.lastLoadFailed = false;

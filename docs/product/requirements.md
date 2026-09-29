@@ -72,11 +72,21 @@ reports the gap and remains experimental rather than imitating behavior it canno
   pressing another key, or the window losing the keyboard removes them.
 - The window title names the page and the Space on show, and a Space switch shows the Space notice
   at the top of the page. A Private window's title names neither, and it shows no notice.
-- A tab with no address to load shows the Start page in place of a webpage, never an empty viewport:
-  the browser commands and the keys that run them, read from the live keymap so the sheet cannot
-  promise a key the window does not answer. That covers a Space at rest and an `about:blank` the
-  reader navigated to. Standing in for a page, the Start page takes the sidebar's fill and
-  translucency rather than the opaque backing a webpage needs, and no engine is spent behind it.
+- A tab with no address to load shows the Start page in place of a webpage, never an empty viewport.
+  That covers a Space at rest and an `about:blank` the reader navigated to, and no engine is spent
+  behind it. The Start page is the Omnibar at rest in the middle of the page area, focused, over a
+  night road. Under the field one line names `?`, the way to the Shortcut sheet.
+- The road is drawn from the palette and follows a live theme change: a horizon and a banded sun,
+  mountains falling to where the road runs out, a star field, the road from the bottom edge toward
+  the horizon and lane marks drifting toward the reader. It is shown as a monochrome pixel display
+  in the accent, dithered, with a dark seam between display pixels. The road is always night: a
+  light theme's night is drawn from its dark text. A Private window's road has its lights off, with
+  no sun, stars, lane marks or posts. The road moves only while the Start page is on show and the
+  window is on screen and holds the keyboard. Settings' interface section turns it off, locally,
+  leaving the Omnibar over the sidebar's fill.
+- On commit the lane marks speed up and the road keeps driving until the page first paints, then the
+  page takes over. After two seconds the road hands over to the page loading indicator. A load
+  error, an HTTPS-only page or a certificate error ends it at once.
 - A Space at rest, one whose only ordinary tab is blank, also lists no ordinary tab row. Any other
   blank tab is a tab in its own right and keeps its row, its close button, and the engine a page's
   new-window request was handed to.
@@ -92,17 +102,18 @@ reports the gap and remains experimental rather than imitating behavior it canno
   after the tab it stood over, keeping its engine and so its history, scroll and form state. A
   new-tab request from inside a Glance opens a tab, which ends the Glance; a second request from the
   page beneath replaces it. Settings' interface section turns the Glance off, locally.
-- The same sheet answers the Keyboard shortcuts command on demand, from the Omnibar or `Primary+/`
-  and `?`. Summoned over a live page it closes with `Escape` or its close button; asking for it
-  while it already stands in for the page does nothing.
-- An Omaweb surface that takes the whole page area, the Start page summoned over a page and the
-  settings page, blurs the page beneath it rather than sealing it off, so the reader can still see
-  the place they left without being asked to read a webpage through it. It takes the sidebar's
-  colour but its own semantic opacity: the sidebar is read against the desktop, and a sheet is read
-  against a page whose contrast is unknown, so at the sidebar's value a dark page shows through as
-  nothing. Where there is no page to blur, as in a Space at rest, the surface takes the sidebar's
-  translucency instead, and the desktop behind it is left to the window system, which blurs it or
-  not exactly as it does behind the sidebar.
+- The Shortcut sheet lists the browser commands and the keys that run them, read from the live
+  keymap so it cannot promise a key the window does not answer. The Keyboard shortcuts command
+  summons it, from the Omnibar or with `Primary+/` and `?`, over a page or over the Start page,
+  where `?` typed into the empty field summons it. It closes with `Escape` or its close button.
+- An Omaweb surface that takes the whole page area, the Shortcut sheet and the settings page, blurs
+  the page beneath it rather than sealing it off, so the reader can still see the place they left
+  without being asked to read a webpage through it. It takes the sidebar's colour but its own
+  semantic opacity: the sidebar is read against the desktop, and a sheet is read against a page
+  whose contrast is unknown, so at the sidebar's value a dark page shows through as nothing. Where
+  there is no page to blur, as in a Space at rest, the surface takes the sidebar's translucency
+  instead, and the desktop behind it is left to the window system, which blurs it or not exactly as
+  it does behind the sidebar.
 - Tabs can show site favicons or a two-character host code. The reader can turn favicons off and can
   choose whether favicon artwork is recoloured to the host-derived tint. With favicons off, the host
   code is drawn in the colour of the site's own favicon, and in a neutral colour where the favicon
@@ -156,8 +167,11 @@ reports the gap and remains experimental rather than imitating behavior it canno
 - The Omnibar field is drawn as the website's dash: the Omaweb mark as its prompt in the palette's
   accent, the typed text and a blinking block caret with a faint accent glow, and a `→` go mark that
   commits as `Return` does. In command scope the mark gives way to `:`.
-- `Primary+T` opens the Omnibar with a new-tab intent. Omaweb creates the tab only after the user
-  commits a destination. Choosing an open tab from it switches to that tab and creates none.
+- `Primary+T` and `t` show the Start page in place of the page on show. Omaweb creates the tab only
+  after the user commits a destination. Choosing an open tab from it switches to that tab and
+  creates none. `Escape` brings back the page that was on show; in a Space at rest it does nothing.
+  In a split the Start page covers both panes, where the committed tab lands, and `Escape` brings
+  the split back. While the Start page is on show, `Primary+L` and `o` focus its Omnibar.
 - The Omnibar ranks the typed text against the open tabs, Spaces, the active Space's local history,
   search keywords, and browser commands in one list. Each row says what committing it does: switch
   to a tab, switch Space, open an address, search, or run a command. The tab on show is never a row,
@@ -273,10 +287,10 @@ reports the gap and remains experimental rather than imitating behavior it canno
 - A keyword is matched case-insensitively and stored lowercased, so two keywords that differ only in
   case cannot both be saved. The Omnibar names the engine a typed keyword selects while it is typed:
   the space after the keyword moves the engine into a chip ahead of the terms, Backspace on empty
-  terms puts the keyword back as text, and the destination row reads "Search <engine> for <terms>",
-  or the default engine for text with no keyword. The keyword alone opens the engine's front page.
-  While the text could still become a keyword, the Omnibar offers each matching engine other than
-  the default as a row beneath the history rows.
+  terms puts the keyword back as text, and the field describes itself to a screen reader as "Search
+  <engine> for <terms>", or the default engine for text with no keyword. No row repeats it. The
+  keyword alone opens the engine's front page. While the text could still become a keyword, the
+  Omnibar offers each matching engine other than the default as a row beneath the history rows.
 - Bare public hosts try HTTPS first and offer an explicit insecure-HTTP retry after failure. Bare
   localhost addresses, IP literals, explicit ports, and reserved `.test` and `.localhost` names
   resolve as local addresses rather than searches. Explicit schemes remain unchanged.

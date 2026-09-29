@@ -32,8 +32,8 @@ Motion is felt rather than watched: it says which way something went, and no mor
   the page, whichever key or control opened it. It does not grow out of the address field: crossing
   the window from the sidebar reads as a jolt rather than the field opening. Site information
   unfolds from the address it reports on.
-- **Sheets lift.** The Start page, settings and history are one kind of thing: a sheet that lifts
-  from a little below its place. The download detail rises from its mark the same way.
+- **Sheets lift.** The Shortcut sheet, settings and history are one kind of thing: a sheet that
+  lifts from a little below its place. The download detail rises from its mark the same way.
 - **A Glance is the link, opened.** It grows out of the link the reader pressed to its place over
   the page and retreats into it when it closes. What is inside keeps its resting size the whole way
   and the panel clips it, so the page is revealed rather than laid out again at every size the panel
