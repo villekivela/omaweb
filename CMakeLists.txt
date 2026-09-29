@@ -1065,6 +1065,10 @@ if(BUILD_TESTING)
         "tests/core/tst_agentcontrol.cpp"
     )
     target_link_libraries(omaweb-agent-control-tests PRIVATE omaweb-core Qt6::Test)
+    # The public commands are checked against the registry they come from.
+    target_compile_definitions(omaweb-agent-control-tests PRIVATE
+        OMAWEB_BROWSER_COMMANDS_QML="${CMAKE_CURRENT_SOURCE_DIR}/src/ui/BrowserCommands.qml"
+    )
     omaweb_strict_target(omaweb-agent-control-tests)
     omaweb_declarative_fixture_target(omaweb-agent-control-tests)
     add_test(NAME omaweb-agent-control COMMAND omaweb-agent-control-tests)

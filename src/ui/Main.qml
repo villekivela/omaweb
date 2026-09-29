@@ -1430,6 +1430,17 @@ ApplicationWindow {
     readonly property var agentControlSource: !window.privateWindow && typeof agentControl
                                               !== "undefined" ? agentControl : null
 
+    // `omaweb commands` and `omaweb run` reach this window's command registry,
+    // and only the ordinary window's.
+    Connections {
+        target: window.agentControlSource
+
+        function onCommandRequested(requestId, request) {
+            window.agentControlSource.answerCommand(requestId, browserCommands.answerAgent(
+                                                        request));
+        }
+    }
+
     // The reader let a site through HTTPS-only mode: for this load, or for
     // good in this Space, which a Private window never keeps.
     function loadPlainHttp(failure, always) {

@@ -256,11 +256,12 @@ socket has mode 0600 in a directory only its user can enter, and anything runnin
 open it. It carries one JSON object per line each way. `ControlSocket` owns the transport and
 `AgentControl` decides every answer, so the rules are tested without a socket.
 
-A request's verb decides what it may do, never its connection's name. `spaces`, `tabs`, `open` and
-`close` are browser commands and always answer. `space new` and `space delete` wait for Allow
-agents, which is off until the reader turns it on and is kept in `privacy.json` beside the reader's
-other decisions. `AgentControl` watches that file, and its directory because a write replaces the
-file, so turning the setting off in a running browser clears every connection's current tab at once.
+A request's verb decides what it may do, never its connection's name. `spaces`, `tabs`, `open`,
+`close`, `space`, `focus`, `commands` and `run` are browser commands and always answer. `space new`
+and `space delete` wait for Allow agents, which is off until the reader turns it on and is kept in
+`privacy.json` beside the reader's other decisions. `AgentControl` watches that file, and its
+directory because a write replaces the file, so turning the setting off in a running browser clears
+every connection's current tab at once.
 
 Until Space grants land, an Agent drives only its own tabs. `open` into an existing tab and `close`
 take a tab an Agent opened in this run, or an ordinary tab of an Agent Space while Allow agents is
@@ -275,10 +276,19 @@ ago. A name also records which connection created each Agent Space, and `space d
 another name's. That guards against one Agent removing another's work by mistake, and nothing more,
 because any process can give any name.
 
-No verb selects a tab or switches Space. A tab opened or changed in a Space not on show is written
-to that Space's store, and the frozen page the window still holds for it is dropped, so the Space
-shows the new address when it comes back. A tab is looked for in the Space where the connection last
-saw it before any other Space's store is read.
+Only `space` and `focus` put another Space or tab on show, and only when asked to by name, as a
+keybind does. `open` and the page verbs never do. A tab opened or changed in a Space not on show is
+written to that Space's store, and the frozen page the window still holds for it is dropped, so the
+Space shows the new address when it comes back. A tab is looked for in the Space where the
+connection last saw it before any other Space's store is read.
+
+`commands` and `run` reach the command registry, which lives in `BrowserCommands.qml`.
+`AgentControl.publicCommands` is the list a script may run: every command but `private-window` and
+the four screenshots, which read the page and so are `shot`, behind Allow agents. The core refuses a
+command outside it by name before the window hears of it. The rest goes out as `commandRequested`,
+which only the ordinary window listens to, and the window answers from `available` before the signal
+returns. A command added to the registry is not public until it is added to the list, and a test
+fails until one or the other is decided.
 
 The Agent Space label lives in its own `agent_spaces` table rather than on the Space record. Sync
 copies Space records, so it never sees the label, and deleting a Space deletes its label with it.

@@ -319,6 +319,10 @@ omaweb spaces
 omaweb tabs [--space <id|name>]
 omaweb open <address> [--space <id|name> | --tab <id>] [--new]
 omaweb close [--tab <id>]
+omaweb space <id|name>
+omaweb focus <tab id|part of an address>
+omaweb commands
+omaweb run <command> [position]
 omaweb space new [name] [--temporary]
 omaweb space delete <id|name>
 omaweb look [--all]
@@ -327,6 +331,19 @@ omaweb do <step>... [--settle <ms>] [--timeout <ms>]
 omaweb shot [--full] [--output <file>]
 omaweb eval <expression>
 omaweb console [--level error|warning|all] [--since <cursor>]
+```
+
+`space` puts a Space on show, and `focus` selects a tab by its id or else the first tab whose
+address holds the text, looking in the Space on show before the others and switching to the tab's
+Space. `commands` lists the command scope's commands that can run now, one line each as id and
+title, and `run` runs one in the ordinary window as the command scope would, exiting 0 when it ran.
+`select-tab` and `select-space` take a position, 1 for the first. Every command of
+`src/ui/BrowserCommands.qml` is public except `private-window`, since a Private window is never an
+Agent's, and the four screenshot commands, which read the page and are `shot`'s. `run` refuses any
+other by name. These four need nothing turned on, so a keybind can use them:
+
+```sh
+omaweb space Work && omaweb run toggle-sidebar
 ```
 
 The last six read and drive the connection's current tab, or the one `--tab` names, and need Allow

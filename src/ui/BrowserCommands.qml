@@ -562,6 +562,57 @@ QtObject {
         return true;
     }
 
+    // What `omaweb commands` and `omaweb run` ask of the ordinary window over
+    // the Agent socket. The core has refused every command outside
+    // `request.commands`, the public ones, and this answers the rest from
+    // `available`, as the command scope does.
+    function answerAgent(request) {
+        const allowed = request.commands || [];
+        if (request.verb === "commands") {
+            const list = [];
+            for (let index = 0; index < allowed.length; ++index) {
+                const command = allowed[index];
+                const description = descriptions[command];
+                if (description && root.available(command)) {
+                    list.push({
+                                  command: command,
+                                  title: description.title,
+                                  group: description.group
+                              });
+                }
+            }
+            return {
+                ok: true,
+                commands: list
+            };
+        }
+        const command = String(request.command);
+        if (allowed.indexOf(command) < 0 || !descriptions[command]) {
+            return {
+                ok: false,
+                code: "refused",
+                error: "Omaweb has no command \"" + command + "\" to run from outside its window."
+            };
+        }
+        if (!root.available(command)) {
+            return {
+                ok: false,
+                code: "unavailable",
+                error: "\"" + command + "\" is not available now."
+            };
+        }
+        if (!root.run(command, request.argument)) {
+            return {
+                ok: false,
+                code: "failed",
+                error: "\"" + command + "\" did not run."
+            };
+        }
+        return {
+            ok: true
+        };
+    }
+
     function actions() {
         const list = [];
 

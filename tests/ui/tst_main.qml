@@ -1296,6 +1296,45 @@ TestCase {
         verifyApplicationWindowFlags(window);
     }
 
+    // `omaweb commands` and `omaweb run` reach the registry through this. The
+    // core has already refused what is not public, and the window refuses it
+    // again, answers from `available`, and says whether the command ran.
+    function test_answersTheAgentSocketsCommands() {
+        const offered = ["toggle-sidebar", "find-next", "not-a-command"];
+        const listed = window.commands.answerAgent({
+                                                       verb: "commands",
+                                                       commands: offered
+                                                   });
+        verify(listed.ok);
+        const names = listed.commands.map(function (row) {
+            return row.command;
+        });
+        verify(names.indexOf("toggle-sidebar") >= 0);
+        verify(names.indexOf("not-a-command") < 0);
+        compare(names.indexOf("find-next") >= 0, window.commands.available("find-next"));
+        compare(listed.commands[0].title, "Hide or show the sidebar");
+
+        const collapsed = window.sidebarCollapsed;
+        verify(window.commands.answerAgent({
+                                               verb: "run",
+                                               commands: offered,
+                                               command: "toggle-sidebar",
+                                               argument: -1
+                                           }).ok);
+        compare(window.sidebarCollapsed, !collapsed);
+        window.commands.run("toggle-sidebar", -1);
+        compare(window.sidebarCollapsed, collapsed);
+
+        const kept = window.commands.answerAgent({
+                                                     verb: "run",
+                                                     commands: offered,
+                                                     command: "private-window",
+                                                     argument: -1
+                                                 });
+        verify(!kept.ok);
+        compare(kept.code, "refused");
+    }
+
     function test_sidebarHasNoNewTabButton() {
         const newTabButton = findChild(window.contentItem, "newTabButton");
         verify(newTabButton === null);
