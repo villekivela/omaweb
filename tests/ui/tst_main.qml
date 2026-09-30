@@ -6569,10 +6569,15 @@ TestCase {
         // No tab of this site is open and the Space stored no icon for it, so
         // the tile asks the store and draws the host code.
         tile = findChild(row, "omnibarRowTile");
+        compare(tile.visible, true);
         compare(tile.iconUrl, browser.storedFavicon("https://www.edge-history.example/deep/page"));
         wait(50);
         compare(tile.showsArtwork, false);
         compare(tile.code, "ED");
+        window.setUseFavicons(false);
+        compare(tile.useArtwork, false);
+        compare(tile.code, "ED");
+        window.setUseFavicons(true);
 
         // A history result on a site with an open tab takes that tab's icon.
         browser.recordVisit("https://edge-tab.example/older", "Edge tab older page");
@@ -6593,18 +6598,37 @@ TestCase {
         compare(row.action, "switch space →");
         compare(row.keys, "");
         compare(findChild(row, "omnibarRowTile").visible, false);
-        compare(findChild(row, "omnibarRowSpaceColor").visible, true);
+        const spaceColor = findChild(row, "omnibarRowSpaceColor");
+        compare(spaceColor.visible, true);
+        let edgeSpaceColor = "";
+        for (let space = 0; space < browser.spaces.rowCount(); ++space) {
+            const index = browser.spaces.index(space, 0);
+            if (browser.spaces.data(index, Qt.UserRole + 1) === edgeSpaceId)
+                edgeSpaceColor = browser.spaces.data(index, Qt.UserRole + 3);
+        }
+        verify(!Qt.colorEqual(edgeSpaceColor, window.colors.accent));
+        verify(Qt.colorEqual(spaceColor.color, edgeSpaceColor));
 
         // A keyword's tile is its engine's own site.
         input.text = "br";
         tryVerify(function () {
             return omnibarRowsOf(panel, "keyword").length === 1;
         });
+        // The Space never loaded the engine's site, so the tile draws its host
+        // code, and still does with favicons off.
+        wait(50);
         row = omnibarRowItem(rows, panel.rows.indexOf(omnibarRowsOf(panel, "keyword")[0]));
         compare(row.action, "search →");
         compare(row.keys, "br");
-        compare(findChild(row, "omnibarRowTile").siteUrl.toString(), "https://search.brave.com/");
-        compare(findChild(row, "omnibarRowTile").code, "BR");
+        tile = findChild(row, "omnibarRowTile");
+        compare(tile.visible, true);
+        compare(tile.siteUrl.toString(), "https://search.brave.com/");
+        compare(tile.code, "BR");
+        compare(tile.showsArtwork, false);
+        window.setUseFavicons(false);
+        compare(tile.useArtwork, false);
+        compare(tile.code, "BR");
+        window.setUseFavicons(true);
 
         // A command keeps its keys at the edge and says nothing more there.
         input.text = "zoom in";
@@ -6617,12 +6641,17 @@ TestCase {
         compare(findChild(row, "omnibarRowTile").visible, false);
 
         // Only the selected row's action is bright.
+        // "edge" lists both history pages once the search answers, so the
+        // test waits for the settled rows rather than counting them.
         input.text = "edge";
         tryVerify(function () {
-            return omnibarRowsOf(panel, "history").length === 1;
+            return omnibarRowsOf(panel, "history").length === 2;
         });
         const tabIndex = panel.rows.indexOf(omnibarRowsOf(panel, "tab")[0]);
-        const historyIndex = panel.rows.indexOf(omnibarRowsOf(panel, "history")[0]);
+        const edgeHistory = omnibarRowsOf(panel, "history").filter(function (entry) {
+            return entry.url === "https://www.edge-history.example/deep/page";
+        });
+        const historyIndex = panel.rows.indexOf(edgeHistory[0]);
         panel.selected = tabIndex;
         compare(findChild(omnibarRowItem(rows, tabIndex), "omnibarRowAction").color,
                 window.colors.text);

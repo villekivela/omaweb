@@ -152,6 +152,9 @@ private slots:
     void keepsTheFaviconAPageReportsForTheNextStart();
     void aPrivateWindowKeepsFaviconsToItself();
     void deletingASitesHistoryKeepsTheFaviconATabShows();
+    void showsStoredFaviconsAfterSyncReloadsTheSpace();
+    void aNewTabShowsItsStoredFaviconBeforeItsPageLoads();
+    void deletingASpaceDeletesItsFavicons();
     void cleanup();
     void keepsRendererFailureOnAffectedTab();
     void keepsMutingDecisionWhileSoundComesAndGoes();
@@ -1044,6 +1047,115 @@ void BrowserControllerTest::deletingASitesHistoryKeepsTheFaviconATabShows()
         drawnFavicon(controller.storedFavicon(gone)), QByteArrayLiteral("image://favicon/shown"));
     QCOMPARE(
         drawnFavicon(controller.storedFavicon(shown)), QByteArrayLiteral("image://favicon/shown"));
+}
+
+// Sync reloads the Space's tabs from the store, which is a restore like the
+// one at start: a tab whose page has not loaded shows what the Space stored.
+void BrowserControllerTest::showsStoredFaviconsAfterSyncReloadsTheSpace()
+{
+    SessionFixture fixture(SessionSpec {
+        .spaces = {SpaceSpec {
+            .id = QStringLiteral("personal"),
+            .name = QStringLiteral("Personal"),
+            .tabs = {TabSpec {
+                         .id = QStringLiteral("page"),
+                         .url = QUrl(QStringLiteral("https://a.example/page")),
+                     },
+                TabSpec {
+                    .id = QStringLiteral("unseen"),
+                    .url = QUrl(QStringLiteral("https://b.example/")),
+                }},
+            .activeTabId = QStringLiteral("page"),
+        }},
+    });
+    QVERIFY_SESSION_READY(fixture);
+    {
+        omaweb::SqliteSessionStore store(fixture.dataRoot());
+        QVERIFY(store.open());
+        QVERIFY(store.recordFavicon(QStringLiteral("personal"),
+            QUrl(QStringLiteral("https://a.example/page")), QByteArrayLiteral("a icon")));
+    }
+
+    const auto controller = fixture.createController();
+    controller->reloadSyncedState();
+    QCOMPARE(
+        drawnFavicon(tabIcon(*controller, QStringLiteral("page"))), QByteArrayLiteral("a icon"));
+    QCOMPARE(drawnFavicon(tabIcon(*controller, QStringLiteral("unseen"))), QByteArray());
+}
+
+// A tab opened on an address the Space has an icon for shows it until its own
+// page reports one, wherever the tab came from.
+void BrowserControllerTest::aNewTabShowsItsStoredFaviconBeforeItsPageLoads()
+{
+    readIconsAsTheirAddress();
+    QTemporaryDir root;
+    BrowserController controller(SpaceStorage(root.path(), QStringLiteral("test")));
+    const QUrl address(QStringLiteral("https://new-tab.example/page"));
+    const QUrl icon(QStringLiteral("image://favicon/new-tab"));
+    controller.openInput(address.toString(), false);
+    const auto sourceTabId = controller.activeTabId();
+    controller.reportTabPageState(
+        sourceTabId, address, QStringLiteral("New tab"), icon, false, false);
+    QTRY_COMPARE(drawnFavicon(controller.storedFavicon(address)), icon.toString().toUtf8());
+    const auto stored = controller.storedFavicon(address);
+
+    const auto newTabs = [&controller, sourceTabId] {
+        QStringList ids;
+        auto *tabs = controller.tabs();
+        for (int row = 0; row < tabs->rowCount(); ++row) {
+            const auto id = tabs->data(tabs->index(row, 0), TabListModel::IdRole).toString();
+            if (id != sourceTabId) {
+                ids.append(id);
+            }
+        }
+        return ids;
+    };
+    const auto before = newTabs();
+    controller.openInputInBackground(address);
+    const auto background = newTabs();
+    QCOMPARE(background.size(), before.size() + 1);
+    QCOMPARE(tabIcon(controller, background.last()), stored);
+
+    const auto duplicate = controller.duplicateTab(sourceTabId);
+    QVERIFY(!duplicate.isEmpty());
+    QCOMPARE(tabIcon(controller, duplicate), stored);
+
+    const auto agentTab = controller.openTabInSpace(controller.activeSpaceId(), address);
+    QVERIFY(!agentTab.isEmpty());
+    QCOMPARE(tabIcon(controller, agentTab), stored);
+}
+
+// A Space's icons are its browsing data, so deleting the Space deletes them:
+// what it stored no longer answers, and the next start finds none.
+void BrowserControllerTest::deletingASpaceDeletesItsFavicons()
+{
+    readIconsAsTheirAddress();
+    QTemporaryDir root;
+    const QUrl address(QStringLiteral("https://work.example/page"));
+    QString workSpaceId;
+    {
+        BrowserController controller(SpaceStorage(root.path(), QStringLiteral("test")));
+        const auto personalSpaceId = controller.activeSpaceId();
+        workSpaceId = controller.createSpace(QStringLiteral("Work"));
+        QVERIFY(controller.switchSpace(workSpaceId));
+        controller.openInput(address.toString(), false);
+        controller.reportTabPageState(controller.activeTabId(), address, QStringLiteral("Work"),
+            QUrl(QStringLiteral("image://favicon/work")), false, false);
+        QTRY_COMPARE(drawnFavicon(controller.storedFavicon(address)),
+            QByteArrayLiteral("image://favicon/work"));
+        const auto workIcon = controller.storedFavicon(address);
+        QVERIFY(controller.switchSpace(personalSpaceId));
+
+        QVERIFY(controller.deleteSpace(workSpaceId, QStringLiteral("Work")));
+        QCOMPARE(drawnFavicon(workIcon), QByteArray());
+    }
+
+    BrowserController restarted(SpaceStorage(root.path(), QStringLiteral("test")));
+    omaweb::SqliteSessionStore store(root.path());
+    QVERIFY(store.open());
+    auto found = QByteArrayLiteral("no answer");
+    store.findFavicon(workSpaceId, address, [&found](const QByteArray &image) { found = image; });
+    QCOMPARE(found, QByteArray());
 }
 
 // Sound is the page's to report and muting is the reader's to decide, so the

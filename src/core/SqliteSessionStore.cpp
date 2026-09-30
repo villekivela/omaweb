@@ -16,14 +16,43 @@ namespace {
 
     // Deleting History takes the favicons of the pages it names, but not one
     // a tab in the Space's sidebar still shows. The sidebar is the Space's
-    // tab rows, which the session writes before it deletes anything.
-    constexpr auto notShownByATab = "page_url NOT IN (SELECT url FROM tabs)";
+    // tab rows, which the session writes before it deletes anything, and
+    // markShownFavicons lists what they show just before each deletion.
+    constexpr auto notShownByATab = "page_url NOT IN (SELECT page_url FROM shown_favicons)";
+
+    // A tab shows what findFavicon answers for its address: the page's own
+    // icon, or else the newest its site has. The list lives in the
+    // connection's temporary schema, so it is never written to disk.
+    void markShownFavicons(const QSqlDatabase &database)
+    {
+        QSqlQuery query(database);
+        query.exec(QStringLiteral(
+            "CREATE TEMP TABLE IF NOT EXISTS shown_favicons (page_url TEXT PRIMARY KEY)"));
+        query.exec(QStringLiteral("DELETE FROM shown_favicons"));
+        QSqlQuery tabs(database);
+        if (!tabs.exec(QStringLiteral("SELECT url FROM tabs"))) {
+            return;
+        }
+        QSqlQuery mark(database);
+        mark.prepare(QStringLiteral(
+            "INSERT OR IGNORE INTO shown_favicons(page_url) SELECT shown FROM (SELECT COALESCE("
+            "(SELECT page_url FROM favicons WHERE page_url = ?), (SELECT page_url FROM favicons "
+            "WHERE origin = ? ORDER BY updated_at DESC, rowid DESC LIMIT 1)) AS shown) "
+            "WHERE shown IS NOT NULL"));
+        while (tabs.next()) {
+            const auto url = tabs.value(0).toString();
+            mark.addBindValue(url);
+            mark.addBindValue(history::origin(QUrl(url)));
+            mark.exec();
+        }
+    }
 
     // A favicon is kept for a page the Space has History or a tab for. One
     // whose History has aged out, and that no tab shows, goes with it, so the
     // icons stay bounded by the History that is.
     void forgetUnnamedFavicons(const QSqlDatabase &database)
     {
+        markShownFavicons(database);
         QSqlQuery query(database);
         query.exec(QStringLiteral("DELETE FROM favicons WHERE page_url NOT IN "
                                   "(SELECT url FROM history) AND %1")
@@ -629,11 +658,14 @@ bool SqliteSessionStore::deleteHistoryVisit(const QString &spaceId, qint64 id)
     if (!database.transaction()) {
         return false;
     }
+    // A page with other visits is still in History, and keeps its icon.
+    markShownFavicons(database);
     QSqlQuery forgetFavicon(database);
     forgetFavicon.prepare(QStringLiteral(
         "DELETE FROM favicons WHERE page_url IN (SELECT url FROM history WHERE id = ?) "
-        "AND %1")
+        "AND page_url NOT IN (SELECT url FROM history WHERE id <> ?) AND %1")
             .arg(QLatin1String(notShownByATab)));
+    forgetFavicon.addBindValue(id);
     forgetFavicon.addBindValue(id);
     QSqlQuery query(database);
     query.prepare(QStringLiteral("DELETE FROM history WHERE id = ?"));
@@ -661,6 +693,7 @@ bool SqliteSessionStore::deleteHistoryOrigin(const QString &spaceId, const QStri
     if (!database.transaction()) {
         return false;
     }
+    markShownFavicons(database);
     QSqlQuery forgetFavicons(database);
     forgetFavicons.prepare(QStringLiteral("DELETE FROM favicons WHERE origin = ? AND %1")
             .arg(QLatin1String(notShownByATab)));
@@ -689,6 +722,7 @@ bool SqliteSessionStore::deleteHistorySince(const QString &spaceId, qint64 since
     }
     // The icons of the pages visited in the range, and any icon recorded in
     // it: a page can show an icon without its load finishing into History.
+    markShownFavicons(database);
     QSqlQuery forgetFavicons(database);
     forgetFavicons.prepare(
         QStringLiteral("DELETE FROM favicons WHERE (updated_at >= ? OR page_url IN "
