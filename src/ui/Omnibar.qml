@@ -66,10 +66,6 @@ Item {
     // something is typed.
     readonly property bool pageFocusRest: open && shownResting && !commandScope && engine === null
                                           && input.text.length === 0
-    // Whether Escape closes the Omnibar. A Space at rest has nothing behind
-    // its Start page to go back to, so there it does not.
-    property bool closeable: true
-
     // What the reader steps through, ranked against the typed text. In
     // command scope that is the commands alone.
     property var rows: []
@@ -183,10 +179,15 @@ Item {
     // The field as a fresh opening leaves it, for an Omnibar that is already
     // open: the Start page's, when the reader asks for it again.
     function restart() {
+        clearField();
+        Qt.callLater(focusField);
+    }
+
+    // The field as a fresh opening leaves it, wherever the keyboard is.
+    function clearField() {
         engine = null;
         input.text = commandScope ? "" : presetText;
         refresh();
-        Qt.callLater(focusField);
     }
 
     function focusField() {
@@ -546,6 +547,7 @@ Item {
                 }
 
                 Text {
+                    objectName: "omnibarColon"
                     anchors.centerIn: parent
                     visible: root.commandScope
                     text: ":"

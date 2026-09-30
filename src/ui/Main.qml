@@ -186,7 +186,6 @@ ApplicationWindow {
     // The Omnibar over a page. The Start page's Omnibar is the same one at
     // rest, and is open whenever the Start page is on show.
     property bool omnibarOpen: false
-    property bool newTabIntent: false
     // A new-tab request shows the Start page over the page on show, which
     // stays where it is until a destination is committed.
     property bool startPageSummoned: false
@@ -2227,15 +2226,14 @@ ApplicationWindow {
             window.startPageSummoned = true;
             return;
         }
-        newTabIntent = forNewTab;
-        const preset = forNewTab ? "" : window.windowBrowser.activeUrl.toString();
+        const preset = window.windowBrowser.activeUrl.toString();
         // Suggestions arrive from the search thread, so the panel opens on the
         // typing it was opened for rather than on a scan of the Space's
         // history finishing first.
         omnibarSuggestions = [];
         if (!window.privateWindow)
             window.windowBrowser.requestHistorySuggestions(preset);
-        omnibar.beginAddress(preset, forNewTab);
+        omnibar.beginAddress(preset, false);
         omnibarOpen = true;
     }
 
@@ -2396,7 +2394,6 @@ ApplicationWindow {
     // page stood over. A Start page standing in for no page stays.
     function closeOmnibar() {
         omnibarOpen = false;
-        newTabIntent = false;
         if (!window.startPageDriving)
             window.startPageSummoned = false;
         omnibarSuggestions = [];
@@ -2445,12 +2442,22 @@ ApplicationWindow {
     }
 
     // A tab switch or a Space switch leaves a summoned Start page behind: the
-    // page it stood over is no longer the page on show.
+    // page it stood over is no longer the page on show. A Start page still on
+    // show now stands in for another tab, perhaps in another Space, so what
+    // was typed and what that Space's history answered stay behind too. The
+    // keyboard stays where it was, which may be the sidebar the switch came
+    // from.
     Connections {
         target: window.windowBrowser
         function onActiveTabChanged() {
-            if (!window.startPageDriving)
-                window.startPageSummoned = false;
+            if (window.startPageDriving)
+                return;
+            window.startPageSummoned = false;
+            if (!window.startPageShown || window.omnibarOpen)
+                return;
+            window.omnibarSuggestions = [];
+            omnibar.beginAddress("", false);
+            omnibar.clearField();
         }
     }
 
@@ -3226,12 +3233,11 @@ ApplicationWindow {
 
                 ShortcutSheet {
                     id: shortcutSheet
-                    readonly property bool inPane: window.windowBrowser.splitOnShow
-                                                   && window.pagelessViewport &&
-                                                   !window.startPageSummoned
-                    x: inPane ? engineLoader.x + engineLoader.activePaneX : 0
+                    // Where the Start page stands, which is the page area or,
+                    // for a blank half of a split, that pane.
+                    x: startPage.x
                     y: 0
-                    width: inPane ? engineLoader.activePaneWidth : parent.width
+                    width: startPage.width
                     height: parent.height
                     z: 31
                     SheetLift {
@@ -4492,7 +4498,6 @@ ApplicationWindow {
         restArea: Qt.rect(chromeRow.seam + startPage.x, startPage.y, startPage.width,
                           startPage.height)
         horizonY: startPage.horizonY
-        closeable: !omnibar.resting || window.startPageSummoned || omnibar.commandScope
         suggestions: window.omnibarSuggestions
 
         onDismissed: {
@@ -4519,7 +4524,7 @@ ApplicationWindow {
                 window.commitFromStartPage(text);
                 return;
             }
-            window.windowBrowser.openInput(text, window.newTabIntent);
+            window.windowBrowser.openInput(text, false);
             window.closeOmnibar();
         }
     }
