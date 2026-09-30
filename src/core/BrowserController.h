@@ -464,6 +464,15 @@ public:
     void deleteTemporarySpaces();
     // Refuses a Space the reader made or took over, whatever asks.
     bool deleteAgentSpace(const QString &spaceId);
+    // A Space grant lets an Agent use one of the reader's Spaces until the
+    // reader revokes it. Like the Agent Space label it is kept in the session
+    // store, stays on this machine and never reaches Sync. An Agent Space
+    // needs none and is refused one.
+    Q_INVOKABLE bool spaceGranted(const QString &spaceId) const;
+    // In the order they were granted.
+    QStringList grantedSpaceIds() const;
+    bool grantSpace(const QString &spaceId);
+    bool revokeSpaceGrant(const QString &spaceId);
     // One Space's tabs: the Space on show from its live model, any other from
     // the store. Empty for a Space this window does not have.
     QVector<TabState> spaceTabs(const QString &spaceId) const;
@@ -529,6 +538,7 @@ signals:
     void certificateExceptionsChanged();
     void preferenceChanged(const QString &name);
     void agentSpacesChanged();
+    void spaceGrantsChanged();
     // A tab of a Space that is not on show was closed or given a new address
     // behind the page that Space is holding frozen. The page goes, so the tab
     // loads from its saved address when the Space is next shown.
@@ -673,6 +683,7 @@ private:
     QSharedPointer<SessionSiteState> m_sessionSiteState;
     // Agent Space id to the connection name that created it.
     QHash<QString, QString> m_agentSpaces;
+    QStringList m_spaceGrants;
     QSet<QString> m_temporarySpaceIds;
 };
 

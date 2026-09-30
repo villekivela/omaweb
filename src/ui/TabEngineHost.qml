@@ -1069,6 +1069,19 @@ Item {
                     root.engines[tabId].cancelAgentVerbs();
             }
         }
+
+        // The same, for the pages of a Space whose grant was revoked.
+        function onPageRequestsCancelledIn(targetIds) {
+            for (let index = 0; index < targetIds.length; ++index) {
+                const tabId = targetIds[index];
+                for (const requestId in root.pendingAgentRequests) {
+                    if (root.pendingAgentRequests[requestId] === tabId)
+                        delete root.pendingAgentRequests[requestId];
+                }
+                if (root.engines[tabId] && root.engines[tabId].cancelAgentVerbs)
+                    root.engines[tabId].cancelAgentVerbs();
+            }
+        }
     }
 
     onAgentControlChanged: root.syncAgentTabs()

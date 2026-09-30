@@ -1392,6 +1392,68 @@ TestCase {
         verify(browser.deleteSpace(workSpaceId, "Keybind work"));
     }
 
+    // An Agent asking for one of the reader's Spaces is asked about over the
+    // page on show, whichever Space it wants, and the bar leaves the reader's
+    // keyboard where it was. The reader's answer is the Agent's.
+    function test_anAgentAsksOnceForASpaceOverThePage() {
+        const startSpaceId = browser.activeSpaceId;
+        openPage("https://reader-typing.example/");
+        const grantSpaceId = browser.createSpace("Grant work");
+        verify(grantSpaceId.length > 0);
+        const opened = agentSocket.ask({
+                                           verb: "open",
+                                           name: "claude",
+                                           url: "https://work.example/",
+                                           space: "Grant work"
+                                       });
+        verify(opened.ok);
+        compare(browser.activeSpaceId, startSpaceId);
+        agentControl.allowAgents = true;
+
+        const bar = findChild(window.contentItem, "agentGrantBar");
+        verify(bar !== null);
+        compare(bar.visible, false);
+        const look = {
+            verb: "look",
+            name: "claude",
+            tab: opened.tab.id
+        };
+        const before = agentSocket.replies.length;
+        agentSocket.send(look);
+        tryCompare(bar, "visible", true);
+        compare(bar.prompt.message, "An Agent named claude wants to use Space Grant work");
+        compare(bar.activeFocus, false);
+        compare(agentSocket.replies.length, before);
+
+        mouseClick(findChild(bar, "browserPromptRefuse"));
+        tryCompare(bar, "visible", false);
+        compare(agentSocket.replies.length, before + 1);
+        compare(agentSocket.replies[before].code, "denied");
+        compare(agentControl.grantedSpaces.length, 0);
+
+        // The connection denied is not asked again; another one is.
+        agentSocket.send(look);
+        compare(agentSocket.replies.length, before + 2);
+        compare(agentSocket.replies[before + 1].code, "denied");
+        compare(bar.visible, false);
+        agentSocket.send(Object.assign({}, look, {
+                                           name: "script"
+                                       }));
+        tryCompare(bar, "visible", true);
+        compare(bar.prompt.message, "An Agent named script wants to use Space Grant work");
+        mouseClick(findChild(bar, "browserPromptAccept"));
+        tryCompare(bar, "visible", false);
+        compare(agentControl.grantedSpaces.length, 1);
+        compare(agentControl.grantedSpaces[0].spaceName, "Grant work");
+
+        // Revoked, the Space is the reader's alone again.
+        verify(agentControl.revokeGrant(grantSpaceId));
+        compare(agentControl.grantedSpaces.length, 0);
+        agentControl.allowAgents = false;
+        verify(browser.deleteSpace(grantSpaceId, "Grant work"));
+        compare(browser.activeSpaceId, startSpaceId);
+    }
+
     function test_sidebarHasNoNewTabButton() {
         const newTabButton = findChild(window.contentItem, "newTabButton");
         verify(newTabButton === null);
@@ -3576,6 +3638,7 @@ TestCase {
             signal agentTabsChanged
             signal pageRequested(int requestId, var request)
             signal pageRequestsCancelled
+            signal pageRequestsCancelledIn(var targetIds)
             signal windowCloseRequested(string windowId)
 
             function agentTab(tabId) {
